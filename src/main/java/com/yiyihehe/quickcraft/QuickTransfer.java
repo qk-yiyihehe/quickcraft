@@ -18,7 +18,6 @@ import net.minecraft.screen.slot.Slot;
 import net.minecraft.screen.slot.SlotActionType;
 import java.util.ArrayList;
 import java.util.Comparator;
-import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
@@ -33,10 +32,10 @@ import java.util.Set;
 public final class QuickTransfer implements ClientModInitializer {
     private static final int SLOT_SIZE = 18;
     private static final int SLIDE_SAMPLE_STEP = SLOT_SIZE / 2;
-    private static final Set<SlotKey> handledSlotsInGesture = new HashSet<>();
 
     private static HandledScreen<?> activeScreen;
     private static TransferMode activeMode = TransferMode.NONE;
+    private static SlotKey lastHoveredSlotKey;
     private static boolean hasLastMousePosition;
     private static double lastMouseX;
     private static double lastMouseY;
@@ -61,7 +60,8 @@ public final class QuickTransfer implements ClientModInitializer {
             return false;
         }
 
-        boolean handled = processHoveredSlot(screen, hoveredSlot, true, TransferMode.MATCHING);
+        boolean handled = processHoveredSlot(screen, hoveredSlot, TransferMode.MATCHING);
+        lastHoveredSlotKey = new SlotKey(screen.getScreenHandler(), hoveredSlot.id);
         hasLastMousePosition = true;
         lastMouseX = mouseX;
         lastMouseY = mouseY;
@@ -83,7 +83,8 @@ public final class QuickTransfer implements ClientModInitializer {
             return false;
         }
 
-        boolean handled = processHoveredSlot(screen, hoveredSlot, true, TransferMode.SLOT);
+        boolean handled = processHoveredSlot(screen, hoveredSlot, TransferMode.SLOT);
+        lastHoveredSlotKey = new SlotKey(screen.getScreenHandler(), hoveredSlot.id);
         hasLastMousePosition = true;
         lastMouseX = mouseX;
         lastMouseY = mouseY;
@@ -106,10 +107,18 @@ public final class QuickTransfer implements ClientModInitializer {
         double mouseY = getMouseY(client);
         ensureHoldGesture(screen, mode);
 
-        for (Slot slot : findHoveredSlotsAlongPath(screen, mouseX, mouseY)) {
-            processHoveredSlot(screen, slot, true, mode);
+        SlotKey previousHoveredSlotKey = lastHoveredSlotKey;
+        List<Slot> hoveredSlots = findHoveredSlotsAlongPath(screen, mouseX, mouseY);
+        for (Slot slot : hoveredSlots) {
+            SlotKey key = new SlotKey(screen.getScreenHandler(), slot.id);
+            if (key.equals(previousHoveredSlotKey)) {
+                continue;
+            }
+            processHoveredSlot(screen, slot, mode);
         }
 
+        Slot currentHoveredSlot = findHoveredSlot(screen, mouseX, mouseY);
+        lastHoveredSlotKey = currentHoveredSlot == null ? null : new SlotKey(screen.getScreenHandler(), currentHoveredSlot.id);
         hasLastMousePosition = true;
         lastMouseX = mouseX;
         lastMouseY = mouseY;
@@ -142,20 +151,19 @@ public final class QuickTransfer implements ClientModInitializer {
 
         activeScreen = screen;
         activeMode = mode;
+        lastHoveredSlotKey = null;
         hasLastMousePosition = false;
-        handledSlotsInGesture.clear();
     }
 
     private static void resetHoldGesture() {
         activeScreen = null;
         activeMode = TransferMode.NONE;
+        lastHoveredSlotKey = null;
         hasLastMousePosition = false;
-        handledSlotsInGesture.clear();
     }
 
     private static boolean processHoveredSlot(HandledScreen<?> screen,
                                               Slot hoveredSlot,
-                                              boolean rememberGestureSlot,
                                               TransferMode mode) {
         MinecraftClient client = MinecraftClient.getInstance();
         if (client.player == null || !isVisibleSlot(hoveredSlot)
@@ -169,11 +177,6 @@ public final class QuickTransfer implements ClientModInitializer {
                 && !canMoveFromPlayerStorage(screen.getScreenHandler())
                 && !isPlayerMainInventorySlot(hoveredSlot)
                 && !isPlayerHotbarSlot(hoveredSlot)) {
-            return false;
-        }
-
-        SlotKey key = new SlotKey(screen.getScreenHandler(), hoveredSlot.id);
-        if (rememberGestureSlot && !handledSlotsInGesture.add(key)) {
             return false;
         }
 
