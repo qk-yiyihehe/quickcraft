@@ -788,7 +788,7 @@ public class QuickCraftBackpack implements ClientModInitializer {
         try {
             return recipe.value().isIgnoredInRecipeBook();
         } catch (Throwable t) {
-            return true;
+            return false;
         }
     }
 

@@ -800,7 +800,7 @@ public class QuickCraftWorkbench implements ClientModInitializer {
         try {
             return recipe.value().isIgnoredInRecipeBook();
         } catch (Throwable t) {
-            return true;
+            return false;
         }
     }
 
