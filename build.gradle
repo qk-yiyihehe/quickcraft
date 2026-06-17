@@ -10,6 +10,17 @@ base {
 	archivesName = "${project.name}-mc${project.supported_minecraft_versions}"
 }
 
+loom {
+	runs {
+		client {
+			runDir "C:/Users/kangxuanhe/Desktop/project/quickcraft-template-1.21-1.21.1/run"
+		}
+		server {
+			runDir "C:/Users/kangxuanhe/Desktop/project/quickcraft-template-1.21-1.21.1/run"
+		}
+	}
+}
+
 repositories {
 	// Add repositories to retrieve artifacts from in here.
 	// You should only use this when depending on other mods because
