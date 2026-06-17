@@ -3,7 +3,7 @@
   "id": "quickcraft",
   "version": "${version}",
   "name": "QuickCraft",
-  "description": "QuickCraft 为 Minecraft 1.21-1.21.1 提供客户端快捷合成、容器整理与投影辅助功能。",
+  "description": "QuickCraft 客户端合成与容器交互增强",
   "authors": ["yiyihehe"],
   "contact": {},
   "license": "MIT",
@@ -42,13 +42,13 @@
   ],
   "depends": {
     "fabricloader": ">=0.15.0",
-    "minecraft": ">=1.21 <=1.21.1",
+    "minecraft": ">=1.21.2 <=1.21.3",
     "java": ">=21",
     "fabric-api": "*",
-    "malilib": ">=0.21.8"
+    "malilib": ">=0.22.8"
   },
   "suggests": {
-    "litematica": ">=0.19.57",
+    "litematica": ">=0.20.8",
     "quickshulker": "*"
   }
 }

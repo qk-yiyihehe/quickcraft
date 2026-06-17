@@ -52,8 +52,8 @@ public abstract class CraftActionButtonMixin extends HandledScreen<CraftingScree
                 .build());
     }
 
-    @Inject(method = "render", at = @At("HEAD"))
-    private void quickcraft$syncCraftButton(DrawContext context, int mouseX, int mouseY, float delta, CallbackInfo ci) {
+    @Inject(method = "drawBackground", at = @At("HEAD"))
+    private void quickcraft$syncCraftButton(DrawContext context, float delta, int mouseX, int mouseY, CallbackInfo ci) {
         if (this.quickcraft$craftButton == null) {
             return;
         }

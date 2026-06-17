@@ -25,7 +25,7 @@ public final class QuickLitematicaVerifierPalette {
     private static final int GHOST_MASK_ALPHA = 0x78;
     private static final float BORDER_LIGHTEN = 0.45F;
     private static final float MASK_LIGHTEN = 0.78F;
-    private static final float GHOST_ITEM_ALPHA = 0.80F;
+    private static final float GHOST_ITEM_ALPHA = 0.30F;
 
     private QuickLitematicaVerifierPalette() {
     }

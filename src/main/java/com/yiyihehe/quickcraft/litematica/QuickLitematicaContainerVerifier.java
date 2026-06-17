@@ -1,9 +1,7 @@
 package com.yiyihehe.quickcraft.litematica;
 
 import com.chocohead.mm.api.ClassTinkerers;
-import com.mojang.blaze3d.platform.GlStateManager;
 import com.mojang.blaze3d.systems.RenderSystem;
-import com.mojang.blaze3d.systems.VertexSorter;
 import com.yiyihehe.quickcraft.QuickContainerCopy;
 import com.yiyihehe.quickcraft.config.QuickCraftConfigs;
 import net.fabricmc.loader.api.FabricLoader;
@@ -34,21 +32,18 @@ import net.minecraft.block.entity.BlockEntity;
 import net.minecraft.block.entity.CrafterBlockEntity;
 import net.minecraft.block.enums.ChestType;
 import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.gl.Framebuffer;
-import net.minecraft.client.gl.SimpleFramebuffer;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.gui.screen.ingame.HandledScreen;
-import net.minecraft.client.render.BufferBuilder;
-import net.minecraft.client.render.BufferRenderer;
-import net.minecraft.client.render.GameRenderer;
-import net.minecraft.client.render.Tessellator;
-import net.minecraft.client.render.VertexFormat;
-import net.minecraft.client.render.VertexFormats;
-import net.minecraft.client.util.Window;
+import net.minecraft.client.render.DiffuseLighting;
+import net.minecraft.client.render.OverlayTexture;
+import net.minecraft.client.render.VertexConsumer;
+import net.minecraft.client.render.VertexConsumerProvider;
+import net.minecraft.client.render.model.BakedModel;
 import net.minecraft.entity.player.PlayerInventory;
 import net.minecraft.inventory.Inventory;
 import net.minecraft.inventory.SimpleInventory;
 import net.minecraft.item.ItemStack;
+import net.minecraft.item.ModelTransformationMode;
 import net.minecraft.nbt.NbtCompound;
 import net.minecraft.screen.CrafterScreenHandler;
 import net.minecraft.screen.ScreenHandler;
@@ -60,8 +55,6 @@ import net.minecraft.util.hit.BlockHitResult;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.world.World;
 import org.apache.commons.lang3.tuple.Pair;
-import org.joml.Matrix4f;
-import org.lwjgl.opengl.GL30;
 
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -1232,13 +1225,7 @@ public final class QuickLitematicaContainerVerifier {
         }
     }
 
-    /**
-     * 参考 techutils 的透明缓冲做法，让 GUI 里的物品本体也能真正半透明。
-     */
     private static final class GhostItemBuffer {
-        private static Framebuffer framebuffer;
-        private static int previousFramebuffer;
-
         private GhostItemBuffer() {
         }
 
@@ -1256,80 +1243,88 @@ public final class QuickLitematicaContainerVerifier {
                 return;
             }
 
-            Framebuffer framebuffer = getFramebuffer();
-            previousFramebuffer = GlStateManager.getBoundFramebuffer();
-            framebuffer.clear(MinecraftClient.IS_SYSTEM_MAC);
-            framebuffer.beginWrite(false);
-
-            context.drawItem(stack, x, y);
-            context.drawItemInSlot(client.textRenderer, stack, x, y);
-
-            GlStateManager._glBindFramebuffer(GL30.GL_FRAMEBUFFER, previousFramebuffer);
-
-            RenderSystem.enableBlend();
-            RenderSystem.defaultBlendFunc();
-            RenderSystem.setShaderColor(1.0F, 1.0F, 1.0F, alpha);
-
-            context.getMatrices().push();
-            context.getMatrices().translate(-guiLeft, -guiTop, 0.0F);
-            drawFramebuffer(context, framebuffer);
-            context.getMatrices().pop();
-
-            RenderSystem.setShaderColor(1.0F, 1.0F, 1.0F, 1.0F);
+            drawItemWithAlpha(context, client, stack, x, y, alpha);
+            context.drawStackOverlay(client.textRenderer, stack, x, y);
         }
 
-        private static Framebuffer getFramebuffer() {
-            MinecraftClient client = MinecraftClient.getInstance();
-            Window window = client.getWindow();
-            int framebufferWidth = window.getFramebufferWidth();
-            int framebufferHeight = window.getFramebufferHeight();
+        private static void drawItemWithAlpha(DrawContext context,
+                                              MinecraftClient client,
+                                              ItemStack stack,
+                                              int x,
+                                              int y,
+                                              float alpha) {
+            BakedModel model = client.getItemRenderer().getModel(stack, client.world, client.player, 0);
+            context.getMatrices().push();
+            context.getMatrices().translate(x + 8.0F, y + 8.0F, 150.0F);
+            context.getMatrices().scale(16.0F, -16.0F, 16.0F);
 
-            if (framebuffer == null) {
-                framebuffer = new SimpleFramebuffer(framebufferWidth, framebufferHeight, true, MinecraftClient.IS_SYSTEM_MAC);
-                framebuffer.setClearColor(0.0F, 0.0F, 0.0F, 0.0F);
-            } else if (framebuffer.textureWidth != framebufferWidth || framebuffer.textureHeight != framebufferHeight) {
-                framebuffer.resize(framebufferWidth, framebufferHeight, MinecraftClient.IS_SYSTEM_MAC);
-                framebuffer.setClearColor(0.0F, 0.0F, 0.0F, 0.0F);
+            boolean disableSideLighting = !model.isSideLit();
+            if (disableSideLighting) {
+                context.draw();
+                DiffuseLighting.disableGuiDepthLighting();
             }
 
-            return framebuffer;
+            int alphaColor = Math.max(0, Math.min(255, Math.round(alpha * 255.0F)));
+            VertexConsumerProvider alphaProvider = layer -> new AlphaVertexConsumer(
+                    client.getBufferBuilders().getEntityVertexConsumers().getBuffer(layer),
+                    alphaColor
+            );
+            RenderSystem.enableBlend();
+            RenderSystem.defaultBlendFunc();
+            client.getItemRenderer().renderItem(
+                    stack,
+                    ModelTransformationMode.GUI,
+                    false,
+                    context.getMatrices(),
+                    alphaProvider,
+                    15728880,
+                    OverlayTexture.DEFAULT_UV,
+                    model
+            );
+            client.getBufferBuilders().getEntityVertexConsumers().draw();
+
+            if (disableSideLighting) {
+                DiffuseLighting.enableGuiDepthLighting();
+            }
+            context.getMatrices().pop();
         }
 
-        private static void drawFramebuffer(DrawContext context, Framebuffer framebuffer) {
-            RenderSystem.setShaderTexture(0, framebuffer.getColorAttachment());
-            RenderSystem.setShader(GameRenderer::getPositionTexProgram);
-            RenderSystem.backupProjectionMatrix();
+        private record AlphaVertexConsumer(VertexConsumer delegate, int alpha) implements VertexConsumer {
+            @Override
+            public VertexConsumer vertex(float x, float y, float z) {
+                this.delegate.vertex(x, y, z);
+                return this;
+            }
 
-            Matrix4f projection = new Matrix4f()
-                    .setOrtho(
-                            0.0F,
-                            context.getScaledWindowWidth(),
-                            context.getScaledWindowHeight(),
-                            0.0F,
-                            1000.0F,
-                            21000.0F
-                    );
-            RenderSystem.setProjectionMatrix(projection, VertexSorter.BY_Z);
+            @Override
+            public VertexConsumer color(int red, int green, int blue, int alpha) {
+                this.delegate.color(red, green, blue, Math.round(alpha * (this.alpha / 255.0F)));
+                return this;
+            }
 
-            Matrix4f positionMatrix = context.getMatrices().peek().getPositionMatrix();
-            BufferBuilder bufferBuilder = Tessellator.getInstance().begin(VertexFormat.DrawMode.QUADS, VertexFormats.POSITION_TEXTURE);
+            @Override
+            public VertexConsumer texture(float u, float v) {
+                this.delegate.texture(u, v);
+                return this;
+            }
 
-            float x1 = 0.0F;
-            float y1 = 0.0F;
-            float x2 = context.getScaledWindowWidth();
-            float y2 = context.getScaledWindowHeight();
-            float u1 = 0.0F;
-            float v1 = 1.0F;
-            float u2 = 1.0F;
-            float v2 = 0.0F;
+            @Override
+            public VertexConsumer overlay(int u, int v) {
+                this.delegate.overlay(u, v);
+                return this;
+            }
 
-            bufferBuilder.vertex(positionMatrix, x1, y1, 0.0F).texture(u1, v1);
-            bufferBuilder.vertex(positionMatrix, x1, y2, 0.0F).texture(u1, v2);
-            bufferBuilder.vertex(positionMatrix, x2, y2, 0.0F).texture(u2, v2);
-            bufferBuilder.vertex(positionMatrix, x2, y1, 0.0F).texture(u2, v1);
+            @Override
+            public VertexConsumer light(int u, int v) {
+                this.delegate.light(u, v);
+                return this;
+            }
 
-            BufferRenderer.drawWithGlobalProgram(bufferBuilder.end());
-            RenderSystem.restoreProjectionMatrix();
+            @Override
+            public VertexConsumer normal(float x, float y, float z) {
+                this.delegate.normal(x, y, z);
+                return this;
+            }
         }
     }
 }

@@ -6,16 +6,23 @@ plugins {
 version = project.mod_version
 group = project.maven_group
 
-base {
-	archivesName = "${project.name}-mc${project.supported_minecraft_versions}"
-}
-
 repositories {
 	// Add repositories to retrieve artifacts from in here.
 	// You should only use this when depending on other mods because
 	// Loom adds the essential maven repositories to download Minecraft and libraries from automatically.
 	// See https://docs.gradle.org/current/userguide/declaring_repositories.html
 	// for more information about repositories.
+	exclusiveContent {
+		forRepository {
+			maven {
+				name = "FallenBreath"
+				url = "https://maven.fallenbreath.me/releases"
+			}
+		}
+		filter {
+			includeGroup "me.fallenbreath"
+		}
+	}
 	maven {
 		name = "masa"
 		url = "https://masa.dy.fi/maven/sakura-ryoko/"
@@ -43,14 +50,15 @@ dependencies {
 	// Fabric API. This is technically optional, but you probably want it anyway.
 	modImplementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_api_version}"
 	modImplementation include("com.github.Chocohead:Fabric-ASM:v${project.fabric_asm_version}")
-	modImplementation "fi.dy.masa.malilib:malilib-fabric-1.21:${project.malilib_version}"
-	modCompileOnly "fi.dy.masa.litematica:litematica-fabric-1.21:${project.litematica_version}"
-	modLocalRuntime "fi.dy.masa.litematica:litematica-fabric-1.21:${project.litematica_version}"
+	modImplementation "fi.dy.masa.malilib:malilib-fabric-1.21.3:${project.malilib_version}"
+	modCompileOnly "fi.dy.masa.litematica:litematica-fabric-1.21.3:${project.litematica_version}"
+	modLocalRuntime "fi.dy.masa.litematica:litematica-fabric-1.21.3:${project.litematica_version}"
 	modCompileOnly "com.terraformersmc:modmenu:${project.modmenu_version}"
 	modLocalRuntime "com.terraformersmc:modmenu:${project.modmenu_version}"
 	modLocalRuntime("net.kyrptonaught:quickshulker:${project.quickshulker_version}") {
 		transitive = false
 	}
+	modLocalRuntime "me.fallenbreath:conditional-mixin-fabric:${project.conditional_mixin_version}"
 	
 }
 

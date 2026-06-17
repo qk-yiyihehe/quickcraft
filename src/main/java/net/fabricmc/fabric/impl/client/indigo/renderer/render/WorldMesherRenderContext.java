@@ -40,7 +40,7 @@ public class WorldMesherRenderContext extends AbstractBlockRenderContext {
             this.blockView = blockView;
             this.blockInfo.prepareForWorld(blockView, true);
 
-            Vec3d offset = blockState.getModelOffset(blockView, blockPos);
+            Vec3d offset = blockState.getModelOffset(blockPos);
             matrixStack.translate(offset.x, offset.y, offset.z);
 
             this.matrix = matrixStack.peek().getPositionMatrix();

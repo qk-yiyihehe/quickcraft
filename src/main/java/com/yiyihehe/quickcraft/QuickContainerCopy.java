@@ -31,8 +31,8 @@ import net.minecraft.item.BlockItem;
 import net.minecraft.item.Item;
 import net.minecraft.item.ItemStack;
 import net.minecraft.item.Items;
+import net.minecraft.item.MiningToolItem;
 import net.minecraft.item.SwordItem;
-import net.minecraft.item.ToolItem;
 import net.minecraft.network.packet.CustomPayload;
 import net.minecraft.registry.Registries;
 import net.minecraft.screen.AbstractFurnaceScreenHandler;
@@ -2196,7 +2196,7 @@ public final class QuickContainerCopy implements ClientModInitializer {
         }
 
         Item item = stack.getItem();
-        return isDiamondOrNetheriteItem(item) && (item instanceof ToolItem
+        return isDiamondOrNetheriteItem(item) && (item instanceof MiningToolItem
                 || item instanceof SwordItem
                 || item instanceof ArmorItem);
     }

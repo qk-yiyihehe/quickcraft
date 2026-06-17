@@ -1,9 +1,11 @@
 package com.yiyihehe.quickcraft.litematica;
 
 import com.mojang.blaze3d.systems.RenderSystem;
+import com.mojang.blaze3d.systems.ProjectionType;
 import com.mojang.blaze3d.systems.VertexSorter;
 import com.yiyihehe.quickcraft.config.QuickCraftConfigs;
 import fi.dy.masa.litematica.render.schematic.ChunkCacheSchematic;
+import fi.dy.masa.litematica.render.schematic.WorldRendererSchematic;
 import fi.dy.masa.litematica.schematic.LitematicaSchematic;
 import fi.dy.masa.litematica.schematic.container.LitematicaBlockStateContainer;
 import fi.dy.masa.litematica.selection.Box;
@@ -19,11 +21,13 @@ import net.fabricmc.fabric.api.renderer.v1.RendererAccess;
 import net.fabricmc.fabric.impl.client.indigo.renderer.IndigoRenderer;
 import net.fabricmc.fabric.impl.client.indigo.renderer.render.WorldMesherRenderContext;
 import net.minecraft.SharedConstants;
+import net.minecraft.block.Block;
 import net.minecraft.block.BlockEntityProvider;
 import net.minecraft.block.BlockRenderType;
 import net.minecraft.block.BlockState;
 import net.minecraft.block.entity.BlockEntity;
 import net.minecraft.client.MinecraftClient;
+import net.minecraft.client.gl.GlUsage;
 import net.minecraft.client.gl.VertexBuffer;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.render.BufferBuilder;
@@ -50,14 +54,14 @@ import net.minecraft.nbt.NbtIo;
 import net.minecraft.nbt.NbtList;
 import net.minecraft.nbt.NbtSizeTracker;
 import net.minecraft.registry.DynamicRegistryManager;
-import net.minecraft.registry.Registries;
+import net.minecraft.registry.RegistryEntryLookup;
+import net.minecraft.registry.RegistryKeys;
 import net.minecraft.registry.entry.RegistryEntry;
 import net.minecraft.util.Util;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.Direction;
 import net.minecraft.util.math.RotationAxis;
 import net.minecraft.util.math.random.Random;
-import net.minecraft.util.profiler.Profiler;
 import net.minecraft.world.BlockRenderView;
 import net.minecraft.world.MutableWorldProperties;
 import net.minecraft.world.biome.ColorResolver;
@@ -94,7 +98,6 @@ import java.util.WeakHashMap;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.function.Supplier;
 
 /**
  * Litematica 文件浏览器里的真实方块模型 3D 预览。
@@ -451,7 +454,7 @@ public final class QuickLitematicaPreview3D {
                     built.sortQuads(allocator, VertexSorter.byDistance(0.0F, 0.0F, 1000.0F));
                 }
 
-                VertexBuffer buffer = new VertexBuffer(VertexBuffer.Usage.STATIC);
+                VertexBuffer buffer = new VertexBuffer(GlUsage.STATIC_WRITE);
                 buffer.bind();
                 buffer.upload(built);
                 VertexBuffer.unbind();
@@ -477,7 +480,7 @@ public final class QuickLitematicaPreview3D {
             RenderSystem.backupProjectionMatrix();
 
             float aspectRatio = client.getWindow().getFramebufferWidth() / (float) client.getWindow().getFramebufferHeight();
-            RenderSystem.setProjectionMatrix(new Matrix4f().setOrtho(-aspectRatio, aspectRatio, -1.0F, 1.0F, -1000.0F, 3000.0F), VertexSorter.BY_Z);
+            RenderSystem.setProjectionMatrix(new Matrix4f().setOrtho(-aspectRatio, aspectRatio, -1.0F, 1.0F, -1000.0F, 3000.0F), ProjectionType.ORTHOGRAPHIC);
             RenderSystem.enableDepthTest();
             RenderSystem.enableBlend();
             RenderSystem.defaultBlendFunc();
@@ -491,14 +494,11 @@ public final class QuickLitematicaPreview3D {
             float scale = data.scaleFactor(size, client.currentScreen.height) * drag.scale;
             modelView.scale(scale, scale, scale);
             modelView.translate(-data.sizeX() / 2.0F, -data.sizeY() / 2.0F, -data.sizeZ() / 2.0F);
-            RenderSystem.applyModelViewMatrix();
-
             this.applyLight(modelView);
             this.drawDynamic(data);
             this.drawBuffers(modelView);
 
             modelView.popMatrix();
-            RenderSystem.applyModelViewMatrix();
             RenderSystem.disableDepthTest();
             RenderSystem.disableBlend();
             RenderSystem.restoreProjectionMatrix();
@@ -544,7 +544,6 @@ public final class QuickLitematicaPreview3D {
                         entity.y(),
                         entity.z(),
                         entity.entity().getYaw(0.0F),
-                        0.0F,
                         matrices,
                         client.getBufferBuilders().getEntityVertexConsumers(),
                         entity.light()
@@ -1206,9 +1205,13 @@ public final class QuickLitematicaPreview3D {
     private record LayerMesh(LayerKey layer, List<PreviewVertex> vertices) {
     }
 
+    private static RegistryEntryLookup<Block> blockLookup(DynamicRegistryManager registryManager) {
+        return registryManager.getOrThrow(RegistryKeys.BLOCK);
+    }
+
     private record BlockStateData(int x, int y, int z, NbtCompound stateNbt) {
-        private BlockState state() {
-            return NbtHelper.toBlockState(Registries.BLOCK.getReadOnlyWrapper(), this.stateNbt);
+        private BlockState state(DynamicRegistryManager registryManager) {
+            return NbtHelper.toBlockState(blockLookup(registryManager), this.stateNbt);
         }
     }
 
@@ -1321,7 +1324,7 @@ public final class QuickLitematicaPreview3D {
     private record BlockEntityData(int x, int y, int z, NbtCompound stateNbt, NbtCompound entityNbt) {
         @Nullable
         private BlockEntity instantiate(DummyWorld world) {
-            BlockState state = NbtHelper.toBlockState(Registries.BLOCK.getReadOnlyWrapper(), this.stateNbt);
+            BlockState state = NbtHelper.toBlockState(blockLookup(world.getRegistryManager()), this.stateNbt);
             if (!(state.getBlock() instanceof BlockEntityProvider provider)) {
                 return null;
             }
@@ -1355,7 +1358,7 @@ public final class QuickLitematicaPreview3D {
             DummyWorld world = DummyWorld.fromWorld(client.world);
             Map<BlockPos, BlockState> blockStates = new HashMap<>();
             for (BlockStateData data : blockStateData) {
-                blockStates.put(new BlockPos(data.x(), data.y(), data.z()), data.state());
+                blockStates.put(new BlockPos(data.x(), data.y(), data.z()), data.state(world.getRegistryManager()));
             }
             world.setBlockStates(blockStates);
 
@@ -1500,12 +1503,12 @@ public final class QuickLitematicaPreview3D {
         private Map<BlockPos, BlockState> blockStates = Map.of();
         private Map<BlockPos, BlockEntity> blockEntities = Map.of();
 
-        private DummyWorld(MutableWorldProperties properties, DynamicRegistryManager registryManager, RegistryEntry<DimensionType> dimensionEntry, Supplier<Profiler> profiler) {
-            super(properties, registryManager, dimensionEntry, profiler, null);
+        private DummyWorld(MutableWorldProperties properties, DynamicRegistryManager registryManager, RegistryEntry<DimensionType> dimensionEntry, WorldRendererSchematic renderer) {
+            super(properties, registryManager, dimensionEntry, renderer);
         }
 
         private static DummyWorld fromWorld(ClientWorld world) {
-            return new DummyWorld(world.getLevelProperties(), world.getRegistryManager(), world.getDimensionEntry(), world.getProfilerSupplier());
+            return new DummyWorld(world.getLevelProperties(), world.getRegistryManager(), world.getDimensionEntry(), new WorldRendererSchematic(MinecraftClient.getInstance()));
         }
 
         private void setBlockStates(Map<BlockPos, BlockState> blockStates) {

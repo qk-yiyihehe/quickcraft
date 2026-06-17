@@ -757,12 +757,12 @@ public final class QuickCraftConfigs implements IConfigHandler {
         return ContainerTools.SHOW_SLOT_LOCK_OVERLAY.getBooleanValue();
     }
 
-    public static boolean isLitematica3DPreviewEnabled() {
-        return ProjectionTools.SHOW_LITEMATICA_3D_PREVIEW.getBooleanValue();
-    }
-
     public static boolean isLitematicaContainerMaterialListButtonVisible() {
         return ProjectionTools.SHOW_LITEMATICA_CONTAINER_MATERIAL_BUTTON.getBooleanValue();
+    }
+
+    public static boolean isLitematica3DPreviewEnabled() {
+        return ProjectionTools.SHOW_LITEMATICA_3D_PREVIEW.getBooleanValue();
     }
 
     public static boolean isLitematicaContainerVerifierEnabled() {
