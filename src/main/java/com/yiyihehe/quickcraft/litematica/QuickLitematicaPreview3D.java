@@ -109,7 +109,7 @@ public final class QuickLitematicaPreview3D {
     private static final int CACHE_FORMAT_VERSION = 6;
     private static final int CACHE_MAGIC = 0x51435033; // QCP3
     private static final String CACHE_DIR_NAME = "litematica-preview-cache";
-    private static final String CACHE_RENDER_MARKER = "quickcraft-model-mesh-v6-large-detailed-mc1.21";
+    private static final String CACHE_RENDER_MARKER = "quickcraft-model-mesh-v6-large-detailed-mc1.21.3-dynamic-v2";
     private static final int MAX_PREVIEW_SIZE = 512;
     // 真实模型预览保留一个很高的硬上限，避免极端文件把游戏直接打死。
     private static final int MAX_UPLOAD_VERTICES = 30_000_000;
@@ -532,7 +532,14 @@ public final class QuickLitematicaPreview3D {
             scene.blockEntities().forEach((pos, entity) -> {
                 matrices.push();
                 matrices.translate(pos.getX(), pos.getY(), pos.getZ());
-                client.getBlockEntityRenderDispatcher().render(entity, 0.0F, matrices, client.getBufferBuilders().getEntityVertexConsumers());
+                // 1.21.3 的高层方块实体渲染会按真实相机做距离判断，预览里的离屏假世界不能走那条路径。
+                client.getBlockEntityRenderDispatcher().renderEntity(
+                        entity,
+                        matrices,
+                        client.getBufferBuilders().getEntityVertexConsumers(),
+                        LightmapTextureManager.MAX_LIGHT_COORDINATE,
+                        OverlayTexture.DEFAULT_UV
+                );
                 matrices.pop();
             });
             this.flushDynamic();
