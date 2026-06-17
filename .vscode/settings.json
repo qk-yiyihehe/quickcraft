@@ -1,0 +1,10 @@
+{
+    "git.repositoryScanIgnoredFolders": [
+        "quickcraft-template-1.21-1.21.1",
+        "quickcraft-template-1.21.2-1.21.3",
+        "_archived-old-git"
+    ],
+    "git.autoRepositoryDetection": "subFolders",
+    "java.configuration.updateBuildConfiguration": "interactive",
+    "java.compile.nullAnalysis.mode": "automatic"
+}
