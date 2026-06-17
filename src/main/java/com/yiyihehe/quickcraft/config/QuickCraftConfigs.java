@@ -462,6 +462,11 @@ public final class QuickCraftConfigs implements IConfigHandler {
                 "LEFT_ALT,BUTTON_1",
                 GUI_PRESS
         ).apply(HOTKEY_TRANSLATION_PREFIX);
+        public static final ConfigHotkey SLOT_QUICK_TRANSFER = new ConfigHotkey(
+                "slotQuickTransferHotkey",
+                "LEFT_SHIFT,BUTTON_1",
+                GUI_PRESS
+        ).apply(HOTKEY_TRANSLATION_PREFIX);
         public static final ConfigHotkey SLOT_LOCK = new ConfigHotkey(
                 "slotLockHotkey",
                 "LEFT_ALT,BUTTON_2",
@@ -491,6 +496,7 @@ public final class QuickCraftConfigs implements IConfigHandler {
                 DROP_MATCHING,
                 DROP_WHOLE_STACK,
                 QUICK_TRANSFER,
+                SLOT_QUICK_TRANSFER,
                 SLOT_LOCK,
                 COPY_CONTAINER_TEMPLATE,
                 CONTINUOUS_CONTAINER_FILL,
@@ -505,6 +511,7 @@ public final class QuickCraftConfigs implements IConfigHandler {
                 DROP_MATCHING,
                 DROP_WHOLE_STACK,
                 QUICK_TRANSFER,
+                SLOT_QUICK_TRANSFER,
                 SLOT_LOCK,
                 COPY_CONTAINER_TEMPLATE,
                 CONTINUOUS_CONTAINER_FILL,
@@ -547,6 +554,7 @@ public final class QuickCraftConfigs implements IConfigHandler {
                 Hotkeys.DROP_MATCHING,
                 Hotkeys.DROP_WHOLE_STACK,
                 Hotkeys.QUICK_TRANSFER,
+                Hotkeys.SLOT_QUICK_TRANSFER,
                 Hotkeys.SLOT_LOCK,
                 Hotkeys.COPY_CONTAINER_TEMPLATE,
                 Hotkeys.CONTINUOUS_CONTAINER_FILL,

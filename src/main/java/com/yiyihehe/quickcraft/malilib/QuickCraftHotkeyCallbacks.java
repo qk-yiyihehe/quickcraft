@@ -32,6 +32,7 @@ public final class QuickCraftHotkeyCallbacks {
         QuickCraftConfigs.Hotkeys.DROP_MATCHING.getKeybind().setCallback((action, key) -> handleThrow(action, true));
         QuickCraftConfigs.Hotkeys.DROP_WHOLE_STACK.getKeybind().setCallback((action, key) -> handleThrow(action, false));
         QuickCraftConfigs.Hotkeys.QUICK_TRANSFER.getKeybind().setCallback(QuickCraftHotkeyCallbacks::handleQuickTransfer);
+        QuickCraftConfigs.Hotkeys.SLOT_QUICK_TRANSFER.getKeybind().setCallback(QuickCraftHotkeyCallbacks::handleSlotQuickTransfer);
         QuickCraftConfigs.Hotkeys.SLOT_LOCK.getKeybind().setCallback(QuickCraftHotkeyCallbacks::handleSlotLock);
         QuickCraftConfigs.Hotkeys.COPY_CONTAINER_TEMPLATE.getKeybind().setCallback(QuickCraftHotkeyCallbacks::handleCopyContainerTemplate);
         QuickCraftConfigs.Hotkeys.CONTINUOUS_CONTAINER_FILL.getKeybind().setCallback(QuickCraftHotkeyCallbacks::handleContinuousContainerFill);
@@ -70,6 +71,10 @@ public final class QuickCraftHotkeyCallbacks {
 
     private static boolean handleQuickTransfer(KeyAction action, IKeybind keybind) {
         return action == KeyAction.PRESS && QuickTransfer.handleQuickTransferHotkey();
+    }
+
+    private static boolean handleSlotQuickTransfer(KeyAction action, IKeybind keybind) {
+        return action == KeyAction.PRESS && QuickTransfer.handleSlotQuickTransferHotkey();
     }
 
     private static boolean handleSlotLock(KeyAction action, IKeybind keybind) {
