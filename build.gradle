@@ -9,10 +9,10 @@ group = project.maven_group
 loom {
 	runs {
 		client {
-			runDir "../../quickcraft-template-1.21.2-1.21.3/run"
+			runDir "run"
 		}
 		server {
-			runDir "../../quickcraft-template-1.21.2-1.21.3/run"
+			runDir "run"
 		}
 	}
 }
