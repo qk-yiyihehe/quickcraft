@@ -1,6 +1,8 @@
 package com.yiyihehe.quickcraft;
 
 import com.yiyihehe.quickcraft.config.QuickCraftConfigs;
+import com.yiyihehe.quickcraft.mixin.CreativeInventoryScreenInvoker;
+import com.yiyihehe.quickcraft.mixin.CreativeSlotAccessor;
 import com.yiyihehe.quickcraft.mixin.HandledScreenAccessor;
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
@@ -61,7 +63,7 @@ public final class QuickTransfer implements ClientModInitializer {
         }
 
         boolean handled = processHoveredSlot(screen, hoveredSlot, TransferMode.MATCHING);
-        lastHoveredSlotKey = new SlotKey(screen.getScreenHandler(), hoveredSlot.id);
+        lastHoveredSlotKey = createSlotKey(screen, hoveredSlot);
         hasLastMousePosition = true;
         lastMouseX = mouseX;
         lastMouseY = mouseY;
@@ -84,7 +86,7 @@ public final class QuickTransfer implements ClientModInitializer {
         }
 
         boolean handled = processHoveredSlot(screen, hoveredSlot, TransferMode.SLOT);
-        lastHoveredSlotKey = new SlotKey(screen.getScreenHandler(), hoveredSlot.id);
+        lastHoveredSlotKey = createSlotKey(screen, hoveredSlot);
         hasLastMousePosition = true;
         lastMouseX = mouseX;
         lastMouseY = mouseY;
@@ -110,7 +112,7 @@ public final class QuickTransfer implements ClientModInitializer {
         SlotKey previousHoveredSlotKey = lastHoveredSlotKey;
         List<Slot> hoveredSlots = findHoveredSlotsAlongPath(screen, mouseX, mouseY);
         for (Slot slot : hoveredSlots) {
-            SlotKey key = new SlotKey(screen.getScreenHandler(), slot.id);
+            SlotKey key = createSlotKey(screen, slot);
             if (key.equals(previousHoveredSlotKey)) {
                 continue;
             }
@@ -118,7 +120,7 @@ public final class QuickTransfer implements ClientModInitializer {
         }
 
         Slot currentHoveredSlot = findHoveredSlot(screen, mouseX, mouseY);
-        lastHoveredSlotKey = currentHoveredSlot == null ? null : new SlotKey(screen.getScreenHandler(), currentHoveredSlot.id);
+        lastHoveredSlotKey = currentHoveredSlot == null ? null : createSlotKey(screen, currentHoveredSlot);
         hasLastMousePosition = true;
         lastMouseX = mouseX;
         lastMouseY = mouseY;
@@ -129,8 +131,6 @@ public final class QuickTransfer implements ClientModInitializer {
                 && client.player != null
                 && client.interactionManager != null
                 && !isTextInputFocused(screen)
-                // 创造物品栏没有真实“目标容器”，在这里批量转移只会制造幽灵物品，直接禁用。
-                && !(screen instanceof CreativeInventoryScreen)
                 && screen.getScreenHandler().getCursorStack().isEmpty();
     }
 
@@ -166,9 +166,15 @@ public final class QuickTransfer implements ClientModInitializer {
                                               Slot hoveredSlot,
                                               TransferMode mode) {
         MinecraftClient client = MinecraftClient.getInstance();
-        if (client.player == null || !isVisibleSlot(hoveredSlot)
-                || !hoveredSlot.hasStack()
-                || !hoveredSlot.canTakeItems(client.player)) {
+        if (client.player == null || !isVisibleSlot(hoveredSlot)) {
+            return false;
+        }
+
+        if (screen instanceof CreativeInventoryScreen creativeScreen) {
+            return processCreativeHoveredSlot(creativeScreen, hoveredSlot);
+        }
+
+        if (!hoveredSlot.hasStack() || !hoveredSlot.canTakeItems(client.player)) {
             return false;
         }
 
@@ -193,6 +199,70 @@ public final class QuickTransfer implements ClientModInitializer {
         }
 
         return handled;
+    }
+
+    private static boolean processCreativeHoveredSlot(CreativeInventoryScreen screen, Slot hoveredSlot) {
+        MinecraftClient client = MinecraftClient.getInstance();
+        // 创造界面也只连续触发原版 Shift 点击，不直接改玩家物品。
+        if (client.player == null
+                || !isCreativePlayerStorageSlot(hoveredSlot)
+                || !hoveredSlot.hasStack()
+                || !hoveredSlot.canTakeItems(client.player)) {
+            return false;
+        }
+
+        return quickMoveCreativeSlot(screen, hoveredSlot);
+    }
+
+    private static boolean quickMoveCreativeSlot(CreativeInventoryScreen screen, Slot slot) {
+        MinecraftClient client = MinecraftClient.getInstance();
+        if (client.player == null || client.interactionManager == null) {
+            return false;
+        }
+
+        if (screen.isInventoryTabSelected()) {
+            Slot effectiveSlot = unwrapCreativeSlot(slot);
+            client.interactionManager.clickSlot(
+                    client.player.playerScreenHandler.syncId,
+                    effectiveSlot.id,
+                    0,
+                    SlotActionType.QUICK_MOVE,
+                    client.player
+            );
+            return true;
+        }
+
+        ((CreativeInventoryScreenInvoker) screen)
+                .quickcraft$invokeOnMouseClick(slot, slot.id, 0, SlotActionType.QUICK_MOVE);
+        return true;
+    }
+
+    private static boolean isCreativePlayerStorageSlot(Slot slot) {
+        Slot effectiveSlot = unwrapCreativeSlot(slot);
+        if (!(effectiveSlot.inventory instanceof PlayerInventory)) {
+            return false;
+        }
+
+        int inventoryIndex = effectiveSlot.getIndex();
+        return inventoryIndex >= 0 && inventoryIndex <= 35;
+    }
+
+    private static Slot unwrapCreativeSlot(Slot slot) {
+        if (slot instanceof CreativeSlotAccessor accessor) {
+            Slot wrappedSlot = accessor.quickcraft$getWrappedSlot();
+            if (wrappedSlot != null) {
+                return wrappedSlot;
+            }
+        }
+        return slot;
+    }
+
+    private static SlotKey createSlotKey(HandledScreen<?> screen, Slot slot) {
+        if (screen instanceof CreativeInventoryScreen) {
+            Slot effectiveSlot = unwrapCreativeSlot(slot);
+            return new SlotKey(screen.getScreenHandler(), effectiveSlot.id);
+        }
+        return new SlotKey(screen.getScreenHandler(), slot.id);
     }
 
     private static boolean quickMoveHoveredSlot(HandledScreen<?> screen,
