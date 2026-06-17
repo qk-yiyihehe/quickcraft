@@ -110,6 +110,10 @@ public final class QuickLitematicaContainerVerifier {
         return QuickCraftConfigs.isLitematicaContainerVerifierEnabled();
     }
 
+    public static boolean areSlotHintsVisible() {
+        return isEnabled() && QuickCraftConfigs.isLitematicaContainerSlotHintsVisible();
+    }
+
     public static boolean isContainerMismatchType(MismatchType type) {
         return type == WRONG_FILL
                 || type == MISSING_FILL
@@ -378,7 +382,7 @@ public final class QuickLitematicaContainerVerifier {
     }
 
     public static SlotOverlay getSlotOverlayForScreen(HandledScreen<?> screen, Slot slot) {
-        if (!isEnabled()
+        if (!areSlotHintsVisible()
                 || QuickContainerCopy.shouldHideBackgroundHandledScreen()
                 || slot.inventory instanceof PlayerInventory) {
             return null;
