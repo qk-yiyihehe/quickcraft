@@ -367,6 +367,25 @@ public final class QuickLitematicaContainerVerifier {
         GhostItemBuffer.drawGhostItem(context, client, stack, x, y, guiLeft, guiTop, alpha);
     }
 
+    public static ItemStack getSlotStackForGhostDraw(HandledScreen<?> screen, Slot slot) {
+        ItemStack stack = slot.getStack();
+        SlotOverlay overlay = getSlotOverlayForScreen(screen, slot);
+
+        if (overlay == null
+                || overlay.status() != SlotMismatchStatus.MISSING
+                || !stack.isEmpty()
+                || overlay.expectedStack().isEmpty()) {
+            return stack;
+        }
+
+        GhostItemBuffer.prepareExtraFramebuffer();
+        return overlay.expectedStack();
+    }
+
+    public static boolean drawPreparedGhostItem(DrawContext context, int guiLeft, int guiTop, float alpha) {
+        return GhostItemBuffer.drawPreparedGhostItem(context, guiLeft, guiTop, alpha);
+    }
+
     public static void rememberContainerUse(MinecraftClient client, BlockHitResult hitResult) {
         if (!isEnabled() || client.world == null) {
             return;
@@ -1242,6 +1261,7 @@ public final class QuickLitematicaContainerVerifier {
     private static final class GhostItemBuffer {
         private static Framebuffer framebuffer;
         private static int previousFramebuffer;
+        private static boolean drawingToFramebuffer;
 
         private GhostItemBuffer() {
         }
@@ -1260,15 +1280,27 @@ public final class QuickLitematicaContainerVerifier {
                 return;
             }
 
+            prepareExtraFramebuffer();
+            context.drawItem(stack, x, y);
+            context.drawStackOverlay(client.textRenderer, stack, x, y);
+            context.draw();
+            drawPreparedGhostItem(context, guiLeft, guiTop, alpha);
+        }
+
+        private static void prepareExtraFramebuffer() {
             Framebuffer framebuffer = getFramebuffer();
             previousFramebuffer = GlStateManager.getBoundFramebuffer();
             framebuffer.clear();
             framebuffer.beginWrite(false);
+            drawingToFramebuffer = true;
+        }
 
-            context.drawItem(stack, x, y);
-            context.drawStackOverlay(client.textRenderer, stack, x, y);
-            context.draw();
+        private static boolean drawPreparedGhostItem(DrawContext context, int guiLeft, int guiTop, float alpha) {
+            if (!drawingToFramebuffer) {
+                return false;
+            }
 
+            drawingToFramebuffer = false;
             GlStateManager._glBindFramebuffer(GL30.GL_FRAMEBUFFER, previousFramebuffer);
             RenderSystem.enableBlend();
             RenderSystem.defaultBlendFunc();
@@ -1280,6 +1312,7 @@ public final class QuickLitematicaContainerVerifier {
             context.getMatrices().pop();
 
             RenderSystem.setShaderColor(1.0F, 1.0F, 1.0F, 1.0F);
+            return true;
         }
 
         private static Framebuffer getFramebuffer() {

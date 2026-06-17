@@ -4,14 +4,15 @@ import com.yiyihehe.quickcraft.litematica.QuickLitematicaContainerVerifier;
 import com.yiyihehe.quickcraft.litematica.QuickLitematicaVerifierPalette;
 import com.yiyihehe.quickcraft.litematica.QuickLitematicaContainerVerifier.SlotMismatchStatus;
 import com.yiyihehe.quickcraft.litematica.QuickLitematicaContainerVerifier.SlotOverlay;
-import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.gui.screen.ingame.HandledScreen;
+import net.minecraft.item.ItemStack;
 import net.minecraft.screen.ScreenHandler;
 import net.minecraft.screen.slot.Slot;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
+import org.spongepowered.asm.mixin.injection.Redirect;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 /**
@@ -35,8 +36,35 @@ public abstract class LitematicaHandledScreenSlotOverlayMixin<T extends ScreenHa
         quickcraft$drawSlotOutline(context, slot, overlay.borderColor());
     }
 
+    @Redirect(
+            method = "drawSlot",
+            at = @At(
+                    value = "INVOKE",
+                    target = "Lnet/minecraft/screen/slot/Slot;getStack()Lnet/minecraft/item/ItemStack;",
+                    ordinal = 0
+            )
+    )
+    private ItemStack quickcraft$replaceMissingSlotStackForGhostDraw(Slot slot) {
+        return QuickLitematicaContainerVerifier.getSlotStackForGhostDraw(
+                (HandledScreen<?>) (Object) this,
+                slot
+        );
+    }
+
     @Inject(method = "drawSlot", at = @At("RETURN"))
     private void quickcraft$drawContainerVerifierMissingGhost(DrawContext context, Slot slot, CallbackInfo ci) {
+        HandledScreenAccessor accessor = (HandledScreenAccessor) this;
+        boolean drewGhost = QuickLitematicaContainerVerifier.drawPreparedGhostItem(
+                context,
+                accessor.quickcraft$getGuiLeft(),
+                accessor.quickcraft$getGuiTop(),
+                QuickLitematicaVerifierPalette.ghostItemAlpha()
+        );
+
+        if (!drewGhost) {
+            return;
+        }
+
         SlotOverlay overlay = QuickLitematicaContainerVerifier.getSlotOverlayForScreen(
                 (HandledScreen<?>) (Object) this,
                 slot
@@ -52,18 +80,6 @@ public abstract class LitematicaHandledScreenSlotOverlayMixin<T extends ScreenHa
             return;
         }
 
-        MinecraftClient client = MinecraftClient.getInstance();
-        HandledScreenAccessor accessor = (HandledScreenAccessor) this;
-        QuickLitematicaContainerVerifier.drawGhostItem(
-                context,
-                client,
-                overlay.expectedStack(),
-                slot.x,
-                slot.y,
-                accessor.quickcraft$getGuiLeft(),
-                accessor.quickcraft$getGuiTop(),
-                QuickLitematicaVerifierPalette.ghostItemAlpha()
-        );
         context.fill(slot.x, slot.y, slot.x + 16, slot.y + 16, overlay.ghostMaskColor());
         quickcraft$drawSlotOutline(context, slot, overlay.borderColor());
     }
