@@ -28,6 +28,7 @@ import java.util.Set;
  * - 鼠标在玩家主背包/快捷栏：转移同类物品到当前打开容器
  * - 鼠标在容器/合成格等非背包区域：转移同类物品到玩家主背包/快捷栏
  * - 按住快捷键滑过物品时，每个滑过的物品种类触发一次同类转移
+ * - 按住格子转移快捷键滑过格子时，每个滑过的格子触发一次原版 Shift 转移
  */
 public final class QuickTransfer implements ClientModInitializer {
     private static final int SLOT_SIZE = 18;
@@ -35,6 +36,7 @@ public final class QuickTransfer implements ClientModInitializer {
     private static final Set<SlotKey> handledSlotsInGesture = new HashSet<>();
 
     private static HandledScreen<?> activeScreen;
+    private static TransferMode activeMode = TransferMode.NONE;
     private static SourceSide activeSourceSide = SourceSide.NONE;
     private static boolean hasLastMousePosition;
     private static double lastMouseX;
@@ -53,14 +55,36 @@ public final class QuickTransfer implements ClientModInitializer {
 
         double mouseX = getMouseX(client);
         double mouseY = getMouseY(client);
-        ensureHoldGesture(screen);
+        ensureHoldGesture(screen, TransferMode.MATCHING);
 
         Slot hoveredSlot = findHoveredSlot(screen, mouseX, mouseY);
         if (hoveredSlot == null) {
             return false;
         }
 
-        boolean handled = processHoveredSlot(screen, hoveredSlot, true);
+        boolean handled = processHoveredSlot(screen, hoveredSlot, true, TransferMode.MATCHING);
+        hasLastMousePosition = true;
+        lastMouseX = mouseX;
+        lastMouseY = mouseY;
+        return handled;
+    }
+
+    public static boolean handleSlotQuickTransferHotkey() {
+        MinecraftClient client = MinecraftClient.getInstance();
+        if (!(client.currentScreen instanceof HandledScreen<?> screen) || !canUseQuickTransfer(client, screen)) {
+            return false;
+        }
+
+        double mouseX = getMouseX(client);
+        double mouseY = getMouseY(client);
+        ensureHoldGesture(screen, TransferMode.SLOT);
+
+        Slot hoveredSlot = findHoveredSlot(screen, mouseX, mouseY);
+        if (hoveredSlot == null) {
+            return false;
+        }
+
+        boolean handled = processHoveredSlot(screen, hoveredSlot, true, TransferMode.SLOT);
         hasLastMousePosition = true;
         lastMouseX = mouseX;
         lastMouseY = mouseY;
@@ -68,7 +92,8 @@ public final class QuickTransfer implements ClientModInitializer {
     }
 
     private void onClientTick(MinecraftClient client) {
-        if (!isQuickTransferHotkeyHeld()) {
+        TransferMode mode = getHeldTransferMode();
+        if (mode == TransferMode.NONE) {
             resetHoldGesture();
             return;
         }
@@ -80,10 +105,10 @@ public final class QuickTransfer implements ClientModInitializer {
 
         double mouseX = getMouseX(client);
         double mouseY = getMouseY(client);
-        ensureHoldGesture(screen);
+        ensureHoldGesture(screen, mode);
 
         for (Slot slot : findHoveredSlotsAlongPath(screen, mouseX, mouseY)) {
-            processHoveredSlot(screen, slot, true);
+            processHoveredSlot(screen, slot, true, mode);
         }
 
         hasLastMousePosition = true;
@@ -101,16 +126,23 @@ public final class QuickTransfer implements ClientModInitializer {
                 && screen.getScreenHandler().getCursorStack().isEmpty();
     }
 
-    private static boolean isQuickTransferHotkeyHeld() {
-        return QuickCraftConfigs.Hotkeys.QUICK_TRANSFER.getKeybind().isKeybindHeld();
+    private static TransferMode getHeldTransferMode() {
+        if (QuickCraftConfigs.Hotkeys.SLOT_QUICK_TRANSFER.getKeybind().isKeybindHeld()) {
+            return TransferMode.SLOT;
+        }
+        if (QuickCraftConfigs.Hotkeys.QUICK_TRANSFER.getKeybind().isKeybindHeld()) {
+            return TransferMode.MATCHING;
+        }
+        return TransferMode.NONE;
     }
 
-    private static void ensureHoldGesture(HandledScreen<?> screen) {
-        if (activeScreen == screen) {
+    private static void ensureHoldGesture(HandledScreen<?> screen, TransferMode mode) {
+        if (activeScreen == screen && activeMode == mode) {
             return;
         }
 
         activeScreen = screen;
+        activeMode = mode;
         activeSourceSide = SourceSide.NONE;
         hasLastMousePosition = false;
         handledSlotsInGesture.clear();
@@ -118,12 +150,16 @@ public final class QuickTransfer implements ClientModInitializer {
 
     private static void resetHoldGesture() {
         activeScreen = null;
+        activeMode = TransferMode.NONE;
         activeSourceSide = SourceSide.NONE;
         hasLastMousePosition = false;
         handledSlotsInGesture.clear();
     }
 
-    private static boolean processHoveredSlot(HandledScreen<?> screen, Slot hoveredSlot, boolean rememberGestureSlot) {
+    private static boolean processHoveredSlot(HandledScreen<?> screen,
+                                              Slot hoveredSlot,
+                                              boolean rememberGestureSlot,
+                                              TransferMode mode) {
         MinecraftClient client = MinecraftClient.getInstance();
         if (client.player == null || !isVisibleSlot(hoveredSlot)
                 || !hoveredSlot.hasStack()
@@ -146,7 +182,9 @@ public final class QuickTransfer implements ClientModInitializer {
         }
 
         boolean handled;
-        if (sourceFromPlayerStorage) {
+        if (mode == TransferMode.SLOT) {
+            handled = quickMoveHoveredSlot(screen, hoveredSlot, sourceFromPlayerStorage);
+        } else if (sourceFromPlayerStorage) {
             handled = moveAllMatchingStacksByQuickMove(screen, hoveredSlot, true);
         } else {
             handled = moveAllMatchingStacksToPlayerMainInventory(screen, hoveredSlot);
@@ -157,6 +195,31 @@ public final class QuickTransfer implements ClientModInitializer {
         }
 
         return handled;
+    }
+
+    private static boolean quickMoveHoveredSlot(HandledScreen<?> screen,
+                                                Slot hoveredSlot,
+                                                boolean sourceFromPlayerStorage) {
+        MinecraftClient client = MinecraftClient.getInstance();
+        if (client.player == null || client.interactionManager == null) {
+            return false;
+        }
+
+        if (!isVisibleSlot(hoveredSlot)
+                || !hoveredSlot.hasStack()
+                || !hoveredSlot.canTakeItems(client.player)
+                || !belongsToSourceRegion(hoveredSlot, sourceFromPlayerStorage)) {
+            return false;
+        }
+
+        client.interactionManager.clickSlot(
+                screen.getScreenHandler().syncId,
+                hoveredSlot.id,
+                0,
+                SlotActionType.QUICK_MOVE,
+                client.player
+        );
+        return true;
     }
 
     private static boolean moveAllMatchingStacksByQuickMove(HandledScreen<?> screen,
@@ -504,6 +567,12 @@ public final class QuickTransfer implements ClientModInitializer {
         private static SourceSide from(boolean sourceFromPlayerStorage) {
             return sourceFromPlayerStorage ? PLAYER_STORAGE : OTHER;
         }
+    }
+
+    private enum TransferMode {
+        NONE,
+        MATCHING,
+        SLOT
     }
 
     private record SlotKey(ScreenHandler handler, int slotId) {
