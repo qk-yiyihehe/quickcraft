@@ -15,8 +15,7 @@ import net.minecraft.screen.slot.SlotActionType;
 import net.minecraft.text.Text;
 
 /**
- * 铁砧快速命名。
- * 只快照左槽物品的新名字，不复制右槽附魔/修复/合并结果。
+ * 铁砧快速命名：按左槽物品和输出名批量重命名。
  */
 public final class QuickCraftAnvilRename implements ClientModInitializer {
     private static final int RAPID_INTERVAL = 1;
