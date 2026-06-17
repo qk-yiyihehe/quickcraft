@@ -433,8 +433,8 @@ public class QuickCraftStonecutter implements ClientModInitializer {
             boolean anyDroppedInRound = false;
             PlayerInventory inventory = client.player.getInventory();
 
-            for (int invIndex = 0; invIndex < inventory.main.size(); invIndex++) {
-                ItemStack stack = inventory.main.get(invIndex);
+            for (int invIndex = 0; invIndex < inventory.getMainStacks().size(); invIndex++) {
+                ItemStack stack = inventory.getMainStacks().get(invIndex);
                 if (stack.isEmpty()) continue;
                 if (!ItemStack.areItemsAndComponentsEqual(stack, resultTemplate)) continue;
 
@@ -504,8 +504,8 @@ public class QuickCraftStonecutter implements ClientModInitializer {
         int bestTotalCount = -1;
         int bestStackCount = -1;
 
-        for (int invIndex = 0; invIndex < inventory.main.size(); invIndex++) {
-            ItemStack stack = inventory.main.get(invIndex);
+        for (int invIndex = 0; invIndex < inventory.getMainStacks().size(); invIndex++) {
+            ItemStack stack = inventory.getMainStacks().get(invIndex);
             if (stack.isEmpty()) continue;
             if (!matchesAnyIngredient(stack, ingredients)) continue;
 
@@ -532,8 +532,8 @@ public class QuickCraftStonecutter implements ClientModInitializer {
         int bestTotalCount = -1;
         int bestStackCount = -1;
 
-        for (int invIndex = 0; invIndex < inventory.main.size(); invIndex++) {
-            ItemStack stack = inventory.main.get(invIndex);
+        for (int invIndex = 0; invIndex < inventory.getMainStacks().size(); invIndex++) {
+            ItemStack stack = inventory.getMainStacks().get(invIndex);
             if (stack.isEmpty()) continue;
             if (stack.getCount() <= 1) continue;
             if (!matchesAnyIngredient(stack, ingredients)) continue;
@@ -559,8 +559,8 @@ public class QuickCraftStonecutter implements ClientModInitializer {
         int bestTotalCount = -1;
         int bestStackCount = -1;
 
-        for (int invIndex = 0; invIndex < inventory.main.size(); invIndex++) {
-            ItemStack stack = inventory.main.get(invIndex);
+        for (int invIndex = 0; invIndex < inventory.getMainStacks().size(); invIndex++) {
+            ItemStack stack = inventory.getMainStacks().get(invIndex);
             if (stack.isEmpty()) continue;
             if (requireExtraItem && stack.getCount() <= 1) continue;
             if (!ItemStack.areItemsAndComponentsEqual(stack, template)) continue;
@@ -579,7 +579,7 @@ public class QuickCraftStonecutter implements ClientModInitializer {
 
     private boolean matchesAnyIngredient(ItemStack stack, List<Ingredient> ingredients) {
         for (Ingredient ingredient : ingredients) {
-            if (ingredient == null || ingredient.getMatchingItems().isEmpty()) continue;
+            if (ingredient == null || ingredient.isEmpty()) continue;
             if (ingredient.test(stack)) return true;
         }
         return false;
@@ -839,7 +839,7 @@ public class QuickCraftStonecutter implements ClientModInitializer {
             return false;
         }
 
-        for (ItemStack stack : inventory.main) {
+        for (ItemStack stack : inventory.getMainStacks()) {
             if (stack.isEmpty()) continue;
             if (ItemStack.areItemsAndComponentsEqual(stack, template)) {
                 return true;
@@ -854,7 +854,7 @@ public class QuickCraftStonecutter implements ClientModInitializer {
         }
 
         int total = 0;
-        for (ItemStack stack : inventory.main) {
+        for (ItemStack stack : inventory.getMainStacks()) {
             if (stack.isEmpty()) continue;
             if (ItemStack.areItemsAndComponentsEqual(stack, template)) {
                 total += stack.getCount();
@@ -865,7 +865,7 @@ public class QuickCraftStonecutter implements ClientModInitializer {
 
     private int countEmptyMainSlots(PlayerInventory inventory) {
         int total = 0;
-        for (ItemStack stack : inventory.main) {
+        for (ItemStack stack : inventory.getMainStacks()) {
             if (stack.isEmpty()) {
                 total++;
             }

@@ -217,7 +217,7 @@ public class QuickCraftWorkbench implements ClientModInitializer {
             return false;
         }
 
-        for (ItemStack stack : inventory.main) {
+        for (ItemStack stack : inventory.getMainStacks()) {
             if (stack.isEmpty()) continue;
             if (ItemStack.areItemsAndComponentsEqual(stack, template)) {
                 return true;
@@ -699,7 +699,7 @@ public class QuickCraftWorkbench implements ClientModInitializer {
     private boolean hasItemsForMissingPatternSlots(PlayerInventory inventory,
                                                    CraftingScreenHandler handler) {
         List<ItemStack> availableStacks = new ArrayList<>();
-        for (ItemStack stack : inventory.main) {
+        for (ItemStack stack : inventory.getMainStacks()) {
             if (!stack.isEmpty()) {
                 availableStacks.add(stack.copy());
             }
@@ -767,8 +767,8 @@ public class QuickCraftWorkbench implements ClientModInitializer {
                                                        ItemStack template) {
         int bestSlot = -1;
         int bestCount = -1;
-        for (int invIndex = 0; invIndex < inventory.main.size(); invIndex++) {
-            ItemStack stack = inventory.main.get(invIndex);
+        for (int invIndex = 0; invIndex < inventory.getMainStacks().size(); invIndex++) {
+            ItemStack stack = inventory.getMainStacks().get(invIndex);
             if (stack.isEmpty() || !ItemStack.areItemsAndComponentsEqual(stack, template)) {
                 continue;
             }
@@ -788,7 +788,7 @@ public class QuickCraftWorkbench implements ClientModInitializer {
     private int findAcceptingPlayerInventoryHandlerSlot(PlayerInventory inventory,
                                                         CraftingScreenHandler handler,
                                                         ItemStack cursorStack) {
-        for (int invIndex = 0; invIndex < inventory.main.size(); invIndex++) {
+        for (int invIndex = 0; invIndex < inventory.getMainStacks().size(); invIndex++) {
             int handlerSlot = playerInventoryIndexToHandlerSlot(invIndex);
             if (handlerSlot == -1) {
                 continue;
@@ -1077,8 +1077,8 @@ public class QuickCraftWorkbench implements ClientModInitializer {
         int droppedSlots = 0;
 
         PlayerInventory inventory = client.player.getInventory();
-        for (int invIndex = 0; invIndex < inventory.main.size(); invIndex++) {
-            ItemStack stack = inventory.main.get(invIndex);
+        for (int invIndex = 0; invIndex < inventory.getMainStacks().size(); invIndex++) {
+            ItemStack stack = inventory.getMainStacks().get(invIndex);
             if (stack.isEmpty()) continue;
             if (!ItemStack.areItemsAndComponentsEqual(stack, resultTemplate)) continue;
 
@@ -1148,8 +1148,8 @@ public class QuickCraftWorkbench implements ClientModInitializer {
         int bestTotalCount = -1;
         int bestStackCount = -1;
 
-        for (int invIndex = 0; invIndex < inventory.main.size(); invIndex++) {
-            ItemStack stack = inventory.main.get(invIndex);
+        for (int invIndex = 0; invIndex < inventory.getMainStacks().size(); invIndex++) {
+            ItemStack stack = inventory.getMainStacks().get(invIndex);
             if (stack.isEmpty()) continue;
 
             if (stack.getCount() <= 1) continue;
@@ -1173,8 +1173,8 @@ public class QuickCraftWorkbench implements ClientModInitializer {
         int bestTotalCount = -1;
         int bestStackCount = -1;
 
-        for (int invIndex = 0; invIndex < inventory.main.size(); invIndex++) {
-            ItemStack stack = inventory.main.get(invIndex);
+        for (int invIndex = 0; invIndex < inventory.getMainStacks().size(); invIndex++) {
+            ItemStack stack = inventory.getMainStacks().get(invIndex);
             if (stack.isEmpty()) continue;
             if (stack.getCount() <= 1) continue;
             if (!matchesAnyPatternIngredient(stack)) continue;
@@ -1203,7 +1203,7 @@ public class QuickCraftWorkbench implements ClientModInitializer {
 
     private boolean matchesAnyIngredient(ItemStack stack, List<Ingredient> ingredients) {
         for (Ingredient ingredient : ingredients) {
-            if (ingredient == null || ingredient.getMatchingItems().isEmpty()) continue;
+            if (ingredient == null || ingredient.isEmpty()) continue;
             if (ingredient.test(stack)) return true;
         }
         return false;
@@ -1341,7 +1341,7 @@ public class QuickCraftWorkbench implements ClientModInitializer {
         }
 
         int total = 0;
-        for (ItemStack stack : inventory.main) {
+        for (ItemStack stack : inventory.getMainStacks()) {
             if (stack.isEmpty()) continue;
             if (ItemStack.areItemsAndComponentsEqual(stack, template)) {
                 total += stack.getCount();

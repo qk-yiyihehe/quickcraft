@@ -1,7 +1,6 @@
 package com.yiyihehe.quickcraft.litematica;
 
 import com.chocohead.mm.api.ClassTinkerers;
-import com.mojang.blaze3d.systems.RenderSystem;
 import com.yiyihehe.quickcraft.QuickContainerCopy;
 import com.yiyihehe.quickcraft.config.QuickCraftConfigs;
 import net.fabricmc.loader.api.FabricLoader;
@@ -34,16 +33,10 @@ import net.minecraft.block.enums.ChestType;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.gui.screen.ingame.HandledScreen;
-import net.minecraft.client.render.DiffuseLighting;
-import net.minecraft.client.render.OverlayTexture;
-import net.minecraft.client.render.VertexConsumer;
-import net.minecraft.client.render.VertexConsumerProvider;
-import net.minecraft.client.render.model.BakedModel;
 import net.minecraft.entity.player.PlayerInventory;
 import net.minecraft.inventory.Inventory;
 import net.minecraft.inventory.SimpleInventory;
 import net.minecraft.item.ItemStack;
-import net.minecraft.item.ModelTransformationMode;
 import net.minecraft.nbt.NbtCompound;
 import net.minecraft.screen.CrafterScreenHandler;
 import net.minecraft.screen.ScreenHandler;
@@ -875,7 +868,7 @@ public final class QuickLitematicaContainerVerifier {
         }
 
         fi.dy.masa.malilib.render.RenderUtils.color(1f, 1f, 1f, 1f);
-        InventoryOverlay.renderInventoryBackground(type, xInv, yInv, props.slotsPerRow, props.totalSlots, mc);
+        InventoryOverlay.renderInventoryBackground(type, xInv, yInv, props.slotsPerRow, props.totalSlots, mc, drawContext);
         drawSlotHighlights(drawContext, type, xInv + props.slotOffsetX, yInv + props.slotOffsetY, props.slotsPerRow, slotMismatches);
         InventoryOverlay.renderInventoryStacks(type, inventory, xInv + props.slotOffsetX, yInv + props.slotOffsetY, props.slotsPerRow, 0, inventory.size(), disabledSlots, mc, drawContext);
 
@@ -1247,88 +1240,8 @@ public final class QuickLitematicaContainerVerifier {
                 return;
             }
 
-            drawItemWithAlpha(context, client, stack, x, y, alpha);
+            context.drawItem(stack, x, y);
             context.drawStackOverlay(client.textRenderer, stack, x, y);
-        }
-
-        private static void drawItemWithAlpha(DrawContext context,
-                                              MinecraftClient client,
-                                              ItemStack stack,
-                                              int x,
-                                              int y,
-                                              float alpha) {
-            BakedModel model = client.getItemRenderer().getModel(stack, client.world, client.player, 0);
-            context.getMatrices().push();
-            context.getMatrices().translate(x + 8.0F, y + 8.0F, 150.0F);
-            context.getMatrices().scale(16.0F, -16.0F, 16.0F);
-
-            boolean disableSideLighting = !model.isSideLit();
-            if (disableSideLighting) {
-                context.draw();
-                DiffuseLighting.disableGuiDepthLighting();
-            }
-
-            int alphaColor = Math.max(0, Math.min(255, Math.round(alpha * 255.0F)));
-            VertexConsumerProvider alphaProvider = layer -> new AlphaVertexConsumer(
-                    client.getBufferBuilders().getEntityVertexConsumers().getBuffer(layer),
-                    alphaColor
-            );
-            RenderSystem.enableBlend();
-            RenderSystem.defaultBlendFunc();
-            client.getItemRenderer().renderItem(
-                    stack,
-                    ModelTransformationMode.GUI,
-                    false,
-                    context.getMatrices(),
-                    alphaProvider,
-                    15728880,
-                    OverlayTexture.DEFAULT_UV,
-                    model
-            );
-            client.getBufferBuilders().getEntityVertexConsumers().draw();
-
-            if (disableSideLighting) {
-                DiffuseLighting.enableGuiDepthLighting();
-            }
-            context.getMatrices().pop();
-        }
-
-        private record AlphaVertexConsumer(VertexConsumer delegate, int alpha) implements VertexConsumer {
-            @Override
-            public VertexConsumer vertex(float x, float y, float z) {
-                this.delegate.vertex(x, y, z);
-                return this;
-            }
-
-            @Override
-            public VertexConsumer color(int red, int green, int blue, int alpha) {
-                this.delegate.color(red, green, blue, Math.round(alpha * (this.alpha / 255.0F)));
-                return this;
-            }
-
-            @Override
-            public VertexConsumer texture(float u, float v) {
-                this.delegate.texture(u, v);
-                return this;
-            }
-
-            @Override
-            public VertexConsumer overlay(int u, int v) {
-                this.delegate.overlay(u, v);
-                return this;
-            }
-
-            @Override
-            public VertexConsumer light(int u, int v) {
-                this.delegate.light(u, v);
-                return this;
-            }
-
-            @Override
-            public VertexConsumer normal(float x, float y, float z) {
-                this.delegate.normal(x, y, z);
-                return this;
-            }
         }
     }
 }

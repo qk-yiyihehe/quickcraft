@@ -16,7 +16,7 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import org.jetbrains.annotations.Nullable;
 
-import java.io.File;
+import java.nio.file.Path;
 
 @Mixin(value = WidgetSchematicBrowser.class, remap = false)
 public abstract class LitematicaWidgetSchematicBrowserMixin extends WidgetFileBrowserBase {
@@ -39,7 +39,7 @@ public abstract class LitematicaWidgetSchematicBrowserMixin extends WidgetFileBr
             int height,
             IDirectoryCache cache,
             String browserContext,
-            File defaultDirectory,
+            Path defaultDirectory,
             @Nullable ISelectionListener<DirectoryEntry> selectionListener
     ) {
         super(x, y, width, height, cache, browserContext, defaultDirectory, selectionListener, Icons.FILE_ICON_LITEMATIC);

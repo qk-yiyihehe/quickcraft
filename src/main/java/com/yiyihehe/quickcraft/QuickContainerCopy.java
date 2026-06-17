@@ -26,13 +26,10 @@ import net.minecraft.component.DataComponentTypes;
 import net.minecraft.component.type.ContainerComponent;
 import net.minecraft.entity.player.PlayerInventory;
 import net.minecraft.entity.vehicle.HopperMinecartEntity;
-import net.minecraft.item.ArmorItem;
 import net.minecraft.item.BlockItem;
 import net.minecraft.item.Item;
 import net.minecraft.item.ItemStack;
 import net.minecraft.item.Items;
-import net.minecraft.item.MiningToolItem;
-import net.minecraft.item.SwordItem;
 import net.minecraft.network.packet.CustomPayload;
 import net.minecraft.registry.Registries;
 import net.minecraft.screen.AbstractFurnaceScreenHandler;
@@ -2195,10 +2192,7 @@ public final class QuickContainerCopy implements ClientModInitializer {
             return false;
         }
 
-        Item item = stack.getItem();
-        return isDiamondOrNetheriteItem(item) && (item instanceof MiningToolItem
-                || item instanceof SwordItem
-                || item instanceof ArmorItem);
+        return isDiamondOrNetheriteItem(stack.getItem());
     }
 
     private boolean isDiamondOrNetheriteItem(Item item) {

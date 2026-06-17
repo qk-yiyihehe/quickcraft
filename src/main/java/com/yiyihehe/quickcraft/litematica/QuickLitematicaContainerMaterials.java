@@ -26,7 +26,6 @@ import fi.dy.masa.malilib.gui.widgets.WidgetListEntryBase;
 import fi.dy.masa.malilib.render.RenderUtils;
 import fi.dy.masa.malilib.util.ItemType;
 import fi.dy.masa.malilib.util.StringUtils;
-import fi.dy.masa.malilib.util.data.Constants;
 import it.unimi.dsi.fastutil.objects.Object2IntOpenHashMap;
 import net.minecraft.block.BlockState;
 import net.minecraft.block.ChestBlock;
@@ -109,7 +108,7 @@ public final class QuickLitematicaContainerMaterials {
             return;
         }
 
-        Path file = entry.getFullPath().toPath();
+        Path file = entry.getFullPath();
         if (!Files.exists(file) || !Files.isReadable(file)) {
             gui.addMessage(MessageType.ERROR, "litematica.error.schematic_load.cant_read_file", file.getFileName());
             return;
@@ -145,7 +144,7 @@ public final class QuickLitematicaContainerMaterials {
     }
 
     private static LitematicaSchematic readSchematic(GuiSchematicLoad gui, DirectoryEntry entry) {
-        FileType fileType = FileType.fromFile(entry.getFullPath().toPath());
+        FileType fileType = FileType.fromFile(entry.getFullPath());
 
         return switch (fileType) {
             case LITEMATICA_SCHEMATIC -> LitematicaSchematic.createFromFile(entry.getDirectory(), entry.getName());
@@ -158,7 +157,7 @@ public final class QuickLitematicaContainerMaterials {
             case VANILLA_STRUCTURE -> WorldUtils.convertStructureToLitematicaSchematic(entry.getDirectory(), entry.getName());
             case SPONGE_SCHEMATIC -> WorldUtils.convertSpongeSchematicToLitematicaSchematic(entry.getDirectory(), entry.getName());
             default -> {
-                gui.addMessage(MessageType.ERROR, "litematica.error.schematic_load.unsupported_type", entry.getFullPath().getName());
+                gui.addMessage(MessageType.ERROR, "litematica.error.schematic_load.unsupported_type", entry.getFullPath().getFileName());
                 yield null;
             }
         };
@@ -250,7 +249,7 @@ public final class QuickLitematicaContainerMaterials {
                 continue;
             }
 
-            ContainerDescriptor descriptor = describeEntityContainer(nbt.getString("id"));
+            ContainerDescriptor descriptor = describeEntityContainer(nbt.getString("id", ""));
             addContainer(accumulator, descriptor, stacks);
         }
     }
@@ -303,15 +302,15 @@ public final class QuickLitematicaContainerMaterials {
     }
 
     private static List<ItemStack> readItems(NbtCompound nbt, RegistryWrapper.WrapperLookup registryLookup) {
-        if (nbt == null || !nbt.contains("Items", Constants.NBT.TAG_LIST)) {
+        if (nbt == null || !nbt.contains("Items")) {
             return List.of();
         }
 
         List<ItemStack> stacks = new ArrayList<>();
-        NbtList items = nbt.getList("Items", Constants.NBT.TAG_COMPOUND);
+        NbtList items = nbt.getListOrEmpty("Items");
 
         for (int i = 0; i < items.size(); i++) {
-            ItemStack stack = ItemStack.fromNbt(registryLookup, items.getCompound(i)).orElse(ItemStack.EMPTY);
+            ItemStack stack = ItemStack.fromNbt(registryLookup, items.getCompoundOrEmpty(i)).orElse(ItemStack.EMPTY);
 
             if (!stack.isEmpty()) {
                 stacks.add(stack);
@@ -445,7 +444,7 @@ public final class QuickLitematicaContainerMaterials {
         ItemStack stack = stackFromState(state);
 
         if (stack.isEmpty()) {
-            stack = stackFromBlockEntityId(nbt.getString("id"));
+            stack = stackFromBlockEntityId(nbt.getString("id", ""));
         }
 
         String displayName = stack.getName().getString();
