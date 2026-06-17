@@ -37,9 +37,11 @@ import net.minecraft.client.render.OverlayTexture;
 import net.minecraft.client.render.RenderLayer;
 import net.minecraft.client.render.RenderLayers;
 import net.minecraft.client.render.VertexConsumer;
+import net.minecraft.client.render.VertexConsumerProvider;
 import net.minecraft.client.render.VertexFormat;
 import net.minecraft.client.render.VertexFormats;
 import net.minecraft.client.render.WorldRenderer;
+import net.minecraft.client.render.block.entity.BlockEntityRenderer;
 import net.minecraft.client.render.block.BlockRenderManager;
 import net.minecraft.client.render.chunk.BlockBufferAllocatorStorage;
 import net.minecraft.client.util.BufferAllocator;
@@ -533,12 +535,7 @@ public final class QuickLitematicaPreview3D {
                 matrices.push();
                 matrices.translate(pos.getX(), pos.getY(), pos.getZ());
                 // 高层方块实体渲染会按真实相机做距离判断，预览里的离屏假世界不能走那条路径。
-                client.getBlockEntityRenderDispatcher().render(
-                        entity,
-                        0.0F,
-                        matrices,
-                        client.getBufferBuilders().getEntityVertexConsumers()
-                );
+                renderBlockEntity(client, entity, matrices, client.getBufferBuilders().getEntityVertexConsumers());
                 matrices.pop();
             });
             this.flushDynamic();
@@ -560,6 +557,18 @@ public final class QuickLitematicaPreview3D {
 
         private void flushDynamic() {
             MinecraftClient.getInstance().getBufferBuilders().getEntityVertexConsumers().draw();
+        }
+
+        private static <T extends BlockEntity> void renderBlockEntity(MinecraftClient client, T entity, MatrixStack matrices, VertexConsumerProvider consumers) {
+            BlockEntityRenderer<T> renderer = client.getBlockEntityRenderDispatcher().get(entity);
+            if (renderer == null) {
+                return;
+            }
+
+            int light = entity.getWorld() != null
+                    ? WorldRenderer.getLightmapCoordinates(entity.getWorld(), entity.getPos())
+                    : LightmapTextureManager.MAX_LIGHT_COORDINATE;
+            renderer.render(entity, 0.0F, matrices, consumers, light, OverlayTexture.DEFAULT_UV);
         }
 
         private void applyLight(Matrix4f viewMatrix) {
