@@ -13,10 +13,10 @@ base {
 loom {
 	runs {
 		client {
-			runDir "C:/Users/kangxuanhe/Desktop/project/quickcraft-template-1.21-1.21.1/run"
+			runDir "../../quickcraft-template-1.21-1.21.1/run"
 		}
 		server {
-			runDir "C:/Users/kangxuanhe/Desktop/project/quickcraft-template-1.21-1.21.1/run"
+			runDir "../../quickcraft-template-1.21-1.21.1/run"
 		}
 	}
 }
