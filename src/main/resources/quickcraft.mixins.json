@@ -1,0 +1,44 @@
+{
+	"required": true,
+	"package": "com.yiyihehe.quickcraft.mixin",
+	"plugin": "com.yiyihehe.quickcraft.mixin.QuickCraftMixinPlugin",
+	"compatibilityLevel": "JAVA_21",
+	"mixins": [
+	],
+	"client": [
+		"AnvilRenameTextFieldMixin",
+		"AnvilScreenMixin",
+		"BeaconBlockEntityAccessor",
+		"CraftActionButtonMixin",
+		"CraftActionButtonBackpackMixin",
+		"CraftActionButtonStonecutterMixin",
+		"GenericContainerScreenMixin",
+		"CreativeInventoryScreenInvoker",
+		"CreativeSlotAccessor",
+		"GuiBaseAccessor",
+		"HandledScreenAccessor",
+		"LitematicaBlockMismatchMixin",
+		"LitematicaClientPlayerInteractionManagerMixin",
+		"LitematicaGuiSchematicBrowserBaseMixin",
+		"LitematicaGuiSchematicVerifierAccessor",
+		"LitematicaGuiSchematicVerifierMixin",
+		"LitematicaHandledScreenSlotOverlayMixin",
+		"LitematicaMaterialListHudRendererMixin",
+		"LitematicaSchematicLoadMixin",
+		"LitematicaSchematicVerifierMixin",
+		"LitematicaWidgetSchematicBrowserMixin",
+		"LitematicaWidgetListSchematicVerificationResultsMixin",
+		"LitematicaWidgetSchematicVerificationResultMixin",
+		"MerchantScreenAccessor",
+		"MerchantScreenMixin",
+		"QuickContainerBackgroundFillScreenMixin",
+		"QuickContainerLockScreenMixin",
+		"ShulkerBoxScreenMixin"
+	],
+	"injectors": {
+		"defaultRequire": 1
+	},
+	"overwrites": {
+		"requireAnnotations": true
+	}
+}

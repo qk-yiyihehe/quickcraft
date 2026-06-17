@@ -1,0 +1,54 @@
+{
+  "schemaVersion": 1,
+  "id": "quickcraft",
+  "version": "${version}",
+  "name": "QuickCraft",
+  "description": "QuickCraft 为 Minecraft 1.21-1.21.1 提供客户端快捷合成、容器整理与投影辅助功能。",
+  "authors": ["yiyihehe"],
+  "contact": {},
+  "license": "MIT",
+  "icon": "assets/quickcraft/icon.png",
+  "environment": "*",
+  "entrypoints": {
+    "main": [
+      "com.yiyihehe.quickcraft.QuickCraft"
+    ],
+    "client": [
+      "com.yiyihehe.quickcraft.crafting.QuickCraftWorkbench",
+      "com.yiyihehe.quickcraft.crafting.QuickCraftStonecutter",
+      "com.yiyihehe.quickcraft.crafting.QuickCraftBackpack",
+      "com.yiyihehe.quickcraft.crafting.QuickCraftAnvilRename",
+      "com.yiyihehe.quickcraft.QuickTransfer",
+      "com.yiyihehe.quickcraft.QuickThrow",
+      "com.yiyihehe.quickcraft.QuickSort",
+      "com.yiyihehe.quickcraft.QuickTrade",
+      "com.yiyihehe.quickcraft.QuickStash",
+      "com.yiyihehe.quickcraft.QuickClearContainer",
+      "com.yiyihehe.quickcraft.QuickBeacon",
+      "com.yiyihehe.quickcraft.QuickContainerLock",
+      "com.yiyihehe.quickcraft.QuickContainerCopy",
+      "com.yiyihehe.quickcraft.QuickMaterialCollector",
+      "com.yiyihehe.quickcraft.litematica.QuickLitematicaContainerAutofill"
+    ],
+    "modmenu": [
+      "com.yiyihehe.quickcraft.gui.QuickCraftModMenuIntegration"
+    ],
+    "mm:early_risers": [
+      "com.yiyihehe.quickcraft.litematica.QuickLitematicaContainerVerifier$EarlyRiser"
+    ]
+  },
+  "mixins": [
+    "quickcraft.mixins.json"
+  ],
+  "depends": {
+    "fabricloader": ">=0.15.0",
+    "minecraft": ">=1.21 <=1.21.1",
+    "java": ">=21",
+    "fabric-api": "*",
+    "malilib": ">=0.21.8"
+  },
+  "suggests": {
+    "litematica": ">=0.19.57",
+    "quickshulker": "*"
+  }
+}

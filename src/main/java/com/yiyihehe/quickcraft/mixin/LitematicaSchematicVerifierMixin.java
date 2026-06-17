@@ -1,0 +1,810 @@
+package com.yiyihehe.quickcraft.mixin;
+
+import com.google.common.collect.ArrayListMultimap;
+import com.google.common.collect.HashMultimap;
+import com.yiyihehe.quickcraft.litematica.QuickLitematicaContainerVerifier;
+import com.yiyihehe.quickcraft.litematica.QuickLitematicaVerifierPalette;
+import com.yiyihehe.quickcraft.litematica.QuickLitematicaContainerVerifier.BlockMismatchExtension;
+import com.yiyihehe.quickcraft.litematica.QuickLitematicaContainerVerifier.ContainerMismatch;
+import com.yiyihehe.quickcraft.litematica.QuickLitematicaContainerVerifier.ContainerMismatchKey;
+import com.yiyihehe.quickcraft.litematica.QuickLitematicaContainerVerifier.ExpectedContainer;
+import com.yiyihehe.quickcraft.litematica.QuickLitematicaContainerVerifier.VerifierExtension;
+import fi.dy.masa.litematica.config.Configs;
+import fi.dy.masa.litematica.scheduler.tasks.TaskBase;
+import fi.dy.masa.litematica.schematic.verifier.SchematicVerifier;
+import fi.dy.masa.litematica.schematic.verifier.SchematicVerifier.BlockMismatch;
+import fi.dy.masa.litematica.schematic.verifier.SchematicVerifier.MismatchRenderPos;
+import fi.dy.masa.litematica.schematic.verifier.SchematicVerifier.MismatchType;
+import fi.dy.masa.litematica.util.PositionUtils;
+import fi.dy.masa.malilib.gui.GuiBase;
+import fi.dy.masa.malilib.util.StringUtils;
+import net.minecraft.block.BlockState;
+import net.minecraft.block.entity.BlockEntity;
+import net.minecraft.client.MinecraftClient;
+import net.minecraft.client.world.ClientWorld;
+import net.minecraft.inventory.Inventory;
+import net.minecraft.util.math.BlockPos;
+import net.minecraft.world.World;
+import net.minecraft.world.chunk.Chunk;
+import net.minecraft.world.chunk.WorldChunk;
+import org.apache.commons.lang3.tuple.Pair;
+import org.jetbrains.annotations.Nullable;
+import org.spongepowered.asm.mixin.Final;
+import org.spongepowered.asm.mixin.Mixin;
+import org.spongepowered.asm.mixin.Shadow;
+import org.spongepowered.asm.mixin.Unique;
+import org.spongepowered.asm.mixin.injection.At;
+import org.spongepowered.asm.mixin.injection.Inject;
+import org.spongepowered.asm.mixin.injection.Redirect;
+import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
+import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
+
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+
+/**
+ * 把容器内容校验并入 Litematica 原版验证流程。
+ * 负责收集容器错填、维护统计与选中状态，并把结果包装成原版可显示的数据结构。
+ */
+@Mixin(value = SchematicVerifier.class, remap = false)
+public abstract class LitematicaSchematicVerifierMixin extends TaskBase implements VerifierExtension {
+    @Shadow
+    @Final
+    private static BlockPos.Mutable MUTABLE_POS;
+
+    @Shadow
+    private ClientWorld worldClient;
+
+    @Shadow
+    @Final
+    private List<MismatchRenderPos> mismatchPositionsForRender;
+
+    @Shadow
+    @Final
+    private List<BlockPos> mismatchBlockPositionsForRender;
+
+    @Shadow
+    @Final
+    private Set<MismatchType> selectedCategories;
+
+    @Shadow
+    @Final
+    private HashMultimap<MismatchType, BlockMismatch> selectedEntries;
+
+    @Shadow
+    private void updateMismatchOverlays() {
+    }
+
+    @Shadow
+    public abstract boolean isMismatchEntrySelected(BlockMismatch mismatch);
+
+    @Unique
+    private final Map<MismatchType, List<ContainerMismatch>> quickcraft$containerMismatches = new HashMap<>();
+
+    @Unique
+    private final Map<MismatchType, List<BlockPos>> quickcraft$containerPositionsClosest = new HashMap<>();
+
+    @Unique
+    private final Map<ContainerMismatchKey, ContainerMismatch> quickcraft$containerMismatchesByKey = new HashMap<>();
+
+    @Unique
+    private final List<BlockMismatch> quickcraft$selectedContainerMismatches = new ArrayList<>();
+
+    @Unique
+    private final Set<BlockPos> quickcraft$expectedContainerPositions = new HashSet<>();
+
+    @Unique
+    private final Set<BlockPos> quickcraft$checkedContainerPositions = new HashSet<>();
+
+    @Unique
+    private final Set<BlockPos> quickcraft$pendingContainerPositions = new HashSet<>();
+
+    @Unique
+    private int quickcraft$refreshCursor;
+
+    @Override
+    public List<BlockMismatch> quickcraft$getSelectedInventoryMismatches() {
+        if (!QuickLitematicaContainerVerifier.isEnabled()) {
+            return List.of();
+        }
+
+        return Collections.unmodifiableList(this.quickcraft$selectedContainerMismatches);
+    }
+
+    @Override
+    public int quickcraft$getWrongInventoryCount() {
+        if (!QuickLitematicaContainerVerifier.isEnabled()) {
+            return 0;
+        }
+
+        int count = 0;
+
+        for (List<ContainerMismatch> mismatches : this.quickcraft$containerMismatches.values()) {
+            count += mismatches.size();
+        }
+
+        return count;
+    }
+
+    @Override
+    public int quickcraft$getContainerMismatchCount(MismatchType type) {
+        if (!QuickLitematicaContainerVerifier.isEnabled()) {
+            return 0;
+        }
+
+        return this.quickcraft$containerMismatches.getOrDefault(type, List.of()).size();
+    }
+
+    @Override
+    public int quickcraft$getExpectedContainerCount() {
+        return QuickLitematicaContainerVerifier.isEnabled() ? this.quickcraft$expectedContainerPositions.size() : 0;
+    }
+
+    @Override
+    public int quickcraft$getCheckedContainerCount() {
+        return QuickLitematicaContainerVerifier.isEnabled() ? this.quickcraft$checkedContainerPositions.size() : 0;
+    }
+
+    @Override
+    public int quickcraft$getPendingContainerCount() {
+        return QuickLitematicaContainerVerifier.isEnabled() ? this.quickcraft$pendingContainerPositions.size() : 0;
+    }
+
+    @Override
+    public void quickcraft$refreshContainerMismatchAt(BlockPos pos, Inventory foundInventory, Set<Integer> foundDisabledSlots) {
+        if (!QuickLitematicaContainerVerifier.isEnabled() || foundInventory == null) {
+            return;
+        }
+
+        World bestWorld = fi.dy.masa.malilib.util.WorldUtils.getBestWorld(MinecraftClient.getInstance());
+        List<ContainerMismatch> mismatches = bestWorld != null
+                ? this.quickcraft$collectContainerMismatchesFromInventory(bestWorld, pos, foundInventory, foundDisabledSlots)
+                : null;
+
+        if (mismatches != null) {
+            this.quickcraft$markContainerChecked(pos);
+        } else {
+            this.quickcraft$markContainerPending(pos);
+        }
+
+        if (mismatches != null && this.quickcraft$replaceContainerMismatchesAt(pos, mismatches)) {
+            this.updateMismatchOverlays();
+        }
+    }
+
+    @Redirect(
+            method = "verifyChunks",
+            at = @At(
+                    value = "INVOKE",
+                    target = "Lnet/minecraft/client/world/ClientWorld;getChunk(II)Lnet/minecraft/world/chunk/WorldChunk;",
+                    remap = true
+            )
+    )
+    private WorldChunk quickcraft$useBestWorldForSinglePlayer(ClientWorld clientWorld, int chunkX, int chunkZ) {
+        World bestWorld = fi.dy.masa.malilib.util.WorldUtils.getBestWorld(MinecraftClient.getInstance());
+        return bestWorld != null ? bestWorld.getChunk(chunkX, chunkZ) : clientWorld.getChunk(chunkX, chunkZ);
+    }
+
+    @Inject(
+            method = "verifyChunk",
+            at = @At(
+                    value = "INVOKE",
+                    target = "Lfi/dy/masa/litematica/schematic/verifier/SchematicVerifier;checkBlockStates(IIILnet/minecraft/block/BlockState;Lnet/minecraft/block/BlockState;)V",
+                    remap = true,
+                    shift = At.Shift.AFTER
+            )
+    )
+    private void quickcraft$checkContainerInventory(Chunk chunkClient, Chunk chunkSchematic, fi.dy.masa.malilib.util.IntBoundingBox box, CallbackInfoReturnable<Boolean> cir) {
+        if (!QuickLitematicaContainerVerifier.isEnabled()) {
+            return;
+        }
+
+        BlockPos pos = MUTABLE_POS.toImmutable();
+        World foundWorld = fi.dy.masa.malilib.util.WorldUtils.getBestWorld(MinecraftClient.getInstance());
+        BlockEntity expectedBlockEntity = chunkSchematic.getBlockEntity(pos);
+
+        if (foundWorld == null || !(expectedBlockEntity instanceof Inventory)) {
+            return;
+        }
+
+        this.quickcraft$expectedContainerPositions.add(pos);
+        List<ContainerMismatch> mismatches = this.quickcraft$collectContainerMismatchesFromChunks(
+                foundWorld,
+                chunkClient,
+                chunkSchematic,
+                pos
+        );
+
+        if (mismatches != null) {
+            this.quickcraft$markContainerChecked(pos);
+            this.quickcraft$removeContainerMismatchesAt(pos);
+            mismatches.forEach(this::quickcraft$addContainerMismatch);
+        } else {
+            this.quickcraft$markContainerPending(pos);
+            QuickLitematicaContainerVerifier.requestInventoryData(this.worldClient, pos);
+        }
+    }
+
+    @Inject(method = "getMismatchOverviewFor", at = @At("HEAD"), cancellable = true)
+    private void quickcraft$getInventoryMismatchOverview(MismatchType type, CallbackInfoReturnable<List<BlockMismatch>> cir) {
+        if (QuickLitematicaContainerVerifier.isContainerMismatchType(type)) {
+            if (!QuickLitematicaContainerVerifier.isEnabled()) {
+                cir.setReturnValue(new ArrayList<>());
+                return;
+            }
+
+            List<BlockMismatch> list = this.quickcraft$createBlockMismatchesFor(type);
+            Collections.sort(list);
+            cir.setReturnValue(list);
+        }
+    }
+
+    @Inject(method = "getMismatchOverviewCombined", at = @At("RETURN"))
+    private void quickcraft$addInventoryMismatchOverview(CallbackInfoReturnable<List<BlockMismatch>> cir) {
+        if (!QuickLitematicaContainerVerifier.isEnabled()) {
+            return;
+        }
+
+        List<BlockMismatch> list = cir.getReturnValue();
+
+        Collections.sort(list);
+    }
+
+    @Inject(method = "getMapForMismatchType", at = @At("HEAD"), cancellable = true)
+    private void quickcraft$getInventoryMismatchMap(MismatchType type, CallbackInfoReturnable<ArrayListMultimap<Pair<BlockState, BlockState>, BlockPos>> cir) {
+        if (QuickLitematicaContainerVerifier.isContainerMismatchType(type)) {
+            ArrayListMultimap<Pair<BlockState, BlockState>, BlockPos> map = ArrayListMultimap.create();
+
+            if (!QuickLitematicaContainerVerifier.isEnabled()) {
+                cir.setReturnValue(map);
+                return;
+            }
+
+            for (ContainerMismatch mismatch : this.quickcraft$containerMismatches.getOrDefault(type, List.of())) {
+                map.put(Pair.of(mismatch.expectedState(), mismatch.foundState()), mismatch.pos());
+            }
+
+            cir.setReturnValue(map);
+        }
+    }
+
+    @Inject(method = "updateClosestPositions", at = @At("TAIL"))
+    private void quickcraft$updateClosestInventoryPositions(BlockPos centerPos, int maxEntries, CallbackInfo ci) {
+        if (!QuickLitematicaContainerVerifier.isEnabled()) {
+            this.quickcraft$containerPositionsClosest.clear();
+            return;
+        }
+
+        PositionUtils.BLOCK_POS_COMPARATOR.setReferencePosition(centerPos);
+        PositionUtils.BLOCK_POS_COMPARATOR.setClosestFirst(true);
+
+        for (MismatchType type : QuickLitematicaContainerVerifier.getContainerMismatchTypes()) {
+            List<BlockPos> positions = this.quickcraft$getSelectedContainerPositionsForType(type);
+            positions.sort(PositionUtils.BLOCK_POS_COMPARATOR);
+            this.quickcraft$containerPositionsClosest.put(type, positions);
+        }
+    }
+
+    @Inject(method = "combineClosestPositions", at = @At("TAIL"))
+    private void quickcraft$combineClosestInventoryPositions(BlockPos centerPos, int maxEntries, CallbackInfo ci) {
+        if (!QuickLitematicaContainerVerifier.isEnabled()) {
+            return;
+        }
+
+        for (MismatchType type : QuickLitematicaContainerVerifier.getContainerMismatchTypes()) {
+            List<BlockPos> positions = this.quickcraft$containerPositionsClosest.getOrDefault(type, List.of());
+
+            for (BlockPos pos : positions) {
+                if (this.mismatchPositionsForRender.size() >= maxEntries) {
+                    return;
+                }
+
+                this.mismatchPositionsForRender.add(new MismatchRenderPos(type, pos));
+            }
+        }
+    }
+
+    @Inject(method = "getClosestMismatchedPositionsFor", at = @At("HEAD"), cancellable = true)
+    private void quickcraft$getClosestInventoryPositions(MismatchType type, CallbackInfoReturnable<List<BlockPos>> cir) {
+        if (QuickLitematicaContainerVerifier.isContainerMismatchType(type)) {
+            cir.setReturnValue(QuickLitematicaContainerVerifier.isEnabled()
+                    ? this.quickcraft$containerPositionsClosest.getOrDefault(type, List.of())
+                    : List.of());
+        }
+    }
+
+    @Inject(method = "toggleMismatchEntrySelected", at = @At("TAIL"))
+    private void quickcraft$trackSelectedInventoryMismatch(BlockMismatch mismatch, CallbackInfo ci) {
+        if (!QuickLitematicaContainerVerifier.isEnabled()
+                || !QuickLitematicaContainerVerifier.isContainerMismatchType(mismatch.mismatchType)) {
+            return;
+        }
+
+        if (this.isMismatchEntrySelected(mismatch)) {
+            if (!this.quickcraft$selectedContainerMismatches.contains(mismatch)) {
+                this.quickcraft$selectedContainerMismatches.add(mismatch);
+            }
+        } else {
+            this.quickcraft$selectedContainerMismatches.remove(mismatch);
+        }
+    }
+
+    @Inject(method = "removeSelectedEntriesOfType", at = @At("HEAD"))
+    private void quickcraft$removeSelectedInventoryMismatches(MismatchType type, CallbackInfo ci) {
+        if (QuickLitematicaContainerVerifier.isEnabled()
+                && QuickLitematicaContainerVerifier.isContainerMismatchType(type)) {
+            this.quickcraft$selectedContainerMismatches.removeIf(mismatch -> mismatch.mismatchType == type);
+        }
+    }
+
+    @Inject(method = "ignoreStateMismatch(Lfi/dy/masa/litematica/schematic/verifier/SchematicVerifier$BlockMismatch;Z)V", at = @At("HEAD"), cancellable = true)
+    private void quickcraft$forgetIgnoredInventoryMismatch(BlockMismatch mismatch, boolean updateOverlay, CallbackInfo ci) {
+        if (!QuickLitematicaContainerVerifier.isEnabled()
+                || !QuickLitematicaContainerVerifier.isContainerMismatchType(mismatch.mismatchType)) {
+            return;
+        }
+
+        ContainerMismatchKey key = ((BlockMismatchExtension) mismatch).quickcraft$getContainerMismatchKey();
+
+        if (key != null) {
+            ContainerMismatch removed = this.quickcraft$containerMismatchesByKey.remove(key);
+
+            if (removed != null) {
+                this.quickcraft$containerMismatches.getOrDefault(removed.type(), List.of()).remove(removed);
+            }
+        }
+
+        this.quickcraft$selectedContainerMismatches.remove(mismatch);
+
+        if (updateOverlay) {
+            this.updateMismatchOverlays();
+        }
+
+        ci.cancel();
+    }
+
+    @Inject(method = "clearData", at = @At("HEAD"))
+    private void quickcraft$clearInventoryData(CallbackInfo ci) {
+        this.quickcraft$clearContainerData();
+    }
+
+    @Inject(method = "execute", at = @At("TAIL"))
+    private void quickcraft$refreshContainerMismatches(CallbackInfoReturnable<Boolean> cir) {
+        if (!QuickLitematicaContainerVerifier.isEnabled()) {
+            if (!this.quickcraft$containerMismatchesByKey.isEmpty()) {
+                this.quickcraft$clearContainerData();
+                this.updateMismatchOverlays();
+            }
+            return;
+        }
+
+        MinecraftClient client = MinecraftClient.getInstance();
+
+        if (client.world == null || client.world.getTime() % 10 != 0) {
+            return;
+        }
+
+        World bestWorld = fi.dy.masa.malilib.util.WorldUtils.getBestWorld(client);
+
+        if (bestWorld == null || this.quickcraft$containerMismatchesByKey.isEmpty()) {
+            return;
+        }
+
+        List<BlockPos> positions = new ArrayList<>();
+
+        for (ContainerMismatch mismatch : this.quickcraft$containerMismatchesByKey.values()) {
+            if (!positions.contains(mismatch.pos())) {
+                positions.add(mismatch.pos());
+            }
+        }
+
+        if (positions.isEmpty()) {
+            return;
+        }
+
+        boolean changed = false;
+        int checks = Math.min(8, positions.size());
+
+        for (int i = 0; i < checks; i++) {
+            if (this.quickcraft$refreshCursor >= positions.size()) {
+                this.quickcraft$refreshCursor = 0;
+            }
+
+            BlockPos pos = positions.get(this.quickcraft$refreshCursor++);
+            List<ContainerMismatch> mismatches = this.quickcraft$collectContainerMismatchesFromWorld(bestWorld, pos);
+
+            if (mismatches != null) {
+                this.quickcraft$markContainerChecked(pos);
+                changed |= this.quickcraft$replaceContainerMismatchesAt(pos, mismatches);
+            } else {
+                this.quickcraft$markContainerPending(pos);
+            }
+        }
+
+        if (changed) {
+            this.updateMismatchOverlays();
+        }
+    }
+
+    @Inject(method = "updateMismatchPositionStringList", at = @At("TAIL"))
+    private void quickcraft$splitInventoryHudLines(@Nullable MismatchType mismatchType, List<MismatchRenderPos> positionList, CallbackInfo ci) {
+        if (!QuickLitematicaContainerVerifier.isEnabled()
+                || positionList.stream().noneMatch(pos -> QuickLitematicaContainerVerifier.isContainerMismatchType(pos.type))) {
+            return;
+        }
+
+        this.infoHudLines.clear();
+        String rst = GuiBase.TXT_RST;
+        List<MismatchRenderPos> vanilla = positionList.stream()
+                .filter(pos -> !QuickLitematicaContainerVerifier.isContainerMismatchType(pos.type))
+                .toList();
+        List<MismatchRenderPos> containers = positionList.stream()
+                .filter(pos -> QuickLitematicaContainerVerifier.isContainerMismatchType(pos.type))
+                .toList();
+        int maxLines = Configs.InfoOverlays.INFO_HUD_MAX_LINES.getIntegerValue();
+
+        if (!vanilla.isEmpty()) {
+            String title = mismatchType != null && !QuickLitematicaContainerVerifier.isContainerMismatchType(mismatchType)
+                    ? mismatchType.getFormattingCode() + mismatchType.getDisplayname()
+                    : GuiBase.TXT_BOLD + StringUtils.translate("litematica.gui.title.schematic_verifier_errors");
+            this.infoHudLines.add(title + rst);
+            this.quickcraft$addHudPositions(vanilla, maxLines);
+        }
+
+        if (!containers.isEmpty()) {
+            this.infoHudLines.add(QuickLitematicaVerifierPalette.formatSectionTitle(
+                    StringUtils.translate("quickcraft.litematica.verifier.title.container_errors")
+            ));
+            this.quickcraft$addHudPositions(containers, maxLines);
+        }
+    }
+
+    @Unique
+    private List<ContainerMismatch> quickcraft$collectContainerMismatchesFromChunks(
+            World foundWorld,
+            Chunk chunkClient,
+            Chunk chunkSchematic,
+            BlockPos pos
+    ) {
+        BlockEntity expectedBlockEntity = chunkSchematic.getBlockEntity(pos);
+        BlockEntity foundBlockEntity = chunkClient.getBlockEntity(pos);
+
+        if (!(expectedBlockEntity instanceof Inventory expectedInventory)) {
+            return List.of();
+        }
+
+        if (!(foundBlockEntity instanceof Inventory foundInventory)) {
+            if (!fi.dy.masa.litematica.data.DataManager.getInstance().hasIntegratedServer()) {
+                QuickLitematicaContainerVerifier.requestInventoryData(foundWorld, pos);
+                return null;
+            }
+
+            return List.of();
+        }
+
+        Inventory expected = QuickLitematicaContainerVerifier.getExpectedInventory(expectedBlockEntity, expectedInventory);
+        Inventory found = QuickLitematicaContainerVerifier.getActualInventory(
+                foundWorld,
+                pos,
+                foundInventory,
+                expected
+        );
+        if (found == null || found.size() != expected.size()) {
+            return null;
+        }
+
+        List<ContainerMismatch> mismatches = QuickLitematicaContainerVerifier.findMismatches(
+                pos,
+                chunkSchematic.getBlockState(pos),
+                chunkClient.getBlockState(pos),
+                expectedBlockEntity,
+                foundBlockEntity,
+                QuickLitematicaContainerVerifier.getDisabledSlots(expectedBlockEntity),
+                QuickLitematicaContainerVerifier.getDisabledSlots(foundBlockEntity),
+                expected,
+                found
+        );
+        return mismatches;
+    }
+
+    @Unique
+    private List<ContainerMismatch> quickcraft$collectContainerMismatchesFromWorld(World foundWorld, BlockPos pos) {
+        if (this.worldClient == null) {
+            return null;
+        }
+
+        ExpectedContainer expected = QuickLitematicaContainerVerifier.getExpectedContainerAt(foundWorld, pos);
+        BlockEntity foundBlockEntity = foundWorld.getBlockEntity(pos);
+
+        if (expected == null) {
+            return List.of();
+        }
+
+        if (!(foundBlockEntity instanceof Inventory foundInventory)) {
+            if (!fi.dy.masa.litematica.data.DataManager.getInstance().hasIntegratedServer()) {
+                QuickLitematicaContainerVerifier.requestInventoryData(foundWorld, pos);
+                return null;
+            }
+
+            return List.of();
+        }
+
+        Inventory found = QuickLitematicaContainerVerifier.getActualInventory(
+                foundWorld,
+                pos,
+                foundInventory,
+                expected.inventory()
+        );
+
+        if (found == null || found.size() != expected.inventory().size()) {
+            return null;
+        }
+
+        return QuickLitematicaContainerVerifier.findMismatches(
+                pos,
+                expected.state(),
+                foundWorld.getBlockState(pos),
+                expected.blockEntity(),
+                foundBlockEntity,
+                expected.disabledSlots(),
+                QuickLitematicaContainerVerifier.getDisabledSlots(foundBlockEntity),
+                expected.inventory(),
+                found
+        );
+    }
+
+    @Unique
+    private List<ContainerMismatch> quickcraft$collectContainerMismatchesFromInventory(
+            World foundWorld,
+            BlockPos pos,
+            Inventory found,
+            Set<Integer> foundDisabledSlots
+    ) {
+        ExpectedContainer expected = QuickLitematicaContainerVerifier.getExpectedContainerAt(foundWorld, pos);
+        BlockEntity foundBlockEntity = foundWorld.getBlockEntity(pos);
+
+        if (expected == null) {
+            return List.of();
+        }
+
+        if (found.size() != expected.inventory().size()) {
+            return null;
+        }
+
+        return QuickLitematicaContainerVerifier.findMismatches(
+                pos,
+                expected.state(),
+                foundWorld.getBlockState(pos),
+                expected.blockEntity(),
+                foundBlockEntity,
+                expected.disabledSlots(),
+                foundDisabledSlots != null ? foundDisabledSlots : foundBlockEntity != null ? QuickLitematicaContainerVerifier.getDisabledSlots(foundBlockEntity) : Set.of(),
+                expected.inventory(),
+                found
+        );
+    }
+
+    @Unique
+    private void quickcraft$addContainerMismatch(ContainerMismatch mismatch) {
+        this.quickcraft$containerMismatches.computeIfAbsent(mismatch.type(), type -> new ArrayList<>()).add(mismatch);
+        this.quickcraft$containerMismatchesByKey.put(mismatch.key(), mismatch);
+        this.quickcraft$syncInventorySlotHighlightSuppression();
+    }
+
+    @Unique
+    private boolean quickcraft$replaceContainerMismatchesAt(BlockPos pos, List<ContainerMismatch> mismatches) {
+        List<ContainerMismatchKey> oldKeys = this.quickcraft$containerMismatchesByKey.entrySet().stream()
+                .filter(entry -> entry.getValue().pos().equals(pos))
+                .map(Map.Entry::getKey)
+                .toList();
+        List<ContainerMismatchKey> newKeys = mismatches.stream()
+                .map(ContainerMismatch::key)
+                .toList();
+
+        List<String> oldSignatures = this.quickcraft$containerMismatchesByKey.values().stream()
+                .filter(mismatch -> mismatch.pos().equals(pos))
+                .map(this::quickcraft$getContainerMismatchSignature)
+                .toList();
+        List<String> newSignatures = mismatches.stream()
+                .map(this::quickcraft$getContainerMismatchSignature)
+                .toList();
+
+        if (oldKeys.equals(newKeys) && oldSignatures.equals(newSignatures)) {
+            return false;
+        }
+
+        boolean wasSelected = this.quickcraft$isContainerPosSelected(pos);
+        this.quickcraft$removeContainerMismatchesAt(pos);
+        mismatches.forEach(this::quickcraft$addContainerMismatch);
+        this.quickcraft$restoreContainerSelection(pos, wasSelected);
+        return true;
+    }
+
+    @Unique
+    private void quickcraft$removeContainerMismatchesAt(BlockPos pos) {
+        this.quickcraft$containerMismatchesByKey.entrySet().removeIf(entry -> entry.getValue().pos().equals(pos));
+
+        for (List<ContainerMismatch> mismatches : this.quickcraft$containerMismatches.values()) {
+            mismatches.removeIf(mismatch -> mismatch.pos().equals(pos));
+        }
+
+        this.quickcraft$syncInventorySlotHighlightSuppression();
+    }
+
+    @Unique
+    private void quickcraft$clearContainerData() {
+        this.quickcraft$containerMismatches.clear();
+        this.quickcraft$containerPositionsClosest.clear();
+        this.quickcraft$containerMismatchesByKey.clear();
+        this.quickcraft$selectedContainerMismatches.clear();
+        this.quickcraft$expectedContainerPositions.clear();
+        this.quickcraft$checkedContainerPositions.clear();
+        this.quickcraft$pendingContainerPositions.clear();
+        this.selectedCategories.removeIf(QuickLitematicaContainerVerifier::isContainerMismatchType);
+        this.selectedEntries.keySet().removeIf(QuickLitematicaContainerVerifier::isContainerMismatchType);
+        this.quickcraft$syncInventorySlotHighlightSuppression();
+    }
+
+    @Unique
+    private void quickcraft$syncInventorySlotHighlightSuppression() {
+        QuickLitematicaContainerVerifier.setSuppressInventorySlotHighlights(
+                false
+        );
+    }
+
+    @Unique
+    private void quickcraft$markContainerChecked(BlockPos pos) {
+        this.quickcraft$expectedContainerPositions.add(pos.toImmutable());
+        this.quickcraft$checkedContainerPositions.add(pos.toImmutable());
+        this.quickcraft$pendingContainerPositions.remove(pos);
+    }
+
+    @Unique
+    private void quickcraft$markContainerPending(BlockPos pos) {
+        this.quickcraft$expectedContainerPositions.add(pos.toImmutable());
+        this.quickcraft$checkedContainerPositions.remove(pos);
+        this.quickcraft$pendingContainerPositions.add(pos.toImmutable());
+    }
+
+    @Unique
+    private List<BlockMismatch> quickcraft$createBlockMismatchesFor(MismatchType type) {
+        List<BlockMismatch> list = new ArrayList<>();
+
+        for (ContainerMismatch mismatch : this.quickcraft$containerMismatches.getOrDefault(type, List.of())) {
+            list.add(this.quickcraft$createBlockMismatch(mismatch));
+        }
+
+        return list;
+    }
+
+    @Unique
+    private BlockMismatch quickcraft$createBlockMismatch(ContainerMismatch mismatch) {
+        BlockMismatch blockMismatch = new BlockMismatch(
+                mismatch.type(),
+                mismatch.expectedState(),
+                mismatch.foundState(),
+                1
+        );
+        ((BlockMismatchExtension) blockMismatch).quickcraft$setContainerMismatch(mismatch);
+        return blockMismatch;
+    }
+
+    @Unique
+    private List<BlockPos> quickcraft$getSelectedContainerPositionsForType(MismatchType type) {
+        List<BlockPos> positions = new ArrayList<>();
+
+        if (this.selectedCategories.contains(type)) {
+            this.quickcraft$containerMismatches.getOrDefault(type, List.of()).stream()
+                    .map(ContainerMismatch::pos)
+                    .distinct()
+                    .forEach(positions::add);
+            return positions;
+        }
+
+        Collection<BlockMismatch> selected = this.selectedEntries.get(type);
+
+        for (BlockMismatch mismatch : selected) {
+            ContainerMismatchKey key = ((BlockMismatchExtension) mismatch).quickcraft$getContainerMismatchKey();
+            ContainerMismatch containerMismatch = key != null ? this.quickcraft$containerMismatchesByKey.get(key) : null;
+
+            if (containerMismatch != null && !positions.contains(containerMismatch.pos())) {
+                positions.add(containerMismatch.pos());
+            }
+        }
+
+        return positions;
+    }
+
+    @Unique
+    private void quickcraft$addHudPositions(List<MismatchRenderPos> positions, int maxLines) {
+        int count = Math.min(positions.size(), maxLines);
+        String rst = GuiBase.TXT_RST;
+
+        for (int i = 0; i < count; i++) {
+            MismatchRenderPos entry = positions.get(i);
+            BlockPos pos = entry.pos;
+            String pre = quickcraft$getHudColorCode(entry.type);
+            this.infoHudLines.add(String.format("%sx: %5d, y: %3d, z: %5d%s", pre, pos.getX(), pos.getY(), pos.getZ(), rst));
+        }
+    }
+
+    @Unique
+    private String quickcraft$getHudColorCode(MismatchType type) {
+        if (QuickLitematicaContainerVerifier.isContainerMismatchType(type)) {
+            return QuickLitematicaVerifierPalette.formattingCode(type);
+        }
+
+        return type.getColorCode();
+    }
+
+    @Unique
+    private boolean quickcraft$isContainerPosSelected(BlockPos pos) {
+        for (BlockMismatch mismatch : this.quickcraft$selectedContainerMismatches) {
+            ContainerMismatch containerMismatch =
+                    ((BlockMismatchExtension) mismatch).quickcraft$getContainerMismatch();
+
+            if (containerMismatch != null && containerMismatch.pos().equals(pos)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    @Unique
+    private void quickcraft$restoreContainerSelection(BlockPos pos, boolean wasSelected) {
+        this.quickcraft$selectedContainerMismatches.removeIf(mismatch -> {
+            ContainerMismatch containerMismatch =
+                    ((BlockMismatchExtension) mismatch).quickcraft$getContainerMismatch();
+            return containerMismatch != null && containerMismatch.pos().equals(pos);
+        });
+        this.selectedEntries.values().removeIf(mismatch -> {
+            ContainerMismatch containerMismatch =
+                    ((BlockMismatchExtension) mismatch).quickcraft$getContainerMismatch();
+            return containerMismatch != null && containerMismatch.pos().equals(pos);
+        });
+
+        if (!wasSelected) {
+            return;
+        }
+
+        for (ContainerMismatch mismatch : this.quickcraft$containerMismatchesByKey.values()) {
+            if (mismatch.pos().equals(pos)) {
+                BlockMismatch blockMismatch = this.quickcraft$createBlockMismatch(mismatch);
+                this.quickcraft$selectedContainerMismatches.add(blockMismatch);
+                this.selectedEntries.put(blockMismatch.mismatchType, blockMismatch);
+                return;
+            }
+        }
+    }
+
+    @Unique
+    private String quickcraft$getContainerMismatchSignature(ContainerMismatch mismatch) {
+        StringBuilder builder = new StringBuilder();
+
+        builder.append(mismatch.type().ordinal()).append('|');
+
+        for (QuickLitematicaContainerVerifier.SlotMismatch slotMismatch : mismatch.slotMismatches()) {
+            builder.append(slotMismatch.slot())
+                    .append(':')
+                    .append(slotMismatch.status().name())
+                    .append(':')
+                    .append(slotMismatch.expectedStack().getCount())
+                    .append(':')
+                    .append(slotMismatch.foundStack().getCount())
+                    .append(':')
+                    .append(slotMismatch.expectedStack().isEmpty() ? "empty" : slotMismatch.expectedStack().getItem())
+                    .append(':')
+                    .append(slotMismatch.foundStack().isEmpty() ? "empty" : slotMismatch.foundStack().getItem())
+                    .append(';');
+        }
+
+        return builder.toString();
+    }
+}
