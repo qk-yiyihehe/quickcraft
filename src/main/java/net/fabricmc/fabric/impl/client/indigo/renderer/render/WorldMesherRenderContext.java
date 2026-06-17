@@ -50,7 +50,7 @@ public class WorldMesherRenderContext extends AbstractBlockRenderContext {
 
             this.aoCalc.clear();
             this.blockInfo.prepareForBlock(blockState, blockPos, model.useAmbientOcclusion());
-            model.emitBlockQuads(this.blockInfo.blockView, this.blockInfo.blockState, this.blockInfo.blockPos, this.blockInfo.randomSupplier, this);
+            model.emitBlockQuads(this.getEmitter(), this.blockInfo.blockView, this.blockInfo.blockState, this.blockInfo.blockPos, this.blockInfo.randomSupplier, this.blockInfo::shouldCullSide);
         } catch (Throwable throwable) {
             CrashReport report = CrashReport.create(throwable, "Tessellating block in QuickCraft Litematica preview mesh");
             CrashReportSection section = report.addElement("Block being tessellated");

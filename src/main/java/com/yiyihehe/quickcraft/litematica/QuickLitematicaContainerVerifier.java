@@ -34,11 +34,9 @@ import net.minecraft.block.enums.ChestType;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.gui.screen.ingame.HandledScreen;
-import net.minecraft.client.render.DiffuseLighting;
 import net.minecraft.client.render.OverlayTexture;
 import net.minecraft.client.render.VertexConsumer;
 import net.minecraft.client.render.VertexConsumerProvider;
-import net.minecraft.client.render.model.BakedModel;
 import net.minecraft.entity.player.PlayerInventory;
 import net.minecraft.inventory.Inventory;
 import net.minecraft.inventory.SimpleInventory;
@@ -1257,16 +1255,9 @@ public final class QuickLitematicaContainerVerifier {
                                               int x,
                                               int y,
                                               float alpha) {
-            BakedModel model = client.getItemRenderer().getModel(stack, client.world, client.player, 0);
             context.getMatrices().push();
             context.getMatrices().translate(x + 8.0F, y + 8.0F, 150.0F);
             context.getMatrices().scale(16.0F, -16.0F, 16.0F);
-
-            boolean disableSideLighting = !model.isSideLit();
-            if (disableSideLighting) {
-                context.draw();
-                DiffuseLighting.disableGuiDepthLighting();
-            }
 
             int alphaColor = Math.max(0, Math.min(255, Math.round(alpha * 255.0F)));
             VertexConsumerProvider alphaProvider = layer -> new AlphaVertexConsumer(
@@ -1278,18 +1269,15 @@ public final class QuickLitematicaContainerVerifier {
             client.getItemRenderer().renderItem(
                     stack,
                     ModelTransformationMode.GUI,
-                    false,
-                    context.getMatrices(),
-                    alphaProvider,
                     15728880,
                     OverlayTexture.DEFAULT_UV,
-                    model
+                    context.getMatrices(),
+                    alphaProvider,
+                    client.world,
+                    0
             );
             client.getBufferBuilders().getEntityVertexConsumers().draw();
 
-            if (disableSideLighting) {
-                DiffuseLighting.enableGuiDepthLighting();
-            }
             context.getMatrices().pop();
         }
 

@@ -1203,7 +1203,7 @@ public class QuickCraftWorkbench implements ClientModInitializer {
 
     private boolean matchesAnyIngredient(ItemStack stack, List<Ingredient> ingredients) {
         for (Ingredient ingredient : ingredients) {
-            if (ingredient == null || ingredient.getMatchingItems().isEmpty()) continue;
+            if (ingredient == null || ingredient.isEmpty()) continue;
             if (ingredient.test(stack)) return true;
         }
         return false;

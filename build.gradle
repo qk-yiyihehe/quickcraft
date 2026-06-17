@@ -61,9 +61,9 @@ dependencies {
 	// Fabric API. This is technically optional, but you probably want it anyway.
 	modImplementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_api_version}"
 	modImplementation include("com.github.Chocohead:Fabric-ASM:v${project.fabric_asm_version}")
-	modImplementation "fi.dy.masa.malilib:malilib-fabric-1.21.3:${project.malilib_version}"
-	modCompileOnly "fi.dy.masa.litematica:litematica-fabric-1.21.3:${project.litematica_version}"
-	modLocalRuntime "fi.dy.masa.litematica:litematica-fabric-1.21.3:${project.litematica_version}"
+	modImplementation "fi.dy.masa.malilib:malilib-fabric-1.21.4:${project.malilib_version}"
+	modCompileOnly "fi.dy.masa.litematica:litematica-fabric-1.21.4:${project.litematica_version}"
+	modLocalRuntime "fi.dy.masa.litematica:litematica-fabric-1.21.4:${project.litematica_version}"
 	modCompileOnly "com.terraformersmc:modmenu:${project.modmenu_version}"
 	modLocalRuntime "com.terraformersmc:modmenu:${project.modmenu_version}"
 	modLocalRuntime("net.kyrptonaught:quickshulker:${project.quickshulker_version}") {
