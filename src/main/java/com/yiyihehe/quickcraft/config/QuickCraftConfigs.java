@@ -214,7 +214,7 @@ public final class QuickCraftConfigs implements IConfigHandler {
         ).apply(CONTAINER_TRANSLATION_PREFIX);
         public static final ConfigBooleanHotkeyed ENABLE_QUICK_TRADE = new ConfigBooleanHotkeyed(
                 "enableQuickTrade",
-                true,
+                false,
                 ""
         ).apply(CONTAINER_TRANSLATION_PREFIX);
         public static final ConfigBooleanHotkeyed ENABLE_FAVORITE_TRADE = new ConfigBooleanHotkeyed(
@@ -289,6 +289,11 @@ public final class QuickCraftConfigs implements IConfigHandler {
         ).apply(PROJECTION_TRANSLATION_PREFIX);
         public static final ConfigBooleanHotkeyed SHOW_LITEMATICA_CONTAINER_MATERIAL_BUTTON = new ConfigBooleanHotkeyed(
                 "showLitematicaContainerMaterialButton",
+                true,
+                ""
+        ).apply(PROJECTION_TRANSLATION_PREFIX);
+        public static final ConfigBooleanHotkeyed SHOW_LITEMATICA_CONTAINER_SLOT_HINTS = new ConfigBooleanHotkeyed(
+                "showLitematicaContainerSlotHints",
                 true,
                 ""
         ).apply(PROJECTION_TRANSLATION_PREFIX);
@@ -380,6 +385,7 @@ public final class QuickCraftConfigs implements IConfigHandler {
         public static final List<IConfigBase> OPTIONS = List.of(
                 SHOW_LITEMATICA_3D_PREVIEW,
                 SHOW_LITEMATICA_CONTAINER_MATERIAL_BUTTON,
+                SHOW_LITEMATICA_CONTAINER_SLOT_HINTS,
                 SHOW_LITEMATICA_CONTAINER_VERIFIER,
                 ENABLE_AUTO_COLLECT_MATERIALS,
                 MATERIAL_COLLECT_EXTRA_0_TO_10,
@@ -541,6 +547,7 @@ public final class QuickCraftConfigs implements IConfigHandler {
                 ContainerTools.ENABLE_QUICK_BEACON,
                 ProjectionTools.SHOW_LITEMATICA_3D_PREVIEW,
                 ProjectionTools.SHOW_LITEMATICA_CONTAINER_MATERIAL_BUTTON,
+                ProjectionTools.SHOW_LITEMATICA_CONTAINER_SLOT_HINTS,
                 ProjectionTools.SHOW_LITEMATICA_CONTAINER_VERIFIER,
                 ProjectionTools.ENABLE_AUTO_COLLECT_MATERIALS,
                 ProjectionTools.ENABLE_LITEMATICA_CONTAINER_AUTOFILL,
@@ -581,6 +588,7 @@ public final class QuickCraftConfigs implements IConfigHandler {
                 ContainerTools.ENABLE_QUICK_BEACON,
                 ProjectionTools.SHOW_LITEMATICA_3D_PREVIEW,
                 ProjectionTools.SHOW_LITEMATICA_CONTAINER_MATERIAL_BUTTON,
+                ProjectionTools.SHOW_LITEMATICA_CONTAINER_SLOT_HINTS,
                 ProjectionTools.SHOW_LITEMATICA_CONTAINER_VERIFIER,
                 ProjectionTools.ENABLE_AUTO_COLLECT_MATERIALS,
                 ProjectionTools.ENABLE_LITEMATICA_CONTAINER_AUTOFILL,
@@ -771,6 +779,10 @@ public final class QuickCraftConfigs implements IConfigHandler {
 
     public static boolean isLitematica3DPreviewEnabled() {
         return ProjectionTools.SHOW_LITEMATICA_3D_PREVIEW.getBooleanValue();
+    }
+
+    public static boolean isLitematicaContainerSlotHintsVisible() {
+        return ProjectionTools.SHOW_LITEMATICA_CONTAINER_SLOT_HINTS.getBooleanValue();
     }
 
     public static boolean isLitematicaContainerVerifierEnabled() {
