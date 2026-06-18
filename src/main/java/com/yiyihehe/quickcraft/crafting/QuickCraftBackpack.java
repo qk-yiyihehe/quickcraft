@@ -548,16 +548,53 @@ public class QuickCraftBackpack implements ClientModInitializer {
 
         if (handler.getCursorStack().getCount() < targetSlotCount
                 || handler.getCursorStack().getCount() < handler.getCursorStack().getMaxCount()) {
-            client.interactionManager.clickSlot(
-                    handler.syncId,
-                    sourceSlot,
-                    0,
-                    SlotActionType.PICKUP_ALL,
-                    client.player
-            );
+            mergeMatchingPlayerInventoryStacksToCursor(client, handler, sourceSlot);
         }
 
         return sourceSlot;
+    }
+
+    private void mergeMatchingPlayerInventoryStacksToCursor(MinecraftClient client,
+                                                            PlayerScreenHandler handler,
+                                                            int sourceSlot) {
+        if (client.player == null || handler.getCursorStack().isEmpty()) {
+            return;
+        }
+
+        // 高版本里 PICKUP_ALL 的并堆行为不够稳定，这里显式把背包里的同类材料并到鼠标上。
+        ItemStack template = handler.getCursorStack().copy();
+        int maxCount = template.getMaxCount();
+        if (template.getCount() >= maxCount) {
+            return;
+        }
+
+        PlayerInventory inventory = client.player.getInventory();
+        for (int invIndex = 0; invIndex < inventory.main.size(); invIndex++) {
+            int handlerSlot = playerInventoryIndexToHandlerSlot(invIndex);
+            if (handlerSlot == -1 || handlerSlot == sourceSlot) {
+                continue;
+            }
+
+            ItemStack slotStack = handler.getSlot(handlerSlot).getStack();
+            if (slotStack.isEmpty() || !ItemStack.areItemsAndComponentsEqual(slotStack, template)) {
+                continue;
+            }
+
+            client.interactionManager.clickSlot(
+                    handler.syncId,
+                    handlerSlot,
+                    0,
+                    SlotActionType.PICKUP,
+                    client.player
+            );
+
+            ItemStack cursorStack = handler.getCursorStack();
+            if (cursorStack.isEmpty()
+                    || !ItemStack.areItemsAndComponentsEqual(cursorStack, template)
+                    || cursorStack.getCount() >= maxCount) {
+                return;
+            }
+        }
     }
 
     private boolean distributeCursorStackToMissingPatternSlots(MinecraftClient client,
