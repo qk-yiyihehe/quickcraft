@@ -1,9 +1,12 @@
 package com.yiyihehe.quickcraft.litematica;
 
 import com.chocohead.mm.api.ClassTinkerers;
+import com.mojang.blaze3d.systems.ProjectionType;
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.yiyihehe.quickcraft.QuickContainerCopy;
+import com.yiyihehe.quickcraft.QuickCraft;
 import com.yiyihehe.quickcraft.config.QuickCraftConfigs;
+import com.yiyihehe.quickcraft.mixin.MinecraftClientAccessor;
 import net.fabricmc.loader.api.FabricLoader;
 import fi.dy.masa.litematica.config.Configs;
 import fi.dy.masa.litematica.data.DataManager;
@@ -32,16 +35,21 @@ import net.minecraft.block.entity.BlockEntity;
 import net.minecraft.block.entity.CrafterBlockEntity;
 import net.minecraft.block.enums.ChestType;
 import net.minecraft.client.MinecraftClient;
+import net.minecraft.client.gl.Framebuffer;
+import net.minecraft.client.gl.SimpleFramebuffer;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.gui.screen.ingame.HandledScreen;
-import net.minecraft.client.render.OverlayTexture;
+import net.minecraft.client.render.RenderLayer;
+import net.minecraft.client.render.RenderPhase;
 import net.minecraft.client.render.VertexConsumer;
-import net.minecraft.client.render.VertexConsumerProvider;
+import net.minecraft.client.render.VertexFormat;
+import net.minecraft.client.render.VertexFormats;
+import net.minecraft.client.util.Window;
+import net.minecraft.client.util.math.MatrixStack;
 import net.minecraft.entity.player.PlayerInventory;
 import net.minecraft.inventory.Inventory;
 import net.minecraft.inventory.SimpleInventory;
 import net.minecraft.item.ItemStack;
-import net.minecraft.item.ModelTransformationMode;
 import net.minecraft.nbt.NbtCompound;
 import net.minecraft.screen.CrafterScreenHandler;
 import net.minecraft.screen.ScreenHandler;
@@ -53,6 +61,7 @@ import net.minecraft.util.hit.BlockHitResult;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.world.World;
 import org.apache.commons.lang3.tuple.Pair;
+import org.joml.Matrix4f;
 
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -356,6 +365,14 @@ public final class QuickLitematicaContainerVerifier {
             float alpha
     ) {
         GhostItemBuffer.drawGhostItem(context, client, stack, x, y, guiLeft, guiTop, alpha);
+    }
+
+    public static boolean beginHandledScreenGhostRender(DrawContext context, MinecraftClient client) {
+        return GhostItemBuffer.beginHandledScreenGhostRender(context, client);
+    }
+
+    public static void endHandledScreenGhostRender(DrawContext context, int guiLeft, int guiTop, float alpha) {
+        GhostItemBuffer.endHandledScreenGhostRender(context, guiLeft, guiTop, alpha);
     }
 
     public static void rememberContainerUse(MinecraftClient client, BlockHitResult hitResult) {
@@ -926,7 +943,6 @@ public final class QuickLitematicaContainerVerifier {
                     0,
                     QuickLitematicaVerifierPalette.ghostItemAlpha()
             );
-            drawContext.fill(x, y, x + 16, y + 16, mismatch.status().ghostMaskColor());
             drawOutline(drawContext, x, y, 16, 16, mismatch.status().borderColor());
         }
     }
@@ -1228,7 +1244,57 @@ public final class QuickLitematicaContainerVerifier {
     }
 
     private static final class GhostItemBuffer {
+        private static final RenderLayer TRANSPARENCY_LAYER = RenderLayer.of(
+                QuickCraft.MOD_ID + "_ghost_item_transparency",
+                VertexFormats.POSITION_TEXTURE,
+                VertexFormat.DrawMode.QUADS,
+                1536,
+                false,
+                true,
+                RenderLayer.MultiPhaseParameters.builder()
+                        .texture(RenderPhase.NO_TEXTURE)
+                        .program(RenderPhase.POSITION_TEXTURE_PROGRAM)
+                        .transparency(RenderPhase.TRANSLUCENT_TRANSPARENCY)
+                        .build(false)
+        );
+        private static SimpleFramebuffer framebuffer;
+        private static Framebuffer previousFramebuffer;
+
         private GhostItemBuffer() {
+        }
+
+        private static boolean beginHandledScreenGhostRender(DrawContext context, MinecraftClient client) {
+            if (client == null) {
+                return false;
+            }
+
+            SimpleFramebuffer ghostFramebuffer = getFramebuffer(client);
+            // 先把当前 GUI 的批处理刷到主帧缓冲，避免背景/文字误进幽灵缓冲。
+            context.draw();
+            ghostFramebuffer.clear();
+            previousFramebuffer = client.getFramebuffer();
+            ((MinecraftClientAccessor) client).quickcraft$setFramebuffer(ghostFramebuffer);
+            return true;
+        }
+
+        private static void endHandledScreenGhostRender(DrawContext context, int guiLeft, int guiTop, float alpha) {
+            if (previousFramebuffer == null || framebuffer == null) {
+                return;
+            }
+
+            MinecraftClient client = MinecraftClient.getInstance();
+            MatrixStack matrices = context.getMatrices();
+            context.draw();
+            RenderSystem.setShaderColor(1.0F, 1.0F, 1.0F, alpha);
+
+            matrices.push();
+            matrices.translate(-guiLeft, -guiTop, 0.0F);
+            ((MinecraftClientAccessor) client).quickcraft$setFramebuffer(previousFramebuffer);
+            drawFramebuffer(context, framebuffer);
+            matrices.pop();
+
+            RenderSystem.setShaderColor(1.0F, 1.0F, 1.0F, 1.0F);
+            previousFramebuffer = null;
         }
 
         private static void drawGhostItem(
@@ -1245,78 +1311,67 @@ public final class QuickLitematicaContainerVerifier {
                 return;
             }
 
-            drawItemWithAlpha(context, client, stack, x, y, alpha);
+            float clampedAlpha = Math.max(0.0F, Math.min(1.0F, alpha));
+            if (!beginHandledScreenGhostRender(context, client)) {
+                return;
+            }
+
+            context.drawItem(stack, x, y);
             context.drawStackOverlay(client.textRenderer, stack, x, y);
+            context.draw();
+            endHandledScreenGhostRender(context, guiLeft, guiTop, clampedAlpha);
         }
 
-        private static void drawItemWithAlpha(DrawContext context,
-                                              MinecraftClient client,
-                                              ItemStack stack,
-                                              int x,
-                                              int y,
-                                              float alpha) {
-            context.getMatrices().push();
-            context.getMatrices().translate(x + 8.0F, y + 8.0F, 150.0F);
-            context.getMatrices().scale(16.0F, -16.0F, 16.0F);
+        private static SimpleFramebuffer getFramebuffer(MinecraftClient client) {
+            Window window = client.getWindow();
 
-            int alphaColor = Math.max(0, Math.min(255, Math.round(alpha * 255.0F)));
-            VertexConsumerProvider alphaProvider = layer -> new AlphaVertexConsumer(
-                    client.getBufferBuilders().getEntityVertexConsumers().getBuffer(layer),
-                    alphaColor
-            );
-            RenderSystem.enableBlend();
-            RenderSystem.defaultBlendFunc();
-            client.getItemRenderer().renderItem(
-                    stack,
-                    ModelTransformationMode.GUI,
-                    15728880,
-                    OverlayTexture.DEFAULT_UV,
-                    context.getMatrices(),
-                    alphaProvider,
-                    client.world,
-                    0
-            );
-            client.getBufferBuilders().getEntityVertexConsumers().draw();
+            if (framebuffer == null) {
+                framebuffer = new SimpleFramebuffer(
+                        window.getFramebufferWidth(),
+                        window.getFramebufferHeight(),
+                        true
+                );
+                framebuffer.setClearColor(0.0F, 0.0F, 0.0F, 0.0F);
+            }
 
-            context.getMatrices().pop();
+            if (framebuffer.textureWidth != window.getFramebufferWidth()
+                    || framebuffer.textureHeight != window.getFramebufferHeight()) {
+                framebuffer.resize(window.getFramebufferWidth(), window.getFramebufferHeight());
+                framebuffer.setClearColor(0.0F, 0.0F, 0.0F, 0.0F);
+            }
+
+            return framebuffer;
         }
 
-        private record AlphaVertexConsumer(VertexConsumer delegate, int alpha) implements VertexConsumer {
-            @Override
-            public VertexConsumer vertex(float x, float y, float z) {
-                this.delegate.vertex(x, y, z);
-                return this;
-            }
+        private static void drawFramebuffer(DrawContext context, Framebuffer ghostFramebuffer) {
+            RenderSystem.setShaderTexture(0, ghostFramebuffer.getColorAttachment());
+            RenderSystem.backupProjectionMatrix();
+            RenderSystem.setProjectionMatrix(
+                    new Matrix4f().setOrtho(
+                            0.0F,
+                            (float) context.getScaledWindowWidth(),
+                            (float) context.getScaledWindowHeight(),
+                            0.0F,
+                            1000.0F,
+                            21000.0F
+                    ),
+                    ProjectionType.ORTHOGRAPHIC
+            );
 
-            @Override
-            public VertexConsumer color(int red, int green, int blue, int alpha) {
-                this.delegate.color(red, green, blue, Math.round(alpha * (this.alpha / 255.0F)));
-                return this;
-            }
+            Matrix4f posMat = context.getMatrices().peek().getPositionMatrix();
+            float u1 = 0.0F;
+            float u2 = ghostFramebuffer.textureWidth / (float) ghostFramebuffer.textureWidth;
+            float v1 = ghostFramebuffer.textureHeight / (float) ghostFramebuffer.textureHeight;
+            float v2 = 0.0F;
 
-            @Override
-            public VertexConsumer texture(float u, float v) {
-                this.delegate.texture(u, v);
-                return this;
-            }
-
-            @Override
-            public VertexConsumer overlay(int u, int v) {
-                this.delegate.overlay(u, v);
-                return this;
-            }
-
-            @Override
-            public VertexConsumer light(int u, int v) {
-                this.delegate.light(u, v);
-                return this;
-            }
-
-            @Override
-            public VertexConsumer normal(float x, float y, float z) {
-                this.delegate.normal(x, y, z);
-                return this;
-            }
+            context.draw(vertexConsumerProvider -> {
+                VertexConsumer vertexConsumer = vertexConsumerProvider.getBuffer(TRANSPARENCY_LAYER);
+                vertexConsumer.vertex(posMat, 0.0F, 0.0F, 0.0F).texture(u1, v1);
+                vertexConsumer.vertex(posMat, 0.0F, context.getScaledWindowHeight(), 0.0F).texture(u1, v2);
+                vertexConsumer.vertex(posMat, context.getScaledWindowWidth(), context.getScaledWindowHeight(), 0.0F).texture(u2, v2);
+                vertexConsumer.vertex(posMat, context.getScaledWindowWidth(), 0.0F, 0.0F).texture(u2, v1);
+            });
+            RenderSystem.restoreProjectionMatrix();
         }
     }
 }
