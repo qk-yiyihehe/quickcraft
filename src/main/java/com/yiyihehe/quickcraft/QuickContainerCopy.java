@@ -315,6 +315,10 @@ public final class QuickContainerCopy implements ClientModInitializer {
             stopContinuousTask(client, false, null);
             return;
         }
+        if (client.currentScreen != null && !(client.currentScreen instanceof HandledScreen<?>)) {
+            stopContinuousTask(client, false, Text.translatable("quickcraft.message.container_copy.background_screen_open"));
+            return;
+        }
 
         switch (continuousTask.stage) {
             case OPEN_TARGET -> openContinuousTarget(client);
@@ -330,8 +334,8 @@ public final class QuickContainerCopy implements ClientModInitializer {
         if (continuousTask == null) {
             return;
         }
-        if (client.currentScreen instanceof HandledScreen<?> screen
-                && isSupportedHandlerForType(screen.getScreenHandler(), continuousTask.target.type())) {
+        ScreenHandler handler = getOpenHandledContainer(client);
+        if (handler != null && isSupportedHandlerForType(handler, continuousTask.target.type())) {
             continuousTask.stage = ContinuousStage.FILL_TARGET;
             continuousTask.ticks = 0;
             return;
@@ -354,14 +358,15 @@ public final class QuickContainerCopy implements ClientModInitializer {
             return;
         }
         continuousTask.ticks++;
-        if (!(client.currentScreen instanceof HandledScreen<?> screen)) {
+        ScreenHandler handler = getOpenHandledContainer(client);
+        if (handler == null) {
             if (continuousTask.ticks > OPEN_TIMEOUT_TICKS) {
                 stopContinuousTask(client, false, Text.translatable("quickcraft.message.container_copy.target_open_timeout"));
             }
             return;
         }
 
-        if (!isSupportedHandlerForType(screen.getScreenHandler(), continuousTask.target.type())) {
+        if (!isSupportedHandlerForType(handler, continuousTask.target.type())) {
             stopContinuousTask(client, true, Text.translatable("quickcraft.message.container_copy.template_type_mismatch"));
             return;
         }
@@ -371,14 +376,16 @@ public final class QuickContainerCopy implements ClientModInitializer {
     }
 
     private void fillContinuousTarget(MinecraftClient client) {
-        if (continuousTask == null || !(client.currentScreen instanceof HandledScreen<?> screen)) {
-            if (continuousTask != null) {
-                continuousTask.stage = ContinuousStage.OPEN_TARGET;
-            }
+        if (continuousTask == null) {
             return;
         }
 
-        ScreenHandler handler = screen.getScreenHandler();
+        ScreenHandler handler = getOpenHandledContainer(client);
+        if (handler == null) {
+            continuousTask.stage = ContinuousStage.OPEN_TARGET;
+            return;
+        }
+
         if (!isSupportedHandlerForType(handler, continuousTask.target.type())) {
             stopContinuousTask(client, true, Text.translatable("quickcraft.message.container_copy.template_type_mismatch"));
             return;
@@ -471,14 +478,14 @@ public final class QuickContainerCopy implements ClientModInitializer {
             return;
         }
         continuousTask.ticks++;
-        if (!(client.currentScreen instanceof HandledScreen<?> screen)) {
+        ScreenHandler handler = getOpenHandledContainer(client);
+        if (handler == null) {
             if (continuousTask.ticks > BACKGROUND_ACTION_TIMEOUT_TICKS) {
                 stopContinuousTask(client, false, Text.translatable("quickcraft.message.container_copy.quick_shulker_open_timeout"));
             }
             return;
         }
 
-        ScreenHandler handler = screen.getScreenHandler();
         if (handler instanceof ShulkerBoxScreenHandler
                 && handler.syncId != continuousTask.previousSyncId) {
             continuousTask.stage = ContinuousStage.EXTRACT_SOURCE;
@@ -496,8 +503,9 @@ public final class QuickContainerCopy implements ClientModInitializer {
             stopContinuousTask(client, true, null);
             return;
         }
-        if (!(client.currentScreen instanceof HandledScreen<?> screen)
-                || !(screen.getScreenHandler() instanceof ShulkerBoxScreenHandler handler)) {
+
+        ScreenHandler currentHandler = getOpenHandledContainer(client);
+        if (!(currentHandler instanceof ShulkerBoxScreenHandler handler)) {
             stopContinuousTask(client, true, Text.translatable("quickcraft.message.container_copy.quick_shulker_screen_invalid"));
             return;
         }
@@ -619,6 +627,20 @@ public final class QuickContainerCopy implements ClientModInitializer {
         return continuousTask != null;
     }
 
+    /**
+     * 连续填充期间只保留后台 ScreenHandler，不真正把容器界面切到前台。
+     */
+    public static boolean shouldSuppressBackgroundHandledScreenOpen() {
+        return continuousTask != null;
+    }
+
+    /**
+     * 连续填充热键默认就是鼠标右键，前台不弹界面后要额外压住原版 use 输入。
+     */
+    public static boolean shouldSuppressContinuousFillUseInput() {
+        return continuousTask != null || suppressedContinuousTarget != null && lastContinuousFillDown;
+    }
+
     public static boolean shouldSuppressContainerVerifierRemember() {
         return suppressContainerVerifierRemember;
     }
@@ -627,6 +649,23 @@ public final class QuickContainerCopy implements ClientModInitializer {
         if (FabricLoader.getInstance().isModLoaded("litematica")) {
             QuickLitematicaContainerVerifier.clearCurrentHandledScreenBinding();
         }
+    }
+
+    private ScreenHandler getOpenHandledContainer(MinecraftClient client) {
+        if (client == null || client.player == null) {
+            return null;
+        }
+
+        if (client.currentScreen instanceof HandledScreen<?> screen) {
+            return screen.getScreenHandler();
+        }
+
+        ScreenHandler handler = client.player.currentScreenHandler;
+        if (handler == null || handler == client.player.playerScreenHandler || handler.syncId == 0) {
+            return null;
+        }
+
+        return handler;
     }
 
     private boolean targetMatches(TargetInteraction target, HitResult hitResult, SupportedContainerType type) {
