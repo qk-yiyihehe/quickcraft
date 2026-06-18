@@ -1115,9 +1115,6 @@ public final class QuickLitematicaContainerVerifier {
             return this.status.borderColor();
         }
 
-        public int ghostMaskColor() {
-            return this.status.ghostMaskColor();
-        }
     }
 
     /**
@@ -1177,10 +1174,6 @@ public final class QuickLitematicaContainerVerifier {
 
         public int borderColor() {
             return QuickLitematicaVerifierPalette.slotBorderColor(this.mismatchType());
-        }
-
-        public int ghostMaskColor() {
-            return QuickLitematicaVerifierPalette.ghostMaskColor(this.mismatchType());
         }
 
         private MismatchType mismatchType() {
