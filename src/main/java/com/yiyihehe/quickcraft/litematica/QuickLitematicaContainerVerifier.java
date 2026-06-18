@@ -1,11 +1,12 @@
 package com.yiyihehe.quickcraft.litematica;
 
 import com.chocohead.mm.api.ClassTinkerers;
-import com.mojang.blaze3d.platform.GlStateManager;
 import com.mojang.blaze3d.systems.ProjectionType;
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.yiyihehe.quickcraft.QuickContainerCopy;
+import com.yiyihehe.quickcraft.QuickCraft;
 import com.yiyihehe.quickcraft.config.QuickCraftConfigs;
+import com.yiyihehe.quickcraft.mixin.MinecraftClientAccessor;
 import net.fabricmc.loader.api.FabricLoader;
 import fi.dy.masa.litematica.config.Configs;
 import fi.dy.masa.litematica.data.DataManager;
@@ -35,16 +36,16 @@ import net.minecraft.block.entity.CrafterBlockEntity;
 import net.minecraft.block.enums.ChestType;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.gl.Framebuffer;
-import net.minecraft.client.gl.ShaderProgramKeys;
 import net.minecraft.client.gl.SimpleFramebuffer;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.gui.screen.ingame.HandledScreen;
-import net.minecraft.client.render.BufferBuilder;
-import net.minecraft.client.render.BufferRenderer;
-import net.minecraft.client.render.Tessellator;
+import net.minecraft.client.render.RenderLayer;
+import net.minecraft.client.render.RenderPhase;
+import net.minecraft.client.render.VertexConsumer;
 import net.minecraft.client.render.VertexFormat;
 import net.minecraft.client.render.VertexFormats;
 import net.minecraft.client.util.Window;
+import net.minecraft.client.util.math.MatrixStack;
 import net.minecraft.entity.player.PlayerInventory;
 import net.minecraft.inventory.Inventory;
 import net.minecraft.inventory.SimpleInventory;
@@ -61,7 +62,6 @@ import net.minecraft.util.math.BlockPos;
 import net.minecraft.world.World;
 import org.apache.commons.lang3.tuple.Pair;
 import org.joml.Matrix4f;
-import org.lwjgl.opengl.GL30;
 
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -367,23 +367,12 @@ public final class QuickLitematicaContainerVerifier {
         GhostItemBuffer.drawGhostItem(context, client, stack, x, y, guiLeft, guiTop, alpha);
     }
 
-    public static ItemStack getSlotStackForGhostDraw(HandledScreen<?> screen, Slot slot) {
-        ItemStack stack = slot.getStack();
-        SlotOverlay overlay = getSlotOverlayForScreen(screen, slot);
-
-        if (overlay == null
-                || overlay.status() != SlotMismatchStatus.MISSING
-                || !stack.isEmpty()
-                || overlay.expectedStack().isEmpty()) {
-            return stack;
-        }
-
-        GhostItemBuffer.prepareExtraFramebuffer();
-        return overlay.expectedStack();
+    public static boolean beginHandledScreenGhostRender(DrawContext context, MinecraftClient client) {
+        return GhostItemBuffer.beginHandledScreenGhostRender(context, client);
     }
 
-    public static boolean drawPreparedGhostItem(DrawContext context, int guiLeft, int guiTop, float alpha) {
-        return GhostItemBuffer.drawPreparedGhostItem(context, guiLeft, guiTop, alpha);
+    public static void endHandledScreenGhostRender(DrawContext context, int guiLeft, int guiTop, float alpha) {
+        GhostItemBuffer.endHandledScreenGhostRender(context, guiLeft, guiTop, alpha);
     }
 
     public static void rememberContainerUse(MinecraftClient client, BlockHitResult hitResult) {
@@ -954,7 +943,6 @@ public final class QuickLitematicaContainerVerifier {
                     0,
                     QuickLitematicaVerifierPalette.ghostItemAlpha()
             );
-            drawContext.fill(x, y, x + 16, y + 16, mismatch.status().ghostMaskColor());
             drawOutline(drawContext, x, y, 16, 16, mismatch.status().borderColor());
         }
     }
@@ -1255,15 +1243,58 @@ public final class QuickLitematicaContainerVerifier {
         }
     }
 
-    /**
-     * 参考 1.21 分支的透明缓冲做法，让物品本体和数量文本统一半透明。
-     */
     private static final class GhostItemBuffer {
-        private static Framebuffer framebuffer;
-        private static int previousFramebuffer;
-        private static boolean drawingToFramebuffer;
+        private static final RenderLayer TRANSPARENCY_LAYER = RenderLayer.of(
+                QuickCraft.MOD_ID + "_ghost_item_transparency",
+                VertexFormats.POSITION_TEXTURE,
+                VertexFormat.DrawMode.QUADS,
+                1536,
+                false,
+                true,
+                RenderLayer.MultiPhaseParameters.builder()
+                        .texture(RenderPhase.NO_TEXTURE)
+                        .program(RenderPhase.POSITION_TEXTURE_PROGRAM)
+                        .transparency(RenderPhase.TRANSLUCENT_TRANSPARENCY)
+                        .build(false)
+        );
+        private static SimpleFramebuffer framebuffer;
+        private static Framebuffer previousFramebuffer;
 
         private GhostItemBuffer() {
+        }
+
+        private static boolean beginHandledScreenGhostRender(DrawContext context, MinecraftClient client) {
+            if (client == null) {
+                return false;
+            }
+
+            SimpleFramebuffer ghostFramebuffer = getFramebuffer(client);
+            // 先把当前 GUI 的批处理刷到主帧缓冲，避免背景/文字误进幽灵缓冲。
+            context.draw();
+            ghostFramebuffer.clear();
+            previousFramebuffer = client.getFramebuffer();
+            ((MinecraftClientAccessor) client).quickcraft$setFramebuffer(ghostFramebuffer);
+            return true;
+        }
+
+        private static void endHandledScreenGhostRender(DrawContext context, int guiLeft, int guiTop, float alpha) {
+            if (previousFramebuffer == null || framebuffer == null) {
+                return;
+            }
+
+            MinecraftClient client = MinecraftClient.getInstance();
+            MatrixStack matrices = context.getMatrices();
+            context.draw();
+            RenderSystem.setShaderColor(1.0F, 1.0F, 1.0F, alpha);
+
+            matrices.push();
+            matrices.translate(-guiLeft, -guiTop, 0.0F);
+            ((MinecraftClientAccessor) client).quickcraft$setFramebuffer(previousFramebuffer);
+            drawFramebuffer(context, framebuffer);
+            matrices.pop();
+
+            RenderSystem.setShaderColor(1.0F, 1.0F, 1.0F, 1.0F);
+            previousFramebuffer = null;
         }
 
         private static void drawGhostItem(
@@ -1280,92 +1311,66 @@ public final class QuickLitematicaContainerVerifier {
                 return;
             }
 
-            prepareExtraFramebuffer();
+            float clampedAlpha = Math.max(0.0F, Math.min(1.0F, alpha));
+            if (!beginHandledScreenGhostRender(context, client)) {
+                return;
+            }
+
             context.drawItem(stack, x, y);
             context.drawStackOverlay(client.textRenderer, stack, x, y);
             context.draw();
-            drawPreparedGhostItem(context, guiLeft, guiTop, alpha);
+            endHandledScreenGhostRender(context, guiLeft, guiTop, clampedAlpha);
         }
 
-        private static void prepareExtraFramebuffer() {
-            Framebuffer framebuffer = getFramebuffer();
-            previousFramebuffer = GlStateManager.getBoundFramebuffer();
-            framebuffer.clear();
-            framebuffer.beginWrite(false);
-            drawingToFramebuffer = true;
-        }
-
-        private static boolean drawPreparedGhostItem(DrawContext context, int guiLeft, int guiTop, float alpha) {
-            if (!drawingToFramebuffer) {
-                return false;
-            }
-
-            drawingToFramebuffer = false;
-            GlStateManager._glBindFramebuffer(GL30.GL_FRAMEBUFFER, previousFramebuffer);
-            RenderSystem.enableBlend();
-            RenderSystem.defaultBlendFunc();
-            RenderSystem.setShaderColor(1.0F, 1.0F, 1.0F, alpha);
-
-            context.getMatrices().push();
-            context.getMatrices().translate(-guiLeft, -guiTop, 0.0F);
-            drawFramebuffer(context, framebuffer);
-            context.getMatrices().pop();
-
-            RenderSystem.setShaderColor(1.0F, 1.0F, 1.0F, 1.0F);
-            return true;
-        }
-
-        private static Framebuffer getFramebuffer() {
-            MinecraftClient client = MinecraftClient.getInstance();
+        private static SimpleFramebuffer getFramebuffer(MinecraftClient client) {
             Window window = client.getWindow();
-            int framebufferWidth = window.getFramebufferWidth();
-            int framebufferHeight = window.getFramebufferHeight();
 
             if (framebuffer == null) {
-                framebuffer = new SimpleFramebuffer(framebufferWidth, framebufferHeight, true);
+                framebuffer = new SimpleFramebuffer(
+                        window.getFramebufferWidth(),
+                        window.getFramebufferHeight(),
+                        true
+                );
                 framebuffer.setClearColor(0.0F, 0.0F, 0.0F, 0.0F);
-            } else if (framebuffer.textureWidth != framebufferWidth || framebuffer.textureHeight != framebufferHeight) {
-                framebuffer.resize(framebufferWidth, framebufferHeight);
+            }
+
+            if (framebuffer.textureWidth != window.getFramebufferWidth()
+                    || framebuffer.textureHeight != window.getFramebufferHeight()) {
+                framebuffer.resize(window.getFramebufferWidth(), window.getFramebufferHeight());
                 framebuffer.setClearColor(0.0F, 0.0F, 0.0F, 0.0F);
             }
 
             return framebuffer;
         }
 
-        private static void drawFramebuffer(DrawContext context, Framebuffer framebuffer) {
-            RenderSystem.setShaderTexture(0, framebuffer.getColorAttachment());
-            RenderSystem.setShader(ShaderProgramKeys.POSITION_TEX);
+        private static void drawFramebuffer(DrawContext context, Framebuffer ghostFramebuffer) {
+            RenderSystem.setShaderTexture(0, ghostFramebuffer.getColorAttachment());
             RenderSystem.backupProjectionMatrix();
-
-            Matrix4f projection = new Matrix4f()
-                    .setOrtho(
+            RenderSystem.setProjectionMatrix(
+                    new Matrix4f().setOrtho(
                             0.0F,
-                            context.getScaledWindowWidth(),
-                            context.getScaledWindowHeight(),
+                            (float) context.getScaledWindowWidth(),
+                            (float) context.getScaledWindowHeight(),
                             0.0F,
                             1000.0F,
                             21000.0F
-                    );
-            RenderSystem.setProjectionMatrix(projection, ProjectionType.ORTHOGRAPHIC);
+                    ),
+                    ProjectionType.ORTHOGRAPHIC
+            );
 
-            Matrix4f positionMatrix = context.getMatrices().peek().getPositionMatrix();
-            BufferBuilder bufferBuilder = Tessellator.getInstance().begin(VertexFormat.DrawMode.QUADS, VertexFormats.POSITION_TEXTURE);
-
-            float x1 = 0.0F;
-            float y1 = 0.0F;
-            float x2 = context.getScaledWindowWidth();
-            float y2 = context.getScaledWindowHeight();
+            Matrix4f posMat = context.getMatrices().peek().getPositionMatrix();
             float u1 = 0.0F;
-            float v1 = 1.0F;
-            float u2 = 1.0F;
+            float u2 = ghostFramebuffer.textureWidth / (float) ghostFramebuffer.textureWidth;
+            float v1 = ghostFramebuffer.textureHeight / (float) ghostFramebuffer.textureHeight;
             float v2 = 0.0F;
 
-            bufferBuilder.vertex(positionMatrix, x1, y1, 0.0F).texture(u1, v1);
-            bufferBuilder.vertex(positionMatrix, x1, y2, 0.0F).texture(u1, v2);
-            bufferBuilder.vertex(positionMatrix, x2, y2, 0.0F).texture(u2, v2);
-            bufferBuilder.vertex(positionMatrix, x2, y1, 0.0F).texture(u2, v1);
-
-            BufferRenderer.drawWithGlobalProgram(bufferBuilder.end());
+            context.draw(vertexConsumerProvider -> {
+                VertexConsumer vertexConsumer = vertexConsumerProvider.getBuffer(TRANSPARENCY_LAYER);
+                vertexConsumer.vertex(posMat, 0.0F, 0.0F, 0.0F).texture(u1, v1);
+                vertexConsumer.vertex(posMat, 0.0F, context.getScaledWindowHeight(), 0.0F).texture(u1, v2);
+                vertexConsumer.vertex(posMat, context.getScaledWindowWidth(), context.getScaledWindowHeight(), 0.0F).texture(u2, v2);
+                vertexConsumer.vertex(posMat, context.getScaledWindowWidth(), 0.0F, 0.0F).texture(u2, v1);
+            });
             RenderSystem.restoreProjectionMatrix();
         }
     }
