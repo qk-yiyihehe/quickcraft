@@ -29,6 +29,7 @@
 		"LitematicaWidgetSchematicBrowserMixin",
 		"LitematicaWidgetListSchematicVerificationResultsMixin",
 		"LitematicaWidgetSchematicVerificationResultMixin",
+		"MinecraftClientContinuousFillUseMixin",
 		"MinecraftClientAccessor",
 		"MerchantScreenAccessor",
 		"MerchantScreenMixin",
