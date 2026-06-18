@@ -23,6 +23,8 @@ import java.util.Comparator;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.function.Consumer;
+import java.util.function.Predicate;
 
 /**
  * 可配置组合键同类转移：
@@ -171,7 +173,7 @@ public final class QuickTransfer implements ClientModInitializer {
         }
 
         if (screen instanceof CreativeInventoryScreen creativeScreen) {
-            return processCreativeHoveredSlot(creativeScreen, hoveredSlot);
+            return processCreativeHoveredSlot(creativeScreen, hoveredSlot, mode);
         }
 
         if (!hoveredSlot.hasStack() || !hoveredSlot.canTakeItems(client.player)) {
@@ -201,14 +203,21 @@ public final class QuickTransfer implements ClientModInitializer {
         return handled;
     }
 
-    private static boolean processCreativeHoveredSlot(CreativeInventoryScreen screen, Slot hoveredSlot) {
+    private static boolean processCreativeHoveredSlot(CreativeInventoryScreen screen,
+                                                      Slot hoveredSlot,
+                                                      TransferMode mode) {
         MinecraftClient client = MinecraftClient.getInstance();
-        // 创造界面也只连续触发原版 Shift 点击，不直接改玩家物品。
         if (client.player == null
                 || !isCreativePlayerStorageSlot(hoveredSlot)
                 || !hoveredSlot.hasStack()
                 || !hoveredSlot.canTakeItems(client.player)) {
             return false;
+        }
+
+        // 创造模式下，Alt 同类转移也要保持“主背包/快捷栏两边互转”的语义，
+        // 不能一律退化成原版 Shift 的单格快速移动。
+        if (mode == TransferMode.MATCHING) {
+            return moveAllMatchingCreativePlayerStorageStacksByQuickMove(screen, hoveredSlot);
         }
 
         return quickMoveCreativeSlot(screen, hoveredSlot);
@@ -238,13 +247,44 @@ public final class QuickTransfer implements ClientModInitializer {
     }
 
     private static boolean isCreativePlayerStorageSlot(Slot slot) {
-        Slot effectiveSlot = unwrapCreativeSlot(slot);
-        if (!(effectiveSlot.inventory instanceof PlayerInventory)) {
+        return isCreativePlayerStorageSlotInRange(slot, 0, 35);
+    }
+
+    private static boolean isCreativePlayerMainInventorySlot(Slot slot) {
+        return isCreativePlayerStorageSlotInRange(slot, 9, 35);
+    }
+
+    private static boolean isCreativePlayerHotbarSlot(Slot slot) {
+        return isCreativePlayerStorageSlotInRange(slot, 0, 8);
+    }
+
+    private static boolean isCreativePlayerStorageSlotInRange(Slot slot, int minInventoryIndex, int maxInventoryIndex) {
+        return isPlayerStorageSlotInRange(unwrapCreativeSlot(slot), minInventoryIndex, maxInventoryIndex);
+    }
+
+    private static boolean moveAllMatchingCreativePlayerStorageStacksByQuickMove(CreativeInventoryScreen screen,
+                                                                                 Slot hoveredSlot) {
+        ItemStack template = hoveredSlot.getStack().copy();
+        if (template.isEmpty()) {
             return false;
         }
 
-        int inventoryIndex = effectiveSlot.getIndex();
-        return inventoryIndex >= 0 && inventoryIndex <= 35;
+        boolean sourceFromHotbar = isCreativePlayerHotbarSlot(hoveredSlot);
+        MinecraftClient client = MinecraftClient.getInstance();
+        List<Slot> sourceSlots = snapshotMatchingSlots(
+                screen.getScreenHandler().slots,
+                hoveredSlot,
+                slot -> isMatchingCreativePlayerStorageSideSlot(slot, template, sourceFromHotbar, client)
+        );
+        return moveMatchingSlots(
+                sourceSlots,
+                slot -> isMatchingCreativePlayerStorageSideSlot(slot, template, sourceFromHotbar, client),
+                slot -> quickMoveCreativeSlot(screen, slot)
+        );
+    }
+
+    private static boolean belongsToCreativePlayerStorageSide(Slot slot, boolean sourceFromHotbar) {
+        return sourceFromHotbar ? isCreativePlayerHotbarSlot(slot) : isCreativePlayerMainInventorySlot(slot);
     }
 
     private static Slot unwrapCreativeSlot(Slot slot) {
@@ -290,6 +330,21 @@ public final class QuickTransfer implements ClientModInitializer {
         return true;
     }
 
+    private static void quickMoveSlot(HandledScreen<?> screen, Slot slot) {
+        MinecraftClient client = MinecraftClient.getInstance();
+        if (client.player == null || client.interactionManager == null) {
+            return;
+        }
+
+        client.interactionManager.clickSlot(
+                screen.getScreenHandler().syncId,
+                slot.id,
+                0,
+                SlotActionType.QUICK_MOVE,
+                client.player
+        );
+    }
+
     private static boolean moveAllMatchingStacksByQuickMove(HandledScreen<?> screen,
                                                             Slot hoveredSlot,
                                                             boolean sourceFromPlayerStorage) {
@@ -298,14 +353,17 @@ public final class QuickTransfer implements ClientModInitializer {
             return false;
         }
 
-        List<Integer> sourceSlotIds = snapshotMatchingSourceSlots(screen, hoveredSlot.id, template, sourceFromPlayerStorage);
-        if (sourceSlotIds.isEmpty()) {
-            return false;
-        }
-        for (int slotId : sourceSlotIds) {
-            quickMoveIfStillMatching(screen, slotId, template, sourceFromPlayerStorage);
-        }
-        return true;
+        MinecraftClient client = MinecraftClient.getInstance();
+        List<Slot> sourceSlots = snapshotMatchingSlots(
+                screen.getScreenHandler().slots,
+                hoveredSlot,
+                slot -> isMatchingSourceSlot(slot, template, sourceFromPlayerStorage, client)
+        );
+        return moveMatchingSlots(
+                sourceSlots,
+                slot -> isMatchingSourceSlot(slot, template, sourceFromPlayerStorage, client),
+                slot -> quickMoveSlot(screen, slot)
+        );
     }
 
     private static boolean moveAllMatchingStacksToPlayerMainInventory(HandledScreen<?> screen, Slot hoveredSlot) {
@@ -314,17 +372,22 @@ public final class QuickTransfer implements ClientModInitializer {
             return false;
         }
 
+        MinecraftClient client = MinecraftClient.getInstance();
         ScreenHandler handler = screen.getScreenHandler();
-        List<Integer> sourceSlotIds = snapshotMatchingSourceSlots(screen, hoveredSlot.id, template, false);
-        if (sourceSlotIds.isEmpty()) {
+        List<Slot> sourceSlots = snapshotMatchingSlots(
+                handler.slots,
+                hoveredSlot,
+                slot -> isMatchingSourceSlot(slot, template, false, client)
+        );
+        if (sourceSlots.isEmpty()) {
             return false;
         }
         List<Integer> targetSlotIds = getPlayerPreferredStorageSlotIds(handler);
-        for (int slotId : sourceSlotIds) {
+        for (Slot sourceSlot : sourceSlots) {
             if (!hasSpaceInPlayerStorage(handler, template, targetSlotIds)) {
                 return true;
             }
-            moveOneSourceStackToPlayerMainInventory(screen, slotId, template, targetSlotIds);
+            moveOneSourceStackToPlayerMainInventory(screen, sourceSlot.id, template, targetSlotIds);
         }
         return true;
     }
@@ -336,161 +399,16 @@ public final class QuickTransfer implements ClientModInitializer {
         }
 
         boolean sourceFromHotbar = isPlayerHotbarSlot(hoveredSlot);
-        List<Integer> sourceSlotIds = snapshotMatchingPlayerStorageSideSlots(screen, hoveredSlot.id, template, sourceFromHotbar);
-        if (sourceSlotIds.isEmpty()) {
-            return false;
-        }
-        for (int slotId : sourceSlotIds) {
-            quickMovePlayerStorageSlotIfStillMatching(screen, slotId, template, sourceFromHotbar);
-        }
-        return true;
-    }
-
-    private static List<Integer> snapshotMatchingPlayerStorageSideSlots(HandledScreen<?> screen,
-                                                                        int hoveredSlotId,
-                                                                        ItemStack template,
-                                                                        boolean sourceFromHotbar) {
         MinecraftClient client = MinecraftClient.getInstance();
-        List<Integer> sourceSlotIds = new ArrayList<>();
-
-        addMatchingPlayerStorageSideSlotIfNeeded(screen, hoveredSlotId, template, sourceFromHotbar, client, sourceSlotIds);
-
-        for (Slot slot : screen.getScreenHandler().slots) {
-            if (slot.id == hoveredSlotId) {
-                continue;
-            }
-            addMatchingPlayerStorageSideSlotIfNeeded(screen, slot.id, template, sourceFromHotbar, client, sourceSlotIds);
-        }
-
-        return sourceSlotIds;
-    }
-
-    private static void addMatchingPlayerStorageSideSlotIfNeeded(HandledScreen<?> screen,
-                                                                 int slotId,
-                                                                 ItemStack template,
-                                                                 boolean sourceFromHotbar,
-                                                                 MinecraftClient client,
-                                                                 List<Integer> sourceSlotIds) {
-        Slot slot = screen.getScreenHandler().getSlot(slotId);
-        if (!isVisibleSlot(slot)) {
-            return;
-        }
-        if (!slot.hasStack() || !slot.canTakeItems(client.player)) {
-            return;
-        }
-        if (!belongsToPlayerStorageSide(slot, sourceFromHotbar)) {
-            return;
-        }
-        if (!ItemStack.areItemsAndComponentsEqual(slot.getStack(), template)) {
-            return;
-        }
-
-        sourceSlotIds.add(slotId);
-    }
-
-    private static List<Integer> snapshotMatchingSourceSlots(HandledScreen<?> screen,
-                                                             int hoveredSlotId,
-                                                             ItemStack template,
-                                                             boolean sourceFromPlayerStorage) {
-        MinecraftClient client = MinecraftClient.getInstance();
-        List<Integer> sourceSlotIds = new ArrayList<>();
-
-        addMatchingSlotIfNeeded(screen, hoveredSlotId, template, sourceFromPlayerStorage, client, sourceSlotIds);
-
-        for (Slot slot : screen.getScreenHandler().slots) {
-            if (slot.id == hoveredSlotId) {
-                continue;
-            }
-            addMatchingSlotIfNeeded(screen, slot.id, template, sourceFromPlayerStorage, client, sourceSlotIds);
-        }
-
-        return sourceSlotIds;
-    }
-
-    private static void addMatchingSlotIfNeeded(HandledScreen<?> screen,
-                                                int slotId,
-                                                ItemStack template,
-                                                boolean sourceFromPlayerStorage,
-                                                MinecraftClient client,
-                                                List<Integer> sourceSlotIds) {
-        Slot slot = screen.getScreenHandler().getSlot(slotId);
-        if (!isVisibleSlot(slot)) {
-            return;
-        }
-        if (!slot.hasStack() || !slot.canTakeItems(client.player)) {
-            return;
-        }
-        if (!belongsToSourceRegion(slot, sourceFromPlayerStorage)) {
-            return;
-        }
-        if (!ItemStack.areItemsAndComponentsEqual(slot.getStack(), template)) {
-            return;
-        }
-
-        sourceSlotIds.add(slotId);
-    }
-
-    private static void quickMoveIfStillMatching(HandledScreen<?> screen,
-                                                 int slotId,
-                                                 ItemStack template,
-                                                 boolean sourceFromPlayerStorage) {
-        MinecraftClient client = MinecraftClient.getInstance();
-        if (client.player == null || client.interactionManager == null) {
-            return;
-        }
-
-        Slot slot = screen.getScreenHandler().getSlot(slotId);
-        if (!isVisibleSlot(slot)) {
-            return;
-        }
-        if (!slot.hasStack() || !slot.canTakeItems(client.player)) {
-            return;
-        }
-        if (!belongsToSourceRegion(slot, sourceFromPlayerStorage)) {
-            return;
-        }
-        if (!ItemStack.areItemsAndComponentsEqual(slot.getStack(), template)) {
-            return;
-        }
-
-        client.interactionManager.clickSlot(
-                screen.getScreenHandler().syncId,
-                slotId,
-                0,
-                SlotActionType.QUICK_MOVE,
-                client.player
+        List<Slot> sourceSlots = snapshotMatchingSlots(
+                screen.getScreenHandler().slots,
+                hoveredSlot,
+                slot -> isMatchingPlayerStorageSideSlot(slot, template, sourceFromHotbar, client)
         );
-    }
-
-    private static void quickMovePlayerStorageSlotIfStillMatching(HandledScreen<?> screen,
-                                                                  int slotId,
-                                                                  ItemStack template,
-                                                                  boolean sourceFromHotbar) {
-        MinecraftClient client = MinecraftClient.getInstance();
-        if (client.player == null || client.interactionManager == null) {
-            return;
-        }
-
-        Slot slot = screen.getScreenHandler().getSlot(slotId);
-        if (!isVisibleSlot(slot)) {
-            return;
-        }
-        if (!slot.hasStack() || !slot.canTakeItems(client.player)) {
-            return;
-        }
-        if (!belongsToPlayerStorageSide(slot, sourceFromHotbar)) {
-            return;
-        }
-        if (!ItemStack.areItemsAndComponentsEqual(slot.getStack(), template)) {
-            return;
-        }
-
-        client.interactionManager.clickSlot(
-                screen.getScreenHandler().syncId,
-                slotId,
-                0,
-                SlotActionType.QUICK_MOVE,
-                client.player
+        return moveMatchingSlots(
+                sourceSlots,
+                slot -> isMatchingPlayerStorageSideSlot(slot, template, sourceFromHotbar, client),
+                slot -> quickMoveSlot(screen, slot)
         );
     }
 
@@ -500,6 +418,80 @@ public final class QuickTransfer implements ClientModInitializer {
 
     private static boolean belongsToPlayerStorageSide(Slot slot, boolean sourceFromHotbar) {
         return sourceFromHotbar ? isPlayerHotbarSlot(slot) : isPlayerMainInventorySlot(slot);
+    }
+
+    private static boolean isMatchingSourceSlot(Slot slot,
+                                                ItemStack template,
+                                                boolean sourceFromPlayerStorage,
+                                                MinecraftClient client) {
+        return isMatchingTransferCandidate(slot, template, client)
+                && belongsToSourceRegion(slot, sourceFromPlayerStorage);
+    }
+
+    private static boolean isMatchingPlayerStorageSideSlot(Slot slot,
+                                                           ItemStack template,
+                                                           boolean sourceFromHotbar,
+                                                           MinecraftClient client) {
+        return isMatchingTransferCandidate(slot, template, client)
+                && belongsToPlayerStorageSide(slot, sourceFromHotbar);
+    }
+
+    private static boolean isMatchingCreativePlayerStorageSideSlot(Slot slot,
+                                                                   ItemStack template,
+                                                                   boolean sourceFromHotbar,
+                                                                   MinecraftClient client) {
+        return isMatchingTransferCandidate(slot, template, client)
+                && belongsToCreativePlayerStorageSide(slot, sourceFromHotbar);
+    }
+
+    private static boolean isMatchingTransferCandidate(Slot slot,
+                                                       ItemStack template,
+                                                       MinecraftClient client) {
+        return client.player != null
+                && isVisibleSlot(slot)
+                && slot.hasStack()
+                && slot.canTakeItems(client.player)
+                && ItemStack.areItemsAndComponentsEqual(slot.getStack(), template);
+    }
+
+    private static List<Slot> snapshotMatchingSlots(List<Slot> slots,
+                                                    Slot hoveredSlot,
+                                                    Predicate<Slot> matcher) {
+        List<Slot> matchingSlots = new ArrayList<>();
+        addMatchingSlotIfNeeded(hoveredSlot, matcher, matchingSlots);
+
+        for (Slot slot : slots) {
+            if (slot == hoveredSlot) {
+                continue;
+            }
+            addMatchingSlotIfNeeded(slot, matcher, matchingSlots);
+        }
+
+        return matchingSlots;
+    }
+
+    private static void addMatchingSlotIfNeeded(Slot slot,
+                                                Predicate<Slot> matcher,
+                                                List<Slot> matchingSlots) {
+        if (matcher.test(slot)) {
+            matchingSlots.add(slot);
+        }
+    }
+
+    private static boolean moveMatchingSlots(List<Slot> sourceSlots,
+                                             Predicate<Slot> stillMatches,
+                                             Consumer<Slot> moveAction) {
+        if (sourceSlots.isEmpty()) {
+            return false;
+        }
+
+        for (Slot slot : sourceSlots) {
+            if (stillMatches.test(slot)) {
+                moveAction.accept(slot);
+            }
+        }
+
+        return true;
     }
 
     private static List<Slot> findHoveredSlotsAlongPath(HandledScreen<?> screen, double mouseX, double mouseY) {
