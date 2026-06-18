@@ -1319,7 +1319,6 @@ public final class QuickLitematicaPreview3D {
             }
 
             entity.setPosition(this.x, this.y, this.z);
-            entity.tick();
             int light = MinecraftClient.getInstance().getEntityRenderDispatcher().getLight(entity, 0.0F);
             return new RenderedEntity(entity, this.x, this.y, this.z, light);
         }
