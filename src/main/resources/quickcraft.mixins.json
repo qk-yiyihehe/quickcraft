@@ -35,6 +35,7 @@
 		"MerchantScreenMixin",
 		"QuickContainerBackgroundFillScreenMixin",
 		"QuickContainerLockScreenMixin",
+		"QuickContainerLockSlotMixin",
 		"ShulkerBoxScreenMixin"
 	],
 	"injectors": {
