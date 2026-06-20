@@ -207,6 +207,11 @@ public final class QuickCraftConfigs implements IConfigHandler {
                 true,
                 ""
         ).apply(CONTAINER_TRANSLATION_PREFIX);
+        public static final ConfigBooleanHotkeyed QUICK_TRANSFER_RETAIN_ONE = new ConfigBooleanHotkeyed(
+                "quickTransferRetainOne",
+                false,
+                ""
+        ).apply(CONTAINER_TRANSLATION_PREFIX);
         public static final ConfigBooleanHotkeyed ENABLE_QUICK_THROW = new ConfigBooleanHotkeyed(
                 "enableQuickThrow",
                 true,
@@ -265,6 +270,7 @@ public final class QuickCraftConfigs implements IConfigHandler {
         ).apply(CONTAINER_TRANSLATION_PREFIX);
         public static final List<IConfigBase> OPTIONS = List.of(
                 ENABLE_QUICK_TRANSFER,
+                QUICK_TRANSFER_RETAIN_ONE,
                 ENABLE_QUICK_THROW,
                 ENABLE_QUICK_TRADE,
                 ENABLE_FAVORITE_TRADE,
@@ -537,6 +543,7 @@ public final class QuickCraftConfigs implements IConfigHandler {
                 Crafting.SHOW_CRAFT_ACTION_BUTTON,
                 Crafting.DROP_RESULTS_ON_STOP,
                 ContainerTools.ENABLE_QUICK_TRANSFER,
+                ContainerTools.QUICK_TRANSFER_RETAIN_ONE,
                 ContainerTools.ENABLE_QUICK_THROW,
                 ContainerTools.ENABLE_QUICK_TRADE,
                 ContainerTools.ENABLE_FAVORITE_TRADE,
@@ -578,6 +585,7 @@ public final class QuickCraftConfigs implements IConfigHandler {
                 Crafting.SHOW_CRAFT_ACTION_BUTTON,
                 Crafting.DROP_RESULTS_ON_STOP,
                 ContainerTools.ENABLE_QUICK_TRANSFER,
+                ContainerTools.QUICK_TRANSFER_RETAIN_ONE,
                 ContainerTools.ENABLE_QUICK_THROW,
                 ContainerTools.ENABLE_QUICK_TRADE,
                 ContainerTools.ENABLE_FAVORITE_TRADE,
@@ -637,6 +645,10 @@ public final class QuickCraftConfigs implements IConfigHandler {
 
     public static boolean isQuickTransferEnabled() {
         return ContainerTools.ENABLE_QUICK_TRANSFER.getBooleanValue();
+    }
+
+    public static boolean isQuickTransferRetainOneEnabled() {
+        return ContainerTools.QUICK_TRANSFER_RETAIN_ONE.getBooleanValue();
     }
 
     public static boolean isQuickThrowEnabled() {
