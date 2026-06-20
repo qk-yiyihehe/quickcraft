@@ -32,6 +32,7 @@ import java.util.function.Predicate;
  * - 鼠标在容器/合成格等非背包区域：转移同类物品到玩家主背包/快捷栏
  * - 按住快捷键滑过物品时，每个滑过的物品种类触发一次同类转移
  * - 按住格子转移快捷键滑过格子时，每个滑过的格子触发一次原版 Shift 转移
+ * - 按住保留一个快捷键单击或滑过格子时，对当前格子执行一次“源侧保留 1 个”的转移
  */
 public final class QuickTransfer implements ClientModInitializer {
     private static final int SLOT_SIZE = 18;
@@ -208,9 +209,6 @@ public final class QuickTransfer implements ClientModInitializer {
 
         ScreenHandler handler = screen.getScreenHandler();
         boolean sourceFromPlayerStorage = isPlayerStorageSlot(hoveredSlot);
-        if (mode == TransferMode.MATCHING_RETAIN_ONE && !canMoveFromPlayerStorage(handler)) {
-            return false;
-        }
         if (sourceFromPlayerStorage && mode == TransferMode.MATCHING
                 && !canMoveFromPlayerStorage(handler)
                 && !isPlayerMainInventorySlot(hoveredSlot)
@@ -222,7 +220,7 @@ public final class QuickTransfer implements ClientModInitializer {
         if (mode == TransferMode.SLOT) {
             handled = quickMoveHoveredSlot(screen, hoveredSlot, sourceFromPlayerStorage);
         } else if (mode == TransferMode.MATCHING_RETAIN_ONE) {
-            handled = moveAllMatchingStacksRetainingOne(screen, hoveredSlot, sourceFromPlayerStorage);
+            handled = moveHoveredSlotRetainingOne(screen, hoveredSlot, sourceFromPlayerStorage);
         } else if (sourceFromPlayerStorage && !canMoveFromPlayerStorage(handler)) {
             // 玩家物品栏界面没有外部容器时，同类滑动按主背包/快捷栏两边互转处理。
             handled = moveAllMatchingPlayerStorageStacksByQuickMove(screen, hoveredSlot);
@@ -243,6 +241,10 @@ public final class QuickTransfer implements ClientModInitializer {
                 || !isCreativePlayerStorageSlot(hoveredSlot)
                 || !hoveredSlot.hasStack()
                 || !hoveredSlot.canTakeItems(client.player)) {
+            return false;
+        }
+
+        if (mode == TransferMode.MATCHING_RETAIN_ONE) {
             return false;
         }
 
@@ -430,22 +432,16 @@ public final class QuickTransfer implements ClientModInitializer {
         return true;
     }
 
-    private static boolean moveAllMatchingStacksRetainingOne(HandledScreen<?> screen,
-                                                             Slot hoveredSlot,
-                                                             boolean sourceFromPlayerStorage) {
-        ItemStack template = hoveredSlot.getStack().copy();
-        if (template.isEmpty()) {
+    private static boolean moveHoveredSlotRetainingOne(HandledScreen<?> screen,
+                                                       Slot hoveredSlot,
+                                                       boolean sourceFromPlayerStorage) {
+        ScreenHandler handler = screen.getScreenHandler();
+        if (!canMoveFromPlayerStorage(handler)) {
             return false;
         }
 
-        MinecraftClient client = MinecraftClient.getInstance();
-        ScreenHandler handler = screen.getScreenHandler();
-        List<Slot> sourceSlots = snapshotMatchingSlots(
-                handler.slots,
-                hoveredSlot,
-                slot -> isMatchingSourceSlot(slot, template, sourceFromPlayerStorage, client)
-        );
-        if (sourceSlots.isEmpty()) {
+        ItemStack template = hoveredSlot.getStack().copy();
+        if (template.isEmpty()) {
             return false;
         }
 
@@ -455,25 +451,17 @@ public final class QuickTransfer implements ClientModInitializer {
         if (targetSlotIds.isEmpty()) {
             return false;
         }
-
-        boolean handled = false;
-        for (Slot sourceSlot : sourceSlots) {
-            ItemStack sourceTemplate = sourceSlot.getStack().copy();
-            if (sourceTemplate.isEmpty()) {
-                continue;
-            }
-            if (!hasSpaceInTargetSlots(handler, sourceTemplate, targetSlotIds)) {
-                return true;
-            }
-            handled |= moveOneSourceStackToTargetSlots(
-                    screen,
-                    sourceSlot.id,
-                    sourceTemplate,
-                    targetSlotIds,
-                    canLeaveOneInSource(handler, sourceSlot)
-            );
+        if (!hasSpaceInTargetSlots(handler, template, targetSlotIds)) {
+            return false;
         }
-        return handled;
+
+        return moveOneSourceStackToTargetSlots(
+                screen,
+                hoveredSlot.id,
+                template,
+                targetSlotIds,
+                true
+        );
     }
 
     private static boolean moveAllMatchingPlayerStorageStacksByQuickMove(HandledScreen<?> screen, Slot hoveredSlot) {
@@ -617,9 +605,6 @@ public final class QuickTransfer implements ClientModInitializer {
         }
         Slot sourceSlot = handler.getSlot(sourceSlotId);
         if (!isVisibleSlot(sourceSlot) || !sourceSlot.hasStack() || !sourceSlot.canTakeItems(client.player)) {
-            return false;
-        }
-        if (isPlayerStorageSlot(sourceSlot)) {
             return false;
         }
         if (!ItemStack.areItemsAndComponentsEqual(sourceSlot.getStack(), template)) {
