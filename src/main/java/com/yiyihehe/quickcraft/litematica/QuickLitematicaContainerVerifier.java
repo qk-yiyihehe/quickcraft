@@ -102,6 +102,8 @@ public final class QuickLitematicaContainerVerifier {
     private static BlockPos currentScreenContainerPos;
     private static HandledScreen<?> currentHandledScreen;
     private static long lastCurrentScreenRefreshTick = Long.MIN_VALUE;
+    private static int lastCurrentScreenRevision = Integer.MIN_VALUE;
+    private static List<SlotOverlay> currentScreenSlotOverlays = List.of();
 
     private QuickLitematicaContainerVerifier() {
     }
@@ -352,6 +354,8 @@ public final class QuickLitematicaContainerVerifier {
         currentScreenContainerPos = null;
         currentHandledScreen = null;
         lastCurrentScreenRefreshTick = Long.MIN_VALUE;
+        lastCurrentScreenRevision = Integer.MIN_VALUE;
+        currentScreenSlotOverlays = List.of();
     }
 
     public static void drawGhostItem(
@@ -403,26 +407,11 @@ public final class QuickLitematicaContainerVerifier {
             return null;
         }
 
-        MinecraftClient client = MinecraftClient.getInstance();
-        World world = fi.dy.masa.malilib.util.WorldUtils.getBestWorld(client);
-        ExpectedContainer expectedContainer = getExpectedContainerAt(world, currentScreenContainerPos);
-
-        if (expectedContainer == null || slot.getIndex() < 0 || slot.getIndex() >= expectedContainer.inventory().size()) {
+        if (slot.getIndex() < 0 || slot.getIndex() >= currentScreenSlotOverlays.size()) {
             return null;
         }
 
-        ItemStack expectedStack = expectedContainer.inventory().getStack(slot.getIndex());
-        SlotMismatchStatus status = getSlotMismatchStatus(expectedStack, slot.getStack());
-
-        if (status == null && isSlotLockMismatch(
-                expectedContainer.disabledSlots(),
-                copyCrafterDisabledSlotsFromScreen(screen.getScreenHandler()),
-                slot.getIndex()
-        )) {
-            status = SlotMismatchStatus.LOCK_STATE;
-        }
-
-        return status != null ? new SlotOverlay(status, expectedStack.copy()) : null;
+        return currentScreenSlotOverlays.get(slot.getIndex());
     }
 
     private static SlotMismatchStatus getSlotMismatchStatus(ItemStack expectedStack, ItemStack foundStack) {
@@ -550,6 +539,8 @@ public final class QuickLitematicaContainerVerifier {
             currentScreenContainerPos = pendingContainerPos;
             pendingContainerPos = null;
             lastCurrentScreenRefreshTick = Long.MIN_VALUE;
+            lastCurrentScreenRevision = Integer.MIN_VALUE;
+            currentScreenSlotOverlays = List.of();
         }
 
         if (currentScreenContainerPos == null) {
@@ -561,12 +552,25 @@ public final class QuickLitematicaContainerVerifier {
         MinecraftClient client = MinecraftClient.getInstance();
 
         if (client.world == null
-                || currentScreenContainerPos == null
-                || client.world.getTime() == lastCurrentScreenRefreshTick) {
+                || currentScreenContainerPos == null) {
             return;
         }
 
-        lastCurrentScreenRefreshTick = client.world.getTime();
+        int currentRevision = screen.getScreenHandler().getRevision();
+
+        if (currentRevision == lastCurrentScreenRevision && !currentScreenSlotOverlays.isEmpty()) {
+            return;
+        }
+
+        long currentTick = client.world.getTime();
+
+        if (currentTick == lastCurrentScreenRefreshTick && currentRevision == lastCurrentScreenRevision) {
+            return;
+        }
+
+        lastCurrentScreenRefreshTick = currentTick;
+        lastCurrentScreenRevision = currentRevision;
+        currentScreenSlotOverlays = List.of();
         Inventory foundInventory = copyContainerInventoryFromScreen(screen.getScreenHandler());
 
         if (foundInventory == null) {
@@ -574,12 +578,20 @@ public final class QuickLitematicaContainerVerifier {
         }
 
         Set<Integer> foundDisabledSlots = copyCrafterDisabledSlotsFromScreen(screen.getScreenHandler());
-
+        World world = fi.dy.masa.malilib.util.WorldUtils.getBestWorld(client);
+        ExpectedContainer expectedContainer = getExpectedContainerAt(world, currentScreenContainerPos);
+        List<ContainerMismatch> mismatches = null;
         SchematicPlacement placement = DataManager.getSchematicPlacementManager().getSelectedSchematicPlacement();
 
         if (placement != null && placement.hasVerifier()) {
-            ((VerifierExtension) placement.getSchematicVerifier())
+            mismatches = ((VerifierExtension) placement.getSchematicVerifier())
                     .quickcraft$refreshContainerMismatchAt(currentScreenContainerPos, foundInventory, foundDisabledSlots);
+        }
+
+        if (expectedContainer != null && foundInventory.size() == expectedContainer.inventory().size()) {
+            currentScreenSlotOverlays = mismatches != null
+                    ? buildSlotOverlays(expectedContainer, mismatches)
+                    : buildSlotOverlays(expectedContainer, foundInventory, foundDisabledSlots);
         }
     }
 
@@ -641,6 +653,60 @@ public final class QuickLitematicaContainerVerifier {
         }
 
         return disabledSlots;
+    }
+
+    private static List<SlotOverlay> buildSlotOverlays(
+            ExpectedContainer expectedContainer,
+            Inventory foundInventory,
+            Set<Integer> foundDisabledSlots
+    ) {
+        int size = expectedContainer.inventory().size();
+        List<SlotOverlay> overlays = new ArrayList<>(size);
+
+        // 打开大箱子时每帧都会绘制很多槽位，这里先按 tick 预计算一次，
+        // 避免满潜影盒场景反复深比较内部组件导致高亮掉帧。
+        for (int slot = 0; slot < size; slot++) {
+            ItemStack expectedStack = expectedContainer.inventory().getStack(slot);
+            SlotMismatchStatus status = getSlotMismatchStatus(expectedStack, foundInventory.getStack(slot));
+
+            if (status == null && isSlotLockMismatch(
+                    expectedContainer.disabledSlots(),
+                    foundDisabledSlots,
+                    slot
+            )) {
+                status = SlotMismatchStatus.LOCK_STATE;
+            }
+
+            overlays.add(status != null ? new SlotOverlay(status, expectedStack.copy()) : null);
+        }
+
+        return overlays;
+    }
+
+    private static List<SlotOverlay> buildSlotOverlays(
+            ExpectedContainer expectedContainer,
+            List<ContainerMismatch> mismatches
+    ) {
+        int size = expectedContainer.inventory().size();
+        List<SlotOverlay> overlays = new ArrayList<>(size);
+
+        for (int slot = 0; slot < size; slot++) {
+            overlays.add(null);
+        }
+
+        if (mismatches.isEmpty()) {
+            return overlays;
+        }
+
+        for (SlotMismatch mismatch : mismatches.getFirst().slotMismatches()) {
+            int slot = mismatch.slot();
+
+            if (slot >= 0 && slot < overlays.size()) {
+                overlays.set(slot, new SlotOverlay(mismatch.status(), mismatch.expectedStack().copy()));
+            }
+        }
+
+        return overlays;
     }
 
     private static ExpectedContainer getExpectedDoubleChestContainer(BlockPos pos, ExpectedContainer current) {
@@ -1134,7 +1200,7 @@ public final class QuickLitematicaContainerVerifier {
 
         int quickcraft$getPendingContainerCount();
 
-        void quickcraft$refreshContainerMismatchAt(BlockPos pos, Inventory foundInventory, Set<Integer> foundDisabledSlots);
+        List<ContainerMismatch> quickcraft$refreshContainerMismatchAt(BlockPos pos, Inventory foundInventory, Set<Integer> foundDisabledSlots);
     }
 
     /**
