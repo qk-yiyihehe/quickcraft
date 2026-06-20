@@ -550,10 +550,6 @@ public final class QuickLitematicaContainerVerifier {
 
         int currentRevision = screen.getScreenHandler().getRevision();
 
-        if (currentRevision == lastCurrentScreenRevision && !currentScreenSlotOverlays.isEmpty()) {
-            return;
-        }
-
         long currentTick = client.world.getTime();
 
         if (currentTick == lastCurrentScreenRefreshTick && currentRevision == lastCurrentScreenRevision) {
