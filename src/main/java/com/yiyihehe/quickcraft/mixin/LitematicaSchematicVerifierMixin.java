@@ -157,9 +157,9 @@ public abstract class LitematicaSchematicVerifierMixin extends TaskBase implemen
     }
 
     @Override
-    public void quickcraft$refreshContainerMismatchAt(BlockPos pos, Inventory foundInventory, Set<Integer> foundDisabledSlots) {
+    public List<ContainerMismatch> quickcraft$refreshContainerMismatchAt(BlockPos pos, Inventory foundInventory, Set<Integer> foundDisabledSlots) {
         if (!QuickLitematicaContainerVerifier.isEnabled() || foundInventory == null) {
-            return;
+            return null;
         }
 
         World bestWorld = fi.dy.masa.malilib.util.WorldUtils.getBestWorld(MinecraftClient.getInstance());
@@ -176,6 +176,8 @@ public abstract class LitematicaSchematicVerifierMixin extends TaskBase implemen
         if (mismatches != null && this.quickcraft$replaceContainerMismatchesAt(pos, mismatches)) {
             this.updateMismatchOverlays();
         }
+
+        return mismatches;
     }
 
     @Redirect(
