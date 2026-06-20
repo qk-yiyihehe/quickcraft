@@ -95,28 +95,27 @@ public final class QuickTransfer implements ClientModInitializer {
         return handled;
     }
 
-    public static boolean handleRetainOneQuickMove(HandledScreen<?> screen, Slot slot, SlotActionType actionType) {
-        if (actionType != SlotActionType.QUICK_MOVE
-                || slot == null
-                || screen instanceof CreativeInventoryScreen
-                || !QuickCraftConfigs.isQuickTransferRetainOneEnabled()
-                || !screen.getScreenHandler().getCursorStack().isEmpty()
-                || !shouldRetainOneWhenMovingToPlayer(screen.getScreenHandler(), slot)) {
+    public static boolean handleQuickTransferRetainOneHotkey() {
+        MinecraftClient client = MinecraftClient.getInstance();
+        if (!(client.currentScreen instanceof HandledScreen<?> screen) || !canUseQuickTransfer(client, screen)) {
             return false;
         }
 
-        ItemStack template = slot.getStack().copy();
-        if (template.isEmpty()) {
+        double mouseX = getMouseX(client);
+        double mouseY = getMouseY(client);
+        ensureHoldGesture(screen, TransferMode.MATCHING_RETAIN_ONE);
+
+        Slot hoveredSlot = findHoveredSlot(screen, mouseX, mouseY);
+        if (hoveredSlot == null) {
             return false;
         }
 
-        return moveOneSourceStackToPlayerMainInventory(
-                screen,
-                slot.id,
-                template,
-                getPlayerPreferredStorageSlotIds(screen.getScreenHandler()),
-                true
-        );
+        boolean handled = processHoveredSlot(screen, hoveredSlot, TransferMode.MATCHING_RETAIN_ONE);
+        lastHoveredSlotKey = createSlotKey(screen, hoveredSlot);
+        hasLastMousePosition = true;
+        lastMouseX = mouseX;
+        lastMouseY = mouseY;
+        return handled;
     }
 
     private void onClientTick(MinecraftClient client) {
@@ -161,6 +160,9 @@ public final class QuickTransfer implements ClientModInitializer {
     }
 
     private static TransferMode getHeldTransferMode() {
+        if (QuickCraftConfigs.Hotkeys.QUICK_TRANSFER_RETAIN_ONE.getKeybind().isKeybindHeld()) {
+            return TransferMode.MATCHING_RETAIN_ONE;
+        }
         if (QuickCraftConfigs.Hotkeys.SLOT_QUICK_TRANSFER.getKeybind().isKeybindHeld()) {
             return TransferMode.SLOT;
         }
@@ -204,9 +206,13 @@ public final class QuickTransfer implements ClientModInitializer {
             return false;
         }
 
+        ScreenHandler handler = screen.getScreenHandler();
         boolean sourceFromPlayerStorage = isPlayerStorageSlot(hoveredSlot);
+        if (mode == TransferMode.MATCHING_RETAIN_ONE && !canMoveFromPlayerStorage(handler)) {
+            return false;
+        }
         if (sourceFromPlayerStorage && mode == TransferMode.MATCHING
-                && !canMoveFromPlayerStorage(screen.getScreenHandler())
+                && !canMoveFromPlayerStorage(handler)
                 && !isPlayerMainInventorySlot(hoveredSlot)
                 && !isPlayerHotbarSlot(hoveredSlot)) {
             return false;
@@ -215,7 +221,9 @@ public final class QuickTransfer implements ClientModInitializer {
         boolean handled;
         if (mode == TransferMode.SLOT) {
             handled = quickMoveHoveredSlot(screen, hoveredSlot, sourceFromPlayerStorage);
-        } else if (sourceFromPlayerStorage && !canMoveFromPlayerStorage(screen.getScreenHandler())) {
+        } else if (mode == TransferMode.MATCHING_RETAIN_ONE) {
+            handled = moveAllMatchingStacksRetainingOne(screen, hoveredSlot, sourceFromPlayerStorage);
+        } else if (sourceFromPlayerStorage && !canMoveFromPlayerStorage(handler)) {
             // 玩家物品栏界面没有外部容器时，同类滑动按主背包/快捷栏两边互转处理。
             handled = moveAllMatchingPlayerStorageStacksByQuickMove(screen, hoveredSlot);
         } else if (sourceFromPlayerStorage) {
@@ -240,7 +248,7 @@ public final class QuickTransfer implements ClientModInitializer {
 
         // 创造模式下，Alt 同类转移也要保持“主背包/快捷栏两边互转”的语义，
         // 不能一律退化成原版 Shift 的单格快速移动。
-        if (mode == TransferMode.MATCHING) {
+        if (mode != TransferMode.SLOT) {
             return moveAllMatchingCreativePlayerStorageStacksByQuickMove(screen, hoveredSlot);
         }
 
@@ -344,16 +352,6 @@ public final class QuickTransfer implements ClientModInitializer {
             return false;
         }
 
-        if (!sourceFromPlayerStorage && shouldRetainOneWhenMovingToPlayer(screen.getScreenHandler(), hoveredSlot)) {
-            return moveOneSourceStackToPlayerMainInventory(
-                    screen,
-                    hoveredSlot.id,
-                    hoveredSlot.getStack().copy(),
-                    getPlayerPreferredStorageSlotIds(screen.getScreenHandler()),
-                    true
-            );
-        }
-
         client.interactionManager.clickSlot(
                 screen.getScreenHandler().syncId,
                 hoveredSlot.id,
@@ -417,17 +415,62 @@ public final class QuickTransfer implements ClientModInitializer {
             return false;
         }
         List<Integer> targetSlotIds = getPlayerPreferredStorageSlotIds(handler);
-        boolean handled = false;
         for (Slot sourceSlot : sourceSlots) {
-            if (!hasSpaceInPlayerStorage(handler, template, targetSlotIds)) {
-                return handled || !sourceSlots.isEmpty();
+            if (!hasSpaceInTargetSlots(handler, template, targetSlotIds)) {
+                return true;
             }
-            handled |= moveOneSourceStackToPlayerMainInventory(
+            moveOneSourceStackToTargetSlots(
                     screen,
                     sourceSlot.id,
                     template,
                     targetSlotIds,
-                    shouldRetainOneWhenMovingToPlayer(handler, sourceSlot)
+                    false
+            );
+        }
+        return true;
+    }
+
+    private static boolean moveAllMatchingStacksRetainingOne(HandledScreen<?> screen,
+                                                             Slot hoveredSlot,
+                                                             boolean sourceFromPlayerStorage) {
+        ItemStack template = hoveredSlot.getStack().copy();
+        if (template.isEmpty()) {
+            return false;
+        }
+
+        MinecraftClient client = MinecraftClient.getInstance();
+        ScreenHandler handler = screen.getScreenHandler();
+        List<Slot> sourceSlots = snapshotMatchingSlots(
+                handler.slots,
+                hoveredSlot,
+                slot -> isMatchingSourceSlot(slot, template, sourceFromPlayerStorage, client)
+        );
+        if (sourceSlots.isEmpty()) {
+            return false;
+        }
+
+        List<Integer> targetSlotIds = sourceFromPlayerStorage
+                ? getContainerPreferredSlotIds(handler)
+                : getPlayerPreferredStorageSlotIds(handler);
+        if (targetSlotIds.isEmpty()) {
+            return false;
+        }
+
+        boolean handled = false;
+        for (Slot sourceSlot : sourceSlots) {
+            ItemStack sourceTemplate = sourceSlot.getStack().copy();
+            if (sourceTemplate.isEmpty()) {
+                continue;
+            }
+            if (!hasSpaceInTargetSlots(handler, sourceTemplate, targetSlotIds)) {
+                return true;
+            }
+            handled |= moveOneSourceStackToTargetSlots(
+                    screen,
+                    sourceSlot.id,
+                    sourceTemplate,
+                    targetSlotIds,
+                    canLeaveOneInSource(handler, sourceSlot)
             );
         }
         return handled;
@@ -558,11 +601,11 @@ public final class QuickTransfer implements ClientModInitializer {
         return new ArrayList<>(slots);
     }
 
-    private static boolean moveOneSourceStackToPlayerMainInventory(HandledScreen<?> screen,
-                                                                   int sourceSlotId,
-                                                                   ItemStack template,
-                                                                   List<Integer> targetSlotIds,
-                                                                   boolean leaveOneInSource) {
+    private static boolean moveOneSourceStackToTargetSlots(HandledScreen<?> screen,
+                                                           int sourceSlotId,
+                                                           ItemStack template,
+                                                           List<Integer> targetSlotIds,
+                                                           boolean leaveOneInSource) {
         MinecraftClient client = MinecraftClient.getInstance();
         if (client.player == null || client.interactionManager == null) {
             return false;
@@ -582,11 +625,11 @@ public final class QuickTransfer implements ClientModInitializer {
         if (!ItemStack.areItemsAndComponentsEqual(sourceSlot.getStack(), template)) {
             return false;
         }
-        if (leaveOneInSource && !canRetainOneInSource(handler, sourceSlot)) {
+        if (leaveOneInSource && !canLeaveOneInSource(handler, sourceSlot)) {
             return false;
         }
         if (leaveOneInSource && sourceSlot.getStack().getCount() <= 1) {
-            return true;
+            return false;
         }
 
         clickSlot(screen, sourceSlotId, 0, SlotActionType.PICKUP);
@@ -597,18 +640,20 @@ public final class QuickTransfer implements ClientModInitializer {
             clickSlot(screen, sourceSlotId, 1, SlotActionType.PICKUP);
         }
 
-        fillCursorIntoPlayerMainInventory(screen, targetSlotIds, false);
-        fillCursorIntoPlayerMainInventory(screen, targetSlotIds, true);
+        int cursorCountBeforeFill = handler.getCursorStack().getCount();
+        fillCursorIntoTargetSlots(screen, targetSlotIds, false);
+        fillCursorIntoTargetSlots(screen, targetSlotIds, true);
+        boolean moved = handler.getCursorStack().getCount() < cursorCountBeforeFill;
 
         if (!handler.getCursorStack().isEmpty()) {
             clickSlot(screen, sourceSlotId, 0, SlotActionType.PICKUP);
         }
-        return true;
+        return moved;
     }
 
-    private static void fillCursorIntoPlayerMainInventory(HandledScreen<?> screen,
-                                                          List<Integer> targetSlotIds,
-                                                          boolean emptySlotsOnly) {
+    private static void fillCursorIntoTargetSlots(HandledScreen<?> screen,
+                                                  List<Integer> targetSlotIds,
+                                                  boolean emptySlotsOnly) {
         ScreenHandler handler = screen.getScreenHandler();
         for (int targetSlotId : targetSlotIds) {
             ItemStack cursorStack = handler.getCursorStack();
@@ -641,9 +686,9 @@ public final class QuickTransfer implements ClientModInitializer {
         }
     }
 
-    private static boolean hasSpaceInPlayerStorage(ScreenHandler handler,
-                                                   ItemStack template,
-                                                   List<Integer> targetSlotIds) {
+    private static boolean hasSpaceInTargetSlots(ScreenHandler handler,
+                                                 ItemStack template,
+                                                 List<Integer> targetSlotIds) {
         for (int targetSlotId : targetSlotIds) {
             Slot targetSlot = handler.getSlot(targetSlotId);
             if (!isVisibleSlot(targetSlot) || !targetSlot.canInsert(template)) {
@@ -660,22 +705,33 @@ public final class QuickTransfer implements ClientModInitializer {
         return false;
     }
 
-    private static boolean shouldRetainOneWhenMovingToPlayer(ScreenHandler handler, Slot sourceSlot) {
-        return QuickCraftConfigs.isQuickTransferEnabled()
-                && QuickCraftConfigs.isQuickTransferRetainOneEnabled()
-                && canMoveFromPlayerStorage(handler)
-                && !isPlayerStorageSlot(sourceSlot)
-                && canRetainOneInSource(handler, sourceSlot);
-    }
-
-    // 只对能放回同类物品的普通容器槽位保留 1 个，避免影响产物槽等特殊槽位。
-    private static boolean canRetainOneInSource(ScreenHandler handler, Slot sourceSlot) {
+    // 只对能放回同类物品的普通槽位保留 1 个，避免影响产物槽等特殊槽位。
+    private static boolean canLeaveOneInSource(ScreenHandler handler, Slot sourceSlot) {
         ItemStack stack = sourceSlot.getStack();
         return handler.getCursorStack().isEmpty()
                 && sourceSlot.hasStack()
                 && !stack.isEmpty()
                 && stack.getMaxCount() > 1
                 && sourceSlot.canInsert(stack);
+    }
+
+    private static List<Integer> getContainerPreferredSlotIds(ScreenHandler handler) {
+        List<Slot> targetSlots = new ArrayList<>();
+        for (Slot slot : handler.slots) {
+            if (!isVisibleSlot(slot) || isPlayerStorageSlot(slot)) {
+                continue;
+            }
+            targetSlots.add(slot);
+        }
+
+        targetSlots.sort(Comparator
+                .comparingInt((Slot slot) -> slot.y)
+                .thenComparingInt(slot -> slot.x)
+                .thenComparingInt(slot -> slot.id));
+
+        return targetSlots.stream()
+                .map(slot -> slot.id)
+                .toList();
     }
 
     private static List<Integer> getPlayerPreferredStorageSlotIds(ScreenHandler handler) {
@@ -798,6 +854,7 @@ public final class QuickTransfer implements ClientModInitializer {
     private enum TransferMode {
         NONE,
         MATCHING,
+        MATCHING_RETAIN_ONE,
         SLOT
     }
 
