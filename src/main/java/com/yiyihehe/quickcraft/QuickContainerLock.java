@@ -13,6 +13,7 @@ import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.gui.screen.ingame.CreativeInventoryScreen;
 import net.minecraft.client.gui.screen.ingame.HandledScreen;
+import net.minecraft.client.render.RenderLayer;
 import net.minecraft.entity.player.PlayerInventory;
 import net.minecraft.screen.GenericContainerScreenHandler;
 import net.minecraft.screen.PlayerScreenHandler;
@@ -357,13 +358,14 @@ public final class QuickContainerLock implements ClientModInitializer {
 
     private static void renderSlotLockIcon(DrawContext context, int left, int top) {
         context.drawTexture(
+                RenderLayer::getGuiTextured,
                 SLOT_LOCK_TEXTURE,
                 left,
                 top,
+                0.0F,
+                0.0F,
                 SLOT_LOCK_WIDTH,
                 SLOT_LOCK_HEIGHT,
-                0.0F,
-                0.0F,
                 SLOT_LOCK_TEXTURE_WIDTH,
                 SLOT_LOCK_TEXTURE_HEIGHT,
                 SLOT_LOCK_TEXTURE_WIDTH,
