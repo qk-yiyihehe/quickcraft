@@ -51,8 +51,16 @@ import net.minecraft.inventory.Inventory;
 import net.minecraft.inventory.SimpleInventory;
 import net.minecraft.item.ItemStack;
 import net.minecraft.nbt.NbtCompound;
+import net.minecraft.screen.BlastFurnaceScreenHandler;
+import net.minecraft.screen.BrewingStandScreenHandler;
 import net.minecraft.screen.CrafterScreenHandler;
+import net.minecraft.screen.FurnaceScreenHandler;
+import net.minecraft.screen.Generic3x3ContainerScreenHandler;
+import net.minecraft.screen.GenericContainerScreenHandler;
+import net.minecraft.screen.HopperScreenHandler;
 import net.minecraft.screen.ScreenHandler;
+import net.minecraft.screen.ShulkerBoxScreenHandler;
+import net.minecraft.screen.SmokerScreenHandler;
 import net.minecraft.screen.slot.Slot;
 import net.minecraft.util.BlockMirror;
 import net.minecraft.util.BlockRotation;
@@ -351,11 +359,8 @@ public final class QuickLitematicaContainerVerifier {
 
     public static void clearCurrentHandledScreenBinding() {
         pendingContainerPos = null;
-        currentScreenContainerPos = null;
         currentHandledScreen = null;
-        lastCurrentScreenRefreshTick = Long.MIN_VALUE;
-        lastCurrentScreenRevision = Integer.MIN_VALUE;
-        currentScreenSlotOverlays = List.of();
+        clearCurrentScreenContainerBinding();
     }
 
     public static void drawGhostItem(
@@ -396,7 +401,9 @@ public final class QuickLitematicaContainerVerifier {
     public static SlotOverlay getSlotOverlayForScreen(HandledScreen<?> screen, Slot slot) {
         if (!areSlotHintsVisible()
                 || QuickContainerCopy.shouldHideBackgroundHandledScreen()
-                || slot.inventory instanceof PlayerInventory) {
+                || slot.inventory instanceof PlayerInventory
+                // 只让真正的容器界面参与高亮，避免创造物品栏等界面误触发容器校验。
+                || !isSupportedContainerHandler(screen.getScreenHandler())) {
             return null;
         }
 
@@ -544,7 +551,9 @@ public final class QuickLitematicaContainerVerifier {
         }
 
         if (currentScreenContainerPos == null) {
-            currentScreenContainerPos = getLookedAtInventoryPos(client);
+            currentScreenContainerPos = isSupportedContainerHandler(screen.getScreenHandler())
+                    ? getLookedAtInventoryPos(client)
+                    : null;
         }
     }
 
@@ -567,6 +576,15 @@ public final class QuickLitematicaContainerVerifier {
         lastCurrentScreenRefreshTick = currentTick;
         lastCurrentScreenRevision = currentRevision;
         currentScreenSlotOverlays = List.of();
+        World world = fi.dy.masa.malilib.util.WorldUtils.getBestWorld(client);
+        ExpectedContainer expectedContainer = getExpectedContainerAt(world, currentScreenContainerPos);
+
+        if (expectedContainer == null
+                || !isSupportedHandlerForExpectedContainer(screen.getScreenHandler(), expectedContainer)) {
+            clearCurrentScreenContainerBinding();
+            return;
+        }
+
         Inventory foundInventory = copyContainerInventoryFromScreen(screen.getScreenHandler());
 
         if (foundInventory == null) {
@@ -574,8 +592,6 @@ public final class QuickLitematicaContainerVerifier {
         }
 
         Set<Integer> foundDisabledSlots = copyCrafterDisabledSlotsFromScreen(screen.getScreenHandler());
-        World world = fi.dy.masa.malilib.util.WorldUtils.getBestWorld(client);
-        ExpectedContainer expectedContainer = getExpectedContainerAt(world, currentScreenContainerPos);
         List<ContainerMismatch> mismatches = null;
         SchematicPlacement placement = DataManager.getSchematicPlacementManager().getSelectedSchematicPlacement();
 
@@ -603,6 +619,51 @@ public final class QuickLitematicaContainerVerifier {
                 : client.world.getBlockEntity(blockHitResult.getBlockPos());
 
         return blockEntity instanceof Inventory ? blockHitResult.getBlockPos().toImmutable() : null;
+    }
+
+    private static void clearCurrentScreenContainerBinding() {
+        currentScreenContainerPos = null;
+        lastCurrentScreenRefreshTick = Long.MIN_VALUE;
+        lastCurrentScreenRevision = Integer.MIN_VALUE;
+        currentScreenSlotOverlays = List.of();
+    }
+
+    private static boolean isSupportedContainerHandler(ScreenHandler handler) {
+        return handler instanceof HopperScreenHandler
+                || handler instanceof GenericContainerScreenHandler
+                || handler instanceof ShulkerBoxScreenHandler
+                || handler instanceof Generic3x3ContainerScreenHandler
+                || handler instanceof CrafterScreenHandler
+                || handler instanceof FurnaceScreenHandler
+                || handler instanceof BlastFurnaceScreenHandler
+                || handler instanceof SmokerScreenHandler
+                || handler instanceof BrewingStandScreenHandler;
+    }
+
+    private static boolean isSupportedHandlerForExpectedContainer(ScreenHandler handler, ExpectedContainer expectedContainer) {
+        QuickContainerCopy.PublicContainerType type = QuickContainerCopy.getPublicContainerType(
+                expectedContainer.state().getBlock(),
+                getChestType(expectedContainer.state())
+        );
+
+        if (type == null) {
+            return false;
+        }
+
+        return switch (type) {
+            case HOPPER -> handler instanceof HopperScreenHandler;
+            case SMALL_CHEST, BARREL -> handler instanceof GenericContainerScreenHandler genericHandler
+                    && genericHandler.getRows() == 3;
+            case LARGE_CHEST -> handler instanceof GenericContainerScreenHandler genericHandler
+                    && genericHandler.getRows() == 6;
+            case SHULKER_BOX -> handler instanceof ShulkerBoxScreenHandler;
+            case DISPENSER, DROPPER -> handler instanceof Generic3x3ContainerScreenHandler;
+            case CRAFTER -> handler instanceof CrafterScreenHandler;
+            case FURNACE -> handler instanceof FurnaceScreenHandler;
+            case BLAST_FURNACE -> handler instanceof BlastFurnaceScreenHandler;
+            case SMOKER -> handler instanceof SmokerScreenHandler;
+            case BREWING_STAND -> handler instanceof BrewingStandScreenHandler;
+        };
     }
 
     private static Inventory copyContainerInventoryFromScreen(ScreenHandler handler) {
