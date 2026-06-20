@@ -1,16 +1,20 @@
 package com.yiyihehe.quickcraft.mixin;
 
+import com.yiyihehe.quickcraft.QuickContainerLock;
 import com.yiyihehe.quickcraft.QuickContainerCopy;
 import com.yiyihehe.quickcraft.litematica.QuickLitematicaContainerVerifier;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.network.ClientPlayerEntity;
 import net.minecraft.client.network.ClientPlayerInteractionManager;
+import net.minecraft.entity.player.PlayerEntity;
+import net.minecraft.screen.slot.SlotActionType;
 import net.minecraft.util.ActionResult;
 import net.minecraft.util.Hand;
 import net.minecraft.util.hit.BlockHitResult;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
+import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
 /**
@@ -19,6 +23,21 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
  */
 @Mixin(ClientPlayerInteractionManager.class)
 public class LitematicaClientPlayerInteractionManagerMixin {
+    @Inject(method = "clickSlot", at = @At("HEAD"), cancellable = true)
+    private void quickcraft$blockLockedSlotClick(int syncId,
+                                                 int slotId,
+                                                 int button,
+                                                 SlotActionType actionType,
+                                                 PlayerEntity player,
+                                                 CallbackInfo ci) {
+        if (player != null
+                && player.currentScreenHandler != null
+                && player.currentScreenHandler.syncId == syncId
+                && QuickContainerLock.shouldBlockClick(player.currentScreenHandler, slotId, button, actionType)) {
+            ci.cancel();
+        }
+    }
+
     @Inject(method = "interactBlock", at = @At("RETURN"))
     private void quickcraft$rememberOpenedContainer(
             ClientPlayerEntity player,
