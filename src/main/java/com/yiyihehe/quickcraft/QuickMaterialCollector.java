@@ -444,6 +444,11 @@ public final class QuickMaterialCollector implements ClientModInitializer {
                                                Slot source,
                                                List<Demand> demands,
                                                List<ItemStack> targetTemplates) {
+        WholeShulkerCandidate bestCandidate = findBestWholeShulkerCandidate(screen.getScreenHandler(), demands, targetTemplates);
+        if (bestCandidate == null || bestCandidate.slot().id != source.id) {
+            return;
+        }
+
         ItemStack shulker = source.getStack();
         List<StoredCount> contents = getStoredTargetCounts(shulker, demands);
         if (contents.isEmpty() || !containsOnlyTargetMaterials(shulker, targetTemplates)) {
@@ -522,18 +527,18 @@ public final class QuickMaterialCollector implements ClientModInitializer {
     }
 
     private Slot findDestinationShulkerSlot(ScreenHandler handler, ItemStack insertStack, List<ItemStack> targetTemplates) {
+        DestinationShulkerCandidate bestCandidate = null;
         for (Slot slot : getPlayerStorageSlots(handler)) {
-            if (!slot.hasStack() || !isUsableDestinationShulker(slot.getStack(), targetTemplates)) {
+            DestinationShulkerCandidate candidate = createDestinationShulkerCandidate(slot, insertStack, targetTemplates);
+            if (candidate == null) {
                 continue;
             }
-
-            int capacity = getShulkerCapacityFor(slot.getStack(), insertStack);
-            if (capacity > 0) {
-                return slot;
+            if (bestCandidate == null || candidate.isBetterThan(bestCandidate)) {
+                bestCandidate = candidate;
             }
         }
 
-        return null;
+        return bestCandidate != null ? bestCandidate.slot() : null;
     }
 
     private boolean shouldUseQuickShulker() {
@@ -551,6 +556,28 @@ public final class QuickMaterialCollector implements ClientModInitializer {
 
     private boolean isUsableDestinationShulker(ItemStack stack, List<ItemStack> targetTemplates) {
         return isShulkerBox(stack) && containsOnlyTargetMaterials(stack, targetTemplates);
+    }
+
+    private DestinationShulkerCandidate createDestinationShulkerCandidate(Slot slot,
+                                                                          ItemStack insertStack,
+                                                                          List<ItemStack> targetTemplates) {
+        if (!slot.hasStack() || !isShulkerBox(slot.getStack())) {
+            return null;
+        }
+
+        ItemStack shulker = slot.getStack();
+        int totalCapacity = getShulkerCapacityFor(shulker, insertStack);
+        if (totalCapacity <= 0) {
+            return null;
+        }
+
+        return new DestinationShulkerCandidate(
+                slot,
+                containsStoredMaterial(shulker, insertStack),
+                getShulkerMatchingCapacity(shulker, insertStack),
+                isUsableDestinationShulker(shulker, targetTemplates),
+                totalCapacity
+        );
     }
 
     private boolean containsOnlyTargetMaterials(ItemStack shulker, List<ItemStack> targetTemplates) {
@@ -578,6 +605,71 @@ public final class QuickMaterialCollector implements ClientModInitializer {
             }
         }
         return counts;
+    }
+
+    private WholeShulkerCandidate findBestWholeShulkerCandidate(ScreenHandler handler,
+                                                                List<Demand> demands,
+                                                                List<ItemStack> targetTemplates) {
+        WholeShulkerCandidate bestCandidate = null;
+        for (Slot slot : getContainerSlots(handler)) {
+            WholeShulkerCandidate candidate = createWholeShulkerCandidate(handler, slot, demands, targetTemplates);
+            if (candidate == null) {
+                continue;
+            }
+            if (bestCandidate == null || candidate.isBetterThan(bestCandidate)) {
+                bestCandidate = candidate;
+            }
+        }
+
+        return bestCandidate;
+    }
+
+    private WholeShulkerCandidate createWholeShulkerCandidate(ScreenHandler handler,
+                                                              Slot source,
+                                                              List<Demand> demands,
+                                                              List<ItemStack> targetTemplates) {
+        if (!source.hasStack() || !isShulkerBox(source.getStack())) {
+            return null;
+        }
+
+        ItemStack shulker = source.getStack();
+        if (!containsOnlyTargetMaterials(shulker, targetTemplates) || !hasPlayerCapacity(handler, shulker, shulker.getCount())) {
+            return null;
+        }
+
+        List<StoredCount> contents = getStoredTargetCounts(shulker, demands);
+        if (contents.isEmpty()) {
+            return null;
+        }
+
+        int contribution = 0;
+        for (StoredCount content : contents) {
+            if (content.count() > content.demand().remaining()) {
+                return null;
+            }
+            contribution += content.count();
+        }
+
+        return new WholeShulkerCandidate(source, contribution, contents.size());
+    }
+
+    private boolean containsStoredMaterial(ItemStack shulker, ItemStack template) {
+        for (ItemStack stored : getStoredStacks(shulker)) {
+            if (stacksMatch(stored, template)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private int getShulkerMatchingCapacity(ItemStack shulker, ItemStack insertStack) {
+        int capacity = 0;
+        for (ItemStack stored : getStoredStacks(shulker)) {
+            if (stacksExactlyMatch(stored, insertStack)) {
+                capacity += Math.max(0, stored.getMaxCount() - stored.getCount());
+            }
+        }
+        return capacity;
     }
 
     private int getShulkerCapacityFor(ItemStack shulker, ItemStack insertStack) {
@@ -873,6 +965,45 @@ public final class QuickMaterialCollector implements ClientModInitializer {
         private void decrease(int count) {
             this.remaining = Math.max(0, this.remaining - count);
         }
+    }
+
+    private record WholeShulkerCandidate(Slot slot, int contribution, int matchedDemandTypes) {
+        private boolean isBetterThan(WholeShulkerCandidate other) {
+            return contribution > other.contribution
+                    || (contribution == other.contribution && matchedDemandTypes > other.matchedDemandTypes)
+                    || (contribution == other.contribution
+                    && matchedDemandTypes == other.matchedDemandTypes
+                    && slot.id < other.slot.id);
+        }
+    }
+
+    private record DestinationShulkerCandidate(Slot slot,
+                                               boolean hasMatchingMaterial,
+                                               int matchingCapacity,
+                                               boolean targetOnly,
+                                               int totalCapacity) {
+        private boolean isBetterThan(DestinationShulkerCandidate other) {
+            // 先尽量续装已有同类材料的盒子，没有同类时再优先纯材料盒，最后才回退到混装盒。
+            return compareTrueFirst(hasMatchingMaterial, other.hasMatchingMaterial)
+                    || (hasMatchingMaterial == other.hasMatchingMaterial
+                    && matchingCapacity > other.matchingCapacity)
+                    || (hasMatchingMaterial == other.hasMatchingMaterial
+                    && matchingCapacity == other.matchingCapacity
+                    && compareTrueFirst(targetOnly, other.targetOnly))
+                    || (hasMatchingMaterial == other.hasMatchingMaterial
+                    && matchingCapacity == other.matchingCapacity
+                    && targetOnly == other.targetOnly
+                    && totalCapacity > other.totalCapacity)
+                    || (hasMatchingMaterial == other.hasMatchingMaterial
+                    && matchingCapacity == other.matchingCapacity
+                    && targetOnly == other.targetOnly
+                    && totalCapacity == other.totalCapacity
+                    && slot.id < other.slot.id);
+        }
+    }
+
+    private static boolean compareTrueFirst(boolean current, boolean other) {
+        return current && !other;
     }
 
 }
