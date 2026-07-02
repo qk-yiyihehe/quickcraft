@@ -235,7 +235,7 @@ public class QuickSort implements ClientModInitializer {
         if (mainSlots.size() == 27) {
             targets.add(new SortTarget(
                 "creative-player-main",
-                toSlotIdList(handler, mainSlots),
+                toUnlockedPlayerSortSlotIds(handler, mainSlots),
                 Bounds.fromSlots(mainSlots, guiLeft, guiTop),
                 handler
             ));
@@ -243,7 +243,7 @@ public class QuickSort implements ClientModInitializer {
         if (hotbarSlots.size() == 9) {
             targets.add(new SortTarget(
                 "creative-player-hotbar",
-                toSlotIdList(handler, hotbarSlots),
+                toUnlockedPlayerSortSlotIds(handler, hotbarSlots),
                 Bounds.fromSlots(hotbarSlots, guiLeft, guiTop),
                 handler
             ));
@@ -266,7 +266,7 @@ public class QuickSort implements ClientModInitializer {
         // 创造分类页只显示快捷栏，不能把上方物品列表当成玩家背包整理。
         targets.add(new SortTarget(
             "creative-player-hotbar",
-            toSlotIdList(handler, hotbarSlots),
+            toUnlockedPlayerSortSlotIds(handler, hotbarSlots),
             Bounds.fromSlots(hotbarSlots, guiLeft, guiTop),
             handler
         ));
