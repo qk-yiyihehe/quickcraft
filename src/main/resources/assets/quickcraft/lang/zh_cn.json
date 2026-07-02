@@ -137,7 +137,7 @@
   "quickcraft.config.hotkeys.comment.rapidCraftHotkey": "§6功能：§r在支持的合成界面持续快速合成。\n§e说明：§r按住后持续生效，松开后停止。",
   "quickcraft.config.hotkeys.prettyName.quickSortHotkey": "整理",
   "quickcraft.config.hotkeys.name.quickSortHotkey": "整理",
-  "quickcraft.config.hotkeys.comment.quickSortHotkey": "§6功能：§r整理当前容器区域，或在未打开界面时整理玩家背包。\n§e说明：§r根据鼠标所在区域决定整理目标。",
+  "quickcraft.config.hotkeys.comment.quickSortHotkey": "§6功能：§r整理当前界面中鼠标所在的容器区域或玩家区域。\n§e说明：§r会自动跳过已锁定的格子。",
   "quickcraft.config.hotkeys.prettyName.dropMatchingHotkey": "丢同类东西",
   "quickcraft.config.hotkeys.name.dropMatchingHotkey": "丢同类东西",
   "quickcraft.config.hotkeys.comment.dropMatchingHotkey": "§6功能：§r丢弃鼠标当前所在区域内，与指向物品相同的全部可见物品。\n§e说明：§r先指向目标物品，再按下快捷键。",

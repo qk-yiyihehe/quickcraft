@@ -137,7 +137,7 @@
   "quickcraft.config.hotkeys.comment.rapidCraftHotkey": "§6Function: §rKeeps rapid crafting running in supported crafting screens.\n§eNote: §rHold to keep it active; release to stop.",
   "quickcraft.config.hotkeys.prettyName.quickSortHotkey": "Sort",
   "quickcraft.config.hotkeys.name.quickSortHotkey": "Sort",
-  "quickcraft.config.hotkeys.comment.quickSortHotkey": "§6Function: §rSorts the current container area, or the player inventory when no screen is open.\n§eNote: §rThe target depends on the hovered area.",
+  "quickcraft.config.hotkeys.comment.quickSortHotkey": "§6Function: §rSorts the hovered container area or player area in the current screen.\n§eNote: §rLocked slots are skipped automatically.",
   "quickcraft.config.hotkeys.prettyName.dropMatchingHotkey": "Drop Matching Items",
   "quickcraft.config.hotkeys.name.dropMatchingHotkey": "Drop Matching Items",
   "quickcraft.config.hotkeys.comment.dropMatchingHotkey": "§6Function: §rDrops all visible items matching the hovered item within the current area.\n§eNote: §rHover the target item first, then press the hotkey.",
