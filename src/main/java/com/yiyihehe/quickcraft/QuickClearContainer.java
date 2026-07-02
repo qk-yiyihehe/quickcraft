@@ -118,7 +118,11 @@ public final class QuickClearContainer implements ClientModInitializer {
 
         for (int slotId : getContainerSlotIds(handler)) {
             Slot slot = handler.getSlot(slotId);
-            if (!isVisibleSlot(slot) || isPlayerStorageSlot(slot) || !slot.hasStack() || !slot.canTakeItems(client.player)) {
+            if (!isVisibleSlot(slot)
+                    || isPlayerStorageSlot(slot)
+                    || QuickContainerLock.isLockedSlot(handler, slot)
+                    || !slot.hasStack()
+                    || !slot.canTakeItems(client.player)) {
                 continue;
             }
 
@@ -144,7 +148,9 @@ public final class QuickClearContainer implements ClientModInitializer {
     private List<Integer> getContainerSlotIds(ScreenHandler handler) {
         List<Slot> containerSlots = new ArrayList<>();
         for (Slot slot : handler.slots) {
-            if (!isVisibleSlot(slot) || isPlayerStorageSlot(slot)) {
+            if (!isVisibleSlot(slot)
+                    || isPlayerStorageSlot(slot)
+                    || QuickContainerLock.isLockedSlot(handler, slot)) {
                 continue;
             }
             containerSlots.add(slot);
