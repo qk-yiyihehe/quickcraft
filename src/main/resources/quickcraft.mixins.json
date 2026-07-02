@@ -33,7 +33,10 @@
 		"MerchantScreenAccessor",
 		"MerchantScreenMixin",
 		"QuickContainerBackgroundFillScreenMixin",
+		"QuickContainerLockInGameHudMixin",
+		"QuickContainerLockMerchantScreenHandlerMixin",
 		"QuickContainerLockScreenMixin",
+		"QuickContainerLockScreenHandlerMixin",
 		"QuickContainerLockSlotMixin",
 		"ShulkerBoxScreenMixin"
 	],

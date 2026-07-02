@@ -54,6 +54,7 @@ public final class QuickContainerLock implements ClientModInitializer {
     private static final Set<String> LOCKED_CONTAINERS = new HashSet<>();
     private static final Set<Integer> LOCKED_PLAYER_SLOTS = new HashSet<>();
     private static final Map<String, Set<Integer>> LOCKED_CONTAINER_SLOTS = new HashMap<>();
+    private static final Map<Integer, String> SYNC_ID_TO_CONTAINER_KEY = new HashMap<>();
     private static boolean lastUseDown;
     private static int pendingTicks;
     private static String pendingContainerKey;
@@ -73,30 +74,33 @@ public final class QuickContainerLock implements ClientModInitializer {
     public static boolean shouldShowLockButton(HandledScreen<?> screen) {
         return QuickCraftConfigs.isContainerLockButtonVisible()
                 && !(screen instanceof CreativeInventoryScreen)
-                && isSupportedHandler(screen.getScreenHandler())
+                && isLockButtonSupportedHandler(screen.getScreenHandler())
                 && getCurrentScreenContainerKey(screen) != null;
     }
 
     public static boolean shouldShowSlotLocks(HandledScreen<?> screen) {
         return QuickCraftConfigs.isSlotLockOverlayVisible()
-                && isSupportedSlotLockScreen(screen)
-                && getCurrentScreenContainerKey(screen) != null;
+                && hasAnyLockableSlot(screen);
     }
 
     public static void bindCurrentScreen(HandledScreen<?> screen) {
+        rememberHandlerKey(screen.getScreenHandler(), getCurrentScreenContainerKey(screen));
+
         if (isCreativePlayerInventoryScreen(screen)
                 || screen.getScreenHandler() instanceof PlayerScreenHandler) {
             currentScreenContainerKey = PLAYER_CONTAINER_KEY;
+            rememberHandlerKey(screen.getScreenHandler(), PLAYER_CONTAINER_KEY);
             pendingContainerKey = null;
             pendingTicks = 0;
             return;
         }
 
-        if (pendingContainerKey == null || !isSupportedHandler(screen.getScreenHandler())) {
+        if (pendingContainerKey == null || !isContainerSlotLockSupportedHandler(screen.getScreenHandler())) {
             return;
         }
 
         currentScreenContainerKey = pendingContainerKey;
+        rememberHandlerKey(screen.getScreenHandler(), currentScreenContainerKey);
         pendingContainerKey = null;
         pendingTicks = 0;
     }
@@ -228,6 +232,25 @@ public final class QuickContainerLock implements ClientModInitializer {
         return slot != null && isLockedSlot(handler, slot);
     }
 
+    public static boolean isLockedSlot(ScreenHandler handler, Slot slot) {
+        return isLockedSlotInternal(handler, slot);
+    }
+
+    public static boolean hasLockedSlotInRange(ScreenHandler handler, int startIndex, int endIndex) {
+        if (handler == null) {
+            return false;
+        }
+
+        int from = Math.max(0, startIndex);
+        int to = Math.min(endIndex, handler.slots.size());
+        for (int slotId = from; slotId < to; slotId++) {
+            if (isLockedSlot(handler, slotId)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     public static boolean isLockedHotbarSwapTarget(ScreenHandler handler, int hotbarIndex) {
         if (hotbarIndex < 0 || hotbarIndex >= HOTBAR_SLOT_COUNT) {
             return false;
@@ -242,6 +265,21 @@ public final class QuickContainerLock implements ClientModInitializer {
         return LOCKED_PLAYER_SLOTS.contains(hotbarIndex);
     }
 
+    public static boolean hasLockedPlayerHotbarSlot() {
+        for (int slotIndex : LOCKED_PLAYER_SLOTS) {
+            if (slotIndex >= 0 && slotIndex < HOTBAR_SLOT_COUNT) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    public static boolean isLockedPlayerHotbarSlot(int hotbarIndex) {
+        return hotbarIndex >= 0
+                && hotbarIndex < HOTBAR_SLOT_COUNT
+                && LOCKED_PLAYER_SLOTS.contains(hotbarIndex);
+    }
+
     public static boolean shouldBlockClick(ScreenHandler handler, int slotId, int button, SlotActionType actionType) {
         if (handler == null || actionType == null) {
             return false;
@@ -254,7 +292,7 @@ public final class QuickContainerLock implements ClientModInitializer {
         return actionType == SlotActionType.SWAP && isLockedHotbarSwapTarget(handler, button);
     }
 
-    private static boolean isLockedSlot(ScreenHandler handler, Slot slot) {
+    private static boolean isLockedSlotInternal(ScreenHandler handler, Slot slot) {
         if (slot == null) {
             return false;
         }
@@ -321,8 +359,7 @@ public final class QuickContainerLock implements ClientModInitializer {
     }
 
     private static boolean isContainerSlotLockable(ScreenHandler handler, Slot slot) {
-        return isSupportedHandler(handler)
-                && !(handler instanceof PlayerScreenHandler)
+        return isContainerSlotLockSupportedHandler(handler)
                 && !isPlayerStorageSlot(slot)
                 && slot.getIndex() >= 0;
     }
@@ -353,6 +390,29 @@ public final class QuickContainerLock implements ClientModInitializer {
                 && mouseX < slotLeft + SLOT_SIZE
                 && mouseY >= slotTop
                 && mouseY < slotTop + SLOT_SIZE;
+    }
+
+    public static void renderHotbarLocks(DrawContext context) {
+        MinecraftClient client = MinecraftClient.getInstance();
+        if (client == null
+                || client.player == null
+                || client.currentScreen != null
+                || !QuickCraftConfigs.isSlotLockOverlayVisible()
+                || !hasLockedPlayerHotbarSlot()) {
+            return;
+        }
+
+        int hotbarLeft = context.getScaledWindowWidth() / 2 - 91;
+        int hotbarTop = context.getScaledWindowHeight() - 22;
+        for (int hotbarIndex = 0; hotbarIndex < HOTBAR_SLOT_COUNT; hotbarIndex++) {
+            if (!isLockedPlayerHotbarSlot(hotbarIndex)) {
+                continue;
+            }
+
+            int slotLeft = hotbarLeft + hotbarIndex * 20 + 3;
+            int slotTop = hotbarTop + 3;
+            renderSlotLockIcon(context, slotLeft + SLOT_LOCK_X_OFFSET, slotTop + SLOT_LOCK_Y_OFFSET);
+        }
     }
 
     private static void renderSlotLockIcon(DrawContext context, int left, int top) {
@@ -406,8 +466,9 @@ public final class QuickContainerLock implements ClientModInitializer {
 
         pendingTicks++;
         if (client.currentScreen instanceof HandledScreen<?> screen
-                && isSupportedHandler(screen.getScreenHandler())) {
+                && isContainerSlotLockSupportedHandler(screen.getScreenHandler())) {
             currentScreenContainerKey = pendingContainerKey;
+            rememberHandlerKey(screen.getScreenHandler(), currentScreenContainerKey);
             pendingContainerKey = null;
             pendingTicks = 0;
             return;
@@ -420,8 +481,19 @@ public final class QuickContainerLock implements ClientModInitializer {
     }
 
     private void clearCurrentScreenKeyIfNeeded(MinecraftClient client) {
-        if (client.currentScreen instanceof HandledScreen<?> screen
-                && isSupportedSlotLockScreen(screen)) {
+        if (!(client.currentScreen instanceof HandledScreen<?> screen)) {
+            currentScreenContainerKey = null;
+            return;
+        }
+
+        if (screen.getScreenHandler() instanceof PlayerScreenHandler) {
+            currentScreenContainerKey = PLAYER_CONTAINER_KEY;
+            rememberHandlerKey(screen.getScreenHandler(), PLAYER_CONTAINER_KEY);
+            return;
+        }
+
+        if (isContainerSlotLockSupportedHandler(screen.getScreenHandler())) {
+            rememberHandlerKey(screen.getScreenHandler(), currentScreenContainerKey);
             return;
         }
 
@@ -430,20 +502,38 @@ public final class QuickContainerLock implements ClientModInitializer {
 
     private static String getCurrentScreenContainerKey(HandledScreen<?> screen) {
         MinecraftClient client = MinecraftClient.getInstance();
-        if (client == null || client.currentScreen != screen || !isSupportedSlotLockScreen(screen)) {
+        if (client == null || client.currentScreen != screen) {
             return null;
         }
 
-        if (isCreativePlayerInventoryScreen(screen)
-                || screen.getScreenHandler() instanceof PlayerScreenHandler) {
+        if (screen.getScreenHandler() instanceof PlayerScreenHandler) {
             return PLAYER_CONTAINER_KEY;
         }
 
-        return currentScreenContainerKey;
+        if (!isContainerSlotLockSupportedHandler(screen.getScreenHandler())) {
+            return null;
+        }
+
+        if (currentScreenContainerKey != null) {
+            return currentScreenContainerKey;
+        }
+
+        return SYNC_ID_TO_CONTAINER_KEY.get(screen.getScreenHandler().syncId);
     }
 
-    private static boolean isSupportedSlotLockScreen(HandledScreen<?> screen) {
-        return isCreativePlayerInventoryScreen(screen) || isSupportedHandler(screen.getScreenHandler());
+    private static boolean hasAnyLockableSlot(HandledScreen<?> screen) {
+        ScreenHandler handler = screen.getScreenHandler();
+        for (Slot slot : handler.slots) {
+            if (!slot.isEnabled() || slot.x < 0 || slot.y < 0) {
+                continue;
+            }
+
+            Slot effectiveSlot = unwrapCreativeSlot(slot);
+            if (isPlayerStorageSlot(effectiveSlot) || isContainerSlotLockable(handler, effectiveSlot)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private static boolean isCreativePlayerInventoryScreen(HandledScreen<?> screen) {
@@ -454,19 +544,28 @@ public final class QuickContainerLock implements ClientModInitializer {
         if (handler instanceof PlayerScreenHandler) {
             return PLAYER_CONTAINER_KEY;
         }
-        if (!isSupportedHandler(handler)) {
+        if (!isContainerSlotLockSupportedHandler(handler)) {
             return null;
         }
 
         MinecraftClient client = MinecraftClient.getInstance();
-        if (client == null || !(client.currentScreen instanceof HandledScreen<?> screen)) {
-            return null;
-        }
-        if (screen.getScreenHandler() != handler) {
-            return null;
+        if (client != null && client.currentScreen instanceof HandledScreen<?> screen && screen.getScreenHandler() == handler) {
+            String currentKey = getCurrentScreenContainerKey(screen);
+            if (currentKey != null) {
+                rememberHandlerKey(handler, currentKey);
+                return currentKey;
+            }
         }
 
-        return getCurrentScreenContainerKey(screen);
+        return SYNC_ID_TO_CONTAINER_KEY.get(handler.syncId);
+    }
+
+    private static void rememberHandlerKey(ScreenHandler handler, String containerKey) {
+        if (handler == null || containerKey == null) {
+            return;
+        }
+
+        SYNC_ID_TO_CONTAINER_KEY.put(handler.syncId, containerKey);
     }
 
     private static boolean isContainerSlotLocked(String key, int slotIndex) {
@@ -492,10 +591,13 @@ public final class QuickContainerLock implements ClientModInitializer {
         return handler.getSlot(slotId);
     }
 
-    private static boolean isSupportedHandler(ScreenHandler handler) {
+    private static boolean isLockButtonSupportedHandler(ScreenHandler handler) {
+        return isContainerSlotLockSupportedHandler(handler) || handler instanceof PlayerScreenHandler;
+    }
+
+    private static boolean isContainerSlotLockSupportedHandler(ScreenHandler handler) {
         return handler instanceof GenericContainerScreenHandler
-                || handler instanceof ShulkerBoxScreenHandler
-                || handler instanceof PlayerScreenHandler;
+                || handler instanceof ShulkerBoxScreenHandler;
     }
 
     private static String getSupportedContainerKey(MinecraftClient client, BlockHitResult blockHitResult) {
