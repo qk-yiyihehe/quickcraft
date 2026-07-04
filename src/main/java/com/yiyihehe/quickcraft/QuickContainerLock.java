@@ -1,5 +1,8 @@
 package com.yiyihehe.quickcraft;
 
+import com.google.gson.JsonArray;
+import com.google.gson.JsonElement;
+import com.google.gson.JsonObject;
 import com.yiyihehe.quickcraft.config.QuickCraftConfigs;
 import com.yiyihehe.quickcraft.mixin.CreativeSlotAccessor;
 import net.fabricmc.api.ClientModInitializer;
@@ -67,6 +70,7 @@ public final class QuickContainerLock implements ClientModInitializer {
     }
 
     private void onClientTick(MinecraftClient client) {
+        QuickPersistentState.onClientTick(client);
         handleUseAttempt(client);
         processPendingOpen(client);
         clearCurrentScreenKeyIfNeeded(client);
@@ -120,10 +124,12 @@ public final class QuickContainerLock implements ClientModInitializer {
 
         if (!LOCKED_CONTAINERS.add(key)) {
             LOCKED_CONTAINERS.remove(key);
+            QuickPersistentState.saveCurrentProfileState();
             sendStatusMessage(client, Text.translatable("quickcraft.message.container_lock.unlocked"));
             return;
         }
 
+        QuickPersistentState.saveCurrentProfileState();
         sendStatusMessage(client, Text.translatable("quickcraft.message.container_lock.locked"));
     }
 
@@ -333,12 +339,16 @@ public final class QuickContainerLock implements ClientModInitializer {
                 LOCKED_CONTAINER_SLOTS.remove(key);
             }
         }
+
+        QuickPersistentState.saveCurrentProfileState();
     }
 
     private static void togglePlayerSlotLock(int inventoryIndex) {
         if (!LOCKED_PLAYER_SLOTS.add(inventoryIndex)) {
             LOCKED_PLAYER_SLOTS.remove(inventoryIndex);
         }
+
+        QuickPersistentState.saveCurrentProfileState();
     }
 
     private static boolean isLockableSlot(HandledScreen<?> screen, Slot slot) {
@@ -642,5 +652,102 @@ public final class QuickContainerLock implements ClientModInitializer {
         if (client != null && client.player != null) {
             client.player.sendMessage(message, true);
         }
+    }
+
+    static void clearPersistentState() {
+        LOCKED_CONTAINERS.clear();
+        LOCKED_PLAYER_SLOTS.clear();
+        LOCKED_CONTAINER_SLOTS.clear();
+        SYNC_ID_TO_CONTAINER_KEY.clear();
+        pendingContainerKey = null;
+        currentScreenContainerKey = null;
+        pendingTicks = 0;
+        lastUseDown = false;
+    }
+
+    static void loadPersistentState(JsonObject root) {
+        JsonObject state = getObject(root, "containerLock");
+        if (state == null) {
+            return;
+        }
+
+        readStringSet(getElement(state, "lockedContainers"), LOCKED_CONTAINERS);
+        readIntSet(getElement(state, "lockedPlayerSlots"), LOCKED_PLAYER_SLOTS);
+
+        JsonObject lockedContainerSlots = getObject(state, "lockedContainerSlots");
+        if (lockedContainerSlots == null) {
+            return;
+        }
+
+        for (Map.Entry<String, JsonElement> entry : lockedContainerSlots.entrySet()) {
+            Set<Integer> slots = new HashSet<>();
+            readIntSet(entry.getValue(), slots);
+            if (!slots.isEmpty()) {
+                LOCKED_CONTAINER_SLOTS.put(entry.getKey(), slots);
+            }
+        }
+    }
+
+    static void writePersistentState(JsonObject root) {
+        JsonObject state = new JsonObject();
+        state.add("lockedContainers", toStringArray(LOCKED_CONTAINERS));
+        state.add("lockedPlayerSlots", toIntArray(LOCKED_PLAYER_SLOTS));
+
+        JsonObject lockedContainerSlots = new JsonObject();
+        for (Map.Entry<String, Set<Integer>> entry : LOCKED_CONTAINER_SLOTS.entrySet()) {
+            lockedContainerSlots.add(entry.getKey(), toIntArray(entry.getValue()));
+        }
+        state.add("lockedContainerSlots", lockedContainerSlots);
+
+        root.add("containerLock", state);
+    }
+
+    private static JsonObject getObject(JsonObject root, String key) {
+        JsonElement element = getElement(root, key);
+        return element != null && element.isJsonObject() ? element.getAsJsonObject() : null;
+    }
+
+    private static JsonElement getElement(JsonObject root, String key) {
+        return root != null && root.has(key) ? root.get(key) : null;
+    }
+
+    private static void readStringSet(JsonElement element, Set<String> target) {
+        if (element == null || !element.isJsonArray()) {
+            return;
+        }
+
+        for (JsonElement value : element.getAsJsonArray()) {
+            if (value != null && value.isJsonPrimitive()) {
+                target.add(value.getAsString());
+            }
+        }
+    }
+
+    private static void readIntSet(JsonElement element, Set<Integer> target) {
+        if (element == null || !element.isJsonArray()) {
+            return;
+        }
+
+        for (JsonElement value : element.getAsJsonArray()) {
+            if (value != null && value.isJsonPrimitive()) {
+                target.add(value.getAsInt());
+            }
+        }
+    }
+
+    private static JsonArray toStringArray(Set<String> values) {
+        JsonArray array = new JsonArray();
+        for (String value : values) {
+            array.add(value);
+        }
+        return array;
+    }
+
+    private static JsonArray toIntArray(Set<Integer> values) {
+        JsonArray array = new JsonArray();
+        for (int value : values) {
+            array.add(value);
+        }
+        return array;
     }
 }
