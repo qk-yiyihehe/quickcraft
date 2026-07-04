@@ -734,7 +734,7 @@ public final class QuickTrade implements ClientModInitializer {
         }
 
         private static String encodeStack(ItemStack stack, RegistryWrapper.WrapperLookup registryLookup) {
-            return normalize(stack).encodeAllowEmpty(registryLookup).toString();
+            return normalize(stack).toNbtAllowEmpty(registryLookup).toString();
         }
 
         private static ItemStack decodeStack(JsonElement element, RegistryWrapper.WrapperLookup registryLookup) {
