@@ -1,5 +1,8 @@
 package com.yiyihehe.quickcraft;
 
+import com.google.gson.JsonElement;
+import com.google.gson.JsonObject;
+import com.mojang.brigadier.exceptions.CommandSyntaxException;
 import com.yiyihehe.quickcraft.config.QuickCraftConfigs;
 import com.yiyihehe.quickcraft.mixin.HandledScreenAccessor;
 import com.yiyihehe.quickcraft.mixin.MerchantScreenAccessor;
@@ -13,7 +16,9 @@ import net.minecraft.entity.Entity;
 import net.minecraft.entity.passive.MerchantEntity;
 import net.minecraft.entity.player.PlayerInventory;
 import net.minecraft.item.ItemStack;
+import net.minecraft.nbt.StringNbtReader;
 import net.minecraft.network.packet.c2s.play.SelectMerchantTradeC2SPacket;
+import net.minecraft.registry.RegistryWrapper;
 import net.minecraft.screen.MerchantScreenHandler;
 import net.minecraft.screen.slot.SlotActionType;
 import net.minecraft.text.Text;
@@ -22,6 +27,9 @@ import net.minecraft.util.hit.HitResult;
 import net.minecraft.village.TradeOffer;
 import net.minecraft.village.TradeOfferList;
 import org.lwjgl.glfw.GLFW;
+
+import java.util.HashMap;
+import java.util.Map;
 
 /**
  * 村民交易增强：
@@ -41,11 +49,15 @@ public final class QuickTrade implements ClientModInitializer {
     private static final int OUTPUT_SLOT_ID = 2;
     private static final int MAX_BATCH_TRADES = 512;
     private static final int AUTO_TRADE_TIMEOUT_TICKS = 40;
+    private static final int MERCHANT_OPEN_TIMEOUT_TICKS = 20;
 
-    private static FavoriteTrade favoriteTrade;
+    private static final Map<String, FavoriteTrade> FAVORITE_TRADES = new HashMap<>();
     private static boolean lastUseDown;
     private static boolean pendingAutoTrade;
     private static int pendingAutoTradeTicks;
+    private static int pendingMerchantTicks;
+    private static String pendingMerchantKey;
+    private static String currentScreenMerchantKey;
     private static TradeOrderState currentOrderState;
 
     @Override
@@ -54,11 +66,13 @@ public final class QuickTrade implements ClientModInitializer {
     }
 
     private void onClientTick(MinecraftClient client) {
+        handleMerchantUseAttempt(client);
+        processPendingMerchantOpen(client);
+        clearCurrentMerchantKeyIfNeeded(client);
+
         if (!QuickCraftConfigs.isQuickTradeEnabled()) {
-            lastUseDown = false;
             clearPendingAutoTradeState();
         } else {
-            handleVillagerUseAttempt(client);
             processPendingAutoTrade(client);
         }
 
@@ -69,6 +83,7 @@ public final class QuickTrade implements ClientModInitializer {
     }
 
     public static boolean handleMerchantMouseClicked(MerchantScreen screen, double mouseX, double mouseY, int button) {
+        bindCurrentMerchant(screen);
         prepareTradeOrder(screen);
 
         int tradeIndex = findVisibleTradeIndexAt(screen, mouseX, mouseY);
@@ -93,6 +108,7 @@ public final class QuickTrade implements ClientModInitializer {
     }
 
     public static void prepareTradeOrder(MerchantScreen screen) {
+        bindCurrentMerchant(screen);
         TradeOfferList offers = screen.getScreenHandler().getRecipes();
         if (offers == null || offers.isEmpty()) {
             return;
@@ -105,7 +121,7 @@ public final class QuickTrade implements ClientModInitializer {
         }
 
         TradeOffer[] originalOffers = offers.toArray(new TradeOffer[0]);
-        int[] displayToServerIndex = buildDisplayToServerIndex(originalOffers);
+        int[] displayToServerIndex = buildDisplayToServerIndex(originalOffers, getFavoriteTrade(screen));
         applyDisplayOrder(offers, originalOffers, displayToServerIndex);
         currentOrderState = new TradeOrderState(screen, originalOffers, displayToServerIndex);
 
@@ -113,14 +129,16 @@ public final class QuickTrade implements ClientModInitializer {
     }
 
     public static void renderFavoriteStar(MerchantScreen screen, DrawContext context) {
+        bindCurrentMerchant(screen);
         prepareTradeOrder(screen);
 
+        FavoriteTrade favoriteTrade = getFavoriteTrade(screen);
         if (!QuickCraftConfigs.isFavoriteTradeEnabled() || favoriteTrade == null) {
             return;
         }
 
         TradeOfferList offers = screen.getScreenHandler().getRecipes();
-        int favoriteIndex = findFavoriteOfferIndex(offers);
+        int favoriteIndex = findFavoriteOfferIndex(offers, favoriteTrade);
         if (favoriteIndex < 0) {
             return;
         }
@@ -147,14 +165,27 @@ public final class QuickTrade implements ClientModInitializer {
         );
     }
 
-    private static void handleVillagerUseAttempt(MinecraftClient client) {
+    private static void handleMerchantUseAttempt(MinecraftClient client) {
+        if (client == null || client.player == null) {
+            lastUseDown = false;
+            return;
+        }
+
         boolean useDown = QuickCraftKeyBindings.isBoundKeyDown(client, client.options.useKey);
-        if (useDown && !lastUseDown && client.currentScreen == null && isLookingAtMerchant(client)) {
-            if (favoriteTrade == null) {
-                sendStatusMessage(client, Text.translatable("quickcraft.message.trade.no_favorite_saved"));
-            } else {
-                pendingAutoTrade = true;
-                pendingAutoTradeTicks = 0;
+        if (useDown && !lastUseDown && client.currentScreen == null) {
+            MerchantEntity merchant = getLookedAtMerchant(client);
+            if (merchant != null) {
+                pendingMerchantKey = buildMerchantKey(merchant);
+                pendingMerchantTicks = 0;
+
+                if (QuickCraftConfigs.isQuickTradeEnabled()) {
+                    if (getFavoriteTrade(pendingMerchantKey) == null) {
+                        sendStatusMessage(client, Text.translatable("quickcraft.message.trade.no_favorite_saved"));
+                    } else {
+                        pendingAutoTrade = true;
+                        pendingAutoTradeTicks = 0;
+                    }
+                }
             }
         }
 
@@ -179,6 +210,7 @@ public final class QuickTrade implements ClientModInitializer {
             return;
         }
 
+        bindCurrentMerchant(screen);
         prepareTradeOrder(screen);
 
         TradeOfferList offers = screen.getScreenHandler().getRecipes();
@@ -189,7 +221,8 @@ public final class QuickTrade implements ClientModInitializer {
             return;
         }
 
-        int favoriteIndex = findFavoriteOfferIndex(offers);
+        FavoriteTrade favoriteTrade = getFavoriteTrade(screen);
+        int favoriteIndex = findFavoriteOfferIndex(offers, favoriteTrade);
         if (favoriteIndex < 0) {
             clearPendingAutoTradeState();
             sendStatusMessage(client, Text.translatable("quickcraft.message.trade.current_villager_no_favorite"));
@@ -212,6 +245,31 @@ public final class QuickTrade implements ClientModInitializer {
         }
 
         finishPendingAutoTrade(client, tradeAllAvailable(screen, favoriteIndex));
+    }
+
+    private static void processPendingMerchantOpen(MinecraftClient client) {
+        if (pendingMerchantKey == null) {
+            return;
+        }
+
+        pendingMerchantTicks++;
+        if (client.currentScreen instanceof MerchantScreen) {
+            currentScreenMerchantKey = pendingMerchantKey;
+            pendingMerchantKey = null;
+            pendingMerchantTicks = 0;
+            return;
+        }
+
+        if (pendingMerchantTicks > MERCHANT_OPEN_TIMEOUT_TICKS) {
+            pendingMerchantKey = null;
+            pendingMerchantTicks = 0;
+        }
+    }
+
+    private static void clearCurrentMerchantKeyIfNeeded(MinecraftClient client) {
+        if (!(client.currentScreen instanceof MerchantScreen)) {
+            currentScreenMerchantKey = null;
+        }
     }
 
     private static boolean tradeAllAvailable(MerchantScreen screen, int tradeIndex) {
@@ -273,6 +331,7 @@ public final class QuickTrade implements ClientModInitializer {
     }
 
     public static void syncRecipeIndex(MerchantScreen screen) {
+        bindCurrentMerchant(screen);
         prepareTradeOrder(screen);
 
         MerchantScreenHandler handler = screen.getScreenHandler();
@@ -317,6 +376,12 @@ public final class QuickTrade implements ClientModInitializer {
             return;
         }
 
+        bindCurrentMerchant(screen);
+        String merchantKey = getCurrentMerchantKey(screen);
+        if (merchantKey == null) {
+            return;
+        }
+
         TradeOfferList offers = screen.getScreenHandler().getRecipes();
         TradeOffer offer = getOffer(offers, tradeIndex);
         if (offer == null) {
@@ -324,23 +389,22 @@ public final class QuickTrade implements ClientModInitializer {
         }
 
         MinecraftClient client = MinecraftClient.getInstance();
-        if (isFavoriteOffer(offer)) {
-            favoriteTrade = null;
+        FavoriteTrade favoriteTrade = getFavoriteTrade(merchantKey);
+        if (favoriteTrade != null && favoriteTrade.matches(offer)) {
+            FAVORITE_TRADES.remove(merchantKey);
             refreshTradeOrder(screen, true);
+            QuickPersistentState.saveCurrentProfileState();
             sendStatusMessage(client, Text.translatable("quickcraft.message.trade.favorite_removed"));
             return;
         }
 
-        favoriteTrade = FavoriteTrade.from(offer);
+        FAVORITE_TRADES.put(merchantKey, FavoriteTrade.from(offer));
         refreshTradeOrder(screen, true);
+        QuickPersistentState.saveCurrentProfileState();
         sendStatusMessage(client, Text.translatable("quickcraft.message.trade.favorite_added"));
     }
 
-    private static boolean isFavoriteOffer(TradeOffer offer) {
-        return favoriteTrade != null && favoriteTrade.matches(offer);
-    }
-
-    private static int findFavoriteOfferIndex(TradeOfferList offers) {
+    private static int findFavoriteOfferIndex(TradeOfferList offers, FavoriteTrade favoriteTrade) {
         if (!QuickCraftConfigs.isFavoriteTradeEnabled() || favoriteTrade == null || offers == null) {
             return -1;
         }
@@ -376,16 +440,6 @@ public final class QuickTrade implements ClientModInitializer {
         return total;
     }
 
-    private static boolean isLookingAtMerchant(MinecraftClient client) {
-        HitResult hitResult = client.crosshairTarget;
-        if (!(hitResult instanceof EntityHitResult entityHitResult)) {
-            return false;
-        }
-
-        Entity entity = entityHitResult.getEntity();
-        return entity instanceof MerchantEntity;
-    }
-
     private static void sendStatusMessage(MinecraftClient client, Text text) {
         if (client.player == null) {
             return;
@@ -415,6 +469,7 @@ public final class QuickTrade implements ClientModInitializer {
     }
 
     private static void refreshTradeOrder(MerchantScreen screen, boolean resetScroll) {
+        bindCurrentMerchant(screen);
         TradeOfferList offers = screen.getScreenHandler().getRecipes();
         if (offers == null || offers.isEmpty()) {
             return;
@@ -424,7 +479,7 @@ public final class QuickTrade implements ClientModInitializer {
                 ? currentOrderState.originalOffers()
                 : offers.toArray(new TradeOffer[0]);
 
-        int[] displayToServerIndex = buildDisplayToServerIndex(originalOffers);
+        int[] displayToServerIndex = buildDisplayToServerIndex(originalOffers, getFavoriteTrade(screen));
         applyDisplayOrder(offers, originalOffers, displayToServerIndex);
         currentOrderState = new TradeOrderState(screen, originalOffers, displayToServerIndex);
 
@@ -444,9 +499,9 @@ public final class QuickTrade implements ClientModInitializer {
         }
     }
 
-    private static int[] buildDisplayToServerIndex(TradeOffer[] originalOffers) {
+    private static int[] buildDisplayToServerIndex(TradeOffer[] originalOffers, FavoriteTrade favoriteTrade) {
         int[] displayToServerIndex = new int[originalOffers.length];
-        int favoriteServerIndex = findFavoriteOfferIndex(originalOffers);
+        int favoriteServerIndex = findFavoriteOfferIndex(originalOffers, favoriteTrade);
         if (favoriteServerIndex < 0) {
             for (int index = 0; index < originalOffers.length; index++) {
                 displayToServerIndex[index] = index;
@@ -511,7 +566,48 @@ public final class QuickTrade implements ClientModInitializer {
         return ((MerchantScreenAccessor) screen).quickcraft$getSelectedIndex();
     }
 
-    private static int findFavoriteOfferIndex(TradeOffer[] offers) {
+    private static void bindCurrentMerchant(MerchantScreen screen) {
+        MinecraftClient client = MinecraftClient.getInstance();
+        if (client == null || client.currentScreen != screen) {
+            return;
+        }
+
+        if (currentScreenMerchantKey == null && pendingMerchantKey != null) {
+            currentScreenMerchantKey = pendingMerchantKey;
+            pendingMerchantKey = null;
+            pendingMerchantTicks = 0;
+        }
+    }
+
+    private static String getCurrentMerchantKey(MerchantScreen screen) {
+        bindCurrentMerchant(screen);
+        return currentScreenMerchantKey;
+    }
+
+    private static FavoriteTrade getFavoriteTrade(MerchantScreen screen) {
+        String merchantKey = getCurrentMerchantKey(screen);
+        return merchantKey == null ? null : FAVORITE_TRADES.get(merchantKey);
+    }
+
+    private static FavoriteTrade getFavoriteTrade(String merchantKey) {
+        return merchantKey == null ? null : FAVORITE_TRADES.get(merchantKey);
+    }
+
+    private static String buildMerchantKey(MerchantEntity merchant) {
+        return merchant.getUuidAsString();
+    }
+
+    private static MerchantEntity getLookedAtMerchant(MinecraftClient client) {
+        HitResult hitResult = client.crosshairTarget;
+        if (!(hitResult instanceof EntityHitResult entityHitResult)) {
+            return null;
+        }
+
+        Entity entity = entityHitResult.getEntity();
+        return entity instanceof MerchantEntity merchant ? merchant : null;
+    }
+
+    private static int findFavoriteOfferIndex(TradeOffer[] offers, FavoriteTrade favoriteTrade) {
         if (!QuickCraftConfigs.isFavoriteTradeEnabled() || favoriteTrade == null || offers == null) {
             return -1;
         }
@@ -523,6 +619,54 @@ public final class QuickTrade implements ClientModInitializer {
         }
 
         return -1;
+    }
+
+    static void clearPersistentState() {
+        FAVORITE_TRADES.clear();
+        currentOrderState = null;
+        clearPendingAutoTradeState();
+        pendingMerchantKey = null;
+        currentScreenMerchantKey = null;
+        pendingMerchantTicks = 0;
+        lastUseDown = false;
+    }
+
+    static void loadPersistentState(JsonObject root, RegistryWrapper.WrapperLookup registryLookup) {
+        JsonObject state = getObject(root, "quickTrade");
+        if (state == null) {
+            return;
+        }
+
+        JsonObject favoriteTrades = getObject(state, "favoriteTrades");
+        if (favoriteTrades == null) {
+            return;
+        }
+
+        for (Map.Entry<String, JsonElement> entry : favoriteTrades.entrySet()) {
+            if (!entry.getValue().isJsonObject()) {
+                continue;
+            }
+
+            FavoriteTrade favoriteTrade = FavoriteTrade.fromJson(entry.getValue().getAsJsonObject(), registryLookup);
+            if (favoriteTrade != null) {
+                FAVORITE_TRADES.put(entry.getKey(), favoriteTrade);
+            }
+        }
+    }
+
+    static void writePersistentState(JsonObject root, RegistryWrapper.WrapperLookup registryLookup) {
+        JsonObject state = new JsonObject();
+        JsonObject favoriteTrades = new JsonObject();
+        for (Map.Entry<String, FavoriteTrade> entry : FAVORITE_TRADES.entrySet()) {
+            favoriteTrades.add(entry.getKey(), entry.getValue().toJson(registryLookup));
+        }
+        state.add("favoriteTrades", favoriteTrades);
+        root.add("quickTrade", state);
+    }
+
+    private static JsonObject getObject(JsonObject root, String key) {
+        JsonElement element = root != null && root.has(key) ? root.get(key) : null;
+        return element != null && element.isJsonObject() ? element.getAsJsonObject() : null;
     }
 
     private record TradeOrderState(MerchantScreen screen, TradeOffer[] originalOffers, int[] displayToServerIndex) {
@@ -541,6 +685,29 @@ public final class QuickTrade implements ClientModInitializer {
             return sameIgnoringCount(firstBuyItem, offer.getDisplayedFirstBuyItem())
                     && sameIgnoringCount(secondBuyItem, offer.getDisplayedSecondBuyItem())
                     && sameIgnoringCount(sellItem, offer.copySellItem());
+        }
+
+        private JsonObject toJson(RegistryWrapper.WrapperLookup registryLookup) {
+            JsonObject json = new JsonObject();
+            json.addProperty("firstBuyItem", encodeStack(firstBuyItem, registryLookup));
+            json.addProperty("secondBuyItem", encodeStack(secondBuyItem, registryLookup));
+            json.addProperty("sellItem", encodeStack(sellItem, registryLookup));
+            return json;
+        }
+
+        private static FavoriteTrade fromJson(JsonObject json, RegistryWrapper.WrapperLookup registryLookup) {
+            if (json == null) {
+                return null;
+            }
+
+            ItemStack firstBuy = decodeStack(json.get("firstBuyItem"), registryLookup);
+            ItemStack secondBuy = decodeStack(json.get("secondBuyItem"), registryLookup);
+            ItemStack sell = decodeStack(json.get("sellItem"), registryLookup);
+            if (sell.isEmpty()) {
+                return null;
+            }
+
+            return new FavoriteTrade(normalize(firstBuy), normalize(secondBuy), normalize(sell));
         }
 
         private static ItemStack normalize(ItemStack stack) {
@@ -564,6 +731,23 @@ public final class QuickTrade implements ClientModInitializer {
             ItemStack normalizedActual = actual.copy();
             normalizedActual.setCount(1);
             return ItemStack.areItemsAndComponentsEqual(expected, normalizedActual);
+        }
+
+        private static String encodeStack(ItemStack stack, RegistryWrapper.WrapperLookup registryLookup) {
+            return normalize(stack).encodeAllowEmpty(registryLookup).toString();
+        }
+
+        private static ItemStack decodeStack(JsonElement element, RegistryWrapper.WrapperLookup registryLookup) {
+            if (element == null || !element.isJsonPrimitive()) {
+                return ItemStack.EMPTY;
+            }
+
+            try {
+                return ItemStack.fromNbt(registryLookup, StringNbtReader.parse(element.getAsString()))
+                        .orElse(ItemStack.EMPTY);
+            } catch (CommandSyntaxException ignored) {
+                return ItemStack.EMPTY;
+            }
         }
     }
 }
