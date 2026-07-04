@@ -1,5 +1,6 @@
 package com.yiyihehe.quickcraft.litematica;
 
+import com.yiyihehe.quickcraft.QuickCraft;
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.systems.ProjectionType;
 import com.mojang.blaze3d.systems.VertexSorter;
@@ -17,6 +18,7 @@ import fi.dy.masa.litematica.world.WorldSchematic;
 import fi.dy.masa.malilib.gui.widgets.WidgetFileBrowserBase.DirectoryEntry;
 import fi.dy.masa.malilib.render.RenderUtils;
 import fi.dy.masa.malilib.util.StringUtils;
+import net.fabricmc.loader.api.FabricLoader;
 import net.fabricmc.fabric.api.renderer.v1.RendererAccess;
 import net.fabricmc.fabric.impl.client.indigo.renderer.IndigoRenderer;
 import net.fabricmc.fabric.impl.client.indigo.renderer.render.WorldMesherRenderContext;
@@ -108,20 +110,25 @@ import java.util.concurrent.atomic.AtomicBoolean;
 public final class QuickLitematicaPreview3D {
     private static final Logger LOGGER = LoggerFactory.getLogger(QuickLitematicaPreview3D.class);
     private static final Map<fi.dy.masa.litematica.gui.GuiSchematicBrowserBase, Manager> MANAGERS = new WeakHashMap<>();
-    private static final int CACHE_FORMAT_VERSION = 6;
+    private static final int CACHE_FORMAT_VERSION = 9;
     private static final int CACHE_MAGIC = 0x51435033; // QCP3
     private static final String CACHE_DIR_NAME = "litematica-preview-cache";
-    private static final String CACHE_RENDER_MARKER = "quickcraft-model-mesh-v6-large-detailed-mc1.21.3-dynamic-v2";
+    private static final String CACHE_VERSION_FILE_NAME = "cache-version.txt";
+    private static final String CACHE_RENDER_MARKER = "quickcraft-model-mesh-v9-larger-preview-budget-mc1.21.3-dynamic-v2";
     private static final int MAX_PREVIEW_SIZE = 512;
     // 真实模型预览保留一个很高的硬上限，避免极端文件把游戏直接打死。
-    private static final int MAX_UPLOAD_VERTICES = 30_000_000;
-    private static final int MAX_DYNAMIC_BLOCK_STATES = 100_000;
-    private static final int MAX_DYNAMIC_BLOCK_ENTITIES = 4_096;
-    private static final int MAX_DYNAMIC_ENTITIES = 4_096;
+    // 放宽 3D 预览预算，兼顾大体量纯方块原理图和高密度容器/红石原理图。
+    private static final int MAX_UPLOAD_VERTICES = 50_000_000;
+    private static final int MAX_DYNAMIC_BLOCK_STATES = 300_000;
+    private static final int MAX_DYNAMIC_BLOCK_ENTITIES = 32_768;
+    private static final int MAX_DYNAMIC_ENTITIES = 8_192;
     private static final double MAX_BLOCK_WIDTH = Math.cos(Math.PI / 6.0) * 2.0;
     private static final float DEFAULT_SLANT_RADIANS = (float) Math.toRadians(32.0);
     private static final long NBT_READ_LIMIT_BYTES = 32L * 1024L * 1024L;
     private static final int VERTEX_BYTES = 44;
+    private static final AtomicBoolean CACHE_DIRECTORY_READY = new AtomicBoolean();
+    @Nullable
+    private static volatile Path currentCacheDirectory;
 
     private QuickLitematicaPreview3D() {
     }
@@ -650,9 +657,7 @@ public final class QuickLitematicaPreview3D {
     }
 
     private static Path cachePath(Path sourcePath) {
-        MinecraftClient client = MinecraftClient.getInstance();
-        Path cacheDir = client.runDirectory.toPath().resolve(CACHE_DIR_NAME);
-        return cacheDir.resolve(cacheKey(sourcePath) + ".qcp3d");
+        return cacheDirectory().resolve(cacheKey(sourcePath) + ".qcp3d");
     }
 
     private static String cacheKey(Path sourcePath) {
@@ -673,6 +678,89 @@ public final class QuickLitematicaPreview3D {
     private static void updateDigest(MessageDigest digest, String value) {
         digest.update(value.getBytes(java.nio.charset.StandardCharsets.UTF_8));
         digest.update((byte) 0);
+    }
+
+    private static Path cacheDirectory() {
+        Path cacheDir = currentCacheDirectory;
+        if (cacheDir != null) {
+            return cacheDir;
+        }
+
+        synchronized (QuickLitematicaPreview3D.class) {
+            cacheDir = currentCacheDirectory;
+            if (cacheDir != null) {
+                return cacheDir;
+            }
+
+            MinecraftClient client = MinecraftClient.getInstance();
+            Path runDirectory = client.runDirectory.toPath();
+            cacheDir = runDirectory.resolve(CACHE_DIR_NAME);
+            currentCacheDirectory = cacheDir;
+            if (CACHE_DIRECTORY_READY.compareAndSet(false, true)) {
+                prepareCacheDirectory(cacheDir);
+            }
+            return cacheDir;
+        }
+    }
+
+    private static void prepareCacheDirectory(Path cacheDir) {
+        try {
+            Files.createDirectories(cacheDir);
+            Path versionFile = cacheDir.resolve(CACHE_VERSION_FILE_NAME);
+            String currentVersion = currentCacheVersionToken();
+            String storedVersion = readCacheVersion(versionFile);
+            if (!currentVersion.equals(storedVersion)) {
+                clearCacheDirectory(cacheDir);
+                Files.writeString(versionFile, currentVersion, java.nio.charset.StandardCharsets.UTF_8);
+            }
+        } catch (IOException e) {
+            LOGGER.warn("QuickCraft Litematica 3D preview cache init failed in {}", cacheDir, e);
+        }
+    }
+
+    private static String currentCacheVersionToken() {
+        return currentModVersion() + "|" + CACHE_FORMAT_VERSION + "|" + CACHE_RENDER_MARKER;
+    }
+
+    private static String currentModVersion() {
+        return FabricLoader.getInstance()
+                .getModContainer(QuickCraft.MOD_ID)
+                .map(container -> container.getMetadata().getVersion().getFriendlyString())
+                .orElse("unknown");
+    }
+
+    @Nullable
+    private static String readCacheVersion(Path versionFile) {
+        if (!Files.isRegularFile(versionFile)) {
+            return null;
+        }
+
+        try {
+            return Files.readString(versionFile, java.nio.charset.StandardCharsets.UTF_8).trim();
+        } catch (IOException e) {
+            return null;
+        }
+    }
+
+    private static void clearCacheDirectory(Path cacheDir) {
+        try (var paths = Files.list(cacheDir)) {
+            paths.forEach(QuickLitematicaPreview3D::deleteRecursivelyQuietly);
+        } catch (IOException e) {
+            LOGGER.warn("QuickCraft Litematica 3D preview cache cleanup failed in {}", cacheDir, e);
+        }
+    }
+
+    private static void deleteRecursivelyQuietly(Path path) {
+        if (Files.isDirectory(path)) {
+            try (var paths = Files.walk(path)) {
+                paths.sorted(java.util.Comparator.reverseOrder()).forEach(QuickLitematicaPreview3D::deleteQuietly);
+            } catch (IOException e) {
+                LOGGER.warn("QuickCraft Litematica 3D preview cache cleanup failed for {}", path, e);
+            }
+            return;
+        }
+
+        deleteQuietly(path);
     }
 
     private static void deleteQuietly(Path path) {
@@ -774,6 +862,7 @@ public final class QuickLitematicaPreview3D {
             Map<BlockPos, BlockStateData> blockStates = new HashMap<>();
             List<BlockEntityData> blockEntities = new ArrayList<>();
             List<EntityData> entities = new ArrayList<>();
+            Map<BlockState, Boolean> blockEntityRendererCache = new HashMap<>();
             long total = Math.max(1L, totalVolume(schematic.getAreas().values()));
             long visited = 0L;
 
@@ -800,7 +889,7 @@ public final class QuickLitematicaPreview3D {
                     BlockState state = view.getBlockState(pos);
                     if (!state.isAir()) {
                         BlockPos renderPos = pos.subtract(bounds.min());
-                        recordBlockEntity(blockStates, blockEntities, view, state, schematicBlockEntities, pos, renderPos, bounds);
+                        recordBlockEntity(blockStates, blockEntities, blockEntityRendererCache, view, state, schematicBlockEntities, pos, renderPos, bounds);
                         renderFluidIfPresent(collector, blockRenderManager, matrices, view, state, pos, renderPos);
                         renderBlockModel(collector, blockRenderManager, fabricContext, matrices, view, state, pos, renderPos, random);
                     }
@@ -857,6 +946,7 @@ public final class QuickLitematicaPreview3D {
         private static void recordBlockEntity(
                 Map<BlockPos, BlockStateData> blockStates,
                 List<BlockEntityData> blockEntities,
+                Map<BlockState, Boolean> blockEntityRendererCache,
                 RegionBlockView view,
                 BlockState state,
                 @Nullable Map<BlockPos, NbtCompound> schematicBlockEntities,
@@ -864,7 +954,11 @@ public final class QuickLitematicaPreview3D {
                 BlockPos renderPos,
                 Bounds bounds
         ) {
-            if (!(state.getBlock() instanceof BlockEntityProvider)) {
+            if (!(state.getBlock() instanceof BlockEntityProvider provider)) {
+                return;
+            }
+
+            if (!blockEntityRendererCache.computeIfAbsent(state, key -> hasPreviewBlockEntityRenderer(provider, key, renderPos))) {
                 return;
             }
 
@@ -880,7 +974,7 @@ public final class QuickLitematicaPreview3D {
             NbtCompound nbt = schematicBlockEntities == null
                     ? new NbtCompound()
                     : schematicBlockEntities.getOrDefault(schematicPos, new NbtCompound());
-            NbtCompound entityNbt = nbt.copy();
+            NbtCompound entityNbt = sanitizeBlockEntityNbt(nbt);
             entityNbt.putInt("x", renderPos.getX());
             entityNbt.putInt("y", renderPos.getY());
             entityNbt.putInt("z", renderPos.getZ());
@@ -888,6 +982,23 @@ public final class QuickLitematicaPreview3D {
             if (blockEntities.size() > MAX_DYNAMIC_BLOCK_ENTITIES) {
                 throw new PreviewTooLargeException();
             }
+        }
+
+        private static boolean hasPreviewBlockEntityRenderer(BlockEntityProvider provider, BlockState state, BlockPos renderPos) {
+            BlockEntity blockEntity = provider.createBlockEntity(renderPos, state);
+            if (blockEntity == null) {
+                return false;
+            }
+
+            blockEntity.setCachedState(state);
+            return MinecraftClient.getInstance().getBlockEntityRenderDispatcher().get(blockEntity) != null;
+        }
+
+        private static NbtCompound sanitizeBlockEntityNbt(NbtCompound nbt) {
+            NbtCompound sanitized = nbt.copy();
+            // 3D 预览只需要容器外观，不需要把箱子/潜影盒内部物品也带进缓存和动态渲染。
+            sanitized.remove("Items");
+            return sanitized;
         }
 
         private static void recordDynamicBlockState(Map<BlockPos, BlockStateData> blockStates, BlockState state, BlockPos renderPos) {
