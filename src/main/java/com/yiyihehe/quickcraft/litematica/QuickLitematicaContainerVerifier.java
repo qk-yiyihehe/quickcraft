@@ -135,14 +135,6 @@ public final class QuickLitematicaContainerVerifier {
         return List.of(WRONG_FILL, MISSING_FILL, WRONG_FILL_STATE);
     }
 
-    public static boolean shouldCheckInventories(BlockEntity expected, BlockEntity found) {
-        return isEnabled()
-                && expected instanceof Inventory expectedInventory
-                && found instanceof Inventory foundInventory
-                && expected.getType() == found.getType()
-                && expectedInventory.size() == foundInventory.size();
-    }
-
     public static Inventory getExpectedInventory(BlockEntity expectedBlockEntity, Inventory directInventory) {
         if (expectedBlockEntity == null || expectedBlockEntity.getWorld() == null) {
             return directInventory;
@@ -307,25 +299,6 @@ public final class QuickLitematicaContainerVerifier {
                 foundDisabledSlots,
                 List.copyOf(slotMismatches)
         ));
-    }
-
-    public static boolean inventoriesMatch(
-            BlockEntity expectedBlockEntity,
-            BlockEntity foundBlockEntity,
-            Inventory expected,
-            Inventory found
-    ) {
-        if (expected.size() != found.size()) {
-            return false;
-        }
-
-        for (int slot = 0; slot < expected.size(); slot++) {
-            if (getSlotMismatchStatus(expected.getStack(slot), found.getStack(slot)) != null) {
-                return false;
-            }
-        }
-
-        return getDisabledSlots(expectedBlockEntity).equals(getDisabledSlots(foundBlockEntity));
     }
 
     public static void renderInventoryPair(
@@ -592,7 +565,7 @@ public final class QuickLitematicaContainerVerifier {
                     .quickcraft$refreshContainerMismatchAt(currentScreenContainerPos, foundInventory, foundDisabledSlots);
         }
 
-        if (expectedContainer != null && foundInventory.size() == expectedContainer.inventory().size()) {
+        if (foundInventory.size() == expectedContainer.inventory().size()) {
             currentScreenSlotOverlays = mismatches != null
                     ? buildSlotOverlays(expectedContainer, mismatches)
                     : buildSlotOverlays(expectedContainer, foundInventory, foundDisabledSlots);
