@@ -386,16 +386,14 @@ public class QuickCraftBackpack implements ClientModInitializer {
             return moveFullStackToGridSlot(client, handler, sourceSlot, gridSlot, template);
         }
 
-        if (sourceCount <= sameMissingSlots
-                || (sameMissingSlots > 1 && sourceCount < 2 * (sameMissingSlots - 1))) {
+        if (sourceCount <= sameMissingSlots) {
             return moveOneItemToGridSlot(client, handler, sourceSlot, gridSlot, template);
         }
 
-        int pickupButton = sameMissingSlots > 1 ? 1 : 0;
         client.interactionManager.clickSlot(
                 handler.syncId,
                 sourceSlot,
-                pickupButton,
+                0,
                 SlotActionType.PICKUP,
                 client.player
         );
