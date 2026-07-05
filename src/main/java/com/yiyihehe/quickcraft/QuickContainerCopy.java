@@ -2324,10 +2324,6 @@ public final class QuickContainerCopy implements ClientModInitializer {
         return moved;
     }
 
-    private int findQuickShulkerDestinationSlotId(ScreenHandler handler, ItemStack insertStack) {
-        return findQuickShulkerDestinationSlotId(handler, insertStack, -1);
-    }
-
     private int findQuickShulkerDestinationSlotId(ScreenHandler handler, ItemStack insertStack, int excludedSlotId) {
         if (insertStack.isEmpty() || isShulkerBox(insertStack)) {
             return -1;

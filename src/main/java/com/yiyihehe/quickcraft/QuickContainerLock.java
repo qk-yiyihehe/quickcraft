@@ -51,7 +51,15 @@ public final class QuickContainerLock implements ClientModInitializer {
     private static final int PLAYER_STORAGE_SLOT_COUNT = 36;
     private static final int HOTBAR_SLOT_COUNT = 9;
     private static final int INVALID_LOCK_SLOT = -1;
+    private static final int LEFT_PICKUP_BUTTON = 0;
     private static final String PLAYER_CONTAINER_KEY = "player_inventory";
+    private static final String TWEAKEROO_ELYTRA_SWAP_CLASS = "fi.dy.masa.tweakeroo.util.InventoryUtils";
+    private static final String TWEAKEROO_ELYTRA_SWAP_METHOD = "swapElytraAndChestPlate";
+    private static final String TWEAKEROO_EQUIP_BEST_ELYTRA_METHOD = "equipBestElytra";
+    private static final String TWEAKEROO_SWAP_ITEM_TO_EQUIPMENT_SLOT_METHOD = "swapItemToEquipmentSlot";
+    private static final String TWEAKEROO_SWAP_SLOTS_METHOD = "swapSlots";
+    private static final String OMMC_ELYTRA_SWAP_CLASS = "com.plusls.ommc.feature.autoSwitchElytra.AutoSwitchElytraUtil";
+    private static final String OMMC_ELYTRA_SWAP_METHOD = "autoSwitch";
     private static final Identifier SLOT_LOCK_TEXTURE = Identifier.of("quickcraft", "textures/gui/slot_lock.png");
 
     private static final Set<String> LOCKED_CONTAINERS = new HashSet<>();
@@ -62,6 +70,7 @@ public final class QuickContainerLock implements ClientModInitializer {
     private static int pendingTicks;
     private static String pendingContainerKey;
     private static String currentScreenContainerKey;
+    private static boolean bypassPlayerSlotLocks;
 
     @Override
     public void onInitializeClient() {
@@ -217,7 +226,7 @@ public final class QuickContainerLock implements ClientModInitializer {
         slot = unwrapCreativeSlot(slot);
 
         if (isPlayerStorageSlot(slot)) {
-            return LOCKED_PLAYER_SLOTS.contains(slot.getIndex());
+            return !shouldBypassPlayerSlotLock(slot) && LOCKED_PLAYER_SLOTS.contains(slot.getIndex());
         }
 
         MinecraftClient client = MinecraftClient.getInstance();
@@ -298,6 +307,17 @@ public final class QuickContainerLock implements ClientModInitializer {
         return actionType == SlotActionType.SWAP && isLockedHotbarSwapTarget(handler, button);
     }
 
+    public static void beginSlotClickContext(ScreenHandler handler, int slotId, int button, SlotActionType actionType) {
+        bypassPlayerSlotLocks = false;
+        if (shouldBypassTrustedAutoElytraClick(handler, button, actionType)) {
+            bypassPlayerSlotLocks = true;
+        }
+    }
+
+    public static void endSlotClickContext() {
+        bypassPlayerSlotLocks = false;
+    }
+
     private static boolean isLockedSlotInternal(ScreenHandler handler, Slot slot) {
         if (slot == null) {
             return false;
@@ -306,7 +326,7 @@ public final class QuickContainerLock implements ClientModInitializer {
         slot = unwrapCreativeSlot(slot);
 
         if (isPlayerStorageSlot(slot)) {
-            return LOCKED_PLAYER_SLOTS.contains(slot.getIndex());
+            return !shouldBypassPlayerSlotLock(slot) && LOCKED_PLAYER_SLOTS.contains(slot.getIndex());
         }
 
         int containerSlotIndex = getContainerSlotLockIndex(handler, slot);
@@ -382,6 +402,54 @@ public final class QuickContainerLock implements ClientModInitializer {
 
     private static boolean isPlayerHotbarSlot(Slot slot) {
         return isPlayerStorageSlot(slot) && slot.getIndex() < HOTBAR_SLOT_COUNT;
+    }
+
+    /**
+     * tweakeroo / OMMC 的自动穿脱鞘翅会在无界面时直接连发 clickSlot。
+     * 这里不改原有锁格子逻辑，只在这条已知调用链里临时放行玩家背包锁。
+     */
+    private static boolean shouldBypassTrustedAutoElytraClick(ScreenHandler handler, int button, SlotActionType actionType) {
+        if (!(handler instanceof PlayerScreenHandler)
+                || !isTrustedAutoElytraCaller()) {
+            return false;
+        }
+
+        MinecraftClient client = MinecraftClient.getInstance();
+        if (client == null
+                || client.player == null
+                || client.currentScreen != null
+                || client.player.currentScreenHandler != handler) {
+            return false;
+        }
+
+        if (actionType == SlotActionType.PICKUP) {
+            return button == LEFT_PICKUP_BUTTON;
+        }
+
+        return actionType == SlotActionType.SWAP;
+    }
+
+    /**
+     * 只给 tweakeroo / OMMC 的自动穿脱鞘翅开后门，普通无界面点击仍然照常锁死。
+     */
+    private static boolean isTrustedAutoElytraCaller() {
+        for (StackTraceElement element : Thread.currentThread().getStackTrace()) {
+            String className = element.getClassName();
+            String methodName = element.getMethodName();
+            if ((TWEAKEROO_ELYTRA_SWAP_CLASS.equals(className)
+                    && (TWEAKEROO_ELYTRA_SWAP_METHOD.equals(methodName)
+                    || TWEAKEROO_EQUIP_BEST_ELYTRA_METHOD.equals(methodName)
+                    || TWEAKEROO_SWAP_ITEM_TO_EQUIPMENT_SLOT_METHOD.equals(methodName)
+                    || TWEAKEROO_SWAP_SLOTS_METHOD.equals(methodName)))
+                    || (OMMC_ELYTRA_SWAP_CLASS.equals(className) && OMMC_ELYTRA_SWAP_METHOD.equals(methodName))) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static boolean shouldBypassPlayerSlotLock(Slot slot) {
+        return bypassPlayerSlotLocks && isPlayerStorageSlot(slot);
     }
 
     private static boolean isMouseOverSlotLock(Slot slot, int guiLeft, int guiTop, double mouseX, double mouseY) {
@@ -611,11 +679,12 @@ public final class QuickContainerLock implements ClientModInitializer {
     }
 
     private static String getSupportedContainerKey(MinecraftClient client, BlockHitResult blockHitResult) {
-        if (client.world == null) {
+        World world = client.world;
+        if (world == null) {
             return null;
         }
 
-        Block block = client.world.getBlockState(blockHitResult.getBlockPos()).getBlock();
+        Block block = world.getBlockState(blockHitResult.getBlockPos()).getBlock();
         if (!(block instanceof ChestBlock)
                 && !(block instanceof BarrelBlock)
                 && !(block instanceof EnderChestBlock)
@@ -623,7 +692,7 @@ public final class QuickContainerLock implements ClientModInitializer {
             return null;
         }
 
-        return buildContainerKey(client.world, blockHitResult.getBlockPos().asLong());
+        return buildContainerKey(world, blockHitResult.getBlockPos().asLong());
     }
 
     private static String buildContainerKey(World world, long blockPosLong) {
@@ -661,6 +730,7 @@ public final class QuickContainerLock implements ClientModInitializer {
         currentScreenContainerKey = null;
         pendingTicks = 0;
         lastUseDown = false;
+        bypassPlayerSlotLocks = false;
     }
 
     static void loadPersistentState(JsonObject root) {

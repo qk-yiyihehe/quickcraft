@@ -391,10 +391,6 @@ public class QuickSort implements ClientModInitializer {
         return slot;
     }
 
-    private static void mergeIdenticalStacks(HandledScreen<?> gui, List<Integer> slotIds) {
-        mergeIdenticalStacks(gui.getScreenHandler(), slotIds);
-    }
-
     private static void mergeIdenticalStacks(ScreenHandler handler, List<Integer> slotIds) {
         Map<ItemKey, Integer> primarySlots = new HashMap<>();
 
@@ -430,14 +426,6 @@ public class QuickSort implements ClientModInitializer {
                 primarySlots.remove(key);
             }
         }
-    }
-
-    private static void reorderSlots(HandledScreen<?> gui, List<Integer> slotIds) {
-        reorderSlots(gui.getScreenHandler(), slotIds, buildTargetOrder(gui.getScreenHandler(), slotIds), true);
-    }
-
-    private static void reorderSlots(ScreenHandler handler, List<Integer> slotIds) {
-        reorderSlots(handler, slotIds, buildTargetOrder(handler, slotIds), false);
     }
 
     private static void reorderSlots(ScreenHandler handler,

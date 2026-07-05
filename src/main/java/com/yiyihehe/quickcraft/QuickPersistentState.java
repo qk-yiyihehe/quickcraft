@@ -139,6 +139,9 @@ public final class QuickPersistentState {
     }
 
     private static String buildDirectoryName(String displayName, String rawKey) {
+        if (displayName == null || displayName.isBlank()) {
+            displayName = "profile";
+        }
         String sanitized = displayName
                 .replaceAll("[\\\\/:*?\"<>|]", "_")
                 .replaceAll("\\s+", "_")

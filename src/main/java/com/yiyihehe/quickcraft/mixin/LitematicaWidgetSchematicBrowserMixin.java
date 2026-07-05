@@ -53,8 +53,8 @@ public abstract class LitematicaWidgetSchematicBrowserMixin extends WidgetFileBr
     private void quickcraft$draw3DPreview(@Nullable DirectoryEntry entry, DrawContext drawContext, CallbackInfo ci) {
         int infoX = this.posX + this.totalWidth - this.infoWidth;
         int infoY = this.posY;
-        int height = Math.min(this.infoHeight, this.parent.getMaxInfoHeight());
-        int size = Math.min(this.infoWidth - 32, Math.max(48, height - 152));
+		int height = Math.min(this.infoHeight, this.parent.getMaxInfoHeight());
+		int size = Math.max(1, Math.min(this.infoWidth - 32, Math.max(48, height - 152)));
         int x = infoX + (this.infoWidth - size) / 2;
         int y = infoY + height - size - 8;
 

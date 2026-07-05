@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<FindBugsFilter>
+    <!-- Minecraft 和 Loom 反编译生成的代码不检查 -->
+    <Match>
+        <Source name="~.*\.(mc|mapped|named)\.java"/>
+    </Match>
+</FindBugsFilter>
