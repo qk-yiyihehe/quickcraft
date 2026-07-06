@@ -1,6 +1,5 @@
 package com.yiyihehe.quickcraft.mixin;
 
-import com.yiyihehe.quickcraft.QuickContainerLock;
 import com.yiyihehe.quickcraft.QuickContainerCopy;
 import com.yiyihehe.quickcraft.litematica.QuickLitematicaContainerVerifier;
 import net.minecraft.client.MinecraftClient;
