@@ -596,7 +596,7 @@ public abstract class LitematicaSchematicVerifierMixin extends TaskBase implemen
     private void quickcraft$addContainerMismatch(ContainerMismatch mismatch) {
         this.quickcraft$containerMismatches.computeIfAbsent(mismatch.type(), type -> new ArrayList<>()).add(mismatch);
         this.quickcraft$containerMismatchesByKey.put(mismatch.key(), mismatch);
-        this.quickcraft$syncInventorySlotHighlightSuppression();
+        QuickLitematicaContainerVerifier.setSuppressInventorySlotHighlights(false);
     }
 
     @Unique
@@ -636,7 +636,7 @@ public abstract class LitematicaSchematicVerifierMixin extends TaskBase implemen
             mismatches.removeIf(mismatch -> mismatch.pos().equals(pos));
         }
 
-        this.quickcraft$syncInventorySlotHighlightSuppression();
+        QuickLitematicaContainerVerifier.setSuppressInventorySlotHighlights(false);
     }
 
     @Unique
@@ -650,14 +650,7 @@ public abstract class LitematicaSchematicVerifierMixin extends TaskBase implemen
         this.quickcraft$pendingContainerPositions.clear();
         this.selectedCategories.removeIf(QuickLitematicaContainerVerifier::isContainerMismatchType);
         this.selectedEntries.keySet().removeIf(QuickLitematicaContainerVerifier::isContainerMismatchType);
-        this.quickcraft$syncInventorySlotHighlightSuppression();
-    }
-
-    @Unique
-    private void quickcraft$syncInventorySlotHighlightSuppression() {
-        QuickLitematicaContainerVerifier.setSuppressInventorySlotHighlights(
-                false
-        );
+        QuickLitematicaContainerVerifier.setSuppressInventorySlotHighlights(false);
     }
 
     @Unique
