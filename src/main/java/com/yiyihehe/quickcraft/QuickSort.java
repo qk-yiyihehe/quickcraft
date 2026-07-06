@@ -601,10 +601,6 @@ public class QuickSort implements ClientModInitializer {
         return -1;
     }
 
-    private static boolean storeCursorStack(HandledScreen<?> gui) {
-        return storeCursorStackInVisibleSlots(gui.getScreenHandler());
-    }
-
     private static boolean storeCursorStackInVisibleSlots(ScreenHandler handler) {
         MinecraftClient client = MinecraftClient.getInstance();
         if (client.player == null) {
@@ -714,7 +710,7 @@ public class QuickSort implements ClientModInitializer {
 
     private static boolean storeCursorStackForTarget(HandledScreen<?> gui, SortTarget target) {
         if (target.handler() == gui.getScreenHandler()) {
-            return storeCursorStack(gui);
+            return storeCursorStackInVisibleSlots(gui.getScreenHandler());
         }
         return storeCursorStack(target.handler(), target.slotIds);
     }
