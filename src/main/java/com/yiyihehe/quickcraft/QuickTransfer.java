@@ -214,9 +214,7 @@ public final class QuickTransfer implements ClientModInitializer {
 
         boolean sourceFromPlayerStorage = isPlayerStorageSlot(hoveredSlot);
         if (sourceFromPlayerStorage && mode == TransferMode.MATCHING
-                && !canMoveFromPlayerStorage(handler)
-                && !isPlayerMainInventorySlot(hoveredSlot)
-                && !isPlayerHotbarSlot(hoveredSlot)) {
+                && !canMoveFromPlayerStorage(handler)) {
             return false;
         }
 
