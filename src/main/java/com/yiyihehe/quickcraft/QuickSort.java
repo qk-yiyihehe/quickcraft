@@ -26,8 +26,6 @@ import net.minecraft.registry.RegistryKey;
 import net.minecraft.screen.ScreenHandler;
 import net.minecraft.screen.slot.Slot;
 import net.minecraft.screen.slot.SlotActionType;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -42,7 +40,6 @@ import java.util.Objects;
  * 根据鼠标所在的玩家区/容器区决定整理目标，先合并同类堆叠，再按固定顺序重排槽位。
  */
 public class QuickSort implements ClientModInitializer {
-    private static final Logger LOGGER = LoggerFactory.getLogger("QuickCraft-QuickSort");
     private static final int SLOT_SIZE = 18;
     private static final int BOUNDS_PADDING = 4;
     private static final ItemStack INSERT_TEST_STACK = Items.DIRT.getDefaultStack();
@@ -114,17 +111,16 @@ public class QuickSort implements ClientModInitializer {
 
         ScreenHandler targetHandler = target.handler();
         if (!targetHandler.getCursorStack().isEmpty() && !storeCursorStackForTarget(gui, target)) {
-            LOGGER.warn("Abort sorting because cursor stack cannot be stored safely");
             return;
         }
 
         mergeIdenticalStacks(targetHandler, target.slotIds);
         reorderSlots(targetHandler, target.slotIds, buildTargetOrder(targetHandler, target.slotIds), targetHandler == handler);
-
-        if (!targetHandler.getCursorStack().isEmpty() && !storeCursorStackForTarget(gui, target)) {
-            LOGGER.warn("Cursor stack remained after sorting");
+        if (!targetHandler.getCursorStack().isEmpty()) {
+            storeCursorStackForTarget(gui, target);
         }
     }
+
     private static SortTarget findSortTarget(HandledScreen<?> gui) {
         MinecraftClient client = MinecraftClient.getInstance();
         if (client.player == null) {
@@ -461,7 +457,6 @@ public class QuickSort implements ClientModInitializer {
                     ? storeCursorStackInVisibleSlots(handler)
                     : storeCursorStack(handler, slotIds);
                 if (!stored) {
-                    LOGGER.warn("Abort sorting because cursor stack could not be cleared");
                     return;
                 }
             }
@@ -985,8 +980,7 @@ public class QuickSort implements ClientModInitializer {
                 actionType,
                 client.player
             );
-        } catch (Exception exception) {
-            LOGGER.error("Failed to click slot {}", slotId, exception);
+        } catch (Exception ignored) {
         }
     }
 
