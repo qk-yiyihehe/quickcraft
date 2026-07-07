@@ -11,12 +11,15 @@ import com.yiyihehe.quickcraft.litematica.QuickLitematicaContainerVerifier.Expec
 import com.yiyihehe.quickcraft.litematica.QuickLitematicaContainerVerifier.VerifierExtension;
 import fi.dy.masa.litematica.config.Configs;
 import fi.dy.masa.litematica.scheduler.tasks.TaskBase;
+import fi.dy.masa.litematica.schematic.placement.SchematicPlacement;
 import fi.dy.masa.litematica.schematic.verifier.SchematicVerifier;
 import fi.dy.masa.litematica.schematic.verifier.SchematicVerifier.BlockMismatch;
 import fi.dy.masa.litematica.schematic.verifier.SchematicVerifier.MismatchRenderPos;
 import fi.dy.masa.litematica.schematic.verifier.SchematicVerifier.MismatchType;
 import fi.dy.masa.litematica.util.PositionUtils;
+import fi.dy.masa.litematica.world.WorldSchematic;
 import fi.dy.masa.malilib.gui.GuiBase;
+import fi.dy.masa.malilib.interfaces.ICompletionListener;
 import fi.dy.masa.malilib.util.StringUtils;
 import net.minecraft.block.BlockState;
 import net.minecraft.block.entity.BlockEntity;
@@ -380,6 +383,22 @@ public abstract class LitematicaSchematicVerifierMixin extends TaskBase implemen
         this.quickcraft$clearContainerData();
     }
 
+    @Inject(method = "startVerification", at = @At("TAIL"))
+    private void quickcraft$requestContainerDataOnStart(
+            ClientWorld worldClient,
+            WorldSchematic worldSchematic,
+            SchematicPlacement schematicPlacement,
+            ICompletionListener completionListener,
+            CallbackInfo ci
+    ) {
+        if (!QuickLitematicaContainerVerifier.isEnabled() || schematicPlacement == null) {
+            return;
+        }
+
+        // 开始验证时先按本次原理图触碰的 chunk 拉一轮容器 NBT。
+        this.quickcraft$requestContainerInventoryDataChunks(worldClient, schematicPlacement.getTouchedChunks());
+    }
+
     @Inject(method = "execute", at = @At("TAIL"))
     private void quickcraft$refreshContainerMismatches(CallbackInfoReturnable<Boolean> cir) {
         if (!QuickLitematicaContainerVerifier.isEnabled()) {
@@ -684,6 +703,27 @@ public abstract class LitematicaSchematicVerifierMixin extends TaskBase implemen
                     world.getBottomY(),
                     world.getTopY()
             );
+        }
+    }
+
+    @Unique
+    private void quickcraft$requestContainerInventoryDataChunks(World world, Collection<ChunkPos> chunkPositions) {
+        if (world == null
+                || chunkPositions == null
+                || chunkPositions.isEmpty()
+                || fi.dy.masa.litematica.data.DataManager.getInstance().hasIntegratedServer()) {
+            return;
+        }
+
+        for (ChunkPos chunkPos : chunkPositions) {
+            if (this.quickcraft$requestedContainerDataChunks.add(chunkPos)) {
+                QuickLitematicaContainerVerifier.requestInventoryDataChunk(
+                        world,
+                        chunkPos,
+                        world.getBottomY(),
+                        world.getTopY()
+                );
+            }
         }
     }
 
