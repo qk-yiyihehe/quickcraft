@@ -489,8 +489,7 @@ public abstract class LitematicaSchematicVerifierMixin extends TaskBase implemen
         World bestWorld = fi.dy.masa.malilib.util.WorldUtils.getBestWorld(client);
         this.quickcraft$logContainerDebug("tick", client.world.getTime(), bestWorld);
 
-        if (bestWorld == null
-                || (this.quickcraft$containerMismatchesByKey.isEmpty() && this.quickcraft$pendingContainerPositions.isEmpty())) {
+        if (bestWorld == null || this.quickcraft$pendingContainerPositions.isEmpty()) {
             return;
         }
 
@@ -503,18 +502,12 @@ public abstract class LitematicaSchematicVerifierMixin extends TaskBase implemen
             }
         }
 
-        for (ContainerMismatch mismatch : this.quickcraft$containerMismatchesByKey.values()) {
-            if (!positions.contains(mismatch.pos())) {
-                positions.add(mismatch.pos());
-            }
-        }
-
         if (positions.isEmpty()) {
             return;
         }
 
         boolean changed = false;
-        int checks = Math.min(this.quickcraft$pendingContainerPositions.isEmpty() ? 8 : 128, positions.size());
+        int checks = Math.min(128, positions.size());
 
         for (int i = 0; i < checks; i++) {
             if (this.quickcraft$refreshCursor >= positions.size()) {
