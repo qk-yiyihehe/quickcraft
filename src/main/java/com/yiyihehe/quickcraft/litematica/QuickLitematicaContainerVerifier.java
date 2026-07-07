@@ -190,14 +190,22 @@ public final class QuickLitematicaContainerVerifier {
         }
     }
 
-    public static void requestInventoryDataChunk(World world, ChunkPos chunkPos, int minY, int maxY) {
+    public static boolean requestInventoryDataChunk(World world, ChunkPos chunkPos, int minY, int maxY) {
         if (world == null || DataManager.getInstance().hasIntegratedServer()) {
-            return;
+            return false;
         }
 
         EntitiesDataStorage storage = EntitiesDataStorage.getInstance();
-        storage.requestServuxBulkEntityData(chunkPos, minY, maxY);
-        storage.requestBackupBulkEntityData(chunkPos, minY, maxY);
+        if (storage.hasServuxServer()) {
+            storage.requestServuxBulkEntityData(chunkPos, minY, maxY);
+            return true;
+        }
+        if (storage.getIfReceivedBackupPackets()) {
+            storage.requestBackupBulkEntityData(chunkPos, minY, maxY);
+            return true;
+        }
+
+        return false;
     }
 
     public static List<ContainerMismatch> findMismatches(

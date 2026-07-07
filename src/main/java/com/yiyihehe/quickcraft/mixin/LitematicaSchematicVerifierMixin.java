@@ -442,7 +442,7 @@ public abstract class LitematicaSchematicVerifierMixin extends TaskBase implemen
         }
 
         boolean changed = false;
-        int checks = Math.min(8, positions.size());
+        int checks = Math.min(this.quickcraft$pendingContainerPositions.isEmpty() ? 8 : 128, positions.size());
 
         for (int i = 0; i < checks; i++) {
             if (this.quickcraft$refreshCursor >= positions.size()) {
@@ -696,13 +696,14 @@ public abstract class LitematicaSchematicVerifierMixin extends TaskBase implemen
 
         ChunkPos chunkPos = new ChunkPos(pos);
 
-        if (this.quickcraft$requestedContainerDataChunks.add(chunkPos)) {
-            QuickLitematicaContainerVerifier.requestInventoryDataChunk(
+        if (!this.quickcraft$requestedContainerDataChunks.contains(chunkPos)
+                && QuickLitematicaContainerVerifier.requestInventoryDataChunk(
                     world,
                     chunkPos,
                     world.getBottomY(),
                     world.getTopY()
-            );
+            )) {
+            this.quickcraft$requestedContainerDataChunks.add(chunkPos);
         }
     }
 
@@ -716,13 +717,14 @@ public abstract class LitematicaSchematicVerifierMixin extends TaskBase implemen
         }
 
         for (ChunkPos chunkPos : chunkPositions) {
-            if (this.quickcraft$requestedContainerDataChunks.add(chunkPos)) {
-                QuickLitematicaContainerVerifier.requestInventoryDataChunk(
+            if (!this.quickcraft$requestedContainerDataChunks.contains(chunkPos)
+                    && QuickLitematicaContainerVerifier.requestInventoryDataChunk(
                         world,
                         chunkPos,
                         world.getBottomY(),
                         world.getTopY()
-                );
+                )) {
+                this.quickcraft$requestedContainerDataChunks.add(chunkPos);
             }
         }
     }
