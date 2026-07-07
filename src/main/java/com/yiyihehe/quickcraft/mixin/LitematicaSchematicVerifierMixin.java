@@ -24,6 +24,7 @@ import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.world.ClientWorld;
 import net.minecraft.inventory.Inventory;
 import net.minecraft.util.math.BlockPos;
+import net.minecraft.util.math.ChunkPos;
 import net.minecraft.world.World;
 import net.minecraft.world.chunk.Chunk;
 import net.minecraft.world.chunk.WorldChunk;
@@ -104,6 +105,9 @@ public abstract class LitematicaSchematicVerifierMixin extends TaskBase implemen
 
     @Unique
     private final Set<BlockPos> quickcraft$pendingContainerPositions = new HashSet<>();
+
+    @Unique
+    private final Set<ChunkPos> quickcraft$requestedContainerDataChunks = new HashSet<>();
 
     @Unique
     private int quickcraft$refreshCursor;
@@ -229,7 +233,7 @@ public abstract class LitematicaSchematicVerifierMixin extends TaskBase implemen
             mismatches.forEach(this::quickcraft$addContainerMismatch);
         } else {
             this.quickcraft$markContainerPending(pos);
-            QuickLitematicaContainerVerifier.requestInventoryData(this.worldClient, pos);
+            this.quickcraft$requestContainerInventoryData(this.worldClient, pos);
         }
     }
 
@@ -394,11 +398,19 @@ public abstract class LitematicaSchematicVerifierMixin extends TaskBase implemen
 
         World bestWorld = fi.dy.masa.malilib.util.WorldUtils.getBestWorld(client);
 
-        if (bestWorld == null || this.quickcraft$containerMismatchesByKey.isEmpty()) {
+        if (bestWorld == null
+                || (this.quickcraft$containerMismatchesByKey.isEmpty() && this.quickcraft$pendingContainerPositions.isEmpty())) {
             return;
         }
 
         List<BlockPos> positions = new ArrayList<>();
+
+        // 多人服容器 NBT 可能稍后才由 Servux/OP 查询返回，pending 位置也要持续复查。
+        for (BlockPos pos : this.quickcraft$pendingContainerPositions) {
+            if (!positions.contains(pos)) {
+                positions.add(pos);
+            }
+        }
 
         for (ContainerMismatch mismatch : this.quickcraft$containerMismatchesByKey.values()) {
             if (!positions.contains(mismatch.pos())) {
@@ -426,6 +438,7 @@ public abstract class LitematicaSchematicVerifierMixin extends TaskBase implemen
                 changed |= this.quickcraft$replaceContainerMismatchesAt(pos, mismatches);
             } else {
                 this.quickcraft$markContainerPending(pos);
+                this.quickcraft$requestContainerInventoryData(bestWorld, pos);
             }
         }
 
@@ -483,7 +496,7 @@ public abstract class LitematicaSchematicVerifierMixin extends TaskBase implemen
 
         if (!(foundBlockEntity instanceof Inventory foundInventory)) {
             if (!fi.dy.masa.litematica.data.DataManager.getInstance().hasIntegratedServer()) {
-                QuickLitematicaContainerVerifier.requestInventoryData(foundWorld, pos);
+                this.quickcraft$requestContainerInventoryData(foundWorld, pos);
                 return null;
             }
 
@@ -530,7 +543,7 @@ public abstract class LitematicaSchematicVerifierMixin extends TaskBase implemen
 
         if (!(foundBlockEntity instanceof Inventory foundInventory)) {
             if (!fi.dy.masa.litematica.data.DataManager.getInstance().hasIntegratedServer()) {
-                QuickLitematicaContainerVerifier.requestInventoryData(foundWorld, pos);
+                this.quickcraft$requestContainerInventoryData(foundWorld, pos);
                 return null;
             }
 
@@ -648,9 +661,30 @@ public abstract class LitematicaSchematicVerifierMixin extends TaskBase implemen
         this.quickcraft$expectedContainerPositions.clear();
         this.quickcraft$checkedContainerPositions.clear();
         this.quickcraft$pendingContainerPositions.clear();
+        this.quickcraft$requestedContainerDataChunks.clear();
         this.selectedCategories.removeIf(QuickLitematicaContainerVerifier::isContainerMismatchType);
         this.selectedEntries.keySet().removeIf(QuickLitematicaContainerVerifier::isContainerMismatchType);
         QuickLitematicaContainerVerifier.setSuppressInventorySlotHighlights(false);
+    }
+
+    @Unique
+    private void quickcraft$requestContainerInventoryData(World world, BlockPos pos) {
+        QuickLitematicaContainerVerifier.requestInventoryData(world, pos);
+
+        if (world == null || fi.dy.masa.litematica.data.DataManager.getInstance().hasIntegratedServer()) {
+            return;
+        }
+
+        ChunkPos chunkPos = new ChunkPos(pos);
+
+        if (this.quickcraft$requestedContainerDataChunks.add(chunkPos)) {
+            QuickLitematicaContainerVerifier.requestInventoryDataChunk(
+                    world,
+                    chunkPos,
+                    world.getBottomY(),
+                    world.getTopY()
+            );
+        }
     }
 
     @Unique
