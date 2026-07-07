@@ -10,6 +10,7 @@ import com.yiyihehe.quickcraft.litematica.QuickLitematicaContainerVerifier.Conta
 import com.yiyihehe.quickcraft.litematica.QuickLitematicaContainerVerifier.ExpectedContainer;
 import com.yiyihehe.quickcraft.litematica.QuickLitematicaContainerVerifier.VerifierExtension;
 import fi.dy.masa.litematica.config.Configs;
+import fi.dy.masa.litematica.data.EntitiesDataStorage;
 import fi.dy.masa.litematica.scheduler.tasks.TaskBase;
 import fi.dy.masa.litematica.schematic.placement.SchematicPlacement;
 import fi.dy.masa.litematica.schematic.verifier.SchematicVerifier;
@@ -17,9 +18,11 @@ import fi.dy.masa.litematica.schematic.verifier.SchematicVerifier.BlockMismatch;
 import fi.dy.masa.litematica.schematic.verifier.SchematicVerifier.MismatchRenderPos;
 import fi.dy.masa.litematica.schematic.verifier.SchematicVerifier.MismatchType;
 import fi.dy.masa.litematica.util.PositionUtils;
+import fi.dy.masa.litematica.world.ChunkManagerSchematic;
 import fi.dy.masa.litematica.world.WorldSchematic;
 import fi.dy.masa.malilib.gui.GuiBase;
 import fi.dy.masa.malilib.interfaces.ICompletionListener;
+import fi.dy.masa.malilib.util.IntBoundingBox;
 import fi.dy.masa.malilib.util.StringUtils;
 import net.minecraft.block.BlockState;
 import net.minecraft.block.entity.BlockEntity;
@@ -50,6 +53,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 
 /**
@@ -64,6 +68,9 @@ public abstract class LitematicaSchematicVerifierMixin extends TaskBase implemen
 
     @Shadow
     private ClientWorld worldClient;
+
+    @Shadow
+    private SchematicPlacement schematicPlacement;
 
     @Shadow
     @Final
@@ -198,6 +205,18 @@ public abstract class LitematicaSchematicVerifierMixin extends TaskBase implemen
     private WorldChunk quickcraft$useBestWorldForSinglePlayer(ClientWorld clientWorld, int chunkX, int chunkZ) {
         World bestWorld = fi.dy.masa.malilib.util.WorldUtils.getBestWorld(MinecraftClient.getInstance());
         return bestWorld != null ? bestWorld.getChunk(chunkX, chunkZ) : clientWorld.getChunk(chunkX, chunkZ);
+    }
+
+    @Redirect(
+            method = "verifyChunks",
+            at = @At(
+                    value = "INVOKE",
+                    target = "Lfi/dy/masa/litematica/world/ChunkManagerSchematic;isChunkLoaded(II)Z"
+            )
+    )
+    private boolean quickcraft$waitForContainerData(ChunkManagerSchematic chunkManager, int chunkX, int chunkZ) {
+        return chunkManager.isChunkLoaded(chunkX, chunkZ)
+                && this.quickcraft$canProcessContainerDataChunk(new ChunkPos(chunkX, chunkZ));
     }
 
     @Inject(
@@ -697,12 +716,7 @@ public abstract class LitematicaSchematicVerifierMixin extends TaskBase implemen
         ChunkPos chunkPos = new ChunkPos(pos);
 
         if (!this.quickcraft$requestedContainerDataChunks.contains(chunkPos)
-                && QuickLitematicaContainerVerifier.requestInventoryDataChunk(
-                    world,
-                    chunkPos,
-                    world.getBottomY(),
-                    world.getTopY()
-            )) {
+                && this.quickcraft$requestContainerInventoryDataChunk(world, chunkPos)) {
             this.quickcraft$requestedContainerDataChunks.add(chunkPos);
         }
     }
@@ -718,15 +732,59 @@ public abstract class LitematicaSchematicVerifierMixin extends TaskBase implemen
 
         for (ChunkPos chunkPos : chunkPositions) {
             if (!this.quickcraft$requestedContainerDataChunks.contains(chunkPos)
-                    && QuickLitematicaContainerVerifier.requestInventoryDataChunk(
-                        world,
-                        chunkPos,
-                        world.getBottomY(),
-                        world.getTopY()
-                )) {
+                    && this.quickcraft$requestContainerInventoryDataChunk(world, chunkPos)) {
                 this.quickcraft$requestedContainerDataChunks.add(chunkPos);
             }
         }
+    }
+
+    @Unique
+    private boolean quickcraft$canProcessContainerDataChunk(ChunkPos chunkPos) {
+        if (!QuickLitematicaContainerVerifier.isEnabled()
+                || this.worldClient == null
+                || this.schematicPlacement == null
+                || fi.dy.masa.litematica.data.DataManager.getInstance().hasIntegratedServer()) {
+            return true;
+        }
+
+        EntitiesDataStorage storage = EntitiesDataStorage.getInstance();
+
+        if ((!storage.hasServuxServer() && !storage.getIfReceivedBackupPackets())
+                || !Objects.equals(storage.getWorld(), this.worldClient)
+                || storage.hasCompletedChunk(chunkPos)) {
+            return true;
+        }
+        if (storage.hasPendingChunk(chunkPos)) {
+            return false;
+        }
+
+        return !this.quickcraft$requestContainerInventoryDataChunk(this.worldClient, chunkPos);
+    }
+
+    @Unique
+    private boolean quickcraft$requestContainerInventoryDataChunk(World world, ChunkPos chunkPos) {
+        if (world == null || chunkPos == null) {
+            return false;
+        }
+
+        int minY = world.getBottomY();
+        int maxY = world.getTopY();
+
+        if (this.schematicPlacement != null) {
+            Map<String, IntBoundingBox> boxes = this.schematicPlacement.getBoxesWithinChunk(chunkPos.x, chunkPos.z);
+
+            if (!boxes.isEmpty()) {
+                minY = Integer.MAX_VALUE;
+                maxY = Integer.MIN_VALUE;
+
+                for (IntBoundingBox box : boxes.values()) {
+                    minY = Math.min(minY, box.minY);
+                    maxY = Math.max(maxY, box.maxY);
+                }
+            }
+        }
+
+        return QuickLitematicaContainerVerifier.requestInventoryDataChunk(world, chunkPos, minY, maxY);
     }
 
     @Unique
