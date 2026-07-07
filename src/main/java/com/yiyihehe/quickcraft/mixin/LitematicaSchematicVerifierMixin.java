@@ -29,6 +29,7 @@ import net.minecraft.block.entity.BlockEntity;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.world.ClientWorld;
 import net.minecraft.inventory.Inventory;
+import net.minecraft.nbt.NbtCompound;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.ChunkPos;
 import net.minecraft.world.World;
@@ -586,10 +587,12 @@ public abstract class LitematicaSchematicVerifierMixin extends TaskBase implemen
 
         if (!(foundBlockEntity instanceof Inventory foundInventory)) {
             if (!fi.dy.masa.litematica.data.DataManager.getInstance().hasIntegratedServer()) {
-                this.quickcraft$debugFoundBlockEntityMissing++;
-                this.quickcraft$rememberPendingReason(pos, this.quickcraft$getMissingBlockEntityReason(foundWorld, pos, foundBlockEntity));
-                this.quickcraft$requestContainerInventoryData(foundWorld, pos);
-                return null;
+                if (this.quickcraft$shouldWaitForMissingInventory(foundWorld, pos, foundBlockEntity)) {
+                    this.quickcraft$debugFoundBlockEntityMissing++;
+                    this.quickcraft$rememberPendingReason(pos, this.quickcraft$getMissingBlockEntityReason(foundWorld, pos, foundBlockEntity));
+                    this.quickcraft$requestContainerInventoryData(foundWorld, pos);
+                    return null;
+                }
             }
 
             return List.of();
@@ -603,7 +606,7 @@ public abstract class LitematicaSchematicVerifierMixin extends TaskBase implemen
                 expected
         );
         if (found == null || found.size() != expected.size()) {
-            this.quickcraft$countActualInventoryFailure(pos, found, expected.size());
+            this.quickcraft$countActualInventoryFailure(foundWorld, pos, found, expected.size());
             return null;
         }
 
@@ -636,10 +639,12 @@ public abstract class LitematicaSchematicVerifierMixin extends TaskBase implemen
 
         if (!(foundBlockEntity instanceof Inventory foundInventory)) {
             if (!fi.dy.masa.litematica.data.DataManager.getInstance().hasIntegratedServer()) {
-                this.quickcraft$debugFoundBlockEntityMissing++;
-                this.quickcraft$rememberPendingReason(pos, this.quickcraft$getMissingBlockEntityReason(foundWorld, pos, foundBlockEntity));
-                this.quickcraft$requestContainerInventoryData(foundWorld, pos);
-                return null;
+                if (this.quickcraft$shouldWaitForMissingInventory(foundWorld, pos, foundBlockEntity)) {
+                    this.quickcraft$debugFoundBlockEntityMissing++;
+                    this.quickcraft$rememberPendingReason(pos, this.quickcraft$getMissingBlockEntityReason(foundWorld, pos, foundBlockEntity));
+                    this.quickcraft$requestContainerInventoryData(foundWorld, pos);
+                    return null;
+                }
             }
 
             return List.of();
@@ -653,7 +658,7 @@ public abstract class LitematicaSchematicVerifierMixin extends TaskBase implemen
         );
 
         if (found == null || found.size() != expected.inventory().size()) {
-            this.quickcraft$countActualInventoryFailure(pos, found, expected.inventory().size());
+            this.quickcraft$countActualInventoryFailure(foundWorld, pos, found, expected.inventory().size());
             return null;
         }
 
@@ -895,12 +900,22 @@ public abstract class LitematicaSchematicVerifierMixin extends TaskBase implemen
     }
 
     @Unique
+    private boolean quickcraft$shouldWaitForMissingInventory(World world, BlockPos pos, @Nullable BlockEntity foundBlockEntity) {
+        if (world == null) {
+            return true;
+        }
+
+        BlockState state = world.getBlockState(pos);
+        return foundBlockEntity == null && state.hasBlockEntity();
+    }
+
+    @Unique
     private void quickcraft$rememberPendingReason(BlockPos pos, String reason) {
         this.quickcraft$pendingContainerReasons.put(pos.toImmutable(), reason);
     }
 
     @Unique
-    private void quickcraft$countActualInventoryFailure(BlockPos pos, Inventory found, int expectedSize) {
+    private void quickcraft$countActualInventoryFailure(World world, BlockPos pos, Inventory found, int expectedSize) {
         if (found != null && found.size() != expectedSize) {
             this.quickcraft$debugActualSizeMismatch++;
             this.quickcraft$rememberPendingReason(pos, "actualSizeMismatch found=" + found.size()
@@ -910,7 +925,7 @@ public abstract class LitematicaSchematicVerifierMixin extends TaskBase implemen
 
         QuickLitematicaContainerVerifier.ActualInventoryReadStatus status =
                 QuickLitematicaContainerVerifier.getLastActualInventoryReadStatus();
-        this.quickcraft$rememberPendingReason(pos, "actualRead=" + status + " expected=" + expectedSize);
+        this.quickcraft$rememberPendingReason(pos, this.quickcraft$getActualReadFailureReason(world, pos, status, expectedSize));
 
         switch (status) {
             case NO_CACHE_NBT -> this.quickcraft$debugActualNoCacheNbt++;
@@ -918,6 +933,35 @@ public abstract class LitematicaSchematicVerifierMixin extends TaskBase implemen
             case CACHE_PARSE_FAILED -> this.quickcraft$debugActualCacheParseFailed++;
             default -> this.quickcraft$debugActualOtherFailure++;
         }
+    }
+
+    @Unique
+    private String quickcraft$getActualReadFailureReason(
+            World world,
+            BlockPos pos,
+            QuickLitematicaContainerVerifier.ActualInventoryReadStatus status,
+            int expectedSize
+    ) {
+        StringBuilder reason = new StringBuilder("actualRead=")
+                .append(status)
+                .append(" expected=")
+                .append(expectedSize);
+
+        if (world != null) {
+            reason.append(" block=").append(world.getBlockState(pos).getBlock());
+        }
+
+        if (status == QuickLitematicaContainerVerifier.ActualInventoryReadStatus.CACHE_PARSE_FAILED
+                || status == QuickLitematicaContainerVerifier.ActualInventoryReadStatus.CACHE_WITHOUT_ITEMS) {
+            NbtCompound cachedNbt = EntitiesDataStorage.getInstance().getFromBlockEntityCacheNbt(pos);
+            reason.append(" nbtKeys=").append(cachedNbt != null ? cachedNbt.getKeys() : "null");
+
+            if (cachedNbt != null && cachedNbt.contains("Items")) {
+                reason.append(" items=").append(cachedNbt.getList("Items", 10).size());
+            }
+        }
+
+        return reason.toString();
     }
 
     @Unique
