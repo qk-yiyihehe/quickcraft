@@ -1,6 +1,5 @@
 package com.yiyihehe.quickcraft.litematica;
 
-import com.yiyihehe.quickcraft.QuickCraft;
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.systems.VertexSorter;
 import com.yiyihehe.quickcraft.config.QuickCraftConfigs;
@@ -16,7 +15,6 @@ import fi.dy.masa.litematica.world.WorldSchematic;
 import fi.dy.masa.malilib.gui.widgets.WidgetFileBrowserBase.DirectoryEntry;
 import fi.dy.masa.malilib.render.RenderUtils;
 import fi.dy.masa.malilib.util.StringUtils;
-import net.fabricmc.loader.api.FabricLoader;
 import net.fabricmc.fabric.api.renderer.v1.RendererAccess;
 import net.fabricmc.fabric.impl.client.indigo.renderer.IndigoRenderer;
 import net.fabricmc.fabric.impl.client.indigo.renderer.render.WorldMesherRenderContext;
@@ -24,7 +22,9 @@ import net.minecraft.SharedConstants;
 import net.minecraft.block.BlockEntityProvider;
 import net.minecraft.block.BlockRenderType;
 import net.minecraft.block.BlockState;
+import net.minecraft.block.ChestBlock;
 import net.minecraft.block.entity.BlockEntity;
+import net.minecraft.block.entity.ChestBlockEntity;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.gl.VertexBuffer;
 import net.minecraft.client.gui.DrawContext;
@@ -80,6 +80,7 @@ import java.io.BufferedOutputStream;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -99,6 +100,8 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Supplier;
+import java.util.zip.GZIPInputStream;
+import java.util.zip.GZIPOutputStream;
 
 /**
  * Litematica 文件浏览器里的真实方块模型 3D 预览。
@@ -107,15 +110,16 @@ import java.util.function.Supplier;
 public final class QuickLitematicaPreview3D {
     private static final Logger LOGGER = LoggerFactory.getLogger(QuickLitematicaPreview3D.class);
     private static final Map<fi.dy.masa.litematica.gui.GuiSchematicBrowserBase, Manager> MANAGERS = new WeakHashMap<>();
-    private static final int CACHE_FORMAT_VERSION = 9;
+    // v10：磁盘格式改为 GZIP 压缩 + 顶点量化（float16 UV / octahedral 法线 / packed overlay+light）。
+    // 升版本会让旧缓存一次性失效；之后 mod 版本号变化不再清缓存（token 已不含 mod 版本）。
+    private static final int CACHE_FORMAT_VERSION = 10;
     private static final int CACHE_MAGIC = 0x51435033; // QCP3
     private static final String CACHE_DIR_NAME = "litematica-preview-cache";
     private static final String CACHE_VERSION_FILE_NAME = "cache-version.txt";
-    private static final String CACHE_RENDER_MARKER = "quickcraft-model-mesh-v9-larger-preview-budget-mc1.21";
+    private static final String CACHE_RENDER_MARKER = "quickcraft-model-mesh-v10-quantized-gzip-mc1.21";
     private static final int MAX_PREVIEW_SIZE = 512;
-    // 真实模型预览保留一个很高的硬上限，避免极端文件把游戏直接打死。
-    // 放宽 3D 预览预算，兼顾大体量纯方块原理图和高密度容器/红石原理图。
-    private static final int MAX_UPLOAD_VERTICES = 50_000_000;
+    // 预算必须卡在构建阶段前面：PreviewVertex 是 Java 对象，过高会在上传 GPU 前先打爆堆。
+    private static final int MAX_UPLOAD_VERTICES = 4_000_000;
     private static final int MAX_DYNAMIC_BLOCK_STATES = 300_000;
     private static final int MAX_DYNAMIC_BLOCK_ENTITIES = 32_768;
     private static final int MAX_DYNAMIC_ENTITIES = 8_192;
@@ -123,6 +127,9 @@ public final class QuickLitematicaPreview3D {
     private static final float DEFAULT_SLANT_RADIANS = (float) Math.toRadians(32.0);
     private static final long NBT_READ_LIMIT_BYTES = 32L * 1024L * 1024L;
     private static final int VERTEX_BYTES = 44;
+    // 量化顶点磁盘编码：12B 位置 + 4B 颜色 + 4B UV(float16×2) + 4B overlay/light(short×2) + 2B 法线(octahedral) = 26B
+    private static final int QUANTIZED_VERTEX_BYTES = 26;
+    private static final int MAX_QUANTIZED_LAYER_BYTES = MAX_UPLOAD_VERTICES * QUANTIZED_VERTEX_BYTES;
     private static final AtomicBoolean CACHE_DIRECTORY_READY = new AtomicBoolean();
     @Nullable
     private static volatile Path currentCacheDirectory;
@@ -371,7 +378,7 @@ public final class QuickLitematicaPreview3D {
                     }
 
                     for (LayerMesh layerMesh : data.layers()) {
-                        if (layerMesh.vertices().isEmpty()) {
+                        if (layerMesh.vertexCount() == 0) {
                             continue;
                         }
 
@@ -431,24 +438,32 @@ public final class QuickLitematicaPreview3D {
 
         @Nullable
         private static VertexBuffer uploadLayer(LayerMesh layerMesh) {
-            int allocatorSize = allocatorSize(layerMesh.vertices().size());
+            int vertexCount = layerMesh.vertexCount();
+            int allocatorSize = allocatorSize(vertexCount);
             BufferAllocator allocator = new BufferAllocator(allocatorSize);
             try {
                 BufferBuilder builder = new BufferBuilder(allocator, VertexFormat.DrawMode.QUADS, VertexFormats.POSITION_COLOR_TEXTURE_LIGHT_NORMAL);
-                for (PreviewVertex vertex : layerMesh.vertices()) {
-                    builder.vertex(
-                            vertex.x(),
-                            vertex.y(),
-                            vertex.z(),
-                            vertex.argb(),
-                            vertex.u(),
-                            vertex.v(),
-                            vertex.overlay(),
-                            vertex.light(),
-                            vertex.nx(),
-                            vertex.ny(),
-                            vertex.nz()
-                    );
+                byte[] quantized = layerMesh.quantizedVertices();
+                if (quantized != null) {
+                    // 缓存命中：直接从量化字节解码进 BufferBuilder，跳过 PreviewVertex list。
+                    CacheFile.decodeQuantizedToBuilder(quantized, builder);
+                } else {
+                    // 首次构建后立即预览（还没写盘）：从 PreviewVertex list 走原路径。
+                    for (PreviewVertex vertex : layerMesh.vertices()) {
+                        builder.vertex(
+                                vertex.x(),
+                                vertex.y(),
+                                vertex.z(),
+                                vertex.argb(),
+                                vertex.u(),
+                                vertex.v(),
+                                vertex.overlay(),
+                                vertex.light(),
+                                vertex.nx(),
+                                vertex.ny(),
+                                vertex.nz()
+                        );
+                    }
                 }
 
                 var built = builder.endNullable();
@@ -461,10 +476,18 @@ public final class QuickLitematicaPreview3D {
                 }
 
                 VertexBuffer buffer = new VertexBuffer(VertexBuffer.Usage.STATIC);
-                buffer.bind();
-                buffer.upload(built);
-                VertexBuffer.unbind();
-                return buffer;
+                boolean uploaded = false;
+                try {
+                    buffer.bind();
+                    buffer.upload(built);
+                    uploaded = true;
+                    return buffer;
+                } finally {
+                    VertexBuffer.unbind();
+                    if (!uploaded && !buffer.isClosed()) {
+                        buffer.close();
+                    }
+                }
             } finally {
                 allocator.close();
             }
@@ -503,7 +526,7 @@ public final class QuickLitematicaPreview3D {
             RenderSystem.applyModelViewMatrix();
 
             this.applyLight(modelView);
-            this.drawDynamic(data);
+            this.drawDynamic(data, modelView, x, y, size);
             this.drawBuffers(modelView);
 
             modelView.popMatrix();
@@ -530,15 +553,26 @@ public final class QuickLitematicaPreview3D {
             VertexBuffer.unbind();
         }
 
-        private void drawDynamic(MeshData data) {
+        private void drawDynamic(MeshData data, Matrix4f modelView, int viewX, int viewY, int viewSize) {
             DynamicScene scene = data.dynamicScene();
             if (scene.isEmpty()) {
                 return;
             }
 
             MinecraftClient client = MinecraftClient.getInstance();
+            // 视口剔除器：把每个动态对象变换到 framebuffer 像素，落在预览框外的直接跳过。
+            // 预览框本身已有 scissor 裁剪，剔除框外对象纯属减负，不影响可见内容。
+            ViewportCuller culler = new ViewportCuller(modelView, RenderSystem.getProjectionMatrix(), client, viewX, viewY, viewSize);
             MatrixStack matrices = new MatrixStack();
             scene.blockEntities().forEach((pos, entity) -> {
+                // 箱子已在构建阶段静态化进 VBO，这里跳过不重复渲染。
+                if (entity instanceof ChestBlockEntity) {
+                    return;
+                }
+                // 用方块中心点判定，覆盖大多数方块实体模型
+                if (culler.isOutside(pos.getX() + 0.5F, pos.getY() + 0.5F, pos.getZ() + 0.5F)) {
+                    return;
+                }
                 matrices.push();
                 matrices.translate(pos.getX(), pos.getY(), pos.getZ());
                 // 高层方块实体渲染会按真实相机做距离判断，预览里的离屏假世界不能走那条路径。
@@ -548,6 +582,9 @@ public final class QuickLitematicaPreview3D {
             this.flushDynamic();
 
             scene.entities().forEach(entity -> {
+                if (culler.isOutside((float) entity.x(), (float) entity.y(), (float) entity.z())) {
+                    return;
+                }
                 client.getEntityRenderDispatcher().render(
                         entity.entity(),
                         entity.x(),
@@ -559,24 +596,13 @@ public final class QuickLitematicaPreview3D {
                         client.getBufferBuilders().getEntityVertexConsumers(),
                         entity.light()
                 );
-                this.flushDynamic();
             });
+            // flush 从实体循环内移到循环外：原实现每实体一次 GPU flush，N 个实体 = N 次 flush，是卡顿主因。
+            this.flushDynamic();
         }
 
         private void flushDynamic() {
             MinecraftClient.getInstance().getBufferBuilders().getEntityVertexConsumers().draw();
-        }
-
-        private static <T extends BlockEntity> void renderBlockEntity(MinecraftClient client, T entity, MatrixStack matrices, VertexConsumerProvider consumers) {
-            BlockEntityRenderer<T> renderer = client.getBlockEntityRenderDispatcher().get(entity);
-            if (renderer == null) {
-                return;
-            }
-
-            int light = entity.getWorld() != null
-                    ? WorldRenderer.getLightmapCoordinates(entity.getWorld(), entity.getPos())
-                    : LightmapTextureManager.MAX_LIGHT_COORDINATE;
-            renderer.render(entity, 0.0F, matrices, consumers, light, OverlayTexture.DEFAULT_UV);
         }
 
         private void applyLight(Matrix4f viewMatrix) {
@@ -651,6 +677,19 @@ public final class QuickLitematicaPreview3D {
     private static final class PreviewTooLargeException extends RuntimeException {
     }
 
+    // 渲染方块实体到指定 VertexConsumerProvider。构建阶段（静态化箱子）和预览阶段（动态 BE）共用。
+    private static <T extends BlockEntity> void renderBlockEntity(MinecraftClient client, T entity, MatrixStack matrices, VertexConsumerProvider consumers) {
+        BlockEntityRenderer<T> renderer = client.getBlockEntityRenderDispatcher().get(entity);
+        if (renderer == null) {
+            return;
+        }
+
+        int light = entity.getWorld() != null
+                ? WorldRenderer.getLightmapCoordinates(entity.getWorld(), entity.getPos())
+                : LightmapTextureManager.MAX_LIGHT_COORDINATE;
+        renderer.render(entity, 0.0F, matrices, consumers, light, OverlayTexture.DEFAULT_UV);
+    }
+
     private static void translateToScreen(Matrix4fStack matrixStack, MinecraftClient client, float x, float y) {
         int screenWidth = client.currentScreen == null ? client.getWindow().getScaledWidth() : client.currentScreen.width;
         int screenHeight = client.currentScreen == null ? client.getWindow().getScaledHeight() : client.currentScreen.height;
@@ -720,14 +759,8 @@ public final class QuickLitematicaPreview3D {
     }
 
     private static String currentCacheVersionToken() {
-        return currentModVersion() + "|" + CACHE_FORMAT_VERSION + "|" + CACHE_RENDER_MARKER;
-    }
-
-    private static String currentModVersion() {
-        return FabricLoader.getInstance()
-                .getModContainer(QuickCraft.MOD_ID)
-                .map(container -> container.getMetadata().getVersion().getFriendlyString())
-                .orElse("unknown");
+        // 不含 mod 版本号：只有磁盘格式真正改变时才应清缓存，mod 版本升级不应触发清理。
+        return CACHE_FORMAT_VERSION + "|" + CACHE_RENDER_MARKER;
     }
 
     @Nullable
@@ -890,7 +923,7 @@ public final class QuickLitematicaPreview3D {
                     BlockState state = view.getBlockState(pos);
                     if (!state.isAir()) {
                         BlockPos renderPos = pos.subtract(bounds.min());
-                        recordBlockEntity(blockStates, blockEntities, blockEntityRendererCache, view, state, schematicBlockEntities, pos, renderPos, bounds);
+                        recordBlockEntity(collector, client, matrices, blockStates, blockEntities, blockEntityRendererCache, view, state, schematicBlockEntities, pos, renderPos, bounds);
                         renderFluidIfPresent(collector, blockRenderManager, matrices, view, state, pos, renderPos);
                         renderBlockModel(collector, blockRenderManager, fabricContext, matrices, view, state, pos, renderPos, random);
                     }
@@ -917,7 +950,7 @@ public final class QuickLitematicaPreview3D {
         private static int vertexCount(List<LayerMesh> layers) {
             int count = 0;
             for (LayerMesh layer : layers) {
-                count += layer.vertices().size();
+                count += layer.vertexCount();
             }
             return count;
         }
@@ -945,6 +978,9 @@ public final class QuickLitematicaPreview3D {
         }
 
         private static void recordBlockEntity(
+                MeshCollector collector,
+                MinecraftClient client,
+                MatrixStack matrices,
                 Map<BlockPos, BlockStateData> blockStates,
                 List<BlockEntityData> blockEntities,
                 Map<BlockState, Boolean> blockEntityRendererCache,
@@ -960,6 +996,19 @@ public final class QuickLitematicaPreview3D {
             }
 
             if (!blockEntityRendererCache.computeIfAbsent(state, key -> hasPreviewBlockEntityRenderer(provider, key, renderPos))) {
+                return;
+            }
+
+            // 箱子闭合态静态化：构建阶段录顶点进静态层，预览时 GPU 直绘，不每帧 CPU 细分。
+            // 双箱合并由 ChestBlockEntityRenderer 根据 BlockState 的 CHEST_TYPE/FACING 判断，不需要查 world。
+            // 仍登记自身 BlockState 进 blockStates，供其他动态 BE 查邻居连接用。
+            if (state.getBlock() instanceof ChestBlock) {
+                recordDynamicBlockState(blockStates, state, renderPos);
+                BlockEntity chest = provider.createBlockEntity(renderPos, state);
+                if (chest != null) {
+                    chest.setCachedState(state);
+                    renderBlockEntity(client, chest, matrices, layer -> collector.consumerFor(layer));
+                }
                 return;
             }
 
@@ -1186,10 +1235,20 @@ public final class QuickLitematicaPreview3D {
 
     private static final class MeshCollector {
         private final EnumMap<LayerKey, RecordingVertexConsumer> consumers = new EnumMap<>(LayerKey.class);
+        private int vertexCount;
 
         private VertexConsumer consumerFor(RenderLayer renderLayer) {
             LayerKey layer = LayerKey.from(renderLayer);
-            return this.consumers.computeIfAbsent(layer, ignored -> new RecordingVertexConsumer());
+            return this.consumers.computeIfAbsent(layer, ignored -> new RecordingVertexConsumer(this));
+        }
+
+        private void addVertex(List<PreviewVertex> vertices, PreviewVertex vertex) {
+            if (this.vertexCount >= MAX_UPLOAD_VERTICES) {
+                throw new PreviewTooLargeException();
+            }
+
+            this.vertexCount++;
+            vertices.add(vertex);
         }
 
         private List<LayerMesh> toMeshes() {
@@ -1205,6 +1264,7 @@ public final class QuickLitematicaPreview3D {
     }
 
     private static final class RecordingVertexConsumer implements VertexConsumer {
+        private final MeshCollector collector;
         private final List<PreviewVertex> vertices = new ArrayList<>();
         private float x;
         private float y;
@@ -1214,6 +1274,10 @@ public final class QuickLitematicaPreview3D {
         private float v;
         private int overlay = OverlayTexture.DEFAULT_UV;
         private int light = LightmapTextureManager.MAX_LIGHT_COORDINATE;
+
+        private RecordingVertexConsumer(MeshCollector collector) {
+            this.collector = collector;
+        }
 
         @Override
         public VertexConsumer vertex(float x, float y, float z) {
@@ -1268,7 +1332,7 @@ public final class QuickLitematicaPreview3D {
 
         @Override
         public VertexConsumer normal(float x, float y, float z) {
-            this.vertices.add(new PreviewVertex(this.x, this.y, this.z, this.argb, this.u, this.v, this.overlay, this.light, x, y, z));
+            this.collector.addVertex(this.vertices, new PreviewVertex(this.x, this.y, this.z, this.argb, this.u, this.v, this.overlay, this.light, x, y, z));
             this.overlay = OverlayTexture.DEFAULT_UV;
             this.light = LightmapTextureManager.MAX_LIGHT_COORDINATE;
             return this;
@@ -1276,7 +1340,7 @@ public final class QuickLitematicaPreview3D {
 
         @Override
         public void vertex(float x, float y, float z, int color, float u, float v, int overlay, int light, float normalX, float normalY, float normalZ) {
-            this.vertices.add(new PreviewVertex(x, y, z, color, u, v, overlay, light, normalX, normalY, normalZ));
+            this.collector.addVertex(this.vertices, new PreviewVertex(x, y, z, color, u, v, overlay, light, normalX, normalY, normalZ));
         }
     }
 
@@ -1329,7 +1393,19 @@ public final class QuickLitematicaPreview3D {
     private record PreviewVertex(float x, float y, float z, int argb, float u, float v, int overlay, int light, float nx, float ny, float nz) {
     }
 
-    private record LayerMesh(LayerKey layer, List<PreviewVertex> vertices) {
+    // vertices：未命中缓存（首次构建）时填，用于首次写盘 + 立即预览。
+    // quantizedVertices：命中缓存时填，渲染线程直接解码进 BufferBuilder，跳过 PreviewVertex list 中间对象。
+    private record LayerMesh(LayerKey layer, List<PreviewVertex> vertices, byte[] quantizedVertices) {
+        private LayerMesh(LayerKey layer, List<PreviewVertex> vertices) {
+            this(layer, vertices, null);
+        }
+
+        private int vertexCount() {
+            if (this.quantizedVertices != null) {
+                return this.quantizedVertices.length / QUANTIZED_VERTEX_BYTES;
+            }
+            return this.vertices.size();
+        }
     }
 
     private record BlockStateData(int x, int y, int z, NbtCompound stateNbt) {
@@ -1378,7 +1454,7 @@ public final class QuickLitematicaPreview3D {
         private int vertexCount() {
             int count = 0;
             for (LayerMesh layer : this.layers) {
-                count += layer.vertices().size();
+                count += layer.vertexCount();
             }
             return count;
         }
@@ -1386,7 +1462,7 @@ public final class QuickLitematicaPreview3D {
         private boolean withinBudget() {
             long vertices = 0L;
             for (LayerMesh layer : this.layers) {
-                vertices += layer.vertices().size();
+                vertices += layer.vertexCount();
                 if (vertices > MAX_UPLOAD_VERTICES) {
                     return false;
                 }
@@ -1510,6 +1586,53 @@ public final class QuickLitematicaPreview3D {
 
         private DynamicScene(Map<BlockPos, BlockEntity> blockEntities, List<RenderedEntity> entities) {
             this(null, blockEntities, entities);
+        }
+    }
+
+    /**
+     * 动态内容视口剔除器：把模型空间点变换到 framebuffer 像素，判定是否落在预览框（含安全余量）内。
+     * 预览框外对象本就被 scissor 裁掉看不见，剔除纯属减负，不改可见效果。
+     */
+    private static final class ViewportCuller {
+        private final Matrix4f modelView;
+        private final Matrix4f projection;
+        private final float framebufferWidth;
+        private final float framebufferHeight;
+        private final float minX;
+        private final float maxX;
+        private final float minY;
+        private final float maxY;
+        private final Vector4f scratch = new Vector4f();
+
+        private ViewportCuller(Matrix4f modelView, Matrix4f projection, MinecraftClient client, int viewX, int viewY, int viewSize) {
+            this.modelView = modelView;
+            this.projection = projection;
+            this.framebufferWidth = client.getWindow().getFramebufferWidth();
+            this.framebufferHeight = client.getWindow().getFramebufferHeight();
+            int screenHeight = client.currentScreen == null ? client.getWindow().getScaledHeight() : client.currentScreen.height;
+            float guiScale = screenHeight > 0 ? this.framebufferHeight / screenHeight : 1.0F;
+            // 安全余量：实体/方块实体模型可能延伸出位置点，给 48px 覆盖盔甲架/画等大模型。
+            float margin = 48.0F;
+            this.minX = (viewX - margin) * guiScale;
+            this.maxX = (viewX + viewSize + margin) * guiScale;
+            this.minY = (viewY - margin) * guiScale;
+            this.maxY = (viewY + viewSize + margin) * guiScale;
+        }
+
+        private boolean isOutside(float x, float y, float z) {
+            // 模型空间 -> 视图空间 -> 裁剪空间 -> NDC -> framebuffer 像素
+            this.scratch.set(x, y, z, 1.0F);
+            this.modelView.transform(this.scratch);
+            this.projection.transform(this.scratch);
+            float w = this.scratch.w;
+            if (w == 0.0F) {
+                return false;
+            }
+            float ndcX = this.scratch.x / w;
+            float ndcY = this.scratch.y / w;
+            float pixelX = (ndcX + 1.0F) * 0.5F * this.framebufferWidth;
+            float pixelY = (1.0F - ndcY) * 0.5F * this.framebufferHeight;
+            return pixelX < this.minX || pixelX > this.maxX || pixelY < this.minY || pixelY > this.maxY;
         }
     }
 
@@ -1664,7 +1787,7 @@ public final class QuickLitematicaPreview3D {
                 return null;
             }
 
-            try (DataInputStream input = new DataInputStream(new BufferedInputStream(Files.newInputStream(path)))) {
+            try (DataInputStream input = new DataInputStream(new GZIPInputStream(new BufferedInputStream(Files.newInputStream(path))))) {
                 int magic = input.readInt();
                 int version = input.readInt();
                 String marker = input.readUTF();
@@ -1677,7 +1800,6 @@ public final class QuickLitematicaPreview3D {
                 int sizeY = input.readInt();
                 int sizeZ = input.readInt();
                 int layerCount = input.readInt();
-                long fileSize = Files.size(path);
                 if (sizeX <= 0 || sizeY <= 0 || sizeZ <= 0 || layerCount < 0 || layerCount > LayerKey.values().length) {
                     deleteQuietly(path);
                     return null;
@@ -1693,35 +1815,24 @@ public final class QuickLitematicaPreview3D {
                     LayerKey layer = LayerKey.byId(input.readInt());
                     int vertexCount = input.readInt();
                     totalVertices += Math.max(vertexCount, 0);
-                    if (layer == null
-                            || vertexCount < 0
-                            || totalVertices > MAX_UPLOAD_VERTICES
-                            || totalVertices * VERTEX_BYTES > fileSize + 1024L) {
+                    // GZIP 压缩后无法用文件大小校验顶点数，仅用 MAX_UPLOAD_VERTICES 上界；
+                    // 损坏文件会在 readFully 抛 EOFException 被外层 catch 删除。
+                    if (layer == null || vertexCount < 0 || totalVertices > MAX_UPLOAD_VERTICES) {
                         deleteQuietly(path);
                         return null;
                     }
 
-                    List<PreviewVertex> vertices = new ArrayList<>(vertexCount);
-                    for (int i = 0; i < vertexCount; i++) {
-                        if ((i & 0x7FF) == 0 && cancelled.get()) {
-                            throw new CancellationException();
-                        }
-
-                        vertices.add(new PreviewVertex(
-                                input.readFloat(),
-                                input.readFloat(),
-                                input.readFloat(),
-                                input.readInt(),
-                                input.readFloat(),
-                                input.readFloat(),
-                                input.readInt(),
-                                input.readInt(),
-                                input.readFloat(),
-                                input.readFloat(),
-                                input.readFloat()
-                        ));
+                    // 批量读取量化顶点字节，直接存进 LayerMesh，渲染线程再解码进 BufferBuilder。
+                    // 跳过逐顶点 new PreviewVertex + List.copyOf，大文件读取 2-4× 加速。
+                    long quantizedBytes = (long) vertexCount * QUANTIZED_VERTEX_BYTES;
+                    if (quantizedBytes > MAX_QUANTIZED_LAYER_BYTES || quantizedBytes > Integer.MAX_VALUE - 8L) {
+                        deleteQuietly(path);
+                        return null;
                     }
-                    layers.add(new LayerMesh(layer, List.copyOf(vertices)));
+
+                    byte[] quantizedVertices = new byte[(int) quantizedBytes];
+                    input.readFully(quantizedVertices);
+                    layers.add(new LayerMesh(layer, List.of(), quantizedVertices));
                 }
 
                 int blockStateCount = input.readInt();
@@ -1796,7 +1907,7 @@ public final class QuickLitematicaPreview3D {
 
         private static void writeAtomically(Path tmpPath, Path finalPath, MeshData data, AtomicBoolean cancelled) throws IOException {
             deleteTmpQuietly(tmpPath);
-            try (DataOutputStream output = new DataOutputStream(new BufferedOutputStream(Files.newOutputStream(tmpPath)))) {
+            try (DataOutputStream output = new DataOutputStream(new GZIPOutputStream(new BufferedOutputStream(Files.newOutputStream(tmpPath))))) {
                 output.writeInt(CACHE_MAGIC);
                 output.writeInt(CACHE_FORMAT_VERSION);
                 output.writeUTF(CACHE_RENDER_MARKER);
@@ -1808,23 +1919,22 @@ public final class QuickLitematicaPreview3D {
                 int written = 0;
                 for (LayerMesh layer : data.layers()) {
                     output.writeInt(layer.layer().id);
-                    output.writeInt(layer.vertices().size());
+                    output.writeInt(layer.vertexCount());
                     for (PreviewVertex vertex : layer.vertices()) {
                         if ((written++ & 0x7FF) == 0 && cancelled.get()) {
                             throw new CancellationException();
                         }
-
+                        // 26B 量化编码：位置/颜色 float32 原样，UV float16，overlay/light packed short，法线 octahedral short。
+                        // 静态网格的 overlay/light 恒为低 16 位打包值（DEFAULT_UV / MAX_LIGHT_COORDINATE），写 short 无损。
                         output.writeFloat(vertex.x());
                         output.writeFloat(vertex.y());
                         output.writeFloat(vertex.z());
                         output.writeInt(vertex.argb());
-                        output.writeFloat(vertex.u());
-                        output.writeFloat(vertex.v());
-                        output.writeInt(vertex.overlay());
-                        output.writeInt(vertex.light());
-                        output.writeFloat(vertex.nx());
-                        output.writeFloat(vertex.ny());
-                        output.writeFloat(vertex.nz());
+                        output.writeShort(floatToHalf(vertex.u()));
+                        output.writeShort(floatToHalf(vertex.v()));
+                        output.writeShort((short) vertex.overlay());
+                        output.writeShort((short) vertex.light());
+                        output.writeShort(encodeNormal(vertex.nx(), vertex.ny(), vertex.nz()));
                     }
                 }
 
@@ -1875,6 +1985,130 @@ public final class QuickLitematicaPreview3D {
             } catch (AtomicMoveNotSupportedException e) {
                 Files.move(tmpPath, finalPath, StandardCopyOption.REPLACE_EXISTING);
             }
+        }
+
+        // ---- 顶点量化解编码工具：float16 (UV) / octahedral 8-bit (法线) ----
+
+        // 缓存命中时，渲染线程调用：把量化字节数组直接解码进 BufferBuilder，跳过 PreviewVertex list。
+        // ByteBuffer 默认大端序，与 DataOutputStream 写出一致。
+        private static void decodeQuantizedToBuilder(byte[] quantized, BufferBuilder builder) {
+            ByteBuffer buffer = ByteBuffer.wrap(quantized);
+            float[] normal = new float[3];
+            while (buffer.hasRemaining()) {
+                float x = buffer.getFloat();
+                float y = buffer.getFloat();
+                float z = buffer.getFloat();
+                int argb = buffer.getInt();
+                float u = halfToFloat(buffer.getShort());
+                float v = halfToFloat(buffer.getShort());
+                int overlay = buffer.getShort() & 0xFFFF;
+                int light = buffer.getShort() & 0xFFFF;
+                decodeNormal(buffer.getShort(), normal);
+                builder.vertex(x, y, z, argb, u, v, overlay, light, normal[0], normal[1], normal[2]);
+            }
+        }
+
+        // float32 -> IEEE 754 binary16。UV 在 [0,1]，1/1024 精度远细于图集纹素。
+        private static short floatToHalf(float f) {
+            int bits = Float.floatToIntBits(f);
+            int sign = (bits >>> 16) & 0x8000;
+            int exp = (bits >>> 23) & 0xFF;
+            int mant = bits & 0x7FFFFF;
+            if (exp == 0xFF) {
+                return (short) (sign | 0x7C00 | (mant != 0 ? 0x200 : 0));
+            }
+            exp = exp - 127 + 15;
+            mant >>>= 13;
+            if (exp >= 0x1F) {
+                return (short) (sign | 0x7C00);
+            }
+            if (exp <= 0) {
+                if (exp < -10) {
+                    return (short) sign;
+                }
+                mant = (mant | 0x400) >> (1 - exp);
+                return (short) (sign | mant);
+            }
+            return (short) (sign | (exp << 10) | mant);
+        }
+
+        // IEEE 754 binary16 -> float32
+        private static float halfToFloat(short h) {
+            int bits = h & 0xFFFF;
+            int sign = (bits & 0x8000) << 16;
+            int exp = (bits >>> 10) & 0x1F;
+            int mant = bits & 0x3FF;
+            if (exp == 0) {
+                if (mant == 0) {
+                    return Float.intBitsToFloat(sign);
+                }
+                int e = -1;
+                while ((mant & 0x400) == 0) {
+                    mant <<= 1;
+                    e--;
+                }
+                mant &= 0x3FF;
+                return Float.intBitsToFloat(sign | ((e + 127) << 23) | (mant << 13));
+            }
+            if (exp == 0x1F) {
+                return Float.intBitsToFloat(sign | 0x7F800000 | (mant != 0 ? 0x400000 : 0));
+            }
+            return Float.intBitsToFloat(sign | ((exp - 15 + 127) << 23) | (mant << 13));
+        }
+
+        // 法线 (float x3) -> 2 字节，八面体编码 8-bit/分量。方向光照肉眼不可察觉差异。
+        private static short encodeNormal(float nx, float ny, float nz) {
+            float len = (float) Math.sqrt(nx * nx + ny * ny + nz * nz);
+            if (len < 1e-6F) {
+                return 0;
+            }
+            nx /= len;
+            ny /= len;
+            nz /= len;
+            float denom = Math.abs(nx) + Math.abs(ny) + Math.abs(nz);
+            float pu = nx / denom;
+            float pv = ny / denom;
+            if (nz < 0.0F) {
+                float newU = (1.0F - Math.abs(pv)) * (pu >= 0.0F ? 1.0F : -1.0F);
+                float newV = (1.0F - Math.abs(pu)) * (pv >= 0.0F ? 1.0F : -1.0F);
+                pu = newU;
+                pv = newV;
+            }
+            int iu = Math.round(pu * 127.0F);
+            int iv = Math.round(pv * 127.0F);
+            return (short) ((iu & 0xFF) << 8 | (iv & 0xFF));
+        }
+
+        // 2 字节八面体编码 -> 法线，填入复用数组避免分配。
+        private static void decodeNormal(short packed, float[] out) {
+            int iu = (packed >> 8) & 0xFF;
+            int iv = packed & 0xFF;
+            int su = iu > 127 ? iu - 256 : iu;
+            int sv = iv > 127 ? iv - 256 : iv;
+            float pu = su / 127.0F;
+            float pv = sv / 127.0F;
+            float pz = 1.0F - Math.abs(pu) - Math.abs(pv);
+            float nx;
+            float ny;
+            float nz;
+            if (pz < 0.0F) {
+                nx = (1.0F - Math.abs(pv)) * (pu >= 0.0F ? 1.0F : -1.0F);
+                ny = (1.0F - Math.abs(pu)) * (pv >= 0.0F ? 1.0F : -1.0F);
+                nz = pz;
+            } else {
+                nx = pu;
+                ny = pv;
+                nz = pz;
+            }
+            float len = (float) Math.sqrt(nx * nx + ny * ny + nz * nz);
+            if (len > 1e-6F) {
+                nx /= len;
+                ny /= len;
+                nz /= len;
+            }
+            out[0] = nx;
+            out[1] = ny;
+            out[2] = nz;
         }
     }
 }
