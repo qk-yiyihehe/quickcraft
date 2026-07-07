@@ -23,6 +23,7 @@ import fi.dy.masa.litematica.util.SchematicUtils;
 import fi.dy.masa.malilib.gui.LeftRight;
 import fi.dy.masa.malilib.render.InventoryOverlay;
 import fi.dy.masa.malilib.util.game.BlockUtils;
+import fi.dy.masa.malilib.util.data.Constants;
 import fi.dy.masa.malilib.util.nbt.NbtBlockUtils;
 import net.minecraft.block.AbstractFurnaceBlock;
 import net.minecraft.block.BrewingStandBlock;
@@ -51,6 +52,8 @@ import net.minecraft.inventory.Inventory;
 import net.minecraft.inventory.SimpleInventory;
 import net.minecraft.item.ItemStack;
 import net.minecraft.nbt.NbtCompound;
+import net.minecraft.nbt.NbtList;
+import net.minecraft.registry.RegistryWrapper;
 import net.minecraft.screen.BlastFurnaceScreenHandler;
 import net.minecraft.screen.BrewingStandScreenHandler;
 import net.minecraft.screen.CrafterScreenHandler;
@@ -145,7 +148,7 @@ public final class QuickLitematicaContainerVerifier {
         NbtCompound nbt = expectedBlockEntity.createNbtWithIdentifyingData(expectedBlockEntity.getWorld().getRegistryManager());
 
         if (nbt.contains("Items")) {
-            Inventory nbtInventory = fi.dy.masa.malilib.util.InventoryUtils.getNbtInventory(
+            Inventory nbtInventory = getNbtInventoryPreservingComponents(
                     nbt,
                     directInventory != null ? directInventory.size() : -1,
                     expectedBlockEntity.getWorld().getRegistryManager()
@@ -219,7 +222,7 @@ public final class QuickLitematicaContainerVerifier {
         }
 
         return cachedNbt != null
-                ? fi.dy.masa.malilib.util.InventoryUtils.getNbtInventory(
+                ? getNbtInventoryPreservingComponents(
                         cachedNbt,
                         expectedSize,
                         world.getRegistryManager()
@@ -261,12 +264,12 @@ public final class QuickLitematicaContainerVerifier {
             return null;
         }
 
-        Inventory currentInventory = fi.dy.masa.malilib.util.InventoryUtils.getNbtInventory(
+        Inventory currentInventory = getNbtInventoryPreservingComponents(
                 currentNbt,
                 27,
                 world.getRegistryManager()
         );
-        Inventory adjacentInventory = fi.dy.masa.malilib.util.InventoryUtils.getNbtInventory(
+        Inventory adjacentInventory = getNbtInventoryPreservingComponents(
                 adjacentNbt,
                 27,
                 world.getRegistryManager()
@@ -279,6 +282,46 @@ public final class QuickLitematicaContainerVerifier {
         return chestType == ChestType.RIGHT
                 ? mergeInventories(currentInventory, adjacentInventory)
                 : mergeInventories(adjacentInventory, currentInventory);
+    }
+
+    private static Inventory getNbtInventoryPreservingComponents(
+            NbtCompound nbt,
+            int expectedSize,
+            RegistryWrapper.WrapperLookup registryLookup
+    ) {
+        if (nbt == null || registryLookup == null || !nbt.contains("Items", Constants.NBT.TAG_LIST)) {
+            return null;
+        }
+
+        NbtList items = nbt.getList("Items", Constants.NBT.TAG_COMPOUND);
+        int size = expectedSize > 0 ? expectedSize : inferInventorySize(items);
+        if (size <= 0) {
+            return null;
+        }
+
+        SimpleInventory inventory = new SimpleInventory(size);
+        for (int i = 0; i < items.size(); i++) {
+            NbtCompound itemNbt = items.getCompound(i);
+            int slot = itemNbt.getByte("Slot") & 255;
+            if (slot < 0 || slot >= size) {
+                continue;
+            }
+
+            ItemStack stack = ItemStack.fromNbt(registryLookup, itemNbt).orElse(ItemStack.EMPTY);
+            if (!stack.isEmpty()) {
+                inventory.setStack(slot, stack);
+            }
+        }
+
+        return inventory;
+    }
+
+    private static int inferInventorySize(NbtList items) {
+        int size = 0;
+        for (int i = 0; i < items.size(); i++) {
+            size = Math.max(size, (items.getCompound(i).getByte("Slot") & 255) + 1);
+        }
+        return size;
     }
 
     public static ActualInventoryReadStatus getLastActualInventoryReadStatus() {
