@@ -293,6 +293,11 @@ public final class QuickCraftConfigs implements IConfigHandler {
                 true,
                 ""
         ).apply(PROJECTION_TRANSLATION_PREFIX);
+        public static final ConfigBooleanHotkeyed ALLOW_EASY_PLACE_OPEN_CONTAINERS = new ConfigBooleanHotkeyed(
+                "allowEasyPlaceOpenContainers",
+                false,
+                ""
+        ).apply(PROJECTION_TRANSLATION_PREFIX);
         public static final ConfigBooleanHotkeyed SHOW_LITEMATICA_CONTAINER_MATERIAL_BUTTON = new ConfigBooleanHotkeyed(
                 "showLitematicaContainerMaterialButton",
                 true,
@@ -390,6 +395,7 @@ public final class QuickCraftConfigs implements IConfigHandler {
         ).apply(PROJECTION_TRANSLATION_PREFIX);
         public static final List<IConfigBase> OPTIONS = List.of(
                 SHOW_LITEMATICA_3D_PREVIEW,
+                ALLOW_EASY_PLACE_OPEN_CONTAINERS,
                 SHOW_LITEMATICA_CONTAINER_MATERIAL_BUTTON,
                 SHOW_LITEMATICA_CONTAINER_SLOT_HINTS,
                 SHOW_LITEMATICA_CONTAINER_VERIFIER,
@@ -560,6 +566,7 @@ public final class QuickCraftConfigs implements IConfigHandler {
                 ContainerTools.ENABLE_CONTAINER_TOOL_MODE,
                 ContainerTools.ENABLE_QUICK_BEACON,
                 ProjectionTools.SHOW_LITEMATICA_3D_PREVIEW,
+                ProjectionTools.ALLOW_EASY_PLACE_OPEN_CONTAINERS,
                 ProjectionTools.SHOW_LITEMATICA_CONTAINER_MATERIAL_BUTTON,
                 ProjectionTools.SHOW_LITEMATICA_CONTAINER_SLOT_HINTS,
                 ProjectionTools.SHOW_LITEMATICA_CONTAINER_VERIFIER,
@@ -603,6 +610,7 @@ public final class QuickCraftConfigs implements IConfigHandler {
                 ContainerTools.ENABLE_CONTAINER_TOOL_MODE,
                 ContainerTools.ENABLE_QUICK_BEACON,
                 ProjectionTools.SHOW_LITEMATICA_3D_PREVIEW,
+                ProjectionTools.ALLOW_EASY_PLACE_OPEN_CONTAINERS,
                 ProjectionTools.SHOW_LITEMATICA_CONTAINER_MATERIAL_BUTTON,
                 ProjectionTools.SHOW_LITEMATICA_CONTAINER_SLOT_HINTS,
                 ProjectionTools.SHOW_LITEMATICA_CONTAINER_VERIFIER,
@@ -791,6 +799,10 @@ public final class QuickCraftConfigs implements IConfigHandler {
 
     public static boolean isLitematica3DPreviewEnabled() {
         return ProjectionTools.SHOW_LITEMATICA_3D_PREVIEW.getBooleanValue();
+    }
+
+    public static boolean isEasyPlaceOpenContainersAllowed() {
+        return ProjectionTools.ALLOW_EASY_PLACE_OPEN_CONTAINERS.getBooleanValue();
     }
 
     public static boolean isLitematicaContainerMaterialListButtonVisible() {
