@@ -146,6 +146,24 @@ public abstract class LitematicaSchematicVerifierMixin extends TaskBase implemen
     private int quickcraft$debugFailedChunkRequests;
 
     @Unique
+    private int quickcraft$debugFoundBlockEntityMissing;
+
+    @Unique
+    private int quickcraft$debugActualNoCacheNbt;
+
+    @Unique
+    private int quickcraft$debugActualCacheWithoutItems;
+
+    @Unique
+    private int quickcraft$debugActualCacheParseFailed;
+
+    @Unique
+    private int quickcraft$debugActualSizeMismatch;
+
+    @Unique
+    private int quickcraft$debugActualOtherFailure;
+
+    @Unique
     private int quickcraft$refreshCursor;
 
     @Override
@@ -562,6 +580,7 @@ public abstract class LitematicaSchematicVerifierMixin extends TaskBase implemen
 
         if (!(foundBlockEntity instanceof Inventory foundInventory)) {
             if (!fi.dy.masa.litematica.data.DataManager.getInstance().hasIntegratedServer()) {
+                this.quickcraft$debugFoundBlockEntityMissing++;
                 this.quickcraft$requestContainerInventoryData(foundWorld, pos);
                 return null;
             }
@@ -577,6 +596,7 @@ public abstract class LitematicaSchematicVerifierMixin extends TaskBase implemen
                 expected
         );
         if (found == null || found.size() != expected.size()) {
+            this.quickcraft$countActualInventoryFailure(found, expected.size());
             return null;
         }
 
@@ -609,6 +629,7 @@ public abstract class LitematicaSchematicVerifierMixin extends TaskBase implemen
 
         if (!(foundBlockEntity instanceof Inventory foundInventory)) {
             if (!fi.dy.masa.litematica.data.DataManager.getInstance().hasIntegratedServer()) {
+                this.quickcraft$debugFoundBlockEntityMissing++;
                 this.quickcraft$requestContainerInventoryData(foundWorld, pos);
                 return null;
             }
@@ -624,6 +645,7 @@ public abstract class LitematicaSchematicVerifierMixin extends TaskBase implemen
         );
 
         if (found == null || found.size() != expected.inventory().size()) {
+            this.quickcraft$countActualInventoryFailure(found, expected.inventory().size());
             return null;
         }
 
@@ -735,6 +757,12 @@ public abstract class LitematicaSchematicVerifierMixin extends TaskBase implemen
         this.quickcraft$debugAlreadyPendingChunks = 0;
         this.quickcraft$debugIssuedChunkRequests = 0;
         this.quickcraft$debugFailedChunkRequests = 0;
+        this.quickcraft$debugFoundBlockEntityMissing = 0;
+        this.quickcraft$debugActualNoCacheNbt = 0;
+        this.quickcraft$debugActualCacheWithoutItems = 0;
+        this.quickcraft$debugActualCacheParseFailed = 0;
+        this.quickcraft$debugActualSizeMismatch = 0;
+        this.quickcraft$debugActualOtherFailure = 0;
         this.selectedCategories.removeIf(QuickLitematicaContainerVerifier::isContainerMismatchType);
         this.selectedEntries.keySet().removeIf(QuickLitematicaContainerVerifier::isContainerMismatchType);
         QuickLitematicaContainerVerifier.setSuppressInventorySlotHighlights(false);
@@ -847,6 +875,21 @@ public abstract class LitematicaSchematicVerifierMixin extends TaskBase implemen
     }
 
     @Unique
+    private void quickcraft$countActualInventoryFailure(Inventory found, int expectedSize) {
+        if (found != null && found.size() != expectedSize) {
+            this.quickcraft$debugActualSizeMismatch++;
+            return;
+        }
+
+        switch (QuickLitematicaContainerVerifier.getLastActualInventoryReadStatus()) {
+            case NO_CACHE_NBT -> this.quickcraft$debugActualNoCacheNbt++;
+            case CACHE_WITHOUT_ITEMS -> this.quickcraft$debugActualCacheWithoutItems++;
+            case CACHE_PARSE_FAILED -> this.quickcraft$debugActualCacheParseFailed++;
+            default -> this.quickcraft$debugActualOtherFailure++;
+        }
+    }
+
+    @Unique
     private void quickcraft$logContainerDebug(String phase, long tick, World bestWorld) {
         if (!QuickLitematicaContainerVerifier.isEnabled()) {
             return;
@@ -862,7 +905,13 @@ public abstract class LitematicaSchematicVerifierMixin extends TaskBase implemen
                 || this.quickcraft$debugCompletedChunks != 0
                 || this.quickcraft$debugAlreadyPendingChunks != 0
                 || this.quickcraft$debugIssuedChunkRequests != 0
-                || this.quickcraft$debugFailedChunkRequests != 0;
+                || this.quickcraft$debugFailedChunkRequests != 0
+                || this.quickcraft$debugFoundBlockEntityMissing != 0
+                || this.quickcraft$debugActualNoCacheNbt != 0
+                || this.quickcraft$debugActualCacheWithoutItems != 0
+                || this.quickcraft$debugActualCacheParseFailed != 0
+                || this.quickcraft$debugActualSizeMismatch != 0
+                || this.quickcraft$debugActualOtherFailure != 0;
 
         if (!"start".equals(phase)
                 && this.quickcraft$expectedContainerPositions.isEmpty()
@@ -877,7 +926,7 @@ public abstract class LitematicaSchematicVerifierMixin extends TaskBase implemen
         int wrong = this.quickcraft$getWrongInventoryCount();
 
         QUICKCRAFT_LOGGER.info(
-                "container verifier {}: expected={} checked={} pending={} wrong={} requestedChunks={} servux={} backup={} storageWorldSame={} bestWorld={} cacheBE={} pendingBE={} chunks(noChannel={}, worldMismatch={}, completed={}, alreadyPending={}, issued={}, failed={})",
+                "container verifier {}: expected={} checked={} pending={} wrong={} requestedChunks={} servux={} backup={} storageWorldSame={} bestWorld={} cacheBE={} pendingBE={} chunks(noChannel={}, worldMismatch={}, completed={}, alreadyPending={}, issued={}, failed={}) actual(foundMissing={}, noCache={}, noItems={}, parseFailed={}, sizeMismatch={}, other={})",
                 phase,
                 this.quickcraft$expectedContainerPositions.size(),
                 this.quickcraft$checkedContainerPositions.size(),
@@ -895,7 +944,13 @@ public abstract class LitematicaSchematicVerifierMixin extends TaskBase implemen
                 this.quickcraft$debugCompletedChunks,
                 this.quickcraft$debugAlreadyPendingChunks,
                 this.quickcraft$debugIssuedChunkRequests,
-                this.quickcraft$debugFailedChunkRequests
+                this.quickcraft$debugFailedChunkRequests,
+                this.quickcraft$debugFoundBlockEntityMissing,
+                this.quickcraft$debugActualNoCacheNbt,
+                this.quickcraft$debugActualCacheWithoutItems,
+                this.quickcraft$debugActualCacheParseFailed,
+                this.quickcraft$debugActualSizeMismatch,
+                this.quickcraft$debugActualOtherFailure
         );
 
         this.quickcraft$debugNoDataChannelChunks = 0;
@@ -904,6 +959,12 @@ public abstract class LitematicaSchematicVerifierMixin extends TaskBase implemen
         this.quickcraft$debugAlreadyPendingChunks = 0;
         this.quickcraft$debugIssuedChunkRequests = 0;
         this.quickcraft$debugFailedChunkRequests = 0;
+        this.quickcraft$debugFoundBlockEntityMissing = 0;
+        this.quickcraft$debugActualNoCacheNbt = 0;
+        this.quickcraft$debugActualCacheWithoutItems = 0;
+        this.quickcraft$debugActualCacheParseFailed = 0;
+        this.quickcraft$debugActualSizeMismatch = 0;
+        this.quickcraft$debugActualOtherFailure = 0;
     }
 
     @Unique
