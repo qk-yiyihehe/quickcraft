@@ -29,7 +29,6 @@ import net.minecraft.block.entity.BlockEntity;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.world.ClientWorld;
 import net.minecraft.inventory.Inventory;
-import net.minecraft.nbt.NbtCompound;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.ChunkPos;
 import net.minecraft.world.World;
@@ -37,8 +36,6 @@ import net.minecraft.world.chunk.Chunk;
 import net.minecraft.world.chunk.WorldChunk;
 import org.apache.commons.lang3.tuple.Pair;
 import org.jetbrains.annotations.Nullable;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.spongepowered.asm.mixin.Final;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
@@ -65,9 +62,6 @@ import java.util.Set;
  */
 @Mixin(value = SchematicVerifier.class, remap = false)
 public abstract class LitematicaSchematicVerifierMixin extends TaskBase implements VerifierExtension {
-    @Unique
-    private static final Logger QUICKCRAFT_LOGGER = LoggerFactory.getLogger("QuickCraft-ContainerVerifier");
-
     @Shadow
     @Final
     private static BlockPos.Mutable MUTABLE_POS;
@@ -123,52 +117,7 @@ public abstract class LitematicaSchematicVerifierMixin extends TaskBase implemen
     private final Set<BlockPos> quickcraft$pendingContainerPositions = new HashSet<>();
 
     @Unique
-    private final Map<BlockPos, String> quickcraft$pendingContainerReasons = new HashMap<>();
-
-    @Unique
     private final Set<ChunkPos> quickcraft$requestedContainerDataChunks = new HashSet<>();
-
-    @Unique
-    private long quickcraft$lastContainerDebugLogTick = Long.MIN_VALUE;
-
-    @Unique
-    private String quickcraft$lastPendingContainerSampleLog = "";
-
-    @Unique
-    private int quickcraft$debugNoDataChannelChunks;
-
-    @Unique
-    private int quickcraft$debugWorldMismatchChunks;
-
-    @Unique
-    private int quickcraft$debugCompletedChunks;
-
-    @Unique
-    private int quickcraft$debugAlreadyPendingChunks;
-
-    @Unique
-    private int quickcraft$debugIssuedChunkRequests;
-
-    @Unique
-    private int quickcraft$debugFailedChunkRequests;
-
-    @Unique
-    private int quickcraft$debugFoundBlockEntityMissing;
-
-    @Unique
-    private int quickcraft$debugActualNoCacheNbt;
-
-    @Unique
-    private int quickcraft$debugActualCacheWithoutItems;
-
-    @Unique
-    private int quickcraft$debugActualCacheParseFailed;
-
-    @Unique
-    private int quickcraft$debugActualSizeMismatch;
-
-    @Unique
-    private int quickcraft$debugActualOtherFailure;
 
     @Unique
     private int quickcraft$refreshCursor;
@@ -467,7 +416,6 @@ public abstract class LitematicaSchematicVerifierMixin extends TaskBase implemen
 
         // 开始验证时先按本次原理图触碰的 chunk 拉一轮容器 NBT。
         this.quickcraft$requestContainerInventoryDataChunks(worldClient, schematicPlacement.getTouchedChunks());
-        this.quickcraft$logContainerDebug("start", 0L, worldClient);
     }
 
     @Inject(method = "execute", at = @At("TAIL"))
@@ -487,7 +435,6 @@ public abstract class LitematicaSchematicVerifierMixin extends TaskBase implemen
         }
 
         World bestWorld = fi.dy.masa.malilib.util.WorldUtils.getBestWorld(client);
-        this.quickcraft$logContainerDebug("tick", client.world.getTime(), bestWorld);
 
         if (bestWorld == null || this.quickcraft$pendingContainerPositions.isEmpty()) {
             return;
@@ -581,8 +528,6 @@ public abstract class LitematicaSchematicVerifierMixin extends TaskBase implemen
         if (!(foundBlockEntity instanceof Inventory foundInventory)) {
             if (!fi.dy.masa.litematica.data.DataManager.getInstance().hasIntegratedServer()) {
                 if (this.quickcraft$shouldWaitForMissingInventory(foundWorld, pos, foundBlockEntity)) {
-                    this.quickcraft$debugFoundBlockEntityMissing++;
-                    this.quickcraft$rememberPendingReason(pos, this.quickcraft$getMissingBlockEntityReason(foundWorld, pos, foundBlockEntity));
                     this.quickcraft$requestContainerInventoryData(foundWorld, pos);
                     return null;
                 }
@@ -599,7 +544,6 @@ public abstract class LitematicaSchematicVerifierMixin extends TaskBase implemen
                 expected
         );
         if (found == null || found.size() != expected.size()) {
-            this.quickcraft$countActualInventoryFailure(foundWorld, pos, found, expected.size());
             return null;
         }
 
@@ -633,8 +577,6 @@ public abstract class LitematicaSchematicVerifierMixin extends TaskBase implemen
         if (!(foundBlockEntity instanceof Inventory foundInventory)) {
             if (!fi.dy.masa.litematica.data.DataManager.getInstance().hasIntegratedServer()) {
                 if (this.quickcraft$shouldWaitForMissingInventory(foundWorld, pos, foundBlockEntity)) {
-                    this.quickcraft$debugFoundBlockEntityMissing++;
-                    this.quickcraft$rememberPendingReason(pos, this.quickcraft$getMissingBlockEntityReason(foundWorld, pos, foundBlockEntity));
                     this.quickcraft$requestContainerInventoryData(foundWorld, pos);
                     return null;
                 }
@@ -651,7 +593,6 @@ public abstract class LitematicaSchematicVerifierMixin extends TaskBase implemen
         );
 
         if (found == null || found.size() != expected.inventory().size()) {
-            this.quickcraft$countActualInventoryFailure(foundWorld, pos, found, expected.inventory().size());
             return null;
         }
 
@@ -683,8 +624,6 @@ public abstract class LitematicaSchematicVerifierMixin extends TaskBase implemen
         }
 
         if (found.size() != expected.inventory().size()) {
-            this.quickcraft$rememberPendingReason(pos, "screenSizeMismatch found=" + found.size()
-                    + " expected=" + expected.inventory().size());
             return null;
         }
 
@@ -757,22 +696,7 @@ public abstract class LitematicaSchematicVerifierMixin extends TaskBase implemen
         this.quickcraft$expectedContainerPositions.clear();
         this.quickcraft$checkedContainerPositions.clear();
         this.quickcraft$pendingContainerPositions.clear();
-        this.quickcraft$pendingContainerReasons.clear();
         this.quickcraft$requestedContainerDataChunks.clear();
-        this.quickcraft$lastContainerDebugLogTick = Long.MIN_VALUE;
-        this.quickcraft$lastPendingContainerSampleLog = "";
-        this.quickcraft$debugNoDataChannelChunks = 0;
-        this.quickcraft$debugWorldMismatchChunks = 0;
-        this.quickcraft$debugCompletedChunks = 0;
-        this.quickcraft$debugAlreadyPendingChunks = 0;
-        this.quickcraft$debugIssuedChunkRequests = 0;
-        this.quickcraft$debugFailedChunkRequests = 0;
-        this.quickcraft$debugFoundBlockEntityMissing = 0;
-        this.quickcraft$debugActualNoCacheNbt = 0;
-        this.quickcraft$debugActualCacheWithoutItems = 0;
-        this.quickcraft$debugActualCacheParseFailed = 0;
-        this.quickcraft$debugActualSizeMismatch = 0;
-        this.quickcraft$debugActualOtherFailure = 0;
         this.selectedCategories.removeIf(QuickLitematicaContainerVerifier::isContainerMismatchType);
         this.selectedEntries.keySet().removeIf(QuickLitematicaContainerVerifier::isContainerMismatchType);
         QuickLitematicaContainerVerifier.setSuppressInventorySlotHighlights(false);
@@ -803,22 +727,12 @@ public abstract class LitematicaSchematicVerifierMixin extends TaskBase implemen
             return;
         }
 
-        int issued = 0;
-
         for (ChunkPos chunkPos : chunkPositions) {
             if (!this.quickcraft$requestedContainerDataChunks.contains(chunkPos)
                     && this.quickcraft$requestContainerInventoryDataChunk(world, chunkPos)) {
                 this.quickcraft$requestedContainerDataChunks.add(chunkPos);
-                issued++;
             }
         }
-
-        QUICKCRAFT_LOGGER.info(
-                "container verifier bulk request: chunks={} issued={} requestedTotal={}",
-                chunkPositions.size(),
-                issued,
-                this.quickcraft$requestedContainerDataChunks.size()
-        );
     }
 
     @Unique
@@ -833,28 +747,22 @@ public abstract class LitematicaSchematicVerifierMixin extends TaskBase implemen
         EntitiesDataStorage storage = EntitiesDataStorage.getInstance();
 
         if (!storage.hasServuxServer() && !storage.getIfReceivedBackupPackets()) {
-            this.quickcraft$debugNoDataChannelChunks++;
             return true;
         }
         if (!Objects.equals(storage.getWorld(), this.worldClient)) {
-            this.quickcraft$debugWorldMismatchChunks++;
             return true;
         }
         if (storage.hasCompletedChunk(chunkPos)) {
-            this.quickcraft$debugCompletedChunks++;
             return true;
         }
         if (storage.hasPendingChunk(chunkPos)) {
-            this.quickcraft$debugAlreadyPendingChunks++;
             return false;
         }
 
         if (this.quickcraft$requestContainerInventoryDataChunk(this.worldClient, chunkPos)) {
-            this.quickcraft$debugIssuedChunkRequests++;
             return false;
         }
 
-        this.quickcraft$debugFailedChunkRequests++;
         return true;
     }
 
@@ -885,14 +793,6 @@ public abstract class LitematicaSchematicVerifierMixin extends TaskBase implemen
     }
 
     @Unique
-    private String quickcraft$getMissingBlockEntityReason(World world, BlockPos pos, @Nullable BlockEntity foundBlockEntity) {
-        String block = world != null ? String.valueOf(world.getBlockState(pos).getBlock()) : "unknown";
-        String blockEntity = foundBlockEntity != null ? foundBlockEntity.getClass().getSimpleName() : "null";
-
-        return "foundBlockEntityMissing block=" + block + " blockEntity=" + blockEntity;
-    }
-
-    @Unique
     private boolean quickcraft$shouldWaitForMissingInventory(World world, BlockPos pos, @Nullable BlockEntity foundBlockEntity) {
         if (world == null) {
             return true;
@@ -903,145 +803,10 @@ public abstract class LitematicaSchematicVerifierMixin extends TaskBase implemen
     }
 
     @Unique
-    private void quickcraft$rememberPendingReason(BlockPos pos, String reason) {
-        this.quickcraft$pendingContainerReasons.put(pos.toImmutable(), reason);
-    }
-
-    @Unique
-    private void quickcraft$countActualInventoryFailure(World world, BlockPos pos, Inventory found, int expectedSize) {
-        if (found != null && found.size() != expectedSize) {
-            this.quickcraft$debugActualSizeMismatch++;
-            this.quickcraft$rememberPendingReason(pos, "actualSizeMismatch found=" + found.size()
-                    + " expected=" + expectedSize);
-            return;
-        }
-
-        QuickLitematicaContainerVerifier.ActualInventoryReadStatus status =
-                QuickLitematicaContainerVerifier.getLastActualInventoryReadStatus();
-        this.quickcraft$rememberPendingReason(pos, this.quickcraft$getActualReadFailureReason(world, pos, status, expectedSize));
-
-        switch (status) {
-            case NO_CACHE_NBT -> this.quickcraft$debugActualNoCacheNbt++;
-            case CACHE_WITHOUT_ITEMS -> this.quickcraft$debugActualCacheWithoutItems++;
-            case CACHE_PARSE_FAILED -> this.quickcraft$debugActualCacheParseFailed++;
-            default -> this.quickcraft$debugActualOtherFailure++;
-        }
-    }
-
-    @Unique
-    private String quickcraft$getActualReadFailureReason(
-            World world,
-            BlockPos pos,
-            QuickLitematicaContainerVerifier.ActualInventoryReadStatus status,
-            int expectedSize
-    ) {
-        StringBuilder reason = new StringBuilder("actualRead=")
-                .append(status)
-                .append(" expected=")
-                .append(expectedSize);
-
-        if (world != null) {
-            reason.append(" block=").append(world.getBlockState(pos).getBlock());
-        }
-
-        if (status == QuickLitematicaContainerVerifier.ActualInventoryReadStatus.CACHE_PARSE_FAILED
-                || status == QuickLitematicaContainerVerifier.ActualInventoryReadStatus.CACHE_WITHOUT_ITEMS) {
-            NbtCompound cachedNbt = EntitiesDataStorage.getInstance().getFromBlockEntityCacheNbt(pos);
-            reason.append(" nbtKeys=").append(cachedNbt != null ? cachedNbt.getKeys() : "null");
-
-            if (cachedNbt != null && cachedNbt.contains("Items")) {
-                reason.append(" items=").append(cachedNbt.getList("Items", 10).size());
-            }
-        }
-
-        return reason.toString();
-    }
-
-    @Unique
-    private void quickcraft$logContainerDebug(String phase, long tick, World bestWorld) {
-        if (!QuickLitematicaContainerVerifier.isEnabled()) {
-            return;
-        }
-        if (!"start".equals(phase)
-                && tick >= 0
-                && this.quickcraft$lastContainerDebugLogTick != Long.MIN_VALUE
-                && tick - this.quickcraft$lastContainerDebugLogTick < 100) {
-            return;
-        }
-        boolean hasChunkDebugCounters = this.quickcraft$debugNoDataChannelChunks != 0
-                || this.quickcraft$debugWorldMismatchChunks != 0
-                || this.quickcraft$debugCompletedChunks != 0
-                || this.quickcraft$debugAlreadyPendingChunks != 0
-                || this.quickcraft$debugIssuedChunkRequests != 0
-                || this.quickcraft$debugFailedChunkRequests != 0
-                || this.quickcraft$debugFoundBlockEntityMissing != 0
-                || this.quickcraft$debugActualNoCacheNbt != 0
-                || this.quickcraft$debugActualCacheWithoutItems != 0
-                || this.quickcraft$debugActualCacheParseFailed != 0
-                || this.quickcraft$debugActualSizeMismatch != 0
-                || this.quickcraft$debugActualOtherFailure != 0;
-
-        if (!"start".equals(phase)
-                && this.quickcraft$expectedContainerPositions.isEmpty()
-                && this.quickcraft$requestedContainerDataChunks.isEmpty()
-                && !hasChunkDebugCounters) {
-            return;
-        }
-
-        this.quickcraft$lastContainerDebugLogTick = tick;
-        EntitiesDataStorage storage = EntitiesDataStorage.getInstance();
-        boolean storageWorldSame = this.worldClient != null && Objects.equals(storage.getWorld(), this.worldClient);
-        int wrong = this.quickcraft$getWrongInventoryCount();
-
-        QUICKCRAFT_LOGGER.info(
-                "container verifier {}: expected={} checked={} pending={} wrong={} requestedChunks={} servux={} backup={} storageWorldSame={} bestWorld={} cacheBE={} pendingBE={} chunks(noChannel={}, worldMismatch={}, completed={}, alreadyPending={}, issued={}, failed={}) actual(foundMissing={}, noCache={}, noItems={}, parseFailed={}, sizeMismatch={}, other={})",
-                phase,
-                this.quickcraft$expectedContainerPositions.size(),
-                this.quickcraft$checkedContainerPositions.size(),
-                this.quickcraft$pendingContainerPositions.size(),
-                wrong,
-                this.quickcraft$requestedContainerDataChunks.size(),
-                storage.hasServuxServer(),
-                storage.getIfReceivedBackupPackets(),
-                storageWorldSame,
-                bestWorld != null ? bestWorld.getClass().getSimpleName() : "null",
-                storage.getBlockEntityCacheCount(),
-                storage.getPendingBlockEntitiesCount(),
-                this.quickcraft$debugNoDataChannelChunks,
-                this.quickcraft$debugWorldMismatchChunks,
-                this.quickcraft$debugCompletedChunks,
-                this.quickcraft$debugAlreadyPendingChunks,
-                this.quickcraft$debugIssuedChunkRequests,
-                this.quickcraft$debugFailedChunkRequests,
-                this.quickcraft$debugFoundBlockEntityMissing,
-                this.quickcraft$debugActualNoCacheNbt,
-                this.quickcraft$debugActualCacheWithoutItems,
-                this.quickcraft$debugActualCacheParseFailed,
-                this.quickcraft$debugActualSizeMismatch,
-                this.quickcraft$debugActualOtherFailure
-        );
-
-        this.quickcraft$debugNoDataChannelChunks = 0;
-        this.quickcraft$debugWorldMismatchChunks = 0;
-        this.quickcraft$debugCompletedChunks = 0;
-        this.quickcraft$debugAlreadyPendingChunks = 0;
-        this.quickcraft$debugIssuedChunkRequests = 0;
-        this.quickcraft$debugFailedChunkRequests = 0;
-        this.quickcraft$debugFoundBlockEntityMissing = 0;
-        this.quickcraft$debugActualNoCacheNbt = 0;
-        this.quickcraft$debugActualCacheWithoutItems = 0;
-        this.quickcraft$debugActualCacheParseFailed = 0;
-        this.quickcraft$debugActualSizeMismatch = 0;
-        this.quickcraft$debugActualOtherFailure = 0;
-    }
-
-    @Unique
     private void quickcraft$markContainerChecked(BlockPos pos) {
         this.quickcraft$expectedContainerPositions.add(pos.toImmutable());
         this.quickcraft$checkedContainerPositions.add(pos.toImmutable());
         this.quickcraft$pendingContainerPositions.remove(pos);
-        this.quickcraft$pendingContainerReasons.remove(pos);
-        this.quickcraft$logPendingContainerSamples("pending-resolved");
     }
 
     @Unique
@@ -1050,50 +815,6 @@ public abstract class LitematicaSchematicVerifierMixin extends TaskBase implemen
         this.quickcraft$expectedContainerPositions.add(immutablePos);
         this.quickcraft$checkedContainerPositions.remove(pos);
         this.quickcraft$pendingContainerPositions.add(immutablePos);
-        this.quickcraft$pendingContainerReasons.putIfAbsent(immutablePos, "unknown");
-        this.quickcraft$logPendingContainerSamples("pending-added");
-    }
-
-    @Unique
-    private void quickcraft$logPendingContainerSamples(String phase) {
-        // 尾部少量待读取最难判断，直接把坐标和最后一次失败原因打出来。
-        if (this.quickcraft$pendingContainerPositions.isEmpty()
-                || this.quickcraft$pendingContainerPositions.size() > 20) {
-            return;
-        }
-
-        StringBuilder builder = new StringBuilder();
-        this.quickcraft$pendingContainerPositions.stream()
-                .sorted((left, right) -> {
-                    int result = Integer.compare(left.getX(), right.getX());
-                    if (result != 0) {
-                        return result;
-                    }
-
-                    result = Integer.compare(left.getY(), right.getY());
-                    return result != 0 ? result : Integer.compare(left.getZ(), right.getZ());
-                })
-                .forEach(pos -> {
-                    if (!builder.isEmpty()) {
-                        builder.append("; ");
-                    }
-                    builder.append(pos.toShortString())
-                            .append(" -> ")
-                            .append(this.quickcraft$pendingContainerReasons.getOrDefault(pos, "unknown"));
-                });
-
-        String sample = builder.toString();
-        if (sample.equals(this.quickcraft$lastPendingContainerSampleLog)) {
-            return;
-        }
-
-        this.quickcraft$lastPendingContainerSampleLog = sample;
-        QUICKCRAFT_LOGGER.info(
-                "container verifier {} pending samples: count={} {}",
-                phase,
-                this.quickcraft$pendingContainerPositions.size(),
-                sample
-        );
     }
 
     @Unique
