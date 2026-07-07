@@ -74,8 +74,6 @@ import org.joml.Matrix4f;
 import org.joml.Matrix4fStack;
 import org.joml.Vector3f;
 import org.joml.Vector4f;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import java.io.BufferedInputStream;
 import java.io.BufferedOutputStream;
@@ -111,7 +109,6 @@ import java.util.zip.GZIPOutputStream;
  * 构建阶段调用 Minecraft 自带方块渲染器，把材质、异形模型、透明层和流体都录成可缓存的 CPU 顶点。
  */
 public final class QuickLitematicaPreview3D {
-    private static final Logger LOGGER = LoggerFactory.getLogger(QuickLitematicaPreview3D.class);
     private static final Map<fi.dy.masa.litematica.gui.GuiSchematicBrowserBase, Manager> MANAGERS = new WeakHashMap<>();
     // 预览构建专用单线程池：避免与 Util.getMainWorkerExecutor 共享导致排队等几秒。
     // 单线程足够（预览一次只构建一个文件），且避免 BlockRenderManager 多线程竞争。
@@ -362,7 +359,6 @@ public final class QuickLitematicaPreview3D {
                 this.state = State.FAILED;
                 deleteTmpQuietly(this.tmpPath);
                 deleteQuietly(this.cachePath);
-                LOGGER.warn("QuickCraft Litematica 3D preview failed for {}", this.sourcePath, e);
             }
         }
 
@@ -425,7 +421,6 @@ public final class QuickLitematicaPreview3D {
                     this.releaseMeshData();
                     this.state = State.TOO_LARGE;
                     this.progress = 1.0F;
-                    LOGGER.warn("QuickCraft Litematica 3D preview upload failed for {}", this.sourcePath, e);
                 }
             };
 
@@ -570,8 +565,7 @@ public final class QuickLitematicaPreview3D {
                     matrices.translate(pos.getX(), pos.getY(), pos.getZ());
                     // 高层方块实体渲染会按真实相机做距离判断，预览里的离屏假世界不能走那条路径。
                     renderBlockEntity(client, entity, matrices, client.getBufferBuilders().getEntityVertexConsumers());
-                } catch (Throwable throwable) {
-                    LOGGER.debug("QuickCraft Litematica 3D preview skipped block entity {}", entity.getType(), throwable);
+                } catch (Throwable ignored) {
                 } finally {
                     matrices.pop();
                 }
@@ -592,8 +586,7 @@ public final class QuickLitematicaPreview3D {
                             client.getBufferBuilders().getEntityVertexConsumers(),
                             entity.light()
                     );
-                } catch (Throwable throwable) {
-                    LOGGER.debug("QuickCraft Litematica 3D preview skipped entity {}", entity.entity().getType(), throwable);
+                } catch (Throwable ignored) {
                 }
             });
             // BE 和实体共用同一个 EntityVertexConsumers，一次 flush 提交所有动态顶点。
@@ -763,8 +756,7 @@ public final class QuickLitematicaPreview3D {
                 clearCacheDirectory(cacheDir);
                 Files.writeString(versionFile, currentVersion, java.nio.charset.StandardCharsets.UTF_8);
             }
-        } catch (IOException e) {
-            LOGGER.warn("QuickCraft Litematica 3D preview cache init failed in {}", cacheDir, e);
+        } catch (IOException ignored) {
         }
     }
 
@@ -789,8 +781,7 @@ public final class QuickLitematicaPreview3D {
     private static void clearCacheDirectory(Path cacheDir) {
         try (var paths = Files.list(cacheDir)) {
             paths.forEach(QuickLitematicaPreview3D::deleteRecursivelyQuietly);
-        } catch (IOException e) {
-            LOGGER.warn("QuickCraft Litematica 3D preview cache cleanup failed in {}", cacheDir, e);
+        } catch (IOException ignored) {
         }
     }
 
@@ -798,8 +789,7 @@ public final class QuickLitematicaPreview3D {
         if (Files.isDirectory(path)) {
             try (var paths = Files.walk(path)) {
                 paths.sorted(java.util.Comparator.reverseOrder()).forEach(QuickLitematicaPreview3D::deleteQuietly);
-            } catch (IOException e) {
-                LOGGER.warn("QuickCraft Litematica 3D preview cache cleanup failed for {}", path, e);
+            } catch (IOException ignored) {
             }
             return;
         }
@@ -981,8 +971,7 @@ public final class QuickLitematicaPreview3D {
                     DummyWorld dummyWorld = DummyWorld.fromWorld(world);
                     return new WorldMesherRenderContext(dummyWorld, layer -> collector.consumerFor(layer));
                 }
-            } catch (Throwable throwable) {
-                LOGGER.warn("QuickCraft Litematica 3D preview will skip Fabric Renderer API models", throwable);
+            } catch (Throwable ignored) {
             }
             return null;
         }
@@ -1574,8 +1563,7 @@ public final class QuickLitematicaPreview3D {
                 entity.setPosition(this.x, this.y, this.z);
                 int light = MinecraftClient.getInstance().getEntityRenderDispatcher().getLight(entity, 0.0F);
                 return new RenderedEntity(entity, this.x, this.y, this.z, light);
-            } catch (Throwable throwable) {
-                LOGGER.debug("QuickCraft Litematica 3D preview skipped entity NBT {}", this.entityNbt.getString("id"), throwable);
+            } catch (Throwable ignored) {
                 return null;
             }
         }
@@ -1605,8 +1593,7 @@ public final class QuickLitematicaPreview3D {
                 }
                 blockEntity.setWorld(world);
                 return blockEntity;
-            } catch (Throwable throwable) {
-                LOGGER.debug("QuickCraft Litematica 3D preview skipped block entity at {}", pos, throwable);
+            } catch (Throwable ignored) {
                 return null;
             }
         }
