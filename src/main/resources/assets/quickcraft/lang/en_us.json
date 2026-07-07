@@ -261,6 +261,7 @@
   "quickcraft.beacon.effect.resistance2": "Resistance II",
   "quickcraft.beacon.effect.unknown": "Unknown Effect",
   "quickcraft.litematica.button.container_material_list": "Container Material List",
+  "quickcraft.litematica.button.open_schematic_folder": "Open Schematic Folder",
   "quickcraft.litematica.button.hover.container_material_list": "Counts saved container contents in the selected schematic, grouped by container.",
   "quickcraft.litematica.button.container_material_details": "Container Details",
   "quickcraft.litematica.button.refresh_container_material_list": "Refresh List",
