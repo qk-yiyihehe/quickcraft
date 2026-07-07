@@ -865,7 +865,7 @@ public abstract class LitematicaSchematicVerifierMixin extends TaskBase implemen
         }
 
         int minY = world.getBottomY();
-        int maxY = world.getTopY();
+        int maxY = world.getBottomY() + world.getHeight();
 
         if (this.schematicPlacement != null) {
             Map<String, IntBoundingBox> boxes = this.schematicPlacement.getBoxesWithinChunk(chunkPos.x, chunkPos.z);
