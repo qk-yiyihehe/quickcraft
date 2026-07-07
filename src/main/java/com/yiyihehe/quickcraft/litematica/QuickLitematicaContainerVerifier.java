@@ -212,6 +212,12 @@ public final class QuickLitematicaContainerVerifier {
         }
 
         NbtCompound cachedNbt = storage.getFromBlockEntityCacheNbt(pos);
+        Inventory special = getCachedSpecialInventory(world, cachedNbt, expectedSize);
+
+        if (special != null) {
+            return special;
+        }
+
         return cachedNbt != null
                 ? fi.dy.masa.malilib.util.InventoryUtils.getNbtInventory(
                         cachedNbt,
@@ -219,6 +225,20 @@ public final class QuickLitematicaContainerVerifier {
                         world.getRegistryManager()
                 )
                 : null;
+    }
+
+    private static Inventory getCachedSpecialInventory(World world, NbtCompound cachedNbt, int expectedSize) {
+        if (world == null || cachedNbt == null || expectedSize != 1 || !cachedNbt.contains("RecordItem")) {
+            return null;
+        }
+
+        SimpleInventory inventory = new SimpleInventory(1);
+        inventory.setStack(
+                0,
+                ItemStack.fromNbt(world.getRegistryManager(), cachedNbt.getCompound("RecordItem"))
+                        .orElse(ItemStack.EMPTY)
+        );
+        return inventory;
     }
 
     private static Inventory getMergedCachedDoubleChestInventory(World world, BlockPos pos, EntitiesDataStorage storage, int expectedSize) {
