@@ -686,8 +686,18 @@ public final class QuickLitematicaContainerVerifier {
         SchematicPlacement placement = DataManager.getSchematicPlacementManager().getSelectedSchematicPlacement();
 
         if (placement != null && placement.hasVerifier()) {
-            mismatches = ((VerifierExtension) placement.getSchematicVerifier())
-                    .quickcraft$refreshContainerMismatchAt(currentScreenContainerPos, foundInventory, foundDisabledSlots);
+            VerifierExtension verifier = (VerifierExtension) placement.getSchematicVerifier();
+            mismatches = verifier.quickcraft$refreshContainerMismatchAt(
+                    currentScreenContainerPos,
+                    foundInventory,
+                    foundDisabledSlots
+            );
+
+            BlockPos pairedPos = getExpectedDoubleChestAdjacentPos(currentScreenContainerPos);
+            if (pairedPos != null) {
+                // 大箱子的错误可能记录在另一半坐标；打开任意半边都同步刷新两半。
+                verifier.quickcraft$refreshContainerMismatchAt(pairedPos, foundInventory, foundDisabledSlots);
+            }
         }
 
         if (foundInventory.size() == expectedContainer.inventory().size()) {
@@ -883,6 +893,20 @@ public final class QuickLitematicaContainerVerifier {
                 merged,
                 Set.of()
         );
+    }
+
+    public static BlockPos getExpectedDoubleChestAdjacentPos(BlockPos pos) {
+        ExpectedContainer current = getExpectedContainerInternal(pos);
+
+        if (current == null || getChestType(current.state()) == ChestType.SINGLE) {
+            return null;
+        }
+
+        BlockPos adjacentPos = pos.add(ChestBlock.getFacing(current.state()).getVector());
+        ExpectedContainer adjacent = getExpectedContainerInternal(adjacentPos);
+        return adjacent != null && getChestType(adjacent.state()) != ChestType.SINGLE
+                ? adjacentPos
+                : null;
     }
 
     private static ExpectedContainer getExpectedContainerInternal(BlockPos worldPos) {
