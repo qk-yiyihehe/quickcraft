@@ -36,8 +36,8 @@ public final class QuickLitematicaMaterialLists {
             return;
         }
 
-        if (materialList instanceof QuickLitematicaContainerMaterials.ContainerMaterialRequestSource source
-                && QuickLitematicaContainerReplacements.hasValidRules()) {
+        if (materialList instanceof QuickLitematicaContainerMaterials.ContainerMaterialRequestSource source) {
+            // 容器材料列表返回总需求；没有替换规则时会原样返回物品，避免后续再扣一次玩家库存。
             requests.addAll(source.quickcraft$getReplacementMaterialRequests());
             return;
         }
