@@ -179,7 +179,7 @@ public final class QuickLitematicaContainerVerifier {
         NbtCompound cachedNbt = storage.getFromBlockEntityCacheNbt(pos);
 
         if (cachedNbt != null && (cachedNbt.contains("Items") || isInventoryEmpty(expected))) {
-            Inventory cachedInventory = storage.getBlockInventory(world, pos, true);
+            Inventory cachedInventory = getCachedInventory(world, pos, storage, expected != null ? expected.size() : -1);
 
             if (cachedInventory != null) {
                 lastActualInventoryReadStatus = ActualInventoryReadStatus.CACHE_INVENTORY;
@@ -196,6 +196,63 @@ public final class QuickLitematicaContainerVerifier {
         // 多人没有实体数据时不要拿客户端空壳库存硬比，避免把未知误报成错误填充。
         storage.requestBlockEntity(world, pos);
         return null;
+    }
+
+    private static Inventory getCachedInventory(World world, BlockPos pos, EntitiesDataStorage storage, int expectedSize) {
+        Inventory merged = getMergedCachedDoubleChestInventory(world, pos, storage, expectedSize);
+
+        if (merged != null) {
+            return merged;
+        }
+
+        NbtCompound cachedNbt = storage.getFromBlockEntityCacheNbt(pos);
+        return cachedNbt != null
+                ? fi.dy.masa.malilib.util.InventoryUtils.getNbtInventory(
+                        cachedNbt,
+                        expectedSize,
+                        world.getRegistryManager()
+                )
+                : null;
+    }
+
+    private static Inventory getMergedCachedDoubleChestInventory(World world, BlockPos pos, EntitiesDataStorage storage, int expectedSize) {
+        if (expectedSize != 54) {
+            return null;
+        }
+
+        BlockState state = world.getBlockState(pos);
+        ChestType chestType = getChestType(state);
+
+        if (chestType == ChestType.SINGLE) {
+            return null;
+        }
+
+        BlockPos adjacentPos = pos.add(ChestBlock.getFacing(state).getVector());
+        NbtCompound currentNbt = storage.getFromBlockEntityCacheNbt(pos);
+        NbtCompound adjacentNbt = storage.getFromBlockEntityCacheNbt(adjacentPos);
+
+        if (currentNbt == null || adjacentNbt == null) {
+            return null;
+        }
+
+        Inventory currentInventory = fi.dy.masa.malilib.util.InventoryUtils.getNbtInventory(
+                currentNbt,
+                27,
+                world.getRegistryManager()
+        );
+        Inventory adjacentInventory = fi.dy.masa.malilib.util.InventoryUtils.getNbtInventory(
+                adjacentNbt,
+                27,
+                world.getRegistryManager()
+        );
+
+        if (currentInventory == null || adjacentInventory == null) {
+            return null;
+        }
+
+        return chestType == ChestType.RIGHT
+                ? mergeInventories(currentInventory, adjacentInventory)
+                : mergeInventories(adjacentInventory, currentInventory);
     }
 
     public static ActualInventoryReadStatus getLastActualInventoryReadStatus() {
