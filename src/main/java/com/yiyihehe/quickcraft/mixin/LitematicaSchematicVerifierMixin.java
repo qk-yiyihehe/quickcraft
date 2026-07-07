@@ -857,7 +857,17 @@ public abstract class LitematicaSchematicVerifierMixin extends TaskBase implemen
                 && tick - this.quickcraft$lastContainerDebugLogTick < 100) {
             return;
         }
-        if (!"start".equals(phase) && this.quickcraft$expectedContainerPositions.isEmpty()) {
+        boolean hasChunkDebugCounters = this.quickcraft$debugNoDataChannelChunks != 0
+                || this.quickcraft$debugWorldMismatchChunks != 0
+                || this.quickcraft$debugCompletedChunks != 0
+                || this.quickcraft$debugAlreadyPendingChunks != 0
+                || this.quickcraft$debugIssuedChunkRequests != 0
+                || this.quickcraft$debugFailedChunkRequests != 0;
+
+        if (!"start".equals(phase)
+                && this.quickcraft$expectedContainerPositions.isEmpty()
+                && this.quickcraft$requestedContainerDataChunks.isEmpty()
+                && !hasChunkDebugCounters) {
             return;
         }
 
