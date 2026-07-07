@@ -484,7 +484,7 @@ public final class QuickLitematicaContainerVerifier {
     }
 
     public static SlotOverlay getSlotOverlayForScreen(HandledScreen<?> screen, Slot slot) {
-        if (!areSlotHintsVisible()
+        if (!isEnabled()
                 || QuickContainerCopy.shouldHideBackgroundHandledScreen()
                 || slot.inventory instanceof PlayerInventory
                 // 只让真正的容器界面参与高亮，避免创造物品栏等界面误触发容器校验。
@@ -494,6 +494,11 @@ public final class QuickLitematicaContainerVerifier {
 
         bindCurrentScreen(screen);
         refreshCurrentScreenVerifier(screen);
+
+        // 验证结果刷新不依赖槽位提示开关；这里才决定是否真的绘制提示。
+        if (!areSlotHintsVisible()) {
+            return null;
+        }
 
         if (currentScreenContainerPos == null) {
             return null;
