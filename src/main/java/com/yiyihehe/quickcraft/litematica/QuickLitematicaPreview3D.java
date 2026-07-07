@@ -96,6 +96,8 @@ import java.util.Objects;
 import java.util.WeakHashMap;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CancellationException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Supplier;
 import java.util.zip.GZIPInputStream;
@@ -108,13 +110,22 @@ import java.util.zip.GZIPOutputStream;
 public final class QuickLitematicaPreview3D {
     private static final Logger LOGGER = LoggerFactory.getLogger(QuickLitematicaPreview3D.class);
     private static final Map<fi.dy.masa.litematica.gui.GuiSchematicBrowserBase, Manager> MANAGERS = new WeakHashMap<>();
+    // 预览构建专用单线程池：避免与 Util.getMainWorkerExecutor 共享导致排队等几秒。
+    // 单线程足够（预览一次只构建一个文件），且避免 BlockRenderManager 多线程竞争。
+    private static final ExecutorService PREVIEW_EXECUTOR = Executors.newSingleThreadExecutor(r -> {
+        Thread thread = new Thread(r, "QuickCraft-Preview3D");
+        thread.setDaemon(true);
+        return thread;
+    });
+    // v13：回退箱子静态化（entity atlas 纹理与方块 VBO 不兼容，紫色方块）；保留 GZIP+量化+视口剔除+邻居登记修复。
+    // v12：箱子顶点静态化到独立 VBO，缓存追加 chestVertices 字段。
     // v11：保留 v10 的 GZIP + 顶点量化；箱子方块实体改回动态渲染，避免 chest atlas 被写进方块 VBO。
     // 升版本会让旧缓存一次性失效；之后 mod 版本号变化不再清缓存（token 已不含 mod 版本）。
-    private static final int CACHE_FORMAT_VERSION = 11;
+    private static final int CACHE_FORMAT_VERSION = 13;
     private static final int CACHE_MAGIC = 0x51435033; // QCP3
     private static final String CACHE_DIR_NAME = "litematica-preview-cache";
     private static final String CACHE_VERSION_FILE_NAME = "cache-version.txt";
-    private static final String CACHE_RENDER_MARKER = "quickcraft-model-mesh-v11-quantized-gzip-dynamic-chest-mc1.21";
+    private static final String CACHE_RENDER_MARKER = "quickcraft-model-mesh-v13-quantized-gzip-dynamic-chest-mc1.21";
     private static final int MAX_PREVIEW_SIZE = 512;
     // 预算必须卡在构建阶段前面：顶点 packed 后仍会占用 CPU/GPU 大块连续内存。
     private static final int MAX_UPLOAD_VERTICES = 12_000_000;
@@ -297,7 +308,7 @@ public final class QuickLitematicaPreview3D {
             Path sourcePath = entry.getFullPath().toPath().toAbsolutePath().normalize();
             Path cachePath = cachePath(sourcePath);
             Preview preview = new Preview(sourcePath, cachePath, cachePath.resolveSibling(cachePath.getFileName() + ".tmp"));
-            preview.future = CompletableFuture.runAsync(() -> preview.loadOrBuild(entry), Util.getMainWorkerExecutor());
+            preview.future = CompletableFuture.runAsync(() -> preview.loadOrBuild(entry), PREVIEW_EXECUTOR);
             return preview;
         }
 
@@ -565,7 +576,6 @@ public final class QuickLitematicaPreview3D {
                     matrices.pop();
                 }
             });
-            this.flushDynamic();
 
             scene.entities().forEach(entity -> {
                 if (culler.isOutside((float) entity.x(), (float) entity.y(), (float) entity.z())) {
@@ -587,7 +597,7 @@ public final class QuickLitematicaPreview3D {
                     LOGGER.debug("QuickCraft Litematica 3D preview skipped entity {}", entity.entity().getType(), throwable);
                 }
             });
-            // flush 从实体循环内移到循环外：原实现每实体一次 GPU flush，N 个实体 = N 次 flush，是卡顿主因。
+            // BE 和实体共用同一个 EntityVertexConsumers，一次 flush 提交所有动态顶点。
             this.flushDynamic();
         }
 
@@ -1073,17 +1083,15 @@ public final class QuickLitematicaPreview3D {
 
         private static void recordEntityNearbyBlockStates(Map<BlockPos, BlockStateData> blockStates, RegionBlockView view, Bounds bounds, double x, double y, double z) {
             BlockPos center = BlockPos.ofFloored(x, y, z);
-            // 展示框/画等挂载实体会查询附近支撑方块；假世界缺邻居会被原版判成 invalid position。
-            for (int dx = -1; dx <= 1; dx++) {
-                for (int dy = -1; dy <= 1; dy++) {
-                    for (int dz = -1; dz <= 1; dz++) {
-                        BlockPos renderPos = center.add(dx, dy, dz);
-                        BlockPos schematicPos = renderPos.add(bounds.min());
-                        BlockState state = view.getBlockState(schematicPos);
-                        if (!state.isAir()) {
-                            recordDynamicBlockState(blockStates, state, renderPos);
-                        }
-                    }
+            // 展示框/画等挂载实体会查询附着方块（facing 反方向）；假世界缺邻居会被原版判成 invalid position。
+            // 只登记 6 方向邻居（覆盖任意 facing），不登记 center 本身（实体位置通常是 air）。
+            // 原 3x3x3=27 个过多，导致 blockStates 暴涨、缓存膨胀、首次渲染变慢。
+            for (Direction direction : Direction.values()) {
+                BlockPos renderPos = center.offset(direction);
+                BlockPos schematicPos = renderPos.add(bounds.min());
+                BlockState state = view.getBlockState(schematicPos);
+                if (!state.isAir()) {
+                    recordDynamicBlockState(blockStates, state, renderPos);
                 }
             }
         }
