@@ -25,9 +25,7 @@ import net.minecraft.block.Block;
 import net.minecraft.block.BlockEntityProvider;
 import net.minecraft.block.BlockRenderType;
 import net.minecraft.block.BlockState;
-import net.minecraft.block.ChestBlock;
 import net.minecraft.block.entity.BlockEntity;
-import net.minecraft.block.entity.ChestBlockEntity;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.gl.GlUsage;
 import net.minecraft.client.gl.VertexBuffer;
@@ -113,16 +111,16 @@ import java.util.zip.GZIPOutputStream;
 public final class QuickLitematicaPreview3D {
     private static final Logger LOGGER = LoggerFactory.getLogger(QuickLitematicaPreview3D.class);
     private static final Map<fi.dy.masa.litematica.gui.GuiSchematicBrowserBase, Manager> MANAGERS = new WeakHashMap<>();
-    // v10：磁盘格式改为 GZIP 压缩 + 顶点量化（float16 UV / octahedral 法线 / packed overlay+light）。
+    // v11：保留 v10 的 GZIP + 顶点量化；箱子方块实体改回动态渲染，避免 chest atlas 被写进方块 VBO。
     // 升版本会让旧缓存一次性失效；之后 mod 版本号变化不再清缓存（token 已不含 mod 版本）。
-    private static final int CACHE_FORMAT_VERSION = 10;
+    private static final int CACHE_FORMAT_VERSION = 11;
     private static final int CACHE_MAGIC = 0x51435033; // QCP3
     private static final String CACHE_DIR_NAME = "litematica-preview-cache";
     private static final String CACHE_VERSION_FILE_NAME = "cache-version.txt";
-    private static final String CACHE_RENDER_MARKER = "quickcraft-model-mesh-v10-quantized-gzip-mc1.21.3-dynamic-v2";
+    private static final String CACHE_RENDER_MARKER = "quickcraft-model-mesh-v11-quantized-gzip-dynamic-chest-mc1.21.3";
     private static final int MAX_PREVIEW_SIZE = 512;
     // 预算必须卡在构建阶段前面：顶点 packed 后仍会占用 CPU/GPU 大块连续内存。
-    private static final int MAX_UPLOAD_VERTICES = 4_000_000;
+    private static final int MAX_UPLOAD_VERTICES = 12_000_000;
     private static final int MAX_DYNAMIC_BLOCK_STATES = 300_000;
     private static final int MAX_DYNAMIC_BLOCK_ENTITIES = 32_768;
     private static final int MAX_DYNAMIC_ENTITIES = 8_192;
@@ -343,6 +341,13 @@ public final class QuickLitematicaPreview3D {
                 deleteTmpQuietly(this.tmpPath);
                 deleteQuietly(this.cachePath);
             } catch (Exception e) {
+                if (isPreviewTooLarge(e)) {
+                    this.state = State.TOO_LARGE;
+                    this.progress = 1.0F;
+                    deleteTmpQuietly(this.tmpPath);
+                    deleteQuietly(this.cachePath);
+                    return;
+                }
                 this.state = State.FAILED;
                 deleteTmpQuietly(this.tmpPath);
                 deleteQuietly(this.cachePath);
@@ -545,19 +550,20 @@ public final class QuickLitematicaPreview3D {
             ViewportCuller culler = new ViewportCuller(modelView, RenderSystem.getProjectionMatrix(), client, viewX, viewY, viewSize);
             MatrixStack matrices = new MatrixStack();
             scene.blockEntities().forEach((pos, entity) -> {
-                // 箱子已在构建阶段静态化进 VBO，这里跳过不重复渲染。
-                if (entity instanceof ChestBlockEntity) {
-                    return;
-                }
                 // 用方块中心点判定，覆盖大多数方块实体模型
                 if (culler.isOutside(pos.getX() + 0.5F, pos.getY() + 0.5F, pos.getZ() + 0.5F)) {
                     return;
                 }
                 matrices.push();
-                matrices.translate(pos.getX(), pos.getY(), pos.getZ());
-                // 高层方块实体渲染会按真实相机做距离判断，预览里的离屏假世界不能走那条路径。
-                renderBlockEntity(client, entity, matrices, client.getBufferBuilders().getEntityVertexConsumers());
-                matrices.pop();
+                try {
+                    matrices.translate(pos.getX(), pos.getY(), pos.getZ());
+                    // 高层方块实体渲染会按真实相机做距离判断，预览里的离屏假世界不能走那条路径。
+                    renderBlockEntity(client, entity, matrices, client.getBufferBuilders().getEntityVertexConsumers());
+                } catch (Throwable throwable) {
+                    LOGGER.debug("QuickCraft Litematica 3D preview skipped block entity {}", entity.getType(), throwable);
+                } finally {
+                    matrices.pop();
+                }
             });
             this.flushDynamic();
 
@@ -565,16 +571,20 @@ public final class QuickLitematicaPreview3D {
                 if (culler.isOutside((float) entity.x(), (float) entity.y(), (float) entity.z())) {
                     return;
                 }
-                client.getEntityRenderDispatcher().render(
-                        entity.entity(),
-                        entity.x(),
-                        entity.y(),
-                        entity.z(),
-                        entity.entity().getYaw(0.0F),
-                        matrices,
-                        client.getBufferBuilders().getEntityVertexConsumers(),
-                        entity.light()
-                );
+                try {
+                    client.getEntityRenderDispatcher().render(
+                            entity.entity(),
+                            entity.x(),
+                            entity.y(),
+                            entity.z(),
+                            entity.entity().getYaw(0.0F),
+                            matrices,
+                            client.getBufferBuilders().getEntityVertexConsumers(),
+                            entity.light()
+                    );
+                } catch (Throwable throwable) {
+                    LOGGER.debug("QuickCraft Litematica 3D preview skipped entity {}", entity.entity().getType(), throwable);
+                }
             });
             // flush 从实体循环内移到循环外：原实现每实体一次 GPU flush，N 个实体 = N 次 flush，是卡顿主因。
             this.flushDynamic();
@@ -656,7 +666,18 @@ public final class QuickLitematicaPreview3D {
     private static final class PreviewTooLargeException extends RuntimeException {
     }
 
-    // 渲染方块实体到指定 VertexConsumerProvider。构建阶段（静态化箱子）和预览阶段（动态 BE）共用。
+    private static boolean isPreviewTooLarge(Throwable throwable) {
+        Throwable current = throwable;
+        while (current != null) {
+            if (current instanceof PreviewTooLargeException) {
+                return true;
+            }
+            current = current.getCause();
+        }
+        return false;
+    }
+
+    // 渲染方块实体到指定 VertexConsumerProvider。动态 BE 会走各自专用 atlas，不能录进普通方块 VBO。
     private static <T extends BlockEntity> void renderBlockEntity(MinecraftClient client, T entity, MatrixStack matrices, VertexConsumerProvider consumers) {
         BlockEntityRenderer<T> renderer = client.getBlockEntityRenderDispatcher().get(entity);
         if (renderer == null) {
@@ -895,14 +916,14 @@ public final class QuickLitematicaPreview3D {
                 RegionBlockView view = new RegionBlockView(container, area);
                 RegionBounds regionBounds = RegionBounds.from(area);
                 Map<BlockPos, NbtCompound> schematicBlockEntities = schematic.getBlockEntityMapForRegion(regionName);
-                recordEntities(entities, schematic, regionName, area, bounds);
+                recordEntities(blockStates, entities, view, schematic, regionName, area, bounds);
 
                 for (BlockPos pos : BlockPos.iterate(regionBounds.min(), regionBounds.max())) {
                     throwIfCancelled(cancelled);
                     BlockState state = view.getBlockState(pos);
                     if (!state.isAir()) {
                         BlockPos renderPos = pos.subtract(bounds.min());
-                        recordBlockEntity(collector, client, matrices, blockStates, blockEntities, blockEntityRendererCache, view, state, schematicBlockEntities, pos, renderPos, bounds);
+                        recordBlockEntity(blockStates, blockEntities, blockEntityRendererCache, view, state, schematicBlockEntities, pos, renderPos, bounds);
                         renderFluidIfPresent(collector, blockRenderManager, matrices, view, state, pos, renderPos);
                         renderBlockModel(collector, blockRenderManager, fabricContext, matrices, view, state, pos, renderPos, random);
                     }
@@ -957,9 +978,6 @@ public final class QuickLitematicaPreview3D {
         }
 
         private static void recordBlockEntity(
-                MeshCollector collector,
-                MinecraftClient client,
-                MatrixStack matrices,
                 Map<BlockPos, BlockStateData> blockStates,
                 List<BlockEntityData> blockEntities,
                 Map<BlockState, Boolean> blockEntityRendererCache,
@@ -975,19 +993,6 @@ public final class QuickLitematicaPreview3D {
             }
 
             if (!blockEntityRendererCache.computeIfAbsent(state, key -> hasPreviewBlockEntityRenderer(provider, key, renderPos))) {
-                return;
-            }
-
-            // 箱子闭合态静态化：构建阶段录顶点进静态层，预览时 GPU 直绘，不每帧 CPU 细分。
-            // 双箱合并由 ChestBlockEntityRenderer 根据 BlockState 的 CHEST_TYPE/FACING 判断，不需要查 world。
-            // 仍登记自身 BlockState 进 blockStates，供其他动态 BE 查邻居连接用。
-            if (state.getBlock() instanceof ChestBlock) {
-                recordDynamicBlockState(blockStates, state, renderPos);
-                BlockEntity chest = provider.createBlockEntity(renderPos, state);
-                if (chest != null) {
-                    chest.setCachedState(state);
-                    renderBlockEntity(client, chest, matrices, layer -> collector.consumerFor(layer));
-                }
                 return;
             }
 
@@ -1039,7 +1044,9 @@ public final class QuickLitematicaPreview3D {
         }
 
         private static void recordEntities(
+                Map<BlockPos, BlockStateData> blockStates,
                 List<EntityData> entities,
+                RegionBlockView view,
                 LitematicaSchematic schematic,
                 String regionName,
                 Box area,
@@ -1056,8 +1063,26 @@ public final class QuickLitematicaPreview3D {
                 double y = info.posVec.y + regionOrigin.getY() - bounds.min().getY();
                 double z = info.posVec.z + regionOrigin.getZ() - bounds.min().getZ();
                 entities.add(new EntityData(x, y, z, copyEntityNbtAt(info.nbt, x, y, z)));
+                recordEntityNearbyBlockStates(blockStates, view, bounds, x, y, z);
                 if (entities.size() > MAX_DYNAMIC_ENTITIES) {
                     throw new PreviewTooLargeException();
+                }
+            }
+        }
+
+        private static void recordEntityNearbyBlockStates(Map<BlockPos, BlockStateData> blockStates, RegionBlockView view, Bounds bounds, double x, double y, double z) {
+            BlockPos center = BlockPos.ofFloored(x, y, z);
+            // 展示框/画等挂载实体会查询附近支撑方块；假世界缺邻居会被原版判成 invalid position。
+            for (int dx = -1; dx <= 1; dx++) {
+                for (int dy = -1; dy <= 1; dy++) {
+                    for (int dz = -1; dz <= 1; dz++) {
+                        BlockPos renderPos = center.add(dx, dy, dz);
+                        BlockPos schematicPos = renderPos.add(bounds.min());
+                        BlockState state = view.getBlockState(schematicPos);
+                        if (!state.isAir()) {
+                            recordDynamicBlockState(blockStates, state, renderPos);
+                        }
+                    }
                 }
             }
         }
@@ -1532,14 +1557,19 @@ public final class QuickLitematicaPreview3D {
     private record EntityData(double x, double y, double z, NbtCompound entityNbt) {
         @Nullable
         private RenderedEntity instantiate(DummyWorld world) {
-            Entity entity = EntityUtils.createEntityAndPassengersFromNBT(this.entityNbt.copy(), world);
-            if (entity == null) {
+            try {
+                Entity entity = EntityUtils.createEntityAndPassengersFromNBT(this.entityNbt.copy(), world);
+                if (entity == null) {
+                    return null;
+                }
+
+                entity.setPosition(this.x, this.y, this.z);
+                int light = MinecraftClient.getInstance().getEntityRenderDispatcher().getLight(entity, 0.0F);
+                return new RenderedEntity(entity, this.x, this.y, this.z, light);
+            } catch (Throwable throwable) {
+                LOGGER.debug("QuickCraft Litematica 3D preview skipped entity NBT {}", this.entityNbt.getString("id"), throwable);
                 return null;
             }
-
-            entity.setPosition(this.x, this.y, this.z);
-            int light = MinecraftClient.getInstance().getEntityRenderDispatcher().getLight(entity, 0.0F);
-            return new RenderedEntity(entity, this.x, this.y, this.z, light);
         }
     }
 
@@ -1555,17 +1585,22 @@ public final class QuickLitematicaPreview3D {
             }
 
             BlockPos pos = new BlockPos(this.x, this.y, this.z);
-            BlockEntity blockEntity = provider.createBlockEntity(pos, state);
-            if (blockEntity == null) {
+            try {
+                BlockEntity blockEntity = provider.createBlockEntity(pos, state);
+                if (blockEntity == null) {
+                    return null;
+                }
+
+                blockEntity.setCachedState(state);
+                if (!this.entityNbt.isEmpty()) {
+                    blockEntity.read(this.entityNbt.copy(), world.getRegistryManager());
+                }
+                blockEntity.setWorld(world);
+                return blockEntity;
+            } catch (Throwable throwable) {
+                LOGGER.debug("QuickCraft Litematica 3D preview skipped block entity at {}", pos, throwable);
                 return null;
             }
-
-            blockEntity.setCachedState(state);
-            if (!this.entityNbt.isEmpty()) {
-                blockEntity.read(this.entityNbt.copy(), world.getRegistryManager());
-            }
-            blockEntity.setWorld(world);
-            return blockEntity;
         }
     }
 
