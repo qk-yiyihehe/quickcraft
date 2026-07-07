@@ -113,6 +113,7 @@ public final class QuickLitematicaContainerVerifier {
     private static long lastCurrentScreenRefreshTick = Long.MIN_VALUE;
     private static int lastCurrentScreenRevision = Integer.MIN_VALUE;
     private static List<SlotOverlay> currentScreenSlotOverlays = List.of();
+    private static ActualInventoryReadStatus lastActualInventoryReadStatus = ActualInventoryReadStatus.NOT_READ;
 
     private QuickLitematicaContainerVerifier() {
     }
@@ -159,12 +160,18 @@ public final class QuickLitematicaContainerVerifier {
     }
 
     public static Inventory getActualInventory(World world, BlockPos pos, Inventory directInventory, Inventory expected) {
+        lastActualInventoryReadStatus = ActualInventoryReadStatus.NOT_READ;
+
         if (world == null) {
+            lastActualInventoryReadStatus = ActualInventoryReadStatus.NO_WORLD;
             return null;
         }
 
         if (DataManager.getInstance().hasIntegratedServer()) {
             Inventory mergedOrDirect = getDirectInventory(world, pos, expected != null ? expected.size() : -1);
+            lastActualInventoryReadStatus = mergedOrDirect != null || directInventory != null
+                    ? ActualInventoryReadStatus.INTEGRATED_DIRECT
+                    : ActualInventoryReadStatus.NO_DIRECT_INVENTORY;
             return mergedOrDirect != null ? mergedOrDirect : directInventory;
         }
 
@@ -175,13 +182,24 @@ public final class QuickLitematicaContainerVerifier {
             Inventory cachedInventory = storage.getBlockInventory(world, pos, true);
 
             if (cachedInventory != null) {
+                lastActualInventoryReadStatus = ActualInventoryReadStatus.CACHE_INVENTORY;
                 return cachedInventory;
             }
+
+            lastActualInventoryReadStatus = ActualInventoryReadStatus.CACHE_PARSE_FAILED;
+        } else if (cachedNbt != null) {
+            lastActualInventoryReadStatus = ActualInventoryReadStatus.CACHE_WITHOUT_ITEMS;
+        } else {
+            lastActualInventoryReadStatus = ActualInventoryReadStatus.NO_CACHE_NBT;
         }
 
         // 多人没有实体数据时不要拿客户端空壳库存硬比，避免把未知误报成错误填充。
         storage.requestBlockEntity(world, pos);
         return null;
+    }
+
+    public static ActualInventoryReadStatus getLastActualInventoryReadStatus() {
+        return lastActualInventoryReadStatus;
     }
 
     public static void requestInventoryData(World world, BlockPos pos) {
@@ -1182,6 +1200,17 @@ public final class QuickLitematicaContainerVerifier {
             Inventory inventory,
             Set<Integer> disabledSlots
     ) {
+    }
+
+    public enum ActualInventoryReadStatus {
+        NOT_READ,
+        NO_WORLD,
+        INTEGRATED_DIRECT,
+        NO_DIRECT_INVENTORY,
+        CACHE_INVENTORY,
+        NO_CACHE_NBT,
+        CACHE_WITHOUT_ITEMS,
+        CACHE_PARSE_FAILED
     }
 
     private record LocalPlacementPos(
