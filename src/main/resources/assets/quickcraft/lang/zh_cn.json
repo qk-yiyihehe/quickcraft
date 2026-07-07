@@ -261,6 +261,7 @@
   "quickcraft.beacon.effect.resistance2": "抗性提升2",
   "quickcraft.beacon.effect.unknown": "未知效果",
   "quickcraft.litematica.button.container_material_list": "容器材料列表",
+  "quickcraft.litematica.button.open_schematic_folder": "打开原理图文件夹",
   "quickcraft.litematica.button.hover.container_material_list": "按容器分组统计选中原理图内所有容器已保存的填充物品。",
   "quickcraft.litematica.button.container_material_details": "容器详细情况",
   "quickcraft.litematica.button.refresh_container_material_list": "刷新列表",

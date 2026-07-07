@@ -20,6 +20,7 @@
 		"LitematicaBlockMismatchMixin",
 		"LitematicaClientPlayerInteractionManagerMixin",
 		"LitematicaGuiSchematicBrowserBaseMixin",
+		"LitematicaGuiMainMenuMixin",
 		"LitematicaGuiSchematicVerifierAccessor",
 		"LitematicaGuiSchematicVerifierMixin",
 		"LitematicaHandledScreenSlotOverlayMixin",
