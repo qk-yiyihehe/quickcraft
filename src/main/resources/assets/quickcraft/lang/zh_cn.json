@@ -116,7 +116,7 @@
   "quickcraft.config.projection_tools.comment.containerFillProtectedItems": "§6功能：§r设置填充前腾背包格子时需要保护的物品。\n§e说明：§r这些物品不会被临时塞进快捷潜影盒。\n§b格式：§r支持中文名、完整 ID 或简写 ID。\n§b示例：§r金胡萝卜、minecraft:golden_carrot\n§b示例：§rgolden_carrot\n§7固定保护：§r潜影盒、第一组烟花、附魔钻石/下界合金工具与盔甲。",
   "quickcraft.config.projection_tools.prettyName.containerFillReplacements": "替换填充物名单",
   "quickcraft.config.projection_tools.name.containerFillReplacements": "替换填充物名单",
-  "quickcraft.config.projection_tools.comment.containerFillReplacements": "§6功能：§r自动填充投影容器、自动收集容器材料时替换填充物。\n§e说明：§r每行填写 §b物品1 -> 物品2§r。\n§e格式：§r推荐中文，也支持完整 ID 和简写 ID。\n§b示例：§r红石 -> 剪刀\n§b示例：§rminecraft:redstone -> minecraft:shears\n§7说明：§r验证、高亮和材料 HUD 不受影响。",
+  "quickcraft.config.projection_tools.comment.containerFillReplacements": "§6功能：§r自动填充投影容器、自动收集容器材料时替换填充物。\n§e说明：§r每行填写 §b物品1 -> 物品2§r。\n§e格式：§r推荐中文，也支持完整 ID 和简写 ID；命名物品可写 §b物品#自定义名§r。\n§b示例：§r红石 -> 剪刀\n§b示例：§r白色羊毛#mis多物品填充 -> 铁粒#111\n§b示例：§rminecraft:white_wool#mis多物品填充 -> minecraft:iron_nugget#111\n§7说明：§r验证、高亮和材料 HUD 不受影响。",
   "quickcraft.config.mod_support.prettyName.enableQuickShulker": "启用快捷潜影盒",
   "quickcraft.config.mod_support.name.enableQuickShulker": "启用快捷潜影盒",
   "quickcraft.config.mod_support.comment.enableQuickShulker": "§6功能：§r启用 §bQuick Shulker§r 快捷潜影盒辅助。\n§e要求：§r客户端与服务端都支持时才生效。\n§e用途：§r用于自动收集投影材料。\n§e用途：§r也用于容器复制 / 自动填充投影容器时后台开盒取货与装盒。",
