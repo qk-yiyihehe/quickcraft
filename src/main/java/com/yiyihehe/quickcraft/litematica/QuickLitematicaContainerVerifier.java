@@ -66,6 +66,7 @@ import net.minecraft.util.BlockRotation;
 import net.minecraft.util.hit.HitResult;
 import net.minecraft.util.hit.BlockHitResult;
 import net.minecraft.util.math.BlockPos;
+import net.minecraft.util.math.ChunkPos;
 import net.minecraft.world.World;
 import org.apache.commons.lang3.tuple.Pair;
 import org.joml.Matrix4f;
@@ -187,6 +188,16 @@ public final class QuickLitematicaContainerVerifier {
         if (world != null) {
             EntitiesDataStorage.getInstance().requestBlockEntity(world, pos);
         }
+    }
+
+    public static void requestInventoryDataChunk(World world, ChunkPos chunkPos, int minY, int maxY) {
+        if (world == null || DataManager.getInstance().hasIntegratedServer()) {
+            return;
+        }
+
+        EntitiesDataStorage storage = EntitiesDataStorage.getInstance();
+        storage.requestServuxBulkEntityData(chunkPos, minY, maxY);
+        storage.requestBackupBulkEntityData(chunkPos, minY, maxY);
     }
 
     public static List<ContainerMismatch> findMismatches(
