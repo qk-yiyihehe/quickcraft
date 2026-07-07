@@ -178,6 +178,12 @@ public final class QuickLitematicaContainerVerifier {
         EntitiesDataStorage storage = EntitiesDataStorage.getInstance();
         NbtCompound cachedNbt = storage.getFromBlockEntityCacheNbt(pos);
 
+        if (cachedNbt != null && !cachedNbt.contains("Items") && expected != null && isInventoryEmpty(expected)) {
+            // 服务器空容器 NBT 可能只带 x/y/z/id，没有 Items；这表示已读到空库存。
+            lastActualInventoryReadStatus = ActualInventoryReadStatus.CACHE_INVENTORY;
+            return new SimpleInventory(expected.size());
+        }
+
         if (cachedNbt != null && (cachedNbt.contains("Items") || isInventoryEmpty(expected))) {
             Inventory cachedInventory = getCachedInventory(world, pos, storage, expected != null ? expected.size() : -1);
 
