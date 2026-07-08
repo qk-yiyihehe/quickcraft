@@ -83,14 +83,13 @@ import java.util.Set;
 
 /**
  * QuickCraft 的 Litematica 容器验证主类。
- * 这里统一收口原理图容器校验相关能力，包括：
- * 1. 容器库存和禁用槽位的比对与错填分类；
- * 2. 验证结果刷新、当前界面联动和容器错填重算；
- * 3. 容器界面里的幽灵物品辅助渲染；
- * 4. 提供给 mixin 挂接的 verifier / mismatch 扩展接口；
- * 5. 需要尽早注册的验证类型注入逻辑。
  *
- * TechUtils 只作为交互参考，这里不依赖它的任何 API。
+ * <p>本类目前统一收口容器验证链路：从投影容器 NBT 读取期望库存，读取实际世界或服务器缓存库存，
+ * 生成容器错填类型，绑定当前打开的容器界面，并绘制槽位高亮和缺失物品虚影。mixin 只负责挂接
+ * Litematica 的验证器、结果列表和容器界面绘制入口。</p>
+ *
+ * <p>后续重构时优先把“库存读取/比对”“当前界面绑定”“槽位 overlay”“幽灵物品渲染”拆成边界清楚的类。
+ * TechUtils 只作为交互参考，这里不依赖它的任何 API。</p>
  */
 public final class QuickLitematicaContainerVerifier {
     public static final MismatchType WRONG_FILL = ClassTinkerers.getEnum(
@@ -110,9 +109,11 @@ public final class QuickLitematicaContainerVerifier {
             EarlyRiser.WRONG_FILL_STATE_ENUM
     );
     private static boolean suppressInventorySlotHighlights;
+    // 右键容器时先记住坐标，真正的 ScreenHandler 要等服务端打开界面后才能绑定。
     private static BlockPos pendingContainerPos;
     private static BlockPos currentScreenContainerPos;
     private static HandledScreen<?> currentHandledScreen;
+    // 同一 tick 且 handler revision 未变化时复用 overlay，避免每个槽位绘制都重新深比较 ItemStack 组件。
     private static long lastCurrentScreenRefreshTick = Long.MIN_VALUE;
     private static int lastCurrentScreenRevision = Integer.MIN_VALUE;
     private static List<SlotOverlay> currentScreenSlotOverlays = List.of();
@@ -162,6 +163,12 @@ public final class QuickLitematicaContainerVerifier {
         return directInventory;
     }
 
+    /**
+     * 读取实际世界中的容器库存。
+     *
+     * <p>单人集成服优先读真实 {@link BlockEntity}；多人服只能依赖 Litematica/Servux 的方块实体缓存。
+     * 缓存缺失时返回 {@code null}，让调用方把结果视为“未知”，不要把客户端空壳库存误报成错填。</p>
+     */
     public static Inventory getActualInventory(World world, BlockPos pos, Inventory directInventory, Inventory expected) {
         lastActualInventoryReadStatus = ActualInventoryReadStatus.NOT_READ;
 
@@ -526,6 +533,11 @@ public final class QuickLitematicaContainerVerifier {
         }
     }
 
+    /**
+     * 给当前打开的容器槽位返回 overlay。
+     *
+     * <p>这个方法会被槽位绘制 mixin 高频调用；内部先绑定屏幕和刷新缓存，真正是否显示提示在最后根据配置决定。</p>
+     */
     public static SlotOverlay getSlotOverlayForScreen(HandledScreen<?> screen, Slot slot) {
         if (!isEnabled()
                 || QuickContainerCopy.shouldHideBackgroundHandledScreen()
@@ -690,6 +702,12 @@ public final class QuickLitematicaContainerVerifier {
         }
     }
 
+    /**
+     * 刷新当前容器界面的验证结果。
+     *
+     * <p>这里以 handler revision 和世界 tick 作为轻量缓存边界；容器内容或锁槽状态变化后才重建
+     * {@code currentScreenSlotOverlays}，避免每个槽位绘制时都重新访问投影和深比较库存。</p>
+     */
     private static void refreshCurrentScreenVerifier(HandledScreen<?> screen) {
         MinecraftClient client = MinecraftClient.getInstance();
 
@@ -835,6 +853,12 @@ public final class QuickLitematicaContainerVerifier {
         return inventory;
     }
 
+    /**
+     * 从 Crafter 界面读取禁用槽状态。
+     *
+     * <p>1.21/1.21.1 的 {@link CrafterScreenHandler#isSlotDisabled(int)} 接收 handler slot id，
+     * 但验证用的是容器内部 slot index，所以这里读取时必须做一次过滤和映射。</p>
+     */
     private static Set<Integer> copyCrafterDisabledSlotsFromScreen(ScreenHandler handler) {
         if (!(handler instanceof CrafterScreenHandler crafterHandler)) {
             return Set.of();
@@ -1132,6 +1156,12 @@ public final class QuickLitematicaContainerVerifier {
         return copy;
     }
 
+    /**
+     * 绘制验证结果里的左右库存对比 overlay。
+     *
+     * <p>背景和物品仍复用 malilib 的 {@link InventoryOverlay}，QuickCraft 只叠加错填槽位颜色和缺失物品虚影，
+     * 这样能跟 Litematica 原生 verifier 的尺寸、位置和材质包行为保持一致。</p>
+     */
     private static void renderInventoryOverlay(
             BlockInfoAlignment align,
             LeftRight side,
@@ -1536,7 +1566,11 @@ public final class QuickLitematicaContainerVerifier {
     }
 
     /**
-     * 参考 techutils 的透明缓冲做法，让 GUI 里的物品本体也能真正半透明。
+     * GUI 缺失物品虚影的离屏缓冲。
+     *
+     * <p>原版 {@code DrawContext#drawItem} 不提供整体透明度参数；先把物品绘制进透明 framebuffer，
+     * 再以 alpha 合成回当前 GUI，才能让物品本体和数量文字一起半透明。渲染状态必须在每次绘制后恢复，
+     * 否则后续 GUI 元素会被错误透明或画到离屏缓冲里。</p>
      */
     private static final class GhostItemBuffer {
         private static Framebuffer framebuffer;
@@ -1581,6 +1615,9 @@ public final class QuickLitematicaContainerVerifier {
             RenderSystem.setShaderColor(1.0F, 1.0F, 1.0F, 1.0F);
         }
 
+        /**
+         * framebuffer 跟随窗口真实像素尺寸，避免 GUI 缩放变化后虚影采样错位。
+         */
         private static Framebuffer getFramebuffer() {
             MinecraftClient client = MinecraftClient.getInstance();
             Window window = client.getWindow();
@@ -1598,6 +1635,9 @@ public final class QuickLitematicaContainerVerifier {
             return framebuffer;
         }
 
+        /**
+         * 把离屏缓冲按当前 GUI 投影画回主 framebuffer。
+         */
         private static void drawFramebuffer(DrawContext context, Framebuffer framebuffer) {
             RenderSystem.setShaderTexture(0, framebuffer.getColorAttachment());
             RenderSystem.setShader(GameRenderer::getPositionTexProgram);

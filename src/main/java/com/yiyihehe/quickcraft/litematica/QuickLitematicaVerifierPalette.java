@@ -4,7 +4,9 @@ import fi.dy.masa.litematica.schematic.verifier.SchematicVerifier.MismatchType;
 
 /**
  * QuickCraft 容器验证的统一配色入口。
- * 这里的基色直接对应世界里容器错填方块的高亮颜色，其他 HUD、槽位和悬浮预览颜色都从这里派生。
+ *
+ * <p>这里的基色直接对应世界里容器错填方块的高亮颜色，其他 HUD、槽位和悬浮预览颜色都从这里派生。
+ * 新增或调整容器 mismatch 类型时先改这里，避免世界高亮、槽位 overlay 和文字颜色各自漂移。</p>
  */
 public final class QuickLitematicaVerifierPalette {
     private static final String TXT_WHITE = "\u00a7f";
@@ -23,6 +25,7 @@ public final class QuickLitematicaVerifierPalette {
     private static final int SLOT_FILL_ALPHA = 0x48;
     private static final int SLOT_BORDER_ALPHA = 0xD8;
     private static final int GHOST_MASK_ALPHA = 0x78;
+    // 边框和虚影遮罩向白色混合，确保深色/浅色资源包下仍能区分填充层和轮廓。
     private static final float BORDER_LIGHTEN = 0.45F;
     private static final float MASK_LIGHTEN = 0.78F;
     private static final float GHOST_ITEM_ALPHA = 0.80F;
