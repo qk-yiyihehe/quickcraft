@@ -5,8 +5,10 @@ import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.gen.Accessor;
 
 /**
- * 拿到创造背包包装槽里真正的底层槽位。
- * 供 QuickCraft 在创造模式界面识别真实库存槽。
+ * 创造模式包装槽的底层槽位 accessor。
+ *
+ * <p>{@code CreativeInventoryScreen$CreativeSlot} 会把真实槽位包一层用于创造栏显示。
+ * QuickCraft 判断玩家库存位置时必须回到被包装的 {@link Slot}，否则锁格和批量操作会误判槽位归属。</p>
  */
 @Mixin(targets = "net.minecraft.client.gui.screen.ingame.CreativeInventoryScreen$CreativeSlot")
 public interface CreativeSlotAccessor {

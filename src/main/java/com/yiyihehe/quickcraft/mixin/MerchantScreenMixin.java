@@ -10,8 +10,11 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
 /**
- * 把村民交易收藏与顺序映射逻辑接到原版交易界面。
- * 这里负责初始化排序、绘制收藏星标，并拦截点击与配方同步。
+ * 村民交易收藏和排序的界面注入层。
+ *
+ * <p>QuickTrade 维护的是“显示顺序”和“原版配方索引”的映射，因此需要在界面初始化、
+ * 星标渲染、鼠标点击和 {@link MerchantScreen#syncRecipeIndex()} 四个点同步状态。
+ * 注入点失效时，常见症状是收藏星标位置错误、点击到错误交易，或服务端收到未映射的配方索引。</p>
  */
 @Mixin(MerchantScreen.class)
 public abstract class MerchantScreenMixin {
