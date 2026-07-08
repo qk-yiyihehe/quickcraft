@@ -8,7 +8,11 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
 /**
- * 铁砧命名框会优先吃键盘输入，这里把 QuickCraft 命名快捷键拦下来。
+ * 铁砧屏幕的重命名快捷键拦截层。
+ *
+ * <p>铁砧界面会把按键优先交给名称输入框处理，因此在
+ * {@link AnvilScreen#keyPressed(int, int, int)} 的入口消费 QuickCraft 热键。
+ * 注入点失效时，表现通常是快捷键不触发，或输入框继续接收这次按键。</p>
  */
 @Mixin(AnvilScreen.class)
 public abstract class AnvilScreenMixin {

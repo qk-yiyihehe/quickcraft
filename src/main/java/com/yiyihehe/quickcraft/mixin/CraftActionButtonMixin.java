@@ -24,8 +24,10 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 /**
- * 给工作台界面补一个 Q 小按钮。
- * 按钮点击后走 QuickCraftWorkbench 的快速合成逻辑。
+ * 工作台快速合成按钮的界面注入。
+ *
+ * <p>按钮挂在 {@link CraftingScreen#init()} 末尾，确保原版槽位和子控件已经完成布局。
+ * 渲染阶段只同步可见性和位置，避免材质包或窗口尺寸变化后按钮留在旧坐标。</p>
  */
 @Mixin(CraftingScreen.class)
 public abstract class CraftActionButtonMixin extends HandledScreen<CraftingScreenHandler> {
@@ -43,7 +45,7 @@ public abstract class CraftActionButtonMixin extends HandledScreen<CraftingScree
             return;
         }
 
-        // 按钮放到产物槽右下外侧，尽量不遮挡产物图标。
+        // 产物槽是 16x16；+13 让 10x10 按钮压在右下角外沿，保留产物图标主体可见。
         int buttonX = this.x + this.getScreenHandler().getSlot(0).x + 13;
         int buttonY = this.y + this.getScreenHandler().getSlot(0).y + 13;
         this.quickcraft$craftButton = this.addDrawableChild(ButtonWidget.builder(Text.literal("Q"), button ->
@@ -66,8 +68,10 @@ public abstract class CraftActionButtonMixin extends HandledScreen<CraftingScree
 }
 
 /**
- * 给玩家背包 2x2 合成界面补一个 Q 小按钮。
- * 按钮点击后走 QuickCraftBackpack 的快速合成逻辑。
+ * 玩家背包 2x2 合成按钮，以及背包界面的锁格按钮入口。
+ *
+ * <p>背包合成按钮和锁格按钮都依赖当前 {@link InventoryScreen} 的实时布局。
+ * 注入 {@code render} 用于同步锁格绑定状态，注入点失效时通常表现为按钮不出现或锁格状态不随界面更新。</p>
  */
 @Mixin(InventoryScreen.class)
 abstract class CraftActionButtonBackpackMixin extends HandledScreen<PlayerScreenHandler> {
@@ -88,7 +92,7 @@ abstract class CraftActionButtonBackpackMixin extends HandledScreen<PlayerScreen
             return;
         }
 
-        // 按钮放到产物槽右下外侧，尽量不遮挡产物图标。
+        // 产物槽是 16x16；+13 让 10x10 按钮压在右下角外沿，保留产物图标主体可见。
         int buttonX = this.x + this.getScreenHandler().getSlot(0).x + 13;
         int buttonY = this.y + this.getScreenHandler().getSlot(0).y + 13;
         this.quickcraft$craftButton = this.addDrawableChild(ButtonWidget.builder(Text.literal("Q"), button ->
@@ -146,15 +150,18 @@ abstract class CraftActionButtonBackpackMixin extends HandledScreen<PlayerScreen
 
         this.quickcraft$lockButton.visible = true;
         this.quickcraft$lockButton.setX(this.x + this.backgroundWidth - 16);
-        // 背包界面右侧中部有一块空白边，锁按钮放这里避免挤在右上角。
+        // 原版背包右侧中部在 1.21-1.21.1 保持空白，放这里不遮挡配方书和装备槽。
         this.quickcraft$lockButton.setY(this.y + 66);
         this.quickcraft$lockButton.setMessage(QuickContainerLock.getLockButtonText(this));
     }
 }
 
 /**
- * 给切石机界面补一个 Q 小按钮。
- * 按钮点击后走 QuickCraftStonecutter 的快速切石逻辑。
+ * 切石机快速加工按钮的界面注入。
+ *
+ * <p>1.21-1.21.1 的 {@link StonecutterScreen} 没有稳定可用的自定义初始化入口，
+ * 因此在渲染阶段懒加载按钮，并在每帧同步位置。注入失效时，切石机界面只会缺少 Q 按钮，
+ * 不应影响原版切石交互。</p>
  */
 @Mixin(StonecutterScreen.class)
 abstract class CraftActionButtonStonecutterMixin extends HandledScreen<StonecutterScreenHandler> {
@@ -175,13 +182,13 @@ abstract class CraftActionButtonStonecutterMixin extends HandledScreen<Stonecutt
             return;
         }
 
-        // 1.21 的 StonecutterScreen 没有覆写 init，这里改为渲染时懒加载按钮。
+        // 1.21-1.21.1 的 StonecutterScreen 没有覆写 init，这里改为渲染时懒加载按钮。
         if (this.quickcraft$craftButton != null && this.children().contains(this.quickcraft$craftButton)) {
             this.quickcraft$syncCraftButtonPosition();
             return;
         }
 
-        // 按钮放到产物槽右下外侧，尽量不遮挡产物图标。
+        // 产物槽是 16x16；+13 让 10x10 按钮压在右下角外沿，保留产物图标主体可见。
         int buttonX = this.x + this.getScreenHandler().getSlot(1).x + 13;
         int buttonY = this.y + this.getScreenHandler().getSlot(1).y + 13;
         this.quickcraft$craftButton = this.addDrawableChild(ButtonWidget.builder(Text.literal("Q"), button ->
