@@ -34,12 +34,16 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * 容器锁：
- * - 对指定箱子记录一个客户端侧“锁定”状态
- * - 槽位锁分为玩家背包全局锁和容器内部锁两类
- * - 只隐藏锁按钮时，不清除已经记录的锁状态
+ * 容器锁和槽位锁功能。
+ *
+ * <p>容器锁按世界/服务器持久化记录某个容器是否禁止自动操作；槽位锁分为玩家背包全局锁和容器内部锁。
+ * 按钮或 overlay 只是显示入口，关闭显示不会清除已经记录的锁状态。</p>
+ *
+ * <p>本类还负责保护锁定槽免受点击、排序、转移等功能影响；TweakerMore/OMMC 自动换鞘翅这类可信自动操作
+ * 会走短暂白名单，避免锁住热栏后把装备切换功能一起拦掉。</p>
  */
 public final class QuickContainerLock implements ClientModInitializer {
+    // 右键容器后等待原版界面打开的最长时间，单位 tick。
     private static final int OPEN_TIMEOUT_TICKS = 20;
     private static final int SLOT_SIZE = 18;
     private static final int SLOT_LOCK_WIDTH = 8;
@@ -55,6 +59,7 @@ public final class QuickContainerLock implements ClientModInitializer {
     private static final int AUTO_ELYTRA_CALLER_NONE = 0;
     private static final int AUTO_ELYTRA_CALLER_TWEAKEROO = 1;
     private static final int AUTO_ELYTRA_CALLER_OMMC = 2;
+    // 自动换鞘翅通常由连续几次槽位点击组成；会话只允许固定点击数，避免无限绕过锁槽。
     private static final int AUTO_ELYTRA_SESSION_CLICK_COUNT = 3;
     private static final int AUTO_ELYTRA_LINGER_TICKS = 2;
     private static final String PLAYER_CONTAINER_KEY = "player_inventory";
