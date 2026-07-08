@@ -22,6 +22,12 @@ import org.jetbrains.annotations.Nullable;
 
 import java.io.File;
 
+/**
+ * 原理图文件浏览器右侧信息栏的 3D 预览替换层。
+ *
+ * <p>Litematica 原界面会绘制 2D 缩略图和边框。QuickCraft 开启 3D 预览时，
+ * 先在信息栏底部绘制自定义预览，再跳过原版缩略图纹理和对应边框，避免两套预览重叠。</p>
+ */
 @Mixin(value = WidgetSchematicBrowser.class, remap = false)
 public abstract class LitematicaWidgetSchematicBrowserMixin extends WidgetFileBrowserBase {
     @Shadow
@@ -53,8 +59,9 @@ public abstract class LitematicaWidgetSchematicBrowserMixin extends WidgetFileBr
     private void quickcraft$draw3DPreview(@Nullable DirectoryEntry entry, DrawContext drawContext, CallbackInfo ci) {
         int infoX = this.posX + this.totalWidth - this.infoWidth;
         int infoY = this.posY;
-		int height = Math.min(this.infoHeight, this.parent.getMaxInfoHeight());
-		int size = Math.max(1, Math.min(this.infoWidth - 32, Math.max(48, height - 152)));
+        int height = Math.min(this.infoHeight, this.parent.getMaxInfoHeight());
+        // 预留 Litematica 文本信息区域，预览框只吃右侧信息栏底部的剩余空间。
+        int size = Math.max(1, Math.min(this.infoWidth - 32, Math.max(48, height - 152)));
         int x = infoX + (this.infoWidth - size) / 2;
         int y = infoY + height - size - 8;
 

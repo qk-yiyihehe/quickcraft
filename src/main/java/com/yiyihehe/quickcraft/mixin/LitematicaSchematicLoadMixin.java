@@ -12,8 +12,11 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 /**
- * 在 Litematica 加载原理图页面追加“容器材料列表”入口按钮。
- * 点击后把当前选中的原理图交给 QuickLitematicaContainerMaterials 打开。
+ * Litematica 加载原理图页面的容器材料入口。
+ *
+ * <p>按钮只负责把当前选中的浏览器条目交给 {@link QuickLitematicaContainerMaterials}。
+ * 位置计算留在业务类里，避免这里同时承担按钮布局和材料列表解析。注入点失效时，
+ * 玩家只能少一个入口，不会影响 Litematica 原版加载流程。</p>
  */
 @Mixin(value = GuiSchematicLoad.class, remap = false)
 public abstract class LitematicaSchematicLoadMixin extends GuiSchematicBrowserBase {

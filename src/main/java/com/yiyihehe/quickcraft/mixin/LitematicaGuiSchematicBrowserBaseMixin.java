@@ -9,6 +9,12 @@ import fi.dy.masa.malilib.gui.widgets.WidgetFileBrowserBase;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Unique;
 
+/**
+ * 原理图浏览器 3D 预览的生命周期和输入转发层。
+ *
+ * <p>预览管理器跟随 {@link GuiSchematicBrowserBase} 创建和关闭，避免 framebuffer、
+ * mesh 缓存和鼠标拖拽状态跨界面残留。滚轮、拖拽、点击先交给预览区处理，未命中时再回到原版列表。</p>
+ */
 @Mixin(value = GuiSchematicBrowserBase.class, remap = false)
 public abstract class LitematicaGuiSchematicBrowserBaseMixin
         extends GuiListBase<WidgetFileBrowserBase.DirectoryEntry, WidgetDirectoryEntry, WidgetSchematicBrowser> {

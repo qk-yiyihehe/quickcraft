@@ -14,11 +14,15 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 /**
- * 在 Litematica 主菜单追加打开原理图文件夹的快捷入口。
+ * Litematica 主菜单的原理图文件夹快捷入口。
+ *
+ * <p>{@link GuiMainMenu} 属于 Litematica/malilib 界面，不能 remap。按钮宽度按原菜单按钮动态计算，
+ * 避免翻译文本或选择模式名称变长后右列按钮宽度不一致。</p>
  */
 @Mixin(value = GuiMainMenu.class, remap = false)
 public abstract class LitematicaGuiMainMenuMixin extends GuiBase {
     private static final String OPEN_SCHEMATIC_FOLDER_KEY = "quickcraft.litematica.button.open_schematic_folder";
+    // 74 是 Litematica 1.21-1.21.1 主菜单右列第一行按钮的 y 坐标。
     private static final int RIGHT_COLUMN_Y = 74;
 
     protected LitematicaGuiMainMenuMixin() {
