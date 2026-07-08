@@ -32,11 +32,13 @@ import java.util.HashMap;
 import java.util.Map;
 
 /**
- * 村民交易增强：
- * - 中键收藏一条交易，再次中键同一条交易会取消收藏
- * - 收藏交易会在原版交易列表顺序中排到第一位
- * - 右键一条交易时，尽可能连续完成该交易
- * - 开启快速交易后，对着村民右键会自动完成收藏交易并关闭界面
+ * 村民交易增强。
+ *
+ * <p>中键收藏交易，收藏项会在客户端交易列表里排到第一位；右键交易行时尽可能连续完成该交易。
+ * 开启快速交易后，对着村民右键会等待交易界面打开，自动执行收藏交易并关闭界面。</p>
+ *
+ * <p>收藏交易按商人实体持久化，只保存交易输入/输出模板；交易列表重排只改客户端显示顺序，
+ * 真正交易仍通过原版服务端交易索引完成。</p>
  */
 public final class QuickTrade implements ClientModInitializer {
     private static final int ROW_X_OFFSET = 5;
@@ -47,6 +49,7 @@ public final class QuickTrade implements ClientModInitializer {
     private static final int STAR_X_OFFSET = 1;
     private static final int STAR_Y_OFFSET = 1;
     private static final int OUTPUT_SLOT_ID = 2;
+    // 单次右键连续交易上限，防止价格/库存异常时在一个 tick 循环里无限点击。
     private static final int MAX_BATCH_TRADES = 512;
     private static final int AUTO_TRADE_TIMEOUT_TICKS = 40;
     private static final int MERCHANT_OPEN_TIMEOUT_TICKS = 20;
