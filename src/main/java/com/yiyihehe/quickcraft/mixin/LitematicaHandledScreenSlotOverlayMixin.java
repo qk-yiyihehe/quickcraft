@@ -15,8 +15,11 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 /**
- * 给容器校验中的槽位绘制底色、边框和缺失物品虚影。
- * 用于在打开容器时直观看到少了什么、错了什么。
+ * 打开容器时的校验槽位覆盖层。
+ *
+ * <p>{@code drawSlot} 入口先画底色和边框，让原版物品仍能盖在背景上；
+ * 返回点再画缺失物品虚影，确保空槽能显示预期物品。两个注入点的顺序不能合并，
+ * 否则真实物品、虚影和高亮遮罩会互相压错层级。</p>
  */
 @Mixin(HandledScreen.class)
 public abstract class LitematicaHandledScreenSlotOverlayMixin<T extends ScreenHandler> {

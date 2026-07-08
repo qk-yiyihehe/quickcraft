@@ -15,8 +15,11 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 import java.util.Set;
 
 /**
- * 给原版 BlockMismatch 实例挂接 QuickCraft 的容器错填附加数据。
- * 这样列表项、统计和悬浮预览都能复用同一份容器对比结果。
+ * 给 Litematica 原版 {@link BlockMismatch} 挂接容器内容差异。
+ *
+ * <p>验证器列表、HUD 选中项和悬浮库存预览都只认识 {@code BlockMismatch}。
+ * QuickCraft 把容器差异附着到这个对象上，并在存在容器 key 时接管 equals/hashCode，
+ * 避免同一个容器的不同槽位差异被原版“方块状态相同”逻辑合并。</p>
  */
 @Mixin(value = BlockMismatch.class, remap = false)
 public class LitematicaBlockMismatchMixin implements BlockMismatchExtension {

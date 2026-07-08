@@ -18,8 +18,10 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import java.util.List;
 
 /**
- * 扩展 Litematica 原理图验证器界面。
- * 这里追加容器错填分类按钮、状态统计文案，并处理禁用状态下的结果模式回退。
+ * Litematica 原理图验证器的容器差异界面扩展。
+ *
+ * <p>这里只处理 GUI 状态：容器差异分类按钮、底部统计文案，以及配置关闭后从容器分类退回
+ * 原版 {@link MismatchType#ALL}。实际容器对比和结果缓存都在 verifier 扩展里完成。</p>
  */
 @Mixin(value = GuiSchematicVerifier.class, remap = false)
 public abstract class LitematicaGuiSchematicVerifierMixin {
@@ -45,6 +47,7 @@ public abstract class LitematicaGuiSchematicVerifierMixin {
 
         GuiSchematicVerifier gui = (GuiSchematicVerifier) (Object) this;
         int x = this.quickcraft$getInventoryButtonX(gui);
+        // 42 是 Litematica 1.21-1.21.1 验证器顶部分类按钮行的 y 坐标。
         int y = 42;
         int addedWidth = this.quickcraft$getInventoryButtonsWidth(gui);
 

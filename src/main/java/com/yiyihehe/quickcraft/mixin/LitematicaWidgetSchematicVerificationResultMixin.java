@@ -16,8 +16,10 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 /**
- * 在原理图验证结果列表的单条记录上追加容器内容悬浮预览。
- * 选中容器错填项时，复用 QuickLitematicaContainerVerifier 画左右库存对比。
+ * 原理图验证结果单行的容器库存悬浮预览。
+ *
+ * <p>只有容器差异项会接管 {@code postRenderHovered}。接管后取消原版 hover，
+ * 避免方块状态 tooltip 和左右库存对比同时出现。</p>
  */
 @Mixin(value = WidgetSchematicVerificationResult.class, remap = false)
 public abstract class LitematicaWidgetSchematicVerificationResultMixin

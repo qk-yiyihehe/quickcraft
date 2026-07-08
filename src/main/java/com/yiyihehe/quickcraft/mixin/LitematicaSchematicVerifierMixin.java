@@ -58,7 +58,10 @@ import java.util.Set;
 
 /**
  * 把容器内容校验并入 Litematica 原版验证流程。
- * 负责收集容器错填、维护统计与选中状态，并把结果包装成原版可显示的数据结构。
+ *
+ * <p>Litematica 原验证器只比较方块状态。QuickCraft 在同一轮 chunk 验证里读取投影容器库存、
+ * 当前世界容器库存和禁用槽状态，再把结果包装成原版 {@link BlockMismatch} 可显示的数据。
+ * 这个 mixin 同时维护容器差异缓存、渲染选中状态、HUD 坐标列表和多人服异步容器 NBT 等待。</p>
  */
 @Mixin(value = SchematicVerifier.class, remap = false)
 public abstract class LitematicaSchematicVerifierMixin extends TaskBase implements VerifierExtension {
@@ -203,6 +206,7 @@ public abstract class LitematicaSchematicVerifierMixin extends TaskBase implemen
             )
     )
     private WorldChunk quickcraft$useBestWorldForSinglePlayer(ClientWorld clientWorld, int chunkX, int chunkZ) {
+        // 单人暂停菜单/集成服下 bestWorld 更接近真实方块实体数据，避免只读到客户端缓存。
         World bestWorld = fi.dy.masa.malilib.util.WorldUtils.getBestWorld(MinecraftClient.getInstance());
         return bestWorld != null ? bestWorld.getChunk(chunkX, chunkZ) : clientWorld.getChunk(chunkX, chunkZ);
     }
@@ -215,6 +219,7 @@ public abstract class LitematicaSchematicVerifierMixin extends TaskBase implemen
             )
     )
     private boolean quickcraft$waitForContainerData(ChunkManagerSchematic chunkManager, int chunkX, int chunkZ) {
+        // Servux/OP 容器 NBT 可能晚于原理图 chunk 到达；缺数据时先暂停该 chunk 的容器比较。
         return chunkManager.isChunkLoaded(chunkX, chunkZ)
                 && this.quickcraft$canProcessContainerDataChunk(new ChunkPos(chunkX, chunkZ));
     }
@@ -414,7 +419,7 @@ public abstract class LitematicaSchematicVerifierMixin extends TaskBase implemen
             return;
         }
 
-        // 开始验证时先按本次原理图触碰的 chunk 拉一轮容器 NBT。
+        // 开始验证时先按本次原理图触碰的 chunk 拉一轮容器 NBT，减少后续逐个位置等待。
         this.quickcraft$requestContainerInventoryDataChunks(worldClient, schematicPlacement.getTouchedChunks());
     }
 
@@ -454,6 +459,7 @@ public abstract class LitematicaSchematicVerifierMixin extends TaskBase implemen
         }
 
         boolean changed = false;
+        // 每 10 tick 最多复查 128 个位置，避免大型原理图在单帧里重扫所有容器。
         int checks = Math.min(128, positions.size());
 
         for (int i = 0; i < checks; i++) {
@@ -657,6 +663,7 @@ public abstract class LitematicaSchematicVerifierMixin extends TaskBase implemen
                 .map(ContainerMismatch::key)
                 .toList();
 
+        // key 只描述差异位置；签名补上槽位状态和数量，用于判断实时库存刷新后是否需要重建 overlay。
         List<String> oldSignatures = this.quickcraft$containerMismatchesByKey.values().stream()
                 .filter(mismatch -> mismatch.pos().equals(pos))
                 .map(this::quickcraft$getContainerMismatchSignature)
@@ -782,6 +789,7 @@ public abstract class LitematicaSchematicVerifierMixin extends TaskBase implemen
                 minY = Integer.MAX_VALUE;
                 maxY = Integer.MIN_VALUE;
 
+                // 只请求当前原理图在该 chunk 内覆盖的高度，避免大型世界里多拉无关方块实体。
                 for (IntBoundingBox box : boxes.values()) {
                     minY = Math.min(minY, box.minY);
                     maxY = Math.max(maxY, box.maxY);

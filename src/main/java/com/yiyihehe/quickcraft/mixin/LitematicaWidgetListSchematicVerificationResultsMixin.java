@@ -20,7 +20,11 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 /**
- * 扩展原理图验证结果列表，把容器错填分组插入原版列表。
+ * 原理图验证结果列表的容器差异分组入口。
+ *
+ * <p>列表内容在 {@code refreshBrowserEntries} 里组装，QuickCraft 赶在
+ * {@code reCreateListEntryWidgets} 前插入容器分组，这样后续 widget 创建仍由 Litematica 原列表负责。
+ * 目标调用点失效时，验证结果仍存在，但 ALL 页面不会显示容器差异分组。</p>
  */
 @Mixin(value = WidgetListSchematicVerificationResults.class, remap = false)
 public abstract class LitematicaWidgetListSchematicVerificationResultsMixin

@@ -10,8 +10,11 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 /**
- * 在容器校验接管槽位高亮时，临时关闭 Litematica 原版材料 HUD 的槽位提示。
- * 避免两套蓝色高亮叠在一起。
+ * 容器校验覆盖层对 Litematica 材料 HUD 高亮的让行。
+ *
+ * <p>材料 HUD 的库存槽位提示和 QuickCraft 容器校验都会在同一个
+ * {@link HandledScreen} 上画高亮。校验界面接管时取消原版材料提示，
+ * 避免两套颜色叠加后看不清缺失/错填状态。</p>
  */
 @Mixin(value = MaterialListHudRenderer.class, remap = false)
 public class LitematicaMaterialListHudRendererMixin {
