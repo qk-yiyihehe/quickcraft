@@ -38,13 +38,16 @@ import java.util.Optional;
 import java.util.Set;
 
 /**
- * 自动激活信标：
- * - 开启待命后，对着信标右键
- * - 按配置顺序寻找玩家当前缺少的 II 级信标效果
- * - 自动使用背包矿物支付，不够时尝试用背包 2x2 合成栏拆一块矿物块
- * - 发送原版更新信标数据包后自动关闭界面
+ * 自动激活信标。
+ *
+ * <p>玩家右键信标后，按配置顺序寻找当前缺少的 II 级信标效果，自动放入支付矿物并发送原版信标更新包。
+ * 如果没有单个矿物，会尝试用玩家背包 2x2 合成栏拆一块矿物块，再回到信标界面完成支付。</p>
+ *
+ * <p>本类只处理客户端点击和原版数据包，不直接修改信标方块实体；近期已配置的信标会短暂保留目标记录，
+ * 避免多个信标连续打开时重复选择同一个效果。</p>
  */
 public final class QuickBeacon implements ClientModInitializer {
+    // 右键后等待信标界面打开的最长时间，单位 tick。
     private static final int OPEN_TIMEOUT_TICKS = 20;
     private static final int BEACON_PAYMENT_SLOT_ID = 0;
     private static final int PLAYER_CRAFT_RESULT_SLOT_ID = 0;
@@ -52,6 +55,7 @@ public final class QuickBeacon implements ClientModInitializer {
     private static final int MAX_EFFECT_ORDER_SIZE = 6;
     private static final int CRAFT_RESULT_WAIT_TICKS = 5;
     private static final int CRAFT_RESULT_TAKE_ATTEMPTS = 2;
+    // 最近配置记录保留 5 秒，用于连续多个信标自动选择不同缺失效果。
     private static final int RECENT_ASSIGNMENT_TTL_TICKS = 100;
     private static final int MIN_ACTIVE_EFFECT_DURATION_TICKS = 13 * 20;
     private static final Map<BlockPos, RecentBeaconAssignment> RECENT_BEACON_ASSIGNMENTS = new HashMap<>();
