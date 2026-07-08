@@ -682,10 +682,6 @@ public final class QuickCraftConfigs implements IConfigHandler {
         return ContainerTools.ENABLE_QUICK_TRANSFER.getBooleanValue();
     }
 
-    public static boolean isQuickTransferRetainOneEnabled() {
-        return ContainerTools.QUICK_TRANSFER_RETAIN_ONE.getBooleanValue();
-    }
-
     public static boolean isQuickThrowEnabled() {
         return ContainerTools.ENABLE_QUICK_THROW.getBooleanValue();
     }

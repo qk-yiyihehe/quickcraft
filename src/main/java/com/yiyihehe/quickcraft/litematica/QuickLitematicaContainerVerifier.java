@@ -751,7 +751,7 @@ public final class QuickLitematicaContainerVerifier {
             }
         }
 
-        if (expectedContainer != null && foundInventory.size() == expectedContainer.inventory().size()) {
+        if (foundInventory.size() == expectedContainer.inventory().size()) {
             currentScreenSlotOverlays = mismatches != null
                     ? buildSlotOverlays(expectedContainer, mismatches)
                     : buildSlotOverlays(expectedContainer, foundInventory, foundDisabledSlots);
