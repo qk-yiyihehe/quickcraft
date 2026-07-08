@@ -15,11 +15,19 @@ import net.minecraft.screen.slot.SlotActionType;
 import net.minecraft.text.Text;
 
 /**
- * 铁砧快速命名：按左槽物品和输出名批量重命名。
+ * 铁砧快速命名的客户端入口。
+ *
+ * <p>本类只负责铁砧界面里的单次/连续重命名：从当前左槽和输出槽锁定“原名称 -> 目标名称”，
+ * 再用原版槽位点击和 {@link RenameItemC2SPacket} 批量处理同类物品。按钮注入、配置定义和翻译文本
+ * 由其它包负责。</p>
  */
 public final class QuickCraftAnvilRename implements ClientModInitializer {
+    // 每 tick 驱动一次；实际单 tick 操作次数由 craftLoopsPerTick 配置决定。
     private static final int RAPID_INTERVAL = 1;
+    // 连续几轮没有移动物品或生成输出时停止，避免界面状态异常时一直发点击包。
     private static final int MAX_CONSECUTIVE_FAILURES = 3;
+
+    // 1.21/1.21.1 的 AnvilScreenHandler 固定槽位：0 左输入，1 副输入，2 输出。
     private static final int INPUT_SLOT = AnvilScreenHandler.INPUT_1_ID;
     private static final int ADDITION_SLOT = AnvilScreenHandler.INPUT_2_ID;
     private static final int OUTPUT_SLOT = AnvilScreenHandler.OUTPUT_ID;
@@ -91,6 +99,11 @@ public final class QuickCraftAnvilRename implements ClientModInitializer {
         }
     }
 
+    /**
+     * 执行一次“补左槽 -> 同步目标名称 -> 取输出”的最小循环。
+     *
+     * <p>副槽必须保持为空；这个功能只处理纯重命名，不接管修复、材料消耗或附魔合并。</p>
+     */
     private boolean runOneRenameSubLoop(MinecraftClient client,
                                         AnvilScreenHandler handler,
                                         RenameSnapshot snapshot) {
@@ -178,6 +191,11 @@ public final class QuickCraftAnvilRename implements ClientModInitializer {
         sendStatusMessage(client, Text.translatable("quickcraft.message.anvil_rename.started"));
     }
 
+    /**
+     * 从当前铁砧状态建立重命名计划。
+     *
+     * <p>只有左槽和输出槽是同一种物品，且输出名确实不同，才认为玩家已经用原版铁砧确认了目标名称。</p>
+     */
     private RenameSnapshot captureSnapshot(AnvilScreenHandler handler) {
         if (handler == null || hasUnexpectedAddition(handler) || !hasInput(handler) || !hasOutput(handler)) {
             return null;
@@ -230,6 +248,7 @@ public final class QuickCraftAnvilRename implements ClientModInitializer {
     private boolean syncRenameText(MinecraftClient client,
                                    AnvilScreenHandler handler,
                                    String targetName) {
+        // setNewItemName 只改本地 handler，RenameItemC2SPacket 才会让服务端按同一个名称重新计算输出。
         if (handler.setNewItemName(targetName)) {
             client.getNetworkHandler().sendPacket(new RenameItemC2SPacket(targetName));
         }
@@ -324,6 +343,12 @@ public final class QuickCraftAnvilRename implements ClientModInitializer {
         }
     }
 
+    /**
+     * 连续重命名期间锁定的计划。
+     *
+     * <p>这里只记录物品类型和名称，不记录整份组件：铁砧重命名会改变组件，锁得太细会把刚生成的输出
+     * 误判成不可继续处理的输入。副槽有物品时不建立快照，避免把修复、合并附魔等铁砧行为混进“只改名”的流程。</p>
+     */
     private record RenameSnapshot(Item item, String originalName, String targetName) {
         private boolean matchesTarget(ItemStack stack) {
             return !stack.isEmpty()

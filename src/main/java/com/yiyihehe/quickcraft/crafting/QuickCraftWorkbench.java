@@ -25,17 +25,27 @@ import java.util.List;
 import java.util.Optional;
 
 /**
- * 工作台快速合成：普通配方走原版配方书点击，特殊配方按锁定格子手动补料。
+ * 工作台 3x3 快速合成的客户端入口。
+ *
+ * <p>本类只接管工作台界面的合成循环：普通配方复用原版配方书点击，配方书忽略的特殊配方
+ * 锁定当前 3x3 格子图案后手动补料。界面按钮注入、配置项和语言文本由其它模块提供。</p>
+ *
+ * <p>这里的槽位点击依赖 1.21/1.21.1 的 {@link CraftingScreenHandler} 槽位布局；迁移高版本时，
+ * 优先检查槽位映射和 {@code clickRecipe/clickSlot} 行为是否仍一致。</p>
  */
 public class QuickCraftWorkbench implements ClientModInitializer {
     private static QuickCraftWorkbench INSTANCE;
 
+    // 每 tick 驱动一次；单 tick 内循环次数由 craftLoopsPerTick 配置控制。
     private static final int RAPID_INTERVAL = 1;
 
+    // 丢出已有成品后最多再尝试拿取两次，用来吸收客户端槽位状态的短暂不同步。
     private static final int OUTPUT_TAKE_ATTEMPTS_AFTER_DROP = 2;
 
+    // 连续无进展后停机，避免库存满、配方失效或服务端拒绝点击时无限发包。
     private static final int MAX_CONSECUTIVE_FAILURES =3;
 
+    // CraftingScreenHandler：0 是输出槽，1-9 是工作台 3x3 合成格。
     private static final int OUTPUT_SLOT = 0;
 
     private boolean lastVDown = false;
@@ -51,10 +61,13 @@ public class QuickCraftWorkbench implements ClientModInitializer {
 
     private RecipeEntry<CraftingRecipe> lockedRecipe = null;
 
+    // 连续合成期间锁定的格子图案，每个非空格只保留 1 个物品作为模板。
     private List<ItemStack> lockedCraftingPattern = new ArrayList<>();
 
+    // 输出模板用于识别成品、处理背包满时的丢弃回退，也避免配方对象临时取不到时丢失目标。
     private ItemStack lockedResultTemplate = ItemStack.EMPTY;
 
+    // 同一个输出状态只允许丢一次原料，防止输出槽堵住时把原料持续扔到地上。
     private boolean ingredientDropLocked = false;
 
     private int lastObservedOutputSignature = 0;
@@ -137,6 +150,12 @@ public class QuickCraftWorkbench implements ClientModInitializer {
 
     }
 
+    /**
+     * 执行一次快速合成子循环。
+     *
+     * <p>优先取走已有输出；如果输出槽因背包满拿不走，才进入丢成品/丢少量原料的回退路径。
+     * 这个顺序能让普通库存足够时保持原版行为，只有堵塞时才改变玩家背包内容。</p>
+     */
     private boolean runOneCraftSubLoop(MinecraftClient client,
                                        CraftingScreenHandler handler,
                                        RecipeEntry<CraftingRecipe> recipe) {
@@ -218,6 +237,12 @@ public class QuickCraftWorkbench implements ClientModInitializer {
         return false;
     }
 
+    /**
+     * 处理输出槽已生成但无法放入背包的情况。
+     *
+     * <p>先丢同类成品腾空间；仍失败时最多丢一份可补回的原料，并用 {@code ingredientDropLocked}
+     * 锁住当前输出状态，避免同一个堵塞状态下连续丢料。</p>
+     */
     private boolean resolveOutputSlotBlockageStrict(MinecraftClient client,
                                                     CraftingScreenHandler handler,
                                                     ItemStack resultTemplate,
@@ -322,6 +347,7 @@ public class QuickCraftWorkbench implements ClientModInitializer {
             return false;
         }
         try {
+            // 普通配方交给原版配方书填格子；特殊配方走锁定图案的手动补料路径。
             client.interactionManager.clickRecipe(handler.syncId, recipe, true);
             return true;
         } catch (Throwable t) {
@@ -339,6 +365,12 @@ public class QuickCraftWorkbench implements ClientModInitializer {
         return restockCraftingGridFromPattern(client, handler);
     }
 
+    /**
+     * 按锁定图案补齐缺失格子。
+     *
+     * <p>特殊配方通常不在配方书里，无法依赖 {@code clickRecipe} 自动摆放；这里必须保留玩家触发时的
+     * 格子位置，只补空格，已有但不匹配的格子直接失败，避免把玩家临时改过的布局继续自动合成。</p>
+     */
     private boolean restockCraftingGridFromPattern(MinecraftClient client,
                                                    CraftingScreenHandler handler) {
         if (client.player == null || client.interactionManager == null) {
@@ -384,6 +416,12 @@ public class QuickCraftWorkbench implements ClientModInitializer {
         return hasPattern && (changed || handler.getSlot(OUTPUT_SLOT).hasStack());
     }
 
+    /**
+     * 为一个缺失格选择最小扰动的放料方式。
+     *
+     * <p>同一原料缺多个格子时优先用原版 QUICK_CRAFT 均分；已有满组可直接整组放入；
+     * 只有单格缺料时才拆一份，减少鼠标栈残留和格子数量不均导致的输出闪烁。</p>
+     */
     private boolean moveIngredientStackToGridSlot(MinecraftClient client,
                                                   CraftingScreenHandler handler,
                                                   int sourceSlot,
@@ -570,6 +608,7 @@ public class QuickCraftWorkbench implements ClientModInitializer {
             return false;
         }
 
+        // 复用原版拖拽合成协议：-999 表示窗口外，0/1/2 分别是开始、加入槽位、结束。
         client.interactionManager.clickSlot(
                 handler.syncId,
                 -999,
@@ -796,12 +835,18 @@ public class QuickCraftWorkbench implements ClientModInitializer {
             return false;
         }
         try {
+            // isIgnoredInRecipeBook 的配方不能可靠地用配方书自动摆放，只能按当前格子快照补料。
             return recipe.value().isIgnoredInRecipeBook();
         } catch (Throwable t) {
             return false;
         }
     }
 
+    /**
+     * 锁定当前合成计划。
+     *
+     * <p>连续合成期间不重新推断配方，避免输出槽短暂清空或配方书刷新时切到其它同材料配方。</p>
+     */
     private void lockCurrentRecipe(RecipeEntry<CraftingRecipe> recipe,
                                    CraftingScreenHandler handler) {
         lockedRecipe = recipe;
@@ -858,6 +903,7 @@ public class QuickCraftWorkbench implements ClientModInitializer {
                                            CraftingScreenHandler handler,
                                            RecipeEntry<CraftingRecipe> recipe) {
 
+        // 手动补料的特殊配方如果多个同类格子数量不一致，Shift 拿取可能一次消耗多格；改成单次拾取更稳。
         if (shouldManualRestock(recipe)) {
             if (isManualPatternMissingItems(handler)) {
                 return false;
@@ -968,6 +1014,11 @@ public class QuickCraftWorkbench implements ClientModInitializer {
         return hash;
     }
 
+    /**
+     * 跟踪输出槽是否已经换成另一份结果。
+     *
+     * <p>{@code ingredientDropLocked} 只保护当前输出状态；输出消失或物品/数量/组件变化后允许下一轮回退。</p>
+     */
     private void updateIngredientDropLock(CraftingScreenHandler handler) {
         int currentSignature = getOutputSignature(handler);
 
@@ -1214,6 +1265,11 @@ public class QuickCraftWorkbench implements ClientModInitializer {
         return CraftingRecipeInput.create(3, 3, inputStacks);
     }
 
+    /**
+     * 把玩家背包索引映射到当前屏幕 handler 的槽位编号。
+     *
+     * <p>这是 1.21/1.21.1 {@link CraftingScreenHandler} 的布局：热栏在 37-45，主背包在 10-36。</p>
+     */
     private int playerInventoryIndexToHandlerSlot(int invIndex) {
         if (invIndex >= 0 && invIndex <= 8) {
             return 37 + invIndex;

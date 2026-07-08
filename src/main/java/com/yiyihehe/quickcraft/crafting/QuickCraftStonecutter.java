@@ -18,17 +18,29 @@ import org.lwjgl.glfw.GLFW;
 import java.util.List;
 
 /**
- * 切石机快速合成：复用原版选配方与槽位点击交互。
+ * 切石机快速合成的客户端入口。
+ *
+ * <p>本类负责切石机界面的单次/连续合成：锁定玩家当前选择的切石配方和输出模板，
+ * 后续通过原版选择按钮与槽位点击补输入、取输出。按钮注入、配置项和语言文本由其它模块提供。</p>
+ *
+ * <p>切石机的可用配方列表会随输入槽刷新；连续合成期间不能只信任旧索引，
+ * 因此这里会按配方 id 和输出物品回找当前可用索引。</p>
  */
 public class QuickCraftStonecutter implements ClientModInitializer {
     private static QuickCraftStonecutter INSTANCE;
 
+    // 每 tick 驱动一次；单 tick 内循环次数由 craftLoopsPerTick 配置控制。
     private static final int RAPID_INTERVAL = 1;
+    // 丢出已有成品后最多再尝试拿取两次，用来吸收客户端槽位状态的短暂不同步。
     private static final int OUTPUT_TAKE_ATTEMPTS_AFTER_DROP = 2;
+    // 连续无进展后停机，避免库存满、配方失效或服务端拒绝点击时无限发包。
     private static final int MAX_CONSECUTIVE_FAILURES = 3;
+    // 库存数量和空槽连续没有变化时停止，补足只看输出槽变化可能漏掉“假成功”。
     private static final int MAX_NO_PROGRESS_TICKS = 3;
+    // StonecutterScreenHandler：0 是输入槽，1 是输出槽。
     private static final int INPUT_SLOT = 0;
     private static final int OUTPUT_SLOT = 1;
+    // 丢原料后如果输出仍无法拿走，只允许少量“看似有动作”的轮次，避免持续丢料。
     private static final int MAX_FAKE_PROGRESS = 3;
 
     private boolean lastVDown = false;
@@ -37,6 +49,8 @@ public class QuickCraftStonecutter implements ClientModInitializer {
     private boolean rapidCraftStartedByButton = false;
     private int rapidCooldown = 0;
     private int consecutiveFailures = 0;
+
+    // 连续合成期间锁定的选择；索引用于快速复用，配方和输出模板用于列表刷新后的回找。
     private RecipeEntry<StonecuttingRecipe> lockedRecipe = null;
     private int lockedRecipeIndex = -1;
     private ItemStack lockedInputTemplate = ItemStack.EMPTY;
@@ -44,6 +58,8 @@ public class QuickCraftStonecutter implements ClientModInitializer {
     private int noProgressTicks = 0;
     private int lastResultCount = -1;
     private int lastEmptySlots = -1;
+
+    // 同一个输出状态只允许丢一次原料，防止输出槽堵住时把原料持续扔到地上。
     private boolean ingredientDropLocked = false;
     private int lastObservedOutputSignature = 0;
     private int fakeProgressTicks = 0;
@@ -126,6 +142,12 @@ public class QuickCraftStonecutter implements ClientModInitializer {
         }
     }
 
+    /**
+     * 执行一次切石机快速合成子循环。
+     *
+     * <p>优先取走已有输出；输出拿不走时先尝试腾出成品空间，再补输入、重新选择配方。
+     * 切石机只有单输入槽，所以不需要像 2x2/3x3 合成那样维护格子图案。</p>
+     */
     private boolean runOneCraftSubLoop(MinecraftClient client,
                                        StonecutterScreenHandler handler,
                                        RecipeEntry<StonecuttingRecipe> recipe) {
@@ -190,6 +212,12 @@ public class QuickCraftStonecutter implements ClientModInitializer {
         return handler.getSlot(OUTPUT_SLOT).hasStack();
     }
 
+    /**
+     * 处理输出槽已生成但无法放入背包的情况。
+     *
+     * <p>先丢同类成品腾空间；仍失败时最多丢一份可补回的原料，并用 {@code ingredientDropLocked}
+     * 锁住当前输出状态，避免同一个堵塞状态下连续丢料。</p>
+     */
     private boolean resolveOutputSlotBlockageStrict(MinecraftClient client,
                                                     StonecutterScreenHandler handler,
                                                     ItemStack resultTemplate,
@@ -286,6 +314,7 @@ public class QuickCraftStonecutter implements ClientModInitializer {
         }
 
         try {
+            // 先更新本地 handler 选择，再发送 clickButton；1.21/1.21.1 的切石机依赖这两个状态一起同步输出。
             if (handler.getSelectedRecipe() != recipeIndex || !handler.getSlot(OUTPUT_SLOT).hasStack()) {
                 handler.onButtonClick(client.player, recipeIndex);
                 client.interactionManager.clickButton(handler.syncId, recipeIndex);
@@ -374,6 +403,11 @@ public class QuickCraftStonecutter implements ClientModInitializer {
         return hash;
     }
 
+    /**
+     * 跟踪输出槽是否已经换成另一份结果。
+     *
+     * <p>{@code ingredientDropLocked} 只保护当前输出状态；输出消失或物品/数量/组件变化后允许下一轮回退。</p>
+     */
     private void updateIngredientDropLock(StonecutterScreenHandler handler) {
         int currentSignature = getOutputSignature(handler);
         if (currentSignature == 0) {
@@ -603,6 +637,12 @@ public class QuickCraftStonecutter implements ClientModInitializer {
         }
     }
 
+    /**
+     * 锁定当前切石机选择。
+     *
+     * <p>优先记录当前索引和配方；如果输出槽已有结果，也保存输出模板。后续配方列表刷新时，
+     * 输出模板可以作为兜底，防止索引指向另一个切石结果。</p>
+     */
     private boolean lockCurrentSelection(MinecraftClient client, StonecutterScreenHandler handler) {
         clearLockedSelection();
 
@@ -660,6 +700,11 @@ public class QuickCraftStonecutter implements ClientModInitializer {
         return recipeIndex >= 0 && recipeIndex < handler.getAvailableRecipes().size();
     }
 
+    /**
+     * 配方 id 找不到时按显示结果回找索引。
+     *
+     * <p>切石机输入变化会重建可用列表，旧索引只作为最后兜底；结果模板能更直观地对应玩家锁定的按钮。</p>
+     */
     private int findAvailableRecipeIndexByResult(MinecraftClient client,
                                                  StonecutterScreenHandler handler,
                                                  ItemStack resultTemplate) {
@@ -713,6 +758,11 @@ public class QuickCraftStonecutter implements ClientModInitializer {
         lockedResultTemplate = ItemStack.EMPTY;
     }
 
+    /**
+     * 把玩家背包索引映射到当前屏幕 handler 的槽位编号。
+     *
+     * <p>这是 1.21/1.21.1 {@link StonecutterScreenHandler} 的布局：热栏在 29-37，主背包在 2-28。</p>
+     */
     private int playerInventoryIndexToHandlerSlot(int invIndex) {
         if (invIndex >= 0 && invIndex <= 8) {
             return 29 + invIndex;
@@ -792,6 +842,12 @@ public class QuickCraftStonecutter implements ClientModInitializer {
         lastEmptySlots = countEmptyMainSlots(inventory);
     }
 
+    /**
+     * 用库存结果数量和空槽数量辅助判断是否真的有进展。
+     *
+     * <p>某些堵塞回退会让槽位点击返回“有动作”，但成品没有增加、空槽也没有释放；
+     * 连续出现这种状态就停止，避免快速合成在服务端拒绝或背包满时假运行。</p>
+     */
     private void detectNoProgressAndMaybeStop(MinecraftClient client,
                                               RecipeEntry<StonecuttingRecipe> recipe) {
         if (client.player == null) {
