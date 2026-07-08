@@ -16,7 +16,9 @@ import java.util.UUID;
 
 /**
  * QuickCraft 的轻量本地状态持久化。
- * 目前只负责格子锁/容器锁和村民收藏交易。
+ *
+ * <p>目前只负责格子锁/容器锁和村民收藏交易。状态按单人存档路径或多人服务器地址隔离，
+ * 避免同一个玩家在不同世界之间共享容器锁和交易收藏。</p>
  */
 public final class QuickPersistentState {
     private static final String STATE_DIR_NAME = "state";
@@ -48,6 +50,11 @@ public final class QuickPersistentState {
         loadCurrentProfileState(client);
     }
 
+    /**
+     * 保存当前世界/服务器的 QuickCraft 本地状态。
+     *
+     * <p>调用方只需要在业务状态变更后触发保存；这里统一写入 schema、profileId 和各功能自己的状态块。</p>
+     */
     public static void saveCurrentProfileState() {
         MinecraftClient client = MinecraftClient.getInstance();
         if (client == null || client.world == null || currentStateFile == null) {
@@ -127,6 +134,11 @@ public final class QuickPersistentState {
         return createProfileContext(MULTIPLAYER_DIR, address, address);
     }
 
+    /**
+     * 为存档或服务器生成稳定目录名。
+     *
+     * <p>可读名称只用于目录展示，末尾 UUID 短后缀来自原始 key，避免同名存档或同名服务器互相覆盖。</p>
+     */
     private static ProfileContext createProfileContext(String scope, String rawKey, String displayName) {
         String profileId = scope + ":" + rawKey;
         Path stateFile = FileUtils.getConfigDirectoryAsPath()
