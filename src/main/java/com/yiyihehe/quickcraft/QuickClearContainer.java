@@ -21,12 +21,13 @@ import java.util.Comparator;
 import java.util.List;
 
 /**
- * 一键清空容器：
- * - 通过工具页里的单项开关切换启用状态
- * - 对着容器右键后，把容器里能拿走的物品尽可能全部整组丢到地上
- * - 完成后自动关闭界面
+ * 容器一键清空。
+ *
+ * <p>玩家右键支持的容器后，等待原版容器界面打开，再把容器内可见且可拿走的物品整组丢到地上，
+ * 完成后自动关闭界面。末影箱不支持直接读取方块实体，因此只在实际界面打开后按可见槽位处理。</p>
  */
 public final class QuickClearContainer implements ClientModInitializer {
+    // 右键后最多等 20 tick。超过 1 秒仍没打开容器，认为本次交互不属于清空流程。
     private static final int OPEN_TIMEOUT_TICKS = 20;
 
     private static boolean lastUseDown;

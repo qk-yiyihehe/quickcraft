@@ -25,12 +25,13 @@ import java.util.Comparator;
 import java.util.List;
 
 /**
- * 一键回存：
- * - 通过工具页里的单项开关切换启用状态
- * - 对着箱子 / 末影箱 / 潜影盒右键后，把玩家背包内“容器已有种类”的同类物品尽可能放回去
- * - 完成后自动关闭界面
+ * 容器一键回存。
+ *
+ * <p>玩家右键支持的容器后，等待原版容器界面打开，再把玩家背包内“容器已有种类”的同类物品尽量放回去，
+ * 完成后自动关闭界面。投影自动填充和材料收集优先级更高，命中那些目标时这里不会接管右键。</p>
  */
 public final class QuickStash implements ClientModInitializer {
+    // 右键后最多等 20 tick。超过 1 秒仍没打开容器，认为本次交互不属于回存流程。
     private static final int OPEN_TIMEOUT_TICKS = 20;
 
     private static boolean lastUseDown;
