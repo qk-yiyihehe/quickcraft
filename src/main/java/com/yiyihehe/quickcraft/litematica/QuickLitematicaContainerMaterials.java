@@ -507,8 +507,7 @@ public final class QuickLitematicaContainerMaterials {
     }
 
     private static String itemId(ItemStack stack) {
-        Identifier id = Registries.ITEM.getId(stack.getItem());
-        return id != null ? id.toString() : stack.getName().getString();
+        return Registries.ITEM.getId(stack.getItem()).toString();
     }
 
     private static String contentSignature(List<ItemCount> contents) {

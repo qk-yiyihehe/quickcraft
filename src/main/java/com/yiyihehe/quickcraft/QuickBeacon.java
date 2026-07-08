@@ -370,6 +370,9 @@ public final class QuickBeacon implements ClientModInitializer {
     }
 
     private String normalizeEffectName(String raw) {
+        if (raw == null) {
+            return "";
+        }
         return raw.trim()
                 .toLowerCase(Locale.ROOT)
                 .replace("minecraft:", "")

@@ -1,5 +1,6 @@
 package com.yiyihehe.quickcraft.mixin;
 
+import com.yiyihehe.quickcraft.config.QuickCraftConfigs;
 import com.yiyihehe.quickcraft.litematica.QuickLitematicaPreview3D;
 import fi.dy.masa.litematica.gui.GuiSchematicBrowserBase;
 import fi.dy.masa.litematica.gui.Icons;
@@ -7,16 +8,21 @@ import fi.dy.masa.litematica.gui.widgets.WidgetSchematicBrowser;
 import fi.dy.masa.malilib.gui.interfaces.IDirectoryCache;
 import fi.dy.masa.malilib.gui.interfaces.ISelectionListener;
 import fi.dy.masa.malilib.gui.widgets.WidgetFileBrowserBase;
+import fi.dy.masa.malilib.render.RenderUtils;
 import net.minecraft.client.gui.DrawContext;
+import net.minecraft.client.render.RenderLayer;
+import net.minecraft.util.Identifier;
 import org.spongepowered.asm.mixin.Final;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
+import org.spongepowered.asm.mixin.injection.Redirect;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import org.jetbrains.annotations.Nullable;
 
 import java.nio.file.Path;
+import java.util.function.Function;
 
 @Mixin(value = WidgetSchematicBrowser.class, remap = false)
 public abstract class LitematicaWidgetSchematicBrowserMixin extends WidgetFileBrowserBase {
@@ -49,11 +55,62 @@ public abstract class LitematicaWidgetSchematicBrowserMixin extends WidgetFileBr
     private void quickcraft$draw3DPreview(@Nullable DirectoryEntry entry, DrawContext drawContext, CallbackInfo ci) {
         int infoX = this.posX + this.totalWidth - this.infoWidth;
         int infoY = this.posY;
-        int height = Math.min(this.infoHeight, this.parent.getMaxInfoHeight());
-        int size = Math.min(this.infoWidth - 32, Math.max(48, height - 152));
+		int height = Math.min(this.infoHeight, this.parent.getMaxInfoHeight());
+		int size = Math.max(1, Math.min(this.infoWidth - 32, Math.max(48, height - 152)));
         int x = infoX + (this.infoWidth - size) / 2;
         int y = infoY + height - size - 8;
 
         QuickLitematicaPreview3D.render(this.parent, entry, drawContext, x, y, size);
+    }
+
+    @Redirect(
+            method = "drawSelectedSchematicInfo",
+            at = @At(
+                    value = "INVOKE",
+                    target = "Lnet/minecraft/client/gui/DrawContext;drawTexture(Ljava/util/function/Function;Lnet/minecraft/util/Identifier;IIFFIIII)V"
+            )
+    )
+    private void quickcraft$skipVanillaPreviewWhen3DEnabled(
+            DrawContext drawContext,
+            Function<Identifier, RenderLayer> renderLayers,
+            Identifier texture,
+            int x,
+            int y,
+            float u,
+            float v,
+            int width,
+            int height,
+            int textureWidth,
+            int textureHeight
+    ) {
+        if (QuickCraftConfigs.isLitematica3DPreviewEnabled()) {
+            return;
+        }
+
+        drawContext.drawTexture(renderLayers, texture, x, y, u, v, width, height, textureWidth, textureHeight);
+    }
+
+    @Redirect(
+            method = "drawSelectedSchematicInfo",
+            at = @At(
+                    value = "INVOKE",
+                    target = "Lfi/dy/masa/malilib/render/RenderUtils;drawOutlinedBox(IIIIII)V",
+                    ordinal = 1
+            ),
+            remap = false
+    )
+    private void quickcraft$skipVanillaPreviewBoxWhen3DEnabled(
+            int x,
+            int y,
+            int width,
+            int height,
+            int fillColor,
+            int borderColor
+    ) {
+        if (QuickCraftConfigs.isLitematica3DPreviewEnabled()) {
+            return;
+        }
+
+        RenderUtils.drawOutlinedBox(x, y, width, height, fillColor, borderColor);
     }
 }
