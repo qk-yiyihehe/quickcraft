@@ -45,7 +45,7 @@
     "minecraft": ">=1.21.6 <=1.21.8",
     "java": ">=21",
     "fabric-api": "*",
-    "malilib": ">=0.25.3"
+    "malilib": ">=0.25.7"
   },
   "suggests": {
     "litematica": "*",
