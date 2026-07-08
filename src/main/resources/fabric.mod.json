@@ -42,13 +42,13 @@
   ],
   "depends": {
     "fabricloader": ">=0.15.0",
-    "minecraft": ">=1.21.2 <=1.21.3",
+    "minecraft": ">=1.21.6 <=1.21.8",
     "java": ">=21",
     "fabric-api": "*",
-    "malilib": ">=0.22.8"
+    "malilib": ">=0.25.0"
   },
   "suggests": {
-    "litematica": ">=0.20.8",
+    "litematica": "*",
     "quickshulker": "*"
   }
 }

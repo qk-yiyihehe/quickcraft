@@ -26,7 +26,6 @@ import fi.dy.masa.malilib.gui.widgets.WidgetListEntryBase;
 import fi.dy.masa.malilib.render.RenderUtils;
 import fi.dy.masa.malilib.util.ItemType;
 import fi.dy.masa.malilib.util.StringUtils;
-import fi.dy.masa.malilib.util.data.Constants;
 import it.unimi.dsi.fastutil.objects.Object2IntOpenHashMap;
 import net.minecraft.block.BlockState;
 import net.minecraft.block.ChestBlock;
@@ -41,6 +40,7 @@ import net.minecraft.item.ItemStack;
 import net.minecraft.item.Items;
 import net.minecraft.nbt.NbtCompound;
 import net.minecraft.nbt.NbtList;
+import net.minecraft.nbt.NbtOps;
 import net.minecraft.registry.Registries;
 import net.minecraft.registry.RegistryWrapper;
 import net.minecraft.util.Identifier;
@@ -109,7 +109,7 @@ public final class QuickLitematicaContainerMaterials {
             return;
         }
 
-        Path file = entry.getFullPath().toPath();
+        Path file = entry.getFullPath();
         if (!Files.exists(file) || !Files.isReadable(file)) {
             gui.addMessage(MessageType.ERROR, "litematica.error.schematic_load.cant_read_file", file.getFileName());
             return;
@@ -145,7 +145,7 @@ public final class QuickLitematicaContainerMaterials {
     }
 
     private static LitematicaSchematic readSchematic(GuiSchematicLoad gui, DirectoryEntry entry) {
-        FileType fileType = FileType.fromFile(entry.getFullPath().toPath());
+        FileType fileType = FileType.fromFile(entry.getFullPath());
 
         return switch (fileType) {
             case LITEMATICA_SCHEMATIC -> LitematicaSchematic.createFromFile(entry.getDirectory(), entry.getName());
@@ -158,7 +158,7 @@ public final class QuickLitematicaContainerMaterials {
             case VANILLA_STRUCTURE -> WorldUtils.convertStructureToLitematicaSchematic(entry.getDirectory(), entry.getName());
             case SPONGE_SCHEMATIC -> WorldUtils.convertSpongeSchematicToLitematicaSchematic(entry.getDirectory(), entry.getName());
             default -> {
-                gui.addMessage(MessageType.ERROR, "litematica.error.schematic_load.unsupported_type", entry.getFullPath().getName());
+                gui.addMessage(MessageType.ERROR, "litematica.error.schematic_load.unsupported_type", entry.getFullPath().getFileName());
                 yield null;
             }
         };
@@ -250,7 +250,7 @@ public final class QuickLitematicaContainerMaterials {
                 continue;
             }
 
-            ContainerDescriptor descriptor = describeEntityContainer(nbt.getString("id"));
+            ContainerDescriptor descriptor = describeEntityContainer(nbt.getString("id", ""));
             addContainer(accumulator, descriptor, stacks);
         }
     }
@@ -303,15 +303,15 @@ public final class QuickLitematicaContainerMaterials {
     }
 
     private static List<ItemStack> readItems(NbtCompound nbt, RegistryWrapper.WrapperLookup registryLookup) {
-        if (nbt == null || !nbt.contains("Items", Constants.NBT.TAG_LIST)) {
+        if (nbt == null || !nbt.contains("Items")) {
             return List.of();
         }
 
         List<ItemStack> stacks = new ArrayList<>();
-        NbtList items = nbt.getList("Items", Constants.NBT.TAG_COMPOUND);
+        NbtList items = nbt.getListOrEmpty("Items");
 
         for (int i = 0; i < items.size(); i++) {
-            ItemStack stack = ItemStack.fromNbt(registryLookup, items.getCompound(i)).orElse(ItemStack.EMPTY);
+            ItemStack stack = itemStackFromNbt(registryLookup, items.getCompoundOrEmpty(i));
 
             if (!stack.isEmpty()) {
                 stacks.add(stack);
@@ -319,6 +319,13 @@ public final class QuickLitematicaContainerMaterials {
         }
 
         return stacks;
+    }
+
+    private static ItemStack itemStackFromNbt(RegistryWrapper.WrapperLookup registryLookup, NbtCompound nbt) {
+        return ItemStack.OPTIONAL_CODEC
+                .parse(registryLookup.getOps(NbtOps.INSTANCE), nbt)
+                .result()
+                .orElse(ItemStack.EMPTY);
     }
 
     private static List<ItemCount> countStacks(List<ItemStack> stacks) {
@@ -445,7 +452,7 @@ public final class QuickLitematicaContainerMaterials {
         ItemStack stack = stackFromState(state);
 
         if (stack.isEmpty()) {
-            stack = stackFromBlockEntityId(nbt.getString("id"));
+            stack = stackFromBlockEntityId(nbt.getString("id", ""));
         }
 
         String displayName = stack.getName().getString();
@@ -508,8 +515,7 @@ public final class QuickLitematicaContainerMaterials {
     }
 
     private static String itemId(ItemStack stack) {
-        Identifier id = Registries.ITEM.getId(stack.getItem());
-        return id != null ? id.toString() : stack.getName().getString();
+        return Registries.ITEM.getId(stack.getItem()).toString();
     }
 
     private static String contentSignature(List<ItemCount> contents) {
@@ -1050,7 +1056,7 @@ public final class QuickLitematicaContainerMaterials {
         }
 
         @Override
-        public void render(int mouseX, int mouseY, boolean selected, DrawContext drawContext) {
+        public void render(DrawContext drawContext, int mouseX, int mouseY, boolean selected) {
             if (this.entry == null) {
                 this.renderHeader(drawContext);
                 return;
@@ -1071,19 +1077,19 @@ public final class QuickLitematicaContainerMaterials {
 
             RenderUtils.drawRect(containerX, this.y + 6, 16, 16, 0x20FFFFFF);
             drawContext.drawItem(this.entry.containerStack(), containerX, this.y + 6);
-            this.drawString(containerX + 20, yText, 0xFFFFFFFF, fitText(this.entry.containerName(), CONTAINER_COLUMN_WIDTH - 28), drawContext);
+            this.drawString(drawContext, containerX + 20, yText, 0xFFFFFFFF, fitText(this.entry.containerName(), CONTAINER_COLUMN_WIDTH - 28));
 
             if (this.entry.sourceLabel() != null) {
-                this.drawString(containerX + 20, yText + 11, 0xFFAAAAAA, fitText(this.entry.sourceLabel(), CONTAINER_COLUMN_WIDTH - 28), drawContext);
+                this.drawString(drawContext, containerX + 20, yText + 11, 0xFFAAAAAA, fitText(this.entry.sourceLabel(), CONTAINER_COLUMN_WIDTH - 28));
             }
 
-            this.drawString(countX, this.y + 10, 0xFFFFFFFF, "x" + this.entry.containerCount(), drawContext);
+            this.drawString(drawContext, countX, this.y + 10, 0xFFFFFFFF, "x" + this.entry.containerCount());
             this.renderContents(drawContext, contentsX, mouseX, mouseY);
-            super.render(mouseX, mouseY, selected, drawContext);
+            super.render(drawContext, mouseX, mouseY, selected);
         }
 
         @Override
-        public void postRenderHovered(int mouseX, int mouseY, boolean selected, DrawContext drawContext) {
+        public void postRenderHovered(DrawContext drawContext, int mouseX, int mouseY, boolean selected) {
             if (this.entry == null) {
                 return;
             }
@@ -1103,7 +1109,7 @@ public final class QuickLitematicaContainerMaterials {
                 return;
             }
 
-            super.postRenderHovered(mouseX, mouseY, selected, drawContext);
+            super.postRenderHovered(drawContext, mouseX, mouseY, selected);
         }
 
         private void renderHeader(DrawContext drawContext) {
@@ -1116,23 +1122,23 @@ public final class QuickLitematicaContainerMaterials {
             int endX = this.x + this.width - 2;
             int y = this.y + 7;
 
-            this.drawHeaderCell(containerX, countX);
-            this.drawHeaderCell(countX, contentsX);
-            this.drawHeaderCell(contentsX, actionX);
-            this.drawHeaderCell(actionX, endX);
-            this.drawString(containerX, y, 0xFFFFFFFF, GuiBase.TXT_BOLD + StringUtils.translate("quickcraft.litematica.header.container") + GuiBase.TXT_RST, drawContext);
-            this.drawString(countX, y, 0xFFFFFFFF, GuiBase.TXT_BOLD + StringUtils.translate("quickcraft.litematica.header.count") + GuiBase.TXT_RST, drawContext);
-            this.drawString(contentsX, y, 0xFFFFFFFF, GuiBase.TXT_BOLD + StringUtils.translate("quickcraft.litematica.header.contents") + GuiBase.TXT_RST, drawContext);
-            this.drawString(actionX, y, 0xFFFFFFFF, GuiBase.TXT_BOLD + StringUtils.translate("quickcraft.litematica.header.action") + GuiBase.TXT_RST, drawContext);
+            this.drawHeaderCell(drawContext, containerX, countX);
+            this.drawHeaderCell(drawContext, countX, contentsX);
+            this.drawHeaderCell(drawContext, contentsX, actionX);
+            this.drawHeaderCell(drawContext, actionX, endX);
+            this.drawString(drawContext, containerX, y, 0xFFFFFFFF, GuiBase.TXT_BOLD + StringUtils.translate("quickcraft.litematica.header.container") + GuiBase.TXT_RST);
+            this.drawString(drawContext, countX, y, 0xFFFFFFFF, GuiBase.TXT_BOLD + StringUtils.translate("quickcraft.litematica.header.count") + GuiBase.TXT_RST);
+            this.drawString(drawContext, contentsX, y, 0xFFFFFFFF, GuiBase.TXT_BOLD + StringUtils.translate("quickcraft.litematica.header.contents") + GuiBase.TXT_RST);
+            this.drawString(drawContext, actionX, y, 0xFFFFFFFF, GuiBase.TXT_BOLD + StringUtils.translate("quickcraft.litematica.header.action") + GuiBase.TXT_RST);
         }
 
-        private void drawHeaderCell(int xStart, int xEnd) {
-            RenderUtils.drawOutline(xStart - 3, this.y + 1, xEnd - xStart - 2, this.height - 2, 0xC0707070);
+        private void drawHeaderCell(DrawContext drawContext, int xStart, int xEnd) {
+            RenderUtils.drawOutline(drawContext, xStart - 3, this.y + 1, xEnd - xStart - 2, this.height - 2, 0xC0707070);
         }
 
         private void renderContents(DrawContext drawContext, int contentsX, int mouseX, int mouseY) {
             if (this.entry.contents().isEmpty()) {
-                this.drawString(contentsX, this.y + 10, 0xFFAAAAAA, StringUtils.translate("quickcraft.litematica.label.empty_contents"), drawContext);
+                this.drawString(drawContext, contentsX, this.y + 10, 0xFFAAAAAA, StringUtils.translate("quickcraft.litematica.label.empty_contents"));
                 return;
             }
 

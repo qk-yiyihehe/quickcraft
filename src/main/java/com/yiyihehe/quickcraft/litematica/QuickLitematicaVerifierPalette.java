@@ -15,16 +15,19 @@ public final class QuickLitematicaVerifierPalette {
     private static final String TXT_GOLD = "\u00a76";
     private static final String TXT_RST = "\u00a7r";
 
+    // 四种基础色会同时影响：容器槽位底色、槽位边框、验证结果文字颜色。
     private static final Tone WRONG_FILL = new Tone(0xFF1744, TXT_RED);
     private static final Tone MISSING_FILL = new Tone(0x2979FF, TXT_BLUE);
     private static final Tone EXTRA_FILL = new Tone(0xD500F9, TXT_PURPLE);
     private static final Tone WRONG_FILL_STATE = new Tone(0xFF9100, TXT_GOLD);
 
+    // 槽位底色透明度，值越大，容器格子里的红/蓝/紫底色越明显。
     private static final int SLOT_FILL_ALPHA = 0x48;
+    // 槽位边框透明度，值越大，容器格子边框越亮越实。
     private static final int SLOT_BORDER_ALPHA = 0xD8;
-    private static final int GHOST_MASK_ALPHA = 0x78;
+    // 槽位边框提亮比例，值越大，边框颜色越偏白、更醒目。
     private static final float BORDER_LIGHTEN = 0.45F;
-    private static final float MASK_LIGHTEN = 0.78F;
+    // 幽灵物品透明度，值越大，缺失物品虚影越不透明。
     private static final float GHOST_ITEM_ALPHA = 0.30F;
 
     private QuickLitematicaVerifierPalette() {
@@ -78,10 +81,6 @@ public final class QuickLitematicaVerifierPalette {
         return tone(type).slotBorderColor();
     }
 
-    public static int ghostMaskColor(MismatchType type) {
-        return tone(type).ghostMaskColor();
-    }
-
     public static float ghostItemAlpha() {
         return GHOST_ITEM_ALPHA;
     }
@@ -124,10 +123,6 @@ public final class QuickLitematicaVerifierPalette {
 
         private int slotBorderColor() {
             return withAlpha(mixTowardWhite(this.rgb, BORDER_LIGHTEN), SLOT_BORDER_ALPHA);
-        }
-
-        private int ghostMaskColor() {
-            return withAlpha(mixTowardWhite(this.rgb, MASK_LIGHTEN), GHOST_MASK_ALPHA);
         }
     }
 }

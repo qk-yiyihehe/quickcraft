@@ -2,10 +2,12 @@ package com.yiyihehe.quickcraft.litematica;
 
 import com.yiyihehe.quickcraft.QuickContainerCopy;
 import com.yiyihehe.quickcraft.config.QuickCraftConfigs;
+import net.minecraft.component.DataComponentTypes;
 import net.minecraft.item.Item;
 import net.minecraft.item.ItemStack;
 import net.minecraft.item.Items;
 import net.minecraft.registry.Registries;
+import net.minecraft.text.Text;
 import net.minecraft.util.Identifier;
 
 import java.util.ArrayList;
@@ -18,6 +20,7 @@ import java.util.Locale;
  */
 public final class QuickLitematicaContainerReplacements {
     private static final String SEPARATOR = "->";
+    private static final String CUSTOM_NAME_SEPARATOR = "#";
 
     private QuickLitematicaContainerReplacements() {
     }
@@ -103,9 +106,9 @@ public final class QuickLitematicaContainerReplacements {
             return null;
         }
 
-        String source = normalizeConfiguredItem(entry.substring(0, separatorIndex));
-        String targetText = normalizeConfiguredItem(entry.substring(separatorIndex + SEPARATOR.length()));
-        if (source.isEmpty() || targetText.isEmpty()) {
+        ConfiguredItem source = parseConfiguredItem(entry.substring(0, separatorIndex));
+        ConfiguredItem targetText = parseConfiguredItem(entry.substring(separatorIndex + SEPARATOR.length()));
+        if (source.itemName().isEmpty() || targetText.itemName().isEmpty()) {
             return null;
         }
 
@@ -113,16 +116,19 @@ public final class QuickLitematicaContainerReplacements {
         return target.isEmpty() ? null : new ReplacementRule(source, target);
     }
 
-    private static ItemStack resolveConfiguredItem(String value) {
+    private static ItemStack resolveConfiguredItem(ConfiguredItem value) {
         for (Item item : Registries.ITEM) {
             if (item == Items.AIR) {
                 continue;
             }
 
             ItemStack stack = item.getDefaultStack();
-            if (matchesConfiguredItem(stack, value)) {
+            if (matchesConfiguredItemName(stack, value.itemName())) {
                 ItemStack result = stack.copy();
                 result.setCount(1);
+                if (value.customName() != null) {
+                    result.set(DataComponentTypes.CUSTOM_NAME, Text.literal(value.customName()));
+                }
                 return result;
             }
         }
@@ -130,7 +136,18 @@ public final class QuickLitematicaContainerReplacements {
         return ItemStack.EMPTY;
     }
 
-    private static boolean matchesConfiguredItem(ItemStack stack, String value) {
+    private static boolean matchesConfiguredItem(ItemStack stack, ConfiguredItem value) {
+        if (!matchesConfiguredItemName(stack, value.itemName())) {
+            return false;
+        }
+
+        // 写了“物品#名字”时，必须匹配投影物品栈上的自定义名。
+        Text customName = stack.get(DataComponentTypes.CUSTOM_NAME);
+        return value.customName() == null
+                || (customName != null && value.customName().equals(customName.getString().trim()));
+    }
+
+    private static boolean matchesConfiguredItemName(ItemStack stack, String value) {
         if (stack.isEmpty() || value.isEmpty()) {
             return false;
         }
@@ -155,6 +172,24 @@ public final class QuickLitematicaContainerReplacements {
         return entry == null ? "" : entry.trim().toLowerCase(Locale.ROOT);
     }
 
-    private record ReplacementRule(String source, ItemStack target) {
+    private static ConfiguredItem parseConfiguredItem(String entry) {
+        if (entry == null) {
+            return new ConfiguredItem("", null);
+        }
+
+        int separatorIndex = entry.indexOf(CUSTOM_NAME_SEPARATOR);
+        if (separatorIndex < 0) {
+            return new ConfiguredItem(normalizeConfiguredItem(entry), null);
+        }
+
+        String itemName = normalizeConfiguredItem(entry.substring(0, separatorIndex));
+        String customName = entry.substring(separatorIndex + CUSTOM_NAME_SEPARATOR.length()).trim();
+        return new ConfiguredItem(itemName, customName.isEmpty() ? null : customName);
+    }
+
+    private record ConfiguredItem(String itemName, String customName) {
+    }
+
+    private record ReplacementRule(ConfiguredItem source, ItemStack target) {
     }
 }
