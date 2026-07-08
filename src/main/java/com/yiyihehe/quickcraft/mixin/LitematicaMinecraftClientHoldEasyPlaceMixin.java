@@ -12,7 +12,11 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 /**
- * QuickCraft 开关启用后，每个客户端 tick 持续触发 Litematica 轻松放置。
+ * 持续轻松放置的客户端 tick 入口。
+ *
+ * <p>Litematica 原版轻松放置通常由一次右键驱动，QuickCraft 在
+ * {@link MinecraftClient#tick()} 开头复用 {@code WorldUtils.doEasyPlaceAction} 实现长按节奏。
+ * 这里必须避开打开界面、重建模式和真实容器交互，否则会抢走原版右键或在 GUI 中继续放置。</p>
  */
 @Mixin(MinecraftClient.class)
 public abstract class LitematicaMinecraftClientHoldEasyPlaceMixin {

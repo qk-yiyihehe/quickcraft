@@ -10,7 +10,11 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
 /**
- * 让轻松放置在真实容器前让出右键，避免拦截原版开箱行为。
+ * Litematica 轻松放置对真实容器右键的让行层。
+ *
+ * <p>容器方块既可能是投影放置目标，也可能是玩家要打开的真实容器。
+ * 当 QuickCraft 判断应该走原版开箱时，提前结束 {@code handleEasyPlace} 和
+ * {@code easyPlaceOnUseTick}，避免持续轻松放置吞掉这次右键。</p>
  */
 @Mixin(value = WorldUtils.class, remap = false)
 public class LitematicaWorldUtilsEasyPlaceMixin {

@@ -7,7 +7,10 @@ import org.spongepowered.asm.mixin.injection.Constant;
 import org.spongepowered.asm.mixin.injection.ModifyConstant;
 
 /**
- * 让同位置轻松放置缓存时间跟随 QuickCraft 配置。
+ * Litematica 同位置轻松放置缓存时间的配置接入。
+ *
+ * <p>Litematica 1.21-1.21.1 在 {@code cacheEasyPlacePosition} 里用纳秒常量限制同一位置的重复放置。
+ * QuickCraft 只替换这个常量，让长按轻松放置的节奏跟随配置；常量或方法名变化时，表现为配置项失效。</p>
  */
 @Mixin(value = EasyPlaceUtils.class, remap = false)
 public abstract class LitematicaEasyPlaceUtilsMixin {
