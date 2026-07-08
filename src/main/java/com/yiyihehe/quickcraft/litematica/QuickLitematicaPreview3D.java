@@ -103,7 +103,13 @@ import java.util.zip.GZIPOutputStream;
 
 /**
  * Litematica 文件浏览器里的真实方块模型 3D 预览。
- * 构建阶段调用 Minecraft 自带方块渲染器，把材质、异形模型、透明层和流体都录成可缓存的 CPU 顶点。
+ *
+ * <p>构建阶段在后台读取 {@code .litematic}，调用 Minecraft/Fabric 方块渲染器把普通方块、透明层和流体
+ * 录成可缓存的量化顶点；渲染阶段在 GUI 内上传并绘制这些静态 mesh。方块实体和实体保留为动态渲染，
+ * 避免把实体图集纹理混进普通方块 VBO。</p>
+ *
+ * <p>这个文件同时承担管理器、缓存、mesh 构建、动态假世界和 GUI 绘制。后续拆分时优先按这些边界切开，
+ * 不要在修某个渲染 API 时顺手改整条预览链。</p>
  */
 public final class QuickLitematicaPreview3D {
     private static final Map<fi.dy.masa.litematica.gui.GuiSchematicBrowserBase, Manager> MANAGERS = new WeakHashMap<>();
@@ -114,10 +120,7 @@ public final class QuickLitematicaPreview3D {
         thread.setDaemon(true);
         return thread;
     });
-    // v13：回退箱子静态化（entity atlas 纹理与方块 VBO 不兼容，紫色方块）；保留 GZIP+量化+视口剔除+邻居登记修复。
-    // v12：箱子顶点静态化到独立 VBO，缓存追加 chestVertices 字段。
-    // v11：保留 v10 的 GZIP + 顶点量化；箱子方块实体改回动态渲染，避免 chest atlas 被写进方块 VBO。
-    // 升版本会让旧缓存一次性失效；之后 mod 版本号变化不再清缓存（token 已不含 mod 版本）。
+    // 磁盘缓存格式版本。改量化字节布局、动态对象字段或渲染 marker 时必须递增，让旧缓存一次性失效。
     private static final int CACHE_FORMAT_VERSION = 13;
     private static final int CACHE_MAGIC = 0x51435033; // QCP3
     private static final String CACHE_DIR_NAME = "litematica-preview-cache";
@@ -133,7 +136,7 @@ public final class QuickLitematicaPreview3D {
     private static final float DEFAULT_SLANT_RADIANS = (float) Math.toRadians(32.0);
     private static final long NBT_READ_LIMIT_BYTES = 32L * 1024L * 1024L;
     private static final int VERTEX_BYTES = 44;
-    // 量化顶点磁盘编码：12B 位置 + 4B 颜色 + 4B UV(float16×2) + 4B overlay/light(short×2) + 2B 法线(octahedral) = 26B
+    // 量化顶点磁盘编码：12B 位置 + 4B 颜色 + 4B UV(float16x2) + 4B overlay/light(shortx2) + 2B 法线(octahedral) = 26B。
     private static final int QUANTIZED_VERTEX_BYTES = 26;
     private static final int MAX_QUANTIZED_LAYER_BYTES = MAX_UPLOAD_VERTICES * QUANTIZED_VERTEX_BYTES;
     private static final int CACHE_IO_CHUNK_BYTES = 1024 * 1024;
@@ -881,6 +884,12 @@ public final class QuickLitematicaPreview3D {
     }
 
     private static final class MeshBuilder {
+        /**
+         * 构建预览 mesh。
+         *
+         * <p>普通方块走静态量化顶点，方块实体和实体只记录 NBT/邻居方块，渲染时再放进假世界动态绘制。
+         * 这样能保留箱子、潜影盒、展示框等特殊渲染，同时避免实体 atlas 污染方块 VBO。</p>
+         */
         private static MeshData build(DirectoryEntry entry, AtomicBoolean cancelled, ProgressSink progressSink) {
             MinecraftClient client = MinecraftClient.getInstance();
             if (client.world == null) {
@@ -1835,6 +1844,12 @@ public final class QuickLitematicaPreview3D {
     }
 
     private static final class CacheFile {
+        /**
+         * 读取磁盘缓存。
+         *
+         * <p>缓存文件是 GZIP 流，不能靠文件大小判断顶点是否合理；读取时必须校验 magic、格式版本、
+         * marker 和顶点数量上限，失败就删除缓存并回退重建。</p>
+         */
         @Nullable
         private static MeshData read(Path path, AtomicBoolean cancelled) {
             if (!Files.isRegularFile(path)) {
@@ -1877,7 +1892,6 @@ public final class QuickLitematicaPreview3D {
                     }
 
                     // 批量读取量化顶点字节，直接存进 LayerMesh，渲染线程再解码进 BufferBuilder。
-                    // 直接读取 packed 顶点字节，大文件读取避免逐顶点对象分配。
                     long quantizedBytes = (long) vertexCount * QUANTIZED_VERTEX_BYTES;
                     if (quantizedBytes > MAX_QUANTIZED_LAYER_BYTES || quantizedBytes > Integer.MAX_VALUE - 8L) {
                         deleteQuietly(path);
