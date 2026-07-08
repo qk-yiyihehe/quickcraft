@@ -9,8 +9,10 @@ import java.util.List;
 import java.util.Set;
 
 /**
- * 按依赖环境决定哪些 mixin 参与加载。
- * 目前主要用于把全部 Litematica 相关 mixin 限制在安装了 Litematica 时才启用。
+ * QuickCraft 的 mixin 条件加载插件。
+ *
+ * <p>Litematica 相关 mixin 的目标类只有在安装 Litematica 时才存在。
+ * 这里按类名前缀统一拦截，避免未安装 Litematica 的客户端在 mixin 解析阶段直接找不到目标类。</p>
  */
 public class QuickCraftMixinPlugin implements IMixinConfigPlugin {
     private static final String LITEMATICA_MIXIN_PREFIX = "com.yiyihehe.quickcraft.mixin.Litematica";
