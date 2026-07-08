@@ -62,8 +62,13 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * 给 Litematica 的加载原理图页面补一个“容器材料列表”。
- * 这里按容器内容分组，而不是把所有容器物品直接拍平成一张总材料表。
+ * Litematica 容器材料列表功能。
+ *
+ * <p>本类在加载原理图页面增加“容器材料列表”入口：先从原理图读取容器方块实体和容器实体，
+ * 按容器外观与内部物品分组，再提供“总材料页”和“容器详情页”。它不参与容器校验和世界渲染。</p>
+ *
+ * <p>容器详情页保留“哪类容器需要哪些内容”的备货视角；总材料页则复用 Litematica 的
+ * {@link MaterialListBase}，让 HUD 和 {@link QuickMaterialCollector} 可以继续走原有材料表接口。</p>
  */
 public final class QuickLitematicaContainerMaterials {
     public static final String BUTTON_KEY = "quickcraft.litematica.button.container_material_list";
@@ -164,11 +169,19 @@ public final class QuickLitematicaContainerMaterials {
         };
     }
 
+    /**
+     * 取得当前世界的 registry lookup，用于从原理图 NBT 还原 {@link ItemStack}。
+     *
+     * <p>没有世界时宁可返回空列表，避免在标题界面或早期初始化阶段解析出不完整物品。</p>
+     */
     private static RegistryWrapper.WrapperLookup getRegistryLookup() {
         MinecraftClient client = MinecraftClient.getInstance();
         return client.world != null ? client.world.getRegistryManager() : null;
     }
 
+    /**
+     * 从原理图中提取所有有内容的容器并按内容分组。
+     */
     private static List<ContainerGroup> createContainerGroups(LitematicaSchematic schematic, Collection<String> regions) {
         RegistryWrapper.WrapperLookup registryLookup = getRegistryLookup();
         GroupAccumulator accumulator = new GroupAccumulator();
@@ -230,6 +243,11 @@ public final class QuickLitematicaContainerMaterials {
         }
     }
 
+    /**
+     * 把投影里的容器实体纳入材料统计。
+     *
+     * <p>船箱、矿车箱等实体容器没有方块状态，只能用实体 id 生成展示物品和分组名。</p>
+     */
     private static void addEntityContainers(
             LitematicaSchematic schematic,
             String regionName,
@@ -267,6 +285,11 @@ public final class QuickLitematicaContainerMaterials {
         addStoredShulkerGroups(accumulator, descriptor.displayName(), descriptor.signatureKey(), contents, 0);
     }
 
+    /**
+     * 把容器里已经装好的潜影盒拆成独立备货组。
+     *
+     * <p>只展开 4 层，防止恶意或异常 NBT 形成很深的潜影盒嵌套导致材料页卡死。</p>
+     */
     private static void addStoredShulkerGroups(
             GroupAccumulator accumulator,
             String sourceName,
@@ -363,6 +386,7 @@ public final class QuickLitematicaContainerMaterials {
     ) {
         ItemStack displayStack = stack.copy();
         displayStack.setCount(1);
+        // 容器材料按完整组件统计，命名潜影盒、带组件物品不能和普通物品合并。
         ItemType key = new ItemType(displayStack, true, true);
         counts.addTo(key, count);
         displayStacks.putIfAbsent(key, displayStack);
@@ -646,6 +670,7 @@ public final class QuickLitematicaContainerMaterials {
         }
 
         private void addMaterialRequestStacks(List<ItemStack> slotStacks, int count) {
+            // 这里保留原始槽位栈，给自动收集按“要填进容器的材料”统计；详情页展示则使用合并后的 contents。
             for (int i = 0; i < count; i++) {
                 this.materialRequestStacks.addAll(copyStacks(slotStacks));
             }
@@ -670,6 +695,7 @@ public final class QuickLitematicaContainerMaterials {
     private static final class ContainerMaterialsData {
         private final LitematicaSchematic schematic;
         private final List<String> regions;
+        // 忽略状态只存在于当前打开的材料数据里，不写回 Litematica 原理图或全局配置。
         private final Set<String> ignoredGroupSignatures = new HashSet<>();
         private List<ContainerGroup> groups;
 
@@ -700,6 +726,7 @@ public final class QuickLitematicaContainerMaterials {
 
             for (ContainerGroup group : this.visibleGroups()) {
                 for (ItemStack stack : group.materialRequestStacks()) {
+                    // 自动收集阶段才套替换规则；材料详情页和校验仍展示投影原始内容。
                     ItemStack replacement = QuickLitematicaContainerReplacements.applyToStack(stack);
                     if (!replacement.isEmpty()) {
                         addStackCount(counts, displayStacks, replacement, replacement.getCount() * effectiveMultiplier);
@@ -753,6 +780,7 @@ public final class QuickLitematicaContainerMaterials {
 
     private static final class ContainerMaterialList extends MaterialListBase implements ContainerMaterialRequestSource {
         private final ContainerMaterialsData data;
+        // parent 固定为最初的加载页面，材料总页和容器详情页互相切换时都能回到同一个入口。
         private final Screen parent;
 
         private ContainerMaterialList(ContainerMaterialsData data, Screen parent) {

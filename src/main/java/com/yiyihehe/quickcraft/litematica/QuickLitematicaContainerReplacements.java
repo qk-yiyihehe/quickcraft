@@ -16,7 +16,9 @@ import java.util.Locale;
 
 /**
  * 投影容器填充专用替换名单。
- * 只给自动填充和自动收集使用，不参与验证、渲染或 HUD 展示。
+ *
+ * <p>规则只给自动填充和自动收集使用，不参与验证、渲染或 HUD 展示；这样投影仍按原始内容校验，
+ * 只有真正准备材料或填容器时才把“可替代物品”换成玩家配置的目标物品。</p>
  */
 public final class QuickLitematicaContainerReplacements {
     private static final String SEPARATOR = "->";
@@ -77,10 +79,12 @@ public final class QuickLitematicaContainerReplacements {
         int sourceMax = Math.max(1, source.getItem().getDefaultStack().getMaxCount());
         int targetMax = Math.max(1, target.getMaxCount());
 
+        // 可堆叠物品替换成不可堆叠物品时按 1 个目标物品处理，避免把一格 64 个需求膨胀成 64 个工具。
         if (sourceMax > 1 && targetMax == 1) {
             return 1;
         }
 
+        // 按两种物品的最大堆叠数折算槽位占用；结果仍限制在目标物品一格能容纳的范围内。
         int count = Math.round((float) source.getCount() * targetMax / sourceMax);
         return Math.max(1, Math.min(targetMax, count));
     }
@@ -116,6 +120,11 @@ public final class QuickLitematicaContainerReplacements {
         return target.isEmpty() ? null : new ReplacementRule(source, target);
     }
 
+    /**
+     * 解析配置里的目标物品。
+     *
+     * <p>配置允许写完整 id、路径 id 或显示名；目标端如果写了 {@code #自定义名}，这里会直接生成带名称组件的模板。</p>
+     */
     private static ItemStack resolveConfiguredItem(ConfiguredItem value) {
         for (Item item : Registries.ITEM) {
             if (item == Items.AIR) {

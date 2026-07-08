@@ -18,10 +18,16 @@ import net.minecraft.util.math.BlockPos;
 import net.minecraft.world.World;
 
 /**
- * 根据当前投影中对应位置的容器内容，自动填充玩家右键打开的实际容器。
+ * Litematica 容器自动填充的客户端入口。
+ *
+ * <p>本类只负责“玩家右键真实容器 -> 等待原版界面打开 -> 读取同坐标投影容器模板 -> 套用模板 -> 关闭界面”。
+ * 模板读取和容器点击计划复用 {@link QuickLitematicaContainerVerifier} 与 {@link QuickContainerCopy}，
+ * 不在这里重新解析投影或实现槽位搬运。</p>
  */
 public final class QuickLitematicaContainerAutofill implements ClientModInitializer {
+    // 右键后最多等 20 tick。超过 1 秒仍没打开容器，认为本次交互被服务端或其它 mod 拦截。
     private static final int OPEN_TIMEOUT_TICKS = 20;
+    // Quick Shulker 的公开通道；可发送时才允许自动填充潜影盒走它的服务端打包逻辑。
     private static final Identifier QUICK_SHULKER_BUNDLE_PACKET = Identifier.of("quickshulker", "quick_bundleheld_packet");
 
     private boolean lastUseDown;
@@ -63,6 +69,12 @@ public final class QuickLitematicaContainerAutofill implements ClientModInitiali
         lastUseDown = useDown;
     }
 
+    /**
+     * 等待原版容器界面真正打开后再填充。
+     *
+     * <p>右键发生时还拿不到当前 {@link ScreenHandler}，必须跨 tick 等服务端同步界面；
+     * 如果模板缺失或容器类型不匹配，会关闭刚打开的界面，避免玩家继续在错误容器里自动点击。</p>
+     */
     private void processPendingOpen(MinecraftClient client) {
         if (pendingContainerPos == null) {
             return;
@@ -123,12 +135,18 @@ public final class QuickLitematicaContainerAutofill implements ClientModInitiali
             return null;
         }
 
+        // Litematica 自己的 best world 可能是投影上下文；没有时才回退到当前客户端世界。
         World world = fi.dy.masa.malilib.util.WorldUtils.getBestWorld(client);
         QuickContainerCopy.TemplateSnapshot snapshot =
                 QuickLitematicaContainerVerifier.getTemplateSnapshotAt(world != null ? world : client.world, pos);
         return QuickLitematicaContainerReplacements.applyToSnapshot(snapshot);
     }
 
+    /**
+     * Quick Shulker 只作为可选加速路径。
+     *
+     * <p>通道不存在或服务端不允许发送时必须回退普通槽位点击，避免把自动填充绑定到另一个 mod。</p>
+     */
     private boolean shouldUseQuickShulker() {
         if (!QuickCraftConfigs.isLitematicaContainerAutofillWithQuickShulkerEnabled()
                 || !FabricLoader.getInstance().isModLoaded("quickshulker")) {
@@ -164,6 +182,7 @@ public final class QuickLitematicaContainerAutofill implements ClientModInitiali
             return false;
         }
 
+        // 这里只复用无状态判断，真正的 pending 生命周期仍由 ClientTickEvents 注册的实例维护。
         QuickLitematicaContainerAutofill autofill = new QuickLitematicaContainerAutofill();
         BlockHitResult hitResult = autofill.getLookedAtBlock(client);
         return hitResult != null && autofill.shouldHandleTarget(client, hitResult);

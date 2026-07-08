@@ -18,6 +18,9 @@ import net.minecraft.util.hit.HitResult;
 
 /**
  * 轻松放置遇到真实容器时的放行判断。
+ *
+ * <p>这个类只回答“当前右键目标是否应该让原版打开容器”，实际取消轻松放置的注入点在 Litematica mixin。
+ * 目标必须是玩家准星下的真实容器方块，避免投影轻松放置把箱子、漏斗、熔炉等可交互容器当成普通方块处理。</p>
  */
 public final class QuickLitematicaEasyPlaceContainers {
     private QuickLitematicaEasyPlaceContainers() {

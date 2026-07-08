@@ -13,6 +13,9 @@ import java.util.List;
 
 /**
  * Litematica 可选桥接：只在确认安装了 Litematica 后调用，避免主客户端入口硬加载投影类。
+ *
+ * <p>本类把当前可见的 Litematica 材料 HUD 转成 {@link QuickMaterialCollector} 可消费的需求列表。
+ * 普通材料表按 Litematica 的缺失数量走；QuickCraft 自己的容器材料表则返回替换规则处理后的总需求。</p>
  */
 public final class QuickLitematicaMaterialLists {
     private QuickLitematicaMaterialLists() {
@@ -53,6 +56,7 @@ public final class QuickLitematicaMaterialLists {
 
     private static List<MaterialListEntry> getIgnoredFilteredEntries(MaterialListBase materialList) {
         try {
+            // Litematica 的“忽略项”过滤结果没有公开 getter；这里读取预过滤列表，让自动收集仍能看到被 HUD 隐藏的需求。
             Field field = MaterialListBase.class.getDeclaredField("materialListPreFiltered");
             field.setAccessible(true);
             Object value = field.get(materialList);
