@@ -450,7 +450,7 @@ public final class QuickContainerCopy implements ClientModInitializer {
             return;
         }
 
-        SourceShulker source = findSourceShulkerForDemands(handler, result.missingDemands());
+        SourceShulker source = findSourceShulkerForDemandsExcept(handler, result.missingDemands(), -1);
         if (source == null) {
             stopContinuousTask(client, true, result.message(continuousTask.template.successMessage()));
             return;
@@ -1598,7 +1598,7 @@ public final class QuickContainerCopy implements ClientModInitializer {
         }
 
         if (allowQuickShulkerSources) {
-            packCursorIntoQuickShulker(handler, client);
+            packCursorIntoQuickShulkerExcept(handler, -1, client);
         }
     }
 
@@ -1645,10 +1645,6 @@ public final class QuickContainerCopy implements ClientModInitializer {
         }
 
         return bestUnderSlotId != -1 ? bestUnderSlotId : bestOverSlotId;
-    }
-
-    private SourceShulker findSourceShulkerForDemands(ScreenHandler handler, List<MissingDemand> demands) {
-        return findSourceShulkerForDemandsExcept(handler, demands, -1);
     }
 
     private SourceShulker findSourceShulkerForDemandsExcept(ScreenHandler handler,
@@ -2290,10 +2286,6 @@ public final class QuickContainerCopy implements ClientModInitializer {
         return moved > 0 && !sourceSlot.hasStack() && handler.getCursorStack().isEmpty();
     }
 
-    private int packCursorIntoQuickShulker(ScreenHandler handler, MinecraftClient client) {
-        return packCursorIntoQuickShulkerExcept(handler, -1, client);
-    }
-
     private int packCursorIntoQuickShulkerExcept(ScreenHandler handler, int excludedSlotId, MinecraftClient client) {
         if (handler.getCursorStack().isEmpty() || isShulkerBox(handler.getCursorStack())) {
             return 0;
@@ -2322,10 +2314,6 @@ public final class QuickContainerCopy implements ClientModInitializer {
         }
 
         return moved;
-    }
-
-    private int findQuickShulkerDestinationSlotId(ScreenHandler handler, ItemStack insertStack) {
-        return findQuickShulkerDestinationSlotId(handler, insertStack, -1);
     }
 
     private int findQuickShulkerDestinationSlotId(ScreenHandler handler, ItemStack insertStack, int excludedSlotId) {

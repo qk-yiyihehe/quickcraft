@@ -59,6 +59,9 @@ public final class QuickCraftConfigs implements IConfigHandler {
     public static final int MAX_MATERIAL_COLLECT_EXTRA_50_TO_100 = 100;
     public static final int MAX_MATERIAL_COLLECT_EXTRA_100_TO_500 = 500;
     public static final int MAX_MATERIAL_COLLECT_EXTRA_OVER_500 = 512;
+    public static final int DEFAULT_HOLD_EASY_PLACE_CACHE_TIME_MS = 2000;
+    public static final int MIN_HOLD_EASY_PLACE_CACHE_TIME_MS = 10;
+    public static final int MAX_HOLD_EASY_PLACE_CACHE_TIME_MS = 10000;
     public static final int DEFAULT_QUICK_SHULKER_ACTION_INTERVAL_TICKS = 5;
     public static final int MIN_QUICK_SHULKER_ACTION_INTERVAL_TICKS = 0;
     public static final int MAX_QUICK_SHULKER_ACTION_INTERVAL_TICKS = 20;
@@ -293,6 +296,23 @@ public final class QuickCraftConfigs implements IConfigHandler {
                 true,
                 ""
         ).apply(PROJECTION_TRANSLATION_PREFIX);
+        public static final ConfigBooleanHotkeyed ALLOW_EASY_PLACE_OPEN_CONTAINERS = new ConfigBooleanHotkeyed(
+                "allowEasyPlaceOpenContainers",
+                false,
+                ""
+        ).apply(PROJECTION_TRANSLATION_PREFIX);
+        public static final ConfigBooleanHotkeyed HOLD_EASY_PLACE = new ConfigBooleanHotkeyed(
+                "holdEasyPlace",
+                false,
+                ""
+        ).apply(PROJECTION_TRANSLATION_PREFIX);
+        public static final ConfigInteger HOLD_EASY_PLACE_CACHE_TIME_MS = new ConfigInteger(
+                "holdEasyPlaceCacheTimeMs",
+                DEFAULT_HOLD_EASY_PLACE_CACHE_TIME_MS,
+                MIN_HOLD_EASY_PLACE_CACHE_TIME_MS,
+                MAX_HOLD_EASY_PLACE_CACHE_TIME_MS,
+                false
+        ).apply(PROJECTION_TRANSLATION_PREFIX);
         public static final ConfigBooleanHotkeyed SHOW_LITEMATICA_CONTAINER_MATERIAL_BUTTON = new ConfigBooleanHotkeyed(
                 "showLitematicaContainerMaterialButton",
                 true,
@@ -390,6 +410,9 @@ public final class QuickCraftConfigs implements IConfigHandler {
         ).apply(PROJECTION_TRANSLATION_PREFIX);
         public static final List<IConfigBase> OPTIONS = List.of(
                 SHOW_LITEMATICA_3D_PREVIEW,
+                ALLOW_EASY_PLACE_OPEN_CONTAINERS,
+                HOLD_EASY_PLACE,
+                HOLD_EASY_PLACE_CACHE_TIME_MS,
                 SHOW_LITEMATICA_CONTAINER_MATERIAL_BUTTON,
                 SHOW_LITEMATICA_CONTAINER_SLOT_HINTS,
                 SHOW_LITEMATICA_CONTAINER_VERIFIER,
@@ -560,6 +583,8 @@ public final class QuickCraftConfigs implements IConfigHandler {
                 ContainerTools.ENABLE_CONTAINER_TOOL_MODE,
                 ContainerTools.ENABLE_QUICK_BEACON,
                 ProjectionTools.SHOW_LITEMATICA_3D_PREVIEW,
+                ProjectionTools.ALLOW_EASY_PLACE_OPEN_CONTAINERS,
+                ProjectionTools.HOLD_EASY_PLACE,
                 ProjectionTools.SHOW_LITEMATICA_CONTAINER_MATERIAL_BUTTON,
                 ProjectionTools.SHOW_LITEMATICA_CONTAINER_SLOT_HINTS,
                 ProjectionTools.SHOW_LITEMATICA_CONTAINER_VERIFIER,
@@ -603,6 +628,8 @@ public final class QuickCraftConfigs implements IConfigHandler {
                 ContainerTools.ENABLE_CONTAINER_TOOL_MODE,
                 ContainerTools.ENABLE_QUICK_BEACON,
                 ProjectionTools.SHOW_LITEMATICA_3D_PREVIEW,
+                ProjectionTools.ALLOW_EASY_PLACE_OPEN_CONTAINERS,
+                ProjectionTools.HOLD_EASY_PLACE,
                 ProjectionTools.SHOW_LITEMATICA_CONTAINER_MATERIAL_BUTTON,
                 ProjectionTools.SHOW_LITEMATICA_CONTAINER_SLOT_HINTS,
                 ProjectionTools.SHOW_LITEMATICA_CONTAINER_VERIFIER,
@@ -791,6 +818,23 @@ public final class QuickCraftConfigs implements IConfigHandler {
 
     public static boolean isSlotLockOverlayVisible() {
         return ContainerTools.SHOW_SLOT_LOCK_OVERLAY.getBooleanValue();
+    }
+
+    public static boolean isEasyPlaceOpenContainersAllowed() {
+        return ProjectionTools.ALLOW_EASY_PLACE_OPEN_CONTAINERS.getBooleanValue();
+    }
+
+    public static boolean isHoldEasyPlaceEnabled() {
+        return ProjectionTools.HOLD_EASY_PLACE.getBooleanValue();
+    }
+
+    public static int getHoldEasyPlaceCacheTimeMs() {
+        int value = ProjectionTools.HOLD_EASY_PLACE_CACHE_TIME_MS.getIntegerValue();
+        int clamped = Math.max(MIN_HOLD_EASY_PLACE_CACHE_TIME_MS, Math.min(MAX_HOLD_EASY_PLACE_CACHE_TIME_MS, value));
+        if (clamped != value) {
+            ProjectionTools.HOLD_EASY_PLACE_CACHE_TIME_MS.setIntegerValue(clamped);
+        }
+        return clamped;
     }
 
     public static boolean isLitematicaContainerMaterialListButtonVisible() {

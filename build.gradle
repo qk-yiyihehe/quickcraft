@@ -1,6 +1,23 @@
 plugins {
 	id 'net.fabricmc.fabric-loom-remap' version "${loom_version}"
 	id 'maven-publish'
+	id 'com.github.spotbugs' version '6.1.7'
+}
+
+// SpotBugs 静态分析配置：发现潜在 bug、死代码、传参错误
+spotbugs {
+	effort = com.github.spotbugs.snom.Effort.MAX
+	excludeFilter = file("$rootDir/spotbugs-exclude.xml")
+}
+spotbugsMain {
+	reports {
+		html.required = true
+	}
+	// 仅报告不阻塞构建，CI中检查 build/reports/spotbugs/main.html
+	ignoreFailures = true
+}
+spotbugsTest {
+	enabled = false // 测试代码不跑 SpotBugs
 }
 
 version = project.mod_version
@@ -70,7 +87,22 @@ dependencies {
 		transitive = false
 	}
 	modLocalRuntime "me.fallenbreath:conditional-mixin-fabric:${project.conditional_mixin_version}"
+
+	// ========== 测试框架 ==========
+	testImplementation platform("org.junit:junit-bom:5.11.4")
+	testImplementation "org.junit.jupiter:junit-jupiter"
+	testRuntimeOnly "org.junit.platform:junit-platform-launcher"
+	testImplementation "org.assertj:assertj-core:3.27.3"
+	testImplementation "org.mockito:mockito-core:5.15.2"
+	// ArchUnit 架构测试（包依赖、命名规范、分层检查）
+	testImplementation "com.tngtech.archunit:archunit-junit5:1.4.0"
 	
+}
+
+tasks.test {
+	useJUnitPlatform()
+	// 在 CI 或本地跑测试时输出中文不乱码
+	systemProperty "file.encoding", "UTF-8"
 }
 
 processResources {

@@ -52,7 +52,20 @@ public final class QuickContainerLock implements ClientModInitializer {
     private static final int PLAYER_STORAGE_SLOT_COUNT = 36;
     private static final int HOTBAR_SLOT_COUNT = 9;
     private static final int INVALID_LOCK_SLOT = -1;
+    private static final int LEFT_PICKUP_BUTTON = 0;
+    private static final int AUTO_ELYTRA_CALLER_NONE = 0;
+    private static final int AUTO_ELYTRA_CALLER_TWEAKEROO = 1;
+    private static final int AUTO_ELYTRA_CALLER_OMMC = 2;
+    private static final int AUTO_ELYTRA_SESSION_CLICK_COUNT = 3;
+    private static final int AUTO_ELYTRA_LINGER_TICKS = 2;
     private static final String PLAYER_CONTAINER_KEY = "player_inventory";
+    private static final String TWEAKEROO_ELYTRA_SWAP_CLASS = "fi.dy.masa.tweakeroo.util.InventoryUtils";
+    private static final String TWEAKEROO_ELYTRA_SWAP_METHOD = "swapElytraAndChestPlate";
+    private static final String TWEAKEROO_EQUIP_BEST_ELYTRA_METHOD = "equipBestElytra";
+    private static final String TWEAKEROO_SWAP_ITEM_TO_EQUIPMENT_SLOT_METHOD = "swapItemToEquipmentSlot";
+    private static final String TWEAKEROO_SWAP_SLOTS_METHOD = "swapSlots";
+    private static final String OMMC_ELYTRA_SWAP_CLASS = "com.plusls.ommc.feature.autoSwitchElytra.AutoSwitchElytraUtil";
+    private static final String OMMC_ELYTRA_SWAP_METHOD = "autoSwitch";
     private static final Identifier SLOT_LOCK_TEXTURE = Identifier.of("quickcraft", "textures/gui/slot_lock.png");
 
     private static final Set<String> LOCKED_CONTAINERS = new HashSet<>();
@@ -63,6 +76,17 @@ public final class QuickContainerLock implements ClientModInitializer {
     private static int pendingTicks;
     private static String pendingContainerKey;
     private static String currentScreenContainerKey;
+    private static boolean bypassPlayerSlotLocks;
+    private static final Set<Integer> activeAutoElytraPlayerSlots = new HashSet<>();
+    private static final Set<Integer> pendingAutoElytraPlayerSlots = new HashSet<>();
+    private static int activeAutoElytraHotbarIndex = INVALID_LOCK_SLOT;
+    private static int pendingAutoElytraCaller = AUTO_ELYTRA_CALLER_NONE;
+    private static int pendingAutoElytraButton = INVALID_LOCK_SLOT;
+    private static int pendingAutoElytraRemainingClicks;
+    private static SlotActionType pendingAutoElytraActionType;
+    private static final Set<Integer> lingeringAutoElytraPlayerSlots = new HashSet<>();
+    private static int lingeringAutoElytraHotbarIndex = INVALID_LOCK_SLOT;
+    private static int lingeringAutoElytraTicks;
 
     @Override
     public void onInitializeClient() {
@@ -70,6 +94,7 @@ public final class QuickContainerLock implements ClientModInitializer {
     }
 
     private void onClientTick(MinecraftClient client) {
+        tickLingeringAutoElytraSession();
         QuickPersistentState.onClientTick(client);
         handleUseAttempt(client);
         processPendingOpen(client);
@@ -218,7 +243,7 @@ public final class QuickContainerLock implements ClientModInitializer {
         slot = unwrapCreativeSlot(slot);
 
         if (isPlayerStorageSlot(slot)) {
-            return LOCKED_PLAYER_SLOTS.contains(slot.getIndex());
+            return !shouldBypassPlayerSlotLock(slot) && LOCKED_PLAYER_SLOTS.contains(slot.getIndex());
         }
 
         MinecraftClient client = MinecraftClient.getInstance();
@@ -263,6 +288,10 @@ public final class QuickContainerLock implements ClientModInitializer {
             return false;
         }
 
+        if (hotbarIndex == activeAutoElytraHotbarIndex || hotbarIndex == lingeringAutoElytraHotbarIndex) {
+            return false;
+        }
+
         for (Slot slot : handler.slots) {
             if (isPlayerHotbarSlot(slot) && slot.getIndex() == hotbarIndex) {
                 return isLockedSlot(handler, slot);
@@ -299,6 +328,27 @@ public final class QuickContainerLock implements ClientModInitializer {
         return actionType == SlotActionType.SWAP && isLockedHotbarSwapTarget(handler, button);
     }
 
+    public static void beginSlotClickContext(ScreenHandler handler, int slotId, int button, SlotActionType actionType) {
+        bypassPlayerSlotLocks = false;
+        activeAutoElytraPlayerSlots.clear();
+        activeAutoElytraHotbarIndex = INVALID_LOCK_SLOT;
+
+        if (continueTrustedAutoElytraSession(handler, button, actionType)) {
+            return;
+        }
+
+        clearTrustedAutoElytraSession();
+        if (startTrustedAutoElytraSession(handler, slotId, button, actionType)) {
+            continueTrustedAutoElytraSession(handler, button, actionType);
+        }
+    }
+
+    public static void endSlotClickContext() {
+        bypassPlayerSlotLocks = false;
+        activeAutoElytraPlayerSlots.clear();
+        activeAutoElytraHotbarIndex = INVALID_LOCK_SLOT;
+    }
+
     private static boolean isLockedSlotInternal(ScreenHandler handler, Slot slot) {
         if (slot == null) {
             return false;
@@ -307,7 +357,7 @@ public final class QuickContainerLock implements ClientModInitializer {
         slot = unwrapCreativeSlot(slot);
 
         if (isPlayerStorageSlot(slot)) {
-            return LOCKED_PLAYER_SLOTS.contains(slot.getIndex());
+            return !shouldBypassPlayerSlotLock(slot) && LOCKED_PLAYER_SLOTS.contains(slot.getIndex());
         }
 
         int containerSlotIndex = getContainerSlotLockIndex(handler, slot);
@@ -383,6 +433,157 @@ public final class QuickContainerLock implements ClientModInitializer {
 
     private static boolean isPlayerHotbarSlot(Slot slot) {
         return isPlayerStorageSlot(slot) && slot.getIndex() < HOTBAR_SLOT_COUNT;
+    }
+
+    /**
+     * tweakeroo / OMMC 的自动穿脱鞘翅都会连续发 3 次 clickSlot。
+     * 这里只给这一小段确定的点击序列开后门，平时锁格子仍然完全生效。
+     */
+    private static boolean startTrustedAutoElytraSession(ScreenHandler handler, int slotId, int button, SlotActionType actionType) {
+        if (!(handler instanceof PlayerScreenHandler)) {
+            return false;
+        }
+
+        MinecraftClient client = MinecraftClient.getInstance();
+        if (client == null
+                || client.player == null
+                || client.currentScreen != null
+                || client.player.currentScreenHandler != handler) {
+            return false;
+        }
+
+        Slot slot = getSlot(handler, slotId);
+        if (slot == null || !isPlayerStorageSlot(slot)) {
+            return false;
+        }
+
+        int caller = getTrustedAutoElytraCaller();
+        if (caller == AUTO_ELYTRA_CALLER_TWEAKEROO) {
+            if (actionType != SlotActionType.SWAP || button < 0 || button >= HOTBAR_SLOT_COUNT) {
+                return false;
+            }
+
+            pendingAutoElytraCaller = caller;
+            pendingAutoElytraActionType = actionType;
+            pendingAutoElytraButton = button;
+            pendingAutoElytraRemainingClicks = AUTO_ELYTRA_SESSION_CLICK_COUNT;
+            pendingAutoElytraPlayerSlots.add(slot.getIndex());
+            pendingAutoElytraPlayerSlots.add(button);
+            return true;
+        }
+
+        if (caller == AUTO_ELYTRA_CALLER_OMMC) {
+            if (actionType != SlotActionType.PICKUP || button != LEFT_PICKUP_BUTTON) {
+                return false;
+            }
+
+            pendingAutoElytraCaller = caller;
+            pendingAutoElytraActionType = actionType;
+            pendingAutoElytraButton = button;
+            pendingAutoElytraRemainingClicks = AUTO_ELYTRA_SESSION_CLICK_COUNT;
+            pendingAutoElytraPlayerSlots.add(slot.getIndex());
+            return true;
+        }
+
+        return false;
+    }
+
+    /**
+     * 只给 tweakeroo / OMMC 的自动穿脱鞘翅开后门，普通无界面点击仍然照常锁死。
+     */
+    private static int getTrustedAutoElytraCaller() {
+        for (StackTraceElement element : Thread.currentThread().getStackTrace()) {
+            String className = element.getClassName();
+            String methodName = element.getMethodName();
+            if ((TWEAKEROO_ELYTRA_SWAP_CLASS.equals(className)
+                    && (TWEAKEROO_ELYTRA_SWAP_METHOD.equals(methodName)
+                    || TWEAKEROO_EQUIP_BEST_ELYTRA_METHOD.equals(methodName)
+                    || TWEAKEROO_SWAP_ITEM_TO_EQUIPMENT_SLOT_METHOD.equals(methodName)
+                    || TWEAKEROO_SWAP_SLOTS_METHOD.equals(methodName)))) {
+                return AUTO_ELYTRA_CALLER_TWEAKEROO;
+            }
+
+            if (OMMC_ELYTRA_SWAP_CLASS.equals(className) && OMMC_ELYTRA_SWAP_METHOD.equals(methodName)) {
+                return AUTO_ELYTRA_CALLER_OMMC;
+            }
+        }
+        return AUTO_ELYTRA_CALLER_NONE;
+    }
+
+    private static boolean continueTrustedAutoElytraSession(ScreenHandler handler, int button, SlotActionType actionType) {
+        if (!(handler instanceof PlayerScreenHandler)
+                || pendingAutoElytraCaller == AUTO_ELYTRA_CALLER_NONE
+                || pendingAutoElytraActionType != actionType
+                || pendingAutoElytraButton != button
+                || getTrustedAutoElytraCaller() != pendingAutoElytraCaller) {
+            return false;
+        }
+
+        bypassPlayerSlotLocks = true;
+        activeAutoElytraPlayerSlots.addAll(pendingAutoElytraPlayerSlots);
+        if (actionType == SlotActionType.SWAP) {
+            activeAutoElytraHotbarIndex = button;
+        }
+
+        pendingAutoElytraRemainingClicks--;
+        if (pendingAutoElytraRemainingClicks <= 0) {
+            beginLingeringAutoElytraSession();
+            clearTrustedAutoElytraSession();
+        }
+
+        return true;
+    }
+
+    private static void clearTrustedAutoElytraSession() {
+        pendingAutoElytraCaller = AUTO_ELYTRA_CALLER_NONE;
+        pendingAutoElytraActionType = null;
+        pendingAutoElytraButton = INVALID_LOCK_SLOT;
+        pendingAutoElytraRemainingClicks = 0;
+        pendingAutoElytraPlayerSlots.clear();
+    }
+
+    /**
+     * 自动换鞘翅最后一次 SWAP 结束后，原版/服务端还可能再做一轮槽位校验。
+     * 这里把本次会话涉及的玩家格再保留极短的一小段时间，避免回落到原锁格时被尾声校验拦下。
+     */
+    private static void beginLingeringAutoElytraSession() {
+        lingeringAutoElytraPlayerSlots.clear();
+        lingeringAutoElytraPlayerSlots.addAll(activeAutoElytraPlayerSlots);
+        lingeringAutoElytraPlayerSlots.addAll(pendingAutoElytraPlayerSlots);
+        lingeringAutoElytraHotbarIndex = activeAutoElytraHotbarIndex;
+        lingeringAutoElytraTicks = AUTO_ELYTRA_LINGER_TICKS;
+    }
+
+    private static void tickLingeringAutoElytraSession() {
+        if (lingeringAutoElytraTicks <= 0) {
+            return;
+        }
+
+        lingeringAutoElytraTicks--;
+        if (lingeringAutoElytraTicks <= 0) {
+            clearLingeringAutoElytraSession();
+        }
+    }
+
+    private static void clearLingeringAutoElytraSession() {
+        lingeringAutoElytraPlayerSlots.clear();
+        lingeringAutoElytraHotbarIndex = INVALID_LOCK_SLOT;
+        lingeringAutoElytraTicks = 0;
+    }
+
+    private static boolean shouldBypassPlayerSlotLock(Slot slot) {
+        return isPlayerStorageSlot(slot)
+                && (bypassPlayerSlotLocks || isAutoElytraSessionSlot(slot.getIndex()));
+    }
+
+    /**
+     * 有些槽位校验会在客户端 clickSlot 返回后、服务端处理线程里再次触发。
+     * 这里继续认这次自动鞘翅会话涉及的玩家格，避免只放行前半段点击导致回落失败。
+     */
+    private static boolean isAutoElytraSessionSlot(int inventoryIndex) {
+        return activeAutoElytraPlayerSlots.contains(inventoryIndex)
+                || pendingAutoElytraPlayerSlots.contains(inventoryIndex)
+                || lingeringAutoElytraPlayerSlots.contains(inventoryIndex);
     }
 
     private static boolean isMouseOverSlotLock(Slot slot, int guiLeft, int guiTop, double mouseX, double mouseY) {
@@ -613,11 +814,12 @@ public final class QuickContainerLock implements ClientModInitializer {
     }
 
     private static String getSupportedContainerKey(MinecraftClient client, BlockHitResult blockHitResult) {
-        if (client.world == null) {
+        World world = client.world;
+        if (world == null) {
             return null;
         }
 
-        Block block = client.world.getBlockState(blockHitResult.getBlockPos()).getBlock();
+        Block block = world.getBlockState(blockHitResult.getBlockPos()).getBlock();
         if (!(block instanceof ChestBlock)
                 && !(block instanceof BarrelBlock)
                 && !(block instanceof EnderChestBlock)
@@ -625,7 +827,7 @@ public final class QuickContainerLock implements ClientModInitializer {
             return null;
         }
 
-        return buildContainerKey(client.world, blockHitResult.getBlockPos().asLong());
+        return buildContainerKey(world, blockHitResult.getBlockPos().asLong());
     }
 
     private static String buildContainerKey(World world, long blockPosLong) {
@@ -663,6 +865,12 @@ public final class QuickContainerLock implements ClientModInitializer {
         currentScreenContainerKey = null;
         pendingTicks = 0;
         lastUseDown = false;
+        bypassPlayerSlotLocks = false;
+        activeAutoElytraPlayerSlots.clear();
+        pendingAutoElytraPlayerSlots.clear();
+        activeAutoElytraHotbarIndex = INVALID_LOCK_SLOT;
+        clearLingeringAutoElytraSession();
+        clearTrustedAutoElytraSession();
     }
 
     static void loadPersistentState(JsonObject root) {
