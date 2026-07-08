@@ -63,13 +63,19 @@ import java.util.List;
 import java.util.Locale;
 
 /**
- * 容器内容复制：
- * - 支持漏斗、漏斗矿车、箱子、木桶、潜影盒、发射器、投掷器、合成器、炉子和酿造台
- * - 先用热键记录一个模板
- * - 再对下一个同类容器右键，把背包里的对应材料按槽位顺序复制进去
+ * 容器模板复制和连续填充功能。
+ *
+ * <p>先从当前容器或投影容器记录槽位模板，再对同类型真实容器按槽位顺序填充材料。支持箱子、木桶、潜影盒、
+ * 漏斗、漏斗矿车、发射器、投掷器、合成器、炉子和酿造台。实际搬运只通过原版槽位点击或可选 Quick Shulker
+ * 网络通道完成，不直接改客户端背包。</p>
+ *
+ * <p>这个类同时承担单次填充、后台持续填充、模板快照导出给 Litematica 自动填充，以及背包空间回退。
+ * 后续拆分时优先按“模板记录/填充计划/背包腾挪/Quick Shulker 适配”分边界。</p>
  */
 public final class QuickContainerCopy implements ClientModInitializer {
+    // 右键后等待真实容器界面打开的最长时间，单位 tick。
     private static final int OPEN_TIMEOUT_TICKS = 20;
+    // 后台填充单个容器的最大等待时间，避免服务端拒绝点击时持续占用状态。
     private static final int BACKGROUND_ACTION_TIMEOUT_TICKS = 40;
     private static final int CONTINUOUS_REOPEN_DELAY_TICKS = 1;
     private static final int VANILLA_SHULKER_SLOTS = 27;

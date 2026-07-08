@@ -34,12 +34,15 @@ import java.util.List;
 
 /**
  * 自动收集当前材料 HUD 缺失物品。
- * 所有搬运都通过原版槽位点击完成，避免直接改客户端背包造成幽灵物品。
+ *
+ * <p>玩家右键支持的容器后，等待原版界面打开，再从可见材料 HUD 读取需求，把容器里的目标材料搬到玩家背包
+ * 或玩家携带的可用潜影盒。所有搬运都通过原版槽位点击或可选 Quick Shulker 通道完成，避免直接改客户端背包。</p>
  */
 public final class QuickMaterialCollector implements ClientModInitializer {
+    // 右键后最多等 20 tick。超过 1 秒仍没打开容器，认为本次交互不属于材料收集流程。
     private static final int OPEN_TIMEOUT_TICKS = 20;
     private static final int VANILLA_SHULKER_SLOTS = 27;
-    // 缺失数量阈值余量默认值：0-10 +0，10-20 +1，20-50 +3，50-100 +5，100-500 +10，500+ +32。
+    // 缺失数量越大，默认额外多拿少量材料，降低往返开箱次数；具体余量来自 QuickCraftConfigs。
     private static final int EXTRA_ALLOWANCE_LIMIT_10 = 10;
     private static final int EXTRA_ALLOWANCE_LIMIT_20 = 20;
     private static final int EXTRA_ALLOWANCE_LIMIT_50 = 50;
