@@ -36,12 +36,17 @@ import java.util.Map;
 import java.util.Objects;
 
 /**
- * 一键整理入口。
- * 根据鼠标所在的玩家区/容器区决定整理目标，先合并同类堆叠，再按固定顺序重排槽位。
+ * 容器和玩家背包的一键整理入口。
+ *
+ * <p>根据鼠标所在区域选择整理目标：玩家背包、快捷栏、创造模式真实背包槽，或当前打开的普通容器。
+ * 整理流程先合并同类堆叠，再按创造标签顺序、潜影盒内容和物品 id 重排槽位。</p>
+ *
+ * <p>所有搬运都通过原版槽位点击完成；锁定槽、产物槽和创造物品列表不会参与排序。</p>
  */
 public class QuickSort implements ClientModInitializer {
     private static final int SLOT_SIZE = 18;
     private static final int BOUNDS_PADDING = 4;
+    // 用泥土测试槽位是否允许普通物品插入，避免把燃料槽、产物槽等特殊槽位当作可排序区域。
     private static final ItemStack INSERT_TEST_STACK = Items.DIRT.getDefaultStack();
     private static final List<RegistryKey<ItemGroup>> CATEGORY_ORDER = List.of(
         ItemGroups.BUILDING_BLOCKS,

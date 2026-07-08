@@ -24,14 +24,14 @@ import java.util.List;
 import java.util.Set;
 
 /**
- * 通用丢弃逻辑：
- * - Q：保留原版行为
- * - 自定义组合键 A：整组丢弃鼠标指向槽位
- * - 自定义组合键 B：丢弃鼠标当前所在容器区域内，与鼠标指向物品相同的全部可见物品
- * - 按住自定义组合键滑过槽位时，每个滑过的槽位只触发一次，手感接近原版拖拽操作
+ * 容器界面的快速丢弃功能。
+ *
+ * <p>提供整组丢弃和同类可见物品丢弃两种热键；按住热键滑过槽位时，同一手势内每个槽位只触发一次。
+ * 原版 Q 丢弃不经过这里，避免覆盖玩家熟悉的单件丢弃行为。</p>
  */
 public final class QuickThrow implements ClientModInitializer {
     private static final int SLOT_SIZE = 18;
+    // 滑动丢弃按半格采样，避免鼠标移动太快时漏掉中间槽位。
     private static final int SLIDE_SAMPLE_STEP = SLOT_SIZE / 2;
     private static final Set<SlotKey> handledSlotsInGesture = new HashSet<>();
 

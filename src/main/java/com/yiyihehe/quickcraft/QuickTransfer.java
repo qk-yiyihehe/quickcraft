@@ -27,15 +27,17 @@ import java.util.function.Consumer;
 import java.util.function.Predicate;
 
 /**
- * 可配置组合键同类转移：
- * - 鼠标在玩家主背包/快捷栏：转移同类物品到当前打开容器
- * - 鼠标在容器/合成格等非背包区域：转移同类物品到玩家主背包/快捷栏
- * - 按住快捷键滑过物品时，每个滑过的物品种类触发一次同类转移
- * - 按住格子转移快捷键滑过格子时，每个滑过的格子触发一次原版 Shift 转移
- * - 按住保留一个快捷键单击或滑过格子时，对当前格子执行一次“源侧保留 1 个”的转移
+ * 容器界面的快速转移功能。
+ *
+ * <p>鼠标在玩家背包侧时把同类物品转到当前容器；鼠标在容器侧时把同类物品转回玩家背包。
+ * 也支持按住热键滑过槽位，滑动路径上的每个槽位或物品种类只触发一次，手感接近原版拖拽。</p>
+ *
+ * <p>本类只通过原版槽位点击移动物品，不直接改背包；创造模式玩家背包槽位需要单独 unwrap，
+ * 避免误操作上方创造物品列表。</p>
  */
 public final class QuickTransfer implements ClientModInitializer {
     private static final int SLOT_SIZE = 18;
+    // 滑动转移按半格采样，避免鼠标移动太快时漏掉两个槽位之间的路径。
     private static final int SLIDE_SAMPLE_STEP = SLOT_SIZE / 2;
 
     private static HandledScreen<?> activeScreen;
