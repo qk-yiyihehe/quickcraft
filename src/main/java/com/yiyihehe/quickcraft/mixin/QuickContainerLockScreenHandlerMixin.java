@@ -11,8 +11,12 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Redirect;
 
 /**
- * 在原版 insertItem 分发链里跳过锁格。
- * 这里只改原版取槽位堆叠的两个点，尽量保留其他模组对原方法的注入空间。
+ * 原版物品分发链里的锁格跳过层。
+ *
+ * <p>{@link ScreenHandler#insertItem(ItemStack, int, int, boolean)} 先尝试合并已有堆叠，
+ * 再尝试填入空槽。这里分别重定向两个 {@link Slot#getStack()} 调用点：合并阶段返回空堆叠，
+ * 填空阶段返回屏障占位，让锁格同时避开“合并”和“填空”。ordinal 失效时通常表现为
+ * shift 点击或自动补料仍会进入锁格。</p>
  */
 @Mixin(ScreenHandler.class)
 public abstract class QuickContainerLockScreenHandlerMixin {

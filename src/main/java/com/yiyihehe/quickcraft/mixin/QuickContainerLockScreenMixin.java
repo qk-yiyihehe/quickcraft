@@ -12,8 +12,11 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 import org.lwjgl.glfw.GLFW;
 
 /**
- * 通用槽位锁覆盖层。
- * 这里只负责显示和槽位点击，右上角按钮由各自界面 mixin 负责。
+ * 所有处理器界面的锁格覆盖层和快捷点击入口。
+ *
+ * <p>这个 mixin 只负责槽位上的锁图标与 Alt+右键切换；界面右上角的总开关由具体屏幕
+ * mixin 注入。渲染依赖 {@link HandledScreenAccessor} 读取左上角坐标，目标字段变化时，
+ * 锁图标会整体偏移或无法命中鼠标点击。</p>
  */
 @Mixin(HandledScreen.class)
 public abstract class QuickContainerLockScreenMixin {

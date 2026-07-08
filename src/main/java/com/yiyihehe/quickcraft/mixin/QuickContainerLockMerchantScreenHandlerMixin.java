@@ -20,8 +20,11 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import java.util.Optional;
 
 /**
- * 村民补料会直接扫描玩家背包，不走普通 quick move。
- * 这里单独跳过被锁住的付款格。
+ * 村民交易自动补料的锁格适配。
+ *
+ * <p>{@link MerchantScreenHandler} 的补料逻辑会直接扫描玩家背包，不完全依赖普通
+ * {@link ScreenHandler#insertItem(ItemStack, int, int, boolean)} 分发链。这里单独处理
+ * {@code autofill} 和 {@code switchTo}，避免锁住的同类付款物被交易界面拿走。</p>
  */
 @Mixin(MerchantScreenHandler.class)
 public abstract class QuickContainerLockMerchantScreenHandlerMixin extends ScreenHandler {
@@ -56,7 +59,8 @@ public abstract class QuickContainerLockMerchantScreenHandlerMixin extends Scree
 
     /**
      * @author Codex
-     * @reason 交易补料必须跳过锁格，否则原版会把锁住的同类付款物一起吃掉。
+     * @reason 1.21-1.21.1 的 MerchantScreenHandler.switchTo 会直接把玩家背包物品搬到付款槽；
+     *         需要完整复刻该流程并跳过锁格，Redirect 无法覆盖两个付款槽和双材料交易的全部分支。
      */
     @Overwrite
     public void switchTo(int recipeIndex) {

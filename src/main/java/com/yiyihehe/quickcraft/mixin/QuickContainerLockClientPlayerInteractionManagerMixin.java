@@ -10,8 +10,11 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 /**
- * 在客户端发出 clickSlot 前补一层格子锁判断，
- * 同时为自动穿脱鞘翅维护一次点击上下文。
+ * 客户端槽位点击发送前的锁格保护层。
+ *
+ * <p>{@link ClientPlayerInteractionManager#clickSlot(int, int, int, SlotActionType, PlayerEntity)}
+ * 是客户端向服务端发送槽位操作的统一出口。这里在发包前取消锁格点击，并在同一次调用中保存
+ * slot/button/actionType 上下文，供自动穿脱装备等下游逻辑判断。注入失效时，玩家操作会绕过锁格保护。</p>
  */
 @Mixin(ClientPlayerInteractionManager.class)
 public class QuickContainerLockClientPlayerInteractionManagerMixin {

@@ -15,8 +15,11 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 /**
- * 给通用箱子类界面补容器锁按钮。
- * 这里负责在打开容器时绑定当前界面，并懒加载右上角锁定开关。
+ * 通用箱子界面的锁格按钮入口。
+ *
+ * <p>1.21-1.21.1 的 {@link GenericContainerScreen} 布局在渲染前已经稳定，
+ * 这里在 {@code render} 入口绑定当前界面并懒加载按钮。注入点失效时，锁格本体仍会生效，
+ * 但玩家无法在箱子界面看到或切换锁按钮。</p>
  */
 @Mixin(GenericContainerScreen.class)
 public abstract class GenericContainerScreenMixin extends HandledScreen<GenericContainerScreenHandler> {
@@ -37,7 +40,7 @@ public abstract class GenericContainerScreenMixin extends HandledScreen<GenericC
             return;
         }
 
-        // GenericContainerScreen 在 1.21 里也没有覆写 init，避免注入点失效。
+        // GenericContainerScreen 在 1.21-1.21.1 没有独立 init，渲染时懒加载更稳。
         if (this.quickcraft$lockButton != null && this.children().contains(this.quickcraft$lockButton)) {
             this.quickcraft$syncLockButtonPosition();
             return;

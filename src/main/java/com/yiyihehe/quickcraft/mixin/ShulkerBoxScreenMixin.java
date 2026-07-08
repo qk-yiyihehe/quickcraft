@@ -15,8 +15,11 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 /**
- * 给潜影盒界面补容器锁按钮。
- * 使用渲染时懒加载的方式兼容 1.21 下没有独立 init 的界面实现。
+ * 潜影盒界面的锁格按钮入口。
+ *
+ * <p>潜影盒屏幕和通用箱子一样走渲染时绑定，保证打开不同潜影盒时
+ * {@link QuickContainerLock} 总能拿到当前屏幕和槽位坐标。注入点失效时，
+ * 主要症状是按钮消失，锁格点击保护仍由底层 mixin 兜底。</p>
  */
 @Mixin(ShulkerBoxScreen.class)
 public abstract class ShulkerBoxScreenMixin extends HandledScreen<ShulkerBoxScreenHandler> {
@@ -37,7 +40,7 @@ public abstract class ShulkerBoxScreenMixin extends HandledScreen<ShulkerBoxScre
             return;
         }
 
-        // 潜影盒界面同样没有自己的 init，改为渲染时补按钮更稳。
+        // ShulkerBoxScreen 在 1.21-1.21.1 没有独立 init，渲染时懒加载更稳。
         if (this.quickcraft$lockButton != null && this.children().contains(this.quickcraft$lockButton)) {
             this.quickcraft$syncLockButtonPosition();
             return;

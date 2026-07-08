@@ -9,7 +9,11 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 /**
- * 后台填充期间隐藏真实打开的容器/潜影盒界面，只保留服务端槽位操作。
+ * 后台容器填充的屏幕隐藏层。
+ *
+ * <p>连续填充会临时打开真实容器来执行服务端槽位操作，但玩家不应该看到这些中间界面。
+ * 拦截 {@link HandledScreen#render(DrawContext, int, int, float)} 只隐藏画面，不改变屏幕处理器生命周期；
+ * 注入失效时会看到容器界面闪烁或短暂抢占前台。</p>
  */
 @Mixin(HandledScreen.class)
 public abstract class QuickContainerBackgroundFillScreenMixin {

@@ -10,7 +10,11 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 /**
- * 连续填充期间压住前台容器界面和同一次长按触发的原版右键 use。
+ * 连续填充期间的前台屏幕和右键输入抑制。
+ *
+ * <p>后台填充需要短暂打开 {@link HandledScreen} 完成槽位同步，但不能让它覆盖玩家正在看的界面。
+ * 同时，长按右键触发填充后，原版 {@code doItemUse} 可能在同一输入周期继续执行一次，
+ * 导致重复开箱或误放置。两个注入点失效时，常见症状是界面闪开、右键动作重复触发。</p>
  */
 @Mixin(MinecraftClient.class)
 public abstract class MinecraftClientContinuousFillUseMixin {

@@ -10,8 +10,11 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 /**
- * 物品栏 HUD 里的快捷栏锁头。
- * 这样退出背包后，底部热栏也能继续看到锁定状态。
+ * 快捷栏锁定状态的 HUD 渲染入口。
+ *
+ * <p>锁格数据不只在背包界面生效，快捷栏在 HUD 上也需要提示。注入
+ * {@code renderHotbar} 末尾可以复用原版快捷栏位置，目标点失效时只影响锁头显示，
+ * 不影响实际锁定判定。</p>
  */
 @Mixin(InGameHud.class)
 public abstract class QuickContainerLockInGameHudMixin {

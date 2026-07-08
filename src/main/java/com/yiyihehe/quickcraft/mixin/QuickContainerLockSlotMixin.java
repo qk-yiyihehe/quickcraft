@@ -10,7 +10,11 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
 /**
- * 在槽位最底层补一层锁判断，让取出和放入都过不了。
+ * 槽位自身权限检查里的锁格兜底。
+ *
+ * <p>部分操作不会经过客户端点击入口或 {@code insertItem} 的重定向分支，最终仍会询问
+ * {@link Slot#canTakeItems(PlayerEntity)} / {@link Slot#canInsert(ItemStack)}。
+ * 这里作为底层保护，防止锁格被拖拽、快捷移动或其他模组操作绕过。</p>
  */
 @Mixin(Slot.class)
 public abstract class QuickContainerLockSlotMixin {
