@@ -7,6 +7,8 @@ import fi.dy.masa.malilib.hotkeys.IKeybindProvider;
 
 /**
  * 向 malilib 注册 QuickCraft 的全部热键。
+ *
+ * <p>热键集合来自 {@link QuickCraftConfigs}，这里不维护第二份列表，避免配置页和实际注册结果不一致。</p>
  */
 public final class QuickCraftHotkeyProvider implements IKeybindProvider {
     private static final QuickCraftHotkeyProvider INSTANCE = new QuickCraftHotkeyProvider();

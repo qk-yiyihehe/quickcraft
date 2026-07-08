@@ -17,6 +17,9 @@ import net.minecraft.client.gui.screen.ingame.StonecutterScreen;
 
 /**
  * 给 malilib 热键挂接业务回调。
+ *
+ * <p>本类只负责把热键动作分发到对应功能入口，不在这里实现容器、合成或投影业务。
+ * 返回 {@code true} 表示本次按键已被 QuickCraft 消费，避免继续落到原版或其它处理器。</p>
  */
 public final class QuickCraftHotkeyCallbacks {
     private QuickCraftHotkeyCallbacks() {
@@ -59,6 +62,7 @@ public final class QuickCraftHotkeyCallbacks {
     }
 
     private static boolean consumeRapidCraftHotkey(KeyAction action, IKeybind keybind) {
+        // 连续合成需要收到 PRESS 和 RELEASE，业务类用按住状态决定开始或停止。
         return isCraftingHotkeyContext(MinecraftClient.getInstance());
     }
 
@@ -83,6 +87,7 @@ public final class QuickCraftHotkeyCallbacks {
     }
 
     private static boolean handleSlotLock(KeyAction action, IKeybind keybind) {
+        // 槽位锁由 mixin 在具体槽位点击处处理；这里不消费，避免屏幕外热键误触发。
         return false;
     }
 

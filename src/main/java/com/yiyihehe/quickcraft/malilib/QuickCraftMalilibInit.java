@@ -11,6 +11,8 @@ import fi.dy.masa.malilib.util.data.ModInfo;
 
 /**
  * 在 malilib 初始化阶段注册 QuickCraft 的配置与热键。
+ *
+ * <p>这里只做注册：配置 handler、热键 provider、配置页工厂和热键回调。具体功能入口仍由各业务类处理。</p>
  */
 public final class QuickCraftMalilibInit implements IInitializationHandler {
     @Override

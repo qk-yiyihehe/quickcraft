@@ -15,9 +15,12 @@ import java.util.List;
 
 /**
  * 基于 malilib 的配置页。
- * 顶部分成辅助合成工具、辅助容器工具、快捷键绑定三个分页。
+ *
+ * <p>这里只负责把 {@link QuickCraftConfigs} 的分组展示成分页，不保存额外状态；配置读写仍交给
+ * malilib 的 ConfigManager 和 {@link QuickCraftConfigs}。</p>
  */
 public class QuickCraftConfigScreen extends GuiConfigsBase {
+    // 记住上次打开的分页，关闭再打开配置页时保持玩家正在调整的功能区。
     private static Tab currentTab = Tab.CRAFTING;
 
     public QuickCraftConfigScreen() {

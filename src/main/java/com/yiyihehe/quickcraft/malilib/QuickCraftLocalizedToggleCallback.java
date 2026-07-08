@@ -8,6 +8,8 @@ import fi.dy.masa.malilib.util.InfoUtils;
 
 /**
  * 覆盖 malilib 默认的英文切换提示，改用当前配置项的显示名。
+ *
+ * <p>只用于 {@code ConfigBooleanHotkeyed} 这类开关配置；普通动作热键不经过这里。</p>
  */
 public final class QuickCraftLocalizedToggleCallback implements IHotkeyCallback {
     private final IConfigBoolean config;

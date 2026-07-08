@@ -5,6 +5,8 @@ import com.terraformersmc.modmenu.api.ModMenuApi;
 
 /**
  * 可选 Mod Menu 配置入口。
+ *
+ * <p>这个类只会在 Mod Menu 存在时由它加载，主入口不依赖 Mod Menu API。</p>
  */
 public class QuickCraftModMenuIntegration implements ModMenuApi {
     @Override

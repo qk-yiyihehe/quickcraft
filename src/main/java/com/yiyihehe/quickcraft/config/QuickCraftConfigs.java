@@ -28,7 +28,9 @@ import java.util.List;
 
 /**
  * QuickCraft 的 malilib 配置定义与持久化。
- * 这里仅承载配置数据，不放业务逻辑。
+ *
+ * <p>这是项目配置唯一真源：配置项本体、配置页分组、热键列表和 JSON 读写都从这里出发。
+ * 业务类只通过下方 getter 读取配置，不直接依赖具体 Config 对象。</p>
  */
 // malilib/Guava 的泛型在 JDT 空安全检查下会产生大量误报，这里统一压制这类警告。
 public final class QuickCraftConfigs implements IConfigHandler {
@@ -43,6 +45,7 @@ public final class QuickCraftConfigs implements IConfigHandler {
     public static final int DEFAULT_CRAFT_LOOPS_PER_TICK = 20;
     public static final int MIN_CRAFT_LOOPS_PER_TICK = 1;
     public static final int MAX_CRAFT_LOOPS_PER_TICK = 60;
+    // 自动填充容器时至少保留的背包空槽数，单位是玩家背包主库存槽位。
     public static final int DEFAULT_CONTAINER_FILL_FREE_SLOTS_LIMIT = 5;
     public static final int MIN_CONTAINER_FILL_FREE_SLOTS_LIMIT = 0;
     public static final int MAX_CONTAINER_FILL_FREE_SLOTS_LIMIT = 36;
@@ -59,9 +62,11 @@ public final class QuickCraftConfigs implements IConfigHandler {
     public static final int MAX_MATERIAL_COLLECT_EXTRA_50_TO_100 = 100;
     public static final int MAX_MATERIAL_COLLECT_EXTRA_100_TO_500 = 500;
     public static final int MAX_MATERIAL_COLLECT_EXTRA_OVER_500 = 512;
+    // 持续轻松放置的右键目标缓存时间，单位毫秒；过短容易漏放，过长容易继续作用到旧目标。
     public static final int DEFAULT_HOLD_EASY_PLACE_CACHE_TIME_MS = 2000;
     public static final int MIN_HOLD_EASY_PLACE_CACHE_TIME_MS = 10;
     public static final int MAX_HOLD_EASY_PLACE_CACHE_TIME_MS = 10000;
+    // Quick Shulker 相关后台动作的最小间隔，单位 tick，用来减少连续装盒/取盒时的服务端压力。
     public static final int DEFAULT_QUICK_SHULKER_ACTION_INTERVAL_TICKS = 5;
     public static final int MIN_QUICK_SHULKER_ACTION_INTERVAL_TICKS = 0;
     public static final int MAX_QUICK_SHULKER_ACTION_INTERVAL_TICKS = 20;
@@ -609,6 +614,11 @@ public final class QuickCraftConfigs implements IConfigHandler {
         );
     }
 
+    /**
+     * 返回带“热键切换开关”的布尔配置。
+     *
+     * <p>这些配置统一绑定本地化切换提示；普通热键动作仍由 {@link Hotkeys#HOTKEYS} 和业务回调处理。</p>
+     */
     public static List<ConfigBooleanHotkeyed> getBooleanHotkeyConfigs() {
         return List.of(
                 Crafting.ENABLE_WORKBENCH,
@@ -896,6 +906,7 @@ public final class QuickCraftConfigs implements IConfigHandler {
 
         JsonObject containerTools = root.getAsJsonObject("ContainerTools");
         if (containerTools != null) {
+            // 兼容旧版 standby/enable 字段，读取后映射到现在的统一容器工具模式。
             if (getLegacyEnabledValue(containerTools.get("quickTradeStandby"))) {
                 ContainerTools.ENABLE_QUICK_TRADE.setBooleanValue(true);
             }
@@ -943,6 +954,7 @@ public final class QuickCraftConfigs implements IConfigHandler {
     }
 
     private static void applyLegacyContainerToolMappings(JsonObject containerTools) {
+        // 旧配置曾经把“回存/复制/清空”拆成多个开关；现在迁移为一个模式开关和一个枚举值。
         if (getLegacyEnabledValue(containerTools.get("enableQuickContainerCopy"))) {
             ContainerTools.ENABLE_CONTAINER_TOOL_MODE.setBooleanValue(true);
             ContainerTools.CONTAINER_TOOL_MODE.setOptionListValue(ContainerToolMode.QUICK_COPY);
