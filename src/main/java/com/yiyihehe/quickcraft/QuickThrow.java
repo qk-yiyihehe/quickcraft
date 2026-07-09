@@ -8,6 +8,7 @@ import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.gui.Element;
+import net.minecraft.client.gui.screen.ingame.AnvilScreen;
 import net.minecraft.client.gui.screen.ingame.CreativeInventoryScreen;
 import net.minecraft.client.gui.screen.ingame.HandledScreen;
 import net.minecraft.client.gui.widget.TextFieldWidget;
@@ -52,6 +53,15 @@ public final class QuickThrow implements ClientModInitializer {
 
     public static boolean handleDropWholeStackHotkey() {
         return handleBoundThrow(ThrowMode.WHOLE_STACK);
+    }
+
+    public static boolean shouldConsumeAnvilThrowHotkeyInput() {
+        MinecraftClient client = MinecraftClient.getInstance();
+        return QuickCraftConfigs.isQuickThrowEnabled()
+                && client != null
+                && client.currentScreen instanceof AnvilScreen
+                && (QuickCraftConfigs.Hotkeys.DROP_MATCHING.getKeybind().isKeybindHeld()
+                || QuickCraftConfigs.Hotkeys.DROP_WHOLE_STACK.getKeybind().isKeybindHeld());
     }
 
     private void onClientTick(MinecraftClient client) {
@@ -114,7 +124,7 @@ public final class QuickThrow implements ClientModInitializer {
     private static boolean canUseQuickThrow(MinecraftClient client, HandledScreen<?> screen) {
         return QuickCraftConfigs.isQuickThrowEnabled()
                 && !QuickCraftConfigScreen.isOpen(client)
-                && !isTextInputFocused(screen)
+                && (!isTextInputFocused(screen) || screen instanceof AnvilScreen)
                 && client.player != null
                 && client.interactionManager != null;
     }
@@ -282,7 +292,7 @@ public final class QuickThrow implements ClientModInitializer {
             clickSlotId = getClickSlotId(handler, effectiveSlot);
         }
 
-        if (clickSlotId < 0) {
+        if (clickSlotId < 0 || QuickContainerLock.isLockedSlot(handler, effectiveSlot)) {
             return null;
         }
         return new ThrowTarget(screen, handler, slot, effectiveSlot, clickSlotId);

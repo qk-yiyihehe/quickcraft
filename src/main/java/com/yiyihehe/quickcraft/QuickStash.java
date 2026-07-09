@@ -130,7 +130,10 @@ public final class QuickStash implements ClientModInitializer {
 
         for (int playerSlotId : getPlayerStorageSlotIds(handler)) {
             Slot slot = handler.getSlot(playerSlotId);
-            if (!isPlayerStorageSlot(slot) || !slot.hasStack() || !slot.canTakeItems(client.player)) {
+            if (!isPlayerStorageSlot(slot)
+                    || QuickContainerLock.isLockedSlot(handler, slot)
+                    || !slot.hasStack()
+                    || !slot.canTakeItems(client.player)) {
                 continue;
             }
             if (!matchesAnyTemplate(slot.getStack(), containerTemplates)) {
@@ -150,9 +153,13 @@ public final class QuickStash implements ClientModInitializer {
     private List<ItemStack> snapshotContainerTemplates(ScreenHandler handler) {
         List<ItemStack> templates = new ArrayList<>();
         for (Slot slot : handler.slots) {
-            if (!isVisibleSlot(slot) || isPlayerStorageSlot(slot) || !slot.hasStack()) {
+            if (!isVisibleSlot(slot)
+                    || isPlayerStorageSlot(slot)
+                    || QuickContainerLock.isLockedSlot(handler, slot)
+                    || !slot.hasStack()) {
                 continue;
             }
+            // 锁住的容器格不参与“已有种类”判定，避免它间接决定回存结果。
             templates.add(slot.getStack().copyWithCount(1));
         }
         return templates;
@@ -161,7 +168,9 @@ public final class QuickStash implements ClientModInitializer {
     private List<Integer> getPlayerStorageSlotIds(ScreenHandler handler) {
         List<Slot> playerSlots = new ArrayList<>();
         for (Slot slot : handler.slots) {
-            if (!isVisibleSlot(slot) || !isPlayerStorageSlot(slot)) {
+            if (!isVisibleSlot(slot)
+                    || !isPlayerStorageSlot(slot)
+                    || QuickContainerLock.isLockedSlot(handler, slot)) {
                 continue;
             }
             playerSlots.add(slot);
