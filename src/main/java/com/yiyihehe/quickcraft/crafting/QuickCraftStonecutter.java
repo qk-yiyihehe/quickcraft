@@ -295,9 +295,14 @@ public class QuickCraftStonecutter implements ClientModInitializer {
         }
 
         try {
-            if (handler.getSelectedRecipe() != recipeIndex || !handler.getSlot(OUTPUT_SLOT).hasStack()) {
+            boolean selectionChanged = handler.getSelectedRecipe() != recipeIndex;
+            if (selectionChanged) {
                 handler.onButtonClick(client.player, recipeIndex);
                 client.interactionManager.clickButton(handler.syncId, recipeIndex);
+            } else if (!handler.getSlot(OUTPUT_SLOT).hasStack()) {
+                // 1.21.2+ 的切石机仍会在 onButtonClick() 内本地 populateResult；
+                // 服务端已选中同一配方时只补本地输出槽，才能在同 tick 连续发送取产物包。
+                handler.onButtonClick(client.player, recipeIndex);
             }
             return true;
         } catch (Throwable throwable) {
@@ -351,6 +356,7 @@ public class QuickCraftStonecutter implements ClientModInitializer {
         }
 
         ItemStack before = handler.getSlot(OUTPUT_SLOT).getStack().copy();
+        boolean canAcceptOutput = canAcceptOutputInMainInventory(client.player.getInventory(), before);
         int beforeResultCount = countMatchingItems(client.player.getInventory(), before);
         client.interactionManager.clickSlot(
                 handler.syncId,
@@ -364,7 +370,25 @@ public class QuickCraftStonecutter implements ClientModInitializer {
         return after.isEmpty()
                 || !ItemStack.areItemsAndComponentsEqual(before, after)
                 || after.getCount() != before.getCount()
-                || countMatchingItems(client.player.getInventory(), before) > beforeResultCount;
+                || countMatchingItems(client.player.getInventory(), before) > beforeResultCount
+                || canAcceptOutput;
+    }
+
+    private boolean canAcceptOutputInMainInventory(PlayerInventory inventory, ItemStack output) {
+        if (output.isEmpty()) {
+            return false;
+        }
+
+        for (ItemStack stack : inventory.main) {
+            if (stack.isEmpty()) {
+                return true;
+            }
+            if (ItemStack.areItemsAndComponentsEqual(stack, output)
+                    && stack.getCount() < Math.min(stack.getMaxCount(), output.getMaxCount())) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private int getOutputSignature(StonecutterScreenHandler handler) {
