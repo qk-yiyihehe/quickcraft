@@ -640,8 +640,6 @@ public class QuickCraftStonecutter implements ClientModInitializer {
     }
 
     private boolean lockCurrentSelection(MinecraftClient client, StonecutterScreenHandler handler) {
-        clearLockedSelection();
-
         int selectedIndex = handler.getSelectedRecipe();
         if (!isRecipeIndexAvailable(handler, selectedIndex) && handler.getSlot(OUTPUT_SLOT).hasStack()) {
             selectedIndex = findAvailableRecipeIndexByResult(client, handler, handler.getSlot(OUTPUT_SLOT).getStack());
@@ -659,7 +657,7 @@ public class QuickCraftStonecutter implements ClientModInitializer {
         }
 
         if (resultTemplate.isEmpty()) {
-            return false;
+            return hasLockedSelection();
         }
 
         lockedRecipeIndex = selectedIndex;
