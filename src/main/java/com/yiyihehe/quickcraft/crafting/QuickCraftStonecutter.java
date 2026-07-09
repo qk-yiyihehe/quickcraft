@@ -282,7 +282,7 @@ public class QuickCraftStonecutter implements ClientModInitializer {
 
         boolean success = runOneCraftSubLoop(client, handler, lockedRecipe);
         if (!success) {
-            sendStatusMessage(client, Text.translatable("quickcraft.message.stonecutter.no_progress"));
+            sendStatusMessage(client, Text.translatable("quickcraft.message.crafting.no_ingredients"));
         }
     }
 
