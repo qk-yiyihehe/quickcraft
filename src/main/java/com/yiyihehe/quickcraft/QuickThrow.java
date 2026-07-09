@@ -15,9 +15,12 @@ import net.minecraft.client.gui.widget.TextFieldWidget;
 import net.minecraft.entity.player.PlayerInventory;
 import net.minecraft.inventory.Inventory;
 import net.minecraft.item.ItemStack;
+import net.minecraft.network.packet.c2s.play.ClickSlotC2SPacket;
 import net.minecraft.screen.ScreenHandler;
 import net.minecraft.screen.slot.Slot;
 import net.minecraft.screen.slot.SlotActionType;
+import it.unimi.dsi.fastutil.ints.Int2ObjectMap;
+import it.unimi.dsi.fastutil.ints.Int2ObjectOpenHashMap;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.LinkedHashSet;
@@ -207,25 +210,40 @@ public final class QuickThrow implements ClientModInitializer {
             return;
         }
 
-        ScreenHandler previousHandler = client.player.currentScreenHandler;
-        boolean usingCreativePlayerInventory = target.screen() instanceof CreativeInventoryScreen;
-        try {
-            if (usingCreativePlayerInventory) {
-                // 创造界面原版 dropCreativeStack 有服务端限流，这里按真实玩家背包槽执行普通丢弃。
-                client.player.currentScreenHandler = target.handler();
-            }
-            client.interactionManager.clickSlot(
-                    target.handler().syncId,
-                    target.clickSlotId(),
-                    1,
-                    SlotActionType.THROW,
-                    client.player
-            );
-        } finally {
-            if (usingCreativePlayerInventory) {
-                client.player.currentScreenHandler = previousHandler;
-            }
+        if (target.screen() instanceof CreativeInventoryScreen) {
+            sendCreativePlayerThrowPacket(target, client);
+            return;
         }
+
+        client.interactionManager.clickSlot(
+                target.handler().syncId,
+                target.clickSlotId(),
+                1,
+                SlotActionType.THROW,
+                client.player
+        );
+    }
+
+    private static void sendCreativePlayerThrowPacket(ThrowTarget target, MinecraftClient client) {
+        if (client.getNetworkHandler() == null) {
+            return;
+        }
+
+        // 1.21.2+ 的创造丢弃包有服务端限流；原版 clickSlot 又会在创造客户端本地先生成掉落。
+        // 这里直接给玩家真实背包发 THROW 包，只让服务端执行一次丢弃。
+        target.visibleSlot().setStackNoCallbacks(ItemStack.EMPTY);
+        target.effectiveSlot().setStackNoCallbacks(ItemStack.EMPTY);
+        Int2ObjectMap<ItemStack> modifiedStacks = new Int2ObjectOpenHashMap<>();
+        modifiedStacks.put(target.clickSlotId(), ItemStack.EMPTY);
+        client.getNetworkHandler().sendPacket(new ClickSlotC2SPacket(
+                target.handler().syncId,
+                target.handler().getRevision(),
+                target.clickSlotId(),
+                1,
+                SlotActionType.THROW,
+                target.handler().getCursorStack().copy(),
+                modifiedStacks
+        ));
     }
 
     private static List<Slot> findHoveredSlotsAlongPath(HandledScreen<?> screen, int mouseX, int mouseY) {
