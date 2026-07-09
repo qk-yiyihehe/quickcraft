@@ -78,6 +78,9 @@ public final class QuickCraftAnvilRename implements ClientModInitializer {
             if (runOneRenameSubLoop(client, handler, snapshot)) {
                 anyProgress = true;
             }
+            if (!rapidRenameActive) {
+                break;
+            }
         }
 
         if (anyProgress) {
@@ -108,6 +111,9 @@ public final class QuickCraftAnvilRename implements ClientModInitializer {
 
         if (!hasInput(handler)) {
             if (!quickMoveNextTargetToInput(client, handler, snapshot)) {
+                if (rapidRenameActive) {
+                    stopRapidRename(client, Text.translatable("quickcraft.message.crafting.no_ingredients"));
+                }
                 return false;
             }
         }

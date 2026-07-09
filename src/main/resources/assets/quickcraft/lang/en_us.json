@@ -191,6 +191,7 @@
   "quickcraft.message.trade.favorite_added": "QuickTrade: Current trade favorited",
   "quickcraft.message.trade.blocked": "QuickTrade: Not enough materials or inventory is full",
   "quickcraft.message.crafting.no_recipe": "QuickCraft: No available recipe",
+  "quickcraft.message.crafting.no_ingredients": "QuickCraft: Not enough ingredients, stopped",
   "quickcraft.message.crafting.single_no_progress": "QuickCraft: This craft made no progress",
   "quickcraft.message.workbench.started": "QuickCraft: Rapid crafting started",
   "quickcraft.message.workbench.stopped": "QuickCraft: Rapid crafting stopped",

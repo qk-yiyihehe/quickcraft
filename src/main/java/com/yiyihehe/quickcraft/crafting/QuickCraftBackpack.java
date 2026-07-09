@@ -36,6 +36,8 @@ public class QuickCraftBackpack implements ClientModInitializer {
 
     private static final int MAX_CONSECUTIVE_FAILURES = 3;
 
+    private static final int RECIPE_BOOK_RESULT_WAIT_TICKS = 3;
+
     private static final int OUTPUT_SLOT = 0;
 
     private static final int CRAFTING_GRID_SIZE = 4;
@@ -54,6 +56,8 @@ public class QuickCraftBackpack implements ClientModInitializer {
     private int rapidCooldown = 0;
 
     private int consecutiveFailures = 0;
+
+    private int recipeBookResultWaitTicks = 0;
 
     private RecipeEntry<CraftingRecipe> lockedRecipe = null;
 
@@ -111,6 +115,10 @@ public class QuickCraftBackpack implements ClientModInitializer {
     private void processRapidCraftTick(MinecraftClient client,
                                        PlayerScreenHandler handler,
                                        RecipeEntry<CraftingRecipe> recipe) {
+        if (waitForRecipeBookResult(client, handler)) {
+            return;
+        }
+
         boolean anyProgress = false;
         int craftLoopsPerTick = QuickCraftConfigs.getCraftLoopsPerTick();
 
@@ -118,7 +126,11 @@ public class QuickCraftBackpack implements ClientModInitializer {
             boolean progressed = runOneCraftSubLoop(client, handler, recipe);
             if (progressed) {
                 anyProgress = true;
-            } else {
+            }
+            if (!rapidCraftingActive || recipeBookResultWaitTicks > 0) {
+                break;
+            }
+            if (!progressed) {
 
                 boolean fallbackSuccess = resolveOutputSlotBlockageStrict(
                     client,
@@ -201,6 +213,23 @@ public class QuickCraftBackpack implements ClientModInitializer {
         return false;
     }
 
+    private boolean waitForRecipeBookResult(MinecraftClient client, PlayerScreenHandler handler) {
+        if (recipeBookResultWaitTicks <= 0) {
+            return false;
+        }
+
+        if (handler.getSlot(OUTPUT_SLOT).hasStack()) {
+            recipeBookResultWaitTicks = 0;
+            return false;
+        }
+
+        recipeBookResultWaitTicks--;
+        if (recipeBookResultWaitTicks <= 0) {
+            stopRapidCraft(client, Text.translatable("quickcraft.message.crafting.no_ingredients"));
+        }
+        return true;
+    }
+
     private boolean hasMatchingItemInInventory(PlayerInventory inventory, ItemStack template) {
         if (template.isEmpty()) {
             return false;
@@ -231,7 +260,7 @@ public class QuickCraftBackpack implements ClientModInitializer {
 
         if (!handler.getSlot(OUTPUT_SLOT).hasStack()) {
             ingredientDropLocked = false;
-            return true;
+            return false;
         }
 
         if (dropOutputsBeforeTakingAndTryTake(client, handler, resultTemplate, OUTPUT_TAKE_ATTEMPTS_AFTER_DROP, recipe)) {
@@ -243,7 +272,7 @@ public class QuickCraftBackpack implements ClientModInitializer {
 
         if (!handler.getSlot(OUTPUT_SLOT).hasStack()) {
             ingredientDropLocked = false;
-            return true;
+            return false;
         }
 
         if (!ingredientDropLocked) {
@@ -309,6 +338,9 @@ public class QuickCraftBackpack implements ClientModInitializer {
         }
         try {
             client.interactionManager.clickRecipe(handler.syncId, recipe, true);
+            if (rapidCraftingActive && !handler.getSlot(OUTPUT_SLOT).hasStack()) {
+                recipeBookResultWaitTicks = RECIPE_BOOK_RESULT_WAIT_TICKS;
+            }
             return true;
         } catch (Throwable t) {
             return false;
@@ -1244,6 +1276,7 @@ public class QuickCraftBackpack implements ClientModInitializer {
         rapidCraftStartedByButton = fromButton;
         rapidCooldown = 0;
         consecutiveFailures = 0;
+        recipeBookResultWaitTicks = 0;
         ingredientDropLocked = false;
         lastObservedOutputSignature = 0;
 
@@ -1293,6 +1326,7 @@ public class QuickCraftBackpack implements ClientModInitializer {
         rapidCraftStartedByButton = false;
         rapidCooldown = 0;
         consecutiveFailures = 0;
+        recipeBookResultWaitTicks = 0;
         ingredientDropLocked = false;
         lastObservedOutputSignature = 0;
         sendStatusMessage(client, message);
@@ -1303,6 +1337,7 @@ public class QuickCraftBackpack implements ClientModInitializer {
         rapidCraftStartedByButton = false;
         rapidCooldown = 0;
         consecutiveFailures = 0;
+        recipeBookResultWaitTicks = 0;
         lockedRecipe = null;
         lockedCraftingPattern.clear();
         lockedResultTemplate = ItemStack.EMPTY;
