@@ -101,7 +101,7 @@ public class QuickSort implements ClientModInitializer {
             return;
         }
 
-        if ("container".equals(target.label()) && QuickContainerLock.handleLockedSortAttempt(client, gui)) {
+        if (isLockedSortTarget(client, gui, target)) {
             return;
         }
 
@@ -141,6 +141,15 @@ public class QuickSort implements ClientModInitializer {
             .filter(target -> target.bounds.contains(mouseX, mouseY))
             .min(Comparator.comparingInt(target -> target.bounds.area()))
             .orElse(null);
+    }
+
+    private static boolean isLockedSortTarget(MinecraftClient client, HandledScreen<?> gui, SortTarget target) {
+        return switch (target.label()) {
+            case "container" -> QuickContainerLock.handleLockedSortAttempt(client, gui);
+            case "player-main", "player-hotbar", "creative-player-main", "creative-player-hotbar" ->
+                QuickContainerLock.handleLockedPlayerInventorySortAttempt(client);
+            default -> false;
+        };
     }
 
     private static boolean isTextInputFocused(HandledScreen<?> gui) {
