@@ -326,7 +326,7 @@ public class QuickCraftWorkbench implements ClientModInitializer {
 
         boolean success = runOneCraftSubLoop(client, handler, lockedRecipe);
         if (!success) {
-            sendStatusMessage(client, Text.translatable("quickcraft.message.crafting.single_no_progress"));
+            sendStatusMessage(client, Text.translatable("quickcraft.message.crafting.no_ingredients"));
         }
     }
 
