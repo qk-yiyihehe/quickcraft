@@ -1,6 +1,7 @@
 package com.yiyihehe.quickcraft.mixin;
 
 import com.yiyihehe.quickcraft.crafting.QuickCraftAnvilRename;
+import com.yiyihehe.quickcraft.QuickThrow;
 import net.minecraft.client.gui.widget.TextFieldWidget;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
@@ -16,7 +17,8 @@ public abstract class AnvilRenameTextFieldMixin {
     private void quickcraft$consumeRenameHotkeyChar(char chr,
                                                    int modifiers,
                                                    CallbackInfoReturnable<Boolean> cir) {
-        if (QuickCraftAnvilRename.shouldConsumeRenameHotkeyInput()) {
+        if (QuickCraftAnvilRename.shouldConsumeRenameHotkeyInput()
+                || QuickThrow.shouldConsumeAnvilThrowHotkeyInput()) {
             cir.setReturnValue(true);
         }
     }
