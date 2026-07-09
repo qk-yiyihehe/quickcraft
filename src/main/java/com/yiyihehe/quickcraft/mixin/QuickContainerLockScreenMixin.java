@@ -43,16 +43,6 @@ public abstract class QuickContainerLockScreenMixin {
             cir.setReturnValue(true);
             return;
         }
-
-        if (button == 0 && QuickContainerLock.handleSlotLockClick(
-                screen,
-                mouseX,
-                mouseY,
-                accessor.quickcraft$getGuiLeft(),
-                accessor.quickcraft$getGuiTop()
-        )) {
-            cir.setReturnValue(true);
-        }
     }
 
     @Unique
