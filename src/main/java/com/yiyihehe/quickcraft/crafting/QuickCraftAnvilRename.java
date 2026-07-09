@@ -23,6 +23,7 @@ public final class QuickCraftAnvilRename implements ClientModInitializer {
     private static final int INPUT_SLOT = AnvilScreenHandler.INPUT_1_ID;
     private static final int ADDITION_SLOT = AnvilScreenHandler.INPUT_2_ID;
     private static final int OUTPUT_SLOT = AnvilScreenHandler.OUTPUT_ID;
+    private static boolean consumeNextRenameHotkeyChar = false;
 
     private boolean lastVDown = false;
     private boolean lastAltCDown = false;
@@ -45,6 +46,39 @@ public final class QuickCraftAnvilRename implements ClientModInitializer {
                 || QuickCraftConfigs.getRapidCraftHotkey().isKeybindHeld());
     }
 
+    public static boolean shouldConsumeRenameHotkeyKeyPress(int keyCode) {
+        if (!isAnvilRenameScreenActive()) {
+            consumeNextRenameHotkeyChar = false;
+            return false;
+        }
+
+        boolean singleCraftKeyPressed = QuickCraftConfigs.getSingleCraftHotkey().matches(keyCode);
+        if (singleCraftKeyPressed) {
+            consumeNextRenameHotkeyChar = true;
+            return true;
+        }
+
+        return QuickCraftConfigs.getSingleCraftHotkey().isKeybindHeld()
+                || QuickCraftConfigs.getRapidCraftHotkey().isKeybindHeld();
+    }
+
+    public static boolean consumePendingRenameHotkeyChar() {
+        if (!consumeNextRenameHotkeyChar || !isAnvilRenameScreenActive()) {
+            consumeNextRenameHotkeyChar = false;
+            return false;
+        }
+
+        consumeNextRenameHotkeyChar = false;
+        return true;
+    }
+
+    private static boolean isAnvilRenameScreenActive() {
+        MinecraftClient client = MinecraftClient.getInstance();
+        return QuickCraftConfigs.isAnvilRenameQuickCraftEnabled()
+                && client != null
+                && client.currentScreen instanceof AnvilScreen;
+    }
+
     private void onClientTick(MinecraftClient client) {
         if (!QuickCraftConfigs.isAnvilRenameQuickCraftEnabled()) {
             resetAll();
@@ -55,6 +89,8 @@ public final class QuickCraftAnvilRename implements ClientModInitializer {
             resetAll();
             return;
         }
+
+        consumeNextRenameHotkeyChar = false;
 
         AnvilScreenHandler handler = (AnvilScreenHandler) client.player.currentScreenHandler;
         handleHotkeys(client, handler);
@@ -322,6 +358,7 @@ public final class QuickCraftAnvilRename implements ClientModInitializer {
         rapidCooldown = 0;
         consecutiveFailures = 0;
         lockedSnapshot = null;
+        consumeNextRenameHotkeyChar = false;
     }
 
     private void sendStatusMessage(MinecraftClient client, Text message) {

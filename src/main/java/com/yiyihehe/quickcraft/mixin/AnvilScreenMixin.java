@@ -19,6 +19,7 @@ public abstract class AnvilScreenMixin {
                                                 int modifiers,
                                                 CallbackInfoReturnable<Boolean> cir) {
         if (QuickCraftAnvilRename.shouldConsumeRenameHotkeyInput()
+                || QuickCraftAnvilRename.shouldConsumeRenameHotkeyKeyPress(keyCode)
                 || QuickThrow.shouldConsumeAnvilThrowHotkeyInput()) {
             cir.setReturnValue(true);
         }

@@ -18,6 +18,7 @@ public abstract class AnvilRenameTextFieldMixin {
                                                    int modifiers,
                                                    CallbackInfoReturnable<Boolean> cir) {
         if (QuickCraftAnvilRename.shouldConsumeRenameHotkeyInput()
+                || QuickCraftAnvilRename.consumePendingRenameHotkeyChar()
                 || QuickThrow.shouldConsumeAnvilThrowHotkeyInput()) {
             cir.setReturnValue(true);
         }
