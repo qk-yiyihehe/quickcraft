@@ -176,6 +176,18 @@ public final class QuickContainerLock implements ClientModInitializer {
         return handleLockedAutomationAttempt(client, screen, Text.translatable("quickcraft.action.sort"));
     }
 
+    public static boolean handleLockedPlayerInventorySortAttempt(MinecraftClient client) {
+        if (!LOCKED_CONTAINERS.contains(PLAYER_CONTAINER_KEY)) {
+            return false;
+        }
+
+        sendStatusMessage(client, Text.translatable(
+                "quickcraft.message.container_lock.blocked",
+                Text.translatable("quickcraft.action.sort")
+        ));
+        return true;
+    }
+
     public static boolean handleSlotLockClick(HandledScreen<?> screen, double mouseX, double mouseY, int guiLeft, int guiTop) {
         if (!shouldShowSlotLocks(screen)) {
             return false;
