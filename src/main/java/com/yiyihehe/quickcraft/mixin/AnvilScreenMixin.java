@@ -1,5 +1,6 @@
 package com.yiyihehe.quickcraft.mixin;
 
+import com.yiyihehe.quickcraft.QuickThrow;
 import com.yiyihehe.quickcraft.crafting.QuickCraftAnvilRename;
 import net.minecraft.client.gui.screen.ingame.AnvilScreen;
 import org.spongepowered.asm.mixin.Mixin;
@@ -17,7 +18,8 @@ public abstract class AnvilScreenMixin {
                                                 int scanCode,
                                                 int modifiers,
                                                 CallbackInfoReturnable<Boolean> cir) {
-        if (QuickCraftAnvilRename.shouldConsumeRenameHotkeyInput()) {
+        if (QuickCraftAnvilRename.shouldConsumeRenameHotkeyInput()
+                || QuickThrow.shouldConsumeAnvilThrowHotkeyInput()) {
             cir.setReturnValue(true);
         }
     }

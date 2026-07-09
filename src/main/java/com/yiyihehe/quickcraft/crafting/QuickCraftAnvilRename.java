@@ -78,6 +78,9 @@ public final class QuickCraftAnvilRename implements ClientModInitializer {
             if (runOneRenameSubLoop(client, handler, snapshot)) {
                 anyProgress = true;
             }
+            if (!rapidRenameActive) {
+                break;
+            }
         }
 
         if (anyProgress) {
@@ -87,7 +90,7 @@ public final class QuickCraftAnvilRename implements ClientModInitializer {
 
         consecutiveFailures++;
         if (consecutiveFailures >= MAX_CONSECUTIVE_FAILURES) {
-            stopRapidRename(client, Text.translatable("quickcraft.message.anvil_rename.no_progress"));
+            stopRapidRename(client, Text.translatable("quickcraft.message.crafting.no_ingredients"));
         }
     }
 
@@ -108,6 +111,9 @@ public final class QuickCraftAnvilRename implements ClientModInitializer {
 
         if (!hasInput(handler)) {
             if (!quickMoveNextTargetToInput(client, handler, snapshot)) {
+                if (rapidRenameActive) {
+                    stopRapidRename(client, Text.translatable("quickcraft.message.crafting.no_ingredients"));
+                }
                 return false;
             }
         }
@@ -154,7 +160,7 @@ public final class QuickCraftAnvilRename implements ClientModInitializer {
         }
 
         if (!rapidDown && rapidRenameActive) {
-            stopRapidRename(client, Text.translatable("quickcraft.message.anvil_rename.stopped"));
+            stopRapidRename(client, Text.translatable("quickcraft.message.crafting.stopped"));
         }
 
         lastVDown = vDown;
@@ -175,7 +181,7 @@ public final class QuickCraftAnvilRename implements ClientModInitializer {
         rapidRenameActive = true;
         rapidCooldown = 0;
         consecutiveFailures = 0;
-        sendStatusMessage(client, Text.translatable("quickcraft.message.anvil_rename.started"));
+        sendStatusMessage(client, Text.translatable("quickcraft.message.crafting.started"));
     }
 
     private RenameSnapshot captureSnapshot(AnvilScreenHandler handler) {
@@ -328,7 +334,8 @@ public final class QuickCraftAnvilRename implements ClientModInitializer {
         private boolean matchesTarget(ItemStack stack) {
             return !stack.isEmpty()
                     && stack.isOf(item)
-                    && !getPlainRenameName(stack).equals(targetName);
+                    && getPlainRenameName(stack).equals(originalName)
+                    && !originalName.equals(targetName);
         }
 
         private static String getPlainRenameName(ItemStack stack) {
