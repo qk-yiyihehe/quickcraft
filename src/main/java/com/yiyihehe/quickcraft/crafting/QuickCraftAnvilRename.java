@@ -90,7 +90,7 @@ public final class QuickCraftAnvilRename implements ClientModInitializer {
 
         consecutiveFailures++;
         if (consecutiveFailures >= MAX_CONSECUTIVE_FAILURES) {
-            stopRapidRename(client, Text.translatable("quickcraft.message.anvil_rename.no_progress"));
+            stopRapidRename(client, Text.translatable("quickcraft.message.crafting.no_ingredients"));
         }
     }
 
@@ -160,7 +160,7 @@ public final class QuickCraftAnvilRename implements ClientModInitializer {
         }
 
         if (!rapidDown && rapidRenameActive) {
-            stopRapidRename(client, Text.translatable("quickcraft.message.anvil_rename.stopped"));
+            stopRapidRename(client, Text.translatable("quickcraft.message.crafting.stopped"));
         }
 
         lastVDown = vDown;
@@ -181,7 +181,7 @@ public final class QuickCraftAnvilRename implements ClientModInitializer {
         rapidRenameActive = true;
         rapidCooldown = 0;
         consecutiveFailures = 0;
-        sendStatusMessage(client, Text.translatable("quickcraft.message.anvil_rename.started"));
+        sendStatusMessage(client, Text.translatable("quickcraft.message.crafting.started"));
     }
 
     private RenameSnapshot captureSnapshot(AnvilScreenHandler handler) {

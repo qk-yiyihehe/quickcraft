@@ -79,7 +79,7 @@ public class QuickCraftStonecutter implements ClientModInitializer {
         handleHotkeys(client, handler);
 
         if (rapidCraftingActive && rapidCraftStartedByButton && !isCraftButtonRapidModeHeld(client)) {
-            stopRapidCraft(client, Text.translatable("quickcraft.message.stonecutter.stopped"));
+            stopRapidCraft(client, Text.translatable("quickcraft.message.crafting.stopped"));
         }
 
         if (rapidCraftingActive && hasLockedSelection()) {
@@ -131,7 +131,7 @@ public class QuickCraftStonecutter implements ClientModInitializer {
             detectNoProgressAndMaybeStop(client, recipe);
 
             if (consecutiveFailures >= MAX_CONSECUTIVE_FAILURES) {
-                stopRapidCraft(client, Text.translatable("quickcraft.message.stonecutter.no_progress"));
+                stopRapidCraft(client, Text.translatable("quickcraft.message.crafting.no_ingredients"));
             }
         }
     }
@@ -772,7 +772,7 @@ public class QuickCraftStonecutter implements ClientModInitializer {
         }
 
         if (!rapidDown && rapidCraftingActive && !rapidCraftStartedByButton) {
-            stopRapidCraft(client, Text.translatable("quickcraft.message.stonecutter.stopped"));
+            stopRapidCraft(client, Text.translatable("quickcraft.message.crafting.stopped"));
         }
 
         lastVDown = vDown;
@@ -800,7 +800,7 @@ public class QuickCraftStonecutter implements ClientModInitializer {
         recipeResultWaitTicks = 0;
 
         refreshProgressSnapshot(client, lockedRecipe);
-        sendStatusMessage(client, Text.translatable("quickcraft.message.stonecutter.started"));
+        sendStatusMessage(client, Text.translatable("quickcraft.message.crafting.started"));
         return true;
     }
 
@@ -858,7 +858,7 @@ public class QuickCraftStonecutter implements ClientModInitializer {
 
         noProgressTicks++;
         if (noProgressTicks >= MAX_NO_PROGRESS_TICKS) {
-            stopRapidCraft(client, Text.translatable("quickcraft.message.stonecutter.no_progress"));
+            stopRapidCraft(client, Text.translatable("quickcraft.message.crafting.no_ingredients"));
         }
     }
 

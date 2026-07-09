@@ -94,7 +94,7 @@ public class QuickCraftWorkbench implements ClientModInitializer {
         handleHotkeys(client, handler);
 
         if (rapidCraftingActive && rapidCraftStartedByButton && !isCraftButtonRapidModeHeld(client)) {
-            stopRapidCraft(client, Text.translatable("quickcraft.message.workbench.stopped"));
+            stopRapidCraft(client, Text.translatable("quickcraft.message.crafting.stopped"));
         }
 
         if (rapidCraftingActive && hasLockedCraftingPlan()) {
@@ -143,7 +143,7 @@ public class QuickCraftWorkbench implements ClientModInitializer {
             consecutiveFailures++;
 
             if (consecutiveFailures >= MAX_CONSECUTIVE_FAILURES) {
-                stopRapidCraft(client, Text.translatable("quickcraft.message.workbench.no_progress"));
+                stopRapidCraft(client, Text.translatable("quickcraft.message.crafting.no_ingredients"));
             }
         }
 
@@ -1270,7 +1270,7 @@ public class QuickCraftWorkbench implements ClientModInitializer {
         }
 
         if (!rapidDown && rapidCraftingActive && !rapidCraftStartedByButton) {
-            stopRapidCraft(client, Text.translatable("quickcraft.message.workbench.stopped"));
+            stopRapidCraft(client, Text.translatable("quickcraft.message.crafting.stopped"));
         }
 
         lastVDown = vDown;
@@ -1300,7 +1300,7 @@ public class QuickCraftWorkbench implements ClientModInitializer {
         ingredientDropLocked = false;
         lastObservedOutputSignature = 0;
 
-        sendStatusMessage(client, Text.translatable("quickcraft.message.workbench.started"));
+        sendStatusMessage(client, Text.translatable("quickcraft.message.crafting.started"));
         return true;
     }
 
