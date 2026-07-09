@@ -191,6 +191,7 @@
   "quickcraft.message.trade.favorite_added": "QuickTrade: 已收藏当前交易",
   "quickcraft.message.trade.blocked": "QuickTrade: 材料不足或背包已满",
   "quickcraft.message.crafting.no_recipe": "QuickCraft: 没有可用配方",
+  "quickcraft.message.crafting.no_ingredients": "QuickCraft: 原料不足，已停止",
   "quickcraft.message.crafting.single_no_progress": "QuickCraft: 本次合成无进展",
   "quickcraft.message.workbench.started": "QuickCraft: 连续合成已启动",
   "quickcraft.message.workbench.stopped": "QuickCraft: 连续合成已停止",
