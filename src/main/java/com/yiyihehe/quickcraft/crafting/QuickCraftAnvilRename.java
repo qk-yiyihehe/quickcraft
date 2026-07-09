@@ -334,7 +334,8 @@ public final class QuickCraftAnvilRename implements ClientModInitializer {
         private boolean matchesTarget(ItemStack stack) {
             return !stack.isEmpty()
                     && stack.isOf(item)
-                    && !getPlainRenameName(stack).equals(targetName);
+                    && getPlainRenameName(stack).equals(originalName)
+                    && !originalName.equals(targetName);
         }
 
         private static String getPlainRenameName(ItemStack stack) {
