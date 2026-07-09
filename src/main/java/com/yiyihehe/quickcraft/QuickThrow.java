@@ -19,6 +19,7 @@ import net.minecraft.network.packet.c2s.play.ClickSlotC2SPacket;
 import net.minecraft.screen.ScreenHandler;
 import net.minecraft.screen.slot.Slot;
 import net.minecraft.screen.slot.SlotActionType;
+import net.minecraft.screen.sync.ItemStackHash;
 import it.unimi.dsi.fastutil.ints.Int2ObjectMap;
 import it.unimi.dsi.fastutil.ints.Int2ObjectOpenHashMap;
 import java.util.ArrayList;
@@ -233,16 +234,16 @@ public final class QuickThrow implements ClientModInitializer {
         // 这里直接给玩家真实背包发 THROW 包，只让服务端执行一次丢弃。
         target.visibleSlot().setStackNoCallbacks(ItemStack.EMPTY);
         target.effectiveSlot().setStackNoCallbacks(ItemStack.EMPTY);
-        Int2ObjectMap<ItemStack> modifiedStacks = new Int2ObjectOpenHashMap<>();
-        modifiedStacks.put(target.clickSlotId(), ItemStack.EMPTY);
+        Int2ObjectMap<ItemStackHash> modifiedStacks = new Int2ObjectOpenHashMap<>();
+        modifiedStacks.put(target.clickSlotId(), ItemStackHash.EMPTY);
         client.getNetworkHandler().sendPacket(new ClickSlotC2SPacket(
                 target.handler().syncId,
                 target.handler().getRevision(),
-                target.clickSlotId(),
-                1,
+                (short) target.clickSlotId(),
+                (byte) 1,
                 SlotActionType.THROW,
-                target.handler().getCursorStack().copy(),
-                modifiedStacks
+                modifiedStacks,
+                ItemStackHash.EMPTY
         ));
     }
 

@@ -379,7 +379,7 @@ public class QuickCraftStonecutter implements ClientModInitializer {
             return false;
         }
 
-        for (ItemStack stack : inventory.main) {
+        for (ItemStack stack : inventory.getMainStacks()) {
             if (stack.isEmpty()) {
                 return true;
             }
