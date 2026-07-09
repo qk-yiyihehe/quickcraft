@@ -295,13 +295,9 @@ public class QuickCraftStonecutter implements ClientModInitializer {
         }
 
         try {
-            boolean selectionChanged = handler.getSelectedRecipe() != recipeIndex;
-            if (selectionChanged) {
+            if (handler.getSelectedRecipe() != recipeIndex || !handler.getSlot(OUTPUT_SLOT).hasStack()) {
                 handler.onButtonClick(client.player, recipeIndex);
                 client.interactionManager.clickButton(handler.syncId, recipeIndex);
-            } else if (!handler.getSlot(OUTPUT_SLOT).hasStack()) {
-                // 配方已同步选中时，只补本地产物槽，避免每轮重复发按钮包拖慢喷射合成。
-                handler.onButtonClick(client.player, recipeIndex);
             }
             return true;
         } catch (Throwable throwable) {
