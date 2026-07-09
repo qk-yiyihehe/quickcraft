@@ -6,6 +6,7 @@ import fi.dy.masa.litematica.gui.widgets.WidgetSchematicBrowser;
 import fi.dy.masa.malilib.gui.GuiListBase;
 import fi.dy.masa.malilib.gui.widgets.WidgetDirectoryEntry;
 import fi.dy.masa.malilib.gui.widgets.WidgetFileBrowserBase;
+import net.minecraft.client.gui.Click;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Unique;
 
@@ -42,32 +43,32 @@ public abstract class LitematicaGuiSchematicBrowserBaseMixin
     }
 
     @Override
-    public boolean mouseDragged(double mouseX, double mouseY, int button, double deltaX, double deltaY) {
+    public boolean mouseDragged(Click click, double deltaX, double deltaY) {
         if (this.quickcraft$preview3DManager != null
-                && this.quickcraft$preview3DManager.mouseDragged(mouseX, mouseY, button, deltaX, deltaY)) {
+                && this.quickcraft$preview3DManager.mouseDragged(click.x(), click.y(), click.button(), deltaX, deltaY)) {
             return true;
         }
 
-        return super.mouseDragged(mouseX, mouseY, button, deltaX, deltaY);
+        return super.mouseDragged(click, deltaX, deltaY);
     }
 
     @Override
-    public boolean mouseReleased(double mouseX, double mouseY, int mouseButton) {
+    public boolean mouseReleased(Click click) {
         if (this.quickcraft$preview3DManager != null
-                && this.quickcraft$preview3DManager.mouseReleased(mouseX, mouseY, mouseButton)) {
+                && this.quickcraft$preview3DManager.mouseReleased(click.x(), click.y(), click.button())) {
             return true;
         }
 
-        return super.mouseReleased(mouseX, mouseY, mouseButton);
+        return super.mouseReleased(click);
     }
 
     @Override
-    public boolean mouseClicked(double mouseX, double mouseY, int mouseButton) {
+    public boolean mouseClicked(Click click, boolean doubled) {
         if (this.quickcraft$preview3DManager != null
-                && this.quickcraft$preview3DManager.mouseClicked(mouseX, mouseY, mouseButton)) {
+                && this.quickcraft$preview3DManager.mouseClicked(click.x(), click.y(), click.button())) {
             return true;
         }
 
-        return super.mouseClicked(mouseX, mouseY, mouseButton);
+        return super.mouseClicked(click, doubled);
     }
 }

@@ -1,7 +1,6 @@
 package com.yiyihehe.quickcraft.litematica;
 
 import com.chocohead.mm.api.ClassTinkerers;
-import com.mojang.blaze3d.systems.RenderSystem;
 import com.yiyihehe.quickcraft.QuickContainerCopy;
 import com.yiyihehe.quickcraft.config.QuickCraftConfigs;
 import net.fabricmc.loader.api.FabricLoader;
@@ -20,6 +19,7 @@ import fi.dy.masa.litematica.util.SchematicUtils;
 import fi.dy.masa.malilib.gui.LeftRight;
 import fi.dy.masa.malilib.render.InventoryOverlay;
 import fi.dy.masa.malilib.util.game.BlockUtils;
+import fi.dy.masa.malilib.util.data.Constants;
 import fi.dy.masa.malilib.util.nbt.NbtBlockUtils;
 import net.minecraft.block.AbstractFurnaceBlock;
 import net.minecraft.block.BrewingStandBlock;
@@ -34,25 +34,31 @@ import net.minecraft.block.enums.ChestType;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.gui.screen.ingame.HandledScreen;
-import net.minecraft.client.render.DiffuseLighting;
-import net.minecraft.client.render.OverlayTexture;
-import net.minecraft.client.render.VertexConsumer;
-import net.minecraft.client.render.VertexConsumerProvider;
-import net.minecraft.client.render.model.BakedModel;
 import net.minecraft.entity.player.PlayerInventory;
 import net.minecraft.inventory.Inventory;
 import net.minecraft.inventory.SimpleInventory;
 import net.minecraft.item.ItemStack;
-import net.minecraft.item.ModelTransformationMode;
 import net.minecraft.nbt.NbtCompound;
+import net.minecraft.nbt.NbtList;
+import net.minecraft.nbt.NbtOps;
+import net.minecraft.registry.RegistryWrapper;
+import net.minecraft.screen.BlastFurnaceScreenHandler;
+import net.minecraft.screen.BrewingStandScreenHandler;
 import net.minecraft.screen.CrafterScreenHandler;
+import net.minecraft.screen.FurnaceScreenHandler;
+import net.minecraft.screen.Generic3x3ContainerScreenHandler;
+import net.minecraft.screen.GenericContainerScreenHandler;
+import net.minecraft.screen.HopperScreenHandler;
 import net.minecraft.screen.ScreenHandler;
+import net.minecraft.screen.ShulkerBoxScreenHandler;
+import net.minecraft.screen.SmokerScreenHandler;
 import net.minecraft.screen.slot.Slot;
 import net.minecraft.util.BlockMirror;
 import net.minecraft.util.BlockRotation;
 import net.minecraft.util.hit.HitResult;
 import net.minecraft.util.hit.BlockHitResult;
 import net.minecraft.util.math.BlockPos;
+import net.minecraft.util.math.ChunkPos;
 import net.minecraft.world.World;
 import org.apache.commons.lang3.tuple.Pair;
 
@@ -95,6 +101,9 @@ public final class QuickLitematicaContainerVerifier {
     private static BlockPos currentScreenContainerPos;
     private static HandledScreen<?> currentHandledScreen;
     private static long lastCurrentScreenRefreshTick = Long.MIN_VALUE;
+    private static int lastCurrentScreenRevision = Integer.MIN_VALUE;
+    private static List<SlotOverlay> currentScreenSlotOverlays = List.of();
+    private static ActualInventoryReadStatus lastActualInventoryReadStatus = ActualInventoryReadStatus.NOT_READ;
 
     private QuickLitematicaContainerVerifier() {
     }
@@ -118,14 +127,6 @@ public final class QuickLitematicaContainerVerifier {
         return List.of(WRONG_FILL, MISSING_FILL, WRONG_FILL_STATE);
     }
 
-    public static boolean shouldCheckInventories(BlockEntity expected, BlockEntity found) {
-        return isEnabled()
-                && expected instanceof Inventory expectedInventory
-                && found instanceof Inventory foundInventory
-                && expected.getType() == found.getType()
-                && expectedInventory.size() == foundInventory.size();
-    }
-
     public static Inventory getExpectedInventory(BlockEntity expectedBlockEntity, Inventory directInventory) {
         if (expectedBlockEntity == null || expectedBlockEntity.getWorld() == null) {
             return directInventory;
@@ -134,7 +135,7 @@ public final class QuickLitematicaContainerVerifier {
         NbtCompound nbt = expectedBlockEntity.createNbtWithIdentifyingData(expectedBlockEntity.getWorld().getRegistryManager());
 
         if (nbt.contains("Items")) {
-            Inventory nbtInventory = fi.dy.masa.malilib.util.InventoryUtils.getNbtInventory(
+            Inventory nbtInventory = getNbtInventoryPreservingComponents(
                     nbt,
                     directInventory != null ? directInventory.size() : -1,
                     expectedBlockEntity.getWorld().getRegistryManager()
@@ -149,24 +150,43 @@ public final class QuickLitematicaContainerVerifier {
     }
 
     public static Inventory getActualInventory(World world, BlockPos pos, Inventory directInventory, Inventory expected) {
+        lastActualInventoryReadStatus = ActualInventoryReadStatus.NOT_READ;
+
         if (world == null) {
+            lastActualInventoryReadStatus = ActualInventoryReadStatus.NO_WORLD;
             return null;
         }
 
         if (DataManager.getInstance().hasIntegratedServer()) {
             Inventory mergedOrDirect = getDirectInventory(world, pos, expected != null ? expected.size() : -1);
+            lastActualInventoryReadStatus = mergedOrDirect != null || directInventory != null
+                    ? ActualInventoryReadStatus.INTEGRATED_DIRECT
+                    : ActualInventoryReadStatus.NO_DIRECT_INVENTORY;
             return mergedOrDirect != null ? mergedOrDirect : directInventory;
         }
 
         EntitiesDataStorage storage = EntitiesDataStorage.getInstance();
         NbtCompound cachedNbt = storage.getFromBlockEntityCacheNbt(pos);
 
+        if (cachedNbt != null && !cachedNbt.contains("Items") && expected != null && isInventoryEmpty(expected)) {
+            // 服务器空容器 NBT 可能只带 x/y/z/id，没有 Items；这表示已读到空库存。
+            lastActualInventoryReadStatus = ActualInventoryReadStatus.CACHE_INVENTORY;
+            return new SimpleInventory(expected.size());
+        }
+
         if (cachedNbt != null && (cachedNbt.contains("Items") || isInventoryEmpty(expected))) {
-            Inventory cachedInventory = storage.getBlockInventory(world, pos, true);
+            Inventory cachedInventory = getCachedInventory(world, pos, storage, expected != null ? expected.size() : -1);
 
             if (cachedInventory != null) {
+                lastActualInventoryReadStatus = ActualInventoryReadStatus.CACHE_INVENTORY;
                 return cachedInventory;
             }
+
+            lastActualInventoryReadStatus = ActualInventoryReadStatus.CACHE_PARSE_FAILED;
+        } else if (cachedNbt != null) {
+            lastActualInventoryReadStatus = ActualInventoryReadStatus.CACHE_WITHOUT_ITEMS;
+        } else {
+            lastActualInventoryReadStatus = ActualInventoryReadStatus.NO_CACHE_NBT;
         }
 
         // 多人没有实体数据时不要拿客户端空壳库存硬比，避免把未知误报成错误填充。
@@ -174,10 +194,166 @@ public final class QuickLitematicaContainerVerifier {
         return null;
     }
 
+    private static Inventory getCachedInventory(World world, BlockPos pos, EntitiesDataStorage storage, int expectedSize) {
+        Inventory merged = getMergedCachedDoubleChestInventory(world, pos, storage, expectedSize);
+
+        if (merged != null) {
+            return merged;
+        }
+
+        NbtCompound cachedNbt = storage.getFromBlockEntityCacheNbt(pos);
+        Inventory special = getCachedSpecialInventory(world, cachedNbt, expectedSize);
+
+        if (special != null) {
+            return special;
+        }
+
+        return cachedNbt != null
+                ? getNbtInventoryPreservingComponents(
+                        cachedNbt,
+                        expectedSize,
+                        world.getRegistryManager()
+                )
+                : null;
+    }
+
+    private static Inventory getCachedSpecialInventory(World world, NbtCompound cachedNbt, int expectedSize) {
+        if (world == null || cachedNbt == null || expectedSize != 1 || !cachedNbt.contains("RecordItem")) {
+            return null;
+        }
+
+        SimpleInventory inventory = new SimpleInventory(1);
+        inventory.setStack(
+                0,
+                cachedNbt.getCompound("RecordItem")
+                        .map(nbt -> itemStackFromNbt(world.getRegistryManager(), nbt))
+                        .orElse(ItemStack.EMPTY)
+        );
+        return inventory;
+    }
+
+    private static Inventory getMergedCachedDoubleChestInventory(World world, BlockPos pos, EntitiesDataStorage storage, int expectedSize) {
+        if (expectedSize != 54) {
+            return null;
+        }
+
+        BlockState state = world.getBlockState(pos);
+        ChestType chestType = getChestType(state);
+
+        if (chestType == ChestType.SINGLE) {
+            return null;
+        }
+
+        BlockPos adjacentPos = pos.add(ChestBlock.getFacing(state).getVector());
+        NbtCompound currentNbt = storage.getFromBlockEntityCacheNbt(pos);
+        NbtCompound adjacentNbt = storage.getFromBlockEntityCacheNbt(adjacentPos);
+
+        if (currentNbt == null || adjacentNbt == null) {
+            return null;
+        }
+
+        Inventory currentInventory = getNbtInventoryPreservingComponents(
+                currentNbt,
+                27,
+                world.getRegistryManager()
+        );
+        Inventory adjacentInventory = getNbtInventoryPreservingComponents(
+                adjacentNbt,
+                27,
+                world.getRegistryManager()
+        );
+
+        if (currentInventory == null || adjacentInventory == null) {
+            return null;
+        }
+
+        return chestType == ChestType.RIGHT
+                ? mergeInventories(currentInventory, adjacentInventory)
+                : mergeInventories(adjacentInventory, currentInventory);
+    }
+
+    private static Inventory getNbtInventoryPreservingComponents(
+            NbtCompound nbt,
+            int expectedSize,
+            RegistryWrapper.WrapperLookup registryLookup
+    ) {
+        if (nbt == null || registryLookup == null || !nbt.contains("Items")) {
+            return null;
+        }
+
+        NbtList items = nbt.getList("Items").orElse(null);
+        if (items == null) {
+            return null;
+        }
+        int size = expectedSize > 0 ? expectedSize : inferInventorySize(items);
+        if (size <= 0) {
+            return null;
+        }
+
+        SimpleInventory inventory = new SimpleInventory(size);
+        for (int i = 0; i < items.size(); i++) {
+            NbtCompound itemNbt = items.getCompound(i).orElse(null);
+            if (itemNbt == null) {
+                continue;
+            }
+            int slot = itemNbt.getByte("Slot").orElse((byte) 0) & 255;
+            if (slot < 0 || slot >= size) {
+                continue;
+            }
+
+            ItemStack stack = itemStackFromNbt(registryLookup, itemNbt);
+            if (!stack.isEmpty()) {
+                inventory.setStack(slot, stack);
+            }
+        }
+
+        return inventory;
+    }
+
+    private static ItemStack itemStackFromNbt(RegistryWrapper.WrapperLookup registryLookup, NbtCompound nbt) {
+        return ItemStack.OPTIONAL_CODEC
+                .parse(registryLookup.getOps(NbtOps.INSTANCE), nbt)
+                .result()
+                .orElse(ItemStack.EMPTY);
+    }
+
+    private static int inferInventorySize(NbtList items) {
+        int size = 0;
+        for (int i = 0; i < items.size(); i++) {
+            NbtCompound itemNbt = items.getCompound(i).orElse(null);
+            if (itemNbt != null) {
+                size = Math.max(size, (itemNbt.getByte("Slot").orElse((byte) 0) & 255) + 1);
+            }
+        }
+        return size;
+    }
+
+    public static ActualInventoryReadStatus getLastActualInventoryReadStatus() {
+        return lastActualInventoryReadStatus;
+    }
+
     public static void requestInventoryData(World world, BlockPos pos) {
         if (world != null) {
             EntitiesDataStorage.getInstance().requestBlockEntity(world, pos);
         }
+    }
+
+    public static boolean requestInventoryDataChunk(World world, ChunkPos chunkPos, int minY, int maxY) {
+        if (world == null || DataManager.getInstance().hasIntegratedServer()) {
+            return false;
+        }
+
+        EntitiesDataStorage storage = EntitiesDataStorage.getInstance();
+        if (storage.hasServuxServer()) {
+            storage.requestServuxBulkEntityData(chunkPos, minY, maxY);
+            return true;
+        }
+        if (storage.getIfReceivedBackupPackets()) {
+            storage.requestBackupBulkEntityData(chunkPos, minY, maxY);
+            return true;
+        }
+
+        return false;
     }
 
     public static List<ContainerMismatch> findMismatches(
@@ -292,25 +468,6 @@ public final class QuickLitematicaContainerVerifier {
         ));
     }
 
-    public static boolean inventoriesMatch(
-            BlockEntity expectedBlockEntity,
-            BlockEntity foundBlockEntity,
-            Inventory expected,
-            Inventory found
-    ) {
-        if (expected.size() != found.size()) {
-            return false;
-        }
-
-        for (int slot = 0; slot < expected.size(); slot++) {
-            if (getSlotMismatchStatus(expected.getStack(slot), found.getStack(slot)) != null) {
-                return false;
-            }
-        }
-
-        return getDisabledSlots(expectedBlockEntity).equals(getDisabledSlots(foundBlockEntity));
-    }
-
     public static void renderInventoryPair(
             ContainerMismatch mismatch,
             BlockState expectedState,
@@ -342,9 +499,8 @@ public final class QuickLitematicaContainerVerifier {
 
     public static void clearCurrentHandledScreenBinding() {
         pendingContainerPos = null;
-        currentScreenContainerPos = null;
         currentHandledScreen = null;
-        lastCurrentScreenRefreshTick = Long.MIN_VALUE;
+        clearCurrentScreenContainerBinding();
     }
 
     public static void drawGhostItem(
@@ -358,6 +514,13 @@ public final class QuickLitematicaContainerVerifier {
             float alpha
     ) {
         GhostItemBuffer.drawGhostItem(context, client, stack, x, y, guiLeft, guiTop, alpha);
+    }
+
+    public static boolean beginHandledScreenGhostRender(DrawContext context, MinecraftClient client) {
+        return client != null;
+    }
+
+    public static void endHandledScreenGhostRender(DrawContext context, int guiLeft, int guiTop, float alpha) {
     }
 
     public static void rememberContainerUse(MinecraftClient client, BlockHitResult hitResult) {
@@ -375,39 +538,31 @@ public final class QuickLitematicaContainerVerifier {
     }
 
     public static SlotOverlay getSlotOverlayForScreen(HandledScreen<?> screen, Slot slot) {
-        if (!areSlotHintsVisible()
+        if (!isEnabled()
                 || QuickContainerCopy.shouldHideBackgroundHandledScreen()
-                || slot.inventory instanceof PlayerInventory) {
+                || slot.inventory instanceof PlayerInventory
+                // 只让真正的容器界面参与高亮，避免创造物品栏等界面误触发容器校验。
+                || !isSupportedContainerHandler(screen.getScreenHandler())) {
             return null;
         }
 
         bindCurrentScreen(screen);
         refreshCurrentScreenVerifier(screen);
 
+        // 验证结果刷新不依赖槽位提示开关；这里才决定是否真的绘制提示。
+        if (!areSlotHintsVisible()) {
+            return null;
+        }
+
         if (currentScreenContainerPos == null) {
             return null;
         }
 
-        MinecraftClient client = MinecraftClient.getInstance();
-        World world = fi.dy.masa.malilib.util.WorldUtils.getBestWorld(client);
-        ExpectedContainer expectedContainer = getExpectedContainerAt(world, currentScreenContainerPos);
-
-        if (expectedContainer == null || slot.getIndex() < 0 || slot.getIndex() >= expectedContainer.inventory().size()) {
+        if (slot.getIndex() < 0 || slot.getIndex() >= currentScreenSlotOverlays.size()) {
             return null;
         }
 
-        ItemStack expectedStack = expectedContainer.inventory().getStack(slot.getIndex());
-        SlotMismatchStatus status = getSlotMismatchStatus(expectedStack, slot.getStack());
-
-        if (status == null && isSlotLockMismatch(
-                expectedContainer.disabledSlots(),
-                copyCrafterDisabledSlotsFromScreen(screen.getScreenHandler()),
-                slot.getIndex()
-        )) {
-            status = SlotMismatchStatus.LOCK_STATE;
-        }
-
-        return status != null ? new SlotOverlay(status, expectedStack.copy()) : null;
+        return currentScreenSlotOverlays.get(slot.getIndex());
     }
 
     private static SlotMismatchStatus getSlotMismatchStatus(ItemStack expectedStack, ItemStack foundStack) {
@@ -535,10 +690,14 @@ public final class QuickLitematicaContainerVerifier {
             currentScreenContainerPos = pendingContainerPos;
             pendingContainerPos = null;
             lastCurrentScreenRefreshTick = Long.MIN_VALUE;
+            lastCurrentScreenRevision = Integer.MIN_VALUE;
+            currentScreenSlotOverlays = List.of();
         }
 
         if (currentScreenContainerPos == null) {
-            currentScreenContainerPos = getLookedAtInventoryPos(client);
+            currentScreenContainerPos = isSupportedContainerHandler(screen.getScreenHandler())
+                    ? getLookedAtInventoryPos(client)
+                    : null;
         }
     }
 
@@ -546,12 +705,30 @@ public final class QuickLitematicaContainerVerifier {
         MinecraftClient client = MinecraftClient.getInstance();
 
         if (client.world == null
-                || currentScreenContainerPos == null
-                || client.world.getTime() == lastCurrentScreenRefreshTick) {
+                || currentScreenContainerPos == null) {
             return;
         }
 
-        lastCurrentScreenRefreshTick = client.world.getTime();
+        int currentRevision = screen.getScreenHandler().getRevision();
+
+        long currentTick = client.world.getTime();
+
+        if (currentTick == lastCurrentScreenRefreshTick && currentRevision == lastCurrentScreenRevision) {
+            return;
+        }
+
+        lastCurrentScreenRefreshTick = currentTick;
+        lastCurrentScreenRevision = currentRevision;
+        currentScreenSlotOverlays = List.of();
+        World world = fi.dy.masa.malilib.util.WorldUtils.getBestWorld(client);
+        ExpectedContainer expectedContainer = getExpectedContainerAt(world, currentScreenContainerPos);
+
+        if (expectedContainer == null
+                || !isSupportedHandlerForExpectedContainer(screen.getScreenHandler(), expectedContainer)) {
+            clearCurrentScreenContainerBinding();
+            return;
+        }
+
         Inventory foundInventory = copyContainerInventoryFromScreen(screen.getScreenHandler());
 
         if (foundInventory == null) {
@@ -559,12 +736,28 @@ public final class QuickLitematicaContainerVerifier {
         }
 
         Set<Integer> foundDisabledSlots = copyCrafterDisabledSlotsFromScreen(screen.getScreenHandler());
-
+        List<ContainerMismatch> mismatches = null;
         SchematicPlacement placement = DataManager.getSchematicPlacementManager().getSelectedSchematicPlacement();
 
         if (placement != null && placement.hasVerifier()) {
-            ((VerifierExtension) placement.getSchematicVerifier())
-                    .quickcraft$refreshContainerMismatchAt(currentScreenContainerPos, foundInventory, foundDisabledSlots);
+            VerifierExtension verifier = (VerifierExtension) placement.getSchematicVerifier();
+            mismatches = verifier.quickcraft$refreshContainerMismatchAt(
+                    currentScreenContainerPos,
+                    foundInventory,
+                    foundDisabledSlots
+            );
+
+            BlockPos pairedPos = getExpectedDoubleChestAdjacentPos(currentScreenContainerPos);
+            if (pairedPos != null) {
+                // 大箱子的错误可能记录在另一半坐标；打开任意半边都同步刷新两半。
+                verifier.quickcraft$refreshContainerMismatchAt(pairedPos, foundInventory, foundDisabledSlots);
+            }
+        }
+
+        if (foundInventory.size() == expectedContainer.inventory().size()) {
+            currentScreenSlotOverlays = mismatches != null
+                    ? buildSlotOverlays(expectedContainer, mismatches)
+                    : buildSlotOverlays(expectedContainer, foundInventory, foundDisabledSlots);
         }
     }
 
@@ -580,6 +773,51 @@ public final class QuickLitematicaContainerVerifier {
                 : client.world.getBlockEntity(blockHitResult.getBlockPos());
 
         return blockEntity instanceof Inventory ? blockHitResult.getBlockPos().toImmutable() : null;
+    }
+
+    private static void clearCurrentScreenContainerBinding() {
+        currentScreenContainerPos = null;
+        lastCurrentScreenRefreshTick = Long.MIN_VALUE;
+        lastCurrentScreenRevision = Integer.MIN_VALUE;
+        currentScreenSlotOverlays = List.of();
+    }
+
+    private static boolean isSupportedContainerHandler(ScreenHandler handler) {
+        return handler instanceof HopperScreenHandler
+                || handler instanceof GenericContainerScreenHandler
+                || handler instanceof ShulkerBoxScreenHandler
+                || handler instanceof Generic3x3ContainerScreenHandler
+                || handler instanceof CrafterScreenHandler
+                || handler instanceof FurnaceScreenHandler
+                || handler instanceof BlastFurnaceScreenHandler
+                || handler instanceof SmokerScreenHandler
+                || handler instanceof BrewingStandScreenHandler;
+    }
+
+    private static boolean isSupportedHandlerForExpectedContainer(ScreenHandler handler, ExpectedContainer expectedContainer) {
+        QuickContainerCopy.PublicContainerType type = QuickContainerCopy.getPublicContainerType(
+                expectedContainer.state().getBlock(),
+                getChestType(expectedContainer.state())
+        );
+
+        if (type == null) {
+            return false;
+        }
+
+        return switch (type) {
+            case HOPPER -> handler instanceof HopperScreenHandler;
+            case SMALL_CHEST, BARREL -> handler instanceof GenericContainerScreenHandler genericHandler
+                    && genericHandler.getRows() == 3;
+            case LARGE_CHEST -> handler instanceof GenericContainerScreenHandler genericHandler
+                    && genericHandler.getRows() == 6;
+            case SHULKER_BOX -> handler instanceof ShulkerBoxScreenHandler;
+            case DISPENSER, DROPPER -> handler instanceof Generic3x3ContainerScreenHandler;
+            case CRAFTER -> handler instanceof CrafterScreenHandler;
+            case FURNACE -> handler instanceof FurnaceScreenHandler;
+            case BLAST_FURNACE -> handler instanceof BlastFurnaceScreenHandler;
+            case SMOKER -> handler instanceof SmokerScreenHandler;
+            case BREWING_STAND -> handler instanceof BrewingStandScreenHandler;
+        };
     }
 
     private static Inventory copyContainerInventoryFromScreen(ScreenHandler handler) {
@@ -628,6 +866,60 @@ public final class QuickLitematicaContainerVerifier {
         return disabledSlots;
     }
 
+    private static List<SlotOverlay> buildSlotOverlays(
+            ExpectedContainer expectedContainer,
+            Inventory foundInventory,
+            Set<Integer> foundDisabledSlots
+    ) {
+        int size = expectedContainer.inventory().size();
+        List<SlotOverlay> overlays = new ArrayList<>(size);
+
+        // 打开大箱子时每帧都会绘制很多槽位，这里先按 tick 预计算一次，
+        // 避免满潜影盒场景反复深比较内部组件导致高亮掉帧。
+        for (int slot = 0; slot < size; slot++) {
+            ItemStack expectedStack = expectedContainer.inventory().getStack(slot);
+            SlotMismatchStatus status = getSlotMismatchStatus(expectedStack, foundInventory.getStack(slot));
+
+            if (status == null && isSlotLockMismatch(
+                    expectedContainer.disabledSlots(),
+                    foundDisabledSlots,
+                    slot
+            )) {
+                status = SlotMismatchStatus.LOCK_STATE;
+            }
+
+            overlays.add(status != null ? new SlotOverlay(status, expectedStack.copy()) : null);
+        }
+
+        return overlays;
+    }
+
+    private static List<SlotOverlay> buildSlotOverlays(
+            ExpectedContainer expectedContainer,
+            List<ContainerMismatch> mismatches
+    ) {
+        int size = expectedContainer.inventory().size();
+        List<SlotOverlay> overlays = new ArrayList<>(size);
+
+        for (int slot = 0; slot < size; slot++) {
+            overlays.add(null);
+        }
+
+        if (mismatches.isEmpty()) {
+            return overlays;
+        }
+
+        for (SlotMismatch mismatch : mismatches.getFirst().slotMismatches()) {
+            int slot = mismatch.slot();
+
+            if (slot >= 0 && slot < overlays.size()) {
+                overlays.set(slot, new SlotOverlay(mismatch.status(), mismatch.expectedStack().copy()));
+            }
+        }
+
+        return overlays;
+    }
+
     private static ExpectedContainer getExpectedDoubleChestContainer(BlockPos pos, ExpectedContainer current) {
         ChestType chestType = getChestType(current.state());
 
@@ -655,6 +947,20 @@ public final class QuickLitematicaContainerVerifier {
                 merged,
                 Set.of()
         );
+    }
+
+    public static BlockPos getExpectedDoubleChestAdjacentPos(BlockPos pos) {
+        ExpectedContainer current = getExpectedContainerInternal(pos);
+
+        if (current == null || getChestType(current.state()) == ChestType.SINGLE) {
+            return null;
+        }
+
+        BlockPos adjacentPos = pos.add(ChestBlock.getFacing(current.state()).getVector());
+        ExpectedContainer adjacent = getExpectedContainerInternal(adjacentPos);
+        return adjacent != null && getChestType(adjacent.state()) != ChestType.SINGLE
+                ? adjacentPos
+                : null;
     }
 
     private static ExpectedContainer getExpectedContainerInternal(BlockPos worldPos) {
@@ -874,10 +1180,9 @@ public final class QuickLitematicaContainerVerifier {
             xInv += props.width / 2 + 4;
         }
 
-        fi.dy.masa.malilib.render.RenderUtils.color(1f, 1f, 1f, 1f);
-        InventoryOverlay.renderInventoryBackground(type, xInv, yInv, props.slotsPerRow, props.totalSlots, mc);
+        InventoryOverlay.renderInventoryBackground(drawContext, type, xInv, yInv, props.slotsPerRow, props.totalSlots, mc);
         drawSlotHighlights(drawContext, type, xInv + props.slotOffsetX, yInv + props.slotOffsetY, props.slotsPerRow, slotMismatches);
-        InventoryOverlay.renderInventoryStacks(type, inventory, xInv + props.slotOffsetX, yInv + props.slotOffsetY, props.slotsPerRow, 0, inventory.size(), disabledSlots, mc, drawContext);
+        InventoryOverlay.renderInventoryStacks(drawContext, type, inventory, xInv + props.slotOffsetX, yInv + props.slotOffsetY, props.slotsPerRow, 0, inventory.size(), disabledSlots, mc);
 
         if (renderGhostStacks) {
             drawMissingGhostStacks(drawContext, mc, type, xInv + props.slotOffsetX, yInv + props.slotOffsetY, props.slotsPerRow, slotMismatches);
@@ -928,7 +1233,6 @@ public final class QuickLitematicaContainerVerifier {
                     0,
                     QuickLitematicaVerifierPalette.ghostItemAlpha()
             );
-            drawContext.fill(x, y, x + 16, y + 16, mismatch.status().ghostMaskColor());
             drawOutline(drawContext, x, y, 16, 16, mismatch.status().borderColor());
         }
     }
@@ -1062,6 +1366,17 @@ public final class QuickLitematicaContainerVerifier {
     ) {
     }
 
+    public enum ActualInventoryReadStatus {
+        NOT_READ,
+        NO_WORLD,
+        INTEGRATED_DIRECT,
+        NO_DIRECT_INVENTORY,
+        CACHE_INVENTORY,
+        NO_CACHE_NBT,
+        CACHE_WITHOUT_ITEMS,
+        CACHE_PARSE_FAILED
+    }
+
     private record LocalPlacementPos(
             BlockPos pos,
             String region,
@@ -1101,9 +1416,6 @@ public final class QuickLitematicaContainerVerifier {
             return this.status.borderColor();
         }
 
-        public int ghostMaskColor() {
-            return this.status.ghostMaskColor();
-        }
     }
 
     /**
@@ -1123,7 +1435,7 @@ public final class QuickLitematicaContainerVerifier {
 
         int quickcraft$getPendingContainerCount();
 
-        void quickcraft$refreshContainerMismatchAt(BlockPos pos, Inventory foundInventory, Set<Integer> foundDisabledSlots);
+        List<ContainerMismatch> quickcraft$refreshContainerMismatchAt(BlockPos pos, Inventory foundInventory, Set<Integer> foundDisabledSlots);
     }
 
     /**
@@ -1163,10 +1475,6 @@ public final class QuickLitematicaContainerVerifier {
 
         public int borderColor() {
             return QuickLitematicaVerifierPalette.slotBorderColor(this.mismatchType());
-        }
-
-        public int ghostMaskColor() {
-            return QuickLitematicaVerifierPalette.ghostMaskColor(this.mismatchType());
         }
 
         private MismatchType mismatchType() {
@@ -1247,88 +1555,8 @@ public final class QuickLitematicaContainerVerifier {
                 return;
             }
 
-            drawItemWithAlpha(context, client, stack, x, y, alpha);
+            context.drawItem(stack, x, y);
             context.drawStackOverlay(client.textRenderer, stack, x, y);
-        }
-
-        private static void drawItemWithAlpha(DrawContext context,
-                                              MinecraftClient client,
-                                              ItemStack stack,
-                                              int x,
-                                              int y,
-                                              float alpha) {
-            BakedModel model = client.getItemRenderer().getModel(stack, client.world, client.player, 0);
-            context.getMatrices().push();
-            context.getMatrices().translate(x + 8.0F, y + 8.0F, 150.0F);
-            context.getMatrices().scale(16.0F, -16.0F, 16.0F);
-
-            boolean disableSideLighting = !model.isSideLit();
-            if (disableSideLighting) {
-                context.draw();
-                DiffuseLighting.disableGuiDepthLighting();
-            }
-
-            int alphaColor = Math.max(0, Math.min(255, Math.round(alpha * 255.0F)));
-            VertexConsumerProvider alphaProvider = layer -> new AlphaVertexConsumer(
-                    client.getBufferBuilders().getEntityVertexConsumers().getBuffer(layer),
-                    alphaColor
-            );
-            RenderSystem.enableBlend();
-            RenderSystem.defaultBlendFunc();
-            client.getItemRenderer().renderItem(
-                    stack,
-                    ModelTransformationMode.GUI,
-                    false,
-                    context.getMatrices(),
-                    alphaProvider,
-                    15728880,
-                    OverlayTexture.DEFAULT_UV,
-                    model
-            );
-            client.getBufferBuilders().getEntityVertexConsumers().draw();
-
-            if (disableSideLighting) {
-                DiffuseLighting.enableGuiDepthLighting();
-            }
-            context.getMatrices().pop();
-        }
-
-        private record AlphaVertexConsumer(VertexConsumer delegate, int alpha) implements VertexConsumer {
-            @Override
-            public VertexConsumer vertex(float x, float y, float z) {
-                this.delegate.vertex(x, y, z);
-                return this;
-            }
-
-            @Override
-            public VertexConsumer color(int red, int green, int blue, int alpha) {
-                this.delegate.color(red, green, blue, Math.round(alpha * (this.alpha / 255.0F)));
-                return this;
-            }
-
-            @Override
-            public VertexConsumer texture(float u, float v) {
-                this.delegate.texture(u, v);
-                return this;
-            }
-
-            @Override
-            public VertexConsumer overlay(int u, int v) {
-                this.delegate.overlay(u, v);
-                return this;
-            }
-
-            @Override
-            public VertexConsumer light(int u, int v) {
-                this.delegate.light(u, v);
-                return this;
-            }
-
-            @Override
-            public VertexConsumer normal(float x, float y, float z) {
-                this.delegate.normal(x, y, z);
-                return this;
-            }
         }
     }
 }

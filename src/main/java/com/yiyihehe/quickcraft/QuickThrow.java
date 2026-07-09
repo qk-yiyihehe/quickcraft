@@ -282,7 +282,7 @@ public final class QuickThrow implements ClientModInitializer {
             clickSlotId = getClickSlotId(handler, effectiveSlot);
         }
 
-        if (clickSlotId < 0) {
+        if (clickSlotId < 0 || QuickContainerLock.isLockedSlot(handler, effectiveSlot)) {
             return null;
         }
         return new ThrowTarget(screen, handler, slot, effectiveSlot, clickSlotId);
