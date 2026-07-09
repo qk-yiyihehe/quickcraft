@@ -194,8 +194,8 @@ public class QuickCraftBackpack implements ClientModInitializer {
         }
 
         if (restockCraftingGrid(client, handler, recipe)) {
-            tryTakeOutputForRecipe(client, handler, recipe);
-            return true;
+            return tryTakeOutputForRecipe(client, handler, recipe)
+                    || handler.getSlot(OUTPUT_SLOT).hasStack();
         }
 
         return false;
