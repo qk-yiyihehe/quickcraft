@@ -50,7 +50,7 @@ public abstract class LitematicaWidgetSchematicBrowserMixin extends WidgetFileBr
     }
 
     @Inject(method = "drawSelectedSchematicInfo", at = @At("TAIL"), remap = false)
-    private void quickcraft$draw3DPreview(@Nullable DirectoryEntry entry, DrawContext drawContext, CallbackInfo ci) {
+    private void quickcraft$draw3DPreview(DrawContext drawContext, @Nullable DirectoryEntry entry, CallbackInfo ci) {
         int infoX = this.posX + this.totalWidth - this.infoWidth;
         int infoY = this.posY;
 		int height = Math.min(this.infoHeight, this.parent.getMaxInfoHeight());
