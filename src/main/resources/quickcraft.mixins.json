@@ -45,6 +45,8 @@
 		"QuickContainerLockScreenMixin",
 		"QuickContainerLockScreenHandlerMixin",
 		"QuickContainerLockSlotMixin",
+		"RenderLayerMultiPhaseAccessor",
+		"RenderLayerMultiPhaseParametersAccessor",
 		"ShulkerBoxScreenMixin"
 	],
 	"injectors": {

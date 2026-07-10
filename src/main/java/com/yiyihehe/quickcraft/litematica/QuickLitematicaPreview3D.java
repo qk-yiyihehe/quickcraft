@@ -1,12 +1,13 @@
 package com.yiyihehe.quickcraft.litematica;
 
-import com.mojang.blaze3d.buffers.BufferType;
-import com.mojang.blaze3d.buffers.BufferUsage;
 import com.mojang.blaze3d.buffers.GpuBuffer;
+import com.mojang.blaze3d.pipeline.RenderPipeline;
 import com.mojang.blaze3d.systems.RenderPass;
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.systems.VertexSorter;
 import com.yiyihehe.quickcraft.config.QuickCraftConfigs;
+import com.yiyihehe.quickcraft.mixin.RenderLayerMultiPhaseAccessor;
+import com.yiyihehe.quickcraft.mixin.RenderLayerMultiPhaseParametersAccessor;
 import fi.dy.masa.litematica.render.schematic.ChunkCacheSchematic;
 import fi.dy.masa.litematica.render.schematic.WorldRendererSchematic;
 import fi.dy.masa.litematica.schematic.LitematicaSchematic;
@@ -127,7 +128,7 @@ public final class QuickLitematicaPreview3D {
     private static final int CACHE_MAGIC = 0x51435033; // QCP3
     private static final String CACHE_DIR_NAME = "litematica-preview-cache";
     private static final String CACHE_VERSION_FILE_NAME = "cache-version.txt";
-    private static final String CACHE_RENDER_MARKER = "quickcraft-model-mesh-v13-quantized-gzip-dynamic-chest-mc1.21.5";
+    private static final String CACHE_RENDER_MARKER = "quickcraft-model-mesh-v13-quantized-gzip-dynamic-chest-mc1.21.6";
     private static final int MAX_PREVIEW_SIZE = 512;
     // 预算必须卡在构建阶段前面：顶点 packed 后仍会占用 CPU/GPU 大块连续内存。
     private static final int MAX_UPLOAD_VERTICES = 12_000_000;
@@ -474,16 +475,14 @@ public final class QuickLitematicaPreview3D {
                     var drawParameters = built.getDrawParameters();
                     GpuBuffer vertexBuffer = RenderSystem.getDevice().createBuffer(
                             () -> "QuickCraft preview vertices",
-                            BufferType.VERTICES,
-                            BufferUsage.STATIC_WRITE,
+                            GpuBuffer.USAGE_VERTEX | GpuBuffer.USAGE_COPY_DST,
                             built.getBuffer()
                     );
                     boolean customIndexBuffer = built.getSortedBuffer() != null;
                     GpuBuffer indexBuffer = customIndexBuffer
                             ? RenderSystem.getDevice().createBuffer(
                                     () -> "QuickCraft preview indices",
-                                    BufferType.INDICES,
-                                    BufferUsage.STATIC_WRITE,
+                                    GpuBuffer.USAGE_INDEX | GpuBuffer.USAGE_COPY_DST,
                                     built.getSortedBuffer()
                             )
                             : RenderSystem.getSequentialBuffer(drawParameters.mode()).getIndexBuffer(drawParameters.indexCount());
@@ -544,18 +543,41 @@ public final class QuickLitematicaPreview3D {
         private static void drawLayerBuffer(RenderLayer renderLayer, LayerBuffer buffer) {
             renderLayer.startDrawing();
             try {
-                var target = renderLayer.getTarget();
+                RenderLayerMultiPhaseAccessor layerAccessor = (RenderLayerMultiPhaseAccessor) (Object) renderLayer;
+                RenderLayerMultiPhaseParametersAccessor parametersAccessor =
+                        (RenderLayerMultiPhaseParametersAccessor) (Object) layerAccessor.quickcraft$getPhases();
+                RenderPipeline pipeline = layerAccessor.quickcraft$getPipeline();
+                var target = parametersAccessor.quickcraft$getTarget().get();
+                var colorAttachment = RenderSystem.outputColorTextureOverride != null
+                        ? RenderSystem.outputColorTextureOverride
+                        : target.getColorAttachmentView();
+                var depthAttachment = target.useDepthAttachment
+                        ? RenderSystem.outputDepthTextureOverride != null
+                                ? RenderSystem.outputDepthTextureOverride
+                                : target.getDepthAttachmentView()
+                        : null;
                 try (RenderPass pass = RenderSystem.getDevice().createCommandEncoder().createRenderPass(
-                        target.getColorAttachment(),
+                        () -> "QuickCraft preview " + renderLayer,
+                        colorAttachment,
                         OptionalInt.empty(),
-                        target.useDepthAttachment ? target.getDepthAttachment() : null,
+                        depthAttachment,
                         OptionalDouble.empty()
                 )) {
-                    pass.setPipeline(renderLayer.getPipeline());
-                    pass.setVertexBuffer(0, buffer.vertexBuffer());
-                    if (RenderSystem.SCISSOR_STATE.isEnabled()) {
-                        pass.enableScissor(RenderSystem.SCISSOR_STATE);
+                    pass.setPipeline(pipeline);
+                    var dynamicTransforms = RenderSystem.getDynamicUniforms().write(
+                            RenderSystem.getModelViewMatrix(),
+                            new Vector4f(1.0F, 1.0F, 1.0F, 1.0F),
+                            RenderSystem.getModelOffset(),
+                            RenderSystem.getTextureMatrix(),
+                            RenderSystem.getShaderLineWidth()
+                    );
+                    var scissor = RenderSystem.getScissorStateForRenderTypeDraws();
+                    if (scissor.method_72091()) {
+                        pass.enableScissor(scissor.method_72092(), scissor.method_72093(), scissor.method_72094(), scissor.method_72095());
                     }
+                    RenderSystem.bindDefaultUniforms(pass);
+                    pass.setUniform("DynamicTransforms", dynamicTransforms);
+                    pass.setVertexBuffer(0, buffer.vertexBuffer());
                     for (int textureUnit = 0; textureUnit < 12; textureUnit++) {
                         var texture = RenderSystem.getShaderTexture(textureUnit);
                         if (texture != null) {
@@ -563,7 +585,7 @@ public final class QuickLitematicaPreview3D {
                         }
                     }
                     pass.setIndexBuffer(buffer.indexBuffer(), buffer.indexType());
-                    pass.drawIndexed(0, buffer.indexCount());
+                    pass.drawIndexed(0, 0, buffer.indexCount(), 1);
                 }
             } finally {
                 renderLayer.endDrawing();
