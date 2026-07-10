@@ -136,6 +136,13 @@ public final class QuickLitematicaPreview3D {
     private static final int QUANTIZED_VERTEX_BYTES = 26;
     private static final int MAX_QUANTIZED_LAYER_BYTES = MAX_UPLOAD_VERTICES * QUANTIZED_VERTEX_BYTES;
     private static final int CACHE_IO_CHUNK_BYTES = 1024 * 1024;
+    private static final float PROGRESS_START = 0.02F;
+    private static final float PROGRESS_MESHING_START = 0.10F;
+    private static final float PROGRESS_MESHING_END = 0.80F;
+    private static final float PROGRESS_CACHE_WRITE = 0.82F;
+    private static final float PROGRESS_STATIC_CACHE_END = 0.93F;
+    private static final float PROGRESS_BLOCK_STATES_CACHE_END = 0.95F;
+    private static final float PROGRESS_BLOCK_ENTITIES_CACHE_END = 0.99F;
     private static final AtomicBoolean CACHE_DIRECTORY_READY = new AtomicBoolean();
     @Nullable
     private static volatile Path currentCacheDirectory;
@@ -302,12 +309,14 @@ public final class QuickLitematicaPreview3D {
             Path sourcePath = entry.getFullPath().toAbsolutePath().normalize();
             Path cachePath = cachePath(sourcePath);
             Preview preview = new Preview(sourcePath, cachePath, cachePath.resolveSibling(cachePath.getFileName() + ".tmp"));
+            preview.progress = PROGRESS_START;
             preview.future = CompletableFuture.runAsync(() -> preview.loadOrBuild(entry), PREVIEW_EXECUTOR);
             return preview;
         }
 
         private void loadOrBuild(DirectoryEntry entry) {
             try {
+                this.progress = PROGRESS_START;
                 Files.createDirectories(this.cachePath.getParent());
                 MeshData cached = CacheFile.read(this.cachePath, this.cancelled);
                 if (cached != null) {
@@ -330,7 +339,7 @@ public final class QuickLitematicaPreview3D {
                     return;
                 }
 
-                CacheFile.writeAtomically(this.tmpPath, this.cachePath, built, this.cancelled);
+                CacheFile.writeAtomically(this.tmpPath, this.cachePath, built, this.cancelled, value -> this.progress = value);
                 this.meshData = built;
                 this.progress = 1.0F;
                 this.state = State.READY;
@@ -725,6 +734,8 @@ public final class QuickLitematicaPreview3D {
                 throw new IllegalStateException("Cannot read litematic file");
             }
 
+            progressSink.set(PROGRESS_MESHING_START);
+
             Bounds bounds = Bounds.from(schematic.getAreas().values());
             MeshCollector collector = new MeshCollector();
             Map<BlockPos, BlockStateData> blockStates = new HashMap<>();
@@ -763,12 +774,13 @@ public final class QuickLitematicaPreview3D {
 
                     visited++;
                     if ((visited & 0x3FF) == 0L) {
-                        progressSink.set(Math.min(0.98F, visited / (float) total));
+                        progressSink.set(PROGRESS_MESHING_START + (PROGRESS_MESHING_END - PROGRESS_MESHING_START)
+                                * Math.min(1.0F, visited / (float) total));
                     }
                 }
             }
 
-            progressSink.set(1.0F);
+            progressSink.set(PROGRESS_MESHING_END);
             List<LayerMesh> layers = collector.toMeshes();
             int vertices = vertexCount(layers);
             if (vertices > MAX_UPLOAD_VERTICES
@@ -1800,9 +1812,10 @@ public final class QuickLitematicaPreview3D {
             }
         }
 
-        private static void writeAtomically(Path tmpPath, Path finalPath, MeshData data, AtomicBoolean cancelled) throws IOException {
+        private static void writeAtomically(Path tmpPath, Path finalPath, MeshData data, AtomicBoolean cancelled, ProgressSink progressSink) throws IOException {
             deleteTmpQuietly(tmpPath);
             try (DataOutputStream output = new DataOutputStream(new GZIPOutputStream(new BufferedOutputStream(Files.newOutputStream(tmpPath))))) {
+                progressSink.set(PROGRESS_CACHE_WRITE);
                 output.writeInt(CACHE_MAGIC);
                 output.writeInt(CACHE_FORMAT_VERSION);
                 output.writeUTF(CACHE_RENDER_MARKER);
@@ -1811,6 +1824,12 @@ public final class QuickLitematicaPreview3D {
                 output.writeInt(data.sizeZ());
                 output.writeInt(data.layers().size());
 
+                long totalStaticBytes = 0L;
+                for (LayerMesh layer : data.layers()) {
+                    totalStaticBytes += layer.quantizedVertices().length;
+                }
+
+                long staticBytesWritten = 0L;
                 int written = 0;
                 for (LayerMesh layer : data.layers()) {
                     output.writeInt(layer.layer().id);
@@ -1821,41 +1840,56 @@ public final class QuickLitematicaPreview3D {
                             throw new CancellationException();
                         }
 
-                        output.write(quantized, offset, Math.min(CACHE_IO_CHUNK_BYTES, quantized.length - offset));
+                        int length = Math.min(CACHE_IO_CHUNK_BYTES, quantized.length - offset);
+                        output.write(quantized, offset, length);
+                        staticBytesWritten += length;
+                        progressSink.set(progress(PROGRESS_CACHE_WRITE, PROGRESS_STATIC_CACHE_END, staticBytesWritten, totalStaticBytes));
                     }
                 }
+                progressSink.set(PROGRESS_STATIC_CACHE_END);
 
                 output.writeInt(data.blockStates.size());
-                for (BlockStateData blockState : data.blockStates) {
+                for (int index = 0; index < data.blockStates.size(); index++) {
                     if (cancelled.get()) {
                         throw new CancellationException();
                     }
 
+                    BlockStateData blockState = data.blockStates.get(index);
                     output.writeInt(blockState.x());
                     output.writeInt(blockState.y());
                     output.writeInt(blockState.z());
                     NbtIo.writeCompound(blockState.stateNbt(), output);
+                    if ((index & 0x7F) == 0 || index + 1 == data.blockStates.size()) {
+                        progressSink.set(progress(PROGRESS_STATIC_CACHE_END, PROGRESS_BLOCK_STATES_CACHE_END, index + 1L, data.blockStates.size()));
+                    }
                 }
+                progressSink.set(PROGRESS_BLOCK_STATES_CACHE_END);
 
                 output.writeInt(data.blockEntities.size());
-                for (BlockEntityData blockEntity : data.blockEntities) {
+                for (int index = 0; index < data.blockEntities.size(); index++) {
                     if (cancelled.get()) {
                         throw new CancellationException();
                     }
 
+                    BlockEntityData blockEntity = data.blockEntities.get(index);
                     output.writeInt(blockEntity.x());
                     output.writeInt(blockEntity.y());
                     output.writeInt(blockEntity.z());
                     NbtIo.writeCompound(blockEntity.stateNbt(), output);
                     NbtIo.writeCompound(blockEntity.entityNbt(), output);
+                    if ((index & 0x3F) == 0 || index + 1 == data.blockEntities.size()) {
+                        progressSink.set(progress(PROGRESS_BLOCK_STATES_CACHE_END, PROGRESS_BLOCK_ENTITIES_CACHE_END, index + 1L, data.blockEntities.size()));
+                    }
                 }
+                progressSink.set(PROGRESS_BLOCK_ENTITIES_CACHE_END);
 
                 output.writeInt(data.entities.size());
-                for (EntityData entity : data.entities) {
+                for (int index = 0; index < data.entities.size(); index++) {
                     if (cancelled.get()) {
                         throw new CancellationException();
                     }
 
+                    EntityData entity = data.entities.get(index);
                     output.writeDouble(entity.x());
                     output.writeDouble(entity.y());
                     output.writeDouble(entity.z());
@@ -1872,6 +1906,13 @@ public final class QuickLitematicaPreview3D {
             } catch (AtomicMoveNotSupportedException e) {
                 Files.move(tmpPath, finalPath, StandardCopyOption.REPLACE_EXISTING);
             }
+        }
+
+        private static float progress(float start, float end, long completed, long total) {
+            if (total <= 0L) {
+                return end;
+            }
+            return start + (end - start) * Math.min(1.0F, completed / (float) total);
         }
 
         // ---- 顶点量化解编码工具：float16 (UV) / octahedral 8-bit (法线) ----
