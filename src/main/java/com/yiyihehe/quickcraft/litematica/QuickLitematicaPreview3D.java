@@ -2,12 +2,12 @@ package com.yiyihehe.quickcraft.litematica;
 
 import com.mojang.blaze3d.buffers.GpuBuffer;
 import com.mojang.blaze3d.pipeline.RenderPipeline;
+import com.mojang.blaze3d.systems.ProjectionType;
 import com.mojang.blaze3d.systems.RenderPass;
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.systems.VertexSorter;
 import com.yiyihehe.quickcraft.config.QuickCraftConfigs;
 import com.yiyihehe.quickcraft.mixin.RenderLayerMultiPhaseAccessor;
-import com.yiyihehe.quickcraft.mixin.RenderLayerMultiPhaseParametersAccessor;
 import fi.dy.masa.litematica.render.schematic.ChunkCacheSchematic;
 import fi.dy.masa.litematica.render.schematic.WorldRendererSchematic;
 import fi.dy.masa.litematica.schematic.LitematicaSchematic;
@@ -28,6 +28,8 @@ import net.minecraft.block.BlockRenderType;
 import net.minecraft.block.BlockState;
 import net.minecraft.block.entity.BlockEntity;
 import net.minecraft.client.MinecraftClient;
+import net.minecraft.client.gl.Framebuffer;
+import net.minecraft.client.gl.RenderPipelines;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.render.BufferBuilder;
 import net.minecraft.client.render.BuiltBuffer;
@@ -35,6 +37,8 @@ import net.minecraft.client.render.GameRenderer;
 import net.minecraft.client.render.LightmapTextureManager;
 import net.minecraft.client.render.OverlayTexture;
 import net.minecraft.client.render.BlockRenderLayer;
+import net.minecraft.client.render.DiffuseLighting;
+import net.minecraft.client.render.RawProjectionMatrix;
 import net.minecraft.client.render.RenderLayer;
 import net.minecraft.client.render.RenderLayers;
 import net.minecraft.client.render.VertexConsumer;
@@ -120,15 +124,16 @@ public final class QuickLitematicaPreview3D {
         thread.setDaemon(true);
         return thread;
     });
+    // v14：保留完整 32 位 lightmap；1.21.8 流体的天空光在旧 16 位缓存中会被截断。
     // v13：回退箱子静态化（entity atlas 纹理与方块 VBO 不兼容，紫色方块）；保留 GZIP+量化+视口剔除+邻居登记修复。
     // v12：箱子顶点静态化到独立 VBO，缓存追加 chestVertices 字段。
     // v11：保留 v10 的 GZIP + 顶点量化；箱子方块实体改回动态渲染，避免 chest atlas 被写进方块 VBO。
     // 升版本会让旧缓存一次性失效；之后 mod 版本号变化不再清缓存（token 已不含 mod 版本）。
-    private static final int CACHE_FORMAT_VERSION = 13;
+    private static final int CACHE_FORMAT_VERSION = 14;
     private static final int CACHE_MAGIC = 0x51435033; // QCP3
     private static final String CACHE_DIR_NAME = "litematica-preview-cache";
     private static final String CACHE_VERSION_FILE_NAME = "cache-version.txt";
-    private static final String CACHE_RENDER_MARKER = "quickcraft-model-mesh-v13-quantized-gzip-dynamic-chest-mc1.21.6";
+    private static final String CACHE_RENDER_MARKER = "quickcraft-model-mesh-v14-full-light-dynamic-chest-mc1.21.8";
     private static final int MAX_PREVIEW_SIZE = 512;
     // 预算必须卡在构建阶段前面：顶点 packed 后仍会占用 CPU/GPU 大块连续内存。
     private static final int MAX_UPLOAD_VERTICES = 12_000_000;
@@ -139,8 +144,8 @@ public final class QuickLitematicaPreview3D {
     private static final float DEFAULT_SLANT_RADIANS = (float) Math.toRadians(32.0);
     private static final long NBT_READ_LIMIT_BYTES = 32L * 1024L * 1024L;
     private static final int VERTEX_BYTES = 44;
-    // 量化顶点磁盘编码：12B 位置 + 4B 颜色 + 4B UV(float16×2) + 4B overlay/light(short×2) + 2B 法线(octahedral) = 26B
-    private static final int QUANTIZED_VERTEX_BYTES = 26;
+    // 量化顶点磁盘编码：12B 位置 + 4B 颜色 + 4B UV(float16×2) + 2B overlay + 4B lightmap + 2B 法线(octahedral) = 28B
+    private static final int QUANTIZED_VERTEX_BYTES = 28;
     private static final int MAX_QUANTIZED_LAYER_BYTES = MAX_UPLOAD_VERTICES * QUANTIZED_VERTEX_BYTES;
     private static final int CACHE_IO_CHUNK_BYTES = 1024 * 1024;
     private static final float PROGRESS_START = 0.02F;
@@ -299,8 +304,10 @@ public final class QuickLitematicaPreview3D {
         private final Path sourcePath;
         private final Path cachePath;
         private final Path tmpPath;
+        private final long startedAtNanos = System.nanoTime();
         private final AtomicBoolean cancelled = new AtomicBoolean();
         private final Map<LayerKey, LayerBuffer> layerBuffers = new EnumMap<>(LayerKey.class);
+        private final RawProjectionMatrix previewProjection = new RawProjectionMatrix("QuickCraft preview projection");
         private volatile MeshData meshData;
         private volatile float progress;
         private volatile State state = State.LOADING;
@@ -510,44 +517,73 @@ public final class QuickLitematicaPreview3D {
                 return;
             }
 
-            context.enableScissor(x + 1, y + 1, x + size - 2, y + size - 2);
+            Framebuffer framebuffer = client.getFramebuffer();
+            int[] scissor = previewScissor(client, x, y, size);
+            RenderSystem.getDevice().createCommandEncoder().clearColorAndDepthTextures(
+                    framebuffer.getColorAttachment(), 0xFF101010, framebuffer.getDepthAttachment(), 1.0D,
+                    scissor[0], scissor[1], scissor[2], scissor[3]
+            );
+
+            var previousColorTarget = RenderSystem.outputColorTextureOverride;
+            var previousDepthTarget = RenderSystem.outputDepthTextureOverride;
+            var previousScissor = RenderSystem.getScissorStateForRenderTypeDraws();
+            boolean hadScissor = previousScissor.method_72091();
+            int previousScissorX = previousScissor.method_72092();
+            int previousScissorY = previousScissor.method_72093();
+            int previousScissorWidth = previousScissor.method_72094();
+            int previousScissorHeight = previousScissor.method_72095();
+            var previousLights = RenderSystem.getShaderLights();
+            RenderSystem.outputColorTextureOverride = framebuffer.getColorAttachmentView();
+            RenderSystem.outputDepthTextureOverride = framebuffer.getDepthAttachmentView();
+            RenderSystem.enableScissorForRenderTypeDraws(scissor[0], scissor[1], scissor[2], scissor[3]);
 
             float aspectRatio = client.getWindow().getFramebufferWidth() / (float) client.getWindow().getFramebufferHeight();
             Matrix4f projection = new Matrix4f().setOrtho(-aspectRatio, aspectRatio, -1.0F, 1.0F, -1000.0F, 3000.0F);
+            RenderSystem.backupProjectionMatrix();
+            RenderSystem.setProjectionMatrix(this.previewProjection.set(projection), ProjectionType.ORTHOGRAPHIC);
 
             Matrix4fStack modelView = RenderSystem.getModelViewStack();
             modelView.pushMatrix();
-            modelView.identity();
-            translateToScreen(modelView, client, x + size / 2.0F + drag.dx, y + size / 2.0F + drag.dy);
-            modelView.rotate(RotationAxis.POSITIVE_X.rotation(DEFAULT_SLANT_RADIANS));
-            modelView.rotate(RotationAxis.POSITIVE_Y.rotation((float) drag.angle));
-            float scale = data.scaleFactor(size, client.currentScreen.height) * drag.scale;
-            modelView.scale(scale, scale, scale);
-            modelView.translate(-data.sizeX() / 2.0F, -data.sizeY() / 2.0F, -data.sizeZ() / 2.0F);
-            this.drawDynamic(data, modelView, projection, x, y, size);
-            this.drawBuffers(modelView);
-
-            modelView.popMatrix();
-            context.disableScissor();
-        }
-
-        private void drawBuffers(Matrix4f modelView) {
-            for (LayerKey layer : LayerKey.DRAW_ORDER) {
-                LayerBuffer buffer = this.layerBuffers.get(layer);
-                if (buffer != null) {
-                    drawLayerBuffer(layer.renderLayer(), buffer);
+            try {
+                modelView.identity();
+                translateToScreen(modelView, client, x + size / 2.0F + drag.dx, y + size / 2.0F + drag.dy);
+                modelView.rotate(RotationAxis.POSITIVE_X.rotation(DEFAULT_SLANT_RADIANS));
+                modelView.rotate(RotationAxis.POSITIVE_Y.rotation((float) drag.angle));
+                float scale = data.scaleFactor(size, client.currentScreen.height) * drag.scale;
+                modelView.scale(scale, scale, scale);
+                modelView.translate(-data.sizeX() / 2.0F, -data.sizeY() / 2.0F, -data.sizeZ() / 2.0F);
+                client.gameRenderer.getDiffuseLighting().setShaderLights(DiffuseLighting.Type.LEVEL);
+                this.drawDynamic(data, modelView, projection, x, y, size);
+                this.drawBuffers(framebuffer, x, y, size);
+            } finally {
+                modelView.popMatrix();
+                RenderSystem.restoreProjectionMatrix();
+                RenderSystem.outputColorTextureOverride = previousColorTarget;
+                RenderSystem.outputDepthTextureOverride = previousDepthTarget;
+                RenderSystem.setShaderLights(previousLights);
+                if (hadScissor) {
+                    RenderSystem.enableScissorForRenderTypeDraws(previousScissorX, previousScissorY, previousScissorWidth, previousScissorHeight);
+                } else {
+                    RenderSystem.disableScissorForRenderTypeDraws();
                 }
             }
         }
 
-        private static void drawLayerBuffer(RenderLayer renderLayer, LayerBuffer buffer) {
+        private void drawBuffers(Framebuffer framebuffer, int x, int y, int size) {
+            for (LayerKey layer : LayerKey.DRAW_ORDER) {
+                LayerBuffer buffer = this.layerBuffers.get(layer);
+                if (buffer != null) {
+                    drawLayerBuffer(layer.renderLayer(), buffer, framebuffer, x, y, size);
+                }
+            }
+        }
+
+        private static void drawLayerBuffer(RenderLayer renderLayer, LayerBuffer buffer, Framebuffer framebuffer, int viewX, int viewY, int viewSize) {
             renderLayer.startDrawing();
             try {
                 RenderLayerMultiPhaseAccessor layerAccessor = (RenderLayerMultiPhaseAccessor) (Object) renderLayer;
-                RenderLayerMultiPhaseParametersAccessor parametersAccessor =
-                        (RenderLayerMultiPhaseParametersAccessor) (Object) layerAccessor.quickcraft$getPhases();
-                RenderPipeline pipeline = layerAccessor.quickcraft$getPipeline();
-                var target = parametersAccessor.quickcraft$getTarget().get();
+                RenderPipeline pipeline = buffer.pipeline(renderLayer, layerAccessor.quickcraft$getPipeline());
+                var target = framebuffer;
                 var colorAttachment = RenderSystem.outputColorTextureOverride != null
                         ? RenderSystem.outputColorTextureOverride
                         : target.getColorAttachmentView();
@@ -556,6 +592,13 @@ public final class QuickLitematicaPreview3D {
                                 ? RenderSystem.outputDepthTextureOverride
                                 : target.getDepthAttachmentView()
                         : null;
+                var dynamicTransforms = RenderSystem.getDynamicUniforms().write(
+                        RenderSystem.getModelViewMatrix(),
+                        new Vector4f(1.0F, 1.0F, 1.0F, 1.0F),
+                        RenderSystem.getModelOffset(),
+                        RenderSystem.getTextureMatrix(),
+                        RenderSystem.getShaderLineWidth()
+                );
                 try (RenderPass pass = RenderSystem.getDevice().createCommandEncoder().createRenderPass(
                         () -> "QuickCraft preview " + renderLayer,
                         colorAttachment,
@@ -564,17 +607,7 @@ public final class QuickLitematicaPreview3D {
                         OptionalDouble.empty()
                 )) {
                     pass.setPipeline(pipeline);
-                    var dynamicTransforms = RenderSystem.getDynamicUniforms().write(
-                            RenderSystem.getModelViewMatrix(),
-                            new Vector4f(1.0F, 1.0F, 1.0F, 1.0F),
-                            RenderSystem.getModelOffset(),
-                            RenderSystem.getTextureMatrix(),
-                            RenderSystem.getShaderLineWidth()
-                    );
-                    var scissor = RenderSystem.getScissorStateForRenderTypeDraws();
-                    if (scissor.method_72091()) {
-                        pass.enableScissor(scissor.method_72092(), scissor.method_72093(), scissor.method_72094(), scissor.method_72095());
-                    }
+                    enablePreviewScissor(pass, viewX, viewY, viewSize);
                     RenderSystem.bindDefaultUniforms(pass);
                     pass.setUniform("DynamicTransforms", dynamicTransforms);
                     pass.setVertexBuffer(0, buffer.vertexBuffer());
@@ -590,6 +623,21 @@ public final class QuickLitematicaPreview3D {
             } finally {
                 renderLayer.endDrawing();
             }
+        }
+
+        private static void enablePreviewScissor(RenderPass pass, int viewX, int viewY, int viewSize) {
+            MinecraftClient client = MinecraftClient.getInstance();
+            int[] scissor = previewScissor(client, viewX, viewY, viewSize);
+            pass.enableScissor(scissor[0], scissor[1], scissor[2], scissor[3]);
+        }
+
+        private static int[] previewScissor(MinecraftClient client, int viewX, int viewY, int viewSize) {
+            int scale = client.getWindow().getScaleFactor();
+            int width = Math.max(1, (viewSize - 2) * scale);
+            int height = Math.max(1, (viewSize - 2) * scale);
+            int x = (viewX + 1) * scale;
+            int y = client.getWindow().getFramebufferHeight() - (viewY + viewSize - 1) * scale;
+            return new int[]{x, y, width, height};
         }
 
         private void drawDynamic(MeshData data, Matrix4f modelView, Matrix4f projection, int viewX, int viewY, int viewSize) {
@@ -645,6 +693,7 @@ public final class QuickLitematicaPreview3D {
             MinecraftClient.getInstance().getBufferBuilders().getEntityVertexConsumers().draw();
         }
 
+
         private static <T extends BlockEntity> void renderBlockEntity(MinecraftClient client, T entity, MatrixStack matrices, VertexConsumerProvider consumers) {
             BlockEntityRenderer<T> renderer = client.getBlockEntityRenderDispatcher().get(entity);
             if (renderer == null) {
@@ -666,7 +715,7 @@ public final class QuickLitematicaPreview3D {
             int barWidth = Math.max(24, size - 12);
             int barX = x + (size - barWidth) / 2;
             int barY = y + size / 2 - 5;
-            int fill = Math.max(0, Math.min(barWidth - 2, (int) ((barWidth - 2) * this.progress)));
+            int fill = Math.max(0, Math.min(barWidth - 2, (int) ((barWidth - 2) * this.displayProgress())));
             int textColor = this.state == State.FAILED || this.state == State.TOO_LARGE ? 0xFFFF7777 : 0xFFDDDDDD;
             String text = switch (this.state) {
                 case FAILED -> StringUtils.translate("quickcraft.litematica.preview_3d.failed");
@@ -676,7 +725,21 @@ public final class QuickLitematicaPreview3D {
 
             context.drawCenteredTextWithShadow(MinecraftClient.getInstance().textRenderer, text, x + size / 2, barY - 14, textColor);
             RenderUtils.drawOutlinedBox(context, barX, barY, barWidth, 10, 0xB0000000, 0xFF707070);
-            RenderUtils.drawRect(barX + 1, barY + 1, fill, 8, this.state == State.FAILED || this.state == State.TOO_LARGE ? 0xFFAA3333 : 0xFF4DB36A);
+            if (fill > 0) {
+                context.fill(barX + 1, barY + 1, barX + 1 + fill, barY + 9,
+                        this.state == State.FAILED || this.state == State.TOO_LARGE ? 0xFFAA3333 : 0xFF4DB36A);
+            }
+        }
+
+        private float displayProgress() {
+            if (this.progress >= PROGRESS_MESHING_START || this.state == State.FAILED || this.state == State.TOO_LARGE) {
+                return this.progress;
+            }
+
+            // Litematica/DataFixer 读取和 GZIP 缓存解压没有可观测的完成量；只在这段等待里平滑补到扫描开始前。
+            float elapsedSeconds = (System.nanoTime() - this.startedAtNanos) / 1_000_000_000.0F;
+            float readingProgress = Math.min(PROGRESS_MESHING_START - 0.01F, PROGRESS_START + elapsedSeconds * 0.02F);
+            return Math.max(this.progress, readingProgress);
         }
 
         @Override
@@ -694,6 +757,7 @@ public final class QuickLitematicaPreview3D {
             }
             this.meshData = null;
             this.closeBuffers();
+            this.previewProjection.close();
         }
 
         private void closeBuffers() {
@@ -714,6 +778,12 @@ public final class QuickLitematicaPreview3D {
     private record LayerBuffer(GpuBuffer vertexBuffer, GpuBuffer indexBuffer, int indexCount,
                                com.mojang.blaze3d.vertex.VertexFormat.IndexType indexType,
                                boolean ownsIndexBuffer) implements AutoCloseable {
+        private RenderPipeline pipeline(RenderLayer renderLayer, RenderPipeline defaultPipeline) {
+            return renderLayer == RenderLayer.getTranslucentMovingBlock()
+                    ? RenderPipelines.TRANSLUCENT
+                    : defaultPipeline;
+        }
+
         @Override
         public void close() {
             if (!this.vertexBuffer.isClosed()) {
@@ -1466,7 +1536,7 @@ public final class QuickLitematicaPreview3D {
             this.writeShort(CacheFile.floatToHalf(u));
             this.writeShort(CacheFile.floatToHalf(v));
             this.writeShort((short) overlay);
-            this.writeShort((short) light);
+            this.writeInt(light);
             this.writeShort(CacheFile.encodeNormal(nx, ny, nz));
         }
 
@@ -2146,8 +2216,8 @@ public final class QuickLitematicaPreview3D {
                 float u = halfToFloat(readShort(quantized, offset + 16));
                 float v = halfToFloat(readShort(quantized, offset + 18));
                 int overlay = readShort(quantized, offset + 20) & 0xFFFF;
-                int light = readShort(quantized, offset + 22) & 0xFFFF;
-                decodeNormal(readShort(quantized, offset + 24), normal);
+                int light = readInt(quantized, offset + 22);
+                decodeNormal(readShort(quantized, offset + 26), normal);
                 builder.vertex(x, y, z, argb, u, v, overlay, light, normal[0], normal[1], normal[2]);
             }
         }
