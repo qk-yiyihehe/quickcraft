@@ -1,5 +1,9 @@
 package com.yiyihehe.quickcraft.litematica;
 
+import com.mojang.blaze3d.buffers.BufferType;
+import com.mojang.blaze3d.buffers.BufferUsage;
+import com.mojang.blaze3d.buffers.GpuBuffer;
+import com.mojang.blaze3d.systems.RenderPass;
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.systems.VertexSorter;
 import com.yiyihehe.quickcraft.config.QuickCraftConfigs;
@@ -91,6 +95,8 @@ import java.util.HexFormat;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.OptionalDouble;
+import java.util.OptionalInt;
 import java.util.WeakHashMap;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CancellationException;
@@ -121,7 +127,7 @@ public final class QuickLitematicaPreview3D {
     private static final int CACHE_MAGIC = 0x51435033; // QCP3
     private static final String CACHE_DIR_NAME = "litematica-preview-cache";
     private static final String CACHE_VERSION_FILE_NAME = "cache-version.txt";
-    private static final String CACHE_RENDER_MARKER = "quickcraft-model-mesh-v13-quantized-gzip-dynamic-chest-mc1.21.4";
+    private static final String CACHE_RENDER_MARKER = "quickcraft-model-mesh-v13-quantized-gzip-dynamic-chest-mc1.21.5";
     private static final int MAX_PREVIEW_SIZE = 512;
     // 预算必须卡在构建阶段前面：顶点 packed 后仍会占用 CPU/GPU 大块连续内存。
     private static final int MAX_UPLOAD_VERTICES = 12_000_000;
@@ -293,11 +299,13 @@ public final class QuickLitematicaPreview3D {
         private final Path cachePath;
         private final Path tmpPath;
         private final AtomicBoolean cancelled = new AtomicBoolean();
+        private final Map<LayerKey, LayerBuffer> layerBuffers = new EnumMap<>(LayerKey.class);
         private volatile MeshData meshData;
         private volatile float progress;
         private volatile State state = State.LOADING;
         @Nullable
         private volatile CompletableFuture<Void> future;
+        private boolean uploadScheduled;
 
         private Preview(Path sourcePath, Path cachePath, Path tmpPath) {
             this.sourcePath = sourcePath;
@@ -367,7 +375,8 @@ public final class QuickLitematicaPreview3D {
 
         private void render(DrawContext context, int x, int y, int size, DragState drag) {
             if (this.state == State.READY && this.meshData != null) {
-                if (this.meshData.vertexCount() > 0 || this.meshData.hasDynamicContent()) {
+                this.uploadIfNeeded();
+                if (!this.layerBuffers.isEmpty() || this.meshData.hasDynamicContent() || this.meshData.vertexCount() == 0) {
                     this.drawMesh(context, x, y, size, drag);
                     return;
                 }
@@ -376,7 +385,53 @@ public final class QuickLitematicaPreview3D {
             this.renderProgress(context, x, y, size);
         }
 
+        private void uploadIfNeeded() {
+            if (!this.layerBuffers.isEmpty() || this.uploadScheduled || this.meshData == null) {
+                return;
+            }
+
+            this.uploadScheduled = true;
+            MeshData data = this.meshData;
+            if (this.cancelled.get() || data == null) {
+                return;
+            }
+
+            EnumMap<LayerKey, LayerBuffer> uploaded = new EnumMap<>(LayerKey.class);
+            try {
+                if (!data.withinBudget()) {
+                    this.markTooLarge(data);
+                    return;
+                }
+
+                for (LayerMesh layerMesh : data.layers()) {
+                    if (layerMesh.vertexCount() == 0) {
+                        continue;
+                    }
+
+                    LayerBuffer buffer = uploadLayer(layerMesh);
+                    if (buffer != null) {
+                        uploaded.put(layerMesh.layer(), buffer);
+                    }
+                }
+
+                if (this.cancelled.get()) {
+                    uploaded.values().forEach(LayerBuffer::close);
+                    return;
+                }
+
+                this.closeBuffers();
+                this.layerBuffers.putAll(uploaded);
+                data.releaseStaticVertices();
+            } catch (Throwable ignored) {
+                uploaded.values().forEach(LayerBuffer::close);
+                this.releaseMeshData();
+                this.state = State.TOO_LARGE;
+                this.progress = 1.0F;
+            }
+        }
+
         private void markTooLarge(@Nullable MeshData data) {
+            this.closeBuffers();
             if (data != null) {
                 data.closeDynamic();
             }
@@ -388,6 +443,7 @@ public final class QuickLitematicaPreview3D {
         }
 
         private void releaseMeshData() {
+            this.closeBuffers();
             MeshData data = this.meshData;
             if (data != null) {
                 data.closeDynamic();
@@ -395,24 +451,49 @@ public final class QuickLitematicaPreview3D {
             this.meshData = null;
         }
 
-        private static void drawLayerBuffer(LayerMesh layerMesh, RenderLayer renderLayer) {
+        @Nullable
+        private static LayerBuffer uploadLayer(LayerMesh layerMesh) {
             int vertexCount = layerMesh.vertexCount();
             int allocatorSize = allocatorSize(vertexCount);
             BufferAllocator allocator = new BufferAllocator(allocatorSize);
             try {
+                RenderLayer renderLayer = layerMesh.layer().renderLayer();
                 BufferBuilder builder = new BufferBuilder(allocator, renderLayer.getDrawMode(), renderLayer.getVertexFormat());
                 CacheFile.decodeQuantizedToBuilder(layerMesh.quantizedVertices(), builder);
 
                 BuiltBuffer built = builder.endNullable();
                 if (built == null) {
-                    return;
+                    return null;
                 }
 
-                if (layerMesh.layer() == LayerKey.TRANSLUCENT) {
-                    built.sortQuads(allocator, VertexSorter.byDistance(0.0F, 0.0F, 1000.0F));
-                }
+                try {
+                    if (layerMesh.layer() == LayerKey.TRANSLUCENT) {
+                        built.sortQuads(allocator, VertexSorter.byDistance(0.0F, 0.0F, 1000.0F));
+                    }
 
-                renderLayer.draw(built);
+                    var drawParameters = built.getDrawParameters();
+                    GpuBuffer vertexBuffer = RenderSystem.getDevice().createBuffer(
+                            () -> "QuickCraft preview vertices",
+                            BufferType.VERTICES,
+                            BufferUsage.STATIC_WRITE,
+                            built.getBuffer()
+                    );
+                    boolean customIndexBuffer = built.getSortedBuffer() != null;
+                    GpuBuffer indexBuffer = customIndexBuffer
+                            ? RenderSystem.getDevice().createBuffer(
+                                    () -> "QuickCraft preview indices",
+                                    BufferType.INDICES,
+                                    BufferUsage.STATIC_WRITE,
+                                    built.getSortedBuffer()
+                            )
+                            : RenderSystem.getSequentialBuffer(drawParameters.mode()).getIndexBuffer(drawParameters.indexCount());
+                    var indexType = customIndexBuffer
+                            ? drawParameters.indexType()
+                            : RenderSystem.getSequentialBuffer(drawParameters.mode()).getIndexType();
+                    return new LayerBuffer(vertexBuffer, indexBuffer, drawParameters.indexCount(), indexType, customIndexBuffer);
+                } finally {
+                    built.close();
+                }
             } finally {
                 allocator.close();
             }
@@ -452,19 +533,40 @@ public final class QuickLitematicaPreview3D {
         }
 
         private void drawBuffers(Matrix4f modelView) {
-            MeshData data = this.meshData;
-            if (data == null) {
-                return;
-            }
-
             for (LayerKey layer : LayerKey.DRAW_ORDER) {
-                LayerMesh layerMesh = data.layer(layer);
-                if (layerMesh == null || layerMesh.vertexCount() == 0) {
-                    continue;
+                LayerBuffer buffer = this.layerBuffers.get(layer);
+                if (buffer != null) {
+                    drawLayerBuffer(layer.renderLayer(), buffer);
                 }
+            }
+        }
 
-                RenderLayer renderLayer = layer.renderLayer();
-                drawLayerBuffer(layerMesh, renderLayer);
+        private static void drawLayerBuffer(RenderLayer renderLayer, LayerBuffer buffer) {
+            renderLayer.startDrawing();
+            try {
+                var target = renderLayer.getTarget();
+                try (RenderPass pass = RenderSystem.getDevice().createCommandEncoder().createRenderPass(
+                        target.getColorAttachment(),
+                        OptionalInt.empty(),
+                        target.useDepthAttachment ? target.getDepthAttachment() : null,
+                        OptionalDouble.empty()
+                )) {
+                    pass.setPipeline(renderLayer.getPipeline());
+                    pass.setVertexBuffer(0, buffer.vertexBuffer());
+                    if (RenderSystem.SCISSOR_STATE.isEnabled()) {
+                        pass.enableScissor(RenderSystem.SCISSOR_STATE);
+                    }
+                    for (int textureUnit = 0; textureUnit < 12; textureUnit++) {
+                        var texture = RenderSystem.getShaderTexture(textureUnit);
+                        if (texture != null) {
+                            pass.bindSampler("Sampler" + textureUnit, texture);
+                        }
+                    }
+                    pass.setIndexBuffer(buffer.indexBuffer(), buffer.indexType());
+                    pass.drawIndexed(0, buffer.indexCount());
+                }
+            } finally {
+                renderLayer.endDrawing();
             }
         }
 
@@ -569,6 +671,12 @@ public final class QuickLitematicaPreview3D {
                 data.closeDynamic();
             }
             this.meshData = null;
+            this.closeBuffers();
+        }
+
+        private void closeBuffers() {
+            this.layerBuffers.values().forEach(LayerBuffer::close);
+            this.layerBuffers.clear();
         }
 
         private void throwIfCancelled() {
@@ -579,6 +687,20 @@ public final class QuickLitematicaPreview3D {
     }
 
     private static final class PreviewTooLargeException extends RuntimeException {
+    }
+
+    private record LayerBuffer(GpuBuffer vertexBuffer, GpuBuffer indexBuffer, int indexCount,
+                               com.mojang.blaze3d.vertex.VertexFormat.IndexType indexType,
+                               boolean ownsIndexBuffer) implements AutoCloseable {
+        @Override
+        public void close() {
+            if (!this.vertexBuffer.isClosed()) {
+                this.vertexBuffer.close();
+            }
+            if (this.ownsIndexBuffer && !this.indexBuffer.isClosed()) {
+                this.indexBuffer.close();
+            }
+        }
     }
 
     private static boolean isPreviewTooLarge(Throwable throwable) {
