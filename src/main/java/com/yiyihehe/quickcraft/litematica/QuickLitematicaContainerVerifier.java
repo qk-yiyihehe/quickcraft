@@ -1538,6 +1538,9 @@ public final class QuickLitematicaContainerVerifier {
     }
 
     private static final class GhostItemBuffer {
+        // 原版槽位灰底与缺失槽位蓝色底纹合成后的颜色；用它覆盖不透明物品，模拟 30% alpha 的幽灵效果。
+        private static final int MISSING_SLOT_GHOST_MASK = 0xB36E87AC;
+
         private GhostItemBuffer() {
         }
 
@@ -1557,6 +1560,8 @@ public final class QuickLitematicaContainerVerifier {
 
             context.drawItem(stack, x, y);
             context.drawStackOverlay(client.textRenderer, stack, x, y);
+            int maskAlpha = Math.round((1.0F - Math.max(0.0F, Math.min(1.0F, alpha))) * 255.0F);
+            context.fill(x, y, x + 16, y + 16, (maskAlpha << 24) | (MISSING_SLOT_GHOST_MASK & 0x00FFFFFF));
         }
     }
 }

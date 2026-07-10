@@ -65,7 +65,7 @@ public abstract class LitematicaHandledScreenSlotOverlayMixin<T extends ScreenHa
         if (this.quickcraft$ghostSlotRendering
                 && this.quickcraft$currentSlotOverlay != null
                 && this.quickcraft$currentSlotOverlay.status() == SlotMismatchStatus.MISSING) {
-            return this.quickcraft$currentSlotOverlay.expectedStack();
+            return net.minecraft.item.ItemStack.EMPTY;
         }
 
         return slot.getStack();
@@ -80,8 +80,12 @@ public abstract class LitematicaHandledScreenSlotOverlayMixin<T extends ScreenHa
 
         HandledScreenAccessor accessor = (HandledScreenAccessor) this;
         this.quickcraft$ghostSlotRendering = false;
-        QuickLitematicaContainerVerifier.endHandledScreenGhostRender(
+        QuickLitematicaContainerVerifier.drawGhostItem(
                 context,
+                MinecraftClient.getInstance(),
+                this.quickcraft$currentSlotOverlay.expectedStack(),
+                slot.x,
+                slot.y,
                 accessor.quickcraft$getGuiLeft(),
                 accessor.quickcraft$getGuiTop(),
                 QuickLitematicaVerifierPalette.ghostItemAlpha()
