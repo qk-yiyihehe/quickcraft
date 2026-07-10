@@ -1,8 +1,12 @@
 package com.yiyihehe.quickcraft.litematica;
 
 import com.chocohead.mm.api.ClassTinkerers;
+import com.mojang.blaze3d.systems.RenderSystem;
+import com.mojang.blaze3d.textures.GpuTexture;
 import com.yiyihehe.quickcraft.QuickContainerCopy;
+import com.yiyihehe.quickcraft.QuickCraft;
 import com.yiyihehe.quickcraft.config.QuickCraftConfigs;
+import com.yiyihehe.quickcraft.mixin.MinecraftClientAccessor;
 import net.fabricmc.loader.api.FabricLoader;
 import fi.dy.masa.litematica.config.Configs;
 import fi.dy.masa.litematica.data.DataManager;
@@ -32,8 +36,15 @@ import net.minecraft.block.entity.BlockEntity;
 import net.minecraft.block.entity.CrafterBlockEntity;
 import net.minecraft.block.enums.ChestType;
 import net.minecraft.client.MinecraftClient;
+import net.minecraft.client.gl.Framebuffer;
+import net.minecraft.client.gl.RenderPipelines;
+import net.minecraft.client.gl.SimpleFramebuffer;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.gui.screen.ingame.HandledScreen;
+import net.minecraft.client.render.RenderLayer;
+import net.minecraft.client.render.VertexConsumer;
+import net.minecraft.client.util.Window;
+import net.minecraft.client.util.math.MatrixStack;
 import net.minecraft.entity.player.PlayerInventory;
 import net.minecraft.inventory.Inventory;
 import net.minecraft.inventory.SimpleInventory;
@@ -509,10 +520,11 @@ public final class QuickLitematicaContainerVerifier {
     }
 
     public static boolean beginHandledScreenGhostRender(DrawContext context, MinecraftClient client) {
-        return client != null;
+        return GhostItemBuffer.beginHandledScreenGhostRender(context, client);
     }
 
     public static void endHandledScreenGhostRender(DrawContext context, int guiLeft, int guiTop, float alpha) {
+        GhostItemBuffer.endHandledScreenGhostRender(context, guiLeft, guiTop, alpha);
     }
 
     public static void rememberContainerUse(MinecraftClient client, BlockHitResult hitResult) {
@@ -1531,7 +1543,64 @@ public final class QuickLitematicaContainerVerifier {
     }
 
     private static final class GhostItemBuffer {
+        private static final RenderLayer TRANSPARENCY_LAYER = RenderLayer.of(
+                QuickCraft.MOD_ID + "_ghost_item_transparency",
+                1536,
+                false,
+                true,
+                RenderPipelines.GUI_TEXTURED_OVERLAY,
+                RenderLayer.MultiPhaseParameters.builder().build(false)
+        );
+        private static SimpleFramebuffer framebuffer;
+        private static Framebuffer previousFramebuffer;
+
         private GhostItemBuffer() {
+        }
+
+        private static boolean beginHandledScreenGhostRender(DrawContext context, MinecraftClient client) {
+            if (client == null || previousFramebuffer != null) {
+                return false;
+            }
+
+            SimpleFramebuffer ghostFramebuffer = getFramebuffer(client);
+            // 1.21.5 的 GUI 仍延迟提交顶点；切换目标前必须先刷完主界面批次。
+            context.draw();
+            RenderSystem.getDevice().createCommandEncoder().clearColorAndDepthTextures(
+                    ghostFramebuffer.getColorAttachment(),
+                    0,
+                    ghostFramebuffer.getDepthAttachment(),
+                    1.0
+            );
+            previousFramebuffer = client.getFramebuffer();
+            ((MinecraftClientAccessor) (Object) client).quickcraft$setFramebuffer(ghostFramebuffer);
+            return true;
+        }
+
+        private static void endHandledScreenGhostRender(DrawContext context, int guiLeft, int guiTop, float alpha) {
+            if (previousFramebuffer == null || framebuffer == null) {
+                return;
+            }
+
+            MinecraftClient client = MinecraftClient.getInstance();
+            Framebuffer targetFramebuffer = previousFramebuffer;
+            float clampedAlpha = Math.max(0.0F, Math.min(1.0F, alpha));
+
+            try {
+                context.draw();
+                ((MinecraftClientAccessor) (Object) client).quickcraft$setFramebuffer(targetFramebuffer);
+
+                MatrixStack matrices = context.getMatrices();
+                matrices.push();
+                try {
+                    matrices.translate(-guiLeft, -guiTop, 0.0F);
+                    drawFramebuffer(context, framebuffer, clampedAlpha);
+                } finally {
+                    matrices.pop();
+                }
+            } finally {
+                ((MinecraftClientAccessor) (Object) client).quickcraft$setFramebuffer(targetFramebuffer);
+                previousFramebuffer = null;
+            }
         }
 
         private static void drawGhostItem(
@@ -1548,8 +1617,66 @@ public final class QuickLitematicaContainerVerifier {
                 return;
             }
 
-            context.drawItem(stack, x, y);
-            context.drawStackOverlay(client.textRenderer, stack, x, y);
+            float clampedAlpha = Math.max(0.0F, Math.min(1.0F, alpha));
+            if (!beginHandledScreenGhostRender(context, client)) {
+                return;
+            }
+
+            try {
+                context.drawItem(stack, x, y);
+                context.drawStackOverlay(client.textRenderer, stack, x, y);
+            } finally {
+                endHandledScreenGhostRender(context, guiLeft, guiTop, clampedAlpha);
+            }
+        }
+
+        private static SimpleFramebuffer getFramebuffer(MinecraftClient client) {
+            Window window = client.getWindow();
+            int width = window.getFramebufferWidth();
+            int height = window.getFramebufferHeight();
+
+            if (framebuffer == null) {
+                framebuffer = new SimpleFramebuffer(
+                        QuickCraft.MOD_ID + "_ghost_item",
+                        width,
+                        height,
+                        true
+                );
+            } else if (framebuffer.textureWidth != width || framebuffer.textureHeight != height) {
+                framebuffer.resize(width, height);
+            }
+
+            return framebuffer;
+        }
+
+        private static void drawFramebuffer(DrawContext context, Framebuffer ghostFramebuffer, float alpha) {
+            GpuTexture previousTexture = RenderSystem.getShaderTexture(0);
+            MatrixStack matrices = context.getMatrices();
+
+            try {
+                RenderSystem.setShaderTexture(0, ghostFramebuffer.getColorAttachment());
+                context.draw(vertexConsumerProvider -> {
+                    VertexConsumer vertices = vertexConsumerProvider.getBuffer(TRANSPARENCY_LAYER);
+                    float width = context.getScaledWindowWidth();
+                    float height = context.getScaledWindowHeight();
+                    int alphaChannel = Math.round(alpha * 255.0F);
+
+                    vertices.vertex(matrices.peek().getPositionMatrix(), 0.0F, 0.0F, 0.0F)
+                            .texture(0.0F, 1.0F)
+                            .color(255, 255, 255, alphaChannel);
+                    vertices.vertex(matrices.peek().getPositionMatrix(), 0.0F, height, 0.0F)
+                            .texture(0.0F, 0.0F)
+                            .color(255, 255, 255, alphaChannel);
+                    vertices.vertex(matrices.peek().getPositionMatrix(), width, height, 0.0F)
+                            .texture(1.0F, 0.0F)
+                            .color(255, 255, 255, alphaChannel);
+                    vertices.vertex(matrices.peek().getPositionMatrix(), width, 0.0F, 0.0F)
+                            .texture(1.0F, 1.0F)
+                            .color(255, 255, 255, alphaChannel);
+                });
+            } finally {
+                RenderSystem.setShaderTexture(0, previousTexture);
+            }
         }
     }
 }
