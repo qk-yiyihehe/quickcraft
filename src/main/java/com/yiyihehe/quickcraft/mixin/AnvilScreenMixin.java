@@ -3,6 +3,7 @@ package com.yiyihehe.quickcraft.mixin;
 import com.yiyihehe.quickcraft.QuickThrow;
 import com.yiyihehe.quickcraft.crafting.QuickCraftAnvilRename;
 import net.minecraft.client.gui.screen.ingame.AnvilScreen;
+import net.minecraft.client.input.KeyInput;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
@@ -14,12 +15,10 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 @Mixin(AnvilScreen.class)
 public abstract class AnvilScreenMixin {
     @Inject(method = "keyPressed", at = @At("HEAD"), cancellable = true)
-    private void quickcraft$consumeRenameHotkey(int keyCode,
-                                                int scanCode,
-                                                int modifiers,
+    private void quickcraft$consumeRenameHotkey(KeyInput input,
                                                 CallbackInfoReturnable<Boolean> cir) {
         if (QuickCraftAnvilRename.shouldConsumeRenameHotkeyInput()
-                || QuickCraftAnvilRename.shouldConsumeRenameHotkeyKeyPress(keyCode)
+                || QuickCraftAnvilRename.shouldConsumeRenameHotkeyKeyPress(input.key())
                 || QuickThrow.shouldConsumeAnvilThrowHotkeyInput()) {
             cir.setReturnValue(true);
         }

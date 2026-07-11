@@ -1,6 +1,7 @@
 package com.yiyihehe.quickcraft.mixin;
 
 import com.yiyihehe.quickcraft.QuickTrade;
+import net.minecraft.client.gui.Click;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.gui.screen.ingame.MerchantScreen;
 import org.spongepowered.asm.mixin.Mixin;
@@ -20,7 +21,7 @@ public abstract class MerchantScreenMixin {
         QuickTrade.prepareTradeOrder((MerchantScreen) (Object) this);
     }
 
-    @Inject(method = "render", at = @At("TAIL"))
+    @Inject(method = "renderMain", at = @At("TAIL"))
     private void quickcraft$renderFavoriteStar(DrawContext context,
                                                int mouseX,
                                                int mouseY,
@@ -30,11 +31,15 @@ public abstract class MerchantScreenMixin {
     }
 
     @Inject(method = "mouseClicked", at = @At("HEAD"), cancellable = true)
-    private void quickcraft$handleTradeMouseClick(double mouseX,
-                                                  double mouseY,
-                                                  int button,
+    private void quickcraft$handleTradeMouseClick(Click click,
+                                                  boolean doubled,
                                                   CallbackInfoReturnable<Boolean> cir) {
-        if (QuickTrade.handleMerchantMouseClicked((MerchantScreen) (Object) this, mouseX, mouseY, button)) {
+        if (QuickTrade.handleMerchantMouseClicked(
+                (MerchantScreen) (Object) this,
+                click.x(),
+                click.y(),
+                click.button()
+        )) {
             cir.setReturnValue(true);
         }
     }
