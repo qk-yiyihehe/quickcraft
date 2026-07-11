@@ -38,7 +38,7 @@ public abstract class LitematicaWidgetSchematicVerificationResultMixin
     }
 
     @Inject(method = "postRenderHovered", at = @At("HEAD"), cancellable = true)
-    private void quickcraft$renderInventoryOverlay(int mouseX, int mouseY, boolean selected, DrawContext drawContext, CallbackInfo ci) {
+    private void quickcraft$renderInventoryOverlay(DrawContext drawContext, int mouseX, int mouseY, boolean selected, CallbackInfo ci) {
         if (this.mismatchEntry == null
                 || this.mismatchEntry.blockMismatch == null
                 || !QuickLitematicaContainerVerifier.isContainerMismatchType(this.mismatchEntry.blockMismatch.mismatchType)) {
