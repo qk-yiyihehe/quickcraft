@@ -1,5 +1,6 @@
 package com.yiyihehe.quickcraft.crafting;
 
+import com.yiyihehe.quickcraft.QuickContainerLock;
 import com.yiyihehe.quickcraft.config.QuickCraftConfigs;
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
@@ -8,7 +9,6 @@ import net.minecraft.client.gui.screen.ingame.CraftingScreen;
 import net.minecraft.entity.player.PlayerInventory;
 import net.minecraft.item.ItemStack;
 import net.minecraft.recipe.CraftingRecipe;
-import net.minecraft.recipe.Ingredient;
 import net.minecraft.recipe.RecipeEntry;
 import net.minecraft.recipe.RecipeManager;
 import net.minecraft.recipe.RecipeType;
@@ -16,6 +16,7 @@ import net.minecraft.recipe.input.CraftingRecipeInput;
 import net.minecraft.registry.DynamicRegistryManager;
 import net.minecraft.screen.CraftingScreenHandler;
 import net.minecraft.screen.ScreenHandler;
+import net.minecraft.screen.slot.Slot;
 import net.minecraft.screen.slot.SlotActionType;
 import net.minecraft.text.Text;
 import net.minecraft.world.World;
@@ -32,13 +33,15 @@ public class QuickCraftWorkbench implements ClientModInitializer {
 
     private static final int RAPID_INTERVAL = 1;
 
-    private static final int OUTPUT_TAKE_ATTEMPTS_AFTER_DROP = 2;
-
     private static final int MAX_CONSECUTIVE_FAILURES =3;
 
-    private static final int RECIPE_BOOK_RESULT_WAIT_TICKS = 3;
+    // 配方书请求只发网络包；最多等 10 Tick，但产物一到就立即继续。
+    private static final int CRAFTING_RESULT_WAIT_TICKS = 10;
 
     private static final int OUTPUT_SLOT = 0;
+
+    // 单轮最多处理一组原料，避免异常合成格导致无界发送产物槽点击。
+    private static final int MAX_OUTPUT_THROW_BURST = 64;
 
     private boolean lastVDown = false;
 
@@ -51,17 +54,13 @@ public class QuickCraftWorkbench implements ClientModInitializer {
 
     private int consecutiveFailures = 0;
 
-    private int recipeBookResultWaitTicks = 0;
+    private int craftingResultWaitTicks = 0;
 
     private RecipeEntry<CraftingRecipe> lockedRecipe = null;
 
     private List<ItemStack> lockedCraftingPattern = new ArrayList<>();
 
     private ItemStack lockedResultTemplate = ItemStack.EMPTY;
-
-    private boolean ingredientDropLocked = false;
-
-    private int lastObservedOutputSignature = 0;
 
     @Override
     public void onInitializeClient() {
@@ -89,8 +88,6 @@ public class QuickCraftWorkbench implements ClientModInitializer {
 
         CraftingScreenHandler handler = (CraftingScreenHandler) client.player.currentScreenHandler;
 
-        updateIngredientDropLock(handler);
-
         handleHotkeys(client, handler);
 
         if (rapidCraftingActive && rapidCraftStartedByButton && !isCraftButtonRapidModeHeld(client)) {
@@ -109,7 +106,7 @@ public class QuickCraftWorkbench implements ClientModInitializer {
     private void processRapidCraftTick(MinecraftClient client,
                                        CraftingScreenHandler handler,
                                        RecipeEntry<CraftingRecipe> recipe) {
-        if (waitForRecipeBookResult(client, handler)) {
+        if (waitForCraftingResult(client, handler)) {
             return;
         }
 
@@ -120,20 +117,11 @@ public class QuickCraftWorkbench implements ClientModInitializer {
             if (progressed) {
                 anyProgress = true;
             }
-            if (!rapidCraftingActive || recipeBookResultWaitTicks > 0) {
+            if (!rapidCraftingActive || craftingResultWaitTicks > 0) {
                 break;
             }
             if (!progressed) {
-
-                boolean fallbackSuccess = resolveOutputSlotBlockageStrict(
-                    client,
-                    handler,
-                    getRecipeResultStack(client, recipe),
-                    recipe
-                );
-                if (fallbackSuccess) {
-                    anyProgress = true;
-                }
+                break;
             }
         }
 
@@ -171,44 +159,27 @@ public class QuickCraftWorkbench implements ClientModInitializer {
                 return false;
             }
 
-            if (tryTakeOutputForRecipe(client, handler, recipe)) {
+            if (canPlayerInventoryAccept(handler, resultTemplate)) {
+                return tryTakeOutputForRecipe(client, handler, recipe);
+            }
+
+            int droppedOutput = dropMatchingResultsFromInventory(
+                    client,
+                    handler,
+                    resultTemplate
+            );
+            if (droppedOutput > 0) {
+                tryTakeOutputForRecipe(client, handler, recipe);
                 return true;
             }
 
-            if (!resultTemplate.isEmpty()) {
-                int droppedOutput = dropMatchingItemsFromInventoryBurst(
-                        client,
-                        handler,
-                        resultTemplate
-                );
-                if (droppedOutput > 0) {
-
-                    if (tryTakeOutputForRecipe(client, handler, recipe)) {
-                        return true;
-                    }
-                }
-            }
-
-            if (!hasMatchingItemInInventory(client.player.getInventory(), resultTemplate)) {
-                int droppedIng = dropIngredientBurst(
-                        client,
-                        handler,
-                        recipe,
-                        1
-                );
-                if (droppedIng > 0) {
-                    if (tryTakeOutputForRecipe(client, handler, recipe)) {
-                        return true;
-                    } else {
-                        return true;
-                    }
-                }
-            }
-
-            return false;
+            return throwCraftingOutput(client, handler);
         }
 
         if (restockCraftingGrid(client, handler, recipe)) {
+            if (rapidCraftingActive && !handler.getSlot(OUTPUT_SLOT).hasStack()) {
+                craftingResultWaitTicks = CRAFTING_RESULT_WAIT_TICKS;
+            }
             tryTakeOutputForRecipe(client, handler, recipe);
             return true;
         }
@@ -216,100 +187,21 @@ public class QuickCraftWorkbench implements ClientModInitializer {
         return false;
     }
 
-    private boolean waitForRecipeBookResult(MinecraftClient client, CraftingScreenHandler handler) {
-        if (recipeBookResultWaitTicks <= 0) {
+    private boolean waitForCraftingResult(MinecraftClient client, CraftingScreenHandler handler) {
+        if (craftingResultWaitTicks <= 0) {
             return false;
         }
 
         if (handler.getSlot(OUTPUT_SLOT).hasStack()) {
-            recipeBookResultWaitTicks = 0;
+            craftingResultWaitTicks = 0;
             return false;
         }
 
-        recipeBookResultWaitTicks--;
-        if (recipeBookResultWaitTicks <= 0) {
+        craftingResultWaitTicks--;
+        if (craftingResultWaitTicks <= 0) {
             stopRapidCraft(client, Text.translatable("quickcraft.message.crafting.no_ingredients"));
         }
         return true;
-    }
-
-    private boolean hasMatchingItemInInventory(PlayerInventory inventory, ItemStack template) {
-        if (template.isEmpty()) {
-            return false;
-        }
-
-        for (ItemStack stack : inventory.main) {
-            if (stack.isEmpty()) continue;
-            if (ItemStack.areItemsAndComponentsEqual(stack, template)) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    private boolean resolveOutputSlotBlockageStrict(MinecraftClient client,
-                                                    CraftingScreenHandler handler,
-                                                    ItemStack resultTemplate,
-                                                    RecipeEntry<CraftingRecipe> recipe) {
-
-        if (client.player == null || client.interactionManager == null) {
-            return false;
-        }
-
-        if (tryTakeOutputForRecipe(client, handler, recipe)) {
-            ingredientDropLocked = false;
-            return true;
-        }
-
-        if (!handler.getSlot(OUTPUT_SLOT).hasStack()) {
-            ingredientDropLocked = false;
-            return false;
-        }
-
-        if (dropOutputsBeforeTakingAndTryTake(
-                client,
-                handler,
-                resultTemplate,
-                OUTPUT_TAKE_ATTEMPTS_AFTER_DROP,
-                recipe
-        )) {
-            if (!handler.getSlot(OUTPUT_SLOT).hasStack()) {
-                ingredientDropLocked = false;
-            }
-            return true;
-        }
-
-        if (!handler.getSlot(OUTPUT_SLOT).hasStack()) {
-            ingredientDropLocked = false;
-            return false;
-        }
-
-        if (!ingredientDropLocked) {
-
-            int droppedIng = dropIngredientBurst(
-                    client,
-                    handler,
-                    recipe,
-                    1
-            );
-            if (droppedIng > 0) {
-                ingredientDropLocked = true;
-
-                boolean tookOutput = dropOutputsBeforeTakingAndTryTake(
-                        client,
-                        handler,
-                        resultTemplate,
-                        OUTPUT_TAKE_ATTEMPTS_AFTER_DROP,
-                        recipe
-                );
-                if (!handler.getSlot(OUTPUT_SLOT).hasStack()) {
-                    ingredientDropLocked = false;
-                }
-                return tookOutput || droppedIng > 0;
-            }
-        }
-
-        return false;
     }
 
     private void handleSingleCraft(MinecraftClient client, CraftingScreenHandler handler) {
@@ -353,7 +245,7 @@ public class QuickCraftWorkbench implements ClientModInitializer {
         try {
             client.interactionManager.clickRecipe(handler.syncId, recipe, true);
             if (rapidCraftingActive && !handler.getSlot(OUTPUT_SLOT).hasStack()) {
-                recipeBookResultWaitTicks = RECIPE_BOOK_RESULT_WAIT_TICKS;
+                craftingResultWaitTicks = CRAFTING_RESULT_WAIT_TICKS;
             }
             return true;
         } catch (Throwable t) {
@@ -795,7 +687,9 @@ public class QuickCraftWorkbench implements ClientModInitializer {
             }
 
             int handlerSlot = playerInventoryIndexToHandlerSlot(invIndex);
-            if (handlerSlot != -1 && handler.getSlot(handlerSlot).hasStack()) {
+            if (handlerSlot != -1
+                    && !QuickContainerLock.isLockedSlot(handler, handlerSlot)
+                    && handler.getSlot(handlerSlot).hasStack()) {
                 int stackCount = handler.getSlot(handlerSlot).getStack().getCount();
                 if (stackCount > bestCount) {
                     bestCount = stackCount;
@@ -814,6 +708,9 @@ public class QuickCraftWorkbench implements ClientModInitializer {
             if (handlerSlot == -1) {
                 continue;
             }
+            if (QuickContainerLock.isLockedSlot(handler, handlerSlot)) {
+                continue;
+            }
 
             ItemStack stack = handler.getSlot(handlerSlot).getStack();
             if (canAcceptStack(stack, cursorStack)) {
@@ -821,6 +718,27 @@ public class QuickCraftWorkbench implements ClientModInitializer {
             }
         }
         return -1;
+    }
+
+    private boolean canPlayerInventoryAccept(CraftingScreenHandler handler, ItemStack stack) {
+        if (stack.isEmpty()) {
+            return false;
+        }
+
+        for (int invIndex = 0; invIndex < 36; invIndex++) {
+            int handlerSlot = playerInventoryIndexToHandlerSlot(invIndex);
+            if (handlerSlot == -1 || QuickContainerLock.isLockedSlot(handler, handlerSlot)) {
+                continue;
+            }
+
+            Slot slot = handler.getSlot(handlerSlot);
+            ItemStack existing = slot.getStack();
+            if (slot.canInsert(stack) && canAcceptStack(existing, stack)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private boolean shouldManualRestock(RecipeEntry<CraftingRecipe> recipe) {
@@ -890,15 +808,28 @@ public class QuickCraftWorkbench implements ClientModInitializer {
                                            CraftingScreenHandler handler,
                                            RecipeEntry<CraftingRecipe> recipe) {
 
+        boolean moved;
         if (shouldManualRestock(recipe)) {
             if (isManualPatternMissingItems(handler)) {
                 return false;
             }
             if (hasUnevenManualPatternStacks(handler)) {
-                return tryTakeOneOutput(client, handler);
+                moved = tryTakeOneOutput(client, handler);
+            } else {
+                moved = tryQuickMoveOutput(client, handler);
             }
+        } else {
+            moved = tryQuickMoveOutput(client, handler);
         }
-        return tryQuickMoveOutput(client, handler);
+
+        if (moved && rapidCraftingActive) {
+            dropMatchingResultsFromInventory(
+                    client,
+                    handler,
+                    getRecipeResultStack(client, recipe)
+            );
+        }
+        return moved;
     }
 
     private boolean tryTakeOneOutput(MinecraftClient client, CraftingScreenHandler handler) {
@@ -982,76 +913,9 @@ public class QuickCraftWorkbench implements ClientModInitializer {
         return stack.getCount();
     }
 
-    private int getOutputSignature(CraftingScreenHandler handler) {
-        if (handler == null || !handler.getSlot(OUTPUT_SLOT).hasStack()) {
-            return 0;
-        }
-
-        ItemStack stack = handler.getSlot(OUTPUT_SLOT).getStack();
-        int hash = 17;
-        hash = 31 * hash + System.identityHashCode(stack.getItem());
-
-        try {
-            hash = 31 * hash + stack.getCount();
-            hash = 31 * hash + stack.getComponents().hashCode();
-        } catch (Throwable ignored) {
-        }
-
-        return hash;
-    }
-
-    private void updateIngredientDropLock(CraftingScreenHandler handler) {
-        int currentSignature = getOutputSignature(handler);
-
-        if (currentSignature == 0) {
-            ingredientDropLocked = false;
-            lastObservedOutputSignature = 0;
-            return;
-        }
-
-        if (lastObservedOutputSignature != 0 && lastObservedOutputSignature != currentSignature) {
-            ingredientDropLocked = false;
-        }
-
-        lastObservedOutputSignature = currentSignature;
-    }
-
-    private boolean dropOutputsBeforeTakingAndTryTake(MinecraftClient client,
-                                                      CraftingScreenHandler handler,
-                                                      ItemStack resultTemplate,
-                                                      int takeAttemptsAfterDrop,
-                                                      RecipeEntry<CraftingRecipe> recipe) {
-        boolean progressed = false;
-        if (!resultTemplate.isEmpty()) {
-            int droppedOutput = dropMatchingItemsFromInventoryBurst(
-                    client,
-                    handler,
-                    resultTemplate
-            );
-            if (droppedOutput > 0) {
-                progressed = true;
-            }
-        }
-
-        for (int i = 0; i < takeAttemptsAfterDrop; i++) {
-            if (!handler.getSlot(OUTPUT_SLOT).hasStack()) {
-                break;
-            }
-            if (!tryTakeOutputForRecipe(client, handler, recipe)) {
-                continue;
-            }
-            progressed = true;
-            if (!handler.getSlot(OUTPUT_SLOT).hasStack()) {
-                break;
-            }
-        }
-
-        return progressed;
-    }
-
-    private int dropMatchingItemsFromInventoryBurst(MinecraftClient client,
-                                                    CraftingScreenHandler handler,
-                                                    ItemStack resultTemplate) {
+    private int dropMatchingResultsFromInventory(MinecraftClient client,
+                                                 CraftingScreenHandler handler,
+                                                 ItemStack resultTemplate) {
         if (client.player == null || client.interactionManager == null || resultTemplate.isEmpty()) {
             return 0;
         }
@@ -1066,6 +930,7 @@ public class QuickCraftWorkbench implements ClientModInitializer {
 
             int handlerSlot = playerInventoryIndexToHandlerSlot(invIndex);
             if (handlerSlot == -1) continue;
+            if (QuickContainerLock.isLockedSlot(handler, handlerSlot)) continue;
             if (!handler.getSlot(handlerSlot).hasStack()) continue;
             client.interactionManager.clickSlot(
                     handler.syncId,
@@ -1080,115 +945,41 @@ public class QuickCraftWorkbench implements ClientModInitializer {
         return droppedSlots;
     }
 
-    private int dropIngredientBurst(MinecraftClient client,
-                                    CraftingScreenHandler handler,
-                                    RecipeEntry<CraftingRecipe> recipe,
-                                    int maxDrops) {
-        if (client.player == null || client.interactionManager == null || maxDrops <= 0) {
-            return 0;
+    private boolean throwCraftingOutput(MinecraftClient client, CraftingScreenHandler handler) {
+        if (client.player == null || client.interactionManager == null) {
+            return false;
+        }
+        if (!handler.getSlot(OUTPUT_SLOT).hasStack()) {
+            return false;
         }
 
-        int dropped = 0;
-
-        for (int i = 0; i < maxDrops; i++) {
-
-            int invIndex = findBestDroppableIngredientSlot(client.player.getInventory(), recipe);
-            if (invIndex == -1) {
-                break;
-            }
-
-            int handlerSlot = playerInventoryIndexToHandlerSlot(invIndex);
-            if (handlerSlot == -1) {
-                break;
-            }
-
-            if (!handler.getSlot(handlerSlot).hasStack()) {
-                break;
-            }
+        int attempts = getOutputThrowBurstAttempts(handler);
+        for (int attempt = 0; attempt < attempts; attempt++) {
             client.interactionManager.clickSlot(
                     handler.syncId,
-                    handlerSlot,
+                    OUTPUT_SLOT,
                     1,
                     SlotActionType.THROW,
                     client.player
             );
-            dropped++;
         }
-
-        return dropped;
+        return true;
     }
 
-    private int findBestDroppableIngredientSlot(PlayerInventory inventory,
-                                                RecipeEntry<CraftingRecipe> recipe) {
-        if (!lockedCraftingPattern.isEmpty()) {
-            return findBestDroppablePatternIngredientSlot(inventory);
-        }
+    private int getOutputThrowBurstAttempts(CraftingScreenHandler handler) {
+        int attempts = MAX_OUTPUT_THROW_BURST;
+        boolean hasIngredient = false;
 
-        List<Ingredient> ingredients = recipe.value().getIngredients();
-
-        int bestIndex = -1;
-        int bestTotalCount = -1;
-        int bestStackCount = -1;
-
-        for (int invIndex = 0; invIndex < inventory.main.size(); invIndex++) {
-            ItemStack stack = inventory.main.get(invIndex);
-            if (stack.isEmpty()) continue;
-
-            if (stack.getCount() <= 1) continue;
-
-            if (!matchesAnyIngredient(stack, ingredients)) continue;
-
-            int totalCount = countMatchingItems(inventory, stack);
-            if (totalCount > bestTotalCount
-                    || (totalCount == bestTotalCount && stack.getCount() > bestStackCount)) {
-                bestTotalCount = totalCount;
-                bestStackCount = stack.getCount();
-                bestIndex = invIndex;
+        for (int slotId = 1; slotId <= 9; slotId++) {
+            ItemStack stack = handler.getSlot(slotId).getStack();
+            if (stack.isEmpty()) {
+                continue;
             }
+            hasIngredient = true;
+            attempts = Math.min(attempts, stack.getCount());
         }
 
-        return bestIndex;
-    }
-
-    private int findBestDroppablePatternIngredientSlot(PlayerInventory inventory) {
-        int bestIndex = -1;
-        int bestTotalCount = -1;
-        int bestStackCount = -1;
-
-        for (int invIndex = 0; invIndex < inventory.main.size(); invIndex++) {
-            ItemStack stack = inventory.main.get(invIndex);
-            if (stack.isEmpty()) continue;
-            if (stack.getCount() <= 1) continue;
-            if (!matchesAnyPatternIngredient(stack)) continue;
-
-            int totalCount = countMatchingItems(inventory, stack);
-            if (totalCount > bestTotalCount
-                    || (totalCount == bestTotalCount && stack.getCount() > bestStackCount)) {
-                bestTotalCount = totalCount;
-                bestStackCount = stack.getCount();
-                bestIndex = invIndex;
-            }
-        }
-
-        return bestIndex;
-    }
-
-    private boolean matchesAnyPatternIngredient(ItemStack stack) {
-        for (ItemStack template : lockedCraftingPattern) {
-            if (template.isEmpty()) continue;
-            if (ItemStack.areItemsAndComponentsEqual(stack, template)) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    private boolean matchesAnyIngredient(ItemStack stack, List<Ingredient> ingredients) {
-        for (Ingredient ingredient : ingredients) {
-            if (ingredient == null || ingredient.isEmpty()) continue;
-            if (ingredient.test(stack)) return true;
-        }
-        return false;
+        return hasIngredient ? attempts : 1;
     }
 
     private ItemStack getRecipeResultStack(MinecraftClient client, RecipeEntry<CraftingRecipe> recipe) {
@@ -1296,10 +1087,7 @@ public class QuickCraftWorkbench implements ClientModInitializer {
         rapidCraftStartedByButton = fromButton;
         rapidCooldown = 0;
         consecutiveFailures = 0;
-        recipeBookResultWaitTicks = 0;
-        ingredientDropLocked = false;
-        lastObservedOutputSignature = 0;
-
+        craftingResultWaitTicks = 0;
         sendStatusMessage(client, Text.translatable("quickcraft.message.crafting.started"));
         return true;
     }
@@ -1346,9 +1134,7 @@ public class QuickCraftWorkbench implements ClientModInitializer {
         rapidCraftStartedByButton = false;
         rapidCooldown = 0;
         consecutiveFailures = 0;
-        recipeBookResultWaitTicks = 0;
-        ingredientDropLocked = false;
-        lastObservedOutputSignature = 0;
+        craftingResultWaitTicks = 0;
         sendStatusMessage(client, message);
     }
 
@@ -1357,12 +1143,10 @@ public class QuickCraftWorkbench implements ClientModInitializer {
         rapidCraftStartedByButton = false;
         rapidCooldown = 0;
         consecutiveFailures = 0;
-        recipeBookResultWaitTicks = 0;
+        craftingResultWaitTicks = 0;
         lockedRecipe = null;
         lockedCraftingPattern.clear();
         lockedResultTemplate = ItemStack.EMPTY;
-        ingredientDropLocked = false;
-        lastObservedOutputSignature = 0;
         lastVDown = false;
         lastAltCDown = false;
     }
@@ -1384,7 +1168,8 @@ public class QuickCraftWorkbench implements ClientModInitializer {
                                            RecipeEntry<CraftingRecipe> recipe) {
         ItemStack resultTemplate = getRecipeResultStack(client, recipe);
         if (!resultTemplate.isEmpty()) {
-            dropMatchingItemsFromInventoryBurst(client, handler, resultTemplate);
+            dropMatchingResultsFromInventory(client, handler, resultTemplate);
         }
     }
+
 }
