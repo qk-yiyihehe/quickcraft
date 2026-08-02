@@ -15,6 +15,7 @@ import net.minecraft.client.gui.screen.ingame.AnvilScreen;
 import net.minecraft.client.gui.screen.ingame.CreativeInventoryScreen;
 import net.minecraft.client.gui.screen.ingame.HandledScreen;
 import net.minecraft.client.gui.widget.TextFieldWidget;
+import net.minecraft.client.input.KeyInput;
 import net.minecraft.entity.player.PlayerInventory;
 import net.minecraft.inventory.Inventory;
 import net.minecraft.item.ItemStack;
@@ -57,7 +58,8 @@ public final class QuickThrow implements ClientModInitializer, IKeyboardInputHan
     }
 
     @Override
-    public boolean onKeyInput(int keyCode, int scanCode, int modifiers, boolean eventKeyState) {
+    public boolean onKeyInput(KeyInput input, boolean eventKeyState) {
+        int keyCode = input.key();
         if (keyCode < 0) {
             return false;
         }
