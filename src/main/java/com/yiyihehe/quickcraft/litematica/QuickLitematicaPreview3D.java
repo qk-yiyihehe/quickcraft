@@ -92,10 +92,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.WeakHashMap;
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Supplier;
 import java.util.zip.GZIPInputStream;
@@ -299,7 +299,7 @@ public final class QuickLitematicaPreview3D {
         private volatile float progress;
         private volatile State state = State.LOADING;
         @Nullable
-        private volatile CompletableFuture<Void> future;
+        private volatile Future<?> future;
         private final Map<LayerKey, VertexBuffer> vertexBuffers = new EnumMap<>(LayerKey.class);
         private boolean uploadScheduled;
 
@@ -314,7 +314,7 @@ public final class QuickLitematicaPreview3D {
             Path cachePath = cachePath(sourcePath);
             Preview preview = new Preview(sourcePath, cachePath, cachePath.resolveSibling(cachePath.getFileName() + ".tmp"));
             preview.progress = PROGRESS_START;
-            preview.future = CompletableFuture.runAsync(() -> preview.loadOrBuild(entry), PREVIEW_EXECUTOR);
+            preview.future = PREVIEW_EXECUTOR.submit(() -> preview.loadOrBuild(entry));
             return preview;
         }
 
@@ -344,6 +344,7 @@ public final class QuickLitematicaPreview3D {
                 }
 
                 CacheFile.writeAtomically(this.tmpPath, this.cachePath, built, this.cancelled, value -> this.progress = value);
+                this.throwIfCancelled();
                 this.meshData = built;
                 this.progress = 1.0F;
                 this.state = State.READY;
@@ -356,6 +357,11 @@ public final class QuickLitematicaPreview3D {
                 deleteTmpQuietly(this.tmpPath);
                 deleteQuietly(this.cachePath);
             } catch (Exception e) {
+                if (this.isCancelled()) {
+                    this.state = State.CANCELLED;
+                    deleteTmpQuietly(this.tmpPath);
+                    return;
+                }
                 if (isPreviewTooLarge(e)) {
                     this.state = State.TOO_LARGE;
                     this.progress = 1.0F;
@@ -638,7 +644,7 @@ public final class QuickLitematicaPreview3D {
         @Override
         public void close() {
             this.cancelled.set(true);
-            CompletableFuture<Void> task = this.future;
+            Future<?> task = this.future;
             if (task != null) {
                 task.cancel(true);
             }
@@ -671,9 +677,13 @@ public final class QuickLitematicaPreview3D {
         }
 
         private void throwIfCancelled() {
-            if (this.cancelled.get()) {
+            if (this.isCancelled()) {
                 throw new CancellationException();
             }
+        }
+
+        private boolean isCancelled() {
+            return this.cancelled.get() || Thread.currentThread().isInterrupted();
         }
     }
 
@@ -898,6 +908,7 @@ public final class QuickLitematicaPreview3D {
             }
 
             LitematicaSchematic schematic = LitematicaSchematic.createFromFile(entry.getDirectory(), entry.getName(), FileType.LITEMATICA_SCHEMATIC);
+            throwIfCancelled(cancelled);
             if (schematic == null) {
                 throw new IllegalStateException("Cannot read litematic file");
             }
@@ -929,7 +940,7 @@ public final class QuickLitematicaPreview3D {
                 RegionBlockView view = new RegionBlockView(container, area);
                 RegionBounds regionBounds = RegionBounds.from(area);
                 Map<BlockPos, NbtCompound> schematicBlockEntities = schematic.getBlockEntityMapForRegion(regionName);
-                recordEntities(blockStates, entities, view, schematic, regionName, area, bounds);
+                recordEntities(blockStates, entities, view, schematic, regionName, area, bounds, cancelled);
 
                 for (BlockPos pos : BlockPos.iterate(regionBounds.min(), regionBounds.max())) {
                     throwIfCancelled(cancelled);
@@ -1063,7 +1074,8 @@ public final class QuickLitematicaPreview3D {
                 LitematicaSchematic schematic,
                 String regionName,
                 Box area,
-                Bounds bounds
+                Bounds bounds,
+                AtomicBoolean cancelled
         ) {
             List<LitematicaSchematic.EntityInfo> regionEntities = schematic.getEntityListForRegion(regionName);
             if (regionEntities == null || regionEntities.isEmpty()) {
@@ -1072,6 +1084,7 @@ public final class QuickLitematicaPreview3D {
 
             BlockPos regionOrigin = area.getPos1() == null ? BlockPos.ORIGIN : area.getPos1();
             for (LitematicaSchematic.EntityInfo info : regionEntities) {
+                throwIfCancelled(cancelled);
                 double x = info.posVec.x + regionOrigin.getX() - bounds.min().getX();
                 double y = info.posVec.y + regionOrigin.getY() - bounds.min().getY();
                 double z = info.posVec.z + regionOrigin.getZ() - bounds.min().getZ();
@@ -1171,7 +1184,7 @@ public final class QuickLitematicaPreview3D {
         }
 
         private static void throwIfCancelled(AtomicBoolean cancelled) {
-            if (cancelled.get()) {
+            if (cancelled.get() || Thread.currentThread().isInterrupted()) {
                 throw new CancellationException();
             }
         }
@@ -1870,7 +1883,7 @@ public final class QuickLitematicaPreview3D {
                 List<LayerMesh> layers = new ArrayList<>(layerCount);
                 long totalVertices = 0L;
                 for (int layerIndex = 0; layerIndex < layerCount; layerIndex++) {
-                    if (cancelled.get()) {
+                    if (isCancelled(cancelled)) {
                         throw new CancellationException();
                     }
 
@@ -1893,7 +1906,7 @@ public final class QuickLitematicaPreview3D {
                     }
 
                     byte[] quantizedVertices = new byte[(int) quantizedBytes];
-                    input.readFully(quantizedVertices);
+                    readFullyCancellable(input, quantizedVertices, cancelled);
                     layers.add(new LayerMesh(layer, quantizedVertices));
                 }
 
@@ -1905,7 +1918,7 @@ public final class QuickLitematicaPreview3D {
 
                 List<BlockStateData> blockStates = new ArrayList<>(blockStateCount);
                 for (int i = 0; i < blockStateCount; i++) {
-                    if ((i & 0x7FF) == 0 && cancelled.get()) {
+                    if ((i & 0x7FF) == 0 && isCancelled(cancelled)) {
                         throw new CancellationException();
                     }
 
@@ -1925,7 +1938,7 @@ public final class QuickLitematicaPreview3D {
 
                 List<BlockEntityData> blockEntities = new ArrayList<>(blockEntityCount);
                 for (int i = 0; i < blockEntityCount; i++) {
-                    if ((i & 0xFF) == 0 && cancelled.get()) {
+                    if ((i & 0xFF) == 0 && isCancelled(cancelled)) {
                         throw new CancellationException();
                     }
 
@@ -1946,7 +1959,7 @@ public final class QuickLitematicaPreview3D {
 
                 List<EntityData> entities = new ArrayList<>(entityCount);
                 for (int i = 0; i < entityCount; i++) {
-                    if ((i & 0xFF) == 0 && cancelled.get()) {
+                    if ((i & 0xFF) == 0 && isCancelled(cancelled)) {
                         throw new CancellationException();
                     }
 
@@ -1964,6 +1977,19 @@ public final class QuickLitematicaPreview3D {
             } catch (IOException | RuntimeException e) {
                 deleteQuietly(path);
                 return null;
+            }
+        }
+
+        private static void readFullyCancellable(DataInputStream input, byte[] bytes, AtomicBoolean cancelled) throws IOException {
+            int offset = 0;
+            while (offset < bytes.length) {
+                if (isCancelled(cancelled)) {
+                    throw new CancellationException();
+                }
+
+                int length = Math.min(CACHE_IO_CHUNK_BYTES, bytes.length - offset);
+                input.readFully(bytes, offset, length);
+                offset += length;
             }
         }
 
@@ -1985,13 +2011,12 @@ public final class QuickLitematicaPreview3D {
                 }
 
                 long staticBytesWritten = 0L;
-                int written = 0;
                 for (LayerMesh layer : data.layers()) {
                     output.writeInt(layer.layer().id);
                     output.writeInt(layer.vertexCount());
                     byte[] quantized = layer.quantizedVertices();
                     for (int offset = 0; offset < quantized.length; offset += CACHE_IO_CHUNK_BYTES) {
-                        if ((written++ & 0x3F) == 0 && cancelled.get()) {
+                        if (isCancelled(cancelled)) {
                             throw new CancellationException();
                         }
 
@@ -2005,7 +2030,7 @@ public final class QuickLitematicaPreview3D {
 
                 output.writeInt(data.blockStates.size());
                 for (int index = 0; index < data.blockStates.size(); index++) {
-                    if (cancelled.get()) {
+                    if (isCancelled(cancelled)) {
                         throw new CancellationException();
                     }
 
@@ -2022,7 +2047,7 @@ public final class QuickLitematicaPreview3D {
 
                 output.writeInt(data.blockEntities.size());
                 for (int index = 0; index < data.blockEntities.size(); index++) {
-                    if (cancelled.get()) {
+                    if (isCancelled(cancelled)) {
                         throw new CancellationException();
                     }
 
@@ -2040,7 +2065,7 @@ public final class QuickLitematicaPreview3D {
 
                 output.writeInt(data.entities.size());
                 for (int index = 0; index < data.entities.size(); index++) {
-                    if (cancelled.get()) {
+                    if (isCancelled(cancelled)) {
                         throw new CancellationException();
                     }
 
@@ -2052,7 +2077,7 @@ public final class QuickLitematicaPreview3D {
                 }
             }
 
-            if (cancelled.get()) {
+            if (isCancelled(cancelled)) {
                 throw new CancellationException();
             }
 
@@ -2061,6 +2086,10 @@ public final class QuickLitematicaPreview3D {
             } catch (AtomicMoveNotSupportedException e) {
                 Files.move(tmpPath, finalPath, StandardCopyOption.REPLACE_EXISTING);
             }
+        }
+
+        private static boolean isCancelled(AtomicBoolean cancelled) {
+            return cancelled.get() || Thread.currentThread().isInterrupted();
         }
 
         private static float progress(float start, float end, long completed, long total) {
