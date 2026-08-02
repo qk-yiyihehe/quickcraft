@@ -10,7 +10,7 @@ import com.yiyihehe.quickcraft.litematica.QuickLitematicaContainerVerifier.Conta
 import com.yiyihehe.quickcraft.litematica.QuickLitematicaContainerVerifier.ExpectedContainer;
 import com.yiyihehe.quickcraft.litematica.QuickLitematicaContainerVerifier.VerifierExtension;
 import fi.dy.masa.litematica.config.Configs;
-import fi.dy.masa.litematica.data.EntitiesDataStorage;
+import fi.dy.masa.litematica.data.EntityDataManager;
 import fi.dy.masa.litematica.scheduler.tasks.TaskBase;
 import fi.dy.masa.litematica.schematic.placement.SchematicPlacement;
 import fi.dy.masa.litematica.schematic.verifier.SchematicVerifier;
@@ -744,12 +744,12 @@ public abstract class LitematicaSchematicVerifierMixin extends TaskBase implemen
             return true;
         }
 
-        EntitiesDataStorage storage = EntitiesDataStorage.getInstance();
+        EntityDataManager storage = EntityDataManager.getInstance();
 
         if (!storage.hasServuxServer() && !storage.getIfReceivedBackupPackets()) {
             return true;
         }
-        if (!Objects.equals(storage.getWorld(), this.worldClient)) {
+        if (!Objects.equals(storage.getBestWorld(), this.worldClient)) {
             return true;
         }
         if (storage.hasCompletedChunk(chunkPos)) {
@@ -783,8 +783,8 @@ public abstract class LitematicaSchematicVerifierMixin extends TaskBase implemen
                 maxY = Integer.MIN_VALUE;
 
                 for (IntBoundingBox box : boxes.values()) {
-                    minY = Math.min(minY, box.minY);
-                    maxY = Math.max(maxY, box.maxY);
+                    minY = Math.min(minY, box.minY());
+                    maxY = Math.max(maxY, box.maxY());
                 }
             }
         }

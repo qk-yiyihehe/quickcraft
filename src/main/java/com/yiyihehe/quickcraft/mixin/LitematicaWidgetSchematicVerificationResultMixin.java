@@ -5,8 +5,8 @@ import com.yiyihehe.quickcraft.litematica.QuickLitematicaContainerVerifier.Block
 import fi.dy.masa.litematica.gui.GuiSchematicVerifier;
 import fi.dy.masa.litematica.gui.widgets.WidgetSchematicVerificationResult;
 import fi.dy.masa.malilib.gui.widgets.WidgetListEntrySortable;
+import fi.dy.masa.malilib.render.GuiContext;
 import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.gui.DrawContext;
 import org.jetbrains.annotations.Nullable;
 import org.spongepowered.asm.mixin.Final;
 import org.spongepowered.asm.mixin.Mixin;
@@ -38,7 +38,13 @@ public abstract class LitematicaWidgetSchematicVerificationResultMixin
     }
 
     @Inject(method = "postRenderHovered", at = @At("HEAD"), cancellable = true)
-    private void quickcraft$renderInventoryOverlay(DrawContext drawContext, int mouseX, int mouseY, boolean selected, CallbackInfo ci) {
+    private void quickcraft$renderInventoryOverlay(
+            GuiContext drawContext,
+            int mouseX,
+            int mouseY,
+            boolean selected,
+            CallbackInfo ci
+    ) {
         if (this.mismatchEntry == null
                 || this.mismatchEntry.blockMismatch == null
                 || !QuickLitematicaContainerVerifier.isContainerMismatchType(this.mismatchEntry.blockMismatch.mismatchType)) {

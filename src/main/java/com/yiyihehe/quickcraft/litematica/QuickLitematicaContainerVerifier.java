@@ -6,7 +6,7 @@ import com.yiyihehe.quickcraft.config.QuickCraftConfigs;
 import net.fabricmc.loader.api.FabricLoader;
 import fi.dy.masa.litematica.config.Configs;
 import fi.dy.masa.litematica.data.DataManager;
-import fi.dy.masa.litematica.data.EntitiesDataStorage;
+import fi.dy.masa.litematica.data.EntityDataManager;
 import fi.dy.masa.litematica.schematic.LitematicaSchematic;
 import fi.dy.masa.litematica.schematic.container.LitematicaBlockStateContainer;
 import fi.dy.masa.litematica.schematic.placement.SchematicPlacement;
@@ -18,6 +18,8 @@ import fi.dy.masa.litematica.util.BlockInfoAlignment;
 import fi.dy.masa.litematica.util.SchematicUtils;
 import fi.dy.masa.malilib.gui.LeftRight;
 import fi.dy.masa.malilib.render.InventoryOverlay;
+import fi.dy.masa.malilib.render.InventoryOverlayType;
+import fi.dy.masa.malilib.render.GuiContext;
 import fi.dy.masa.malilib.util.game.BlockUtils;
 import fi.dy.masa.malilib.util.data.Constants;
 import fi.dy.masa.malilib.util.nbt.NbtBlockUtils;
@@ -128,17 +130,22 @@ public final class QuickLitematicaContainerVerifier {
     }
 
     public static Inventory getExpectedInventory(BlockEntity expectedBlockEntity, Inventory directInventory) {
-        if (expectedBlockEntity == null || expectedBlockEntity.getWorld() == null) {
+        if (expectedBlockEntity == null) {
             return directInventory;
         }
 
-        NbtCompound nbt = expectedBlockEntity.createNbtWithIdentifyingData(expectedBlockEntity.getWorld().getRegistryManager());
+        World blockEntityWorld = expectedBlockEntity.getWorld();
+        if (blockEntityWorld == null) {
+            return directInventory;
+        }
+
+        NbtCompound nbt = expectedBlockEntity.createNbtWithIdentifyingData(blockEntityWorld.getRegistryManager());
 
         if (nbt.contains("Items")) {
             Inventory nbtInventory = getNbtInventoryPreservingComponents(
                     nbt,
                     directInventory != null ? directInventory.size() : -1,
-                    expectedBlockEntity.getWorld().getRegistryManager()
+                    blockEntityWorld.getRegistryManager()
             );
 
             if (nbtInventory != null) {
@@ -165,8 +172,8 @@ public final class QuickLitematicaContainerVerifier {
             return mergedOrDirect != null ? mergedOrDirect : directInventory;
         }
 
-        EntitiesDataStorage storage = EntitiesDataStorage.getInstance();
-        NbtCompound cachedNbt = storage.getFromBlockEntityCacheNbt(pos);
+        EntityDataManager storage = EntityDataManager.getInstance();
+        NbtCompound cachedNbt = storage.getCache().getBlockEntityNbtFromCache(pos);
 
         if (cachedNbt != null && !cachedNbt.contains("Items") && expected != null && isInventoryEmpty(expected)) {
             // 服务器空容器 NBT 可能只带 x/y/z/id，没有 Items；这表示已读到空库存。
@@ -190,18 +197,18 @@ public final class QuickLitematicaContainerVerifier {
         }
 
         // 多人没有实体数据时不要拿客户端空壳库存硬比，避免把未知误报成错误填充。
-        storage.requestBlockEntity(world, pos);
+        storage.requestBlockEntityWrapped(world, pos);
         return null;
     }
 
-    private static Inventory getCachedInventory(World world, BlockPos pos, EntitiesDataStorage storage, int expectedSize) {
+    private static Inventory getCachedInventory(World world, BlockPos pos, EntityDataManager storage, int expectedSize) {
         Inventory merged = getMergedCachedDoubleChestInventory(world, pos, storage, expectedSize);
 
         if (merged != null) {
             return merged;
         }
 
-        NbtCompound cachedNbt = storage.getFromBlockEntityCacheNbt(pos);
+        NbtCompound cachedNbt = storage.getCache().getBlockEntityNbtFromCache(pos);
         Inventory special = getCachedSpecialInventory(world, cachedNbt, expectedSize);
 
         if (special != null) {
@@ -232,7 +239,7 @@ public final class QuickLitematicaContainerVerifier {
         return inventory;
     }
 
-    private static Inventory getMergedCachedDoubleChestInventory(World world, BlockPos pos, EntitiesDataStorage storage, int expectedSize) {
+    private static Inventory getMergedCachedDoubleChestInventory(World world, BlockPos pos, EntityDataManager storage, int expectedSize) {
         if (expectedSize != 54) {
             return null;
         }
@@ -245,8 +252,8 @@ public final class QuickLitematicaContainerVerifier {
         }
 
         BlockPos adjacentPos = pos.add(ChestBlock.getFacing(state).getVector());
-        NbtCompound currentNbt = storage.getFromBlockEntityCacheNbt(pos);
-        NbtCompound adjacentNbt = storage.getFromBlockEntityCacheNbt(adjacentPos);
+        NbtCompound currentNbt = storage.getCache().getBlockEntityNbtFromCache(pos);
+        NbtCompound adjacentNbt = storage.getCache().getBlockEntityNbtFromCache(adjacentPos);
 
         if (currentNbt == null || adjacentNbt == null) {
             return null;
@@ -297,7 +304,7 @@ public final class QuickLitematicaContainerVerifier {
                 continue;
             }
             int slot = itemNbt.getByte("Slot").orElse((byte) 0) & 255;
-            if (slot < 0 || slot >= size) {
+            if (slot >= size) {
                 continue;
             }
 
@@ -334,7 +341,7 @@ public final class QuickLitematicaContainerVerifier {
 
     public static void requestInventoryData(World world, BlockPos pos) {
         if (world != null) {
-            EntitiesDataStorage.getInstance().requestBlockEntity(world, pos);
+            EntityDataManager.getInstance().requestBlockEntityWrapped(world, pos);
         }
     }
 
@@ -343,7 +350,7 @@ public final class QuickLitematicaContainerVerifier {
             return false;
         }
 
-        EntitiesDataStorage storage = EntitiesDataStorage.getInstance();
+        EntityDataManager storage = EntityDataManager.getInstance();
         if (storage.hasServuxServer()) {
             storage.requestServuxBulkEntityData(chunkPos, minY, maxY);
             return true;
@@ -479,7 +486,11 @@ public final class QuickLitematicaContainerVerifier {
             MinecraftClient mc,
             DrawContext drawContext
     ) {
-        Pair<Inventory, Inventory> inventories = mismatch != null ? mismatch.inventories() : null;
+        if (mismatch == null) {
+            return;
+        }
+
+        Pair<Inventory, Inventory> inventories = mismatch.inventories();
 
         if (inventories == null) {
             return;
@@ -524,13 +535,14 @@ public final class QuickLitematicaContainerVerifier {
     }
 
     public static void rememberContainerUse(MinecraftClient client, BlockHitResult hitResult) {
-        if (!isEnabled() || client.world == null) {
+        World clientWorld = client.world;
+        if (!isEnabled() || clientWorld == null) {
             return;
         }
 
         World world = fi.dy.masa.malilib.util.WorldUtils.getBestWorld(client);
         BlockPos pos = hitResult.getBlockPos();
-        BlockEntity blockEntity = world != null ? world.getBlockEntity(pos) : client.world.getBlockEntity(pos);
+        BlockEntity blockEntity = world != null ? world.getBlockEntity(pos) : clientWorld.getBlockEntity(pos);
 
         if (blockEntity instanceof Inventory || getExpectedContainerAt(world, pos) != null) {
             pendingContainerPos = pos.toImmutable();
@@ -645,8 +657,13 @@ public final class QuickLitematicaContainerVerifier {
     }
 
     public static Set<Integer> getDisabledSlots(BlockEntity blockEntity) {
-        if (blockEntity != null && blockEntity.getWorld() != null) {
-            NbtCompound nbt = blockEntity.createNbtWithIdentifyingData(blockEntity.getWorld().getRegistryManager());
+        if (blockEntity == null) {
+            return Set.of();
+        }
+
+        World blockEntityWorld = blockEntity.getWorld();
+        if (blockEntityWorld != null) {
+            NbtCompound nbt = blockEntity.createNbtWithIdentifyingData(blockEntityWorld.getRegistryManager());
             return getDisabledSlots(blockEntity, nbt);
         }
 
@@ -703,15 +720,16 @@ public final class QuickLitematicaContainerVerifier {
 
     private static void refreshCurrentScreenVerifier(HandledScreen<?> screen) {
         MinecraftClient client = MinecraftClient.getInstance();
+        World clientWorld = client.world;
+        BlockPos containerPos = currentScreenContainerPos;
 
-        if (client.world == null
-                || currentScreenContainerPos == null) {
+        if (clientWorld == null || containerPos == null) {
             return;
         }
 
         int currentRevision = screen.getScreenHandler().getRevision();
 
-        long currentTick = client.world.getTime();
+        long currentTick = clientWorld.getTime();
 
         if (currentTick == lastCurrentScreenRefreshTick && currentRevision == lastCurrentScreenRevision) {
             return;
@@ -721,7 +739,7 @@ public final class QuickLitematicaContainerVerifier {
         lastCurrentScreenRevision = currentRevision;
         currentScreenSlotOverlays = List.of();
         World world = fi.dy.masa.malilib.util.WorldUtils.getBestWorld(client);
-        ExpectedContainer expectedContainer = getExpectedContainerAt(world, currentScreenContainerPos);
+        ExpectedContainer expectedContainer = getExpectedContainerAt(world, containerPos);
 
         if (expectedContainer == null
                 || !isSupportedHandlerForExpectedContainer(screen.getScreenHandler(), expectedContainer)) {
@@ -742,12 +760,12 @@ public final class QuickLitematicaContainerVerifier {
         if (placement != null && placement.hasVerifier()) {
             VerifierExtension verifier = (VerifierExtension) placement.getSchematicVerifier();
             mismatches = verifier.quickcraft$refreshContainerMismatchAt(
-                    currentScreenContainerPos,
+                    containerPos,
                     foundInventory,
                     foundDisabledSlots
             );
 
-            BlockPos pairedPos = getExpectedDoubleChestAdjacentPos(currentScreenContainerPos);
+            BlockPos pairedPos = getExpectedDoubleChestAdjacentPos(containerPos);
             if (pairedPos != null) {
                 // 大箱子的错误可能记录在另一半坐标；打开任意半边都同步刷新两半。
                 verifier.quickcraft$refreshContainerMismatchAt(pairedPos, foundInventory, foundDisabledSlots);
@@ -768,9 +786,13 @@ public final class QuickLitematicaContainerVerifier {
         }
 
         World world = fi.dy.masa.malilib.util.WorldUtils.getBestWorld(client);
-        BlockEntity blockEntity = world != null
-                ? world.getBlockEntity(blockHitResult.getBlockPos())
-                : client.world.getBlockEntity(blockHitResult.getBlockPos());
+        World clientWorld = client.world;
+        World lookupWorld = world != null ? world : clientWorld;
+        if (lookupWorld == null) {
+            return null;
+        }
+
+        BlockEntity blockEntity = lookupWorld.getBlockEntity(blockHitResult.getBlockPos());
 
         return blockEntity instanceof Inventory ? blockHitResult.getBlockPos().toImmutable() : null;
     }
@@ -984,8 +1006,9 @@ public final class QuickLitematicaContainerVerifier {
         }
 
         MinecraftClient client = MinecraftClient.getInstance();
+        World clientWorld = client.world;
 
-        if (client.world == null) {
+        if (clientWorld == null) {
             return null;
         }
 
@@ -993,7 +1016,7 @@ public final class QuickLitematicaContainerVerifier {
                 placementPos.pos(),
                 placementPos.rawState(),
                 nbt,
-                client.world.getRegistryManager()
+                clientWorld.getRegistryManager()
         );
 
         if (!(blockEntity instanceof Inventory inventory)) {
@@ -1158,8 +1181,9 @@ public final class QuickLitematicaContainerVerifier {
             MinecraftClient mc,
             DrawContext drawContext
     ) {
-        InventoryOverlay.InventoryRenderType type = getInventoryType(inventory, state);
+        InventoryOverlayType type = getInventoryType(inventory, state);
         InventoryOverlay.InventoryProperties props = InventoryOverlay.getInventoryPropsTemp(type, inventory.size());
+        GuiContext guiContext = GuiContext.fromGuiGraphics(drawContext);
         int xInv = 0;
         int yInv = 0;
 
@@ -1180,9 +1204,9 @@ public final class QuickLitematicaContainerVerifier {
             xInv += props.width / 2 + 4;
         }
 
-        InventoryOverlay.renderInventoryBackground(drawContext, type, xInv, yInv, props.slotsPerRow, props.totalSlots, mc);
+        InventoryOverlay.renderInventoryBackground(guiContext, type, xInv, yInv, props.slotsPerRow, props.totalSlots);
         drawSlotHighlights(drawContext, type, xInv + props.slotOffsetX, yInv + props.slotOffsetY, props.slotsPerRow, slotMismatches);
-        InventoryOverlay.renderInventoryStacks(drawContext, type, inventory, xInv + props.slotOffsetX, yInv + props.slotOffsetY, props.slotsPerRow, 0, inventory.size(), disabledSlots, mc);
+        InventoryOverlay.renderInventoryStacks(guiContext, type, inventory, xInv + props.slotOffsetX, yInv + props.slotOffsetY, props.slotsPerRow, 0, inventory.size(), disabledSlots);
 
         if (renderGhostStacks) {
             drawMissingGhostStacks(drawContext, mc, type, xInv + props.slotOffsetX, yInv + props.slotOffsetY, props.slotsPerRow, slotMismatches);
@@ -1191,7 +1215,7 @@ public final class QuickLitematicaContainerVerifier {
 
     private static void drawSlotHighlights(
             DrawContext drawContext,
-            InventoryOverlay.InventoryRenderType type,
+            InventoryOverlayType type,
             int xSlots,
             int ySlots,
             int slotsPerRow,
@@ -1209,7 +1233,7 @@ public final class QuickLitematicaContainerVerifier {
     private static void drawMissingGhostStacks(
             DrawContext drawContext,
             MinecraftClient mc,
-            InventoryOverlay.InventoryRenderType type,
+            InventoryOverlayType type,
             int xSlots,
             int ySlots,
             int slotsPerRow,
@@ -1238,14 +1262,14 @@ public final class QuickLitematicaContainerVerifier {
     }
 
     private static SlotPosition getInventoryOverlaySlotPosition(
-            InventoryOverlay.InventoryRenderType type,
+            InventoryOverlayType type,
             int xSlots,
             int ySlots,
             int slotsPerRow,
             int slot
     ) {
         // 炉子类和酿造台在 malilib 的 InventoryOverlay 里不是普通网格槽位。
-        if (type == InventoryOverlay.InventoryRenderType.FURNACE) {
+        if (type == InventoryOverlayType.FURNACE) {
             return switch (slot) {
                 case 0 -> new SlotPosition(xSlots + 8, ySlots + 8);
                 case 1 -> new SlotPosition(xSlots + 8, ySlots + 44);
@@ -1254,7 +1278,7 @@ public final class QuickLitematicaContainerVerifier {
             };
         }
 
-        if (type == InventoryOverlay.InventoryRenderType.BREWING_STAND) {
+        if (type == InventoryOverlayType.BREWING_STAND) {
             return switch (slot) {
                 case 0 -> new SlotPosition(xSlots + 47, ySlots + 42);
                 case 1 -> new SlotPosition(xSlots + 70, ySlots + 49);
@@ -1282,32 +1306,32 @@ public final class QuickLitematicaContainerVerifier {
         drawContext.fill(x + width - 1, y + 1, x + width, y + height - 1, color);
     }
 
-    private static InventoryOverlay.InventoryRenderType getInventoryType(Inventory inventory, BlockState state) {
+    private static InventoryOverlayType getInventoryType(Inventory inventory, BlockState state) {
         if (state != null) {
             if (state.getBlock() instanceof AbstractFurnaceBlock) {
-                return InventoryOverlay.InventoryRenderType.FURNACE;
+                return InventoryOverlayType.FURNACE;
             }
             if (state.getBlock() instanceof BrewingStandBlock) {
-                return InventoryOverlay.InventoryRenderType.BREWING_STAND;
+                return InventoryOverlayType.BREWING_STAND;
             }
             if (state.getBlock() instanceof CrafterBlock) {
-                return InventoryOverlay.InventoryRenderType.CRAFTER;
+                return InventoryOverlayType.CRAFTER;
             }
             if (state.getBlock() instanceof DispenserBlock) {
-                return InventoryOverlay.InventoryRenderType.DISPENSER;
+                return InventoryOverlayType.DISPENSER;
             }
             if (state.getBlock() instanceof HopperBlock) {
-                return InventoryOverlay.InventoryRenderType.HOPPER;
+                return InventoryOverlayType.HOPPER;
             }
         }
 
         return switch (inventory.size()) {
-            case 3 -> InventoryOverlay.InventoryRenderType.FURNACE;
-            case 5 -> InventoryOverlay.InventoryRenderType.HOPPER;
-            case 9 -> InventoryOverlay.InventoryRenderType.DISPENSER;
-            case 27 -> InventoryOverlay.InventoryRenderType.FIXED_27;
-            case 54 -> InventoryOverlay.InventoryRenderType.FIXED_54;
-            default -> InventoryOverlay.InventoryRenderType.GENERIC;
+            case 3 -> InventoryOverlayType.FURNACE;
+            case 5 -> InventoryOverlayType.HOPPER;
+            case 9 -> InventoryOverlayType.DISPENSER;
+            case 27 -> InventoryOverlayType.FIXED_27;
+            case 54 -> InventoryOverlayType.FIXED_54;
+            default -> InventoryOverlayType.GENERIC;
         };
     }
 

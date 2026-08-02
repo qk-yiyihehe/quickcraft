@@ -2,6 +2,7 @@ package com.yiyihehe.quickcraft.litematica;
 
 import com.yiyihehe.quickcraft.QuickMaterialCollector;
 import com.yiyihehe.quickcraft.config.QuickCraftConfigs;
+import com.yiyihehe.quickcraft.mixin.GuiBaseAccessor;
 import fi.dy.masa.litematica.data.DataManager;
 import fi.dy.masa.litematica.gui.GuiMaterialList;
 import fi.dy.masa.litematica.gui.GuiMainMenu.ButtonListenerChangeMenu;
@@ -23,6 +24,8 @@ import fi.dy.masa.malilib.gui.button.IButtonActionListener;
 import fi.dy.masa.malilib.gui.widgets.WidgetFileBrowserBase.DirectoryEntry;
 import fi.dy.masa.malilib.gui.widgets.WidgetListBase;
 import fi.dy.masa.malilib.gui.widgets.WidgetListEntryBase;
+import fi.dy.masa.malilib.render.GuiContext;
+import fi.dy.masa.malilib.render.InventoryOverlay;
 import fi.dy.masa.malilib.render.RenderUtils;
 import fi.dy.masa.malilib.util.ItemType;
 import fi.dy.masa.malilib.util.StringUtils;
@@ -32,7 +35,6 @@ import net.minecraft.block.ChestBlock;
 import net.minecraft.block.ShulkerBoxBlock;
 import net.minecraft.block.enums.ChestType;
 import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.gui.screen.Screen;
 import net.minecraft.item.BlockItem;
 import net.minecraft.item.Item;
@@ -826,7 +828,7 @@ public final class QuickLitematicaContainerMaterials {
         }
     }
 
-    private static final class ContainerMaterialListScreen extends GuiMaterialList {
+    private static class ContainerMaterialListScreen extends GuiMaterialList {
         private final ContainerMaterialList materialList;
 
         private ContainerMaterialListScreen(ContainerMaterialList materialList) {
@@ -856,13 +858,14 @@ public final class QuickLitematicaContainerMaterials {
         }
 
         private ButtonPlacement getContainerNavButtonPlacement(int gap, String detailsLabel, String materialLabel) {
-            int x = 12;
-            x += this.getStringWidth(StringUtils.translate("litematica.gui.button.material_list.refresh_list")) + 10 + gap;
-            x += new ButtonOnOff(0, 0, -1, false, "litematica.gui.button.material_list.hide_available", false).getWidth() + gap;
-            x += new ButtonOnOff(0, 0, -1, false, "litematica.gui.button.material_list.toggle_info_hud", false).getWidth() + gap;
-            x += this.getStringWidth(StringUtils.translate("litematica.gui.button.material_list.clear_ignored")) + 10 + gap;
-            x += this.getStringWidth(StringUtils.translate("litematica.gui.button.material_list.clear_cache")) + 10 + gap;
-            x += this.getStringWidth(StringUtils.translate("litematica.gui.button.material_list.write_to_file")) + 10 + gap;
+            List<ButtonBase> buttons = ((GuiBaseAccessor) (Object) this).quickcraft$getButtons();
+            int bottomButtonRow = this.height - 22;
+            int y = buttons.stream().anyMatch(button -> button.getY() == bottomButtonRow) ? bottomButtonRow : 24;
+            int x = buttons.stream()
+                    .filter(button -> button.getY() == y)
+                    .mapToInt(button -> button.getX() + button.getWidth() + gap)
+                    .max()
+                    .orElse(12);
 
             int detailsWidth = this.getStringWidth(detailsLabel) + 10;
             int materialWidth = this.getStringWidth(materialLabel) + 10;
@@ -871,7 +874,7 @@ public final class QuickLitematicaContainerMaterials {
                 return new ButtonPlacement(12, Math.max(24, this.height - 58));
             }
 
-            return new ButtonPlacement(x, 24);
+            return new ButtonPlacement(x, y);
         }
 
         private ButtonGeneric createNavButton(int x, int y, String label) {
@@ -936,7 +939,7 @@ public final class QuickLitematicaContainerMaterials {
         }
 
         @Override
-        public void drawContents(DrawContext drawContext, int mouseX, int mouseY, float partialTicks) {
+        public void drawContents(GuiContext drawContext, int mouseX, int mouseY, float partialTicks) {
             super.drawContents(drawContext, mouseX, mouseY, partialTicks);
 
             if (this.data.visibleGroups().isEmpty()) {
@@ -1055,18 +1058,18 @@ public final class QuickLitematicaContainerMaterials {
         }
 
         @Override
-        public void render(DrawContext drawContext, int mouseX, int mouseY, boolean selected) {
+        public void render(GuiContext drawContext, int mouseX, int mouseY, boolean selected) {
             if (this.entry == null) {
                 this.renderHeader(drawContext);
                 return;
             }
 
             if (this.isMouseOver(mouseX, mouseY)) {
-                RenderUtils.drawRect(this.x, this.y, this.width, this.height, 0xA0707070);
+                RenderUtils.drawRect(drawContext, this.x, this.y, this.width, this.height, 0xA0707070);
             } else if (this.isOdd) {
-                RenderUtils.drawRect(this.x, this.y, this.width, this.height, 0xA0101010);
+                RenderUtils.drawRect(drawContext, this.x, this.y, this.width, this.height, 0xA0101010);
             } else {
-                RenderUtils.drawRect(this.x, this.y, this.width, this.height, 0xA0303030);
+                RenderUtils.drawRect(drawContext, this.x, this.y, this.width, this.height, 0xA0303030);
             }
 
             int containerX = this.x + 6;
@@ -1074,7 +1077,7 @@ public final class QuickLitematicaContainerMaterials {
             int contentsX = this.x + CONTAINER_COLUMN_WIDTH + COUNT_COLUMN_WIDTH + 8;
             int yText = this.y + 6;
 
-            RenderUtils.drawRect(containerX, this.y + 6, 16, 16, 0x20FFFFFF);
+            RenderUtils.drawRect(drawContext, containerX, this.y + 6, 16, 16, 0x20FFFFFF);
             drawContext.drawItem(this.entry.containerStack(), containerX, this.y + 6);
             this.drawString(drawContext, containerX + 20, yText, 0xFFFFFFFF, fitText(this.entry.containerName(), CONTAINER_COLUMN_WIDTH - 28));
 
@@ -1088,7 +1091,7 @@ public final class QuickLitematicaContainerMaterials {
         }
 
         @Override
-        public void postRenderHovered(DrawContext drawContext, int mouseX, int mouseY, boolean selected) {
+        public void postRenderHovered(GuiContext drawContext, int mouseX, int mouseY, boolean selected) {
             if (this.entry == null) {
                 return;
             }
@@ -1097,22 +1100,22 @@ public final class QuickLitematicaContainerMaterials {
             int containerY = this.y + 6;
 
             if (mouseX >= containerX && mouseX < containerX + 16 && mouseY >= containerY && mouseY < containerY + 16) {
-                drawContext.drawItemTooltip(this.textRenderer, this.entry.containerStack(), mouseX, mouseY);
+                InventoryOverlay.renderStackToolTipStyled(drawContext, mouseX, mouseY, this.entry.containerStack());
                 return;
             }
 
             ItemCount hovered = this.getHoveredItem(mouseX, mouseY);
 
             if (hovered != null) {
-                drawContext.drawItemTooltip(this.textRenderer, hovered.stack(), mouseX, mouseY);
+                InventoryOverlay.renderStackToolTipStyled(drawContext, mouseX, mouseY, hovered.stack());
                 return;
             }
 
             super.postRenderHovered(drawContext, mouseX, mouseY, selected);
         }
 
-        private void renderHeader(DrawContext drawContext) {
-            RenderUtils.drawRect(this.x, this.y, this.width, this.height, 0xA0101010);
+        private void renderHeader(GuiContext drawContext) {
+            RenderUtils.drawRect(drawContext, this.x, this.y, this.width, this.height, 0xA0101010);
 
             int containerX = this.x + 6;
             int countX = this.x + CONTAINER_COLUMN_WIDTH + 4;
@@ -1131,11 +1134,11 @@ public final class QuickLitematicaContainerMaterials {
             this.drawString(drawContext, actionX, y, 0xFFFFFFFF, GuiBase.TXT_BOLD + StringUtils.translate("quickcraft.litematica.header.action") + GuiBase.TXT_RST);
         }
 
-        private void drawHeaderCell(DrawContext drawContext, int xStart, int xEnd) {
+        private void drawHeaderCell(GuiContext drawContext, int xStart, int xEnd) {
             RenderUtils.drawOutline(drawContext, xStart - 3, this.y + 1, xEnd - xStart - 2, this.height - 2, 0xC0707070);
         }
 
-        private void renderContents(DrawContext drawContext, int contentsX, int mouseX, int mouseY) {
+        private void renderContents(GuiContext drawContext, int contentsX, int mouseX, int mouseY) {
             if (this.entry.contents().isEmpty()) {
                 this.drawString(drawContext, contentsX, this.y + 10, 0xFFAAAAAA, StringUtils.translate("quickcraft.litematica.label.empty_contents"));
                 return;
@@ -1149,7 +1152,7 @@ public final class QuickLitematicaContainerMaterials {
                 int itemY = this.y + 6 + (i / columns) * ITEM_CELL_HEIGHT;
                 ItemStack displayStack = item.stack();
 
-                RenderUtils.drawRect(itemX, itemY, 16, 16, 0x20FFFFFF);
+                RenderUtils.drawRect(drawContext, itemX, itemY, 16, 16, 0x20FFFFFF);
                 drawContext.drawItem(displayStack, itemX, itemY);
                 drawContext.drawStackOverlay(
                         this.textRenderer,
