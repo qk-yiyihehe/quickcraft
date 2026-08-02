@@ -195,6 +195,7 @@
   "quickcraft.message.crafting.stopped": "QuickCraft: Auto processing stopped",
   "quickcraft.message.crafting.no_ingredients": "QuickCraft: Not enough ingredients, stopped",
   "quickcraft.message.stonecutter.no_selection": "QuickCraft: No stonecutter result selected",
+  "quickcraft.message.stonecutter.sync_timeout": "QuickCraft: Timed out waiting for stonecutter synchronization",
   "quickcraft.message.litematica_autofill.no_container_content": "QuickCraft: No usable projection container contents at the current position",
   "quickcraft.message.container_copy.recording": "QuickCraft: Recording %s contents",
   "quickcraft.message.container_copy.recorded": "QuickCraft: Recorded %s contents",
