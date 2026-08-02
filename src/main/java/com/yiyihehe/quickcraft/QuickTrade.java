@@ -163,7 +163,7 @@ public final class QuickTrade implements ClientModInitializer {
                 "★",
                 rowLeft + STAR_X_OFFSET,
                 rowTop + STAR_Y_OFFSET,
-                0xFFE066
+                0xFFFFE066
         );
     }
 
