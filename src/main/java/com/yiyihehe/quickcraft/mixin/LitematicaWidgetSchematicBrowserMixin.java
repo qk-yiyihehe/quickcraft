@@ -9,8 +9,8 @@ import fi.dy.masa.malilib.gui.interfaces.IDirectoryCache;
 import fi.dy.masa.malilib.gui.interfaces.ISelectionListener;
 import fi.dy.masa.malilib.gui.widgets.WidgetFileBrowserBase;
 import fi.dy.masa.malilib.render.RenderUtils;
+import fi.dy.masa.malilib.render.GuiContext;
 import com.mojang.blaze3d.pipeline.RenderPipeline;
-import net.minecraft.client.gui.DrawContext;
 import net.minecraft.util.Identifier;
 import org.spongepowered.asm.mixin.Final;
 import org.spongepowered.asm.mixin.Mixin;
@@ -50,7 +50,7 @@ public abstract class LitematicaWidgetSchematicBrowserMixin extends WidgetFileBr
     }
 
     @Inject(method = "drawSelectedSchematicInfo", at = @At("TAIL"), remap = false)
-    private void quickcraft$draw3DPreview(DrawContext drawContext, @Nullable DirectoryEntry entry, CallbackInfo ci) {
+    private void quickcraft$draw3DPreview(GuiContext drawContext, @Nullable DirectoryEntry entry, CallbackInfo ci) {
         int infoX = this.posX + this.totalWidth - this.infoWidth;
         int infoY = this.posY;
 		int height = Math.min(this.infoHeight, this.parent.getMaxInfoHeight());
@@ -65,11 +65,11 @@ public abstract class LitematicaWidgetSchematicBrowserMixin extends WidgetFileBr
             method = "drawSelectedSchematicInfo",
             at = @At(
                     value = "INVOKE",
-                    target = "Lnet/minecraft/client/gui/DrawContext;drawTexture(Lcom/mojang/blaze3d/pipeline/RenderPipeline;Lnet/minecraft/util/Identifier;IIFFIIII)V"
+                    target = "Lfi/dy/masa/malilib/render/GuiContext;drawTexture(Lcom/mojang/blaze3d/pipeline/RenderPipeline;Lnet/minecraft/util/Identifier;IIFFIIII)V"
             )
     )
     private void quickcraft$skipVanillaPreviewWhen3DEnabled(
-            DrawContext drawContext,
+            GuiContext drawContext,
             RenderPipeline renderPipeline,
             Identifier texture,
             int x,
@@ -92,13 +92,13 @@ public abstract class LitematicaWidgetSchematicBrowserMixin extends WidgetFileBr
             method = "drawSelectedSchematicInfo",
             at = @At(
                     value = "INVOKE",
-                    target = "Lfi/dy/masa/malilib/render/RenderUtils;drawOutlinedBox(Lnet/minecraft/client/gui/DrawContext;IIIIII)V",
+                    target = "Lfi/dy/masa/malilib/render/RenderUtils;drawOutlinedBox(Lfi/dy/masa/malilib/render/GuiContext;IIIIII)V",
                     ordinal = 1
             ),
             remap = false
     )
     private void quickcraft$skipVanillaPreviewBoxWhen3DEnabled(
-            DrawContext drawContext,
+            GuiContext drawContext,
             int x,
             int y,
             int width,

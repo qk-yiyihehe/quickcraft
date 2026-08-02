@@ -6,7 +6,10 @@ import com.mojang.blaze3d.systems.ProjectionType;
 import com.mojang.blaze3d.systems.RenderPass;
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.systems.VertexSorter;
+import com.mojang.blaze3d.textures.AddressMode;
+import com.mojang.blaze3d.textures.FilterMode;
 import com.yiyihehe.quickcraft.config.QuickCraftConfigs;
+import com.yiyihehe.quickcraft.mixin.RenderLayerAccessor;
 import fi.dy.masa.litematica.render.schematic.ChunkCacheSchematic;
 import fi.dy.masa.litematica.render.schematic.WorldRendererSchematic;
 import fi.dy.masa.litematica.schematic.LitematicaSchematic;
@@ -18,6 +21,7 @@ import fi.dy.masa.litematica.util.PositionUtils;
 import fi.dy.masa.litematica.world.FakeLightingProvider;
 import fi.dy.masa.litematica.world.WorldSchematic;
 import fi.dy.masa.malilib.gui.widgets.WidgetFileBrowserBase.DirectoryEntry;
+import fi.dy.masa.malilib.render.GuiContext;
 import fi.dy.masa.malilib.render.RenderUtils;
 import fi.dy.masa.malilib.util.StringUtils;
 import net.fabricmc.fabric.api.client.rendering.v1.SpecialGuiElementRegistry;
@@ -28,7 +32,6 @@ import net.minecraft.block.BlockRenderType;
 import net.minecraft.block.BlockState;
 import net.minecraft.block.entity.BlockEntity;
 import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.gl.RenderPipelines;
 import net.minecraft.client.gui.ScreenRect;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.gui.render.SpecialGuiElementRenderer;
@@ -39,9 +42,11 @@ import net.minecraft.client.render.GameRenderer;
 import net.minecraft.client.render.LightmapTextureManager;
 import net.minecraft.client.render.OverlayTexture;
 import net.minecraft.client.render.BlockRenderLayer;
+import net.minecraft.client.render.BlockRenderLayers;
 import net.minecraft.client.render.DiffuseLighting;
 import net.minecraft.client.render.RawProjectionMatrix;
 import net.minecraft.client.render.RenderLayer;
+import net.minecraft.client.render.RenderSetup;
 import net.minecraft.client.render.RenderLayers;
 import net.minecraft.client.render.VertexConsumer;
 import net.minecraft.client.render.VertexConsumerProvider;
@@ -142,7 +147,7 @@ public final class QuickLitematicaPreview3D {
     private static final int CACHE_MAGIC = 0x51435033; // QCP3
     private static final String CACHE_DIR_NAME = "litematica-preview-cache";
     private static final String CACHE_VERSION_FILE_NAME = "cache-version.txt";
-    private static final String CACHE_RENDER_MARKER = "quickcraft-model-mesh-v15-float-uv-full-light-dynamic-render-state-mc1.21.10";
+    private static final String CACHE_RENDER_MARKER = "quickcraft-model-mesh-v17-float-uv-full-light-dynamic-render-state-mc1.21.11";
     private static final int MAX_PREVIEW_SIZE = 512;
     // 预算必须卡在构建阶段前面：顶点 packed 后仍会占用 CPU/GPU 大块连续内存。
     private static final int MAX_UPLOAD_VERTICES = 12_000_000;
@@ -242,7 +247,7 @@ public final class QuickLitematicaPreview3D {
                 this.switchTo(path, entry);
             }
 
-            RenderUtils.drawOutlinedBox(drawContext, this.viewX, this.viewY, this.viewSize, this.viewSize, 0xB0101010, 0xFF707070);
+            RenderUtils.drawOutlinedBox(GuiContext.fromGuiGraphics(drawContext), this.viewX, this.viewY, this.viewSize, this.viewSize, 0xB0101010, 0xFF707070);
             if (this.current != null) {
                 this.current.render(drawContext, this.viewX, this.viewY, this.viewSize, this.drag);
             }
@@ -593,46 +598,49 @@ public final class QuickLitematicaPreview3D {
             for (LayerKey layer : LayerKey.DRAW_ORDER) {
                 LayerBuffer buffer = this.layerBuffers.get(layer);
                 if (buffer != null) {
-                    drawLayerBuffer(layer.renderLayer(), buffer);
+                    drawLayerBuffer(layer, buffer);
                 }
             }
         }
 
-        private static void drawLayerBuffer(RenderLayer renderLayer, LayerBuffer buffer) {
-            renderLayer.startDrawing();
-            try {
-                RenderPipeline pipeline = buffer.pipeline(renderLayer, renderLayer.getRenderPipeline());
-                var colorAttachment = Objects.requireNonNull(RenderSystem.outputColorTextureOverride);
-                var depthAttachment = RenderSystem.outputDepthTextureOverride;
-                var dynamicTransforms = RenderSystem.getDynamicUniforms().write(
-                        RenderSystem.getModelViewMatrix(),
-                        new Vector4f(1.0F, 1.0F, 1.0F, 1.0F),
-                        ZERO_MODEL_OFFSET,
-                        RenderSystem.getTextureMatrix(),
-                        RenderSystem.getShaderLineWidth()
-                );
-                try (RenderPass pass = RenderSystem.getDevice().createCommandEncoder().createRenderPass(
-                        () -> "QuickCraft preview " + renderLayer,
-                        colorAttachment,
-                        OptionalInt.empty(),
-                        depthAttachment,
-                        OptionalDouble.empty()
-                )) {
-                    pass.setPipeline(pipeline);
-                    RenderSystem.bindDefaultUniforms(pass);
-                    pass.setUniform("DynamicTransforms", dynamicTransforms);
-                    pass.setVertexBuffer(0, buffer.vertexBuffer());
-                    for (int textureUnit = 0; textureUnit < 12; textureUnit++) {
-                        var texture = RenderSystem.getShaderTexture(textureUnit);
-                        if (texture != null) {
-                            pass.bindSampler("Sampler" + textureUnit, texture);
-                        }
-                    }
-                    pass.setIndexBuffer(buffer.indexBuffer(), buffer.indexType());
-                    pass.drawIndexed(0, 0, buffer.indexCount(), 1);
+        private static void drawLayerBuffer(LayerKey layer, LayerBuffer buffer) {
+            RenderLayer renderLayer = layer.renderLayer();
+            RenderPipeline pipeline = buffer.pipeline(renderLayer, renderLayer.getRenderPipeline());
+            var colorAttachment = Objects.requireNonNull(RenderSystem.outputColorTextureOverride);
+            var depthAttachment = RenderSystem.outputDepthTextureOverride;
+            var dynamicTransforms = RenderSystem.getDynamicUniforms().write(
+                    RenderSystem.getModelViewMatrix(),
+                    new Vector4f(1.0F, 1.0F, 1.0F, 1.0F),
+                    ZERO_MODEL_OFFSET,
+                    new Matrix4f()
+            );
+            RenderSetup setup = ((RenderLayerAccessor) (Object) renderLayer).quickcraft$getRenderSetup();
+            try (RenderPass pass = RenderSystem.getDevice().createCommandEncoder().createRenderPass(
+                    () -> "QuickCraft preview " + renderLayer,
+                    colorAttachment,
+                    OptionalInt.empty(),
+                    depthAttachment,
+                    OptionalDouble.empty()
+            )) {
+                pass.setPipeline(pipeline);
+                RenderSystem.bindDefaultUniforms(pass);
+                pass.setUniform("DynamicTransforms", dynamicTransforms);
+                pass.setVertexBuffer(0, buffer.vertexBuffer());
+                for (var entry : setup.resolveTextures().entrySet()) {
+                    var texture = entry.getValue();
+                    var sampler = layer == LayerKey.CUTOUT && "Sampler0".equals(entry.getKey())
+                            ? RenderSystem.getSamplerCache().get(
+                                    AddressMode.CLAMP_TO_EDGE,
+                                    AddressMode.CLAMP_TO_EDGE,
+                                    FilterMode.NEAREST,
+                                    FilterMode.NEAREST,
+                                    false
+                            )
+                            : texture.sampler();
+                    pass.bindTexture(entry.getKey(), texture.textureView(), sampler);
                 }
-            } finally {
-                renderLayer.endDrawing();
+                pass.setIndexBuffer(buffer.indexBuffer(), buffer.indexType());
+                pass.drawIndexed(0, 0, buffer.indexCount(), 1);
             }
         }
 
@@ -724,7 +732,7 @@ public final class QuickLitematicaPreview3D {
             };
 
             context.drawCenteredTextWithShadow(MinecraftClient.getInstance().textRenderer, text, x + size / 2, barY - 14, textColor);
-            RenderUtils.drawOutlinedBox(context, barX, barY, barWidth, 10, 0xB0000000, 0xFF707070);
+            RenderUtils.drawOutlinedBox(GuiContext.fromGuiGraphics(context), barX, barY, barWidth, 10, 0xB0000000, 0xFF707070);
             if (fill > 0) {
                 context.fill(barX + 1, barY + 1, barX + 1 + fill, barY + 9,
                         this.state == State.FAILED || this.state == State.TOO_LARGE ? 0xFFAA3333 : 0xFF4DB36A);
@@ -857,9 +865,7 @@ public final class QuickLitematicaPreview3D {
                                com.mojang.blaze3d.vertex.VertexFormat.IndexType indexType,
                                boolean ownsIndexBuffer) implements AutoCloseable {
         private RenderPipeline pipeline(RenderLayer renderLayer, RenderPipeline defaultPipeline) {
-            return renderLayer == RenderLayer.getTranslucentMovingBlock()
-                    ? RenderPipelines.TRANSLUCENT
-                    : defaultPipeline;
+            return defaultPipeline;
         }
 
         @Override
@@ -1294,7 +1300,7 @@ public final class QuickLitematicaPreview3D {
                 return;
             }
 
-            BlockRenderLayer fluidLayer = RenderLayers.getFluidLayer(fluidState);
+            BlockRenderLayer fluidLayer = BlockRenderLayers.getFluidLayer(fluidState);
             matrices.push();
             matrices.translate(-(pos.getX() & 15), -(pos.getY() & 15), -(pos.getZ() & 15));
             matrices.translate(renderPos.getX(), renderPos.getY(), renderPos.getZ());
@@ -1320,7 +1326,8 @@ public final class QuickLitematicaPreview3D {
             matrices.translate(renderPos.getX(), renderPos.getY(), renderPos.getZ());
 
             var model = blockRenderManager.getModel(state);
-            BlockRenderLayer blockLayer = RenderLayers.getBlockLayer(state);
+            BlockRenderLayer blockLayer = BlockRenderLayers.getBlockLayer(state);
+            random.setSeed(state.getRenderingSeed(pos));
             blockRenderManager.renderBlock(
                     state,
                     pos,
@@ -1345,31 +1352,31 @@ public final class QuickLitematicaPreview3D {
         SOLID(0) {
             @Override
             RenderLayer renderLayer() {
-                return RenderLayer.getSolid();
+                return RenderLayers.solid();
             }
         },
         CUTOUT_MIPPED(1) {
             @Override
             RenderLayer renderLayer() {
-                return RenderLayer.getCutoutMipped();
+                return RenderLayers.cutout();
             }
         },
         CUTOUT(2) {
             @Override
             RenderLayer renderLayer() {
-                return RenderLayer.getCutout();
+                return RenderLayers.cutout();
             }
         },
         TRIPWIRE(3) {
             @Override
             RenderLayer renderLayer() {
-                return RenderLayer.getTripwire();
+                return RenderLayers.tripwire();
             }
         },
         TRANSLUCENT(4) {
             @Override
             RenderLayer renderLayer() {
-                return RenderLayer.getTranslucentMovingBlock();
+                return RenderLayers.translucentMovingBlock();
             }
         };
 
@@ -1383,19 +1390,16 @@ public final class QuickLitematicaPreview3D {
         abstract RenderLayer renderLayer();
 
         private static LayerKey from(RenderLayer layer) {
-            if (layer == RenderLayer.getSolid()) {
+            if (layer == RenderLayers.solid()) {
                 return SOLID;
             }
-            if (layer == RenderLayer.getCutoutMipped()) {
-                return CUTOUT_MIPPED;
-            }
-            if (layer == RenderLayer.getCutout()) {
+            if (layer == RenderLayers.cutout()) {
                 return CUTOUT;
             }
-            if (layer == RenderLayer.getTripwire()) {
+            if (layer == RenderLayers.tripwire()) {
                 return TRIPWIRE;
             }
-            if (layer == RenderLayer.getTranslucentMovingBlock() || layer.isTranslucent()) {
+            if (layer == RenderLayers.translucentMovingBlock() || layer.isTranslucent()) {
                 return TRANSLUCENT;
             }
             return SOLID;
@@ -1404,7 +1408,6 @@ public final class QuickLitematicaPreview3D {
         private static LayerKey from(BlockRenderLayer layer) {
             return switch (layer) {
                 case SOLID -> SOLID;
-                case CUTOUT_MIPPED -> CUTOUT_MIPPED;
                 case CUTOUT -> CUTOUT;
                 case TRIPWIRE -> TRIPWIRE;
                 case TRANSLUCENT -> TRANSLUCENT;
@@ -1533,6 +1536,11 @@ public final class QuickLitematicaPreview3D {
         }
 
         @Override
+        public VertexConsumer lineWidth(float width) {
+            return this;
+        }
+
+        @Override
         public void vertex(float x, float y, float z, int color, float u, float v, int overlay, int light, float normalX, float normalY, float normalZ) {
             this.collector.addVertex(this.vertices, x, y, z, color, u, v, overlay, light, normalX, normalY, normalZ);
         }
@@ -1560,6 +1568,12 @@ public final class QuickLitematicaPreview3D {
         }
 
         @Override
+        public VertexConsumer color(int argb) {
+            this.delegate.color(argb);
+            return this;
+        }
+
+        @Override
         public VertexConsumer texture(float u, float v) {
             this.delegate.texture(u, v);
             return this;
@@ -1572,14 +1586,32 @@ public final class QuickLitematicaPreview3D {
         }
 
         @Override
+        public VertexConsumer overlay(int uv) {
+            this.delegate.overlay(uv);
+            return this;
+        }
+
+        @Override
         public VertexConsumer light(int u, int v) {
             this.delegate.light(u, v);
             return this;
         }
 
         @Override
+        public VertexConsumer light(int uv) {
+            this.delegate.light(uv);
+            return this;
+        }
+
+        @Override
         public VertexConsumer normal(float x, float y, float z) {
             this.delegate.normal(x, y, z);
+            return this;
+        }
+
+        @Override
+        public VertexConsumer lineWidth(float width) {
+            this.delegate.lineWidth(width);
             return this;
         }
     }
