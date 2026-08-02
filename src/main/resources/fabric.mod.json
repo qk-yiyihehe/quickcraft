@@ -42,10 +42,10 @@
   ],
   "depends": {
     "fabricloader": ">=0.15.0",
-    "minecraft": ">=1.21.9 <=1.21.10",
+    "minecraft": "1.21.11",
     "java": ">=21",
     "fabric-api": "*",
-    "malilib": ">=0.26.8"
+    "malilib": ">=0.27.14 <0.28.0"
   },
   "suggests": {
     "litematica": "*",
