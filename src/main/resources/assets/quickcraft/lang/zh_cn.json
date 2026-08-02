@@ -195,6 +195,7 @@
   "quickcraft.message.crafting.stopped": "QuickCraft: 自动处理已停止",
   "quickcraft.message.crafting.no_ingredients": "QuickCraft: 原料不足，已停止",
   "quickcraft.message.stonecutter.no_selection": "QuickCraft: 未选择切石产物",
+  "quickcraft.message.stonecutter.sync_timeout": "QuickCraft: 等待切石机同步超时",
   "quickcraft.message.litematica_autofill.no_container_content": "QuickCraft: 当前位置没有可用的投影容器内容",
   "quickcraft.message.container_copy.recording": "QuickCraft: 正在记录%s内容",
   "quickcraft.message.container_copy.recorded": "QuickCraft: 已记录%s内容",
