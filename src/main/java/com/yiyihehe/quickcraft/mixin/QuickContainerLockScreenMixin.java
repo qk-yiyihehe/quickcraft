@@ -14,10 +14,11 @@ import org.lwjgl.glfw.GLFW;
 /**
  * 通用槽位锁覆盖层。
  * 这里只负责显示和槽位点击，右上角按钮由各自界面 mixin 负责。
+ * 1.21.6+ 的 RecipeBookScreen 绕过 render 并直接调用 renderMain，注入后者才能覆盖生存背包等配方书界面。
  */
 @Mixin(HandledScreen.class)
 public abstract class QuickContainerLockScreenMixin {
-    @Inject(method = "render", at = @At("TAIL"))
+    @Inject(method = "renderMain", at = @At("TAIL"))
     private void quickcraft$renderSlotLocks(DrawContext context, int mouseX, int mouseY, float delta, CallbackInfo ci) {
         HandledScreen<?> screen = (HandledScreen<?>) (Object) this;
         HandledScreenAccessor accessor = (HandledScreenAccessor) this;
