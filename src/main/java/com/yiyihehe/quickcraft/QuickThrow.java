@@ -4,6 +4,9 @@ import com.yiyihehe.quickcraft.config.QuickCraftConfigs;
 import com.yiyihehe.quickcraft.gui.QuickCraftConfigScreen;
 import com.yiyihehe.quickcraft.mixin.HandledScreenAccessor;
 import com.yiyihehe.quickcraft.mixin.CreativeSlotAccessor;
+import fi.dy.masa.malilib.event.InputEventHandler;
+import fi.dy.masa.malilib.hotkeys.IKeybind;
+import fi.dy.masa.malilib.hotkeys.IKeyboardInputHandler;
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.minecraft.client.MinecraftClient;
@@ -32,15 +35,16 @@ import java.util.Set;
  * - Q：保留原版行为
  * - 自定义组合键 A：整组丢弃鼠标指向槽位
  * - 自定义组合键 B：丢弃鼠标当前所在容器区域内，与鼠标指向物品相同的全部可见物品
- * - 按住自定义组合键滑过槽位时，每个滑过的槽位只触发一次，手感接近原版拖拽操作
+ * - 短按只执行一次；进入系统键盘重复后才持续处理当前槽位
  */
-public final class QuickThrow implements ClientModInitializer {
+public final class QuickThrow implements ClientModInitializer, IKeyboardInputHandler {
     private static final int SLOT_SIZE = 18;
     private static final int SLIDE_SAMPLE_STEP = SLOT_SIZE / 2;
-    private static final Set<SlotKey> handledSlotsInGesture = new HashSet<>();
+    private static final Set<Integer> pressedKeyboardKeys = new HashSet<>();
 
     private static ThrowMode activeMode = ThrowMode.NONE;
     private static HandledScreen<?> activeScreen;
+    private static Slot lastHoveredSlot;
     private static boolean hasLastMousePosition;
     private static int lastMouseX;
     private static int lastMouseY;
@@ -48,6 +52,75 @@ public final class QuickThrow implements ClientModInitializer {
     @Override
     public void onInitializeClient() {
         ClientTickEvents.END_CLIENT_TICK.register(this::onClientTick);
+        InputEventHandler.getInputManager().registerKeyboardInputHandler(this);
+    }
+
+    @Override
+    public boolean onKeyInput(int keyCode, int scanCode, int modifiers, boolean eventKeyState) {
+        if (keyCode < 0) {
+            return false;
+        }
+
+        boolean repeatedEvent = eventKeyState && !pressedKeyboardKeys.add(keyCode);
+        if (!eventKeyState) {
+            pressedKeyboardKeys.remove(keyCode);
+            if (getHeldThrowMode() == ThrowMode.NONE) {
+                resetHoldGesture();
+            }
+            return false;
+        }
+
+        MinecraftClient client = MinecraftClient.getInstance();
+        if (!(client.currentScreen instanceof HandledScreen<?> screen) || !canUseQuickThrow(client, screen)) {
+            return false;
+        }
+
+        return handleActiveThrowKeyEvent(
+                QuickCraftConfigs.Hotkeys.DROP_MATCHING.getKeybind(),
+                keyCode,
+                repeatedEvent,
+                ThrowMode.MATCHING,
+                screen
+        ) || handleActiveThrowKeyEvent(
+                QuickCraftConfigs.Hotkeys.DROP_WHOLE_STACK.getKeybind(),
+                keyCode,
+                repeatedEvent,
+                ThrowMode.WHOLE_STACK,
+                screen
+        );
+    }
+
+    private static boolean handleActiveThrowKeyEvent(IKeybind keybind,
+                                                     int keyCode,
+                                                     boolean repeatedEvent,
+                                                     ThrowMode mode,
+                                                     HandledScreen<?> screen) {
+        if (!keybind.isKeybindHeld() || !isRepeatTriggerKey(keybind, keyCode)) {
+            return false;
+        }
+
+        MinecraftClient client = MinecraftClient.getInstance();
+        Slot hoveredSlot = findHoveredSlot(screen, getMouseX(client), getMouseY(client));
+        if (shouldUseVanillaCreativeThrow(screen, hoveredSlot)) {
+            return false;
+        }
+
+        if (repeatedEvent) {
+            ensureHoldGesture(mode, screen);
+            if (hoveredSlot == null) {
+                lastHoveredSlot = null;
+            } else {
+                processHoveredSlot(screen, hoveredSlot, mode, true);
+            }
+        }
+
+        // 首次按下由热键回调执行；QuickCraft 接管的槽位统一吞掉 PRESS/REPEAT，避免回退到原版 Q。
+        return true;
+    }
+
+    private static boolean isRepeatTriggerKey(IKeybind keybind, int keyCode) {
+        List<Integer> keys = keybind.getKeys();
+        return !keys.isEmpty() && keys.get(keys.size() - 1) == keyCode;
     }
 
     public static boolean handleDropMatchingHotkey() {
@@ -68,6 +141,12 @@ public final class QuickThrow implements ClientModInitializer {
     }
 
     private void onClientTick(MinecraftClient client) {
+        if (!client.isWindowFocused()) {
+            pressedKeyboardKeys.clear();
+            resetHoldGesture();
+            return;
+        }
+
         ThrowMode mode = getHeldThrowMode();
         if (mode == ThrowMode.NONE) {
             resetHoldGesture();
@@ -84,7 +163,14 @@ public final class QuickThrow implements ClientModInitializer {
         ensureHoldGesture(mode, screen);
 
         for (Slot slot : findHoveredSlotsAlongPath(screen, mouseX, mouseY)) {
-            processHoveredSlot(screen, slot, mode, true);
+            processHoveredSlot(screen, slot, mode, false);
+        }
+
+        Slot hoveredSlot = findHoveredSlot(screen, mouseX, mouseY);
+        if (hoveredSlot == null) {
+            lastHoveredSlot = null;
+        } else {
+            processHoveredSlot(screen, hoveredSlot, mode, false);
         }
 
         hasLastMousePosition = true;
@@ -114,10 +200,11 @@ public final class QuickThrow implements ClientModInitializer {
 
         Slot hoveredSlot = findHoveredSlot(screen, mouseX, mouseY);
         if (hoveredSlot == null) {
+            lastHoveredSlot = null;
             return false;
         }
 
-        boolean handled = processHoveredSlot(screen, hoveredSlot, mode, true);
+        boolean handled = processHoveredSlot(screen, hoveredSlot, mode, false);
         hasLastMousePosition = true;
         lastMouseX = mouseX;
         lastMouseY = mouseY;
@@ -139,32 +226,33 @@ public final class QuickThrow implements ClientModInitializer {
 
         activeMode = mode;
         activeScreen = screen;
+        lastHoveredSlot = null;
         hasLastMousePosition = false;
-        handledSlotsInGesture.clear();
     }
 
     private static void resetHoldGesture() {
         activeMode = ThrowMode.NONE;
         activeScreen = null;
+        lastHoveredSlot = null;
         hasLastMousePosition = false;
-        handledSlotsInGesture.clear();
     }
 
     private static boolean processHoveredSlot(HandledScreen<?> screen,
                                               Slot hoveredSlot,
                                               ThrowMode mode,
-                                              boolean rememberGestureSlot) {
+                                              boolean allowRepeatedSlot) {
+        if (!allowRepeatedSlot && hoveredSlot == lastHoveredSlot) {
+            return false;
+        }
+        lastHoveredSlot = hoveredSlot;
+
         ThrowTarget target = getQuickThrowTarget(screen, hoveredSlot);
         if (target == null) {
             return false;
         }
 
-        if (rememberGestureSlot && !handledSlotsInGesture.add(target.key())) {
-            return false;
-        }
-
         if (mode == ThrowMode.MATCHING) {
-            return dropAllMatchingStacks(screen, target, rememberGestureSlot);
+            return dropAllMatchingStacks(screen, target);
         }
 
         dropWholeStack(target);
@@ -172,8 +260,7 @@ public final class QuickThrow implements ClientModInitializer {
     }
 
     private static boolean dropAllMatchingStacks(HandledScreen<?> screen,
-                                                 ThrowTarget hoveredTarget,
-                                                 boolean rememberGestureSlot) {
+                                                 ThrowTarget hoveredTarget) {
         ItemStack template = hoveredTarget.visibleSlot().getStack();
         if (template.isEmpty()) {
             return false;
@@ -195,9 +282,6 @@ public final class QuickThrow implements ClientModInitializer {
 
         // 先拍快照再点击，避免边遍历边修改槽位集合时影响本轮决策。
         for (ThrowTarget target : matchingTargets) {
-            if (rememberGestureSlot) {
-                handledSlotsInGesture.add(target.key());
-            }
             dropWholeStack(target);
         }
 
@@ -316,6 +400,16 @@ public final class QuickThrow implements ClientModInitializer {
         return new ThrowTarget(screen, handler, slot, effectiveSlot, clickSlotId);
     }
 
+    private static boolean shouldUseVanillaCreativeThrow(HandledScreen<?> screen, Slot slot) {
+        if (!(screen instanceof CreativeInventoryScreen) || slot == null) {
+            return false;
+        }
+
+        Slot effectiveSlot = unwrapCreativeSlot(slot);
+        return !(effectiveSlot.inventory instanceof PlayerInventory)
+                || !isPlayerStorageIndex(effectiveSlot.getIndex());
+    }
+
     private static int getClickSlotId(ScreenHandler handler, Slot slot) {
         int slotIndex = handler.slots.indexOf(slot);
         return slotIndex >= 0 ? slotIndex : -1;
@@ -382,11 +476,5 @@ public final class QuickThrow implements ClientModInitializer {
                                Slot visibleSlot,
                                Slot effectiveSlot,
                                int clickSlotId) {
-        private SlotKey key() {
-            return new SlotKey(this.handler, this.clickSlotId);
-        }
-    }
-
-    private record SlotKey(ScreenHandler handler, int slotId) {
     }
 }
