@@ -57,11 +57,20 @@ public class QuickCraftWorkbench implements ClientModInitializer {
 
     private int craftingResultWaitTicks = 0;
 
+    // 阻止特殊配方在同一 Tick 内重复读取 burst 后的预测状态；下一 Tick 立即继续。
+    private int manualGridSyncWaitTicks = 0;
+
     private RecipeEntry<CraftingRecipe> lockedRecipe = null;
 
     private List<ItemStack> lockedCraftingPattern = new ArrayList<>();
 
     private ItemStack lockedResultTemplate = ItemStack.EMPTY;
+
+    private enum ManualPatternState {
+        COMPLETE,
+        MISSING,
+        INVALID
+    }
 
     @Override
     public void onInitializeClient() {
@@ -107,6 +116,9 @@ public class QuickCraftWorkbench implements ClientModInitializer {
     private void processRapidCraftTick(MinecraftClient client,
                                        CraftingScreenHandler handler,
                                        RecipeEntry<CraftingRecipe> recipe) {
+        if (waitForManualGridSync()) {
+            return;
+        }
         if (waitForCraftingResult(client, handler)) {
             return;
         }
@@ -118,7 +130,7 @@ public class QuickCraftWorkbench implements ClientModInitializer {
             if (progressed) {
                 anyProgress = true;
             }
-            if (!rapidCraftingActive || craftingResultWaitTicks > 0) {
+            if (!rapidCraftingActive || craftingResultWaitTicks > 0 || manualGridSyncWaitTicks > 0) {
                 break;
             }
             if (!progressed) {
@@ -197,7 +209,9 @@ public class QuickCraftWorkbench implements ClientModInitializer {
             if (rapidCraftingActive && !handler.getSlot(OUTPUT_SLOT).hasStack()) {
                 craftingResultWaitTicks = CRAFTING_RESULT_WAIT_TICKS;
             }
-            tryTakeOutputForRecipe(client, handler, recipe);
+            if (!manualRecipe || !rapidCraftingActive) {
+                tryTakeOutputForRecipe(client, handler, recipe);
+            }
             return true;
         }
 
@@ -219,6 +233,19 @@ public class QuickCraftWorkbench implements ClientModInitializer {
             stopRapidCraft(client, Text.translatable("quickcraft.message.crafting.no_ingredients"));
         }
         return true;
+    }
+
+    private boolean waitForManualGridSync() {
+        if (manualGridSyncWaitTicks <= 0) {
+            return false;
+        }
+
+        manualGridSyncWaitTicks--;
+        return manualGridSyncWaitTicks > 0;
+    }
+
+    private void beginManualGridSync() {
+        manualGridSyncWaitTicks = 1;
     }
 
     private void handleSingleCraft(MinecraftClient client, CraftingScreenHandler handler) {
@@ -1232,6 +1259,7 @@ public class QuickCraftWorkbench implements ClientModInitializer {
         rapidCooldown = 0;
         consecutiveFailures = 0;
         craftingResultWaitTicks = 0;
+        manualGridSyncWaitTicks = 0;
         sendStatusMessage(client, Text.translatable("quickcraft.message.crafting.started"));
         return true;
     }
@@ -1279,6 +1307,7 @@ public class QuickCraftWorkbench implements ClientModInitializer {
         rapidCooldown = 0;
         consecutiveFailures = 0;
         craftingResultWaitTicks = 0;
+        manualGridSyncWaitTicks = 0;
         sendStatusMessage(client, message);
     }
 
@@ -1288,6 +1317,7 @@ public class QuickCraftWorkbench implements ClientModInitializer {
         rapidCooldown = 0;
         consecutiveFailures = 0;
         craftingResultWaitTicks = 0;
+        manualGridSyncWaitTicks = 0;
         lockedRecipe = null;
         lockedCraftingPattern.clear();
         lockedResultTemplate = ItemStack.EMPTY;
