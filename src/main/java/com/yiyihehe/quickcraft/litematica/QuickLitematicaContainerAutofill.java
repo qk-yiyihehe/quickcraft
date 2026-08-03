@@ -7,22 +7,22 @@ import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
 import net.fabricmc.loader.api.FabricLoader;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.gui.screen.ingame.HandledScreen;
-import net.minecraft.screen.ScreenHandler;
-import net.minecraft.text.Text;
-import net.minecraft.util.Identifier;
-import net.minecraft.util.hit.BlockHitResult;
-import net.minecraft.util.hit.HitResult;
-import net.minecraft.util.math.BlockPos;
-import net.minecraft.world.World;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
+import net.minecraft.world.inventory.AbstractContainerMenu;
+import net.minecraft.network.chat.Component;
+import net.minecraft.resources.Identifier;
+import net.minecraft.world.phys.BlockHitResult;
+import net.minecraft.world.phys.HitResult;
+import net.minecraft.core.BlockPos;
+import net.minecraft.world.level.Level;
 
 /**
  * 根据当前投影中对应位置的容器内容，自动填充玩家右键打开的实际容器。
  */
 public final class QuickLitematicaContainerAutofill implements ClientModInitializer {
     private static final int OPEN_TIMEOUT_TICKS = 20;
-    private static final Identifier QUICK_SHULKER_BUNDLE_PACKET = Identifier.of("quickshulker", "quick_bundleheld_packet");
+    private static final Identifier QUICK_SHULKER_BUNDLE_PACKET = Identifier.fromNamespaceAndPath("quickshulker", "quick_bundleheld_packet");
 
     private boolean lastUseDown;
     private BlockPos pendingContainerPos;
@@ -34,7 +34,7 @@ public final class QuickLitematicaContainerAutofill implements ClientModInitiali
         ClientTickEvents.END_CLIENT_TICK.register(this::onClientTick);
     }
 
-    private void onClientTick(MinecraftClient client) {
+    private void onClientTick(Minecraft client) {
         if (!QuickCraftConfigs.isLitematicaContainerAutofillEnabled()) {
             lastUseDown = false;
             pendingContainerPos = null;
@@ -46,31 +46,31 @@ public final class QuickLitematicaContainerAutofill implements ClientModInitiali
         processPendingOpen(client);
     }
 
-    private void handleUseAttempt(MinecraftClient client) {
-        if (client.player == null || client.world == null) {
+    private void handleUseAttempt(Minecraft client) {
+        if (client.player == null || client.level == null) {
             lastUseDown = false;
             return;
         }
 
-        boolean useDown = QuickCraftKeyBindings.isBoundKeyDown(client, client.options.useKey);
-        if (useDown && !lastUseDown && client.currentScreen == null) {
+        boolean useDown = QuickCraftKeyBindings.isBoundKeyDown(client, client.options.keyUse);
+        if (useDown && !lastUseDown && client.screen == null) {
             BlockHitResult hitResult = getLookedAtBlock(client);
             if (hitResult != null && shouldHandleTarget(client, hitResult)) {
                 BlockPos pos = hitResult.getBlockPos();
-                pendingContainerPos = pos.toImmutable();
+                pendingContainerPos = pos.immutable();
                 pendingTicks = 0;
             }
         }
         lastUseDown = useDown;
     }
 
-    private void processPendingOpen(MinecraftClient client) {
+    private void processPendingOpen(Minecraft client) {
         if (pendingContainerPos == null) {
             return;
         }
 
         pendingTicks++;
-        if (!(client.currentScreen instanceof HandledScreen<?> screen)) {
+        if (!(client.screen instanceof AbstractContainerScreen<?> screen)) {
             if (pendingTicks > OPEN_TIMEOUT_TICKS) {
                 pendingContainerPos = null;
                 pendingTicks = 0;
@@ -84,14 +84,14 @@ public final class QuickLitematicaContainerAutofill implements ClientModInitiali
 
         QuickContainerCopy.TemplateSnapshot snapshot = getTemplateSnapshot(client, pos);
         if (snapshot == null) {
-            sendStatusMessage(client, Text.translatable("quickcraft.message.litematica_autofill.no_container_content"));
+            sendStatusMessage(client, Component.translatable("quickcraft.message.litematica_autofill.no_container_content"));
             closeCurrentScreen(client);
             return;
         }
 
-        ScreenHandler handler = screen.getScreenHandler();
+        AbstractContainerMenu handler = screen.getMenu();
         if (!QuickContainerCopy.canApplyTemplateSnapshot(handler, snapshot)) {
-            sendStatusMessage(client, Text.translatable("quickcraft.message.container_copy.projection_type_mismatch"));
+            sendStatusMessage(client, Component.translatable("quickcraft.message.container_copy.projection_type_mismatch"));
             closeCurrentScreen(client);
             return;
         }
@@ -100,8 +100,8 @@ public final class QuickLitematicaContainerAutofill implements ClientModInitiali
         closeCurrentScreen(client);
     }
 
-    private BlockHitResult getLookedAtBlock(MinecraftClient client) {
-        HitResult hitResult = client.crosshairTarget;
+    private BlockHitResult getLookedAtBlock(Minecraft client) {
+        HitResult hitResult = client.hitResult;
         if (!(hitResult instanceof BlockHitResult blockHitResult) || blockHitResult.getType() != HitResult.Type.BLOCK) {
             return null;
         }
@@ -109,7 +109,7 @@ public final class QuickLitematicaContainerAutofill implements ClientModInitiali
         return blockHitResult;
     }
 
-    private boolean shouldHandleTarget(MinecraftClient client, BlockHitResult hitResult) {
+    private boolean shouldHandleTarget(Minecraft client, BlockHitResult hitResult) {
         QuickContainerCopy.TemplateSnapshot snapshot = getTemplateSnapshot(client, hitResult.getBlockPos());
         if (snapshot == null) {
             return false;
@@ -119,14 +119,14 @@ public final class QuickLitematicaContainerAutofill implements ClientModInitiali
         return actualType == snapshot.type();
     }
 
-    public static QuickContainerCopy.TemplateSnapshot getTemplateSnapshot(MinecraftClient client, BlockPos pos) {
-        if (!FabricLoader.getInstance().isModLoaded("litematica") || client.world == null) {
+    public static QuickContainerCopy.TemplateSnapshot getTemplateSnapshot(Minecraft client, BlockPos pos) {
+        if (!FabricLoader.getInstance().isModLoaded("litematica") || client.level == null) {
             return null;
         }
 
-        World world = fi.dy.masa.malilib.util.WorldUtils.getBestWorld(client);
+        Level world = fi.dy.masa.malilib.util.WorldUtils.getBestWorld(client);
         QuickContainerCopy.TemplateSnapshot snapshot =
-                QuickLitematicaContainerVerifier.getTemplateSnapshotAt(world != null ? world : client.world, pos);
+                QuickLitematicaContainerVerifier.getTemplateSnapshotAt(world != null ? world : client.level, pos);
         return QuickLitematicaContainerReplacements.applyToSnapshot(snapshot);
     }
 
@@ -143,25 +143,25 @@ public final class QuickLitematicaContainerAutofill implements ClientModInitiali
         }
     }
 
-    private void closeCurrentScreen(MinecraftClient client) {
+    private void closeCurrentScreen(Minecraft client) {
         QuickLitematicaContainerVerifier.clearCurrentHandledScreenBinding();
         if (client.player != null) {
-            client.player.closeHandledScreen();
+            client.player.closeContainer();
         }
     }
 
-    private void sendStatusMessage(MinecraftClient client, Text message) {
+    private void sendStatusMessage(Minecraft client, Component message) {
         if (client.player != null) {
-            client.player.sendMessage(message, true);
+            client.player.sendOverlayMessage(message);
         }
     }
 
-    public static boolean shouldHandleCurrentTarget(MinecraftClient client) {
+    public static boolean shouldHandleCurrentTarget(Minecraft client) {
         if (!QuickCraftConfigs.isLitematicaContainerAutofillEnabled()
                 || client == null
                 || client.player == null
-                || client.world == null
-                || client.currentScreen != null) {
+                || client.level == null
+                || client.screen != null) {
             return false;
         }
 

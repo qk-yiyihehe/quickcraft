@@ -2,12 +2,12 @@ package com.yiyihehe.quickcraft.mixin;
 
 import com.yiyihehe.quickcraft.QuickContainerCopy;
 import com.yiyihehe.quickcraft.litematica.QuickLitematicaContainerVerifier;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.network.ClientPlayerEntity;
-import net.minecraft.client.network.ClientPlayerInteractionManager;
-import net.minecraft.util.ActionResult;
-import net.minecraft.util.Hand;
-import net.minecraft.util.hit.BlockHitResult;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.player.LocalPlayer;
+import net.minecraft.client.multiplayer.MultiPlayerGameMode;
+import net.minecraft.world.InteractionResult;
+import net.minecraft.world.InteractionHand;
+import net.minecraft.world.phys.BlockHitResult;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
@@ -17,20 +17,20 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
  * 记录玩家最近一次成功打开的容器位置。
  * 让容器校验能在真正打开容器后回填实时库存内容。
  */
-@Mixin(ClientPlayerInteractionManager.class)
+@Mixin(MultiPlayerGameMode.class)
 public class LitematicaClientPlayerInteractionManagerMixin {
-    @Inject(method = "interactBlock", at = @At("RETURN"))
+    @Inject(method = "useItemOn", at = @At("RETURN"))
     private void quickcraft$rememberOpenedContainer(
-            ClientPlayerEntity player,
-            Hand hand,
+            LocalPlayer player,
+            InteractionHand hand,
             BlockHitResult hitResult,
-            CallbackInfoReturnable<ActionResult> cir
+            CallbackInfoReturnable<InteractionResult> cir
     ) {
-        ActionResult result = cir.getReturnValue();
+        InteractionResult result = cir.getReturnValue();
 
-        if (result != null && result.isAccepted()
+        if (result != null && result.consumesAction()
                 && !QuickContainerCopy.shouldSuppressContainerVerifierRemember()) {
-            QuickLitematicaContainerVerifier.rememberContainerUse(MinecraftClient.getInstance(), hitResult);
+            QuickLitematicaContainerVerifier.rememberContainerUse(Minecraft.getInstance(), hitResult);
         }
     }
 }

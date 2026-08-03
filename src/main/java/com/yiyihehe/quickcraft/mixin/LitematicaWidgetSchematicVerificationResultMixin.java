@@ -6,7 +6,7 @@ import fi.dy.masa.litematica.gui.GuiSchematicVerifier;
 import fi.dy.masa.litematica.gui.widgets.WidgetSchematicVerificationResult;
 import fi.dy.masa.malilib.gui.widgets.WidgetListEntrySortable;
 import fi.dy.masa.malilib.render.GuiContext;
-import net.minecraft.client.MinecraftClient;
+import net.minecraft.client.Minecraft;
 import org.jetbrains.annotations.Nullable;
 import org.spongepowered.asm.mixin.Final;
 import org.spongepowered.asm.mixin.Mixin;
@@ -66,7 +66,7 @@ public abstract class LitematicaWidgetSchematicVerificationResultMixin
                 extension.quickcraft$getFoundDisabledSlots(),
                 mouseX,
                 mouseY,
-                MinecraftClient.getInstance(),
+                Minecraft.getInstance(),
                 drawContext
         );
         ci.cancel();

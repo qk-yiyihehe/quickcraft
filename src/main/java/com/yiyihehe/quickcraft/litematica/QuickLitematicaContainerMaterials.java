@@ -30,26 +30,26 @@ import fi.dy.masa.malilib.render.RenderUtils;
 import fi.dy.masa.malilib.util.ItemType;
 import fi.dy.masa.malilib.util.StringUtils;
 import it.unimi.dsi.fastutil.objects.Object2IntOpenHashMap;
-import net.minecraft.block.BlockState;
-import net.minecraft.block.ChestBlock;
-import net.minecraft.block.ShulkerBoxBlock;
-import net.minecraft.block.enums.ChestType;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.gui.screen.Screen;
-import net.minecraft.item.BlockItem;
-import net.minecraft.item.Item;
-import net.minecraft.item.ItemStack;
-import net.minecraft.item.Items;
-import net.minecraft.nbt.NbtCompound;
-import net.minecraft.nbt.NbtList;
+import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.block.ChestBlock;
+import net.minecraft.world.level.block.ShulkerBoxBlock;
+import net.minecraft.world.level.block.state.properties.ChestType;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.screens.Screen;
+import net.minecraft.world.item.BlockItem;
+import net.minecraft.world.item.Item;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Items;
+import net.minecraft.nbt.CompoundTag;
+import net.minecraft.nbt.ListTag;
 import net.minecraft.nbt.NbtOps;
-import net.minecraft.registry.Registries;
-import net.minecraft.registry.RegistryWrapper;
-import net.minecraft.util.Identifier;
-import net.minecraft.util.collection.DefaultedList;
-import net.minecraft.util.math.BlockPos;
-import net.minecraft.util.math.Direction;
-import net.minecraft.util.math.Vec3i;
+import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.core.HolderLookup;
+import net.minecraft.resources.Identifier;
+import net.minecraft.core.NonNullList;
+import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
+import net.minecraft.core.Vec3i;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -95,14 +95,29 @@ public final class QuickLitematicaContainerMaterials {
 
     public static ButtonPlacement getButtonPlacement(GuiSchematicLoad gui, int buttonWidth) {
         int y = gui.getScreenHeight() - 26;
-        int x = 12;
-        x += getDefaultButtonWidth(gui, "litematica.gui.button.load_schematic_to_memory") + BUTTON_GAP;
-        x += getDefaultButtonWidth(gui, "litematica.gui.button.material_list") + BUTTON_GAP;
-        x += getDefaultButtonWidth(gui, "litematica.gui.button.rename_schematic") + BUTTON_GAP;
-        x += getDefaultButtonWidth(gui, "litematica.gui.button.rename_file") + BUTTON_GAP;
-        x += gui.getStringWidth(StringUtils.translate("litematica.gui.button.change_menu.show_loaded_schematics")) + 30 + BUTTON_GAP;
+        List<ButtonBase> buttons = ((GuiBaseAccessor) (Object) gui).quickcraft$getButtons();
+        ButtonBase mainMenuButton = buttons.stream()
+                .filter(button -> button.getY() == y)
+                // Litematica 0.27.9 把主菜单按钮固定在距右边缘 10 px 的位置。
+                .filter(button -> button.getX() + button.getWidth() == gui.getScreenWidth() - 10)
+                .reduce((first, second) -> second)
+                .orElse(null);
+        int mainMenuX = mainMenuButton != null ? mainMenuButton.getX() : gui.getScreenWidth() - 10;
+        int x = buttons.stream()
+                .filter(button -> button.getY() == y && button != mainMenuButton)
+                .mapToInt(button -> button.getX() + button.getWidth() + BUTTON_GAP)
+                .max()
+                .orElse(12);
 
-        return new ButtonPlacement(x, y);
+        if (x + buttonWidth <= mainMenuX - BUTTON_GAP) {
+            return new ButtonPlacement(x, y);
+        }
+
+        // 0.27.9 的文件浏览区结束于 height - 46，备用位置从这里开始且不移动原生按钮。
+        return new ButtonPlacement(
+                Math.max(12, gui.getScreenWidth() - buttonWidth - 10),
+                gui.getScreenHeight() - 46
+        );
     }
 
     public static void openForEntry(GuiSchematicLoad gui, DirectoryEntry entry) {
@@ -142,10 +157,6 @@ public final class QuickLitematicaContainerMaterials {
         GuiBase.openGui(screen);
     }
 
-    private static int getDefaultButtonWidth(GuiSchematicLoad gui, String translationKey) {
-        return gui.getStringWidth(StringUtils.translate(translationKey)) + 10;
-    }
-
     private static LitematicaSchematic readSchematic(GuiSchematicLoad gui, DirectoryEntry entry) {
         FileType fileType = FileType.fromFile(entry.getFullPath());
 
@@ -166,13 +177,13 @@ public final class QuickLitematicaContainerMaterials {
         };
     }
 
-    private static RegistryWrapper.WrapperLookup getRegistryLookup() {
-        MinecraftClient client = MinecraftClient.getInstance();
-        return client.world != null ? client.world.getRegistryManager() : null;
+    private static HolderLookup.Provider getRegistryLookup() {
+        Minecraft client = Minecraft.getInstance();
+        return client.level != null ? client.level.registryAccess() : null;
     }
 
     private static List<ContainerGroup> createContainerGroups(LitematicaSchematic schematic, Collection<String> regions) {
-        RegistryWrapper.WrapperLookup registryLookup = getRegistryLookup();
+        HolderLookup.Provider registryLookup = getRegistryLookup();
         GroupAccumulator accumulator = new GroupAccumulator();
 
         if (registryLookup == null) {
@@ -190,10 +201,10 @@ public final class QuickLitematicaContainerMaterials {
     private static void addBlockEntityContainers(
             LitematicaSchematic schematic,
             String regionName,
-            RegistryWrapper.WrapperLookup registryLookup,
+            HolderLookup.Provider registryLookup,
             GroupAccumulator accumulator
     ) {
-        Map<BlockPos, NbtCompound> blockEntities = schematic.getBlockEntityMapForRegion(regionName);
+        Map<BlockPos, CompoundTag> blockEntities = schematic.getBlockEntityMapForRegion(regionName);
 
         if (blockEntities == null || blockEntities.isEmpty()) {
             return;
@@ -202,14 +213,14 @@ public final class QuickLitematicaContainerMaterials {
         LitematicaBlockStateContainer stateContainer = schematic.getSubRegionContainer(regionName);
         Set<BlockPos> consumed = new HashSet<>();
 
-        for (Map.Entry<BlockPos, NbtCompound> entry : blockEntities.entrySet()) {
+        for (Map.Entry<BlockPos, CompoundTag> entry : blockEntities.entrySet()) {
             BlockPos pos = entry.getKey();
 
             if (consumed.contains(pos)) {
                 continue;
             }
 
-            NbtCompound nbt = entry.getValue();
+            CompoundTag nbt = entry.getValue();
             List<ItemStack> stacks = readItems(nbt, registryLookup);
 
             if (stacks.isEmpty()) {
@@ -223,7 +234,7 @@ public final class QuickLitematicaContainerMaterials {
             consumed.add(pos);
 
             if (pairedChestPos != null) {
-                NbtCompound pairedNbt = blockEntities.get(pairedChestPos);
+                CompoundTag pairedNbt = blockEntities.get(pairedChestPos);
                 stacks.addAll(readItems(pairedNbt, registryLookup));
                 consumed.add(pairedChestPos);
             }
@@ -235,7 +246,7 @@ public final class QuickLitematicaContainerMaterials {
     private static void addEntityContainers(
             LitematicaSchematic schematic,
             String regionName,
-            RegistryWrapper.WrapperLookup registryLookup,
+            HolderLookup.Provider registryLookup,
             GroupAccumulator accumulator
     ) {
         List<EntityInfo> entities = schematic.getEntityListForRegion(regionName);
@@ -245,14 +256,14 @@ public final class QuickLitematicaContainerMaterials {
         }
 
         for (EntityInfo info : entities) {
-            NbtCompound nbt = info.nbt;
+            CompoundTag nbt = info.nbt;
             List<ItemStack> stacks = readItems(nbt, registryLookup);
 
             if (stacks.isEmpty()) {
                 continue;
             }
 
-            ContainerDescriptor descriptor = describeEntityContainer(nbt.getString("id", ""));
+            ContainerDescriptor descriptor = describeEntityContainer(nbt.getString("id").orElse(""));
             addContainer(accumulator, descriptor, stacks);
         }
     }
@@ -294,7 +305,7 @@ public final class QuickLitematicaContainerMaterials {
 
             ItemStack shulkerStack = item.stack().copy();
             shulkerStack.setCount(1);
-            String shulkerName = shulkerStack.getName().getString();
+            String shulkerName = shulkerStack.getHoverName().getString();
             String shulkerSource = StringUtils.translate("quickcraft.litematica.label.source", sourceName);
             String nestedSourceName = sourceName + " / " + shulkerName;
             String nestedSourceKey = sourceKey + "/" + itemSignature(shulkerStack);
@@ -304,13 +315,13 @@ public final class QuickLitematicaContainerMaterials {
         }
     }
 
-    private static List<ItemStack> readItems(NbtCompound nbt, RegistryWrapper.WrapperLookup registryLookup) {
+    private static List<ItemStack> readItems(CompoundTag nbt, HolderLookup.Provider registryLookup) {
         if (nbt == null || !nbt.contains("Items")) {
             return List.of();
         }
 
         List<ItemStack> stacks = new ArrayList<>();
-        NbtList items = nbt.getListOrEmpty("Items");
+        ListTag items = nbt.getListOrEmpty("Items");
 
         for (int i = 0; i < items.size(); i++) {
             ItemStack stack = itemStackFromNbt(registryLookup, items.getCompoundOrEmpty(i));
@@ -323,9 +334,9 @@ public final class QuickLitematicaContainerMaterials {
         return stacks;
     }
 
-    private static ItemStack itemStackFromNbt(RegistryWrapper.WrapperLookup registryLookup, NbtCompound nbt) {
+    private static ItemStack itemStackFromNbt(HolderLookup.Provider registryLookup, CompoundTag nbt) {
         return ItemStack.OPTIONAL_CODEC
-                .parse(registryLookup.getOps(NbtOps.INSTANCE), nbt)
+                .parse(registryLookup.createSerializationContext(NbtOps.INSTANCE), nbt)
                 .result()
                 .orElse(ItemStack.EMPTY);
     }
@@ -353,7 +364,7 @@ public final class QuickLitematicaContainerMaterials {
 
     private static List<ItemStack> readStoredShulkerStacks(ItemStack shulkerStack) {
         List<ItemStack> stacks = new ArrayList<>();
-        DefaultedList<ItemStack> storedItems = fi.dy.masa.malilib.util.InventoryUtils.getStoredItems(shulkerStack);
+        NonNullList<ItemStack> storedItems = fi.dy.masa.malilib.util.InventoryUtils.getStoredItems(shulkerStack);
 
         for (ItemStack storedStack : storedItems) {
             if (!storedStack.isEmpty()) {
@@ -413,21 +424,21 @@ public final class QuickLitematicaContainerMaterials {
             BlockPos pos,
             BlockState state,
             LitematicaBlockStateContainer stateContainer,
-            Map<BlockPos, NbtCompound> blockEntities,
+            Map<BlockPos, CompoundTag> blockEntities,
             Set<BlockPos> consumed
     ) {
         if (!(state != null && state.getBlock() instanceof ChestBlock)) {
             return null;
         }
 
-        ChestType chestType = state.get(ChestBlock.CHEST_TYPE);
+        ChestType chestType = state.getValue(ChestBlock.TYPE);
 
         if (chestType == ChestType.SINGLE) {
             return null;
         }
 
         for (Direction direction : HORIZONTAL_DIRECTIONS) {
-            BlockPos otherPos = pos.offset(direction);
+            BlockPos otherPos = pos.relative(direction);
 
             if (consumed.contains(otherPos) || !blockEntities.containsKey(otherPos)) {
                 continue;
@@ -438,7 +449,7 @@ public final class QuickLitematicaContainerMaterials {
             if (otherState != null
                     && otherState.getBlock() == state.getBlock()
                     && otherState.getBlock() instanceof ChestBlock
-                    && otherState.get(ChestBlock.CHEST_TYPE) != ChestType.SINGLE) {
+                    && otherState.getValue(ChestBlock.TYPE) != ChestType.SINGLE) {
                 return otherPos;
             }
         }
@@ -448,20 +459,20 @@ public final class QuickLitematicaContainerMaterials {
 
     private static ContainerDescriptor describeBlockContainer(
             BlockState state,
-            NbtCompound nbt,
+            CompoundTag nbt,
             boolean largeChest
     ) {
         ItemStack stack = stackFromState(state);
 
         if (stack.isEmpty()) {
-            stack = stackFromBlockEntityId(nbt.getString("id", ""));
+            stack = stackFromBlockEntityId(nbt.getString("id").orElse(""));
         }
 
-        String displayName = stack.getName().getString();
+        String displayName = stack.getHoverName().getString();
         String signatureKey = itemSignature(stack);
 
         if (largeChest) {
-            String key = stack.isOf(Items.TRAPPED_CHEST)
+            String key = stack.is(Items.TRAPPED_CHEST)
                     ? "quickcraft.litematica.container.large_trapped_chest"
                     : "quickcraft.litematica.container.large_chest";
             displayName = StringUtils.translate(key);
@@ -478,7 +489,7 @@ public final class QuickLitematicaContainerMaterials {
             default -> new ItemStack(Items.CHEST_MINECART);
         };
 
-        return new ContainerDescriptor(stack, stack.getName().getString(), "entity:" + id + ":" + itemSignature(stack));
+        return new ContainerDescriptor(stack, stack.getHoverName().getString(), "entity:" + id + ":" + itemSignature(stack));
     }
 
     private static ItemStack stackFromState(BlockState state) {
@@ -517,7 +528,7 @@ public final class QuickLitematicaContainerMaterials {
     }
 
     private static String itemId(ItemStack stack) {
-        return Registries.ITEM.getId(stack.getItem()).toString();
+        return BuiltInRegistries.ITEM.getKey(stack.getItem()).toString();
     }
 
     private static String contentSignature(List<ItemCount> contents) {
@@ -539,16 +550,16 @@ public final class QuickLitematicaContainerMaterials {
     }
 
     private static String fitText(String text, int maxWidth) {
-        MinecraftClient client = MinecraftClient.getInstance();
+        Minecraft client = Minecraft.getInstance();
 
-        if (client.textRenderer.getWidth(text) <= maxWidth) {
+        if (client.font.width(text) <= maxWidth) {
             return text;
         }
 
         String suffix = "...";
-        int suffixWidth = client.textRenderer.getWidth(suffix);
+        int suffixWidth = client.font.width(suffix);
 
-        while (!text.isEmpty() && client.textRenderer.getWidth(text) + suffixWidth > maxWidth) {
+        while (!text.isEmpty() && client.font.width(text) + suffixWidth > maxWidth) {
             text = text.substring(0, text.length() - 1);
         }
 
@@ -944,7 +955,7 @@ public final class QuickLitematicaContainerMaterials {
 
             if (this.data.visibleGroups().isEmpty()) {
                 String text = StringUtils.translate("quickcraft.litematica.label.no_container_contents");
-                drawContext.drawText(this.textRenderer, text, this.width / 2 - this.getStringWidth(text) / 2, this.height / 2, 0xFFFFFFFF, false);
+                drawContext.drawString(this.font, text, this.width / 2 - this.getStringWidth(text) / 2, this.height / 2, 0xFFFFFFFF, false);
             }
         }
 
@@ -1078,7 +1089,7 @@ public final class QuickLitematicaContainerMaterials {
             int yText = this.y + 6;
 
             RenderUtils.drawRect(drawContext, containerX, this.y + 6, 16, 16, 0x20FFFFFF);
-            drawContext.drawItem(this.entry.containerStack(), containerX, this.y + 6);
+            drawContext.renderItem(this.entry.containerStack(), containerX, this.y + 6);
             this.drawString(drawContext, containerX + 20, yText, 0xFFFFFFFF, fitText(this.entry.containerName(), CONTAINER_COLUMN_WIDTH - 28));
 
             if (this.entry.sourceLabel() != null) {
@@ -1153,9 +1164,9 @@ public final class QuickLitematicaContainerMaterials {
                 ItemStack displayStack = item.stack();
 
                 RenderUtils.drawRect(drawContext, itemX, itemY, 16, 16, 0x20FFFFFF);
-                drawContext.drawItem(displayStack, itemX, itemY);
-                drawContext.drawStackOverlay(
-                        this.textRenderer,
+                drawContext.renderItem(displayStack, itemX, itemY);
+                drawContext.itemDecorations(
+                        drawContext.fontRenderer(),
                         displayStack,
                         itemX,
                         itemY,

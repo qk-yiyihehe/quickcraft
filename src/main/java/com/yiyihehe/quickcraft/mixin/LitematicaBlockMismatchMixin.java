@@ -4,7 +4,7 @@ import com.yiyihehe.quickcraft.litematica.QuickLitematicaContainerVerifier.Block
 import com.yiyihehe.quickcraft.litematica.QuickLitematicaContainerVerifier.ContainerMismatch;
 import com.yiyihehe.quickcraft.litematica.QuickLitematicaContainerVerifier.ContainerMismatchKey;
 import fi.dy.masa.litematica.schematic.verifier.SchematicVerifier.BlockMismatch;
-import net.minecraft.inventory.Inventory;
+import net.minecraft.world.Container;
 import org.apache.commons.lang3.tuple.Pair;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Unique;
@@ -21,7 +21,7 @@ import java.util.Set;
 @Mixin(value = BlockMismatch.class, remap = false)
 public class LitematicaBlockMismatchMixin implements BlockMismatchExtension {
     @Unique
-    private Pair<Inventory, Inventory> quickcraft$inventories;
+    private Pair<Container, Container> quickcraft$inventories;
     @Unique
     private ContainerMismatch quickcraft$containerMismatch;
     @Unique
@@ -32,12 +32,12 @@ public class LitematicaBlockMismatchMixin implements BlockMismatchExtension {
     private Set<Integer> quickcraft$foundDisabledSlots = Set.of();
 
     @Override
-    public void quickcraft$setInventories(Pair<Inventory, Inventory> inventories) {
+    public void quickcraft$setInventories(Pair<Container, Container> inventories) {
         this.quickcraft$inventories = inventories;
     }
 
     @Override
-    public Pair<Inventory, Inventory> quickcraft$getInventories() {
+    public Pair<Container, Container> quickcraft$getInventories() {
         return this.quickcraft$inventories;
     }
 

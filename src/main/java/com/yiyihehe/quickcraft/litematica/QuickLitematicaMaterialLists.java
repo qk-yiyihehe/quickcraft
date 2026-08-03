@@ -5,7 +5,7 @@ import fi.dy.masa.litematica.data.DataManager;
 import fi.dy.masa.litematica.materials.MaterialListBase;
 import fi.dy.masa.litematica.materials.MaterialListEntry;
 import fi.dy.masa.litematica.materials.MaterialListUtils;
-import net.minecraft.entity.player.PlayerEntity;
+import net.minecraft.world.entity.player.Player;
 
 import java.lang.reflect.Field;
 import java.util.ArrayList;
@@ -18,19 +18,19 @@ public final class QuickLitematicaMaterialLists {
     private QuickLitematicaMaterialLists() {
     }
 
-    public static List<QuickMaterialCollector.MaterialRequest> getVisibleMaterialRequests(PlayerEntity player) {
+    public static List<QuickMaterialCollector.MaterialRequest> getVisibleMaterialRequests(Player player) {
         List<QuickMaterialCollector.MaterialRequest> requests = new ArrayList<>();
         addRequests(DataManager.getMaterialList(), player, requests);
 
         return requests;
     }
 
-    public static boolean hasVisibleMaterialLists(PlayerEntity player) {
+    public static boolean hasVisibleMaterialLists(Player player) {
         return isHudVisible(DataManager.getMaterialList());
     }
 
     private static void addRequests(MaterialListBase materialList,
-                                    PlayerEntity player,
+                                    Player player,
                                     List<QuickMaterialCollector.MaterialRequest> requests) {
         if (!isHudVisible(materialList)) {
             return;

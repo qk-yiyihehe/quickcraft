@@ -24,16 +24,16 @@ import fi.dy.masa.malilib.gui.GuiBase;
 import fi.dy.masa.malilib.interfaces.ICompletionListener;
 import fi.dy.masa.malilib.util.IntBoundingBox;
 import fi.dy.masa.malilib.util.StringUtils;
-import net.minecraft.block.BlockState;
-import net.minecraft.block.entity.BlockEntity;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.world.ClientWorld;
-import net.minecraft.inventory.Inventory;
-import net.minecraft.util.math.BlockPos;
-import net.minecraft.util.math.ChunkPos;
-import net.minecraft.world.World;
-import net.minecraft.world.chunk.Chunk;
-import net.minecraft.world.chunk.WorldChunk;
+import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.block.entity.BlockEntity;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.multiplayer.ClientLevel;
+import net.minecraft.world.Container;
+import net.minecraft.core.BlockPos;
+import net.minecraft.world.level.ChunkPos;
+import net.minecraft.world.level.Level;
+import net.minecraft.world.level.chunk.ChunkAccess;
+import net.minecraft.world.level.chunk.LevelChunk;
 import org.apache.commons.lang3.tuple.Pair;
 import org.jetbrains.annotations.Nullable;
 import org.spongepowered.asm.mixin.Final;
@@ -64,10 +64,10 @@ import java.util.Set;
 public abstract class LitematicaSchematicVerifierMixin extends TaskBase implements VerifierExtension {
     @Shadow
     @Final
-    private static BlockPos.Mutable MUTABLE_POS;
+    private static BlockPos.MutableBlockPos MUTABLE_POS;
 
     @Shadow
-    private ClientWorld worldClient;
+    private ClientLevel worldClient;
 
     @Shadow
     private SchematicPlacement schematicPlacement;
@@ -171,12 +171,12 @@ public abstract class LitematicaSchematicVerifierMixin extends TaskBase implemen
     }
 
     @Override
-    public List<ContainerMismatch> quickcraft$refreshContainerMismatchAt(BlockPos pos, Inventory foundInventory, Set<Integer> foundDisabledSlots) {
+    public List<ContainerMismatch> quickcraft$refreshContainerMismatchAt(BlockPos pos, Container foundInventory, Set<Integer> foundDisabledSlots) {
         if (!QuickLitematicaContainerVerifier.isEnabled() || foundInventory == null) {
             return null;
         }
 
-        World bestWorld = fi.dy.masa.malilib.util.WorldUtils.getBestWorld(MinecraftClient.getInstance());
+        Level bestWorld = fi.dy.masa.malilib.util.WorldUtils.getBestWorld(Minecraft.getInstance());
         List<ContainerMismatch> mismatches = bestWorld != null
                 ? this.quickcraft$collectContainerMismatchesFromInventory(bestWorld, pos, foundInventory, foundDisabledSlots)
                 : null;
@@ -198,12 +198,12 @@ public abstract class LitematicaSchematicVerifierMixin extends TaskBase implemen
             method = "verifyChunks",
             at = @At(
                     value = "INVOKE",
-                    target = "Lnet/minecraft/client/world/ClientWorld;getChunk(II)Lnet/minecraft/world/chunk/WorldChunk;",
+                    target = "Lnet/minecraft/client/multiplayer/ClientLevel;getChunk(II)Lnet/minecraft/world/level/chunk/LevelChunk;",
                     remap = true
             )
     )
-    private WorldChunk quickcraft$useBestWorldForSinglePlayer(ClientWorld clientWorld, int chunkX, int chunkZ) {
-        World bestWorld = fi.dy.masa.malilib.util.WorldUtils.getBestWorld(MinecraftClient.getInstance());
+    private LevelChunk quickcraft$useBestWorldForSinglePlayer(ClientLevel clientWorld, int chunkX, int chunkZ) {
+        Level bestWorld = fi.dy.masa.malilib.util.WorldUtils.getBestWorld(Minecraft.getInstance());
         return bestWorld != null ? bestWorld.getChunk(chunkX, chunkZ) : clientWorld.getChunk(chunkX, chunkZ);
     }
 
@@ -211,11 +211,11 @@ public abstract class LitematicaSchematicVerifierMixin extends TaskBase implemen
             method = "verifyChunks",
             at = @At(
                     value = "INVOKE",
-                    target = "Lfi/dy/masa/litematica/world/ChunkManagerSchematic;isChunkLoaded(II)Z"
+                    target = "Lfi/dy/masa/litematica/world/ChunkManagerSchematic;hasChunk(II)Z"
             )
     )
     private boolean quickcraft$waitForContainerData(ChunkManagerSchematic chunkManager, int chunkX, int chunkZ) {
-        return chunkManager.isChunkLoaded(chunkX, chunkZ)
+        return chunkManager.hasChunk(chunkX, chunkZ)
                 && this.quickcraft$canProcessContainerDataChunk(new ChunkPos(chunkX, chunkZ));
     }
 
@@ -223,21 +223,21 @@ public abstract class LitematicaSchematicVerifierMixin extends TaskBase implemen
             method = "verifyChunk",
             at = @At(
                     value = "INVOKE",
-                    target = "Lfi/dy/masa/litematica/schematic/verifier/SchematicVerifier;checkBlockStates(IIILnet/minecraft/block/BlockState;Lnet/minecraft/block/BlockState;)V",
-                    remap = true,
+                    target = "Lfi/dy/masa/litematica/schematic/verifier/SchematicVerifier;checkBlockStates(IIILnet/minecraft/world/level/block/state/BlockState;Lnet/minecraft/world/level/block/state/BlockState;)V",
+                    remap = false,
                     shift = At.Shift.AFTER
             )
     )
-    private void quickcraft$checkContainerInventory(Chunk chunkClient, Chunk chunkSchematic, fi.dy.masa.malilib.util.IntBoundingBox box, CallbackInfoReturnable<Boolean> cir) {
+    private void quickcraft$checkContainerInventory(ChunkAccess chunkClient, ChunkAccess chunkSchematic, fi.dy.masa.malilib.util.IntBoundingBox box, CallbackInfoReturnable<Boolean> cir) {
         if (!QuickLitematicaContainerVerifier.isEnabled()) {
             return;
         }
 
-        BlockPos pos = MUTABLE_POS.toImmutable();
-        World foundWorld = fi.dy.masa.malilib.util.WorldUtils.getBestWorld(MinecraftClient.getInstance());
+        BlockPos pos = MUTABLE_POS.immutable();
+        Level foundWorld = fi.dy.masa.malilib.util.WorldUtils.getBestWorld(Minecraft.getInstance());
         BlockEntity expectedBlockEntity = chunkSchematic.getBlockEntity(pos);
 
-        if (foundWorld == null || !(expectedBlockEntity instanceof Inventory)) {
+        if (foundWorld == null || !(expectedBlockEntity instanceof Container)) {
             return;
         }
 
@@ -404,7 +404,7 @@ public abstract class LitematicaSchematicVerifierMixin extends TaskBase implemen
 
     @Inject(method = "startVerification", at = @At("TAIL"))
     private void quickcraft$requestContainerDataOnStart(
-            ClientWorld worldClient,
+            ClientLevel worldClient,
             WorldSchematic worldSchematic,
             SchematicPlacement schematicPlacement,
             ICompletionListener completionListener,
@@ -428,13 +428,13 @@ public abstract class LitematicaSchematicVerifierMixin extends TaskBase implemen
             return;
         }
 
-        MinecraftClient client = MinecraftClient.getInstance();
+        Minecraft client = Minecraft.getInstance();
 
-        if (client.world == null || client.world.getTime() % 10 != 0) {
+        if (client.level == null || client.level.getGameTime() % 10 != 0) {
             return;
         }
 
-        World bestWorld = fi.dy.masa.malilib.util.WorldUtils.getBestWorld(client);
+        Level bestWorld = fi.dy.masa.malilib.util.WorldUtils.getBestWorld(client);
 
         if (bestWorld == null || this.quickcraft$pendingContainerPositions.isEmpty()) {
             return;
@@ -513,19 +513,19 @@ public abstract class LitematicaSchematicVerifierMixin extends TaskBase implemen
 
     @Unique
     private List<ContainerMismatch> quickcraft$collectContainerMismatchesFromChunks(
-            World foundWorld,
-            Chunk chunkClient,
-            Chunk chunkSchematic,
+            Level foundWorld,
+            ChunkAccess chunkClient,
+            ChunkAccess chunkSchematic,
             BlockPos pos
     ) {
         BlockEntity expectedBlockEntity = chunkSchematic.getBlockEntity(pos);
         BlockEntity foundBlockEntity = chunkClient.getBlockEntity(pos);
 
-        if (!(expectedBlockEntity instanceof Inventory expectedInventory)) {
+        if (!(expectedBlockEntity instanceof Container expectedInventory)) {
             return List.of();
         }
 
-        if (!(foundBlockEntity instanceof Inventory foundInventory)) {
+        if (!(foundBlockEntity instanceof Container foundInventory)) {
             if (!fi.dy.masa.litematica.data.DataManager.getInstance().hasIntegratedServer()) {
                 if (this.quickcraft$shouldWaitForMissingInventory(foundWorld, pos, foundBlockEntity)) {
                     this.quickcraft$requestContainerInventoryData(foundWorld, pos);
@@ -536,14 +536,14 @@ public abstract class LitematicaSchematicVerifierMixin extends TaskBase implemen
             return List.of();
         }
 
-        Inventory expected = QuickLitematicaContainerVerifier.getExpectedInventory(expectedBlockEntity, expectedInventory);
-        Inventory found = QuickLitematicaContainerVerifier.getActualInventory(
+        Container expected = QuickLitematicaContainerVerifier.getExpectedInventory(expectedBlockEntity, expectedInventory);
+        Container found = QuickLitematicaContainerVerifier.getActualInventory(
                 foundWorld,
                 pos,
                 foundInventory,
                 expected
         );
-        if (found == null || found.size() != expected.size()) {
+        if (found == null || found.getContainerSize() != expected.getContainerSize()) {
             return null;
         }
 
@@ -562,7 +562,7 @@ public abstract class LitematicaSchematicVerifierMixin extends TaskBase implemen
     }
 
     @Unique
-    private List<ContainerMismatch> quickcraft$collectContainerMismatchesFromWorld(World foundWorld, BlockPos pos) {
+    private List<ContainerMismatch> quickcraft$collectContainerMismatchesFromWorld(Level foundWorld, BlockPos pos) {
         if (this.worldClient == null) {
             return null;
         }
@@ -574,7 +574,7 @@ public abstract class LitematicaSchematicVerifierMixin extends TaskBase implemen
             return List.of();
         }
 
-        if (!(foundBlockEntity instanceof Inventory foundInventory)) {
+        if (!(foundBlockEntity instanceof Container foundInventory)) {
             if (!fi.dy.masa.litematica.data.DataManager.getInstance().hasIntegratedServer()) {
                 if (this.quickcraft$shouldWaitForMissingInventory(foundWorld, pos, foundBlockEntity)) {
                     this.quickcraft$requestContainerInventoryData(foundWorld, pos);
@@ -585,14 +585,14 @@ public abstract class LitematicaSchematicVerifierMixin extends TaskBase implemen
             return List.of();
         }
 
-        Inventory found = QuickLitematicaContainerVerifier.getActualInventory(
+        Container found = QuickLitematicaContainerVerifier.getActualInventory(
                 foundWorld,
                 pos,
                 foundInventory,
                 expected.inventory()
         );
 
-        if (found == null || found.size() != expected.inventory().size()) {
+        if (found == null || found.getContainerSize() != expected.inventory().getContainerSize()) {
             return null;
         }
 
@@ -611,9 +611,9 @@ public abstract class LitematicaSchematicVerifierMixin extends TaskBase implemen
 
     @Unique
     private List<ContainerMismatch> quickcraft$collectContainerMismatchesFromInventory(
-            World foundWorld,
+            Level foundWorld,
             BlockPos pos,
-            Inventory found,
+            Container found,
             Set<Integer> foundDisabledSlots
     ) {
         ExpectedContainer expected = QuickLitematicaContainerVerifier.getExpectedContainerAt(foundWorld, pos);
@@ -623,7 +623,7 @@ public abstract class LitematicaSchematicVerifierMixin extends TaskBase implemen
             return List.of();
         }
 
-        if (found.size() != expected.inventory().size()) {
+        if (found.getContainerSize() != expected.inventory().getContainerSize()) {
             return null;
         }
 
@@ -703,14 +703,14 @@ public abstract class LitematicaSchematicVerifierMixin extends TaskBase implemen
     }
 
     @Unique
-    private void quickcraft$requestContainerInventoryData(World world, BlockPos pos) {
+    private void quickcraft$requestContainerInventoryData(Level world, BlockPos pos) {
         QuickLitematicaContainerVerifier.requestInventoryData(world, pos);
 
         if (world == null || fi.dy.masa.litematica.data.DataManager.getInstance().hasIntegratedServer()) {
             return;
         }
 
-        ChunkPos chunkPos = new ChunkPos(pos);
+        ChunkPos chunkPos = ChunkPos.containing(pos);
 
         if (!this.quickcraft$requestedContainerDataChunks.contains(chunkPos)
                 && this.quickcraft$requestContainerInventoryDataChunk(world, chunkPos)) {
@@ -719,7 +719,7 @@ public abstract class LitematicaSchematicVerifierMixin extends TaskBase implemen
     }
 
     @Unique
-    private void quickcraft$requestContainerInventoryDataChunks(World world, Collection<ChunkPos> chunkPositions) {
+    private void quickcraft$requestContainerInventoryDataChunks(Level world, Collection<ChunkPos> chunkPositions) {
         if (world == null
                 || chunkPositions == null
                 || chunkPositions.isEmpty()
@@ -767,16 +767,16 @@ public abstract class LitematicaSchematicVerifierMixin extends TaskBase implemen
     }
 
     @Unique
-    private boolean quickcraft$requestContainerInventoryDataChunk(World world, ChunkPos chunkPos) {
+    private boolean quickcraft$requestContainerInventoryDataChunk(Level world, ChunkPos chunkPos) {
         if (world == null || chunkPos == null) {
             return false;
         }
 
-        int minY = world.getBottomY();
-        int maxY = world.getBottomY() + world.getHeight();
+        int minY = world.getMinY();
+        int maxY = world.getMinY() + world.getHeight();
 
         if (this.schematicPlacement != null) {
-            Map<String, IntBoundingBox> boxes = this.schematicPlacement.getBoxesWithinChunk(chunkPos.x, chunkPos.z);
+            Map<String, IntBoundingBox> boxes = this.schematicPlacement.getBoxesWithinChunk(chunkPos.x(), chunkPos.z());
 
             if (!boxes.isEmpty()) {
                 minY = Integer.MAX_VALUE;
@@ -793,7 +793,7 @@ public abstract class LitematicaSchematicVerifierMixin extends TaskBase implemen
     }
 
     @Unique
-    private boolean quickcraft$shouldWaitForMissingInventory(World world, BlockPos pos, @Nullable BlockEntity foundBlockEntity) {
+    private boolean quickcraft$shouldWaitForMissingInventory(Level world, BlockPos pos, @Nullable BlockEntity foundBlockEntity) {
         if (world == null) {
             return true;
         }
@@ -804,14 +804,14 @@ public abstract class LitematicaSchematicVerifierMixin extends TaskBase implemen
 
     @Unique
     private void quickcraft$markContainerChecked(BlockPos pos) {
-        this.quickcraft$expectedContainerPositions.add(pos.toImmutable());
-        this.quickcraft$checkedContainerPositions.add(pos.toImmutable());
+        this.quickcraft$expectedContainerPositions.add(pos.immutable());
+        this.quickcraft$checkedContainerPositions.add(pos.immutable());
         this.quickcraft$pendingContainerPositions.remove(pos);
     }
 
     @Unique
     private void quickcraft$markContainerPending(BlockPos pos) {
-        BlockPos immutablePos = pos.toImmutable();
+        BlockPos immutablePos = pos.immutable();
         this.quickcraft$expectedContainerPositions.add(immutablePos);
         this.quickcraft$checkedContainerPositions.remove(pos);
         this.quickcraft$pendingContainerPositions.add(immutablePos);

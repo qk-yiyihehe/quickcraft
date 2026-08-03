@@ -33,7 +33,7 @@ public abstract class LitematicaGuiMainMenuMixin extends GuiBase {
 
         ButtonGeneric button = new ButtonGeneric(x, RIGHT_COLUMN_Y, menuButtonWidth, 20, label);
         this.addButton(button, (clickedButton, mouseButton) ->
-                Util.getOperatingSystem().open(DataManager.getSchematicsBaseDirectory()));
+                Util.getPlatform().openPath(DataManager.getSchematicsBaseDirectory()));
     }
 
     private int quickcraft$getMenuButtonWidth() {

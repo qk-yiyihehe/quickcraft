@@ -2,13 +2,13 @@ package com.yiyihehe.quickcraft.litematica;
 
 import com.yiyihehe.quickcraft.QuickContainerCopy;
 import com.yiyihehe.quickcraft.config.QuickCraftConfigs;
-import net.minecraft.component.DataComponentTypes;
-import net.minecraft.item.Item;
-import net.minecraft.item.ItemStack;
-import net.minecraft.item.Items;
-import net.minecraft.registry.Registries;
-import net.minecraft.text.Text;
-import net.minecraft.util.Identifier;
+import net.minecraft.core.component.DataComponents;
+import net.minecraft.world.item.Item;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Items;
+import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.network.chat.Component;
+import net.minecraft.resources.Identifier;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -74,8 +74,8 @@ public final class QuickLitematicaContainerReplacements {
     }
 
     private static int getReplacementCount(ItemStack source, ItemStack target) {
-        int sourceMax = Math.max(1, source.getItem().getDefaultStack().getMaxCount());
-        int targetMax = Math.max(1, target.getMaxCount());
+        int sourceMax = Math.max(1, source.getItem().getDefaultInstance().getMaxStackSize());
+        int targetMax = Math.max(1, target.getMaxStackSize());
 
         if (sourceMax > 1 && targetMax == 1) {
             return 1;
@@ -117,17 +117,17 @@ public final class QuickLitematicaContainerReplacements {
     }
 
     private static ItemStack resolveConfiguredItem(ConfiguredItem value) {
-        for (Item item : Registries.ITEM) {
+        for (Item item : BuiltInRegistries.ITEM) {
             if (item == Items.AIR) {
                 continue;
             }
 
-            ItemStack stack = item.getDefaultStack();
+            ItemStack stack = item.getDefaultInstance();
             if (matchesConfiguredItemName(stack, value.itemName())) {
                 ItemStack result = stack.copy();
                 result.setCount(1);
                 if (value.customName() != null) {
-                    result.set(DataComponentTypes.CUSTOM_NAME, Text.literal(value.customName()));
+                    result.set(DataComponents.CUSTOM_NAME, Component.literal(value.customName()));
                 }
                 return result;
             }
@@ -142,7 +142,7 @@ public final class QuickLitematicaContainerReplacements {
         }
 
         // 写了“物品#名字”时，必须匹配投影物品栈上的自定义名。
-        Text customName = stack.get(DataComponentTypes.CUSTOM_NAME);
+        Component customName = stack.get(DataComponents.CUSTOM_NAME);
         return value.customName() == null
                 || (customName != null && value.customName().equals(customName.getString().trim()));
     }
@@ -152,10 +152,10 @@ public final class QuickLitematicaContainerReplacements {
             return false;
         }
 
-        Identifier itemId = Registries.ITEM.getId(stack.getItem());
+        Identifier itemId = BuiltInRegistries.ITEM.getKey(stack.getItem());
         String fullId = normalizeConfiguredItem(itemId.toString());
         String pathId = normalizeConfiguredItem(itemId.getPath());
-        String displayName = normalizeConfiguredItem(stack.getItem().getDefaultStack().getName().getString());
+        String displayName = normalizeConfiguredItem(stack.getItem().getDefaultInstance().getHoverName().getString());
 
         return value.equals(displayName)
                 || value.equals(fullId)
