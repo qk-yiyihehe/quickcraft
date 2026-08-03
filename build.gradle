@@ -1,5 +1,5 @@
 plugins {
-	id 'net.fabricmc.fabric-loom-remap' version "${loom_version}"
+	id 'net.fabricmc.fabric-loom' version "${loom_version}"
 	id 'maven-publish'
 	id 'com.github.spotbugs' version '6.1.7'
 }
@@ -7,6 +7,7 @@ plugins {
 // SpotBugs 静态分析配置：发现潜在 bug、死代码、传参错误
 spotbugs {
 	effort = com.github.spotbugs.snom.Effort.MAX
+	toolVersion = '4.9.4'
 	excludeFilter = file("$rootDir/spotbugs-exclude.xml")
 }
 spotbugsMain {
@@ -22,6 +23,9 @@ spotbugsTest {
 
 version = project.mod_version
 group = project.maven_group
+
+def resourceVersion = version.toString()
+def archiveProjectName = project.name
 
 loom {
 	runs {
@@ -76,18 +80,17 @@ repositories {
 dependencies {
 	// To change the versions see the gradle.properties file
 	minecraft "com.mojang:minecraft:${project.minecraft_version}"
-	mappings "net.fabricmc:yarn:${project.yarn_mappings}:v2"
-	modImplementation "net.fabricmc:fabric-loader:${project.loader_version}"
+	implementation "net.fabricmc:fabric-loader:${project.loader_version}"
 
 	// Fabric API. This is technically optional, but you probably want it anyway.
-	modImplementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_api_version}"
-	modImplementation include("com.github.Chocohead:Fabric-ASM:v${project.fabric_asm_version}")
-	modImplementation "maven.modrinth:malilib:${project.malilib_version}"
-	modCompileOnly "maven.modrinth:litematica:${project.litematica_version}"
-	modLocalRuntime "maven.modrinth:litematica:${project.litematica_version}"
-	modCompileOnly "com.terraformersmc:modmenu:${project.modmenu_version}"
-	modLocalRuntime "com.terraformersmc:modmenu:${project.modmenu_version}"
-	modLocalRuntime "me.fallenbreath:conditional-mixin-fabric:${project.conditional_mixin_version}"
+	implementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_api_version}"
+	include(implementation("com.github.Chocohead:Fabric-ASM:v${project.fabric_asm_version}"))
+	implementation "maven.modrinth:malilib:${project.malilib_version}"
+	compileOnly "maven.modrinth:litematica:${project.litematica_version}"
+	runtimeOnly "maven.modrinth:litematica:${project.litematica_version}"
+	compileOnly "com.terraformersmc:modmenu:${project.modmenu_version}"
+	runtimeOnly "com.terraformersmc:modmenu:${project.modmenu_version}"
+	runtimeOnly "me.fallenbreath:conditional-mixin-fabric:${project.conditional_mixin_version}"
 
 	// ========== 测试框架 ==========
 	testImplementation platform("org.junit:junit-bom:5.11.4")
@@ -96,7 +99,7 @@ dependencies {
 	testImplementation "org.assertj:assertj-core:3.27.3"
 	testImplementation "org.mockito:mockito-core:5.15.2"
 	// ArchUnit 架构测试（包依赖、命名规范、分层检查）
-	testImplementation "com.tngtech.archunit:archunit-junit5:1.4.0"
+	testImplementation "com.tngtech.archunit:archunit-junit5:1.4.2"
 	
 }
 
@@ -107,15 +110,15 @@ tasks.test {
 }
 
 processResources {
-	inputs.property "version", project.version
+	inputs.property "version", resourceVersion
 
 	filesMatching("fabric.mod.json") {
-		filter { line -> line.replace('${version}', project.version.toString()) }
+		filter { line -> line.replace('${version}', resourceVersion) }
 	}
 }
 
 tasks.withType(JavaCompile).configureEach {
-	it.options.release = 21
+	it.options.release = 25
 }
 
 java {
@@ -124,15 +127,15 @@ java {
 	// If you remove this line, sources will not be generated.
 	withSourcesJar()
 
-	sourceCompatibility = JavaVersion.VERSION_21
-	targetCompatibility = JavaVersion.VERSION_21
+	sourceCompatibility = JavaVersion.VERSION_25
+	targetCompatibility = JavaVersion.VERSION_25
 }
 
 jar {
-	inputs.property "projectName", project.name
+	inputs.property "projectName", archiveProjectName
 
 	from("LICENSE") {
-		rename { "${it}_${project.name}"}
+		rename { "${it}_${archiveProjectName}"}
 	}
 }
 
