@@ -1,16 +1,16 @@
 package com.yiyihehe.quickcraft.mixin;
 
-import net.minecraft.client.render.RenderLayer;
-import net.minecraft.client.render.RenderSetup;
+import net.minecraft.client.renderer.rendertype.RenderType;
+import net.minecraft.client.renderer.rendertype.RenderSetup;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.gen.Accessor;
 
 /**
- * 1.21.11 stores layer texture bindings in RenderSetup instead of exposing the
- * old RenderSystem shader-texture state used by the preview cache.
+ * 26.1 keeps the pipeline and resolved texture bindings in RenderType.state.
+ * The cached preview renderer needs that exact setup when drawing its retained VBOs.
  */
-@Mixin(RenderLayer.class)
+@Mixin(RenderType.class)
 public interface RenderLayerAccessor {
-    @Accessor("renderSetup")
+    @Accessor("state")
     RenderSetup quickcraft$getRenderSetup();
 }

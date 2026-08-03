@@ -6,7 +6,7 @@ import fi.dy.masa.litematica.gui.widgets.WidgetSchematicBrowser;
 import fi.dy.masa.malilib.gui.GuiListBase;
 import fi.dy.masa.malilib.gui.widgets.WidgetDirectoryEntry;
 import fi.dy.masa.malilib.gui.widgets.WidgetFileBrowserBase;
-import net.minecraft.client.gui.Click;
+import net.minecraft.client.input.MouseButtonEvent;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Unique;
 
@@ -43,7 +43,7 @@ public abstract class LitematicaGuiSchematicBrowserBaseMixin
     }
 
     @Override
-    public boolean mouseDragged(Click click, double deltaX, double deltaY) {
+    public boolean mouseDragged(MouseButtonEvent click, double deltaX, double deltaY) {
         if (this.quickcraft$preview3DManager != null
                 && this.quickcraft$preview3DManager.mouseDragged(click.x(), click.y(), click.button(), deltaX, deltaY)) {
             return true;
@@ -53,7 +53,7 @@ public abstract class LitematicaGuiSchematicBrowserBaseMixin
     }
 
     @Override
-    public boolean mouseReleased(Click click) {
+    public boolean mouseReleased(MouseButtonEvent click) {
         if (this.quickcraft$preview3DManager != null
                 && this.quickcraft$preview3DManager.mouseReleased(click.x(), click.y(), click.button())) {
             return true;
@@ -63,7 +63,7 @@ public abstract class LitematicaGuiSchematicBrowserBaseMixin
     }
 
     @Override
-    public boolean mouseClicked(Click click, boolean doubled) {
+    public boolean mouseClicked(MouseButtonEvent click, boolean doubled) {
         if (this.quickcraft$preview3DManager != null
                 && this.quickcraft$preview3DManager.mouseClicked(click.x(), click.y(), click.button())) {
             return true;

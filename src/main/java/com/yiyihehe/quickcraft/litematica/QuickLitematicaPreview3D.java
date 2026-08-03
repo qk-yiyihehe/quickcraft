@@ -2,10 +2,10 @@ package com.yiyihehe.quickcraft.litematica;
 
 import com.mojang.blaze3d.buffers.GpuBuffer;
 import com.mojang.blaze3d.pipeline.RenderPipeline;
-import com.mojang.blaze3d.systems.ProjectionType;
+import com.mojang.blaze3d.ProjectionType;
 import com.mojang.blaze3d.systems.RenderPass;
 import com.mojang.blaze3d.systems.RenderSystem;
-import com.mojang.blaze3d.systems.VertexSorter;
+import com.mojang.blaze3d.vertex.VertexSorting;
 import com.mojang.blaze3d.textures.AddressMode;
 import com.mojang.blaze3d.textures.FilterMode;
 import com.yiyihehe.quickcraft.config.QuickCraftConfigs;
@@ -24,70 +24,69 @@ import fi.dy.masa.malilib.gui.widgets.WidgetFileBrowserBase.DirectoryEntry;
 import fi.dy.masa.malilib.render.GuiContext;
 import fi.dy.masa.malilib.render.RenderUtils;
 import fi.dy.masa.malilib.util.StringUtils;
-import net.fabricmc.fabric.api.client.rendering.v1.SpecialGuiElementRegistry;
+import net.fabricmc.fabric.api.client.rendering.v1.PictureInPictureRendererRegistry;
 import net.minecraft.SharedConstants;
-import net.minecraft.block.Block;
-import net.minecraft.block.BlockEntityProvider;
-import net.minecraft.block.BlockRenderType;
-import net.minecraft.block.BlockState;
-import net.minecraft.block.entity.BlockEntity;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.gui.ScreenRect;
-import net.minecraft.client.gui.DrawContext;
-import net.minecraft.client.gui.render.SpecialGuiElementRenderer;
-import net.minecraft.client.gui.render.state.special.SpecialGuiElementRenderState;
-import net.minecraft.client.render.BufferBuilder;
-import net.minecraft.client.render.BuiltBuffer;
-import net.minecraft.client.render.GameRenderer;
-import net.minecraft.client.render.LightmapTextureManager;
-import net.minecraft.client.render.OverlayTexture;
-import net.minecraft.client.render.BlockRenderLayer;
-import net.minecraft.client.render.BlockRenderLayers;
-import net.minecraft.client.render.DiffuseLighting;
-import net.minecraft.client.render.RawProjectionMatrix;
-import net.minecraft.client.render.RenderLayer;
-import net.minecraft.client.render.RenderSetup;
-import net.minecraft.client.render.RenderLayers;
-import net.minecraft.client.render.VertexConsumer;
-import net.minecraft.client.render.VertexConsumerProvider;
-import net.minecraft.client.render.VertexFormats;
-import net.minecraft.client.render.WorldRenderer;
-import net.minecraft.client.render.block.entity.BlockEntityRenderer;
-import net.minecraft.client.render.block.BlockRenderManager;
-import net.minecraft.client.render.chunk.BlockBufferAllocatorStorage;
-import net.minecraft.client.render.command.OrderedRenderCommandQueue;
-import net.minecraft.client.render.command.RenderDispatcher;
-import net.minecraft.client.util.BufferAllocator;
-import net.minecraft.client.util.math.MatrixStack;
-import net.minecraft.client.world.ClientWorld;
-import net.minecraft.client.render.block.entity.state.BlockEntityRenderState;
-import net.minecraft.client.render.entity.state.EntityRenderState;
-import net.minecraft.client.render.state.CameraRenderState;
-import net.minecraft.entity.Entity;
-import net.minecraft.fluid.FluidState;
-import net.minecraft.nbt.NbtCompound;
-import net.minecraft.nbt.NbtDouble;
-import net.minecraft.nbt.NbtHelper;
+import net.minecraft.world.level.block.Block;
+import net.minecraft.world.level.block.EntityBlock;
+import net.minecraft.world.level.block.RenderShape;
+import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.block.entity.BlockEntity;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.navigation.ScreenRectangle;
+import net.minecraft.client.gui.GuiGraphicsExtractor;
+import net.minecraft.client.gui.render.pip.PictureInPictureRenderer;
+import net.minecraft.client.renderer.state.gui.pip.PictureInPictureRenderState;
+import com.mojang.blaze3d.vertex.BufferBuilder;
+import net.minecraft.client.renderer.GameRenderer;
+import net.minecraft.client.renderer.Lightmap;
+import net.minecraft.client.renderer.texture.OverlayTexture;
+import net.minecraft.client.renderer.chunk.ChunkSectionLayer;
+import com.mojang.blaze3d.platform.Lighting;
+import net.minecraft.client.renderer.rendertype.RenderType;
+import net.minecraft.client.renderer.rendertype.RenderSetup;
+import net.minecraft.client.renderer.rendertype.RenderTypes;
+import com.mojang.blaze3d.vertex.VertexConsumer;
+import net.minecraft.client.renderer.MultiBufferSource;
+import com.mojang.blaze3d.vertex.DefaultVertexFormat;
+import net.minecraft.client.renderer.LevelRenderer;
+import net.minecraft.client.renderer.Projection;
+import net.minecraft.client.renderer.blockentity.BlockEntityRenderer;
+import net.minecraft.client.renderer.block.FluidRenderer;
+import net.minecraft.client.renderer.block.ModelBlockRenderer;
+import net.minecraft.client.renderer.SectionBufferBuilderPack;
+import net.minecraft.client.renderer.SubmitNodeCollector;
+import net.minecraft.client.renderer.feature.FeatureRenderDispatcher;
+import com.mojang.blaze3d.vertex.ByteBufferBuilder;
+import com.mojang.blaze3d.vertex.PoseStack;
+import net.minecraft.client.multiplayer.ClientLevel;
+import net.minecraft.client.renderer.blockentity.state.BlockEntityRenderState;
+import net.minecraft.client.renderer.entity.state.EntityRenderState;
+import net.minecraft.client.renderer.state.level.CameraRenderState;
+import net.minecraft.world.entity.Entity;
+import net.minecraft.world.level.material.FluidState;
+import net.minecraft.nbt.CompoundTag;
+import net.minecraft.nbt.DoubleTag;
+import net.minecraft.nbt.NbtUtils;
 import net.minecraft.nbt.NbtIo;
-import net.minecraft.nbt.NbtList;
-import net.minecraft.nbt.NbtSizeTracker;
-import net.minecraft.registry.DynamicRegistryManager;
-import net.minecraft.registry.RegistryEntryLookup;
-import net.minecraft.registry.RegistryKeys;
-import net.minecraft.registry.entry.RegistryEntry;
-import net.minecraft.storage.NbtReadView;
-import net.minecraft.util.ErrorReporter;
+import net.minecraft.nbt.ListTag;
+import net.minecraft.nbt.NbtAccounter;
+import net.minecraft.core.RegistryAccess;
+import net.minecraft.core.HolderGetter;
+import net.minecraft.core.registries.Registries;
+import net.minecraft.core.Holder;
+import net.minecraft.world.level.storage.TagValueInput;
+import net.minecraft.util.ProblemReporter;
 import net.minecraft.util.Util;
-import net.minecraft.util.math.BlockPos;
-import net.minecraft.util.math.Direction;
-import net.minecraft.util.math.RotationAxis;
-import net.minecraft.util.math.Vec3d;
-import net.minecraft.util.math.random.Random;
-import net.minecraft.world.BlockRenderView;
-import net.minecraft.world.MutableWorldProperties;
-import net.minecraft.world.biome.ColorResolver;
-import net.minecraft.world.chunk.light.LightingProvider;
-import net.minecraft.world.dimension.DimensionType;
+import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
+import com.mojang.math.Axis;
+import net.minecraft.world.phys.Vec3;
+import net.minecraft.client.renderer.block.BlockAndTintGetter;
+import net.minecraft.world.level.storage.WritableLevelData;
+import net.minecraft.world.level.ColorResolver;
+import net.minecraft.world.level.CardinalLighting;
+import net.minecraft.world.level.lighting.LevelLightEngine;
+import net.minecraft.world.level.dimension.DimensionType;
 import org.jetbrains.annotations.Nullable;
 import org.joml.Matrix4f;
 import org.joml.Matrix4fStack;
@@ -132,22 +131,22 @@ import java.util.zip.GZIPOutputStream;
 public final class QuickLitematicaPreview3D {
     private static final Map<fi.dy.masa.litematica.gui.GuiSchematicBrowserBase, Manager> MANAGERS = new WeakHashMap<>();
     // 预览构建专用单线程池：避免与 Util.getMainWorkerExecutor 共享导致排队等几秒。
-    // 单线程足够（预览一次只构建一个文件），且避免 BlockRenderManager 多线程竞争。
+    // 单线程足够（预览一次只构建一个文件），且避免 BlockRenderDispatcher 多线程竞争。
     private static final ExecutorService PREVIEW_EXECUTOR = Executors.newSingleThreadExecutor(r -> {
         Thread thread = new Thread(r, "QuickCraft-Preview3D");
         thread.setDaemon(true);
         return thread;
     });
-    // v15：1.21.10 special GUI + render state 管线；UV/light 保留完整精度，方块实体和实体走动态命令队列。
+    // v16：26.1 方块模型、流体和 PIP 渲染管线；禁止复用 1.21.11 顶点和动态场景缓存。
     // v13：回退箱子静态化（entity atlas 纹理与方块 VBO 不兼容，紫色方块）；保留 GZIP+量化+视口剔除+邻居登记修复。
     // v12：箱子顶点静态化到独立 VBO，缓存追加 chestVertices 字段。
     // v11：保留 v10 的 GZIP + 顶点量化；箱子方块实体改回动态渲染，避免 chest atlas 被写进方块 VBO。
     // 升版本会让旧缓存一次性失效；之后 mod 版本号变化不再清缓存（token 已不含 mod 版本）。
-    private static final int CACHE_FORMAT_VERSION = 15;
+    private static final int CACHE_FORMAT_VERSION = 16;
     private static final int CACHE_MAGIC = 0x51435033; // QCP3
     private static final String CACHE_DIR_NAME = "litematica-preview-cache";
     private static final String CACHE_VERSION_FILE_NAME = "cache-version.txt";
-    private static final String CACHE_RENDER_MARKER = "quickcraft-model-mesh-v17-float-uv-full-light-dynamic-render-state-mc1.21.11";
+    private static final String CACHE_RENDER_MARKER = "quickcraft-model-mesh-v18-float-uv-full-light-dynamic-render-state-mc26.1.2";
     private static final int MAX_PREVIEW_SIZE = 512;
     // 预算必须卡在构建阶段前面：顶点 packed 后仍会占用 CPU/GPU 大块连续内存。
     private static final int MAX_UPLOAD_VERTICES = 12_000_000;
@@ -180,7 +179,7 @@ public final class QuickLitematicaPreview3D {
 
     public static void registerSpecialRenderer() {
         if (SPECIAL_RENDERER_REGISTERED.compareAndSet(false, true)) {
-            SpecialGuiElementRegistry.register(context -> new PreviewGuiElementRenderer(context.vertexConsumers()));
+            PictureInPictureRendererRegistry.register(context -> new PreviewGuiElementRenderer(context.bufferSource()));
         }
     }
 
@@ -202,7 +201,7 @@ public final class QuickLitematicaPreview3D {
         }
     }
 
-    public static void render(fi.dy.masa.litematica.gui.GuiSchematicBrowserBase gui, @Nullable DirectoryEntry entry, DrawContext drawContext, int x, int y, int size) {
+    public static void render(fi.dy.masa.litematica.gui.GuiSchematicBrowserBase gui, @Nullable DirectoryEntry entry, GuiGraphicsExtractor drawContext, int x, int y, int size) {
         if (!QuickCraftConfigs.isLitematica3DPreviewEnabled()) {
             for (Manager manager : MANAGERS.values()) {
                 manager.releasePreview();
@@ -231,7 +230,7 @@ public final class QuickLitematicaPreview3D {
         private Manager() {
         }
 
-        private void render(@Nullable DirectoryEntry entry, DrawContext drawContext, int x, int y, int size) {
+        private void render(@Nullable DirectoryEntry entry, GuiGraphicsExtractor drawContext, int x, int y, int size) {
             if (entry == null || !isSupportedLitematic(entry)) {
                 this.clearCurrent();
                 return;
@@ -329,7 +328,6 @@ public final class QuickLitematicaPreview3D {
         private final long startedAtNanos = System.nanoTime();
         private final AtomicBoolean cancelled = new AtomicBoolean();
         private final Map<LayerKey, LayerBuffer> layerBuffers = new EnumMap<>(LayerKey.class);
-        private final RawProjectionMatrix previewProjection = new RawProjectionMatrix("QuickCraft preview projection");
         private volatile MeshData meshData;
         private volatile float progress;
         private volatile State state = State.LOADING;
@@ -409,11 +407,12 @@ public final class QuickLitematicaPreview3D {
             }
         }
 
-        private void render(DrawContext context, int x, int y, int size, DragState drag) {
+        private void render(GuiGraphicsExtractor context, int x, int y, int size, DragState drag) {
             if (this.state == State.READY && this.meshData != null) {
                 this.uploadIfNeeded();
                 if (!this.layerBuffers.isEmpty() || this.meshData.hasDynamicContent() || this.meshData.vertexCount() == 0) {
-                    context.state.addSpecialElement(new PreviewGuiElement(
+                    GuiContext guiContext = GuiContext.fromGuiGraphics(context);
+                    guiContext.addSpecialElement(new PreviewGuiElement(
                             this,
                             x,
                             y,
@@ -422,7 +421,7 @@ public final class QuickLitematicaPreview3D {
                             drag.dy,
                             drag.angle,
                             drag.scale,
-                            context.scissorStack.peekLast()
+                            guiContext.peekLastScissor()
                     ));
                     return;
                 }
@@ -501,39 +500,39 @@ public final class QuickLitematicaPreview3D {
         private static LayerBuffer uploadLayer(LayerMesh layerMesh) {
             int vertexCount = layerMesh.vertexCount();
             int allocatorSize = allocatorSize(vertexCount);
-            BufferAllocator allocator = new BufferAllocator(allocatorSize);
+            ByteBufferBuilder allocator = new ByteBufferBuilder(allocatorSize);
             try {
-                RenderLayer renderLayer = layerMesh.layer().renderLayer();
-                BufferBuilder builder = new BufferBuilder(allocator, renderLayer.getDrawMode(), renderLayer.getVertexFormat());
+                RenderType renderLayer = layerMesh.layer().renderLayer();
+                BufferBuilder builder = new BufferBuilder(allocator, renderLayer.mode(), renderLayer.format());
                 CacheFile.decodeQuantizedToBuilder(layerMesh.quantizedVertices(), builder);
 
-                BuiltBuffer built = builder.endNullable();
+                com.mojang.blaze3d.vertex.MeshData built = builder.build();
                 if (built == null) {
                     return null;
                 }
 
                 try {
                     if (layerMesh.layer() == LayerKey.TRANSLUCENT) {
-                        built.sortQuads(allocator, VertexSorter.byDistance(0.0F, 0.0F, 1000.0F));
+                        built.sortQuads(allocator, VertexSorting.byDistance(0.0F, 0.0F, 1000.0F));
                     }
 
-                    var drawParameters = built.getDrawParameters();
+                    var drawParameters = built.drawState();
                     GpuBuffer vertexBuffer = RenderSystem.getDevice().createBuffer(
                             () -> "QuickCraft preview vertices",
                             GpuBuffer.USAGE_VERTEX | GpuBuffer.USAGE_COPY_DST,
-                            built.getBuffer()
+                            built.vertexBuffer()
                     );
-                    boolean customIndexBuffer = built.getSortedBuffer() != null;
+                    boolean customIndexBuffer = built.indexBuffer() != null;
                     GpuBuffer indexBuffer = customIndexBuffer
                             ? RenderSystem.getDevice().createBuffer(
                                     () -> "QuickCraft preview indices",
                                     GpuBuffer.USAGE_INDEX | GpuBuffer.USAGE_COPY_DST,
-                                    built.getSortedBuffer()
+                                    built.indexBuffer()
                             )
-                            : RenderSystem.getSequentialBuffer(drawParameters.mode()).getIndexBuffer(drawParameters.indexCount());
+                            : RenderSystem.getSequentialBuffer(drawParameters.mode()).getBuffer(drawParameters.indexCount());
                     var indexType = customIndexBuffer
                             ? drawParameters.indexType()
-                            : RenderSystem.getSequentialBuffer(drawParameters.mode()).getIndexType();
+                            : RenderSystem.getSequentialBuffer(drawParameters.mode()).type();
                     return new LayerBuffer(vertexBuffer, indexBuffer, drawParameters.indexCount(), indexType, customIndexBuffer);
                 } finally {
                     built.close();
@@ -548,68 +547,50 @@ public final class QuickLitematicaPreview3D {
             return (int) Math.min(Integer.MAX_VALUE - 8L, bytes);
         }
 
-        private void drawSpecial(PreviewGuiElement element, VertexConsumerProvider.Immediate vertexConsumers) {
+        private void drawSpecial(PreviewGuiElement element, PoseStack matrices) {
             MeshData data = this.meshData;
-            MinecraftClient client = MinecraftClient.getInstance();
+            Minecraft client = Minecraft.getInstance();
             if (data == null || this.cancelled.get()) {
                 return;
             }
 
             var previousLights = RenderSystem.getShaderLights();
-            Matrix4f projection = new Matrix4f().setOrtho(-1.0F, 1.0F, -1.0F, 1.0F, -1000.0F, 3000.0F);
-            RenderSystem.backupProjectionMatrix();
-            RenderSystem.setProjectionMatrix(this.previewProjection.set(projection), ProjectionType.ORTHOGRAPHIC);
-
-            Matrix4fStack modelView = RenderSystem.getModelViewStack();
-            modelView.pushMatrix();
+            matrices.pushPose();
             try {
-                modelView.identity();
-                modelView.translate(
-                        2.0F * element.dragX() / Math.max(1, element.size()),
-                        -2.0F * element.dragY() / Math.max(1, element.size()),
-                        0.0F
-                );
-                modelView.rotate(RotationAxis.POSITIVE_X.rotation(DEFAULT_SLANT_RADIANS));
-                modelView.rotate(RotationAxis.POSITIVE_Y.rotation((float) element.angle()));
-                float scale = data.scaleFactor(element.size(), element.size()) * element.dragScale();
-                modelView.scale(scale, scale, scale);
-                modelView.translate(-data.sizeX() / 2.0F, -data.sizeY() / 2.0F, -data.sizeZ() / 2.0F);
-                client.gameRenderer.getDiffuseLighting().setShaderLights(DiffuseLighting.Type.LEVEL);
-                this.drawBuffers();
-                Matrix4f dynamicModelView = new Matrix4f(modelView);
-                modelView.pushMatrix();
-                try {
-                    // Immediate 会在 dispatcher 切换 RenderLayer 时提前提交；全程保持单位矩阵，避免预览变换应用两次。
-                    modelView.identity();
-                    this.drawDynamic(data, dynamicModelView, projection, element.size());
-                    // 剩余顶点也必须在预览投影仍生效时提交，special GUI 返回后会恢复为像素投影。
-                    vertexConsumers.draw();
-                } finally {
-                    modelView.popMatrix();
-                }
+                // 26.1 PIP 使用倒置 Y 投影并预先翻转 Z；这里恢复预览使用的世界坐标方向和面朝向。
+                matrices.scale(1.0F, -1.0F, -1.0F);
+                matrices.translate(element.dragX(), -element.dragY(), 0.0F);
+                matrices.mulPose(Axis.XP.rotation(DEFAULT_SLANT_RADIANS));
+                matrices.mulPose(Axis.YP.rotation((float) element.angle()));
+                float scale = data.scaleFactor(element.size(), element.size()) * element.size() * 0.5F * element.dragScale();
+                matrices.scale(scale, scale, scale);
+                matrices.translate(-data.sizeX() / 2.0F, -data.sizeY() / 2.0F, -data.sizeZ() / 2.0F);
+                client.gameRenderer.getLighting().setupFor(Lighting.Entry.LEVEL);
+                Matrix4f dynamicModelView = new Matrix4f(matrices.last().pose());
+                this.drawBuffers(dynamicModelView);
+                this.drawDynamic(data, dynamicModelView, element.size());
             } finally {
-                modelView.popMatrix();
-                RenderSystem.restoreProjectionMatrix();
+                matrices.popPose();
                 RenderSystem.setShaderLights(previousLights);
             }
         }
 
-        private void drawBuffers() {
+        private void drawBuffers(Matrix4f modelView) {
             for (LayerKey layer : LayerKey.DRAW_ORDER) {
                 LayerBuffer buffer = this.layerBuffers.get(layer);
                 if (buffer != null) {
-                    drawLayerBuffer(layer, buffer);
+                    drawLayerBuffer(layer, buffer, modelView);
                 }
             }
         }
 
-        private static void drawLayerBuffer(LayerKey layer, LayerBuffer buffer) {
-            RenderLayer renderLayer = layer.renderLayer();
-            RenderPipeline pipeline = buffer.pipeline(renderLayer, renderLayer.getRenderPipeline());
+        private static void drawLayerBuffer(LayerKey layer, LayerBuffer buffer, Matrix4f modelView) {
+            RenderType renderLayer = layer.renderLayer();
+            RenderPipeline pipeline = buffer.pipeline(renderLayer, renderLayer.pipeline());
             var colorAttachment = Objects.requireNonNull(RenderSystem.outputColorTextureOverride);
             var depthAttachment = RenderSystem.outputDepthTextureOverride;
-            var dynamicTransforms = RenderSystem.getDynamicUniforms().write(
-                    RenderSystem.getModelViewMatrix(),
+            var dynamicTransforms = RenderSystem.getDynamicUniforms().writeTransform(
+                    modelView,
                     new Vector4f(1.0F, 1.0F, 1.0F, 1.0F),
                     ZERO_MODEL_OFFSET,
                     new Matrix4f()
@@ -626,50 +607,41 @@ public final class QuickLitematicaPreview3D {
                 RenderSystem.bindDefaultUniforms(pass);
                 pass.setUniform("DynamicTransforms", dynamicTransforms);
                 pass.setVertexBuffer(0, buffer.vertexBuffer());
-                for (var entry : setup.resolveTextures().entrySet()) {
+                for (var entry : setup.getTextures().entrySet()) {
                     var texture = entry.getValue();
-                    var sampler = layer == LayerKey.CUTOUT && "Sampler0".equals(entry.getKey())
-                            ? RenderSystem.getSamplerCache().get(
-                                    AddressMode.CLAMP_TO_EDGE,
-                                    AddressMode.CLAMP_TO_EDGE,
-                                    FilterMode.NEAREST,
-                                    FilterMode.NEAREST,
-                                    false
-                            )
-                            : texture.sampler();
-                    pass.bindTexture(entry.getKey(), texture.textureView(), sampler);
+                    pass.bindTexture(entry.getKey(), texture.textureView(), texture.sampler());
                 }
                 pass.setIndexBuffer(buffer.indexBuffer(), buffer.indexType());
                 pass.drawIndexed(0, 0, buffer.indexCount(), 1);
             }
         }
 
-        private void drawDynamic(MeshData data, Matrix4f modelView, Matrix4f projection, int viewSize) {
+        private void drawDynamic(MeshData data, Matrix4f modelView, int viewSize) {
             DynamicScene scene = data.dynamicScene();
             if (scene.isEmpty()) {
                 return;
             }
 
-            MinecraftClient client = MinecraftClient.getInstance();
-            ViewportCuller culler = new ViewportCuller(modelView, projection, viewSize);
-            MatrixStack matrices = new MatrixStack();
-            matrices.multiplyPositionMatrix(modelView);
+            Minecraft client = Minecraft.getInstance();
+            ViewportCuller culler = ViewportCuller.forPip(modelView, viewSize);
+            PoseStack matrices = new PoseStack();
+            matrices.mulPose(modelView);
             CameraRenderState cameraState = new CameraRenderState();
-            RenderDispatcher dispatcher = client.gameRenderer.getEntityRenderDispatcher();
-            OrderedRenderCommandQueue queue = dispatcher.getQueue();
+            FeatureRenderDispatcher dispatcher = client.gameRenderer.getFeatureRenderDispatcher();
+            SubmitNodeCollector queue = dispatcher.getSubmitNodeStorage();
 
             scene.blockEntities().forEach((pos, entity) -> {
                 if (culler.isOutside(pos.getX() + 0.5F, pos.getY() + 0.5F, pos.getZ() + 0.5F)) {
                     return;
                 }
 
-                matrices.push();
+                matrices.pushPose();
                 try {
                     matrices.translate(pos.getX(), pos.getY(), pos.getZ());
                     renderBlockEntity(client, entity, matrices, queue, cameraState);
                 } catch (Throwable ignored) {
                 } finally {
-                    matrices.pop();
+                    matrices.popPose();
                 }
             });
 
@@ -680,10 +652,10 @@ public final class QuickLitematicaPreview3D {
 
                 try {
                     EntityRenderState renderState = client.getEntityRenderDispatcher()
-                            .getAndUpdateRenderState(renderedEntity.entity(), 0.0F);
-                    renderState.light = LightmapTextureManager.MAX_LIGHT_COORDINATE;
-                    renderState.squaredDistanceToCamera = 0.0D;
-                    client.getEntityRenderDispatcher().render(
+                            .extractEntity(renderedEntity.entity(), 0.0F);
+                    renderState.lightCoords = renderedEntity.light();
+                    renderState.distanceToCameraSq = 0.0D;
+                    client.getEntityRenderDispatcher().submit(
                             renderState,
                             cameraState,
                             renderedEntity.x(),
@@ -697,29 +669,29 @@ public final class QuickLitematicaPreview3D {
             });
 
             // 1.21.9+ 的实体 renderer 只记录命令；special GUI 离屏目标仍需在本层显式执行队列。
-            dispatcher.render();
+            dispatcher.renderAllFeatures();
         }
 
         private static <T extends BlockEntity, S extends BlockEntityRenderState> void renderBlockEntity(
-                MinecraftClient client,
+                Minecraft client,
                 T entity,
-                MatrixStack matrices,
-                OrderedRenderCommandQueue queue,
+                PoseStack matrices,
+                SubmitNodeCollector queue,
                 CameraRenderState cameraState
         ) {
-            BlockEntityRenderer<T, S> renderer = client.getBlockEntityRenderDispatcher().get(entity);
+            BlockEntityRenderer<T, S> renderer = client.getBlockEntityRenderDispatcher().getRenderer(entity);
             if (renderer == null) {
                 return;
             }
 
             S renderState = renderer.createRenderState();
             // 预览对象位于离屏假世界，不能使用真实玩家相机做方块实体距离判断和状态提取。
-            renderer.updateRenderState(entity, renderState, 0.0F, Vec3d.ZERO, null);
-            renderState.lightmapCoordinates = LightmapTextureManager.MAX_LIGHT_COORDINATE;
-            renderer.render(renderState, matrices, queue, cameraState);
+            renderer.extractRenderState(entity, renderState, 0.0F, Vec3.ZERO, null);
+            renderState.lightCoords = net.minecraft.util.LightCoordsUtil.FULL_BRIGHT;
+            renderer.submit(renderState, matrices, queue, cameraState);
         }
 
-        private void renderProgress(DrawContext context, int x, int y, int size) {
+        private void renderProgress(GuiGraphicsExtractor context, int x, int y, int size) {
             int barWidth = Math.max(24, size - 12);
             int barX = x + (size - barWidth) / 2;
             int barY = y + size / 2 - 5;
@@ -731,7 +703,7 @@ public final class QuickLitematicaPreview3D {
                 default -> StringUtils.translate("quickcraft.litematica.preview_3d.rendering");
             };
 
-            context.drawCenteredTextWithShadow(MinecraftClient.getInstance().textRenderer, text, x + size / 2, barY - 14, textColor);
+            context.centeredText(Minecraft.getInstance().font, text, x + size / 2, barY - 14, textColor);
             RenderUtils.drawOutlinedBox(GuiContext.fromGuiGraphics(context), barX, barY, barWidth, 10, 0xB0000000, 0xFF707070);
             if (fill > 0) {
                 context.fill(barX + 1, barY + 1, barX + 1 + fill, barY + 9,
@@ -765,7 +737,6 @@ public final class QuickLitematicaPreview3D {
             }
             this.meshData = null;
             this.closeBuffers();
-            this.previewProjection.close();
         }
 
         private void closeBuffers() {
@@ -789,16 +760,16 @@ public final class QuickLitematicaPreview3D {
 
     private record PreviewGuiElement(
             Preview preview,
-            int x1,
-            int y1,
+            int x0,
+            int y0,
             int size,
             float dragX,
             float dragY,
             double angle,
             float dragScale,
-            ScreenRect scissorArea,
-            ScreenRect bounds
-    ) implements SpecialGuiElementRenderState {
+            ScreenRectangle scissorArea,
+            ScreenRectangle bounds
+    ) implements PictureInPictureRenderState {
         private PreviewGuiElement(
                 Preview preview,
                 int x,
@@ -808,7 +779,7 @@ public final class QuickLitematicaPreview3D {
                 float dragY,
                 double angle,
                 float dragScale,
-                @Nullable ScreenRect scissorArea
+                @Nullable ScreenRectangle scissorArea
         ) {
             this(
                     preview,
@@ -820,18 +791,18 @@ public final class QuickLitematicaPreview3D {
                     angle,
                     dragScale,
                     scissorArea,
-                    SpecialGuiElementRenderState.createBounds(x, y, x + size, y + size, scissorArea)
+                    PictureInPictureRenderState.getBounds(x, y, x + size, y + size, scissorArea)
             );
         }
 
         @Override
-        public int x2() {
-            return this.x1 + this.size;
+        public int x1() {
+            return this.x0 + this.size;
         }
 
         @Override
-        public int y2() {
-            return this.y1 + this.size;
+        public int y1() {
+            return this.y0 + this.size;
         }
 
         @Override
@@ -840,23 +811,28 @@ public final class QuickLitematicaPreview3D {
         }
     }
 
-    private static final class PreviewGuiElementRenderer extends SpecialGuiElementRenderer<PreviewGuiElement> {
-        private PreviewGuiElementRenderer(VertexConsumerProvider.Immediate vertexConsumers) {
+    private static final class PreviewGuiElementRenderer extends PictureInPictureRenderer<PreviewGuiElement> {
+        private PreviewGuiElementRenderer(MultiBufferSource.BufferSource vertexConsumers) {
             super(vertexConsumers);
         }
 
         @Override
-        public Class<PreviewGuiElement> getElementClass() {
+        public Class<PreviewGuiElement> getRenderStateClass() {
             return PreviewGuiElement.class;
         }
 
         @Override
-        protected void render(PreviewGuiElement element, MatrixStack matrices) {
-            element.preview().drawSpecial(element, this.vertexConsumers);
+        protected void renderToTexture(PreviewGuiElement element, PoseStack matrices) {
+            element.preview().drawSpecial(element, matrices);
         }
 
         @Override
-        protected String getName() {
+        protected float getTranslateY(int height, int guiScale) {
+            return height / 2.0F;
+        }
+
+        @Override
+        protected String getTextureLabel() {
             return "quickcraft:schematic_preview";
         }
     }
@@ -864,7 +840,7 @@ public final class QuickLitematicaPreview3D {
     private record LayerBuffer(GpuBuffer vertexBuffer, GpuBuffer indexBuffer, int indexCount,
                                com.mojang.blaze3d.vertex.VertexFormat.IndexType indexType,
                                boolean ownsIndexBuffer) implements AutoCloseable {
-        private RenderPipeline pipeline(RenderLayer renderLayer, RenderPipeline defaultPipeline) {
+        private RenderPipeline pipeline(RenderType renderLayer, RenderPipeline defaultPipeline) {
             return defaultPipeline;
         }
 
@@ -890,9 +866,9 @@ public final class QuickLitematicaPreview3D {
         return false;
     }
 
-    private static void translateToScreen(Matrix4fStack matrixStack, MinecraftClient client, float x, float y) {
-        int screenWidth = client.currentScreen == null ? client.getWindow().getScaledWidth() : client.currentScreen.width;
-        int screenHeight = client.currentScreen == null ? client.getWindow().getScaledHeight() : client.currentScreen.height;
+    private static void translateToScreen(Matrix4fStack matrixStack, Minecraft client, float x, float y) {
+        int screenWidth = client.screen == null ? client.getWindow().getGuiScaledWidth() : client.screen.width;
+        int screenHeight = client.screen == null ? client.getWindow().getGuiScaledHeight() : client.screen.height;
         matrixStack.translate((2.0F * x - screenWidth) / screenHeight, -(2.0F * y - screenHeight) / screenHeight, 0.0F);
     }
 
@@ -907,7 +883,7 @@ public final class QuickLitematicaPreview3D {
             updateDigest(digest, Long.toString(Files.size(sourcePath)));
             updateDigest(digest, Long.toString(Files.getLastModifiedTime(sourcePath).toMillis()));
             updateDigest(digest, Integer.toString(CACHE_FORMAT_VERSION));
-            updateDigest(digest, SharedConstants.getGameVersion().name());
+            updateDigest(digest, SharedConstants.getCurrentVersion().name());
             updateDigest(digest, CACHE_RENDER_MARKER);
             return HexFormat.of().formatHex(digest.digest());
         } catch (IOException | NoSuchAlgorithmException e) {
@@ -932,8 +908,8 @@ public final class QuickLitematicaPreview3D {
                 return cacheDir;
             }
 
-            MinecraftClient client = MinecraftClient.getInstance();
-            Path runDirectory = client.runDirectory.toPath();
+            Minecraft client = Minecraft.getInstance();
+            Path runDirectory = client.gameDirectory.toPath();
             cacheDir = runDirectory.resolve(CACHE_DIR_NAME);
             currentCacheDirectory = cacheDir;
             if (CACHE_DIRECTORY_READY.compareAndSet(false, true)) {
@@ -1078,8 +1054,8 @@ public final class QuickLitematicaPreview3D {
 
     private static final class MeshBuilder {
         private static MeshData build(DirectoryEntry entry, AtomicBoolean cancelled, ProgressSink progressSink) {
-            MinecraftClient client = MinecraftClient.getInstance();
-            if (client.world == null) {
+            Minecraft client = Minecraft.getInstance();
+            if (client.level == null) {
                 throw new IllegalStateException("Litematica preview needs a loaded client world");
             }
 
@@ -1100,9 +1076,8 @@ public final class QuickLitematicaPreview3D {
             long total = Math.max(1L, totalVolume(schematic.getAreas().values()));
             long visited = 0L;
 
-            BlockRenderManager blockRenderManager = client.getBlockRenderManager();
-            MatrixStack matrices = new MatrixStack();
-            Random random = Random.createLocal();
+            ModelBlockRenderer blockRenderer = new ModelBlockRenderer(true, true, client.getBlockColors());
+            FluidRenderer fluidRenderer = new FluidRenderer(client.getModelManager().getFluidStateModelSet());
 
             for (String regionName : schematic.getAreas().keySet()) {
                 throwIfCancelled(cancelled);
@@ -1114,17 +1089,17 @@ public final class QuickLitematicaPreview3D {
 
                 RegionBlockView view = new RegionBlockView(container, area);
                 RegionBounds regionBounds = RegionBounds.from(area);
-                Map<BlockPos, NbtCompound> schematicBlockEntities = schematic.getBlockEntityMapForRegion(regionName);
+                Map<BlockPos, CompoundTag> schematicBlockEntities = schematic.getBlockEntityMapForRegion(regionName);
                 recordEntities(blockStates, entities, view, schematic, regionName, area, bounds, cancelled);
 
-                for (BlockPos pos : BlockPos.iterate(regionBounds.min(), regionBounds.max())) {
+                for (BlockPos pos : BlockPos.betweenClosed(regionBounds.min(), regionBounds.max())) {
                     throwIfCancelled(cancelled);
                     BlockState state = view.getBlockState(pos);
                     if (!state.isAir()) {
                         BlockPos renderPos = pos.subtract(bounds.min());
                         recordBlockEntity(blockStates, blockEntities, blockEntityRendererCache, view, state, schematicBlockEntities, pos, renderPos, bounds);
-                        renderFluidIfPresent(collector, blockRenderManager, matrices, view, state, pos, renderPos);
-                        renderBlockModel(collector, blockRenderManager, matrices, view, state, pos, renderPos, random);
+                        renderFluidIfPresent(collector, fluidRenderer, view, state, pos, renderPos);
+                        renderBlockModel(collector, blockRenderer, view, state, pos, renderPos);
                     }
 
                     visited++;
@@ -1170,12 +1145,12 @@ public final class QuickLitematicaPreview3D {
                 Map<BlockState, Boolean> blockEntityRendererCache,
                 RegionBlockView view,
                 BlockState state,
-                @Nullable Map<BlockPos, NbtCompound> schematicBlockEntities,
+                @Nullable Map<BlockPos, CompoundTag> schematicBlockEntities,
                 BlockPos schematicPos,
                 BlockPos renderPos,
                 Bounds bounds
         ) {
-            if (!(state.getBlock() instanceof BlockEntityProvider provider)) {
+            if (!(state.getBlock() instanceof EntityBlock provider)) {
                 return;
             }
 
@@ -1185,38 +1160,37 @@ public final class QuickLitematicaPreview3D {
 
             recordDynamicBlockState(blockStates, state, renderPos);
             for (Direction direction : Direction.values()) {
-                BlockPos neighborSchematicPos = schematicPos.offset(direction);
+                BlockPos neighborSchematicPos = schematicPos.relative(direction);
                 BlockState neighborState = view.getBlockState(neighborSchematicPos);
                 if (!neighborState.isAir()) {
                     recordDynamicBlockState(blockStates, neighborState, neighborSchematicPos.subtract(bounds.min()));
                 }
             }
 
-            NbtCompound nbt = schematicBlockEntities == null
-                    ? new NbtCompound()
-                    : schematicBlockEntities.getOrDefault(schematicPos, new NbtCompound());
-            NbtCompound entityNbt = sanitizeBlockEntityNbt(nbt);
+            CompoundTag nbt = schematicBlockEntities == null
+                    ? new CompoundTag()
+                    : schematicBlockEntities.getOrDefault(schematicPos, new CompoundTag());
+            CompoundTag entityNbt = sanitizeBlockEntityNbt(nbt);
             entityNbt.putInt("x", renderPos.getX());
             entityNbt.putInt("y", renderPos.getY());
             entityNbt.putInt("z", renderPos.getZ());
-            blockEntities.add(new BlockEntityData(renderPos.getX(), renderPos.getY(), renderPos.getZ(), NbtHelper.fromBlockState(state), entityNbt));
+            blockEntities.add(new BlockEntityData(renderPos.getX(), renderPos.getY(), renderPos.getZ(), NbtUtils.writeBlockState(state), entityNbt));
             if (blockEntities.size() > MAX_DYNAMIC_BLOCK_ENTITIES) {
                 throw new PreviewTooLargeException();
             }
         }
 
-        private static boolean hasPreviewBlockEntityRenderer(BlockEntityProvider provider, BlockState state, BlockPos renderPos) {
-            BlockEntity blockEntity = provider.createBlockEntity(renderPos, state);
+        private static boolean hasPreviewBlockEntityRenderer(EntityBlock provider, BlockState state, BlockPos renderPos) {
+            BlockEntity blockEntity = provider.newBlockEntity(renderPos, state);
             if (blockEntity == null) {
                 return false;
             }
 
-            blockEntity.setCachedState(state);
-            return MinecraftClient.getInstance().getBlockEntityRenderDispatcher().get(blockEntity) != null;
+            return Minecraft.getInstance().getBlockEntityRenderDispatcher().getRenderer(blockEntity) != null;
         }
 
-        private static NbtCompound sanitizeBlockEntityNbt(NbtCompound nbt) {
-            NbtCompound sanitized = nbt.copy();
+        private static CompoundTag sanitizeBlockEntityNbt(CompoundTag nbt) {
+            CompoundTag sanitized = nbt.copy();
             // 3D 预览只需要容器外观，不需要把箱子/潜影盒内部物品也带进缓存和动态渲染。
             sanitized.remove("Items");
             return sanitized;
@@ -1227,7 +1201,7 @@ public final class QuickLitematicaPreview3D {
                 throw new PreviewTooLargeException();
             }
 
-            blockStates.put(renderPos.toImmutable(), new BlockStateData(renderPos.getX(), renderPos.getY(), renderPos.getZ(), NbtHelper.fromBlockState(state)));
+            blockStates.put(renderPos.immutable(), new BlockStateData(renderPos.getX(), renderPos.getY(), renderPos.getZ(), NbtUtils.writeBlockState(state)));
         }
 
         private static void recordEntities(
@@ -1245,7 +1219,7 @@ public final class QuickLitematicaPreview3D {
                 return;
             }
 
-            BlockPos regionOrigin = area.getPos1() == null ? BlockPos.ORIGIN : area.getPos1();
+            BlockPos regionOrigin = area.getPos1() == null ? BlockPos.ZERO : area.getPos1();
             for (LitematicaSchematic.EntityInfo info : regionEntities) {
                 throwIfCancelled(cancelled);
                 double x = info.posVec.x + regionOrigin.getX() - bounds.min().getX();
@@ -1260,15 +1234,15 @@ public final class QuickLitematicaPreview3D {
         }
 
         private static void recordEntityNearbyBlockStates(Map<BlockPos, BlockStateData> blockStates, RegionBlockView view, Bounds bounds, double x, double y, double z) {
-            BlockPos center = BlockPos.ofFloored(x, y, z);
+            BlockPos center = BlockPos.containing(x, y, z);
             // 矿车 controller 会读取实体所在的铁轨；展示框/画还会查询附着方向的邻居。
-            BlockState centerState = view.getBlockState(center.add(bounds.min()));
+            BlockState centerState = view.getBlockState(center.offset(bounds.min()));
             if (!centerState.isAir()) {
                 recordDynamicBlockState(blockStates, centerState, center);
             }
             for (Direction direction : Direction.values()) {
-                BlockPos renderPos = center.offset(direction);
-                BlockPos schematicPos = renderPos.add(bounds.min());
+                BlockPos renderPos = center.relative(direction);
+                BlockPos schematicPos = renderPos.offset(bounds.min());
                 BlockState state = view.getBlockState(schematicPos);
                 if (!state.isAir()) {
                     recordDynamicBlockState(blockStates, state, renderPos);
@@ -1276,20 +1250,19 @@ public final class QuickLitematicaPreview3D {
             }
         }
 
-        private static NbtCompound copyEntityNbtAt(NbtCompound source, double x, double y, double z) {
-            NbtCompound copy = source.copy();
-            NbtList pos = new NbtList();
-            pos.add(NbtDouble.of(x));
-            pos.add(NbtDouble.of(y));
-            pos.add(NbtDouble.of(z));
+        private static CompoundTag copyEntityNbtAt(CompoundTag source, double x, double y, double z) {
+            CompoundTag copy = source.copy();
+            ListTag pos = new ListTag();
+            pos.add(DoubleTag.valueOf(x));
+            pos.add(DoubleTag.valueOf(y));
+            pos.add(DoubleTag.valueOf(z));
             copy.put("Pos", pos);
             return copy;
         }
 
         private static void renderFluidIfPresent(
                 MeshCollector collector,
-                BlockRenderManager blockRenderManager,
-                MatrixStack matrices,
+                FluidRenderer fluidRenderer,
                 RegionBlockView view,
                 BlockState state,
                 BlockPos pos,
@@ -1300,45 +1273,42 @@ public final class QuickLitematicaPreview3D {
                 return;
             }
 
-            BlockRenderLayer fluidLayer = BlockRenderLayers.getFluidLayer(fluidState);
-            matrices.push();
-            matrices.translate(-(pos.getX() & 15), -(pos.getY() & 15), -(pos.getZ() & 15));
-            matrices.translate(renderPos.getX(), renderPos.getY(), renderPos.getZ());
-            blockRenderManager.renderFluid(pos, view, new FluidVertexConsumer(collector.consumerFor(fluidLayer), matrices.peek().getPositionMatrix()), state, fluidState);
-            matrices.pop();
+            Matrix4f transform = new Matrix4f()
+                    .translate(-(pos.getX() & 15), -(pos.getY() & 15), -(pos.getZ() & 15))
+                    .translate(renderPos.getX(), renderPos.getY(), renderPos.getZ());
+            fluidRenderer.tesselate(
+                    view,
+                    pos,
+                    layer -> new FluidVertexConsumer(collector.consumerFor(layer), transform),
+                    state,
+                    fluidState
+            );
         }
 
         private static void renderBlockModel(
                 MeshCollector collector,
-                BlockRenderManager blockRenderManager,
-                MatrixStack matrices,
+                ModelBlockRenderer blockRenderer,
                 RegionBlockView view,
                 BlockState state,
                 BlockPos pos,
-                BlockPos renderPos,
-                Random random
+                BlockPos renderPos
         ) {
-            if (state.getRenderType() != BlockRenderType.MODEL) {
+            if (state.getRenderShape() != RenderShape.MODEL) {
                 return;
             }
 
-            matrices.push();
-            matrices.translate(renderPos.getX(), renderPos.getY(), renderPos.getZ());
-
-            var model = blockRenderManager.getModel(state);
-            BlockRenderLayer blockLayer = BlockRenderLayers.getBlockLayer(state);
-            random.setSeed(state.getRenderingSeed(pos));
-            blockRenderManager.renderBlock(
-                    state,
-                    pos,
+            blockRenderer.tesselateBlock(
+                    (x, y, z, quad, instance) -> collector.consumerFor(quad.materialInfo().layer())
+                            .putBlockBakedQuad(x, y, z, quad, instance),
+                    renderPos.getX(),
+                    renderPos.getY(),
+                    renderPos.getZ(),
                     view,
-                    matrices,
-                    collector.consumerFor(blockLayer),
-                    true,
-                    model.getParts(random)
+                    pos,
+                    state,
+                    Minecraft.getInstance().getModelManager().getBlockStateModelSet().get(state),
+                    state.getSeed(pos)
             );
-
-            matrices.pop();
         }
 
         private static void throwIfCancelled(AtomicBoolean cancelled) {
@@ -1351,32 +1321,32 @@ public final class QuickLitematicaPreview3D {
     private enum LayerKey {
         SOLID(0) {
             @Override
-            RenderLayer renderLayer() {
-                return RenderLayers.solid();
+            RenderType renderLayer() {
+                return RenderTypes.solidMovingBlock();
             }
         },
         CUTOUT_MIPPED(1) {
             @Override
-            RenderLayer renderLayer() {
-                return RenderLayers.cutout();
+            RenderType renderLayer() {
+                return RenderTypes.cutoutMovingBlock();
             }
         },
         CUTOUT(2) {
             @Override
-            RenderLayer renderLayer() {
-                return RenderLayers.cutout();
+            RenderType renderLayer() {
+                return RenderTypes.cutoutMovingBlock();
             }
         },
         TRIPWIRE(3) {
             @Override
-            RenderLayer renderLayer() {
-                return RenderLayers.tripwire();
+            RenderType renderLayer() {
+                return RenderTypes.cutoutMovingBlock();
             }
         },
         TRANSLUCENT(4) {
             @Override
-            RenderLayer renderLayer() {
-                return RenderLayers.translucentMovingBlock();
+            RenderType renderLayer() {
+                return RenderTypes.translucentMovingBlock();
             }
         };
 
@@ -1387,29 +1357,25 @@ public final class QuickLitematicaPreview3D {
             this.id = id;
         }
 
-        abstract RenderLayer renderLayer();
+        abstract RenderType renderLayer();
 
-        private static LayerKey from(RenderLayer layer) {
-            if (layer == RenderLayers.solid()) {
+        private static LayerKey from(RenderType layer) {
+            if (layer == RenderTypes.solidMovingBlock()) {
                 return SOLID;
             }
-            if (layer == RenderLayers.cutout()) {
+            if (layer == RenderTypes.cutoutMovingBlock()) {
                 return CUTOUT;
             }
-            if (layer == RenderLayers.tripwire()) {
-                return TRIPWIRE;
-            }
-            if (layer == RenderLayers.translucentMovingBlock() || layer.isTranslucent()) {
+            if (layer == RenderTypes.translucentMovingBlock() || layer.hasBlending()) {
                 return TRANSLUCENT;
             }
             return SOLID;
         }
 
-        private static LayerKey from(BlockRenderLayer layer) {
+        private static LayerKey from(ChunkSectionLayer layer) {
             return switch (layer) {
                 case SOLID -> SOLID;
                 case CUTOUT -> CUTOUT;
-                case TRIPWIRE -> TRIPWIRE;
                 case TRANSLUCENT -> TRANSLUCENT;
             };
         }
@@ -1429,12 +1395,12 @@ public final class QuickLitematicaPreview3D {
         private final EnumMap<LayerKey, RecordingVertexConsumer> consumers = new EnumMap<>(LayerKey.class);
         private int vertexCount;
 
-        private VertexConsumer consumerFor(RenderLayer renderLayer) {
+        private VertexConsumer consumerFor(RenderType renderLayer) {
             LayerKey layer = LayerKey.from(renderLayer);
             return this.consumers.computeIfAbsent(layer, ignored -> new RecordingVertexConsumer(this));
         }
 
-        private VertexConsumer consumerFor(BlockRenderLayer renderLayer) {
+        private VertexConsumer consumerFor(ChunkSectionLayer renderLayer) {
             LayerKey layer = LayerKey.from(renderLayer);
             return this.consumers.computeIfAbsent(layer, ignored -> new RecordingVertexConsumer(this));
         }
@@ -1469,15 +1435,15 @@ public final class QuickLitematicaPreview3D {
         private int argb = 0xFFFFFFFF;
         private float u;
         private float v;
-        private int overlay = OverlayTexture.DEFAULT_UV;
-        private int light = LightmapTextureManager.MAX_LIGHT_COORDINATE;
+        private int overlay = OverlayTexture.NO_OVERLAY;
+        private int light = net.minecraft.util.LightCoordsUtil.FULL_BRIGHT;
 
         private RecordingVertexConsumer(MeshCollector collector) {
             this.collector = collector;
         }
 
         @Override
-        public VertexConsumer vertex(float x, float y, float z) {
+        public VertexConsumer addVertex(float x, float y, float z) {
             this.x = x;
             this.y = y;
             this.z = z;
@@ -1485,63 +1451,51 @@ public final class QuickLitematicaPreview3D {
         }
 
         @Override
-        public VertexConsumer color(int red, int green, int blue, int alpha) {
+        public VertexConsumer setColor(int red, int green, int blue, int alpha) {
             this.argb = ((alpha & 0xFF) << 24) | ((red & 0xFF) << 16) | ((green & 0xFF) << 8) | (blue & 0xFF);
             return this;
         }
 
         @Override
-        public VertexConsumer color(int argb) {
+        public VertexConsumer setColor(int argb) {
             this.argb = argb;
             return this;
         }
 
         @Override
-        public VertexConsumer texture(float u, float v) {
+        public VertexConsumer setUv(float u, float v) {
             this.u = u;
             this.v = v;
             return this;
         }
 
         @Override
-        public VertexConsumer overlay(int u, int v) {
-            this.overlay = OverlayTexture.packUv(u, v);
+        public VertexConsumer setUv1(int u, int v) {
+            this.overlay = OverlayTexture.pack(u, v);
             return this;
         }
 
         @Override
-        public VertexConsumer overlay(int uv) {
-            this.overlay = uv;
+        public VertexConsumer setUv2(int u, int v) {
+            this.light = (u & 0xFFFF) | (v & 0xFFFF) << 16;
             return this;
         }
 
         @Override
-        public VertexConsumer light(int u, int v) {
-            this.light = LightmapTextureManager.pack(u, v);
-            return this;
-        }
-
-        @Override
-        public VertexConsumer light(int uv) {
-            this.light = uv;
-            return this;
-        }
-
-        @Override
-        public VertexConsumer normal(float x, float y, float z) {
+        public VertexConsumer setNormal(float x, float y, float z) {
             this.collector.addVertex(this.vertices, this.x, this.y, this.z, this.argb, this.u, this.v, this.overlay, this.light, x, y, z);
-            this.overlay = OverlayTexture.DEFAULT_UV;
-            this.light = LightmapTextureManager.MAX_LIGHT_COORDINATE;
+            this.overlay = OverlayTexture.NO_OVERLAY;
+            this.light = net.minecraft.util.LightCoordsUtil.FULL_BRIGHT;
             return this;
         }
 
         @Override
-        public VertexConsumer lineWidth(float width) {
+        public VertexConsumer setLineWidth(float width) {
             return this;
         }
 
         @Override
-        public void vertex(float x, float y, float z, int color, float u, float v, int overlay, int light, float normalX, float normalY, float normalZ) {
+        public void addVertex(float x, float y, float z, int color, float u, float v, int overlay, int light, float normalX, float normalY, float normalZ) {
             this.collector.addVertex(this.vertices, x, y, z, color, u, v, overlay, light, normalX, normalY, normalZ);
         }
     }
@@ -1556,62 +1510,50 @@ public final class QuickLitematicaPreview3D {
         }
 
         @Override
-        public VertexConsumer vertex(float x, float y, float z) {
-            this.delegate.vertex(this.transform, x, y, z);
+        public VertexConsumer addVertex(float x, float y, float z) {
+            this.delegate.addVertex(this.transform, x, y, z);
             return this;
         }
 
         @Override
-        public VertexConsumer color(int red, int green, int blue, int alpha) {
-            this.delegate.color(red, green, blue, alpha);
+        public VertexConsumer setColor(int red, int green, int blue, int alpha) {
+            this.delegate.setColor(red, green, blue, alpha);
             return this;
         }
 
         @Override
-        public VertexConsumer color(int argb) {
-            this.delegate.color(argb);
+        public VertexConsumer setColor(int argb) {
+            this.delegate.setColor(argb);
             return this;
         }
 
         @Override
-        public VertexConsumer texture(float u, float v) {
-            this.delegate.texture(u, v);
+        public VertexConsumer setUv(float u, float v) {
+            this.delegate.setUv(u, v);
             return this;
         }
 
         @Override
-        public VertexConsumer overlay(int u, int v) {
-            this.delegate.overlay(u, v);
+        public VertexConsumer setUv1(int u, int v) {
+            this.delegate.setUv1(u, v);
             return this;
         }
 
         @Override
-        public VertexConsumer overlay(int uv) {
-            this.delegate.overlay(uv);
+        public VertexConsumer setUv2(int u, int v) {
+            this.delegate.setUv2(u, v);
             return this;
         }
 
         @Override
-        public VertexConsumer light(int u, int v) {
-            this.delegate.light(u, v);
+        public VertexConsumer setNormal(float x, float y, float z) {
+            this.delegate.setNormal(x, y, z);
             return this;
         }
 
         @Override
-        public VertexConsumer light(int uv) {
-            this.delegate.light(uv);
-            return this;
-        }
-
-        @Override
-        public VertexConsumer normal(float x, float y, float z) {
-            this.delegate.normal(x, y, z);
-            return this;
-        }
-
-        @Override
-        public VertexConsumer lineWidth(float width) {
-            this.delegate.lineWidth(width);
+        public VertexConsumer setLineWidth(float width) {
+            this.delegate.setLineWidth(width);
             return this;
         }
     }
@@ -1678,13 +1620,13 @@ public final class QuickLitematicaPreview3D {
         }
     }
 
-    private static RegistryEntryLookup<Block> blockLookup(DynamicRegistryManager registryManager) {
-        return registryManager.getOrThrow(RegistryKeys.BLOCK);
+    private static HolderGetter<Block> blockLookup(RegistryAccess registryManager) {
+        return registryManager.lookupOrThrow(Registries.BLOCK);
     }
 
-    private record BlockStateData(int x, int y, int z, NbtCompound stateNbt) {
-        private BlockState state(DynamicRegistryManager registryManager) {
-            return NbtHelper.toBlockState(blockLookup(registryManager), this.stateNbt);
+    private record BlockStateData(int x, int y, int z, CompoundTag stateNbt) {
+        private BlockState state(RegistryAccess registryManager) {
+            return NbtUtils.readBlockState(blockLookup(registryManager), this.stateNbt);
         }
     }
 
@@ -1786,7 +1728,7 @@ public final class QuickLitematicaPreview3D {
         }
     }
 
-    private record EntityData(double x, double y, double z, NbtCompound entityNbt) {
+    private record EntityData(double x, double y, double z, CompoundTag entityNbt) {
         @Nullable
         private RenderedEntity instantiate(DummyWorld world) {
             try {
@@ -1795,8 +1737,8 @@ public final class QuickLitematicaPreview3D {
                     return null;
                 }
 
-                entity.setPosition(this.x, this.y, this.z);
-                int light = MinecraftClient.getInstance().getEntityRenderDispatcher().getLight(entity, 0.0F);
+                entity.setPos(this.x, this.y, this.z);
+                int light = Minecraft.getInstance().getEntityRenderDispatcher().getPackedLightCoords(entity, 0.0F);
                 return new RenderedEntity(entity, this.x, this.y, this.z, light);
             } catch (Throwable ignored) {
                 return null;
@@ -1807,26 +1749,25 @@ public final class QuickLitematicaPreview3D {
     private record RenderedEntity(Entity entity, double x, double y, double z, int light) {
     }
 
-    private record BlockEntityData(int x, int y, int z, NbtCompound stateNbt, NbtCompound entityNbt) {
+    private record BlockEntityData(int x, int y, int z, CompoundTag stateNbt, CompoundTag entityNbt) {
         @Nullable
         private BlockEntity instantiate(DummyWorld world) {
-            BlockState state = NbtHelper.toBlockState(blockLookup(world.getRegistryManager()), this.stateNbt);
-            if (!(state.getBlock() instanceof BlockEntityProvider provider)) {
+            BlockState state = NbtUtils.readBlockState(blockLookup(world.registryAccess()), this.stateNbt);
+            if (!(state.getBlock() instanceof EntityBlock provider)) {
                 return null;
             }
 
             BlockPos pos = new BlockPos(this.x, this.y, this.z);
             try {
-                BlockEntity blockEntity = provider.createBlockEntity(pos, state);
+                BlockEntity blockEntity = provider.newBlockEntity(pos, state);
                 if (blockEntity == null) {
                     return null;
                 }
 
-                blockEntity.setCachedState(state);
                 if (!this.entityNbt.isEmpty()) {
-                    blockEntity.read(NbtReadView.create(ErrorReporter.EMPTY, world.getRegistryManager(), this.entityNbt.copy()));
+                    blockEntity.loadWithComponents(TagValueInput.create(ProblemReporter.DISCARDING, world.registryAccess(), this.entityNbt.copy()));
                 }
-                blockEntity.setWorld(world);
+                blockEntity.setLevel(world);
                 return blockEntity;
             } catch (Throwable ignored) {
                 return null;
@@ -1840,15 +1781,15 @@ public final class QuickLitematicaPreview3D {
                 return new DynamicScene(Map.of(), List.of());
             }
 
-            MinecraftClient client = MinecraftClient.getInstance();
-            if (client.world == null) {
+            Minecraft client = Minecraft.getInstance();
+            if (client.level == null) {
                 return new DynamicScene(Map.of(), List.of());
             }
 
-            DummyWorld world = DummyWorld.fromWorld(client.world);
+            DummyWorld world = DummyWorld.fromWorld(client.level);
             Map<BlockPos, BlockState> blockStates = new HashMap<>();
             for (BlockStateData data : blockStateData) {
-                blockStates.put(new BlockPos(data.x(), data.y(), data.z()), data.state(world.getRegistryManager()));
+                blockStates.put(new BlockPos(data.x(), data.y(), data.z()), data.state(world.registryAccess()));
             }
             world.setBlockStates(blockStates);
 
@@ -1856,7 +1797,7 @@ public final class QuickLitematicaPreview3D {
             for (BlockEntityData data : blockEntityData) {
                 BlockEntity blockEntity = data.instantiate(world);
                 if (blockEntity != null) {
-                    blockEntities.put(blockEntity.getPos(), blockEntity);
+                    blockEntities.put(blockEntity.getBlockPos(), blockEntity);
                 }
             }
             world.setBlockEntities(blockEntities);
@@ -1905,6 +1846,14 @@ public final class QuickLitematicaPreview3D {
             this.maxY = 1.0F + margin;
         }
 
+        private static ViewportCuller forPip(Matrix4f modelView, int viewSize) {
+            int guiScale = Math.max(1, Minecraft.getInstance().getWindow().getGuiScale());
+            int physicalSize = Math.max(1, viewSize * guiScale);
+            Projection projection = new Projection();
+            projection.setupOrtho(-1000.0F, 1000.0F, physicalSize, physicalSize, true);
+            return new ViewportCuller(modelView, projection.getMatrix(new Matrix4f()), physicalSize);
+        }
+
         private boolean isOutside(float x, float y, float z) {
             // 模型空间 -> 视图空间 -> 裁剪空间 -> NDC -> framebuffer 像素
             this.scratch.set(x, y, z, 1.0F);
@@ -1922,8 +1871,8 @@ public final class QuickLitematicaPreview3D {
 
     private record Bounds(BlockPos min, BlockPos max) {
         private static Bounds from(Collection<Box> boxes) {
-            BlockPos min = BlockPos.ORIGIN;
-            BlockPos max = BlockPos.ORIGIN;
+            BlockPos min = BlockPos.ZERO;
+            BlockPos max = BlockPos.ZERO;
             boolean seen = false;
 
             for (Box box : boxes) {
@@ -1956,7 +1905,7 @@ public final class QuickLitematicaPreview3D {
 
     private record RegionBounds(BlockPos min, BlockPos max) {
         private static RegionBounds from(Box box) {
-            BlockPos pos1 = box.getPos1() == null ? BlockPos.ORIGIN : box.getPos1();
+            BlockPos pos1 = box.getPos1() == null ? BlockPos.ZERO : box.getPos1();
             BlockPos pos2 = box.getPos2() == null ? pos1 : box.getPos2();
             return new RegionBounds(BlockPos.min(pos1, pos2), BlockPos.max(pos1, pos2));
         }
@@ -1968,32 +1917,32 @@ public final class QuickLitematicaPreview3D {
         }
     }
 
-    private static final class RegionBlockView implements BlockRenderView {
+    private static final class RegionBlockView implements BlockAndTintGetter {
         private final RegionBounds bounds;
         private final LitematicaBlockStateContainer blockStateContainer;
-        private final MinecraftClient client = MinecraftClient.getInstance();
-        private final LightingProvider lightingProvider;
+        private final Minecraft client = Minecraft.getInstance();
+        private final LevelLightEngine lightingProvider;
 
         private RegionBlockView(LitematicaBlockStateContainer container, Box area) {
             this.blockStateContainer = container;
             this.bounds = RegionBounds.from(area);
-            ClientWorld world = Objects.requireNonNull(this.client.world, "No loaded world for Litematica preview");
-            this.lightingProvider = new FakeLightingProvider(new ChunkCacheSchematic(world, world, BlockPos.ORIGIN, 0));
+            ClientLevel world = Objects.requireNonNull(this.client.level, "No loaded world for Litematica preview");
+            this.lightingProvider = new FakeLightingProvider(new ChunkCacheSchematic(world, world, BlockPos.ZERO, 0));
         }
 
         @Override
-        public float getBrightness(Direction direction, boolean shaded) {
-            return Objects.requireNonNull(this.client.world).getBrightness(direction, shaded);
+        public CardinalLighting cardinalLighting() {
+            return Objects.requireNonNull(this.client.level).cardinalLighting();
         }
 
         @Override
-        public LightingProvider getLightingProvider() {
+        public LevelLightEngine getLightEngine() {
             return this.lightingProvider;
         }
 
         @Override
-        public int getColor(BlockPos pos, ColorResolver colorResolver) {
-            return Objects.requireNonNull(this.client.world).getColor(pos, colorResolver);
+        public int getBlockTint(BlockPos pos, ColorResolver colorResolver) {
+            return Objects.requireNonNull(this.client.level).getBlockTint(pos, colorResolver);
         }
 
         @Nullable
@@ -2023,7 +1972,7 @@ public final class QuickLitematicaPreview3D {
         }
 
         @Override
-        public int getBottomY() {
+        public int getMinY() {
             return 0;
         }
     }
@@ -2032,12 +1981,12 @@ public final class QuickLitematicaPreview3D {
         private Map<BlockPos, BlockState> blockStates = Map.of();
         private Map<BlockPos, BlockEntity> blockEntities = Map.of();
 
-        private DummyWorld(MutableWorldProperties properties, DynamicRegistryManager registryManager, RegistryEntry<DimensionType> dimensionEntry, WorldRendererSchematic renderer) {
+        private DummyWorld(WritableLevelData properties, RegistryAccess registryManager, Holder<DimensionType> dimensionEntry, WorldRendererSchematic renderer) {
             super(properties, registryManager, dimensionEntry, renderer);
         }
 
-        private static DummyWorld fromWorld(ClientWorld world) {
-            return new DummyWorld(world.getLevelProperties(), world.getRegistryManager(), world.getDimensionEntry(), new WorldRendererSchematic(MinecraftClient.getInstance()));
+        private static DummyWorld fromWorld(ClientLevel world) {
+            return new DummyWorld(world.getLevelData(), world.registryAccess(), world.dimensionTypeRegistration(), new WorldRendererSchematic(Minecraft.getInstance()));
         }
 
         private void setBlockStates(Map<BlockPos, BlockState> blockStates) {
@@ -2135,7 +2084,7 @@ public final class QuickLitematicaPreview3D {
                             input.readInt(),
                             input.readInt(),
                             input.readInt(),
-                            NbtIo.readCompound(input, NbtSizeTracker.of(NBT_READ_LIMIT_BYTES))
+                            NbtIo.read(input, NbtAccounter.create(NBT_READ_LIMIT_BYTES))
                     ));
                 }
 
@@ -2155,8 +2104,8 @@ public final class QuickLitematicaPreview3D {
                             input.readInt(),
                             input.readInt(),
                             input.readInt(),
-                            NbtIo.readCompound(input, NbtSizeTracker.of(NBT_READ_LIMIT_BYTES)),
-                            NbtIo.readCompound(input, NbtSizeTracker.of(NBT_READ_LIMIT_BYTES))
+                            NbtIo.read(input, NbtAccounter.create(NBT_READ_LIMIT_BYTES)),
+                            NbtIo.read(input, NbtAccounter.create(NBT_READ_LIMIT_BYTES))
                     ));
                 }
 
@@ -2176,7 +2125,7 @@ public final class QuickLitematicaPreview3D {
                             input.readDouble(),
                             input.readDouble(),
                             input.readDouble(),
-                            NbtIo.readCompound(input, NbtSizeTracker.of(NBT_READ_LIMIT_BYTES))
+                            NbtIo.read(input, NbtAccounter.create(NBT_READ_LIMIT_BYTES))
                     ));
                 }
 
@@ -2247,7 +2196,7 @@ public final class QuickLitematicaPreview3D {
                     output.writeInt(blockState.x());
                     output.writeInt(blockState.y());
                     output.writeInt(blockState.z());
-                    NbtIo.writeCompound(blockState.stateNbt(), output);
+                    NbtIo.write(blockState.stateNbt(), output);
                     if ((index & 0x7F) == 0 || index + 1 == data.blockStates.size()) {
                         progressSink.set(progress(PROGRESS_STATIC_CACHE_END, PROGRESS_BLOCK_STATES_CACHE_END, index + 1L, data.blockStates.size()));
                     }
@@ -2264,8 +2213,8 @@ public final class QuickLitematicaPreview3D {
                     output.writeInt(blockEntity.x());
                     output.writeInt(blockEntity.y());
                     output.writeInt(blockEntity.z());
-                    NbtIo.writeCompound(blockEntity.stateNbt(), output);
-                    NbtIo.writeCompound(blockEntity.entityNbt(), output);
+                    NbtIo.write(blockEntity.stateNbt(), output);
+                    NbtIo.write(blockEntity.entityNbt(), output);
                     if ((index & 0x3F) == 0 || index + 1 == data.blockEntities.size()) {
                         progressSink.set(progress(PROGRESS_BLOCK_STATES_CACHE_END, PROGRESS_BLOCK_ENTITIES_CACHE_END, index + 1L, data.blockEntities.size()));
                     }
@@ -2282,7 +2231,7 @@ public final class QuickLitematicaPreview3D {
                     output.writeDouble(entity.x());
                     output.writeDouble(entity.y());
                     output.writeDouble(entity.z());
-                    NbtIo.writeCompound(entity.entityNbt(), output);
+                    NbtIo.write(entity.entityNbt(), output);
                 }
             }
 
@@ -2323,7 +2272,7 @@ public final class QuickLitematicaPreview3D {
                 int overlay = readShort(quantized, offset + 24) & 0xFFFF;
                 int light = readInt(quantized, offset + 26);
                 decodeNormal(readShort(quantized, offset + 30), normal);
-                builder.vertex(x, y, z, argb, u, v, overlay, light, normal[0], normal[1], normal[2]);
+                builder.addVertex(x, y, z, argb, u, v, overlay, light, normal[0], normal[1], normal[2]);
             }
         }
 

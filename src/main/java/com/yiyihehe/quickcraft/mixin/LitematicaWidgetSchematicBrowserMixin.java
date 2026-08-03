@@ -11,7 +11,7 @@ import fi.dy.masa.malilib.gui.widgets.WidgetFileBrowserBase;
 import fi.dy.masa.malilib.render.RenderUtils;
 import fi.dy.masa.malilib.render.GuiContext;
 import com.mojang.blaze3d.pipeline.RenderPipeline;
-import net.minecraft.util.Identifier;
+import net.minecraft.resources.Identifier;
 import org.spongepowered.asm.mixin.Final;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
@@ -65,7 +65,7 @@ public abstract class LitematicaWidgetSchematicBrowserMixin extends WidgetFileBr
             method = "drawSelectedSchematicInfo",
             at = @At(
                     value = "INVOKE",
-                    target = "Lfi/dy/masa/malilib/render/GuiContext;drawTexture(Lcom/mojang/blaze3d/pipeline/RenderPipeline;Lnet/minecraft/util/Identifier;IIFFIIII)V"
+                    target = "Lfi/dy/masa/malilib/render/GuiContext;blit(Lcom/mojang/blaze3d/pipeline/RenderPipeline;Lnet/minecraft/resources/Identifier;IIFFIIII)V"
             )
     )
     private void quickcraft$skipVanillaPreviewWhen3DEnabled(
@@ -85,7 +85,7 @@ public abstract class LitematicaWidgetSchematicBrowserMixin extends WidgetFileBr
             return;
         }
 
-        drawContext.drawTexture(renderPipeline, texture, x, y, u, v, width, height, textureWidth, textureHeight);
+        drawContext.blit(renderPipeline, texture, x, y, u, v, width, height, textureWidth, textureHeight);
     }
 
     @Redirect(
