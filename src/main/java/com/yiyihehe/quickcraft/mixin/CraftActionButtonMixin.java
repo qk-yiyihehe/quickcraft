@@ -5,18 +5,18 @@ import com.yiyihehe.quickcraft.config.QuickCraftConfigs;
 import com.yiyihehe.quickcraft.crafting.QuickCraftBackpack;
 import com.yiyihehe.quickcraft.crafting.QuickCraftStonecutter;
 import com.yiyihehe.quickcraft.crafting.QuickCraftWorkbench;
-import net.minecraft.client.gui.DrawContext;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.gui.screen.ingame.CraftingScreen;
-import net.minecraft.client.gui.screen.ingame.HandledScreen;
-import net.minecraft.client.gui.screen.ingame.InventoryScreen;
-import net.minecraft.client.gui.screen.ingame.StonecutterScreen;
-import net.minecraft.client.gui.widget.ButtonWidget;
-import net.minecraft.entity.player.PlayerInventory;
-import net.minecraft.screen.CraftingScreenHandler;
-import net.minecraft.screen.PlayerScreenHandler;
-import net.minecraft.screen.StonecutterScreenHandler;
-import net.minecraft.text.Text;
+import net.minecraft.client.gui.GuiGraphicsExtractor;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.screens.inventory.CraftingScreen;
+import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
+import net.minecraft.client.gui.screens.inventory.InventoryScreen;
+import net.minecraft.client.gui.screens.inventory.StonecutterScreen;
+import net.minecraft.client.gui.components.Button;
+import net.minecraft.world.entity.player.Inventory;
+import net.minecraft.world.inventory.CraftingMenu;
+import net.minecraft.world.inventory.InventoryMenu;
+import net.minecraft.world.inventory.StonecutterMenu;
+import net.minecraft.network.chat.Component;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Unique;
 import org.spongepowered.asm.mixin.injection.At;
@@ -29,11 +29,11 @@ import org.lwjgl.glfw.GLFW;
  * 按钮点击后走 QuickCraftWorkbench 的快速合成逻辑。
  */
 @Mixin(CraftingScreen.class)
-public abstract class CraftActionButtonMixin extends HandledScreen<CraftingScreenHandler> {
+public abstract class CraftActionButtonMixin extends AbstractContainerScreen<CraftingMenu> {
     @Unique
-    private ButtonWidget quickcraft$craftButton;
+    private Button quickcraft$craftButton;
 
-    protected CraftActionButtonMixin(CraftingScreenHandler handler, PlayerInventory inventory, Text title) {
+    protected CraftActionButtonMixin(CraftingMenu handler, Inventory inventory, Component title) {
         super(handler, inventory, title);
     }
 
@@ -45,34 +45,34 @@ public abstract class CraftActionButtonMixin extends HandledScreen<CraftingScree
         }
 
         // 按钮放到产物槽右下外侧，尽量不遮挡产物图标。
-        int buttonX = this.x + this.getScreenHandler().getSlot(0).x + 13;
-        int buttonY = this.y + this.getScreenHandler().getSlot(0).y + 13;
-        this.quickcraft$craftButton = this.addDrawableChild(ButtonWidget.builder(Text.literal("Q"), button ->
+        int buttonX = this.leftPos + this.getMenu().getSlot(0).x + 13;
+        int buttonY = this.topPos + this.getMenu().getSlot(0).y + 13;
+        this.quickcraft$craftButton = this.addRenderableWidget(Button.builder(Component.literal("Q"), button ->
                 QuickCraftWorkbench.handleWorkbenchCraftButton(quickcraft$isAltDown()))
-                .dimensions(buttonX, buttonY, 10, 10)
+                .bounds(buttonX, buttonY, 10, 10)
                 .build());
     }
 
-    @Inject(method = "drawBackground", at = @At("HEAD"))
-    private void quickcraft$syncCraftButton(DrawContext context, float delta, int mouseX, int mouseY, CallbackInfo ci) {
+    @Inject(method = "extractBackground", at = @At("HEAD"))
+    private void quickcraft$syncCraftButton(GuiGraphicsExtractor context, int mouseX, int mouseY, float delta, CallbackInfo ci) {
         if (this.quickcraft$craftButton == null) {
             return;
         }
 
         this.quickcraft$craftButton.visible = QuickCraftConfigs.isWorkbenchQuickCraftEnabled()
                 && QuickCraftConfigs.isCraftActionButtonVisible();
-        this.quickcraft$craftButton.setX(this.x + this.getScreenHandler().getSlot(0).x + 13);
-        this.quickcraft$craftButton.setY(this.y + this.getScreenHandler().getSlot(0).y + 13);
+        this.quickcraft$craftButton.setX(this.leftPos + this.getMenu().getSlot(0).x + 13);
+        this.quickcraft$craftButton.setY(this.topPos + this.getMenu().getSlot(0).y + 13);
     }
 
     @Unique
     private static boolean quickcraft$isAltDown() {
-        MinecraftClient client = MinecraftClient.getInstance();
+        Minecraft client = Minecraft.getInstance();
         if (client == null) {
             return false;
         }
 
-        long handle = client.getWindow().getHandle();
+        long handle = client.getWindow().handle();
         return GLFW.glfwGetKey(handle, GLFW.GLFW_KEY_LEFT_ALT) == GLFW.GLFW_PRESS
                 || GLFW.glfwGetKey(handle, GLFW.GLFW_KEY_RIGHT_ALT) == GLFW.GLFW_PRESS;
     }
@@ -83,14 +83,14 @@ public abstract class CraftActionButtonMixin extends HandledScreen<CraftingScree
  * 按钮点击后走 QuickCraftBackpack 的快速合成逻辑。
  */
 @Mixin(InventoryScreen.class)
-abstract class CraftActionButtonBackpackMixin extends HandledScreen<PlayerScreenHandler> {
+abstract class CraftActionButtonBackpackMixin extends AbstractContainerScreen<InventoryMenu> {
     @Unique
-    private ButtonWidget quickcraft$craftButton;
+    private Button quickcraft$craftButton;
 
     @Unique
-    private ButtonWidget quickcraft$lockButton;
+    private Button quickcraft$lockButton;
 
-    protected CraftActionButtonBackpackMixin(PlayerScreenHandler handler, PlayerInventory inventory, Text title) {
+    protected CraftActionButtonBackpackMixin(InventoryMenu handler, Inventory inventory, Component title) {
         super(handler, inventory, title);
     }
 
@@ -102,28 +102,28 @@ abstract class CraftActionButtonBackpackMixin extends HandledScreen<PlayerScreen
         }
 
         // 按钮放到产物槽右下外侧，尽量不遮挡产物图标。
-        int buttonX = this.x + this.getScreenHandler().getSlot(0).x + 13;
-        int buttonY = this.y + this.getScreenHandler().getSlot(0).y + 13;
-        this.quickcraft$craftButton = this.addDrawableChild(ButtonWidget.builder(Text.literal("Q"), button ->
+        int buttonX = this.leftPos + this.getMenu().getSlot(0).x + 13;
+        int buttonY = this.topPos + this.getMenu().getSlot(0).y + 13;
+        this.quickcraft$craftButton = this.addRenderableWidget(Button.builder(Component.literal("Q"), button ->
                 QuickCraftBackpack.handleBackpackCraftButton(quickcraft$isAltDown()))
-                .dimensions(buttonX, buttonY, 10, 10)
+                .bounds(buttonX, buttonY, 10, 10)
                 .build());
     }
 
-    @Inject(method = "render", at = @At("HEAD"))
-    private void quickcraft$syncCraftButton(DrawContext context, int mouseX, int mouseY, float delta, CallbackInfo ci) {
+    @Inject(method = "extractRenderState", at = @At("HEAD"))
+    private void quickcraft$syncCraftButton(GuiGraphicsExtractor context, int mouseX, int mouseY, float delta, CallbackInfo ci) {
         if (this.quickcraft$craftButton == null) {
             return;
         }
 
         this.quickcraft$craftButton.visible = QuickCraftConfigs.isBackpackQuickCraftEnabled()
                 && QuickCraftConfigs.isCraftActionButtonVisible();
-        this.quickcraft$craftButton.setX(this.x + this.getScreenHandler().getSlot(0).x + 13);
-        this.quickcraft$craftButton.setY(this.y + this.getScreenHandler().getSlot(0).y + 13);
+        this.quickcraft$craftButton.setX(this.leftPos + this.getMenu().getSlot(0).x + 13);
+        this.quickcraft$craftButton.setY(this.topPos + this.getMenu().getSlot(0).y + 13);
     }
 
-    @Inject(method = "render", at = @At("HEAD"))
-    private void quickcraft$addLockButton(DrawContext context, int mouseX, int mouseY, float delta, CallbackInfo ci) {
+    @Inject(method = "extractRenderState", at = @At("HEAD"))
+    private void quickcraft$addLockButton(GuiGraphicsExtractor context, int mouseX, int mouseY, float delta, CallbackInfo ci) {
         QuickContainerLock.bindCurrentScreen(this);
         if (!QuickContainerLock.shouldShowLockButton(this)) {
             if (this.quickcraft$lockButton != null) {
@@ -135,18 +135,18 @@ abstract class CraftActionButtonBackpackMixin extends HandledScreen<PlayerScreen
             this.quickcraft$syncLockButtonPosition();
             return;
         }
-        var client = this.client;
+        var client = this.minecraft;
         if (client == null) {
             return;
         }
 
-        int buttonX = this.x + this.backgroundWidth - 16;
-        int buttonY = this.y + 4;
-        this.quickcraft$lockButton = this.addDrawableChild(ButtonWidget.builder(QuickContainerLock.getLockButtonText(this), button -> {
+        int buttonX = this.leftPos + this.imageWidth - 16;
+        int buttonY = this.topPos + 4;
+        this.quickcraft$lockButton = this.addRenderableWidget(Button.builder(QuickContainerLock.getLockButtonText(this), button -> {
                     QuickContainerLock.toggleCurrentScreenLock(client, this);
                     button.setMessage(QuickContainerLock.getLockButtonText(this));
                 })
-                .dimensions(buttonX, buttonY, 14, 14)
+                .bounds(buttonX, buttonY, 14, 14)
                 .build());
         this.quickcraft$syncLockButtonPosition();
     }
@@ -158,20 +158,20 @@ abstract class CraftActionButtonBackpackMixin extends HandledScreen<PlayerScreen
         }
 
         this.quickcraft$lockButton.visible = true;
-        this.quickcraft$lockButton.setX(this.x + this.backgroundWidth - 16);
+        this.quickcraft$lockButton.setX(this.leftPos + this.imageWidth - 16);
         // 背包界面右侧中部有一块空白边，锁按钮放这里避免挤在右上角。
-        this.quickcraft$lockButton.setY(this.y + 66);
+        this.quickcraft$lockButton.setY(this.topPos + 66);
         this.quickcraft$lockButton.setMessage(QuickContainerLock.getLockButtonText(this));
     }
 
     @Unique
     private static boolean quickcraft$isAltDown() {
-        MinecraftClient client = MinecraftClient.getInstance();
+        Minecraft client = Minecraft.getInstance();
         if (client == null) {
             return false;
         }
 
-        long handle = client.getWindow().getHandle();
+        long handle = client.getWindow().handle();
         return GLFW.glfwGetKey(handle, GLFW.GLFW_KEY_LEFT_ALT) == GLFW.GLFW_PRESS
                 || GLFW.glfwGetKey(handle, GLFW.GLFW_KEY_RIGHT_ALT) == GLFW.GLFW_PRESS;
     }
@@ -182,16 +182,16 @@ abstract class CraftActionButtonBackpackMixin extends HandledScreen<PlayerScreen
  * 按钮点击后走 QuickCraftStonecutter 的快速切石逻辑。
  */
 @Mixin(StonecutterScreen.class)
-abstract class CraftActionButtonStonecutterMixin extends HandledScreen<StonecutterScreenHandler> {
+abstract class CraftActionButtonStonecutterMixin extends AbstractContainerScreen<StonecutterMenu> {
     @Unique
-    private ButtonWidget quickcraft$craftButton;
+    private Button quickcraft$craftButton;
 
-    protected CraftActionButtonStonecutterMixin(StonecutterScreenHandler handler, PlayerInventory inventory, Text title) {
+    protected CraftActionButtonStonecutterMixin(StonecutterMenu handler, Inventory inventory, Component title) {
         super(handler, inventory, title);
     }
 
-    @Inject(method = "render", at = @At("HEAD"))
-    private void quickcraft$addCraftButton(DrawContext context, int mouseX, int mouseY, float delta, CallbackInfo ci) {
+    @Inject(method = "extractBackground", at = @At("HEAD"))
+    private void quickcraft$addCraftButton(GuiGraphicsExtractor context, int mouseX, int mouseY, float delta, CallbackInfo ci) {
         if (!QuickCraftConfigs.isStonecutterQuickCraftEnabled()
                 || !QuickCraftConfigs.isCraftActionButtonVisible()) {
             if (this.quickcraft$craftButton != null) {
@@ -200,30 +200,30 @@ abstract class CraftActionButtonStonecutterMixin extends HandledScreen<Stonecutt
             return;
         }
 
-        // 1.21 的 StonecutterScreen 没有覆写 init，这里改为渲染时懒加载按钮。
+        // StonecutterScreen 没有覆写 init，这里在它的背景提取阶段懒加载按钮。
         if (this.quickcraft$craftButton != null && this.children().contains(this.quickcraft$craftButton)) {
             this.quickcraft$syncCraftButtonPosition();
             return;
         }
 
         // 按钮放到产物槽右下外侧，尽量不遮挡产物图标。
-        int buttonX = this.x + this.getScreenHandler().getSlot(1).x + 13;
-        int buttonY = this.y + this.getScreenHandler().getSlot(1).y + 13;
-        this.quickcraft$craftButton = this.addDrawableChild(ButtonWidget.builder(Text.literal("Q"), button ->
+        int buttonX = this.leftPos + this.getMenu().getSlot(1).x + 13;
+        int buttonY = this.topPos + this.getMenu().getSlot(1).y + 13;
+        this.quickcraft$craftButton = this.addRenderableWidget(Button.builder(Component.literal("Q"), button ->
                 QuickCraftStonecutter.handleStonecutterCraftButton(quickcraft$isAltDown()))
-                .dimensions(buttonX, buttonY, 10, 10)
+                .bounds(buttonX, buttonY, 10, 10)
                 .build());
         this.quickcraft$syncCraftButtonPosition();
     }
 
     @Unique
     private static boolean quickcraft$isAltDown() {
-        MinecraftClient client = MinecraftClient.getInstance();
+        Minecraft client = Minecraft.getInstance();
         if (client == null) {
             return false;
         }
 
-        long handle = client.getWindow().getHandle();
+        long handle = client.getWindow().handle();
         return GLFW.glfwGetKey(handle, GLFW.GLFW_KEY_LEFT_ALT) == GLFW.GLFW_PRESS
                 || GLFW.glfwGetKey(handle, GLFW.GLFW_KEY_RIGHT_ALT) == GLFW.GLFW_PRESS;
     }
@@ -235,7 +235,7 @@ abstract class CraftActionButtonStonecutterMixin extends HandledScreen<Stonecutt
         }
 
         this.quickcraft$craftButton.visible = true;
-        this.quickcraft$craftButton.setX(this.x + this.getScreenHandler().getSlot(1).x + 13);
-        this.quickcraft$craftButton.setY(this.y + this.getScreenHandler().getSlot(1).y + 13);
+        this.quickcraft$craftButton.setX(this.leftPos + this.getMenu().getSlot(1).x + 13);
+        this.quickcraft$craftButton.setY(this.topPos + this.getMenu().getSlot(1).y + 13);
     }
 }

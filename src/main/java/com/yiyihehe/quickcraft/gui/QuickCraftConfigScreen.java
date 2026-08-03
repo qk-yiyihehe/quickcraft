@@ -8,8 +8,8 @@ import fi.dy.masa.malilib.gui.button.ButtonBase;
 import fi.dy.masa.malilib.gui.button.ButtonGeneric;
 import fi.dy.masa.malilib.gui.button.IButtonActionListener;
 import fi.dy.masa.malilib.util.StringUtils;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.gui.screen.Screen;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.screens.Screen;
 
 import java.util.List;
 
@@ -29,8 +29,8 @@ public class QuickCraftConfigScreen extends GuiConfigsBase {
         this.setTitle(tr("screen.quickcraft.title", "QuickCraft Config"));
     }
 
-    public static boolean isOpen(MinecraftClient client) {
-        return client != null && client.currentScreen instanceof QuickCraftConfigScreen;
+    public static boolean isOpen(Minecraft client) {
+        return client != null && client.screen instanceof QuickCraftConfigScreen;
     }
 
     @Override

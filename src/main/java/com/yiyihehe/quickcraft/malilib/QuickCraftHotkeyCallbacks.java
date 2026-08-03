@@ -9,11 +9,11 @@ import fi.dy.masa.malilib.gui.GuiBase;
 import fi.dy.masa.malilib.hotkeys.IKeybind;
 import fi.dy.masa.malilib.hotkeys.KeyAction;
 import fi.dy.masa.malilib.util.InfoUtils;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.gui.screen.ingame.AnvilScreen;
-import net.minecraft.client.gui.screen.ingame.CraftingScreen;
-import net.minecraft.client.gui.screen.ingame.InventoryScreen;
-import net.minecraft.client.gui.screen.ingame.StonecutterScreen;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.screens.inventory.AnvilScreen;
+import net.minecraft.client.gui.screens.inventory.CraftingScreen;
+import net.minecraft.client.gui.screens.inventory.InventoryScreen;
+import net.minecraft.client.gui.screens.inventory.StonecutterScreen;
 
 /**
  * 给 malilib 热键挂接业务回调。
@@ -41,11 +41,11 @@ public final class QuickCraftHotkeyCallbacks {
     }
 
     private static boolean handleOpenConfig(KeyAction action, IKeybind keybind) {
-        MinecraftClient client = MinecraftClient.getInstance();
+        Minecraft client = Minecraft.getInstance();
         if (action != KeyAction.PRESS
                 || client == null
                 || client.player == null
-                || client.currentScreen != null
+                || client.screen != null
                 || !QuickCraftConfigs.isOpenConfigHotkeyEnabled()) {
             return false;
         }
@@ -55,11 +55,11 @@ public final class QuickCraftHotkeyCallbacks {
     }
 
     private static boolean consumeCraftHotkey(KeyAction action, IKeybind keybind) {
-        return action == KeyAction.PRESS && isCraftingHotkeyContext(MinecraftClient.getInstance());
+        return action == KeyAction.PRESS && isCraftingHotkeyContext(Minecraft.getInstance());
     }
 
     private static boolean consumeRapidCraftHotkey(KeyAction action, IKeybind keybind) {
-        return isCraftingHotkeyContext(MinecraftClient.getInstance());
+        return isCraftingHotkeyContext(Minecraft.getInstance());
     }
 
     private static boolean handleThrow(KeyAction action, boolean matching) {
@@ -87,12 +87,12 @@ public final class QuickCraftHotkeyCallbacks {
     }
 
     private static boolean handleCopyContainerTemplate(KeyAction action, IKeybind keybind) {
-        return action == KeyAction.PRESS && QuickContainerCopy.handleRecordHotkey(MinecraftClient.getInstance());
+        return action == KeyAction.PRESS && QuickContainerCopy.handleRecordHotkey(Minecraft.getInstance());
     }
 
     private static boolean handleContinuousContainerFill(KeyAction action, IKeybind keybind) {
         return (action == KeyAction.PRESS || action == KeyAction.RELEASE)
-                && QuickContainerCopy.canHandleContinuousContainerFillHotkey(MinecraftClient.getInstance());
+                && QuickContainerCopy.canHandleContinuousContainerFillHotkey(Minecraft.getInstance());
     }
 
     private static boolean handleToggleContainerToolMode(KeyAction action, IKeybind keybind) {
@@ -108,20 +108,20 @@ public final class QuickCraftHotkeyCallbacks {
         return true;
     }
 
-    private static boolean isCraftingHotkeyContext(MinecraftClient client) {
+    private static boolean isCraftingHotkeyContext(Minecraft client) {
         if (client == null || QuickCraftConfigScreen.isOpen(client)) {
             return false;
         }
 
-        if (QuickCraftConfigs.isWorkbenchQuickCraftEnabled() && client.currentScreen instanceof CraftingScreen) {
+        if (QuickCraftConfigs.isWorkbenchQuickCraftEnabled() && client.screen instanceof CraftingScreen) {
             return true;
         }
-        if (QuickCraftConfigs.isBackpackQuickCraftEnabled() && client.currentScreen instanceof InventoryScreen) {
+        if (QuickCraftConfigs.isBackpackQuickCraftEnabled() && client.screen instanceof InventoryScreen) {
             return true;
         }
-        if (QuickCraftConfigs.isStonecutterQuickCraftEnabled() && client.currentScreen instanceof StonecutterScreen) {
+        if (QuickCraftConfigs.isStonecutterQuickCraftEnabled() && client.screen instanceof StonecutterScreen) {
             return true;
         }
-        return QuickCraftConfigs.isAnvilRenameQuickCraftEnabled() && client.currentScreen instanceof AnvilScreen;
+        return QuickCraftConfigs.isAnvilRenameQuickCraftEnabled() && client.screen instanceof AnvilScreen;
     }
 }
