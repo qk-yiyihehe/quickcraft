@@ -4,21 +4,21 @@ import com.yiyihehe.quickcraft.config.QuickCraftConfigs;
 import com.yiyihehe.quickcraft.litematica.QuickLitematicaContainerAutofill;
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
-import net.minecraft.block.Block;
-import net.minecraft.block.BarrelBlock;
-import net.minecraft.block.ChestBlock;
-import net.minecraft.block.EnderChestBlock;
-import net.minecraft.block.ShulkerBoxBlock;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.gui.screen.ingame.HandledScreen;
-import net.minecraft.item.ItemStack;
-import net.minecraft.screen.GenericContainerScreenHandler;
-import net.minecraft.screen.ScreenHandler;
-import net.minecraft.screen.ShulkerBoxScreenHandler;
-import net.minecraft.screen.slot.Slot;
-import net.minecraft.screen.slot.SlotActionType;
-import net.minecraft.util.hit.BlockHitResult;
-import net.minecraft.util.hit.HitResult;
+import net.minecraft.world.level.block.Block;
+import net.minecraft.world.level.block.BarrelBlock;
+import net.minecraft.world.level.block.ChestBlock;
+import net.minecraft.world.level.block.EnderChestBlock;
+import net.minecraft.world.level.block.ShulkerBoxBlock;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.inventory.ChestMenu;
+import net.minecraft.world.inventory.AbstractContainerMenu;
+import net.minecraft.world.inventory.ShulkerBoxMenu;
+import net.minecraft.world.inventory.Slot;
+import net.minecraft.world.inventory.ContainerInput;
+import net.minecraft.world.phys.BlockHitResult;
+import net.minecraft.world.phys.HitResult;
 
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -42,7 +42,7 @@ public final class QuickStash implements ClientModInitializer {
         ClientTickEvents.END_CLIENT_TICK.register(this::onClientTick);
     }
 
-    private void onClientTick(MinecraftClient client) {
+    private void onClientTick(Minecraft client) {
         if (!QuickCraftConfigs.isQuickStashEnabled()) {
             pendingOpen = false;
             pendingTicks = 0;
@@ -52,16 +52,16 @@ public final class QuickStash implements ClientModInitializer {
         processPendingOpen(client);
     }
 
-    private void handleUseAttempt(MinecraftClient client) {
-        if (!QuickCraftConfigs.isQuickStashEnabled() || client.player == null || client.world == null) {
+    private void handleUseAttempt(Minecraft client) {
+        if (!QuickCraftConfigs.isQuickStashEnabled() || client.player == null || client.level == null) {
             lastUseDown = false;
             return;
         }
 
-        boolean useDown = QuickCraftKeyBindings.isBoundKeyDown(client, client.options.useKey);
+        boolean useDown = QuickCraftKeyBindings.isBoundKeyDown(client, client.options.keyUse);
         if (useDown
                 && !lastUseDown
-                && client.currentScreen == null
+                && client.screen == null
                 && !QuickMaterialCollector.shouldHandleCurrentTarget(client)
                 && !QuickLitematicaContainerAutofill.shouldHandleCurrentTarget(client)
                 && isLookingAtSupportedBlock(client)) {
@@ -72,13 +72,13 @@ public final class QuickStash implements ClientModInitializer {
         lastUseDown = useDown;
     }
 
-    private void processPendingOpen(MinecraftClient client) {
+    private void processPendingOpen(Minecraft client) {
         if (!pendingOpen) {
             return;
         }
 
         pendingTicks++;
-        if (!(client.currentScreen instanceof HandledScreen<?> screen)) {
+        if (!(client.screen instanceof AbstractContainerScreen<?> screen)) {
             if (pendingTicks > OPEN_TIMEOUT_TICKS) {
                 pendingOpen = false;
                 pendingTicks = 0;
@@ -88,38 +88,38 @@ public final class QuickStash implements ClientModInitializer {
 
         pendingOpen = false;
         pendingTicks = 0;
-        if (!isSupportedHandler(screen.getScreenHandler())) {
+        if (!isSupportedHandler(screen.getMenu())) {
             return;
         }
         stashMatchingPlayerItems(screen);
         closeCurrentScreen(client);
     }
 
-    private boolean isLookingAtSupportedBlock(MinecraftClient client) {
-        HitResult hitResult = client.crosshairTarget;
-        if (!(hitResult instanceof BlockHitResult blockHitResult) || client.world == null) {
+    private boolean isLookingAtSupportedBlock(Minecraft client) {
+        HitResult hitResult = client.hitResult;
+        if (!(hitResult instanceof BlockHitResult blockHitResult) || client.level == null) {
             return false;
         }
 
-        Block block = client.world.getBlockState(blockHitResult.getBlockPos()).getBlock();
+        Block block = client.level.getBlockState(blockHitResult.getBlockPos()).getBlock();
         return block instanceof ChestBlock
                 || block instanceof BarrelBlock
                 || block instanceof EnderChestBlock
                 || block instanceof ShulkerBoxBlock;
     }
 
-    private boolean isSupportedHandler(ScreenHandler handler) {
-        return handler instanceof GenericContainerScreenHandler || handler instanceof ShulkerBoxScreenHandler;
+    private boolean isSupportedHandler(AbstractContainerMenu handler) {
+        return handler instanceof ChestMenu || handler instanceof ShulkerBoxMenu;
     }
 
-    private void stashMatchingPlayerItems(HandledScreen<?> screen) {
-        MinecraftClient client = MinecraftClient.getInstance();
-        if (client.player == null || client.interactionManager == null) {
+    private void stashMatchingPlayerItems(AbstractContainerScreen<?> screen) {
+        Minecraft client = Minecraft.getInstance();
+        if (client.player == null || client.gameMode == null) {
             return;
         }
 
-        ScreenHandler handler = screen.getScreenHandler();
-        if (!handler.getCursorStack().isEmpty()) {
+        AbstractContainerMenu handler = screen.getMenu();
+        if (!handler.getCarried().isEmpty()) {
             return;
         }
 
@@ -132,40 +132,40 @@ public final class QuickStash implements ClientModInitializer {
             Slot slot = handler.getSlot(playerSlotId);
             if (!isPlayerStorageSlot(slot)
                     || QuickContainerLock.isLockedSlot(handler, slot)
-                    || !slot.hasStack()
-                    || !slot.canTakeItems(client.player)) {
+                    || !slot.hasItem()
+                    || !slot.mayPickup(client.player)) {
                 continue;
             }
-            if (!matchesAnyTemplate(slot.getStack(), containerTemplates)) {
+            if (!matchesAnyTemplate(slot.getItem(), containerTemplates)) {
                 continue;
             }
 
-            client.interactionManager.clickSlot(
-                    handler.syncId,
+            client.gameMode.handleContainerInput(
+                    handler.containerId,
                     playerSlotId,
                     0,
-                    SlotActionType.QUICK_MOVE,
+                    ContainerInput.QUICK_MOVE,
                     client.player
             );
         }
     }
 
-    private List<ItemStack> snapshotContainerTemplates(ScreenHandler handler) {
+    private List<ItemStack> snapshotContainerTemplates(AbstractContainerMenu handler) {
         List<ItemStack> templates = new ArrayList<>();
         for (Slot slot : handler.slots) {
             if (!isVisibleSlot(slot)
                     || isPlayerStorageSlot(slot)
                     || QuickContainerLock.isLockedSlot(handler, slot)
-                    || !slot.hasStack()) {
+                    || !slot.hasItem()) {
                 continue;
             }
             // 锁住的容器格不参与“已有种类”判定，避免它间接决定回存结果。
-            templates.add(slot.getStack().copyWithCount(1));
+            templates.add(slot.getItem().copyWithCount(1));
         }
         return templates;
     }
 
-    private List<Integer> getPlayerStorageSlotIds(ScreenHandler handler) {
+    private List<Integer> getPlayerStorageSlotIds(AbstractContainerMenu handler) {
         List<Slot> playerSlots = new ArrayList<>();
         for (Slot slot : handler.slots) {
             if (!isVisibleSlot(slot)
@@ -177,18 +177,18 @@ public final class QuickStash implements ClientModInitializer {
         }
 
         playerSlots.sort(Comparator
-                .comparingInt((Slot slot) -> slot.getIndex() >= 9 ? 0 : 1)
-                .thenComparingInt(Slot::getIndex)
-                .thenComparingInt(slot -> slot.id));
+                .comparingInt((Slot slot) -> slot.getContainerSlot() >= 9 ? 0 : 1)
+                .thenComparingInt(Slot::getContainerSlot)
+                .thenComparingInt(slot -> slot.index));
 
         return playerSlots.stream()
-                .map(slot -> slot.id)
+                .map(slot -> slot.index)
                 .toList();
     }
 
     private boolean matchesAnyTemplate(ItemStack stack, List<ItemStack> templates) {
         for (ItemStack template : templates) {
-            if (ItemStack.areItemsAndComponentsEqual(stack, template)) {
+            if (ItemStack.isSameItemSameComponents(stack, template)) {
                 return true;
             }
         }
@@ -196,18 +196,18 @@ public final class QuickStash implements ClientModInitializer {
     }
 
     private boolean isPlayerStorageSlot(Slot slot) {
-        return slot.inventory instanceof net.minecraft.entity.player.PlayerInventory
-                && slot.getIndex() >= 0
-                && slot.getIndex() < 36;
+        return slot.container instanceof net.minecraft.world.entity.player.Inventory
+                && slot.getContainerSlot() >= 0
+                && slot.getContainerSlot() < 36;
     }
 
     private boolean isVisibleSlot(Slot slot) {
-        return slot.isEnabled() && slot.x >= 0 && slot.y >= 0;
+        return slot.isActive() && slot.x >= 0 && slot.y >= 0;
     }
 
-    private void closeCurrentScreen(MinecraftClient client) {
+    private void closeCurrentScreen(Minecraft client) {
         if (client.player != null) {
-            client.player.closeHandledScreen();
+            client.player.closeContainer();
         }
     }
 }

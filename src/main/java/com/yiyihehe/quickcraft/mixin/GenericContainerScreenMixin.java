@@ -1,13 +1,13 @@
 package com.yiyihehe.quickcraft.mixin;
 
 import com.yiyihehe.quickcraft.QuickContainerLock;
-import net.minecraft.client.gui.DrawContext;
-import net.minecraft.client.gui.screen.ingame.GenericContainerScreen;
-import net.minecraft.client.gui.screen.ingame.HandledScreen;
-import net.minecraft.client.gui.widget.ButtonWidget;
-import net.minecraft.entity.player.PlayerInventory;
-import net.minecraft.screen.GenericContainerScreenHandler;
-import net.minecraft.text.Text;
+import net.minecraft.client.gui.GuiGraphicsExtractor;
+import net.minecraft.client.gui.screens.inventory.ContainerScreen;
+import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
+import net.minecraft.client.gui.components.Button;
+import net.minecraft.world.entity.player.Inventory;
+import net.minecraft.world.inventory.ChestMenu;
+import net.minecraft.network.chat.Component;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Unique;
 import org.spongepowered.asm.mixin.injection.At;
@@ -18,17 +18,17 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
  * 给通用箱子类界面补容器锁按钮。
  * 这里负责在打开容器时绑定当前界面，并懒加载右上角锁定开关。
  */
-@Mixin(GenericContainerScreen.class)
-public abstract class GenericContainerScreenMixin extends HandledScreen<GenericContainerScreenHandler> {
+@Mixin(ContainerScreen.class)
+public abstract class GenericContainerScreenMixin extends AbstractContainerScreen<ChestMenu> {
     @Unique
-    private ButtonWidget quickcraft$lockButton;
+    private Button quickcraft$lockButton;
 
-    protected GenericContainerScreenMixin(GenericContainerScreenHandler handler, PlayerInventory inventory, Text title) {
+    protected GenericContainerScreenMixin(ChestMenu handler, Inventory inventory, Component title) {
         super(handler, inventory, title);
     }
 
-    @Inject(method = "render", at = @At("HEAD"))
-    private void quickcraft$addLockButton(DrawContext context, int mouseX, int mouseY, float delta, CallbackInfo ci) {
+    @Inject(method = "extractBackground", at = @At("HEAD"))
+    private void quickcraft$addLockButton(GuiGraphicsExtractor context, int mouseX, int mouseY, float delta, CallbackInfo ci) {
         QuickContainerLock.bindCurrentScreen(this);
         if (!QuickContainerLock.shouldShowLockButton(this)) {
             if (this.quickcraft$lockButton != null) {
@@ -37,23 +37,23 @@ public abstract class GenericContainerScreenMixin extends HandledScreen<GenericC
             return;
         }
 
-        // GenericContainerScreen 在 1.21 里也没有覆写 init，避免注入点失效。
+        // ContainerScreen 没有覆写 init，避免注入点随继承实现失效。
         if (this.quickcraft$lockButton != null && this.children().contains(this.quickcraft$lockButton)) {
             this.quickcraft$syncLockButtonPosition();
             return;
         }
-        var client = this.client;
+        var client = this.minecraft;
         if (client == null) {
             return;
         }
 
-        int buttonX = this.x + this.backgroundWidth - 16;
-        int buttonY = this.y + 4;
-        this.quickcraft$lockButton = this.addDrawableChild(ButtonWidget.builder(QuickContainerLock.getLockButtonText(this), button -> {
+        int buttonX = this.leftPos + this.imageWidth - 16;
+        int buttonY = this.topPos + 4;
+        this.quickcraft$lockButton = this.addRenderableWidget(Button.builder(QuickContainerLock.getLockButtonText(this), button -> {
                     QuickContainerLock.toggleCurrentScreenLock(client, this);
                     button.setMessage(QuickContainerLock.getLockButtonText(this));
                 })
-                .dimensions(buttonX, buttonY, 14, 14)
+                .bounds(buttonX, buttonY, 14, 14)
                 .build());
         this.quickcraft$syncLockButtonPosition();
     }
@@ -65,8 +65,8 @@ public abstract class GenericContainerScreenMixin extends HandledScreen<GenericC
         }
 
         this.quickcraft$lockButton.visible = true;
-        this.quickcraft$lockButton.setX(this.x + this.backgroundWidth - 16);
-        this.quickcraft$lockButton.setY(this.y + 4);
+        this.quickcraft$lockButton.setX(this.leftPos + this.imageWidth - 16);
+        this.quickcraft$lockButton.setY(this.topPos + 4);
         this.quickcraft$lockButton.setMessage(QuickContainerLock.getLockButtonText(this));
     }
 }

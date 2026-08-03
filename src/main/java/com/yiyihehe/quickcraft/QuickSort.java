@@ -6,27 +6,27 @@ import com.yiyihehe.quickcraft.mixin.CreativeInventoryScreenInvoker;
 import com.yiyihehe.quickcraft.mixin.CreativeSlotAccessor;
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
-import net.minecraft.block.ShulkerBoxBlock;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.gui.Element;
-import net.minecraft.client.gui.screen.ingame.CreativeInventoryScreen;
-import net.minecraft.client.gui.screen.ingame.HandledScreen;
-import net.minecraft.client.gui.widget.TextFieldWidget;
-import net.minecraft.component.DataComponentTypes;
-import net.minecraft.component.type.BundleContentsComponent;
-import net.minecraft.component.type.ContainerComponent;
-import net.minecraft.entity.player.PlayerInventory;
-import net.minecraft.inventory.Inventory;
-import net.minecraft.item.BlockItem;
-import net.minecraft.item.ItemGroup;
-import net.minecraft.item.ItemGroups;
-import net.minecraft.item.ItemStack;
-import net.minecraft.item.Items;
-import net.minecraft.registry.Registries;
-import net.minecraft.registry.RegistryKey;
-import net.minecraft.screen.ScreenHandler;
-import net.minecraft.screen.slot.Slot;
-import net.minecraft.screen.slot.SlotActionType;
+import net.minecraft.world.level.block.ShulkerBoxBlock;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.components.events.GuiEventListener;
+import net.minecraft.client.gui.screens.inventory.CreativeModeInventoryScreen;
+import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
+import net.minecraft.client.gui.components.EditBox;
+import net.minecraft.core.component.DataComponents;
+import net.minecraft.world.item.component.BundleContents;
+import net.minecraft.world.item.component.ItemContainerContents;
+import net.minecraft.world.entity.player.Inventory;
+import net.minecraft.world.Container;
+import net.minecraft.world.item.BlockItem;
+import net.minecraft.world.item.CreativeModeTab;
+import net.minecraft.world.item.CreativeModeTabs;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Items;
+import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.resources.ResourceKey;
+import net.minecraft.world.inventory.AbstractContainerMenu;
+import net.minecraft.world.inventory.Slot;
+import net.minecraft.world.inventory.ContainerInput;
 
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -43,22 +43,21 @@ import java.util.Objects;
 public class QuickSort implements ClientModInitializer {
     private static final int SLOT_SIZE = 18;
     private static final int BOUNDS_PADDING = 4;
-    private static final ItemStack INSERT_TEST_STACK = Items.DIRT.getDefaultStack();
-    private static final List<RegistryKey<ItemGroup>> CATEGORY_ORDER = List.of(
-        ItemGroups.BUILDING_BLOCKS,
-        ItemGroups.COLORED_BLOCKS,
-        ItemGroups.NATURAL,
-        ItemGroups.FUNCTIONAL,
-        ItemGroups.REDSTONE,
-        ItemGroups.TOOLS,
-        ItemGroups.COMBAT,
-        ItemGroups.FOOD_AND_DRINK,
-        ItemGroups.INGREDIENTS,
-        ItemGroups.SPAWN_EGGS,
-        ItemGroups.OPERATOR
+    private static final List<ResourceKey<CreativeModeTab>> CATEGORY_ORDER = List.of(
+        CreativeModeTabs.BUILDING_BLOCKS,
+        CreativeModeTabs.COLORED_BLOCKS,
+        CreativeModeTabs.NATURAL_BLOCKS,
+        CreativeModeTabs.FUNCTIONAL_BLOCKS,
+        CreativeModeTabs.REDSTONE_BLOCKS,
+        CreativeModeTabs.TOOLS_AND_UTILITIES,
+        CreativeModeTabs.COMBAT,
+        CreativeModeTabs.FOOD_AND_DRINKS,
+        CreativeModeTabs.INGREDIENTS,
+        CreativeModeTabs.SPAWN_EGGS,
+        CreativeModeTabs.OP_BLOCKS
     );
-    private static final Map<RegistryKey<ItemGroup>, Map<ItemKey, Integer>> CATEGORY_EXACT_ORDER_CACHE = new HashMap<>();
-    private static final Map<RegistryKey<ItemGroup>, Map<String, Integer>> CATEGORY_ITEM_ORDER_CACHE = new HashMap<>();
+    private static final Map<ResourceKey<CreativeModeTab>, Map<ItemKey, Integer>> CATEGORY_EXACT_ORDER_CACHE = new HashMap<>();
+    private static final Map<ResourceKey<CreativeModeTab>, Map<String, Integer>> CATEGORY_ITEM_ORDER_CACHE = new HashMap<>();
     private boolean lastQuickSortDown;
 
     @Override
@@ -66,7 +65,7 @@ public class QuickSort implements ClientModInitializer {
         ClientTickEvents.END_CLIENT_TICK.register(this::onClientTick);
     }
 
-    private void onClientTick(MinecraftClient client) {
+    private void onClientTick(Minecraft client) {
         boolean quickSortDown = QuickCraftConfigs.getQuickSortHotkey().isKeybindHeld();
         if (quickSortDown && !lastQuickSortDown) {
             handleQuickSortHotkey(client);
@@ -74,12 +73,12 @@ public class QuickSort implements ClientModInitializer {
         lastQuickSortDown = quickSortDown;
     }
 
-    public static boolean handleQuickSortHotkey(MinecraftClient client) {
+    public static boolean handleQuickSortHotkey(Minecraft client) {
         if (client == null || client.player == null || !QuickCraftConfigs.isQuickSortEnabled()) {
             return false;
         }
 
-        if (client.currentScreen instanceof HandledScreen<?> handledScreen) {
+        if (client.screen instanceof AbstractContainerScreen<?> handledScreen) {
             if (isTextInputFocused(handledScreen)) {
                 return false;
             }
@@ -90,13 +89,13 @@ public class QuickSort implements ClientModInitializer {
         return false;
     }
 
-    public static void sortInventory(HandledScreen<?> gui) {
-        MinecraftClient client = MinecraftClient.getInstance();
-        if (client.player == null || client.interactionManager == null) {
+    public static void sortInventory(AbstractContainerScreen<?> gui) {
+        Minecraft client = Minecraft.getInstance();
+        if (client.player == null || client.gameMode == null) {
             return;
         }
 
-        ScreenHandler handler = gui.getScreenHandler();
+        AbstractContainerMenu handler = gui.getMenu();
         SortTarget target = findSortTarget(gui);
         if (target == null || target.slotIds.size() < 2) {
             return;
@@ -106,24 +105,24 @@ public class QuickSort implements ClientModInitializer {
             return;
         }
 
-        if (!(gui instanceof CreativeInventoryScreen)) {
+        if (!(gui instanceof CreativeModeInventoryScreen)) {
             ensureItemGroupDisplayContext(client);
         }
 
-        ScreenHandler targetHandler = target.handler();
-        if (!targetHandler.getCursorStack().isEmpty() && !storeCursorStackForTarget(gui, target)) {
+        AbstractContainerMenu targetHandler = target.handler();
+        if (!targetHandler.getCarried().isEmpty() && !storeCursorStackForTarget(gui, target)) {
             return;
         }
 
         mergeIdenticalStacks(targetHandler, target.slotIds);
         reorderSlots(targetHandler, target.slotIds, buildTargetOrder(targetHandler, target.slotIds), targetHandler == handler);
-        if (!targetHandler.getCursorStack().isEmpty()) {
+        if (!targetHandler.getCarried().isEmpty()) {
             storeCursorStackForTarget(gui, target);
         }
     }
 
-    private static SortTarget findSortTarget(HandledScreen<?> gui) {
-        MinecraftClient client = MinecraftClient.getInstance();
+    private static SortTarget findSortTarget(AbstractContainerScreen<?> gui) {
+        Minecraft client = Minecraft.getInstance();
         if (client.player == null) {
             return null;
         }
@@ -144,7 +143,7 @@ public class QuickSort implements ClientModInitializer {
             .orElse(null);
     }
 
-    private static boolean isLockedSortTarget(MinecraftClient client, HandledScreen<?> gui, SortTarget target) {
+    private static boolean isLockedSortTarget(Minecraft client, AbstractContainerScreen<?> gui, SortTarget target) {
         return switch (target.label()) {
             case "container" -> QuickContainerLock.handleLockedSortAttempt(client, gui);
             case "player-main", "player-hotbar", "creative-player-main", "creative-player-hotbar" ->
@@ -153,13 +152,13 @@ public class QuickSort implements ClientModInitializer {
         };
     }
 
-    private static boolean isTextInputFocused(HandledScreen<?> gui) {
-        Element focused = gui.getFocused();
-        return focused instanceof TextFieldWidget;
+    private static boolean isTextInputFocused(AbstractContainerScreen<?> gui) {
+        GuiEventListener focused = gui.getFocused();
+        return focused instanceof EditBox;
     }
 
-    private static List<SortTarget> buildPlayerTargets(HandledScreen<?> gui, int guiLeft, int guiTop) {
-        ScreenHandler handler = gui.getScreenHandler();
+    private static List<SortTarget> buildPlayerTargets(AbstractContainerScreen<?> gui, int guiLeft, int guiTop) {
+        AbstractContainerMenu handler = gui.getMenu();
         List<SortTarget> targets = new ArrayList<>();
         if (!shouldShowPlayerSortTargets(gui)) {
             return targets;
@@ -178,7 +177,7 @@ public class QuickSort implements ClientModInitializer {
             .filter(row -> row.size() == 9)
             .toList();
 
-        if (gui instanceof CreativeInventoryScreen creativeScreen) {
+        if (gui instanceof CreativeModeInventoryScreen creativeScreen) {
             addCreativeTargets(creativeScreen, targets, playerSlots, guiLeft, guiTop);
             return targets;
         }
@@ -209,12 +208,12 @@ public class QuickSort implements ClientModInitializer {
         return targets;
     }
 
-    private static void addCreativeTargets(CreativeInventoryScreen gui,
+    private static void addCreativeTargets(CreativeModeInventoryScreen gui,
                                            List<SortTarget> targets,
                                            List<Slot> playerSlots,
                                            int guiLeft,
                                            int guiTop) {
-        if (gui.isInventoryTabSelected()) {
+        if (gui.isInventoryOpen()) {
             addCreativeInventoryTabTargets(gui, targets, playerSlots, guiLeft, guiTop);
             return;
         }
@@ -222,14 +221,14 @@ public class QuickSort implements ClientModInitializer {
         addCreativeHotbarTarget(gui, targets, playerSlots, guiLeft, guiTop);
     }
 
-    private static void addCreativeInventoryTabTargets(CreativeInventoryScreen gui,
+    private static void addCreativeInventoryTabTargets(CreativeModeInventoryScreen gui,
                                                        List<SortTarget> targets,
                                                        List<Slot> playerSlots,
                                                        int guiLeft,
                                                        int guiTop) {
         // 创造背包背后的底层玩家 handler 还挂着隐藏槽；这里必须只用当前界面可见槽位所在的 handler，
         // 否则高版本整理时可能会借到隐藏槽位腾挪，表现成穿装备或复制一份。
-        ScreenHandler handler = gui.getScreenHandler();
+        AbstractContainerMenu handler = gui.getMenu();
         List<Slot> mainSlots = sortSlotsForLayout(playerSlots).stream()
             .filter(QuickSort::isPlayerMainInventorySlot)
             .toList();
@@ -255,12 +254,12 @@ public class QuickSort implements ClientModInitializer {
         }
     }
 
-    private static void addCreativeHotbarTarget(CreativeInventoryScreen gui,
+    private static void addCreativeHotbarTarget(CreativeModeInventoryScreen gui,
                                                 List<SortTarget> targets,
                                                 List<Slot> playerSlots,
                                                 int guiLeft,
                                                 int guiTop) {
-        ScreenHandler handler = gui.getScreenHandler();
+        AbstractContainerMenu handler = gui.getMenu();
         List<Slot> hotbarSlots = sortSlotsForLayout(playerSlots).stream()
             .filter(QuickSort::isPlayerHotbarSlot)
             .toList();
@@ -277,24 +276,24 @@ public class QuickSort implements ClientModInitializer {
         ));
     }
 
-    private static List<SortTarget> buildContainerTargets(HandledScreen<?> gui, int guiLeft, int guiTop) {
-        MinecraftClient client = MinecraftClient.getInstance();
-        ScreenHandler handler = gui.getScreenHandler();
+    private static List<SortTarget> buildContainerTargets(AbstractContainerScreen<?> gui, int guiLeft, int guiTop) {
+        Minecraft client = Minecraft.getInstance();
+        AbstractContainerMenu handler = gui.getMenu();
         List<SortTarget> targets = new ArrayList<>();
-        Map<Inventory, List<Slot>> groups = new IdentityHashMap<>();
+        Map<Container, List<Slot>> groups = new IdentityHashMap<>();
 
-        if (gui instanceof CreativeInventoryScreen) {
+        if (gui instanceof CreativeModeInventoryScreen) {
             return targets;
         }
 
-        for (Slot slot : gui.getScreenHandler().slots) {
+        for (Slot slot : gui.getMenu().slots) {
             if (isPlayerAreaSlot(gui, slot)) {
                 continue;
             }
             if (!isContainerSortCandidateSlot(handler, slot, client)) {
                 continue;
             }
-            groups.computeIfAbsent(slot.inventory, ignored -> new ArrayList<>()).add(slot);
+            groups.computeIfAbsent(slot.container, ignored -> new ArrayList<>()).add(slot);
         }
 
         for (List<Slot> group : groups.values()) {
@@ -314,47 +313,47 @@ public class QuickSort implements ClientModInitializer {
         return targets;
     }
 
-    private static boolean shouldShowPlayerSortTargets(HandledScreen<?> gui) {
-        if (gui instanceof CreativeInventoryScreen creativeScreen) {
-            return creativeScreen.isInventoryTabSelected();
+    private static boolean shouldShowPlayerSortTargets(AbstractContainerScreen<?> gui) {
+        if (gui instanceof CreativeModeInventoryScreen creativeScreen) {
+            return creativeScreen.isInventoryOpen();
         }
         return true;
     }
 
-    private static boolean isContainerSortCandidateSlot(ScreenHandler handler, Slot slot, MinecraftClient client) {
+    private static boolean isContainerSortCandidateSlot(AbstractContainerMenu handler, Slot slot, Minecraft client) {
         if (!isVisibleSlot(slot) || client.player == null) {
             return false;
         }
         if (QuickContainerLock.isLockedSlot(handler, slot)) {
             return true;
         }
-        if (!slot.canTakeItems(client.player)) {
+        if (!slot.mayPickup(client.player)) {
             return false;
         }
-        return slot.canInsert(INSERT_TEST_STACK);
+        return slot.mayPlace(Items.DIRT.getDefaultInstance());
     }
 
-    private static boolean isContainerSortableSlot(ScreenHandler handler, Slot slot, MinecraftClient client) {
+    private static boolean isContainerSortableSlot(AbstractContainerMenu handler, Slot slot, Minecraft client) {
         if (!isVisibleSlot(slot) || client.player == null) {
             return false;
         }
         if (QuickContainerLock.isLockedSlot(handler, slot)) {
             return false;
         }
-        if (!slot.canTakeItems(client.player)) {
+        if (!slot.mayPickup(client.player)) {
             return false;
         }
-        return slot.canInsert(INSERT_TEST_STACK);
+        return slot.mayPlace(Items.DIRT.getDefaultInstance());
     }
 
-    private static boolean isLikelySortableContainer(HandledScreen<?> gui, List<Slot> slots) {
+    private static boolean isLikelySortableContainer(AbstractContainerScreen<?> gui, List<Slot> slots) {
         if (slots.size() < 5) {
             return false;
         }
 
         long columnCount = slots.stream().map(slot -> slot.x).distinct().count();
         long rowCount = slots.stream().map(slot -> slot.y).distinct().count();
-        String handlerName = gui.getScreenHandler().getClass().getSimpleName();
+        String handlerName = gui.getMenu().getClass().getSimpleName();
 
         if (Objects.equals(handlerName, "CraftingScreenHandler") || Objects.equals(handlerName, "PlayerScreenHandler")) {
             if (columnCount <= 3 && rowCount <= 3) {
@@ -365,25 +364,25 @@ public class QuickSort implements ClientModInitializer {
         return rowCount >= 1 && columnCount >= 3;
     }
 
-    private static boolean isPlayerAreaSlot(HandledScreen<?> gui, Slot slot) {
+    private static boolean isPlayerAreaSlot(AbstractContainerScreen<?> gui, Slot slot) {
         Slot effectiveSlot = unwrapCreativeSlot(slot);
-        return effectiveSlot.inventory instanceof PlayerInventory
-            && effectiveSlot.getIndex() >= 0
-            && effectiveSlot.getIndex() < 36;
+        return effectiveSlot.container instanceof Inventory
+            && effectiveSlot.getContainerSlot() >= 0
+            && effectiveSlot.getContainerSlot() < 36;
     }
 
     private static boolean isPlayerHotbarSlot(Slot slot) {
         Slot effectiveSlot = unwrapCreativeSlot(slot);
-        return effectiveSlot.inventory instanceof PlayerInventory
-            && effectiveSlot.getIndex() >= 0
-            && effectiveSlot.getIndex() < 9;
+        return effectiveSlot.container instanceof Inventory
+            && effectiveSlot.getContainerSlot() >= 0
+            && effectiveSlot.getContainerSlot() < 9;
     }
 
     private static boolean isPlayerMainInventorySlot(Slot slot) {
         Slot effectiveSlot = unwrapCreativeSlot(slot);
-        return effectiveSlot.inventory instanceof PlayerInventory
-            && effectiveSlot.getIndex() >= 9
-            && effectiveSlot.getIndex() < 36;
+        return effectiveSlot.container instanceof Inventory
+            && effectiveSlot.getContainerSlot() >= 9
+            && effectiveSlot.getContainerSlot() < 36;
     }
 
     private static Slot unwrapCreativeSlot(Slot slot) {
@@ -396,18 +395,18 @@ public class QuickSort implements ClientModInitializer {
         return slot;
     }
 
-    private static void mergeIdenticalStacks(ScreenHandler handler, List<Integer> slotIds) {
+    private static void mergeIdenticalStacks(AbstractContainerMenu handler, List<Integer> slotIds) {
         Map<ItemKey, Integer> primarySlots = new HashMap<>();
 
         for (int slotId : slotIds) {
             Slot slot = handler.getSlot(slotId);
-            if (!slot.hasStack()) {
+            if (!slot.hasItem()) {
                 continue;
             }
 
-            ItemStack stack = slot.getStack();
+            ItemStack stack = slot.getItem();
             ItemKey key = new ItemKey(stack);
-            if (stack.getCount() >= stack.getMaxCount()) {
+            if (stack.getCount() >= stack.getMaxStackSize()) {
                 continue;
             }
 
@@ -418,22 +417,22 @@ public class QuickSort implements ClientModInitializer {
             }
 
             Slot primarySlot = handler.getSlot(primarySlotId);
-            if (!canStacksMerge(primarySlot.getStack(), stack)) {
+            if (!canStacksMerge(primarySlot.getItem(), stack)) {
                 primarySlots.put(key, slotId);
                 continue;
             }
 
             mergeSlots(handler, slotId, primarySlotId);
 
-            if (slot.hasStack()) {
+            if (slot.hasItem()) {
                 primarySlots.put(key, slotId);
-            } else if (!primarySlot.hasStack() || primarySlot.getStack().getCount() >= primarySlot.getStack().getMaxCount()) {
+            } else if (!primarySlot.hasItem() || primarySlot.getItem().getCount() >= primarySlot.getItem().getMaxStackSize()) {
                 primarySlots.remove(key);
             }
         }
     }
 
-    private static void reorderSlots(ScreenHandler handler,
+    private static void reorderSlots(AbstractContainerMenu handler,
                                      List<Integer> slotIds,
                                      List<ItemStack> targetOrder,
                                      boolean useVisibleStorageFallback) {
@@ -442,7 +441,7 @@ public class QuickSort implements ClientModInitializer {
             Slot targetSlot = handler.getSlot(targetSlotId);
             ItemStack expected = targetIndex < targetOrder.size() ? targetOrder.get(targetIndex) : ItemStack.EMPTY;
 
-            if (stacksEqualExactly(targetSlot.getStack(), expected)) {
+            if (stacksEqualExactly(targetSlot.getItem(), expected)) {
                 continue;
             }
 
@@ -455,13 +454,13 @@ public class QuickSort implements ClientModInitializer {
 
             if (expected.isEmpty()) {
                 moveStackToEmptySlot(handler, targetSlotId, sourceSlotId);
-            } else if (targetSlot.getStack().isEmpty()) {
+            } else if (targetSlot.getItem().isEmpty()) {
                 moveStackToEmptySlot(handler, sourceSlotId, targetSlotId);
             } else {
                 swapSlots(handler, targetSlotId, sourceSlotId);
             }
 
-            if (!handler.getCursorStack().isEmpty()) {
+            if (!handler.getCarried().isEmpty()) {
                 boolean stored = useVisibleStorageFallback
                     ? storeCursorStackInVisibleSlots(handler)
                     : storeCursorStack(handler, slotIds);
@@ -473,14 +472,14 @@ public class QuickSort implements ClientModInitializer {
         }
     }
 
-    private static List<ItemStack> buildTargetOrder(ScreenHandler handler, List<Integer> slotIds) {
+    private static List<ItemStack> buildTargetOrder(AbstractContainerMenu handler, List<Integer> slotIds) {
         List<ItemStack> priorityStacks = new ArrayList<>();
         List<ItemStack> normalStacks = new ArrayList<>();
         List<ItemStack> bundleStacks = new ArrayList<>();
         List<ItemStack> shulkerStacks = new ArrayList<>();
 
         for (int slotId : slotIds) {
-            ItemStack stack = handler.getSlot(slotId).getStack();
+            ItemStack stack = handler.getSlot(slotId).getItem();
             if (stack.isEmpty()) {
                 continue;
             }
@@ -529,59 +528,59 @@ public class QuickSort implements ClientModInitializer {
         return result;
     }
 
-    private static int findMatchingSourceIndex(ScreenHandler handler, List<Integer> slotIds, int startIndex, ItemStack expected) {
+    private static int findMatchingSourceIndex(AbstractContainerMenu handler, List<Integer> slotIds, int startIndex, ItemStack expected) {
         for (int i = startIndex; i < slotIds.size(); i++) {
             Slot slot = handler.getSlot(slotIds.get(i));
-            if (stacksEqualExactly(slot.getStack(), expected)) {
+            if (stacksEqualExactly(slot.getItem(), expected)) {
                 return i;
             }
         }
         return -1;
     }
 
-    private static void mergeSlots(ScreenHandler handler, int sourceSlotId, int targetSlotId) {
-        clickSlot(handler, sourceSlotId, 0, SlotActionType.PICKUP);
-        clickSlot(handler, targetSlotId, 0, SlotActionType.PICKUP);
-        if (!handler.getCursorStack().isEmpty()) {
-            clickSlot(handler, sourceSlotId, 0, SlotActionType.PICKUP);
+    private static void mergeSlots(AbstractContainerMenu handler, int sourceSlotId, int targetSlotId) {
+        clickSlot(handler, sourceSlotId, 0, ContainerInput.PICKUP);
+        clickSlot(handler, targetSlotId, 0, ContainerInput.PICKUP);
+        if (!handler.getCarried().isEmpty()) {
+            clickSlot(handler, sourceSlotId, 0, ContainerInput.PICKUP);
         }
     }
 
-    private static void moveStackToEmptySlot(ScreenHandler handler, int fromSlotId, int toSlotId) {
-        clickSlot(handler, fromSlotId, 0, SlotActionType.PICKUP);
-        clickSlot(handler, toSlotId, 0, SlotActionType.PICKUP);
+    private static void moveStackToEmptySlot(AbstractContainerMenu handler, int fromSlotId, int toSlotId) {
+        clickSlot(handler, fromSlotId, 0, ContainerInput.PICKUP);
+        clickSlot(handler, toSlotId, 0, ContainerInput.PICKUP);
     }
 
-    private static void swapSlots(ScreenHandler handler, int slotA, int slotB) {
+    private static void swapSlots(AbstractContainerMenu handler, int slotA, int slotB) {
         int swapBufferHotbar = findSwapBufferHotbarIndex(handler, slotA, slotB);
         if (swapBufferHotbar >= 0) {
-            clickSlot(handler, slotA, swapBufferHotbar, SlotActionType.SWAP);
-            clickSlot(handler, slotB, swapBufferHotbar, SlotActionType.SWAP);
-            clickSlot(handler, slotA, swapBufferHotbar, SlotActionType.SWAP);
+            clickSlot(handler, slotA, swapBufferHotbar, ContainerInput.SWAP);
+            clickSlot(handler, slotB, swapBufferHotbar, ContainerInput.SWAP);
+            clickSlot(handler, slotA, swapBufferHotbar, ContainerInput.SWAP);
             return;
         }
 
-        clickSlot(handler, slotA, 0, SlotActionType.PICKUP);
-        clickSlot(handler, slotB, 0, SlotActionType.PICKUP);
-        clickSlot(handler, slotA, 0, SlotActionType.PICKUP);
+        clickSlot(handler, slotA, 0, ContainerInput.PICKUP);
+        clickSlot(handler, slotB, 0, ContainerInput.PICKUP);
+        clickSlot(handler, slotA, 0, ContainerInput.PICKUP);
     }
 
     /**
      * 用一个不参与当前交换的快捷栏槽位做缓冲，可以避免同类可堆叠物品在交换时被误合并。
      * 缓冲物品也必须能临时放进两个目标槽，避免潜影盒整理时 SWAP 被服务端拒绝。
      */
-    private static int findSwapBufferHotbarIndex(ScreenHandler handler, int slotA, int slotB) {
-        MinecraftClient client = MinecraftClient.getInstance();
+    private static int findSwapBufferHotbarIndex(AbstractContainerMenu handler, int slotA, int slotB) {
+        Minecraft client = Minecraft.getInstance();
         Slot targetA = handler.getSlot(slotA);
         Slot targetB = handler.getSlot(slotB);
 
         for (Slot slot : handler.slots) {
             Slot effectiveSlot = unwrapCreativeSlot(slot);
-            if (!(effectiveSlot.inventory instanceof PlayerInventory)) {
+            if (!(effectiveSlot.container instanceof Inventory)) {
                 continue;
             }
 
-            int playerInventoryIndex = effectiveSlot.getIndex();
+            int playerInventoryIndex = effectiveSlot.getContainerSlot();
             if (playerInventoryIndex < 0 || playerInventoryIndex > 8) {
                 continue;
             }
@@ -593,16 +592,16 @@ public class QuickSort implements ClientModInitializer {
             if (QuickContainerLock.isLockedSlot(handler, slot)) {
                 continue;
             }
-            if (client.player != null && !slot.canTakeItems(client.player)) {
+            if (client.player != null && !slot.mayPickup(client.player)) {
                 continue;
             }
 
-            ItemStack bufferStack = effectiveSlot.getStack();
+            ItemStack bufferStack = effectiveSlot.getItem();
             if (bufferStack.isEmpty()) {
                 return playerInventoryIndex;
             }
-            if (targetA.canInsert(bufferStack)
-                && targetB.canInsert(bufferStack)) {
+            if (targetA.mayPlace(bufferStack)
+                && targetB.mayPlace(bufferStack)) {
                 return playerInventoryIndex;
             }
         }
@@ -610,13 +609,13 @@ public class QuickSort implements ClientModInitializer {
         return -1;
     }
 
-    private static boolean storeCursorStackInVisibleSlots(ScreenHandler handler) {
-        MinecraftClient client = MinecraftClient.getInstance();
+    private static boolean storeCursorStackInVisibleSlots(AbstractContainerMenu handler) {
+        Minecraft client = Minecraft.getInstance();
         if (client.player == null) {
             return false;
         }
 
-        ItemStack cursorStack = handler.getCursorStack();
+        ItemStack cursorStack = handler.getCarried();
         if (cursorStack.isEmpty()) {
             return true;
         }
@@ -626,18 +625,18 @@ public class QuickSort implements ClientModInitializer {
             if (!isSafeVisibleStorageSlot(handler, slot, client)) {
                 continue;
             }
-            if (!isVisibleSlot(slot) || !slot.hasStack()) {
+            if (!isVisibleSlot(slot) || !slot.hasItem()) {
                 continue;
             }
-            if (!slot.canTakeItems(client.player) || !slot.canInsert(cursorStack)) {
+            if (!slot.mayPickup(client.player) || !slot.mayPlace(cursorStack)) {
                 continue;
             }
-            if (!canStacksMerge(slot.getStack(), cursorStack)) {
+            if (!canStacksMerge(slot.getItem(), cursorStack)) {
                 continue;
             }
 
-            clickSlot(handler, getClickSlotId(handler, slot), 0, SlotActionType.PICKUP);
-            if (handler.getCursorStack().isEmpty()) {
+            clickSlot(handler, getClickSlotId(handler, slot), 0, ContainerInput.PICKUP);
+            if (handler.getCarried().isEmpty()) {
                 return true;
             }
         }
@@ -646,15 +645,15 @@ public class QuickSort implements ClientModInitializer {
             if (!isSafeVisibleStorageSlot(handler, slot, client)) {
                 continue;
             }
-            if (!isVisibleSlot(slot) || slot.hasStack()) {
+            if (!isVisibleSlot(slot) || slot.hasItem()) {
                 continue;
             }
-            if (!slot.canTakeItems(client.player) || !slot.canInsert(cursorStack)) {
+            if (!slot.mayPickup(client.player) || !slot.mayPlace(cursorStack)) {
                 continue;
             }
 
-            clickSlot(handler, getClickSlotId(handler, slot), 0, SlotActionType.PICKUP);
-            if (handler.getCursorStack().isEmpty()) {
+            clickSlot(handler, getClickSlotId(handler, slot), 0, ContainerInput.PICKUP);
+            if (handler.getCarried().isEmpty()) {
                 return true;
             }
         }
@@ -662,54 +661,54 @@ public class QuickSort implements ClientModInitializer {
         return false;
     }
 
-    private static boolean isSafeVisibleStorageSlot(ScreenHandler handler, Slot slot, MinecraftClient client) {
-        if (client.currentScreen instanceof CreativeInventoryScreen creativeScreen
-            && handler == creativeScreen.getScreenHandler()) {
+    private static boolean isSafeVisibleStorageSlot(AbstractContainerMenu handler, Slot slot, Minecraft client) {
+        if (client.screen instanceof CreativeModeInventoryScreen creativeScreen
+            && handler == creativeScreen.getMenu()) {
             return isPlayerAreaSlot(creativeScreen, slot);
         }
         return true;
     }
 
-    private static boolean storeCursorStack(ScreenHandler handler, List<Integer> slotIds) {
-        MinecraftClient client = MinecraftClient.getInstance();
+    private static boolean storeCursorStack(AbstractContainerMenu handler, List<Integer> slotIds) {
+        Minecraft client = Minecraft.getInstance();
         if (client.player == null) {
             return false;
         }
 
-        ItemStack cursorStack = handler.getCursorStack();
+        ItemStack cursorStack = handler.getCarried();
         if (cursorStack.isEmpty()) {
             return true;
         }
 
         for (int slotId : slotIds) {
             Slot slot = handler.getSlot(slotId);
-            if (!slot.hasStack()) {
+            if (!slot.hasItem()) {
                 continue;
             }
-            if (!slot.canTakeItems(client.player) || !slot.canInsert(cursorStack)) {
+            if (!slot.mayPickup(client.player) || !slot.mayPlace(cursorStack)) {
                 continue;
             }
-            if (!canStacksMerge(slot.getStack(), cursorStack)) {
+            if (!canStacksMerge(slot.getItem(), cursorStack)) {
                 continue;
             }
 
-            clickSlot(handler, slotId, 0, SlotActionType.PICKUP);
-            if (handler.getCursorStack().isEmpty()) {
+            clickSlot(handler, slotId, 0, ContainerInput.PICKUP);
+            if (handler.getCarried().isEmpty()) {
                 return true;
             }
         }
 
         for (int slotId : slotIds) {
             Slot slot = handler.getSlot(slotId);
-            if (slot.hasStack()) {
+            if (slot.hasItem()) {
                 continue;
             }
-            if (!slot.canTakeItems(client.player) || !slot.canInsert(cursorStack)) {
+            if (!slot.mayPickup(client.player) || !slot.mayPlace(cursorStack)) {
                 continue;
             }
 
-            clickSlot(handler, slotId, 0, SlotActionType.PICKUP);
-            if (handler.getCursorStack().isEmpty()) {
+            clickSlot(handler, slotId, 0, ContainerInput.PICKUP);
+            if (handler.getCarried().isEmpty()) {
                 return true;
             }
         }
@@ -717,9 +716,9 @@ public class QuickSort implements ClientModInitializer {
         return false;
     }
 
-    private static boolean storeCursorStackForTarget(HandledScreen<?> gui, SortTarget target) {
-        if (target.handler() == gui.getScreenHandler()) {
-            return storeCursorStackInVisibleSlots(gui.getScreenHandler());
+    private static boolean storeCursorStackForTarget(AbstractContainerScreen<?> gui, SortTarget target) {
+        if (target.handler() == gui.getMenu()) {
+            return storeCursorStackInVisibleSlots(gui.getMenu());
         }
         return storeCursorStack(target.handler(), target.slotIds);
     }
@@ -728,10 +727,10 @@ public class QuickSort implements ClientModInitializer {
         if (target.isEmpty() || source.isEmpty()) {
             return false;
         }
-        if (!ItemStack.areItemsAndComponentsEqual(target, source)) {
+        if (!ItemStack.isSameItemSameComponents(target, source)) {
             return false;
         }
-        return target.getCount() < target.getMaxCount();
+        return target.getCount() < target.getMaxStackSize();
     }
 
     private static int compareStacks(ItemStack a, ItemStack b) {
@@ -799,7 +798,7 @@ public class QuickSort implements ClientModInitializer {
         ItemStack normalizedStack = normalizeForLookup(stack);
         String itemId = getItemId(normalizedStack);
         for (int i = 0; i < CATEGORY_ORDER.size(); i++) {
-            ItemGroup group = Registries.ITEM_GROUP.get(CATEGORY_ORDER.get(i).getValue());
+            CreativeModeTab group = BuiltInRegistries.CREATIVE_MODE_TAB.getValue(CATEGORY_ORDER.get(i).identifier());
             if (group != null && group.contains(normalizedStack)) {
                 return i;
             }
@@ -808,7 +807,7 @@ public class QuickSort implements ClientModInitializer {
         // 带附魔/名称等组件变化的物品，精确匹配不到时回退到物品 id，
         // 这样附魔铁剑之类仍按基础物品分类，而不会被扔到最后。
         for (int i = 0; i < CATEGORY_ORDER.size(); i++) {
-            RegistryKey<ItemGroup> groupKey = CATEGORY_ORDER.get(i);
+            ResourceKey<CreativeModeTab> groupKey = CATEGORY_ORDER.get(i);
             Map<String, Integer> itemOrder = CATEGORY_ITEM_ORDER_CACHE.computeIfAbsent(
                 groupKey,
                 QuickSort::buildItemOrderMap
@@ -826,7 +825,7 @@ public class QuickSort implements ClientModInitializer {
             return Integer.MAX_VALUE;
         }
 
-        RegistryKey<ItemGroup> groupKey = CATEGORY_ORDER.get(categoryIndex);
+        ResourceKey<CreativeModeTab> groupKey = CATEGORY_ORDER.get(categoryIndex);
         Map<ItemKey, Integer> exactOrder = CATEGORY_EXACT_ORDER_CACHE.computeIfAbsent(
             groupKey,
             QuickSort::buildExactOrderMap
@@ -845,30 +844,30 @@ public class QuickSort implements ClientModInitializer {
         return itemOrder.getOrDefault(getItemId(normalizedStack), Integer.MAX_VALUE);
     }
 
-    private static Map<ItemKey, Integer> buildExactOrderMap(RegistryKey<ItemGroup> groupKey) {
-        ItemGroup group = Registries.ITEM_GROUP.get(groupKey.getValue());
+    private static Map<ItemKey, Integer> buildExactOrderMap(ResourceKey<CreativeModeTab> groupKey) {
+        CreativeModeTab group = BuiltInRegistries.CREATIVE_MODE_TAB.getValue(groupKey.identifier());
         Map<ItemKey, Integer> orderMap = new HashMap<>();
         if (group == null) {
             return orderMap;
         }
 
         int index = 0;
-        for (ItemStack displayStack : group.getDisplayStacks()) {
+        for (ItemStack displayStack : group.getDisplayItems()) {
             ItemStack normalizedStack = normalizeForLookup(displayStack);
             orderMap.putIfAbsent(new ItemKey(normalizedStack), index++);
         }
         return orderMap;
     }
 
-    private static Map<String, Integer> buildItemOrderMap(RegistryKey<ItemGroup> groupKey) {
-        ItemGroup group = Registries.ITEM_GROUP.get(groupKey.getValue());
+    private static Map<String, Integer> buildItemOrderMap(ResourceKey<CreativeModeTab> groupKey) {
+        CreativeModeTab group = BuiltInRegistries.CREATIVE_MODE_TAB.getValue(groupKey.identifier());
         Map<String, Integer> orderMap = new HashMap<>();
         if (group == null) {
             return orderMap;
         }
 
         int index = 0;
-        for (ItemStack displayStack : group.getDisplayStacks()) {
+        for (ItemStack displayStack : group.getDisplayItems()) {
             ItemStack normalizedStack = normalizeForLookup(displayStack);
             orderMap.putIfAbsent(getItemId(normalizedStack), index++);
         }
@@ -882,18 +881,18 @@ public class QuickSort implements ClientModInitializer {
     }
 
     private static String getItemId(ItemStack stack) {
-        return Registries.ITEM.getId(stack.getItem()).toString();
+        return BuiltInRegistries.ITEM.getKey(stack.getItem()).toString();
     }
 
-    private static void ensureItemGroupDisplayContext(MinecraftClient client) {
-        if (client.player == null || client.world == null) {
+    private static void ensureItemGroupDisplayContext(Minecraft client) {
+        if (client.player == null || client.level == null) {
             return;
         }
 
-        boolean changed = ItemGroups.updateDisplayContext(
-            client.world.getEnabledFeatures(),
-            client.player.isCreativeLevelTwoOp(),
-            client.world.getRegistryManager()
+        boolean changed = CreativeModeTabs.tryRebuildTabContents(
+            client.level.enabledFeatures(),
+            client.player.canUseGameMasterBlocks(),
+            client.level.registryAccess()
         );
         if (changed) {
             CATEGORY_EXACT_ORDER_CACHE.clear();
@@ -909,17 +908,17 @@ public class QuickSort implements ClientModInitializer {
     }
 
     private static boolean isBundle(ItemStack stack) {
-        return stack.contains(DataComponentTypes.BUNDLE_CONTENTS);
+        return stack.has(DataComponents.BUNDLE_CONTENTS);
     }
 
     private static StorageContentsSortKey getShulkerContentsSortKey(ItemStack stack) {
-        ContainerComponent container = stack.getOrDefault(DataComponentTypes.CONTAINER, ContainerComponent.DEFAULT);
-        return buildStorageContentsSortKey(container.iterateNonEmpty());
+        ItemContainerContents container = stack.getOrDefault(DataComponents.CONTAINER, ItemContainerContents.EMPTY);
+        return buildStorageContentsSortKey(container.nonEmptyItemCopyStream().toList());
     }
 
     private static StorageContentsSortKey getBundleContentsSortKey(ItemStack stack) {
-        BundleContentsComponent bundleContents = stack.getOrDefault(DataComponentTypes.BUNDLE_CONTENTS, BundleContentsComponent.DEFAULT);
-        return buildStorageContentsSortKey(bundleContents.iterate());
+        BundleContents bundleContents = stack.getOrDefault(DataComponents.BUNDLE_CONTENTS, BundleContents.EMPTY);
+        return buildStorageContentsSortKey(bundleContents.itemCopyStream().toList());
     }
 
     private static StorageContentsSortKey buildStorageContentsSortKey(Iterable<ItemStack> storedStacks) {
@@ -958,7 +957,7 @@ public class QuickSort implements ClientModInitializer {
     }
 
     private static boolean isPriorityFrontStack(ItemStack stack) {
-        if (!stack.hasEnchantments()) {
+        if (!stack.isEnchanted()) {
             return false;
         }
 
@@ -992,18 +991,18 @@ public class QuickSort implements ClientModInitializer {
             return false;
         }
         return current.getCount() == expected.getCount()
-            && ItemStack.areItemsAndComponentsEqual(current, expected);
+            && ItemStack.isSameItemSameComponents(current, expected);
     }
 
-    private static void clickSlot(ScreenHandler handler, int slotId, int button, SlotActionType actionType) {
-        MinecraftClient client = MinecraftClient.getInstance();
-        if (client.player == null || client.interactionManager == null) {
+    private static void clickSlot(AbstractContainerMenu handler, int slotId, int button, ContainerInput actionType) {
+        Minecraft client = Minecraft.getInstance();
+        if (client.player == null || client.gameMode == null) {
             return;
         }
 
         try {
-            if (client.currentScreen instanceof CreativeInventoryScreen creativeScreen
-                && handler == creativeScreen.getScreenHandler()) {
+            if (client.screen instanceof CreativeModeInventoryScreen creativeScreen
+                && handler == creativeScreen.getMenu()) {
                 Slot slot = slotId >= 0 && slotId < handler.slots.size()
                     ? handler.getSlot(slotId)
                     : null;
@@ -1012,8 +1011,8 @@ public class QuickSort implements ClientModInitializer {
                 return;
             }
 
-            client.interactionManager.clickSlot(
-                handler.syncId,
+            client.gameMode.handleContainerInput(
+                handler.containerId,
                 slotId,
                 button,
                 actionType,
@@ -1036,22 +1035,22 @@ public class QuickSort implements ClientModInitializer {
             .sorted(Comparator
                 .comparingInt((Slot slot) -> slot.y)
                 .thenComparingInt(slot -> slot.x)
-                .thenComparingInt(slot -> slot.id))
+                .thenComparingInt(slot -> slot.index))
             .toList();
     }
 
     /**
      * 整理时锁住的玩家格子只参与区域判定，不参与实际移动。
      */
-    private static List<Integer> toUnlockedPlayerSortSlotIds(ScreenHandler handler, List<Slot> slots) {
-        MinecraftClient client = MinecraftClient.getInstance();
+    private static List<Integer> toUnlockedPlayerSortSlotIds(AbstractContainerMenu handler, List<Slot> slots) {
+        Minecraft client = Minecraft.getInstance();
         if (client.player == null) {
             return List.of();
         }
 
         return sortSlotsForLayout(slots).stream()
             .filter(slot -> !QuickContainerLock.isLockedSlot(handler, slot))
-            .filter(slot -> slot.canTakeItems(client.player))
+            .filter(slot -> slot.mayPickup(client.player))
             .map(slot -> getClickSlotId(handler, slot))
             .toList();
     }
@@ -1059,8 +1058,8 @@ public class QuickSort implements ClientModInitializer {
     /**
      * 容器整理同样跳过锁空格和锁半组，只把未锁槽位当成可整理目标。
      */
-    private static List<Integer> toUnlockedContainerSortSlotIds(ScreenHandler handler, List<Slot> slots) {
-        MinecraftClient client = MinecraftClient.getInstance();
+    private static List<Integer> toUnlockedContainerSortSlotIds(AbstractContainerMenu handler, List<Slot> slots) {
+        Minecraft client = Minecraft.getInstance();
         if (client == null) {
             return List.of();
         }
@@ -1071,21 +1070,21 @@ public class QuickSort implements ClientModInitializer {
             .toList();
     }
 
-    private static int getClickSlotId(ScreenHandler handler, Slot slot) {
+    private static int getClickSlotId(AbstractContainerMenu handler, Slot slot) {
         int slotIndex = handler.slots.indexOf(slot);
-        return slotIndex >= 0 ? slotIndex : slot.id;
+        return slotIndex >= 0 ? slotIndex : slot.index;
     }
 
     private static boolean isVisibleSlot(Slot slot) {
-        return slot.isEnabled() && slot.x >= 0 && slot.y >= 0;
+        return slot.isActive() && slot.x >= 0 && slot.y >= 0;
     }
 
-    private static int getMouseX(MinecraftClient client) {
-        return (int) (client.mouse.getX() * client.getWindow().getScaledWidth() / client.getWindow().getWidth());
+    private static int getMouseX(Minecraft client) {
+        return (int) (client.mouseHandler.getScaledXPos(client.getWindow()));
     }
 
-    private static int getMouseY(MinecraftClient client) {
-        return (int) (client.mouse.getY() * client.getWindow().getScaledHeight() / client.getWindow().getHeight());
+    private static int getMouseY(Minecraft client) {
+        return (int) (client.mouseHandler.getScaledYPos(client.getWindow()));
     }
 
     private record Bounds(int minX, int minY, int maxX, int maxY) {
@@ -1119,12 +1118,12 @@ public class QuickSort implements ClientModInitializer {
         }
     }
 
-    private record SortTarget(String label, List<Integer> slotIds, Bounds bounds, ScreenHandler handler) {
+    private record SortTarget(String label, List<Integer> slotIds, Bounds bounds, AbstractContainerMenu handler) {
     }
 
     private record ItemKey(String itemId, int componentsHash) {
         private ItemKey(ItemStack stack) {
-            this(Registries.ITEM.getId(stack.getItem()).toString(), stack.getComponents().hashCode());
+            this(BuiltInRegistries.ITEM.getKey(stack.getItem()).toString(), stack.getComponents().hashCode());
         }
     }
 

@@ -3,29 +3,29 @@ package com.yiyihehe.quickcraft;
 import com.yiyihehe.quickcraft.config.QuickCraftConfigs;
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
-import net.minecraft.block.BeaconBlock;
-import net.minecraft.block.entity.BeaconBlockEntity;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.gui.screen.ingame.HandledScreen;
-import net.minecraft.entity.effect.StatusEffect;
-import net.minecraft.entity.effect.StatusEffectInstance;
-import net.minecraft.entity.effect.StatusEffects;
-import net.minecraft.entity.player.PlayerInventory;
-import net.minecraft.item.Item;
-import net.minecraft.item.ItemStack;
-import net.minecraft.item.Items;
-import net.minecraft.network.packet.c2s.play.UpdateBeaconC2SPacket;
-import net.minecraft.registry.entry.RegistryEntry;
-import net.minecraft.screen.BeaconScreenHandler;
-import net.minecraft.screen.PlayerScreenHandler;
-import net.minecraft.screen.ScreenHandler;
-import net.minecraft.screen.slot.Slot;
-import net.minecraft.screen.slot.SlotActionType;
-import net.minecraft.text.Text;
-import net.minecraft.util.Hand;
-import net.minecraft.util.hit.BlockHitResult;
-import net.minecraft.util.hit.HitResult;
-import net.minecraft.util.math.BlockPos;
+import net.minecraft.world.level.block.BeaconBlock;
+import net.minecraft.world.level.block.entity.BeaconBlockEntity;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
+import net.minecraft.world.effect.MobEffect;
+import net.minecraft.world.effect.MobEffectInstance;
+import net.minecraft.world.effect.MobEffects;
+import net.minecraft.world.entity.player.Inventory;
+import net.minecraft.world.item.Item;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Items;
+import net.minecraft.network.protocol.game.ServerboundSetBeaconPacket;
+import net.minecraft.core.Holder;
+import net.minecraft.world.inventory.BeaconMenu;
+import net.minecraft.world.inventory.InventoryMenu;
+import net.minecraft.world.inventory.AbstractContainerMenu;
+import net.minecraft.world.inventory.Slot;
+import net.minecraft.world.inventory.ContainerInput;
+import net.minecraft.network.chat.Component;
+import net.minecraft.world.InteractionHand;
+import net.minecraft.world.phys.BlockHitResult;
+import net.minecraft.world.phys.HitResult;
+import net.minecraft.core.BlockPos;
 
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -71,7 +71,7 @@ public final class QuickBeacon implements ClientModInitializer {
         ClientTickEvents.END_CLIENT_TICK.register(this::onClientTick);
     }
 
-    private void onClientTick(MinecraftClient client) {
+    private void onClientTick(Minecraft client) {
         if (!QuickCraftConfigs.isQuickBeaconEnabled()) {
             clearPendingState();
         }
@@ -81,16 +81,16 @@ public final class QuickBeacon implements ClientModInitializer {
         processPendingState(client);
     }
 
-    private void handleUseAttempt(MinecraftClient client) {
-        if (!QuickCraftConfigs.isQuickBeaconEnabled() || client.player == null || client.world == null) {
+    private void handleUseAttempt(Minecraft client) {
+        if (!QuickCraftConfigs.isQuickBeaconEnabled() || client.player == null || client.level == null) {
             lastUseDown = false;
             return;
         }
 
-        boolean useDown = QuickCraftKeyBindings.isBoundKeyDown(client, client.options.useKey);
+        boolean useDown = QuickCraftKeyBindings.isBoundKeyDown(client, client.options.keyUse);
         BlockHitResult beaconHitResult = getLookedAtBeaconHitResult(client);
-        if (useDown && !lastUseDown && client.currentScreen == null && beaconHitResult != null) {
-            pendingBeaconPos = beaconHitResult.getBlockPos().toImmutable();
+        if (useDown && !lastUseDown && client.screen == null && beaconHitResult != null) {
+            pendingBeaconPos = beaconHitResult.getBlockPos().immutable();
             pendingBeaconHitResult = beaconHitResult;
             pendingTarget = null;
             pendingFailureReason = PendingFailureReason.NONE;
@@ -101,7 +101,7 @@ public final class QuickBeacon implements ClientModInitializer {
         lastUseDown = useDown;
     }
 
-    private void processPendingState(MinecraftClient client) {
+    private void processPendingState(Minecraft client) {
         if (pendingStage == PendingStage.NONE) {
             return;
         }
@@ -117,15 +117,15 @@ public final class QuickBeacon implements ClientModInitializer {
         }
     }
 
-    private void processBeaconOpenState(MinecraftClient client) {
-        if (!(client.currentScreen instanceof HandledScreen<?> screen)) {
+    private void processBeaconOpenState(Minecraft client) {
+        if (!(client.screen instanceof AbstractContainerScreen<?> screen)) {
             if (pendingTicks > OPEN_TIMEOUT_TICKS) {
                 clearPendingState();
             }
             return;
         }
 
-        if (!(screen.getScreenHandler() instanceof BeaconScreenHandler handler)) {
+        if (!(screen.getMenu() instanceof BeaconMenu handler)) {
             clearPendingState();
             return;
         }
@@ -145,21 +145,21 @@ public final class QuickBeacon implements ClientModInitializer {
         }
 
         if (pendingFailureReason != PendingFailureReason.NONE || pendingTarget == null) {
-            sendStatusMessage(client, Text.translatable(pendingFailureReason.translationKey));
+            sendStatusMessage(client, Component.translatable(pendingFailureReason.translationKey));
             closeCurrentScreen(client);
             clearPendingState();
             return;
         }
 
         if (!insertPaymentIntoBeacon(handler, client)) {
-            if (client.player != null && hasPaymentBlock(client.player.playerScreenHandler)) {
+            if (client.player != null && hasPaymentBlock(client.player.inventoryMenu)) {
                 closeCurrentScreen(client);
                 pendingStage = PendingStage.DECOMPOSE_START;
                 pendingTicks = 0;
                 return;
             }
 
-            sendStatusMessage(client, Text.translatable("quickcraft.message.beacon.no_payment"));
+            sendStatusMessage(client, Component.translatable("quickcraft.message.beacon.no_payment"));
             closeCurrentScreen(client);
             clearPendingState();
             return;
@@ -170,7 +170,7 @@ public final class QuickBeacon implements ClientModInitializer {
         clearPendingState();
     }
 
-    private void processDecomposeStart(MinecraftClient client) {
+    private void processDecomposeStart(Minecraft client) {
         if (!isPlayerCraftingHandlerReady(client)) {
             if (pendingTicks > OPEN_TIMEOUT_TICKS) {
                 clearPendingState();
@@ -180,7 +180,7 @@ public final class QuickBeacon implements ClientModInitializer {
 
         String translationKey = beginPendingDecompose(client);
         if (translationKey != null) {
-            sendStatusMessage(client, Text.translatable(translationKey));
+            sendStatusMessage(client, Component.translatable(translationKey));
             clearPendingState();
             return;
         }
@@ -189,7 +189,7 @@ public final class QuickBeacon implements ClientModInitializer {
         pendingTicks = 0;
     }
 
-    private void processDecomposeWaitResult(MinecraftClient client) {
+    private void processDecomposeWaitResult(Minecraft client) {
         if (!isPlayerCraftingHandlerReady(client) || client.player == null) {
             if (pendingTicks > OPEN_TIMEOUT_TICKS) {
                 clearPendingState();
@@ -197,9 +197,9 @@ public final class QuickBeacon implements ClientModInitializer {
             return;
         }
 
-        PlayerScreenHandler handler = client.player.playerScreenHandler;
-        ItemStack resultStack = handler.getSlot(PLAYER_CRAFT_RESULT_SLOT_ID).getStack();
-        if (pendingDecomposePaymentItem != null && resultStack.isOf(pendingDecomposePaymentItem)) {
+        InventoryMenu handler = client.player.inventoryMenu;
+        ItemStack resultStack = handler.getSlot(PLAYER_CRAFT_RESULT_SLOT_ID).getItem();
+        if (pendingDecomposePaymentItem != null && resultStack.is(pendingDecomposePaymentItem)) {
             pendingDecomposeTakeAttempts = 0;
             pendingStage = PendingStage.DECOMPOSE_TAKE_RESULT;
             pendingTicks = 0;
@@ -208,12 +208,12 @@ public final class QuickBeacon implements ClientModInitializer {
 
         if (pendingTicks > CRAFT_RESULT_WAIT_TICKS) {
             clearCraftingGrid(handler, client);
-            sendStatusMessage(client, Text.translatable("quickcraft.message.beacon.no_payment"));
+            sendStatusMessage(client, Component.translatable("quickcraft.message.beacon.no_payment"));
             clearPendingState();
         }
     }
 
-    private void processDecomposeTakeResult(MinecraftClient client) {
+    private void processDecomposeTakeResult(Minecraft client) {
         if (!isPlayerCraftingHandlerReady(client) || client.player == null) {
             if (pendingTicks > OPEN_TIMEOUT_TICKS) {
                 clearPendingState();
@@ -221,14 +221,14 @@ public final class QuickBeacon implements ClientModInitializer {
             return;
         }
 
-        PlayerScreenHandler handler = client.player.playerScreenHandler;
+        InventoryMenu handler = client.player.inventoryMenu;
         if (tryTakeCraftResult(handler, client)) {
-            if (client.interactionManager == null || pendingBeaconHitResult == null) {
+            if (client.gameMode == null || pendingBeaconHitResult == null) {
                 clearPendingState();
                 return;
             }
 
-            client.interactionManager.interactBlock(client.player, Hand.MAIN_HAND, pendingBeaconHitResult);
+            client.gameMode.useItemOn(client.player, InteractionHand.MAIN_HAND, pendingBeaconHitResult);
             pendingStage = PendingStage.WAIT_REOPEN;
             pendingTicks = 0;
             return;
@@ -237,7 +237,7 @@ public final class QuickBeacon implements ClientModInitializer {
         pendingDecomposeTakeAttempts++;
         if (pendingDecomposeTakeAttempts >= CRAFT_RESULT_TAKE_ATTEMPTS) {
             clearCraftingGrid(handler, client);
-            sendStatusMessage(client, Text.translatable("quickcraft.message.beacon.no_room_for_decompose"));
+            sendStatusMessage(client, Component.translatable("quickcraft.message.beacon.no_room_for_decompose"));
             clearPendingState();
             return;
         }
@@ -245,12 +245,12 @@ public final class QuickBeacon implements ClientModInitializer {
         pendingTicks = 0;
     }
 
-    private String beginPendingDecompose(MinecraftClient client) {
-        if (client.player == null || client.interactionManager == null) {
+    private String beginPendingDecompose(Minecraft client) {
+        if (client.player == null || client.gameMode == null) {
             return "quickcraft.message.beacon.no_payment";
         }
 
-        PlayerScreenHandler handler = client.player.playerScreenHandler;
+        InventoryMenu handler = client.player.inventoryMenu;
         if (isPlayerCraftingBusy(handler)) {
             return "quickcraft.message.beacon.crafting_busy";
         }
@@ -261,12 +261,12 @@ public final class QuickBeacon implements ClientModInitializer {
                 continue;
             }
 
-            clickSlot(handler, sourceSlotId, 0, SlotActionType.PICKUP, client);
-            if (handler.getCursorStack().isEmpty()) {
+            clickSlot(handler, sourceSlotId, 0, ContainerInput.PICKUP, client);
+            if (handler.getCarried().isEmpty()) {
                 return "quickcraft.message.beacon.no_payment";
             }
 
-            clickSlot(handler, PLAYER_CRAFT_INPUT_SLOT_ID, 1, SlotActionType.PICKUP, client);
+            clickSlot(handler, PLAYER_CRAFT_INPUT_SLOT_ID, 1, ContainerInput.PICKUP, client);
             returnCursorToSourceOrDrop(handler, sourceSlotId, client);
 
             pendingDecomposePaymentItem = material.paymentItem;
@@ -277,33 +277,33 @@ public final class QuickBeacon implements ClientModInitializer {
         return "quickcraft.message.beacon.no_payment";
     }
 
-    private boolean tryTakeCraftResult(PlayerScreenHandler handler, MinecraftClient client) {
-        ItemStack before = handler.getSlot(PLAYER_CRAFT_RESULT_SLOT_ID).getStack().copy();
+    private boolean tryTakeCraftResult(InventoryMenu handler, Minecraft client) {
+        ItemStack before = handler.getSlot(PLAYER_CRAFT_RESULT_SLOT_ID).getItem().copy();
         if (before.isEmpty()) {
             return false;
         }
 
-        clickSlot(handler, PLAYER_CRAFT_RESULT_SLOT_ID, 0, SlotActionType.QUICK_MOVE, client);
+        clickSlot(handler, PLAYER_CRAFT_RESULT_SLOT_ID, 0, ContainerInput.QUICK_MOVE, client);
 
-        ItemStack after = handler.getSlot(PLAYER_CRAFT_RESULT_SLOT_ID).getStack();
+        ItemStack after = handler.getSlot(PLAYER_CRAFT_RESULT_SLOT_ID).getItem();
         return after.isEmpty()
                 || after.getCount() != before.getCount()
-                || !ItemStack.areItemsAndComponentsEqual(before, after);
+                || !ItemStack.isSameItemSameComponents(before, after);
     }
 
-    private boolean isPlayerCraftingHandlerReady(MinecraftClient client) {
+    private boolean isPlayerCraftingHandlerReady(Minecraft client) {
         return client.player != null
-                && client.currentScreen == null
-                && client.player.currentScreenHandler == client.player.playerScreenHandler;
+                && client.screen == null
+                && client.player.containerMenu == client.player.inventoryMenu;
     }
 
-    private void preparePendingTarget(MinecraftClient client) {
+    private void preparePendingTarget(Minecraft client) {
         TargetSelectionResult selection = selectNextTarget(client);
         pendingTarget = selection.target();
         pendingFailureReason = selection.failureReason();
     }
 
-    private TargetSelectionResult selectNextTarget(MinecraftClient client) {
+    private TargetSelectionResult selectNextTarget(Minecraft client) {
         if (client.player == null) {
             return new TargetSelectionResult(null, PendingFailureReason.NO_VALID_ORDER);
         }
@@ -359,12 +359,12 @@ public final class QuickBeacon implements ClientModInitializer {
         }
 
         return switch (normalized) {
-            case "haste", "急迫", "挖掘急迫" -> BeaconEffectTarget.levelTwo(StatusEffects.HASTE);
-            case "strength", "力量" -> BeaconEffectTarget.levelTwo(StatusEffects.STRENGTH);
-            case "regeneration", "regen", "生命恢复", "恢复" -> BeaconEffectTarget.levelTwo(StatusEffects.REGENERATION);
-            case "jumpboost", "jump", "跳跃提升", "跳跃" -> BeaconEffectTarget.levelTwo(StatusEffects.JUMP_BOOST);
-            case "speed", "迅捷" -> BeaconEffectTarget.levelTwo(StatusEffects.SPEED);
-            case "resistance", "抗性", "抗性提升" -> BeaconEffectTarget.levelTwo(StatusEffects.RESISTANCE);
+            case "haste", "急迫", "挖掘急迫" -> BeaconEffectTarget.levelTwo(MobEffects.HASTE);
+            case "strength", "力量" -> BeaconEffectTarget.levelTwo(MobEffects.STRENGTH);
+            case "regeneration", "regen", "生命恢复", "恢复" -> BeaconEffectTarget.levelTwo(MobEffects.REGENERATION);
+            case "jumpboost", "jump", "跳跃提升", "跳跃" -> BeaconEffectTarget.levelTwo(MobEffects.JUMP_BOOST);
+            case "speed", "迅捷" -> BeaconEffectTarget.levelTwo(MobEffects.SPEED);
+            case "resistance", "抗性", "抗性提升" -> BeaconEffectTarget.levelTwo(MobEffects.RESISTANCE);
             default -> null;
         };
     }
@@ -381,13 +381,13 @@ public final class QuickBeacon implements ClientModInitializer {
                 .replace("-", "");
     }
 
-    private boolean playerHasTargetEffect(MinecraftClient client, BeaconEffectTarget target) {
+    private boolean playerHasTargetEffect(Minecraft client, BeaconEffectTarget target) {
         if (client.player == null) {
             return false;
         }
 
-        for (StatusEffectInstance instance : client.player.getStatusEffects()) {
-            if (!instance.getEffectType().equals(target.primary())) {
+        for (MobEffectInstance instance : client.player.getActiveEffects()) {
+            if (!instance.getEffect().equals(target.primary())) {
                 continue;
             }
 
@@ -399,16 +399,16 @@ public final class QuickBeacon implements ClientModInitializer {
         return false;
     }
 
-    private boolean insertPaymentIntoBeacon(BeaconScreenHandler handler, MinecraftClient client) {
-        if (client.player == null || client.interactionManager == null) {
+    private boolean insertPaymentIntoBeacon(BeaconMenu handler, Minecraft client) {
+        if (client.player == null || client.gameMode == null) {
             return false;
         }
 
-        if (!handler.getCursorStack().isEmpty()) {
+        if (!handler.getCarried().isEmpty()) {
             return false;
         }
 
-        if (handler.getSlot(BEACON_PAYMENT_SLOT_ID).hasStack()) {
+        if (handler.getSlot(BEACON_PAYMENT_SLOT_ID).hasItem()) {
             return true;
         }
 
@@ -417,25 +417,25 @@ public final class QuickBeacon implements ClientModInitializer {
             return false;
         }
 
-        clickSlot(handler, sourceSlotId, 0, SlotActionType.PICKUP, client);
-        if (handler.getCursorStack().isEmpty()) {
+        clickSlot(handler, sourceSlotId, 0, ContainerInput.PICKUP, client);
+        if (handler.getCarried().isEmpty()) {
             return false;
         }
 
-        clickSlot(handler, BEACON_PAYMENT_SLOT_ID, 1, SlotActionType.PICKUP, client);
+        clickSlot(handler, BEACON_PAYMENT_SLOT_ID, 1, ContainerInput.PICKUP, client);
 
-        if (!handler.getCursorStack().isEmpty()) {
-            clickSlot(handler, sourceSlotId, 0, SlotActionType.PICKUP, client);
+        if (!handler.getCarried().isEmpty()) {
+            clickSlot(handler, sourceSlotId, 0, ContainerInput.PICKUP, client);
         }
 
-        return handler.getSlot(BEACON_PAYMENT_SLOT_ID).hasStack();
+        return handler.getSlot(BEACON_PAYMENT_SLOT_ID).hasItem();
     }
 
-    private int findPaymentSourceSlotId(ScreenHandler handler) {
+    private int findPaymentSourceSlotId(AbstractContainerMenu handler) {
         for (PaymentMaterial material : PaymentMaterial.values()) {
             for (int slotId : getPlayerStorageSlotIds(handler)) {
                 Slot slot = handler.getSlot(slotId);
-                if (slot.hasStack() && slot.getStack().isOf(material.paymentItem)) {
+                if (slot.hasItem() && slot.getItem().is(material.paymentItem)) {
                     return slotId;
                 }
             }
@@ -444,7 +444,7 @@ public final class QuickBeacon implements ClientModInitializer {
         return -1;
     }
 
-    private boolean hasPaymentBlock(PlayerScreenHandler handler) {
+    private boolean hasPaymentBlock(InventoryMenu handler) {
         for (PaymentMaterial material : PaymentMaterial.values()) {
             if (findPlayerItemSlotId(handler, material.blockItem) != -1) {
                 return true;
@@ -454,13 +454,13 @@ public final class QuickBeacon implements ClientModInitializer {
         return false;
     }
 
-    private boolean isPlayerCraftingBusy(PlayerScreenHandler handler) {
-        if (!handler.getCursorStack().isEmpty() || handler.getSlot(PLAYER_CRAFT_RESULT_SLOT_ID).hasStack()) {
+    private boolean isPlayerCraftingBusy(InventoryMenu handler) {
+        if (!handler.getCarried().isEmpty() || handler.getSlot(PLAYER_CRAFT_RESULT_SLOT_ID).hasItem()) {
             return true;
         }
 
         for (int slotId = 1; slotId <= 4; slotId++) {
-            if (handler.getSlot(slotId).hasStack()) {
+            if (handler.getSlot(slotId).hasItem()) {
                 return true;
             }
         }
@@ -468,40 +468,40 @@ public final class QuickBeacon implements ClientModInitializer {
         return false;
     }
 
-    private void returnCursorToSourceOrDrop(PlayerScreenHandler handler, int sourceSlotId, MinecraftClient client) {
-        if (handler.getCursorStack().isEmpty()) {
+    private void returnCursorToSourceOrDrop(InventoryMenu handler, int sourceSlotId, Minecraft client) {
+        if (handler.getCarried().isEmpty()) {
             return;
         }
 
-        clickSlot(handler, sourceSlotId, 0, SlotActionType.PICKUP, client);
-        if (!handler.getCursorStack().isEmpty()) {
-            clickSlot(handler, ScreenHandler.EMPTY_SPACE_SLOT_INDEX, 0, SlotActionType.PICKUP, client);
+        clickSlot(handler, sourceSlotId, 0, ContainerInput.PICKUP, client);
+        if (!handler.getCarried().isEmpty()) {
+            clickSlot(handler, AbstractContainerMenu.SLOT_CLICKED_OUTSIDE, 0, ContainerInput.PICKUP, client);
         }
     }
 
-    private void clearCraftingGrid(PlayerScreenHandler handler, MinecraftClient client) {
-        if (!handler.getCursorStack().isEmpty()) {
-            int returnSlotId = findFirstAcceptingPlayerSlotId(handler, handler.getCursorStack());
+    private void clearCraftingGrid(InventoryMenu handler, Minecraft client) {
+        if (!handler.getCarried().isEmpty()) {
+            int returnSlotId = findFirstAcceptingPlayerSlotId(handler, handler.getCarried());
             if (returnSlotId != -1) {
-                clickSlot(handler, returnSlotId, 0, SlotActionType.PICKUP, client);
+                clickSlot(handler, returnSlotId, 0, ContainerInput.PICKUP, client);
             }
-            if (!handler.getCursorStack().isEmpty()) {
-                clickSlot(handler, ScreenHandler.EMPTY_SPACE_SLOT_INDEX, 0, SlotActionType.PICKUP, client);
+            if (!handler.getCarried().isEmpty()) {
+                clickSlot(handler, AbstractContainerMenu.SLOT_CLICKED_OUTSIDE, 0, ContainerInput.PICKUP, client);
             }
         }
 
         for (int slotId = 1; slotId <= 4; slotId++) {
             Slot slot = handler.getSlot(slotId);
-            if (slot.hasStack()) {
-                clickSlot(handler, slotId, 0, SlotActionType.QUICK_MOVE, client);
+            if (slot.hasItem()) {
+                clickSlot(handler, slotId, 0, ContainerInput.QUICK_MOVE, client);
             }
         }
     }
 
-    private int findPlayerItemSlotId(PlayerScreenHandler handler, Item item) {
+    private int findPlayerItemSlotId(InventoryMenu handler, Item item) {
         for (int slotId : getPlayerStorageSlotIds(handler)) {
             Slot slot = handler.getSlot(slotId);
-            if (slot.hasStack() && slot.getStack().isOf(item)) {
+            if (slot.hasItem() && slot.getItem().is(item)) {
                 return slotId;
             }
         }
@@ -509,14 +509,14 @@ public final class QuickBeacon implements ClientModInitializer {
         return -1;
     }
 
-    private int findFirstAcceptingPlayerSlotId(ScreenHandler handler, ItemStack stack) {
+    private int findFirstAcceptingPlayerSlotId(AbstractContainerMenu handler, ItemStack stack) {
         for (int slotId : getPlayerStorageSlotIds(handler)) {
             Slot slot = handler.getSlot(slotId);
-            if (!slot.hasStack()) {
+            if (!slot.hasItem()) {
                 return slotId;
             }
-            if (ItemStack.areItemsAndComponentsEqual(slot.getStack(), stack)
-                    && slot.getStack().getCount() + stack.getCount() <= slot.getStack().getMaxCount()) {
+            if (ItemStack.isSameItemSameComponents(slot.getItem(), stack)
+                    && slot.getItem().getCount() + stack.getCount() <= slot.getItem().getMaxStackSize()) {
                 return slotId;
             }
         }
@@ -524,9 +524,9 @@ public final class QuickBeacon implements ClientModInitializer {
         return -1;
     }
 
-    private List<Integer> getPlayerStorageSlotIds(ScreenHandler handler) {
+    private List<Integer> getPlayerStorageSlotIds(AbstractContainerMenu handler) {
         List<Slot> playerSlots = new ArrayList<>();
-        boolean requireVisibleSlots = !(handler instanceof PlayerScreenHandler);
+        boolean requireVisibleSlots = !(handler instanceof InventoryMenu);
 
         for (Slot slot : handler.slots) {
             if (!isPlayerStorageSlot(slot)) {
@@ -539,33 +539,33 @@ public final class QuickBeacon implements ClientModInitializer {
         }
 
         playerSlots.sort(Comparator
-                .comparingInt((Slot slot) -> slot.getIndex() >= 9 ? 0 : 1)
-                .thenComparingInt(Slot::getIndex)
-                .thenComparingInt(slot -> slot.id));
+                .comparingInt((Slot slot) -> slot.getContainerSlot() >= 9 ? 0 : 1)
+                .thenComparingInt(Slot::getContainerSlot)
+                .thenComparingInt(slot -> slot.index));
 
         return playerSlots.stream()
-                .map(slot -> slot.id)
+                .map(slot -> slot.index)
                 .toList();
     }
 
     private boolean isPlayerStorageSlot(Slot slot) {
-        return slot.inventory instanceof PlayerInventory
-                && slot.getIndex() >= 0
-                && slot.getIndex() < 36;
+        return slot.container instanceof Inventory
+                && slot.getContainerSlot() >= 0
+                && slot.getContainerSlot() < 36;
     }
 
     private boolean isVisibleSlot(Slot slot) {
-        return slot.isEnabled() && slot.x >= 0 && slot.y >= 0;
+        return slot.isActive() && slot.x >= 0 && slot.y >= 0;
     }
 
-    private void sendBeaconPacket(MinecraftClient client, BeaconEffectTarget target) {
-        if (client.getNetworkHandler() == null) {
+    private void sendBeaconPacket(Minecraft client, BeaconEffectTarget target) {
+        if (client.getConnection() == null) {
             return;
         }
 
         if (pendingBeaconPos != null) {
             RECENT_BEACON_ASSIGNMENTS.put(
-                    pendingBeaconPos.toImmutable(),
+                    pendingBeaconPos.immutable(),
                     new RecentBeaconAssignment(
                             target,
                             getCurrentWorldTime(client) + RECENT_ASSIGNMENT_TTL_TICKS,
@@ -574,19 +574,19 @@ public final class QuickBeacon implements ClientModInitializer {
             );
         }
 
-        client.getNetworkHandler().sendPacket(new UpdateBeaconC2SPacket(
+        client.getConnection().send(new ServerboundSetBeaconPacket(
                 Optional.ofNullable(target.primary()),
                 Optional.ofNullable(target.secondary())
         ));
     }
 
-    private void clickSlot(ScreenHandler handler, int slotId, int button, SlotActionType actionType, MinecraftClient client) {
-        if (client.player == null || client.interactionManager == null) {
+    private void clickSlot(AbstractContainerMenu handler, int slotId, int button, ContainerInput actionType, Minecraft client) {
+        if (client.player == null || client.gameMode == null) {
             return;
         }
 
-        client.interactionManager.clickSlot(
-                handler.syncId,
+        client.gameMode.handleContainerInput(
+                handler.containerId,
                 slotId,
                 button,
                 actionType,
@@ -594,20 +594,20 @@ public final class QuickBeacon implements ClientModInitializer {
         );
     }
 
-    private BlockHitResult getLookedAtBeaconHitResult(MinecraftClient client) {
-        HitResult hitResult = client.crosshairTarget;
-        if (!(hitResult instanceof BlockHitResult blockHitResult) || client.world == null) {
+    private BlockHitResult getLookedAtBeaconHitResult(Minecraft client) {
+        HitResult hitResult = client.hitResult;
+        if (!(hitResult instanceof BlockHitResult blockHitResult) || client.level == null) {
             return null;
         }
 
-        return client.world.getBlockState(blockHitResult.getBlockPos()).getBlock() instanceof BeaconBlock
+        return client.level.getBlockState(blockHitResult.getBlockPos()).getBlock() instanceof BeaconBlock
                 ? blockHitResult
                 : null;
     }
 
-    private BeaconConfiguredState getConfirmedConfiguredState(BeaconScreenHandler handler) {
-        RegistryEntry<StatusEffect> primary = handler.getPrimaryEffect();
-        RegistryEntry<StatusEffect> secondary = handler.getSecondaryEffect();
+    private BeaconConfiguredState getConfirmedConfiguredState(BeaconMenu handler) {
+        Holder<MobEffect> primary = handler.getPrimaryEffect();
+        Holder<MobEffect> secondary = handler.getSecondaryEffect();
         if (primary == null || secondary == null) {
             return null;
         }
@@ -624,7 +624,7 @@ public final class QuickBeacon implements ClientModInitializer {
         );
     }
 
-    private Set<BeaconEffectTarget> getReservedTargets(MinecraftClient client) {
+    private Set<BeaconEffectTarget> getReservedTargets(Minecraft client) {
         Set<BeaconEffectTarget> reservedTargets = new HashSet<>();
 
         for (Map.Entry<BlockPos, RecentBeaconAssignment> entry : RECENT_BEACON_ASSIGNMENTS.entrySet()) {
@@ -636,12 +636,12 @@ public final class QuickBeacon implements ClientModInitializer {
         return reservedTargets;
     }
 
-    private void pruneRecentAssignments(MinecraftClient client) {
+    private void pruneRecentAssignments(Minecraft client) {
         RECENT_BEACON_ASSIGNMENTS.entrySet().removeIf(entry -> !isRecentAssignmentValid(client, entry.getKey(), entry.getValue()));
     }
 
-    private boolean isRecentAssignmentValid(MinecraftClient client, BlockPos beaconPos, RecentBeaconAssignment assignment) {
-        if (client.world == null) {
+    private boolean isRecentAssignmentValid(Minecraft client, BlockPos beaconPos, RecentBeaconAssignment assignment) {
+        if (client.level == null) {
             return false;
         }
 
@@ -649,7 +649,7 @@ public final class QuickBeacon implements ClientModInitializer {
             return false;
         }
 
-        if (!(client.world.getBlockState(beaconPos).getBlock() instanceof BeaconBlock)) {
+        if (!(client.level.getBlockState(beaconPos).getBlock() instanceof BeaconBlock)) {
             return false;
         }
 
@@ -657,70 +657,70 @@ public final class QuickBeacon implements ClientModInitializer {
         return currentIdentity != -1 && currentIdentity == assignment.blockEntityIdentity();
     }
 
-    private long getCurrentWorldTime(MinecraftClient client) {
-        return client.world != null ? client.world.getTime() : 0L;
+    private long getCurrentWorldTime(Minecraft client) {
+        return client.level != null ? client.level.getGameTime() : 0L;
     }
 
-    private int getCurrentBeaconIdentity(MinecraftClient client, BlockPos beaconPos) {
-        if (client.world == null) {
+    private int getCurrentBeaconIdentity(Minecraft client, BlockPos beaconPos) {
+        if (client.level == null) {
             return -1;
         }
 
-        if (!(client.world.getBlockEntity(beaconPos) instanceof BeaconBlockEntity beaconBlockEntity)) {
+        if (!(client.level.getBlockEntity(beaconPos) instanceof BeaconBlockEntity beaconBlockEntity)) {
             return -1;
         }
 
         return System.identityHashCode(beaconBlockEntity);
     }
 
-    private void sendConfiguredStateMessage(MinecraftClient client, BeaconConfiguredState configuredState) {
+    private void sendConfiguredStateMessage(Minecraft client, BeaconConfiguredState configuredState) {
         if (configuredState.displayName() != null) {
-            sendStatusMessage(client, Text.translatable(configuredState.translationKey(), configuredState.displayName()));
+            sendStatusMessage(client, Component.translatable(configuredState.translationKey(), configuredState.displayName()));
             return;
         }
 
-        sendStatusMessage(client, Text.translatable(configuredState.translationKey()));
+        sendStatusMessage(client, Component.translatable(configuredState.translationKey()));
     }
 
-    private Text getLevelTwoEffectName(RegistryEntry<StatusEffect> effect) {
-        return Text.translatable(getLevelTwoEffectTranslationKey(effect));
+    private Component getLevelTwoEffectName(Holder<MobEffect> effect) {
+        return Component.translatable(getLevelTwoEffectTranslationKey(effect));
     }
 
-    private String getLevelTwoEffectTranslationKey(RegistryEntry<StatusEffect> effect) {
-        if (effect.equals(StatusEffects.HASTE)) {
+    private String getLevelTwoEffectTranslationKey(Holder<MobEffect> effect) {
+        if (effect.equals(MobEffects.HASTE)) {
             return "quickcraft.beacon.effect.haste2";
         }
-        if (effect.equals(StatusEffects.STRENGTH)) {
+        if (effect.equals(MobEffects.STRENGTH)) {
             return "quickcraft.beacon.effect.strength2";
         }
-        if (effect.equals(StatusEffects.REGENERATION)) {
+        if (effect.equals(MobEffects.REGENERATION)) {
             return "quickcraft.beacon.effect.regeneration2";
         }
-        if (effect.equals(StatusEffects.JUMP_BOOST)) {
+        if (effect.equals(MobEffects.JUMP_BOOST)) {
             return "quickcraft.beacon.effect.jump_boost2";
         }
-        if (effect.equals(StatusEffects.SPEED)) {
+        if (effect.equals(MobEffects.SPEED)) {
             return "quickcraft.beacon.effect.speed2";
         }
-        if (effect.equals(StatusEffects.RESISTANCE)) {
+        if (effect.equals(MobEffects.RESISTANCE)) {
             return "quickcraft.beacon.effect.resistance2";
         }
         return "quickcraft.beacon.effect.unknown";
     }
 
-    private boolean hasEnoughRemainingDuration(StatusEffectInstance instance) {
+    private boolean hasEnoughRemainingDuration(MobEffectInstance instance) {
         return instance.getDuration() >= MIN_ACTIVE_EFFECT_DURATION_TICKS;
     }
 
-    private void sendStatusMessage(MinecraftClient client, Text message) {
+    private void sendStatusMessage(Minecraft client, Component message) {
         if (client.player != null) {
-            client.player.sendMessage(message, true);
+            client.player.sendOverlayMessage(message);
         }
     }
 
-    private void closeCurrentScreen(MinecraftClient client) {
+    private void closeCurrentScreen(Minecraft client) {
         if (client.player != null) {
-            client.player.closeHandledScreen();
+            client.player.closeContainer();
         }
     }
 
@@ -772,15 +772,15 @@ public final class QuickBeacon implements ClientModInitializer {
     }
 
     private record BeaconEffectTarget(
-            RegistryEntry<StatusEffect> primary,
-            RegistryEntry<StatusEffect> secondary
+            Holder<MobEffect> primary,
+            Holder<MobEffect> secondary
     ) {
-        private static BeaconEffectTarget levelTwo(RegistryEntry<StatusEffect> effect) {
+        private static BeaconEffectTarget levelTwo(Holder<MobEffect> effect) {
             return new BeaconEffectTarget(effect, effect);
         }
     }
 
-    private record BeaconConfiguredState(Text displayName, String translationKey) {
+    private record BeaconConfiguredState(Component displayName, String translationKey) {
     }
 
     private record RecentBeaconAssignment(

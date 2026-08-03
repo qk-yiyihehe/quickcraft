@@ -1,8 +1,8 @@
 package com.yiyihehe.quickcraft.mixin;
 
-import net.minecraft.block.entity.BeaconBlockEntity;
-import net.minecraft.entity.effect.StatusEffect;
-import net.minecraft.registry.entry.RegistryEntry;
+import net.minecraft.world.level.block.entity.BeaconBlockEntity;
+import net.minecraft.world.effect.MobEffect;
+import net.minecraft.core.Holder;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.gen.Accessor;
 
@@ -12,9 +12,9 @@ import org.spongepowered.asm.mixin.gen.Accessor;
  */
 @Mixin(BeaconBlockEntity.class)
 public interface BeaconBlockEntityAccessor {
-    @Accessor("primary")
-    RegistryEntry<StatusEffect> quickcraft$getPrimary();
+    @Accessor("primaryPower")
+    Holder<MobEffect> quickcraft$getPrimary();
 
-    @Accessor("secondary")
-    RegistryEntry<StatusEffect> quickcraft$getSecondary();
+    @Accessor("secondaryPower")
+    Holder<MobEffect> quickcraft$getSecondary();
 }

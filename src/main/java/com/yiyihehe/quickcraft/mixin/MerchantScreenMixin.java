@@ -1,9 +1,9 @@
 package com.yiyihehe.quickcraft.mixin;
 
 import com.yiyihehe.quickcraft.QuickTrade;
-import net.minecraft.client.gui.Click;
-import net.minecraft.client.gui.DrawContext;
-import net.minecraft.client.gui.screen.ingame.MerchantScreen;
+import net.minecraft.client.input.MouseButtonEvent;
+import net.minecraft.client.gui.GuiGraphicsExtractor;
+import net.minecraft.client.gui.screens.inventory.MerchantScreen;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
@@ -21,8 +21,8 @@ public abstract class MerchantScreenMixin {
         QuickTrade.prepareTradeOrder((MerchantScreen) (Object) this);
     }
 
-    @Inject(method = "renderMain", at = @At("TAIL"))
-    private void quickcraft$renderFavoriteStar(DrawContext context,
+    @Inject(method = "extractContents", at = @At("TAIL"))
+    private void quickcraft$renderFavoriteStar(GuiGraphicsExtractor context,
                                                int mouseX,
                                                int mouseY,
                                                float delta,
@@ -31,7 +31,7 @@ public abstract class MerchantScreenMixin {
     }
 
     @Inject(method = "mouseClicked", at = @At("HEAD"), cancellable = true)
-    private void quickcraft$handleTradeMouseClick(Click click,
+    private void quickcraft$handleTradeMouseClick(MouseButtonEvent click,
                                                   boolean doubled,
                                                   CallbackInfoReturnable<Boolean> cir) {
         if (QuickTrade.handleMerchantMouseClicked(
@@ -44,7 +44,7 @@ public abstract class MerchantScreenMixin {
         }
     }
 
-    @Inject(method = "syncRecipeIndex", at = @At("HEAD"), cancellable = true)
+    @Inject(method = "postButtonClick", at = @At("HEAD"), cancellable = true)
     private void quickcraft$syncMappedRecipeIndex(CallbackInfo ci) {
         QuickTrade.syncRecipeIndex((MerchantScreen) (Object) this);
     }

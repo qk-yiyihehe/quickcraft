@@ -4,10 +4,10 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import fi.dy.masa.malilib.util.FileUtils;
 import fi.dy.masa.malilib.util.JsonUtils;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.network.ServerInfo;
-import net.minecraft.server.integrated.IntegratedServer;
-import net.minecraft.util.WorldSavePath;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.multiplayer.ServerData;
+import net.minecraft.client.server.IntegratedServer;
+import net.minecraft.world.level.storage.LevelResource;
 
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -30,7 +30,7 @@ public final class QuickPersistentState {
     private QuickPersistentState() {
     }
 
-    public static void onClientTick(MinecraftClient client) {
+    public static void onClientTick(Minecraft client) {
         ProfileContext profile = resolveProfileContext(client);
         if (profile == null) {
             if (currentProfileId != null) {
@@ -49,8 +49,8 @@ public final class QuickPersistentState {
     }
 
     public static void saveCurrentProfileState() {
-        MinecraftClient client = MinecraftClient.getInstance();
-        if (client == null || client.world == null || currentStateFile == null) {
+        Minecraft client = Minecraft.getInstance();
+        if (client == null || client.level == null || currentStateFile == null) {
             return;
         }
 
@@ -70,15 +70,15 @@ public final class QuickPersistentState {
         root.addProperty("schemaVersion", 1);
         root.addProperty("profileId", currentProfileId);
         QuickContainerLock.writePersistentState(root);
-        QuickTrade.writePersistentState(root, client.world.getRegistryManager());
+        QuickTrade.writePersistentState(root, client.level.registryAccess());
         JsonUtils.writeJsonToFileAsPath(root, currentStateFile);
     }
 
-    private static void loadCurrentProfileState(MinecraftClient client) {
+    private static void loadCurrentProfileState(Minecraft client) {
         QuickContainerLock.clearPersistentState();
         QuickTrade.clearPersistentState();
 
-        if (client == null || client.world == null || currentStateFile == null) {
+        if (client == null || client.level == null || currentStateFile == null) {
             return;
         }
         if (!Files.exists(currentStateFile) || !Files.isReadable(currentStateFile)) {
@@ -92,7 +92,7 @@ public final class QuickPersistentState {
 
         JsonObject root = element.getAsJsonObject();
         QuickContainerLock.loadPersistentState(root);
-        QuickTrade.loadPersistentState(root, client.world.getRegistryManager());
+        QuickTrade.loadPersistentState(root, client.level.registryAccess());
     }
 
     private static void clearLoadedState() {
@@ -102,28 +102,28 @@ public final class QuickPersistentState {
         QuickTrade.clearPersistentState();
     }
 
-    private static ProfileContext resolveProfileContext(MinecraftClient client) {
-        if (client == null || client.world == null) {
+    private static ProfileContext resolveProfileContext(Minecraft client) {
+        if (client == null || client.level == null) {
             return null;
         }
 
-        if (client.isInSingleplayer()) {
-            IntegratedServer server = client.getServer();
+        if (client.isSingleplayer()) {
+            IntegratedServer server = client.getSingleplayerServer();
             if (server == null) {
                 return null;
             }
 
-            Path saveRoot = server.getSavePath(WorldSavePath.ROOT).toAbsolutePath().normalize();
+            Path saveRoot = server.getWorldPath(LevelResource.ROOT).toAbsolutePath().normalize();
             String displayName = saveRoot.getFileName() != null ? saveRoot.getFileName().toString() : saveRoot.toString();
             return createProfileContext(SINGLEPLAYER_DIR, saveRoot.toString(), displayName);
         }
 
-        ServerInfo serverInfo = client.getCurrentServerEntry();
-        if (serverInfo == null || serverInfo.address == null || serverInfo.address.isBlank()) {
+        ServerData serverInfo = client.getCurrentServer();
+        if (serverInfo == null || serverInfo.ip == null || serverInfo.ip.isBlank()) {
             return null;
         }
 
-        String address = serverInfo.address.trim();
+        String address = serverInfo.ip.trim();
         return createProfileContext(MULTIPLAYER_DIR, address, address);
     }
 
