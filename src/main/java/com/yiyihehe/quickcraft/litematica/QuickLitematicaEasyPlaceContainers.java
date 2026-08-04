@@ -28,7 +28,7 @@ public final class QuickLitematicaEasyPlaceContainers {
                 || client == null
                 || client.player == null
                 || client.level == null
-                || client.screen != null) {
+                || client.gui.screen() != null) {
             return false;
         }
 

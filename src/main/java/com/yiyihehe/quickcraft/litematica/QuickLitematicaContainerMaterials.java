@@ -27,7 +27,7 @@ import fi.dy.masa.malilib.gui.widgets.WidgetListEntryBase;
 import fi.dy.masa.malilib.render.GuiContext;
 import fi.dy.masa.malilib.render.InventoryOverlay;
 import fi.dy.masa.malilib.render.RenderUtils;
-import fi.dy.masa.malilib.util.ItemType;
+import fi.dy.masa.malilib.util.data.ItemType;
 import fi.dy.masa.malilib.util.StringUtils;
 import it.unimi.dsi.fastutil.objects.Object2IntOpenHashMap;
 import net.minecraft.world.level.block.state.BlockState;
@@ -98,7 +98,7 @@ public final class QuickLitematicaContainerMaterials {
         List<ButtonBase> buttons = ((GuiBaseAccessor) (Object) gui).quickcraft$getButtons();
         ButtonBase mainMenuButton = buttons.stream()
                 .filter(button -> button.getY() == y)
-                // Litematica 0.27.9 把主菜单按钮固定在距右边缘 10 px 的位置。
+                // Litematica 0.28.3 把主菜单按钮固定在距右边缘 10 px 的位置。
                 .filter(button -> button.getX() + button.getWidth() == gui.getScreenWidth() - 10)
                 .reduce((first, second) -> second)
                 .orElse(null);
@@ -113,7 +113,7 @@ public final class QuickLitematicaContainerMaterials {
             return new ButtonPlacement(x, y);
         }
 
-        // 0.27.9 的文件浏览区结束于 height - 46，备用位置从这里开始且不移动原生按钮。
+        // Litematica 0.28.3 的文件浏览区结束于 height - 46，备用位置从这里开始且不移动原生按钮。
         return new ButtonPlacement(
                 Math.max(12, gui.getScreenWidth() - buttonWidth - 10),
                 gui.getScreenHeight() - 46
@@ -256,7 +256,7 @@ public final class QuickLitematicaContainerMaterials {
         }
 
         for (EntityInfo info : entities) {
-            CompoundTag nbt = info.nbt;
+            CompoundTag nbt = info.nbt();
             List<ItemStack> stacks = readItems(nbt, registryLookup);
 
             if (stacks.isEmpty()) {

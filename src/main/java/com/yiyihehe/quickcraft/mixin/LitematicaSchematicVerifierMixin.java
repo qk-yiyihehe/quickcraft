@@ -22,7 +22,7 @@ import fi.dy.masa.litematica.world.ChunkManagerSchematic;
 import fi.dy.masa.litematica.world.WorldSchematic;
 import fi.dy.masa.malilib.gui.GuiBase;
 import fi.dy.masa.malilib.interfaces.ICompletionListener;
-import fi.dy.masa.malilib.util.IntBoundingBox;
+import fi.dy.masa.malilib.util.position.IntBoundingBox;
 import fi.dy.masa.malilib.util.StringUtils;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.block.entity.BlockEntity;
@@ -228,7 +228,7 @@ public abstract class LitematicaSchematicVerifierMixin extends TaskBase implemen
                     shift = At.Shift.AFTER
             )
     )
-    private void quickcraft$checkContainerInventory(ChunkAccess chunkClient, ChunkAccess chunkSchematic, fi.dy.masa.malilib.util.IntBoundingBox box, CallbackInfoReturnable<Boolean> cir) {
+    private void quickcraft$checkContainerInventory(ChunkAccess chunkClient, ChunkAccess chunkSchematic, IntBoundingBox box, CallbackInfoReturnable<Boolean> cir) {
         if (!QuickLitematicaContainerVerifier.isEnabled()) {
             return;
         }
@@ -350,7 +350,7 @@ public abstract class LitematicaSchematicVerifierMixin extends TaskBase implemen
     @Inject(method = "toggleMismatchEntrySelected", at = @At("TAIL"))
     private void quickcraft$trackSelectedInventoryMismatch(BlockMismatch mismatch, CallbackInfo ci) {
         if (!QuickLitematicaContainerVerifier.isEnabled()
-                || !QuickLitematicaContainerVerifier.isContainerMismatchType(mismatch.mismatchType)) {
+                || !QuickLitematicaContainerVerifier.isContainerMismatchType(mismatch.mismatchType())) {
             return;
         }
 
@@ -367,18 +367,18 @@ public abstract class LitematicaSchematicVerifierMixin extends TaskBase implemen
     private void quickcraft$removeSelectedInventoryMismatches(MismatchType type, CallbackInfo ci) {
         if (QuickLitematicaContainerVerifier.isEnabled()
                 && QuickLitematicaContainerVerifier.isContainerMismatchType(type)) {
-            this.quickcraft$selectedContainerMismatches.removeIf(mismatch -> mismatch.mismatchType == type);
+            this.quickcraft$selectedContainerMismatches.removeIf(mismatch -> mismatch.mismatchType() == type);
         }
     }
 
     @Inject(method = "ignoreStateMismatch(Lfi/dy/masa/litematica/schematic/verifier/SchematicVerifier$BlockMismatch;Z)V", at = @At("HEAD"), cancellable = true)
     private void quickcraft$forgetIgnoredInventoryMismatch(BlockMismatch mismatch, boolean updateOverlay, CallbackInfo ci) {
         if (!QuickLitematicaContainerVerifier.isEnabled()
-                || !QuickLitematicaContainerVerifier.isContainerMismatchType(mismatch.mismatchType)) {
+                || !QuickLitematicaContainerVerifier.isContainerMismatchType(mismatch.mismatchType())) {
             return;
         }
 
-        ContainerMismatchKey key = ((BlockMismatchExtension) mismatch).quickcraft$getContainerMismatchKey();
+        ContainerMismatchKey key = ((BlockMismatchExtension) (Object) mismatch).quickcraft$getContainerMismatchKey();
 
         if (key != null) {
             ContainerMismatch removed = this.quickcraft$containerMismatchesByKey.remove(key);
@@ -481,17 +481,17 @@ public abstract class LitematicaSchematicVerifierMixin extends TaskBase implemen
     @Inject(method = "updateMismatchPositionStringList", at = @At("TAIL"))
     private void quickcraft$splitInventoryHudLines(@Nullable MismatchType mismatchType, List<MismatchRenderPos> positionList, CallbackInfo ci) {
         if (!QuickLitematicaContainerVerifier.isEnabled()
-                || positionList.stream().noneMatch(pos -> QuickLitematicaContainerVerifier.isContainerMismatchType(pos.type))) {
+                || positionList.stream().noneMatch(pos -> QuickLitematicaContainerVerifier.isContainerMismatchType(pos.type()))) {
             return;
         }
 
         this.infoHudLines.clear();
         String rst = GuiBase.TXT_RST;
         List<MismatchRenderPos> vanilla = positionList.stream()
-                .filter(pos -> !QuickLitematicaContainerVerifier.isContainerMismatchType(pos.type))
+                .filter(pos -> !QuickLitematicaContainerVerifier.isContainerMismatchType(pos.type()))
                 .toList();
         List<MismatchRenderPos> containers = positionList.stream()
-                .filter(pos -> QuickLitematicaContainerVerifier.isContainerMismatchType(pos.type))
+                .filter(pos -> QuickLitematicaContainerVerifier.isContainerMismatchType(pos.type()))
                 .toList();
         int maxLines = Configs.InfoOverlays.INFO_HUD_MAX_LINES.getIntegerValue();
 
@@ -836,7 +836,7 @@ public abstract class LitematicaSchematicVerifierMixin extends TaskBase implemen
                 mismatch.foundState(),
                 1
         );
-        ((BlockMismatchExtension) blockMismatch).quickcraft$setContainerMismatch(mismatch);
+        ((BlockMismatchExtension) (Object) blockMismatch).quickcraft$setContainerMismatch(mismatch);
         return blockMismatch;
     }
 
@@ -855,7 +855,7 @@ public abstract class LitematicaSchematicVerifierMixin extends TaskBase implemen
         Collection<BlockMismatch> selected = this.selectedEntries.get(type);
 
         for (BlockMismatch mismatch : selected) {
-            ContainerMismatchKey key = ((BlockMismatchExtension) mismatch).quickcraft$getContainerMismatchKey();
+            ContainerMismatchKey key = ((BlockMismatchExtension) (Object) mismatch).quickcraft$getContainerMismatchKey();
             ContainerMismatch containerMismatch = key != null ? this.quickcraft$containerMismatchesByKey.get(key) : null;
 
             if (containerMismatch != null && !positions.contains(containerMismatch.pos())) {
@@ -873,8 +873,8 @@ public abstract class LitematicaSchematicVerifierMixin extends TaskBase implemen
 
         for (int i = 0; i < count; i++) {
             MismatchRenderPos entry = positions.get(i);
-            BlockPos pos = entry.pos;
-            String pre = quickcraft$getHudColorCode(entry.type);
+            BlockPos pos = entry.pos();
+            String pre = quickcraft$getHudColorCode(entry.type());
             this.infoHudLines.add(String.format("%sx: %5d, y: %3d, z: %5d%s", pre, pos.getX(), pos.getY(), pos.getZ(), rst));
         }
     }
@@ -892,7 +892,7 @@ public abstract class LitematicaSchematicVerifierMixin extends TaskBase implemen
     private boolean quickcraft$isContainerPosSelected(BlockPos pos) {
         for (BlockMismatch mismatch : this.quickcraft$selectedContainerMismatches) {
             ContainerMismatch containerMismatch =
-                    ((BlockMismatchExtension) mismatch).quickcraft$getContainerMismatch();
+                    ((BlockMismatchExtension) (Object) mismatch).quickcraft$getContainerMismatch();
 
             if (containerMismatch != null && containerMismatch.pos().equals(pos)) {
                 return true;
@@ -906,12 +906,12 @@ public abstract class LitematicaSchematicVerifierMixin extends TaskBase implemen
     private void quickcraft$restoreContainerSelection(BlockPos pos, boolean wasSelected) {
         this.quickcraft$selectedContainerMismatches.removeIf(mismatch -> {
             ContainerMismatch containerMismatch =
-                    ((BlockMismatchExtension) mismatch).quickcraft$getContainerMismatch();
+                    ((BlockMismatchExtension) (Object) mismatch).quickcraft$getContainerMismatch();
             return containerMismatch != null && containerMismatch.pos().equals(pos);
         });
         this.selectedEntries.values().removeIf(mismatch -> {
             ContainerMismatch containerMismatch =
-                    ((BlockMismatchExtension) mismatch).quickcraft$getContainerMismatch();
+                    ((BlockMismatchExtension) (Object) mismatch).quickcraft$getContainerMismatch();
             return containerMismatch != null && containerMismatch.pos().equals(pos);
         });
 
@@ -923,7 +923,7 @@ public abstract class LitematicaSchematicVerifierMixin extends TaskBase implemen
             if (mismatch.pos().equals(pos)) {
                 BlockMismatch blockMismatch = this.quickcraft$createBlockMismatch(mismatch);
                 this.quickcraft$selectedContainerMismatches.add(blockMismatch);
-                this.selectedEntries.put(blockMismatch.mismatchType, blockMismatch);
+                this.selectedEntries.put(blockMismatch.mismatchType(), blockMismatch);
                 return;
             }
         }

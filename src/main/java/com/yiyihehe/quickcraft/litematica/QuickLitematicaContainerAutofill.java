@@ -53,7 +53,7 @@ public final class QuickLitematicaContainerAutofill implements ClientModInitiali
         }
 
         boolean useDown = QuickCraftKeyBindings.isBoundKeyDown(client, client.options.keyUse);
-        if (useDown && !lastUseDown && client.screen == null) {
+        if (useDown && !lastUseDown && client.gui.screen() == null) {
             BlockHitResult hitResult = getLookedAtBlock(client);
             if (hitResult != null && shouldHandleTarget(client, hitResult)) {
                 BlockPos pos = hitResult.getBlockPos();
@@ -70,7 +70,7 @@ public final class QuickLitematicaContainerAutofill implements ClientModInitiali
         }
 
         pendingTicks++;
-        if (!(client.screen instanceof AbstractContainerScreen<?> screen)) {
+        if (!(client.gui.screen() instanceof AbstractContainerScreen<?> screen)) {
             if (pendingTicks > OPEN_TIMEOUT_TICKS) {
                 pendingContainerPos = null;
                 pendingTicks = 0;
@@ -161,7 +161,7 @@ public final class QuickLitematicaContainerAutofill implements ClientModInitiali
                 || client == null
                 || client.player == null
                 || client.level == null
-                || client.screen != null) {
+                || client.gui.screen() != null) {
             return false;
         }
 

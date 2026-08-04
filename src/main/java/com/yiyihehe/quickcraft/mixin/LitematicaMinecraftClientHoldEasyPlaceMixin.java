@@ -21,7 +21,7 @@ public abstract class LitematicaMinecraftClientHoldEasyPlaceMixin {
         Minecraft client = (Minecraft) (Object) this;
 
         if (!QuickCraftConfigs.isHoldEasyPlaceEnabled()
-                || client.screen != null
+                || client.gui.screen() != null
                 || client.player == null
                 || client.level == null
                 || !Configs.Generic.EASY_PLACE_MODE.getBooleanValue()

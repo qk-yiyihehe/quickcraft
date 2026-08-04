@@ -47,12 +47,12 @@ public abstract class LitematicaWidgetSchematicVerificationResultMixin
     ) {
         if (this.mismatchEntry == null
                 || this.mismatchEntry.blockMismatch == null
-                || !QuickLitematicaContainerVerifier.isContainerMismatchType(this.mismatchEntry.blockMismatch.mismatchType)) {
+                || !QuickLitematicaContainerVerifier.isContainerMismatchType(this.mismatchEntry.blockMismatch.mismatchType())) {
             return;
         }
 
         BlockMismatchExtension extension =
-                (BlockMismatchExtension) this.mismatchEntry.blockMismatch;
+                (BlockMismatchExtension) (Object) this.mismatchEntry.blockMismatch;
 
         if (extension.quickcraft$getContainerMismatch() == null) {
             return;
@@ -60,8 +60,8 @@ public abstract class LitematicaWidgetSchematicVerificationResultMixin
 
         QuickLitematicaContainerVerifier.renderInventoryPair(
                 extension.quickcraft$getContainerMismatch(),
-                this.mismatchEntry.blockMismatch.stateExpected,
-                this.mismatchEntry.blockMismatch.stateFound,
+                this.mismatchEntry.blockMismatch.stateExpected(),
+                this.mismatchEntry.blockMismatch.stateFound(),
                 extension.quickcraft$getExpectedDisabledSlots(),
                 extension.quickcraft$getFoundDisabledSlots(),
                 mouseX,
