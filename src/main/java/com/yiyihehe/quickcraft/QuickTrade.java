@@ -78,7 +78,7 @@ public final class QuickTrade implements ClientModInitializer {
             processPendingAutoTrade(client);
         }
 
-        if (currentOrderState != null && client.screen != currentOrderState.screen()) {
+        if (currentOrderState != null && client.gui.screen() != currentOrderState.screen()) {
             restoreTradeOrder(currentOrderState.screen(), currentOrderState.originalOffers());
             currentOrderState = null;
         }
@@ -163,7 +163,7 @@ public final class QuickTrade implements ClientModInitializer {
                 "★",
                 rowLeft + STAR_X_OFFSET,
                 rowTop + STAR_Y_OFFSET,
-                0xFFE066
+                0xFFFFE066
         );
     }
 
@@ -174,7 +174,7 @@ public final class QuickTrade implements ClientModInitializer {
         }
 
         boolean useDown = QuickCraftKeyBindings.isBoundKeyDown(client, client.options.keyUse);
-        if (useDown && !lastUseDown && client.screen == null) {
+        if (useDown && !lastUseDown && client.gui.screen() == null) {
             AbstractVillager merchant = getLookedAtMerchant(client);
             if (merchant != null) {
                 pendingMerchantKey = buildMerchantKey(merchant);
@@ -200,7 +200,7 @@ public final class QuickTrade implements ClientModInitializer {
         }
 
         pendingAutoTradeTicks++;
-        if (!(client.screen instanceof MerchantScreen screen)) {
+        if (!(client.gui.screen() instanceof MerchantScreen screen)) {
             if (pendingAutoTradeTicks > AUTO_TRADE_TIMEOUT_TICKS) {
                 clearPendingAutoTradeState();
             }
@@ -255,7 +255,7 @@ public final class QuickTrade implements ClientModInitializer {
         }
 
         pendingMerchantTicks++;
-        if (client.screen instanceof MerchantScreen) {
+        if (client.gui.screen() instanceof MerchantScreen) {
             currentScreenMerchantKey = pendingMerchantKey;
             pendingMerchantKey = null;
             pendingMerchantTicks = 0;
@@ -269,7 +269,7 @@ public final class QuickTrade implements ClientModInitializer {
     }
 
     private static void clearCurrentMerchantKeyIfNeeded(Minecraft client) {
-        if (!(client.screen instanceof MerchantScreen)) {
+        if (!(client.gui.screen() instanceof MerchantScreen)) {
             currentScreenMerchantKey = null;
         }
     }
@@ -458,7 +458,7 @@ public final class QuickTrade implements ClientModInitializer {
             sendTradeBlockedMessage(client);
         }
 
-        if (client.player != null && client.screen instanceof MerchantScreen) {
+        if (client.player != null && client.gui.screen() instanceof MerchantScreen) {
             client.player.closeContainer();
         }
 
@@ -570,7 +570,7 @@ public final class QuickTrade implements ClientModInitializer {
 
     private static void bindCurrentMerchant(MerchantScreen screen) {
         Minecraft client = Minecraft.getInstance();
-        if (client == null || client.screen != screen) {
+        if (client == null || client.gui.screen() != screen) {
             return;
         }
 
