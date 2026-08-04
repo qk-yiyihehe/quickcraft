@@ -41,7 +41,7 @@ public final class QuickCraftAnvilRename implements ClientModInitializer {
         Minecraft client = Minecraft.getInstance();
         return QuickCraftConfigs.isAnvilRenameQuickCraftEnabled()
                 && client != null
-                && client.screen instanceof AnvilScreen
+                && client.gui.screen() instanceof AnvilScreen
                 && (QuickCraftConfigs.getSingleCraftHotkey().isKeybindHeld()
                 || QuickCraftConfigs.getRapidCraftHotkey().isKeybindHeld());
     }
@@ -76,7 +76,7 @@ public final class QuickCraftAnvilRename implements ClientModInitializer {
         Minecraft client = Minecraft.getInstance();
         return QuickCraftConfigs.isAnvilRenameQuickCraftEnabled()
                 && client != null
-                && client.screen instanceof AnvilScreen;
+                && client.gui.screen() instanceof AnvilScreen;
     }
 
     private void onClientTick(Minecraft client) {
@@ -295,7 +295,7 @@ public final class QuickCraftAnvilRename implements ClientModInitializer {
     private boolean isAnvilContextValid(Minecraft client) {
         return client.player != null
                 && client.level != null
-                && client.screen instanceof AnvilScreen
+                && client.gui.screen() instanceof AnvilScreen
                 && client.player.containerMenu instanceof AnvilMenu;
     }
 

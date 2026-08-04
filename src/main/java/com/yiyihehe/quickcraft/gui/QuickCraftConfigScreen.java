@@ -30,7 +30,7 @@ public class QuickCraftConfigScreen extends GuiConfigsBase {
     }
 
     public static boolean isOpen(Minecraft client) {
-        return client != null && client.screen instanceof QuickCraftConfigScreen;
+        return client != null && client.gui.screen() instanceof QuickCraftConfigScreen;
     }
 
     @Override

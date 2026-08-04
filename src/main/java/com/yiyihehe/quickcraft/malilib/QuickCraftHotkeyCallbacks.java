@@ -45,7 +45,7 @@ public final class QuickCraftHotkeyCallbacks {
         if (action != KeyAction.PRESS
                 || client == null
                 || client.player == null
-                || client.screen != null
+                || client.gui.screen() != null
                 || !QuickCraftConfigs.isOpenConfigHotkeyEnabled()) {
             return false;
         }
@@ -113,15 +113,15 @@ public final class QuickCraftHotkeyCallbacks {
             return false;
         }
 
-        if (QuickCraftConfigs.isWorkbenchQuickCraftEnabled() && client.screen instanceof CraftingScreen) {
+        if (QuickCraftConfigs.isWorkbenchQuickCraftEnabled() && client.gui.screen() instanceof CraftingScreen) {
             return true;
         }
-        if (QuickCraftConfigs.isBackpackQuickCraftEnabled() && client.screen instanceof InventoryScreen) {
+        if (QuickCraftConfigs.isBackpackQuickCraftEnabled() && client.gui.screen() instanceof InventoryScreen) {
             return true;
         }
-        if (QuickCraftConfigs.isStonecutterQuickCraftEnabled() && client.screen instanceof StonecutterScreen) {
+        if (QuickCraftConfigs.isStonecutterQuickCraftEnabled() && client.gui.screen() instanceof StonecutterScreen) {
             return true;
         }
-        return QuickCraftConfigs.isAnvilRenameQuickCraftEnabled() && client.screen instanceof AnvilScreen;
+        return QuickCraftConfigs.isAnvilRenameQuickCraftEnabled() && client.gui.screen() instanceof AnvilScreen;
     }
 }

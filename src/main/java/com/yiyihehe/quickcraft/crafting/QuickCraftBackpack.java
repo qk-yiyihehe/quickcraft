@@ -1277,7 +1277,7 @@ public class QuickCraftBackpack implements ClientModInitializer {
             return null;
         }
 
-        // 26.1 客户端只同步 RecipeDisplayEntry；普通配方由配方书 ID 驱动，特殊配方使用锁定的格子快照。
+        // 26.1+ 客户端只同步 RecipeDisplayEntry；普通配方由配方书 ID 驱动，特殊配方使用锁定的格子快照。
         return null;
     }
 
@@ -1352,7 +1352,7 @@ public class QuickCraftBackpack implements ClientModInitializer {
             return false;
         }
 
-        if (!(client.screen instanceof InventoryScreen)) {
+        if (!(client.gui.screen() instanceof InventoryScreen)) {
             return false;
         }
 

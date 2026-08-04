@@ -1297,7 +1297,7 @@ public class QuickCraftWorkbench implements ClientModInitializer {
             return null;
         }
 
-        // 26.1 客户端只同步 RecipeDisplayEntry；普通配方由配方书 ID 驱动，特殊配方使用锁定的格子快照。
+        // 26.1+ 客户端只同步 RecipeDisplayEntry；普通配方由配方书 ID 驱动，特殊配方使用锁定的格子快照。
         return null;
     }
 
@@ -1372,7 +1372,7 @@ public class QuickCraftWorkbench implements ClientModInitializer {
             return false;
         }
 
-        if (!(client.screen instanceof CraftingScreen)) {
+        if (!(client.gui.screen() instanceof CraftingScreen)) {
             return false;
         }
 
