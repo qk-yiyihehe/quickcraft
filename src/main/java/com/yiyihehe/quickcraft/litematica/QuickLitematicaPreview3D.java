@@ -1,15 +1,9 @@
 package com.yiyihehe.quickcraft.litematica;
 
 import com.mojang.blaze3d.buffers.GpuBuffer;
-import com.mojang.blaze3d.pipeline.RenderPipeline;
-import com.mojang.blaze3d.ProjectionType;
-import com.mojang.blaze3d.systems.RenderPass;
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.vertex.VertexSorting;
-import com.mojang.blaze3d.textures.AddressMode;
-import com.mojang.blaze3d.textures.FilterMode;
 import com.yiyihehe.quickcraft.config.QuickCraftConfigs;
-import com.yiyihehe.quickcraft.mixin.RenderLayerAccessor;
 import fi.dy.masa.litematica.render.schematic.ChunkCacheSchematic;
 import fi.dy.masa.litematica.render.schematic.WorldRendererSchematic;
 import fi.dy.masa.litematica.schematic.LitematicaSchematic;
@@ -43,10 +37,8 @@ import net.minecraft.client.renderer.texture.OverlayTexture;
 import net.minecraft.client.renderer.chunk.ChunkSectionLayer;
 import com.mojang.blaze3d.platform.Lighting;
 import net.minecraft.client.renderer.rendertype.RenderType;
-import net.minecraft.client.renderer.rendertype.RenderSetup;
 import net.minecraft.client.renderer.rendertype.RenderTypes;
 import com.mojang.blaze3d.vertex.VertexConsumer;
-import net.minecraft.client.renderer.MultiBufferSource;
 import com.mojang.blaze3d.vertex.DefaultVertexFormat;
 import net.minecraft.client.renderer.LevelRenderer;
 import net.minecraft.client.renderer.Projection;
@@ -55,7 +47,6 @@ import net.minecraft.client.renderer.block.FluidRenderer;
 import net.minecraft.client.renderer.block.ModelBlockRenderer;
 import net.minecraft.client.renderer.SectionBufferBuilderPack;
 import net.minecraft.client.renderer.SubmitNodeCollector;
-import net.minecraft.client.renderer.feature.FeatureRenderDispatcher;
 import com.mojang.blaze3d.vertex.ByteBufferBuilder;
 import com.mojang.blaze3d.vertex.PoseStack;
 import net.minecraft.client.multiplayer.ClientLevel;
@@ -113,8 +104,6 @@ import java.util.HexFormat;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.OptionalDouble;
-import java.util.OptionalInt;
 import java.util.WeakHashMap;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.ExecutorService;
@@ -137,16 +126,17 @@ public final class QuickLitematicaPreview3D {
         thread.setDaemon(true);
         return thread;
     });
+    // v17：26.2 RenderType/模型数据和 PIP 提交队列；禁止复用 26.1 顶点及动态场景缓存。
     // v16：26.1 方块模型、流体和 PIP 渲染管线；禁止复用 1.21.11 顶点和动态场景缓存。
     // v13：回退箱子静态化（entity atlas 纹理与方块 VBO 不兼容，紫色方块）；保留 GZIP+量化+视口剔除+邻居登记修复。
     // v12：箱子顶点静态化到独立 VBO，缓存追加 chestVertices 字段。
     // v11：保留 v10 的 GZIP + 顶点量化；箱子方块实体改回动态渲染，避免 chest atlas 被写进方块 VBO。
     // 升版本会让旧缓存一次性失效；之后 mod 版本号变化不再清缓存（token 已不含 mod 版本）。
-    private static final int CACHE_FORMAT_VERSION = 16;
+    private static final int CACHE_FORMAT_VERSION = 17;
     private static final int CACHE_MAGIC = 0x51435033; // QCP3
     private static final String CACHE_DIR_NAME = "litematica-preview-cache";
     private static final String CACHE_VERSION_FILE_NAME = "cache-version.txt";
-    private static final String CACHE_RENDER_MARKER = "quickcraft-model-mesh-v18-float-uv-full-light-dynamic-render-state-mc26.1.2";
+    private static final String CACHE_RENDER_MARKER = "quickcraft-model-mesh-v19-float-uv-full-light-dynamic-render-state-mc26.2";
     private static final int MAX_PREVIEW_SIZE = 512;
     // 预算必须卡在构建阶段前面：顶点 packed 后仍会占用 CPU/GPU 大块连续内存。
     private static final int MAX_UPLOAD_VERTICES = 12_000_000;
@@ -168,7 +158,6 @@ public final class QuickLitematicaPreview3D {
     private static final float PROGRESS_STATIC_CACHE_END = 0.93F;
     private static final float PROGRESS_BLOCK_STATES_CACHE_END = 0.95F;
     private static final float PROGRESS_BLOCK_ENTITIES_CACHE_END = 0.99F;
-    private static final Vector3f ZERO_MODEL_OFFSET = new Vector3f();
     private static final AtomicBoolean SPECIAL_RENDERER_REGISTERED = new AtomicBoolean();
     private static final AtomicBoolean CACHE_DIRECTORY_READY = new AtomicBoolean();
     @Nullable
@@ -179,7 +168,7 @@ public final class QuickLitematicaPreview3D {
 
     public static void registerSpecialRenderer() {
         if (SPECIAL_RENDERER_REGISTERED.compareAndSet(false, true)) {
-            PictureInPictureRendererRegistry.register(context -> new PreviewGuiElementRenderer(context.bufferSource()));
+            PictureInPictureRendererRegistry.register(context -> new PreviewGuiElementRenderer());
         }
     }
 
@@ -503,7 +492,7 @@ public final class QuickLitematicaPreview3D {
             ByteBufferBuilder allocator = new ByteBufferBuilder(allocatorSize);
             try {
                 RenderType renderLayer = layerMesh.layer().renderLayer();
-                BufferBuilder builder = new BufferBuilder(allocator, renderLayer.mode(), renderLayer.format());
+                BufferBuilder builder = new BufferBuilder(allocator, renderLayer.primitiveTopology(), renderLayer.format());
                 CacheFile.decodeQuantizedToBuilder(layerMesh.quantizedVertices(), builder);
 
                 com.mojang.blaze3d.vertex.MeshData built = builder.build();
@@ -529,10 +518,10 @@ public final class QuickLitematicaPreview3D {
                                     GpuBuffer.USAGE_INDEX | GpuBuffer.USAGE_COPY_DST,
                                     built.indexBuffer()
                             )
-                            : RenderSystem.getSequentialBuffer(drawParameters.mode()).getBuffer(drawParameters.indexCount());
+                            : RenderSystem.getSequentialBuffer(drawParameters.primitiveTopology()).getBuffer(drawParameters.indexCount());
                     var indexType = customIndexBuffer
                             ? drawParameters.indexType()
-                            : RenderSystem.getSequentialBuffer(drawParameters.mode()).type();
+                            : RenderSystem.getSequentialBuffer(drawParameters.primitiveTopology()).type();
                     return new LayerBuffer(vertexBuffer, indexBuffer, drawParameters.indexCount(), indexType, customIndexBuffer);
                 } finally {
                     built.close();
@@ -547,7 +536,7 @@ public final class QuickLitematicaPreview3D {
             return (int) Math.min(Integer.MAX_VALUE - 8L, bytes);
         }
 
-        private void drawSpecial(PreviewGuiElement element, PoseStack matrices) {
+        private void drawSpecial(PreviewGuiElement element, PoseStack matrices, SubmitNodeCollector submitNodes) {
             MeshData data = this.meshData;
             Minecraft client = Minecraft.getInstance();
             if (data == null || this.cancelled.get()) {
@@ -557,7 +546,7 @@ public final class QuickLitematicaPreview3D {
             var previousLights = RenderSystem.getShaderLights();
             matrices.pushPose();
             try {
-                // 26.1 PIP 使用倒置 Y 投影并预先翻转 Z；这里恢复预览使用的世界坐标方向和面朝向。
+                // 26.1+ PIP 使用倒置 Y 投影并预先翻转 Z；这里恢复预览使用的世界坐标方向和面朝向。
                 matrices.scale(1.0F, -1.0F, -1.0F);
                 matrices.translate(element.dragX(), -element.dragY(), 0.0F);
                 matrices.mulPose(Axis.XP.rotation(DEFAULT_SLANT_RADIANS));
@@ -565,10 +554,10 @@ public final class QuickLitematicaPreview3D {
                 float scale = data.scaleFactor(element.size(), element.size()) * element.size() * 0.5F * element.dragScale();
                 matrices.scale(scale, scale, scale);
                 matrices.translate(-data.sizeX() / 2.0F, -data.sizeY() / 2.0F, -data.sizeZ() / 2.0F);
-                client.gameRenderer.getLighting().setupFor(Lighting.Entry.LEVEL);
+                client.gameRenderer.lighting().setupFor(Lighting.Entry.LEVEL);
                 Matrix4f dynamicModelView = new Matrix4f(matrices.last().pose());
                 this.drawBuffers(dynamicModelView);
-                this.drawDynamic(data, dynamicModelView, element.size());
+                this.drawDynamic(data, dynamicModelView, element.size(), submitNodes);
             } finally {
                 matrices.popPose();
                 RenderSystem.setShaderLights(previousLights);
@@ -586,37 +575,24 @@ public final class QuickLitematicaPreview3D {
 
         private static void drawLayerBuffer(LayerKey layer, LayerBuffer buffer, Matrix4f modelView) {
             RenderType renderLayer = layer.renderLayer();
-            RenderPipeline pipeline = buffer.pipeline(renderLayer, renderLayer.pipeline());
-            var colorAttachment = Objects.requireNonNull(RenderSystem.outputColorTextureOverride);
-            var depthAttachment = RenderSystem.outputDepthTextureOverride;
-            var dynamicTransforms = RenderSystem.getDynamicUniforms().writeTransform(
-                    modelView,
-                    new Vector4f(1.0F, 1.0F, 1.0F, 1.0F),
-                    ZERO_MODEL_OFFSET,
-                    new Matrix4f()
-            );
-            RenderSetup setup = ((RenderLayerAccessor) (Object) renderLayer).quickcraft$getRenderSetup();
-            try (RenderPass pass = RenderSystem.getDevice().createCommandEncoder().createRenderPass(
-                    () -> "QuickCraft preview " + renderLayer,
-                    colorAttachment,
-                    OptionalInt.empty(),
-                    depthAttachment,
-                    OptionalDouble.empty()
-            )) {
-                pass.setPipeline(pipeline);
-                RenderSystem.bindDefaultUniforms(pass);
-                pass.setUniform("DynamicTransforms", dynamicTransforms);
-                pass.setVertexBuffer(0, buffer.vertexBuffer());
-                for (var entry : setup.getTextures().entrySet()) {
-                    var texture = entry.getValue();
-                    pass.bindTexture(entry.getKey(), texture.textureView(), texture.sampler());
-                }
-                pass.setIndexBuffer(buffer.indexBuffer(), buffer.indexType());
-                pass.drawIndexed(0, 0, buffer.indexCount(), 1);
+            Matrix4fStack renderStack = RenderSystem.getModelViewStack();
+            renderStack.pushMatrix();
+            try {
+                renderStack.set(modelView);
+                renderLayer.prepare().drawFromBuffer(
+                        buffer.vertexBuffer(),
+                        buffer.indexBuffer(),
+                        buffer.indexType(),
+                        0,
+                        0,
+                        buffer.indexCount()
+                );
+            } finally {
+                renderStack.popMatrix();
             }
         }
 
-        private void drawDynamic(MeshData data, Matrix4f modelView, int viewSize) {
+        private void drawDynamic(MeshData data, Matrix4f modelView, int viewSize, SubmitNodeCollector submitNodes) {
             DynamicScene scene = data.dynamicScene();
             if (scene.isEmpty()) {
                 return;
@@ -627,8 +603,6 @@ public final class QuickLitematicaPreview3D {
             PoseStack matrices = new PoseStack();
             matrices.mulPose(modelView);
             CameraRenderState cameraState = new CameraRenderState();
-            FeatureRenderDispatcher dispatcher = client.gameRenderer.getFeatureRenderDispatcher();
-            SubmitNodeCollector queue = dispatcher.getSubmitNodeStorage();
 
             scene.blockEntities().forEach((pos, entity) -> {
                 if (culler.isOutside(pos.getX() + 0.5F, pos.getY() + 0.5F, pos.getZ() + 0.5F)) {
@@ -638,7 +612,7 @@ public final class QuickLitematicaPreview3D {
                 matrices.pushPose();
                 try {
                     matrices.translate(pos.getX(), pos.getY(), pos.getZ());
-                    renderBlockEntity(client, entity, matrices, queue, cameraState);
+                    renderBlockEntity(client, entity, matrices, submitNodes, cameraState);
                 } catch (Throwable ignored) {
                 } finally {
                     matrices.popPose();
@@ -662,14 +636,12 @@ public final class QuickLitematicaPreview3D {
                             renderedEntity.y(),
                             renderedEntity.z(),
                             matrices,
-                            queue
+                            submitNodes
                     );
                 } catch (Throwable ignored) {
                 }
             });
 
-            // 1.21.9+ 的实体 renderer 只记录命令；special GUI 离屏目标仍需在本层显式执行队列。
-            dispatcher.renderAllFeatures();
         }
 
         private static <T extends BlockEntity, S extends BlockEntityRenderState> void renderBlockEntity(
@@ -812,18 +784,14 @@ public final class QuickLitematicaPreview3D {
     }
 
     private static final class PreviewGuiElementRenderer extends PictureInPictureRenderer<PreviewGuiElement> {
-        private PreviewGuiElementRenderer(MultiBufferSource.BufferSource vertexConsumers) {
-            super(vertexConsumers);
-        }
-
         @Override
         public Class<PreviewGuiElement> getRenderStateClass() {
             return PreviewGuiElement.class;
         }
 
         @Override
-        protected void renderToTexture(PreviewGuiElement element, PoseStack matrices) {
-            element.preview().drawSpecial(element, matrices);
+        protected void renderToTexture(PreviewGuiElement element, PoseStack matrices, SubmitNodeCollector submitNodes) {
+            element.preview().drawSpecial(element, matrices, submitNodes);
         }
 
         @Override
@@ -838,12 +806,8 @@ public final class QuickLitematicaPreview3D {
     }
 
     private record LayerBuffer(GpuBuffer vertexBuffer, GpuBuffer indexBuffer, int indexCount,
-                               com.mojang.blaze3d.vertex.VertexFormat.IndexType indexType,
+                               com.mojang.blaze3d.IndexType indexType,
                                boolean ownsIndexBuffer) implements AutoCloseable {
-        private RenderPipeline pipeline(RenderType renderLayer, RenderPipeline defaultPipeline) {
-            return defaultPipeline;
-        }
-
         @Override
         public void close() {
             if (!this.vertexBuffer.isClosed()) {
@@ -867,8 +831,8 @@ public final class QuickLitematicaPreview3D {
     }
 
     private static void translateToScreen(Matrix4fStack matrixStack, Minecraft client, float x, float y) {
-        int screenWidth = client.screen == null ? client.getWindow().getGuiScaledWidth() : client.screen.width;
-        int screenHeight = client.screen == null ? client.getWindow().getGuiScaledHeight() : client.screen.height;
+        int screenWidth = client.gui.screen() == null ? client.getWindow().getGuiScaledWidth() : client.gui.screen().width;
+        int screenHeight = client.gui.screen() == null ? client.getWindow().getGuiScaledHeight() : client.gui.screen().height;
         matrixStack.translate((2.0F * x - screenWidth) / screenHeight, -(2.0F * y - screenHeight) / screenHeight, 0.0F);
     }
 
@@ -1222,10 +1186,10 @@ public final class QuickLitematicaPreview3D {
             BlockPos regionOrigin = area.getPos1() == null ? BlockPos.ZERO : area.getPos1();
             for (LitematicaSchematic.EntityInfo info : regionEntities) {
                 throwIfCancelled(cancelled);
-                double x = info.posVec.x + regionOrigin.getX() - bounds.min().getX();
-                double y = info.posVec.y + regionOrigin.getY() - bounds.min().getY();
-                double z = info.posVec.z + regionOrigin.getZ() - bounds.min().getZ();
-                entities.add(new EntityData(x, y, z, copyEntityNbtAt(info.nbt, x, y, z)));
+                double x = info.posVec().x + regionOrigin.getX() - bounds.min().getX();
+                double y = info.posVec().y + regionOrigin.getY() - bounds.min().getY();
+                double z = info.posVec().z + regionOrigin.getZ() - bounds.min().getZ();
+                entities.add(new EntityData(x, y, z, copyEntityNbtAt(info.nbt(), x, y, z)));
                 recordEntityNearbyBlockStates(blockStates, view, bounds, x, y, z);
                 if (entities.size() > MAX_DYNAMIC_ENTITIES) {
                     throw new PreviewTooLargeException();

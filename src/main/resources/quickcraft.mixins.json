@@ -36,7 +36,6 @@
 		"LitematicaWorldUtilsEasyPlaceMixin",
 		"LitematicaWorldUtilsInvoker",
 		"MinecraftClientContinuousFillUseMixin",
-		"MinecraftClientAccessor",
 		"MerchantScreenAccessor",
 		"MerchantScreenMixin",
 		"QuickContainerBackgroundFillScreenMixin",
@@ -46,7 +45,6 @@
 		"QuickContainerLockScreenMixin",
 		"QuickContainerLockScreenHandlerMixin",
 		"QuickContainerLockSlotMixin",
-		"RenderLayerAccessor",
 		"ShulkerBoxScreenMixin"
 	],
 	"injectors": {
