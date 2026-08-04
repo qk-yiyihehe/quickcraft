@@ -32,6 +32,8 @@ public class QuickCraftStonecutter implements ClientModInitializer {
     private static final int INPUT_SLOT = 0;
     private static final int OUTPUT_SLOT = 1;
     private static final int MAX_FAKE_PROGRESS = 3;
+    // 40 tick 给普通多人服务器约两秒时间返回权威切石机槽位。
+    private static final int SERVER_SYNC_TIMEOUT_TICKS = 40;
 
     private boolean lastVDown = false;
     private boolean lastAltCDown = false;
@@ -49,6 +51,8 @@ public class QuickCraftStonecutter implements ClientModInitializer {
     private boolean ingredientDropLocked = false;
     private int lastObservedOutputSignature = 0;
     private int fakeProgressTicks = 0;
+    private boolean singleCraftPending = false;
+    private int singleCraftWaitTicks = 0;
 
     @Override
     public void onInitializeClient() {
@@ -77,6 +81,7 @@ public class QuickCraftStonecutter implements ClientModInitializer {
         StonecutterMenu handler = (StonecutterMenu) client.player.containerMenu;
         updateIngredientDropLock(handler);
         handleHotkeys(client, handler);
+        processPendingSingleCraft(client, handler);
 
         if (rapidCraftingActive && rapidCraftStartedByButton && !isCraftButtonRapidModeHeld(client)) {
             stopRapidCraft(client, Component.translatable("quickcraft.message.crafting.stopped"));
@@ -251,6 +256,9 @@ public class QuickCraftStonecutter implements ClientModInitializer {
     }
 
     private void handleSingleCraft(Minecraft client, StonecutterMenu handler) {
+        if (rapidCraftingActive || singleCraftPending) {
+            return;
+        }
         if (!lockCurrentSelection(client, handler)) {
             sendStatusMessage(client, Component.translatable("quickcraft.message.stonecutter.no_selection"));
             return;
@@ -258,8 +266,55 @@ public class QuickCraftStonecutter implements ClientModInitializer {
 
         boolean success = runOneCraftSubLoop(client, handler, lockedRecipe);
         if (!success) {
-            sendStatusMessage(client, Component.translatable("quickcraft.message.crafting.no_ingredients"));
+            handleSingleCraftFailure(client, handler);
         }
+    }
+
+    private void processPendingSingleCraft(Minecraft client, StonecutterMenu handler) {
+        if (!singleCraftPending || rapidCraftingActive) {
+            return;
+        }
+
+        if (handler.getSlot(OUTPUT_SLOT).hasItem()) {
+            ItemStack output = handler.getSlot(OUTPUT_SLOT).getItem();
+            if (!ItemStack.isSameItemSameComponents(output, lockedResultTemplate)) {
+                clearPendingSingleCraft();
+                return;
+            }
+
+            if (runOneCraftSubLoop(client, handler, lockedRecipe)) {
+                clearPendingSingleCraft();
+                return;
+            }
+        }
+
+        singleCraftWaitTicks++;
+        if (singleCraftWaitTicks >= SERVER_SYNC_TIMEOUT_TICKS) {
+            clearPendingSingleCraft();
+            sendStatusMessage(client, Component.translatable("quickcraft.message.stonecutter.sync_timeout"));
+        }
+    }
+
+    private void handleSingleCraftFailure(Minecraft client, StonecutterMenu handler) {
+        if (isIngredientUnavailable(client, handler, lockedRecipe)) {
+            sendStatusMessage(client, Component.translatable("quickcraft.message.crafting.no_ingredients"));
+        } else {
+            singleCraftPending = true;
+            singleCraftWaitTicks = 0;
+        }
+    }
+
+    private boolean isIngredientUnavailable(Minecraft client,
+                                            StonecutterMenu handler,
+                                            RecipeHolder<StonecutterRecipe> recipe) {
+        return !handler.getSlot(OUTPUT_SLOT).hasItem()
+                && !handler.getSlot(INPUT_SLOT).hasItem()
+                && findBestSupplyIngredientSlot(client.player.getInventory(), recipe) == -1;
+    }
+
+    private void clearPendingSingleCraft() {
+        singleCraftPending = false;
+        singleCraftWaitTicks = 0;
     }
 
     private boolean handleCraftButton(Minecraft client, boolean rapidCraft) {
@@ -295,14 +350,11 @@ public class QuickCraftStonecutter implements ClientModInitializer {
         }
 
         try {
+            // 1.21.2+（包括 26.2）客户端只有配方展示数据，重复本地 clickMenuButton 不能生成真实产物。
             boolean selectionChanged = handler.getSelectedRecipeIndex() != recipeIndex;
             if (selectionChanged) {
                 handler.clickMenuButton(client.player, recipeIndex);
                 client.gameMode.handleInventoryButtonClick(handler.containerId, recipeIndex);
-            } else if (!handler.getSlot(OUTPUT_SLOT).hasItem()) {
-                // 1.21.2+ 的切石机仍会在 onButtonClick() 内本地 populateResult；
-                // 服务端已选中同一配方时只补本地输出槽，才能在同 tick 连续发送取产物包。
-                handler.clickMenuButton(client.player, recipeIndex);
             }
             return true;
         } catch (Throwable throwable) {
@@ -784,6 +836,7 @@ public class QuickCraftStonecutter implements ClientModInitializer {
     private boolean startRapidCraft(Minecraft client,
                                     StonecutterMenu handler,
                                     boolean fromButton) {
+        clearPendingSingleCraft();
         if (!lockCurrentSelection(client, handler)) {
             rapidCraftingActive = false;
             rapidCraftStartedByButton = false;
@@ -810,7 +863,7 @@ public class QuickCraftStonecutter implements ClientModInitializer {
             return false;
         }
 
-        if (!(client.screen instanceof StonecutterScreen)) {
+        if (!(client.gui.screen() instanceof StonecutterScreen)) {
             return false;
         }
 
@@ -935,6 +988,7 @@ public class QuickCraftStonecutter implements ClientModInitializer {
         ingredientDropLocked = false;
         lastObservedOutputSignature = 0;
         fakeProgressTicks = 0;
+        clearPendingSingleCraft();
         lastVDown = false;
         lastAltCDown = false;
     }
