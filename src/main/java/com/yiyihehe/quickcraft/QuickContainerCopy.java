@@ -94,7 +94,7 @@ public final class QuickContainerCopy implements ClientModInitializer {
                 || client.player == null
                 || client.level == null
                 || client.gameMode == null
-                || client.screen != null
+                || client.gui.screen() != null
                 || !QuickCraftConfigs.isQuickContainerCopyEnabled()) {
             return false;
         }
@@ -204,7 +204,7 @@ public final class QuickContainerCopy implements ClientModInitializer {
                 || client.player == null
                 || client.level == null
                 || client.gameMode == null
-                || client.screen != null) {
+                || client.gui.screen() != null) {
             return;
         }
 
@@ -242,7 +242,7 @@ public final class QuickContainerCopy implements ClientModInitializer {
                 || client.player == null
                 || client.level == null
                 || client.gameMode == null
-                || client.screen != null) {
+                || client.gui.screen() != null) {
             return continuousTask != null;
         }
 
@@ -312,7 +312,7 @@ public final class QuickContainerCopy implements ClientModInitializer {
             stopContinuousTask(client, false, null);
             return;
         }
-        if (client.screen != null && !(client.screen instanceof AbstractContainerScreen<?>)) {
+        if (client.gui.screen() != null && !(client.gui.screen() instanceof AbstractContainerScreen<?>)) {
             stopContinuousTask(client, false, Component.translatable("quickcraft.message.container_copy.background_screen_open"));
             return;
         }
@@ -337,7 +337,7 @@ public final class QuickContainerCopy implements ClientModInitializer {
             continuousTask.ticks = 0;
             return;
         }
-        if (client.screen != null) {
+        if (client.gui.screen() != null) {
             stopContinuousTask(client, false, Component.translatable("quickcraft.message.container_copy.background_screen_open"));
             return;
         }
@@ -653,7 +653,7 @@ public final class QuickContainerCopy implements ClientModInitializer {
             return null;
         }
 
-        if (client.screen instanceof AbstractContainerScreen<?> screen) {
+        if (client.gui.screen() instanceof AbstractContainerScreen<?> screen) {
             return screen.getMenu();
         }
 
@@ -686,7 +686,7 @@ public final class QuickContainerCopy implements ClientModInitializer {
                 || recordedTemplate == null
                 || client.player == null
                 || client.level == null
-                || client.screen != null) {
+                || client.gui.screen() != null) {
             lastUseDown = false;
             return;
         }
@@ -716,7 +716,7 @@ public final class QuickContainerCopy implements ClientModInitializer {
         }
 
         pendingTicks++;
-        if (!(client.screen instanceof AbstractContainerScreen<?> screen)) {
+        if (!(client.gui.screen() instanceof AbstractContainerScreen<?> screen)) {
             if (pendingTicks > OPEN_TIMEOUT_TICKS) {
                 pendingAction = PendingAction.NONE;
                 pendingContainerType = null;

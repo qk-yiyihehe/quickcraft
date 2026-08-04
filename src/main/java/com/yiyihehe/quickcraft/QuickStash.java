@@ -61,7 +61,7 @@ public final class QuickStash implements ClientModInitializer {
         boolean useDown = QuickCraftKeyBindings.isBoundKeyDown(client, client.options.keyUse);
         if (useDown
                 && !lastUseDown
-                && client.screen == null
+                && client.gui.screen() == null
                 && !QuickMaterialCollector.shouldHandleCurrentTarget(client)
                 && !QuickLitematicaContainerAutofill.shouldHandleCurrentTarget(client)
                 && isLookingAtSupportedBlock(client)) {
@@ -78,7 +78,7 @@ public final class QuickStash implements ClientModInitializer {
         }
 
         pendingTicks++;
-        if (!(client.screen instanceof AbstractContainerScreen<?> screen)) {
+        if (!(client.gui.screen() instanceof AbstractContainerScreen<?> screen)) {
             if (pendingTicks > OPEN_TIMEOUT_TICKS) {
                 pendingOpen = false;
                 pendingTicks = 0;

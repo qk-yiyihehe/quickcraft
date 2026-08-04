@@ -74,7 +74,7 @@ public final class QuickThrow implements ClientModInitializer, IKeyboardInputHan
         }
 
         Minecraft client = Minecraft.getInstance();
-        if (!(client.screen instanceof AbstractContainerScreen<?> screen) || !canUseQuickThrow(client, screen)) {
+        if (!(client.gui.screen() instanceof AbstractContainerScreen<?> screen) || !canUseQuickThrow(client, screen)) {
             return false;
         }
 
@@ -138,7 +138,7 @@ public final class QuickThrow implements ClientModInitializer, IKeyboardInputHan
         Minecraft client = Minecraft.getInstance();
         return QuickCraftConfigs.isQuickThrowEnabled()
                 && client != null
-                && client.screen instanceof AnvilScreen
+                && client.gui.screen() instanceof AnvilScreen
                 && (QuickCraftConfigs.Hotkeys.DROP_MATCHING.getKeybind().isKeybindHeld()
                 || QuickCraftConfigs.Hotkeys.DROP_WHOLE_STACK.getKeybind().isKeybindHeld());
     }
@@ -156,7 +156,7 @@ public final class QuickThrow implements ClientModInitializer, IKeyboardInputHan
             return;
         }
 
-        if (!(client.screen instanceof AbstractContainerScreen<?> screen) || !canUseQuickThrow(client, screen)) {
+        if (!(client.gui.screen() instanceof AbstractContainerScreen<?> screen) || !canUseQuickThrow(client, screen)) {
             resetHoldGesture();
             return;
         }
@@ -193,7 +193,7 @@ public final class QuickThrow implements ClientModInitializer, IKeyboardInputHan
 
     private static boolean handleBoundThrow(ThrowMode mode) {
         Minecraft client = Minecraft.getInstance();
-        if (!(client.screen instanceof AbstractContainerScreen<?> screen) || !canUseQuickThrow(client, screen)) {
+        if (!(client.gui.screen() instanceof AbstractContainerScreen<?> screen) || !canUseQuickThrow(client, screen)) {
             return false;
         }
 

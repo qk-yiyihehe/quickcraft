@@ -75,7 +75,7 @@ public final class QuickMaterialCollector implements ClientModInitializer {
         }
 
         boolean useDown = QuickCraftKeyBindings.isBoundKeyDown(client, client.options.keyUse);
-        if (useDown && !lastUseDown && client.screen == null && isLookingAtSupportedBlock(client)) {
+        if (useDown && !lastUseDown && client.gui.screen() == null && isLookingAtSupportedBlock(client)) {
             pendingOpen = true;
             pendingTicks = 0;
         }
@@ -88,7 +88,7 @@ public final class QuickMaterialCollector implements ClientModInitializer {
         }
 
         pendingTicks++;
-        if (!(client.screen instanceof AbstractContainerScreen<?> screen)) {
+        if (!(client.gui.screen() instanceof AbstractContainerScreen<?> screen)) {
             if (pendingTicks > OPEN_TIMEOUT_TICKS) {
                 pendingOpen = false;
                 pendingTicks = 0;

@@ -89,7 +89,7 @@ public final class QuickBeacon implements ClientModInitializer {
 
         boolean useDown = QuickCraftKeyBindings.isBoundKeyDown(client, client.options.keyUse);
         BlockHitResult beaconHitResult = getLookedAtBeaconHitResult(client);
-        if (useDown && !lastUseDown && client.screen == null && beaconHitResult != null) {
+        if (useDown && !lastUseDown && client.gui.screen() == null && beaconHitResult != null) {
             pendingBeaconPos = beaconHitResult.getBlockPos().immutable();
             pendingBeaconHitResult = beaconHitResult;
             pendingTarget = null;
@@ -118,7 +118,7 @@ public final class QuickBeacon implements ClientModInitializer {
     }
 
     private void processBeaconOpenState(Minecraft client) {
-        if (!(client.screen instanceof AbstractContainerScreen<?> screen)) {
+        if (!(client.gui.screen() instanceof AbstractContainerScreen<?> screen)) {
             if (pendingTicks > OPEN_TIMEOUT_TICKS) {
                 clearPendingState();
             }
@@ -293,7 +293,7 @@ public final class QuickBeacon implements ClientModInitializer {
 
     private boolean isPlayerCraftingHandlerReady(Minecraft client) {
         return client.player != null
-                && client.screen == null
+                && client.gui.screen() == null
                 && client.player.containerMenu == client.player.inventoryMenu;
     }
 

@@ -78,7 +78,7 @@ public class QuickSort implements ClientModInitializer {
             return false;
         }
 
-        if (client.screen instanceof AbstractContainerScreen<?> handledScreen) {
+        if (client.gui.screen() instanceof AbstractContainerScreen<?> handledScreen) {
             if (isTextInputFocused(handledScreen)) {
                 return false;
             }
@@ -662,7 +662,7 @@ public class QuickSort implements ClientModInitializer {
     }
 
     private static boolean isSafeVisibleStorageSlot(AbstractContainerMenu handler, Slot slot, Minecraft client) {
-        if (client.screen instanceof CreativeModeInventoryScreen creativeScreen
+        if (client.gui.screen() instanceof CreativeModeInventoryScreen creativeScreen
             && handler == creativeScreen.getMenu()) {
             return isPlayerAreaSlot(creativeScreen, slot);
         }
@@ -1001,7 +1001,7 @@ public class QuickSort implements ClientModInitializer {
         }
 
         try {
-            if (client.screen instanceof CreativeModeInventoryScreen creativeScreen
+            if (client.gui.screen() instanceof CreativeModeInventoryScreen creativeScreen
                 && handler == creativeScreen.getMenu()) {
                 Slot slot = slotId >= 0 && slotId < handler.slots.size()
                     ? handler.getSlot(slotId)

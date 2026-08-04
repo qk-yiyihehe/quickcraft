@@ -52,7 +52,7 @@ public final class QuickTransfer implements ClientModInitializer {
 
     public static boolean handleQuickTransferHotkey() {
         Minecraft client = Minecraft.getInstance();
-        if (!(client.screen instanceof AbstractContainerScreen<?> screen) || !canUseQuickTransfer(client, screen)) {
+        if (!(client.gui.screen() instanceof AbstractContainerScreen<?> screen) || !canUseQuickTransfer(client, screen)) {
             return false;
         }
 
@@ -75,7 +75,7 @@ public final class QuickTransfer implements ClientModInitializer {
 
     public static boolean handleSlotQuickTransferHotkey() {
         Minecraft client = Minecraft.getInstance();
-        if (!(client.screen instanceof AbstractContainerScreen<?> screen) || !canUseQuickTransfer(client, screen)) {
+        if (!(client.gui.screen() instanceof AbstractContainerScreen<?> screen) || !canUseQuickTransfer(client, screen)) {
             return false;
         }
 
@@ -98,7 +98,7 @@ public final class QuickTransfer implements ClientModInitializer {
 
     public static boolean handleQuickTransferRetainOneHotkey() {
         Minecraft client = Minecraft.getInstance();
-        if (!(client.screen instanceof AbstractContainerScreen<?> screen) || !canUseQuickTransfer(client, screen)) {
+        if (!(client.gui.screen() instanceof AbstractContainerScreen<?> screen) || !canUseQuickTransfer(client, screen)) {
             return false;
         }
 
@@ -126,7 +126,7 @@ public final class QuickTransfer implements ClientModInitializer {
             return;
         }
 
-        if (!(client.screen instanceof AbstractContainerScreen<?> screen) || !canUseQuickTransfer(client, screen)) {
+        if (!(client.gui.screen() instanceof AbstractContainerScreen<?> screen) || !canUseQuickTransfer(client, screen)) {
             resetHoldGesture();
             return;
         }
