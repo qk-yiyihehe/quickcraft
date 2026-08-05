@@ -1062,11 +1062,11 @@ public final class QuickLitematicaContainerMaterials {
             }
 
             if (this.isMouseOver(mouseX, mouseY)) {
-                RenderUtils.drawRect(this.x, this.y, this.width, this.height, 0xA0707070);
+                RenderUtils.drawRect(drawContext, this.x, this.y, this.width, this.height, 0xA0707070);
             } else if (this.isOdd) {
-                RenderUtils.drawRect(this.x, this.y, this.width, this.height, 0xA0101010);
+                RenderUtils.drawRect(drawContext, this.x, this.y, this.width, this.height, 0xA0101010);
             } else {
-                RenderUtils.drawRect(this.x, this.y, this.width, this.height, 0xA0303030);
+                RenderUtils.drawRect(drawContext, this.x, this.y, this.width, this.height, 0xA0303030);
             }
 
             int containerX = this.x + 6;
@@ -1074,7 +1074,7 @@ public final class QuickLitematicaContainerMaterials {
             int contentsX = this.x + CONTAINER_COLUMN_WIDTH + COUNT_COLUMN_WIDTH + 8;
             int yText = this.y + 6;
 
-            RenderUtils.drawRect(containerX, this.y + 6, 16, 16, 0x20FFFFFF);
+            RenderUtils.drawRect(drawContext, containerX, this.y + 6, 16, 16, 0x20FFFFFF);
             drawContext.drawItem(this.entry.containerStack(), containerX, this.y + 6);
             this.drawString(drawContext, containerX + 20, yText, 0xFFFFFFFF, fitText(this.entry.containerName(), CONTAINER_COLUMN_WIDTH - 28));
 
@@ -1112,7 +1112,7 @@ public final class QuickLitematicaContainerMaterials {
         }
 
         private void renderHeader(DrawContext drawContext) {
-            RenderUtils.drawRect(this.x, this.y, this.width, this.height, 0xA0101010);
+            RenderUtils.drawRect(drawContext, this.x, this.y, this.width, this.height, 0xA0101010);
 
             int containerX = this.x + 6;
             int countX = this.x + CONTAINER_COLUMN_WIDTH + 4;
@@ -1149,7 +1149,7 @@ public final class QuickLitematicaContainerMaterials {
                 int itemY = this.y + 6 + (i / columns) * ITEM_CELL_HEIGHT;
                 ItemStack displayStack = item.stack();
 
-                RenderUtils.drawRect(itemX, itemY, 16, 16, 0x20FFFFFF);
+                RenderUtils.drawRect(drawContext, itemX, itemY, 16, 16, 0x20FFFFFF);
                 drawContext.drawItem(displayStack, itemX, itemY);
                 drawContext.drawStackOverlay(
                         this.textRenderer,
