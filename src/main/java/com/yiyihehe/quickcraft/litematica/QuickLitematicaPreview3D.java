@@ -1,6 +1,7 @@
 package com.yiyihehe.quickcraft.litematica;
 
 import com.mojang.blaze3d.buffers.GpuBuffer;
+import com.mojang.blaze3d.buffers.Std140Builder;
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.vertex.VertexSorting;
 import com.yiyihehe.quickcraft.config.QuickCraftConfigs;
@@ -83,6 +84,7 @@ import org.joml.Matrix4f;
 import org.joml.Matrix4fStack;
 import org.joml.Vector3f;
 import org.joml.Vector4f;
+import org.lwjgl.system.MemoryStack;
 
 import java.io.BufferedInputStream;
 import java.io.BufferedOutputStream;
@@ -317,6 +319,8 @@ public final class QuickLitematicaPreview3D {
         private final long startedAtNanos = System.nanoTime();
         private final AtomicBoolean cancelled = new AtomicBoolean();
         private final Map<LayerKey, LayerBuffer> layerBuffers = new EnumMap<>(LayerKey.class);
+        @Nullable
+        private GpuBuffer previewLightingBuffer;
         private volatile MeshData meshData;
         private volatile float progress;
         private volatile State state = State.LOADING;
@@ -538,7 +542,6 @@ public final class QuickLitematicaPreview3D {
 
         private void drawSpecial(PreviewGuiElement element, PoseStack matrices, SubmitNodeCollector submitNodes) {
             MeshData data = this.meshData;
-            Minecraft client = Minecraft.getInstance();
             if (data == null || this.cancelled.get()) {
                 return;
             }
@@ -554,14 +557,40 @@ public final class QuickLitematicaPreview3D {
                 float scale = data.scaleFactor(element.size(), element.size()) * element.size() * 0.5F * element.dragScale();
                 matrices.scale(scale, scale, scale);
                 matrices.translate(-data.sizeX() / 2.0F, -data.sizeY() / 2.0F, -data.sizeZ() / 2.0F);
-                client.gameRenderer.lighting().setupFor(Lighting.Entry.LEVEL);
                 Matrix4f dynamicModelView = new Matrix4f(matrices.last().pose());
+                this.applyLight(dynamicModelView);
                 this.drawBuffers(dynamicModelView);
                 this.drawDynamic(data, dynamicModelView, element.size(), submitNodes);
             } finally {
                 matrices.popPose();
                 RenderSystem.setShaderLights(previousLights);
             }
+        }
+
+        // 1.21.6+ 的地形明暗已烘焙进顶点颜色；独立 UBO 只修正动态方块实体和实体，且不污染原版全局光照。
+        private void applyLight(Matrix4f viewMatrix) {
+            Matrix4f lightTransform = new Matrix4f(viewMatrix);
+            Vector4f lightDirection = new Vector4f(0.0F, 0.35F, 0.25F, 0.0F);
+            lightTransform.invert();
+            lightDirection.mul(lightTransform);
+            Vector3f transformed = new Vector3f(lightDirection.x, lightDirection.y, lightDirection.z);
+
+            if (this.previewLightingBuffer == null) {
+                this.previewLightingBuffer = RenderSystem.getDevice().createBuffer(
+                        () -> "QuickCraft preview lighting",
+                        GpuBuffer.USAGE_UNIFORM | GpuBuffer.USAGE_COPY_DST,
+                        Lighting.UBO_SIZE
+                );
+            }
+
+            try (MemoryStack stack = MemoryStack.stackPush()) {
+                var data = Std140Builder.onStack(stack, Lighting.UBO_SIZE)
+                        .putVec3(transformed)
+                        .putVec3(transformed)
+                        .get();
+                RenderSystem.getDevice().createCommandEncoder().writeToBuffer(this.previewLightingBuffer.slice(), data);
+            }
+            RenderSystem.setShaderLights(this.previewLightingBuffer.slice());
         }
 
         private void drawBuffers(Matrix4f modelView) {
@@ -709,6 +738,9 @@ public final class QuickLitematicaPreview3D {
             }
             this.meshData = null;
             this.closeBuffers();
+            if (this.previewLightingBuffer != null && !this.previewLightingBuffer.isClosed()) {
+                this.previewLightingBuffer.close();
+            }
         }
 
         private void closeBuffers() {
