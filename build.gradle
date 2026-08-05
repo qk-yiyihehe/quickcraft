@@ -23,6 +23,10 @@ spotbugsTest {
 version = project.mod_version
 group = project.maven_group
 
+base {
+	archivesName = "${project.name}-mc${project.supported_minecraft_versions}"
+}
+
 loom {
 	runs {
 		client {
