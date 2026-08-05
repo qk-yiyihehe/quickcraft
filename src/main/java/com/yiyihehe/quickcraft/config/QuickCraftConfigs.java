@@ -19,7 +19,7 @@ import fi.dy.masa.malilib.hotkeys.IKeybind;
 import fi.dy.masa.malilib.hotkeys.KeyAction;
 import fi.dy.masa.malilib.hotkeys.KeybindSettings;
 import fi.dy.masa.malilib.util.FileUtils;
-import fi.dy.masa.malilib.util.JsonUtils;
+import fi.dy.masa.malilib.util.data.json.JsonUtils;
 import fi.dy.masa.malilib.util.StringUtils;
 
 import java.nio.file.Files;
@@ -876,13 +876,13 @@ public final class QuickCraftConfigs implements IConfigHandler {
     }
 
     public static void loadFromFile() {
-        Path configFile = FileUtils.getConfigDirectoryAsPath().resolve(CONFIG_FILE_NAME);
+        Path configFile = FileUtils.getConfigDirectory().resolve(CONFIG_FILE_NAME);
 
         if (!Files.exists(configFile) || !Files.isReadable(configFile)) {
             return;
         }
 
-        JsonElement element = JsonUtils.parseJsonFileAsPath(configFile);
+        JsonElement element = JsonUtils.parseJsonFile(configFile);
         if (element == null || !element.isJsonObject()) {
             return;
         }
@@ -925,7 +925,7 @@ public final class QuickCraftConfigs implements IConfigHandler {
     }
 
     public static void saveToFile() {
-        Path dir = FileUtils.getConfigDirectoryAsPath();
+        Path dir = FileUtils.getConfigDirectory();
         if (!Files.exists(dir)) {
             FileUtils.createDirectoriesIfMissing(dir);
         }
@@ -939,7 +939,7 @@ public final class QuickCraftConfigs implements IConfigHandler {
         ConfigUtils.writeConfigBase(root, "ProjectionTools", ProjectionTools.OPTIONS);
         ConfigUtils.writeConfigBase(root, "ModSupport", ModSupport.OPTIONS);
         ConfigUtils.writeConfigBase(root, "Hotkeys", Hotkeys.OPTIONS);
-        JsonUtils.writeJsonToFileAsPath(root, dir.resolve(CONFIG_FILE_NAME));
+        JsonUtils.writeJsonToFile(root, dir.resolve(CONFIG_FILE_NAME));
     }
 
     private static void applyLegacyContainerToolMappings(JsonObject containerTools) {

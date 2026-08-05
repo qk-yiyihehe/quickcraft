@@ -3,7 +3,7 @@ package com.yiyihehe.quickcraft;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import fi.dy.masa.malilib.util.FileUtils;
-import fi.dy.masa.malilib.util.JsonUtils;
+import fi.dy.masa.malilib.util.data.json.JsonUtils;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.network.ServerInfo;
 import net.minecraft.server.integrated.IntegratedServer;
@@ -71,7 +71,7 @@ public final class QuickPersistentState {
         root.addProperty("profileId", currentProfileId);
         QuickContainerLock.writePersistentState(root);
         QuickTrade.writePersistentState(root, client.world.getRegistryManager());
-        JsonUtils.writeJsonToFileAsPath(root, currentStateFile);
+        JsonUtils.writeJsonToFile(root, currentStateFile);
     }
 
     private static void loadCurrentProfileState(MinecraftClient client) {
@@ -85,7 +85,7 @@ public final class QuickPersistentState {
             return;
         }
 
-        JsonElement element = JsonUtils.parseJsonFileAsPath(currentStateFile);
+        JsonElement element = JsonUtils.parseJsonFile(currentStateFile);
         if (element == null || !element.isJsonObject()) {
             return;
         }
@@ -129,7 +129,7 @@ public final class QuickPersistentState {
 
     private static ProfileContext createProfileContext(String scope, String rawKey, String displayName) {
         String profileId = scope + ":" + rawKey;
-        Path stateFile = FileUtils.getConfigDirectoryAsPath()
+        Path stateFile = FileUtils.getConfigDirectory()
                 .resolve(QuickCraft.MOD_ID)
                 .resolve(STATE_DIR_NAME)
                 .resolve(scope)
