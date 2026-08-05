@@ -116,6 +116,12 @@ import java.util.zip.GZIPOutputStream;
  * 构建阶段调用 Minecraft 自带方块渲染器，把材质、异形模型、透明层和流体都录成可缓存的 CPU 顶点。
  */
 public final class QuickLitematicaPreview3D {
+    // Minecraft 1.21.x 的预览方块实体没有非弃用的公开状态更新 API。
+    @SuppressWarnings("deprecation")
+    private static void setPreviewBlockEntityState(BlockEntity blockEntity, BlockState state) {
+        blockEntity.setCachedState(state);
+    }
+
     private static final Map<fi.dy.masa.litematica.gui.GuiSchematicBrowserBase, Manager> MANAGERS = new WeakHashMap<>();
     // 预览构建专用单线程池：避免与 Util.getMainWorkerExecutor 共享导致排队等几秒。
     // 单线程足够（预览一次只构建一个文件），且避免 BlockRenderManager 多线程竞争。
@@ -124,16 +130,16 @@ public final class QuickLitematicaPreview3D {
         thread.setDaemon(true);
         return thread;
     });
-    // v14：保留完整 32 位 lightmap；1.21.8 流体的天空光在旧 16 位缓存中会被截断。
+    // v15：UV 恢复 float32，并保留完整 light 坐标，避免方块图集坐标跨进相邻 sprite。
     // v13：回退箱子静态化（entity atlas 纹理与方块 VBO 不兼容，紫色方块）；保留 GZIP+量化+视口剔除+邻居登记修复。
     // v12：箱子顶点静态化到独立 VBO，缓存追加 chestVertices 字段。
     // v11：保留 v10 的 GZIP + 顶点量化；箱子方块实体改回动态渲染，避免 chest atlas 被写进方块 VBO。
     // 升版本会让旧缓存一次性失效；之后 mod 版本号变化不再清缓存（token 已不含 mod 版本）。
-    private static final int CACHE_FORMAT_VERSION = 14;
+    private static final int CACHE_FORMAT_VERSION = 15;
     private static final int CACHE_MAGIC = 0x51435033; // QCP3
     private static final String CACHE_DIR_NAME = "litematica-preview-cache";
     private static final String CACHE_VERSION_FILE_NAME = "cache-version.txt";
-    private static final String CACHE_RENDER_MARKER = "quickcraft-model-mesh-v14-full-light-dynamic-chest-mc1.21.8";
+    private static final String CACHE_RENDER_MARKER = "quickcraft-model-mesh-v15-full-uv-light-dynamic-chest-mc1.21.8";
     private static final int MAX_PREVIEW_SIZE = 512;
     // 预算必须卡在构建阶段前面：顶点 packed 后仍会占用 CPU/GPU 大块连续内存。
     private static final int MAX_UPLOAD_VERTICES = 12_000_000;
@@ -144,8 +150,8 @@ public final class QuickLitematicaPreview3D {
     private static final float DEFAULT_SLANT_RADIANS = (float) Math.toRadians(32.0);
     private static final long NBT_READ_LIMIT_BYTES = 32L * 1024L * 1024L;
     private static final int VERTEX_BYTES = 44;
-    // 量化顶点磁盘编码：12B 位置 + 4B 颜色 + 4B UV(float16×2) + 2B overlay + 4B lightmap + 2B 法线(octahedral) = 28B
-    private static final int QUANTIZED_VERTEX_BYTES = 28;
+    // 静态顶点磁盘编码：12B 位置 + 4B 颜色 + 8B UV(float32×2) + 2B overlay + 4B lightmap + 2B 法线(octahedral) = 32B
+    private static final int QUANTIZED_VERTEX_BYTES = 32;
     private static final int MAX_QUANTIZED_LAYER_BYTES = MAX_UPLOAD_VERTICES * QUANTIZED_VERTEX_BYTES;
     private static final int CACHE_IO_CHUNK_BYTES = 1024 * 1024;
     private static final float PROGRESS_START = 0.02F;
@@ -1155,7 +1161,7 @@ public final class QuickLitematicaPreview3D {
                 return false;
             }
 
-            blockEntity.setCachedState(state);
+            setPreviewBlockEntityState(blockEntity, state);
             return MinecraftClient.getInstance().getBlockEntityRenderDispatcher().get(blockEntity) != null;
         }
 
@@ -1546,8 +1552,8 @@ public final class QuickLitematicaPreview3D {
             this.writeInt(Float.floatToIntBits(y));
             this.writeInt(Float.floatToIntBits(z));
             this.writeInt(argb);
-            this.writeShort(CacheFile.floatToHalf(u));
-            this.writeShort(CacheFile.floatToHalf(v));
+            this.writeInt(Float.floatToIntBits(u));
+            this.writeInt(Float.floatToIntBits(v));
             this.writeShort((short) overlay);
             this.writeInt(light);
             this.writeShort(CacheFile.encodeNormal(nx, ny, nz));
@@ -1738,7 +1744,7 @@ public final class QuickLitematicaPreview3D {
                     return null;
                 }
 
-                blockEntity.setCachedState(state);
+                setPreviewBlockEntityState(blockEntity, state);
                 if (!this.entityNbt.isEmpty()) {
                     blockEntity.read(NbtReadView.create(ErrorReporter.EMPTY, world.getRegistryManager(), this.entityNbt.copy()));
                 }
@@ -2232,7 +2238,7 @@ public final class QuickLitematicaPreview3D {
             return start + (end - start) * Math.min(1.0F, completed / (float) total);
         }
 
-        // ---- 顶点量化解编码工具：float16 (UV) / octahedral 8-bit (法线) ----
+        // ---- 静态顶点解码与 octahedral 8-bit 法线编码 ----
 
         // 渲染线程调用：把量化字节数组直接解码进 BufferBuilder，跳过 PreviewVertex 对象。
         private static void decodeQuantizedToBuilder(byte[] quantized, BufferBuilder builder) {
@@ -2242,11 +2248,11 @@ public final class QuickLitematicaPreview3D {
                 float y = Float.intBitsToFloat(readInt(quantized, offset + 4));
                 float z = Float.intBitsToFloat(readInt(quantized, offset + 8));
                 int argb = readInt(quantized, offset + 12);
-                float u = halfToFloat(readShort(quantized, offset + 16));
-                float v = halfToFloat(readShort(quantized, offset + 18));
-                int overlay = readShort(quantized, offset + 20) & 0xFFFF;
-                int light = readInt(quantized, offset + 22);
-                decodeNormal(readShort(quantized, offset + 26), normal);
+                float u = Float.intBitsToFloat(readInt(quantized, offset + 16));
+                float v = Float.intBitsToFloat(readInt(quantized, offset + 20));
+                int overlay = readShort(quantized, offset + 24) & 0xFFFF;
+                int light = readInt(quantized, offset + 26);
+                decodeNormal(readShort(quantized, offset + 30), normal);
                 builder.vertex(x, y, z, argb, u, v, overlay, light, normal[0], normal[1], normal[2]);
             }
         }
@@ -2260,54 +2266,6 @@ public final class QuickLitematicaPreview3D {
 
         private static short readShort(byte[] bytes, int offset) {
             return (short) ((bytes[offset] & 0xFF) << 8 | (bytes[offset + 1] & 0xFF));
-        }
-
-        // float32 -> IEEE 754 binary16。UV 在 [0,1]，1/1024 精度远细于图集纹素。
-        private static short floatToHalf(float f) {
-            int bits = Float.floatToIntBits(f);
-            int sign = (bits >>> 16) & 0x8000;
-            int exp = (bits >>> 23) & 0xFF;
-            int mant = bits & 0x7FFFFF;
-            if (exp == 0xFF) {
-                return (short) (sign | 0x7C00 | (mant != 0 ? 0x200 : 0));
-            }
-            exp = exp - 127 + 15;
-            mant >>>= 13;
-            if (exp >= 0x1F) {
-                return (short) (sign | 0x7C00);
-            }
-            if (exp <= 0) {
-                if (exp < -10) {
-                    return (short) sign;
-                }
-                mant = (mant | 0x400) >> (1 - exp);
-                return (short) (sign | mant);
-            }
-            return (short) (sign | (exp << 10) | mant);
-        }
-
-        // IEEE 754 binary16 -> float32
-        private static float halfToFloat(short h) {
-            int bits = h & 0xFFFF;
-            int sign = (bits & 0x8000) << 16;
-            int exp = (bits >>> 10) & 0x1F;
-            int mant = bits & 0x3FF;
-            if (exp == 0) {
-                if (mant == 0) {
-                    return Float.intBitsToFloat(sign);
-                }
-                int e = -1;
-                while ((mant & 0x400) == 0) {
-                    mant <<= 1;
-                    e--;
-                }
-                mant &= 0x3FF;
-                return Float.intBitsToFloat(sign | ((e + 127) << 23) | (mant << 13));
-            }
-            if (exp == 0x1F) {
-                return Float.intBitsToFloat(sign | 0x7F800000 | (mant != 0 ? 0x400000 : 0));
-            }
-            return Float.intBitsToFloat(sign | ((exp - 15 + 127) << 23) | (mant << 13));
         }
 
         // 法线 (float x3) -> 2 字节，八面体编码 8-bit/分量。方向光照肉眼不可察觉差异。
