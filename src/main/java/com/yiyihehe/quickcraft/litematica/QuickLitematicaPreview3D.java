@@ -123,15 +123,16 @@ public final class QuickLitematicaPreview3D {
         thread.setDaemon(true);
         return thread;
     });
+    // v14：UV 恢复 float32，并保留完整 light 坐标，避免斜视面跨出方块图集 sprite 边界。
     // v13：回退箱子静态化（entity atlas 纹理与方块 VBO 不兼容，紫色方块）；保留 GZIP+量化+视口剔除+邻居登记修复。
     // v12：箱子顶点静态化到独立 VBO，缓存追加 chestVertices 字段。
     // v11：保留 v10 的 GZIP + 顶点量化；箱子方块实体改回动态渲染，避免 chest atlas 被写进方块 VBO。
     // 升版本会让旧缓存一次性失效；之后 mod 版本号变化不再清缓存（token 已不含 mod 版本）。
-    private static final int CACHE_FORMAT_VERSION = 13;
+    private static final int CACHE_FORMAT_VERSION = 14;
     private static final int CACHE_MAGIC = 0x51435033; // QCP3
     private static final String CACHE_DIR_NAME = "litematica-preview-cache";
     private static final String CACHE_VERSION_FILE_NAME = "cache-version.txt";
-    private static final String CACHE_RENDER_MARKER = "quickcraft-model-mesh-v13-quantized-gzip-dynamic-chest-mc1.21.3";
+    private static final String CACHE_RENDER_MARKER = "quickcraft-model-mesh-v14-full-uv-light-gzip-dynamic-chest-mc1.21.3";
     private static final int MAX_PREVIEW_SIZE = 512;
     // 预算必须卡在构建阶段前面：顶点 packed 后仍会占用 CPU/GPU 大块连续内存。
     private static final int MAX_UPLOAD_VERTICES = 12_000_000;
@@ -142,8 +143,8 @@ public final class QuickLitematicaPreview3D {
     private static final float DEFAULT_SLANT_RADIANS = (float) Math.toRadians(32.0);
     private static final long NBT_READ_LIMIT_BYTES = 32L * 1024L * 1024L;
     private static final int VERTEX_BYTES = 44;
-    // 量化顶点磁盘编码：12B 位置 + 4B 颜色 + 4B UV(float16×2) + 4B overlay/light(short×2) + 2B 法线(octahedral) = 26B
-    private static final int QUANTIZED_VERTEX_BYTES = 26;
+    // 静态顶点磁盘编码：12B 位置 + 4B 颜色 + 8B UV(float32×2) + 4B light + 2B 法线(octahedral) = 30B。
+    private static final int QUANTIZED_VERTEX_BYTES = 30;
     private static final int MAX_QUANTIZED_LAYER_BYTES = MAX_UPLOAD_VERTICES * QUANTIZED_VERTEX_BYTES;
     private static final int CACHE_IO_CHUNK_BYTES = 1024 * 1024;
     private static final float PROGRESS_START = 0.02F;
@@ -1274,13 +1275,13 @@ public final class QuickLitematicaPreview3D {
             return this.consumers.computeIfAbsent(layer, ignored -> new RecordingVertexConsumer(this));
         }
 
-        private void addVertex(QuantizedVertexBuffer vertices, float x, float y, float z, int argb, float u, float v, int overlay, int light, float nx, float ny, float nz) {
+        private void addVertex(QuantizedVertexBuffer vertices, float x, float y, float z, int argb, float u, float v, int light, float nx, float ny, float nz) {
             if (this.vertexCount >= MAX_UPLOAD_VERTICES) {
                 throw new PreviewTooLargeException();
             }
 
             this.vertexCount++;
-            vertices.add(x, y, z, argb, u, v, overlay, light, nx, ny, nz);
+            vertices.add(x, y, z, argb, u, v, light, nx, ny, nz);
         }
 
         private List<LayerMesh> toMeshes() {
@@ -1304,7 +1305,6 @@ public final class QuickLitematicaPreview3D {
         private int argb = 0xFFFFFFFF;
         private float u;
         private float v;
-        private int overlay = OverlayTexture.DEFAULT_UV;
         private int light = LightmapTextureManager.MAX_LIGHT_COORDINATE;
 
         private RecordingVertexConsumer(MeshCollector collector) {
@@ -1340,13 +1340,11 @@ public final class QuickLitematicaPreview3D {
 
         @Override
         public VertexConsumer overlay(int u, int v) {
-            this.overlay = OverlayTexture.packUv(u, v);
             return this;
         }
 
         @Override
         public VertexConsumer overlay(int uv) {
-            this.overlay = uv;
             return this;
         }
 
@@ -1364,15 +1362,14 @@ public final class QuickLitematicaPreview3D {
 
         @Override
         public VertexConsumer normal(float x, float y, float z) {
-            this.collector.addVertex(this.vertices, this.x, this.y, this.z, this.argb, this.u, this.v, this.overlay, this.light, x, y, z);
-            this.overlay = OverlayTexture.DEFAULT_UV;
+            this.collector.addVertex(this.vertices, this.x, this.y, this.z, this.argb, this.u, this.v, this.light, x, y, z);
             this.light = LightmapTextureManager.MAX_LIGHT_COORDINATE;
             return this;
         }
 
         @Override
         public void vertex(float x, float y, float z, int color, float u, float v, int overlay, int light, float normalX, float normalY, float normalZ) {
-            this.collector.addVertex(this.vertices, x, y, z, color, u, v, overlay, light, normalX, normalY, normalZ);
+            this.collector.addVertex(this.vertices, x, y, z, color, u, v, light, normalX, normalY, normalZ);
         }
     }
 
@@ -1430,16 +1427,15 @@ public final class QuickLitematicaPreview3D {
             return this.position == 0;
         }
 
-        private void add(float x, float y, float z, int argb, float u, float v, int overlay, int light, float nx, float ny, float nz) {
+        private void add(float x, float y, float z, int argb, float u, float v, int light, float nx, float ny, float nz) {
             this.ensureCapacity(this.position + QUANTIZED_VERTEX_BYTES);
             this.writeInt(Float.floatToIntBits(x));
             this.writeInt(Float.floatToIntBits(y));
             this.writeInt(Float.floatToIntBits(z));
             this.writeInt(argb);
-            this.writeShort(CacheFile.floatToHalf(u));
-            this.writeShort(CacheFile.floatToHalf(v));
-            this.writeShort((short) overlay);
-            this.writeShort((short) light);
+            this.writeInt(Float.floatToIntBits(u));
+            this.writeInt(Float.floatToIntBits(v));
+            this.writeInt(light);
             this.writeShort(CacheFile.encodeNormal(nx, ny, nz));
         }
 
@@ -2112,7 +2108,7 @@ public final class QuickLitematicaPreview3D {
             return start + (end - start) * Math.min(1.0F, completed / (float) total);
         }
 
-        // ---- 顶点量化解编码工具：float16 (UV) / octahedral 8-bit (法线) ----
+        // ---- 静态顶点解码与 octahedral 8-bit 法线编码 ----
 
         // 渲染线程调用：把量化字节数组直接解码进 BufferBuilder，跳过 PreviewVertex 对象。
         private static void decodeQuantizedToBuilder(byte[] quantized, BufferBuilder builder) {
@@ -2122,12 +2118,11 @@ public final class QuickLitematicaPreview3D {
                 float y = Float.intBitsToFloat(readInt(quantized, offset + 4));
                 float z = Float.intBitsToFloat(readInt(quantized, offset + 8));
                 int argb = readInt(quantized, offset + 12);
-                float u = halfToFloat(readShort(quantized, offset + 16));
-                float v = halfToFloat(readShort(quantized, offset + 18));
-                int overlay = readShort(quantized, offset + 20) & 0xFFFF;
-                int light = readShort(quantized, offset + 22) & 0xFFFF;
-                decodeNormal(readShort(quantized, offset + 24), normal);
-                builder.vertex(x, y, z, argb, u, v, overlay, light, normal[0], normal[1], normal[2]);
+                float u = Float.intBitsToFloat(readInt(quantized, offset + 16));
+                float v = Float.intBitsToFloat(readInt(quantized, offset + 20));
+                int light = readInt(quantized, offset + 24);
+                decodeNormal(readShort(quantized, offset + 28), normal);
+                builder.vertex(x, y, z, argb, u, v, OverlayTexture.DEFAULT_UV, light, normal[0], normal[1], normal[2]);
             }
         }
 
@@ -2140,54 +2135,6 @@ public final class QuickLitematicaPreview3D {
 
         private static short readShort(byte[] bytes, int offset) {
             return (short) ((bytes[offset] & 0xFF) << 8 | (bytes[offset + 1] & 0xFF));
-        }
-
-        // float32 -> IEEE 754 binary16。UV 在 [0,1]，1/1024 精度远细于图集纹素。
-        private static short floatToHalf(float f) {
-            int bits = Float.floatToIntBits(f);
-            int sign = (bits >>> 16) & 0x8000;
-            int exp = (bits >>> 23) & 0xFF;
-            int mant = bits & 0x7FFFFF;
-            if (exp == 0xFF) {
-                return (short) (sign | 0x7C00 | (mant != 0 ? 0x200 : 0));
-            }
-            exp = exp - 127 + 15;
-            mant >>>= 13;
-            if (exp >= 0x1F) {
-                return (short) (sign | 0x7C00);
-            }
-            if (exp <= 0) {
-                if (exp < -10) {
-                    return (short) sign;
-                }
-                mant = (mant | 0x400) >> (1 - exp);
-                return (short) (sign | mant);
-            }
-            return (short) (sign | (exp << 10) | mant);
-        }
-
-        // IEEE 754 binary16 -> float32
-        private static float halfToFloat(short h) {
-            int bits = h & 0xFFFF;
-            int sign = (bits & 0x8000) << 16;
-            int exp = (bits >>> 10) & 0x1F;
-            int mant = bits & 0x3FF;
-            if (exp == 0) {
-                if (mant == 0) {
-                    return Float.intBitsToFloat(sign);
-                }
-                int e = -1;
-                while ((mant & 0x400) == 0) {
-                    mant <<= 1;
-                    e--;
-                }
-                mant &= 0x3FF;
-                return Float.intBitsToFloat(sign | ((e + 127) << 23) | (mant << 13));
-            }
-            if (exp == 0x1F) {
-                return Float.intBitsToFloat(sign | 0x7F800000 | (mant != 0 ? 0x400000 : 0));
-            }
-            return Float.intBitsToFloat(sign | ((exp - 15 + 127) << 23) | (mant << 13));
         }
 
         // 法线 (float x3) -> 2 字节，八面体编码 8-bit/分量。方向光照肉眼不可察觉差异。
