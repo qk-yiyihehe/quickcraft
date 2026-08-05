@@ -22,7 +22,6 @@ import fi.dy.masa.malilib.render.InventoryOverlayType;
 import fi.dy.masa.malilib.render.GuiContext;
 import fi.dy.masa.malilib.util.game.BlockUtils;
 import fi.dy.masa.malilib.util.data.Constants;
-import fi.dy.masa.malilib.util.nbt.NbtBlockUtils;
 import net.minecraft.world.level.block.AbstractFurnaceBlock;
 import net.minecraft.world.level.block.BrewingStandBlock;
 import net.minecraft.world.level.block.ChestBlock;
@@ -1146,7 +1145,7 @@ public final class QuickLitematicaContainerVerifier {
     private static Set<Integer> getDisabledSlots(BlockEntity blockEntity, CompoundTag nbt) {
         // 投影和实际世界都优先按 NBT 里的 disabled_slots 比较，避免两边来源不同导致合成器锁槽误判。
         if (nbt != null && nbt.contains("disabled_slots")) {
-            return Set.copyOf(NbtBlockUtils.getDisabledSlotsFromNbt(nbt));
+            return readDisabledSlotsFromNbt(nbt);
         }
 
         if (blockEntity instanceof CrafterBlockEntity crafter) {
@@ -1154,6 +1153,15 @@ public final class QuickLitematicaContainerVerifier {
         }
 
         return Set.of();
+    }
+
+    private static Set<Integer> readDisabledSlotsFromNbt(CompoundTag nbt) {
+        Set<Integer> disabledSlots = new HashSet<>();
+        int[] slots = nbt.getIntArray("disabled_slots").orElse(new int[0]);
+        for (int slot : slots) {
+            disabledSlots.add(slot);
+        }
+        return Set.copyOf(disabledSlots);
     }
 
     private static SimpleContainer copyInventory(Container source) {
