@@ -16,10 +16,11 @@ import org.lwjgl.glfw.GLFW;
 /**
  * 通用槽位锁覆盖层。
  * 这里只负责显示和槽位点击，右上角按钮由各自界面 mixin 负责。
+ * 26.1+ 的 AbstractRecipeBookScreen 绕过 extractRenderState 并直接调用 extractContents，注入后者才能覆盖生存背包。
  */
 @Mixin(AbstractContainerScreen.class)
 public abstract class QuickContainerLockScreenMixin {
-    @Inject(method = "extractRenderState", at = @At("TAIL"))
+    @Inject(method = "extractContents", at = @At("TAIL"))
     private void quickcraft$renderSlotLocks(GuiGraphicsExtractor context, int mouseX, int mouseY, float delta, CallbackInfo ci) {
         AbstractContainerScreen<?> screen = (AbstractContainerScreen<?>) (Object) this;
         HandledScreenAccessor accessor = (HandledScreenAccessor) this;
