@@ -106,6 +106,12 @@ import java.util.zip.GZIPOutputStream;
  * 构建阶段调用 Minecraft 自带方块渲染器，把材质、异形模型、透明层和流体都录成可缓存的 CPU 顶点。
  */
 public final class QuickLitematicaPreview3D {
+    // Minecraft 1.21.x 的预览方块实体没有非弃用的公开状态更新 API。
+    @SuppressWarnings("deprecation")
+    private static void setPreviewBlockEntityState(BlockEntity blockEntity, BlockState state) {
+        blockEntity.setCachedState(state);
+    }
+
     private static final Map<fi.dy.masa.litematica.gui.GuiSchematicBrowserBase, Manager> MANAGERS = new WeakHashMap<>();
     // 预览构建专用单线程池：避免与 Util.getMainWorkerExecutor 共享导致排队等几秒。
     // 单线程足够（预览一次只构建一个文件），且避免 BlockRenderManager 多线程竞争。
@@ -287,7 +293,7 @@ public final class QuickLitematicaPreview3D {
     }
 
     private static boolean isSupportedLitematic(DirectoryEntry entry) {
-        return entry.getFullPath().isFile() && FileType.fromFile(entry.getFullPath()) == FileType.LITEMATICA_SCHEMATIC;
+        return entry.getFullPath().isFile() && FileType.fromFile(entry.getFullPath().toPath()) == FileType.LITEMATICA_SCHEMATIC;
     }
 
     private static final class Preview implements AutoCloseable {
@@ -1048,7 +1054,7 @@ public final class QuickLitematicaPreview3D {
                 return false;
             }
 
-            blockEntity.setCachedState(state);
+            setPreviewBlockEntityState(blockEntity, state);
             return MinecraftClient.getInstance().getBlockEntityRenderDispatcher().get(blockEntity) != null;
         }
 
@@ -1605,7 +1611,7 @@ public final class QuickLitematicaPreview3D {
                     return null;
                 }
 
-                blockEntity.setCachedState(state);
+                setPreviewBlockEntityState(blockEntity, state);
                 if (!this.entityNbt.isEmpty()) {
                     blockEntity.read(this.entityNbt.copy(), world.getRegistryManager());
                 }
