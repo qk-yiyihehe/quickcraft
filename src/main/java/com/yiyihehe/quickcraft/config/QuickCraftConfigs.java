@@ -313,6 +313,11 @@ public final class QuickCraftConfigs implements IConfigHandler {
                 MAX_HOLD_EASY_PLACE_CACHE_TIME_MS,
                 false
         ).apply(PROJECTION_TRANSLATION_PREFIX);
+        public static final ConfigBooleanHotkeyed SHOW_LITEMATICA_SCHEMATIC_FOLDER_BUTTON = new ConfigBooleanHotkeyed(
+                "showLitematicaSchematicFolderButton",
+                true,
+                ""
+        ).apply(PROJECTION_TRANSLATION_PREFIX);
         public static final ConfigBooleanHotkeyed SHOW_LITEMATICA_CONTAINER_MATERIAL_BUTTON = new ConfigBooleanHotkeyed(
                 "showLitematicaContainerMaterialButton",
                 true,
@@ -413,6 +418,7 @@ public final class QuickCraftConfigs implements IConfigHandler {
                 ALLOW_EASY_PLACE_OPEN_CONTAINERS,
                 HOLD_EASY_PLACE,
                 HOLD_EASY_PLACE_CACHE_TIME_MS,
+                SHOW_LITEMATICA_SCHEMATIC_FOLDER_BUTTON,
                 SHOW_LITEMATICA_CONTAINER_MATERIAL_BUTTON,
                 SHOW_LITEMATICA_CONTAINER_SLOT_HINTS,
                 SHOW_LITEMATICA_CONTAINER_VERIFIER,
@@ -585,6 +591,7 @@ public final class QuickCraftConfigs implements IConfigHandler {
                 ProjectionTools.SHOW_LITEMATICA_3D_PREVIEW,
                 ProjectionTools.ALLOW_EASY_PLACE_OPEN_CONTAINERS,
                 ProjectionTools.HOLD_EASY_PLACE,
+                ProjectionTools.SHOW_LITEMATICA_SCHEMATIC_FOLDER_BUTTON,
                 ProjectionTools.SHOW_LITEMATICA_CONTAINER_MATERIAL_BUTTON,
                 ProjectionTools.SHOW_LITEMATICA_CONTAINER_SLOT_HINTS,
                 ProjectionTools.SHOW_LITEMATICA_CONTAINER_VERIFIER,
@@ -630,6 +637,7 @@ public final class QuickCraftConfigs implements IConfigHandler {
                 ProjectionTools.SHOW_LITEMATICA_3D_PREVIEW,
                 ProjectionTools.ALLOW_EASY_PLACE_OPEN_CONTAINERS,
                 ProjectionTools.HOLD_EASY_PLACE,
+                ProjectionTools.SHOW_LITEMATICA_SCHEMATIC_FOLDER_BUTTON,
                 ProjectionTools.SHOW_LITEMATICA_CONTAINER_MATERIAL_BUTTON,
                 ProjectionTools.SHOW_LITEMATICA_CONTAINER_SLOT_HINTS,
                 ProjectionTools.SHOW_LITEMATICA_CONTAINER_VERIFIER,
@@ -835,6 +843,10 @@ public final class QuickCraftConfigs implements IConfigHandler {
             ProjectionTools.HOLD_EASY_PLACE_CACHE_TIME_MS.setIntegerValue(clamped);
         }
         return clamped;
+    }
+
+    public static boolean isLitematicaSchematicFolderButtonVisible() {
+        return ProjectionTools.SHOW_LITEMATICA_SCHEMATIC_FOLDER_BUTTON.getBooleanValue();
     }
 
     public static boolean isLitematicaContainerMaterialListButtonVisible() {
