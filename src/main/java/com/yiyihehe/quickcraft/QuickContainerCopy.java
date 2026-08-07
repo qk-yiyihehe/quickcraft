@@ -223,9 +223,7 @@ public final class QuickContainerCopy implements ClientModInitializer {
 
         ContinuousTemplate template = resolveContinuousTemplate(client, hitResult, type);
         if (template == null) {
-            if (!lastContinuousFillDown) {
-                sendStatusMessage(client, Text.translatable("quickcraft.message.container_copy.no_fill_template"));
-            }
+            // 默认热键与原版使用键同为右键；没有匹配模板时必须静默放行普通容器交互。
             return;
         }
 
