@@ -5,8 +5,10 @@ import fi.dy.masa.litematica.gui.GuiSchematicBrowserBase;
 import fi.dy.masa.litematica.gui.GuiSchematicLoad;
 import fi.dy.masa.litematica.gui.widgets.WidgetSchematicBrowser;
 import fi.dy.masa.malilib.gui.button.ButtonGeneric;
+import fi.dy.masa.malilib.gui.widgets.WidgetFileBrowserBase.DirectoryEntry;
 import fi.dy.masa.malilib.util.StringUtils;
 import org.spongepowered.asm.mixin.Mixin;
+import org.spongepowered.asm.mixin.Unique;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
@@ -22,7 +24,26 @@ public abstract class LitematicaSchematicLoadMixin extends GuiSchematicBrowserBa
     }
 
     @Inject(method = "initGui", at = @At("TAIL"), remap = false)
-    private void quickcraft$addContainerMaterialButton(CallbackInfo ci) {
+    private void quickcraft$addContainerMaterialButtonOnInit(CallbackInfo ci) {
+        this.quickcraft$addContainerMaterialButton();
+    }
+
+    /**
+     * Litematica 0.26.12 选择文件时会清空并重建按钮；0.26.11 没有这个回调。
+     * 可选注入让两个版本共用同一构建产物，并在重建结束后恢复入口。
+     */
+    @Inject(
+            method = "onSelectionChange(Lfi/dy/masa/malilib/gui/widgets/WidgetFileBrowserBase$DirectoryEntry;)V",
+            at = @At("TAIL"),
+            remap = false,
+            require = 0
+    )
+    private void quickcraft$addContainerMaterialButtonAfterSelection(DirectoryEntry entry, CallbackInfo ci) {
+        this.quickcraft$addContainerMaterialButton();
+    }
+
+    @Unique
+    private void quickcraft$addContainerMaterialButton() {
         if (!QuickLitematicaContainerMaterials.shouldShowButton()) {
             return;
         }

@@ -95,14 +95,29 @@ public final class QuickLitematicaContainerMaterials {
 
     public static ButtonPlacement getButtonPlacement(GuiSchematicLoad gui, int buttonWidth) {
         int y = gui.getScreenHeight() - 26;
-        int x = 12;
-        x += getDefaultButtonWidth(gui, "litematica.gui.button.load_schematic_to_memory") + BUTTON_GAP;
-        x += getDefaultButtonWidth(gui, "litematica.gui.button.material_list") + BUTTON_GAP;
-        x += getDefaultButtonWidth(gui, "litematica.gui.button.rename_schematic") + BUTTON_GAP;
-        x += getDefaultButtonWidth(gui, "litematica.gui.button.rename_file") + BUTTON_GAP;
-        x += gui.getStringWidth(StringUtils.translate("litematica.gui.button.change_menu.show_loaded_schematics")) + 30 + BUTTON_GAP;
+        List<ButtonBase> buttons = ((GuiBaseAccessor) (Object) gui).quickcraft$getButtons();
+        ButtonBase mainMenuButton = buttons.stream()
+                .filter(button -> button.getY() == y)
+                // Litematica 0.26.12 把主菜单按钮固定在距右边缘 10 px 的位置。
+                .filter(button -> button.getX() + button.getWidth() == gui.getScreenWidth() - 10)
+                .reduce((first, second) -> second)
+                .orElse(null);
+        int mainMenuX = mainMenuButton != null ? mainMenuButton.getX() : gui.getScreenWidth() - 10;
+        int x = buttons.stream()
+                .filter(button -> button.getY() == y && button != mainMenuButton)
+                .mapToInt(button -> button.getX() + button.getWidth() + BUTTON_GAP)
+                .max()
+                .orElse(12);
 
-        return new ButtonPlacement(x, y);
+        if (x + buttonWidth <= mainMenuX - BUTTON_GAP) {
+            return new ButtonPlacement(x, y);
+        }
+
+        // 文件浏览区结束于 height - 46；空间不足时换到预览区下方，不移动原生按钮。
+        return new ButtonPlacement(
+                Math.max(12, gui.getScreenWidth() - buttonWidth - 10),
+                gui.getScreenHeight() - 46
+        );
     }
 
     public static void openForEntry(GuiSchematicLoad gui, DirectoryEntry entry) {
@@ -140,10 +155,6 @@ public final class QuickLitematicaContainerMaterials {
         ContainerMaterialsScreen screen = new ContainerMaterialsScreen(materialList);
         screen.setParent(materialList.parent);
         GuiBase.openGui(screen);
-    }
-
-    private static int getDefaultButtonWidth(GuiSchematicLoad gui, String translationKey) {
-        return gui.getStringWidth(StringUtils.translate(translationKey)) + 10;
     }
 
     private static LitematicaSchematic readSchematic(GuiSchematicLoad gui, DirectoryEntry entry) {
