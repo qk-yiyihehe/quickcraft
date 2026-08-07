@@ -1,5 +1,6 @@
 package com.yiyihehe.quickcraft.mixin;
 
+import com.yiyihehe.quickcraft.config.QuickCraftConfigs;
 import fi.dy.masa.litematica.data.DataManager;
 import fi.dy.masa.litematica.gui.GuiMainMenu;
 import fi.dy.masa.litematica.gui.GuiMainMenu.ButtonListenerChangeMenu.ButtonType;
@@ -27,6 +28,10 @@ public abstract class LitematicaGuiMainMenuMixin extends GuiBase {
 
     @Inject(method = "initGui", at = @At("TAIL"), remap = false)
     private void quickcraft$addOpenSchematicFolderButton(CallbackInfo ci) {
+        if (!QuickCraftConfigs.isLitematicaSchematicFolderButtonVisible()) {
+            return;
+        }
+
         String label = StringUtils.translate(OPEN_SCHEMATIC_FOLDER_KEY);
         int menuButtonWidth = this.quickcraft$getMenuButtonWidth();
         int x = 12 + menuButtonWidth + 20;
