@@ -142,8 +142,9 @@ public final class QuickLitematicaPreview3D {
     private static final long MAX_DYNAMIC_BUFFER_BYTES = 128L * 1024L * 1024L;
     private static final int MAX_DYNAMIC_RENDER_LAYERS = 1_024;
     private static final int DYNAMIC_LAYER_INITIAL_BYTES = 64 * 1024;
-    private static final double MAX_BLOCK_WIDTH = Math.cos(Math.PI / 6.0) * 2.0;
     private static final float DEFAULT_SLANT_RADIANS = (float) Math.toRadians(32.0);
+    private static final float MAX_PITCH_RADIANS = (float) Math.toRadians(85.0);
+    private static final float PREVIEW_FIT_PADDING = 0.95F;
     private static final long NBT_READ_LIMIT_BYTES = 32L * 1024L * 1024L;
     private static final int VERTEX_BYTES = 44;
     // 静态顶点磁盘编码：12B 位置 + 4B 颜色 + 8B UV(float32×2) + 4B light + 2B 法线(octahedral) = 30B。
@@ -540,7 +541,7 @@ public final class QuickLitematicaPreview3D {
             modelView.pushMatrix();
             modelView.identity();
             translateToScreen(modelView, client, x + size / 2.0F + drag.dx, y + size / 2.0F + drag.dy);
-            modelView.rotate(RotationAxis.POSITIVE_X.rotation(DEFAULT_SLANT_RADIANS));
+            modelView.rotate(RotationAxis.POSITIVE_X.rotation(drag.pitch));
             modelView.rotate(RotationAxis.POSITIVE_Y.rotation((float) drag.angle));
             float scale = data.scaleFactor(size, client.currentScreen.height) * drag.scale;
             modelView.scale(scale, scale, scale);
@@ -1115,6 +1116,7 @@ public final class QuickLitematicaPreview3D {
         private int size;
         private int activeButton = -1;
         private double angle = Math.PI / 4.0;
+        private float pitch = DEFAULT_SLANT_RADIANS;
         private float scale = 1.0F;
         private float dx;
         private float dy;
@@ -1140,6 +1142,10 @@ public final class QuickLitematicaPreview3D {
 
             if (button == 0) {
                 this.angle += deltaX * 0.015;
+                this.pitch = Math.max(
+                        -MAX_PITCH_RADIANS,
+                        Math.min(MAX_PITCH_RADIANS, this.pitch + (float) deltaY * 0.015F)
+                );
                 return true;
             }
 
@@ -1817,11 +1823,12 @@ public final class QuickLitematicaPreview3D {
         }
 
         private float scaleFactor(int previewSize, int screenHeight) {
-            int shortestSide = Math.min(this.sizeX, this.sizeZ);
-            int longestSide = Math.max(this.sizeX, this.sizeZ);
-            double horizontalSize = shortestSide * MAX_BLOCK_WIDTH + longestSide - shortestSide;
-            double verticalSize = longestSide * Math.tan(DEFAULT_SLANT_RADIANS) + this.sizeY;
-            return (float) ((previewSize * 2.0) / (Math.max(horizontalSize, verticalSize) * Math.max(1, screenHeight)));
+            double rotationSafeSize = Math.sqrt(
+                    (double) this.sizeX * this.sizeX
+                            + (double) this.sizeY * this.sizeY
+                            + (double) this.sizeZ * this.sizeZ
+            );
+            return (float) ((previewSize * 2.0 * PREVIEW_FIT_PADDING) / (Math.max(1.0, rotationSafeSize) * Math.max(1, screenHeight)));
         }
 
         private DynamicScene dynamicScene() {
