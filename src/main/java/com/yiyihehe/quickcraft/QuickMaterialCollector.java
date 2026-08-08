@@ -786,7 +786,9 @@ public final class QuickMaterialCollector implements ClientModInitializer {
     private List<Slot> getContainerSlots(ScreenHandler handler) {
         List<Slot> slots = new ArrayList<>();
         for (Slot slot : handler.slots) {
-            if (isVisibleSlot(slot) && !isPlayerStorageSlot(slot)) {
+            if (isVisibleSlot(slot)
+                    && !isPlayerStorageSlot(slot)
+                    && !QuickContainerLock.isLockedSlot(handler, slot)) {
                 slots.add(slot);
             }
         }
@@ -800,7 +802,9 @@ public final class QuickMaterialCollector implements ClientModInitializer {
     private List<Slot> getPlayerStorageSlots(ScreenHandler handler) {
         List<Slot> slots = new ArrayList<>();
         for (Slot slot : handler.slots) {
-            if (isVisibleSlot(slot) && isPlayerStorageSlot(slot)) {
+            if (isVisibleSlot(slot)
+                    && isPlayerStorageSlot(slot)
+                    && !QuickContainerLock.isLockedSlot(handler, slot)) {
                 slots.add(slot);
             }
         }
