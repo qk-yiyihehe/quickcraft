@@ -148,7 +148,6 @@ public final class QuickLitematicaPreview3D {
     private static final long MAX_DYNAMIC_BUFFER_BYTES = 128L * 1024L * 1024L;
     private static final int MAX_DYNAMIC_RENDER_LAYERS = 1_024;
     private static final int DYNAMIC_LAYER_INITIAL_BYTES = 64 * 1024;
-    private static final double MAX_BLOCK_WIDTH = Math.cos(Math.PI / 6.0) * 2.0;
     private static final float DEFAULT_SLANT_RADIANS = (float) Math.toRadians(32.0);
     private static final float MAX_PITCH_RADIANS = (float) Math.toRadians(85.0);
     private static final float PREVIEW_FIT_PADDING = 0.95F;
