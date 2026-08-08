@@ -212,7 +212,7 @@ public final class QuickCraftConfigs implements IConfigHandler {
         ).apply(CONTAINER_TRANSLATION_PREFIX);
         public static final ConfigBooleanHotkeyed QUICK_TRANSFER_RETAIN_ONE = new ConfigBooleanHotkeyed(
                 "quickTransferRetainOne",
-                false,
+                true,
                 ""
         ).apply(CONTAINER_TRANSLATION_PREFIX);
         public static final ConfigBooleanHotkeyed ENABLE_QUICK_THROW = new ConfigBooleanHotkeyed(
@@ -237,7 +237,7 @@ public final class QuickCraftConfigs implements IConfigHandler {
         ).apply(CONTAINER_TRANSLATION_PREFIX);
         public static final ConfigBooleanHotkeyed SHOW_CONTAINER_LOCK_BUTTON = new ConfigBooleanHotkeyed(
                 "showContainerLockButton",
-                false,
+                true,
                 ""
         ).apply(CONTAINER_TRANSLATION_PREFIX);
         public static final ConfigBooleanHotkeyed SHOW_SLOT_LOCK_OVERLAY = new ConfigBooleanHotkeyed(
@@ -387,12 +387,12 @@ public final class QuickCraftConfigs implements IConfigHandler {
         ).apply(PROJECTION_TRANSLATION_PREFIX);
         public static final ConfigBooleanHotkeyed ENABLE_CREATIVE_CONTAINER_FILL = new ConfigBooleanHotkeyed(
                 "enableCreativeContainerFill",
-                false,
+                true,
                 ""
         ).apply(PROJECTION_TRANSLATION_PREFIX);
         public static final ConfigBooleanHotkeyed ENABLE_CONTAINER_FILL_OVERFLOW_DROP = new ConfigBooleanHotkeyed(
                 "enableContainerFillOverflowDrop",
-                false,
+                true,
                 ""
         ).apply(PROJECTION_TRANSLATION_PREFIX);
         public static final ConfigInteger CONTAINER_FILL_FREE_SLOTS_LIMIT = new ConfigInteger(
@@ -444,7 +444,7 @@ public final class QuickCraftConfigs implements IConfigHandler {
     public static final class ModSupport {
         public static final ConfigBooleanHotkeyed ENABLE_QUICK_SHULKER = new ConfigBooleanHotkeyed(
                 "enableQuickShulker",
-                false,
+                true,
                 ""
         ).apply(MOD_SUPPORT_TRANSLATION_PREFIX);
         public static final ConfigInteger QUICK_SHULKER_ACTION_INTERVAL_TICKS = new ConfigInteger(
@@ -530,7 +530,7 @@ public final class QuickCraftConfigs implements IConfigHandler {
         ).apply(HOTKEY_TRANSLATION_PREFIX);
         public static final ConfigHotkey TOGGLE_CONTAINER_TOOL_MODE = new ConfigHotkey(
                 "toggleContainerToolModeHotkey",
-                "F",
+                "LEFT_CONTROL,F",
                 ANY_PRESS
         ).apply(HOTKEY_TRANSLATION_PREFIX);
         public static final List<IConfigBase> OPTIONS = List.of(
