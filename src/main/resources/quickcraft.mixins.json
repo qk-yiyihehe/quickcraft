@@ -45,6 +45,7 @@
 		"QuickContainerLockScreenMixin",
 		"QuickContainerLockScreenHandlerMixin",
 		"QuickContainerLockSlotMixin",
+		"QuickTransferScreenMixin",
 		"RenderLayerAccessor",
 		"ShulkerBoxScreenMixin"
 	],
