@@ -130,6 +130,18 @@ public class QuickCraftConfigScreen extends GuiConfigsBase {
     }
 
     private enum ConfigGroup {
+        QUICK_TRANSFER(
+                QuickCraftConfigs.ContainerTools.ENABLE_QUICK_TRANSFER,
+                QuickCraftConfigs.ContainerTools.QUICK_TRANSFER_RETAIN_ONE
+        ),
+        QUICK_TRADE(
+                QuickCraftConfigs.ContainerTools.ENABLE_QUICK_TRADE,
+                QuickCraftConfigs.ContainerTools.ENABLE_FAVORITE_TRADE
+        ),
+        QUICK_BEACON(
+                QuickCraftConfigs.ContainerTools.ENABLE_QUICK_BEACON,
+                QuickCraftConfigs.ContainerTools.BEACON_EFFECT_ORDER
+        ),
         HOLD_EASY_PLACE(
                 QuickCraftConfigs.ProjectionTools.HOLD_EASY_PLACE,
                 QuickCraftConfigs.ProjectionTools.HOLD_EASY_PLACE_CACHE_TIME_MS
