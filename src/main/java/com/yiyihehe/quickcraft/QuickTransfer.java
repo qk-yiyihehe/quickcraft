@@ -8,6 +8,7 @@ import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.gui.Element;
+import net.minecraft.client.gui.screen.Screen;
 import net.minecraft.client.gui.screen.ingame.CreativeInventoryScreen;
 import net.minecraft.client.gui.screen.ingame.HandledScreen;
 import net.minecraft.client.gui.widget.TextFieldWidget;
@@ -119,6 +120,32 @@ public final class QuickTransfer implements ClientModInitializer {
         return handled;
     }
 
+    public static boolean handleScrollTransfer(HandledScreen<?> screen,
+                                               double mouseX,
+                                               double mouseY,
+                                               double verticalAmount) {
+        MinecraftClient client = MinecraftClient.getInstance();
+        if (verticalAmount == 0
+                || screen instanceof CreativeInventoryScreen
+                || !canUseScrollTransfer(client, screen)) {
+            return false;
+        }
+
+        Slot hoveredSlot = findHoveredSlot(screen, mouseX, mouseY);
+        if (!canUseScrollTransferSlot(screen, hoveredSlot, client)) {
+            return false;
+        }
+
+        boolean moveToOtherInventory = verticalAmount > 0;
+        if (Screen.hasShiftDown()) {
+            return moveFullStackByScroll(screen, hoveredSlot, moveToOtherInventory);
+        }
+        if (Screen.hasAltDown()) {
+            return moveMatchingStacksByScroll(screen, hoveredSlot, moveToOtherInventory);
+        }
+        return moveSingleItemByScroll(screen, hoveredSlot, moveToOtherInventory);
+    }
+
     private void onClientTick(MinecraftClient client) {
         TransferMode mode = getHeldTransferMode();
         if (mode == TransferMode.NONE) {
@@ -158,6 +185,86 @@ public final class QuickTransfer implements ClientModInitializer {
                 && client.interactionManager != null
                 && !isTextInputFocused(screen)
                 && screen.getScreenHandler().getCursorStack().isEmpty();
+    }
+
+    private static boolean canUseScrollTransfer(MinecraftClient client, HandledScreen<?> screen) {
+        return QuickCraftConfigs.isScrollTransferEnabled()
+                && client.player != null
+                && client.interactionManager != null
+                && !isTextInputFocused(screen)
+                && screen.getScreenHandler().getCursorStack().isEmpty();
+    }
+
+    private static boolean canUseScrollTransferSlot(HandledScreen<?> screen,
+                                                    Slot slot,
+                                                    MinecraftClient client) {
+        return slot != null
+                && isVisibleSlot(slot)
+                && slot.hasStack()
+                && slot.canTakeItems(client.player)
+                && !QuickContainerLock.isLockedSlot(screen.getScreenHandler(), slot);
+    }
+
+    private static boolean moveFullStackByScroll(HandledScreen<?> screen,
+                                                 Slot hoveredSlot,
+                                                 boolean moveToOtherInventory) {
+        if (moveToOtherInventory) {
+            return quickMoveHoveredSlot(screen, hoveredSlot, isPlayerStorageSlot(hoveredSlot));
+        }
+
+        Slot sourceSlot = findFirstMatchingOtherInventorySlot(screen, hoveredSlot);
+        return sourceSlot != null && quickMoveHoveredSlot(screen, sourceSlot, isPlayerStorageSlot(sourceSlot));
+    }
+
+    private static boolean moveMatchingStacksByScroll(HandledScreen<?> screen,
+                                                       Slot hoveredSlot,
+                                                       boolean moveToOtherInventory) {
+        if (moveToOtherInventory) {
+            return processHoveredSlot(screen, hoveredSlot, TransferMode.MATCHING);
+        }
+
+        ScreenHandler handler = screen.getScreenHandler();
+        if (!canMoveFromPlayerStorage(handler)) {
+            return false;
+        }
+
+        return isPlayerStorageSlot(hoveredSlot)
+                ? moveAllMatchingStacksToPlayerMainInventory(screen, hoveredSlot)
+                : moveAllMatchingStacksByQuickMove(screen, hoveredSlot, true);
+    }
+
+    private static boolean moveSingleItemByScroll(HandledScreen<?> screen,
+                                                   Slot hoveredSlot,
+                                                   boolean moveToOtherInventory) {
+        if (moveToOtherInventory) {
+            List<Integer> targetSlotIds = getOtherInventoryTargetSlotIds(screen.getScreenHandler(), hoveredSlot);
+            return moveOneSourceItemToTargetSlots(screen, hoveredSlot.id, hoveredSlot.getStack().copy(), targetSlotIds);
+        }
+
+        Slot sourceSlot = findFirstMatchingOtherInventorySlot(screen, hoveredSlot);
+        if (sourceSlot == null) {
+            return false;
+        }
+
+        List<Integer> targetSlotIds = getPreferredTargetSlotIds(screen.getScreenHandler(), hoveredSlot);
+        return moveOneSourceItemToTargetSlots(screen, sourceSlot.id, hoveredSlot.getStack().copy(), targetSlotIds);
+    }
+
+    private static Slot findFirstMatchingOtherInventorySlot(HandledScreen<?> screen, Slot hoveredSlot) {
+        ScreenHandler handler = screen.getScreenHandler();
+        if (!canMoveFromPlayerStorage(handler)) {
+            return null;
+        }
+
+        MinecraftClient client = MinecraftClient.getInstance();
+        boolean sourceFromPlayerStorage = !isPlayerStorageSlot(hoveredSlot);
+        ItemStack template = hoveredSlot.getStack();
+        for (Slot slot : handler.slots) {
+            if (isMatchingSourceSlot(slot, template, sourceFromPlayerStorage, client, handler)) {
+                return slot;
+            }
+        }
+        return null;
     }
 
     private static TransferMode getHeldTransferMode() {
@@ -653,6 +760,57 @@ public final class QuickTransfer implements ClientModInitializer {
         return moved;
     }
 
+    private static boolean moveOneSourceItemToTargetSlots(HandledScreen<?> screen,
+                                                          int sourceSlotId,
+                                                          ItemStack template,
+                                                          List<Integer> targetSlotIds) {
+        MinecraftClient client = MinecraftClient.getInstance();
+        if (client.player == null || client.interactionManager == null || targetSlotIds.isEmpty()) {
+            return false;
+        }
+
+        ScreenHandler handler = screen.getScreenHandler();
+        if (!handler.getCursorStack().isEmpty()) {
+            return false;
+        }
+
+        Slot sourceSlot = handler.getSlot(sourceSlotId);
+        if (!isMatchingTransferCandidate(sourceSlot, template, client, handler)) {
+            return false;
+        }
+
+        clickSlot(screen, sourceSlotId, 1, SlotActionType.PICKUP);
+        if (handler.getCursorStack().isEmpty()) {
+            return false;
+        }
+
+        int cursorCount = handler.getCursorStack().getCount();
+        boolean moved = false;
+        for (int targetSlotId : targetSlotIds) {
+            Slot targetSlot = handler.getSlot(targetSlotId);
+            ItemStack cursorStack = handler.getCursorStack();
+            if (!isVisibleSlot(targetSlot)
+                    || QuickContainerLock.isLockedSlot(handler, targetSlot)
+                    || !targetSlot.canInsert(cursorStack)
+                    || (targetSlot.hasStack()
+                    && (!ItemStack.areItemsAndComponentsEqual(targetSlot.getStack(), cursorStack)
+                    || targetSlot.getStack().getCount() >= targetSlot.getStack().getMaxCount()))) {
+                continue;
+            }
+
+            clickSlot(screen, targetSlotId, 1, SlotActionType.PICKUP);
+            if (handler.getCursorStack().isEmpty() || handler.getCursorStack().getCount() < cursorCount) {
+                moved = true;
+                break;
+            }
+        }
+
+        if (!handler.getCursorStack().isEmpty()) {
+            clickSlot(screen, sourceSlotId, 0, SlotActionType.PICKUP);
+        }
+        return moved;
+    }
+
     private static void fillCursorIntoTargetSlots(HandledScreen<?> screen,
                                                   List<Integer> targetSlotIds,
                                                   boolean emptySlotsOnly) {
@@ -747,6 +905,25 @@ public final class QuickTransfer implements ClientModInitializer {
         List<Integer> targetSlotIds = new ArrayList<>(36);
         targetSlotIds.addAll(getPlayerStorageSlotIdsByRange(handler, 9, 35));
         targetSlotIds.addAll(getPlayerStorageSlotIdsByRange(handler, 0, 8));
+        return targetSlotIds;
+    }
+
+    private static List<Integer> getOtherInventoryTargetSlotIds(ScreenHandler handler, Slot sourceSlot) {
+        if (!canMoveFromPlayerStorage(handler)) {
+            return List.of();
+        }
+
+        return isPlayerStorageSlot(sourceSlot)
+                ? getContainerPreferredSlotIds(handler)
+                : getPlayerPreferredStorageSlotIds(handler);
+    }
+
+    private static List<Integer> getPreferredTargetSlotIds(ScreenHandler handler, Slot preferredSlot) {
+        List<Integer> targetSlotIds = new ArrayList<>(isPlayerStorageSlot(preferredSlot)
+                ? getPlayerPreferredStorageSlotIds(handler)
+                : getContainerPreferredSlotIds(handler));
+        targetSlotIds.remove(Integer.valueOf(preferredSlot.id));
+        targetSlotIds.add(0, preferredSlot.id);
         return targetSlotIds;
     }
 
