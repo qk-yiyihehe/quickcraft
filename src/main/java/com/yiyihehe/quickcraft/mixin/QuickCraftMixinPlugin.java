@@ -14,6 +14,7 @@ import java.util.Set;
  */
 public class QuickCraftMixinPlugin implements IMixinConfigPlugin {
     private static final String LITEMATICA_MIXIN_PREFIX = "com.yiyihehe.quickcraft.mixin.Litematica";
+    private static final String JEI_MIXIN_PREFIX = "com.yiyihehe.quickcraft.mixin.Jei";
 
     @Override
     public void onLoad(String mixinPackage) {
@@ -28,6 +29,9 @@ public class QuickCraftMixinPlugin implements IMixinConfigPlugin {
     public boolean shouldApplyMixin(String targetClassName, String mixinClassName) {
         if (mixinClassName.startsWith(LITEMATICA_MIXIN_PREFIX)) {
             return FabricLoader.getInstance().isModLoaded("litematica");
+        }
+        if (mixinClassName.startsWith(JEI_MIXIN_PREFIX)) {
+            return FabricLoader.getInstance().isModLoaded("jei");
         }
 
         return true;
