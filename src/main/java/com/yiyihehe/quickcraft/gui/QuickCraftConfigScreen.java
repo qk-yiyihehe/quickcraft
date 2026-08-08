@@ -142,6 +142,10 @@ public class QuickCraftConfigScreen extends GuiConfigsBase {
                 QuickCraftConfigs.ContainerTools.ENABLE_QUICK_BEACON,
                 QuickCraftConfigs.ContainerTools.BEACON_EFFECT_ORDER
         ),
+        SLOT_LOCK(
+                QuickCraftConfigs.ContainerTools.SHOW_SLOT_LOCK_OVERLAY,
+                QuickCraftConfigs.ContainerTools.ALLOW_MANUAL_LOCKED_SLOT_INTERACTION
+        ),
         HOLD_EASY_PLACE(
                 QuickCraftConfigs.ProjectionTools.HOLD_EASY_PLACE,
                 QuickCraftConfigs.ProjectionTools.HOLD_EASY_PLACE_CACHE_TIME_MS
