@@ -130,6 +130,19 @@ public class QuickCraftConfigScreen extends GuiConfigsBase {
     }
 
     private enum ConfigGroup {
+        QUICK_TRANSFER(
+                QuickCraftConfigs.ContainerTools.ENABLE_QUICK_TRANSFER,
+                QuickCraftConfigs.ContainerTools.ENABLE_SCROLL_TRANSFER,
+                QuickCraftConfigs.ContainerTools.QUICK_TRANSFER_RETAIN_ONE
+        ),
+        QUICK_TRADE(
+                QuickCraftConfigs.ContainerTools.ENABLE_QUICK_TRADE,
+                QuickCraftConfigs.ContainerTools.ENABLE_FAVORITE_TRADE
+        ),
+        QUICK_BEACON(
+                QuickCraftConfigs.ContainerTools.ENABLE_QUICK_BEACON,
+                QuickCraftConfigs.ContainerTools.BEACON_EFFECT_ORDER
+        ),
         SLOT_LOCK(
                 QuickCraftConfigs.ContainerTools.SHOW_SLOT_LOCK_OVERLAY,
                 QuickCraftConfigs.ContainerTools.ALLOW_MANUAL_LOCKED_SLOT_INTERACTION
