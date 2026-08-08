@@ -250,6 +250,11 @@ public final class QuickCraftConfigs implements IConfigHandler {
                 false,
                 ""
         ).apply(CONTAINER_TRANSLATION_PREFIX);
+        public static final ConfigBooleanHotkeyed ALLOW_MANUAL_LOCKED_SLOT_INTERACTION = new ConfigBooleanHotkeyed(
+                "allowManualLockedSlotInteraction",
+                true,
+                ""
+        ).apply(CONTAINER_TRANSLATION_PREFIX);
         public static final ConfigOptionList CONTAINER_TOOL_MODE = new ConfigOptionList(
                 "containerToolMode",
                 ContainerToolMode.QUICK_STASH,
@@ -286,6 +291,7 @@ public final class QuickCraftConfigs implements IConfigHandler {
                 BEACON_EFFECT_ORDER
         );
 
+                ALLOW_MANUAL_LOCKED_SLOT_INTERACTION,
         private ContainerTools() {
         }
     }
@@ -593,6 +599,7 @@ public final class QuickCraftConfigs implements IConfigHandler {
                 ProjectionTools.HOLD_EASY_PLACE,
                 ProjectionTools.SHOW_LITEMATICA_SCHEMATIC_FOLDER_BUTTON,
                 ProjectionTools.SHOW_LITEMATICA_CONTAINER_MATERIAL_BUTTON,
+                ContainerTools.ALLOW_MANUAL_LOCKED_SLOT_INTERACTION,
                 ProjectionTools.SHOW_LITEMATICA_CONTAINER_SLOT_HINTS,
                 ProjectionTools.SHOW_LITEMATICA_CONTAINER_VERIFIER,
                 ProjectionTools.ENABLE_AUTO_COLLECT_MATERIALS,
@@ -640,6 +647,7 @@ public final class QuickCraftConfigs implements IConfigHandler {
                 ProjectionTools.SHOW_LITEMATICA_SCHEMATIC_FOLDER_BUTTON,
                 ProjectionTools.SHOW_LITEMATICA_CONTAINER_MATERIAL_BUTTON,
                 ProjectionTools.SHOW_LITEMATICA_CONTAINER_SLOT_HINTS,
+                ContainerTools.ALLOW_MANUAL_LOCKED_SLOT_INTERACTION,
                 ProjectionTools.SHOW_LITEMATICA_CONTAINER_VERIFIER,
                 ProjectionTools.ENABLE_AUTO_COLLECT_MATERIALS,
                 ProjectionTools.ENABLE_LITEMATICA_CONTAINER_AUTOFILL,
@@ -834,6 +842,10 @@ public final class QuickCraftConfigs implements IConfigHandler {
 
     public static boolean isHoldEasyPlaceEnabled() {
         return ProjectionTools.HOLD_EASY_PLACE.getBooleanValue();
+    }
+
+    public static boolean areManualLockedSlotInteractionsAllowed() {
+        return ContainerTools.ALLOW_MANUAL_LOCKED_SLOT_INTERACTION.getBooleanValue();
     }
 
     public static int getHoldEasyPlaceCacheTimeMs() {
