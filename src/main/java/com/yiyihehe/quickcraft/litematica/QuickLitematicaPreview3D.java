@@ -138,7 +138,7 @@ public final class QuickLitematicaPreview3D {
     private static final String CACHE_DIR_NAME = "litematica-preview-cache";
     private static final String CACHE_VERSION_FILE_NAME = "cache-version.txt";
     private static final String CACHE_RENDER_MARKER = "quickcraft-model-mesh-v14-full-uv-light-gzip-dynamic-chest-mc1.21";
-    private static final int MAX_PREVIEW_SIZE = 512;
+    private static final int EXPAND_BUTTON_SIZE = 16;
     // 预算必须卡在构建阶段前面：顶点 packed 后仍会占用 CPU/GPU 大块连续内存。
     private static final int MAX_UPLOAD_VERTICES = 12_000_000;
     private static final int MAX_DYNAMIC_BLOCK_STATES = 300_000;
@@ -630,11 +630,11 @@ public final class QuickLitematicaPreview3D {
             this.applyLight(modelView);
             this.prepareDynamicBuffers(data);
             if (this.dynamicBuffersReady) {
-                this.drawDynamicBuffers(modelView);
+                this.drawDynamicBuffers(modelView, null, false);
             } else {
                 this.drawDynamic(data, modelView, x, y, size);
             }
-            this.drawBuffers(modelView);
+            this.drawBuffers(modelView, null, false);
 
             modelView.popMatrix();
             RenderSystem.applyModelViewMatrix();
@@ -725,7 +725,7 @@ public final class QuickLitematicaPreview3D {
             }
         }
 
-        private void drawDynamicBuffers(Matrix4f modelView) {
+        private void drawDynamicBuffers(Matrix4f modelView, @Nullable Framebuffer target, boolean keepTargetOpaque) {
             for (DynamicLayerBuffer layerBuffer : this.dynamicBuffers) {
                 VertexBuffer buffer = layerBuffer.buffer();
                 if (buffer.isClosed()) {
@@ -734,11 +734,186 @@ public final class QuickLitematicaPreview3D {
 
                 RenderLayer renderLayer = layerBuffer.layer();
                 renderLayer.startDrawing();
+                if (target != null) {
+                    target.beginWrite(false);
+                }
+                if (keepTargetOpaque) {
+                    RenderSystem.colorMask(true, true, true, false);
+                }
                 buffer.bind();
                 buffer.draw(modelView, RenderSystem.getProjectionMatrix(), RenderSystem.getShader());
                 renderLayer.endDrawing();
             }
             VertexBuffer.unbind();
+        }
+
+        private int recommendedExportResolution() {
+            MeshData data = this.meshData;
+            if (data == null) {
+                return 0;
+            }
+
+            long target = 4L * Math.max(data.sizeX(), Math.max(data.sizeY(), data.sizeZ()));
+            if (target <= 512) {
+                return 512;
+            }
+            if (target <= 1024) {
+                return 1024;
+            }
+            if (target <= 2048) {
+                return 2048;
+            }
+            if (target <= 4096) {
+                return 4096;
+            }
+            return 8192;
+        }
+
+        private void exportPng(int resolution, int backgroundColor, DragState drag, Path outputDirectory, Consumer<Text> callback) {
+            MeshData data = this.meshData;
+            if (this.state != State.READY || data == null) {
+                callback.accept(Text.translatable("quickcraft.litematica.preview_3d.export_not_ready"));
+                return;
+            }
+
+            this.uploadIfNeeded();
+            this.prepareDynamicBuffers(data);
+            if (data.hasDynamicContent() && !this.dynamicBuffersReady) {
+                callback.accept(Text.translatable("quickcraft.litematica.preview_3d.export_dynamic_failed"));
+                return;
+            }
+            if (data.vertexCount() > 0 && this.vertexBuffers.isEmpty()) {
+                callback.accept(Text.translatable("quickcraft.litematica.preview_3d.export_failed"));
+                return;
+            }
+            if (!this.exportInProgress.compareAndSet(false, true)) {
+                callback.accept(Text.translatable("quickcraft.litematica.preview_3d.exporting"));
+                return;
+            }
+
+            NativeImage image;
+            Path outputPath;
+            Framebuffer framebuffer = null;
+            try {
+                Files.createDirectories(outputDirectory);
+                outputPath = this.nextOutputPath(outputDirectory, resolution);
+                framebuffer = new SimpleFramebuffer(resolution, resolution, true, MinecraftClient.IS_SYSTEM_MAC);
+                RenderSystem.colorMask(true, true, true, true);
+                framebuffer.setClearColor(
+                        ((backgroundColor >> 16) & 0xFF) / 255.0F,
+                        ((backgroundColor >> 8) & 0xFF) / 255.0F,
+                        (backgroundColor & 0xFF) / 255.0F,
+                        ((backgroundColor >>> 24) & 0xFF) / 255.0F
+                );
+                framebuffer.clear(MinecraftClient.IS_SYSTEM_MAC);
+                this.renderSnapshot(framebuffer, data, drag, ((backgroundColor >>> 24) & 0xFF) == 0xFF);
+                image = takeSnapshot(framebuffer);
+            } catch (Throwable ignored) {
+                this.exportInProgress.set(false);
+                callback.accept(Text.translatable("quickcraft.litematica.preview_3d.export_failed"));
+                return;
+            } finally {
+                try {
+                    if (framebuffer != null) {
+                        framebuffer.delete();
+                    }
+                } finally {
+                    MinecraftClient.getInstance().getFramebuffer().beginWrite(true);
+                }
+            }
+
+            Util.getIoWorkerExecutor().execute(() -> {
+                try {
+                    image.writeTo(outputPath);
+                    MinecraftClient.getInstance().execute(() -> callback.accept(Text.translatable(
+                            "quickcraft.litematica.preview_3d.export_success",
+                            outputPath.getFileName().toString()
+                    )));
+                } catch (Exception ignored) {
+                    MinecraftClient.getInstance().execute(() -> callback.accept(Text.translatable(
+                            "quickcraft.litematica.preview_3d.export_failed"
+                    )));
+                } finally {
+                    image.close();
+                    this.exportInProgress.set(false);
+                }
+            });
+        }
+
+        private void renderSnapshot(Framebuffer framebuffer, MeshData data, DragState drag, boolean keepBackgroundOpaque) {
+            RenderSystem.backupProjectionMatrix();
+            RenderSystem.setProjectionMatrix(
+                    new Matrix4f().setOrtho(-1.0F, 1.0F, -1.0F, 1.0F, -1000.0F, 3000.0F),
+                    VertexSorter.BY_Z
+            );
+            RenderSystem.enableDepthTest();
+            RenderSystem.enableBlend();
+            RenderSystem.defaultBlendFunc();
+
+            Matrix4fStack modelView = RenderSystem.getModelViewStack();
+            modelView.pushMatrix();
+            try {
+                modelView.identity();
+                float viewportSize = Math.max(1, drag.size);
+                modelView.translate(2.0F * drag.dx / viewportSize, -2.0F * drag.dy / viewportSize, 0.0F);
+                modelView.rotate(RotationAxis.POSITIVE_X.rotation(drag.pitch));
+                modelView.rotate(RotationAxis.POSITIVE_Y.rotation((float) drag.angle));
+                double diagonal = Math.sqrt(
+                        (double) data.sizeX() * data.sizeX()
+                                + (double) data.sizeY() * data.sizeY()
+                                + (double) data.sizeZ() * data.sizeZ()
+                );
+                float scale = (float) (2.0 * PREVIEW_FIT_PADDING / Math.max(1.0, diagonal)) * drag.scale;
+                modelView.scale(scale, scale, scale);
+                modelView.translate(-data.sizeX() / 2.0F, -data.sizeY() / 2.0F, -data.sizeZ() / 2.0F);
+                RenderSystem.applyModelViewMatrix();
+
+                this.applyLight(modelView);
+                framebuffer.beginWrite(true);
+                if (this.dynamicBuffersReady) {
+                    this.drawDynamicBuffers(modelView, framebuffer, keepBackgroundOpaque);
+                }
+                this.drawBuffers(modelView, framebuffer, keepBackgroundOpaque);
+            } finally {
+                RenderSystem.colorMask(true, true, true, true);
+                modelView.popMatrix();
+                RenderSystem.applyModelViewMatrix();
+                RenderSystem.disableDepthTest();
+                RenderSystem.disableBlend();
+                RenderSystem.restoreProjectionMatrix();
+            }
+        }
+
+        private static NativeImage takeSnapshot(Framebuffer framebuffer) {
+            NativeImage image = new NativeImage(framebuffer.textureWidth, framebuffer.textureHeight, false);
+            try {
+                RenderSystem.bindTexture(framebuffer.getColorAttachment());
+                // 1.21 的 ScreenshotRecorder.takeScreenshot() 会强制把 Alpha 全部改成 255，透明导出必须直接读取纹理。
+                image.loadFromTextureImage(0, false);
+                image.mirrorVertically();
+                return image;
+            } catch (Throwable throwable) {
+                image.close();
+                throw throwable;
+            }
+        }
+
+        private Path nextOutputPath(Path outputDirectory, int resolution) {
+            String fileName = this.sourcePath.getFileName().toString();
+            int extension = fileName.lastIndexOf('.');
+            String baseName = extension > 0 ? fileName.substring(0, extension) : fileName;
+            baseName = baseName.replaceAll("[<>:\"/\\\\|?*\\x00-\\x1F]", "_").replaceAll("[. ]+$", "");
+            if (baseName.isBlank()) {
+                baseName = "render";
+            }
+
+            String stem = baseName + "_" + Util.getFormattedCurrentTime() + "_" + resolution + "x" + resolution;
+            Path outputPath = outputDirectory.resolve(stem + ".png");
+            int suffix = 2;
+            while (Files.exists(outputPath)) {
+                outputPath = outputDirectory.resolve(stem + "_" + suffix++ + ".png");
+            }
+            return outputPath;
         }
 
         private void drawDynamic(MeshData data, Matrix4f modelView, int viewX, int viewY, int viewSize) {
