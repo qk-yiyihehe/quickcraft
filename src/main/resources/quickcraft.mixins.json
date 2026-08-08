@@ -41,6 +41,7 @@
 		"QuickContainerLockClientPlayerInteractionManagerMixin",
 		"QuickContainerLockInGameHudMixin",
 		"QuickContainerLockMerchantScreenHandlerMixin",
+		"QuickContainerLockMinecraftClientMixin",
 		"QuickContainerLockScreenMixin",
 		"QuickContainerLockScreenHandlerMixin",
 		"QuickContainerLockSlotMixin",
