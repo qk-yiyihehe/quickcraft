@@ -1,5 +1,6 @@
 package com.yiyihehe.quickcraft.crafting;
 
+import com.yiyihehe.quickcraft.QuickContainerLock;
 import com.yiyihehe.quickcraft.config.QuickCraftConfigs;
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
@@ -11,6 +12,7 @@ import net.minecraft.item.ItemStack;
 import net.minecraft.network.packet.c2s.play.RenameItemC2SPacket;
 import net.minecraft.screen.AnvilScreenHandler;
 import net.minecraft.screen.ScreenHandler;
+import net.minecraft.screen.slot.Slot;
 import net.minecraft.screen.slot.SlotActionType;
 import net.minecraft.text.Text;
 
@@ -261,7 +263,11 @@ public final class QuickCraftAnvilRename implements ClientModInitializer {
 
     private int findNextTargetHandlerSlot(AnvilScreenHandler handler, RenameSnapshot snapshot) {
         for (int slotId = 3; slotId < handler.slots.size(); slotId++) {
-            ItemStack stack = handler.getSlot(slotId).getStack();
+            Slot slot = handler.getSlot(slotId);
+            if (QuickContainerLock.isLockedSlot(handler, slot)) {
+                continue;
+            }
+            ItemStack stack = slot.getStack();
             if (snapshot.matchesTarget(stack)) {
                 return slotId;
             }

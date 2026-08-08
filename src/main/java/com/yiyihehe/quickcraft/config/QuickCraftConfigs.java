@@ -250,14 +250,14 @@ public final class QuickCraftConfigs implements IConfigHandler {
                 false,
                 ""
         ).apply(CONTAINER_TRANSLATION_PREFIX);
-        public static final ConfigBooleanHotkeyed ENABLE_CONTAINER_TOOL_MODE = new ConfigBooleanHotkeyed(
-                "enableContainerToolMode",
-                false,
-                ""
-        ).apply(CONTAINER_TRANSLATION_PREFIX);
         public static final ConfigBooleanHotkeyed ALLOW_MANUAL_LOCKED_SLOT_INTERACTION = new ConfigBooleanHotkeyed(
                 "allowManualLockedSlotInteraction",
                 true,
+                ""
+        ).apply(CONTAINER_TRANSLATION_PREFIX);
+        public static final ConfigBooleanHotkeyed ENABLE_CONTAINER_TOOL_MODE = new ConfigBooleanHotkeyed(
+                "enableContainerToolMode",
+                false,
                 ""
         ).apply(CONTAINER_TRANSLATION_PREFIX);
         public static final ConfigOptionList CONTAINER_TOOL_MODE = new ConfigOptionList(
@@ -291,13 +291,13 @@ public final class QuickCraftConfigs implements IConfigHandler {
                 ENABLE_QUICK_SORT,
                 SHOW_CONTAINER_LOCK_BUTTON,
                 SHOW_SLOT_LOCK_OVERLAY,
+                ALLOW_MANUAL_LOCKED_SLOT_INTERACTION,
                 ENABLE_CONTAINER_TOOL_MODE,
                 CONTAINER_TOOL_MODE,
                 ENABLE_QUICK_BEACON,
                 BEACON_EFFECT_ORDER
         );
 
-                ALLOW_MANUAL_LOCKED_SLOT_INTERACTION,
         private ContainerTools() {
         }
     }
@@ -599,6 +599,7 @@ public final class QuickCraftConfigs implements IConfigHandler {
                 ContainerTools.ENABLE_QUICK_SORT,
                 ContainerTools.SHOW_CONTAINER_LOCK_BUTTON,
                 ContainerTools.SHOW_SLOT_LOCK_OVERLAY,
+                ContainerTools.ALLOW_MANUAL_LOCKED_SLOT_INTERACTION,
                 ContainerTools.ENABLE_CONTAINER_TOOL_MODE,
                 ContainerTools.ENABLE_QUICK_BEACON,
                 ProjectionTools.SHOW_LITEMATICA_3D_PREVIEW,
@@ -606,7 +607,6 @@ public final class QuickCraftConfigs implements IConfigHandler {
                 ProjectionTools.HOLD_EASY_PLACE,
                 ProjectionTools.SHOW_LITEMATICA_SCHEMATIC_FOLDER_BUTTON,
                 ProjectionTools.SHOW_LITEMATICA_CONTAINER_MATERIAL_BUTTON,
-                ContainerTools.ALLOW_MANUAL_LOCKED_SLOT_INTERACTION,
                 ProjectionTools.SHOW_LITEMATICA_CONTAINER_SLOT_HINTS,
                 ProjectionTools.SHOW_LITEMATICA_CONTAINER_VERIFIER,
                 ProjectionTools.ENABLE_AUTO_COLLECT_MATERIALS,
@@ -647,6 +647,7 @@ public final class QuickCraftConfigs implements IConfigHandler {
                 ContainerTools.ENABLE_QUICK_SORT,
                 ContainerTools.SHOW_CONTAINER_LOCK_BUTTON,
                 ContainerTools.SHOW_SLOT_LOCK_OVERLAY,
+                ContainerTools.ALLOW_MANUAL_LOCKED_SLOT_INTERACTION,
                 ContainerTools.ENABLE_CONTAINER_TOOL_MODE,
                 ContainerTools.ENABLE_QUICK_BEACON,
                 ProjectionTools.SHOW_LITEMATICA_3D_PREVIEW,
@@ -655,7 +656,6 @@ public final class QuickCraftConfigs implements IConfigHandler {
                 ProjectionTools.SHOW_LITEMATICA_SCHEMATIC_FOLDER_BUTTON,
                 ProjectionTools.SHOW_LITEMATICA_CONTAINER_MATERIAL_BUTTON,
                 ProjectionTools.SHOW_LITEMATICA_CONTAINER_SLOT_HINTS,
-                ContainerTools.ALLOW_MANUAL_LOCKED_SLOT_INTERACTION,
                 ProjectionTools.SHOW_LITEMATICA_CONTAINER_VERIFIER,
                 ProjectionTools.ENABLE_AUTO_COLLECT_MATERIALS,
                 ProjectionTools.ENABLE_LITEMATICA_CONTAINER_AUTOFILL,
@@ -844,6 +844,10 @@ public final class QuickCraftConfigs implements IConfigHandler {
         return ContainerTools.SHOW_SLOT_LOCK_OVERLAY.getBooleanValue();
     }
 
+    public static boolean areManualLockedSlotInteractionsAllowed() {
+        return ContainerTools.ALLOW_MANUAL_LOCKED_SLOT_INTERACTION.getBooleanValue();
+    }
+
     public static boolean isLitematica3DPreviewEnabled() {
         return ProjectionTools.SHOW_LITEMATICA_3D_PREVIEW.getBooleanValue();
     }
@@ -854,10 +858,6 @@ public final class QuickCraftConfigs implements IConfigHandler {
 
     public static boolean isHoldEasyPlaceEnabled() {
         return ProjectionTools.HOLD_EASY_PLACE.getBooleanValue();
-    }
-
-    public static boolean areManualLockedSlotInteractionsAllowed() {
-        return ContainerTools.ALLOW_MANUAL_LOCKED_SLOT_INTERACTION.getBooleanValue();
     }
 
     public static int getHoldEasyPlaceCacheTimeMs() {
