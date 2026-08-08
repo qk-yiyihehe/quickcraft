@@ -1,18 +1,19 @@
 package com.yiyihehe.quickcraft.crafting;
 
+import com.yiyihehe.quickcraft.QuickContainerLock;
 import com.yiyihehe.quickcraft.config.QuickCraftConfigs;
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.inventory.AnvilScreen;
 import net.minecraft.core.component.DataComponents;
-import net.minecraft.world.item.Item;
-import net.minecraft.world.item.ItemStack;
 import net.minecraft.network.protocol.game.ServerboundRenameItemPacket;
-import net.minecraft.world.inventory.AnvilMenu;
 import net.minecraft.world.inventory.AbstractContainerMenu;
 import net.minecraft.world.inventory.ContainerInput;
 import net.minecraft.network.chat.Component;
+import net.minecraft.item.Item;
+import net.minecraft.item.ItemStack;
+import net.minecraft.world.inventory.AnvilMenu;
 
 /**
  * 铁砧快速命名：按左槽物品和输出名批量重命名。
@@ -261,7 +262,11 @@ public final class QuickCraftAnvilRename implements ClientModInitializer {
 
     private int findNextTargetHandlerSlot(AnvilMenu handler, RenameSnapshot snapshot) {
         for (int slotId = 3; slotId < handler.slots.size(); slotId++) {
-            ItemStack stack = handler.getSlot(slotId).getItem();
+            var slot = handler.getSlot(slotId);
+            if (QuickContainerLock.isLockedSlot(handler, slot)) {
+                continue;
+            }
+            ItemStack stack = slot.getItem();
             if (snapshot.matchesTarget(stack)) {
                 return slotId;
             }
