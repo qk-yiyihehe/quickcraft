@@ -334,10 +334,13 @@ public final class QuickContainerLock implements ClientModInitializer {
         }
 
         if (isLockedSlot(handler, slotId)) {
-            return true;
+            return !QuickCraftConfigs.areManualLockedSlotInteractionsAllowed()
+                    || actionType == ContainerInput.THROW;
         }
 
-        return actionType == ContainerInput.SWAP && isLockedHotbarSwapTarget(handler, button);
+        return !QuickCraftConfigs.areManualLockedSlotInteractionsAllowed()
+                && actionType == ContainerInput.SWAP
+                && isLockedHotbarSwapTarget(handler, button);
     }
 
     public static void beginSlotClickContext(AbstractContainerMenu handler, int slotId, int button, ContainerInput actionType) {
