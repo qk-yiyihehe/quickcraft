@@ -18,6 +18,7 @@
 		"CreativeSlotAccessor",
 		"GuiBaseAccessor",
 		"HandledScreenAccessor",
+		"JeiRecipeTransferMixin",
 		"LitematicaBlockMismatchMixin",
 		"LitematicaClientPlayerInteractionManagerMixin",
 		"LitematicaEasyPlaceUtilsMixin",

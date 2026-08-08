@@ -535,6 +535,9 @@ public final class QuickBeacon implements ClientModInitializer {
             if (requireVisibleSlots && !isVisibleSlot(slot)) {
                 continue;
             }
+            if (QuickContainerLock.isLockedSlot(handler, slot)) {
+                continue;
+            }
             playerSlots.add(slot);
         }
 

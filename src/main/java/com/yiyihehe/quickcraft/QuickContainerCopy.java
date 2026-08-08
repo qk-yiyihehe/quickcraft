@@ -822,6 +822,9 @@ public final class QuickContainerCopy implements ClientModInitializer {
             ItemStack template = recordedTemplate.slotTemplates.get(i);
             int containerSlotId = containerSlotIds.get(i);
             Slot slot = handler.getSlot(containerSlotId);
+            if (QuickContainerLock.isLockedSlot(handler, slot)) {
+                continue;
+            }
             if (template.isEmpty()) {
                 if (slot.hasItem()) {
                     wrongSlotIndexes.add(i);
@@ -869,6 +872,9 @@ public final class QuickContainerCopy implements ClientModInitializer {
             int containerSlotId = containerSlotIds.get(index);
             ItemStack template = recordedTemplate.slotTemplates.get(index);
             Slot slot = handler.getSlot(containerSlotId);
+            if (QuickContainerLock.isLockedSlot(handler, slot)) {
+                continue;
+            }
             int extraCount = slot.getItem().getCount() - template.getCount();
             if (extraCount <= 0) {
                 continue;
@@ -892,6 +898,9 @@ public final class QuickContainerCopy implements ClientModInitializer {
 
             int containerSlotId = containerSlotIds.get(index);
             ItemStack template = recordedTemplate.slotTemplates.get(index);
+            if (QuickContainerLock.isLockedSlot(handler, containerSlotId)) {
+                continue;
+            }
             if (template.isEmpty()) {
                 continue;
             }
@@ -920,6 +929,9 @@ public final class QuickContainerCopy implements ClientModInitializer {
 
             int containerSlotId = containerSlotIds.get(i);
             Slot slot = handler.getSlot(containerSlotId);
+            if (QuickContainerLock.isLockedSlot(handler, slot)) {
+                continue;
+            }
             if (!slot.hasItem()
                     || !ItemStack.isSameItemSameComponents(slot.getItem(), template)
                     || slot.getItem().getCount() <= template.getCount()) {
@@ -948,6 +960,9 @@ public final class QuickContainerCopy implements ClientModInitializer {
             }
 
             int containerSlotId = containerSlotIds.get(index);
+            if (QuickContainerLock.isLockedSlot(handler, containerSlotId)) {
+                continue;
+            }
             if (!tryMoveSlotToPlayerStorage(handler, containerSlotId, client)) {
                 blockedMessages.add(Component.translatable("quickcraft.message.container_copy.slot_cannot_clear", index + 1));
             }
@@ -986,6 +1001,9 @@ public final class QuickContainerCopy implements ClientModInitializer {
             int containerSlotId = containerSlotIds.get(i);
             Slot slot = handler.getSlot(containerSlotId);
             ItemStack template = recordedTemplate.slotTemplates.get(i);
+            if (QuickContainerLock.isLockedSlot(handler, slot)) {
+                continue;
+            }
             if (slotMatchesTemplate(slot, template)) {
                 continue;
             }
@@ -1153,6 +1171,9 @@ public final class QuickContainerCopy implements ClientModInitializer {
 
         for (int i = 0; i < containerSlotIds.size() && i < recordedTemplate.disabledStates.size(); i++) {
             int slotId = containerSlotIds.get(i);
+            if (QuickContainerLock.isLockedSlot(handler, slotId)) {
+                continue;
+            }
             boolean shouldBeEnabled = !recordedTemplate.disabledStates.get(i);
             boolean isEnabled = !crafterHandler.isSlotDisabled(slotId);
             if (isEnabled == shouldBeEnabled) {
@@ -1287,7 +1308,8 @@ public final class QuickContainerCopy implements ClientModInitializer {
             ItemStack expected = recordedTemplate.slotTemplates.get(i);
             int slotId = containerSlotIds.get(i);
             Slot slot = handler.getSlot(slotId);
-            if (!slot.hasItem()
+            if (QuickContainerLock.isLockedSlot(handler, slot)
+                    || !slot.hasItem()
                     || !slot.mayPickup(client.player)
                     || !ItemStack.isSameItemSameComponents(slot.getItem(), template)) {
                 continue;
@@ -1697,6 +1719,7 @@ public final class QuickContainerCopy implements ClientModInitializer {
             Slot slot = handler.getSlot(slotId);
             MissingDemand demand = slot.hasItem() ? findDemandForStack(remainingDemands, slot.getItem()) : null;
             if (!slot.hasItem()
+                    || QuickContainerLock.isLockedSlot(handler, slot)
                     || !slot.mayPickup(client.player)
                     || demand == null) {
                 continue;
@@ -2024,7 +2047,10 @@ public final class QuickContainerCopy implements ClientModInitializer {
         for (int i = 0; i < containerSlotIds.size() && i < recordedTemplate.slotTemplates.size(); i++) {
             int slotId = containerSlotIds.get(i);
             Slot slot = handler.getSlot(slotId);
-            if (!slot.isActive() || slot.hasItem() || !slot.mayPlace(stack)) {
+            if (!slot.isActive()
+                    || QuickContainerLock.isLockedSlot(handler, slot)
+                    || slot.hasItem()
+                    || !slot.mayPlace(stack)) {
                 continue;
             }
             if (recordedTemplate.slotTemplates.get(i).isEmpty()) {
@@ -2587,7 +2613,9 @@ public final class QuickContainerCopy implements ClientModInitializer {
     private List<Integer> getPlayerStorageSlotIds(AbstractContainerMenu handler) {
         List<Slot> playerSlots = new ArrayList<>();
         for (Slot slot : handler.slots) {
-            if (!isVisibleSlot(slot) || !isPlayerStorageSlot(slot)) {
+            if (!isVisibleSlot(slot)
+                    || !isPlayerStorageSlot(slot)
+                    || QuickContainerLock.isLockedSlot(handler, slot)) {
                 continue;
             }
             playerSlots.add(slot);
