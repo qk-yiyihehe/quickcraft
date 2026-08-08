@@ -27,6 +27,7 @@ import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.gl.VertexBuffer;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.render.BufferBuilder;
+import net.minecraft.client.render.BuiltBuffer;
 import net.minecraft.client.render.GameRenderer;
 import net.minecraft.client.render.LightmapTextureManager;
 import net.minecraft.client.render.OverlayTexture;
@@ -88,6 +89,7 @@ import java.util.Collection;
 import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.HexFormat;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -136,6 +138,10 @@ public final class QuickLitematicaPreview3D {
     private static final int MAX_DYNAMIC_BLOCK_STATES = 300_000;
     private static final int MAX_DYNAMIC_BLOCK_ENTITIES = 32_768;
     private static final int MAX_DYNAMIC_ENTITIES = 8_192;
+    // 动态模型只驻留显存、不写入 qcp3d；限制一次录制的 CPU/GPU 顶点总量，失败时回退逐帧渲染。
+    private static final long MAX_DYNAMIC_BUFFER_BYTES = 128L * 1024L * 1024L;
+    private static final int MAX_DYNAMIC_RENDER_LAYERS = 1_024;
+    private static final int DYNAMIC_LAYER_INITIAL_BYTES = 64 * 1024;
     private static final double MAX_BLOCK_WIDTH = Math.cos(Math.PI / 6.0) * 2.0;
     private static final float DEFAULT_SLANT_RADIANS = (float) Math.toRadians(32.0);
     private static final long NBT_READ_LIMIT_BYTES = 32L * 1024L * 1024L;
@@ -307,6 +313,9 @@ public final class QuickLitematicaPreview3D {
         @Nullable
         private volatile Future<?> future;
         private final Map<LayerKey, VertexBuffer> vertexBuffers = new EnumMap<>(LayerKey.class);
+        private List<DynamicLayerBuffer> dynamicBuffers = List.of();
+        private boolean dynamicBuffersReady;
+        private boolean dynamicBufferFallback;
         private boolean uploadScheduled;
 
         private Preview(Path sourcePath, Path cachePath, Path tmpPath) {
@@ -539,7 +548,12 @@ public final class QuickLitematicaPreview3D {
             RenderSystem.applyModelViewMatrix();
 
             this.applyLight(modelView);
-            this.drawDynamic(data, modelView, x, y, size);
+            this.prepareDynamicBuffers(data);
+            if (this.dynamicBuffersReady) {
+                this.drawDynamicBuffers(modelView);
+            } else {
+                this.drawDynamic(data, modelView, x, y, size);
+            }
             this.drawBuffers(modelView);
 
             modelView.popMatrix();
@@ -558,6 +572,81 @@ public final class QuickLitematicaPreview3D {
                 }
 
                 RenderLayer renderLayer = layer.renderLayer();
+                renderLayer.startDrawing();
+                buffer.bind();
+                buffer.draw(modelView, RenderSystem.getProjectionMatrix(), RenderSystem.getShader());
+                renderLayer.endDrawing();
+            }
+            VertexBuffer.unbind();
+        }
+
+        private void prepareDynamicBuffers(MeshData data) {
+            if (this.dynamicBuffersReady || this.dynamicBufferFallback || !data.hasDynamicContent()) {
+                return;
+            }
+
+            DynamicScene scene = data.dynamicScene();
+            if (scene.isEmpty()) {
+                this.dynamicBuffersReady = true;
+                data.closeDynamic();
+                return;
+            }
+
+            DynamicMeshCollector collector = new DynamicMeshCollector();
+            try {
+                MinecraftClient client = MinecraftClient.getInstance();
+                MatrixStack matrices = new MatrixStack();
+                scene.blockEntities().forEach((pos, entity) -> {
+                    matrices.push();
+                    try {
+                        matrices.translate(pos.getX(), pos.getY(), pos.getZ());
+                        renderBlockEntity(client, entity, matrices, collector);
+                    } catch (DynamicBufferTooLargeException e) {
+                        throw e;
+                    } catch (Throwable ignored) {
+                    } finally {
+                        matrices.pop();
+                    }
+                });
+
+                scene.entities().forEach(entity -> {
+                    try {
+                        client.getEntityRenderDispatcher().render(
+                                entity.entity(),
+                                entity.x(),
+                                entity.y(),
+                                entity.z(),
+                                entity.entity().getYaw(0.0F),
+                                0.0F,
+                                matrices,
+                                collector,
+                                entity.light()
+                        );
+                    } catch (DynamicBufferTooLargeException e) {
+                        throw e;
+                    } catch (Throwable ignored) {
+                    }
+                });
+
+                this.dynamicBuffers = collector.upload();
+                this.dynamicBuffersReady = true;
+                data.closeDynamic();
+            } catch (Throwable ignored) {
+                this.closeDynamicBuffers();
+                this.dynamicBufferFallback = true;
+            } finally {
+                collector.close();
+            }
+        }
+
+        private void drawDynamicBuffers(Matrix4f modelView) {
+            for (DynamicLayerBuffer layerBuffer : this.dynamicBuffers) {
+                VertexBuffer buffer = layerBuffer.buffer();
+                if (buffer.isClosed()) {
+                    continue;
+                }
+
+                RenderLayer renderLayer = layerBuffer.layer();
                 renderLayer.startDrawing();
                 buffer.bind();
                 buffer.draw(modelView, RenderSystem.getProjectionMatrix(), RenderSystem.getShader());
@@ -680,6 +769,17 @@ public final class QuickLitematicaPreview3D {
                 }
             });
             this.vertexBuffers.clear();
+            this.closeDynamicBuffers();
+        }
+
+        private void closeDynamicBuffers() {
+            this.dynamicBuffers.forEach(layerBuffer -> {
+                if (!layerBuffer.buffer().isClosed()) {
+                    layerBuffer.buffer().close();
+                }
+            });
+            this.dynamicBuffers = List.of();
+            this.dynamicBuffersReady = false;
         }
 
         private void throwIfCancelled() {
@@ -690,6 +790,169 @@ public final class QuickLitematicaPreview3D {
 
         private boolean isCancelled() {
             return this.cancelled.get() || Thread.currentThread().isInterrupted();
+        }
+    }
+
+    private record DynamicLayerBuffer(RenderLayer layer, VertexBuffer buffer) {
+    }
+
+    private static final class DynamicMeshCollector implements VertexConsumerProvider, AutoCloseable {
+        private final Map<RenderLayer, DynamicMeshBuilder> sharedBuilders = new LinkedHashMap<>();
+        private final List<DynamicMeshBuilder> builders = new ArrayList<>();
+        private long allocatedBytes;
+
+        @Override
+        public VertexConsumer getBuffer(RenderLayer layer) {
+            DynamicMeshBuilder meshBuilder;
+            if (!layer.areVerticesNotShared()) {
+                meshBuilder = this.createBuilder(layer);
+            } else {
+                meshBuilder = this.sharedBuilders.computeIfAbsent(layer, this::createBuilder);
+            }
+
+            int vertexBytes = layer.getVertexFormat().getVertexSizeByte();
+            if (layer.getDrawMode() == VertexFormat.DrawMode.LINES || layer.getDrawMode() == VertexFormat.DrawMode.LINE_STRIP) {
+                vertexBytes *= 2;
+            }
+            return new LimitedVertexConsumer(meshBuilder.builder(), this, vertexBytes);
+        }
+
+        private DynamicMeshBuilder createBuilder(RenderLayer layer) {
+            if (this.builders.size() >= MAX_DYNAMIC_RENDER_LAYERS) {
+                throw new DynamicBufferTooLargeException("动态渲染层超过 1024 个上限");
+            }
+            int initialBytes = !layer.areVerticesNotShared()
+                    ? 256
+                    : Math.max(256, Math.min(layer.getExpectedBufferSize(), DYNAMIC_LAYER_INITIAL_BYTES));
+            DynamicMeshBuilder meshBuilder = new DynamicMeshBuilder(
+                    layer,
+                    new BufferAllocator(initialBytes)
+            );
+            this.builders.add(meshBuilder);
+            return meshBuilder;
+        }
+
+        private void reserve(int bytes) {
+            this.allocatedBytes += bytes;
+            if (this.allocatedBytes > MAX_DYNAMIC_BUFFER_BYTES) {
+                throw new DynamicBufferTooLargeException("动态顶点超过 128 MiB 上限");
+            }
+        }
+
+        private List<DynamicLayerBuffer> upload() {
+            List<DynamicLayerBuffer> uploaded = new ArrayList<>();
+            try {
+                for (DynamicMeshBuilder meshBuilder : this.builders) {
+                    try {
+                        try (BuiltBuffer built = meshBuilder.builder().endNullable()) {
+                            if (built == null) {
+                                continue;
+                            }
+                            if (meshBuilder.layer().isTranslucent()) {
+                                built.sortQuads(meshBuilder.allocator(), RenderSystem.getVertexSorting());
+                            }
+
+                            VertexBuffer buffer = new VertexBuffer(VertexBuffer.Usage.STATIC);
+                            try {
+                                buffer.bind();
+                                buffer.upload(built);
+                                uploaded.add(new DynamicLayerBuffer(meshBuilder.layer(), buffer));
+                            } catch (Throwable throwable) {
+                                if (!buffer.isClosed()) {
+                                    buffer.close();
+                                }
+                                throw throwable;
+                            }
+                        }
+                    } finally {
+                        meshBuilder.allocator().close();
+                    }
+                }
+                return List.copyOf(uploaded);
+            } catch (Throwable throwable) {
+                uploaded.forEach(layerBuffer -> {
+                    if (!layerBuffer.buffer().isClosed()) {
+                        layerBuffer.buffer().close();
+                    }
+                });
+                throw throwable;
+            } finally {
+                VertexBuffer.unbind();
+            }
+        }
+
+        @Override
+        public void close() {
+            this.builders.forEach(meshBuilder -> meshBuilder.allocator().close());
+            this.builders.clear();
+            this.sharedBuilders.clear();
+        }
+    }
+
+    private record DynamicMeshBuilder(RenderLayer layer, BufferAllocator allocator, BufferBuilder builder) {
+        private DynamicMeshBuilder(RenderLayer layer, BufferAllocator allocator) {
+            this(layer, allocator, new BufferBuilder(allocator, layer.getDrawMode(), layer.getVertexFormat()));
+        }
+    }
+
+    private static final class LimitedVertexConsumer implements VertexConsumer {
+        private final VertexConsumer delegate;
+        private final DynamicMeshCollector collector;
+        private final int vertexBytes;
+
+        private LimitedVertexConsumer(VertexConsumer delegate, DynamicMeshCollector collector, int vertexBytes) {
+            this.delegate = delegate;
+            this.collector = collector;
+            this.vertexBytes = vertexBytes;
+        }
+
+        @Override
+        public VertexConsumer vertex(float x, float y, float z) {
+            this.collector.reserve(this.vertexBytes);
+            this.delegate.vertex(x, y, z);
+            return this;
+        }
+
+        @Override
+        public VertexConsumer color(int red, int green, int blue, int alpha) {
+            this.delegate.color(red, green, blue, alpha);
+            return this;
+        }
+
+        @Override
+        public VertexConsumer texture(float u, float v) {
+            this.delegate.texture(u, v);
+            return this;
+        }
+
+        @Override
+        public VertexConsumer overlay(int u, int v) {
+            this.delegate.overlay(u, v);
+            return this;
+        }
+
+        @Override
+        public VertexConsumer light(int u, int v) {
+            this.delegate.light(u, v);
+            return this;
+        }
+
+        @Override
+        public VertexConsumer normal(float x, float y, float z) {
+            this.delegate.normal(x, y, z);
+            return this;
+        }
+
+        @Override
+        public void vertex(float x, float y, float z, int color, float u, float v, int overlay, int light, float normalX, float normalY, float normalZ) {
+            this.collector.reserve(this.vertexBytes);
+            this.delegate.vertex(x, y, z, color, u, v, overlay, light, normalX, normalY, normalZ);
+        }
+    }
+
+    private static final class DynamicBufferTooLargeException extends RuntimeException {
+        private DynamicBufferTooLargeException(String message) {
+            super(message);
         }
     }
 
