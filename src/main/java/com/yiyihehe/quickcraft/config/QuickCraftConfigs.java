@@ -210,6 +210,11 @@ public final class QuickCraftConfigs implements IConfigHandler {
                 true,
                 ""
         ).apply(CONTAINER_TRANSLATION_PREFIX);
+        public static final ConfigBooleanHotkeyed ENABLE_SCROLL_TRANSFER = new ConfigBooleanHotkeyed(
+                "enableScrollTransfer",
+                true,
+                ""
+        ).apply(CONTAINER_TRANSLATION_PREFIX);
         public static final ConfigBooleanHotkeyed QUICK_TRANSFER_RETAIN_ONE = new ConfigBooleanHotkeyed(
                 "quickTransferRetainOne",
                 false,
@@ -278,6 +283,7 @@ public final class QuickCraftConfigs implements IConfigHandler {
         ).apply(CONTAINER_TRANSLATION_PREFIX);
         public static final List<IConfigBase> OPTIONS = List.of(
                 ENABLE_QUICK_TRANSFER,
+                ENABLE_SCROLL_TRANSFER,
                 QUICK_TRANSFER_RETAIN_ONE,
                 ENABLE_QUICK_THROW,
                 ENABLE_QUICK_TRADE,
@@ -585,6 +591,7 @@ public final class QuickCraftConfigs implements IConfigHandler {
                 Crafting.SHOW_CRAFT_ACTION_BUTTON,
                 Crafting.DROP_RESULTS_ON_STOP,
                 ContainerTools.ENABLE_QUICK_TRANSFER,
+                ContainerTools.ENABLE_SCROLL_TRANSFER,
                 ContainerTools.QUICK_TRANSFER_RETAIN_ONE,
                 ContainerTools.ENABLE_QUICK_THROW,
                 ContainerTools.ENABLE_QUICK_TRADE,
@@ -632,6 +639,7 @@ public final class QuickCraftConfigs implements IConfigHandler {
                 Crafting.SHOW_CRAFT_ACTION_BUTTON,
                 Crafting.DROP_RESULTS_ON_STOP,
                 ContainerTools.ENABLE_QUICK_TRANSFER,
+                ContainerTools.ENABLE_SCROLL_TRANSFER,
                 ContainerTools.QUICK_TRANSFER_RETAIN_ONE,
                 ContainerTools.ENABLE_QUICK_THROW,
                 ContainerTools.ENABLE_QUICK_TRADE,
@@ -696,6 +704,10 @@ public final class QuickCraftConfigs implements IConfigHandler {
 
     public static boolean isQuickTransferEnabled() {
         return ContainerTools.ENABLE_QUICK_TRANSFER.getBooleanValue();
+    }
+
+    public static boolean isScrollTransferEnabled() {
+        return ContainerTools.ENABLE_SCROLL_TRANSFER.getBooleanValue();
     }
 
     public static boolean isQuickThrowEnabled() {
