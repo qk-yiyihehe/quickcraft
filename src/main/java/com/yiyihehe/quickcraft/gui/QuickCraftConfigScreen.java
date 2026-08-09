@@ -150,6 +150,19 @@ public class QuickCraftConfigScreen extends GuiConfigsBase {
                 QuickCraftConfigs.ProjectionTools.HOLD_EASY_PLACE,
                 QuickCraftConfigs.ProjectionTools.HOLD_EASY_PLACE_CACHE_TIME_MS
         ),
+        EASY_PLACE_VANILLA_INTERACTIONS(
+                QuickCraftConfigs.ProjectionTools.ALLOW_EASY_PLACE_VANILLA_INTERACTIONS,
+                QuickCraftConfigs.ProjectionTools.ALLOW_EASY_PLACE_INTERACTION_SCREENS,
+                QuickCraftConfigs.ProjectionTools.ALLOW_EASY_PLACE_REDSTONE_INTERACTIONS,
+                QuickCraftConfigs.ProjectionTools.ALLOW_EASY_PLACE_FUNCTIONAL_BLOCK_INTERACTIONS,
+                QuickCraftConfigs.ProjectionTools.ALLOW_EASY_PLACE_FLUID_INTERACTIONS,
+                QuickCraftConfigs.ProjectionTools.ALLOW_EASY_PLACE_TOOL_INTERACTIONS,
+                QuickCraftConfigs.ProjectionTools.ALLOW_EASY_PLACE_DECORATION_INTERACTIONS,
+                QuickCraftConfigs.ProjectionTools.ALLOW_EASY_PLACE_SURVIVAL_INTERACTIONS,
+                QuickCraftConfigs.ProjectionTools.ALLOW_EASY_PLACE_SPECIAL_INTERACTIONS,
+                QuickCraftConfigs.ProjectionTools.ALLOW_EASY_PLACE_DANGEROUS_INTERACTIONS,
+                QuickCraftConfigs.ProjectionTools.ALLOW_EASY_PLACE_ADMIN_INTERACTIONS
+        ),
         AUTO_COLLECT_MATERIALS(
                 QuickCraftConfigs.ProjectionTools.ENABLE_AUTO_COLLECT_MATERIALS,
                 QuickCraftConfigs.ProjectionTools.MATERIAL_COLLECT_EXTRA_0_TO_10,
