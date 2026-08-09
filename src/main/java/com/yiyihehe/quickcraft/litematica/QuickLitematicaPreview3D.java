@@ -652,7 +652,10 @@ public final class QuickLitematicaPreview3D {
         }
 
         private static void drawLayerBuffer(LayerKey layer, LayerBuffer buffer) {
-            RenderLayer renderLayer = layer.renderLayer();
+            drawLayerBuffer(layer.renderLayer(), buffer, layer == LayerKey.CUTOUT);
+        }
+
+        private static void drawLayerBuffer(RenderLayer renderLayer, LayerBuffer buffer, boolean forceNearestSampler) {
             RenderPipeline pipeline = buffer.pipeline(renderLayer, renderLayer.getRenderPipeline());
             var colorAttachment = Objects.requireNonNull(RenderSystem.outputColorTextureOverride);
             var depthAttachment = RenderSystem.outputDepthTextureOverride;
@@ -676,7 +679,7 @@ public final class QuickLitematicaPreview3D {
                 pass.setVertexBuffer(0, buffer.vertexBuffer());
                 for (var entry : setup.resolveTextures().entrySet()) {
                     var texture = entry.getValue();
-                    var sampler = layer == LayerKey.CUTOUT && "Sampler0".equals(entry.getKey())
+                    var sampler = forceNearestSampler && "Sampler0".equals(entry.getKey())
                             ? RenderSystem.getSamplerCache().get(
                                     AddressMode.CLAMP_TO_EDGE,
                                     AddressMode.CLAMP_TO_EDGE,
@@ -768,7 +771,7 @@ public final class QuickLitematicaPreview3D {
 
         private void drawDynamicBuffers() {
             for (DynamicLayerBuffer layerBuffer : this.dynamicBuffers) {
-                drawLayerBuffer(layerBuffer.layer(), layerBuffer.buffer());
+                drawLayerBuffer(layerBuffer.layer(), layerBuffer.buffer(), false);
             }
         }
 
@@ -949,8 +952,7 @@ public final class QuickLitematicaPreview3D {
                     ? this.createBuilder(layer)
                     : this.sharedBuilders.computeIfAbsent(layer, this::createBuilder);
             int vertexBytes = layer.getVertexFormat().getVertexSize();
-            if (layer.getDrawMode() == com.mojang.blaze3d.vertex.VertexFormat.DrawMode.LINES
-                    || layer.getDrawMode() == com.mojang.blaze3d.vertex.VertexFormat.DrawMode.LINE_STRIP) {
+            if (layer.getDrawMode() == com.mojang.blaze3d.vertex.VertexFormat.DrawMode.LINES) {
                 vertexBytes *= 2;
             }
             return new LimitedVertexConsumer(meshBuilder.builder(), this, vertexBytes);
@@ -1078,6 +1080,12 @@ public final class QuickLitematicaPreview3D {
         }
 
         @Override
+        public VertexConsumer color(int argb) {
+            this.delegate.color(argb);
+            return this;
+        }
+
+        @Override
         public VertexConsumer texture(float u, float v) {
             this.delegate.texture(u, v);
             return this;
@@ -1090,14 +1098,32 @@ public final class QuickLitematicaPreview3D {
         }
 
         @Override
+        public VertexConsumer overlay(int uv) {
+            this.delegate.overlay(uv);
+            return this;
+        }
+
+        @Override
         public VertexConsumer light(int u, int v) {
             this.delegate.light(u, v);
             return this;
         }
 
         @Override
+        public VertexConsumer light(int uv) {
+            this.delegate.light(uv);
+            return this;
+        }
+
+        @Override
         public VertexConsumer normal(float x, float y, float z) {
             this.delegate.normal(x, y, z);
+            return this;
+        }
+
+        @Override
+        public VertexConsumer lineWidth(float width) {
+            this.delegate.lineWidth(width);
             return this;
         }
 
