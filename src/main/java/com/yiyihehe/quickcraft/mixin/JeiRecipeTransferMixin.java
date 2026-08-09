@@ -1,8 +1,8 @@
 package com.yiyihehe.quickcraft.mixin;
 
 import com.yiyihehe.quickcraft.QuickContainerLock;
-import net.minecraft.entity.player.PlayerInventory;
-import net.minecraft.screen.slot.Slot;
+import net.minecraft.world.entity.player.Inventory;
+import net.minecraft.world.inventory.Slot;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Pseudo;
 import org.spongepowered.asm.mixin.injection.At;
@@ -27,7 +27,7 @@ public abstract class JeiRecipeTransferMixin {
     )
     private static Collection<Slot> quickcraft$excludeLockedPlayerSlots(Collection<Slot> inventorySlots) {
         return inventorySlots.stream()
-                .filter(slot -> !(slot.inventory instanceof PlayerInventory)
+                .filter(slot -> !(slot.container instanceof Inventory)
                         || !QuickContainerLock.isLockedSlot(slot))
                 .toList();
     }
