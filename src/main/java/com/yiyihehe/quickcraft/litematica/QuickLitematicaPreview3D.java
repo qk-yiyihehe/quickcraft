@@ -743,6 +743,8 @@ public final class QuickLitematicaPreview3D {
                     new Matrix4f()
             );
             RenderSetup setup = ((RenderLayerAccessor) (Object) renderLayer).quickcraft$getRenderSetup();
+            // 1.21.11 可能在首次解析实体纹理时上传 GPU 数据，必须在 RenderPass 外完成。
+            var resolvedTextures = setup.resolveTextures();
             try (RenderPass pass = RenderSystem.getDevice().createCommandEncoder().createRenderPass(
                     () -> "QuickCraft preview " + renderLayer,
                     colorAttachment,
@@ -754,7 +756,7 @@ public final class QuickLitematicaPreview3D {
                 RenderSystem.bindDefaultUniforms(pass);
                 pass.setUniform("DynamicTransforms", dynamicTransforms);
                 pass.setVertexBuffer(0, buffer.vertexBuffer());
-                for (var entry : setup.resolveTextures().entrySet()) {
+                for (var entry : resolvedTextures.entrySet()) {
                     var texture = entry.getValue();
                     var sampler = forceNearestSampler && "Sampler0".equals(entry.getKey())
                             ? RenderSystem.getSamplerCache().get(
