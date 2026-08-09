@@ -23,6 +23,7 @@ import fi.dy.masa.litematica.world.WorldSchematic;
 import fi.dy.masa.malilib.gui.widgets.WidgetFileBrowserBase.DirectoryEntry;
 import fi.dy.masa.malilib.render.RenderUtils;
 import fi.dy.masa.malilib.util.StringUtils;
+import net.fabricmc.fabric.api.client.rendering.v1.SpecialGuiElementRegistry;
 import net.minecraft.SharedConstants;
 import net.minecraft.block.Block;
 import net.minecraft.block.BlockEntityProvider;
@@ -33,7 +34,10 @@ import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.gl.Framebuffer;
 import net.minecraft.client.gl.RenderPipelines;
 import net.minecraft.client.gl.SimpleFramebuffer;
+import net.minecraft.client.gui.ScreenRect;
 import net.minecraft.client.gui.DrawContext;
+import net.minecraft.client.gui.render.SpecialGuiElementRenderer;
+import net.minecraft.client.gui.render.state.special.SpecialGuiElementRenderState;
 import net.minecraft.client.gui.screen.Screen;
 import net.minecraft.client.render.BufferBuilder;
 import net.minecraft.client.render.BuiltBuffer;
@@ -178,11 +182,18 @@ public final class QuickLitematicaPreview3D {
     private static final float PROGRESS_STATIC_CACHE_END = 0.93F;
     private static final float PROGRESS_BLOCK_STATES_CACHE_END = 0.95F;
     private static final float PROGRESS_BLOCK_ENTITIES_CACHE_END = 0.99F;
+    private static final AtomicBoolean SPECIAL_RENDERER_REGISTERED = new AtomicBoolean();
     private static final AtomicBoolean CACHE_DIRECTORY_READY = new AtomicBoolean();
     @Nullable
     private static volatile Path currentCacheDirectory;
 
     private QuickLitematicaPreview3D() {
+    }
+
+    public static void registerSpecialRenderer() {
+        if (SPECIAL_RENDERER_REGISTERED.compareAndSet(false, true)) {
+            SpecialGuiElementRegistry.register(context -> new PreviewGuiElementRenderer(context.vertexConsumers()));
+        }
     }
 
     public static Manager init(fi.dy.masa.litematica.gui.GuiSchematicBrowserBase gui) {
@@ -492,7 +503,19 @@ public final class QuickLitematicaPreview3D {
             if (this.state == State.READY && this.meshData != null) {
                 this.uploadIfNeeded();
                 if (!this.layerBuffers.isEmpty() || this.meshData.hasDynamicContent() || this.meshData.vertexCount() == 0) {
-                    this.drawMesh(context, x, y, size, drag);
+                    // 1.21.8 的 DrawContext 延迟提交 GUI；直接画主 framebuffer 会被稍后提交的模糊背景覆盖。
+                    context.state.addSpecialElement(new PreviewGuiElement(
+                            this,
+                            x,
+                            y,
+                            size,
+                            drag.dx,
+                            drag.dy,
+                            drag.angle,
+                            drag.pitch,
+                            drag.scale,
+                            context.scissorStack.peekLast()
+                    ));
                     return;
                 }
             }
@@ -615,6 +638,84 @@ public final class QuickLitematicaPreview3D {
         private static int allocatorSize(int vertexCount) {
             long bytes = Math.max(256L, (long) vertexCount * VERTEX_BYTES);
             return (int) Math.min(Integer.MAX_VALUE - 8L, bytes);
+        }
+
+        private void drawSpecial(PreviewGuiElement element) {
+            MeshData data = this.meshData;
+            if (data == null || this.cancelled.get()) {
+                return;
+            }
+
+            var previousLights = RenderSystem.getShaderLights();
+            Matrix4f projection = new Matrix4f().setOrtho(-1.0F, 1.0F, -1.0F, 1.0F, -1000.0F, 3000.0F);
+            RenderSystem.backupProjectionMatrix();
+            RenderSystem.setProjectionMatrix(this.previewProjection.set(projection), ProjectionType.ORTHOGRAPHIC);
+
+            Matrix4fStack modelView = RenderSystem.getModelViewStack();
+            modelView.pushMatrix();
+            try {
+                modelView.identity();
+                modelView.translate(
+                        2.0F * element.dragX() / Math.max(1, element.size()),
+                        -2.0F * element.dragY() / Math.max(1, element.size()),
+                        0.0F
+                );
+                modelView.rotate(RotationAxis.POSITIVE_X.rotation(element.pitch()));
+                modelView.rotate(RotationAxis.POSITIVE_Y.rotation((float) element.angle()));
+                float scale = data.scaleFactor(element.size(), element.size()) * element.dragScale();
+                modelView.scale(scale, scale, scale);
+                modelView.translate(-data.sizeX() / 2.0F, -data.sizeY() / 2.0F, -data.sizeZ() / 2.0F);
+                this.applyLight(modelView);
+                this.prepareDynamicBuffers(data);
+                Framebuffer framebuffer = MinecraftClient.getInstance().getFramebuffer();
+                if (this.dynamicBuffersReady) {
+                    this.drawSnapshotDynamicBuffers(framebuffer);
+                } else {
+                    this.drawDynamicUnculled(data);
+                }
+                this.drawSnapshotBuffers(framebuffer);
+            } finally {
+                modelView.popMatrix();
+                RenderSystem.restoreProjectionMatrix();
+                RenderSystem.setShaderLights(previousLights);
+            }
+        }
+
+        private void drawDynamicUnculled(MeshData data) {
+            DynamicScene scene = data.dynamicScene();
+            if (scene.isEmpty()) {
+                return;
+            }
+
+            MinecraftClient client = MinecraftClient.getInstance();
+            MatrixStack matrices = new MatrixStack();
+            scene.blockEntities().forEach((pos, entity) -> {
+                matrices.push();
+                try {
+                    matrices.translate(pos.getX(), pos.getY(), pos.getZ());
+                    renderBlockEntity(client, entity, matrices, client.getBufferBuilders().getEntityVertexConsumers());
+                } catch (Throwable ignored) {
+                } finally {
+                    matrices.pop();
+                }
+            });
+
+            scene.entities().forEach(entity -> {
+                try {
+                    client.getEntityRenderDispatcher().render(
+                            entity.entity(),
+                            entity.x(),
+                            entity.y(),
+                            entity.z(),
+                            entity.entity().getYaw(0.0F),
+                            matrices,
+                            client.getBufferBuilders().getEntityVertexConsumers(),
+                            entity.light()
+                    );
+                } catch (Throwable ignored) {
+                }
+            });
+            this.flushDynamic();
         }
 
         private void drawMesh(DrawContext context, int x, int y, int size, DragState drag) {
@@ -1224,6 +1325,83 @@ public final class QuickLitematicaPreview3D {
 
         private boolean isCancelled() {
             return this.cancelled.get() || Thread.currentThread().isInterrupted();
+        }
+    }
+
+    private record PreviewGuiElement(
+            Preview preview,
+            int x1,
+            int y1,
+            int size,
+            float dragX,
+            float dragY,
+            double angle,
+            float pitch,
+            float dragScale,
+            ScreenRect scissorArea,
+            ScreenRect bounds
+    ) implements SpecialGuiElementRenderState {
+        private PreviewGuiElement(
+                Preview preview,
+                int x,
+                int y,
+                int size,
+                float dragX,
+                float dragY,
+                double angle,
+                float pitch,
+                float dragScale,
+                @Nullable ScreenRect scissorArea
+        ) {
+            this(
+                    preview,
+                    x,
+                    y,
+                    size,
+                    dragX,
+                    dragY,
+                    angle,
+                    pitch,
+                    dragScale,
+                    scissorArea,
+                    SpecialGuiElementRenderState.createBounds(x, y, x + size, y + size, scissorArea)
+            );
+        }
+
+        @Override
+        public int x2() {
+            return this.x1 + this.size;
+        }
+
+        @Override
+        public int y2() {
+            return this.y1 + this.size;
+        }
+
+        @Override
+        public float scale() {
+            return 1.0F;
+        }
+    }
+
+    private static final class PreviewGuiElementRenderer extends SpecialGuiElementRenderer<PreviewGuiElement> {
+        private PreviewGuiElementRenderer(VertexConsumerProvider.Immediate vertexConsumers) {
+            super(vertexConsumers);
+        }
+
+        @Override
+        public Class<PreviewGuiElement> getElementClass() {
+            return PreviewGuiElement.class;
+        }
+
+        @Override
+        protected void render(PreviewGuiElement element, MatrixStack matrices) {
+            element.preview().drawSpecial(element);
+        }
+
+        @Override
+        protected String getName() {
+            return "quickcraft:schematic_preview";
         }
     }
 
