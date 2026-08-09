@@ -326,6 +326,9 @@ public final class QuickLitematicaPreview3D {
         private volatile State state = State.LOADING;
         @Nullable
         private volatile Future<?> future;
+        @Nullable
+        private PreparedDynamicScene preparedDynamicScene;
+        private boolean dynamicStateFallback;
         private boolean uploadScheduled;
 
         private Preview(Path sourcePath, Path cachePath, Path tmpPath) {
@@ -560,7 +563,12 @@ public final class QuickLitematicaPreview3D {
                 Matrix4f dynamicModelView = new Matrix4f(matrices.last().pose());
                 this.applyLight(dynamicModelView);
                 this.drawBuffers(dynamicModelView);
-                this.drawDynamic(data, dynamicModelView, element.size(), submitNodes);
+                this.prepareDynamicStates(data);
+                if (this.preparedDynamicScene != null) {
+                    this.drawPreparedDynamic(this.preparedDynamicScene, dynamicModelView, element.size(), submitNodes);
+                } else {
+                    this.drawDynamic(data, dynamicModelView, element.size(), submitNodes);
+                }
             } finally {
                 matrices.popPose();
                 RenderSystem.setShaderLights(previousLights);
@@ -619,6 +627,85 @@ public final class QuickLitematicaPreview3D {
             } finally {
                 renderStack.popMatrix();
             }
+        }
+
+        private void prepareDynamicStates(MeshData data) {
+            if (this.preparedDynamicScene != null || this.dynamicStateFallback || !data.hasDynamicContent()) {
+                return;
+            }
+
+            DynamicScene scene = data.dynamicScene();
+            if (scene.isEmpty()) {
+                this.preparedDynamicScene = PreparedDynamicScene.EMPTY;
+                data.closeDynamic();
+                return;
+            }
+
+            try {
+                Minecraft client = Minecraft.getInstance();
+                List<PreparedBlockEntity> blockEntities = new ArrayList<>();
+                scene.blockEntities().forEach((pos, entity) -> {
+                    try {
+                        PreparedBlockEntity prepared = prepareBlockEntity(client, pos, entity);
+                        if (prepared != null) blockEntities.add(prepared);
+                    } catch (Throwable ignored) {
+                    }
+                });
+
+                List<PreparedEntity> entities = new ArrayList<>();
+                scene.entities().forEach(renderedEntity -> {
+                    try {
+                        EntityRenderState renderState = client.getEntityRenderDispatcher().extractEntity(renderedEntity.entity(), 0.0F);
+                        renderState.lightCoords = renderedEntity.light();
+                        renderState.distanceToCameraSq = 0.0D;
+                        entities.add(new PreparedEntity(renderState, renderedEntity.x(), renderedEntity.y(), renderedEntity.z()));
+                    } catch (Throwable ignored) {
+                    }
+                });
+
+                this.preparedDynamicScene = new PreparedDynamicScene(List.copyOf(blockEntities), List.copyOf(entities));
+                data.closeDynamic();
+            } catch (Throwable ignored) {
+                this.preparedDynamicScene = null;
+                this.dynamicStateFallback = true;
+            }
+        }
+
+        private void drawPreparedDynamic(
+                PreparedDynamicScene scene,
+                Matrix4f modelView,
+                int viewSize,
+                SubmitNodeCollector submitNodes
+        ) {
+            if (scene.isEmpty()) return;
+            Minecraft client = Minecraft.getInstance();
+            ViewportCuller culler = ViewportCuller.forPip(modelView, viewSize);
+            PoseStack matrices = new PoseStack();
+            matrices.mulPose(modelView);
+            CameraRenderState cameraState = new CameraRenderState();
+
+            scene.blockEntities().forEach(prepared -> {
+                BlockPos pos = prepared.pos();
+                if (culler.isOutside(pos.getX() + 0.5F, pos.getY() + 0.5F, pos.getZ() + 0.5F)) return;
+                matrices.pushPose();
+                try {
+                    matrices.translate(pos.getX(), pos.getY(), pos.getZ());
+                    submitPreparedBlockEntity(prepared, matrices, submitNodes, cameraState);
+                } catch (Throwable ignored) {
+                } finally {
+                    matrices.popPose();
+                }
+            });
+
+            scene.entities().forEach(prepared -> {
+                if (culler.isOutside((float) prepared.x(), (float) prepared.y(), (float) prepared.z())) return;
+                try {
+                    client.getEntityRenderDispatcher().submit(
+                            prepared.state(), cameraState, prepared.x(), prepared.y(), prepared.z(), matrices, submitNodes
+                    );
+                } catch (Throwable ignored) {
+                }
+            });
         }
 
         private void drawDynamic(MeshData data, Matrix4f modelView, int viewSize, SubmitNodeCollector submitNodes) {
@@ -741,6 +828,7 @@ public final class QuickLitematicaPreview3D {
             if (this.previewLightingBuffer != null && !this.previewLightingBuffer.isClosed()) {
                 this.previewLightingBuffer.close();
             }
+            this.preparedDynamicScene = null;
         }
 
         private void closeBuffers() {
@@ -760,6 +848,41 @@ public final class QuickLitematicaPreview3D {
     }
 
     private static final class PreviewTooLargeException extends RuntimeException {
+    }
+
+    private record PreparedDynamicScene(List<PreparedBlockEntity> blockEntities, List<PreparedEntity> entities) {
+        private static final PreparedDynamicScene EMPTY = new PreparedDynamicScene(List.of(), List.of());
+
+        private boolean isEmpty() {
+            return this.blockEntities.isEmpty() && this.entities.isEmpty();
+        }
+    }
+
+    private record PreparedBlockEntity(BlockPos pos, BlockEntityRenderer<?, ?> renderer, BlockEntityRenderState state) {
+    }
+
+    private record PreparedEntity(EntityRenderState state, double x, double y, double z) {
+    }
+
+    @Nullable
+    @SuppressWarnings({"rawtypes", "unchecked"})
+    private static PreparedBlockEntity prepareBlockEntity(Minecraft client, BlockPos pos, BlockEntity entity) {
+        BlockEntityRenderer renderer = client.getBlockEntityRenderDispatcher().getRenderer(entity);
+        if (renderer == null) return null;
+        BlockEntityRenderState state = (BlockEntityRenderState) renderer.createRenderState();
+        renderer.extractRenderState(entity, state, 0.0F, Vec3.ZERO, null);
+        state.lightCoords = net.minecraft.util.LightCoordsUtil.FULL_BRIGHT;
+        return new PreparedBlockEntity(pos, renderer, state);
+    }
+
+    @SuppressWarnings({"rawtypes", "unchecked"})
+    private static void submitPreparedBlockEntity(
+            PreparedBlockEntity prepared,
+            PoseStack matrices,
+            SubmitNodeCollector submitNodes,
+            CameraRenderState cameraState
+    ) {
+        ((BlockEntityRenderer) prepared.renderer()).submit(prepared.state(), matrices, submitNodes, cameraState);
     }
 
     private record PreviewGuiElement(
