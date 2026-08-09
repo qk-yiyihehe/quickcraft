@@ -647,29 +647,42 @@ public final class QuickLitematicaPreview3D {
             }
 
             var previousLights = RenderSystem.getShaderLights();
-            matrices.pushPose();
+            var colorTarget = Objects.requireNonNull(RenderSystem.outputColorTextureOverride);
+            RenderSystem.backupProjectionMatrix();
             try {
-                // 26.1 PIP 使用倒置 Y 投影并预先翻转 Z；这里恢复预览使用的世界坐标方向和面朝向。
-                matrices.scale(1.0F, -1.0F, -1.0F);
-                matrices.translate(element.dragX(), -element.dragY(), 0.0F);
-                matrices.mulPose(Axis.XP.rotation(element.pitch()));
-                matrices.mulPose(Axis.YP.rotation((float) element.angle()));
-                float scale = data.scaleFactor(element.size(), element.size()) * element.size() * 0.5F * element.dragScale();
-                matrices.scale(scale, scale, scale);
-                matrices.translate(-data.sizeX() / 2.0F, -data.sizeY() / 2.0F, -data.sizeZ() / 2.0F);
-                Matrix4f dynamicModelView = new Matrix4f(matrices.last().pose());
-                this.applyLight(dynamicModelView);
-                this.drawBuffers(dynamicModelView);
-                this.prepareDynamicBuffers(data);
-                if (this.dynamicBuffersReady) {
-                    this.drawDynamicBuffers(dynamicModelView);
-                } else {
-                    this.drawDynamic(data, dynamicModelView, element.size());
+                this.setupPreviewProjection(colorTarget.getWidth(0), colorTarget.getHeight(0), element.dragScale());
+                matrices.pushPose();
+                try {
+                    // 26.1 PIP 使用倒置 Y 投影并预先翻转 Z；这里恢复预览使用的世界坐标方向和面朝向。
+                    matrices.scale(1.0F, -1.0F, -1.0F);
+                    matrices.translate(element.dragX(), -element.dragY(), 0.0F);
+                    matrices.mulPose(Axis.XP.rotation(element.pitch()));
+                    matrices.mulPose(Axis.YP.rotation((float) element.angle()));
+                    float scale = data.scaleFactor(element.size(), element.size()) * element.size() * 0.5F * element.dragScale();
+                    matrices.scale(scale, scale, scale);
+                    matrices.translate(-data.sizeX() / 2.0F, -data.sizeY() / 2.0F, -data.sizeZ() / 2.0F);
+                    Matrix4f dynamicModelView = new Matrix4f(matrices.last().pose());
+                    this.applyLight(dynamicModelView);
+                    this.drawBuffers(dynamicModelView);
+                    this.prepareDynamicBuffers(data);
+                    if (this.dynamicBuffersReady) {
+                        this.drawDynamicBuffers(dynamicModelView);
+                    } else {
+                        this.drawDynamic(data, dynamicModelView, element.size());
+                    }
+                } finally {
+                    matrices.popPose();
                 }
             } finally {
-                matrices.popPose();
+                RenderSystem.restoreProjectionMatrix();
                 RenderSystem.setShaderLights(previousLights);
             }
+        }
+
+        private void setupPreviewProjection(int width, int height, float zoom) {
+            float depthRange = Math.max(1000.0F, width * Math.max(1.0F, zoom));
+            this.snapshotProjection.setupOrtho(-depthRange, depthRange, width, height, true);
+            RenderSystem.setProjectionMatrix(this.snapshotProjectionBuffer.getBuffer(this.snapshotProjection), ProjectionType.ORTHOGRAPHIC);
         }
 
         // 1.21.6+ 的地形明暗已烘焙进顶点颜色；独立 UBO 只修正动态方块实体和实体，且不污染原版全局光照。
@@ -678,7 +691,7 @@ public final class QuickLitematicaPreview3D {
             Vector4f lightDirection = new Vector4f(0.0F, 0.35F, 0.25F, 0.0F);
             lightTransform.invert();
             lightDirection.mul(lightTransform);
-            Vector3f transformed = new Vector3f(lightDirection.x, lightDirection.y, lightDirection.z);
+            Vector3f transformed = new Vector3f(lightDirection.x, lightDirection.y, lightDirection.z).normalize();
 
             if (this.previewLightingBuffer == null) {
                 this.previewLightingBuffer = RenderSystem.getDevice().createBuffer(
@@ -722,6 +735,8 @@ public final class QuickLitematicaPreview3D {
                     new Matrix4f()
             );
             RenderSetup setup = ((RenderLayerAccessor) (Object) renderLayer).quickcraft$getRenderSetup();
+            // 26.1 首次解析实体纹理可能上传 GPU，必须在 RenderPass 外完成。
+            var resolvedTextures = setup.getTextures();
             try (RenderPass pass = RenderSystem.getDevice().createCommandEncoder().createRenderPass(
                     () -> "QuickCraft preview " + renderLayer,
                     colorAttachment,
@@ -733,7 +748,7 @@ public final class QuickLitematicaPreview3D {
                 RenderSystem.bindDefaultUniforms(pass);
                 pass.setUniform("DynamicTransforms", dynamicTransforms);
                 pass.setVertexBuffer(0, buffer.vertexBuffer());
-                for (var entry : setup.getTextures().entrySet()) {
+                for (var entry : resolvedTextures.entrySet()) {
                     var texture = entry.getValue();
                     pass.bindTexture(entry.getKey(), texture.textureView(), texture.sampler());
                 }
@@ -1024,8 +1039,7 @@ public final class QuickLitematicaPreview3D {
             RenderSystem.outputColorTextureOverride = framebuffer.getColorTextureView();
             RenderSystem.outputDepthTextureOverride = framebuffer.getDepthTextureView();
             RenderSystem.backupProjectionMatrix();
-            this.snapshotProjection.setupOrtho(-1000.0F, 1000.0F, framebuffer.width, framebuffer.height, true);
-            RenderSystem.setProjectionMatrix(this.snapshotProjectionBuffer.getBuffer(this.snapshotProjection), ProjectionType.ORTHOGRAPHIC);
+            this.setupPreviewProjection(framebuffer.width, framebuffer.height, drag.scale);
 
             PoseStack matrices = new PoseStack();
             try {
