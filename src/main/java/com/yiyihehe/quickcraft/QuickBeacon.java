@@ -40,7 +40,8 @@ import java.util.Set;
 /**
  * 自动激活信标：
  * - 开启待命后，对着信标右键
- * - 按配置顺序寻找玩家当前缺少的 II 级信标效果
+ * - 按配置顺序寻找玩家当前缺少的信标效果
+ * - 生命恢复在未发布的单人存档使用 II 级，多人服务器使用合法的 I 级组合
  * - 自动使用背包矿物支付，不够时尝试用背包 2x2 合成栏拆一块矿物块
  * - 发送原版更新信标数据包后自动关闭界面
  */
@@ -132,7 +133,7 @@ public final class QuickBeacon implements ClientModInitializer {
 
         pendingTicks = 0;
 
-        BeaconConfiguredState configuredState = getConfirmedConfiguredState(handler);
+        BeaconConfiguredState configuredState = getConfirmedConfiguredState(client, handler);
         if (configuredState != null) {
             sendConfiguredStateMessage(client, configuredState);
             closeCurrentScreen(client);
@@ -308,7 +309,7 @@ public final class QuickBeacon implements ClientModInitializer {
             return new TargetSelectionResult(null, PendingFailureReason.NO_VALID_ORDER);
         }
 
-        List<BeaconEffectTarget> targets = parseConfiguredTargets();
+        List<BeaconEffectTarget> targets = parseConfiguredTargets(client);
         if (targets.isEmpty()) {
             return new TargetSelectionResult(null, PendingFailureReason.NO_VALID_ORDER);
         }
@@ -325,7 +326,7 @@ public final class QuickBeacon implements ClientModInitializer {
         return new TargetSelectionResult(null, PendingFailureReason.ALL_ACTIVE);
     }
 
-    private List<BeaconEffectTarget> parseConfiguredTargets() {
+    private List<BeaconEffectTarget> parseConfiguredTargets(Minecraft client) {
         List<BeaconEffectTarget> targets = new ArrayList<>();
 
         for (String raw : QuickCraftConfigs.getBeaconEffectOrderStrings()) {
@@ -333,7 +334,7 @@ public final class QuickBeacon implements ClientModInitializer {
                 break;
             }
 
-            BeaconEffectTarget target = parseTarget(raw);
+            BeaconEffectTarget target = parseTarget(raw, !client.isMultiplayerServer());
             if (target != null) {
                 targets.add(target);
             }
@@ -342,7 +343,7 @@ public final class QuickBeacon implements ClientModInitializer {
         return targets;
     }
 
-    private BeaconEffectTarget parseTarget(String raw) {
+    private BeaconEffectTarget parseTarget(String raw, boolean allowRegenerationTwo) {
         if (raw == null) {
             return null;
         }
@@ -350,6 +351,10 @@ public final class QuickBeacon implements ClientModInitializer {
         String normalized = normalizeEffectName(raw);
         if (normalized.isEmpty()) {
             return null;
+        }
+
+        if (isRegenerationOneName(normalized)) {
+            return BeaconEffectTarget.regeneration(allowRegenerationTwo);
         }
 
         if (normalized.endsWith("ii")) {
@@ -361,7 +366,7 @@ public final class QuickBeacon implements ClientModInitializer {
         return switch (normalized) {
             case "haste", "急迫", "挖掘急迫" -> BeaconEffectTarget.levelTwo(MobEffects.HASTE);
             case "strength", "力量" -> BeaconEffectTarget.levelTwo(MobEffects.STRENGTH);
-            case "regeneration", "regen", "生命恢复", "恢复" -> BeaconEffectTarget.levelTwo(MobEffects.REGENERATION);
+            case "regeneration", "regen", "生命恢复", "恢复" -> BeaconEffectTarget.regeneration(allowRegenerationTwo);
             case "jumpboost", "jump", "跳跃提升", "跳跃" -> BeaconEffectTarget.levelTwo(MobEffects.JUMP_BOOST);
             case "speed", "迅捷" -> BeaconEffectTarget.levelTwo(MobEffects.SPEED);
             case "resistance", "抗性", "抗性提升" -> BeaconEffectTarget.levelTwo(MobEffects.RESISTANCE);
@@ -381,17 +386,24 @@ public final class QuickBeacon implements ClientModInitializer {
                 .replace("-", "");
     }
 
+    private boolean isRegenerationOneName(String normalized) {
+        return switch (normalized) {
+            case "regeneration1", "regenerationi", "regen1", "regeni", "生命恢复1", "恢复1" -> true;
+            default -> false;
+        };
+    }
+
     private boolean playerHasTargetEffect(Minecraft client, BeaconEffectTarget target) {
         if (client.player == null) {
             return false;
         }
 
         for (MobEffectInstance instance : client.player.getActiveEffects()) {
-            if (!instance.getEffect().equals(target.primary())) {
+            if (!instance.getEffect().equals(target.effect())) {
                 continue;
             }
 
-            if (instance.getAmplifier() >= 1 && hasEnoughRemainingDuration(instance)) {
+            if (instance.getAmplifier() >= target.minimumAmplifier() && hasEnoughRemainingDuration(instance)) {
                 return true;
             }
         }
@@ -608,21 +620,24 @@ public final class QuickBeacon implements ClientModInitializer {
                 : null;
     }
 
-    private BeaconConfiguredState getConfirmedConfiguredState(BeaconMenu handler) {
+    private BeaconConfiguredState getConfirmedConfiguredState(Minecraft client, BeaconMenu handler) {
         Holder<MobEffect> primary = handler.getPrimaryEffect();
         Holder<MobEffect> secondary = handler.getSecondaryEffect();
         if (primary == null || secondary == null) {
             return null;
         }
 
-        BeaconEffectTarget currentTarget = new BeaconEffectTarget(primary, secondary);
         // 以打开信标后同步到界面的数据为准，只保护当前配置列表内的已选效果。
-        if (!parseConfiguredTargets().contains(currentTarget)) {
+        BeaconEffectTarget currentTarget = parseConfiguredTargets(client).stream()
+                .filter(target -> target.matchesSelection(primary, secondary))
+                .findFirst()
+                .orElse(null);
+        if (currentTarget == null) {
             return null;
         }
 
         return new BeaconConfiguredState(
-                getLevelTwoEffectName(primary),
+                getTargetEffectName(currentTarget),
                 "quickcraft.message.beacon.already_selected"
         );
     }
@@ -685,11 +700,12 @@ public final class QuickBeacon implements ClientModInitializer {
         sendStatusMessage(client, Component.translatable(configuredState.translationKey()));
     }
 
-    private Component getLevelTwoEffectName(Holder<MobEffect> effect) {
-        return Component.translatable(getLevelTwoEffectTranslationKey(effect));
+    private Component getTargetEffectName(BeaconEffectTarget target) {
+        return Component.translatable(getTargetEffectTranslationKey(target));
     }
 
-    private String getLevelTwoEffectTranslationKey(Holder<MobEffect> effect) {
+    private String getTargetEffectTranslationKey(BeaconEffectTarget target) {
+        Holder<MobEffect> effect = target.effect();
         if (effect.equals(MobEffects.HASTE)) {
             return "quickcraft.beacon.effect.haste2";
         }
@@ -697,7 +713,9 @@ public final class QuickBeacon implements ClientModInitializer {
             return "quickcraft.beacon.effect.strength2";
         }
         if (effect.equals(MobEffects.REGENERATION)) {
-            return "quickcraft.beacon.effect.regeneration2";
+            return target.minimumAmplifier() >= 1
+                    ? "quickcraft.beacon.effect.regeneration2"
+                    : "quickcraft.beacon.effect.regeneration1";
         }
         if (effect.equals(MobEffects.JUMP_BOOST)) {
             return "quickcraft.beacon.effect.jump_boost2";
@@ -776,10 +794,22 @@ public final class QuickBeacon implements ClientModInitializer {
 
     private record BeaconEffectTarget(
             Holder<MobEffect> primary,
-            Holder<MobEffect> secondary
+            Holder<MobEffect> secondary,
+            Holder<MobEffect> effect,
+            int minimumAmplifier
     ) {
         private static BeaconEffectTarget levelTwo(Holder<MobEffect> effect) {
-            return new BeaconEffectTarget(effect, effect);
+            return new BeaconEffectTarget(effect, effect, effect, 1);
+        }
+
+        private static BeaconEffectTarget regeneration(boolean levelTwo) {
+            return levelTwo
+                    ? levelTwo(MobEffects.REGENERATION)
+                    : new BeaconEffectTarget(MobEffects.HASTE, MobEffects.REGENERATION, MobEffects.REGENERATION, 0);
+        }
+
+        private boolean matchesSelection(Holder<MobEffect> primary, Holder<MobEffect> secondary) {
+            return this.primary.equals(primary) && this.secondary.equals(secondary);
         }
     }
 

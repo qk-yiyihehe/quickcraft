@@ -25,6 +25,7 @@ import fi.dy.masa.malilib.util.StringUtils;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.Locale;
 
 /**
  * QuickCraft 的 malilib 配置定义与持久化。
@@ -275,7 +276,7 @@ public final class QuickCraftConfigs implements IConfigHandler {
                 ImmutableList.of(
                         "急迫2",
                         "力量2",
-                        "生命恢复2",
+                        "生命恢复1",
                         "跳跃提升2",
                         "迅捷2",
                         "抗性提升2"
@@ -928,6 +929,7 @@ public final class QuickCraftConfigs implements IConfigHandler {
         ConfigUtils.readConfigBase(root, "ProjectionTools", ProjectionTools.OPTIONS);
         ConfigUtils.readConfigBase(root, "ModSupport", ModSupport.OPTIONS);
         ConfigUtils.readConfigBase(root, "Hotkeys", Hotkeys.OPTIONS);
+        migrateBeaconRegenerationLevelName();
 
         JsonObject containerTools = root.getAsJsonObject("ContainerTools");
         if (containerTools != null) {
@@ -957,6 +959,30 @@ public final class QuickCraftConfigs implements IConfigHandler {
             return enabled != null && enabled.isJsonPrimitive() && enabled.getAsBoolean();
         }
         return false;
+    }
+
+    private static void migrateBeaconRegenerationLevelName() {
+        List<String> current = ContainerTools.BEACON_EFFECT_ORDER.getStrings();
+        List<String> migrated = current.stream()
+                .map(QuickCraftConfigs::migrateBeaconRegenerationLevelName)
+                .toList();
+        if (!current.equals(migrated)) {
+            ContainerTools.BEACON_EFFECT_ORDER.setStrings(migrated);
+        }
+    }
+
+    private static String migrateBeaconRegenerationLevelName(String raw) {
+        String normalized = raw.trim()
+                .toLowerCase(Locale.ROOT)
+                .replace("minecraft:", "")
+                .replace(" ", "")
+                .replace("_", "")
+                .replace("-", "");
+        return switch (normalized) {
+            case "regeneration2", "regenerationii", "regen2", "regenii" -> "regeneration1";
+            case "生命恢复2", "生命恢复ii", "恢复2", "恢复ii" -> "生命恢复1";
+            default -> raw;
+        };
     }
 
     public static void saveToFile() {

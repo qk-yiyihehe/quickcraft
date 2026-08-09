@@ -9,6 +9,7 @@
 		"AnvilRenameTextFieldMixin",
 		"AnvilScreenMixin",
 		"BeaconBlockEntityAccessor",
+		"BeaconBlockEntityValidationMixin",
 		"CraftActionButtonMixin",
 		"CraftActionButtonBackpackMixin",
 		"CraftActionButtonStonecutterMixin",
