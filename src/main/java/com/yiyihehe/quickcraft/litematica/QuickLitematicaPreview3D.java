@@ -704,7 +704,6 @@ public final class QuickLitematicaPreview3D {
                                 entity.y(),
                                 entity.z(),
                                 entity.entity().getYaw(0.0F),
-                                0.0F,
                                 matrices,
                                 collector,
                                 entity.light()
@@ -798,7 +797,7 @@ public final class QuickLitematicaPreview3D {
             try {
                 Files.createDirectories(outputDirectory);
                 outputPath = this.nextOutputPath(outputDirectory, resolution);
-                framebuffer = new SimpleFramebuffer(resolution, resolution, true, MinecraftClient.IS_SYSTEM_MAC);
+                framebuffer = new SimpleFramebuffer(resolution, resolution, true);
                 RenderSystem.colorMask(true, true, true, true);
                 framebuffer.setClearColor(
                         ((backgroundColor >> 16) & 0xFF) / 255.0F,
@@ -806,7 +805,7 @@ public final class QuickLitematicaPreview3D {
                         (backgroundColor & 0xFF) / 255.0F,
                         ((backgroundColor >>> 24) & 0xFF) / 255.0F
                 );
-                framebuffer.clear(MinecraftClient.IS_SYSTEM_MAC);
+                framebuffer.clear();
                 this.renderSnapshot(framebuffer, data, drag, ((backgroundColor >>> 24) & 0xFF) == 0xFF);
                 image = takeSnapshot(framebuffer);
             } catch (Throwable ignored) {
@@ -845,7 +844,7 @@ public final class QuickLitematicaPreview3D {
             RenderSystem.backupProjectionMatrix();
             RenderSystem.setProjectionMatrix(
                     new Matrix4f().setOrtho(-1.0F, 1.0F, -1.0F, 1.0F, -1000.0F, 3000.0F),
-                    VertexSorter.BY_Z
+                    ProjectionType.ORTHOGRAPHIC
             );
             RenderSystem.enableDepthTest();
             RenderSystem.enableBlend();
@@ -867,8 +866,6 @@ public final class QuickLitematicaPreview3D {
                 float scale = (float) (2.0 * PREVIEW_FIT_PADDING / Math.max(1.0, diagonal)) * drag.scale;
                 modelView.scale(scale, scale, scale);
                 modelView.translate(-data.sizeX() / 2.0F, -data.sizeY() / 2.0F, -data.sizeZ() / 2.0F);
-                RenderSystem.applyModelViewMatrix();
-
                 this.applyLight(modelView);
                 framebuffer.beginWrite(true);
                 if (this.dynamicBuffersReady) {
@@ -878,7 +875,6 @@ public final class QuickLitematicaPreview3D {
             } finally {
                 RenderSystem.colorMask(true, true, true, true);
                 modelView.popMatrix();
-                RenderSystem.applyModelViewMatrix();
                 RenderSystem.disableDepthTest();
                 RenderSystem.disableBlend();
                 RenderSystem.restoreProjectionMatrix();
@@ -1122,10 +1118,10 @@ public final class QuickLitematicaPreview3D {
                                 continue;
                             }
                             if (meshBuilder.layer().isTranslucent()) {
-                                built.sortQuads(meshBuilder.allocator(), RenderSystem.getVertexSorting());
+                                built.sortQuads(meshBuilder.allocator(), VertexSorter.byDistance(0.0F, 0.0F, 1000.0F));
                             }
 
-                            VertexBuffer buffer = new VertexBuffer(VertexBuffer.Usage.STATIC);
+                            VertexBuffer buffer = new VertexBuffer(GlUsage.STATIC_WRITE);
                             try {
                                 buffer.bind();
                                 buffer.upload(built);
