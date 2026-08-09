@@ -308,10 +308,50 @@ public final class QuickCraftConfigs implements IConfigHandler {
                 true,
                 ""
         ).apply(PROJECTION_TRANSLATION_PREFIX);
-        public static final ConfigBooleanHotkeyed ALLOW_EASY_PLACE_OPEN_CONTAINERS = new ConfigBooleanHotkeyed(
+        public static final ConfigBooleanHotkeyed ALLOW_EASY_PLACE_VANILLA_INTERACTIONS = new ConfigBooleanHotkeyed(
                 "allowEasyPlaceOpenContainers",
                 false,
                 ""
+        ).apply(PROJECTION_TRANSLATION_PREFIX);
+        public static final ConfigBoolean ALLOW_EASY_PLACE_INTERACTION_SCREENS = new ConfigBoolean(
+                "allowEasyPlaceInteractionScreens",
+                true
+        ).apply(PROJECTION_TRANSLATION_PREFIX);
+        public static final ConfigBoolean ALLOW_EASY_PLACE_REDSTONE_INTERACTIONS = new ConfigBoolean(
+                "allowEasyPlaceRedstoneInteractions",
+                true
+        ).apply(PROJECTION_TRANSLATION_PREFIX);
+        public static final ConfigBoolean ALLOW_EASY_PLACE_FUNCTIONAL_BLOCK_INTERACTIONS = new ConfigBoolean(
+                "allowEasyPlaceFunctionalBlockInteractions",
+                true
+        ).apply(PROJECTION_TRANSLATION_PREFIX);
+        public static final ConfigBoolean ALLOW_EASY_PLACE_FLUID_INTERACTIONS = new ConfigBoolean(
+                "allowEasyPlaceFluidInteractions",
+                true
+        ).apply(PROJECTION_TRANSLATION_PREFIX);
+        public static final ConfigBoolean ALLOW_EASY_PLACE_TOOL_INTERACTIONS = new ConfigBoolean(
+                "allowEasyPlaceToolInteractions",
+                true
+        ).apply(PROJECTION_TRANSLATION_PREFIX);
+        public static final ConfigBoolean ALLOW_EASY_PLACE_DECORATION_INTERACTIONS = new ConfigBoolean(
+                "allowEasyPlaceDecorationInteractions",
+                true
+        ).apply(PROJECTION_TRANSLATION_PREFIX);
+        public static final ConfigBoolean ALLOW_EASY_PLACE_SURVIVAL_INTERACTIONS = new ConfigBoolean(
+                "allowEasyPlaceSurvivalInteractions",
+                true
+        ).apply(PROJECTION_TRANSLATION_PREFIX);
+        public static final ConfigBoolean ALLOW_EASY_PLACE_SPECIAL_INTERACTIONS = new ConfigBoolean(
+                "allowEasyPlaceSpecialInteractions",
+                true
+        ).apply(PROJECTION_TRANSLATION_PREFIX);
+        public static final ConfigBoolean ALLOW_EASY_PLACE_DANGEROUS_INTERACTIONS = new ConfigBoolean(
+                "allowEasyPlaceDangerousInteractions",
+                false
+        ).apply(PROJECTION_TRANSLATION_PREFIX);
+        public static final ConfigBoolean ALLOW_EASY_PLACE_ADMIN_INTERACTIONS = new ConfigBoolean(
+                "allowEasyPlaceAdminInteractions",
+                false
         ).apply(PROJECTION_TRANSLATION_PREFIX);
         public static final ConfigBooleanHotkeyed HOLD_EASY_PLACE = new ConfigBooleanHotkeyed(
                 "holdEasyPlace",
@@ -427,7 +467,17 @@ public final class QuickCraftConfigs implements IConfigHandler {
         ).apply(PROJECTION_TRANSLATION_PREFIX);
         public static final List<IConfigBase> OPTIONS = List.of(
                 SHOW_LITEMATICA_3D_PREVIEW,
-                ALLOW_EASY_PLACE_OPEN_CONTAINERS,
+                ALLOW_EASY_PLACE_VANILLA_INTERACTIONS,
+                ALLOW_EASY_PLACE_INTERACTION_SCREENS,
+                ALLOW_EASY_PLACE_REDSTONE_INTERACTIONS,
+                ALLOW_EASY_PLACE_FUNCTIONAL_BLOCK_INTERACTIONS,
+                ALLOW_EASY_PLACE_FLUID_INTERACTIONS,
+                ALLOW_EASY_PLACE_TOOL_INTERACTIONS,
+                ALLOW_EASY_PLACE_DECORATION_INTERACTIONS,
+                ALLOW_EASY_PLACE_SURVIVAL_INTERACTIONS,
+                ALLOW_EASY_PLACE_SPECIAL_INTERACTIONS,
+                ALLOW_EASY_PLACE_DANGEROUS_INTERACTIONS,
+                ALLOW_EASY_PLACE_ADMIN_INTERACTIONS,
                 HOLD_EASY_PLACE,
                 HOLD_EASY_PLACE_CACHE_TIME_MS,
                 SHOW_LITEMATICA_SCHEMATIC_FOLDER_BUTTON,
@@ -603,7 +653,7 @@ public final class QuickCraftConfigs implements IConfigHandler {
                 ContainerTools.ENABLE_CONTAINER_TOOL_MODE,
                 ContainerTools.ENABLE_QUICK_BEACON,
                 ProjectionTools.SHOW_LITEMATICA_3D_PREVIEW,
-                ProjectionTools.ALLOW_EASY_PLACE_OPEN_CONTAINERS,
+                ProjectionTools.ALLOW_EASY_PLACE_VANILLA_INTERACTIONS,
                 ProjectionTools.HOLD_EASY_PLACE,
                 ProjectionTools.SHOW_LITEMATICA_SCHEMATIC_FOLDER_BUTTON,
                 ProjectionTools.SHOW_LITEMATICA_CONTAINER_MATERIAL_BUTTON,
@@ -651,7 +701,7 @@ public final class QuickCraftConfigs implements IConfigHandler {
                 ContainerTools.ENABLE_CONTAINER_TOOL_MODE,
                 ContainerTools.ENABLE_QUICK_BEACON,
                 ProjectionTools.SHOW_LITEMATICA_3D_PREVIEW,
-                ProjectionTools.ALLOW_EASY_PLACE_OPEN_CONTAINERS,
+                ProjectionTools.ALLOW_EASY_PLACE_VANILLA_INTERACTIONS,
                 ProjectionTools.HOLD_EASY_PLACE,
                 ProjectionTools.SHOW_LITEMATICA_SCHEMATIC_FOLDER_BUTTON,
                 ProjectionTools.SHOW_LITEMATICA_CONTAINER_MATERIAL_BUTTON,
@@ -847,8 +897,48 @@ public final class QuickCraftConfigs implements IConfigHandler {
     public static boolean areManualLockedSlotInteractionsAllowed() {
         return ContainerTools.ALLOW_MANUAL_LOCKED_SLOT_INTERACTION.getBooleanValue();
     }
-    public static boolean isEasyPlaceOpenContainersAllowed() {
-        return ProjectionTools.ALLOW_EASY_PLACE_OPEN_CONTAINERS.getBooleanValue();
+    public static boolean areEasyPlaceVanillaInteractionsAllowed() {
+        return ProjectionTools.ALLOW_EASY_PLACE_VANILLA_INTERACTIONS.getBooleanValue();
+    }
+
+    public static boolean areEasyPlaceInteractionScreensAllowed() {
+        return ProjectionTools.ALLOW_EASY_PLACE_INTERACTION_SCREENS.getBooleanValue();
+    }
+
+    public static boolean areEasyPlaceRedstoneInteractionsAllowed() {
+        return ProjectionTools.ALLOW_EASY_PLACE_REDSTONE_INTERACTIONS.getBooleanValue();
+    }
+
+    public static boolean areEasyPlaceFunctionalBlockInteractionsAllowed() {
+        return ProjectionTools.ALLOW_EASY_PLACE_FUNCTIONAL_BLOCK_INTERACTIONS.getBooleanValue();
+    }
+
+    public static boolean areEasyPlaceFluidInteractionsAllowed() {
+        return ProjectionTools.ALLOW_EASY_PLACE_FLUID_INTERACTIONS.getBooleanValue();
+    }
+
+    public static boolean areEasyPlaceToolInteractionsAllowed() {
+        return ProjectionTools.ALLOW_EASY_PLACE_TOOL_INTERACTIONS.getBooleanValue();
+    }
+
+    public static boolean areEasyPlaceDecorationInteractionsAllowed() {
+        return ProjectionTools.ALLOW_EASY_PLACE_DECORATION_INTERACTIONS.getBooleanValue();
+    }
+
+    public static boolean areEasyPlaceSurvivalInteractionsAllowed() {
+        return ProjectionTools.ALLOW_EASY_PLACE_SURVIVAL_INTERACTIONS.getBooleanValue();
+    }
+
+    public static boolean areEasyPlaceSpecialInteractionsAllowed() {
+        return ProjectionTools.ALLOW_EASY_PLACE_SPECIAL_INTERACTIONS.getBooleanValue();
+    }
+
+    public static boolean areEasyPlaceDangerousInteractionsAllowed() {
+        return ProjectionTools.ALLOW_EASY_PLACE_DANGEROUS_INTERACTIONS.getBooleanValue();
+    }
+
+    public static boolean areEasyPlaceAdminInteractionsAllowed() {
+        return ProjectionTools.ALLOW_EASY_PLACE_ADMIN_INTERACTIONS.getBooleanValue();
     }
 
     public static boolean isHoldEasyPlaceEnabled() {
