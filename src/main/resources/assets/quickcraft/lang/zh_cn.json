@@ -224,6 +224,7 @@
   "quickcraft.message.separator": "，",
   "quickcraft.button.container_lock.lock": "锁",
   "quickcraft.button.container_lock.unlock": "开",
+  "quickcraft.button.container_lock.tooltip": "锁定/解锁整个容器",
   "quickcraft.action.sort": "整理",
   "quickcraft.message.container_lock.locked": "QuickCraft: 已锁定当前容器",
   "quickcraft.message.container_lock.unlocked": "QuickCraft: 已取消容器锁定",
