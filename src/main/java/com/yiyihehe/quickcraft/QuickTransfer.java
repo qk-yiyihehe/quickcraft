@@ -8,7 +8,6 @@ import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.gui.Element;
-import net.minecraft.client.gui.screen.Screen;
 import net.minecraft.client.gui.screen.ingame.CreativeInventoryScreen;
 import net.minecraft.client.gui.screen.ingame.HandledScreen;
 import net.minecraft.client.gui.widget.TextFieldWidget;
@@ -137,10 +136,10 @@ public final class QuickTransfer implements ClientModInitializer {
         }
 
         boolean moveToOtherInventory = verticalAmount > 0;
-        if (Screen.hasShiftDown()) {
+        if (client.isShiftPressed()) {
             return moveFullStackByScroll(screen, hoveredSlot, moveToOtherInventory);
         }
-        if (Screen.hasAltDown()) {
+        if (client.isAltPressed()) {
             return moveMatchingStacksByScroll(screen, hoveredSlot, moveToOtherInventory);
         }
         return moveSingleItemByScroll(screen, hoveredSlot, moveToOtherInventory);
