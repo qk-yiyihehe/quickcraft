@@ -24,8 +24,10 @@ import fi.dy.masa.malilib.util.StringUtils;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 
 /**
  * QuickCraft 的 malilib 配置定义与持久化。
@@ -40,6 +42,8 @@ public final class QuickCraftConfigs implements IConfigHandler {
     private static final String PROJECTION_TRANSLATION_PREFIX = QuickCraft.MOD_ID + ".config.projection_tools";
     private static final String MOD_SUPPORT_TRANSLATION_PREFIX = QuickCraft.MOD_ID + ".config.mod_support";
     private static final String HOTKEY_TRANSLATION_PREFIX = QuickCraft.MOD_ID + ".config.hotkeys";
+    private static final String BUTTON_POSITIONS_KEY = "ButtonPositions";
+    private static final Map<String, ButtonOffset> BUTTON_OFFSETS = new HashMap<>();
 
     public static final int DEFAULT_CRAFT_LOOPS_PER_TICK = 20;
     public static final int MIN_CRAFT_LOOPS_PER_TICK = 1;
@@ -537,6 +541,10 @@ public final class QuickCraftConfigs implements IConfigHandler {
                 "enableOpenConfigHotkey",
                 true
         ).apply(HOTKEY_TRANSLATION_PREFIX);
+        public static final ConfigBoolean ENABLE_ACTION_BUTTON_DRAGGING = new ConfigBoolean(
+                "enableActionButtonDragging",
+                false
+        ).apply(HOTKEY_TRANSLATION_PREFIX);
         public static final ConfigHotkey OPEN_CONFIG = new ConfigHotkey(
                 "openConfigHotkey",
                 "O",
@@ -604,6 +612,7 @@ public final class QuickCraftConfigs implements IConfigHandler {
         ).apply(HOTKEY_TRANSLATION_PREFIX);
         public static final List<IConfigBase> OPTIONS = List.of(
                 ENABLE_OPEN_CONFIG_HOTKEY,
+                ENABLE_ACTION_BUTTON_DRAGGING,
                 OPEN_CONFIG,
                 SINGLE_CRAFT,
                 RAPID_CRAFT,
@@ -999,6 +1008,26 @@ public final class QuickCraftConfigs implements IConfigHandler {
         return Hotkeys.ENABLE_OPEN_CONFIG_HOTKEY.getBooleanValue();
     }
 
+    public static boolean isActionButtonDraggingEnabled() {
+        return Hotkeys.ENABLE_ACTION_BUTTON_DRAGGING.getBooleanValue();
+    }
+
+    public static ButtonOffset getActionButtonOffset(String key) {
+        return BUTTON_OFFSETS.getOrDefault(key, ButtonOffset.ZERO);
+    }
+
+    public static void setActionButtonOffset(String key, int x, int y) {
+        if (x == 0 && y == 0) {
+            BUTTON_OFFSETS.remove(key);
+        } else {
+            BUTTON_OFFSETS.put(key, new ButtonOffset(x, y));
+        }
+    }
+
+    public static void resetActionButtonOffset(String key) {
+        BUTTON_OFFSETS.remove(key);
+    }
+
     public static IKeybind getSingleCraftHotkey() {
         return Hotkeys.SINGLE_CRAFT.getKeybind();
     }
@@ -1012,6 +1041,7 @@ public final class QuickCraftConfigs implements IConfigHandler {
     }
 
     public static void loadFromFile() {
+        BUTTON_OFFSETS.clear();
         Path configFile = FileUtils.getConfigDirectory().resolve(CONFIG_FILE_NAME);
 
         if (!Files.exists(configFile) || !Files.isReadable(configFile)) {
@@ -1030,6 +1060,7 @@ public final class QuickCraftConfigs implements IConfigHandler {
         ConfigUtils.readConfigBase(root, "ModSupport", ModSupport.OPTIONS);
         ConfigUtils.readConfigBase(root, "Hotkeys", Hotkeys.OPTIONS);
         migrateBeaconRegenerationLevelName();
+        readButtonPositions(root);
 
         JsonObject containerTools = root.getAsJsonObject("ContainerTools");
         if (containerTools != null) {
@@ -1100,7 +1131,44 @@ public final class QuickCraftConfigs implements IConfigHandler {
         ConfigUtils.writeConfigBase(root, "ProjectionTools", ProjectionTools.OPTIONS);
         ConfigUtils.writeConfigBase(root, "ModSupport", ModSupport.OPTIONS);
         ConfigUtils.writeConfigBase(root, "Hotkeys", Hotkeys.OPTIONS);
+        writeButtonPositions(root);
         JsonUtils.writeJsonToFile(root, dir.resolve(CONFIG_FILE_NAME));
+    }
+
+    private static void readButtonPositions(JsonObject root) {
+        BUTTON_OFFSETS.clear();
+        JsonObject positions = root.getAsJsonObject(BUTTON_POSITIONS_KEY);
+        if (positions == null) {
+            return;
+        }
+        for (Map.Entry<String, JsonElement> entry : positions.entrySet()) {
+            if (!entry.getValue().isJsonObject()) {
+                continue;
+            }
+            JsonObject offset = entry.getValue().getAsJsonObject();
+            JsonElement x = offset.get("x");
+            JsonElement y = offset.get("y");
+            if (x != null && y != null
+                    && x.isJsonPrimitive() && x.getAsJsonPrimitive().isNumber()
+                    && y.isJsonPrimitive() && y.getAsJsonPrimitive().isNumber()) {
+                BUTTON_OFFSETS.put(entry.getKey(), new ButtonOffset(x.getAsInt(), y.getAsInt()));
+            }
+        }
+    }
+
+    private static void writeButtonPositions(JsonObject root) {
+        JsonObject positions = new JsonObject();
+        BUTTON_OFFSETS.forEach((key, offset) -> {
+            JsonObject value = new JsonObject();
+            value.addProperty("x", offset.x());
+            value.addProperty("y", offset.y());
+            positions.add(key, value);
+        });
+        root.add(BUTTON_POSITIONS_KEY, positions);
+    }
+
+    public record ButtonOffset(int x, int y) {
+        private static final ButtonOffset ZERO = new ButtonOffset(0, 0);
     }
 
     private static void applyLegacyContainerToolMappings(JsonObject containerTools) {

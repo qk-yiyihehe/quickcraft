@@ -4,8 +4,8 @@ import com.yiyihehe.quickcraft.QuickContainerLock;
 import com.yiyihehe.quickcraft.QuickStash;
 import com.yiyihehe.quickcraft.config.QuickCraftConfigs;
 import com.yiyihehe.quickcraft.render.QuickContainerLockButton;
+import com.yiyihehe.quickcraft.render.QuickDraggableButton;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
-import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.components.Tooltip;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 import net.minecraft.client.gui.screens.inventory.ShulkerBoxScreen;
@@ -28,7 +28,7 @@ public abstract class ShulkerBoxScreenMixin extends AbstractContainerScreen<Shul
     private QuickContainerLockButton quickcraft$lockButton;
 
     @Unique
-    private Button quickcraft$stashButton;
+    private QuickDraggableButton quickcraft$stashButton;
 
     protected ShulkerBoxScreenMixin(ShulkerBoxMenu handler, Inventory inventory, Component title) {
         super(handler, inventory, title);
@@ -60,6 +60,7 @@ public abstract class ShulkerBoxScreenMixin extends AbstractContainerScreen<Shul
         this.quickcraft$lockButton = this.addRenderableWidget(new QuickContainerLockButton(buttonX, buttonY, button -> {
                     QuickContainerLock.toggleCurrentScreenLock(client, this);
                 }, () -> QuickContainerLock.isCurrentScreenLocked(this),
+                QuickDraggableButton.PositionKey.CONTAINER_LOCK,
                 Component.translatable("quickcraft.button.container_lock.tooltip")));
         this.quickcraft$syncLockButtonPosition();
     }
@@ -71,8 +72,7 @@ public abstract class ShulkerBoxScreenMixin extends AbstractContainerScreen<Shul
         }
 
         this.quickcraft$lockButton.visible = true;
-        this.quickcraft$lockButton.setX(this.leftPos + this.imageWidth - 16);
-        this.quickcraft$lockButton.setY(this.topPos + 5);
+        this.quickcraft$lockButton.setDefaultPosition(this.leftPos + this.imageWidth - 16, this.topPos + 5);
     }
 
     @Unique
@@ -84,14 +84,18 @@ public abstract class ShulkerBoxScreenMixin extends AbstractContainerScreen<Shul
             return;
         }
         if (this.quickcraft$stashButton == null || !this.children().contains(this.quickcraft$stashButton)) {
-            this.quickcraft$stashButton = this.addRenderableWidget(Button.builder(Component.literal("↑"), button ->
-                             QuickStash.stashFromButton(this))
-                    .bounds(this.leftPos + this.imageWidth - 30, this.topPos + 5, 12, 12)
-                    .build());
+            this.quickcraft$stashButton = this.addRenderableWidget(new QuickDraggableButton(
+                    this.leftPos + this.imageWidth - 30,
+                    this.topPos + 5,
+                    12,
+                    12,
+                    Component.literal("↑"),
+                    button -> QuickStash.stashFromButton(this),
+                    QuickDraggableButton.PositionKey.QUICK_STASH
+            ));
         }
         this.quickcraft$stashButton.visible = true;
-        this.quickcraft$stashButton.setX(this.leftPos + this.imageWidth - 30);
-        this.quickcraft$stashButton.setY(this.topPos + 5);
+        this.quickcraft$stashButton.setDefaultPosition(this.leftPos + this.imageWidth - 30, this.topPos + 5);
         this.quickcraft$stashButton.setTooltip(Tooltip.create(
                 Component.translatable("quickcraft.button.quick_stash")));
     }

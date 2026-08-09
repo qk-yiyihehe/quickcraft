@@ -1,7 +1,6 @@
 package com.yiyihehe.quickcraft.render;
 
 import net.minecraft.client.gui.GuiGraphicsExtractor;
-import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.components.Tooltip;
 import net.minecraft.client.renderer.RenderPipelines;
 import net.minecraft.network.chat.Component;
@@ -10,13 +9,14 @@ import net.minecraft.resources.Identifier;
 import java.util.function.BooleanSupplier;
 
 /** Icon-only button for locking or unlocking the entire current container. */
-public final class QuickContainerLockButton extends Button {
+public final class QuickContainerLockButton extends QuickDraggableButton {
     private static final Identifier LOCK_ICON = Identifier.fromNamespaceAndPath("quickcraft", "textures/gui/container_lock.png");
     private static final Identifier UNLOCK_ICON = Identifier.fromNamespaceAndPath("quickcraft", "textures/gui/container_unlock.png");
     private final BooleanSupplier locked;
 
-    public QuickContainerLockButton(int x, int y, OnPress onPress, BooleanSupplier locked, Component tooltip) {
-        super(x, y, 12, 12, Component.empty(), onPress, DEFAULT_NARRATION);
+    public QuickContainerLockButton(int x, int y, OnPress onPress, BooleanSupplier locked,
+                                    PositionKey positionKey, Component tooltip) {
+        super(x, y, 12, 12, Component.empty(), onPress, positionKey);
         this.locked = locked;
         this.setTooltip(Tooltip.create(tooltip));
     }
