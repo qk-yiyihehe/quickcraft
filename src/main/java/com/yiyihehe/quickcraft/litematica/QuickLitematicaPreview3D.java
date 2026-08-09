@@ -779,7 +779,7 @@ public final class QuickLitematicaPreview3D {
                 callback.accept(Text.translatable("quickcraft.litematica.preview_3d.export_dynamic_failed"));
                 return;
             }
-            if (data.vertexCount() > 0 && this.vertexBuffers.isEmpty()) {
+            if (data.vertexCount() > 0 && this.layerBuffers.isEmpty()) {
                 callback.accept(Text.translatable("quickcraft.litematica.preview_3d.export_failed"));
                 return;
             }
@@ -788,64 +788,57 @@ public final class QuickLitematicaPreview3D {
                 return;
             }
 
-            NativeImage image;
             Path outputPath;
-            Framebuffer framebuffer = null;
+            Framebuffer framebuffer;
             try {
                 Files.createDirectories(outputDirectory);
                 outputPath = this.nextOutputPath(outputDirectory, resolution);
-                framebuffer = new SimpleFramebuffer(resolution, resolution, true, MinecraftClient.IS_SYSTEM_MAC);
-                RenderSystem.colorMask(true, true, true, true);
-                framebuffer.setClearColor(
-                        ((backgroundColor >> 16) & 0xFF) / 255.0F,
-                        ((backgroundColor >> 8) & 0xFF) / 255.0F,
-                        (backgroundColor & 0xFF) / 255.0F,
-                        ((backgroundColor >>> 24) & 0xFF) / 255.0F
+                framebuffer = new SimpleFramebuffer("QuickCraft PNG export", resolution, resolution, true);
+                RenderSystem.getDevice().createCommandEncoder().clearColorAndDepthTextures(
+                        Objects.requireNonNull(framebuffer.getColorAttachment()),
+                        backgroundColor,
+                        Objects.requireNonNull(framebuffer.getDepthAttachment()),
+                        1.0D
                 );
-                framebuffer.clear(MinecraftClient.IS_SYSTEM_MAC);
-                this.renderSnapshot(framebuffer, data, drag, ((backgroundColor >>> 24) & 0xFF) == 0xFF);
-                image = takeSnapshot(framebuffer);
+                this.renderSnapshot(framebuffer, data, drag);
             } catch (Throwable ignored) {
                 this.exportInProgress.set(false);
                 callback.accept(Text.translatable("quickcraft.litematica.preview_3d.export_failed"));
                 return;
-            } finally {
-                try {
-                    if (framebuffer != null) {
-                        framebuffer.delete();
-                    }
-                } finally {
-                    MinecraftClient.getInstance().getFramebuffer().beginWrite(true);
-                }
             }
 
-            Util.getIoWorkerExecutor().execute(() -> {
-                try {
-                    image.writeTo(outputPath);
-                    MinecraftClient.getInstance().execute(() -> callback.accept(Text.translatable(
-                            "quickcraft.litematica.preview_3d.export_success",
-                            outputPath.getFileName().toString()
-                    )));
-                } catch (Exception ignored) {
-                    MinecraftClient.getInstance().execute(() -> callback.accept(Text.translatable(
-                            "quickcraft.litematica.preview_3d.export_failed"
-                    )));
-                } finally {
-                    image.close();
-                    this.exportInProgress.set(false);
-                }
+            boolean keepBackgroundOpaque = ((backgroundColor >>> 24) & 0xFF) == 0xFF;
+            copySnapshot(framebuffer, keepBackgroundOpaque, image -> {
+                framebuffer.delete();
+                Util.getIoWorkerExecutor().execute(() -> {
+                    try {
+                        image.writeTo(outputPath);
+                        MinecraftClient.getInstance().execute(() -> callback.accept(Text.translatable(
+                                "quickcraft.litematica.preview_3d.export_success",
+                                outputPath.getFileName().toString()
+                        )));
+                    } catch (Exception ignored) {
+                        MinecraftClient.getInstance().execute(() -> callback.accept(Text.translatable(
+                                "quickcraft.litematica.preview_3d.export_failed"
+                        )));
+                    } finally {
+                        image.close();
+                        this.exportInProgress.set(false);
+                    }
+                });
+            }, throwable -> {
+                framebuffer.delete();
+                this.exportInProgress.set(false);
+                callback.accept(Text.translatable("quickcraft.litematica.preview_3d.export_failed"));
             });
         }
 
-        private void renderSnapshot(Framebuffer framebuffer, MeshData data, DragState drag, boolean keepBackgroundOpaque) {
+        private void renderSnapshot(Framebuffer framebuffer, MeshData data, DragState drag) {
             RenderSystem.backupProjectionMatrix();
             RenderSystem.setProjectionMatrix(
                     new Matrix4f().setOrtho(-1.0F, 1.0F, -1.0F, 1.0F, -1000.0F, 3000.0F),
-                    VertexSorter.BY_Z
+                    ProjectionType.ORTHOGRAPHIC
             );
-            RenderSystem.enableDepthTest();
-            RenderSystem.enableBlend();
-            RenderSystem.defaultBlendFunc();
 
             Matrix4fStack modelView = RenderSystem.getModelViewStack();
             modelView.pushMatrix();
@@ -863,36 +856,55 @@ public final class QuickLitematicaPreview3D {
                 float scale = (float) (2.0 * PREVIEW_FIT_PADDING / Math.max(1.0, diagonal)) * drag.scale;
                 modelView.scale(scale, scale, scale);
                 modelView.translate(-data.sizeX() / 2.0F, -data.sizeY() / 2.0F, -data.sizeZ() / 2.0F);
-                RenderSystem.applyModelViewMatrix();
 
                 this.applyLight(modelView);
-                framebuffer.beginWrite(true);
                 if (this.dynamicBuffersReady) {
-                    this.drawDynamicBuffers(modelView, framebuffer, keepBackgroundOpaque);
+                    this.drawDynamicBuffers(modelView, framebuffer, false);
                 }
-                this.drawBuffers(modelView, framebuffer, keepBackgroundOpaque);
+                this.drawBuffers(modelView, framebuffer, false);
             } finally {
-                RenderSystem.colorMask(true, true, true, true);
                 modelView.popMatrix();
-                RenderSystem.applyModelViewMatrix();
-                RenderSystem.disableDepthTest();
-                RenderSystem.disableBlend();
                 RenderSystem.restoreProjectionMatrix();
             }
         }
 
-        private static NativeImage takeSnapshot(Framebuffer framebuffer) {
-            NativeImage image = new NativeImage(framebuffer.textureWidth, framebuffer.textureHeight, false);
-            try {
-                RenderSystem.bindTexture(framebuffer.getColorAttachment());
-                // 1.21 的 ScreenshotRecorder.takeScreenshot() 会强制把 Alpha 全部改成 255，透明导出必须直接读取纹理。
-                image.loadFromTextureImage(0, false);
-                image.mirrorVertically();
-                return image;
-            } catch (Throwable throwable) {
-                image.close();
-                throw throwable;
-            }
+        private static void copySnapshot(
+                Framebuffer framebuffer,
+                boolean keepBackgroundOpaque,
+                Consumer<NativeImage> callback,
+                Consumer<Throwable> errorCallback
+        ) {
+            var texture = Objects.requireNonNull(framebuffer.getColorAttachment());
+            int width = framebuffer.textureWidth;
+            int height = framebuffer.textureHeight;
+            GpuBuffer buffer = RenderSystem.getDevice().createBuffer(
+                    () -> "QuickCraft PNG readback",
+                    BufferType.PIXEL_PACK,
+                    BufferUsage.STATIC_READ,
+                    width * height * texture.getFormat().pixelSize()
+            );
+            var readEncoder = RenderSystem.getDevice().createCommandEncoder();
+            RenderSystem.getDevice().createCommandEncoder().copyTextureToBuffer(texture, buffer, 0, () -> {
+                try (GpuBuffer.ReadView view = readEncoder.readBuffer(buffer)) {
+                    NativeImage image = new NativeImage(width, height, false);
+                    try {
+                        for (int y = 0; y < height; y++) {
+                            for (int x = 0; x < width; x++) {
+                                int color = view.data().getInt((x + y * width) * texture.getFormat().pixelSize());
+                                image.setColor(x, height - y - 1, keepBackgroundOpaque ? color | 0xFF000000 : color);
+                            }
+                        }
+                        callback.accept(image);
+                    } catch (Throwable throwable) {
+                        image.close();
+                        throw throwable;
+                    }
+                } catch (Throwable throwable) {
+                    errorCallback.accept(throwable);
+                } finally {
+                    buffer.close();
+                }
+            }, 0);
         }
 
         private Path nextOutputPath(Path outputDirectory, int resolution) {
