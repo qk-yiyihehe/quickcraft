@@ -3,6 +3,9 @@ package com.yiyihehe.quickcraft.litematica;
 import com.mojang.blaze3d.buffers.GpuBuffer;
 import com.mojang.blaze3d.buffers.Std140Builder;
 import com.mojang.blaze3d.pipeline.RenderPipeline;
+import com.mojang.blaze3d.pipeline.RenderTarget;
+import com.mojang.blaze3d.pipeline.TextureTarget;
+import com.mojang.blaze3d.platform.NativeImage;
 import com.mojang.blaze3d.ProjectionType;
 import com.mojang.blaze3d.systems.RenderPass;
 import com.mojang.blaze3d.systems.RenderSystem;
@@ -35,6 +38,7 @@ import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.navigation.ScreenRectangle;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
+import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.gui.render.pip.PictureInPictureRenderer;
 import net.minecraft.client.renderer.state.gui.pip.PictureInPictureRenderState;
 import com.mojang.blaze3d.vertex.BufferBuilder;
@@ -51,6 +55,7 @@ import net.minecraft.client.renderer.MultiBufferSource;
 import com.mojang.blaze3d.vertex.DefaultVertexFormat;
 import net.minecraft.client.renderer.LevelRenderer;
 import net.minecraft.client.renderer.Projection;
+import net.minecraft.client.renderer.ProjectionMatrixBuffer;
 import net.minecraft.client.renderer.blockentity.BlockEntityRenderer;
 import net.minecraft.client.renderer.block.FluidRenderer;
 import net.minecraft.client.renderer.block.ModelBlockRenderer;
@@ -79,6 +84,7 @@ import net.minecraft.core.Holder;
 import net.minecraft.world.level.storage.TagValueInput;
 import net.minecraft.util.ProblemReporter;
 import net.minecraft.util.Util;
+import net.minecraft.network.chat.Component;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import com.mojang.math.Axis;
@@ -101,6 +107,7 @@ import java.io.BufferedOutputStream;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -125,6 +132,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Consumer;
 import java.util.zip.GZIPInputStream;
 import java.util.zip.GZIPOutputStream;
 
@@ -151,7 +159,7 @@ public final class QuickLitematicaPreview3D {
     private static final String CACHE_DIR_NAME = "litematica-preview-cache";
     private static final String CACHE_VERSION_FILE_NAME = "cache-version.txt";
     private static final String CACHE_RENDER_MARKER = "quickcraft-model-mesh-v18-float-uv-full-light-dynamic-render-state-mc26.1.2";
-    private static final int MAX_PREVIEW_SIZE = 512;
+    private static final int EXPAND_BUTTON_SIZE = 16;
     // 预算必须卡在构建阶段前面：顶点 packed 后仍会占用 CPU/GPU 大块连续内存。
     private static final int MAX_UPLOAD_VERTICES = 12_000_000;
     private static final int MAX_DYNAMIC_BLOCK_STATES = 300_000;
@@ -198,7 +206,7 @@ public final class QuickLitematicaPreview3D {
             old.close();
         }
 
-        Manager manager = new Manager();
+        Manager manager = new Manager(gui);
         MANAGERS.put(gui, manager);
         return manager;
     }
@@ -231,15 +239,28 @@ public final class QuickLitematicaPreview3D {
         private Preview current;
         @Nullable
         private Path currentPath;
+        @Nullable
+        private DirectoryEntry currentEntry;
         private final DragState drag = new DragState();
+        private final Screen owner;
         private int viewX;
         private int viewY;
         private int viewSize;
+        private boolean showExpandButton;
 
-        private Manager() {
+        private Manager(Screen owner) {
+            this.owner = owner;
         }
 
         private void render(@Nullable DirectoryEntry entry, GuiGraphicsExtractor drawContext, int x, int y, int size) {
+            this.render(entry, drawContext, x, y, size, true);
+        }
+
+        void renderFullscreen(DirectoryEntry entry, GuiGraphicsExtractor drawContext, int x, int y, int size) {
+            this.render(entry, drawContext, x, y, size, false);
+        }
+
+        private void render(@Nullable DirectoryEntry entry, GuiGraphicsExtractor drawContext, int x, int y, int size, boolean showExpandButton) {
             if (entry == null || !isSupportedLitematic(entry)) {
                 this.clearCurrent();
                 return;
@@ -247,8 +268,10 @@ public final class QuickLitematicaPreview3D {
 
             this.viewX = x;
             this.viewY = y;
-            this.viewSize = Math.max(1, Math.min(size, MAX_PREVIEW_SIZE));
+            this.viewSize = Math.max(1, size);
             this.drag.setViewport(this.viewX, this.viewY, this.viewSize);
+            this.currentEntry = entry;
+            this.showExpandButton = showExpandButton;
 
             Path path = entry.getFullPath().toAbsolutePath().normalize();
             if (!path.equals(this.currentPath)) {
@@ -258,6 +281,9 @@ public final class QuickLitematicaPreview3D {
             RenderUtils.drawOutlinedBox(GuiContext.fromGuiGraphics(drawContext), this.viewX, this.viewY, this.viewSize, this.viewSize, 0xB0101010, 0xFF707070);
             if (this.current != null) {
                 this.current.render(drawContext, this.viewX, this.viewY, this.viewSize, this.drag);
+            }
+            if (showExpandButton) {
+                this.drawExpandButton(drawContext);
             }
         }
 
@@ -291,8 +317,35 @@ public final class QuickLitematicaPreview3D {
                 return false;
             }
 
+            if (mouseButton == 0 && this.showExpandButton && this.isExpandButtonHovered(mouseX, mouseY) && this.currentEntry != null) {
+                Minecraft.getInstance().setScreen(new QuickLitematicaPreview3DScreen(this.owner, this.currentEntry, this));
+                return true;
+            }
+
             this.drag.click(mouseButton);
             return true;
+        }
+
+        void setPreset(double yawDegrees, double pitchDegrees) {
+            this.drag.setPreset(yawDegrees, pitchDegrees);
+        }
+
+        Path outputDirectory() {
+            return Minecraft.getInstance().gameDirectory.toPath().resolve("渲染图");
+        }
+
+        int recommendedExportResolution() {
+            Preview preview = this.current;
+            return preview == null ? 0 : preview.recommendedExportResolution();
+        }
+
+        void exportPng(int resolution, int backgroundColor, Consumer<Component> callback) {
+            Preview preview = this.current;
+            if (preview == null) {
+                callback.accept(Component.translatable("quickcraft.litematica.preview_3d.export_failed"));
+                return;
+            }
+            preview.exportPng(resolution, backgroundColor, this.drag, this.outputDirectory(), callback);
         }
 
         @Override
@@ -314,11 +367,33 @@ public final class QuickLitematicaPreview3D {
 
         private void clearCurrent() {
             this.currentPath = null;
+            this.currentEntry = null;
             if (this.current != null) {
                 this.current.close();
                 this.current = null;
             }
             this.drag.stop();
+        }
+
+        private void drawExpandButton(GuiGraphicsExtractor context) {
+            int x = this.viewX + this.viewSize - EXPAND_BUTTON_SIZE - 3;
+            int y = this.viewY + 3;
+            Minecraft client = Minecraft.getInstance();
+            double mouseX = client.mouseHandler.getScaledXPos(client.getWindow());
+            double mouseY = client.mouseHandler.getScaledYPos(client.getWindow());
+            int fill = this.isExpandButtonHovered(mouseX, mouseY) ? 0xE0505050 : 0xD0202020;
+            context.fill(x, y, x + EXPAND_BUTTON_SIZE, y + EXPAND_BUTTON_SIZE, fill);
+            context.outline(x, y, EXPAND_BUTTON_SIZE, EXPAND_BUTTON_SIZE, 0xFFB0B0B0);
+            context.centeredText(client.font, "⛶", x + EXPAND_BUTTON_SIZE / 2, y + 4, 0xFFFFFFFF);
+            if (this.isExpandButtonHovered(mouseX, mouseY)) {
+                context.setTooltipForNextFrame(client.font, Component.translatable("quickcraft.litematica.preview_3d.expand"), (int) mouseX, (int) mouseY);
+            }
+        }
+
+        private boolean isExpandButtonHovered(double mouseX, double mouseY) {
+            int x = this.viewX + this.viewSize - EXPAND_BUTTON_SIZE - 3;
+            int y = this.viewY + 3;
+            return mouseX >= x && mouseX < x + EXPAND_BUTTON_SIZE && mouseY >= y && mouseY < y + EXPAND_BUTTON_SIZE;
         }
 
         private void releasePreview() {
@@ -337,6 +412,8 @@ public final class QuickLitematicaPreview3D {
         private final long startedAtNanos = System.nanoTime();
         private final AtomicBoolean cancelled = new AtomicBoolean();
         private final Map<LayerKey, LayerBuffer> layerBuffers = new EnumMap<>(LayerKey.class);
+        private final Projection snapshotProjection = new Projection();
+        private final ProjectionMatrixBuffer snapshotProjectionBuffer = new ProjectionMatrixBuffer("QuickCraft PNG projection");
         @Nullable
         private GpuBuffer previewLightingBuffer;
         private volatile MeshData meshData;
@@ -348,6 +425,7 @@ public final class QuickLitematicaPreview3D {
         private boolean dynamicBuffersReady;
         private boolean dynamicBufferFallback;
         private boolean uploadScheduled;
+        private final AtomicBoolean exportInProgress = new AtomicBoolean();
 
         private Preview(Path sourcePath, Path cachePath, Path tmpPath) {
             this.sourcePath = sourcePath;
@@ -788,6 +866,7 @@ public final class QuickLitematicaPreview3D {
             if (this.previewLightingBuffer != null && !this.previewLightingBuffer.isClosed()) {
                 this.previewLightingBuffer.close();
             }
+            this.snapshotProjectionBuffer.close();
         }
 
         private void prepareDynamicBuffers(MeshData data) {
@@ -869,6 +948,179 @@ public final class QuickLitematicaPreview3D {
             for (DynamicLayerBuffer layerBuffer : this.dynamicBuffers) {
                 drawLayerBuffer(layerBuffer.layer(), layerBuffer.buffer(), modelView);
             }
+        }
+
+        private int recommendedExportResolution() {
+            MeshData data = this.meshData;
+            if (data == null) return 0;
+            long target = 4L * Math.max(data.sizeX(), Math.max(data.sizeY(), data.sizeZ()));
+            if (target <= 512) return 512;
+            if (target <= 1024) return 1024;
+            if (target <= 2048) return 2048;
+            if (target <= 4096) return 4096;
+            return 8192;
+        }
+
+        private void exportPng(int resolution, int backgroundColor, DragState drag, Path outputDirectory, Consumer<Component> callback) {
+            MeshData data = this.meshData;
+            if (this.state != State.READY || data == null) {
+                callback.accept(Component.translatable("quickcraft.litematica.preview_3d.export_not_ready"));
+                return;
+            }
+
+            this.uploadIfNeeded();
+            this.prepareDynamicBuffers(data);
+            if (data.hasDynamicContent() && !this.dynamicBuffersReady) {
+                callback.accept(Component.translatable("quickcraft.litematica.preview_3d.export_dynamic_failed"));
+                return;
+            }
+            if (!this.exportInProgress.compareAndSet(false, true)) {
+                callback.accept(Component.translatable("quickcraft.litematica.preview_3d.exporting"));
+                return;
+            }
+
+            Path outputPath;
+            RenderTarget framebuffer;
+            try {
+                Files.createDirectories(outputDirectory);
+                outputPath = this.nextOutputPath(outputDirectory, resolution);
+                framebuffer = new TextureTarget("QuickCraft PNG export", resolution, resolution, true);
+                RenderSystem.getDevice().createCommandEncoder().clearColorAndDepthTextures(
+                        Objects.requireNonNull(framebuffer.getColorTexture()),
+                        backgroundColor,
+                        Objects.requireNonNull(framebuffer.getDepthTexture()),
+                        1.0D
+                );
+                this.renderSnapshot(framebuffer, data, drag);
+            } catch (Throwable ignored) {
+                this.exportInProgress.set(false);
+                callback.accept(Component.translatable("quickcraft.litematica.preview_3d.export_failed"));
+                return;
+            }
+
+            boolean keepBackgroundOpaque = ((backgroundColor >>> 24) & 0xFF) == 0xFF;
+            copySnapshot(framebuffer, keepBackgroundOpaque, image -> Util.ioPool().execute(() -> {
+                try {
+                    image.writeToFile(outputPath);
+                    Minecraft.getInstance().execute(() -> callback.accept(Component.translatable(
+                            "quickcraft.litematica.preview_3d.export_success", outputPath.getFileName().toString()
+                    )));
+                } catch (Exception ignored) {
+                    Minecraft.getInstance().execute(() -> callback.accept(Component.translatable("quickcraft.litematica.preview_3d.export_failed")));
+                } finally {
+                    image.close();
+                    this.exportInProgress.set(false);
+                }
+            }), throwable -> {
+                this.exportInProgress.set(false);
+                callback.accept(Component.translatable("quickcraft.litematica.preview_3d.export_failed"));
+            });
+        }
+
+        private void renderSnapshot(RenderTarget framebuffer, MeshData data, DragState drag) {
+            var previousColorTarget = RenderSystem.outputColorTextureOverride;
+            var previousDepthTarget = RenderSystem.outputDepthTextureOverride;
+            var previousLights = RenderSystem.getShaderLights();
+            RenderSystem.outputColorTextureOverride = framebuffer.getColorTextureView();
+            RenderSystem.outputDepthTextureOverride = framebuffer.getDepthTextureView();
+            RenderSystem.backupProjectionMatrix();
+            this.snapshotProjection.setupOrtho(-1000.0F, 1000.0F, framebuffer.width, framebuffer.height, true);
+            RenderSystem.setProjectionMatrix(this.snapshotProjectionBuffer.getBuffer(this.snapshotProjection), ProjectionType.ORTHOGRAPHIC);
+
+            PoseStack matrices = new PoseStack();
+            try {
+                matrices.translate(framebuffer.width / 2.0F, framebuffer.height / 2.0F, 0.0F);
+                matrices.scale(1.0F, -1.0F, 1.0F);
+                float viewportSize = Math.max(1, drag.size);
+                matrices.translate(drag.dx * framebuffer.width / viewportSize, -drag.dy * framebuffer.height / viewportSize, 0.0F);
+                matrices.mulPose(Axis.XP.rotation(drag.pitch));
+                matrices.mulPose(Axis.YP.rotation((float) drag.angle));
+                double diagonal = Math.sqrt(
+                        (double) data.sizeX() * data.sizeX()
+                                + (double) data.sizeY() * data.sizeY()
+                                + (double) data.sizeZ() * data.sizeZ()
+                );
+                float scale = (float) (PREVIEW_FIT_PADDING * framebuffer.width / Math.max(1.0, diagonal)) * drag.scale;
+                matrices.scale(scale, scale, scale);
+                matrices.translate(-data.sizeX() / 2.0F, -data.sizeY() / 2.0F, -data.sizeZ() / 2.0F);
+                Matrix4f modelView = new Matrix4f(matrices.last().pose());
+                this.applyLight(modelView);
+                this.drawBuffers(modelView);
+                this.drawDynamicBuffers(modelView);
+            } finally {
+                RenderSystem.restoreProjectionMatrix();
+                RenderSystem.outputColorTextureOverride = previousColorTarget;
+                RenderSystem.outputDepthTextureOverride = previousDepthTarget;
+                RenderSystem.setShaderLights(previousLights);
+            }
+        }
+
+        private static void copySnapshot(
+                RenderTarget framebuffer,
+                boolean keepBackgroundOpaque,
+                Consumer<NativeImage> callback,
+                Consumer<Throwable> errorCallback
+        ) {
+            var texture = Objects.requireNonNull(framebuffer.getColorTexture());
+            int width = framebuffer.width;
+            int height = framebuffer.height;
+            int pixelSize = texture.getFormat().pixelSize();
+            var device = RenderSystem.getDevice();
+            GpuBuffer buffer = device.createBuffer(
+                    () -> "QuickCraft PNG readback",
+                    GpuBuffer.USAGE_MAP_READ | GpuBuffer.USAGE_COPY_DST,
+                    width * height * pixelSize
+            );
+            var mapEncoder = device.createCommandEncoder();
+            device.createCommandEncoder().copyTextureToBuffer(texture, buffer, 0, () -> {
+                ByteBuffer pixelData;
+                try (var view = mapEncoder.mapBuffer(buffer, true, false)) {
+                    var pixels = view.data();
+                    pixelData = ByteBuffer.allocate(pixels.remaining()).order(pixels.order());
+                    pixelData.put(pixels).flip();
+                } catch (Throwable throwable) {
+                    errorCallback.accept(throwable);
+                    return;
+                } finally {
+                    try {
+                        buffer.close();
+                    } finally {
+                        framebuffer.destroyBuffers();
+                    }
+                }
+
+                Util.backgroundExecutor().execute(() -> {
+                    NativeImage image = null;
+                    try {
+                        image = new NativeImage(width, height, false);
+                        for (int y = 0; y < height; y++) {
+                            for (int x = 0; x < width; x++) {
+                                int color = pixelData.getInt((x + y * width) * pixelSize);
+                                image.setPixelABGR(x, height - y - 1, keepBackgroundOpaque ? color | 0xFF000000 : color);
+                            }
+                        }
+                        callback.accept(image);
+                    } catch (Throwable throwable) {
+                        if (image != null) image.close();
+                        errorCallback.accept(throwable);
+                    }
+                });
+            }, 0);
+        }
+
+        private Path nextOutputPath(Path outputDirectory, int resolution) {
+            String fileName = this.sourcePath.getFileName().toString();
+            int extension = fileName.lastIndexOf('.');
+            String baseName = extension > 0 ? fileName.substring(0, extension) : fileName;
+            baseName = baseName.replaceAll("[<>:\"/\\\\|?*\\x00-\\x1F]", "_").replaceAll("[. ]+$", "");
+            if (baseName.isBlank()) baseName = "render";
+            String stem = baseName + "_" + Util.getFilenameFormattedDateTime() + "_" + resolution + "x" + resolution;
+            Path outputPath = outputDirectory.resolve(stem + ".png");
+            int suffix = 2;
+            while (Files.exists(outputPath)) {
+                outputPath = outputDirectory.resolve(stem + "_" + suffix++ + ".png");
+            }
+            return outputPath;
         }
 
         private void closeBuffers() {
@@ -1343,6 +1595,11 @@ public final class QuickLitematicaPreview3D {
         private float dy;
 
         private void setViewport(int x, int y, int size) {
+            if (this.size > 0 && this.size != size) {
+                float ratio = size / (float) this.size;
+                this.dx *= ratio;
+                this.dy *= ratio;
+            }
             this.x = x;
             this.y = y;
             this.size = size;
@@ -1388,7 +1645,15 @@ public final class QuickLitematicaPreview3D {
         }
 
         private void scaleBy(double amount) {
-            this.scale = Math.max(0.25F, Math.min(6.0F, (float) (this.scale * Math.exp(amount * 0.12))));
+            this.scale = Math.max(0.05F, Math.min(20.0F, (float) (this.scale * Math.exp(amount * 0.12))));
+        }
+
+        private void setPreset(double yawDegrees, double pitchDegrees) {
+            this.angle = Math.toRadians(yawDegrees);
+            this.pitch = Math.max(-MAX_PITCH_RADIANS, Math.min(MAX_PITCH_RADIANS, (float) Math.toRadians(pitchDegrees)));
+            this.scale = 1.0F;
+            this.dx = 0.0F;
+            this.dy = 0.0F;
         }
 
         private void stop() {
