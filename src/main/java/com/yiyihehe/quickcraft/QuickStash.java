@@ -112,6 +112,11 @@ public final class QuickStash implements ClientModInitializer {
         return handler instanceof GenericContainerScreenHandler || handler instanceof ShulkerBoxScreenHandler;
     }
 
+    /** Runs the stash transfer without closing the current container screen. */
+    public static void stashFromButton(HandledScreen<?> screen) {
+        new QuickStash().stashMatchingPlayerItems(screen);
+    }
+
     private void stashMatchingPlayerItems(HandledScreen<?> screen) {
         MinecraftClient client = MinecraftClient.getInstance();
         if (client.player == null || client.interactionManager == null) {

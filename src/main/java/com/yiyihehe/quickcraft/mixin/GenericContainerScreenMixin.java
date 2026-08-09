@@ -1,6 +1,8 @@
 package com.yiyihehe.quickcraft.mixin;
 
 import com.yiyihehe.quickcraft.QuickContainerLock;
+import com.yiyihehe.quickcraft.QuickStash;
+import com.yiyihehe.quickcraft.config.QuickCraftConfigs;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.gui.screen.ingame.GenericContainerScreen;
 import net.minecraft.client.gui.screen.ingame.HandledScreen;
@@ -23,6 +25,9 @@ public abstract class GenericContainerScreenMixin extends HandledScreen<GenericC
     @Unique
     private ButtonWidget quickcraft$lockButton;
 
+    @Unique
+    private ButtonWidget quickcraft$stashButton;
+
     protected GenericContainerScreenMixin(GenericContainerScreenHandler handler, PlayerInventory inventory, Text title) {
         super(handler, inventory, title);
     }
@@ -30,6 +35,7 @@ public abstract class GenericContainerScreenMixin extends HandledScreen<GenericC
     @Inject(method = "render", at = @At("HEAD"))
     private void quickcraft$addLockButton(DrawContext context, int mouseX, int mouseY, float delta, CallbackInfo ci) {
         QuickContainerLock.bindCurrentScreen(this);
+        this.quickcraft$ensureStashButton();
         if (!QuickContainerLock.shouldShowLockButton(this)) {
             if (this.quickcraft$lockButton != null) {
                 this.quickcraft$lockButton.visible = false;
@@ -68,5 +74,26 @@ public abstract class GenericContainerScreenMixin extends HandledScreen<GenericC
         this.quickcraft$lockButton.setX(this.x + this.backgroundWidth - 16);
         this.quickcraft$lockButton.setY(this.y + 4);
         this.quickcraft$lockButton.setMessage(QuickContainerLock.getLockButtonText(this));
+    }
+
+    @Unique
+    private void quickcraft$ensureStashButton() {
+        if (!QuickCraftConfigs.isQuickStashButtonVisible()) {
+            if (this.quickcraft$stashButton != null) {
+                this.quickcraft$stashButton.visible = false;
+            }
+            return;
+        }
+        if (this.quickcraft$stashButton == null || !this.children().contains(this.quickcraft$stashButton)) {
+            this.quickcraft$stashButton = this.addDrawableChild(ButtonWidget.builder(Text.literal("↑"), button ->
+                            QuickStash.stashFromButton(this))
+                    .dimensions(this.x + this.backgroundWidth - 30, this.y + 5, 12, 12)
+                    .build());
+        }
+        this.quickcraft$stashButton.visible = true;
+        this.quickcraft$stashButton.setX(this.x + this.backgroundWidth - 30);
+        this.quickcraft$stashButton.setY(this.y + 5);
+        this.quickcraft$stashButton.setTooltip(net.minecraft.client.gui.tooltip.Tooltip.of(
+                Text.translatable("quickcraft.button.quick_stash")));
     }
 }
