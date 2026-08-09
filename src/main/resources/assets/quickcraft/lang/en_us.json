@@ -224,6 +224,7 @@
   "quickcraft.message.separator": ", ",
   "quickcraft.button.container_lock.lock": "Lock",
   "quickcraft.button.container_lock.unlock": "Unlock",
+  "quickcraft.button.container_lock.tooltip": "Lock or unlock the entire container",
   "quickcraft.action.sort": "Sort",
   "quickcraft.message.container_lock.locked": "QuickCraft: Current container locked",
   "quickcraft.message.container_lock.unlocked": "QuickCraft: Container lock removed",
