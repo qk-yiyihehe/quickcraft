@@ -1,7 +1,7 @@
 package com.yiyihehe.quickcraft.mixin;
 
 import com.yiyihehe.quickcraft.config.QuickCraftConfigs;
-import com.yiyihehe.quickcraft.litematica.QuickLitematicaEasyPlaceContainers;
+import com.yiyihehe.quickcraft.litematica.QuickLitematicaEasyPlaceInteractions;
 import fi.dy.masa.litematica.config.Configs;
 import fi.dy.masa.litematica.data.DataManager;
 import fi.dy.masa.litematica.tool.ToolMode;
@@ -26,7 +26,7 @@ public abstract class LitematicaMinecraftClientHoldEasyPlaceMixin {
                 || client.level == null
                 || !Configs.Generic.EASY_PLACE_MODE.getBooleanValue()
                 || DataManager.getToolMode() == ToolMode.REBUILD
-                || QuickLitematicaEasyPlaceContainers.shouldAllowVanillaContainerUse(client)) {
+                || QuickLitematicaEasyPlaceInteractions.shouldAllowVanillaUse(client)) {
             return;
         }
 
