@@ -132,7 +132,9 @@ public class QuickCraftConfigScreen extends GuiConfigsBase {
     private enum ConfigGroup {
         QUICK_TRANSFER(
                 QuickCraftConfigs.ContainerTools.ENABLE_QUICK_TRANSFER,
-                QuickCraftConfigs.ContainerTools.QUICK_TRANSFER_RETAIN_ONE
+                QuickCraftConfigs.ContainerTools.ENABLE_SCROLL_TRANSFER,
+                QuickCraftConfigs.ContainerTools.QUICK_TRANSFER_RETAIN_ONE,
+                QuickCraftConfigs.ContainerTools.SHOW_QUICK_STASH_BUTTON
         ),
         QUICK_TRADE(
                 QuickCraftConfigs.ContainerTools.ENABLE_QUICK_TRADE,
