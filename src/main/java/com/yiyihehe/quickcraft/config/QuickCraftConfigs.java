@@ -220,6 +220,11 @@ public final class QuickCraftConfigs implements IConfigHandler {
                 true,
                 ""
         ).apply(CONTAINER_TRANSLATION_PREFIX);
+        public static final ConfigBooleanHotkeyed SHOW_QUICK_STASH_BUTTON = new ConfigBooleanHotkeyed(
+                "showQuickStashButton",
+                true,
+                ""
+        ).apply(CONTAINER_TRANSLATION_PREFIX);
         public static final ConfigBooleanHotkeyed ENABLE_QUICK_THROW = new ConfigBooleanHotkeyed(
                 "enableQuickThrow",
                 true,
@@ -285,6 +290,7 @@ public final class QuickCraftConfigs implements IConfigHandler {
                 ENABLE_QUICK_TRANSFER,
                 ENABLE_SCROLL_TRANSFER,
                 QUICK_TRANSFER_RETAIN_ONE,
+                SHOW_QUICK_STASH_BUTTON,
                 ENABLE_QUICK_THROW,
                 ENABLE_QUICK_TRADE,
                 ENABLE_FAVORITE_TRADE,
@@ -783,6 +789,10 @@ public final class QuickCraftConfigs implements IConfigHandler {
     public static boolean isQuickStashEnabled() {
         return isContainerToolModeEnabled()
                 && ContainerTools.CONTAINER_TOOL_MODE.getOptionListValue() == ContainerToolMode.QUICK_STASH;
+    }
+
+    public static boolean isQuickStashButtonVisible() {
+        return ContainerTools.SHOW_QUICK_STASH_BUTTON.getBooleanValue();
     }
 
     public static boolean isAutoCollectMaterialsEnabled() {
