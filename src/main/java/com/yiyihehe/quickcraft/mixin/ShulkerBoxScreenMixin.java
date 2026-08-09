@@ -3,6 +3,7 @@ package com.yiyihehe.quickcraft.mixin;
 import com.yiyihehe.quickcraft.QuickContainerLock;
 import com.yiyihehe.quickcraft.QuickStash;
 import com.yiyihehe.quickcraft.config.QuickCraftConfigs;
+import com.yiyihehe.quickcraft.render.QuickContainerLockButton;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.components.Tooltip;
@@ -24,7 +25,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 @Mixin(ShulkerBoxScreen.class)
 public abstract class ShulkerBoxScreenMixin extends AbstractContainerScreen<ShulkerBoxMenu> {
     @Unique
-    private Button quickcraft$lockButton;
+    private QuickContainerLockButton quickcraft$lockButton;
 
     @Unique
     private Button quickcraft$stashButton;
@@ -55,13 +56,11 @@ public abstract class ShulkerBoxScreenMixin extends AbstractContainerScreen<Shul
         }
 
         int buttonX = this.leftPos + this.imageWidth - 16;
-        int buttonY = this.topPos + 4;
-        this.quickcraft$lockButton = this.addRenderableWidget(Button.builder(QuickContainerLock.getLockButtonText(this), button -> {
+        int buttonY = this.topPos + 5;
+        this.quickcraft$lockButton = this.addRenderableWidget(new QuickContainerLockButton(buttonX, buttonY, button -> {
                     QuickContainerLock.toggleCurrentScreenLock(client, this);
-                    button.setMessage(QuickContainerLock.getLockButtonText(this));
-                })
-                .bounds(buttonX, buttonY, 14, 14)
-                .build());
+                }, () -> QuickContainerLock.isCurrentScreenLocked(this),
+                Component.translatable("quickcraft.button.container_lock.tooltip")));
         this.quickcraft$syncLockButtonPosition();
     }
 
@@ -73,8 +72,7 @@ public abstract class ShulkerBoxScreenMixin extends AbstractContainerScreen<Shul
 
         this.quickcraft$lockButton.visible = true;
         this.quickcraft$lockButton.setX(this.leftPos + this.imageWidth - 16);
-        this.quickcraft$lockButton.setY(this.topPos + 4);
-        this.quickcraft$lockButton.setMessage(QuickContainerLock.getLockButtonText(this));
+        this.quickcraft$lockButton.setY(this.topPos + 5);
     }
 
     @Unique
