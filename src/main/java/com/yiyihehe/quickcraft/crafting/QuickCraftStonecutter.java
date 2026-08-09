@@ -310,7 +310,7 @@ public class QuickCraftStonecutter implements ClientModInitializer {
                                             RecipeEntry<StonecuttingRecipe> recipe) {
         return !handler.getSlot(OUTPUT_SLOT).hasStack()
                 && !handler.getSlot(INPUT_SLOT).hasStack()
-                && findBestSupplyIngredientSlot(client.player.getInventory(), recipe) == -1;
+                && findBestSupplyIngredientSlot(client.player.getInventory(), handler, recipe) == -1;
     }
 
     private void clearPendingSingleCraft() {
