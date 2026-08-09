@@ -47,6 +47,7 @@
 		"QuickContainerLockScreenMixin",
 		"QuickContainerLockScreenHandlerMixin",
 		"QuickContainerLockSlotMixin",
+		"QuickDraggableButtonScreenMixin",
 		"QuickTransferScreenMixin",
 		"ShulkerBoxScreenMixin"
 	],
