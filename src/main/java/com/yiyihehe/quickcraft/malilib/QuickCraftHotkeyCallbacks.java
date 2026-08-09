@@ -5,6 +5,7 @@ import com.yiyihehe.quickcraft.QuickThrow;
 import com.yiyihehe.quickcraft.QuickTransfer;
 import com.yiyihehe.quickcraft.config.QuickCraftConfigs;
 import com.yiyihehe.quickcraft.gui.QuickCraftConfigScreen;
+import com.yiyihehe.quickcraft.render.QuickDraggableButton;
 import fi.dy.masa.malilib.gui.GuiBase;
 import fi.dy.masa.malilib.hotkeys.IKeybind;
 import fi.dy.masa.malilib.hotkeys.KeyAction;
@@ -71,15 +72,21 @@ public final class QuickCraftHotkeyCallbacks {
     }
 
     private static boolean handleQuickTransfer(KeyAction action, IKeybind keybind) {
-        return action == KeyAction.PRESS && QuickTransfer.handleQuickTransferHotkey();
+        return action == KeyAction.PRESS
+                && !QuickDraggableButton.isEditGestureOverCurrentButton()
+                && QuickTransfer.handleQuickTransferHotkey();
     }
 
     private static boolean handleQuickTransferRetainOne(KeyAction action, IKeybind keybind) {
-        return action == KeyAction.PRESS && QuickTransfer.handleQuickTransferRetainOneHotkey();
+        return action == KeyAction.PRESS
+                && !QuickDraggableButton.isEditGestureOverCurrentButton()
+                && QuickTransfer.handleQuickTransferRetainOneHotkey();
     }
 
     private static boolean handleSlotQuickTransfer(KeyAction action, IKeybind keybind) {
-        return action == KeyAction.PRESS && QuickTransfer.handleSlotQuickTransferHotkey();
+        return action == KeyAction.PRESS
+                && !QuickDraggableButton.isEditGestureOverCurrentButton()
+                && QuickTransfer.handleSlotQuickTransferHotkey();
     }
 
     private static boolean handleSlotLock(KeyAction action, IKeybind keybind) {

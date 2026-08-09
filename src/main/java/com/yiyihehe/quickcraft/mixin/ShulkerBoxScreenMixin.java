@@ -4,10 +4,10 @@ import com.yiyihehe.quickcraft.QuickContainerLock;
 import com.yiyihehe.quickcraft.QuickStash;
 import com.yiyihehe.quickcraft.config.QuickCraftConfigs;
 import com.yiyihehe.quickcraft.render.QuickContainerLockButton;
+import com.yiyihehe.quickcraft.render.QuickDraggableButton;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.gui.screen.ingame.HandledScreen;
 import net.minecraft.client.gui.screen.ingame.ShulkerBoxScreen;
-import net.minecraft.client.gui.widget.ButtonWidget;
 import net.minecraft.entity.player.PlayerInventory;
 import net.minecraft.screen.ShulkerBoxScreenHandler;
 import net.minecraft.text.Text;
@@ -27,7 +27,7 @@ public abstract class ShulkerBoxScreenMixin extends HandledScreen<ShulkerBoxScre
     private QuickContainerLockButton quickcraft$lockButton;
 
     @Unique
-    private ButtonWidget quickcraft$stashButton;
+    private QuickDraggableButton quickcraft$stashButton;
 
     protected ShulkerBoxScreenMixin(ShulkerBoxScreenHandler handler, PlayerInventory inventory, Text title) {
         super(handler, inventory, title);
@@ -59,6 +59,7 @@ public abstract class ShulkerBoxScreenMixin extends HandledScreen<ShulkerBoxScre
         this.quickcraft$lockButton = this.addDrawableChild(new QuickContainerLockButton(buttonX, buttonY, button -> {
                     QuickContainerLock.toggleCurrentScreenLock(client, this);
                 }, () -> QuickContainerLock.isCurrentScreenLocked(this),
+                QuickDraggableButton.PositionKey.CONTAINER_LOCK,
                 Text.translatable("quickcraft.button.container_lock.tooltip")));
         this.quickcraft$syncLockButtonPosition();
     }
@@ -70,8 +71,7 @@ public abstract class ShulkerBoxScreenMixin extends HandledScreen<ShulkerBoxScre
         }
 
         this.quickcraft$lockButton.visible = true;
-        this.quickcraft$lockButton.setX(this.x + this.backgroundWidth - 16);
-        this.quickcraft$lockButton.setY(this.y + 5);
+        this.quickcraft$lockButton.setDefaultPosition(this.x + this.backgroundWidth - 16, this.y + 5);
     }
 
     @Unique
@@ -83,14 +83,18 @@ public abstract class ShulkerBoxScreenMixin extends HandledScreen<ShulkerBoxScre
             return;
         }
         if (this.quickcraft$stashButton == null || !this.children().contains(this.quickcraft$stashButton)) {
-            this.quickcraft$stashButton = this.addDrawableChild(ButtonWidget.builder(Text.literal("↑"), button ->
-                            QuickStash.stashFromButton(this))
-                    .dimensions(this.x + this.backgroundWidth - 30, this.y + 5, 12, 12)
-                    .build());
+            this.quickcraft$stashButton = this.addDrawableChild(new QuickDraggableButton(
+                    this.x + this.backgroundWidth - 30,
+                    this.y + 5,
+                    12,
+                    12,
+                    Text.literal("↑"),
+                    button -> QuickStash.stashFromButton(this),
+                    QuickDraggableButton.PositionKey.QUICK_STASH
+            ));
         }
         this.quickcraft$stashButton.visible = true;
-        this.quickcraft$stashButton.setX(this.x + this.backgroundWidth - 30);
-        this.quickcraft$stashButton.setY(this.y + 5);
+        this.quickcraft$stashButton.setDefaultPosition(this.x + this.backgroundWidth - 30, this.y + 5);
         this.quickcraft$stashButton.setTooltip(net.minecraft.client.gui.tooltip.Tooltip.of(
                 Text.translatable("quickcraft.button.quick_stash")));
     }
