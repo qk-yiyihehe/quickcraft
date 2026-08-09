@@ -7,6 +7,7 @@ import com.mojang.blaze3d.systems.RenderPass;
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.systems.ProjectionType;
 import com.mojang.blaze3d.systems.VertexSorter;
+import com.mojang.blaze3d.vertex.VertexFormat;
 import com.yiyihehe.quickcraft.config.QuickCraftConfigs;
 import fi.dy.masa.litematica.render.schematic.ChunkCacheSchematic;
 import fi.dy.masa.litematica.render.schematic.WorldRendererSchematic;
@@ -635,7 +636,6 @@ public final class QuickLitematicaPreview3D {
                                 entity.y(),
                                 entity.z(),
                                 entity.entity().getYaw(0.0F),
-                                0.0F,
                                 matrices,
                                 collector,
                                 entity.light()
@@ -659,18 +659,8 @@ public final class QuickLitematicaPreview3D {
 
         private void drawDynamicBuffers(Matrix4f modelView) {
             for (DynamicLayerBuffer layerBuffer : this.dynamicBuffers) {
-                VertexBuffer buffer = layerBuffer.buffer();
-                if (buffer.isClosed()) {
-                    continue;
-                }
-
-                RenderLayer renderLayer = layerBuffer.layer();
-                renderLayer.startDrawing();
-                buffer.bind();
-                buffer.draw(modelView, RenderSystem.getProjectionMatrix(), RenderSystem.getShader());
-                renderLayer.endDrawing();
+                drawLayerBuffer(layerBuffer.layer(), layerBuffer.buffer());
             }
-            VertexBuffer.unbind();
         }
 
         private void drawDynamic(MeshData data, Matrix4f modelView, int viewX, int viewY, int viewSize) {
@@ -827,7 +817,7 @@ public final class QuickLitematicaPreview3D {
                 meshBuilder = this.sharedBuilders.computeIfAbsent(layer, this::createBuilder);
             }
 
-            int vertexBytes = layer.getVertexFormat().getVertexSizeByte();
+            int vertexBytes = layer.getVertexFormat().getVertexSize();
             if (layer.getDrawMode() == VertexFormat.DrawMode.LINES || layer.getDrawMode() == VertexFormat.DrawMode.LINE_STRIP) {
                 vertexBytes *= 2;
             }
@@ -866,20 +856,10 @@ public final class QuickLitematicaPreview3D {
                                 continue;
                             }
                             if (meshBuilder.layer().isTranslucent()) {
-                                built.sortQuads(meshBuilder.allocator(), RenderSystem.getVertexSorting());
+                                built.sortQuads(meshBuilder.allocator(), VertexSorter.byDistance(0.0F, 0.0F, 1000.0F));
                             }
 
-                            VertexBuffer buffer = new VertexBuffer(VertexBuffer.Usage.STATIC);
-                            try {
-                                buffer.bind();
-                                buffer.upload(built);
-                                uploaded.add(new DynamicLayerBuffer(meshBuilder.layer(), buffer));
-                            } catch (Throwable throwable) {
-                                if (!buffer.isClosed()) {
-                                    buffer.close();
-                                }
-                                throw throwable;
-                            }
+                            uploaded.add(new DynamicLayerBuffer(meshBuilder.layer(), uploadBuiltBuffer(built)));
                         }
                     } finally {
                         meshBuilder.allocator().close();
@@ -887,14 +867,40 @@ public final class QuickLitematicaPreview3D {
                 }
                 return List.copyOf(uploaded);
             } catch (Throwable throwable) {
-                uploaded.forEach(layerBuffer -> {
-                    if (!layerBuffer.buffer().isClosed()) {
-                        layerBuffer.buffer().close();
-                    }
-                });
+                uploaded.forEach(layerBuffer -> layerBuffer.buffer().close());
                 throw throwable;
-            } finally {
-                VertexBuffer.unbind();
+            }
+        }
+
+        private static LayerBuffer uploadBuiltBuffer(BuiltBuffer built) {
+            var drawParameters = built.getDrawParameters();
+            GpuBuffer vertexBuffer = RenderSystem.getDevice().createBuffer(
+                    () -> "QuickCraft dynamic preview vertices",
+                    BufferType.VERTICES,
+                    BufferUsage.STATIC_WRITE,
+                    built.getBuffer()
+            );
+            GpuBuffer indexBuffer = null;
+            boolean customIndexBuffer = built.getSortedBuffer() != null;
+            try {
+                indexBuffer = customIndexBuffer
+                        ? RenderSystem.getDevice().createBuffer(
+                                () -> "QuickCraft dynamic preview indices",
+                                BufferType.INDICES,
+                                BufferUsage.STATIC_WRITE,
+                                built.getSortedBuffer()
+                        )
+                        : RenderSystem.getSequentialBuffer(drawParameters.mode()).getIndexBuffer(drawParameters.indexCount());
+                var indexType = customIndexBuffer
+                        ? drawParameters.indexType()
+                        : RenderSystem.getSequentialBuffer(drawParameters.mode()).getIndexType();
+                return new LayerBuffer(vertexBuffer, indexBuffer, drawParameters.indexCount(), indexType, customIndexBuffer);
+            } catch (Throwable throwable) {
+                vertexBuffer.close();
+                if (customIndexBuffer && indexBuffer != null) {
+                    indexBuffer.close();
+                }
+                throw throwable;
             }
         }
 
