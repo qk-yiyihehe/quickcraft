@@ -124,7 +124,7 @@ import java.util.zip.GZIPInputStream;
 import java.util.zip.GZIPOutputStream;
 
 /**
- * Litematica 文件浏览器里的真实方块模型 3D 预览。
+ * Litematica 文件和游戏内选区的真实方块模型 3D 预览。
  * 构建阶段调用 Minecraft 自带方块渲染器，把材质、异形模型、透明层和流体都录成可缓存的 CPU 顶点。
  */
 public final class QuickLitematicaPreview3D {
@@ -205,6 +205,17 @@ public final class QuickLitematicaPreview3D {
         }
     }
 
+    static void openGenerated(Screen parent, String displayName, Supplier<LitematicaSchematic> schematicSupplier) {
+        Manager manager = new Manager(parent);
+        manager.current = Preview.createGenerated(displayName, schematicSupplier);
+        MinecraftClient.getInstance().setScreen(new QuickLitematicaPreview3DScreen(
+                parent,
+                displayName,
+                manager,
+                true
+        ));
+    }
+
     public static void render(fi.dy.masa.litematica.gui.GuiSchematicBrowserBase gui, @Nullable DirectoryEntry entry, DrawContext drawContext, int x, int y, int size) {
         if (!QuickCraftConfigs.isLitematica3DPreviewEnabled()) {
             for (Manager manager : MANAGERS.values()) {
@@ -240,30 +251,29 @@ public final class QuickLitematicaPreview3D {
         }
 
         private void render(@Nullable DirectoryEntry entry, DrawContext drawContext, int x, int y, int size) {
-            this.render(entry, drawContext, x, y, size, true);
-        }
-
-        void renderFullscreen(DirectoryEntry entry, DrawContext drawContext, int x, int y, int size) {
-            this.render(entry, drawContext, x, y, size, false);
-        }
-
-        private void render(@Nullable DirectoryEntry entry, DrawContext drawContext, int x, int y, int size, boolean showExpandButton) {
             if (entry == null || !isSupportedLitematic(entry)) {
                 this.clearCurrent();
                 return;
             }
 
+            Path path = entry.getFullPath().toPath().toAbsolutePath().normalize();
+            if (!path.equals(this.currentPath)) {
+                this.switchTo(path, entry);
+            }
+            this.currentEntry = entry;
+            this.renderCurrent(drawContext, x, y, size, true);
+        }
+
+        void renderFullscreen(DrawContext drawContext, int x, int y, int size) {
+            this.renderCurrent(drawContext, x, y, size, false);
+        }
+
+        private void renderCurrent(DrawContext drawContext, int x, int y, int size, boolean showExpandButton) {
             this.viewX = x;
             this.viewY = y;
             this.viewSize = Math.max(1, size);
             this.showExpandButton = showExpandButton;
             this.drag.setViewport(this.viewX, this.viewY, this.viewSize);
-            this.currentEntry = entry;
-
-            Path path = entry.getFullPath().toPath().toAbsolutePath().normalize();
-            if (!path.equals(this.currentPath)) {
-                this.switchTo(path, entry);
-            }
 
             RenderUtils.drawOutlinedBox(this.viewX, this.viewY, this.viewSize, this.viewSize, 0xB0101010, 0xFF707070);
             if (this.current != null) {
@@ -305,7 +315,7 @@ public final class QuickLitematicaPreview3D {
             }
 
             if (mouseButton == 0 && this.showExpandButton && this.isExpandButtonHovered(mouseX, mouseY) && this.currentEntry != null) {
-                MinecraftClient.getInstance().setScreen(new QuickLitematicaPreview3DScreen(this.owner, this.currentEntry, this));
+                MinecraftClient.getInstance().setScreen(new QuickLitematicaPreview3DScreen(this.owner, this.currentEntry.getName(), this));
                 return true;
             }
 
@@ -458,6 +468,57 @@ public final class QuickLitematicaPreview3D {
             preview.progress = PROGRESS_START;
             preview.future = PREVIEW_EXECUTOR.submit(() -> preview.loadOrBuild(entry));
             return preview;
+        }
+
+        private static Preview createGenerated(String displayName, Supplier<LitematicaSchematic> schematicSupplier) {
+            String safeName = displayName.replaceAll("[<>:\"/\\\\|?*\\x00-\\x1F]", "_").replaceAll("[. ]+$", "");
+            if (safeName.isBlank()) {
+                safeName = "selection";
+            }
+            Path transientPath = cacheDirectory().resolve("selection-" + Long.toUnsignedString(System.nanoTime()) + ".tmp");
+            Preview preview = new Preview(Path.of(safeName + ".litematic"), transientPath, transientPath);
+            preview.progress = PROGRESS_START;
+            preview.future = PREVIEW_EXECUTOR.submit(() -> preview.loadGenerated(schematicSupplier));
+            return preview;
+        }
+
+        private void loadGenerated(Supplier<LitematicaSchematic> schematicSupplier) {
+            try {
+                this.state = State.BUILDING;
+                LitematicaSchematic schematic = schematicSupplier.get();
+                this.throwIfCancelled();
+                if (schematic == null) {
+                    throw new IllegalStateException("Cannot capture Litematica selection");
+                }
+
+                MeshData built = MeshBuilder.build(schematic, this.cancelled, value -> this.progress = value);
+                this.throwIfCancelled();
+                if (!built.withinBudget()) {
+                    built.closeDynamic();
+                    this.state = State.TOO_LARGE;
+                    this.progress = 1.0F;
+                    return;
+                }
+
+                this.meshData = built;
+                this.progress = 1.0F;
+                this.state = State.READY;
+            } catch (CancellationException ignored) {
+                this.state = State.CANCELLED;
+            } catch (PreviewTooLargeException ignored) {
+                this.state = State.TOO_LARGE;
+                this.progress = 1.0F;
+            } catch (Exception e) {
+                if (this.isCancelled()) {
+                    this.state = State.CANCELLED;
+                } else if (isPreviewTooLarge(e)) {
+                    this.state = State.TOO_LARGE;
+                    this.progress = 1.0F;
+                } else {
+                    LOGGER.error("Failed to build a 3D preview from the Litematica selection", e);
+                    this.state = State.FAILED;
+                }
+            }
         }
 
         private void loadOrBuild(DirectoryEntry entry) {
@@ -1741,15 +1802,19 @@ public final class QuickLitematicaPreview3D {
 
     private static final class MeshBuilder {
         private static MeshData build(DirectoryEntry entry, AtomicBoolean cancelled, ProgressSink progressSink) {
-            MinecraftClient client = MinecraftClient.getInstance();
-            if (client.world == null) {
-                throw new IllegalStateException("Litematica preview needs a loaded client world");
-            }
-
             LitematicaSchematic schematic = LitematicaSchematic.createFromFile(entry.getDirectory(), entry.getName(), FileType.LITEMATICA_SCHEMATIC);
             throwIfCancelled(cancelled);
             if (schematic == null) {
                 throw new IllegalStateException("Cannot read litematic file");
+            }
+
+            return build(schematic, cancelled, progressSink);
+        }
+
+        private static MeshData build(LitematicaSchematic schematic, AtomicBoolean cancelled, ProgressSink progressSink) {
+            MinecraftClient client = MinecraftClient.getInstance();
+            if (client.world == null) {
+                throw new IllegalStateException("Litematica preview needs a loaded client world");
             }
 
             progressSink.set(PROGRESS_MESHING_START);
@@ -1870,7 +1935,7 @@ public final class QuickLitematicaPreview3D {
 
             NbtCompound nbt = schematicBlockEntities == null
                     ? new NbtCompound()
-                    : schematicBlockEntities.getOrDefault(schematicPos, new NbtCompound());
+                    : schematicBlockEntities.getOrDefault(schematicPos.subtract(view.bounds.min()), new NbtCompound());
             NbtCompound entityNbt = sanitizeBlockEntityNbt(nbt);
             entityNbt.putInt("x", renderPos.getX());
             entityNbt.putInt("y", renderPos.getY());
