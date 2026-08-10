@@ -46,6 +46,7 @@
 		"QuickContainerLockScreenMixin",
 		"QuickContainerLockScreenHandlerMixin",
 		"QuickContainerLockSlotMixin",
+		"RecipeBookWidgetAccessor",
 		"QuickDraggableButtonScreenMixin",
 		"QuickTransferScreenMixin",
 		"ShulkerBoxScreenMixin"
