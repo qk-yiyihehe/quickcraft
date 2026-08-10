@@ -356,11 +356,11 @@ public final class QuickLitematicaPreview3D {
             MinecraftClient client = MinecraftClient.getInstance();
             double mouseX = client.mouse.getX() * client.getWindow().getScaledWidth() / client.getWindow().getWidth();
             double mouseY = client.mouse.getY() * client.getWindow().getScaledHeight() / client.getWindow().getHeight();
-            int fill = this.isExpandButtonHovered(mouseX, mouseY) ? 0xE0505050 : 0xD0202020;
-            context.fill(x, y, x + EXPAND_BUTTON_SIZE, y + EXPAND_BUTTON_SIZE, fill);
-            context.drawBorder(x, y, EXPAND_BUTTON_SIZE, EXPAND_BUTTON_SIZE, 0xFFB0B0B0);
-            context.drawCenteredTextWithShadow(client.textRenderer, "⛶", x + EXPAND_BUTTON_SIZE / 2, y + 4, 0xFFFFFFFF);
-            if (this.isExpandButtonHovered(mouseX, mouseY)) {
+            boolean hovered = this.isExpandButtonHovered(mouseX, mouseY);
+            int backgroundColor = hovered ? 0xA0505050 : 0x40101010;
+            context.fill(x + 2, y + 2, x + EXPAND_BUTTON_SIZE - 2, y + EXPAND_BUTTON_SIZE - 2, backgroundColor);
+            this.drawExpandIcon(context, x, y, hovered ? 0xFFFFFFFF : 0xFFE0E0E0);
+            if (hovered) {
                 context.drawTooltip(
                         client.textRenderer,
                         Text.translatable("quickcraft.litematica.preview_3d.expand"),
@@ -368,6 +368,28 @@ public final class QuickLitematicaPreview3D {
                         (int) mouseY
                 );
             }
+        }
+
+        private void drawExpandIcon(DrawContext context, int x, int y, int color) {
+            context.fill(x + 3, y + 3, x + 7, y + 4, color);
+            context.fill(x + 3, y + 3, x + 4, y + 7, color);
+            context.fill(x + 5, y + 5, x + 6, y + 6, color);
+            context.fill(x + 6, y + 6, x + 7, y + 7, color);
+
+            context.fill(x + 9, y + 3, x + 13, y + 4, color);
+            context.fill(x + 12, y + 3, x + 13, y + 7, color);
+            context.fill(x + 10, y + 5, x + 11, y + 6, color);
+            context.fill(x + 9, y + 6, x + 10, y + 7, color);
+
+            context.fill(x + 3, y + 12, x + 7, y + 13, color);
+            context.fill(x + 3, y + 9, x + 4, y + 13, color);
+            context.fill(x + 5, y + 10, x + 6, y + 11, color);
+            context.fill(x + 6, y + 9, x + 7, y + 10, color);
+
+            context.fill(x + 9, y + 12, x + 13, y + 13, color);
+            context.fill(x + 12, y + 9, x + 13, y + 13, color);
+            context.fill(x + 10, y + 10, x + 11, y + 11, color);
+            context.fill(x + 9, y + 9, x + 10, y + 10, color);
         }
 
         private boolean isExpandButtonHovered(double mouseX, double mouseY) {
