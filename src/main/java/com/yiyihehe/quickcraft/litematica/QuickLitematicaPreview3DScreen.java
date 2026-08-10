@@ -1,6 +1,5 @@
 package com.yiyihehe.quickcraft.litematica;
 
-import fi.dy.masa.malilib.gui.widgets.WidgetFileBrowserBase.DirectoryEntry;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.gui.screen.Screen;
 import net.minecraft.client.gui.widget.ButtonWidget;
@@ -31,8 +30,9 @@ public final class QuickLitematicaPreview3DScreen extends Screen {
     private static final int[] EXPORT_RESOLUTIONS = {512, 1024, 2048, 4096, 8192};
 
     private final Screen parent;
-    private final DirectoryEntry entry;
+    private final String displayName;
     private final QuickLitematicaPreview3D.Manager manager;
+    private final boolean closeManagerOnExit;
     private int resolutionIndex = 2;
     private boolean waitingForRecommendedResolution = true;
     private Background background = Background.TRANSPARENT;
@@ -52,13 +52,23 @@ public final class QuickLitematicaPreview3DScreen extends Screen {
 
     QuickLitematicaPreview3DScreen(
             Screen parent,
-            DirectoryEntry entry,
+            String displayName,
             QuickLitematicaPreview3D.Manager manager
+    ) {
+        this(parent, displayName, manager, false);
+    }
+
+    QuickLitematicaPreview3DScreen(
+            Screen parent,
+            String displayName,
+            QuickLitematicaPreview3D.Manager manager,
+            boolean closeManagerOnExit
     ) {
         super(Text.translatable("quickcraft.litematica.preview_3d.fullscreen_title"));
         this.parent = parent;
-        this.entry = entry;
+        this.displayName = displayName;
         this.manager = manager;
+        this.closeManagerOnExit = closeManagerOnExit;
     }
 
     @Override
@@ -256,12 +266,12 @@ public final class QuickLitematicaPreview3DScreen extends Screen {
     @Override
     public void render(DrawContext context, int mouseX, int mouseY, float delta) {
         super.render(context, mouseX, mouseY, delta);
-        this.manager.renderFullscreen(this.entry, context, this.viewX, this.viewY, this.viewSize);
+        this.manager.renderFullscreen(context, this.viewX, this.viewY, this.viewSize);
         this.updateRecommendedResolution();
 
         int panelCenter = this.width - PANEL_WIDTH / 2;
         context.drawCenteredTextWithShadow(this.textRenderer, this.title, panelCenter, 10, 0xFFFFFFFF);
-        context.drawCenteredTextWithShadow(this.textRenderer, this.entry.getName(), this.viewX + this.viewSize / 2, 8, 0xFFE0E0E0);
+        context.drawCenteredTextWithShadow(this.textRenderer, this.displayName, this.viewX + this.viewSize / 2, 8, 0xFFE0E0E0);
 
         List<OrderedText> lines = this.textRenderer.wrapLines(this.status, PANEL_WIDTH - 20);
         int statusY = this.height - 56 - lines.size() * (this.textRenderer.fontHeight + 2);
@@ -298,6 +308,9 @@ public final class QuickLitematicaPreview3DScreen extends Screen {
 
     @Override
     public void close() {
+        if (this.closeManagerOnExit) {
+            this.manager.close();
+        }
         this.client.setScreen(this.parent);
     }
 
