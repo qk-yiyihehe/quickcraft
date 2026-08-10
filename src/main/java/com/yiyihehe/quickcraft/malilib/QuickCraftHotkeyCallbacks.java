@@ -1,5 +1,6 @@
 package com.yiyihehe.quickcraft.malilib;
 
+import com.yiyihehe.quickcraft.QuickCraft;
 import com.yiyihehe.quickcraft.QuickContainerCopy;
 import com.yiyihehe.quickcraft.QuickThrow;
 import com.yiyihehe.quickcraft.QuickTransfer;
@@ -39,6 +40,7 @@ public final class QuickCraftHotkeyCallbacks {
         QuickCraftConfigs.Hotkeys.COPY_CONTAINER_TEMPLATE.getKeybind().setCallback(QuickCraftHotkeyCallbacks::handleCopyContainerTemplate);
         QuickCraftConfigs.Hotkeys.CONTINUOUS_CONTAINER_FILL.getKeybind().setCallback(QuickCraftHotkeyCallbacks::handleContinuousContainerFill);
         QuickCraftConfigs.Hotkeys.TOGGLE_CONTAINER_TOOL_MODE.getKeybind().setCallback(QuickCraftHotkeyCallbacks::handleToggleContainerToolMode);
+        QuickCraft.bindOptionalHotkeys();
     }
 
     private static boolean handleOpenConfig(KeyAction action, IKeybind keybind) {
