@@ -1,8 +1,10 @@
 package com.yiyihehe.quickcraft;
 
+import com.yiyihehe.quickcraft.litematica.QuickLitematicaSelectionPreview;
 import com.yiyihehe.quickcraft.malilib.QuickCraftMalilibInit;
 import fi.dy.masa.malilib.event.InitializationHandler;
 import net.fabricmc.api.ModInitializer;
+import net.fabricmc.loader.api.FabricLoader;
 
 /**
  * QuickCraft 的 Fabric 主入口。
@@ -14,5 +16,11 @@ public class QuickCraft implements ModInitializer {
     @Override
     public void onInitialize() {
         InitializationHandler.getInstance().registerInitializationHandler(new QuickCraftMalilibInit());
+    }
+
+    public static void bindOptionalHotkeys() {
+        if (FabricLoader.getInstance().isModLoaded("litematica")) {
+            QuickLitematicaSelectionPreview.bindHotkey();
+        }
     }
 }
