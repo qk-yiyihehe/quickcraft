@@ -5,6 +5,7 @@ import com.yiyihehe.quickcraft.QuickStash;
 import com.yiyihehe.quickcraft.config.QuickCraftConfigs;
 import com.yiyihehe.quickcraft.render.QuickContainerLockButton;
 import com.yiyihehe.quickcraft.render.QuickDraggableButton;
+import com.yiyihehe.quickcraft.render.QuickStashButton;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.gui.screen.ingame.GenericContainerScreen;
 import net.minecraft.client.gui.screen.ingame.HandledScreen;
@@ -27,7 +28,7 @@ public abstract class GenericContainerScreenMixin extends HandledScreen<GenericC
     private QuickContainerLockButton quickcraft$lockButton;
 
     @Unique
-    private QuickDraggableButton quickcraft$stashButton;
+    private QuickStashButton quickcraft$stashButton;
 
     protected GenericContainerScreenMixin(GenericContainerScreenHandler handler, PlayerInventory inventory, Text title) {
         super(handler, inventory, title);
@@ -54,8 +55,8 @@ public abstract class GenericContainerScreenMixin extends HandledScreen<GenericC
             return;
         }
 
-        int buttonX = this.x + this.backgroundWidth - 16;
-        int buttonY = this.y + 5;
+        int buttonX = this.x + this.backgroundWidth - 18;
+        int buttonY = this.y + 4;
         this.quickcraft$lockButton = this.addDrawableChild(new QuickContainerLockButton(buttonX, buttonY, button -> {
                     QuickContainerLock.toggleCurrentScreenLock(client, this);
                 }, () -> QuickContainerLock.isCurrentScreenLocked(this),
@@ -71,7 +72,7 @@ public abstract class GenericContainerScreenMixin extends HandledScreen<GenericC
         }
 
         this.quickcraft$lockButton.visible = true;
-        this.quickcraft$lockButton.setDefaultPosition(this.x + this.backgroundWidth - 16, this.y + 5);
+        this.quickcraft$lockButton.setDefaultPosition(this.x + this.backgroundWidth - 18, this.y + 4);
     }
 
     @Unique
@@ -83,19 +84,15 @@ public abstract class GenericContainerScreenMixin extends HandledScreen<GenericC
             return;
         }
         if (this.quickcraft$stashButton == null || !this.children().contains(this.quickcraft$stashButton)) {
-            this.quickcraft$stashButton = this.addDrawableChild(new QuickDraggableButton(
-                    this.x + this.backgroundWidth - 30,
-                    this.y + 5,
-                    12,
-                    12,
-                    Text.literal("↑"),
+            this.quickcraft$stashButton = this.addDrawableChild(new QuickStashButton(
+                    this.x + this.backgroundWidth - 34,
+                    this.y + 4,
                     button -> QuickStash.stashFromButton(this),
-                    QuickDraggableButton.PositionKey.QUICK_STASH
+                    QuickDraggableButton.PositionKey.QUICK_STASH,
+                    Text.translatable("quickcraft.button.quick_stash")
             ));
         }
         this.quickcraft$stashButton.visible = true;
-        this.quickcraft$stashButton.setDefaultPosition(this.x + this.backgroundWidth - 30, this.y + 5);
-        this.quickcraft$stashButton.setTooltip(net.minecraft.client.gui.tooltip.Tooltip.of(
-                Text.translatable("quickcraft.button.quick_stash")));
+        this.quickcraft$stashButton.setDefaultPosition(this.x + this.backgroundWidth - 34, this.y + 4);
     }
 }
