@@ -550,6 +550,11 @@ public final class QuickCraftConfigs implements IConfigHandler {
                 "O",
                 INGAME_PRESS
         ).apply(HOTKEY_TRANSLATION_PREFIX);
+        public static final ConfigHotkey OPEN_LITEMATICA_AREA_3D_PREVIEW = new ConfigHotkey(
+                "openLitematicaArea3DPreviewHotkey",
+                "LEFT_CONTROL,P",
+                INGAME_PRESS
+        ).apply(HOTKEY_TRANSLATION_PREFIX);
         public static final ConfigHotkey SINGLE_CRAFT = new ConfigHotkey(
                 "singleCraftHotkey",
                 "V",
@@ -614,6 +619,7 @@ public final class QuickCraftConfigs implements IConfigHandler {
                 ENABLE_OPEN_CONFIG_HOTKEY,
                 ENABLE_ACTION_BUTTON_DRAGGING,
                 OPEN_CONFIG,
+                OPEN_LITEMATICA_AREA_3D_PREVIEW,
                 SINGLE_CRAFT,
                 RAPID_CRAFT,
                 QUICK_SORT,
@@ -630,6 +636,7 @@ public final class QuickCraftConfigs implements IConfigHandler {
 
         public static final List<IHotkey> HOTKEYS = List.of(
                 OPEN_CONFIG,
+                OPEN_LITEMATICA_AREA_3D_PREVIEW,
                 SINGLE_CRAFT,
                 RAPID_CRAFT,
                 QUICK_SORT,
@@ -681,6 +688,7 @@ public final class QuickCraftConfigs implements IConfigHandler {
                 ProjectionTools.ENABLE_CONTAINER_FILL_OVERFLOW_DROP,
                 ModSupport.ENABLE_QUICK_SHULKER,
                 Hotkeys.OPEN_CONFIG,
+                Hotkeys.OPEN_LITEMATICA_AREA_3D_PREVIEW,
                 Hotkeys.SINGLE_CRAFT,
                 Hotkeys.RAPID_CRAFT,
                 Hotkeys.QUICK_SORT,
