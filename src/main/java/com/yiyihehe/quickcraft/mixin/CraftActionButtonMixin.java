@@ -147,8 +147,8 @@ abstract class CraftActionButtonBackpackMixin extends HandledScreen<PlayerScreen
             return;
         }
 
-        int buttonX = this.x + this.backgroundWidth - 16;
-        int buttonY = this.y + 66;
+        int buttonX = this.x + this.backgroundWidth - 18;
+        int buttonY = this.y + 65;
         this.quickcraft$lockButton = this.addDrawableChild(new QuickContainerLockButton(buttonX, buttonY, button -> {
                     QuickContainerLock.toggleCurrentScreenLock(client, this);
                 }, () -> QuickContainerLock.isCurrentScreenLocked(this),
@@ -165,7 +165,7 @@ abstract class CraftActionButtonBackpackMixin extends HandledScreen<PlayerScreen
 
         this.quickcraft$lockButton.visible = true;
         // 背包界面右侧中部有一块空白边，锁按钮放这里避免挤在右上角。
-        this.quickcraft$lockButton.setDefaultPosition(this.x + this.backgroundWidth - 16, this.y + 66);
+        this.quickcraft$lockButton.setDefaultPosition(this.x + this.backgroundWidth - 18, this.y + 65);
     }
 
     @Unique
