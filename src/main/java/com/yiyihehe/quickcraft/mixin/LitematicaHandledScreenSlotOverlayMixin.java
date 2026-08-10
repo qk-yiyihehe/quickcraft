@@ -10,6 +10,7 @@ import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 import net.minecraft.world.inventory.AbstractContainerMenu;
 import net.minecraft.world.inventory.Slot;
 import org.spongepowered.asm.mixin.Mixin;
+import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.Redirect;
@@ -24,6 +25,9 @@ public abstract class LitematicaHandledScreenSlotOverlayMixin<T extends Abstract
     private SlotOverlay quickcraft$currentSlotOverlay;
     private boolean quickcraft$ghostSlotRendering;
     private int quickcraft$ghostSlotBorderColor;
+
+    @Shadow
+    protected Slot hoveredSlot;
 
     @Inject(method = "extractSlot", at = @At("HEAD"))
     private void quickcraft$drawContainerVerifierSlotBackground(GuiGraphicsExtractor context, Slot slot, int x, int y, CallbackInfo ci) {
@@ -92,6 +96,36 @@ public abstract class LitematicaHandledScreenSlotOverlayMixin<T extends Abstract
         );
         quickcraft$drawSlotOutline(context, slot, this.quickcraft$ghostSlotBorderColor);
         this.quickcraft$currentSlotOverlay = null;
+    }
+
+    @Inject(method = "extractTooltip", at = @At("RETURN"))
+    private void quickcraft$drawContainerVerifierMissingGhostTooltip(
+            GuiGraphicsExtractor context,
+            int mouseX,
+            int mouseY,
+            CallbackInfo ci
+    ) {
+        AbstractContainerScreen<?> screen = (AbstractContainerScreen<?>) (Object) this;
+        Slot slot = this.hoveredSlot;
+        if (slot == null
+                || !screen.getMenu().getCarried().isEmpty()
+                || !slot.getItem().isEmpty()) {
+            return;
+        }
+
+        SlotOverlay overlay = QuickLitematicaContainerVerifier.getSlotOverlayForScreen(screen, slot);
+        if (overlay == null
+                || overlay.status() != SlotMismatchStatus.MISSING
+                || overlay.expectedStack().isEmpty()) {
+            return;
+        }
+
+        context.setTooltipForNextFrame(
+                Minecraft.getInstance().font,
+                overlay.expectedStack(),
+                mouseX,
+                mouseY
+        );
     }
 
     private static void quickcraft$drawSlotOutline(GuiGraphicsExtractor context, Slot slot, int color) {
