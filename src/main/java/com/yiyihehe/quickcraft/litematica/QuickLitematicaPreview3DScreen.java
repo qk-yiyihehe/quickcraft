@@ -1,6 +1,5 @@
 package com.yiyihehe.quickcraft.litematica;
 
-import fi.dy.masa.malilib.gui.widgets.WidgetFileBrowserBase.DirectoryEntry;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.screens.Screen;
@@ -32,8 +31,9 @@ public final class QuickLitematicaPreview3DScreen extends Screen {
     private static final int[] EXPORT_RESOLUTIONS = {512, 1024, 2048, 4096, 8192};
 
     private final Screen parent;
-    private final DirectoryEntry entry;
+    private final String displayName;
     private final QuickLitematicaPreview3D.Manager manager;
+    private final boolean closeManagerOnExit;
     private int resolutionIndex = 2;
     private boolean waitingForRecommendedResolution = true;
     private Background background = Background.TRANSPARENT;
@@ -53,13 +53,23 @@ public final class QuickLitematicaPreview3DScreen extends Screen {
 
     QuickLitematicaPreview3DScreen(
             Screen parent,
-            DirectoryEntry entry,
+            String displayName,
             QuickLitematicaPreview3D.Manager manager
+    ) {
+        this(parent, displayName, manager, false);
+    }
+
+    QuickLitematicaPreview3DScreen(
+            Screen parent,
+            String displayName,
+            QuickLitematicaPreview3D.Manager manager,
+            boolean closeManagerOnExit
     ) {
         super(Component.translatable("quickcraft.litematica.preview_3d.fullscreen_title"));
         this.parent = parent;
-        this.entry = entry;
+        this.displayName = displayName;
         this.manager = manager;
+        this.closeManagerOnExit = closeManagerOnExit;
     }
 
     @Override
@@ -257,12 +267,12 @@ public final class QuickLitematicaPreview3DScreen extends Screen {
     @Override
     public void extractRenderState(GuiGraphicsExtractor context, int mouseX, int mouseY, float delta) {
         super.extractRenderState(context, mouseX, mouseY, delta);
-        this.manager.renderFullscreen(this.entry, context, this.viewX, this.viewY, this.viewSize);
+        this.manager.renderFullscreen(context, this.viewX, this.viewY, this.viewSize);
         this.updateRecommendedResolution();
 
         int panelCenter = this.width - PANEL_WIDTH / 2;
         context.centeredText(this.font, this.title, panelCenter, 10, 0xFFFFFFFF);
-        context.centeredText(this.font, this.entry.getName(), this.viewX + this.viewSize / 2, 8, 0xFFE0E0E0);
+        context.centeredText(this.font, this.displayName, this.viewX + this.viewSize / 2, 8, 0xFFE0E0E0);
 
         List<FormattedCharSequence> lines = this.font.split(this.status, PANEL_WIDTH - 20);
         int statusY = this.height - 56 - lines.size() * (this.font.lineHeight + 2);
@@ -299,6 +309,9 @@ public final class QuickLitematicaPreview3DScreen extends Screen {
 
     @Override
     public void onClose() {
+        if (this.closeManagerOnExit) {
+            this.manager.close();
+        }
         this.minecraft.setScreen(this.parent);
     }
 
