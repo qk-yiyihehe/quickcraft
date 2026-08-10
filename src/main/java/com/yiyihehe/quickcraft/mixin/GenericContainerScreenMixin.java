@@ -5,8 +5,8 @@ import com.yiyihehe.quickcraft.QuickStash;
 import com.yiyihehe.quickcraft.config.QuickCraftConfigs;
 import com.yiyihehe.quickcraft.render.QuickContainerLockButton;
 import com.yiyihehe.quickcraft.render.QuickDraggableButton;
+import com.yiyihehe.quickcraft.render.QuickStashButton;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
-import net.minecraft.client.gui.components.Tooltip;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 import net.minecraft.client.gui.screens.inventory.ContainerScreen;
 import net.minecraft.network.chat.Component;
@@ -28,7 +28,7 @@ public abstract class GenericContainerScreenMixin extends AbstractContainerScree
     private QuickContainerLockButton quickcraft$lockButton;
 
     @Unique
-    private QuickDraggableButton quickcraft$stashButton;
+    private QuickStashButton quickcraft$stashButton;
 
     protected GenericContainerScreenMixin(ChestMenu handler, Inventory inventory, Component title) {
         super(handler, inventory, title);
@@ -55,8 +55,8 @@ public abstract class GenericContainerScreenMixin extends AbstractContainerScree
             return;
         }
 
-        int buttonX = this.leftPos + this.imageWidth - 16;
-        int buttonY = this.topPos + 5;
+        int buttonX = this.leftPos + this.imageWidth - 18;
+        int buttonY = this.topPos + 4;
         this.quickcraft$lockButton = this.addRenderableWidget(new QuickContainerLockButton(buttonX, buttonY, button -> {
                     QuickContainerLock.toggleCurrentScreenLock(client, this);
                 }, () -> QuickContainerLock.isCurrentScreenLocked(this),
@@ -72,7 +72,7 @@ public abstract class GenericContainerScreenMixin extends AbstractContainerScree
         }
 
         this.quickcraft$lockButton.visible = true;
-        this.quickcraft$lockButton.setDefaultPosition(this.leftPos + this.imageWidth - 16, this.topPos + 5);
+        this.quickcraft$lockButton.setDefaultPosition(this.leftPos + this.imageWidth - 18, this.topPos + 4);
     }
 
     @Unique
@@ -84,19 +84,15 @@ public abstract class GenericContainerScreenMixin extends AbstractContainerScree
             return;
         }
         if (this.quickcraft$stashButton == null || !this.children().contains(this.quickcraft$stashButton)) {
-            this.quickcraft$stashButton = this.addRenderableWidget(new QuickDraggableButton(
-                    this.leftPos + this.imageWidth - 30,
-                    this.topPos + 5,
-                    12,
-                    12,
-                    Component.literal("↑"),
+            this.quickcraft$stashButton = this.addRenderableWidget(new QuickStashButton(
+                    this.leftPos + this.imageWidth - 34,
+                    this.topPos + 4,
                     button -> QuickStash.stashFromButton(this),
-                    QuickDraggableButton.PositionKey.QUICK_STASH
+                    QuickDraggableButton.PositionKey.QUICK_STASH,
+                    Component.translatable("quickcraft.button.quick_stash")
             ));
         }
         this.quickcraft$stashButton.visible = true;
-        this.quickcraft$stashButton.setDefaultPosition(this.leftPos + this.imageWidth - 30, this.topPos + 5);
-        this.quickcraft$stashButton.setTooltip(Tooltip.create(
-                Component.translatable("quickcraft.button.quick_stash")));
+        this.quickcraft$stashButton.setDefaultPosition(this.leftPos + this.imageWidth - 34, this.topPos + 4);
     }
 }

@@ -1,7 +1,7 @@
 package com.yiyihehe.quickcraft.render;
 
 import net.minecraft.client.gui.GuiGraphicsExtractor;
-import net.minecraft.client.gui.components.Tooltip;
+import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.renderer.RenderPipelines;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.Identifier;
@@ -9,23 +9,29 @@ import net.minecraft.resources.Identifier;
 import java.util.function.BooleanSupplier;
 
 /** Icon-only button for locking or unlocking the entire current container. */
-public final class QuickContainerLockButton extends QuickDraggableButton {
+public final class QuickContainerLockButton extends QuickCompactIconButton {
     private static final Identifier LOCK_ICON = Identifier.fromNamespaceAndPath("quickcraft", "textures/gui/container_lock.png");
     private static final Identifier UNLOCK_ICON = Identifier.fromNamespaceAndPath("quickcraft", "textures/gui/container_unlock.png");
     private final BooleanSupplier locked;
 
     public QuickContainerLockButton(int x, int y, OnPress onPress, BooleanSupplier locked,
                                     PositionKey positionKey, Component tooltip) {
-        super(x, y, 12, 12, Component.empty(), onPress, positionKey);
+        super(x, y, tooltip, onPress, positionKey);
         this.locked = locked;
-        this.setTooltip(Tooltip.create(tooltip));
     }
 
     @Override
-    protected void extractContents(GuiGraphicsExtractor context, int mouseX, int mouseY, float delta) {
-        this.extractDefaultSprite(context);
+    protected int getSurfaceColor(boolean hovered) {
+        if (this.locked.getAsBoolean()) {
+            return hovered ? 0xE0786740 : 0xC05C4C30;
+        }
+        return super.getSurfaceColor(hovered);
+    }
+
+    @Override
+    protected void extractIcon(GuiGraphicsExtractor context, int x, int y, boolean hovered) {
         Identifier icon = this.locked.getAsBoolean() ? LOCK_ICON : UNLOCK_ICON;
         context.blit(RenderPipelines.GUI_TEXTURED, icon,
-                this.getX() + 1, this.getY() + 1, 0.0F, 0.0F, 10, 10, 10, 10);
+                x, y, 0.0F, 0.0F, 10, 10, 10, 10);
     }
 }
