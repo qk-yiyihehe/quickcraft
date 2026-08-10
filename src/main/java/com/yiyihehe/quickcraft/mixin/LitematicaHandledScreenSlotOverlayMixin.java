@@ -10,6 +10,7 @@ import net.minecraft.client.gui.screen.ingame.HandledScreen;
 import net.minecraft.screen.ScreenHandler;
 import net.minecraft.screen.slot.Slot;
 import org.spongepowered.asm.mixin.Mixin;
+import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
@@ -20,6 +21,9 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
  */
 @Mixin(HandledScreen.class)
 public abstract class LitematicaHandledScreenSlotOverlayMixin<T extends ScreenHandler> {
+    @Shadow
+    protected Slot focusedSlot;
+
     @Inject(method = "drawSlot", at = @At("HEAD"))
     private void quickcraft$drawContainerVerifierSlotBackground(DrawContext context, Slot slot, CallbackInfo ci) {
         SlotOverlay overlay = QuickLitematicaContainerVerifier.getSlotOverlayForScreen(
@@ -66,6 +70,36 @@ public abstract class LitematicaHandledScreenSlotOverlayMixin<T extends ScreenHa
         );
         context.fill(slot.x, slot.y, slot.x + 16, slot.y + 16, overlay.ghostMaskColor());
         quickcraft$drawSlotOutline(context, slot, overlay.borderColor());
+    }
+
+    @Inject(method = "drawMouseoverTooltip", at = @At("RETURN"))
+    private void quickcraft$drawContainerVerifierMissingGhostTooltip(
+            DrawContext context,
+            int mouseX,
+            int mouseY,
+            CallbackInfo ci
+    ) {
+        HandledScreen<?> screen = (HandledScreen<?>) (Object) this;
+        Slot slot = this.focusedSlot;
+        if (slot == null
+                || !screen.getScreenHandler().getCursorStack().isEmpty()
+                || !slot.getStack().isEmpty()) {
+            return;
+        }
+
+        SlotOverlay overlay = QuickLitematicaContainerVerifier.getSlotOverlayForScreen(screen, slot);
+        if (overlay == null
+                || overlay.status() != SlotMismatchStatus.MISSING
+                || overlay.expectedStack().isEmpty()) {
+            return;
+        }
+
+        context.drawItemTooltip(
+                MinecraftClient.getInstance().textRenderer,
+                overlay.expectedStack(),
+                mouseX,
+                mouseY
+        );
     }
 
     private static void quickcraft$drawSlotOutline(DrawContext context, Slot slot, int color) {
