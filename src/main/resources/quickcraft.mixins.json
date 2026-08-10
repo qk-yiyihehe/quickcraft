@@ -55,6 +55,7 @@
 		"QuickContainerLockScreenMixin",
 		"QuickContainerLockScreenHandlerMixin",
 		"QuickContainerLockSlotMixin",
+		"RecipeBookWidgetAccessor",
 		"QuickDraggableButtonScreenMixin",
 		"QuickFreeCameraGameRendererMixin",
 		"QuickFreeCameraInteractionManagerMixin",
