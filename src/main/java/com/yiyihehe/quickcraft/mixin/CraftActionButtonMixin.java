@@ -147,8 +147,8 @@ abstract class CraftActionButtonBackpackMixin extends AbstractContainerScreen<In
             return;
         }
 
-        int buttonX = this.leftPos + this.imageWidth - 16;
-        int buttonY = this.topPos + 66;
+        int buttonX = this.leftPos + this.imageWidth - 18;
+        int buttonY = this.topPos + 65;
         this.quickcraft$lockButton = this.addRenderableWidget(new QuickContainerLockButton(buttonX, buttonY, button -> {
                     QuickContainerLock.toggleCurrentScreenLock(client, this);
                 }, () -> QuickContainerLock.isCurrentScreenLocked(this),
@@ -165,7 +165,7 @@ abstract class CraftActionButtonBackpackMixin extends AbstractContainerScreen<In
 
         this.quickcraft$lockButton.visible = true;
         // 背包界面右侧中部有一块空白边，锁按钮放这里避免挤在右上角。
-        this.quickcraft$lockButton.setDefaultPosition(this.leftPos + this.imageWidth - 16, this.topPos + 66);
+        this.quickcraft$lockButton.setDefaultPosition(this.leftPos + this.imageWidth - 18, this.topPos + 65);
     }
 
     @Unique
