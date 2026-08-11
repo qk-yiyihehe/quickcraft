@@ -274,6 +274,22 @@ public final class QuickCraftConfigs implements IConfigHandler {
                 ContainerToolMode.QUICK_STASH,
                 ""
         ).apply(CONTAINER_TRANSLATION_PREFIX);
+        public static final ConfigBooleanHotkeyed ENABLE_CREATIVE_PACKING = new ConfigBooleanHotkeyed(
+                "enableCreativePacking",
+                false,
+                ""
+        ).apply(CONTAINER_TRANSLATION_PREFIX);
+        public static final ConfigInteger CREATIVE_PACKING_BUNDLE_STACKS = new ConfigInteger(
+                "creativePackingBundleStacks",
+                1,
+                1,
+                64,
+                true
+        ).apply(CONTAINER_TRANSLATION_PREFIX);
+        public static final ConfigBoolean ALLOW_CREATIVE_PACKING_NESTED_CONTAINERS = new ConfigBoolean(
+                "allowCreativePackingNestedContainers",
+                false
+        ).apply(CONTAINER_TRANSLATION_PREFIX);
         public static final ConfigBooleanHotkeyed ENABLE_QUICK_BEACON = new ConfigBooleanHotkeyed(
                 "enableQuickBeacon",
                 false,
@@ -304,6 +320,9 @@ public final class QuickCraftConfigs implements IConfigHandler {
                 ALLOW_MANUAL_LOCKED_SLOT_INTERACTION,
                 ENABLE_CONTAINER_TOOL_MODE,
                 CONTAINER_TOOL_MODE,
+                ENABLE_CREATIVE_PACKING,
+                CREATIVE_PACKING_BUNDLE_STACKS,
+                ALLOW_CREATIVE_PACKING_NESTED_CONTAINERS,
                 ENABLE_QUICK_BEACON,
                 BEACON_EFFECT_ORDER
         );
@@ -614,6 +633,11 @@ public final class QuickCraftConfigs implements IConfigHandler {
                 "LEFT_CONTROL,F",
                 ANY_PRESS
         ).apply(HOTKEY_TRANSLATION_PREFIX);
+        public static final ConfigHotkey CREATIVE_PACKING = new ConfigHotkey(
+                "creativePackingHotkey",
+                "LEFT_CONTROL,G",
+                INGAME_PRESS
+        ).apply(HOTKEY_TRANSLATION_PREFIX);
         public static final List<IConfigBase> OPTIONS = List.of(
                 ENABLE_OPEN_CONFIG_HOTKEY,
                 ENABLE_ACTION_BUTTON_DRAGGING,
@@ -630,7 +654,8 @@ public final class QuickCraftConfigs implements IConfigHandler {
                 SLOT_LOCK,
                 COPY_CONTAINER_TEMPLATE,
                 CONTINUOUS_CONTAINER_FILL,
-                TOGGLE_CONTAINER_TOOL_MODE
+                TOGGLE_CONTAINER_TOOL_MODE,
+                CREATIVE_PACKING
         );
 
         public static final List<IHotkey> HOTKEYS = List.of(
@@ -647,7 +672,8 @@ public final class QuickCraftConfigs implements IConfigHandler {
                 SLOT_LOCK,
                 COPY_CONTAINER_TEMPLATE,
                 CONTINUOUS_CONTAINER_FILL,
-                TOGGLE_CONTAINER_TOOL_MODE
+                TOGGLE_CONTAINER_TOOL_MODE,
+                CREATIVE_PACKING
         );
 
         private Hotkeys() {
@@ -673,6 +699,7 @@ public final class QuickCraftConfigs implements IConfigHandler {
                 ContainerTools.SHOW_SLOT_LOCK_OVERLAY,
                 ContainerTools.ALLOW_MANUAL_LOCKED_SLOT_INTERACTION,
                 ContainerTools.ENABLE_CONTAINER_TOOL_MODE,
+                ContainerTools.ENABLE_CREATIVE_PACKING,
                 ContainerTools.ENABLE_QUICK_BEACON,
                 ProjectionTools.SHOW_LITEMATICA_3D_PREVIEW,
                 ProjectionTools.ALLOW_EASY_PLACE_VANILLA_INTERACTIONS,
@@ -699,7 +726,8 @@ public final class QuickCraftConfigs implements IConfigHandler {
                 Hotkeys.SLOT_LOCK,
                 Hotkeys.COPY_CONTAINER_TEMPLATE,
                 Hotkeys.CONTINUOUS_CONTAINER_FILL,
-                Hotkeys.TOGGLE_CONTAINER_TOOL_MODE
+                Hotkeys.TOGGLE_CONTAINER_TOOL_MODE,
+                Hotkeys.CREATIVE_PACKING
         );
     }
 
@@ -722,6 +750,7 @@ public final class QuickCraftConfigs implements IConfigHandler {
                 ContainerTools.SHOW_SLOT_LOCK_OVERLAY,
                 ContainerTools.ALLOW_MANUAL_LOCKED_SLOT_INTERACTION,
                 ContainerTools.ENABLE_CONTAINER_TOOL_MODE,
+                ContainerTools.ENABLE_CREATIVE_PACKING,
                 ContainerTools.ENABLE_QUICK_BEACON,
                 ProjectionTools.SHOW_LITEMATICA_3D_PREVIEW,
                 ProjectionTools.ALLOW_EASY_PLACE_VANILLA_INTERACTIONS,
@@ -903,6 +932,18 @@ public final class QuickCraftConfigs implements IConfigHandler {
     public static boolean isQuickContainerCopyEnabled() {
         return isContainerToolModeEnabled()
                 && ContainerTools.CONTAINER_TOOL_MODE.getOptionListValue() == ContainerToolMode.QUICK_COPY;
+    }
+
+    public static boolean isCreativePackingEnabled() {
+        return ContainerTools.ENABLE_CREATIVE_PACKING.getBooleanValue();
+    }
+
+    public static int getCreativePackingBundleStacks() {
+        return ContainerTools.CREATIVE_PACKING_BUNDLE_STACKS.getIntegerValue();
+    }
+
+    public static boolean areCreativePackingNestedContainersAllowed() {
+        return ContainerTools.ALLOW_CREATIVE_PACKING_NESTED_CONTAINERS.getBooleanValue();
     }
 
     public static boolean isQuickBeaconEnabled() {
