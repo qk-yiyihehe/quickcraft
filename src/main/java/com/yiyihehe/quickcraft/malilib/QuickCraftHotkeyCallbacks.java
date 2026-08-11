@@ -2,6 +2,7 @@ package com.yiyihehe.quickcraft.malilib;
 
 import com.yiyihehe.quickcraft.QuickCraft;
 import com.yiyihehe.quickcraft.QuickContainerCopy;
+import com.yiyihehe.quickcraft.QuickCreativePacking;
 import com.yiyihehe.quickcraft.QuickThrow;
 import com.yiyihehe.quickcraft.QuickTransfer;
 import com.yiyihehe.quickcraft.config.QuickCraftConfigs;
@@ -40,6 +41,7 @@ public final class QuickCraftHotkeyCallbacks {
         QuickCraftConfigs.Hotkeys.COPY_CONTAINER_TEMPLATE.getKeybind().setCallback(QuickCraftHotkeyCallbacks::handleCopyContainerTemplate);
         QuickCraftConfigs.Hotkeys.CONTINUOUS_CONTAINER_FILL.getKeybind().setCallback(QuickCraftHotkeyCallbacks::handleContinuousContainerFill);
         QuickCraftConfigs.Hotkeys.TOGGLE_CONTAINER_TOOL_MODE.getKeybind().setCallback(QuickCraftHotkeyCallbacks::handleToggleContainerToolMode);
+        QuickCraftConfigs.Hotkeys.CREATIVE_PACKING.getKeybind().setCallback(QuickCraftHotkeyCallbacks::handleCreativePacking);
         QuickCraft.bindOptionalHotkeys();
     }
 
@@ -115,6 +117,10 @@ public final class QuickCraftHotkeyCallbacks {
                 QuickCraftConfigs.getContainerToolMode().getDisplayName()
         );
         return true;
+    }
+
+    private static boolean handleCreativePacking(KeyAction action, IKeybind keybind) {
+        return action == KeyAction.PRESS && QuickCreativePacking.handleHotkey(MinecraftClient.getInstance());
     }
 
     private static boolean isCraftingHotkeyContext(MinecraftClient client) {
