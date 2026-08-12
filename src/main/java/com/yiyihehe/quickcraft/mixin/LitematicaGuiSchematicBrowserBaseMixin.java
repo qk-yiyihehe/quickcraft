@@ -21,8 +21,19 @@ public abstract class LitematicaGuiSchematicBrowserBaseMixin
 
     @Override
     public void initGui() {
-        this.quickcraft$preview3DManager = QuickLitematicaPreview3D.init((GuiSchematicBrowserBase) (Object) this);
+        this.quickcraft$preview3DManager = QuickLitematicaPreview3D.init(
+                (GuiSchematicBrowserBase) (Object) this,
+                this::quickcraft$refreshPreviewMetadata
+        );
         super.initGui();
+    }
+
+    @Unique
+    private void quickcraft$refreshPreviewMetadata() {
+        WidgetSchematicBrowser widget = this.getListWidget();
+        if (widget != null) {
+            widget.clearSchematicMetadataCache();
+        }
     }
 
     @Override
