@@ -9,13 +9,14 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.util.FormattedCharSequence;
 import net.minecraft.util.Util;
 import net.minecraft.util.Mth;
+import org.jetbrains.annotations.Nullable;
 
 import java.io.IOException;
 import java.nio.file.Files;
 import java.util.List;
 
 /**
- * Litematica 原理图的全屏 3D 查看与静态 PNG 导出界面。
+ * Litematica 原理图的全屏 3D 查看、图片导出与文件内预览图编辑界面。
  * 网格、动态实体和缓存生命周期仍由 QuickLitematicaPreview3D.Manager 统一管理。
  */
 public final class QuickLitematicaPreview3DScreen extends Screen {
@@ -49,6 +50,16 @@ public final class QuickLitematicaPreview3DScreen extends Screen {
     private Button colorButton;
     private Button exportButton;
     private Button copyButton;
+    @Nullable
+    private Button currentViewPreviewButton;
+    @Nullable
+    private Button selectPreviewImageButton;
+    @Nullable
+    private Button removePreviewImageButton;
+    private int viewSectionTitleY;
+    private int previewSectionTitleY = -1;
+    private int exportSectionTitleY;
+    private boolean snapshotActionInProgress;
     private Component status = Component.empty();
 
     QuickLitematicaPreview3DScreen(
@@ -77,14 +88,20 @@ public final class QuickLitematicaPreview3DScreen extends Screen {
         int panelX = this.width - PANEL_WIDTH + 10;
         int buttonWidth = PANEL_WIDTH - 20;
         int halfWidth = (buttonWidth - 4) / 2;
-        int y = 28;
+        boolean compact = this.height < 320;
+        int rowStep = compact ? 20 : 24;
+        int sectionStep = compact ? 18 : this.height < 340 ? 24 : 30;
+        int labelStep = compact ? 10 : 14;
+        int y = compact ? 20 : 28;
 
+        this.viewSectionTitleY = y;
+        y += labelStep;
         this.addRenderableWidget(this.button(
                 Component.translatable("quickcraft.litematica.preview_3d.preset.isometric"),
                 panelX, y, buttonWidth,
                 () -> this.manager.setPreset(45.0, 32.0)
         ));
-        y += 24;
+        y += rowStep;
         this.addRenderableWidget(this.button(
                 Component.translatable("quickcraft.litematica.preview_3d.preset.front"),
                 panelX, y, halfWidth,
@@ -95,7 +112,7 @@ public final class QuickLitematicaPreview3DScreen extends Screen {
                 panelX + halfWidth + 4, y, halfWidth,
                 () -> this.manager.setPreset(180.0, 0.0)
         ));
-        y += 24;
+        y += rowStep;
         this.addRenderableWidget(this.button(
                 Component.translatable("quickcraft.litematica.preview_3d.preset.left"),
                 panelX, y, halfWidth,
@@ -106,7 +123,7 @@ public final class QuickLitematicaPreview3DScreen extends Screen {
                 panelX + halfWidth + 4, y, halfWidth,
                 () -> this.manager.setPreset(90.0, 0.0)
         ));
-        y += 24;
+        y += rowStep;
         this.addRenderableWidget(this.button(
                 Component.translatable("quickcraft.litematica.preview_3d.preset.top"),
                 panelX, y, halfWidth,
@@ -118,13 +135,37 @@ public final class QuickLitematicaPreview3DScreen extends Screen {
                 () -> this.manager.setPreset(0.0, -85.0)
         ));
 
-        y += 36;
+        y += sectionStep;
+        if (this.manager.hasFilePreviewTarget()) {
+            this.previewSectionTitleY = y;
+            y += labelStep;
+            this.currentViewPreviewButton = this.addRenderableWidget(this.button(
+                    Component.translatable("quickcraft.litematica.preview_3d.generate_from_current_view"),
+                    panelX, y, buttonWidth,
+                    this::saveCurrentViewAsPreview
+            ));
+            y += rowStep;
+            this.selectPreviewImageButton = this.addRenderableWidget(this.button(
+                    Component.translatable("quickcraft.litematica.preview_3d.select_local_image"),
+                    panelX, y, halfWidth,
+                    this::selectPreviewImage
+            ));
+            this.removePreviewImageButton = this.addRenderableWidget(this.button(
+                    Component.translatable("quickcraft.litematica.preview_3d.remove_preview_image"),
+                    panelX + halfWidth + 4, y, halfWidth,
+                    this::removePreviewImage
+            ));
+            y += sectionStep;
+        }
+
+        this.exportSectionTitleY = y;
+        y += labelStep;
         this.resolutionButton = this.addRenderableWidget(this.button(
                 this.resolutionText(),
                 panelX, y, buttonWidth,
                 this::cycleResolution
         ));
-        y += 24;
+        y += rowStep;
         int backgroundButtonWidth = buttonWidth - 28;
         this.backgroundButton = this.addRenderableWidget(this.button(
                 this.backgroundText(),
@@ -137,7 +178,7 @@ public final class QuickLitematicaPreview3DScreen extends Screen {
                 this::openColorPicker
         ));
         this.updateColorButtonState();
-        y += 24;
+        y += rowStep;
         this.exportButton = this.addRenderableWidget(this.button(
                 Component.translatable("quickcraft.litematica.preview_3d.export_png"),
                 panelX, y, halfWidth,
@@ -158,6 +199,7 @@ public final class QuickLitematicaPreview3DScreen extends Screen {
                 .bounds(panelX + halfWidth + 4, bottomY, halfWidth, BUTTON_HEIGHT)
                 .build());
 
+        this.setSnapshotButtonsActive(true);
         this.updateViewport();
     }
 
@@ -250,9 +292,47 @@ public final class QuickLitematicaPreview3DScreen extends Screen {
         });
     }
 
+    private void saveCurrentViewAsPreview() {
+        this.setSnapshotButtonsActive(false);
+        this.status = Component.translatable("quickcraft.litematica.preview_3d.preview_writing");
+        this.manager.saveCurrentViewAsPreview(this.backgroundColor(), message -> {
+            this.status = message;
+            this.setSnapshotButtonsActive(true);
+        });
+    }
+
+    private void selectPreviewImage() {
+        this.setSnapshotButtonsActive(false);
+        this.status = Component.translatable("quickcraft.litematica.preview_3d.selecting_image");
+        this.manager.selectPreviewImage(message -> {
+            this.status = message;
+            this.setSnapshotButtonsActive(true);
+        });
+    }
+
+    private void removePreviewImage() {
+        this.setSnapshotButtonsActive(false);
+        this.status = Component.translatable("quickcraft.litematica.preview_3d.preview_removing");
+        this.manager.removePreviewImage(message -> {
+            this.status = message;
+            this.setSnapshotButtonsActive(true);
+        });
+    }
+
     private void setSnapshotButtonsActive(boolean active) {
+        this.snapshotActionInProgress = !active;
         this.exportButton.active = active;
         this.copyButton.active = active;
+        boolean canEditPreview = active && this.manager.canEditPreviewImage();
+        if (this.currentViewPreviewButton != null) {
+            this.currentViewPreviewButton.active = canEditPreview;
+        }
+        if (this.selectPreviewImageButton != null) {
+            this.selectPreviewImageButton.active = canEditPreview;
+        }
+        if (this.removePreviewImageButton != null) {
+            this.removePreviewImageButton.active = active && this.manager.canRemovePreviewImage();
+        }
     }
 
     private void openOutputFolder() {
@@ -269,16 +349,43 @@ public final class QuickLitematicaPreview3DScreen extends Screen {
         super.extractRenderState(context, mouseX, mouseY, delta);
         this.manager.renderFullscreen(context, this.viewX, this.viewY, this.viewSize);
         this.updateRecommendedResolution();
+        if (!this.snapshotActionInProgress) {
+            boolean canEditPreview = this.manager.canEditPreviewImage();
+            if (this.currentViewPreviewButton != null) {
+                this.currentViewPreviewButton.active = canEditPreview;
+            }
+            if (this.selectPreviewImageButton != null) {
+                this.selectPreviewImageButton.active = canEditPreview;
+            }
+            if (this.removePreviewImageButton != null) {
+                this.removePreviewImageButton.active = this.manager.canRemovePreviewImage();
+            }
+        }
 
         int panelCenter = this.width - PANEL_WIDTH / 2;
         context.centeredText(this.font, this.title, panelCenter, 10, 0xFFFFFFFF);
+        context.centeredText(this.font, Component.translatable("quickcraft.litematica.preview_3d.section.view"),
+                panelCenter, this.viewSectionTitleY, 0xFFE0E0E0);
+        if (this.previewSectionTitleY >= 0) {
+            context.centeredText(this.font, Component.translatable("quickcraft.litematica.preview_3d.section.preview_image"),
+                    panelCenter, this.previewSectionTitleY, 0xFFE0E0E0);
+        }
+        context.centeredText(this.font, Component.translatable("quickcraft.litematica.preview_3d.section.export"),
+                panelCenter, this.exportSectionTitleY, 0xFFE0E0E0);
         context.centeredText(this.font, this.displayName, this.viewX + this.viewSize / 2, 8, 0xFFE0E0E0);
 
-        List<FormattedCharSequence> lines = this.font.split(this.status, PANEL_WIDTH - 20);
-        int statusY = this.height - 56 - lines.size() * (this.font.lineHeight + 2);
-        for (FormattedCharSequence line : lines) {
-            context.centeredText(this.font, line, panelCenter, statusY, 0xFFDDDDDD);
-            statusY += this.font.lineHeight + 2;
+        int statusWidth = Math.max(1, this.viewSize - 16);
+        int statusCenter = this.viewX + this.viewSize / 2;
+        List<FormattedCharSequence> lines = this.font.split(this.status, statusWidth);
+        if (!lines.isEmpty()) {
+            int lineStep = this.font.lineHeight + 2;
+            int statusY = this.viewY + this.viewSize - 6 - lines.size() * lineStep;
+            context.fill(this.viewX + 4, statusY - 3, this.viewX + this.viewSize - 4,
+                    this.viewY + this.viewSize - 4, 0x90000000);
+            for (FormattedCharSequence line : lines) {
+                context.centeredText(this.font, line, statusCenter, statusY, 0xFFDDDDDD);
+                statusY += lineStep;
+            }
         }
         this.drawCustomColorSwatch(context);
     }
