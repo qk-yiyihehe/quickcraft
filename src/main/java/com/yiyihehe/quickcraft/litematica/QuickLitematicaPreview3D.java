@@ -111,6 +111,8 @@ import java.io.BufferedOutputStream;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.file.AtomicMoveNotSupportedException;
@@ -131,6 +133,8 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.OptionalDouble;
 import java.util.OptionalInt;
+import java.util.Properties;
+import java.util.Set;
 import java.util.WeakHashMap;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.ExecutorService;
@@ -162,7 +166,8 @@ public final class QuickLitematicaPreview3D {
         thread.setDaemon(true);
         return thread;
     });
-    // v15：1.21.10 special GUI + render state 管线；UV/light 保留完整精度，方块实体和实体走动态命令队列。
+    // v15：缓存文件固定绑定投影路径，内容哈希和材质包签名只决定是否原地重建。
+    // 1.21.10 special GUI + render state 管线保留 float32 UV 与完整 light 坐标，动态内容走命令队列。
     // v13：回退箱子静态化（entity atlas 纹理与方块 VBO 不兼容，紫色方块）；保留 GZIP+量化+视口剔除+邻居登记修复。
     // v12：箱子顶点静态化到独立 VBO，缓存追加 chestVertices 字段。
     // v11：保留 v10 的 GZIP + 顶点量化；箱子方块实体改回动态渲染，避免 chest atlas 被写进方块 VBO。
@@ -171,7 +176,8 @@ public final class QuickLitematicaPreview3D {
     private static final int CACHE_MAGIC = 0x51435033; // QCP3
     private static final String CACHE_DIR_NAME = "litematica-preview-cache";
     private static final String CACHE_VERSION_FILE_NAME = "cache-version.txt";
-    private static final String CACHE_RENDER_MARKER = "quickcraft-model-mesh-v15-float-uv-full-light-dynamic-render-state-mc1.21.10";
+    private static final String CACHE_INDEX_FILE_NAME = "cache-index.properties";
+    private static final String CACHE_RENDER_MARKER = "quickcraft-model-mesh-v15-stable-path-content-resource-signature-dynamic-render-state-mc1.21.10";
     private static final int EXPAND_BUTTON_SIZE = 16;
     private static final int COMPAT_CLIPBOARD_MAX_DIMENSION = 4096;
     private static final int EMBEDDED_PREVIEW_DIMENSION = 1024;
@@ -203,6 +209,10 @@ public final class QuickLitematicaPreview3D {
     private static final Vector3f ZERO_MODEL_OFFSET = new Vector3f();
     private static final AtomicBoolean SPECIAL_RENDERER_REGISTERED = new AtomicBoolean();
     private static final AtomicBoolean CACHE_DIRECTORY_READY = new AtomicBoolean();
+    private static final Object CACHE_INDEX_LOCK = new Object();
+    private static final Properties CACHE_INDEX = new Properties();
+    // 当前页面只按此间隔检查文件大小/时间戳；完整 SHA-256 始终在后台且仅于重新核验时计算。
+    private static final long SOURCE_CHECK_INTERVAL_MILLIS = 1_000L;
     @Nullable
     private static volatile Path currentCacheDirectory;
 
@@ -288,6 +298,7 @@ public final class QuickLitematicaPreview3D {
         private int viewY;
         private int viewSize;
         private boolean showExpandButton;
+        private long nextSourceCheckMillis;
 
         private Manager(Screen owner, Runnable previewMetadataRefresh) {
             this.owner = owner;
@@ -303,7 +314,12 @@ public final class QuickLitematicaPreview3D {
             Path path = entry.getFullPath().toAbsolutePath().normalize();
             if (!path.equals(this.currentPath)) {
                 this.switchTo(path, entry);
+            } else if (this.current != null
+                    && System.currentTimeMillis() >= this.nextSourceCheckMillis
+                    && this.current.sourceStampChanged()) {
+                this.switchTo(path, entry);
             }
+            this.nextSourceCheckMillis = System.currentTimeMillis() + SOURCE_CHECK_INTERVAL_MILLIS;
             this.currentEntry = entry;
             this.hasEmbeddedPreviewImage = hasEmbeddedPreview;
             this.renderCurrent(drawContext, x, y, size, true);
@@ -515,7 +531,7 @@ public final class QuickLitematicaPreview3D {
                     try {
                         int[] pixels = QuickLitematicaPreviewImageWriter.readImagePixels(selected);
                         QuickLitematicaPreviewImageWriter.writePreview(target, pixels);
-                        preview.redirectCache(cachePath(target));
+                        preview.refreshCacheSourceHash();
                         this.finishPreviewWrite(preview, true, callback, Text.translatable(
                                 "quickcraft.litematica.preview_3d.preview_write_success",
                                 target.getFileName().toString()
@@ -548,7 +564,7 @@ public final class QuickLitematicaPreview3D {
                 Util.getIoWorkerExecutor().execute(() -> {
                     try {
                         QuickLitematicaPreviewImageWriter.removePreview(target);
-                        preview.redirectCache(cachePath(target));
+                        preview.refreshCacheSourceHash();
                         this.finishPreviewWrite(preview, false, callback, Text.translatable(
                                 "quickcraft.litematica.preview_3d.preview_remove_success",
                                 target.getFileName().toString()
@@ -575,7 +591,7 @@ public final class QuickLitematicaPreview3D {
                 Util.getIoWorkerExecutor().execute(() -> {
                     try {
                         QuickLitematicaPreviewImageWriter.writePreview(target, pixels);
-                        preview.redirectCache(cachePath(target));
+                        preview.refreshCacheSourceHash();
                         this.finishPreviewWrite(preview, true, callback, Text.translatable(
                                 "quickcraft.litematica.preview_3d.preview_write_success",
                                 target.getFileName().toString()
@@ -631,6 +647,7 @@ public final class QuickLitematicaPreview3D {
             this.clearCurrent();
             this.currentPath = path;
             this.current = Preview.create(entry);
+            this.nextSourceCheckMillis = System.currentTimeMillis() + SOURCE_CHECK_INTERVAL_MILLIS;
         }
 
         private void clearCurrent() {
@@ -703,10 +720,12 @@ public final class QuickLitematicaPreview3D {
 
     private static final class Preview implements AutoCloseable {
         private final Path sourcePath;
-        private volatile Path cachePath;
-        private volatile Path tmpPath;
-        @Nullable
-        private volatile Path cacheRedirectPath;
+        private final Path cachePath;
+        private final Path tmpPath;
+        private final String cacheSlot;
+        private final String resourcePackSignature;
+        private volatile long sourceSize;
+        private volatile long sourceModifiedMillis;
         private final long startedAtNanos = System.nanoTime();
         private final AtomicBoolean cancelled = new AtomicBoolean();
         private final Map<LayerKey, LayerBuffer> layerBuffers = new EnumMap<>(LayerKey.class);
@@ -724,16 +743,32 @@ public final class QuickLitematicaPreview3D {
         private boolean uploadScheduled;
         private final AtomicBoolean snapshotInProgress = new AtomicBoolean();
 
-        private Preview(Path sourcePath, Path cachePath, Path tmpPath) {
+        private Preview(
+                Path sourcePath,
+                Path cachePath,
+                Path tmpPath,
+                String cacheSlot,
+                String resourcePackSignature
+        ) {
             this.sourcePath = sourcePath;
             this.cachePath = cachePath;
             this.tmpPath = tmpPath;
+            this.cacheSlot = cacheSlot;
+            this.resourcePackSignature = resourcePackSignature;
+            this.captureSourceStamp();
         }
 
         private static Preview create(DirectoryEntry entry) {
             Path sourcePath = entry.getFullPath().toAbsolutePath().normalize();
-            Path cachePath = cachePath(sourcePath);
-            Preview preview = new Preview(sourcePath, cachePath, cachePath.resolveSibling(cachePath.getFileName() + ".tmp"));
+            String cacheSlot = cacheKey(sourcePath);
+            Path cachePath = cacheDirectory().resolve(cacheSlot + ".qcp3d");
+            Preview preview = new Preview(
+                    sourcePath,
+                    cachePath,
+                    cachePath.resolveSibling(cachePath.getFileName() + ".tmp"),
+                    cacheSlot,
+                    currentResourcePackSignature()
+            );
             preview.progress = PROGRESS_START;
             preview.future = PREVIEW_EXECUTOR.submit(() -> preview.loadOrBuild(entry));
             return preview;
@@ -745,7 +780,13 @@ public final class QuickLitematicaPreview3D {
                 safeName = "selection";
             }
             Path transientPath = cacheDirectory().resolve("selection-" + Long.toUnsignedString(System.nanoTime()) + ".tmp");
-            Preview preview = new Preview(Path.of(safeName + ".litematic"), transientPath, transientPath);
+            Preview preview = new Preview(
+                    Path.of(safeName + ".litematic"),
+                    transientPath,
+                    transientPath,
+                    "",
+                    ""
+            );
             preview.progress = PROGRESS_START;
             preview.future = PREVIEW_EXECUTOR.submit(() -> preview.loadGenerated(schematicSupplier));
             return preview;
@@ -793,15 +834,20 @@ public final class QuickLitematicaPreview3D {
         private void loadOrBuild(DirectoryEntry entry) {
             try {
                 this.progress = PROGRESS_START;
+                String sourceHash = hashFileCancellable(this.sourcePath, this.cancelled);
                 Path cacheDirectory = this.cachePath.getParent();
                 if (cacheDirectory == null) {
                     throw new IOException("3D preview cache path has no parent directory");
                 }
                 Files.createDirectories(cacheDirectory);
                 Path readCachePath = this.cachePath;
-                MeshData cached = CacheFile.read(readCachePath, this.cancelled);
+                CacheIndexEntry indexEntry = readCacheIndexEntry(this.cacheSlot);
+                MeshData cached = indexEntry != null
+                        && sourceHash.equals(indexEntry.sourceHash())
+                        && this.resourcePackSignature.equals(indexEntry.resourcePackSignature())
+                        ? CacheFile.read(readCachePath, this.cancelled)
+                        : null;
                 if (cached != null) {
-                    this.applyCacheRedirect(readCachePath);
                     this.throwIfCancelled();
                     this.meshData = cached;
                     this.progress = 1.0F;
@@ -824,7 +870,7 @@ public final class QuickLitematicaPreview3D {
                 Path writeCachePath = this.cachePath;
                 Path writeTmpPath = this.tmpPath;
                 CacheFile.writeAtomically(writeTmpPath, writeCachePath, built, this.cancelled, value -> this.progress = value);
-                this.applyCacheRedirect(writeCachePath);
+                writeCacheIndexEntry(this.cacheSlot, this.sourcePath, sourceHash, this.resourcePackSignature);
                 this.throwIfCancelled();
                 this.meshData = built;
                 this.progress = 1.0F;
@@ -853,6 +899,26 @@ public final class QuickLitematicaPreview3D {
                 this.state = State.FAILED;
                 deleteTmpQuietly(this.tmpPath);
                 deleteQuietly(this.cachePath);
+            }
+        }
+
+        private void captureSourceStamp() {
+            try {
+                this.sourceSize = Files.size(this.sourcePath);
+                this.sourceModifiedMillis = Files.getLastModifiedTime(this.sourcePath).toMillis();
+            } catch (IOException e) {
+                this.sourceSize = -1L;
+                this.sourceModifiedMillis = -1L;
+            }
+        }
+
+        private boolean sourceStampChanged() {
+            try {
+                return Files.size(this.sourcePath) != this.sourceSize
+                        || Files.getLastModifiedTime(this.sourcePath).toMillis() != this.sourceModifiedMillis
+                        || !currentResourcePackSignature().equals(this.resourcePackSignature);
+            } catch (IOException e) {
+                return true;
             }
         }
 
@@ -945,40 +1011,13 @@ public final class QuickLitematicaPreview3D {
             this.meshData = null;
         }
 
-        private synchronized void redirectCache(Path newCachePath) {
-            if (newCachePath.equals(this.cachePath)) {
-                return;
-            }
-
-            this.cacheRedirectPath = newCachePath;
-            this.tmpPath = newCachePath.resolveSibling(newCachePath.getFileName() + ".tmp");
-            this.applyCacheRedirect(this.cachePath);
-            this.cachePath = newCachePath;
-        }
-
-        private synchronized void applyCacheRedirect(Path availableCachePath) {
-            Path redirectPath = this.cacheRedirectPath;
-            if (redirectPath == null) {
-                return;
-            }
-            if (!Files.isRegularFile(availableCachePath)) {
-                return;
-            }
-            if (availableCachePath.equals(redirectPath)) {
-                this.cacheRedirectPath = null;
-                return;
-            }
-
+        private void refreshCacheSourceHash() {
             try {
-                Path redirectDirectory = redirectPath.getParent();
-                if (redirectDirectory == null) {
-                    throw new IOException("Redirected 3D preview cache path has no parent directory");
-                }
-                Files.createDirectories(redirectDirectory);
-                moveCacheFile(availableCachePath, redirectPath);
-                this.cacheRedirectPath = null;
+                String sourceHash = hashFile(this.sourcePath);
+                writeCacheIndexEntry(this.cacheSlot, this.sourcePath, sourceHash, this.resourcePackSignature);
+                this.captureSourceStamp();
             } catch (IOException e) {
-                LOGGER.warn("Failed to preserve the 3D preview cache after editing the embedded image", e);
+                LOGGER.warn("Failed to refresh the 3D preview cache signature for {}", this.sourcePath, e);
             }
         }
 
@@ -2109,22 +2148,50 @@ public final class QuickLitematicaPreview3D {
         matrixStack.translate((2.0F * x - screenWidth) / screenHeight, -(2.0F * y - screenHeight) / screenHeight, 0.0F);
     }
 
-    private static Path cachePath(Path sourcePath) {
-        return cacheDirectory().resolve(cacheKey(sourcePath) + ".qcp3d");
-    }
-
-    private static String cacheKey(Path sourcePath) {
+    static String cacheKey(Path sourcePath) {
         try {
             MessageDigest digest = MessageDigest.getInstance("SHA-256");
-            updateDigest(digest, sourcePath.toString());
-            updateDigest(digest, Long.toString(Files.size(sourcePath)));
-            updateDigest(digest, Long.toString(Files.getLastModifiedTime(sourcePath).toMillis()));
-            updateDigest(digest, Integer.toString(CACHE_FORMAT_VERSION));
-            updateDigest(digest, SharedConstants.getGameVersion().name());
-            updateDigest(digest, CACHE_RENDER_MARKER);
+            updateDigest(digest, sourcePath.toAbsolutePath().normalize().toString());
             return HexFormat.of().formatHex(digest.digest());
-        } catch (IOException | NoSuchAlgorithmException e) {
-            return Integer.toHexString(Objects.hash(sourcePath.toString(), System.currentTimeMillis()));
+        } catch (NoSuchAlgorithmException e) {
+            throw new IllegalStateException("SHA-256 is unavailable", e);
+        }
+    }
+
+    static String hashFile(Path path) throws IOException {
+        return hashFileCancellable(path, new AtomicBoolean());
+    }
+
+    private static String hashFileCancellable(Path path, AtomicBoolean cancelled) throws IOException {
+        MessageDigest digest;
+        try {
+            digest = MessageDigest.getInstance("SHA-256");
+        } catch (NoSuchAlgorithmException e) {
+            throw new IllegalStateException("SHA-256 is unavailable", e);
+        }
+
+        byte[] buffer = new byte[CACHE_IO_CHUNK_BYTES];
+        try (InputStream input = new BufferedInputStream(Files.newInputStream(path))) {
+            int length;
+            while ((length = input.read(buffer)) >= 0) {
+                if (cancelled.get() || Thread.currentThread().isInterrupted()) {
+                    throw new CancellationException();
+                }
+                digest.update(buffer, 0, length);
+            }
+        }
+        return HexFormat.of().formatHex(digest.digest());
+    }
+
+    private static String currentResourcePackSignature() {
+        try {
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            updateDigest(digest, SharedConstants.getGameVersion().getName());
+            MinecraftClient.getInstance().getResourcePackManager().getEnabledProfiles()
+                    .forEach(profile -> updateDigest(digest, profile.getId()));
+            return HexFormat.of().formatHex(digest.digest());
+        } catch (NoSuchAlgorithmException e) {
+            throw new IllegalStateException("SHA-256 is unavailable", e);
         }
     }
 
@@ -2166,8 +2233,94 @@ public final class QuickLitematicaPreview3D {
                 clearCacheDirectory(cacheDir);
                 Files.writeString(versionFile, currentVersion, java.nio.charset.StandardCharsets.UTF_8);
             }
+            loadAndCleanCacheIndex(cacheDir);
         } catch (IOException ignored) {
         }
+    }
+
+    private static void loadAndCleanCacheIndex(Path cacheDir) throws IOException {
+        synchronized (CACHE_INDEX_LOCK) {
+            CACHE_INDEX.clear();
+            Path indexPath = cacheDir.resolve(CACHE_INDEX_FILE_NAME);
+            if (Files.isRegularFile(indexPath)) {
+                try (InputStream input = new BufferedInputStream(Files.newInputStream(indexPath))) {
+                    CACHE_INDEX.load(input);
+                }
+            }
+
+            Set<String> retainedCacheFiles = new java.util.HashSet<>();
+            List<String> staleSlots = new ArrayList<>();
+            for (String key : CACHE_INDEX.stringPropertyNames()) {
+                if (!key.endsWith(".path")) {
+                    continue;
+                }
+                String slot = key.substring(0, key.length() - ".path".length());
+                String source = CACHE_INDEX.getProperty(key, "");
+                Path cachePath = cacheDir.resolve(slot + ".qcp3d");
+                boolean sourceExists;
+                try {
+                    sourceExists = !source.isBlank() && Files.isRegularFile(Path.of(source));
+                } catch (RuntimeException e) {
+                    sourceExists = false;
+                }
+                if (!sourceExists || !Files.isRegularFile(cachePath)) {
+                    staleSlots.add(slot);
+                } else {
+                    retainedCacheFiles.add(cachePath.getFileName().toString());
+                }
+            }
+
+            staleSlots.forEach(slot -> removeCacheIndexEntry(cacheDir, slot));
+            try (var files = Files.list(cacheDir)) {
+                files.filter(path -> {
+                            String name = path.getFileName().toString();
+                            return name.endsWith(".tmp")
+                                    || name.endsWith(".qcp3d") && !retainedCacheFiles.contains(name);
+                        })
+                        .forEach(QuickLitematicaPreview3D::deleteQuietly);
+            }
+            writeCacheIndex(cacheDir);
+        }
+    }
+
+    @Nullable
+    private static CacheIndexEntry readCacheIndexEntry(String slot) {
+        synchronized (CACHE_INDEX_LOCK) {
+            String sourceHash = CACHE_INDEX.getProperty(slot + ".sourceHash");
+            String resourceSignature = CACHE_INDEX.getProperty(slot + ".resourceSignature");
+            return sourceHash == null || resourceSignature == null
+                    ? null
+                    : new CacheIndexEntry(sourceHash, resourceSignature);
+        }
+    }
+
+    private static void writeCacheIndexEntry(String slot, Path sourcePath, String sourceHash, String resourceSignature) throws IOException {
+        synchronized (CACHE_INDEX_LOCK) {
+            CACHE_INDEX.setProperty(slot + ".path", sourcePath.toAbsolutePath().normalize().toString());
+            CACHE_INDEX.setProperty(slot + ".sourceHash", sourceHash);
+            CACHE_INDEX.setProperty(slot + ".resourceSignature", resourceSignature);
+            writeCacheIndex(cacheDirectory());
+        }
+    }
+
+    private static void removeCacheIndexEntry(Path cacheDir, String slot) {
+        CACHE_INDEX.remove(slot + ".path");
+        CACHE_INDEX.remove(slot + ".sourceHash");
+        CACHE_INDEX.remove(slot + ".resourceSignature");
+        deleteQuietly(cacheDir.resolve(slot + ".qcp3d"));
+        deleteQuietly(cacheDir.resolve(slot + ".qcp3d.tmp"));
+    }
+
+    private static void writeCacheIndex(Path cacheDir) throws IOException {
+        Path indexPath = cacheDir.resolve(CACHE_INDEX_FILE_NAME);
+        Path temporaryPath = cacheDir.resolve(CACHE_INDEX_FILE_NAME + ".tmp");
+        try (OutputStream output = new BufferedOutputStream(Files.newOutputStream(temporaryPath))) {
+            CACHE_INDEX.store(output, "QuickCraft Litematica 3D preview cache index");
+        }
+        moveCacheFile(temporaryPath, indexPath);
+    }
+
+    private record CacheIndexEntry(String sourceHash, String resourcePackSignature) {
     }
 
     private static String currentCacheVersionToken() {
