@@ -167,6 +167,7 @@ public final class QuickLitematicaPreview3D {
     private static final String CACHE_RENDER_MARKER = "quickcraft-model-mesh-v19-float-uv-full-light-dynamic-render-state-mc26.2";
     private static final int EXPAND_BUTTON_SIZE = 16;
     private static final int COMPAT_CLIPBOARD_MAX_DIMENSION = 4096;
+    private static final int EMBEDDED_PREVIEW_DIMENSION = 1024;
     // 预算必须卡在构建阶段前面：顶点 packed 后仍会占用 CPU/GPU 大块连续内存。
     private static final int MAX_UPLOAD_VERTICES = 12_000_000;
     private static final int MAX_DYNAMIC_BLOCK_STATES = 300_000;
@@ -203,13 +204,13 @@ public final class QuickLitematicaPreview3D {
         }
     }
 
-    public static Manager init(fi.dy.masa.litematica.gui.GuiSchematicBrowserBase gui) {
+    public static Manager init(fi.dy.masa.litematica.gui.GuiSchematicBrowserBase gui, Runnable previewMetadataRefresh) {
         Manager old = MANAGERS.remove(gui);
         if (old != null) {
             old.close();
         }
 
-        Manager manager = new Manager(gui);
+        Manager manager = new Manager(gui, previewMetadataRefresh);
         MANAGERS.put(gui, manager);
         return manager;
     }
@@ -222,7 +223,7 @@ public final class QuickLitematicaPreview3D {
     }
 
     static void openGenerated(Screen parent, String displayName, Supplier<LitematicaSchematic> schematicSupplier) {
-        Manager manager = new Manager(parent);
+        Manager manager = new Manager(parent, () -> {});
         manager.current = Preview.createGenerated(displayName, schematicSupplier);
         Minecraft.getInstance().setScreen(new QuickLitematicaPreview3DScreen(
                 parent,
@@ -232,7 +233,15 @@ public final class QuickLitematicaPreview3D {
         ));
     }
 
-    public static void render(fi.dy.masa.litematica.gui.GuiSchematicBrowserBase gui, @Nullable DirectoryEntry entry, GuiGraphicsExtractor drawContext, int x, int y, int size) {
+    public static void render(
+            fi.dy.masa.litematica.gui.GuiSchematicBrowserBase gui,
+            @Nullable DirectoryEntry entry,
+            boolean hasEmbeddedPreview,
+            GuiGraphicsExtractor drawContext,
+            int x,
+            int y,
+            int size
+    ) {
         if (!QuickCraftConfigs.isLitematica3DPreviewEnabled()) {
             for (Manager manager : MANAGERS.values()) {
                 manager.releasePreview();
@@ -245,7 +254,11 @@ public final class QuickLitematicaPreview3D {
             return;
         }
 
-        manager.render(entry, drawContext, x, y, size);
+        if (QuickCraftConfigs.shouldReplaceLitematicaPreviewWith3D() || !hasEmbeddedPreview) {
+            manager.render(entry, hasEmbeddedPreview, drawContext, x, y, size);
+        } else {
+            manager.renderLauncher(entry, hasEmbeddedPreview, drawContext, x, y, size);
+        }
     }
 
     public static final class Manager implements AutoCloseable {
@@ -257,16 +270,20 @@ public final class QuickLitematicaPreview3D {
         private DirectoryEntry currentEntry;
         private final DragState drag = new DragState();
         private final Screen owner;
+        private final Runnable previewMetadataRefresh;
+        private final AtomicBoolean previewImageWriteInProgress = new AtomicBoolean();
+        private boolean hasEmbeddedPreviewImage;
         private int viewX;
         private int viewY;
         private int viewSize;
         private boolean showExpandButton;
 
-        private Manager(Screen owner) {
+        private Manager(Screen owner, Runnable previewMetadataRefresh) {
             this.owner = owner;
+            this.previewMetadataRefresh = previewMetadataRefresh;
         }
 
-        private void render(@Nullable DirectoryEntry entry, GuiGraphicsExtractor drawContext, int x, int y, int size) {
+        private void render(@Nullable DirectoryEntry entry, boolean hasEmbeddedPreview, GuiGraphicsExtractor drawContext, int x, int y, int size) {
             if (entry == null || !isSupportedLitematic(entry)) {
                 this.clearCurrent();
                 return;
@@ -277,7 +294,30 @@ public final class QuickLitematicaPreview3D {
                 this.switchTo(path, entry);
             }
             this.currentEntry = entry;
+            this.hasEmbeddedPreviewImage = hasEmbeddedPreview;
             this.renderCurrent(drawContext, x, y, size, true);
+        }
+
+        private void renderLauncher(@Nullable DirectoryEntry entry, boolean hasEmbeddedPreview,
+                                    GuiGraphicsExtractor drawContext, int x, int y, int size) {
+            if (entry == null || !isSupportedLitematic(entry)) {
+                this.clearCurrent();
+                return;
+            }
+
+            Path path = entry.getFullPath().toAbsolutePath().normalize();
+            if (!path.equals(this.currentPath)) {
+                this.clearCurrent();
+            }
+            this.currentPath = path;
+            this.currentEntry = entry;
+            this.hasEmbeddedPreviewImage = hasEmbeddedPreview;
+            this.viewX = x;
+            this.viewY = y;
+            this.viewSize = Math.max(1, size);
+            this.showExpandButton = true;
+            this.drag.setViewport(this.viewX, this.viewY, this.viewSize);
+            this.drawExpandButton(drawContext);
         }
 
         void renderFullscreen(GuiGraphicsExtractor drawContext, int x, int y, int size) {
@@ -301,7 +341,7 @@ public final class QuickLitematicaPreview3D {
         }
 
         public boolean mouseScrolled(double mouseX, double mouseY, double horizontalAmount, double verticalAmount) {
-            if (!this.canHandleMouse(mouseX, mouseY)) {
+            if (this.current == null || !this.canHandleMouse(mouseX, mouseY)) {
                 return false;
             }
 
@@ -331,8 +371,19 @@ public final class QuickLitematicaPreview3D {
             }
 
             if (mouseButton == 0 && this.showExpandButton && this.isExpandButtonHovered(mouseX, mouseY) && this.currentEntry != null) {
-                Minecraft.getInstance().gui.setScreen(new QuickLitematicaPreview3DScreen(this.owner, this.currentEntry.getName(), this));
+                DirectoryEntry entry = this.currentEntry;
+                if (this.current == null && this.currentPath != null) {
+                    boolean hasEmbeddedPreview = this.hasEmbeddedPreviewImage;
+                    this.switchTo(this.currentPath, entry);
+                    this.currentEntry = entry;
+                    this.hasEmbeddedPreviewImage = hasEmbeddedPreview;
+                }
+                Minecraft.getInstance().gui.setScreen(new QuickLitematicaPreview3DScreen(this.owner, entry.getName(), this));
                 return true;
+            }
+
+            if (this.current == null) {
+                return false;
             }
 
             this.drag.click(mouseButton);
@@ -370,13 +421,156 @@ public final class QuickLitematicaPreview3D {
             preview.copyImage(resolution, backgroundColor, this.drag, callback);
         }
 
+        boolean canEditPreviewImage() {
+            return QuickCraftConfigs.canAddLitematicaPreviewImages()
+                    && this.current != null
+                    && this.currentPath != null
+                    && this.currentEntry != null
+                    && !this.previewImageWriteInProgress.get();
+        }
+
+        boolean hasFilePreviewTarget() {
+            return this.current != null && this.currentPath != null && this.currentEntry != null;
+        }
+
+        boolean canRemovePreviewImage() {
+            return this.canEditPreviewImage() && this.hasEmbeddedPreviewImage;
+        }
+
+        void saveCurrentViewAsPreview(int backgroundColor, Consumer<Component> callback) {
+            Preview preview = this.current;
+            Path target = this.currentPath;
+            if (!this.canEditPreviewImage() || preview == null || target == null) {
+                callback.accept(Component.translatable("quickcraft.litematica.preview_3d.preview_write_unavailable"));
+                return;
+            }
+            if (!this.previewImageWriteInProgress.compareAndSet(false, true)) {
+                callback.accept(Component.translatable("quickcraft.litematica.preview_3d.preview_writing"));
+                return;
+            }
+
+            preview.captureSnapshot(EMBEDDED_PREVIEW_DIMENSION, backgroundColor, this.drag, callback, image -> {
+                try {
+                    this.writePreviewAsync(preview, target, image.getPixels(), callback);
+                } catch (Throwable throwable) {
+                    LOGGER.error("Failed to convert the 3D view into Litematica preview pixels", throwable);
+                    this.previewImageWriteInProgress.set(false);
+                    callback.accept(Component.translatable("quickcraft.litematica.preview_3d.preview_write_failed"));
+                } finally {
+                    image.close();
+                    preview.snapshotInProgress.set(false);
+                }
+            });
+        }
+
+        void selectPreviewImage(Consumer<Component> callback) {
+            Preview preview = this.current;
+            Path target = this.currentPath;
+            if (!this.canEditPreviewImage() || preview == null || target == null) {
+                callback.accept(Component.translatable("quickcraft.litematica.preview_3d.preview_write_unavailable"));
+                return;
+            }
+
+            Path selected;
+            try {
+                selected = QuickLitematicaPreviewImageWriter.chooseImage(target);
+            } catch (Throwable throwable) {
+                LOGGER.error("Failed to open the preview image file picker", throwable);
+                callback.accept(Component.translatable("quickcraft.litematica.preview_3d.preview_write_failed"));
+                return;
+            }
+            if (selected == null) {
+                callback.accept(Component.translatable("quickcraft.litematica.preview_3d.image_selection_cancelled"));
+                return;
+            }
+            if (!this.previewImageWriteInProgress.compareAndSet(false, true)) {
+                callback.accept(Component.translatable("quickcraft.litematica.preview_3d.preview_writing"));
+                return;
+            }
+
+            Util.ioPool().execute(() -> {
+                try {
+                    int[] pixels = QuickLitematicaPreviewImageWriter.readImagePixels(selected);
+                    QuickLitematicaPreviewImageWriter.writePreview(target, pixels);
+                    preview.redirectCache(cachePath(target));
+                    this.finishPreviewWrite(preview, true, callback, Component.translatable(
+                            "quickcraft.litematica.preview_3d.preview_write_success", target.getFileName().toString()));
+                } catch (Throwable throwable) {
+                    LOGGER.error("Failed to set the Litematica preview image from {}", selected, throwable);
+                    this.failPreviewWrite(callback, throwable);
+                }
+            });
+        }
+
+        void removePreviewImage(Consumer<Component> callback) {
+            Preview preview = this.current;
+            Path target = this.currentPath;
+            if (!this.canRemovePreviewImage() || preview == null || target == null) {
+                callback.accept(Component.translatable("quickcraft.litematica.preview_3d.preview_remove_unavailable"));
+                return;
+            }
+            if (!this.previewImageWriteInProgress.compareAndSet(false, true)) {
+                callback.accept(Component.translatable("quickcraft.litematica.preview_3d.preview_writing"));
+                return;
+            }
+
+            Util.ioPool().execute(() -> {
+                try {
+                    QuickLitematicaPreviewImageWriter.removePreview(target);
+                    preview.redirectCache(cachePath(target));
+                    this.finishPreviewWrite(preview, false, callback, Component.translatable(
+                            "quickcraft.litematica.preview_3d.preview_remove_success", target.getFileName().toString()));
+                } catch (Throwable throwable) {
+                    LOGGER.error("Failed to remove the Litematica preview image from {}", target, throwable);
+                    this.failPreviewWrite(callback, throwable);
+                }
+            });
+        }
+
+        private void writePreviewAsync(Preview preview, Path target, int[] pixels, Consumer<Component> callback) {
+            Util.ioPool().execute(() -> {
+                try {
+                    QuickLitematicaPreviewImageWriter.writePreview(target, pixels);
+                    preview.redirectCache(cachePath(target));
+                    this.finishPreviewWrite(preview, true, callback, Component.translatable(
+                            "quickcraft.litematica.preview_3d.preview_write_success", target.getFileName().toString()));
+                } catch (Throwable throwable) {
+                    LOGGER.error("Failed to set the Litematica preview image for {}", target, throwable);
+                    this.failPreviewWrite(callback, throwable);
+                }
+            });
+        }
+
+        private void finishPreviewWrite(Preview preview, boolean hasEmbeddedPreview,
+                                        Consumer<Component> callback, Component message) {
+            Minecraft.getInstance().execute(() -> {
+                this.previewImageWriteInProgress.set(false);
+                if (this.current == preview) {
+                    this.hasEmbeddedPreviewImage = hasEmbeddedPreview;
+                }
+                try {
+                    this.previewMetadataRefresh.run();
+                } catch (Throwable throwable) {
+                    LOGGER.warn("Failed to refresh the Litematica preview image cache", throwable);
+                }
+                callback.accept(message);
+            });
+        }
+
+        private void failPreviewWrite(Consumer<Component> callback, Throwable throwable) {
+            Minecraft.getInstance().execute(() -> {
+                this.previewImageWriteInProgress.set(false);
+                callback.accept(Component.translatable(QuickLitematicaPreviewImageWriter.failureTranslationKey(throwable)));
+            });
+        }
+
         @Override
         public void close() {
             this.clearCurrent();
         }
 
         private boolean canHandleMouse(double mouseX, double mouseY) {
-            return this.current != null
+            return (this.current != null || this.currentEntry != null)
                     && QuickCraftConfigs.isLitematica3DPreviewEnabled()
                     && this.drag.inViewport(mouseX, mouseY);
         }
@@ -390,6 +584,7 @@ public final class QuickLitematicaPreview3D {
         private void clearCurrent() {
             this.currentPath = null;
             this.currentEntry = null;
+            this.hasEmbeddedPreviewImage = false;
             if (this.current != null) {
                 this.current.close();
                 this.current = null;
@@ -451,8 +646,10 @@ public final class QuickLitematicaPreview3D {
 
     private static final class Preview implements AutoCloseable {
         private final Path sourcePath;
-        private final Path cachePath;
-        private final Path tmpPath;
+        private volatile Path cachePath;
+        private volatile Path tmpPath;
+        @Nullable
+        private volatile Path cacheRedirectPath;
         private final long startedAtNanos = System.nanoTime();
         private final AtomicBoolean cancelled = new AtomicBoolean();
         private final Map<LayerKey, LayerBuffer> layerBuffers = new EnumMap<>(LayerKey.class);
@@ -548,9 +745,15 @@ public final class QuickLitematicaPreview3D {
         private void loadOrBuild(DirectoryEntry entry) {
             try {
                 this.progress = PROGRESS_START;
-                Files.createDirectories(this.cachePath.getParent());
-                MeshData cached = CacheFile.read(this.cachePath, this.cancelled);
+                Path cacheDirectory = this.cachePath.getParent();
+                if (cacheDirectory == null) {
+                    throw new IOException("3D preview cache path has no parent directory");
+                }
+                Files.createDirectories(cacheDirectory);
+                Path readCachePath = this.cachePath;
+                MeshData cached = CacheFile.read(readCachePath, this.cancelled);
                 if (cached != null) {
+                    this.applyCacheRedirect(readCachePath);
                     this.throwIfCancelled();
                     this.meshData = cached;
                     this.progress = 1.0F;
@@ -570,7 +773,10 @@ public final class QuickLitematicaPreview3D {
                     return;
                 }
 
-                CacheFile.writeAtomically(this.tmpPath, this.cachePath, built, this.cancelled, value -> this.progress = value);
+                Path writeCachePath = this.cachePath;
+                Path writeTmpPath = this.tmpPath;
+                CacheFile.writeAtomically(writeTmpPath, writeCachePath, built, this.cancelled, value -> this.progress = value);
+                this.applyCacheRedirect(writeCachePath);
                 this.throwIfCancelled();
                 this.meshData = built;
                 this.progress = 1.0F;
@@ -1173,6 +1379,121 @@ public final class QuickLitematicaPreview3D {
             this.dynamicProjectionBuffer.close();
         }
 
+        private synchronized void redirectCache(Path newCachePath) {
+            if (newCachePath.equals(this.cachePath)) {
+                return;
+            }
+
+            this.cacheRedirectPath = newCachePath;
+            this.tmpPath = newCachePath.resolveSibling(newCachePath.getFileName() + ".tmp");
+            this.applyCacheRedirect(this.cachePath);
+            this.cachePath = newCachePath;
+        }
+
+        private synchronized void applyCacheRedirect(Path availableCachePath) {
+            Path redirectPath = this.cacheRedirectPath;
+            if (redirectPath == null || !Files.isRegularFile(availableCachePath)) {
+                return;
+            }
+            if (availableCachePath.equals(redirectPath)) {
+                this.cacheRedirectPath = null;
+                return;
+            }
+
+            try {
+                Path redirectDirectory = redirectPath.getParent();
+                if (redirectDirectory == null) {
+                    throw new IOException("Redirected 3D preview cache path has no parent directory");
+                }
+                Files.createDirectories(redirectDirectory);
+                moveCacheFile(availableCachePath, redirectPath);
+                this.cacheRedirectPath = null;
+            } catch (IOException e) {
+                LOGGER.warn("Failed to preserve the 3D preview cache after editing the embedded image", e);
+            }
+        }
+
+        private void prepareDynamicBuffers(MeshData data) {
+            if (this.dynamicBuffersReady || this.dynamicBufferFallback || !data.hasDynamicContent()) {
+                return;
+            }
+
+            DynamicScene scene = data.dynamicScene();
+            if (scene.isEmpty()) {
+                this.dynamicBuffersReady = true;
+                data.closeDynamic();
+                return;
+            }
+
+            DynamicMeshCollector collector = new DynamicMeshCollector();
+            try {
+                Minecraft client = Minecraft.getInstance();
+                SubmitNodeStorage queue = new SubmitNodeStorage();
+                CameraRenderState cameraState = new CameraRenderState();
+                PoseStack matrices = new PoseStack();
+                try (FeatureRenderDispatcher dispatcher = new FeatureRenderDispatcher(
+                        queue,
+                        client.getModelManager(),
+                        collector,
+                        client.getAtlasManager(),
+                        client.renderBuffers().outlineBufferSource(),
+                        collector,
+                        client.font,
+                        client.gameRenderer.getGameRenderState()
+                )) {
+                    scene.blockEntities().forEach((pos, entity) -> {
+                        matrices.pushPose();
+                        try {
+                            matrices.translate(pos.getX(), pos.getY(), pos.getZ());
+                            renderBlockEntity(client, entity, matrices, queue, cameraState);
+                        } catch (DynamicBufferTooLargeException e) {
+                            throw e;
+                        } catch (Throwable ignored) {
+                        } finally {
+                            matrices.popPose();
+                        }
+                    });
+
+                    scene.entities().forEach(renderedEntity -> {
+                        try {
+                            EntityRenderState renderState = client.getEntityRenderDispatcher()
+                                    .extractEntity(renderedEntity.entity(), 0.0F);
+                            renderState.lightCoords = renderedEntity.light();
+                            renderState.distanceToCameraSq = 0.0D;
+                            client.getEntityRenderDispatcher().submit(
+                                    renderState,
+                                    cameraState,
+                                    renderedEntity.x(),
+                                    renderedEntity.y(),
+                                    renderedEntity.z(),
+                                    matrices,
+                                    queue
+                            );
+                        } catch (DynamicBufferTooLargeException e) {
+                            throw e;
+                        } catch (Throwable ignored) {
+                        }
+                    });
+                    dispatcher.renderAllFeatures();
+                }
+
+                this.dynamicBuffers = collector.upload();
+                this.dynamicBuffersReady = true;
+                data.closeDynamic();
+            } catch (Throwable ignored) {
+                this.closeDynamicBuffers();
+                this.dynamicBufferFallback = true;
+            } finally {
+                collector.close();
+            }
+        }
+
+        private void drawDynamicBuffers(Matrix4f modelView) {
+            for (DynamicLayerBuffer layerBuffer : this.dynamicBuffers) {
+                drawLayerBuffer(layerBuffer.layer(), layerBuffer.buffer(), modelView);
+            }
+        }
+
         private int recommendedExportResolution() {
             MeshData data = this.meshData;
             if (data == null) return 0;
@@ -1311,6 +1632,52 @@ public final class QuickLitematicaPreview3D {
             }), throwable -> {
                 this.snapshotInProgress.set(false);
                 callback.accept(Component.translatable("quickcraft.litematica.preview_3d.copy_failed"));
+            });
+        }
+
+        private void captureSnapshot(int resolution, int backgroundColor, DragState drag,
+                                     Consumer<Component> callback, Consumer<NativeImage> imageCallback) {
+            MeshData data = this.meshData;
+            if (this.state != State.READY || data == null) {
+                callback.accept(Component.translatable("quickcraft.litematica.preview_3d.export_not_ready"));
+                return;
+            }
+
+            this.uploadIfNeeded();
+            this.prepareDynamicBuffers(data);
+            if (data.hasDynamicContent() && !this.dynamicBuffersReady) {
+                callback.accept(Component.translatable("quickcraft.litematica.preview_3d.export_dynamic_failed"));
+                return;
+            }
+            if (data.vertexCount() > 0 && this.layerBuffers.isEmpty()) {
+                callback.accept(Component.translatable("quickcraft.litematica.preview_3d.preview_write_failed"));
+                return;
+            }
+            if (!this.snapshotInProgress.compareAndSet(false, true)) {
+                callback.accept(Component.translatable("quickcraft.litematica.preview_3d.exporting"));
+                return;
+            }
+
+            RenderTarget framebuffer;
+            try {
+                framebuffer = new TextureTarget("QuickCraft embedded preview", resolution, resolution, true);
+                RenderSystem.getDevice().createCommandEncoder().clearColorAndDepthTextures(
+                        Objects.requireNonNull(framebuffer.getColorTexture()),
+                        backgroundColor,
+                        Objects.requireNonNull(framebuffer.getDepthTexture()),
+                        1.0D
+                );
+                this.renderSnapshot(framebuffer, data, drag);
+            } catch (Throwable throwable) {
+                this.snapshotInProgress.set(false);
+                callback.accept(Component.translatable("quickcraft.litematica.preview_3d.preview_write_failed"));
+                return;
+            }
+
+            boolean keepBackgroundOpaque = ((backgroundColor >>> 24) & 0xFF) == 0xFF;
+            copySnapshot(framebuffer, keepBackgroundOpaque, imageCallback, throwable -> {
+                this.snapshotInProgress.set(false);
+                callback.accept(Component.translatable("quickcraft.litematica.preview_3d.preview_write_failed"));
             });
         }
 
@@ -1880,6 +2247,14 @@ public final class QuickLitematicaPreview3D {
     private static void deleteTmpQuietly(Path path) {
         if (path.getFileName() != null && path.getFileName().toString().endsWith(".tmp")) {
             deleteQuietly(path);
+        }
+    }
+
+    private static void moveCacheFile(Path source, Path target) throws IOException {
+        try {
+            Files.move(source, target, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
+        } catch (AtomicMoveNotSupportedException e) {
+            Files.move(source, target, StandardCopyOption.REPLACE_EXISTING);
         }
     }
 

@@ -338,6 +338,14 @@ public final class QuickCraftConfigs implements IConfigHandler {
                 true,
                 ""
         ).apply(PROJECTION_TRANSLATION_PREFIX);
+        public static final ConfigBoolean ALLOW_ADDING_LITEMATICA_PREVIEW_IMAGES = new ConfigBoolean(
+                "allowAddingLitematicaPreviewImages",
+                true
+        ).apply(PROJECTION_TRANSLATION_PREFIX);
+        public static final ConfigBoolean REPLACE_LITEMATICA_PREVIEW_WITH_3D = new ConfigBoolean(
+                "replaceLitematicaPreviewWith3D",
+                true
+        ).apply(PROJECTION_TRANSLATION_PREFIX);
         public static final ConfigBooleanHotkeyed ALLOW_EASY_PLACE_VANILLA_INTERACTIONS = new ConfigBooleanHotkeyed(
                 "allowEasyPlaceOpenContainers",
                 false,
@@ -497,6 +505,8 @@ public final class QuickCraftConfigs implements IConfigHandler {
         ).apply(PROJECTION_TRANSLATION_PREFIX);
         public static final List<IConfigBase> OPTIONS = List.of(
                 SHOW_LITEMATICA_3D_PREVIEW,
+                ALLOW_ADDING_LITEMATICA_PREVIEW_IMAGES,
+                REPLACE_LITEMATICA_PREVIEW_WITH_3D,
                 ALLOW_EASY_PLACE_VANILLA_INTERACTIONS,
                 ALLOW_EASY_PLACE_INTERACTION_SCREENS,
                 ALLOW_EASY_PLACE_REDSTONE_INTERACTIONS,
@@ -965,6 +975,13 @@ public final class QuickCraftConfigs implements IConfigHandler {
 
     public static boolean areManualLockedSlotInteractionsAllowed() {
         return ContainerTools.ALLOW_MANUAL_LOCKED_SLOT_INTERACTION.getBooleanValue();
+    }
+    public static boolean canAddLitematicaPreviewImages() {
+        return ProjectionTools.ALLOW_ADDING_LITEMATICA_PREVIEW_IMAGES.getBooleanValue();
+    }
+
+    public static boolean shouldReplaceLitematicaPreviewWith3D() {
+        return ProjectionTools.REPLACE_LITEMATICA_PREVIEW_WITH_3D.getBooleanValue();
     }
     public static boolean areEasyPlaceVanillaInteractionsAllowed() {
         return ProjectionTools.ALLOW_EASY_PLACE_VANILLA_INTERACTIONS.getBooleanValue();
