@@ -5,6 +5,7 @@ import com.yiyihehe.quickcraft.litematica.QuickLitematicaPreview3D;
 import fi.dy.masa.litematica.gui.GuiSchematicBrowserBase;
 import fi.dy.masa.litematica.gui.Icons;
 import fi.dy.masa.litematica.gui.widgets.WidgetSchematicBrowser;
+import fi.dy.masa.litematica.schematic.SchematicMetadata;
 import fi.dy.masa.malilib.gui.interfaces.IDirectoryCache;
 import fi.dy.masa.malilib.gui.interfaces.ISelectionListener;
 import fi.dy.masa.malilib.gui.widgets.WidgetFileBrowserBase;
@@ -22,6 +23,8 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import org.jetbrains.annotations.Nullable;
 
 import java.nio.file.Path;
+import java.util.Map;
+
 @Mixin(value = WidgetSchematicBrowser.class, remap = false)
 public abstract class LitematicaWidgetSchematicBrowserMixin extends WidgetFileBrowserBase {
     @Shadow
@@ -35,6 +38,10 @@ public abstract class LitematicaWidgetSchematicBrowserMixin extends WidgetFileBr
     @Shadow
     @Final
     protected int infoHeight;
+
+    @Shadow
+    @Final
+    protected Map<File, SchematicMetadata> cachedMetadata;
 
     protected LitematicaWidgetSchematicBrowserMixin(
             int x,
@@ -58,7 +65,13 @@ public abstract class LitematicaWidgetSchematicBrowserMixin extends WidgetFileBr
         int x = infoX + (this.infoWidth - size) / 2;
         int y = infoY + height - size - 8;
 
-        QuickLitematicaPreview3D.render(this.parent, entry, drawContext, x, y, size);
+        SchematicMetadata metadata = entry == null ? null : this.cachedMetadata.get(entry.getFullPath());
+        int[] previewPixels = metadata == null ? null : metadata.getPreviewImagePixelData();
+        int previewSize = previewPixels == null ? 0 : (int) Math.sqrt(previewPixels.length);
+        boolean hasEmbeddedPreview = previewPixels != null
+                && previewPixels.length > 0
+                && previewSize * previewSize == previewPixels.length;
+        QuickLitematicaPreview3D.render(this.parent, entry, hasEmbeddedPreview, drawContext, x, y, size);
     }
 
     @Redirect(
@@ -81,7 +94,8 @@ public abstract class LitematicaWidgetSchematicBrowserMixin extends WidgetFileBr
             int textureWidth,
             int textureHeight
     ) {
-        if (QuickCraftConfigs.isLitematica3DPreviewEnabled()) {
+        if (QuickCraftConfigs.isLitematica3DPreviewEnabled()
+                && QuickCraftConfigs.shouldReplaceLitematicaPreviewWith3D()) {
             return;
         }
 
@@ -106,7 +120,8 @@ public abstract class LitematicaWidgetSchematicBrowserMixin extends WidgetFileBr
             int fillColor,
             int borderColor
     ) {
-        if (QuickCraftConfigs.isLitematica3DPreviewEnabled()) {
+        if (QuickCraftConfigs.isLitematica3DPreviewEnabled()
+                && QuickCraftConfigs.shouldReplaceLitematicaPreviewWith3D()) {
             return;
         }
 
