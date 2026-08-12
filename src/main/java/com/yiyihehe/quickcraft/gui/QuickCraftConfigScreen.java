@@ -153,6 +153,11 @@ public class QuickCraftConfigScreen extends GuiConfigsBase {
                 QuickCraftConfigs.ContainerTools.SHOW_SLOT_LOCK_OVERLAY,
                 QuickCraftConfigs.ContainerTools.ALLOW_MANUAL_LOCKED_SLOT_INTERACTION
         ),
+        LITEMATICA_3D_PREVIEW(
+                QuickCraftConfigs.ProjectionTools.SHOW_LITEMATICA_3D_PREVIEW,
+                QuickCraftConfigs.ProjectionTools.ALLOW_ADDING_LITEMATICA_PREVIEW_IMAGES,
+                QuickCraftConfigs.ProjectionTools.REPLACE_LITEMATICA_PREVIEW_WITH_3D
+        ),
         HOLD_EASY_PLACE(
                 QuickCraftConfigs.ProjectionTools.HOLD_EASY_PLACE,
                 QuickCraftConfigs.ProjectionTools.HOLD_EASY_PLACE_CACHE_TIME_MS
