@@ -48,6 +48,7 @@
 		"QuickContainerLockScreenHandlerMixin",
 		"QuickContainerLockSlotMixin",
 		"QuickDraggableButtonScreenMixin",
+		"QuickTransferItemHighlightMixin",
 		"QuickTransferScreenMixin",
 		"RenderLayerMultiPhaseAccessor",
 		"RenderLayerMultiPhaseParametersAccessor",
