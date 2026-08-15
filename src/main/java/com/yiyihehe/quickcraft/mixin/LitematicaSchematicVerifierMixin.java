@@ -29,6 +29,7 @@ import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.world.Container;
+import net.minecraft.world.item.ItemStack;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.level.Level;
@@ -117,6 +118,9 @@ public abstract class LitematicaSchematicVerifierMixin extends TaskBase implemen
     private final Set<BlockPos> quickcraft$pendingContainerPositions = new HashSet<>();
 
     @Unique
+    private final Map<BlockPos, List<ItemStack>> quickcraft$missingContainerStacks = new HashMap<>();
+
+    @Unique
     private final Set<ChunkPos> quickcraft$requestedContainerDataChunks = new HashSet<>();
 
     @Unique
@@ -129,6 +133,26 @@ public abstract class LitematicaSchematicVerifierMixin extends TaskBase implemen
         }
 
         return Collections.unmodifiableList(this.quickcraft$selectedContainerMismatches);
+    }
+
+    @Override
+    public List<ContainerMismatch> quickcraft$getContainerMismatches() {
+        if (!QuickLitematicaContainerVerifier.isEnabled()) {
+            return List.of();
+        }
+        return Collections.unmodifiableList(new ArrayList<>(this.quickcraft$containerMismatchesByKey.values()));
+    }
+
+    @Override
+    public List<ItemStack> quickcraft$getMissingContainerStacks() {
+        if (!QuickLitematicaContainerVerifier.isEnabled()) {
+            return List.of();
+        }
+        List<ItemStack> stacks = new ArrayList<>();
+        for (List<ItemStack> containerStacks : this.quickcraft$missingContainerStacks.values()) {
+            containerStacks.forEach(stack -> stacks.add(stack.copy()));
+        }
+        return Collections.unmodifiableList(stacks);
     }
 
     @Override
@@ -525,6 +549,8 @@ public abstract class LitematicaSchematicVerifierMixin extends TaskBase implemen
             return List.of();
         }
 
+        Container expected = QuickLitematicaContainerVerifier.getExpectedInventory(expectedBlockEntity, expectedInventory);
+
         if (!(foundBlockEntity instanceof Container foundInventory)) {
             if (!fi.dy.masa.litematica.data.DataManager.getInstance().hasIntegratedServer()) {
                 if (this.quickcraft$shouldWaitForMissingInventory(foundWorld, pos, foundBlockEntity)) {
@@ -533,10 +559,11 @@ public abstract class LitematicaSchematicVerifierMixin extends TaskBase implemen
                 }
             }
 
+            this.quickcraft$rememberMissingContainer(pos, expected);
             return List.of();
         }
 
-        Container expected = QuickLitematicaContainerVerifier.getExpectedInventory(expectedBlockEntity, expectedInventory);
+        this.quickcraft$missingContainerStacks.remove(pos);
         Container found = QuickLitematicaContainerVerifier.getActualInventory(
                 foundWorld,
                 pos,
@@ -582,8 +609,14 @@ public abstract class LitematicaSchematicVerifierMixin extends TaskBase implemen
                 }
             }
 
+            ExpectedContainer expectedPart = QuickLitematicaContainerVerifier.getExpectedContainerPartAt(
+                    this.schematicPlacement, pos);
+            this.quickcraft$rememberMissingContainer(
+                    pos, expectedPart != null ? expectedPart.inventory() : expected.inventory());
             return List.of();
         }
+
+        this.quickcraft$missingContainerStacks.remove(pos);
 
         Container found = QuickLitematicaContainerVerifier.getActualInventory(
                 foundWorld,
@@ -622,6 +655,8 @@ public abstract class LitematicaSchematicVerifierMixin extends TaskBase implemen
         if (expected == null) {
             return List.of();
         }
+
+        this.quickcraft$missingContainerStacks.remove(pos);
 
         if (found.getContainerSize() != expected.inventory().getContainerSize()) {
             return null;
@@ -696,6 +731,7 @@ public abstract class LitematicaSchematicVerifierMixin extends TaskBase implemen
         this.quickcraft$expectedContainerPositions.clear();
         this.quickcraft$checkedContainerPositions.clear();
         this.quickcraft$pendingContainerPositions.clear();
+        this.quickcraft$missingContainerStacks.clear();
         this.quickcraft$requestedContainerDataChunks.clear();
         this.selectedCategories.removeIf(QuickLitematicaContainerVerifier::isContainerMismatchType);
         this.selectedEntries.keySet().removeIf(QuickLitematicaContainerVerifier::isContainerMismatchType);
@@ -814,7 +850,20 @@ public abstract class LitematicaSchematicVerifierMixin extends TaskBase implemen
         BlockPos immutablePos = pos.immutable();
         this.quickcraft$expectedContainerPositions.add(immutablePos);
         this.quickcraft$checkedContainerPositions.remove(pos);
+        this.quickcraft$missingContainerStacks.remove(pos);
         this.quickcraft$pendingContainerPositions.add(immutablePos);
+    }
+
+    @Unique
+    private void quickcraft$rememberMissingContainer(BlockPos pos, Container expected) {
+        List<ItemStack> stacks = new ArrayList<>();
+        for (int slot = 0; slot < expected.getContainerSize(); slot++) {
+            ItemStack stack = expected.getItem(slot);
+            if (!stack.isEmpty()) {
+                stacks.add(stack.copy());
+            }
+        }
+        this.quickcraft$missingContainerStacks.put(pos.immutable(), List.copyOf(stacks));
     }
 
     @Unique
