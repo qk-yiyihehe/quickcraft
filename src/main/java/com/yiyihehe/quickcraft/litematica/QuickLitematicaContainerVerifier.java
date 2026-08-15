@@ -72,6 +72,7 @@ import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.ChunkPos;
 import net.minecraft.world.World;
 import org.apache.commons.lang3.tuple.Pair;
+import org.jetbrains.annotations.Nullable;
 import org.joml.Matrix4f;
 import org.lwjgl.opengl.GL30;
 
@@ -602,6 +603,10 @@ public final class QuickLitematicaContainerVerifier {
         return merged != null ? merged : current;
     }
 
+    public static ExpectedContainer getExpectedContainerPartAt(SchematicPlacement placement, BlockPos pos) {
+        return placement != null ? getExpectedContainerInternal(pos, placement) : null;
+    }
+
     public static QuickContainerCopy.TemplateSnapshot getTemplateSnapshotAt(World foundWorld, BlockPos pos) {
         ExpectedContainer expected = getExpectedContainerAt(foundWorld, pos);
         if (expected == null) {
@@ -1003,7 +1008,14 @@ public final class QuickLitematicaContainerVerifier {
     }
 
     private static ExpectedContainer getExpectedContainerInternal(BlockPos worldPos) {
-        LocalPlacementPos placementPos = getLocalPlacementPos(worldPos);
+        return getExpectedContainerInternal(worldPos, null);
+    }
+
+    private static ExpectedContainer getExpectedContainerInternal(
+            BlockPos worldPos,
+            @Nullable SchematicPlacement placementFilter
+    ) {
+        LocalPlacementPos placementPos = getLocalPlacementPos(worldPos, placementFilter);
 
         if (placementPos == null) {
             return null;
@@ -1049,11 +1061,19 @@ public final class QuickLitematicaContainerVerifier {
     }
 
     private static LocalPlacementPos getLocalPlacementPos(BlockPos worldPos) {
+        return getLocalPlacementPos(worldPos, null);
+    }
+
+    private static LocalPlacementPos getLocalPlacementPos(
+            BlockPos worldPos,
+            @Nullable SchematicPlacement placementFilter
+    ) {
         List<SchematicPlacementManager.PlacementPart> parts = DataManager.getSchematicPlacementManager()
                 .getAllPlacementsTouchingChunk(worldPos);
 
         for (SchematicPlacementManager.PlacementPart part : parts) {
-            if (!part.getBox().containsPos(worldPos)) {
+            if ((placementFilter != null && part.getPlacement() != placementFilter)
+                    || !part.getBox().containsPos(worldPos)) {
                 continue;
             }
 
@@ -1468,6 +1488,10 @@ public final class QuickLitematicaContainerVerifier {
      */
     public interface VerifierExtension {
         List<BlockMismatch> quickcraft$getSelectedInventoryMismatches();
+
+        List<ContainerMismatch> quickcraft$getContainerMismatches();
+
+        List<ItemStack> quickcraft$getMissingContainerStacks();
 
         int quickcraft$getWrongInventoryCount();
 
