@@ -215,6 +215,11 @@ public final class QuickCraftConfigs implements IConfigHandler {
                 true,
                 ""
         ).apply(CONTAINER_TRANSLATION_PREFIX);
+        public static final ConfigBooleanHotkeyed SHOW_MATCHING_TRANSFER_HIGHLIGHT = new ConfigBooleanHotkeyed(
+                "showMatchingTransferHighlight",
+                false,
+                ""
+        ).apply(CONTAINER_TRANSLATION_PREFIX);
         public static final ConfigBooleanHotkeyed ENABLE_SCROLL_TRANSFER = new ConfigBooleanHotkeyed(
                 "enableScrollTransfer",
                 true,
@@ -309,6 +314,7 @@ public final class QuickCraftConfigs implements IConfigHandler {
         ).apply(CONTAINER_TRANSLATION_PREFIX);
         public static final List<IConfigBase> OPTIONS = List.of(
                 ENABLE_QUICK_TRANSFER,
+                SHOW_MATCHING_TRANSFER_HIGHLIGHT,
                 ENABLE_SCROLL_TRANSFER,
                 QUICK_TRANSFER_RETAIN_ONE,
                 SHOW_QUICK_STASH_BUTTON,
@@ -700,6 +706,7 @@ public final class QuickCraftConfigs implements IConfigHandler {
                 Crafting.SHOW_CRAFT_ACTION_BUTTON,
                 Crafting.DROP_RESULTS_ON_STOP,
                 ContainerTools.ENABLE_QUICK_TRANSFER,
+                ContainerTools.SHOW_MATCHING_TRANSFER_HIGHLIGHT,
                 ContainerTools.ENABLE_SCROLL_TRANSFER,
                 ContainerTools.QUICK_TRANSFER_RETAIN_ONE,
                 ContainerTools.ENABLE_QUICK_THROW,
@@ -817,6 +824,10 @@ public final class QuickCraftConfigs implements IConfigHandler {
 
     public static boolean isQuickTransferEnabled() {
         return ContainerTools.ENABLE_QUICK_TRANSFER.getBooleanValue();
+    }
+
+    public static boolean isMatchingTransferHighlightEnabled() {
+        return ContainerTools.SHOW_MATCHING_TRANSFER_HIGHLIGHT.getBooleanValue();
     }
 
     public static boolean isScrollTransferEnabled() {

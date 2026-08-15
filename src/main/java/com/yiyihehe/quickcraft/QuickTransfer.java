@@ -188,6 +188,21 @@ public final class QuickTransfer implements ClientModInitializer {
                 && screen.getMenu().getCarried().isEmpty();
     }
 
+    public static boolean shouldHighlightMatchingSlot(AbstractContainerScreen<?> screen, Slot slot) {
+        Minecraft client = Minecraft.getInstance();
+        if (!QuickCraftConfigs.isMatchingTransferHighlightEnabled()
+                || !canUseQuickTransfer(client, screen)
+                || !isVisibleSlot(slot)
+                || !slot.hasItem()) {
+            return false;
+        }
+
+        Slot hoveredSlot = findHoveredSlot(screen, getMouseX(client), getMouseY(client));
+        return hoveredSlot != null
+                && hoveredSlot.hasItem()
+                && ItemStack.isSameItemSameComponents(slot.getItem(), hoveredSlot.getItem());
+    }
+
     private static boolean canUseScrollTransfer(Minecraft client, AbstractContainerScreen<?> screen) {
         return QuickCraftConfigs.isScrollTransferEnabled()
                 && client.player != null
