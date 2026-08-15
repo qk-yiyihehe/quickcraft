@@ -6,6 +6,7 @@ import com.yiyihehe.quickcraft.mixin.CreativeSlotAccessor;
 import com.yiyihehe.quickcraft.mixin.HandledScreenAccessor;
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
+import net.minecraft.world.level.block.ShulkerBoxBlock;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.components.events.GuiEventListener;
 import net.minecraft.client.gui.screens.inventory.CreativeModeInventoryScreen;
@@ -13,6 +14,7 @@ import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.BlockItem;
 import net.minecraft.world.inventory.CraftingMenu;
 import net.minecraft.world.inventory.InventoryMenu;
 import net.minecraft.world.inventory.AbstractContainerMenu;
@@ -235,6 +237,12 @@ public final class QuickTransfer implements ClientModInitializer {
     private static boolean moveSingleItemByScroll(AbstractContainerScreen<?> screen,
                                                    Slot hoveredSlot,
                                                    boolean moveToOtherInventory) {
+        if (canMoveFromPlayerStorage(screen.getMenu())
+                && isSingleShulkerBox(hoveredSlot.getItem())) {
+            // QuickShulker 将单个潜影盒右键放入空槽识别为解包；快速移动可避免触发该物品回调。
+            return moveFullStackByScroll(screen, hoveredSlot, moveToOtherInventory);
+        }
+
         if (moveToOtherInventory) {
             List<Integer> targetSlotIds = getOtherInventoryTargetSlotIds(screen.getMenu(), hoveredSlot);
             return moveOneSourceItemToTargetSlots(screen, hoveredSlot.index, hoveredSlot.getItem().copy(), targetSlotIds);
@@ -247,6 +255,12 @@ public final class QuickTransfer implements ClientModInitializer {
 
         List<Integer> targetSlotIds = getPreferredTargetSlotIds(screen.getMenu(), hoveredSlot);
         return moveOneSourceItemToTargetSlots(screen, sourceSlot.index, hoveredSlot.getItem().copy(), targetSlotIds);
+    }
+
+    private static boolean isSingleShulkerBox(ItemStack stack) {
+        return stack.getCount() == 1
+                && stack.getItem() instanceof BlockItem blockItem
+                && blockItem.getBlock() instanceof ShulkerBoxBlock;
     }
 
     private static Slot findFirstMatchingOtherInventorySlot(AbstractContainerScreen<?> screen, Slot hoveredSlot) {
