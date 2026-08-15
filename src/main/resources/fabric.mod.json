@@ -8,7 +8,7 @@
   "contact": {},
   "license": "MIT",
   "icon": "assets/quickcraft/icon.png",
-  "environment": "*",
+  "environment": "client",
   "entrypoints": {
     "main": [
       "com.yiyihehe.quickcraft.QuickCraft"
