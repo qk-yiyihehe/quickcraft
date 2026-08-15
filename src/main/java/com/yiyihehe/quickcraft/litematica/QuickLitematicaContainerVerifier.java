@@ -113,6 +113,7 @@ public final class QuickLitematicaContainerVerifier {
     private static long lastCurrentScreenRefreshTick = Long.MIN_VALUE;
     private static int lastCurrentScreenRevision = Integer.MIN_VALUE;
     private static List<SlotOverlay> currentScreenSlotOverlays = List.of();
+    private static Inventory currentScreenContainerInventory;
     private static ActualInventoryReadStatus lastActualInventoryReadStatus = ActualInventoryReadStatus.NOT_READ;
 
     private QuickLitematicaContainerVerifier() {
@@ -562,6 +563,10 @@ public final class QuickLitematicaContainerVerifier {
             return null;
         }
 
+        if (slot.inventory != currentScreenContainerInventory) {
+            return null;
+        }
+
         if (slot.getIndex() < 0 || slot.getIndex() >= currentScreenSlotOverlays.size()) {
             return null;
         }
@@ -696,6 +701,7 @@ public final class QuickLitematicaContainerVerifier {
             lastCurrentScreenRefreshTick = Long.MIN_VALUE;
             lastCurrentScreenRevision = Integer.MIN_VALUE;
             currentScreenSlotOverlays = List.of();
+            currentScreenContainerInventory = null;
         }
 
         if (currentScreenContainerPos == null) {
@@ -724,6 +730,7 @@ public final class QuickLitematicaContainerVerifier {
         lastCurrentScreenRefreshTick = currentTick;
         lastCurrentScreenRevision = currentRevision;
         currentScreenSlotOverlays = List.of();
+        currentScreenContainerInventory = null;
         World world = fi.dy.masa.malilib.util.WorldUtils.getBestWorld(client);
         ExpectedContainer expectedContainer = getExpectedContainerAt(world, currentScreenContainerPos);
 
@@ -733,13 +740,24 @@ public final class QuickLitematicaContainerVerifier {
             return;
         }
 
-        Inventory foundInventory = copyContainerInventoryFromScreen(screen.getScreenHandler());
+        Inventory containerInventory = findContainerInventory(
+                screen.getScreenHandler(),
+                expectedContainer.inventory().size()
+        );
+        Inventory foundInventory = copyContainerInventoryFromScreen(
+                screen.getScreenHandler(),
+                containerInventory
+        );
 
         if (foundInventory == null) {
             return;
         }
 
-        Set<Integer> foundDisabledSlots = copyCrafterDisabledSlotsFromScreen(screen.getScreenHandler());
+        currentScreenContainerInventory = containerInventory;
+        Set<Integer> foundDisabledSlots = copyCrafterDisabledSlotsFromScreen(
+                screen.getScreenHandler(),
+                containerInventory
+        );
         List<ContainerMismatch> mismatches = null;
         SchematicPlacement placement = DataManager.getSchematicPlacementManager().getSelectedSchematicPlacement();
 
@@ -784,6 +802,7 @@ public final class QuickLitematicaContainerVerifier {
         lastCurrentScreenRefreshTick = Long.MIN_VALUE;
         lastCurrentScreenRevision = Integer.MIN_VALUE;
         currentScreenSlotOverlays = List.of();
+        currentScreenContainerInventory = null;
     }
 
     private static boolean isSupportedContainerHandler(ScreenHandler handler) {
@@ -824,23 +843,51 @@ public final class QuickLitematicaContainerVerifier {
         };
     }
 
-    private static Inventory copyContainerInventoryFromScreen(ScreenHandler handler) {
-        int maxIndex = -1;
-
-        for (Slot slot : handler.slots) {
-            if (!(slot.inventory instanceof PlayerInventory) && slot.getIndex() > maxIndex) {
-                maxIndex = slot.getIndex();
-            }
-        }
-
-        if (maxIndex < 0) {
+    private static Inventory findContainerInventory(ScreenHandler handler, int expectedSize) {
+        if (expectedSize <= 0) {
             return null;
         }
 
-        SimpleInventory inventory = new SimpleInventory(maxIndex + 1);
+        for (Slot candidate : handler.slots) {
+            Inventory inventory = candidate.inventory;
+            if (inventory instanceof PlayerInventory || inventory.size() != expectedSize) {
+                continue;
+            }
+
+            boolean[] visibleSlots = new boolean[expectedSize];
+            for (Slot slot : handler.slots) {
+                if (slot.inventory == inventory
+                        && slot.getIndex() >= 0
+                        && slot.getIndex() < expectedSize) {
+                    visibleSlots[slot.getIndex()] = true;
+                }
+            }
+
+            boolean complete = true;
+            for (boolean visible : visibleSlots) {
+                if (!visible) {
+                    complete = false;
+                    break;
+                }
+            }
+
+            if (complete) {
+                return inventory;
+            }
+        }
+
+        return null;
+    }
+
+    private static Inventory copyContainerInventoryFromScreen(ScreenHandler handler, Inventory containerInventory) {
+        if (containerInventory == null) {
+            return null;
+        }
+
+        SimpleInventory inventory = new SimpleInventory(containerInventory.size());
 
         for (Slot slot : handler.slots) {
-            if (!(slot.inventory instanceof PlayerInventory)
+            if (slot.inventory == containerInventory
                     && slot.getIndex() >= 0
                     && slot.getIndex() < inventory.size()) {
                 inventory.setStack(slot.getIndex(), slot.getStack().copy());
@@ -850,7 +897,10 @@ public final class QuickLitematicaContainerVerifier {
         return inventory;
     }
 
-    private static Set<Integer> copyCrafterDisabledSlotsFromScreen(ScreenHandler handler) {
+    private static Set<Integer> copyCrafterDisabledSlotsFromScreen(
+            ScreenHandler handler,
+            Inventory containerInventory
+    ) {
         if (!(handler instanceof CrafterScreenHandler crafterHandler)) {
             return Set.of();
         }
@@ -858,7 +908,7 @@ public final class QuickLitematicaContainerVerifier {
         Set<Integer> disabledSlots = new HashSet<>();
 
         for (Slot slot : handler.slots) {
-            if (slot.inventory instanceof PlayerInventory || slot.getIndex() < 0) {
+            if (slot.inventory != containerInventory || slot.getIndex() < 0) {
                 continue;
             }
 
