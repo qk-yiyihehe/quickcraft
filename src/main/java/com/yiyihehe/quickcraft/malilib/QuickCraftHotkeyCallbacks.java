@@ -122,7 +122,7 @@ public final class QuickCraftHotkeyCallbacks {
             return false;
         }
 
-        if (QuickCraftConfigs.isWorkbenchQuickCraftEnabled() && client.currentScreen instanceof CraftingScreen) {
+        if (QuickCraftConfigs.isWorkbenchQuickCraftFeatureEnabled() && client.currentScreen instanceof CraftingScreen) {
             return true;
         }
         if (QuickCraftConfigs.isBackpackQuickCraftEnabled() && client.currentScreen instanceof InventoryScreen) {

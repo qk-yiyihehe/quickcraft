@@ -15,6 +15,7 @@
     ],
     "client": [
       "com.yiyihehe.quickcraft.crafting.QuickCraftWorkbench",
+      "com.yiyihehe.quickcraft.crafting.QuickCraftWorkbenchShulkerCraft",
       "com.yiyihehe.quickcraft.crafting.QuickCraftStonecutter",
       "com.yiyihehe.quickcraft.crafting.QuickCraftBackpack",
       "com.yiyihehe.quickcraft.crafting.QuickCraftAnvilRename",
@@ -34,7 +35,8 @@
       "com.yiyihehe.quickcraft.gui.QuickCraftModMenuIntegration"
     ],
     "mm:early_risers": [
-      "com.yiyihehe.quickcraft.litematica.QuickLitematicaContainerVerifier$EarlyRiser"
+      "com.yiyihehe.quickcraft.litematica.QuickLitematicaContainerVerifier$EarlyRiser",
+      "com.yiyihehe.quickcraft.litematica.QuickLitematicaPortalLink$EarlyRiser"
     ]
   },
   "mixins": [
