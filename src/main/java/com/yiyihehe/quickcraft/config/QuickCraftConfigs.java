@@ -169,6 +169,11 @@ public final class QuickCraftConfigs implements IConfigHandler {
                 false,
                 ""
         ).apply(CRAFTING_TRANSLATION_PREFIX);
+        public static final ConfigBooleanHotkeyed ENABLE_WORKBENCH_QUICK_SHULKER_OUTPUT = new ConfigBooleanHotkeyed(
+                "enableWorkbenchQuickCraftOutputToShulker",
+                false,
+                ""
+        ).apply(CRAFTING_TRANSLATION_PREFIX);
         public static final ConfigBooleanHotkeyed ENABLE_BACKPACK = new ConfigBooleanHotkeyed(
                 "enableBackpackQuickCraft",
                 true,
@@ -205,6 +210,7 @@ public final class QuickCraftConfigs implements IConfigHandler {
         public static final List<IConfigBase> OPTIONS = List.of(
                 ENABLE_WORKBENCH,
                 ENABLE_WORKBENCH_QUICK_SHULKER,
+                ENABLE_WORKBENCH_QUICK_SHULKER_OUTPUT,
                 ENABLE_BACKPACK,
                 ENABLE_STONECUTTER,
                 ENABLE_ANVIL_RENAME,
@@ -798,6 +804,7 @@ public final class QuickCraftConfigs implements IConfigHandler {
         return List.of(
                 Crafting.ENABLE_WORKBENCH,
                 Crafting.ENABLE_WORKBENCH_QUICK_SHULKER,
+                Crafting.ENABLE_WORKBENCH_QUICK_SHULKER_OUTPUT,
                 Crafting.ENABLE_BACKPACK,
                 Crafting.ENABLE_STONECUTTER,
                 Crafting.ENABLE_ANVIL_RENAME,
@@ -858,6 +865,7 @@ public final class QuickCraftConfigs implements IConfigHandler {
         return List.of(
                 Crafting.ENABLE_WORKBENCH,
                 Crafting.ENABLE_WORKBENCH_QUICK_SHULKER,
+                Crafting.ENABLE_WORKBENCH_QUICK_SHULKER_OUTPUT,
                 Crafting.ENABLE_BACKPACK,
                 Crafting.ENABLE_STONECUTTER,
                 Crafting.ENABLE_ANVIL_RENAME,
@@ -910,12 +918,26 @@ public final class QuickCraftConfigs implements IConfigHandler {
     }
 
     public static boolean isWorkbenchQuickCraftEnabled() {
+        return Crafting.ENABLE_WORKBENCH.getBooleanValue()
+                && !isWorkbenchQuickCraftWithQuickShulkerEnabled();
+    }
+
+    public static boolean isWorkbenchQuickCraftFeatureEnabled() {
         return Crafting.ENABLE_WORKBENCH.getBooleanValue();
+    }
+
+    public static boolean isWorkbenchQuickShulkerCraftEnabled() {
+        return isWorkbenchQuickCraftFeatureEnabled()
+                && isWorkbenchQuickCraftWithQuickShulkerEnabled();
     }
 
     public static boolean isWorkbenchQuickCraftWithQuickShulkerEnabled() {
         return Crafting.ENABLE_WORKBENCH_QUICK_SHULKER.getBooleanValue()
                 && ModSupport.ENABLE_QUICK_SHULKER.getBooleanValue();
+    }
+
+    public static boolean isWorkbenchQuickCraftOutputToShulkerEnabled() {
+        return Crafting.ENABLE_WORKBENCH_QUICK_SHULKER_OUTPUT.getBooleanValue();
     }
 
     public static boolean isBackpackQuickCraftEnabled() {
