@@ -1,8 +1,7 @@
 package com.yiyihehe.quickcraft;
 
 import com.yiyihehe.quickcraft.litematica.QuickLitematicaSelectionPreview;
-import com.yiyihehe.quickcraft.litematica.QuickLitematicaAreaClone;
-import com.yiyihehe.quickcraft.litematica.QuickLitematicaEntityPlacement;
+import com.yiyihehe.quickcraft.litematica.QuickLitematicaPortalLink;
 import com.yiyihehe.quickcraft.malilib.QuickCraftMalilibInit;
 import fi.dy.masa.malilib.event.InitializationHandler;
 import net.fabricmc.api.ModInitializer;
@@ -24,7 +23,7 @@ public class QuickCraft implements ModInitializer {
     public static void bindOptionalHotkeys() {
         if (FabricLoader.getInstance().isModLoaded("litematica")) {
             QuickLitematicaSelectionPreview.bindHotkey();
-            QuickLitematicaAreaClone.bindHotkey();
+            QuickLitematicaPortalLink.initialize();
         }
     }
 
