@@ -2,10 +2,10 @@ package com.yiyihehe.quickcraft.mixin;
 
 import com.yiyihehe.quickcraft.litematica.QuickLitematicaShulkerMaterialRestock;
 import fi.dy.masa.litematica.util.InventoryUtils;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.item.ItemStack;
-import net.minecraft.util.math.BlockPos;
-import net.minecraft.world.World;
+import net.minecraft.client.Minecraft;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.core.BlockPos;
+import net.minecraft.world.level.Level;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
@@ -21,8 +21,8 @@ public final class LitematicaInventoryUtilsShulkerRestockMixin {
     private static void quickcraft$restockMissingEasyPlaceMaterial(
             ItemStack stack,
             BlockPos position,
-            World schematicWorld,
-            MinecraftClient client,
+            Level schematicWorld,
+            Minecraft client,
             CallbackInfo ci
     ) {
         if (QuickLitematicaShulkerMaterialRestock.requestMissingMaterial(stack)) {
