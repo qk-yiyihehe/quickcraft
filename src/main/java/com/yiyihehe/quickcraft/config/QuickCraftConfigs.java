@@ -343,6 +343,11 @@ public final class QuickCraftConfigs implements IConfigHandler {
                 true,
                 ""
         ).apply(PROJECTION_TRANSLATION_PREFIX);
+        public static final ConfigBooleanHotkeyed ENABLE_LITEMATICA_AREA_CLONE = new ConfigBooleanHotkeyed(
+                "enableLitematicaAreaClone",
+                true,
+                ""
+        ).apply(PROJECTION_TRANSLATION_PREFIX);
         public static final ConfigBoolean ALLOW_ADDING_LITEMATICA_PREVIEW_IMAGES = new ConfigBoolean(
                 "allowAddingLitematicaPreviewImages",
                 true
@@ -519,6 +524,7 @@ public final class QuickCraftConfigs implements IConfigHandler {
         ).apply(PROJECTION_TRANSLATION_PREFIX);
         public static final List<IConfigBase> OPTIONS = List.of(
                 SHOW_LITEMATICA_3D_PREVIEW,
+                ENABLE_LITEMATICA_AREA_CLONE,
                 ALLOW_ADDING_LITEMATICA_PREVIEW_IMAGES,
                 REPLACE_LITEMATICA_PREVIEW_WITH_3D,
                 ALLOW_EASY_PLACE_VANILLA_INTERACTIONS,
@@ -600,6 +606,11 @@ public final class QuickCraftConfigs implements IConfigHandler {
                 "LEFT_CONTROL,P",
                 INGAME_PRESS
         ).apply(HOTKEY_TRANSLATION_PREFIX);
+        public static final ConfigHotkey CLONE_LITEMATICA_AREA = new ConfigHotkey(
+                "cloneLitematicaAreaHotkey",
+                "LEFT_CONTROL,C",
+                INGAME_PRESS
+        ).apply(HOTKEY_TRANSLATION_PREFIX);
         public static final ConfigHotkey SINGLE_CRAFT = new ConfigHotkey(
                 "singleCraftHotkey",
                 "V",
@@ -670,6 +681,7 @@ public final class QuickCraftConfigs implements IConfigHandler {
                 ENABLE_ACTION_BUTTON_DRAGGING,
                 OPEN_CONFIG,
                 OPEN_LITEMATICA_AREA_3D_PREVIEW,
+                CLONE_LITEMATICA_AREA,
                 SINGLE_CRAFT,
                 RAPID_CRAFT,
                 QUICK_SORT,
@@ -688,6 +700,7 @@ public final class QuickCraftConfigs implements IConfigHandler {
         public static final List<IHotkey> HOTKEYS = List.of(
                 OPEN_CONFIG,
                 OPEN_LITEMATICA_AREA_3D_PREVIEW,
+                CLONE_LITEMATICA_AREA,
                 SINGLE_CRAFT,
                 RAPID_CRAFT,
                 QUICK_SORT,
@@ -730,6 +743,7 @@ public final class QuickCraftConfigs implements IConfigHandler {
                 ContainerTools.ENABLE_CREATIVE_PACKING,
                 ContainerTools.ENABLE_QUICK_BEACON,
                 ProjectionTools.SHOW_LITEMATICA_3D_PREVIEW,
+                ProjectionTools.ENABLE_LITEMATICA_AREA_CLONE,
                 ProjectionTools.ALLOW_EASY_PLACE_VANILLA_INTERACTIONS,
                 ProjectionTools.HOLD_EASY_PLACE,
                 ProjectionTools.SHOW_LITEMATICA_SCHEMATIC_FOLDER_BUTTON,
@@ -744,6 +758,7 @@ public final class QuickCraftConfigs implements IConfigHandler {
                 ModSupport.ENABLE_QUICK_SHULKER,
                 Hotkeys.OPEN_CONFIG,
                 Hotkeys.OPEN_LITEMATICA_AREA_3D_PREVIEW,
+                Hotkeys.CLONE_LITEMATICA_AREA,
                 Hotkeys.SINGLE_CRAFT,
                 Hotkeys.RAPID_CRAFT,
                 Hotkeys.QUICK_SORT,
@@ -782,6 +797,7 @@ public final class QuickCraftConfigs implements IConfigHandler {
                 ContainerTools.ENABLE_CREATIVE_PACKING,
                 ContainerTools.ENABLE_QUICK_BEACON,
                 ProjectionTools.SHOW_LITEMATICA_3D_PREVIEW,
+                ProjectionTools.ENABLE_LITEMATICA_AREA_CLONE,
                 ProjectionTools.ALLOW_EASY_PLACE_VANILLA_INTERACTIONS,
                 ProjectionTools.HOLD_EASY_PLACE,
                 ProjectionTools.SHOW_LITEMATICA_SCHEMATIC_FOLDER_BUTTON,
@@ -1011,6 +1027,9 @@ public final class QuickCraftConfigs implements IConfigHandler {
 
     public static boolean areManualLockedSlotInteractionsAllowed() {
         return ContainerTools.ALLOW_MANUAL_LOCKED_SLOT_INTERACTION.getBooleanValue();
+    }
+    public static boolean isLitematicaAreaCloneEnabled() {
+        return ProjectionTools.ENABLE_LITEMATICA_AREA_CLONE.getBooleanValue();
     }
     public static boolean canAddLitematicaPreviewImages() {
         return ProjectionTools.ALLOW_ADDING_LITEMATICA_PREVIEW_IMAGES.getBooleanValue();
