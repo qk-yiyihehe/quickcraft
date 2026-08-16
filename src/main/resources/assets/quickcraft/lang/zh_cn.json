@@ -406,5 +406,11 @@
   "quickcraft.litematica.preview_3d.export_dynamic_failed": "实体太多，当前无法生成完整图片",
   "quickcraft.litematica.preview_3d.open_output_folder": "打开渲染图文件夹",
   "quickcraft.litematica.preview_3d.output_folder": "文件夹",
-  "quickcraft.litematica.preview_3d.open_folder_failed": "文件夹打开失败"
+  "quickcraft.litematica.preview_3d.open_folder_failed": "文件夹打开失败",
+  "quickcraft.config.projection_tools.prettyName.enableLitematicaShulkerMaterialRestock": "潜影盒自动补料",
+  "quickcraft.config.projection_tools.name.enableLitematicaShulkerMaterialRestock": "潜影盒自动补料",
+  "quickcraft.config.projection_tools.comment.enableLitematicaShulkerMaterialRestock": "§6功能：§r轻松放置缺少投影材料时，自动从背包或快捷栏的潜影盒取出材料并切到手上。\n§e要求：§r需要客户端和服务端均支持 §bQuick Shulker§r。\n§7保护：§r沿用 Litematica 的快捷选择栏位、避免替换工具和耐久物品设置；不会替换潜影盒。\n§7默认：§r关闭。",
+  "quickcraft.config.projection_tools.prettyName.litematicaShulkerMaterialOrderlyStorage": "有序存放",
+  "quickcraft.config.projection_tools.name.litematicaShulkerMaterialOrderlyStorage": "有序存放",
+  "quickcraft.config.projection_tools.comment.litematicaShulkerMaterialOrderlyStorage": "§6功能：§r背包满时，优先把此前从潜影盒取出的材料放回原潜影盒，再取新材料。\n§e关闭时：§r允许放回任意潜影盒。\n§7默认：§r关闭。"
 }

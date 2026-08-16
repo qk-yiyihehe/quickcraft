@@ -508,6 +508,15 @@ public final class QuickCraftConfigs implements IConfigHandler {
                 "containerFillReplacements",
                 ImmutableList.of()
         ).apply(PROJECTION_TRANSLATION_PREFIX);
+        public static final ConfigBooleanHotkeyed ENABLE_LITEMATICA_SHULKER_MATERIAL_RESTOCK = new ConfigBooleanHotkeyed(
+                "enableLitematicaShulkerMaterialRestock",
+                false,
+                ""
+        ).apply(PROJECTION_TRANSLATION_PREFIX);
+        public static final ConfigBoolean LITEMATICA_SHULKER_MATERIAL_ORDERLY_STORAGE = new ConfigBoolean(
+                "litematicaShulkerMaterialOrderlyStorage",
+                false
+        ).apply(PROJECTION_TRANSLATION_PREFIX);
         public static final List<IConfigBase> OPTIONS = List.of(
                 SHOW_LITEMATICA_3D_PREVIEW,
                 ALLOW_ADDING_LITEMATICA_PREVIEW_IMAGES,
@@ -541,7 +550,9 @@ public final class QuickCraftConfigs implements IConfigHandler {
                 ENABLE_CONTAINER_FILL_OVERFLOW_DROP,
                 CONTAINER_FILL_FREE_SLOTS_LIMIT,
                 CONTAINER_FILL_PROTECTED_ITEMS,
-                CONTAINER_FILL_REPLACEMENTS
+                CONTAINER_FILL_REPLACEMENTS,
+                ENABLE_LITEMATICA_SHULKER_MATERIAL_RESTOCK,
+                LITEMATICA_SHULKER_MATERIAL_ORDERLY_STORAGE
         );
 
         private ProjectionTools() {
@@ -729,6 +740,7 @@ public final class QuickCraftConfigs implements IConfigHandler {
                 ProjectionTools.ENABLE_LITEMATICA_CONTAINER_AUTOFILL,
                 ProjectionTools.ENABLE_CREATIVE_CONTAINER_FILL,
                 ProjectionTools.ENABLE_CONTAINER_FILL_OVERFLOW_DROP,
+                ProjectionTools.ENABLE_LITEMATICA_SHULKER_MATERIAL_RESTOCK,
                 ModSupport.ENABLE_QUICK_SHULKER,
                 Hotkeys.OPEN_CONFIG,
                 Hotkeys.OPEN_LITEMATICA_AREA_3D_PREVIEW,
@@ -780,6 +792,7 @@ public final class QuickCraftConfigs implements IConfigHandler {
                 ProjectionTools.ENABLE_LITEMATICA_CONTAINER_AUTOFILL,
                 ProjectionTools.ENABLE_CREATIVE_CONTAINER_FILL,
                 ProjectionTools.ENABLE_CONTAINER_FILL_OVERFLOW_DROP,
+                ProjectionTools.ENABLE_LITEMATICA_SHULKER_MATERIAL_RESTOCK,
                 ModSupport.ENABLE_QUICK_SHULKER
         );
     }
@@ -876,6 +889,19 @@ public final class QuickCraftConfigs implements IConfigHandler {
 
     public static boolean isLitematicaContainerAutofillWithQuickShulkerEnabled() {
         return ModSupport.ENABLE_QUICK_SHULKER.getBooleanValue();
+    }
+
+    public static boolean isLitematicaShulkerMaterialRestockEnabled() {
+        return ProjectionTools.ENABLE_LITEMATICA_SHULKER_MATERIAL_RESTOCK.getBooleanValue();
+    }
+
+    public static boolean isLitematicaShulkerMaterialRestockWithQuickShulkerEnabled() {
+        return isLitematicaShulkerMaterialRestockEnabled()
+                && ModSupport.ENABLE_QUICK_SHULKER.getBooleanValue();
+    }
+
+    public static boolean isLitematicaShulkerMaterialOrderlyStorageEnabled() {
+        return ProjectionTools.LITEMATICA_SHULKER_MATERIAL_ORDERLY_STORAGE.getBooleanValue();
     }
 
     public static boolean isCreativeContainerFillEnabled() {

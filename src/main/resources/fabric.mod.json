@@ -28,7 +28,8 @@
       "com.yiyihehe.quickcraft.QuickContainerLock",
       "com.yiyihehe.quickcraft.QuickContainerCopy",
       "com.yiyihehe.quickcraft.QuickMaterialCollector",
-      "com.yiyihehe.quickcraft.litematica.QuickLitematicaContainerAutofill"
+      "com.yiyihehe.quickcraft.litematica.QuickLitematicaContainerAutofill",
+      "com.yiyihehe.quickcraft.litematica.QuickLitematicaShulkerMaterialRestock"
     ],
     "modmenu": [
       "com.yiyihehe.quickcraft.gui.QuickCraftModMenuIntegration"
