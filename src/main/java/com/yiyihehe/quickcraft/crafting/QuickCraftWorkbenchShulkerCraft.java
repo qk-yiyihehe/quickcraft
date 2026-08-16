@@ -36,6 +36,7 @@ public final class QuickCraftWorkbenchShulkerCraft implements ClientModInitializ
     private static final int GRID_END = 9;
     private static final int MAX_OUTPUT_BURST = 64;
     private static final int MAX_FAILURES = 3;
+    private static final int ULTRA_PIPELINE_STEPS_PER_BURST = 4;
     private static QuickCraftWorkbenchShulkerCraft instance;
 
     private boolean active;
@@ -47,6 +48,23 @@ public final class QuickCraftWorkbenchShulkerCraft implements ClientModInitializ
     private List<ItemStack> pattern = List.of();
     private ItemStack resultTemplate = ItemStack.EMPTY;
     private int snapshotSyncId = -1;
+    private long sessionStartedAtNanos;
+    private int sessionCrafted;
+    private int sessionOutputBursts;
+    private boolean sessionUltraFast;
+    private int serverCorrectionPauseTicks;
+    private int occupiedCursorTicks;
+    private int sessionCursorWaitEvents;
+    private int sessionCursorWaitTicks;
+    private int sessionCursorRecoveries;
+    private int sessionCorrectionPauseTicks;
+    private int sessionUltraPipelineTicks;
+    private int sessionUltraPipelineExtraBursts;
+    private int sessionUltraBurstsPerTick;
+    private int sessionCursorSettleTicks;
+    private int sessionRecoveryPauseTicks;
+    private int sessionCursorTimeoutTicks;
+    private boolean sessionOutputMismatchLogged;
 
     @Override
     public void onInitializeClient() {
@@ -89,6 +107,21 @@ public final class QuickCraftWorkbenchShulkerCraft implements ClientModInitializ
             return;
         }
 
+        if (handleCursorBoundary(handler)) {
+            return;
+        }
+        if (serverCorrectionPauseTicks > 0) {
+            serverCorrectionPauseTicks--;
+            sessionCorrectionPauseTicks++;
+            return;
+        }
+
+        if (isUltraPipelineEnabled()) {
+            QuickContainerLock.runWithPlayerSlotLocksBypassed(
+                    () -> processUltraPipelineTick(client, handler));
+            return;
+        }
+
         if (QuickCraftWorkbenchShulker.isShulkerCraftBusy()) {
             if (!isRapidInputHeld(client)) {
                 QuickCraftWorkbenchShulker.requestShulkerCraftStopAfterCurrentAction();
@@ -98,61 +131,218 @@ public final class QuickCraftWorkbenchShulkerCraft implements ClientModInitializ
             processRefillResult(client, handler);
             return;
         }
+        if (!sessionUltraFast && QuickCraftWorkbenchShulker.isShulkerCraftActionCoolingDown()) {
+            return;
+        }
         QuickContainerLock.runWithPlayerSlotLocksBypassed(
                 () -> processCraftTick(client, handler));
     }
 
+    private boolean handleCursorBoundary(CraftingScreenHandler handler) {
+        ItemStack cursor = handler.getCursorStack();
+        if (cursor.isEmpty()) {
+            if (occupiedCursorTicks > 0) {
+                LOGGER.debug("服务端同步后光标已清空：会话t+{} ms，等待={} Tick，revision={}",
+                        sessionElapsedMillis(), occupiedCursorTicks, handler.getRevision());
+            }
+            occupiedCursorTicks = 0;
+            return false;
+        }
+
+        occupiedCursorTicks++;
+        sessionCursorWaitTicks++;
+        if (occupiedCursorTicks == 1) {
+            sessionCursorWaitEvents++;
+            consecutiveFailures = 0;
+            LOGGER.debug("持续合成等待服务端光标最终态：会话t+{} ms，光标={}，revision={}，syncId={}，"
+                            + "潜影盒恢复等待={} Tick，最长等待={} Tick",
+                    sessionElapsedMillis(), describeStack(cursor), handler.getRevision(), handler.syncId,
+                    sessionCursorSettleTicks, sessionCursorTimeoutTicks);
+        }
+        if (shouldRecoverShulkerCursor(occupiedCursorTicks, sessionCursorSettleTicks)
+                && QuickCraftWorkbenchShulker.recoverShulkerCraftCursor(handler)) {
+            LOGGER.warn("持续合成检测到服务端回退潜影盒：会话t+{} ms，已安全放回并暂停={} Tick，"
+                            + "检测前等待={} Tick，revision={}，syncId={}",
+                    sessionElapsedMillis(), sessionRecoveryPauseTicks,
+                    occupiedCursorTicks, handler.getRevision(), handler.syncId);
+            occupiedCursorTicks = 0;
+            serverCorrectionPauseTicks = sessionRecoveryPauseTicks;
+            sessionCursorRecoveries++;
+            consecutiveFailures = 0;
+            return true;
+        }
+
+        if (!shouldStopForOccupiedCursor(occupiedCursorTicks, sessionCursorTimeoutTicks)) {
+            return true;
+        }
+
+        LOGGER.error("持续合成光标同步超时：会话t+{} ms，光标={}，等待={} Tick，revision={}，syncId={}",
+                sessionElapsedMillis(), describeStack(cursor), occupiedCursorTicks,
+                handler.getRevision(), handler.syncId);
+        stop(MinecraftClient.getInstance(), Text.translatable("quickcraft.message.crafting.shulker_cursor_blocked"));
+        return true;
+    }
+
+    static boolean shouldRecoverShulkerCursor(int occupiedTicks, int settleTicks) {
+        return occupiedTicks >= settleTicks;
+    }
+
+    static boolean shouldStopForOccupiedCursor(int occupiedTicks, int timeoutTicks) {
+        return occupiedTicks >= timeoutTicks;
+    }
+
+    static double craftsPerSecond(int crafted, long elapsedMillis) {
+        if (crafted <= 0 || elapsedMillis <= 0L) {
+            return 0.0D;
+        }
+        return Math.round(crafted * 100_000.0D / elapsedMillis) / 100.0D;
+    }
+
+    private boolean isUltraPipelineEnabled() {
+        return sessionUltraFast && QuickCraftConfigs.getQuickShulkerActionIntervalTicks() == 0;
+    }
+
+    private void processUltraPipelineTick(MinecraftClient client,
+                                          CraftingScreenHandler handler) {
+        int burstsBefore = sessionOutputBursts;
+        int steps = 0;
+        int maxSteps = sessionUltraBurstsPerTick * ULTRA_PIPELINE_STEPS_PER_BURST;
+        while (canContinueUltraPipeline(active, steps,
+                sessionOutputBursts - burstsBefore, handler.getCursorStack().isEmpty(),
+                maxSteps, sessionUltraBurstsPerTick)) {
+            int craftedBefore = sessionCrafted;
+            int failuresBefore = consecutiveFailures;
+            int tasksBefore = QuickCraftWorkbenchShulker.debugSessionTaskCount();
+            int sourceBatchesBefore = QuickCraftWorkbenchShulker.debugSessionSourceBatches();
+            boolean busyBefore = QuickCraftWorkbenchShulker.isShulkerCraftBusy();
+
+            if (busyBefore) {
+                if (!isRapidInputHeld(client)) {
+                    QuickCraftWorkbenchShulker.requestShulkerCraftStopAfterCurrentAction();
+                }
+                QuickCraftWorkbenchShulker.tickShulkerCraft(client);
+                processRefillResult(client, handler);
+            } else {
+                processCraftTick(client, handler);
+            }
+            steps++;
+
+            boolean progressed = sessionCrafted != craftedBefore
+                    || consecutiveFailures != failuresBefore
+                    || QuickCraftWorkbenchShulker.debugSessionTaskCount() != tasksBefore
+                    || QuickCraftWorkbenchShulker.debugSessionSourceBatches() != sourceBatchesBefore
+                    || QuickCraftWorkbenchShulker.isShulkerCraftBusy() != busyBefore;
+            if (!progressed) {
+                break;
+            }
+        }
+
+        int bursts = sessionOutputBursts - burstsBefore;
+        if (bursts > 1) {
+            sessionUltraPipelineTicks++;
+            sessionUltraPipelineExtraBursts += bursts - 1;
+            LOGGER.debug("极速流水 Tick：会话t+{} ms，步骤={}，输出Burst={}，额外Burst={}，累计合成={}",
+                    sessionElapsedMillis(), steps, bursts, bursts - 1, sessionCrafted);
+        }
+    }
+
+    static boolean canContinueUltraPipeline(boolean active,
+                                            int completedSteps,
+                                            int completedBursts,
+                                            boolean cursorEmpty,
+                                            int maxSteps,
+                                            int maxBursts) {
+        return active && cursorEmpty
+                && completedSteps < maxSteps
+                && completedBursts < maxBursts;
+    }
+
     private void processCraftTick(MinecraftClient client, CraftingScreenHandler handler) {
         if (hasMissingPerCraftMaterial(handler)) {
-            rebalanceIncompleteRepeatedMaterials(client, handler);
+            int rebalancedItems = rebalanceIncompleteRepeatedMaterials(client, handler);
             int movedLooseItems = fillMissingSlotsFromPlayerInventory(client, handler);
             if (movedLooseItems > 0) {
-                primeOutputLocally(client, handler);
-                consecutiveFailures = 0;
+                boolean primed = primeOutputLocally(client, handler);
+                if (sessionUltraFast && primed) {
+                    recordProgressOrStop(client, drainOutputBurst(client, handler));
+                } else {
+                    consecutiveFailures = 0;
+                }
+                return;
+            }
+            if (sessionUltraFast && rebalancedItems > 0 && primeOutputLocally(client, handler)) {
+                recordProgressOrStop(client, drainOutputBurst(client, handler));
                 return;
             }
             QuickCraftWorkbenchShulker.RefillStart refill =
                     QuickCraftWorkbenchShulker.beginShulkerCraftRefill(handler, pattern);
-            LOGGER.debug("不可堆叠材料已消耗，优先请求补料：结果={}，配方={}，合成格={}",
-                    refill, recipe == null ? "NONE" : recipe.id(), describePattern(pattern));
-            if (refill == QuickCraftWorkbenchShulker.RefillStart.STARTED) {
-                runFirstRefillActionImmediately(client, handler);
-            } else {
+            LOGGER.debug("不可堆叠材料已消耗，优先请求补料：会话t+{} ms，结果={}，配方={}，合成格={}",
+                    sessionElapsedMillis(), refill, recipe == null ? "NONE" : recipe.id(),
+                    describePattern(pattern));
+            if (!handleRefillStart(client, handler, refill)) {
                 recordProgressOrStop(client, false);
             }
             return;
         }
 
         if (handler.getSlot(OUTPUT_SLOT).hasStack()) {
-            boolean progressed = QuickCraftConfigs.isWorkbenchQuickCraftOutputToShulkerEnabled()
-                    ? storeOutputBurst(client, handler)
-                    : throwOutputBurst(client, handler);
+            boolean progressed = drainOutputBurst(client, handler);
             recordProgressOrStop(client, progressed);
             return;
         }
 
         if (primeOutputLocally(client, handler)) {
-            consecutiveFailures = 0;
+            if (sessionUltraFast) {
+                recordProgressOrStop(client, drainOutputBurst(client, handler));
+            } else {
+                consecutiveFailures = 0;
+            }
             return;
         }
-
-        rebalanceIncompleteRepeatedMaterials(client, handler);
+        int rebalancedItems = rebalanceIncompleteRepeatedMaterials(client, handler);
         int movedLooseItems = fillMissingSlotsFromPlayerInventory(client, handler);
         if (movedLooseItems > 0) {
-            primeOutputLocally(client, handler);
-            consecutiveFailures = 0;
+            boolean primed = primeOutputLocally(client, handler);
+            if (sessionUltraFast && primed) {
+                recordProgressOrStop(client, drainOutputBurst(client, handler));
+            } else {
+                consecutiveFailures = 0;
+            }
+            return;
+        }
+        if (sessionUltraFast && rebalancedItems > 0 && primeOutputLocally(client, handler)) {
+            recordProgressOrStop(client, drainOutputBurst(client, handler));
             return;
         }
 
         QuickCraftWorkbenchShulker.RefillStart refill =
                 QuickCraftWorkbenchShulker.beginShulkerCraftRefill(handler, pattern);
-        LOGGER.debug("潜影盒工作台喷射请求补料：结果={}，配方={}，合成格={}",
-                refill, recipe == null ? "NONE" : recipe.id(), describePattern(pattern));
-        if (refill == QuickCraftWorkbenchShulker.RefillStart.STARTED) {
-            runFirstRefillActionImmediately(client, handler);
+        LOGGER.debug("潜影盒工作台喷射请求补料：会话t+{} ms，结果={}，配方={}，合成格={}",
+                sessionElapsedMillis(), refill, recipe == null ? "NONE" : recipe.id(),
+                describePattern(pattern));
+        if (handleRefillStart(client, handler, refill)) {
             return;
         }
         recordProgressOrStop(client, false);
+    }
+
+    private boolean handleRefillStart(MinecraftClient client,
+                                      CraftingScreenHandler handler,
+                                      QuickCraftWorkbenchShulker.RefillStart refill) {
+        if (refill == QuickCraftWorkbenchShulker.RefillStart.STARTED) {
+            runFirstRefillActionImmediately(client, handler);
+            return true;
+        }
+        if (refill == QuickCraftWorkbenchShulker.RefillStart.RECOVERED_DESYNC) {
+            consecutiveFailures = 0;
+            serverCorrectionPauseTicks = sessionRecoveryPauseTicks;
+            return true;
+        }
+        if (refill == QuickCraftWorkbenchShulker.RefillStart.GRID_MISMATCH) {
+            stop(client, Text.translatable("quickcraft.message.crafting.shulker_grid_desync"));
+            return true;
+        }
+        return false;
     }
 
     private void runFirstRefillActionImmediately(MinecraftClient client,
@@ -174,15 +364,20 @@ public final class QuickCraftWorkbenchShulkerCraft implements ClientModInitializ
                 break;
             }
             if (!isExpectedOutput(handler.getSlot(OUTPUT_SLOT).getStack())) {
+                logUnexpectedOutput(handler);
                 break;
             }
             client.interactionManager.clickSlot(handler.syncId, OUTPUT_SLOT, 1,
                     SlotActionType.THROW, client.player);
             completed++;
+            sessionCrafted++;
+            if (completed == 1) {
+                sessionOutputBursts++;
+            }
         }
         if (completed > 0) {
-            LOGGER.debug("输出槽直接丢弃 burst：合成={} 次，耗时={} us，配方={}",
-                    completed, (System.nanoTime() - startedAtNanos) / 1_000L,
+            LOGGER.debug("输出槽直接丢弃 burst：会话t+{} ms，合成={} 次，耗时={} us，配方={}",
+                    sessionElapsedMillis(), completed, (System.nanoTime() - startedAtNanos) / 1_000L,
                     recipe == null ? "NONE" : recipe.id());
         }
         return completed > 0;
@@ -204,6 +399,7 @@ public final class QuickCraftWorkbenchShulkerCraft implements ClientModInitializ
             }
             ItemStack output = handler.getSlot(OUTPUT_SLOT).getStack().copy();
             if (!isExpectedOutput(output)) {
+                logUnexpectedOutput(handler);
                 break;
             }
             if (sourceSlot == -1
@@ -224,13 +420,17 @@ public final class QuickCraftWorkbenchShulkerCraft implements ClientModInitializ
                 return completed > 0;
             }
             completed++;
+            sessionCrafted++;
+            if (completed == 1) {
+                sessionOutputBursts++;
+            }
         }
         if (!QuickCraftWorkbenchShulkerOutput.returnBox(client, handler, sourceSlot)) {
             stop(client, Text.translatable("quickcraft.message.crafting.shulker_cursor_blocked"));
         }
         if (completed > 0) {
-            LOGGER.debug("输出槽直接装盒 burst：合成={} 次，耗时={} us，不受补货间隔限制，配方={}",
-                    completed, (System.nanoTime() - startedAtNanos) / 1_000L,
+            LOGGER.debug("输出槽直接装盒 burst：会话t+{} ms，合成={} 次，耗时={} us，不受补货间隔限制，配方={}",
+                    sessionElapsedMillis(), completed, (System.nanoTime() - startedAtNanos) / 1_000L,
                     recipe == null ? "NONE" : recipe.id());
         }
         return completed > 0;
@@ -248,7 +448,27 @@ public final class QuickCraftWorkbenchShulkerCraft implements ClientModInitializ
         }
         if (!primeOutputLocally(client, handler)) {
             recordProgressOrStop(client, false);
+            return;
         }
+        if (!sessionUltraFast) {
+            consecutiveFailures = 0;
+            return;
+        }
+        if (!active) {
+            return;
+        }
+        long outputStartedAtNanos = System.nanoTime();
+        boolean progressed = drainOutputBurst(client, handler);
+        LOGGER.debug("快速模式补货完成同Tick输出：会话t+{} ms，任务结果={}，成功={}，耗时={} us",
+                sessionElapsedMillis(), result, progressed,
+                (System.nanoTime() - outputStartedAtNanos) / 1_000L);
+        recordProgressOrStop(client, progressed);
+    }
+
+    private boolean drainOutputBurst(MinecraftClient client, CraftingScreenHandler handler) {
+        return QuickCraftConfigs.isWorkbenchQuickCraftOutputToShulkerEnabled()
+                ? storeOutputBurst(client, handler)
+                : throwOutputBurst(client, handler);
     }
 
     private void recordProgressOrStop(MinecraftClient client, boolean progressed) {
@@ -303,9 +523,31 @@ public final class QuickCraftWorkbenchShulkerCraft implements ClientModInitializ
         active = true;
         startedByButton = fromButton;
         consecutiveFailures = 0;
+        sessionStartedAtNanos = System.nanoTime();
+        sessionCrafted = 0;
+        sessionOutputBursts = 0;
+        sessionUltraFast = QuickCraftConfigs.isWorkbenchQuickShulkerUltraFastEnabled();
+        serverCorrectionPauseTicks = 0;
+        occupiedCursorTicks = 0;
+        sessionCursorWaitEvents = 0;
+        sessionCursorWaitTicks = 0;
+        sessionCursorRecoveries = 0;
+        sessionCorrectionPauseTicks = 0;
+        sessionUltraPipelineTicks = 0;
+        sessionUltraPipelineExtraBursts = 0;
+        sessionUltraBurstsPerTick = QuickCraftConfigs.getWorkbenchQuickShulkerUltraBurstsPerTick();
+        sessionCursorSettleTicks = QuickCraftConfigs.getWorkbenchQuickShulkerCursorSettleTicks();
+        sessionRecoveryPauseTicks = QuickCraftConfigs.getWorkbenchQuickShulkerRecoveryPauseTicks();
+        sessionCursorTimeoutTicks = QuickCraftConfigs.getWorkbenchQuickShulkerCursorTimeoutTicks();
+        sessionOutputMismatchLogged = false;
+        QuickCraftWorkbenchShulker.beginDebugSession(sessionUltraFast);
         sendMessage(client, Text.translatable("quickcraft.message.crafting.started"));
-        LOGGER.info("开始潜影盒工作台喷射：配方={}，输出装盒={}",
-                recipe.id(), QuickCraftConfigs.isWorkbenchQuickCraftOutputToShulkerEnabled());
+        LOGGER.info("开始潜影盒工作台喷射：会话t+0 ms，实验极速={}，执行模式={}，极速Burst上限={}，"
+                        + "光标策略={}/{}/{} Tick，配方={}，输出装盒={}，操作间隔={} Tick",
+                sessionUltraFast, sessionUltraFast ? "同Tick多来源+同Tick输出" : "安全单Tick边界",
+                sessionUltraBurstsPerTick, sessionCursorSettleTicks, sessionRecoveryPauseTicks,
+                sessionCursorTimeoutTicks, recipe.id(), QuickCraftConfigs.isWorkbenchQuickCraftOutputToShulkerEnabled(),
+                QuickCraftConfigs.getQuickShulkerActionIntervalTicks());
         return true;
     }
 
@@ -448,8 +690,9 @@ public final class QuickCraftWorkbenchShulkerCraft implements ClientModInitializ
         }
 
         if (movedItems > 0) {
-            LOGGER.debug("背包散装材料补格：移动={} 个，来源堆={}，耗时={} us，配方={}",
-                    movedItems, operations, (System.nanoTime() - startedAtNanos) / 1_000L,
+            LOGGER.debug("背包散装材料补格：会话t+{} ms，移动={} 个，来源堆={}，耗时={} us，配方={}",
+                    sessionElapsedMillis(), movedItems, operations,
+                    (System.nanoTime() - startedAtNanos) / 1_000L,
                     recipe == null ? "NONE" : recipe.id());
         }
         return movedItems;
@@ -510,8 +753,8 @@ public final class QuickCraftWorkbenchShulkerCraft implements ClientModInitializ
             movedItems += rebalancePatternGroupInGrid(client, handler, groupSlots, template);
         }
         if (movedItems > 0) {
-            LOGGER.debug("复杂配方尾数工作台内重新均分：移动={} 个，耗时={} us，配方={}",
-                    movedItems, (System.nanoTime() - startedAtNanos) / 1_000L,
+            LOGGER.debug("复杂配方尾数工作台内重新均分：会话t+{} ms，移动={} 个，耗时={} us，配方={}",
+                    sessionElapsedMillis(), movedItems, (System.nanoTime() - startedAtNanos) / 1_000L,
                     recipe == null ? "NONE" : recipe.id());
         }
         return movedItems;
@@ -873,10 +1116,7 @@ public final class QuickCraftWorkbenchShulkerCraft implements ClientModInitializ
     }
 
     private void stop(MinecraftClient client, Text message) {
-        LOGGER.debug("停止潜影盒工作台喷射：配方={}，连续失败={}，补料中={}，原因={}",
-                recipe == null ? "NONE" : recipe.id(), consecutiveFailures,
-                QuickCraftWorkbenchShulker.isShulkerCraftBusy(),
-                message == null ? "无" : message.getString());
+        logSessionSummary(message == null ? "无" : message.getString());
         if (QuickCraftWorkbenchShulker.isShulkerCraftBusy()) {
             QuickCraftWorkbenchShulker.requestShulkerCraftStopAfterCurrentAction();
             QuickContainerLock.runWithPlayerSlotLocksBypassed(
@@ -891,6 +1131,9 @@ public final class QuickCraftWorkbenchShulkerCraft implements ClientModInitializ
     }
 
     private void reset() {
+        if (active) {
+            logSessionSummary("工作台关闭或世界退出");
+        }
         if (recipe != null) {
             LOGGER.debug("关闭工作台，释放潜影盒配方快照：syncId={}，配方={}", snapshotSyncId, recipe.id());
         }
@@ -903,7 +1146,49 @@ public final class QuickCraftWorkbenchShulkerCraft implements ClientModInitializ
         snapshotSyncId = -1;
         lastSingleKeyDown = false;
         lastRapidKeyDown = false;
+        sessionStartedAtNanos = 0L;
+        sessionCrafted = 0;
+        sessionOutputBursts = 0;
+        sessionUltraFast = false;
+        serverCorrectionPauseTicks = 0;
+        occupiedCursorTicks = 0;
+        sessionCursorWaitEvents = 0;
+        sessionCursorWaitTicks = 0;
+        sessionCursorRecoveries = 0;
+        sessionCorrectionPauseTicks = 0;
+        sessionUltraPipelineTicks = 0;
+        sessionUltraPipelineExtraBursts = 0;
+        sessionUltraBurstsPerTick = 0;
+        sessionCursorSettleTicks = 0;
+        sessionRecoveryPauseTicks = 0;
+        sessionCursorTimeoutTicks = 0;
+        sessionOutputMismatchLogged = false;
+        QuickCraftWorkbenchShulker.clearDebugSession();
         QuickCraftWorkbenchShulker.resetShulkerCraft();
+    }
+
+    private void logSessionSummary(String reason) {
+        long elapsedMillis = sessionElapsedMillis();
+        LOGGER.info("潜影盒工作台喷射汇总：耗时={} ms，合成={} 次，速度={} 次/秒，输出Burst={}，"
+                        + "来源任务={}，来源盒批次={}，光标等待={} 次/{} Tick，自动恢复={} 次，恢复静默={} Tick，"
+                        + "极速流水={} Tick/额外{} Burst，配置Burst上限={}，光标策略={}/{}/{} Tick，"
+                        + "实验极速={}，配方={}，连续失败={}，补料中={}，结束原因={}",
+                elapsedMillis, sessionCrafted, craftsPerSecond(sessionCrafted, elapsedMillis), sessionOutputBursts,
+                QuickCraftWorkbenchShulker.debugSessionTaskCount(),
+                QuickCraftWorkbenchShulker.debugSessionSourceBatches(),
+                sessionCursorWaitEvents, sessionCursorWaitTicks, sessionCursorRecoveries,
+                sessionCorrectionPauseTicks, sessionUltraPipelineTicks, sessionUltraPipelineExtraBursts,
+                sessionUltraBurstsPerTick, sessionCursorSettleTicks, sessionRecoveryPauseTicks,
+                sessionCursorTimeoutTicks,
+                sessionUltraFast,
+                recipe == null ? "NONE" : recipe.id(), consecutiveFailures,
+                QuickCraftWorkbenchShulker.isShulkerCraftBusy(), reason);
+    }
+
+    private long sessionElapsedMillis() {
+        return sessionStartedAtNanos == 0L
+                ? 0L
+                : (System.nanoTime() - sessionStartedAtNanos) / 1_000_000L;
     }
 
     private static String describePattern(List<ItemStack> stacks) {
@@ -915,6 +1200,22 @@ public final class QuickCraftWorkbenchShulkerCraft implements ClientModInitializ
             }
         }
         return parts.toString();
+    }
+
+    private void logUnexpectedOutput(CraftingScreenHandler handler) {
+        if (sessionOutputMismatchLogged) {
+            return;
+        }
+        sessionOutputMismatchLogged = true;
+        LOGGER.error("服务端工作台输出与锁定配方不一致：会话t+{} ms，配方={}，期望输出={}，实际输出={}，"
+                        + "revision={}，光标={}，合成格={}",
+                sessionElapsedMillis(), recipe == null ? "NONE" : recipe.id(), describeStack(resultTemplate),
+                describeStack(handler.getSlot(OUTPUT_SLOT).getStack()), handler.getRevision(),
+                describeStack(handler.getCursorStack()), describePattern(snapshotPattern(handler)));
+    }
+
+    private static String describeStack(ItemStack stack) {
+        return stack.isEmpty() ? "空" : stack.getName().getString() + "x" + stack.getCount();
     }
 
     private void sendMessage(MinecraftClient client, Text message) {

@@ -1,11 +1,20 @@
 package com.yiyihehe.quickcraft.crafting;
 
+import com.yiyihehe.quickcraft.config.QuickCraftConfigs;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
 class QuickCraftWorkbenchShulkerTest {
+    @Test
+    @DisplayName("光标恢复配置保持原有默认策略")
+    void cursorRecoveryConfig_preservesExistingDefaults() {
+        assertThat(QuickCraftConfigs.DEFAULT_WORKBENCH_QUICK_SHULKER_CURSOR_SETTLE_TICKS).isEqualTo(4);
+        assertThat(QuickCraftConfigs.DEFAULT_WORKBENCH_QUICK_SHULKER_RECOVERY_PAUSE_TICKS).isEqualTo(4);
+        assertThat(QuickCraftConfigs.DEFAULT_WORKBENCH_QUICK_SHULKER_CURSOR_TIMEOUT_TICKS).isEqualTo(20);
+    }
+
     @Test
     @DisplayName("来源潜影盒扫描完整三十六格玩家物品栏")
     void sourceScanCount_usesFullPlayerInventory() {
@@ -17,11 +26,12 @@ class QuickCraftWorkbenchShulkerTest {
     }
 
     @Test
-    @DisplayName("零操作间隔仍限制每 Tick 一个来源盒")
-    void sourceBatchesPerTick_keepsOneSourcePerTickAtZeroInterval() {
-        assertThat(QuickCraftWorkbenchShulker.sourceBatchesPerTick(0)).isEqualTo(1);
-        assertThat(QuickCraftWorkbenchShulker.sourceBatchesPerTick(1)).isEqualTo(1);
-        assertThat(QuickCraftWorkbenchShulker.sourceBatchesPerTick(20)).isEqualTo(1);
+    @DisplayName("只有极速实验模式的零操作间隔允许同 Tick 扫描多个来源盒")
+    void sourceBatchesPerTick_onlyBurstsInUltraFastZeroIntervalMode() {
+        assertThat(QuickCraftWorkbenchShulker.sourceBatchesPerTick(0, false)).isEqualTo(1);
+        assertThat(QuickCraftWorkbenchShulker.sourceBatchesPerTick(0, true)).isEqualTo(36);
+        assertThat(QuickCraftWorkbenchShulker.sourceBatchesPerTick(1, true)).isEqualTo(1);
+        assertThat(QuickCraftWorkbenchShulker.sourceBatchesPerTick(20, true)).isEqualTo(1);
     }
 
     @Test
@@ -39,6 +49,47 @@ class QuickCraftWorkbenchShulkerTest {
         assertThat(QuickCraftWorkbenchShulker.shulkerCraftCooldownAfterAction(0)).isZero();
         assertThat(QuickCraftWorkbenchShulker.shulkerCraftCooldownAfterAction(1)).isEqualTo(1);
         assertThat(QuickCraftWorkbenchShulker.shulkerCraftCooldownAfterAction(20)).isEqualTo(20);
+    }
+
+    @Test
+    @DisplayName("服务端光标恢复遵守可配置等待阈值")
+    void cursorRecovery_honorsConfiguredSettleTicks() {
+        assertThat(QuickCraftWorkbenchShulkerCraft.shouldRecoverShulkerCursor(1, 2)).isFalse();
+        assertThat(QuickCraftWorkbenchShulkerCraft.shouldRecoverShulkerCursor(2, 2)).isTrue();
+        assertThat(QuickCraftWorkbenchShulkerCraft.shouldRecoverShulkerCursor(3, 4)).isFalse();
+        assertThat(QuickCraftWorkbenchShulkerCraft.shouldRecoverShulkerCursor(4, 4)).isTrue();
+    }
+
+    @Test
+    @DisplayName("未知光标物品遵守可配置超时阈值")
+    void cursorTimeout_honorsConfiguredTimeoutTicks() {
+        assertThat(QuickCraftWorkbenchShulkerCraft.shouldStopForOccupiedCursor(9, 10)).isFalse();
+        assertThat(QuickCraftWorkbenchShulkerCraft.shouldStopForOccupiedCursor(10, 10)).isTrue();
+        assertThat(QuickCraftWorkbenchShulkerCraft.shouldStopForOccupiedCursor(19, 20)).isFalse();
+        assertThat(QuickCraftWorkbenchShulkerCraft.shouldStopForOccupiedCursor(20, 20)).isTrue();
+    }
+
+    @Test
+    @DisplayName("会话汇总按实际耗时计算每秒合成次数")
+    void sessionThroughput_usesCraftCountAndElapsedMillis() {
+        assertThat(QuickCraftWorkbenchShulkerCraft.craftsPerSecond(64, 1_000L)).isEqualTo(64.0D);
+        assertThat(QuickCraftWorkbenchShulkerCraft.craftsPerSecond(9, 1_500L)).isEqualTo(6.0D);
+        assertThat(QuickCraftWorkbenchShulkerCraft.craftsPerSecond(0, 1_000L)).isZero();
+        assertThat(QuickCraftWorkbenchShulkerCraft.craftsPerSecond(64, 0L)).isZero();
+    }
+
+    @Test
+    @DisplayName("极速流水遵守可配置的输出批次和安全步数边界")
+    void ultraPipeline_stopsAtBurstStepAndCursorBoundaries() {
+        assertThat(QuickCraftWorkbenchShulkerCraft.canContinueUltraPipeline(true, 0, 0, true, 12, 3)).isTrue();
+        assertThat(QuickCraftWorkbenchShulkerCraft.canContinueUltraPipeline(true, 11, 2, true, 12, 3)).isTrue();
+        assertThat(QuickCraftWorkbenchShulkerCraft.canContinueUltraPipeline(true, 12, 0, true, 12, 3)).isFalse();
+        assertThat(QuickCraftWorkbenchShulkerCraft.canContinueUltraPipeline(true, 0, 3, true, 12, 3)).isFalse();
+        assertThat(QuickCraftWorkbenchShulkerCraft.canContinueUltraPipeline(true, 0, 0, false, 12, 3)).isFalse();
+        assertThat(QuickCraftWorkbenchShulkerCraft.canContinueUltraPipeline(false, 0, 0, true, 12, 3)).isFalse();
+        assertThat(QuickCraftWorkbenchShulkerCraft.canContinueUltraPipeline(true, 63, 15, true, 64, 16)).isTrue();
+        assertThat(QuickCraftWorkbenchShulkerCraft.canContinueUltraPipeline(true, 64, 15, true, 64, 16)).isFalse();
+        assertThat(QuickCraftWorkbenchShulkerCraft.canContinueUltraPipeline(true, 63, 16, true, 64, 16)).isFalse();
     }
 
     @Test
