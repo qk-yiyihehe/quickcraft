@@ -2,8 +2,8 @@ package com.yiyihehe.quickcraft.mixin;
 
 import com.yiyihehe.quickcraft.litematica.QuickLitematicaShulkerMaterialRestock;
 import fi.dy.masa.litematica.util.WorldUtils;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.util.ActionResult;
+import net.minecraft.client.Minecraft;
+import net.minecraft.world.InteractionResult;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
@@ -19,12 +19,12 @@ public final class LitematicaWorldUtilsShulkerRestockMixin {
             method = "handleEasyPlace",
             at = @At(
                     value = "INVOKE",
-                    target = "Lfi/dy/masa/litematica/util/WorldUtils;doEasyPlaceAction(Lnet/minecraft/client/MinecraftClient;)Lnet/minecraft/util/ActionResult;"
+                    target = "Lfi/dy/masa/litematica/util/WorldUtils;doEasyPlaceAction(Lnet/minecraft/client/Minecraft;)Lnet/minecraft/util/InteractionResult;"
             ),
             cancellable = true,
             remap = false
     )
-    private static void quickcraft$restockBeforeClickEasyPlace(MinecraftClient client, CallbackInfoReturnable<Boolean> cir) {
+    private static void quickcraft$restockBeforeClickEasyPlace(Minecraft client, CallbackInfoReturnable<Boolean> cir) {
         if (QuickLitematicaShulkerMaterialRestock.requestMaterialForEasyPlaceTarget(client)) {
             cir.setReturnValue(true);
         }
@@ -32,11 +32,12 @@ public final class LitematicaWorldUtilsShulkerRestockMixin {
 
     @Inject(method = "doEasyPlaceAction", at = @At("HEAD"), cancellable = true, remap = false)
     private static void quickcraft$restockBeforeHeldEasyPlace(
-            MinecraftClient client,
-            CallbackInfoReturnable<ActionResult> cir
+            Minecraft client,
+            CallbackInfoReturnable<InteractionResult> cir
     ) {
         if (QuickLitematicaShulkerMaterialRestock.requestMaterialForEasyPlaceTarget(client)) {
-            cir.setReturnValue(ActionResult.FAIL);
+            cir.setReturnValue(InteractionResult.FAIL);
         }
     }
 }
+
