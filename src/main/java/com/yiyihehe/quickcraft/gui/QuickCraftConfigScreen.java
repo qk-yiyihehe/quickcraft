@@ -192,6 +192,10 @@ public class QuickCraftConfigScreen extends GuiConfigsBase {
                 QuickCraftConfigs.ProjectionTools.CONTAINER_FILL_FREE_SLOTS_LIMIT,
                 QuickCraftConfigs.ProjectionTools.CONTAINER_FILL_PROTECTED_ITEMS,
                 QuickCraftConfigs.ProjectionTools.CONTAINER_FILL_REPLACEMENTS
+        ),
+        LITEMATICA_SHULKER_MATERIAL_RESTOCK(
+                QuickCraftConfigs.ProjectionTools.ENABLE_LITEMATICA_SHULKER_MATERIAL_RESTOCK,
+                QuickCraftConfigs.ProjectionTools.LITEMATICA_SHULKER_MATERIAL_ORDERLY_STORAGE
         );
 
         private final IConfigBase parent;
