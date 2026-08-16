@@ -408,5 +408,11 @@
   "quickcraft.litematica.preview_3d.export_dynamic_failed": "Too many entities to produce the complete image.",
   "quickcraft.litematica.preview_3d.open_output_folder": "Open Render Folder",
   "quickcraft.litematica.preview_3d.output_folder": "Folder",
-  "quickcraft.litematica.preview_3d.open_folder_failed": "Could not open the render folder"
+  "quickcraft.litematica.preview_3d.open_folder_failed": "Could not open the render folder",
+  "quickcraft.config.projection_tools.prettyName.enableLitematicaShulkerMaterialRestock": "Shulker Material Restock",
+  "quickcraft.config.projection_tools.name.enableLitematicaShulkerMaterialRestock": "Shulker Material Restock",
+  "quickcraft.config.projection_tools.comment.enableLitematicaShulkerMaterialRestock": "§6Function: §rWhen Easy Place lacks a projection material, automatically takes it from a shulker box in the inventory or hotbar and switches it to the hand.\n§eRequirement: §rBoth client and server must support §bQuick Shulker§r.\n§7Protection: §rUses Litematica's pick block slots, avoid-tools, and avoid-damageable-item settings, and never replaces shulker boxes.\n§7Default: §rOff.",
+  "quickcraft.config.projection_tools.prettyName.litematicaShulkerMaterialOrderlyStorage": "Orderly Storage",
+  "quickcraft.config.projection_tools.name.litematicaShulkerMaterialOrderlyStorage": "Orderly Storage",
+  "quickcraft.config.projection_tools.comment.litematicaShulkerMaterialOrderlyStorage": "§6Function: §rWhen inventory is full, return materials previously taken from a shulker box to their source box before taking new materials.\n§eOff: §rAllows returning them to any shulker box.\n§7Default: §rOff."
 }
