@@ -1,0 +1,24 @@
+{
+  "enchantedOnly": [
+    {"id": "minecraft:elytra", "aliases": {"zh_cn": ["附魔鞘翅"], "en_us": ["Enchanted Elytra"]}},
+    {"id": "minecraft:diamond_helmet", "aliases": {"zh_cn": ["附魔钻石头盔"], "en_us": ["Enchanted Diamond Helmet"]}},
+    {"id": "minecraft:diamond_chestplate", "aliases": {"zh_cn": ["附魔钻石胸甲"], "en_us": ["Enchanted Diamond Chestplate"]}},
+    {"id": "minecraft:diamond_leggings", "aliases": {"zh_cn": ["附魔钻石护腿"], "en_us": ["Enchanted Diamond Leggings"]}},
+    {"id": "minecraft:diamond_boots", "aliases": {"zh_cn": ["附魔钻石靴子"], "en_us": ["Enchanted Diamond Boots"]}},
+    {"id": "minecraft:diamond_sword", "aliases": {"zh_cn": ["附魔钻石剑"], "en_us": ["Enchanted Diamond Sword"]}},
+    {"id": "minecraft:diamond_axe", "aliases": {"zh_cn": ["附魔钻石斧"], "en_us": ["Enchanted Diamond Axe"]}},
+    {"id": "minecraft:diamond_pickaxe", "aliases": {"zh_cn": ["附魔钻石镐"], "en_us": ["Enchanted Diamond Pickaxe"]}},
+    {"id": "minecraft:diamond_shovel", "aliases": {"zh_cn": ["附魔钻石锹"], "en_us": ["Enchanted Diamond Shovel"]}},
+    {"id": "minecraft:diamond_hoe", "aliases": {"zh_cn": ["附魔钻石锄"], "en_us": ["Enchanted Diamond Hoe"]}},
+    {"id": "minecraft:netherite_helmet", "aliases": {"zh_cn": ["附魔下界合金头盔"], "en_us": ["Enchanted Netherite Helmet"]}},
+    {"id": "minecraft:netherite_chestplate", "aliases": {"zh_cn": ["附魔下界合金胸甲"], "en_us": ["Enchanted Netherite Chestplate"]}},
+    {"id": "minecraft:netherite_leggings", "aliases": {"zh_cn": ["附魔下界合金护腿"], "en_us": ["Enchanted Netherite Leggings"]}},
+    {"id": "minecraft:netherite_boots", "aliases": {"zh_cn": ["附魔下界合金靴子"], "en_us": ["Enchanted Netherite Boots"]}},
+    {"id": "minecraft:netherite_sword", "aliases": {"zh_cn": ["附魔下界合金剑"], "en_us": ["Enchanted Netherite Sword"]}},
+    {"id": "minecraft:netherite_axe", "aliases": {"zh_cn": ["附魔下界合金斧"], "en_us": ["Enchanted Netherite Axe"]}},
+    {"id": "minecraft:netherite_pickaxe", "aliases": {"zh_cn": ["附魔下界合金镐"], "en_us": ["Enchanted Netherite Pickaxe"]}},
+    {"id": "minecraft:netherite_shovel", "aliases": {"zh_cn": ["附魔下界合金锹"], "en_us": ["Enchanted Netherite Shovel"]}},
+    {"id": "minecraft:netherite_hoe", "aliases": {"zh_cn": ["附魔下界合金锄"], "en_us": ["Enchanted Netherite Hoe"]}}
+  ],
+  "unrestricted": []
+}
