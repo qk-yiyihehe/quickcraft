@@ -24,14 +24,20 @@ import net.minecraft.core.HolderLookup;
 import net.minecraft.world.inventory.MerchantMenu;
 import net.minecraft.world.inventory.ContainerInput;
 import net.minecraft.network.chat.Component;
+import net.minecraft.world.InteractionHand;
+import net.minecraft.world.level.entity.EntityTypeTest;
 import net.minecraft.world.phys.EntityHitResult;
 import net.minecraft.world.phys.HitResult;
+import net.minecraft.world.phys.AABB;
 import net.minecraft.world.item.trading.MerchantOffer;
 import net.minecraft.world.item.trading.MerchantOffers;
 import org.lwjgl.glfw.GLFW;
 
 import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * 村民交易增强：
@@ -39,6 +45,7 @@ import java.util.Map;
  * - 收藏交易会在原版交易列表顺序中排到第一位
  * - 右键一条交易时，尽可能连续完成该交易
  * - 开启快速交易后，对着村民右键会自动完成收藏交易并关闭界面
+ * - 开启持续交易后，自动扫描交互距离内的村民并完成收藏交易
  */
 public final class QuickTrade implements ClientModInitializer {
     private static final int ROW_X_OFFSET = 5;
@@ -52,10 +59,14 @@ public final class QuickTrade implements ClientModInitializer {
     private static final int MAX_BATCH_TRADES = 512;
     private static final int AUTO_TRADE_TIMEOUT_TICKS = 40;
     private static final int MERCHANT_OPEN_TIMEOUT_TICKS = 20;
+    // 扫描盒按原版默认实体交互距离外扩，实际目标仍由玩家实体交互范围校验。
+    private static final double CONTINUOUS_TRADE_SCAN_RADIUS = 4.5;
 
     private static final Map<String, FavoriteTrade> FAVORITE_TRADES = new HashMap<>();
+    private static final Set<String> CONTINUOUS_HANDLED_MERCHANTS = new HashSet<>();
     private static boolean lastUseDown;
     private static boolean pendingAutoTrade;
+    private static boolean pendingContinuousTrade;
     private static int pendingAutoTradeTicks;
     private static int pendingMerchantTicks;
     private static String pendingMerchantKey;
@@ -72,11 +83,13 @@ public final class QuickTrade implements ClientModInitializer {
         processPendingMerchantOpen(client);
         clearCurrentMerchantKeyIfNeeded(client);
 
-        if (!QuickCraftConfigs.isQuickTradeEnabled()) {
+        if (!QuickCraftConfigs.isQuickTradeEnabled() && !pendingContinuousTrade) {
             clearPendingAutoTradeState();
         } else {
             processPendingAutoTrade(client);
         }
+
+        processContinuousTrade(client);
 
         if (currentOrderState != null && client.gui.screen() != currentOrderState.screen()) {
             restoreTradeOrder(currentOrderState.screen(), currentOrderState.originalOffers());
@@ -185,6 +198,7 @@ public final class QuickTrade implements ClientModInitializer {
                         sendStatusMessage(client, Component.translatable("quickcraft.message.trade.no_favorite_saved"));
                     } else {
                         pendingAutoTrade = true;
+                        pendingContinuousTrade = false;
                         pendingAutoTradeTicks = 0;
                     }
                 }
@@ -200,7 +214,9 @@ public final class QuickTrade implements ClientModInitializer {
         }
 
         pendingAutoTradeTicks++;
-        if (!(client.gui.screen() instanceof MerchantScreen screen)) {
+        MerchantScreen screen = client.gui.screen() instanceof MerchantScreen merchantScreen ? merchantScreen : null;
+        MerchantMenu handler = screen != null ? screen.getMenu() : getOpenMerchantHandler(client);
+        if (handler == null || (!pendingContinuousTrade && screen == null)) {
             if (pendingAutoTradeTicks > AUTO_TRADE_TIMEOUT_TICKS) {
                 clearPendingAutoTradeState();
             }
@@ -212,22 +228,35 @@ public final class QuickTrade implements ClientModInitializer {
             return;
         }
 
-        bindCurrentMerchant(screen);
-        prepareTradeOrder(screen);
+        if (screen != null) {
+            bindCurrentMerchant(screen);
+            prepareTradeOrder(screen);
+        }
 
-        MerchantOffers offers = screen.getMenu().getOffers();
+        MerchantOffers offers = handler.getOffers();
         if (offers.isEmpty()) {
             if (pendingAutoTradeTicks > AUTO_TRADE_TIMEOUT_TICKS) {
-                clearPendingAutoTradeState();
+                if (pendingContinuousTrade) {
+                    finishPendingAutoTrade(client, true);
+                } else {
+                    clearPendingAutoTradeState();
+                }
             }
             return;
         }
 
-        FavoriteTrade favoriteTrade = getFavoriteTrade(screen);
+        FavoriteTrade favoriteTrade = screen != null
+                ? getFavoriteTrade(screen)
+                : getFavoriteTrade(currentScreenMerchantKey);
         int favoriteIndex = findFavoriteOfferIndex(offers, favoriteTrade);
         if (favoriteIndex < 0) {
-            clearPendingAutoTradeState();
-            sendStatusMessage(client, Component.translatable("quickcraft.message.trade.current_villager_no_favorite"));
+            if (pendingContinuousTrade) {
+                sendStatusMessage(client, Component.translatable("quickcraft.message.trade.current_villager_no_favorite"));
+                finishPendingAutoTrade(client, false);
+            } else {
+                clearPendingAutoTradeState();
+                sendStatusMessage(client, Component.translatable("quickcraft.message.trade.current_villager_no_favorite"));
+            }
             return;
         }
 
@@ -237,8 +266,11 @@ public final class QuickTrade implements ClientModInitializer {
             return;
         }
 
-        MerchantMenu handler = screen.getMenu();
-        selectTrade(screen, favoriteIndex);
+        if (screen != null) {
+            selectTrade(screen, favoriteIndex);
+        } else {
+            selectTrade(handler, favoriteIndex);
+        }
         if (!handler.getSlot(OUTPUT_SLOT_ID).hasItem()) {
             if (pendingAutoTradeTicks > AUTO_TRADE_TIMEOUT_TICKS) {
                 finishPendingAutoTrade(client, true);
@@ -246,7 +278,70 @@ public final class QuickTrade implements ClientModInitializer {
             return;
         }
 
-        finishPendingAutoTrade(client, tradeAllAvailable(screen, favoriteIndex));
+        finishPendingAutoTrade(client, screen != null
+                ? tradeAllAvailable(screen, favoriteIndex)
+                : tradeAllAvailable(handler, favoriteIndex));
+    }
+
+    private static void processContinuousTrade(Minecraft client) {
+        if (!QuickCraftConfigs.isContinuousTradeEnabled()
+                || !QuickCraftConfigs.isFavoriteTradeEnabled()) {
+            CONTINUOUS_HANDLED_MERCHANTS.clear();
+            return;
+        }
+
+        if (client.player == null
+                || client.level == null
+                || client.gameMode == null
+                || client.screen != null
+                || pendingAutoTrade
+                || pendingMerchantKey != null) {
+            return;
+        }
+
+        AABB scanAABB = client.player.getBoundingBox().inflate(CONTINUOUS_TRADE_SCAN_RADIUS);
+        List<AbstractVillager> nearbyMerchants = client.level.getEntities(
+                EntityTypeTest.forClass(AbstractVillager.class),
+                scanAABB,
+                merchant -> client.player.isWithinEntityInteractionRange(merchant, 0.0)
+        );
+        Set<String> nearbyKeys = new HashSet<>();
+        for (AbstractVillager merchant : nearbyMerchants) {
+            nearbyKeys.add(buildMerchantKey(merchant));
+        }
+        CONTINUOUS_HANDLED_MERCHANTS.retainAll(nearbyKeys);
+
+        AbstractVillager target = nearbyMerchants.stream()
+                .filter(merchant -> !CONTINUOUS_HANDLED_MERCHANTS.contains(buildMerchantKey(merchant)))
+                .filter(merchant -> getFavoriteTrade(buildMerchantKey(merchant)) != null)
+                .min((left, right) -> Double.compare(
+                        client.player.distanceToSqr(left),
+                        client.player.distanceToSqr(right)
+                ))
+                .orElse(null);
+        if (target == null) {
+            return;
+        }
+
+        pendingMerchantKey = buildMerchantKey(target);
+        pendingMerchantTicks = 0;
+        pendingAutoTrade = true;
+        pendingContinuousTrade = true;
+        pendingAutoTradeTicks = 0;
+        client.gameMode.interact(client.player, target, new EntityHitResult(target), InteractionHand.MAIN_HAND);
+    }
+
+    /**
+     * 兼容未被 setScreen 拦截的边界调用；正常持续交易不会创建前台 MerchantScreen。
+     */
+    public static boolean shouldHideContinuousTradeScreen(MerchantScreen screen) {
+        return pendingContinuousTrade
+                && QuickCraftConfigs.isContinuousTradeEnabled()
+                && Minecraft.getInstance().screen == screen;
+    }
+
+    public static boolean shouldSuppressContinuousTradeScreenOpen() {
+        return pendingContinuousTrade && QuickCraftConfigs.isContinuousTradeEnabled();
     }
 
     private static void processPendingMerchantOpen(Minecraft client) {
@@ -255,7 +350,7 @@ public final class QuickTrade implements ClientModInitializer {
         }
 
         pendingMerchantTicks++;
-        if (client.gui.screen() instanceof MerchantScreen) {
+        if (client.gui.screen() instanceof MerchantScreen || getOpenMerchantHandler(client) != null) {
             currentScreenMerchantKey = pendingMerchantKey;
             pendingMerchantKey = null;
             pendingMerchantTicks = 0;
@@ -269,18 +364,41 @@ public final class QuickTrade implements ClientModInitializer {
     }
 
     private static void clearCurrentMerchantKeyIfNeeded(Minecraft client) {
-        if (!(client.gui.screen() instanceof MerchantScreen)) {
+        if (!(client.gui.screen() instanceof MerchantScreen) && getOpenMerchantHandler(client) == null) {
             currentScreenMerchantKey = null;
         }
     }
 
+    private static MerchantMenu getOpenMerchantHandler(Minecraft client) {
+        if (client == null || client.player == null) {
+            return null;
+        }
+
+        if (client.player.containerMenu instanceof MerchantMenu handler
+                && handler.containerId != 0) {
+            return handler;
+        }
+
+        return null;
+    }
+
     private static boolean tradeAllAvailable(MerchantScreen screen, int tradeIndex) {
+        return tradeAllAvailable(screen.getMenu(), tradeIndex, () -> selectTrade(screen, tradeIndex));
+    }
+
+    private static boolean tradeAllAvailable(MerchantMenu handler, int tradeIndex) {
+        return tradeAllAvailable(handler, tradeIndex, () -> selectTrade(handler, tradeIndex));
+    }
+
+    private static boolean tradeAllAvailable(MerchantMenu handler,
+                                             int tradeIndex,
+                                             Runnable selectTradeAction) {
         Minecraft client = Minecraft.getInstance();
         if (client.player == null || client.gameMode == null) {
             return true;
         }
 
-        MerchantOffer offer = getOffer(screen.getMenu().getOffers(), tradeIndex);
+        MerchantOffer offer = getOffer(handler.getOffers(), tradeIndex);
         if (offer == null) {
             return true;
         }
@@ -288,14 +406,13 @@ public final class QuickTrade implements ClientModInitializer {
             return false;
         }
 
-        MerchantMenu handler = screen.getMenu();
-        selectTrade(screen, tradeIndex);
+        selectTradeAction.run();
 
         for (int attempt = 0; attempt < MAX_BATCH_TRADES; attempt++) {
             if (!handler.getSlot(OUTPUT_SLOT_ID).hasItem()) {
-                selectTrade(screen, tradeIndex);
+                selectTradeAction.run();
                 if (!handler.getSlot(OUTPUT_SLOT_ID).hasItem()) {
-                    MerchantOffer currentOffer = getOffer(screen.getMenu().getOffers(), tradeIndex);
+                    MerchantOffer currentOffer = getOffer(handler.getOffers(), tradeIndex);
                     return currentOffer == null || !currentOffer.isOutOfStock();
                 }
             }
@@ -329,6 +446,16 @@ public final class QuickTrade implements ClientModInitializer {
 
         if (client.getConnection() != null) {
             client.getConnection().send(new ServerboundSelectTradePacket(serverTradeIndex));
+        }
+    }
+
+    private static void selectTrade(MerchantMenu handler, int tradeIndex) {
+        Minecraft client = Minecraft.getInstance();
+        handler.setSelectionHint(tradeIndex);
+        handler.tryMoveItems(tradeIndex);
+
+        if (client.getConnection() != null) {
+            client.getConnection().send(new ServerboundSelectTradePacket(tradeIndex));
         }
     }
 
@@ -458,7 +585,12 @@ public final class QuickTrade implements ClientModInitializer {
             sendTradeBlockedMessage(client);
         }
 
-        if (client.player != null && client.gui.screen() instanceof MerchantScreen) {
+        if (pendingContinuousTrade && currentScreenMerchantKey != null) {
+            CONTINUOUS_HANDLED_MERCHANTS.add(currentScreenMerchantKey);
+        }
+
+        if (client.player != null
+                && (client.gui.screen() instanceof MerchantScreen || getOpenMerchantHandler(client) != null)) {
             client.player.closeContainer();
         }
 
@@ -467,6 +599,7 @@ public final class QuickTrade implements ClientModInitializer {
 
     private static void clearPendingAutoTradeState() {
         pendingAutoTrade = false;
+        pendingContinuousTrade = false;
         pendingAutoTradeTicks = 0;
     }
 
@@ -625,6 +758,7 @@ public final class QuickTrade implements ClientModInitializer {
 
     static void clearPersistentState() {
         FAVORITE_TRADES.clear();
+        CONTINUOUS_HANDLED_MERCHANTS.clear();
         currentOrderState = null;
         clearPendingAutoTradeState();
         pendingMerchantKey = null;
