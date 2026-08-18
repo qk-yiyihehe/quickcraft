@@ -43,6 +43,7 @@
 		"LitematicaWorldUtilsShulkerRestockMixin",
 		"LitematicaWorldUtilsInvoker",
 		"MinecraftClientContinuousFillUseMixin",
+		"MinecraftClientContinuousTradeScreenMixin",
 		"MerchantScreenAccessor",
 		"MerchantScreenMixin",
 		"QuickContainerBackgroundFillScreenMixin",
