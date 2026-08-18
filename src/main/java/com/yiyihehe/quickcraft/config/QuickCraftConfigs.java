@@ -247,6 +247,11 @@ public final class QuickCraftConfigs implements IConfigHandler {
                 false,
                 ""
         ).apply(CONTAINER_TRANSLATION_PREFIX);
+        public static final ConfigBooleanHotkeyed ENABLE_CONTINUOUS_TRADE = new ConfigBooleanHotkeyed(
+                "enableContinuousTrade",
+                false,
+                ""
+        ).apply(CONTAINER_TRANSLATION_PREFIX);
         public static final ConfigBooleanHotkeyed ENABLE_FAVORITE_TRADE = new ConfigBooleanHotkeyed(
                 "enableFavoriteTrade",
                 true,
@@ -334,6 +339,7 @@ public final class QuickCraftConfigs implements IConfigHandler {
                 SHOW_QUICK_STASH_BUTTON,
                 ENABLE_QUICK_THROW,
                 ENABLE_QUICK_TRADE,
+                ENABLE_CONTINUOUS_TRADE,
                 ENABLE_FAVORITE_TRADE,
                 ENABLE_QUICK_SORT,
                 QUICK_SORT_TOP_PRIORITY_ITEMS,
@@ -752,6 +758,7 @@ public final class QuickCraftConfigs implements IConfigHandler {
                 ContainerTools.QUICK_TRANSFER_RETAIN_ONE,
                 ContainerTools.ENABLE_QUICK_THROW,
                 ContainerTools.ENABLE_QUICK_TRADE,
+                ContainerTools.ENABLE_CONTINUOUS_TRADE,
                 ContainerTools.ENABLE_FAVORITE_TRADE,
                 ContainerTools.ENABLE_QUICK_SORT,
                 ContainerTools.SHOW_CONTAINER_LOCK_BUTTON,
@@ -806,6 +813,7 @@ public final class QuickCraftConfigs implements IConfigHandler {
                 ContainerTools.QUICK_TRANSFER_RETAIN_ONE,
                 ContainerTools.ENABLE_QUICK_THROW,
                 ContainerTools.ENABLE_QUICK_TRADE,
+                ContainerTools.ENABLE_CONTINUOUS_TRADE,
                 ContainerTools.ENABLE_FAVORITE_TRADE,
                 ContainerTools.ENABLE_QUICK_SORT,
                 ContainerTools.SHOW_CONTAINER_LOCK_BUTTON,
@@ -886,6 +894,10 @@ public final class QuickCraftConfigs implements IConfigHandler {
 
     public static boolean isQuickTradeEnabled() {
         return ContainerTools.ENABLE_QUICK_TRADE.getBooleanValue();
+    }
+
+    public static boolean isContinuousTradeEnabled() {
+        return ContainerTools.ENABLE_CONTINUOUS_TRADE.getBooleanValue();
     }
 
     public static boolean isFavoriteTradeEnabled() {
