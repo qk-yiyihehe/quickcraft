@@ -141,6 +141,12 @@ public class QuickCraftConfigScreen extends GuiConfigsBase {
                 QuickCraftConfigs.ContainerTools.ENABLE_QUICK_TRADE,
                 QuickCraftConfigs.ContainerTools.ENABLE_FAVORITE_TRADE
         ),
+        QUICK_SORT(
+                QuickCraftConfigs.ContainerTools.ENABLE_QUICK_SORT,
+                QuickCraftConfigs.ContainerTools.QUICK_SORT_TOP_PRIORITY_ITEMS,
+                QuickCraftConfigs.ContainerTools.QUICK_SORT_BOTTOM_PRIORITY_ITEMS,
+                QuickCraftConfigs.ContainerTools.QUICK_SORT_SHULKER_BOXES_AT_END
+        ),
         QUICK_BEACON(
                 QuickCraftConfigs.ContainerTools.ENABLE_QUICK_BEACON,
                 QuickCraftConfigs.ContainerTools.BEACON_EFFECT_ORDER
