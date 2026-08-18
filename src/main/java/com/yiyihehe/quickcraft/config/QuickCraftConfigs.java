@@ -70,6 +70,9 @@ public final class QuickCraftConfigs implements IConfigHandler {
     public static final int DEFAULT_QUICK_SHULKER_ACTION_INTERVAL_TICKS = 5;
     public static final int MIN_QUICK_SHULKER_ACTION_INTERVAL_TICKS = 0;
     public static final int MAX_QUICK_SHULKER_ACTION_INTERVAL_TICKS = 20;
+    private static final ImmutableList<String> DEFAULT_QUICK_SORT_TOP_PRIORITY_ITEMS =
+            ImmutableList.copyOf(QuickCraftItemAliases.getDefaultPriorityAliases());
+    private static final ImmutableList<String> DEFAULT_QUICK_SORT_BOTTOM_PRIORITY_ITEMS = ImmutableList.of();
 
     private static final KeybindSettings GUI_PRESS = KeybindSettings.create(
             KeybindSettings.Context.GUI,
@@ -255,6 +258,18 @@ public final class QuickCraftConfigs implements IConfigHandler {
                 true,
                 ""
         ).apply(CONTAINER_TRANSLATION_PREFIX);
+        public static final ConfigStringList QUICK_SORT_TOP_PRIORITY_ITEMS = new ConfigStringList(
+                "quickSortTopPriorityItems",
+                DEFAULT_QUICK_SORT_TOP_PRIORITY_ITEMS
+        ).apply(CONTAINER_TRANSLATION_PREFIX);
+        public static final ConfigStringList QUICK_SORT_BOTTOM_PRIORITY_ITEMS = new ConfigStringList(
+                "quickSortBottomPriorityItems",
+                DEFAULT_QUICK_SORT_BOTTOM_PRIORITY_ITEMS
+        ).apply(CONTAINER_TRANSLATION_PREFIX);
+        public static final ConfigBoolean QUICK_SORT_SHULKER_BOXES_AT_END = new ConfigBoolean(
+                "quickSortShulkerBoxesAtEnd",
+                true
+        ).apply(CONTAINER_TRANSLATION_PREFIX);
         public static final ConfigBooleanHotkeyed SHOW_CONTAINER_LOCK_BUTTON = new ConfigBooleanHotkeyed(
                 "showContainerLockButton",
                 true,
@@ -322,6 +337,9 @@ public final class QuickCraftConfigs implements IConfigHandler {
                 ENABLE_QUICK_TRADE,
                 ENABLE_FAVORITE_TRADE,
                 ENABLE_QUICK_SORT,
+                QUICK_SORT_TOP_PRIORITY_ITEMS,
+                QUICK_SORT_BOTTOM_PRIORITY_ITEMS,
+                QUICK_SORT_SHULKER_BOXES_AT_END,
                 SHOW_CONTAINER_LOCK_BUTTON,
                 SHOW_SLOT_LOCK_OVERLAY,
                 ALLOW_MANUAL_LOCKED_SLOT_INTERACTION,
@@ -877,6 +895,18 @@ public final class QuickCraftConfigs implements IConfigHandler {
 
     public static boolean isQuickSortEnabled() {
         return ContainerTools.ENABLE_QUICK_SORT.getBooleanValue();
+    }
+
+    public static List<String> getQuickSortTopPriorityItems() {
+        return ContainerTools.QUICK_SORT_TOP_PRIORITY_ITEMS.getStrings();
+    }
+
+    public static List<String> getQuickSortBottomPriorityItems() {
+        return ContainerTools.QUICK_SORT_BOTTOM_PRIORITY_ITEMS.getStrings();
+    }
+
+    public static boolean areQuickSortShulkerBoxesAtEnd() {
+        return ContainerTools.QUICK_SORT_SHULKER_BOXES_AT_END.getBooleanValue();
     }
 
     public static boolean isContainerToolModeEnabled() {
