@@ -163,6 +163,7 @@ public class QuickCraftConfigScreen extends GuiConfigsBase {
         ),
         LITEMATICA_3D_PREVIEW(
                 QuickCraftConfigs.ProjectionTools.SHOW_LITEMATICA_3D_PREVIEW,
+                QuickCraftConfigs.ProjectionTools.AUTO_DISABLE_SHADERS_FOR_3D_PREVIEW,
                 QuickCraftConfigs.ProjectionTools.ALLOW_ADDING_LITEMATICA_PREVIEW_IMAGES,
                 QuickCraftConfigs.ProjectionTools.REPLACE_LITEMATICA_PREVIEW_WITH_3D
         ),
