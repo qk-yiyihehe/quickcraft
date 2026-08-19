@@ -18,6 +18,9 @@ import net.minecraft.world.level.ChunkPos;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.HashSet;
+import java.util.UUID;
+
 /**
  * 从游戏内 Litematica 选区进入 QuickCraft 3D 查看页。
  * 这里只解析当前模式 1 选区，不参与网格、导出或剪贴板生命周期。
@@ -91,18 +94,25 @@ public final class QuickLitematicaSelectionPreview {
 
         var boxes = selection.getAllSubRegions();
         LitematicaSchematic.SchematicSaveInfo saveInfo =
-                new LitematicaSchematic.SchematicSaveInfo(false, false, true, false);
+                new LitematicaSchematic.SchematicSaveInfo(false, false, false, false);
+        var existingEntities = new HashSet<UUID>();
+        BlockPos origin = selection.getEffectiveOrigin();
         int loadedChunks = 0;
         for (ChunkPos chunkPos : PositionUtils.getTouchedChunks(boxes)) {
             if (!world.getChunkSource().hasChunk(chunkPos.x(), chunkPos.z())) {
                 continue;
             }
 
-            schematic.takeBlocksFromWorldWithinChunk(
+            var volumes = PositionUtils.getBoxesWithinChunk(chunkPos.x(), chunkPos.z(), boxes);
+            schematic.takeBlocksFromWorldWithinChunk(world, volumes, boxes, saveInfo);
+            schematic.takeEntitiesFromWorldWithinChunk(
                     world,
-                    PositionUtils.getBoxesWithinChunk(chunkPos.x(), chunkPos.z(), boxes),
+                    chunkPos.x(),
+                    chunkPos.z(),
+                    volumes,
                     boxes,
-                    saveInfo
+                    existingEntities,
+                    origin
             );
             loadedChunks++;
         }
