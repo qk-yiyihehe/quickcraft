@@ -29,6 +29,7 @@
       "com.yiyihehe.quickcraft.QuickContainerCopy",
       "com.yiyihehe.quickcraft.QuickMaterialCollector",
       "com.yiyihehe.quickcraft.litematica.QuickLitematicaContainerAutofill",
+      "com.yiyihehe.quickcraft.QuickEntityPlacementClient",
       "com.yiyihehe.quickcraft.litematica.QuickLitematicaShulkerMaterialRestock"
     ],
     "modmenu": [

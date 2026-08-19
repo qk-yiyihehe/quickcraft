@@ -434,6 +434,15 @@ public final class QuickCraftConfigs implements IConfigHandler {
                 false,
                 ""
         ).apply(PROJECTION_TRANSLATION_PREFIX);
+        public static final ConfigBooleanHotkeyed ENABLE_EASY_PLACE_ENTITIES = new ConfigBooleanHotkeyed(
+                "enableEasyPlaceEntities",
+                false,
+                ""
+        ).apply(PROJECTION_TRANSLATION_PREFIX);
+        public static final ConfigBoolean ALLOW_CREATIVE_ENTITY_PLACEMENT = new ConfigBoolean(
+                "allowCreativeEntityPlacement",
+                true
+        ).apply(PROJECTION_TRANSLATION_PREFIX);
         public static final ConfigInteger HOLD_EASY_PLACE_CACHE_TIME_MS = new ConfigInteger(
                 "holdEasyPlaceCacheTimeMs",
                 DEFAULT_HOLD_EASY_PLACE_CACHE_TIME_MS,
@@ -568,6 +577,8 @@ public final class QuickCraftConfigs implements IConfigHandler {
                 ALLOW_EASY_PLACE_DANGEROUS_INTERACTIONS,
                 ALLOW_EASY_PLACE_ADMIN_INTERACTIONS,
                 HOLD_EASY_PLACE,
+                ENABLE_EASY_PLACE_ENTITIES,
+                ALLOW_CREATIVE_ENTITY_PLACEMENT,
                 HOLD_EASY_PLACE_CACHE_TIME_MS,
                 SHOW_LITEMATICA_SCHEMATIC_FOLDER_BUTTON,
                 SHOW_LITEMATICA_CONTAINER_MATERIAL_BUTTON,
@@ -638,6 +649,11 @@ public final class QuickCraftConfigs implements IConfigHandler {
         public static final ConfigHotkey CLONE_LITEMATICA_AREA = new ConfigHotkey(
                 "cloneLitematicaAreaHotkey",
                 "LEFT_CONTROL,C",
+                INGAME_PRESS
+        ).apply(HOTKEY_TRANSLATION_PREFIX);
+        public static final ConfigHotkey OPEN_EASY_PLACE_ENTITY_SELECTOR = new ConfigHotkey(
+                "openEasyPlaceEntitySelectorHotkey",
+                "LEFT_ALT,E",
                 INGAME_PRESS
         ).apply(HOTKEY_TRANSLATION_PREFIX);
         public static final ConfigHotkey SINGLE_CRAFT = new ConfigHotkey(
@@ -711,6 +727,7 @@ public final class QuickCraftConfigs implements IConfigHandler {
                 OPEN_CONFIG,
                 OPEN_LITEMATICA_AREA_3D_PREVIEW,
                 CLONE_LITEMATICA_AREA,
+                OPEN_EASY_PLACE_ENTITY_SELECTOR,
                 SINGLE_CRAFT,
                 RAPID_CRAFT,
                 QUICK_SORT,
@@ -730,6 +747,7 @@ public final class QuickCraftConfigs implements IConfigHandler {
                 OPEN_CONFIG,
                 OPEN_LITEMATICA_AREA_3D_PREVIEW,
                 CLONE_LITEMATICA_AREA,
+                OPEN_EASY_PLACE_ENTITY_SELECTOR,
                 SINGLE_CRAFT,
                 RAPID_CRAFT,
                 QUICK_SORT,
@@ -776,6 +794,7 @@ public final class QuickCraftConfigs implements IConfigHandler {
                 ProjectionTools.ENABLE_LITEMATICA_AREA_CLONE,
                 ProjectionTools.ALLOW_EASY_PLACE_VANILLA_INTERACTIONS,
                 ProjectionTools.HOLD_EASY_PLACE,
+                ProjectionTools.ENABLE_EASY_PLACE_ENTITIES,
                 ProjectionTools.SHOW_LITEMATICA_SCHEMATIC_FOLDER_BUTTON,
                 ProjectionTools.SHOW_LITEMATICA_CONTAINER_MATERIAL_BUTTON,
                 ProjectionTools.SHOW_LITEMATICA_CONTAINER_SLOT_HINTS,
@@ -789,6 +808,7 @@ public final class QuickCraftConfigs implements IConfigHandler {
                 Hotkeys.OPEN_CONFIG,
                 Hotkeys.OPEN_LITEMATICA_AREA_3D_PREVIEW,
                 Hotkeys.CLONE_LITEMATICA_AREA,
+                Hotkeys.OPEN_EASY_PLACE_ENTITY_SELECTOR,
                 Hotkeys.SINGLE_CRAFT,
                 Hotkeys.RAPID_CRAFT,
                 Hotkeys.QUICK_SORT,
@@ -831,6 +851,7 @@ public final class QuickCraftConfigs implements IConfigHandler {
                 ProjectionTools.ENABLE_LITEMATICA_AREA_CLONE,
                 ProjectionTools.ALLOW_EASY_PLACE_VANILLA_INTERACTIONS,
                 ProjectionTools.HOLD_EASY_PLACE,
+                ProjectionTools.ENABLE_EASY_PLACE_ENTITIES,
                 ProjectionTools.SHOW_LITEMATICA_SCHEMATIC_FOLDER_BUTTON,
                 ProjectionTools.SHOW_LITEMATICA_CONTAINER_MATERIAL_BUTTON,
                 ProjectionTools.SHOW_LITEMATICA_CONTAINER_SLOT_HINTS,
@@ -1142,6 +1163,14 @@ public final class QuickCraftConfigs implements IConfigHandler {
 
     public static boolean isHoldEasyPlaceEnabled() {
         return ProjectionTools.HOLD_EASY_PLACE.getBooleanValue();
+    }
+
+    public static boolean isEasyPlaceEntitiesEnabled() {
+        return ProjectionTools.ENABLE_EASY_PLACE_ENTITIES.getBooleanValue();
+    }
+
+    public static boolean isCreativeEntityPlacementAllowed() {
+        return ProjectionTools.ALLOW_CREATIVE_ENTITY_PLACEMENT.getBooleanValue();
     }
 
     public static int getHoldEasyPlaceCacheTimeMs() {
