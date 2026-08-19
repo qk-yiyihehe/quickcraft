@@ -158,6 +158,7 @@
   "quickcraft.litematica.preview_3d.too_large": "投影过大，无法安全预览",
   "quickcraft.litematica.preview_3d.area_title": "当前选区",
   "quickcraft.message.litematica.preview_3d.disabled": "请先启用 QuickCraft 的显示 3D 预览功能",
+  "quickcraft.message.litematica.preview_3d.shader_disabled": "检测到光影已开启，已暂停 3D 预览",
   "quickcraft.message.litematica.preview_3d.requires_area_selection": "请先切换到 Litematica 模式 1：选区工具",
   "quickcraft.message.litematica.preview_3d.no_selection": "当前没有完整选区，请先设置两个角点",
   "quickcraft.message.litematica.area_clone.disabled": "请先启用 QuickCraft 的选区复制为临时投影功能",
