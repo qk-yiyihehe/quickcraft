@@ -44,6 +44,7 @@
 		"LitematicaWidgetListSchematicVerificationResultsMixin",
 		"LitematicaWidgetSchematicVerificationResultMixin",
 		"LitematicaWorldUtilsEasyPlaceMixin",
+		"LitematicaWorldUtilsFreeCameraMixin",
 		"LitematicaWorldUtilsShulkerRestockMixin",
 		"LitematicaWorldUtilsInvoker",
 		"MinecraftClientContinuousFillUseMixin",
@@ -59,6 +60,8 @@
 		"QuickContainerLockScreenHandlerMixin",
 		"QuickContainerLockSlotMixin",
 		"QuickDraggableButtonScreenMixin",
+		"QuickFreeCameraGameRendererMixin",
+		"QuickFreeCameraInteractionManagerMixin",
 		"QuickTransferItemHighlightMixin",
 		"QuickTransferScreenMixin",
 		"ShulkerBoxScreenMixin"

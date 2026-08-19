@@ -321,6 +321,23 @@ public final class QuickCraftConfigs implements IConfigHandler {
                 false,
                 ""
         ).apply(CONTAINER_TRANSLATION_PREFIX);
+        public static final ConfigBooleanHotkeyed ENABLE_FREE_CAMERA_ENHANCEMENT = new ConfigBooleanHotkeyed(
+                "enableFreeCameraEnhancement",
+                true,
+                ""
+        ).apply(CONTAINER_TRANSLATION_PREFIX);
+        public static final ConfigBoolean FREE_CAMERA_BLOCK_INTERACTIONS = new ConfigBoolean(
+                "freeCameraBlockInteractions",
+                true
+        ).apply(CONTAINER_TRANSLATION_PREFIX);
+        public static final ConfigBoolean FREE_CAMERA_ENTITY_INTERACTIONS = new ConfigBoolean(
+                "freeCameraEntityInteractions",
+                true
+        ).apply(CONTAINER_TRANSLATION_PREFIX);
+        public static final ConfigBoolean FREE_CAMERA_EASY_PLACE = new ConfigBoolean(
+                "freeCameraEasyPlace",
+                true
+        ).apply(CONTAINER_TRANSLATION_PREFIX);
         public static final ConfigStringList BEACON_EFFECT_ORDER = new ConfigStringList(
                 "beaconEffectOrder",
                 ImmutableList.of(
@@ -354,6 +371,10 @@ public final class QuickCraftConfigs implements IConfigHandler {
                 ENABLE_CREATIVE_PACKING,
                 CREATIVE_PACKING_BUNDLE_STACKS,
                 ALLOW_CREATIVE_PACKING_NESTED_CONTAINERS,
+                ENABLE_FREE_CAMERA_ENHANCEMENT,
+                FREE_CAMERA_BLOCK_INTERACTIONS,
+                FREE_CAMERA_ENTITY_INTERACTIONS,
+                FREE_CAMERA_EASY_PLACE,
                 ENABLE_QUICK_BEACON,
                 BEACON_EFFECT_ORDER
         );
@@ -790,6 +811,7 @@ public final class QuickCraftConfigs implements IConfigHandler {
                 ContainerTools.ALLOW_MANUAL_LOCKED_SLOT_INTERACTION,
                 ContainerTools.ENABLE_CONTAINER_TOOL_MODE,
                 ContainerTools.ENABLE_CREATIVE_PACKING,
+                ContainerTools.ENABLE_FREE_CAMERA_ENHANCEMENT,
                 ContainerTools.ENABLE_QUICK_BEACON,
                 ProjectionTools.SHOW_LITEMATICA_3D_PREVIEW,
                 ProjectionTools.ENABLE_LITEMATICA_AREA_CLONE,
@@ -847,6 +869,7 @@ public final class QuickCraftConfigs implements IConfigHandler {
                 ContainerTools.ALLOW_MANUAL_LOCKED_SLOT_INTERACTION,
                 ContainerTools.ENABLE_CONTAINER_TOOL_MODE,
                 ContainerTools.ENABLE_CREATIVE_PACKING,
+                ContainerTools.ENABLE_FREE_CAMERA_ENHANCEMENT,
                 ContainerTools.ENABLE_QUICK_BEACON,
                 ProjectionTools.SHOW_LITEMATICA_3D_PREVIEW,
                 ProjectionTools.ENABLE_LITEMATICA_AREA_CLONE,
@@ -1080,6 +1103,22 @@ public final class QuickCraftConfigs implements IConfigHandler {
 
     public static boolean isQuickBeaconEnabled() {
         return ContainerTools.ENABLE_QUICK_BEACON.getBooleanValue();
+    }
+
+    public static boolean isFreeCameraEnhancementEnabled() {
+        return ContainerTools.ENABLE_FREE_CAMERA_ENHANCEMENT.getBooleanValue();
+    }
+
+    public static boolean areFreeCameraBlockInteractionsEnabled() {
+        return ContainerTools.FREE_CAMERA_BLOCK_INTERACTIONS.getBooleanValue();
+    }
+
+    public static boolean areFreeCameraEntityInteractionsEnabled() {
+        return ContainerTools.FREE_CAMERA_ENTITY_INTERACTIONS.getBooleanValue();
+    }
+
+    public static boolean isFreeCameraEasyPlaceEnabled() {
+        return ContainerTools.FREE_CAMERA_EASY_PLACE.getBooleanValue();
     }
 
     public static List<String> getBeaconEffectOrderStrings() {
