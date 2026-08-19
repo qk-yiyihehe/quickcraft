@@ -42,6 +42,7 @@ public final class QuickCraftHotkeyCallbacks {
         QuickCraftConfigs.Hotkeys.CONTINUOUS_CONTAINER_FILL.getKeybind().setCallback(QuickCraftHotkeyCallbacks::handleContinuousContainerFill);
         QuickCraftConfigs.Hotkeys.TOGGLE_CONTAINER_TOOL_MODE.getKeybind().setCallback(QuickCraftHotkeyCallbacks::handleToggleContainerToolMode);
         QuickCraftConfigs.Hotkeys.CREATIVE_PACKING.getKeybind().setCallback(QuickCraftHotkeyCallbacks::handleCreativePacking);
+        QuickCraftConfigs.Hotkeys.OPEN_EASY_PLACE_ENTITY_SELECTOR.getKeybind().setCallback(QuickCraftHotkeyCallbacks::handleEntitySelector);
         QuickCraft.bindOptionalHotkeys();
     }
 
@@ -121,6 +122,11 @@ public final class QuickCraftHotkeyCallbacks {
 
     private static boolean handleCreativePacking(KeyAction action, IKeybind keybind) {
         return action == KeyAction.PRESS && QuickCreativePacking.handleHotkey(Minecraft.getInstance());
+    }
+
+    private static boolean handleEntitySelector(KeyAction action, IKeybind keybind) {
+        return action == KeyAction.PRESS
+                && QuickCraft.openEasyPlaceEntitySelector(Minecraft.getInstance());
     }
 
     private static boolean isCraftingHotkeyContext(Minecraft client) {
