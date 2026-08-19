@@ -32,6 +32,7 @@ import fi.dy.masa.litematica.world.WorldSchematic;
 import fi.dy.masa.malilib.gui.widgets.WidgetFileBrowserBase.DirectoryEntry;
 import fi.dy.masa.malilib.render.GuiContext;
 import fi.dy.masa.malilib.render.RenderUtils;
+import fi.dy.masa.malilib.util.InfoUtils;
 import fi.dy.masa.malilib.util.StringUtils;
 import net.fabricmc.fabric.api.client.rendering.v1.SpecialGuiElementRegistry;
 import net.minecraft.SharedConstants;
@@ -158,6 +159,7 @@ import java.util.zip.GZIPOutputStream;
 public final class QuickLitematicaPreview3D {
     private static final Logger LOGGER = LoggerFactory.getLogger(QuickLitematicaPreview3D.class);
     private static final AtomicBoolean SHADER_API_WARNING_LOGGED = new AtomicBoolean();
+    private static final AtomicBoolean SHADER_DISABLE_WARNING_LOGGED = new AtomicBoolean();
     // 1.21.11 exposes no replacement for setCachedState on detached preview block entities.
     @SuppressWarnings("deprecation")
     private static void setPreviewBlockEntityState(BlockEntity blockEntity, BlockState state) {
@@ -271,6 +273,12 @@ public final class QuickLitematicaPreview3D {
     ) {
         boolean previewEnabled = QuickCraftConfigs.isLitematica3DPreviewEnabled();
         boolean shaderPackActive = isShaderPackActive();
+        if (previewEnabled
+                && shaderPackActive
+                && entry != null
+                && isSupportedLitematic(entry)) {
+            shaderPackActive = !prepare3DPreview();
+        }
         if (!previewEnabled || shaderPackActive) {
             for (Manager manager : MANAGERS.values()) {
                 manager.releasePreview();
@@ -322,6 +330,34 @@ public final class QuickLitematicaPreview3D {
                 LOGGER.warn("Iris shader state could not be queried; disabling QuickCraft 3D previews for this session", throwable);
             }
             return IrisCompat.isIrisActive;
+        }
+    }
+
+    public static boolean prepare3DPreview() {
+        if (!isShaderPackActive()) {
+            return true;
+        }
+        if (!QuickCraftConfigs.shouldAutoDisableShadersFor3DPreview()) {
+            return false;
+        }
+
+        try {
+            // Iris is optional; its stable v0 config API is accessed reflectively to avoid a hard dependency.
+            Class<?> apiClass = Class.forName("net.irisshaders.iris.api.v0.IrisApi");
+            Object api = apiClass.getMethod("getInstance").invoke(null);
+            Object config = apiClass.getMethod("getConfig").invoke(api);
+            Class<?> configClass = Class.forName("net.irisshaders.iris.api.v0.IrisApiConfig");
+            configClass.getMethod("setShadersEnabledAndApply", boolean.class).invoke(config, false);
+            boolean disabled = !isShaderPackActive();
+            if (disabled) {
+                InfoUtils.printActionbarMessage("quickcraft.message.litematica.preview_3d.shader_auto_disabled");
+            }
+            return disabled;
+        } catch (Throwable throwable) {
+            if (SHADER_DISABLE_WARNING_LOGGED.compareAndSet(false, true)) {
+                LOGGER.warn("Iris shaders could not be disabled before opening a QuickCraft 3D preview", throwable);
+            }
+            return false;
         }
     }
 
