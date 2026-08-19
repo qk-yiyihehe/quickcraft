@@ -95,7 +95,7 @@ public abstract class LitematicaWidgetSchematicBrowserMixin extends WidgetFileBr
             int textureWidth,
             int textureHeight
     ) {
-        if (QuickCraftConfigs.isLitematica3DPreviewEnabled()
+        if (QuickLitematicaPreview3D.is3DPreviewAvailable()
                 && QuickCraftConfigs.shouldReplaceLitematicaPreviewWith3D()) {
             return;
         }
@@ -120,7 +120,7 @@ public abstract class LitematicaWidgetSchematicBrowserMixin extends WidgetFileBr
             int fillColor,
             int borderColor
     ) {
-        if (QuickCraftConfigs.isLitematica3DPreviewEnabled()
+        if (QuickLitematicaPreview3D.is3DPreviewAvailable()
                 && QuickCraftConfigs.shouldReplaceLitematicaPreviewWith3D()) {
             return;
         }
