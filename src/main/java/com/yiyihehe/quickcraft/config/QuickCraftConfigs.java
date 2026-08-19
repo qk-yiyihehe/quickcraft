@@ -368,6 +368,10 @@ public final class QuickCraftConfigs implements IConfigHandler {
                 true,
                 ""
         ).apply(PROJECTION_TRANSLATION_PREFIX);
+        public static final ConfigBoolean AUTO_DISABLE_SHADERS_FOR_3D_PREVIEW = new ConfigBoolean(
+                "autoDisableShadersFor3DPreview",
+                false
+        ).apply(PROJECTION_TRANSLATION_PREFIX);
         public static final ConfigBooleanHotkeyed ENABLE_LITEMATICA_AREA_CLONE = new ConfigBooleanHotkeyed(
                 "enableLitematicaAreaClone",
                 true,
@@ -549,6 +553,7 @@ public final class QuickCraftConfigs implements IConfigHandler {
         ).apply(PROJECTION_TRANSLATION_PREFIX);
         public static final List<IConfigBase> OPTIONS = List.of(
                 SHOW_LITEMATICA_3D_PREVIEW,
+                AUTO_DISABLE_SHADERS_FOR_3D_PREVIEW,
                 ENABLE_LITEMATICA_AREA_CLONE,
                 ALLOW_ADDING_LITEMATICA_PREVIEW_IMAGES,
                 REPLACE_LITEMATICA_PREVIEW_WITH_3D,
@@ -1070,6 +1075,9 @@ public final class QuickCraftConfigs implements IConfigHandler {
 
     public static boolean areManualLockedSlotInteractionsAllowed() {
         return ContainerTools.ALLOW_MANUAL_LOCKED_SLOT_INTERACTION.getBooleanValue();
+    }
+    public static boolean shouldAutoDisableShadersFor3DPreview() {
+        return ProjectionTools.AUTO_DISABLE_SHADERS_FOR_3D_PREVIEW.getBooleanValue();
     }
     public static boolean isLitematicaAreaCloneEnabled() {
         return ProjectionTools.ENABLE_LITEMATICA_AREA_CLONE.getBooleanValue();

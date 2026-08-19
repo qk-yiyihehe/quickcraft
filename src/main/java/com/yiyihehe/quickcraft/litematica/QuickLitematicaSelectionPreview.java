@@ -47,7 +47,7 @@ public final class QuickLitematicaSelectionPreview {
             InfoUtils.printActionbarMessage("quickcraft.message.litematica.preview_3d.disabled");
             return true;
         }
-        if (QuickLitematicaPreview3D.isShaderPackActive()) {
+        if (!QuickLitematicaPreview3D.prepare3DPreview()) {
             InfoUtils.printActionbarMessage("quickcraft.message.litematica.preview_3d.shader_disabled");
             return true;
         }

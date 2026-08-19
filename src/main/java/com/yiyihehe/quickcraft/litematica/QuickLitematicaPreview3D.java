@@ -32,6 +32,7 @@ import fi.dy.masa.litematica.world.WorldSchematic;
 import fi.dy.masa.malilib.gui.widgets.WidgetFileBrowserBase.DirectoryEntry;
 import fi.dy.masa.malilib.render.GuiContext;
 import fi.dy.masa.malilib.render.RenderUtils;
+import fi.dy.masa.malilib.util.InfoUtils;
 import fi.dy.masa.malilib.util.StringUtils;
 import net.fabricmc.fabric.api.client.rendering.v1.PictureInPictureRendererRegistry;
 import net.minecraft.SharedConstants;
@@ -152,6 +153,7 @@ import java.util.zip.GZIPOutputStream;
 public final class QuickLitematicaPreview3D {
     private static final Logger LOGGER = LoggerFactory.getLogger(QuickLitematicaPreview3D.class);
     private static final AtomicBoolean SHADER_API_WARNING_LOGGED = new AtomicBoolean();
+    private static final AtomicBoolean SHADER_DISABLE_WARNING_LOGGED = new AtomicBoolean();
     private static final Map<fi.dy.masa.litematica.gui.GuiSchematicBrowserBase, Manager> MANAGERS = new WeakHashMap<>();
     // 预览构建专用单线程池：避免与 Util.getMainWorkerExecutor 共享导致排队等几秒。
     // 单线程足够（预览一次只构建一个文件），且避免 BlockRenderDispatcher 多线程竞争。
@@ -254,6 +256,12 @@ public final class QuickLitematicaPreview3D {
     ) {
         boolean previewEnabled = QuickCraftConfigs.isLitematica3DPreviewEnabled();
         boolean shaderPackActive = isShaderPackActive();
+        if (previewEnabled
+                && shaderPackActive
+                && entry != null
+                && isSupportedLitematic(entry)) {
+            shaderPackActive = !prepare3DPreview();
+        }
         if (!previewEnabled || shaderPackActive) {
             for (Manager manager : MANAGERS.values()) {
                 manager.releasePreview();
@@ -309,6 +317,34 @@ public final class QuickLitematicaPreview3D {
                 LOGGER.warn("Iris shader state could not be queried; disabling QuickCraft 3D previews for this session", throwable);
             }
             return IrisCompat.isIrisActive;
+        }
+    }
+
+    public static boolean prepare3DPreview() {
+        if (!isShaderPackActive()) {
+            return true;
+        }
+        if (!QuickCraftConfigs.shouldAutoDisableShadersFor3DPreview()) {
+            return false;
+        }
+
+        try {
+            // Iris 是可选依赖，反射稳定的 v0 API 可避免把它变成硬依赖。
+            Class<?> apiClass = Class.forName("net.irisshaders.iris.api.v0.IrisApi");
+            Object api = apiClass.getMethod("getInstance").invoke(null);
+            Object config = apiClass.getMethod("getConfig").invoke(api);
+            Class<?> configClass = Class.forName("net.irisshaders.iris.api.v0.IrisApiConfig");
+            configClass.getMethod("setShadersEnabledAndApply", boolean.class).invoke(config, false);
+            boolean disabled = !isShaderPackActive();
+            if (disabled) {
+                InfoUtils.printActionbarMessage("quickcraft.message.litematica.preview_3d.shader_auto_disabled");
+            }
+            return disabled;
+        } catch (Throwable throwable) {
+            if (SHADER_DISABLE_WARNING_LOGGED.compareAndSet(false, true)) {
+                LOGGER.warn("Iris shaders could not be disabled before opening a QuickCraft 3D preview", throwable);
+            }
+            return false;
         }
     }
 
