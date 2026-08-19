@@ -20,6 +20,7 @@ import com.sun.jna.win32.StdCallLibrary;
 import com.sun.jna.win32.W32APIOptions;
 import com.yiyihehe.quickcraft.config.QuickCraftConfigs;
 import com.yiyihehe.quickcraft.mixin.RenderLayerAccessor;
+import fi.dy.masa.litematica.compat.iris.IrisCompat;
 import fi.dy.masa.litematica.render.schematic.ChunkCacheSchematic;
 import fi.dy.masa.litematica.render.schematic.WorldRendererSchematic;
 import fi.dy.masa.litematica.schematic.LitematicaSchematic;
@@ -156,6 +157,7 @@ import java.util.zip.GZIPOutputStream;
  */
 public final class QuickLitematicaPreview3D {
     private static final Logger LOGGER = LoggerFactory.getLogger(QuickLitematicaPreview3D.class);
+    private static final AtomicBoolean SHADER_API_WARNING_LOGGED = new AtomicBoolean();
     private static final Map<fi.dy.masa.litematica.gui.GuiSchematicBrowserBase, Manager> MANAGERS = new WeakHashMap<>();
     // 预览构建专用单线程池：避免与 Util.getMainWorkerExecutor 共享导致排队等几秒。
     // 单线程足够（预览一次只构建一个文件），且避免 BlockRenderDispatcher 多线程竞争。
@@ -260,9 +262,18 @@ public final class QuickLitematicaPreview3D {
             int y,
             int size
     ) {
-        if (!QuickCraftConfigs.isLitematica3DPreviewEnabled()) {
+        boolean previewEnabled = QuickCraftConfigs.isLitematica3DPreviewEnabled();
+        boolean shaderPackActive = isShaderPackActive();
+        if (!previewEnabled || shaderPackActive) {
             for (Manager manager : MANAGERS.values()) {
                 manager.releasePreview();
+            }
+            if (previewEnabled
+                    && shaderPackActive
+                    && !hasEmbeddedPreview
+                    && entry != null
+                    && isSupportedLitematic(entry)) {
+                renderShaderDisabled(drawContext, x, y, size);
             }
             return;
         }
@@ -276,6 +287,38 @@ public final class QuickLitematicaPreview3D {
             manager.render(entry, hasEmbeddedPreview, drawContext, x, y, size);
         } else {
             manager.renderLauncher(entry, hasEmbeddedPreview, drawContext, x, y, size);
+        }
+    }
+
+    private static void renderShaderDisabled(GuiGraphicsExtractor context, int x, int y, int size) {
+        Minecraft client = Minecraft.getInstance();
+        RenderUtils.drawOutlinedBox(
+                GuiContext.fromGuiGraphics(context),
+                x, y, size, size,
+                0xB0101010, 0xFF707070
+        );
+        Component message = Component.translatable("quickcraft.message.litematica.preview_3d.shader_disabled");
+        var lines = client.font.split(message, Math.max(1, size - 16));
+        int lineStep = client.font.lineHeight + 2;
+        int textY = y + (size - lines.size() * lineStep) / 2;
+        for (var line : lines) {
+            context.centeredText(client.font, line, x + size / 2, textY, 0xFFFFCC55);
+            textY += lineStep;
+        }
+    }
+
+    public static boolean is3DPreviewAvailable() {
+        return QuickCraftConfigs.isLitematica3DPreviewEnabled() && !isShaderPackActive();
+    }
+
+    public static boolean isShaderPackActive() {
+        try {
+            return IrisCompat.isShaderActive();
+        } catch (Throwable throwable) {
+            if (SHADER_API_WARNING_LOGGED.compareAndSet(false, true)) {
+                LOGGER.warn("Iris shader state could not be queried; disabling QuickCraft 3D previews for this session", throwable);
+            }
+            return IrisCompat.isIrisActive;
         }
     }
 
@@ -349,6 +392,10 @@ public final class QuickLitematicaPreview3D {
         }
 
         private void renderCurrent(GuiGraphicsExtractor drawContext, int x, int y, int size, boolean showExpandButton) {
+            if (!is3DPreviewAvailable()) {
+                return;
+            }
+
             this.viewX = x;
             this.viewY = y;
             this.viewSize = Math.max(1, size);
@@ -374,7 +421,7 @@ public final class QuickLitematicaPreview3D {
         }
 
         public boolean mouseDragged(double mouseX, double mouseY, int button, double deltaX, double deltaY) {
-            if (this.current == null || !QuickCraftConfigs.isLitematica3DPreviewEnabled()) {
+            if (this.current == null || !is3DPreviewAvailable()) {
                 return false;
             }
 
@@ -595,7 +642,7 @@ public final class QuickLitematicaPreview3D {
 
         private boolean canHandleMouse(double mouseX, double mouseY) {
             return (this.current != null || this.currentEntry != null)
-                    && QuickCraftConfigs.isLitematica3DPreviewEnabled()
+                    && is3DPreviewAvailable()
                     && this.drag.inViewport(mouseX, mouseY);
         }
 
@@ -1347,6 +1394,11 @@ public final class QuickLitematicaPreview3D {
         }
 
         private void exportPng(int resolution, int backgroundColor, DragState drag, Path outputDirectory, Consumer<Component> callback) {
+            if (isShaderPackActive()) {
+                callback.accept(Component.translatable("quickcraft.message.litematica.preview_3d.shader_disabled"));
+                return;
+            }
+
             MeshData data = this.meshData;
             if (this.state != State.READY || data == null) {
                 callback.accept(Component.translatable("quickcraft.litematica.preview_3d.export_not_ready"));
@@ -1412,6 +1464,11 @@ public final class QuickLitematicaPreview3D {
                 return;
             }
 
+            if (isShaderPackActive()) {
+                callback.accept(Component.translatable("quickcraft.message.litematica.preview_3d.shader_disabled"));
+                return;
+            }
+
             MeshData data = this.meshData;
             if (this.state != State.READY || data == null) {
                 callback.accept(Component.translatable("quickcraft.litematica.preview_3d.export_not_ready"));
@@ -1473,6 +1530,11 @@ public final class QuickLitematicaPreview3D {
 
         private void captureSnapshot(int resolution, int backgroundColor, DragState drag,
                                      Consumer<Component> callback, Consumer<NativeImage> imageCallback) {
+            if (isShaderPackActive()) {
+                callback.accept(Component.translatable("quickcraft.message.litematica.preview_3d.shader_disabled"));
+                return;
+            }
+
             MeshData data = this.meshData;
             if (this.state != State.READY || data == null) {
                 callback.accept(Component.translatable("quickcraft.litematica.preview_3d.export_not_ready"));
