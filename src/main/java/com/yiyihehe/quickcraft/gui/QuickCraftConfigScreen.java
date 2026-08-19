@@ -157,6 +157,12 @@ public class QuickCraftConfigScreen extends GuiConfigsBase {
                 QuickCraftConfigs.ContainerTools.CREATIVE_PACKING_BUNDLE_STACKS,
                 QuickCraftConfigs.ContainerTools.ALLOW_CREATIVE_PACKING_NESTED_CONTAINERS
         ),
+        FREE_CAMERA_ENHANCEMENT(
+                QuickCraftConfigs.ContainerTools.ENABLE_FREE_CAMERA_ENHANCEMENT,
+                QuickCraftConfigs.ContainerTools.FREE_CAMERA_BLOCK_INTERACTIONS,
+                QuickCraftConfigs.ContainerTools.FREE_CAMERA_ENTITY_INTERACTIONS,
+                QuickCraftConfigs.ContainerTools.FREE_CAMERA_EASY_PLACE
+        ),
         SLOT_LOCK(
                 QuickCraftConfigs.ContainerTools.SHOW_SLOT_LOCK_OVERLAY,
                 QuickCraftConfigs.ContainerTools.ALLOW_MANUAL_LOCKED_SLOT_INTERACTION
