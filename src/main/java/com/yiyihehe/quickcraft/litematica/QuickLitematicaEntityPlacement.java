@@ -30,8 +30,6 @@ import net.minecraft.util.math.Box;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.Direction;
 import net.minecraft.util.math.Vec3d;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -55,8 +53,6 @@ public final class QuickLitematicaEntityPlacement {
     private static final int MAX_ENTITY_TREE_SIZE = 16;
     private static final long PENDING_TIMEOUT_TICKS = 40L;
     private static final long HELLO_RETRY_TICKS = 40L;
-    private static final Logger LOGGER = LoggerFactory.getLogger(QuickLitematicaEntityPlacement.class);
-
     private static ServerCapability capability;
     private static boolean helloSent;
     private static long clientTick;
@@ -148,8 +144,6 @@ public final class QuickLitematicaEntityPlacement {
             ));
             helloSent = true;
             lastHelloTick = clientTick;
-            LOGGER.info("Sent entity placement hello, protocol version {}",
-                    QuickLitematicaEntityPlacementPayloads.PROTOCOL_VERSION);
         }
     }
 
@@ -163,8 +157,6 @@ public final class QuickLitematicaEntityPlacement {
                 maxNbtBytes,
                 payload.sessionToken()
         );
-        LOGGER.info("Received entity placement capability: version={}, enabled={}, reach={}",
-                payload.version(), payload.enabled(), reach);
     }
 
     private static void receiveResult(MinecraftClient client, QuickLitematicaEntityPlacementPayloads.ResultPayload payload) {
@@ -172,15 +164,12 @@ public final class QuickLitematicaEntityPlacement {
         if (pending != null) {
             pendingRequests.values().removeIf(request -> request.key.equals(pending.key));
         }
-        LOGGER.info("Received entity placement result: nonce={}, status={}, entityUuid={}",
-                payload.nonce(), payload.status(), payload.entityUuid());
         if (payload.status().equals("SUCCESS")) {
             if (pending != null && !payload.entityUuid().isBlank()) {
                 try {
                     confirmedEntityUuids.put(pending.key, UUID.fromString(payload.entityUuid()));
-                } catch (IllegalArgumentException exception) {
-                    LOGGER.warn("Server returned an invalid entity UUID for nonce {}: {}",
-                            payload.nonce(), payload.entityUuid());
+                } catch (IllegalArgumentException ignored) {
+                    // The UUID only improves client-side matching; the server result remains authoritative.
                 }
             }
             if (client.player != null) {
@@ -624,8 +613,6 @@ public final class QuickLitematicaEntityPlacement {
                 QuickCraftConfigs.isCreativeEntityPlacementAllowed() && client.player.isCreative(),
                 candidate.nbt.copy()
         ));
-        LOGGER.info("Sent entity placement request: nonce={}, entity={}, region={}, index={}",
-                nonce, candidate.entityType, candidate.region, candidate.index);
         return true;
     }
 
