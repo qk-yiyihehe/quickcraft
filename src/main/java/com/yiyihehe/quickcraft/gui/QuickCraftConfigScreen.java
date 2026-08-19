@@ -171,6 +171,10 @@ public class QuickCraftConfigScreen extends GuiConfigsBase {
                 QuickCraftConfigs.ProjectionTools.HOLD_EASY_PLACE,
                 QuickCraftConfigs.ProjectionTools.HOLD_EASY_PLACE_CACHE_TIME_MS
         ),
+        EASY_PLACE_ENTITIES(
+                QuickCraftConfigs.ProjectionTools.ENABLE_EASY_PLACE_ENTITIES,
+                QuickCraftConfigs.ProjectionTools.ALLOW_CREATIVE_ENTITY_PLACEMENT
+        ),
         EASY_PLACE_VANILLA_INTERACTIONS(
                 QuickCraftConfigs.ProjectionTools.ALLOW_EASY_PLACE_VANILLA_INTERACTIONS,
                 QuickCraftConfigs.ProjectionTools.ALLOW_EASY_PLACE_INTERACTION_SCREENS,
