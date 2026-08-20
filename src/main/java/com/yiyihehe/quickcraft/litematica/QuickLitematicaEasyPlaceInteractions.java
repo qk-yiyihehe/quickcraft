@@ -1,5 +1,6 @@
 package com.yiyihehe.quickcraft.litematica;
 
+import com.yiyihehe.quickcraft.QuickFreeCameraInteractions;
 import com.yiyihehe.quickcraft.config.QuickCraftConfigs;
 import net.minecraft.block.AbstractCauldronBlock;
 import net.minecraft.block.AbstractFurnaceBlock;
@@ -70,6 +71,11 @@ import net.minecraft.item.ShovelItem;
 import net.minecraft.state.property.Properties;
 import net.minecraft.util.hit.BlockHitResult;
 import net.minecraft.util.hit.HitResult;
+import fi.dy.masa.litematica.config.Configs;
+import fi.dy.masa.litematica.util.RayTraceUtils;
+import fi.dy.masa.litematica.util.WorldUtils;
+import fi.dy.masa.litematica.util.RayTraceUtils.RayTraceWrapper;
+import fi.dy.masa.litematica.util.RayTraceUtils.RayTraceWrapper.HitType;
 
 /**
  * 统一决定 Litematica 轻松放置何时应让出右键给原版。
@@ -85,6 +91,10 @@ public final class QuickLitematicaEasyPlaceInteractions {
                 || client.player == null
                 || client.world == null
                 || client.currentScreen != null) {
+            return false;
+        }
+
+        if (isSchematicBlockCloser(client)) {
             return false;
         }
 
@@ -104,6 +114,20 @@ public final class QuickLitematicaEasyPlaceInteractions {
                 || isDecorationInteraction(block, heldStack)
                 || isSurvivalInteraction(block)
                 || isSpecialInteraction(client, block, heldStack);
+    }
+
+    private static boolean isSchematicBlockCloser(MinecraftClient client) {
+        net.minecraft.entity.Entity traceEntity = QuickFreeCameraInteractions.getEasyPlaceTraceEntity(client, client.player);
+        boolean targetFluids = Configs.InfoOverlays.INFO_OVERLAYS_TARGET_FLUIDS.getBooleanValue();
+        RayTraceWrapper trace = RayTraceUtils.getGenericTrace(
+                client.world,
+                traceEntity,
+                WorldUtils.getValidBlockRange(client),
+                true,
+                targetFluids,
+                false
+        );
+        return trace != null && trace.getHitType() == HitType.SCHEMATIC_BLOCK;
     }
 
     private static boolean isScreenInteraction(Block block) {
