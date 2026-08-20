@@ -1,6 +1,12 @@
 package com.yiyihehe.quickcraft.litematica;
 
+import com.yiyihehe.quickcraft.QuickFreeCameraInteractions;
 import com.yiyihehe.quickcraft.config.QuickCraftConfigs;
+import fi.dy.masa.litematica.config.Configs;
+import fi.dy.masa.litematica.util.RayTraceUtils;
+import fi.dy.masa.litematica.util.WorldUtils;
+import fi.dy.masa.litematica.util.RayTraceUtils.RayTraceWrapper;
+import fi.dy.masa.litematica.util.RayTraceUtils.RayTraceWrapper.HitType;
 import net.minecraft.client.Minecraft;
 import net.minecraft.world.item.AxeItem;
 import net.minecraft.world.item.BottleItem;
@@ -34,6 +40,10 @@ public final class QuickLitematicaEasyPlaceInteractions {
             return false;
         }
 
+        if (isSchematicBlockCloser(client)) {
+            return false;
+        }
+
         HitResult hitResult = client.hitResult;
         if (!(hitResult instanceof BlockHitResult blockHitResult) || blockHitResult.getType() != HitResult.Type.BLOCK) {
             return false;
@@ -50,6 +60,20 @@ public final class QuickLitematicaEasyPlaceInteractions {
                 || isDecorationInteraction(block, heldStack)
                 || isSurvivalInteraction(block)
                 || isSpecialInteraction(client, block, heldStack);
+    }
+
+    private static boolean isSchematicBlockCloser(Minecraft client) {
+        net.minecraft.world.entity.Entity traceEntity = QuickFreeCameraInteractions.getEasyPlaceTraceEntity(client, client.player);
+        boolean targetFluids = Configs.InfoOverlays.INFO_OVERLAYS_TARGET_FLUIDS.getBooleanValue();
+        RayTraceWrapper trace = RayTraceUtils.getGenericTrace(
+                client.level,
+                traceEntity,
+                WorldUtils.getValidBlockRange(client),
+                true,
+                targetFluids,
+                false
+        );
+        return trace != null && trace.getHitType() == HitType.SCHEMATIC_BLOCK;
     }
 
     private static boolean isScreenInteraction(Block block) {
