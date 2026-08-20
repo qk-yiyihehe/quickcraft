@@ -167,7 +167,7 @@
   "quickcraft.config.projection_tools.comment.allowCreativeEntityPlacement": "§6功能：§r创造模式下放置投影实体时不检查或扣除材料。\n§e安全：§r服务端仍会确认玩家确实处于创造模式。\n§7默认：§r开启。",
   "quickcraft.config.projection_tools.prettyName.holdEasyPlaceCacheTimeMs": "同位置放置间隔",
   "quickcraft.config.projection_tools.name.holdEasyPlaceCacheTimeMs": "同位置放置间隔",
-  "quickcraft.config.projection_tools.comment.holdEasyPlaceCacheTimeMs": "§6功能：§r设置轻松放置成功后，同一位置再次尝试放置的等待时间。\n§e说明：§r单位为毫秒，可填 10 到 10000，默认 2000。",
+  "quickcraft.config.projection_tools.comment.holdEasyPlaceCacheTimeMs": "§6功能：§r设置持续轻松放置成功后，同一位置再次尝试放置的等待时间。\n§e说明：§r仅在持续轻松放置开启时生效，不会改变 Litematica 原本的行为。单位为毫秒，可填 10 到 10000，默认 500。",
   "quickcraft.config.projection_tools.prettyName.showLitematicaSchematicFolderButton": "显示原理图文件夹按钮",
   "quickcraft.config.projection_tools.name.showLitematicaSchematicFolderButton": "显示原理图文件夹按钮",
   "quickcraft.config.projection_tools.comment.showLitematicaSchematicFolderButton": "§6功能：§r在 §bLitematica§r 主菜单显示打开原理图文件夹按钮。\n§e说明：§r点击按钮会使用系统文件管理器打开当前原理图目录。\n§7默认：§r开启。",
