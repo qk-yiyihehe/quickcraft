@@ -52,7 +52,8 @@ public final class QuickLitematicaEntityPlacement {
     private static final int MAX_ENTITY_TREE_DEPTH = 8;
     private static final int MAX_ENTITY_TREE_SIZE = 16;
     private static final long PENDING_TIMEOUT_TICKS = 40L;
-    private static final long HELLO_RETRY_TICKS = 40L;
+    // 服务器未声明协议时的重试间隔；首次连接仍立即发送，10 tick 约为 0.5 秒。
+    private static final long HELLO_RETRY_TICKS = 10L;
     private static ServerCapability capability;
     private static boolean helloSent;
     private static long clientTick;
@@ -258,12 +259,20 @@ public final class QuickLitematicaEntityPlacement {
         Set<Entity> claimedEntities = Collections.newSetFromMap(new IdentityHashMap<>());
         Map<Candidate, PlacementStatus> statuses = new IdentityHashMap<>();
         Map<Candidate, List<Entity>> nearbyByCandidate = new IdentityHashMap<>();
+        Box searchBox = candidates.getFirst().box.expand(Candidate.POSITION_TOLERANCE);
+        for (int index = 1; index < candidates.size(); index++) {
+            searchBox = searchBox.union(candidates.get(index).box.expand(Candidate.POSITION_TOLERANCE));
+        }
+        List<Entity> nearbyEntities = client.world.getOtherEntities(
+                null,
+                searchBox,
+                entity -> entity.isAlive() && !(entity instanceof PlayerEntity)
+        );
         for (Candidate candidate : candidates) {
-            List<Entity> nearby = client.world.getOtherEntities(
-                    null,
-                    candidate.box.expand(Candidate.POSITION_TOLERANCE),
-                    entity -> entity.isAlive() && !(entity instanceof PlayerEntity)
-            );
+            Box candidateBox = candidate.box.expand(Candidate.POSITION_TOLERANCE);
+            List<Entity> nearby = new ArrayList<>(nearbyEntities.stream()
+                    .filter(entity -> candidateBox.intersects(entity.getBoundingBox()))
+                    .toList());
             nearby.sort(Comparator.comparingDouble(entity -> entity.getPos().squaredDistanceTo(candidate.position)));
             nearbyByCandidate.put(candidate, nearby);
         }
