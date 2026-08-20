@@ -6,6 +6,7 @@ import com.yiyihehe.quickcraft.config.QuickCraftConfigs;
 import com.yiyihehe.quickcraft.render.QuickContainerLockButton;
 import com.yiyihehe.quickcraft.render.QuickDraggableButton;
 import com.yiyihehe.quickcraft.render.QuickStashButton;
+import com.yiyihehe.quickcraft.render.QuickRetrieveButton;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.gui.screen.ingame.HandledScreen;
 import net.minecraft.client.gui.screen.ingame.ShulkerBoxScreen;
@@ -30,6 +31,9 @@ public abstract class ShulkerBoxScreenMixin extends HandledScreen<ShulkerBoxScre
     @Unique
     private QuickStashButton quickcraft$stashButton;
 
+    @Unique
+    private QuickRetrieveButton quickcraft$retrieveButton;
+
     protected ShulkerBoxScreenMixin(ShulkerBoxScreenHandler handler, PlayerInventory inventory, Text title) {
         super(handler, inventory, title);
     }
@@ -38,6 +42,7 @@ public abstract class ShulkerBoxScreenMixin extends HandledScreen<ShulkerBoxScre
     private void quickcraft$addLockButton(DrawContext context, int mouseX, int mouseY, float delta, CallbackInfo ci) {
         QuickContainerLock.bindCurrentScreen(this);
         this.quickcraft$ensureStashButton();
+        this.quickcraft$ensureRetrieveButton();
         if (!QuickContainerLock.shouldShowLockButton(this)) {
             if (this.quickcraft$lockButton != null) {
                 this.quickcraft$lockButton.visible = false;
@@ -94,5 +99,29 @@ public abstract class ShulkerBoxScreenMixin extends HandledScreen<ShulkerBoxScre
         }
         this.quickcraft$stashButton.visible = true;
         this.quickcraft$stashButton.setDefaultPosition(this.x + this.backgroundWidth - 34, this.y + 4);
+    }
+
+    @Unique
+    private void quickcraft$ensureRetrieveButton() {
+        if (!QuickCraftConfigs.isQuickStashButtonVisible()) {
+            if (this.quickcraft$retrieveButton != null) {
+                this.quickcraft$retrieveButton.visible = false;
+            }
+            return;
+        }
+        if (this.quickcraft$retrieveButton == null || !this.children().contains(this.quickcraft$retrieveButton)) {
+            this.quickcraft$retrieveButton = this.addDrawableChild(new QuickRetrieveButton(
+                    this.x + this.backgroundWidth - 18,
+                    this.y + this.backgroundHeight - 96,
+                    button -> QuickStash.retrieveFromButton(this),
+                    QuickDraggableButton.PositionKey.QUICK_RETRIEVE,
+                    Text.translatable("quickcraft.button.quick_retrieve")
+            ));
+        }
+        this.quickcraft$retrieveButton.visible = true;
+        this.quickcraft$retrieveButton.setDefaultPosition(
+                this.x + this.backgroundWidth - 18,
+                this.y + this.backgroundHeight - 96
+        );
     }
 }
