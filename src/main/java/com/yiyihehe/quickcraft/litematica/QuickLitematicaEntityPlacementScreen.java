@@ -8,6 +8,7 @@ import net.minecraft.util.Identifier;
 
 import java.util.List;
 import java.util.Map;
+import java.util.IdentityHashMap;
 
 /** 原版 54 格箱子选择器；背包和容器预览均直接复用原版纹理与物品渲染。 */
 final class QuickLitematicaEntityPlacementScreen extends Screen {
@@ -24,12 +25,29 @@ final class QuickLitematicaEntityPlacementScreen extends Screen {
     private static final int HOPPER_CROP_HEIGHT = 32;
 
     private final List<QuickLitematicaEntityPlacement.Candidate> candidates;
+    private QuickLitematicaEntityPlacement.PlacementEvaluation evaluation;
+    private final Map<net.minecraft.entity.Entity, QuickLitematicaEntityPlacement.ExcessDisplay> excessDisplays = new IdentityHashMap<>();
+    private int evaluationRefreshTicks;
 
     QuickLitematicaEntityPlacementScreen(
             List<QuickLitematicaEntityPlacement.Candidate> candidates
     ) {
         super(Text.translatable("quickcraft.entity_placement.title"));
         this.candidates = candidates;
+    }
+
+    @Override
+    public void tick() {
+        super.tick();
+        if (this.evaluation == null || --this.evaluationRefreshTicks <= 0) {
+            this.evaluation = QuickLitematicaEntityPlacement.evaluatePlacement(this.client, this.candidates);
+            this.evaluationRefreshTicks = 4;
+            this.excessDisplays.clear();
+            for (net.minecraft.entity.Entity entity : this.evaluation.excessEntities()) {
+                this.excessDisplays.put(entity,
+                        QuickLitematicaEntityPlacement.createExcessDisplay(entity, this.candidates));
+            }
+        }
     }
 
     @Override
@@ -49,8 +67,10 @@ final class QuickLitematicaEntityPlacementScreen extends Screen {
             noticeY -= 13;
         }
 
-        QuickLitematicaEntityPlacement.PlacementEvaluation evaluation =
-                QuickLitematicaEntityPlacement.evaluatePlacement(this.client, candidates);
+        if (this.evaluation == null) {
+            this.evaluation = QuickLitematicaEntityPlacement.evaluatePlacement(this.client, this.candidates);
+        }
+        QuickLitematicaEntityPlacement.PlacementEvaluation evaluation = this.evaluation;
         Map<QuickLitematicaEntityPlacement.Candidate, QuickLitematicaEntityPlacement.PlacementStatus> statuses =
                 evaluation.statuses();
         int excessCount = evaluation.excessEntities().size();
@@ -89,8 +109,9 @@ final class QuickLitematicaEntityPlacementScreen extends Screen {
             int row = displayIndex / COLUMNS;
             int x = left + 8 + column * SLOT_SIZE;
             int y = top + 18 + row * SLOT_SIZE;
-            QuickLitematicaEntityPlacement.ExcessDisplay excess =
-                    QuickLitematicaEntityPlacement.createExcessDisplay(evaluation.excessEntities().get(index), candidates);
+            QuickLitematicaEntityPlacement.ExcessDisplay excess = this.excessDisplays.computeIfAbsent(
+                    evaluation.excessEntities().get(index),
+                    entity -> QuickLitematicaEntityPlacement.createExcessDisplay(entity, this.candidates));
             context.fill(x, y, x + 16, y + 16, 0xB06A3D9A);
             if (!excess.stack().isEmpty()) {
                 context.drawItem(excess.stack(), x, y);
