@@ -64,7 +64,7 @@ public final class QuickCraftConfigs implements IConfigHandler {
     public static final int MAX_MATERIAL_COLLECT_EXTRA_50_TO_100 = 100;
     public static final int MAX_MATERIAL_COLLECT_EXTRA_100_TO_500 = 500;
     public static final int MAX_MATERIAL_COLLECT_EXTRA_OVER_500 = 512;
-    public static final int DEFAULT_HOLD_EASY_PLACE_CACHE_TIME_MS = 2000;
+    public static final int DEFAULT_HOLD_EASY_PLACE_CACHE_TIME_MS = 500;
     public static final int MIN_HOLD_EASY_PLACE_CACHE_TIME_MS = 10;
     public static final int MAX_HOLD_EASY_PLACE_CACHE_TIME_MS = 10000;
     public static final int DEFAULT_QUICK_SHULKER_ACTION_INTERVAL_TICKS = 5;

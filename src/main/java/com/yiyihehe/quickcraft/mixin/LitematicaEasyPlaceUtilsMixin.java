@@ -7,7 +7,7 @@ import org.spongepowered.asm.mixin.injection.Constant;
 import org.spongepowered.asm.mixin.injection.ModifyConstant;
 
 /**
- * 让同位置轻松放置缓存时间跟随 QuickCraft 配置。
+ * 仅在持续轻松放置开启时让同位置缓存时间跟随 QuickCraft 配置。
  */
 @Mixin(value = EasyPlaceUtils.class, remap = false)
 public abstract class LitematicaEasyPlaceUtilsMixin {
@@ -17,6 +17,8 @@ public abstract class LitematicaEasyPlaceUtilsMixin {
             remap = false
     )
     private static long quickcraft$useConfiguredCacheTime(long timeout) {
-        return 1_000_000L * QuickCraftConfigs.getHoldEasyPlaceCacheTimeMs();
+        return QuickCraftConfigs.isHoldEasyPlaceEnabled()
+                ? 1_000_000L * QuickCraftConfigs.getHoldEasyPlaceCacheTimeMs()
+                : timeout;
     }
 }
