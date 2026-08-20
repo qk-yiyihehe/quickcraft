@@ -35,10 +35,15 @@ import net.minecraft.world.level.block.state.properties.ChestType;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
+import net.minecraft.core.Holder;
+import net.minecraft.core.component.DataComponentType;
+import net.minecraft.core.component.DataComponents;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.Container;
 import net.minecraft.world.SimpleContainer;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.enchantment.Enchantment;
+import net.minecraft.world.item.enchantment.ItemEnchantments;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.ListTag;
 import net.minecraft.nbt.NbtOps;
@@ -595,7 +600,7 @@ public final class QuickLitematicaContainerVerifier {
         if (expectedEmpty) {
             return SlotMismatchStatus.EXTRA;
         }
-        if (!ItemStack.isSameItemSameComponents(expectedStack, foundStack)) {
+        if (!areItemsAndComponentsEqual(expectedStack, foundStack)) {
             return SlotMismatchStatus.WRONG;
         }
         if (expectedStack.getCount() != foundStack.getCount()) {
@@ -603,6 +608,63 @@ public final class QuickLitematicaContainerVerifier {
         }
 
         return null;
+    }
+
+    private static boolean areItemsAndComponentsEqual(ItemStack expectedStack, ItemStack foundStack) {
+        if (ItemStack.isSameItemSameComponents(expectedStack, foundStack)) {
+            return true;
+        }
+
+        if (!expectedStack.is(foundStack.getItem())
+                || !sameEnchantments(expectedStack, foundStack, DataComponents.ENCHANTMENTS)
+                || !sameEnchantments(expectedStack, foundStack, DataComponents.STORED_ENCHANTMENTS)) {
+            return false;
+        }
+
+        ItemStack expectedWithoutEnchantments = expectedStack.copy();
+        ItemStack foundWithoutEnchantments = foundStack.copy();
+        expectedWithoutEnchantments.remove(DataComponents.ENCHANTMENTS);
+        expectedWithoutEnchantments.remove(DataComponents.STORED_ENCHANTMENTS);
+        foundWithoutEnchantments.remove(DataComponents.ENCHANTMENTS);
+        foundWithoutEnchantments.remove(DataComponents.STORED_ENCHANTMENTS);
+        return ItemStack.isSameItemSameComponents(expectedWithoutEnchantments, foundWithoutEnchantments);
+    }
+
+    private static boolean sameEnchantments(
+            ItemStack expectedStack,
+            ItemStack foundStack,
+            DataComponentType<ItemEnchantments> type
+    ) {
+        ItemEnchantments expected = expectedStack.get(type);
+        ItemEnchantments found = foundStack.get(type);
+
+        if (expected == null || found == null) {
+            return expected == found;
+        }
+        if (expected.size() != found.size()) {
+            return false;
+        }
+
+        for (var entry : expected.entrySet()) {
+            Holder<Enchantment> expectedEnchantment = entry.getKey();
+            int expectedLevel = entry.getIntValue();
+            boolean matched = false;
+
+            for (var foundEntry : found.entrySet()) {
+                Holder<Enchantment> foundEnchantment = foundEntry.getKey();
+                if (expectedEnchantment.unwrapKey().equals(foundEnchantment.unwrapKey())
+                        && expectedLevel == foundEntry.getIntValue()) {
+                    matched = true;
+                    break;
+                }
+            }
+
+            if (!matched) {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     private static boolean isSlotLockMismatch(Set<Integer> expectedDisabledSlots, Set<Integer> foundDisabledSlots, int slot) {
