@@ -16,6 +16,7 @@ public class QuickDraggableButton extends ButtonWidget {
         CONTAINER_LOCK("containerLock"),
         INVENTORY_LOCK("inventoryLock"),
         QUICK_STASH("quickStash"),
+        QUICK_RETRIEVE("quickRetrieve"),
         WORKBENCH_CRAFT("workbenchCraft"),
         BACKPACK_CRAFT("backpackCraft"),
         STONECUTTER_CRAFT("stonecutterCraft");
