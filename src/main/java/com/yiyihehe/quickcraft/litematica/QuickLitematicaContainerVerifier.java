@@ -169,6 +169,14 @@ public final class QuickLitematicaContainerVerifier {
             return null;
         }
 
+        if (directInventory != null
+                && expected != null
+                && directInventory.size() == expected.size()
+                && !isInventoryEmpty(directInventory)) {
+            lastActualInventoryReadStatus = ActualInventoryReadStatus.DIRECT_INVENTORY;
+            return directInventory;
+        }
+
         if (DataManager.getInstance().hasIntegratedServer()) {
             Inventory mergedOrDirect = getDirectInventory(world, pos, expected != null ? expected.size() : -1);
             lastActualInventoryReadStatus = mergedOrDirect != null || directInventory != null
@@ -342,6 +350,23 @@ public final class QuickLitematicaContainerVerifier {
 
     public static ActualInventoryReadStatus getLastActualInventoryReadStatus() {
         return lastActualInventoryReadStatus;
+    }
+
+    public static String getItemStackSignature(ItemStack stack) {
+        if (stack.isEmpty()) {
+            return "empty";
+        }
+
+        MinecraftClient client = MinecraftClient.getInstance();
+        if (client.world != null) {
+            try {
+                return stack.toNbtAllowEmpty(client.world.getRegistryManager()).toString();
+            } catch (RuntimeException ignored) {
+                // 组件损坏时仍保留可比较的本地表示，不能让刷新验证结果的路径崩溃。
+            }
+        }
+
+        return stack.getItem() + "|" + stack.getComponents();
     }
 
     public static void requestInventoryData(World world, BlockPos pos) {
@@ -640,6 +665,9 @@ public final class QuickLitematicaContainerVerifier {
         if (expected == null || found == null) {
             return expected == found;
         }
+        if (showsEnchantmentsInTooltip(expected) != showsEnchantmentsInTooltip(found)) {
+            return false;
+        }
         if (expected.getSize() != found.getSize()) {
             return false;
         }
@@ -666,22 +694,34 @@ public final class QuickLitematicaContainerVerifier {
         return true;
     }
 
+    private static boolean showsEnchantmentsInTooltip(ItemEnchantmentsComponent enchantments) {
+        return enchantments.equals(enchantments.withShowInTooltip(true));
+    }
+
     private static boolean isSlotLockMismatch(Set<Integer> expectedDisabledSlots, Set<Integer> foundDisabledSlots, int slot) {
         return expectedDisabledSlots.contains(slot) != foundDisabledSlots.contains(slot);
     }
 
     public static ExpectedContainer getExpectedContainerAt(World foundWorld, BlockPos pos) {
+        return getExpectedContainerAt(foundWorld, pos, null);
+    }
+
+    public static ExpectedContainer getExpectedContainerAt(
+            World foundWorld,
+            BlockPos pos,
+            @Nullable SchematicPlacement placementFilter
+    ) {
         if (foundWorld == null) {
             return null;
         }
 
-        ExpectedContainer current = getExpectedContainerInternal(pos);
+        ExpectedContainer current = getExpectedContainerInternal(pos, placementFilter);
 
         if (current == null) {
             return null;
         }
 
-        ExpectedContainer merged = getExpectedDoubleChestContainer(pos, current);
+        ExpectedContainer merged = getExpectedDoubleChestContainer(pos, current, placementFilter);
 
         return merged != null ? merged : current;
     }
@@ -811,7 +851,8 @@ public final class QuickLitematicaContainerVerifier {
         currentScreenSlotOverlays = List.of();
         currentScreenContainerInventory = null;
         World world = fi.dy.masa.malilib.util.WorldUtils.getBestWorld(client);
-        ExpectedContainer expectedContainer = getExpectedContainerAt(world, containerPos);
+        SchematicPlacement placement = DataManager.getSchematicPlacementManager().getSelectedSchematicPlacement();
+        ExpectedContainer expectedContainer = getExpectedContainerAt(world, containerPos, placement);
 
         if (expectedContainer == null
                 || !isSupportedHandlerForExpectedContainer(screen.getScreenHandler(), expectedContainer)) {
@@ -838,7 +879,6 @@ public final class QuickLitematicaContainerVerifier {
                 containerInventory
         );
         List<ContainerMismatch> mismatches = null;
-        SchematicPlacement placement = DataManager.getSchematicPlacementManager().getSelectedSchematicPlacement();
 
         if (placement != null && placement.hasVerifier()) {
             VerifierExtension verifier = (VerifierExtension) placement.getSchematicVerifier();
@@ -848,7 +888,7 @@ public final class QuickLitematicaContainerVerifier {
                     foundDisabledSlots
             );
 
-            BlockPos pairedPos = getExpectedDoubleChestAdjacentPos(containerPos);
+            BlockPos pairedPos = getExpectedDoubleChestAdjacentPos(containerPos, placement);
             if (pairedPos != null) {
                 // 大箱子的错误可能记录在另一半坐标；打开任意半边都同步刷新两半。
                 verifier.quickcraft$refreshContainerMismatchAt(pairedPos, foundInventory, foundDisabledSlots);
@@ -1057,7 +1097,11 @@ public final class QuickLitematicaContainerVerifier {
         return overlays;
     }
 
-    private static ExpectedContainer getExpectedDoubleChestContainer(BlockPos pos, ExpectedContainer current) {
+    private static ExpectedContainer getExpectedDoubleChestContainer(
+            BlockPos pos,
+            ExpectedContainer current,
+            @Nullable SchematicPlacement placementFilter
+    ) {
         ChestType chestType = getChestType(current.state());
 
         if (chestType == ChestType.SINGLE) {
@@ -1065,7 +1109,7 @@ public final class QuickLitematicaContainerVerifier {
         }
 
         BlockPos adjacentPos = pos.add(ChestBlock.getFacing(current.state()).getVector());
-        ExpectedContainer adjacent = getExpectedContainerInternal(adjacentPos);
+        ExpectedContainer adjacent = getExpectedContainerInternal(adjacentPos, placementFilter);
 
         if (adjacent == null) {
             return null;
@@ -1087,14 +1131,21 @@ public final class QuickLitematicaContainerVerifier {
     }
 
     public static BlockPos getExpectedDoubleChestAdjacentPos(BlockPos pos) {
-        ExpectedContainer current = getExpectedContainerInternal(pos);
+        return getExpectedDoubleChestAdjacentPos(pos, null);
+    }
+
+    public static BlockPos getExpectedDoubleChestAdjacentPos(
+            BlockPos pos,
+            @Nullable SchematicPlacement placementFilter
+    ) {
+        ExpectedContainer current = getExpectedContainerInternal(pos, placementFilter);
 
         if (current == null || getChestType(current.state()) == ChestType.SINGLE) {
             return null;
         }
 
         BlockPos adjacentPos = pos.add(ChestBlock.getFacing(current.state()).getVector());
-        ExpectedContainer adjacent = getExpectedContainerInternal(adjacentPos);
+        ExpectedContainer adjacent = getExpectedContainerInternal(adjacentPos, placementFilter);
         return adjacent != null && getChestType(adjacent.state()) != ChestType.SINGLE
                 ? adjacentPos
                 : null;
@@ -1523,6 +1574,7 @@ public final class QuickLitematicaContainerVerifier {
     public enum ActualInventoryReadStatus {
         NOT_READ,
         NO_WORLD,
+        DIRECT_INVENTORY,
         INTEGRATED_DIRECT,
         NO_DIRECT_INVENTORY,
         CACHE_INVENTORY,
