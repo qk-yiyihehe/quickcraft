@@ -117,6 +117,11 @@ public final class QuickStash implements ClientModInitializer {
         new QuickStash().stashMatchingPlayerItems(screen);
     }
 
+    /** Runs the reverse transfer without closing the current container screen. */
+    public static void retrieveFromButton(AbstractContainerScreen<?> screen) {
+        new QuickStash().retrieveContainerItems(screen);
+    }
+
     private void stashMatchingPlayerItems(AbstractContainerScreen<?> screen) {
         Minecraft client = Minecraft.getInstance();
         if (client.player == null || client.gameMode == null) {
@@ -153,6 +158,53 @@ public final class QuickStash implements ClientModInitializer {
                     client.player
             );
         }
+    }
+
+    private void retrieveContainerItems(AbstractContainerScreen<?> screen) {
+        Minecraft client = Minecraft.getInstance();
+        if (client.player == null || client.gameMode == null) {
+            return;
+        }
+
+        AbstractContainerMenu handler = screen.getMenu();
+        if (!handler.getCarried().isEmpty()) {
+            return;
+        }
+
+        List<ItemStack> playerTemplates = snapshotPlayerTemplates(handler);
+        if (playerTemplates.isEmpty()) {
+            return;
+        }
+
+        for (Slot slot : handler.slots) {
+            if (!isVisibleSlot(slot)
+                    || isPlayerStorageSlot(slot)
+                    || QuickContainerLock.isLockedSlot(handler, slot)
+                    || !slot.hasItem()
+                    || !slot.mayPickup(client.player)
+                    || !matchesAnyTemplate(slot.getItem(), playerTemplates)) {
+                continue;
+            }
+
+            client.gameMode.handleContainerInput(
+                    handler.containerId,
+                    slot.index,
+                    0,
+                    ContainerInput.QUICK_MOVE,
+                    client.player
+            );
+        }
+    }
+
+    private List<ItemStack> snapshotPlayerTemplates(AbstractContainerMenu handler) {
+        List<ItemStack> templates = new ArrayList<>();
+        for (int playerSlotId : getPlayerStorageSlotIds(handler)) {
+            Slot slot = handler.getSlot(playerSlotId);
+            if (slot.hasItem()) {
+                templates.add(slot.getItem().copyWithCount(1));
+            }
+        }
+        return templates;
     }
 
     private List<ItemStack> snapshotContainerTemplates(AbstractContainerMenu handler) {
