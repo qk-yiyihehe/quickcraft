@@ -35,6 +35,7 @@ public final class QuickCraftWorkbenchShulker {
     private static final int GRID_END = 9;
     private static final int MAX_UNBUNDLE_CLICKS_PER_SOURCE = GRID_END - GRID_START + 1;
     static final int MAX_SOURCE_SHULKERS = PlayerInventory.MAIN_SIZE;
+    private static final int MAX_STABLE_ULTRA_SOURCE_BATCHES_PER_TICK = 4;
     private static final Identifier QUICK_SHULKER_OPEN_PACKET =
             Identifier.of("quickshulker", "open_shulker_packet");
 
@@ -228,7 +229,15 @@ public final class QuickCraftWorkbenchShulker {
         tick(client, TaskOwner.SHULKER_CRAFT);
     }
 
+    public static void tickShulkerCraftOnce(MinecraftClient client) {
+        tick(client, TaskOwner.SHULKER_CRAFT, 1);
+    }
+
     private static void tick(MinecraftClient client, TaskOwner owner) {
+        tick(client, owner, -1);
+    }
+
+    private static void tick(MinecraftClient client, TaskOwner owner, int sourceBatchLimit) {
         if (!isTaskOwnedBy(owner)) {
             return;
         }
@@ -257,8 +266,11 @@ public final class QuickCraftWorkbenchShulker {
         }
         int maxSourceBatches = owner == TaskOwner.SHULKER_CRAFT
                 ? sourceBatchesPerTick(QuickCraftConfigs.getQuickShulkerActionIntervalTicks(),
-                debugSessionUltraFast)
+                debugSessionUltraFast, QuickCraftConfigs.getWorkbenchQuickShulkerUltraBurstsPerTick())
                 : 1;
+        if (sourceBatchLimit > 0) {
+            maxSourceBatches = Math.min(maxSourceBatches, sourceBatchLimit);
+        }
         long taskId = task.id;
         int processedBatches = 0;
         for (int batch = 0; batch < maxSourceBatches && task != null; batch++) {
@@ -567,7 +579,18 @@ public final class QuickCraftWorkbenchShulker {
     }
 
     static int sourceBatchesPerTick(int actionIntervalTicks, boolean ultraFastEnabled) {
-        return ultraFastEnabled && actionIntervalTicks == 0 ? MAX_SOURCE_SHULKERS : 1;
+        return sourceBatchesPerTick(actionIntervalTicks, ultraFastEnabled,
+                QuickCraftConfigs.DEFAULT_WORKBENCH_QUICK_SHULKER_ULTRA_BURSTS_PER_TICK);
+    }
+
+    static int sourceBatchesPerTick(int actionIntervalTicks,
+                                    boolean ultraFastEnabled,
+                                    int ultraBurstsPerTick) {
+        if (!ultraFastEnabled || actionIntervalTicks != 0) {
+            return 1;
+        }
+        // 服务端容器点击需要跨 Tick 收敛；输出 Burst 可以更大，来源盒点击保持小窗口。
+        return Math.min(MAX_STABLE_ULTRA_SOURCE_BATCHES_PER_TICK, Math.max(1, ultraBurstsPerTick));
     }
 
     private static boolean isTaskOwnedBy(TaskOwner owner) {
