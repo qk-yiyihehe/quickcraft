@@ -69,18 +69,6 @@ public final class QuickCraftConfigs implements IConfigHandler {
     public static final int DEFAULT_QUICK_SHULKER_ACTION_INTERVAL_TICKS = 5;
     public static final int MIN_QUICK_SHULKER_ACTION_INTERVAL_TICKS = 0;
     public static final int MAX_QUICK_SHULKER_ACTION_INTERVAL_TICKS = 20;
-    public static final int DEFAULT_WORKBENCH_QUICK_SHULKER_ULTRA_BURSTS_PER_TICK = 3;
-    public static final int MIN_WORKBENCH_QUICK_SHULKER_ULTRA_BURSTS_PER_TICK = 1;
-    public static final int MAX_WORKBENCH_QUICK_SHULKER_ULTRA_BURSTS_PER_TICK = 16;
-    public static final int DEFAULT_WORKBENCH_QUICK_SHULKER_CURSOR_SETTLE_TICKS = 4;
-    public static final int MIN_WORKBENCH_QUICK_SHULKER_CURSOR_SETTLE_TICKS = 1;
-    public static final int MAX_WORKBENCH_QUICK_SHULKER_CURSOR_SETTLE_TICKS = 20;
-    public static final int DEFAULT_WORKBENCH_QUICK_SHULKER_RECOVERY_PAUSE_TICKS = 4;
-    public static final int MIN_WORKBENCH_QUICK_SHULKER_RECOVERY_PAUSE_TICKS = 0;
-    public static final int MAX_WORKBENCH_QUICK_SHULKER_RECOVERY_PAUSE_TICKS = 20;
-    public static final int DEFAULT_WORKBENCH_QUICK_SHULKER_CURSOR_TIMEOUT_TICKS = 20;
-    public static final int MIN_WORKBENCH_QUICK_SHULKER_CURSOR_TIMEOUT_TICKS = 1;
-    public static final int MAX_WORKBENCH_QUICK_SHULKER_CURSOR_TIMEOUT_TICKS = 100;
 
     private static final KeybindSettings GUI_PRESS = KeybindSettings.create(
             KeybindSettings.Context.GUI,
@@ -167,6 +155,57 @@ public final class QuickCraftConfigs implements IConfigHandler {
         }
     }
 
+    public enum WorkbenchShulkerPipelineMode implements IConfigOptionListEntry {
+        RESPONSE_STABLE(
+                "response_stable",
+                "quickcraft.label.workbench_shulker_pipeline_mode.response_stable"),
+        BALANCED(
+                "balanced",
+                "quickcraft.label.workbench_shulker_pipeline_mode.balanced"),
+        COMBINED_ULTRA(
+                "combined_ultra",
+                "quickcraft.label.workbench_shulker_pipeline_mode.combined_ultra");
+
+        private final String configValue;
+        private final String translationKey;
+
+        WorkbenchShulkerPipelineMode(String configValue, String translationKey) {
+            this.configValue = configValue;
+            this.translationKey = translationKey;
+        }
+
+        @Override
+        public String getStringValue() {
+            return this.configValue;
+        }
+
+        @Override
+        public String getDisplayName() {
+            return StringUtils.translate(this.translationKey);
+        }
+
+        @Override
+        public IConfigOptionListEntry cycle(boolean forward) {
+            int next = this.ordinal() + (forward ? 1 : -1);
+            if (next < 0) {
+                next = values().length - 1;
+            } else if (next >= values().length) {
+                next = 0;
+            }
+            return values()[next];
+        }
+
+        @Override
+        public IConfigOptionListEntry fromString(String value) {
+            for (WorkbenchShulkerPipelineMode mode : values()) {
+                if (mode.configValue.equalsIgnoreCase(value)) {
+                    return mode;
+                }
+            }
+            return RESPONSE_STABLE;
+        }
+    }
+
     public static final class Crafting {
         public static final ConfigBooleanHotkeyed ENABLE_WORKBENCH = new ConfigBooleanHotkeyed(
                 "enableWorkbenchQuickCraft",
@@ -178,37 +217,9 @@ public final class QuickCraftConfigs implements IConfigHandler {
                 false,
                 ""
         ).apply(CRAFTING_TRANSLATION_PREFIX);
-        public static final ConfigBoolean ENABLE_WORKBENCH_QUICK_SHULKER_ULTRA_FAST = new ConfigBoolean(
-                "enableWorkbenchQuickShulkerUltraFast",
-                false
-        ).apply(CRAFTING_TRANSLATION_PREFIX);
-        public static final ConfigInteger WORKBENCH_QUICK_SHULKER_ULTRA_BURSTS_PER_TICK = new ConfigInteger(
-                "workbenchQuickShulkerUltraBurstsPerTick",
-                DEFAULT_WORKBENCH_QUICK_SHULKER_ULTRA_BURSTS_PER_TICK,
-                MIN_WORKBENCH_QUICK_SHULKER_ULTRA_BURSTS_PER_TICK,
-                MAX_WORKBENCH_QUICK_SHULKER_ULTRA_BURSTS_PER_TICK,
-                true
-        ).apply(CRAFTING_TRANSLATION_PREFIX);
-        public static final ConfigInteger WORKBENCH_QUICK_SHULKER_CURSOR_SETTLE_TICKS = new ConfigInteger(
-                "workbenchQuickShulkerCursorSettleTicks",
-                DEFAULT_WORKBENCH_QUICK_SHULKER_CURSOR_SETTLE_TICKS,
-                MIN_WORKBENCH_QUICK_SHULKER_CURSOR_SETTLE_TICKS,
-                MAX_WORKBENCH_QUICK_SHULKER_CURSOR_SETTLE_TICKS,
-                true
-        ).apply(CRAFTING_TRANSLATION_PREFIX);
-        public static final ConfigInteger WORKBENCH_QUICK_SHULKER_RECOVERY_PAUSE_TICKS = new ConfigInteger(
-                "workbenchQuickShulkerRecoveryPauseTicks",
-                DEFAULT_WORKBENCH_QUICK_SHULKER_RECOVERY_PAUSE_TICKS,
-                MIN_WORKBENCH_QUICK_SHULKER_RECOVERY_PAUSE_TICKS,
-                MAX_WORKBENCH_QUICK_SHULKER_RECOVERY_PAUSE_TICKS,
-                true
-        ).apply(CRAFTING_TRANSLATION_PREFIX);
-        public static final ConfigInteger WORKBENCH_QUICK_SHULKER_CURSOR_TIMEOUT_TICKS = new ConfigInteger(
-                "workbenchQuickShulkerCursorTimeoutTicks",
-                DEFAULT_WORKBENCH_QUICK_SHULKER_CURSOR_TIMEOUT_TICKS,
-                MIN_WORKBENCH_QUICK_SHULKER_CURSOR_TIMEOUT_TICKS,
-                MAX_WORKBENCH_QUICK_SHULKER_CURSOR_TIMEOUT_TICKS,
-                true
+        public static final ConfigOptionList WORKBENCH_QUICK_SHULKER_PIPELINE_MODE = new ConfigOptionList(
+                "workbenchQuickShulkerPipelineMode",
+                WorkbenchShulkerPipelineMode.RESPONSE_STABLE
         ).apply(CRAFTING_TRANSLATION_PREFIX);
         public static final ConfigBooleanHotkeyed ENABLE_WORKBENCH_QUICK_SHULKER_OUTPUT = new ConfigBooleanHotkeyed(
                 "enableWorkbenchQuickCraftOutputToShulker",
@@ -251,11 +262,7 @@ public final class QuickCraftConfigs implements IConfigHandler {
         public static final List<IConfigBase> OPTIONS = List.of(
                 ENABLE_WORKBENCH,
                 ENABLE_WORKBENCH_QUICK_SHULKER,
-                ENABLE_WORKBENCH_QUICK_SHULKER_ULTRA_FAST,
-                WORKBENCH_QUICK_SHULKER_ULTRA_BURSTS_PER_TICK,
-                WORKBENCH_QUICK_SHULKER_CURSOR_SETTLE_TICKS,
-                WORKBENCH_QUICK_SHULKER_RECOVERY_PAUSE_TICKS,
-                WORKBENCH_QUICK_SHULKER_CURSOR_TIMEOUT_TICKS,
+                WORKBENCH_QUICK_SHULKER_PIPELINE_MODE,
                 ENABLE_WORKBENCH_QUICK_SHULKER_OUTPUT,
                 ENABLE_BACKPACK,
                 ENABLE_STONECUTTER,
@@ -839,48 +846,9 @@ public final class QuickCraftConfigs implements IConfigHandler {
         return Crafting.ENABLE_WORKBENCH_QUICK_SHULKER_OUTPUT.getBooleanValue();
     }
 
-    public static boolean isWorkbenchQuickShulkerUltraFastEnabled() {
-        return Crafting.ENABLE_WORKBENCH_QUICK_SHULKER_ULTRA_FAST.getBooleanValue();
-    }
-
-    public static int getWorkbenchQuickShulkerUltraBurstsPerTick() {
-        int bursts = Crafting.WORKBENCH_QUICK_SHULKER_ULTRA_BURSTS_PER_TICK.getIntegerValue();
-        int clamped = Math.max(MIN_WORKBENCH_QUICK_SHULKER_ULTRA_BURSTS_PER_TICK,
-                Math.min(MAX_WORKBENCH_QUICK_SHULKER_ULTRA_BURSTS_PER_TICK, bursts));
-        if (clamped != bursts) {
-            Crafting.WORKBENCH_QUICK_SHULKER_ULTRA_BURSTS_PER_TICK.setIntegerValue(clamped);
-        }
-        return clamped;
-    }
-
-    public static int getWorkbenchQuickShulkerCursorSettleTicks() {
-        int ticks = Crafting.WORKBENCH_QUICK_SHULKER_CURSOR_SETTLE_TICKS.getIntegerValue();
-        int clamped = Math.max(MIN_WORKBENCH_QUICK_SHULKER_CURSOR_SETTLE_TICKS,
-                Math.min(MAX_WORKBENCH_QUICK_SHULKER_CURSOR_SETTLE_TICKS, ticks));
-        if (clamped != ticks) {
-            Crafting.WORKBENCH_QUICK_SHULKER_CURSOR_SETTLE_TICKS.setIntegerValue(clamped);
-        }
-        return clamped;
-    }
-
-    public static int getWorkbenchQuickShulkerRecoveryPauseTicks() {
-        int ticks = Crafting.WORKBENCH_QUICK_SHULKER_RECOVERY_PAUSE_TICKS.getIntegerValue();
-        int clamped = Math.max(MIN_WORKBENCH_QUICK_SHULKER_RECOVERY_PAUSE_TICKS,
-                Math.min(MAX_WORKBENCH_QUICK_SHULKER_RECOVERY_PAUSE_TICKS, ticks));
-        if (clamped != ticks) {
-            Crafting.WORKBENCH_QUICK_SHULKER_RECOVERY_PAUSE_TICKS.setIntegerValue(clamped);
-        }
-        return clamped;
-    }
-
-    public static int getWorkbenchQuickShulkerCursorTimeoutTicks() {
-        int ticks = Crafting.WORKBENCH_QUICK_SHULKER_CURSOR_TIMEOUT_TICKS.getIntegerValue();
-        int clamped = Math.max(MIN_WORKBENCH_QUICK_SHULKER_CURSOR_TIMEOUT_TICKS,
-                Math.min(MAX_WORKBENCH_QUICK_SHULKER_CURSOR_TIMEOUT_TICKS, ticks));
-        if (clamped != ticks) {
-            Crafting.WORKBENCH_QUICK_SHULKER_CURSOR_TIMEOUT_TICKS.setIntegerValue(clamped);
-        }
-        return clamped;
+    public static WorkbenchShulkerPipelineMode getWorkbenchQuickShulkerPipelineMode() {
+        return (WorkbenchShulkerPipelineMode)
+                Crafting.WORKBENCH_QUICK_SHULKER_PIPELINE_MODE.getOptionListValue();
     }
 
     public static boolean isBackpackQuickCraftEnabled() {
@@ -1196,6 +1164,14 @@ public final class QuickCraftConfigs implements IConfigHandler {
         ConfigUtils.readConfigBase(root, "ModSupport", ModSupport.OPTIONS);
         ConfigUtils.readConfigBase(root, "Hotkeys", Hotkeys.OPTIONS);
         readButtonPositions(root);
+
+        JsonObject crafting = root.getAsJsonObject("Crafting");
+        if (crafting != null
+                && !crafting.has("workbenchQuickShulkerPipelineMode")
+                && getLegacyEnabledValue(crafting.get("enableWorkbenchQuickShulkerUltraFast"))) {
+            Crafting.WORKBENCH_QUICK_SHULKER_PIPELINE_MODE.setOptionListValue(
+                    WorkbenchShulkerPipelineMode.COMBINED_ULTRA);
+        }
 
         JsonObject containerTools = root.getAsJsonObject("ContainerTools");
         if (containerTools != null) {
