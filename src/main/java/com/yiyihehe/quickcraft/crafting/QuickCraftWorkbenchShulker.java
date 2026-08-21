@@ -35,7 +35,7 @@ public final class QuickCraftWorkbenchShulker {
     private static final int GRID_END = 9;
     private static final int MAX_UNBUNDLE_CLICKS_PER_SOURCE = GRID_END - GRID_START + 1;
     static final int MAX_SOURCE_SHULKERS = PlayerInventory.MAIN_SIZE;
-    private static final int MAX_STABLE_ULTRA_SOURCE_BATCHES_PER_TICK = 4;
+    private static final int MULTI_SOURCE_BATCHES_PER_ACK = 3;
     private static final Identifier QUICK_SHULKER_OPEN_PACKET =
             Identifier.of("quickshulker", "open_shulker_packet");
 
@@ -44,11 +44,11 @@ public final class QuickCraftWorkbenchShulker {
     private static TaskResult pendingResult = TaskResult.NONE;
     private static Text pendingMessage;
     private static TaskOwner pendingOwner;
-    private static int shulkerCraftActionCooldown;
     private static long debugSessionStartedAtNanos;
     private static int debugSessionTaskCount;
     private static int debugSessionSourceBatches;
-    private static boolean debugSessionUltraFast;
+    private static QuickCraftConfigs.WorkbenchShulkerPipelineMode debugSessionMode =
+            QuickCraftConfigs.WorkbenchShulkerPipelineMode.RESPONSE_STABLE;
 
     private QuickCraftWorkbenchShulker() {
     }
@@ -70,18 +70,18 @@ public final class QuickCraftWorkbenchShulker {
         return QuickCraftConfigs.isWorkbenchQuickCraftWithQuickShulkerEnabled();
     }
 
-    static void beginDebugSession(boolean ultraFast) {
+    static void beginDebugSession(QuickCraftConfigs.WorkbenchShulkerPipelineMode mode) {
         debugSessionStartedAtNanos = System.nanoTime();
         debugSessionTaskCount = 0;
         debugSessionSourceBatches = 0;
-        debugSessionUltraFast = ultraFast;
+        debugSessionMode = mode;
     }
 
     static void clearDebugSession() {
         debugSessionStartedAtNanos = 0L;
         debugSessionTaskCount = 0;
         debugSessionSourceBatches = 0;
-        debugSessionUltraFast = false;
+        debugSessionMode = QuickCraftConfigs.WorkbenchShulkerPipelineMode.RESPONSE_STABLE;
     }
 
     static long debugElapsedMillis() {
@@ -213,11 +213,9 @@ public final class QuickCraftWorkbenchShulker {
             debugSessionTaskCount++;
         }
 
-        LOGGER.debug("开始潜影盒直填任务 #{}：会话t+{} ms，owner={}，实验极速={}，扫描 {} 格玩家物品栏，目标合成格={}，操作间隔={} Tick",
-                task.id, debugElapsedMillis(), owner,
-                owner == TaskOwner.SHULKER_CRAFT && debugSessionUltraFast,
-                MAX_SOURCE_SHULKERS, describePattern(normalizedPattern),
-                QuickCraftConfigs.getQuickShulkerActionIntervalTicks());
+        LOGGER.debug("开始潜影盒直填任务 #{}：会话t+{} ms，owner={}，流水线模式={}，扫描 {} 格玩家物品栏，目标合成格={}",
+                task.id, debugElapsedMillis(), owner, debugSessionMode,
+                MAX_SOURCE_SHULKERS, describePattern(normalizedPattern));
         return RefillStart.STARTED;
     }
 
@@ -254,19 +252,13 @@ public final class QuickCraftWorkbenchShulker {
         }
 
         task.tickCount++;
-        if (owner == TaskOwner.SHULKER_CRAFT) {
-            if (isShulkerCraftActionCoolingDown()) {
-                task.cooldownWaitTicks++;
-                return;
-            }
-        } else if (task.actionCooldown > 0) {
+        if (owner != TaskOwner.SHULKER_CRAFT && task.actionCooldown > 0) {
             task.actionCooldown--;
             task.cooldownWaitTicks++;
             return;
         }
         int maxSourceBatches = owner == TaskOwner.SHULKER_CRAFT
-                ? sourceBatchesPerTick(QuickCraftConfigs.getQuickShulkerActionIntervalTicks(),
-                debugSessionUltraFast, QuickCraftConfigs.getWorkbenchQuickShulkerUltraBurstsPerTick())
+                ? sourceBatchesPerAck(debugSessionMode)
                 : 1;
         if (sourceBatchLimit > 0) {
             maxSourceBatches = Math.min(maxSourceBatches, sourceBatchLimit);
@@ -281,8 +273,8 @@ public final class QuickCraftWorkbenchShulker {
             }
         }
         if (processedBatches > 1) {
-            LOGGER.debug("快速来源批处理 #{}：会话t+{} ms，同Tick处理={} 批，上限={} 批",
-                    taskId, debugElapsedMillis(), processedBatches, maxSourceBatches);
+            LOGGER.debug("响应来源批处理 #{}：会话t+{} ms，同确认批次处理={} 批，上限={} 批，模式={}",
+                    taskId, debugElapsedMillis(), processedBatches, maxSourceBatches, debugSessionMode);
         }
     }
 
@@ -519,45 +511,20 @@ public final class QuickCraftWorkbenchShulker {
     }
 
     private static void setActionCooldown() {
-        if (task != null) {
-            if (task.owner == TaskOwner.SHULKER_CRAFT) {
-                markShulkerCraftAction();
-            } else {
-                task.actionCooldown = Math.max(0,
-                        QuickCraftConfigs.getQuickShulkerActionIntervalTicks() - 1);
-            }
+        if (task != null && task.owner != TaskOwner.SHULKER_CRAFT) {
+            task.actionCooldown = Math.max(0,
+                    QuickCraftConfigs.getQuickShulkerActionIntervalTicks() - 1);
         }
-    }
-
-    public static void advanceShulkerCraftActionCooldown() {
-        if (shulkerCraftActionCooldown > 0) {
-            shulkerCraftActionCooldown--;
-        }
-    }
-
-    public static boolean isShulkerCraftActionCoolingDown() {
-        return shulkerCraftActionCooldown > 0;
-    }
-
-    public static void markShulkerCraftAction() {
-        shulkerCraftActionCooldown = shulkerCraftCooldownAfterAction(
-                QuickCraftConfigs.getQuickShulkerActionIntervalTicks());
-    }
-
-    static int shulkerCraftCooldownAfterAction(int configuredIntervalTicks) {
-        return Math.max(0, configuredIntervalTicks);
     }
 
     private static boolean isActionCoolingDown(TaskOwner owner) {
-        return owner == TaskOwner.SHULKER_CRAFT
-                ? isShulkerCraftActionCoolingDown()
-                : task != null && task.actionCooldown > 0;
+        return owner != TaskOwner.SHULKER_CRAFT
+                && task != null
+                && task.actionCooldown > 0;
     }
 
     private static int getCurrentActionCooldown(TaskOwner owner) {
-        return owner == TaskOwner.SHULKER_CRAFT
-                ? shulkerCraftActionCooldown
-                : task == null ? 0 : task.actionCooldown;
+        return owner == TaskOwner.SHULKER_CRAFT || task == null ? 0 : task.actionCooldown;
     }
 
     private static List<Slot> getPlayerStorageSlots(ScreenHandler handler) {
@@ -578,19 +545,10 @@ public final class QuickCraftWorkbenchShulker {
         return Math.min(Math.max(0, carriedShulkers), MAX_SOURCE_SHULKERS);
     }
 
-    static int sourceBatchesPerTick(int actionIntervalTicks, boolean ultraFastEnabled) {
-        return sourceBatchesPerTick(actionIntervalTicks, ultraFastEnabled,
-                QuickCraftConfigs.DEFAULT_WORKBENCH_QUICK_SHULKER_ULTRA_BURSTS_PER_TICK);
-    }
-
-    static int sourceBatchesPerTick(int actionIntervalTicks,
-                                    boolean ultraFastEnabled,
-                                    int ultraBurstsPerTick) {
-        if (!ultraFastEnabled || actionIntervalTicks != 0) {
-            return 1;
-        }
-        // 服务端容器点击需要跨 Tick 收敛；输出 Burst 可以更大，来源盒点击保持小窗口。
-        return Math.min(MAX_STABLE_ULTRA_SOURCE_BATCHES_PER_TICK, Math.max(1, ultraBurstsPerTick));
+    static int sourceBatchesPerAck(QuickCraftConfigs.WorkbenchShulkerPipelineMode mode) {
+        return mode == null || mode == QuickCraftConfigs.WorkbenchShulkerPipelineMode.RESPONSE_STABLE
+                ? 1
+                : MULTI_SOURCE_BATCHES_PER_ACK;
     }
 
     private static boolean isTaskOwnedBy(TaskOwner owner) {
@@ -605,9 +563,6 @@ public final class QuickCraftWorkbenchShulker {
             pendingResult = TaskResult.NONE;
             pendingMessage = null;
             pendingOwner = null;
-        }
-        if (owner == TaskOwner.SHULKER_CRAFT) {
-            shulkerCraftActionCooldown = 0;
         }
     }
 
@@ -685,9 +640,6 @@ public final class QuickCraftWorkbenchShulker {
         LOGGER.warn("检测到服务端槽位纠正，尝试回收错位潜影盒：成功={}，来源合成槽={}，目标玩家槽={}，盒={}，revision={}，合成格={}",
                 recovered, gridSlotId, destination.getIndex(), describeStack(recoveredBox),
                 handler.getRevision(), describeGrid(handler));
-        if (recovered) {
-            markShulkerCraftAction();
-        }
         return recovered;
     }
 
