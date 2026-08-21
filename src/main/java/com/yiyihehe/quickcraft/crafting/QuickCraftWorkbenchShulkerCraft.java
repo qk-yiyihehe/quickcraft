@@ -2,6 +2,7 @@ package com.yiyihehe.quickcraft.crafting;
 
 import com.yiyihehe.quickcraft.QuickContainerLock;
 import com.yiyihehe.quickcraft.config.QuickCraftConfigs;
+import com.yiyihehe.quickcraft.config.QuickCraftConfigs.WorkbenchShulkerPipelineMode;
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.minecraft.client.MinecraftClient;
@@ -41,6 +42,9 @@ public final class QuickCraftWorkbenchShulkerCraft implements ClientModInitializ
     private static final int MAX_OUTPUT_BURST = 64;
     private static final int MAX_FAILURES = 3;
     private static final int MAX_ACK_LOCAL_STEPS = 8;
+    private static final int CURSOR_SETTLE_TICKS = 4;
+    private static final int RECOVERY_PAUSE_TICKS = 4;
+    private static final int CURSOR_TIMEOUT_TICKS = 20;
     private static final long SERVER_STATS_TIMEOUT_NANOS = 3_000_000_000L;
     // 1.21 原版 REQUEST_STATS 必定回包；10 秒只用于界定连接失效，不参与正常批次节拍。
     private static final long ACK_STATS_PROBE_TIMEOUT_NANOS = 10_000_000_000L;
@@ -58,14 +62,13 @@ public final class QuickCraftWorkbenchShulkerCraft implements ClientModInitializ
     private long sessionStartedAtNanos;
     private int sessionOutputClicks;
     private int sessionOutputBursts;
-    private boolean sessionUltraFast;
+    private WorkbenchShulkerPipelineMode sessionMode = WorkbenchShulkerPipelineMode.RESPONSE_STABLE;
     private int serverCorrectionPauseTicks;
     private int occupiedCursorTicks;
     private int sessionCursorWaitEvents;
     private int sessionCursorWaitTicks;
     private int sessionCursorRecoveries;
     private int sessionCorrectionPauseTicks;
-    private int sessionUltraBurstsPerTick;
     private int sessionCursorSettleTicks;
     private int sessionRecoveryPauseTicks;
     private int sessionCursorTimeoutTicks;
@@ -146,7 +149,6 @@ public final class QuickCraftWorkbenchShulkerCraft implements ClientModInitializ
     }
 
     private void onClientTick(MinecraftClient client) {
-        QuickCraftWorkbenchShulker.advanceShulkerCraftActionCooldown();
         handleCraftStatsTimeout(client);
         if (!QuickCraftConfigs.isWorkbenchQuickShulkerCraftEnabled()) {
             stopHelperSafely(client);
@@ -169,34 +171,7 @@ public final class QuickCraftWorkbenchShulkerCraft implements ClientModInitializ
             return;
         }
         QuickCraftWorkbenchShulkerTelemetry.onClientTick(handler);
-
-        if (isAckPipelineEnabled()) {
-            processAckPipelineTick(client, handler);
-            return;
-        }
-
-        if (handleCursorBoundary(handler)) {
-            return;
-        }
-        if (serverCorrectionPauseTicks > 0) {
-            serverCorrectionPauseTicks--;
-            sessionCorrectionPauseTicks++;
-            return;
-        }
-        if (QuickCraftWorkbenchShulker.isShulkerCraftBusy()) {
-            if (!isRapidInputHeld(client)) {
-                QuickCraftWorkbenchShulker.requestShulkerCraftStopAfterCurrentAction();
-            }
-            QuickContainerLock.runWithPlayerSlotLocksBypassed(
-                    () -> QuickCraftWorkbenchShulker.tickShulkerCraft(client));
-            processRefillResult(client, handler);
-            return;
-        }
-        if (!sessionUltraFast && QuickCraftWorkbenchShulker.isShulkerCraftActionCoolingDown()) {
-            return;
-        }
-        QuickContainerLock.runWithPlayerSlotLocksBypassed(
-                () -> processCraftTick(client, handler));
+        processAckPipelineTick(client, handler);
     }
 
     private boolean handleCursorBoundary(CraftingScreenHandler handler) {
@@ -260,7 +235,19 @@ public final class QuickCraftWorkbenchShulkerCraft implements ClientModInitializ
     }
 
     private boolean isAckPipelineEnabled() {
-        return sessionUltraFast;
+        return active;
+    }
+
+    static boolean combinesRefillAndOutput(WorkbenchShulkerPipelineMode mode) {
+        return mode == WorkbenchShulkerPipelineMode.COMBINED_ULTRA;
+    }
+
+    static String pipelineDescription(WorkbenchShulkerPipelineMode mode) {
+        return switch (mode) {
+            case RESPONSE_STABLE -> "每个来源盒单独确认/输出单独确认";
+            case BALANCED -> "最多三个来源盒合并确认/输出单独确认";
+            case COMBINED_ULTRA -> "最多三个来源盒+最多64次输出同批确认";
+        };
     }
 
     public static void onWorkbenchClickSent(int syncId) {
@@ -287,7 +274,7 @@ public final class QuickCraftWorkbenchShulkerCraft implements ClientModInitializ
                         || hasAckStatsProbeTimedOut(probeWaitNanos)) {
                     sessionAckTimeouts++;
                     sessionAckStatsProbeTimeouts++;
-                    LOGGER.error("确认驱动极速静默探针超时：批次=#{}，类型={}，点击={}，探针等待={} ms，"
+                    LOGGER.error("确认驱动流水线静默探针超时：批次=#{}，类型={}，点击={}，探针等待={} ms，"
                                     + "总等待={} ms，连接一致={}，revision={}->{}, 差异={}，光标={}，合成格={}",
                             ackBatchId, ackBatchKind, ackBatchClickCount,
                             nanosToMillis(probeWaitNanos), nanosToMillis(now - ackBatchSentAtNanos),
@@ -329,7 +316,7 @@ public final class QuickCraftWorkbenchShulkerCraft implements ClientModInitializ
                     return;
                 }
                 sessionAckTimeouts++;
-                LOGGER.error("确认驱动极速批次停滞：批次=#{}，类型={}，点击={}，总等待={} ms，无revision推进={} ms，"
+                LOGGER.error("确认驱动流水线批次停滞：批次=#{}，类型={}，点击={}，总等待={} ms，无revision推进={} ms，"
                                 + "起始revision={}，当前revision={}，安全边界={}，统计基线={}/{}，差异={}，光标={}，合成格={}",
                         ackBatchId, ackBatchKind, ackBatchClickCount,
                         (now - ackBatchSentAtNanos) / 1_000_000L, stalledMillis,
@@ -347,6 +334,11 @@ public final class QuickCraftWorkbenchShulkerCraft implements ClientModInitializ
             return;
         }
         if (handleCursorBoundary(handler)) {
+            return;
+        }
+        if (serverCorrectionPauseTicks > 0) {
+            serverCorrectionPauseTicks--;
+            sessionCorrectionPauseTicks++;
             return;
         }
         QuickContainerLock.runWithPlayerSlotLocksBypassed(
@@ -434,7 +426,7 @@ public final class QuickCraftWorkbenchShulkerCraft implements ClientModInitializ
         if (kind == AckBatchKind.REFILL_OUTPUT) {
             sessionAckCombinedBatches++;
         }
-        LOGGER.debug("确认驱动极速批次发送：批次=#{}，类型={}，来源盒={}，输出={}，点击={}，revision={}，"
+        LOGGER.debug("确认驱动流水线批次发送：批次=#{}，类型={}，来源盒={}，输出={}，点击={}，revision={}，"
                         + "会话t+{} ms，累计输出点击={}，合成格={}，光标={}",
                 ackBatchId, kind, sourceBatches, outputClicks, ackBatchClickCount, ackBatchStartRevision,
                 sessionElapsedMillis(), sessionOutputClicks, describePattern(snapshotPattern(handler)),
@@ -456,7 +448,7 @@ public final class QuickCraftWorkbenchShulkerCraft implements ClientModInitializ
         ackBatchUsedStatsProbe = true;
         sessionAckStatsProbesSent++;
         networkHandler.sendPacket(new ClientStatusC2SPacket(ClientStatusC2SPacket.Mode.REQUEST_STATS));
-        LOGGER.warn("确认驱动极速静默探针发送：批次=#{}，类型={}，来源盒={}，输出={}，点击={}，"
+        LOGGER.warn("确认驱动流水线静默探针发送：批次=#{}，类型={}，来源盒={}，输出={}，点击={}，"
                         + "触发等待={} ms，总等待={} ms，revision={}->{}, 安全边界={}，差异={}",
                 ackBatchId, ackBatchKind, ackBatchSourceBatches, ackBatchOutputClicks,
                 ackBatchClickCount, triggerMillis, nanosToMillis(now - ackBatchSentAtNanos),
@@ -496,7 +488,7 @@ public final class QuickCraftWorkbenchShulkerCraft implements ClientModInitializ
             confirmed = shouldConfirmOutputAckBatch(ackBatchClickCount, ackBatchFullInventoryUpdates,
                     fullInventory, exactStateMatches, terminalStateSafe);
         } else if (requiresCompleteAckState(ackBatchKind, ackBatchSourceBatches)) {
-            confirmed = shouldConfirmCombinedAckBatch(
+            confirmed = shouldConfirmCompleteAckBatch(
                     ackBatchFullInventoryUpdates, exactStateMatches, terminalStateSafe);
         } else {
             confirmed = shouldConfirmAckBatch(ackBatchClickCount, fullInventory,
@@ -529,7 +521,7 @@ public final class QuickCraftWorkbenchShulkerCraft implements ClientModInitializ
         }
         ackBatchAwaiting = false;
         recordAckWindow(latencyNanos, ackBatchClickCount, now);
-        LOGGER.debug("确认驱动极速批次完成：批次=#{}，类型={}，来源盒={}，输出={}，点击={}，全量={}，确认={}，状态={}，revision={}->{}, "
+        LOGGER.debug("确认驱动流水线批次完成：批次=#{}，类型={}，来源盒={}，输出={}，点击={}，全量={}，确认={}，状态={}，revision={}->{}, "
                         + "耗时={} us，会话t+{} ms",
                 ackBatchId, ackBatchKind, ackBatchSourceBatches, ackBatchOutputClicks, ackBatchClickCount,
                 ackBatchFullInventoryUpdates, confirmation,
@@ -567,10 +559,10 @@ public final class QuickCraftWorkbenchShulkerCraft implements ClientModInitializ
     }
 
     static boolean requiresCompleteAckState(AckBatchKind kind, int sourceBatches) {
-        return includesOutput(kind) || sourceBatches > 1;
+        return includesOutput(kind) || sourceBatches > 0;
     }
 
-    static boolean shouldConfirmCombinedAckBatch(int fullInventoryUpdates,
+    static boolean shouldConfirmCompleteAckBatch(int fullInventoryUpdates,
                                                  boolean exactStateMatches,
                                                  boolean terminalStateSafe) {
         return fullInventoryUpdates > 0 && exactStateMatches && terminalStateSafe;
@@ -773,9 +765,9 @@ public final class QuickCraftWorkbenchShulkerCraft implements ClientModInitializ
         if (now - ackWindowStartedAtNanos < 1_000_000_000L) {
             return;
         }
-        LOGGER.info("确认驱动极速窗口：会话t+{} ms，确认批次={}，点击={}，平均={} ms，"
+        LOGGER.info("确认驱动流水线窗口：模式={}，会话t+{} ms，确认批次={}，点击={}，平均={} ms，"
                         + "最小={} ms，最大={} ms，当前在途={}，累计输出点击={}",
-                sessionElapsedMillis(), ackWindowConfirmedBatches, ackWindowClicks,
+                sessionMode, sessionElapsedMillis(), ackWindowConfirmedBatches, ackWindowClicks,
                 averageMillis(ackWindowLatencyNanos, ackWindowConfirmedBatches),
                 nanosToMillis(ackWindowMinLatencyNanos), nanosToMillis(ackWindowMaxLatencyNanos),
                 ackBatchAwaiting ? 1 : 0, sessionOutputClicks);
@@ -791,7 +783,7 @@ public final class QuickCraftWorkbenchShulkerCraft implements ClientModInitializ
         if (isAckPipelineEnabled() && ackBatchAwaiting) {
             if (!ackStopRequested) {
                 ackStopRequested = true;
-                LOGGER.debug("确认驱动极速收到停止请求：等待批次 #{} 完成，类型={}，点击={}",
+                LOGGER.debug("确认驱动流水线收到停止请求：等待批次 #{} 完成，类型={}，点击={}",
                         ackBatchId, ackBatchKind, ackBatchClickCount);
             }
             return;
@@ -875,23 +867,14 @@ public final class QuickCraftWorkbenchShulkerCraft implements ClientModInitializ
         }
         if (hasMissingPerCraftMaterial(handler)) {
             int rebalancedItems = rebalanceIncompleteRepeatedMaterials(client, handler);
-            if (isAckPipelineEnabled() && rebalancedItems > 0) {
+            if (rebalancedItems > 0) {
                 consecutiveFailures = 0;
                 return;
             }
             int movedLooseItems = fillMissingSlotsFromPlayerInventory(client, handler);
             if (movedLooseItems > 0) {
-                boolean primed = primeOutputLocally(client, handler);
-                if (sessionUltraFast && !isAckPipelineEnabled() && primed) {
-                    recordProgressOrStop(client, drainOutputBurst(client, handler));
-                } else {
-                    consecutiveFailures = 0;
-                }
-                return;
-            }
-            if (sessionUltraFast && !isAckPipelineEnabled()
-                    && rebalancedItems > 0 && primeOutputLocally(client, handler)) {
-                recordProgressOrStop(client, drainOutputBurst(client, handler));
+                primeOutputLocally(client, handler);
+                consecutiveFailures = 0;
                 return;
             }
             QuickCraftWorkbenchShulker.RefillStart refill =
@@ -913,31 +896,18 @@ public final class QuickCraftWorkbenchShulkerCraft implements ClientModInitializ
         }
 
         if (primeOutputLocally(client, handler)) {
-            if (sessionUltraFast && !isAckPipelineEnabled()) {
-                recordProgressOrStop(client, drainOutputBurst(client, handler));
-            } else {
-                consecutiveFailures = 0;
-            }
+            consecutiveFailures = 0;
             return;
         }
         int rebalancedItems = rebalanceIncompleteRepeatedMaterials(client, handler);
-        if (isAckPipelineEnabled() && rebalancedItems > 0) {
+        if (rebalancedItems > 0) {
             consecutiveFailures = 0;
             return;
         }
         int movedLooseItems = fillMissingSlotsFromPlayerInventory(client, handler);
         if (movedLooseItems > 0) {
-            boolean primed = primeOutputLocally(client, handler);
-            if (sessionUltraFast && !isAckPipelineEnabled() && primed) {
-                recordProgressOrStop(client, drainOutputBurst(client, handler));
-            } else {
-                consecutiveFailures = 0;
-            }
-            return;
-        }
-        if (sessionUltraFast && !isAckPipelineEnabled()
-                && rebalancedItems > 0 && primeOutputLocally(client, handler)) {
-            recordProgressOrStop(client, drainOutputBurst(client, handler));
+            primeOutputLocally(client, handler);
+            consecutiveFailures = 0;
             return;
         }
 
@@ -961,9 +931,6 @@ public final class QuickCraftWorkbenchShulkerCraft implements ClientModInitializ
         }
         if (refill == QuickCraftWorkbenchShulker.RefillStart.RECOVERED_DESYNC) {
             consecutiveFailures = 0;
-            if (!isAckPipelineEnabled()) {
-                serverCorrectionPauseTicks = sessionRecoveryPauseTicks;
-            }
             return true;
         }
         if (refill == QuickCraftWorkbenchShulker.RefillStart.GRID_MISMATCH) {
@@ -976,9 +943,6 @@ public final class QuickCraftWorkbenchShulkerCraft implements ClientModInitializ
     private void runFirstRefillActionImmediately(MinecraftClient client,
                                                  CraftingScreenHandler handler) {
         consecutiveFailures = 0;
-        if (QuickCraftWorkbenchShulker.isShulkerCraftActionCoolingDown()) {
-            return;
-        }
         QuickCraftWorkbenchShulker.tickShulkerCraft(client);
         processRefillResult(client, handler);
     }
@@ -1078,7 +1042,7 @@ public final class QuickCraftWorkbenchShulkerCraft implements ClientModInitializ
             recordProgressOrStop(client, false);
             return;
         }
-        if (!sessionUltraFast) {
+        if (!combinesRefillAndOutput(sessionMode)) {
             consecutiveFailures = 0;
             return;
         }
@@ -1087,8 +1051,8 @@ public final class QuickCraftWorkbenchShulkerCraft implements ClientModInitializ
         }
         long outputStartedAtNanos = System.nanoTime();
         boolean progressed = drainOutputBurst(client, handler);
-        LOGGER.debug("快速模式补货完成同批输出：会话t+{} ms，任务结果={}，确认驱动={}，成功={}，耗时={} us",
-                sessionElapsedMillis(), result, isAckPipelineEnabled(), progressed,
+        LOGGER.debug("组合极速补货完成同批输出：会话t+{} ms，任务结果={}，模式={}，成功={}，耗时={} us",
+                sessionElapsedMillis(), result, sessionMode, progressed,
                 (System.nanoTime() - outputStartedAtNanos) / 1_000L);
         recordProgressOrStop(client, progressed);
     }
@@ -1159,17 +1123,16 @@ public final class QuickCraftWorkbenchShulkerCraft implements ClientModInitializ
         sessionStartedAtNanos = 0L;
         sessionOutputClicks = 0;
         sessionOutputBursts = 0;
-        sessionUltraFast = QuickCraftConfigs.isWorkbenchQuickShulkerUltraFastEnabled();
+        sessionMode = QuickCraftConfigs.getWorkbenchQuickShulkerPipelineMode();
         serverCorrectionPauseTicks = 0;
         occupiedCursorTicks = 0;
         sessionCursorWaitEvents = 0;
         sessionCursorWaitTicks = 0;
         sessionCursorRecoveries = 0;
         sessionCorrectionPauseTicks = 0;
-        sessionUltraBurstsPerTick = QuickCraftConfigs.getWorkbenchQuickShulkerUltraBurstsPerTick();
-        sessionCursorSettleTicks = QuickCraftConfigs.getWorkbenchQuickShulkerCursorSettleTicks();
-        sessionRecoveryPauseTicks = QuickCraftConfigs.getWorkbenchQuickShulkerRecoveryPauseTicks();
-        sessionCursorTimeoutTicks = QuickCraftConfigs.getWorkbenchQuickShulkerCursorTimeoutTicks();
+        sessionCursorSettleTicks = CURSOR_SETTLE_TICKS;
+        sessionRecoveryPauseTicks = RECOVERY_PAUSE_TICKS;
+        sessionCursorTimeoutTicks = CURSOR_TIMEOUT_TICKS;
         sessionOutputMismatchLogged = false;
         serverOutputMismatchTicks = 0;
         craftStatsBaselinePending = true;
@@ -1207,24 +1170,18 @@ public final class QuickCraftWorkbenchShulkerCraft implements ClientModInitializ
         }
         sessionStartedAtNanos = System.nanoTime();
         ackWindowStartedAtNanos = sessionStartedAtNanos;
-        QuickCraftWorkbenchShulker.beginDebugSession(sessionUltraFast);
+        QuickCraftWorkbenchShulker.beginDebugSession(sessionMode);
         QuickCraftWorkbenchShulkerTelemetry.begin(handler);
         LOGGER.info("工作台潜影盒网络毫秒时序已启用：syncId={}，revision={}，统计基线状态={}",
                 handler.syncId, handler.getRevision(),
                 craftStatsBaselinePending ? "已先发请求/不等待回包" : "不可用");
         sendMessage(client, Text.translatable("quickcraft.message.crafting.started"));
-        int effectiveSourceBatches = QuickCraftWorkbenchShulker.sourceBatchesPerTick(
-                QuickCraftConfigs.getQuickShulkerActionIntervalTicks(), sessionUltraFast,
-                sessionUltraBurstsPerTick);
-        LOGGER.info("开始潜影盒工作台喷射：会话t+0 ms，实验极速={}，执行模式={}，确认窗口={}，"
-                        + "光标策略={}/{}/{} Tick，配方={}，输出装盒={}，操作间隔={} Tick",
-                sessionUltraFast, sessionUltraFast ? "服务端回包确认驱动" : "安全单Tick边界",
-                sessionUltraFast
-                        ? "单批在途/输出最多64次/补货最多" + effectiveSourceBatches + "盒+同批输出"
-                        : "按Tick推进",
+        int effectiveSourceBatches = QuickCraftWorkbenchShulker.sourceBatchesPerAck(sessionMode);
+        LOGGER.info("开始潜影盒工作台喷射：会话t+0 ms，流水线模式={}，执行模式=服务端回包立即驱动，"
+                        + "确认窗口={}，来源盒上限={}，光标策略={}/{}/{} Tick，配方={}，输出装盒={}",
+                sessionMode, pipelineDescription(sessionMode), effectiveSourceBatches,
                 sessionCursorSettleTicks, sessionRecoveryPauseTicks,
-                sessionCursorTimeoutTicks, recipe.id(), QuickCraftConfigs.isWorkbenchQuickCraftOutputToShulkerEnabled(),
-                QuickCraftConfigs.getQuickShulkerActionIntervalTicks());
+                sessionCursorTimeoutTicks, recipe.id(), QuickCraftConfigs.isWorkbenchQuickCraftOutputToShulkerEnabled());
     }
 
     private void handleServerStatistics(MinecraftClient client,
@@ -1287,7 +1244,7 @@ public final class QuickCraftWorkbenchShulkerCraft implements ClientModInitializ
                 || client.player == null
                 || !(client.player.currentScreenHandler instanceof CraftingScreenHandler handler)
                 || handler.syncId != snapshotSyncId) {
-            LOGGER.error("确认驱动极速静默探针失配：探针批次=#{}，当前批次=#{}，活动={}，在途={}，"
+            LOGGER.error("确认驱动流水线静默探针失配：探针批次=#{}，当前批次=#{}，活动={}，在途={}，"
                             + "工作台={}，探针耗时={} ms",
                     probeBatchId, ackBatchId, active, ackBatchAwaiting,
                     client.player != null
@@ -1302,7 +1259,7 @@ public final class QuickCraftWorkbenchShulkerCraft implements ClientModInitializ
         boolean exactStateMatches = handlerMatchesAckExpected(handler);
         boolean terminalStateSafe = isAckBatchTerminalStateSafe(handler);
         if (!shouldConfirmAckStatsProbe(currentProbe, terminalStateSafe)) {
-            LOGGER.error("确认驱动极速静默探针发现不安全终态：批次=#{}，类型={}，探针耗时={} ms，"
+            LOGGER.error("确认驱动流水线静默探针发现不安全终态：批次=#{}，类型={}，探针耗时={} ms，"
                             + "总等待={} ms，revision={}->{}, 精确状态={}，差异={}，光标={}，合成格={}",
                     ackBatchId, ackBatchKind, nanosToMillis(probeLatencyNanos),
                     nanosToMillis(now - ackBatchSentAtNanos), ackBatchStartRevision,
@@ -1313,7 +1270,7 @@ public final class QuickCraftWorkbenchShulkerCraft implements ClientModInitializ
         }
 
         sessionAckStatsProbesCompleted++;
-        LOGGER.info("确认驱动极速静默探针完成：批次=#{}，类型={}，探针耗时={} ms，总等待={} ms，"
+        LOGGER.info("确认驱动流水线静默探针完成：批次=#{}，类型={}，探针耗时={} ms，总等待={} ms，"
                         + "revision={}->{}, 状态={}，差异={}",
                 ackBatchId, ackBatchKind, nanosToMillis(probeLatencyNanos),
                 nanosToMillis(now - ackBatchSentAtNanos), ackBatchStartRevision,
@@ -1386,7 +1343,7 @@ public final class QuickCraftWorkbenchShulkerCraft implements ClientModInitializ
                 resultTemplate.getItem(), Math.max(1, resultTemplate.getCount()),
                 sessionCraftedStatBaseline, sessionOutputClicks, sessionStartedAtNanos,
                 System.nanoTime(), nanosToMillis(sessionCraftStatsBaselineWaitNanos),
-                recipe == null ? "NONE" : recipe.id().toString(), reason, sessionUltraFast);
+                recipe == null ? "NONE" : recipe.id().toString(), reason, sessionMode);
         boolean baselineMayStillArrive = craftStatsBaselinePending
                 && client != null
                 && client.getNetworkHandler() == craftStatsBaselineNetworkHandler;
@@ -1422,7 +1379,7 @@ public final class QuickCraftWorkbenchShulkerCraft implements ClientModInitializ
                     discarded.sentOutputClicks(), discarded.recipeId());
         }
         if (ackStatsProbePending && source == ackStatsProbeNetworkHandler) {
-            LOGGER.warn("确认驱动极速静默探针因连接变化丢弃：批次=#{}，等待={} ms",
+            LOGGER.warn("确认驱动流水线静默探针因连接变化丢弃：批次=#{}，等待={} ms",
                     ackStatsProbeBatchId,
                     nanosToMillis(System.nanoTime() - ackStatsProbeSentAtNanos));
             clearAckStatsProbe();
@@ -1449,14 +1406,14 @@ public final class QuickCraftWorkbenchShulkerCraft implements ClientModInitializ
         LOGGER.info("服务端实际合成汇总：端到端耗时={} ms，操作窗口={} ms，服务端成功={} 次/{} 件，"
                         + "端到端真实速度={} 次/秒，操作窗口参考速度={} 次/秒，"
                         + "输出点击发送={} 次，无效或被纠正={} 次，统计等待=开始{} ms/结束{} ms，"
-                        + "实验极速={}，配方={}，结束原因={}",
+                        + "流水线模式={}，配方={}，结束原因={}",
                 elapsedMillis, operationMillis, confirmedCrafts,
                 (long) confirmedCrafts * pending.outputItemsPerCraft(),
                 craftsPerSecond(confirmedCrafts, elapsedMillis),
                 craftsPerSecond(confirmedCrafts, operationMillis),
                 pending.sentOutputClicks(), ineffectiveClicks,
                 pending.baselineWaitMillis(), finalStatsWaitMillis,
-                pending.ultraFast(), pending.recipeId(), pending.reason());
+                pending.pipelineMode(), pending.recipeId(), pending.reason());
     }
 
     static int confirmedCraftsFromStats(int baselineStat,
@@ -2099,14 +2056,13 @@ public final class QuickCraftWorkbenchShulkerCraft implements ClientModInitializ
         sessionStartedAtNanos = 0L;
         sessionOutputClicks = 0;
         sessionOutputBursts = 0;
-        sessionUltraFast = false;
+        sessionMode = WorkbenchShulkerPipelineMode.RESPONSE_STABLE;
         serverCorrectionPauseTicks = 0;
         occupiedCursorTicks = 0;
         sessionCursorWaitEvents = 0;
         sessionCursorWaitTicks = 0;
         sessionCursorRecoveries = 0;
         sessionCorrectionPauseTicks = 0;
-        sessionUltraBurstsPerTick = 0;
         sessionCursorSettleTicks = 0;
         sessionRecoveryPauseTicks = 0;
         sessionCursorTimeoutTicks = 0;
@@ -2120,39 +2076,37 @@ public final class QuickCraftWorkbenchShulkerCraft implements ClientModInitializ
     private void logSessionSummary(String reason) {
         long elapsedMillis = sessionElapsedMillis();
         QuickCraftWorkbenchShulkerTelemetry.finish(reason);
-        if (sessionUltraFast) {
-            LOGGER.info("确认驱动极速汇总：发送批次={}，确认批次={}，安全重算={}，点击={}，超时={}，"
-                            + "补货ACK={}批/{}盒，平均每批={}盒，组合输入输出={}批，"
-                            + "静默探针={}/{}，探针超时={}，探针累计等待={} ms，"
-                            + "平均确认={} ms，最小={} ms，最大={} ms，ACK累计等待={} ms/{}%，"
-                            + "本地规划与切批空档={} ms，在途={}/{}/{}点击/{}全量/探针{}，停止等待={}",
-                    sessionAckBatches, sessionAckConfirmedBatches, sessionAckReconciledBatches,
-                    sessionAckClicks, sessionAckTimeouts,
-                    sessionAckRefillBatches, sessionAckRefillSourceBatches,
-                    averageHundredths(sessionAckRefillSourceBatches, sessionAckRefillBatches),
-                    sessionAckCombinedBatches,
-                    sessionAckStatsProbesCompleted, sessionAckStatsProbesSent,
-                    sessionAckStatsProbeTimeouts, nanosToMillis(sessionAckStatsProbeLatencyNanos),
-                    averageMillis(sessionAckLatencyNanos, sessionAckConfirmedBatches),
-                    nanosToMillis(sessionAckMinLatencyNanos), nanosToMillis(sessionAckMaxLatencyNanos),
-                    nanosToMillis(sessionAckLatencyNanos),
-                    percentageHundredths(nanosToMillis(sessionAckLatencyNanos), elapsedMillis),
-                    Math.max(0L, elapsedMillis - nanosToMillis(sessionAckLatencyNanos)),
-                    ackBatchAwaiting ? 1 : 0, ackBatchKind, ackBatchClickCount,
-                    ackBatchFullInventoryUpdates, ackStatsProbePending ? 1 : 0, ackStopRequested);
-        }
+        LOGGER.info("确认驱动流水线汇总：模式={}，发送批次={}，确认批次={}，安全重算={}，点击={}，超时={}，"
+                        + "补货ACK={}批/{}盒，平均每批={}盒，组合输入输出={}批，"
+                        + "静默探针={}/{}，探针超时={}，探针累计等待={} ms，"
+                        + "平均确认={} ms，最小={} ms，最大={} ms，ACK累计等待={} ms/{}%，"
+                        + "本地规划与切批空档={} ms，在途={}/{}/{}点击/{}全量/探针{}，停止等待={}",
+                sessionMode, sessionAckBatches, sessionAckConfirmedBatches, sessionAckReconciledBatches,
+                sessionAckClicks, sessionAckTimeouts,
+                sessionAckRefillBatches, sessionAckRefillSourceBatches,
+                averageHundredths(sessionAckRefillSourceBatches, sessionAckRefillBatches),
+                sessionAckCombinedBatches,
+                sessionAckStatsProbesCompleted, sessionAckStatsProbesSent,
+                sessionAckStatsProbeTimeouts, nanosToMillis(sessionAckStatsProbeLatencyNanos),
+                averageMillis(sessionAckLatencyNanos, sessionAckConfirmedBatches),
+                nanosToMillis(sessionAckMinLatencyNanos), nanosToMillis(sessionAckMaxLatencyNanos),
+                nanosToMillis(sessionAckLatencyNanos),
+                percentageHundredths(nanosToMillis(sessionAckLatencyNanos), elapsedMillis),
+                Math.max(0L, elapsedMillis - nanosToMillis(sessionAckLatencyNanos)),
+                ackBatchAwaiting ? 1 : 0, ackBatchKind, ackBatchClickCount,
+                ackBatchFullInventoryUpdates, ackStatsProbePending ? 1 : 0, ackStopRequested);
         LOGGER.info("潜影盒工作台喷射操作汇总：耗时={} ms，输出点击发送={} 次，输出Burst={}，"
                         + "来源任务={}，来源盒批次={}，光标等待={} 次/{} Tick，自动恢复={} 次，恢复静默={} Tick，"
-                        + "确认驱动={}/{} 批，旧Burst配置={}，光标策略={}/{}/{} Tick，"
-                        + "实验极速={}，配方={}，连续失败={}，补料中={}，结束原因={}",
+                        + "确认驱动={}/{} 批，流水线模式={}，来源盒上限={}，光标策略={}/{}/{} Tick，"
+                        + "配方={}，连续失败={}，补料中={}，结束原因={}",
                 elapsedMillis, sessionOutputClicks, sessionOutputBursts,
                 QuickCraftWorkbenchShulker.debugSessionTaskCount(),
                 QuickCraftWorkbenchShulker.debugSessionSourceBatches(),
                 sessionCursorWaitEvents, sessionCursorWaitTicks, sessionCursorRecoveries,
                 sessionCorrectionPauseTicks, sessionAckConfirmedBatches, sessionAckBatches,
-                sessionUltraBurstsPerTick, sessionCursorSettleTicks, sessionRecoveryPauseTicks,
+                sessionMode, QuickCraftWorkbenchShulker.sourceBatchesPerAck(sessionMode),
+                sessionCursorSettleTicks, sessionRecoveryPauseTicks,
                 sessionCursorTimeoutTicks,
-                sessionUltraFast,
                 recipe == null ? "NONE" : recipe.id(), consecutiveFailures,
                 QuickCraftWorkbenchShulker.isShulkerCraftBusy(), reason);
     }
@@ -2260,12 +2214,12 @@ public final class QuickCraftWorkbenchShulkerCraft implements ClientModInitializ
                                      long baselineWaitMillis,
                                      String recipeId,
                                      String reason,
-                                     boolean ultraFast) {
+                                     WorkbenchShulkerPipelineMode pipelineMode) {
         private PendingCraftStats withBaselineStat(int baseline, long waitMillis) {
             return new PendingCraftStats(
                     networkHandler, resultItem, outputItemsPerCraft,
                     baseline, sentOutputClicks, startedAtNanos, requestedAtNanos,
-                    waitMillis, recipeId, reason, ultraFast);
+                    waitMillis, recipeId, reason, pipelineMode);
         }
     }
 

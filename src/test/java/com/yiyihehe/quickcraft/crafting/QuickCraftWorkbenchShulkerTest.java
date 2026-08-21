@@ -8,11 +8,20 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 class QuickCraftWorkbenchShulkerTest {
     @Test
-    @DisplayName("光标恢复配置保持原有默认策略")
-    void cursorRecoveryConfig_preservesExistingDefaults() {
-        assertThat(QuickCraftConfigs.DEFAULT_WORKBENCH_QUICK_SHULKER_CURSOR_SETTLE_TICKS).isEqualTo(4);
-        assertThat(QuickCraftConfigs.DEFAULT_WORKBENCH_QUICK_SHULKER_RECOVERY_PAUSE_TICKS).isEqualTo(4);
-        assertThat(QuickCraftConfigs.DEFAULT_WORKBENCH_QUICK_SHULKER_CURSOR_TIMEOUT_TICKS).isEqualTo(20);
+    @DisplayName("流水线模式使用稳定默认值并支持持久化解析")
+    void pipelineMode_defaultsToResponseStableAndParsesValues() {
+        assertThat(QuickCraftConfigs.Crafting.WORKBENCH_QUICK_SHULKER_PIPELINE_MODE
+                .getOptionListValue())
+                .isEqualTo(QuickCraftConfigs.WorkbenchShulkerPipelineMode.RESPONSE_STABLE);
+        assertThat(QuickCraftConfigs.WorkbenchShulkerPipelineMode.RESPONSE_STABLE
+                .fromString("balanced"))
+                .isEqualTo(QuickCraftConfigs.WorkbenchShulkerPipelineMode.BALANCED);
+        assertThat(QuickCraftConfigs.WorkbenchShulkerPipelineMode.RESPONSE_STABLE
+                .fromString("combined_ultra"))
+                .isEqualTo(QuickCraftConfigs.WorkbenchShulkerPipelineMode.COMBINED_ULTRA);
+        assertThat(QuickCraftConfigs.WorkbenchShulkerPipelineMode.RESPONSE_STABLE
+                .fromString("unknown"))
+                .isEqualTo(QuickCraftConfigs.WorkbenchShulkerPipelineMode.RESPONSE_STABLE);
     }
 
     @Test
@@ -26,15 +35,14 @@ class QuickCraftWorkbenchShulkerTest {
     }
 
     @Test
-    @DisplayName("只有极速实验模式的零操作间隔允许同 Tick 扫描多个来源盒")
-    void sourceBatchesPerTick_onlyBurstsInUltraFastZeroIntervalMode() {
-        assertThat(QuickCraftWorkbenchShulker.sourceBatchesPerTick(0, false)).isEqualTo(1);
-        assertThat(QuickCraftWorkbenchShulker.sourceBatchesPerTick(0, true)).isEqualTo(3);
-        assertThat(QuickCraftWorkbenchShulker.sourceBatchesPerTick(0, true, 1)).isEqualTo(1);
-        assertThat(QuickCraftWorkbenchShulker.sourceBatchesPerTick(0, true, 16)).isEqualTo(4);
-        assertThat(QuickCraftWorkbenchShulker.sourceBatchesPerTick(0, true, 99)).isEqualTo(4);
-        assertThat(QuickCraftWorkbenchShulker.sourceBatchesPerTick(1, true)).isEqualTo(1);
-        assertThat(QuickCraftWorkbenchShulker.sourceBatchesPerTick(20, true)).isEqualTo(1);
+    @DisplayName("三种流水线使用固定且可解释的来源盒确认边界")
+    void sourceBatchesPerAck_followsPipelineMode() {
+        assertThat(QuickCraftWorkbenchShulker.sourceBatchesPerAck(
+                QuickCraftConfigs.WorkbenchShulkerPipelineMode.RESPONSE_STABLE)).isEqualTo(1);
+        assertThat(QuickCraftWorkbenchShulker.sourceBatchesPerAck(
+                QuickCraftConfigs.WorkbenchShulkerPipelineMode.BALANCED)).isEqualTo(3);
+        assertThat(QuickCraftWorkbenchShulker.sourceBatchesPerAck(
+                QuickCraftConfigs.WorkbenchShulkerPipelineMode.COMBINED_ULTRA)).isEqualTo(3);
     }
 
     @Test
@@ -46,12 +54,14 @@ class QuickCraftWorkbenchShulkerTest {
     }
 
     @Test
-    @DisplayName("潜影盒喷射操作间隔跨补货任务完整保留")
-    void shulkerCraftCooldownAfterAction_keepsConfiguredInterval() {
-        assertThat(QuickCraftWorkbenchShulker.shulkerCraftCooldownAfterAction(-1)).isZero();
-        assertThat(QuickCraftWorkbenchShulker.shulkerCraftCooldownAfterAction(0)).isZero();
-        assertThat(QuickCraftWorkbenchShulker.shulkerCraftCooldownAfterAction(1)).isEqualTo(1);
-        assertThat(QuickCraftWorkbenchShulker.shulkerCraftCooldownAfterAction(20)).isEqualTo(20);
+    @DisplayName("仅组合极速把补货和输出放进同一个确认批次")
+    void pipelineMode_onlyCombinedUltraMergesRefillAndOutput() {
+        assertThat(QuickCraftWorkbenchShulkerCraft.combinesRefillAndOutput(
+                QuickCraftConfigs.WorkbenchShulkerPipelineMode.RESPONSE_STABLE)).isFalse();
+        assertThat(QuickCraftWorkbenchShulkerCraft.combinesRefillAndOutput(
+                QuickCraftConfigs.WorkbenchShulkerPipelineMode.BALANCED)).isFalse();
+        assertThat(QuickCraftWorkbenchShulkerCraft.combinesRefillAndOutput(
+                QuickCraftConfigs.WorkbenchShulkerPipelineMode.COMBINED_ULTRA)).isTrue();
     }
 
     @Test
@@ -128,7 +138,7 @@ class QuickCraftWorkbenchShulkerTest {
     }
 
     @Test
-    @DisplayName("组合输入输出和多来源补货必须等待完整预测状态")
+    @DisplayName("所有补货与输出批次必须等待完整服务端终态")
     void ackPipeline_combinedBatchesRequireCompleteState() {
         assertThat(QuickCraftWorkbenchShulkerCraft.requiresCompleteAckState(
                 QuickCraftWorkbenchShulkerCraft.AckBatchKind.OUTPUT, 0)).isTrue();
@@ -137,21 +147,21 @@ class QuickCraftWorkbenchShulkerTest {
         assertThat(QuickCraftWorkbenchShulkerCraft.requiresCompleteAckState(
                 QuickCraftWorkbenchShulkerCraft.AckBatchKind.REFILL, 3)).isTrue();
         assertThat(QuickCraftWorkbenchShulkerCraft.requiresCompleteAckState(
-                QuickCraftWorkbenchShulkerCraft.AckBatchKind.REFILL, 1)).isFalse();
+                QuickCraftWorkbenchShulkerCraft.AckBatchKind.REFILL, 1)).isTrue();
         assertThat(QuickCraftWorkbenchShulkerCraft.requiresCompleteAckState(
                 QuickCraftWorkbenchShulkerCraft.AckBatchKind.PREPARATION, 0)).isFalse();
     }
 
     @Test
-    @DisplayName("组合批次按全量包后的精确最终状态确认而不猜包数量")
-    void ackPipeline_combinedBatchUsesExactFinalStateAfterFullInventory() {
-        assertThat(QuickCraftWorkbenchShulkerCraft.shouldConfirmCombinedAckBatch(
+    @DisplayName("完整确认批次按全量包后的精确最终状态确认而不猜包数量")
+    void ackPipeline_completeBatchUsesExactFinalStateAfterFullInventory() {
+        assertThat(QuickCraftWorkbenchShulkerCraft.shouldConfirmCompleteAckBatch(
                 0, true, true)).isFalse();
-        assertThat(QuickCraftWorkbenchShulkerCraft.shouldConfirmCombinedAckBatch(
+        assertThat(QuickCraftWorkbenchShulkerCraft.shouldConfirmCompleteAckBatch(
                 9, false, true)).isFalse();
-        assertThat(QuickCraftWorkbenchShulkerCraft.shouldConfirmCombinedAckBatch(
+        assertThat(QuickCraftWorkbenchShulkerCraft.shouldConfirmCompleteAckBatch(
                 9, true, false)).isFalse();
-        assertThat(QuickCraftWorkbenchShulkerCraft.shouldConfirmCombinedAckBatch(
+        assertThat(QuickCraftWorkbenchShulkerCraft.shouldConfirmCompleteAckBatch(
                 1, true, true)).isTrue();
     }
 
@@ -197,8 +207,8 @@ class QuickCraftWorkbenchShulkerTest {
     }
 
     @Test
-    @DisplayName("准备和补货批次不依赖全量包，在服务端安全状态收敛后继续")
-    void ackPipeline_nonOutputBatchConfirmsAfterSafeStateSettles() {
+    @DisplayName("无补货的准备批次在服务端安全状态收敛后继续")
+    void ackPipeline_preparationBatchConfirmsAfterSafeStateSettles() {
         assertThat(QuickCraftWorkbenchShulkerCraft.shouldConfirmSettledNonOutputBatch(
                 true, true, 4_999_999L)).isFalse();
         assertThat(QuickCraftWorkbenchShulkerCraft.shouldConfirmSettledNonOutputBatch(
