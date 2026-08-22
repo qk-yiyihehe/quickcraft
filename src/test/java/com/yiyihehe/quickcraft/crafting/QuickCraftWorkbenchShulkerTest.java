@@ -178,19 +178,42 @@ class QuickCraftWorkbenchShulkerTest {
     @DisplayName("单次输出按安全全量回包确认，多次输出要求精确边界")
     void ackPipeline_outputUsesFullInventoryBoundaries() {
         assertThat(QuickCraftWorkbenchShulkerCraft.shouldConfirmOutputAckBatch(
-                1, 0, false, false, true)).isFalse();
+                1, 1, 0, false, false, true)).isFalse();
         assertThat(QuickCraftWorkbenchShulkerCraft.shouldConfirmOutputAckBatch(
-                1, 1, true, false, true)).isTrue();
+                1, 1, 1, true, false, true)).isTrue();
         assertThat(QuickCraftWorkbenchShulkerCraft.shouldConfirmOutputAckBatch(
-                1, 1, true, true, true)).isTrue();
+                1, 1, 1, true, true, true)).isTrue();
         assertThat(QuickCraftWorkbenchShulkerCraft.shouldConfirmOutputAckBatch(
-                64, 62, true, true, true)).isFalse();
+                64, 64, 62, true, true, true)).isFalse();
         assertThat(QuickCraftWorkbenchShulkerCraft.shouldConfirmOutputAckBatch(
-                64, 63, true, false, true)).isFalse();
+                64, 64, 63, true, false, true)).isFalse();
         assertThat(QuickCraftWorkbenchShulkerCraft.shouldConfirmOutputAckBatch(
-                64, 63, true, true, false)).isFalse();
+                64, 64, 63, true, true, false)).isFalse();
         assertThat(QuickCraftWorkbenchShulkerCraft.shouldConfirmOutputAckBatch(
-                64, 63, true, true, true)).isTrue();
+                64, 64, 63, true, true, true)).isTrue();
+        assertThat(QuickCraftWorkbenchShulkerCraft.shouldConfirmOutputAckBatch(
+                66, 64, 63, true, true, true)).isFalse();
+        assertThat(QuickCraftWorkbenchShulkerCraft.shouldConfirmOutputAckBatch(
+                66, 64, 64, false, true, true)).isTrue();
+        assertThat(QuickCraftWorkbenchShulkerCraft.shouldConfirmOutputAckBatch(
+                66, 64, 64, true, false, true)).isFalse();
+        assertThat(QuickCraftWorkbenchShulkerCraft.shouldConfirmOutputAckBatch(
+                3, 1, 1, false, true, true)).isTrue();
+        assertThat(QuickCraftWorkbenchShulkerCraft.shouldConfirmOutputAckBatch(
+                2, 3, 2, true, true, true)).isFalse();
+    }
+
+    @Test
+    @DisplayName("停止请求会等待已发送或正在记录的点击完成确认")
+    void ackPipeline_defersStopOnlyWhenClicksAreInFlight() {
+        assertThat(QuickCraftWorkbenchShulkerCraft.shouldDeferStopForAck(
+                true, true, false, 0)).isTrue();
+        assertThat(QuickCraftWorkbenchShulkerCraft.shouldDeferStopForAck(
+                true, false, true, 2)).isTrue();
+        assertThat(QuickCraftWorkbenchShulkerCraft.shouldDeferStopForAck(
+                true, false, true, 0)).isFalse();
+        assertThat(QuickCraftWorkbenchShulkerCraft.shouldDeferStopForAck(
+                false, true, true, 2)).isFalse();
     }
 
     @Test
@@ -371,6 +394,26 @@ class QuickCraftWorkbenchShulkerTest {
     @DisplayName("满盒不报告额外容量")
     void outputCapacity_fullShulkerHasNoCapacity() {
         assertThat(QuickCraftWorkbenchShulkerOutput.calculateCapacity(64, 27, 0)).isZero();
+    }
+
+    @Test
+    @DisplayName("不可堆叠产物按每个空槽一个计算容量")
+    void outputCapacity_nonStackableOutputUsesOneItemPerSlot() {
+        assertThat(QuickCraftWorkbenchShulkerOutput.calculateCapacity(1, 0, 0)).isEqualTo(27);
+        assertThat(QuickCraftWorkbenchShulkerOutput.calculateCapacity(1, 26, 0)).isOne();
+    }
+
+    @Test
+    @DisplayName("产物盒优先同类纯盒，其次空盒并排除杂盒和满盒")
+    void outputBoxContentPriority_prefersMatchingBoxThenEmptyBox() {
+        assertThat(QuickCraftWorkbenchShulkerOutput.outputBoxContentPriority(
+                false, true, true)).isZero();
+        assertThat(QuickCraftWorkbenchShulkerOutput.outputBoxContentPriority(
+                true, true, true)).isOne();
+        assertThat(QuickCraftWorkbenchShulkerOutput.outputBoxContentPriority(
+                false, false, true)).isNegative();
+        assertThat(QuickCraftWorkbenchShulkerOutput.outputBoxContentPriority(
+                false, true, false)).isNegative();
     }
 
     @Test

@@ -20,7 +20,7 @@
   "quickcraft.label.workbench_shulker_pipeline_mode.combined_ultra": "组合极速",
   "quickcraft.config.crafting.prettyName.enableWorkbenchQuickCraftOutputToShulker": "工作台产物自动装潜影盒",
   "quickcraft.config.crafting.name.enableWorkbenchQuickCraftOutputToShulker": "工作台产物自动装潜影盒",
-  "quickcraft.config.crafting.comment.enableWorkbenchQuickCraftOutputToShulker": "§6功能：§r潜影盒联动喷射合成时，自动寻找空潜影盒并把产物直接装入。\n§e说明：§r潜影盒所在格即使被锁定也可使用；当前盒装不下一个完整产物栈时自动换盒，没有可用盒时停止合成并保留产物。\n§7默认：§r关闭，继续把产物丢到地上。",
+  "quickcraft.config.crafting.comment.enableWorkbenchQuickCraftOutputToShulker": "§6功能：§r潜影盒联动喷射合成时，把产物从输出槽直接装入潜影盒，不经过背包。\n§e说明：§r优先使用已有同类产物的纯盒，其次使用空盒；潜影盒所在格即使被锁定也可使用。当前盒装不下一个完整产物栈时自动换盒，没有可用盒时等待本批服务端确认后停止并保留产物。\n§7默认：§r关闭，继续把产物丢到地上。",
   "quickcraft.config.crafting.prettyName.enableBackpackQuickCraft": "玩家背包合成增强",
   "quickcraft.config.crafting.name.enableBackpackQuickCraft": "玩家背包合成增强",
   "quickcraft.config.crafting.comment.enableBackpackQuickCraft": "§6功能：§r玩家背包 2x2 合成栏的喷射合成总开关。\n§e操作：§r在通用快捷键里绑定快捷键。\n§e使用：§r在背包配方书选择配方后，按键执行喷射合成。\n§7说明：§r无需像 §bItemScroller§r 一样先储存配方。\n§7选项：§r可配置结束后是否丢出产物。",
