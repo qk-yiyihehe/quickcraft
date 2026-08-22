@@ -274,6 +274,10 @@ public final class QuickCraftConfigs implements IConfigHandler {
                 "quickSortShulkerBoxesAtEnd",
                 true
         ).apply(CONTAINER_TRANSLATION_PREFIX);
+        public static final ConfigBoolean QUICK_SORT_BUNDLES_AT_END = new ConfigBoolean(
+                "quickSortBundlesAtEnd",
+                true
+        ).apply(CONTAINER_TRANSLATION_PREFIX);
         public static final ConfigBooleanHotkeyed SHOW_CONTAINER_LOCK_BUTTON = new ConfigBooleanHotkeyed(
                 "showContainerLockButton",
                 true,
@@ -362,6 +366,7 @@ public final class QuickCraftConfigs implements IConfigHandler {
                 QUICK_SORT_TOP_PRIORITY_ITEMS,
                 QUICK_SORT_BOTTOM_PRIORITY_ITEMS,
                 QUICK_SORT_SHULKER_BOXES_AT_END,
+                QUICK_SORT_BUNDLES_AT_END,
                 SHOW_CONTAINER_LOCK_BUTTON,
                 SHOW_SLOT_LOCK_OVERLAY,
                 ALLOW_MANUAL_LOCKED_SLOT_INTERACTION,
@@ -967,6 +972,10 @@ public final class QuickCraftConfigs implements IConfigHandler {
 
     public static boolean areQuickSortShulkerBoxesAtEnd() {
         return ContainerTools.QUICK_SORT_SHULKER_BOXES_AT_END.getBooleanValue();
+    }
+
+    public static boolean areQuickSortBundlesAtEnd() {
+        return ContainerTools.QUICK_SORT_BUNDLES_AT_END.getBooleanValue();
     }
 
     public static boolean isContainerToolModeEnabled() {
