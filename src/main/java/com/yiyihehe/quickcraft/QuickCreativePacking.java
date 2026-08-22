@@ -66,7 +66,10 @@ public final class QuickCreativePacking {
         }
 
         ItemStack result = createPackedStack(client, mainHand, player.getOffhandItem());
-        client.gameMode.handleCreativeModeItemAdd(result, 36 + player.getInventory().getSelectedSlot());
+        int selectedSlot = player.getInventory().getSelectedSlot();
+        player.getInventory().setItem(selectedSlot, result.copy());
+        client.gameMode.handleCreativeModeItemAdd(result, 36 + selectedSlot);
+        player.inventoryMenu.broadcastChanges();
         return true;
     }
 
