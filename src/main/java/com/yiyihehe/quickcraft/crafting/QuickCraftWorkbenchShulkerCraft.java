@@ -62,6 +62,12 @@ public final class QuickCraftWorkbenchShulkerCraft implements ClientModInitializ
     private long sessionStartedAtNanos;
     private int sessionOutputClicks;
     private int sessionOutputBursts;
+    private boolean sessionOutputToShulker;
+    private int sessionOutputBoxTakes;
+    private int sessionOutputBoxReturns;
+    private int sessionOutputBoxSwitches;
+    private int sessionOutputBoxMisses;
+    private int sessionOutputStoreFailures;
     private WorkbenchShulkerPipelineMode sessionMode = WorkbenchShulkerPipelineMode.RESPONSE_STABLE;
     private int serverCorrectionPauseTicks;
     private int occupiedCursorTicks;
@@ -77,6 +83,7 @@ public final class QuickCraftWorkbenchShulkerCraft implements ClientModInitializ
     private boolean ackBatchRecording;
     private boolean ackBatchAwaiting;
     private boolean ackStopRequested;
+    private Text ackStopMessage;
     private int ackBatchClickCount;
     private int ackBatchStartRevision;
     private long ackBatchId;
@@ -330,7 +337,7 @@ public final class QuickCraftWorkbenchShulkerCraft implements ClientModInitializ
             return;
         }
         if (ackStopRequested || !isRapidInputHeld(client)) {
-            stop(client, Text.translatable("quickcraft.message.crafting.stopped"));
+            stop(client, getAckStopMessage());
             return;
         }
         if (handleCursorBoundary(handler)) {
@@ -350,7 +357,7 @@ public final class QuickCraftWorkbenchShulkerCraft implements ClientModInitializ
             return;
         }
         if (ackStopRequested || !isRapidInputHeld(client)) {
-            stop(client, Text.translatable("quickcraft.message.crafting.stopped"));
+            stop(client, getAckStopMessage());
             return;
         }
 
@@ -485,8 +492,8 @@ public final class QuickCraftWorkbenchShulkerCraft implements ClientModInitializ
         boolean terminalStateSafe = isAckBatchTerminalStateSafe(handler);
         boolean confirmed;
         if (ackBatchKind == AckBatchKind.OUTPUT) {
-            confirmed = shouldConfirmOutputAckBatch(ackBatchClickCount, ackBatchFullInventoryUpdates,
-                    fullInventory, exactStateMatches, terminalStateSafe);
+            confirmed = shouldConfirmOutputAckBatch(ackBatchClickCount, ackBatchOutputClicks,
+                    ackBatchFullInventoryUpdates, fullInventory, exactStateMatches, terminalStateSafe);
         } else if (requiresCompleteAckState(ackBatchKind, ackBatchSourceBatches)) {
             confirmed = shouldConfirmCompleteAckBatch(
                     ackBatchFullInventoryUpdates, exactStateMatches, terminalStateSafe);
@@ -579,16 +586,25 @@ public final class QuickCraftWorkbenchShulkerCraft implements ClientModInitializ
         return requireExactState ? exactStateMatches : terminalStateSafe;
     }
 
-    static boolean shouldConfirmOutputAckBatch(int clickCount,
+    static boolean shouldConfirmOutputAckBatch(int batchClickCount,
+                                               int outputClickCount,
                                                int fullInventoryUpdates,
                                                boolean fullInventory,
                                                boolean exactStateMatches,
                                                boolean terminalStateSafe) {
-        if (clickCount <= 1) {
+        if (outputClickCount <= 0 || batchClickCount < outputClickCount) {
+            return false;
+        }
+        if (batchClickCount > outputClickCount) {
+            return fullInventoryUpdates >= outputClickCount
+                    && exactStateMatches
+                    && terminalStateSafe;
+        }
+        if (outputClickCount == 1) {
             return terminalStateSafe && fullInventory;
         }
         return fullInventory
-                && fullInventoryUpdates >= clickCount - 1
+                && fullInventoryUpdates >= outputClickCount - 1
                 && exactStateMatches
                 && terminalStateSafe;
     }
@@ -647,6 +663,14 @@ public final class QuickCraftWorkbenchShulkerCraft implements ClientModInitializ
     static boolean shouldConfirmAckStatsProbe(boolean currentProbe,
                                               boolean terminalStateSafe) {
         return currentProbe && terminalStateSafe;
+    }
+
+    static boolean shouldDeferStopForAck(boolean pipelineEnabled,
+                                         boolean batchAwaiting,
+                                         boolean batchRecording,
+                                         int recordedClicks) {
+        return pipelineEnabled
+                && (batchAwaiting || (batchRecording && recordedClicks > 0));
     }
 
     static boolean hasAckStatsProbeTimedOut(long elapsedNanos) {
@@ -780,21 +804,36 @@ public final class QuickCraftWorkbenchShulkerCraft implements ClientModInitializ
     }
 
     private void requestAckStopOrStop(MinecraftClient client) {
-        if (isAckPipelineEnabled() && ackBatchAwaiting) {
+        requestAckStopOrStop(client, Text.translatable("quickcraft.message.crafting.stopped"));
+    }
+
+    private void requestAckStopOrStop(MinecraftClient client, Text message) {
+        if (shouldDeferStopForAck(isAckPipelineEnabled(), ackBatchAwaiting,
+                ackBatchRecording, ackBatchClickCount)) {
             if (!ackStopRequested) {
                 ackStopRequested = true;
-                LOGGER.debug("确认驱动流水线收到停止请求：等待批次 #{} 完成，类型={}，点击={}",
-                        ackBatchId, ackBatchKind, ackBatchClickCount);
+                ackStopMessage = message;
+                LOGGER.debug("确认驱动流水线收到停止请求：等待当前批次完成，批次=#{}，类型={}，"
+                                + "等待中={}，记录中={}，点击={}",
+                        ackBatchId, ackBatchKind, ackBatchAwaiting,
+                        ackBatchRecording, ackBatchClickCount);
             }
             return;
         }
-        stop(client, Text.translatable("quickcraft.message.crafting.stopped"));
+        stop(client, message);
+    }
+
+    private Text getAckStopMessage() {
+        return ackStopRequested && ackStopMessage != null
+                ? ackStopMessage
+                : Text.translatable("quickcraft.message.crafting.stopped");
     }
 
     private void clearAckSession() {
         ackBatchRecording = false;
         ackBatchAwaiting = false;
         ackStopRequested = false;
+        ackStopMessage = null;
         ackBatchClickCount = 0;
         ackBatchStartRevision = 0;
         ackBatchId = 0L;
@@ -985,6 +1024,9 @@ public final class QuickCraftWorkbenchShulkerCraft implements ClientModInitializ
         int attempts = getAvailableCraftCount(handler);
         int sourceSlot = -1;
         int completed = 0;
+        int boxTakes = 0;
+        int boxReturns = 0;
+        int boxSwitches = 0;
         while (completed < attempts && active) {
             if (!handler.getSlot(OUTPUT_SLOT).hasStack() && !primeOutputLocally(client, handler)) {
                 break;
@@ -996,19 +1038,44 @@ public final class QuickCraftWorkbenchShulkerCraft implements ClientModInitializ
             }
             if (sourceSlot == -1
                     || QuickCraftWorkbenchShulkerOutput.getCapacity(handler.getCursorStack(), output) < output.getCount()) {
+                boolean switchingBox = sourceSlot != -1;
+                boolean hadBoxOnCursor = !handler.getCursorStack().isEmpty();
                 if (!QuickCraftWorkbenchShulkerOutput.returnBox(client, handler, sourceSlot)) {
                     stop(client, Text.translatable("quickcraft.message.crafting.shulker_cursor_blocked"));
                     return completed > 0;
                 }
+                if (hadBoxOnCursor) {
+                    boxReturns++;
+                    sessionOutputBoxReturns++;
+                }
                 sourceSlot = QuickCraftWorkbenchShulkerOutput.takeBox(client, handler, output);
                 if (sourceSlot == -1) {
-                    stop(client, Text.translatable("quickcraft.message.crafting.no_output_shulker"));
+                    sessionOutputBoxMisses++;
+                    requestAckStopOrStop(client,
+                            Text.translatable("quickcraft.message.crafting.no_output_shulker"));
                     return completed > 0;
+                }
+                boxTakes++;
+                sessionOutputBoxTakes++;
+                if (switchingBox) {
+                    boxSwitches++;
+                    sessionOutputBoxSwitches++;
                 }
             }
             if (!QuickCraftWorkbenchShulkerOutput.storeOnce(client, handler, output)) {
-                QuickCraftWorkbenchShulkerOutput.returnBox(client, handler, sourceSlot);
-                stop(client, Text.translatable("quickcraft.message.crafting.shulker_output_failed"));
+                boolean hadBoxOnCursor = !handler.getCursorStack().isEmpty();
+                boolean returned = QuickCraftWorkbenchShulkerOutput.returnBox(client, handler, sourceSlot);
+                if (returned && hadBoxOnCursor) {
+                    boxReturns++;
+                    sessionOutputBoxReturns++;
+                }
+                sessionOutputStoreFailures++;
+                if (returned) {
+                    requestAckStopOrStop(client,
+                            Text.translatable("quickcraft.message.crafting.shulker_output_failed"));
+                } else {
+                    stop(client, Text.translatable("quickcraft.message.crafting.shulker_cursor_blocked"));
+                }
                 return completed > 0;
             }
             completed++;
@@ -1017,12 +1084,18 @@ public final class QuickCraftWorkbenchShulkerCraft implements ClientModInitializ
                 sessionOutputBursts++;
             }
         }
+        boolean hadBoxOnCursor = !handler.getCursorStack().isEmpty();
         if (!QuickCraftWorkbenchShulkerOutput.returnBox(client, handler, sourceSlot)) {
             stop(client, Text.translatable("quickcraft.message.crafting.shulker_cursor_blocked"));
+        } else if (hadBoxOnCursor) {
+            boxReturns++;
+            sessionOutputBoxReturns++;
         }
         if (completed > 0) {
-            LOGGER.debug("输出槽直接装盒 burst：会话t+{} ms，输出点击={} 次，耗时={} us，不受补货间隔限制，配方={}",
-                    sessionElapsedMillis(), completed, (System.nanoTime() - startedAtNanos) / 1_000L,
+            LOGGER.debug("输出槽直接装盒 burst：会话t+{} ms，输出点击={} 次，盒点击={} 次（拿盒={}，归还={}，换盒={}），"
+                            + "耗时={} us，不受补货间隔限制，配方={}",
+                    sessionElapsedMillis(), completed, boxTakes + boxReturns,
+                    boxTakes, boxReturns, boxSwitches, (System.nanoTime() - startedAtNanos) / 1_000L,
                     recipe == null ? "NONE" : recipe.id());
         }
         return completed > 0;
@@ -1058,7 +1131,7 @@ public final class QuickCraftWorkbenchShulkerCraft implements ClientModInitializ
     }
 
     private boolean drainOutputBurst(MinecraftClient client, CraftingScreenHandler handler) {
-        return QuickCraftConfigs.isWorkbenchQuickCraftOutputToShulkerEnabled()
+        return sessionOutputToShulker
                 ? storeOutputBurst(client, handler)
                 : throwOutputBurst(client, handler);
     }
@@ -1123,6 +1196,12 @@ public final class QuickCraftWorkbenchShulkerCraft implements ClientModInitializ
         sessionStartedAtNanos = 0L;
         sessionOutputClicks = 0;
         sessionOutputBursts = 0;
+        sessionOutputToShulker = QuickCraftConfigs.isWorkbenchQuickCraftOutputToShulkerEnabled();
+        sessionOutputBoxTakes = 0;
+        sessionOutputBoxReturns = 0;
+        sessionOutputBoxSwitches = 0;
+        sessionOutputBoxMisses = 0;
+        sessionOutputStoreFailures = 0;
         sessionMode = QuickCraftConfigs.getWorkbenchQuickShulkerPipelineMode();
         serverCorrectionPauseTicks = 0;
         occupiedCursorTicks = 0;
@@ -1181,7 +1260,7 @@ public final class QuickCraftWorkbenchShulkerCraft implements ClientModInitializ
                         + "确认窗口={}，来源盒上限={}，光标策略={}/{}/{} Tick，配方={}，输出装盒={}",
                 sessionMode, pipelineDescription(sessionMode), effectiveSourceBatches,
                 sessionCursorSettleTicks, sessionRecoveryPauseTicks,
-                sessionCursorTimeoutTicks, recipe.id(), QuickCraftConfigs.isWorkbenchQuickCraftOutputToShulkerEnabled());
+                sessionCursorTimeoutTicks, recipe.id(), sessionOutputToShulker);
     }
 
     private void handleServerStatistics(MinecraftClient client,
@@ -2056,6 +2135,12 @@ public final class QuickCraftWorkbenchShulkerCraft implements ClientModInitializ
         sessionStartedAtNanos = 0L;
         sessionOutputClicks = 0;
         sessionOutputBursts = 0;
+        sessionOutputToShulker = false;
+        sessionOutputBoxTakes = 0;
+        sessionOutputBoxReturns = 0;
+        sessionOutputBoxSwitches = 0;
+        sessionOutputBoxMisses = 0;
+        sessionOutputStoreFailures = 0;
         sessionMode = WorkbenchShulkerPipelineMode.RESPONSE_STABLE;
         serverCorrectionPauseTicks = 0;
         occupiedCursorTicks = 0;
@@ -2096,10 +2181,14 @@ public final class QuickCraftWorkbenchShulkerCraft implements ClientModInitializ
                 ackBatchAwaiting ? 1 : 0, ackBatchKind, ackBatchClickCount,
                 ackBatchFullInventoryUpdates, ackStatsProbePending ? 1 : 0, ackStopRequested);
         LOGGER.info("潜影盒工作台喷射操作汇总：耗时={} ms，输出点击发送={} 次，输出Burst={}，"
+                        + "输出装盒={}，盒点击={} 次（拿盒={}，归还={}，换盒={}），缺盒={}，装盒失败={}，"
                         + "来源任务={}，来源盒批次={}，光标等待={} 次/{} Tick，自动恢复={} 次，恢复静默={} Tick，"
                         + "确认驱动={}/{} 批，流水线模式={}，来源盒上限={}，光标策略={}/{}/{} Tick，"
                         + "配方={}，连续失败={}，补料中={}，结束原因={}",
                 elapsedMillis, sessionOutputClicks, sessionOutputBursts,
+                sessionOutputToShulker, sessionOutputBoxTakes + sessionOutputBoxReturns,
+                sessionOutputBoxTakes, sessionOutputBoxReturns, sessionOutputBoxSwitches,
+                sessionOutputBoxMisses, sessionOutputStoreFailures,
                 QuickCraftWorkbenchShulker.debugSessionTaskCount(),
                 QuickCraftWorkbenchShulker.debugSessionSourceBatches(),
                 sessionCursorWaitEvents, sessionCursorWaitTicks, sessionCursorRecoveries,
