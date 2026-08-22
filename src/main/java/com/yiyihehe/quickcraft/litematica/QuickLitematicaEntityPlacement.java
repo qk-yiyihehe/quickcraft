@@ -56,12 +56,9 @@ public final class QuickLitematicaEntityPlacement {
     private static final int MAX_ENTITY_TREE_DEPTH = 8;
     private static final int MAX_ENTITY_TREE_SIZE = 16;
     private static final long PENDING_TIMEOUT_TICKS = 40L;
-    // 服务器未声明协议时的重试间隔；首次连接仍立即发送，10 tick 约为 0.5 秒。
-    private static final long HELLO_RETRY_TICKS = 10L;
     private static ServerCapability capability;
     private static boolean helloSent;
     private static long clientTick;
-    private static long lastHelloTick = Long.MIN_VALUE;
     private static final Map<Long, PendingRequest> pendingRequests = new java.util.HashMap<>();
     private static final Map<String, UUID> confirmedEntityUuids = new java.util.HashMap<>();
 
@@ -103,6 +100,9 @@ public final class QuickLitematicaEntityPlacement {
             return false;
         }
 
+        if (!isServerAvailable()) {
+            sendHello();
+        }
         client.setScreen(new QuickLitematicaEntityPlacementScreen(collectRayCandidates(client)));
         return true;
     }
@@ -141,15 +141,18 @@ public final class QuickLitematicaEntityPlacement {
         }
         // The hello is the mechanism that discovers server support, so it must not be gated by
         // canSend(): Fabric only reports a channel after the server has already declared it.
-        if (capability == null && (!helloSent || clientTick - lastHelloTick >= HELLO_RETRY_TICKS)) {
-            ClientPlayNetworking.send(new QuickLitematicaEntityPlacementPayloads.HelloPayload(
-                    QuickLitematicaEntityPlacementPayloads.PROTOCOL_VERSION,
-                    QuickLitematicaEntityPlacementPayloads.CLIENT_FEATURES,
-                    QuickLitematicaEntityPlacementPayloads.MAX_CLIENT_NBT_BYTES
-            ));
-            helloSent = true;
-            lastHelloTick = clientTick;
+        if (!helloSent) {
+            sendHello();
         }
+    }
+
+    private static void sendHello() {
+        ClientPlayNetworking.send(new QuickLitematicaEntityPlacementPayloads.HelloPayload(
+                QuickLitematicaEntityPlacementPayloads.PROTOCOL_VERSION,
+                QuickLitematicaEntityPlacementPayloads.CLIENT_FEATURES,
+                QuickLitematicaEntityPlacementPayloads.MAX_CLIENT_NBT_BYTES
+        ));
+        helloSent = true;
     }
 
     private static void receiveCapability(QuickLitematicaEntityPlacementPayloads.CapabilityPayload payload) {
@@ -695,7 +698,6 @@ public final class QuickLitematicaEntityPlacement {
     private static void clearSession() {
         capability = null;
         helloSent = false;
-        lastHelloTick = Long.MIN_VALUE;
         pendingRequests.clear();
         confirmedEntityUuids.clear();
     }
