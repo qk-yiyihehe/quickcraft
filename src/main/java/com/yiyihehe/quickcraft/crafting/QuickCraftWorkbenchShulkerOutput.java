@@ -30,10 +30,7 @@ final class QuickCraftWorkbenchShulkerOutput {
             return -1;
         }
 
-        Slot target = findBox(handler, output, false);
-        if (target == null) {
-            target = findBox(handler, output, true);
-        }
+        Slot target = findBox(handler, output);
         if (target == null) {
             return -1;
         }
@@ -112,21 +109,33 @@ final class QuickCraftWorkbenchShulkerOutput {
     }
 
     private static Slot findBox(CraftingScreenHandler handler,
-                                ItemStack output,
-                                boolean requireEmpty) {
+                                ItemStack output) {
+        Slot emptyCandidate = null;
         for (Slot slot : getPlayerStorageSlots(handler)) {
             if (!slot.hasStack() || slot.getStack().getCount() != 1 || !isShulkerBox(slot.getStack())) {
                 continue;
             }
             boolean empty = getStoredStacks(slot.getStack()).isEmpty();
-            if (empty != requireEmpty || !isOutputOnlyBox(slot.getStack(), output)) {
-                continue;
-            }
-            if (getCapacity(slot.getStack(), output) >= output.getCount()) {
+            int priority = outputBoxContentPriority(empty,
+                    isOutputOnlyBox(slot.getStack(), output),
+                    getCapacity(slot.getStack(), output) >= output.getCount());
+            if (priority == 0) {
                 return slot;
             }
+            if (priority == 1 && emptyCandidate == null) {
+                emptyCandidate = slot;
+            }
         }
-        return null;
+        return emptyCandidate;
+    }
+
+    static int outputBoxContentPriority(boolean empty,
+                                        boolean outputOnly,
+                                        boolean enoughCapacity) {
+        if (!outputOnly || !enoughCapacity) {
+            return -1;
+        }
+        return empty ? 1 : 0;
     }
 
     private static boolean isOutputOnlyBox(ItemStack shulker, ItemStack output) {
