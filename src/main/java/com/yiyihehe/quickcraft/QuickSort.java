@@ -508,10 +508,19 @@ public class QuickSort implements ClientModInitializer {
         shulkerStacks.sort(QuickSort::compareShulkerStacks);
 
         int totalSlots = slotIds.size();
+        boolean sortStorageWithNormalStacks = false;
+        if (!QuickCraftConfigs.areQuickSortBundlesAtEnd()) {
+            normalStacks.addAll(bundleStacks);
+            bundleStacks.clear();
+            sortStorageWithNormalStacks = true;
+        }
         if (!QuickCraftConfigs.areQuickSortShulkerBoxesAtEnd()) {
             normalStacks.addAll(shulkerStacks);
-            normalStacks.sort(QuickSort::compareStacksWithShulkerContents);
             shulkerStacks.clear();
+            sortStorageWithNormalStacks = true;
+        }
+        if (sortStorageWithNormalStacks) {
+            normalStacks.sort(QuickSort::compareStacksWithStorageContents);
         }
 
         int reservedBottomSlots = Math.min(bundleStacks.size() + shulkerStacks.size(), totalSlots);
@@ -795,12 +804,14 @@ public class QuickSort implements ClientModInitializer {
         return compareStacks(a, b);
     }
 
-    private static int compareStacksWithShulkerContents(ItemStack a, ItemStack b) {
-        int stackCompare = compareStacks(a, b);
-        if (stackCompare != 0 || !isShulkerBox(a) || !isShulkerBox(b)) {
-            return stackCompare;
+    private static int compareStacksWithStorageContents(ItemStack a, ItemStack b) {
+        if (isShulkerBox(a) && isShulkerBox(b)) {
+            return compareShulkerStacks(a, b);
         }
-        return compareShulkerStacks(a, b);
+        if (isBundle(a) && isBundle(b)) {
+            return compareBundleStacks(a, b);
+        }
+        return compareStacks(a, b);
     }
 
     private static int compareShulkerStacks(ItemStack a, ItemStack b) {
