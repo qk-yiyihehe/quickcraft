@@ -67,7 +67,10 @@ public final class QuickCreativePacking {
         }
 
         ItemStack result = createPackedStack(client, mainHand, player.getOffHandStack());
-        client.interactionManager.clickCreativeStack(result, 36 + player.getInventory().getSelectedSlot());
+        int selectedSlot = player.getInventory().getSelectedSlot();
+        player.getInventory().setStack(selectedSlot, result.copy());
+        client.interactionManager.clickCreativeStack(result, 36 + selectedSlot);
+        player.playerScreenHandler.sendContentUpdates();
         return true;
     }
 
