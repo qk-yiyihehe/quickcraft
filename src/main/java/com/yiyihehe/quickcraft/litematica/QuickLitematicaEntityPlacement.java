@@ -23,8 +23,11 @@ import net.minecraft.nbt.NbtCompound;
 import net.minecraft.nbt.NbtDouble;
 import net.minecraft.nbt.NbtFloat;
 import net.minecraft.nbt.NbtList;
+import net.minecraft.nbt.NbtOps;
 import net.minecraft.registry.Registries;
+import net.minecraft.storage.NbtWriteView;
 import net.minecraft.text.Text;
+import net.minecraft.util.ErrorReporter;
 import net.minecraft.util.Identifier;
 import net.minecraft.util.math.Box;
 import net.minecraft.util.math.BlockPos;
@@ -38,6 +41,7 @@ import java.util.HashSet;
 import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ThreadLocalRandom;
@@ -313,7 +317,7 @@ public final class QuickLitematicaEntityPlacement {
     }
 
     static ExcessDisplay createExcessDisplay(Entity entity, List<Candidate> candidates) {
-        List<ItemStack> actualMaterials = getMaterials(entity.getType(), entity.writeNbt(new NbtCompound()));
+        List<ItemStack> actualMaterials = getMaterials(entity.getType(), writeEntityNbt(entity));
         if (!actualMaterials.isEmpty()) {
             return new ExcessDisplay(actualMaterials.getFirst().copy());
         }
@@ -440,7 +444,7 @@ public final class QuickLitematicaEntityPlacement {
 
     private static ItemStack getBaseMaterial(EntityType<?> type, NbtCompound nbt) {
         if (type == EntityType.ITEM && nbt.contains("Item")) {
-            return ItemStack.fromNbt(MinecraftClient.getInstance().world.getRegistryManager(), nbt.getCompoundOrEmpty("Item"))
+            return decodeItemStack(nbt.getCompoundOrEmpty("Item"))
                     .orElse(ItemStack.EMPTY);
         }
         SpawnEggItem spawnEgg = SpawnEggItem.forEntity(type);
@@ -465,6 +469,20 @@ public final class QuickLitematicaEntityPlacement {
             default -> getSplitBoatItem(entityId);
         };
         return item == null ? ItemStack.EMPTY : new ItemStack(item);
+    }
+
+    private static NbtCompound writeEntityNbt(Entity entity) {
+        NbtWriteView view = NbtWriteView.create(ErrorReporter.EMPTY, entity.getRegistryManager());
+        entity.saveSelfData(view);
+        return view.getNbt();
+    }
+
+    private static Optional<ItemStack> decodeItemStack(NbtCompound nbt) {
+        MinecraftClient client = MinecraftClient.getInstance();
+        if (client.world == null) {
+            return Optional.empty();
+        }
+        return ItemStack.CODEC.parse(client.world.getRegistryManager().getOps(NbtOps.INSTANCE), nbt).result();
     }
 
     private static boolean normalizeEntityTreeIds(NbtCompound nbt, int depth) {
@@ -543,9 +561,7 @@ public final class QuickLitematicaEntityPlacement {
         if (itemNbt.isEmpty()) {
             return true;
         }
-        return ItemStack.fromNbt(
-                MinecraftClient.getInstance().world.getRegistryManager(), itemNbt
-        ).map(stack -> {
+        return decodeItemStack(itemNbt).map(stack -> {
             materials.add(stack);
             return true;
         }).orElse(false);
@@ -584,10 +600,7 @@ public final class QuickLitematicaEntityPlacement {
                     return false;
                 }
             }
-            if (ItemStack.fromNbt(
-                    MinecraftClient.getInstance().world.getRegistryManager(),
-                    itemNbt
-            ).map(stack -> {
+            if (decodeItemStack(itemNbt).map(stack -> {
                 materials.add(stack);
                 return true;
             }).orElse(false) == false) {
@@ -897,7 +910,7 @@ public final class QuickLitematicaEntityPlacement {
                 var itemNbt = items.getCompoundOrEmpty(i);
                 int slot = itemNbt.getByte("Slot", (byte) 0) & 255;
                 if (slot >= 0 && slot < size) {
-                    ItemStack.fromNbt(client.world.getRegistryManager(), itemNbt)
+                    decodeItemStack(itemNbt)
                             .ifPresent(stack -> stacks.set(slot, stack));
                 }
             }
@@ -930,7 +943,7 @@ public final class QuickLitematicaEntityPlacement {
                 return PlacementStatus.MATCHED;
             }
 
-            NbtCompound actual = entity.writeNbt(new NbtCompound());
+            NbtCompound actual = writeEntityNbt(entity);
             return containsProjectedData(normalizeForComparison(nbt), normalizeForComparison(actual))
                     && matchesPassengerTree(nbt, entity)
                     ? PlacementStatus.MATCHED
@@ -951,7 +964,7 @@ public final class QuickLitematicaEntityPlacement {
                         || actualPassenger.getType() != Registries.ENTITY_TYPE.get(expectedId)
                         || !containsProjectedData(
                         normalizeForComparison(expectedPassenger),
-                        normalizeForComparison(actualPassenger.writeNbt(new NbtCompound())))
+                        normalizeForComparison(writeEntityNbt(actualPassenger)))
                         || !matchesPassengerTree(expectedPassenger, actualPassenger)) {
                     return false;
                 }
