@@ -42,7 +42,7 @@ public abstract class LitematicaWidgetSchematicBrowserMixin extends WidgetFileBr
 
     @Shadow
     @Final
-    protected Map<File, SchematicMetadata> cachedMetadata;
+    protected Map<Path, SchematicMetadata> cachedMetadata;
 
     protected LitematicaWidgetSchematicBrowserMixin(
             int x,
