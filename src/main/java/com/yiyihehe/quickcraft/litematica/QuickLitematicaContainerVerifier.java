@@ -360,7 +360,7 @@ public final class QuickLitematicaContainerVerifier {
         MinecraftClient client = MinecraftClient.getInstance();
         if (client.world != null) {
             try {
-                return stack.toNbtAllowEmpty(client.world.getRegistryManager()).toString();
+                return stack.toNbt(client.world.getRegistryManager()).toString();
             } catch (RuntimeException ignored) {
                 // 组件损坏时仍保留可比较的本地表示，不能让刷新验证结果的路径崩溃。
             }
@@ -665,9 +665,6 @@ public final class QuickLitematicaContainerVerifier {
         if (expected == null || found == null) {
             return expected == found;
         }
-        if (showsEnchantmentsInTooltip(expected) != showsEnchantmentsInTooltip(found)) {
-            return false;
-        }
         if (expected.getSize() != found.getSize()) {
             return false;
         }
@@ -692,10 +689,6 @@ public final class QuickLitematicaContainerVerifier {
         }
 
         return true;
-    }
-
-    private static boolean showsEnchantmentsInTooltip(ItemEnchantmentsComponent enchantments) {
-        return enchantments.equals(enchantments.withShowInTooltip(true));
     }
 
     private static boolean isSlotLockMismatch(Set<Integer> expectedDisabledSlots, Set<Integer> foundDisabledSlots, int slot) {
