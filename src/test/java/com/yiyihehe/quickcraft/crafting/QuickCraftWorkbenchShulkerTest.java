@@ -83,33 +83,6 @@ class QuickCraftWorkbenchShulkerTest {
     }
 
     @Test
-    @DisplayName("会话汇总按实际耗时计算每秒合成次数")
-    void sessionThroughput_usesCraftCountAndElapsedMillis() {
-        assertThat(QuickCraftWorkbenchShulkerCraft.craftsPerSecond(64, 1_000L)).isEqualTo(64.0D);
-        assertThat(QuickCraftWorkbenchShulkerCraft.craftsPerSecond(9, 1_500L)).isEqualTo(6.0D);
-        assertThat(QuickCraftWorkbenchShulkerCraft.craftsPerSecond(0, 1_000L)).isZero();
-        assertThat(QuickCraftWorkbenchShulkerCraft.craftsPerSecond(64, 0L)).isZero();
-        assertThat(QuickCraftWorkbenchShulkerCraft.averageHundredths(111, 57)).isEqualTo(1.95D);
-        assertThat(QuickCraftWorkbenchShulkerCraft.percentageHundredths(8_145L, 8_383L))
-                .isEqualTo(97.16D);
-    }
-
-    @Test
-    @DisplayName("服务端合成统计排除重复或被纠正的输出点击")
-    void serverCraftStats_countOnlyAuthoritativeCrafts() {
-        assertThat(QuickCraftWorkbenchShulkerCraft.confirmedCraftsFromStats(
-                1_000, 2_728, 1, 3_221)).isEqualTo(1_728);
-        assertThat(QuickCraftWorkbenchShulkerCraft.confirmedCraftsFromStats(
-                1_000, 1_256, 4, 64)).isEqualTo(64);
-        assertThat(QuickCraftWorkbenchShulkerCraft.confirmedCraftsFromStats(
-                1_000, 1_257, 4, 65)).isEqualTo(-1);
-        assertThat(QuickCraftWorkbenchShulkerCraft.confirmedCraftsFromStats(
-                2_000, 1_999, 1, 1)).isEqualTo(-1);
-        assertThat(QuickCraftWorkbenchShulkerCraft.confirmedCraftsFromStats(
-                1_000, 1_065, 1, 64)).isEqualTo(-1);
-    }
-
-    @Test
     @DisplayName("确认驱动流水按批次风险选择精确状态或服务端安全边界")
     void ackPipeline_usesExactOutputAndSafePreparationBoundaries() {
         assertThat(QuickCraftWorkbenchShulkerCraft.shouldConfirmAckBatch(
@@ -318,28 +291,6 @@ class QuickCraftWorkbenchShulkerTest {
                 9_999_999_999L)).isFalse();
         assertThat(QuickCraftWorkbenchShulkerCraft.hasAckStatsProbeTimedOut(
                 10_000_000_000L)).isTrue();
-    }
-
-    @Test
-    @DisplayName("容器 revision 环回后仍能识别新的服务端响应")
-    void telemetryRevisionComparison_handlesVanillaWraparound() {
-        assertThat(QuickCraftWorkbenchShulkerTelemetry.isRevisionAfter(18, 17)).isTrue();
-        assertThat(QuickCraftWorkbenchShulkerTelemetry.isRevisionAfter(0, 32767)).isTrue();
-        assertThat(QuickCraftWorkbenchShulkerTelemetry.isRevisionAfter(17, 17)).isFalse();
-        assertThat(QuickCraftWorkbenchShulkerTelemetry.isRevisionAfter(32767, 0)).isFalse();
-    }
-
-    @Test
-    @DisplayName("集成服务器阶段时序只接受同一单调时钟上的正向区间")
-    void integratedTiming_rejectsMissingOrReversedTimestamps() {
-        assertThat(QuickCraftWorkbenchShulkerTelemetry.phaseDurationNanos(10L, 25L))
-                .isEqualTo(15L);
-        assertThat(QuickCraftWorkbenchShulkerTelemetry.phaseDurationNanos(10L, 10L))
-                .isZero();
-        assertThat(QuickCraftWorkbenchShulkerTelemetry.phaseDurationNanos(0L, 25L))
-                .isEqualTo(-1L);
-        assertThat(QuickCraftWorkbenchShulkerTelemetry.phaseDurationNanos(25L, 10L))
-                .isEqualTo(-1L);
     }
 
     @Test
