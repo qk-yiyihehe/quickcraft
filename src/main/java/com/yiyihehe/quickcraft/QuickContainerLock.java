@@ -36,6 +36,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Supplier;
 
 /**
  * 容器锁：
@@ -83,6 +84,7 @@ public final class QuickContainerLock implements ClientModInitializer {
     private static int pendingSourceSyncId = INVALID_LOCK_SLOT;
     private static String currentScreenContainerKey;
     private static boolean bypassPlayerSlotLocks;
+    private static int scopedPlayerSlotLockBypassDepth;
     private static final Set<Integer> activeAutoElytraPlayerSlots = new HashSet<>();
     private static final Set<Integer> pendingAutoElytraPlayerSlots = new HashSet<>();
     private static int activeAutoElytraHotbarIndex = INVALID_LOCK_SLOT;
@@ -367,7 +369,7 @@ public final class QuickContainerLock implements ClientModInitializer {
     }
 
     public static void beginSlotClickContext(ScreenHandler handler, int slotId, int button, SlotActionType actionType) {
-        bypassPlayerSlotLocks = false;
+        bypassPlayerSlotLocks = scopedPlayerSlotLockBypassDepth > 0;
         activeAutoElytraPlayerSlots.clear();
         activeAutoElytraHotbarIndex = INVALID_LOCK_SLOT;
 
@@ -382,9 +384,31 @@ public final class QuickContainerLock implements ClientModInitializer {
     }
 
     public static void endSlotClickContext() {
-        bypassPlayerSlotLocks = false;
+        bypassPlayerSlotLocks = scopedPlayerSlotLockBypassDepth > 0;
         activeAutoElytraPlayerSlots.clear();
         activeAutoElytraHotbarIndex = INVALID_LOCK_SLOT;
+    }
+
+    public static void runWithPlayerSlotLocksBypassed(Runnable action) {
+        scopedPlayerSlotLockBypassDepth++;
+        bypassPlayerSlotLocks = true;
+        try {
+            action.run();
+        } finally {
+            scopedPlayerSlotLockBypassDepth--;
+            bypassPlayerSlotLocks = scopedPlayerSlotLockBypassDepth > 0;
+        }
+    }
+
+    public static <T> T callWithPlayerSlotLocksBypassed(Supplier<T> action) {
+        scopedPlayerSlotLockBypassDepth++;
+        bypassPlayerSlotLocks = true;
+        try {
+            return action.get();
+        } finally {
+            scopedPlayerSlotLockBypassDepth--;
+            bypassPlayerSlotLocks = scopedPlayerSlotLockBypassDepth > 0;
+        }
     }
 
     private static boolean isLockedSlotInternal(ScreenHandler handler, Slot slot) {
@@ -921,6 +945,7 @@ public final class QuickContainerLock implements ClientModInitializer {
         clearPendingContainerOpen();
         lastUseDown = false;
         bypassPlayerSlotLocks = false;
+        scopedPlayerSlotLockBypassDepth = 0;
         activeAutoElytraPlayerSlots.clear();
         pendingAutoElytraPlayerSlots.clear();
         activeAutoElytraHotbarIndex = INVALID_LOCK_SLOT;
