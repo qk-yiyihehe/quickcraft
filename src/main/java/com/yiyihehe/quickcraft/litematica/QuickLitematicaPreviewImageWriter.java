@@ -97,7 +97,7 @@ final class QuickLitematicaPreviewImageWriter {
         }
 
         LitematicaSchematic schematic = LitematicaSchematic.createFromFile(
-                directory.toFile(),
+                directory,
                 targetName.toString()
         );
         if (schematic == null) {
@@ -111,7 +111,7 @@ final class QuickLitematicaPreviewImageWriter {
         try {
             Path temporaryName = temporary.getFileName();
             if (temporaryName == null
-                    || !schematic.writeToFile(directory.toFile(), temporaryName.toString(), true)) {
+                    || !schematic.writeToFile(directory, temporaryName.toString(), true)) {
                 throw new IOException("Failed to write temporary litematic file");
             }
             replaceFile(temporary, target);

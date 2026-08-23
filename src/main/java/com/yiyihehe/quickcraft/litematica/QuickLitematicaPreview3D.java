@@ -325,7 +325,7 @@ public final class QuickLitematicaPreview3D {
                 return;
             }
 
-            Path path = entry.getFullPath().toPath().toAbsolutePath().normalize();
+            Path path = entry.getFullPath().toAbsolutePath().normalize();
             if (!path.equals(this.currentPath)) {
                 this.clearCurrent();
             }
@@ -468,31 +468,31 @@ public final class QuickLitematicaPreview3D {
                 return;
             }
 
-            NativeImage image = preview.captureSnapshot(
+            preview.captureSnapshot(
                     EMBEDDED_PREVIEW_DIMENSION,
                     backgroundColor,
                     this.drag,
                     "quickcraft.litematica.preview_3d.preview_write_failed",
-                    callback
+                    message -> {
+                        this.previewImageWriteInProgress.set(false);
+                        callback.accept(message);
+                    },
+                    image -> {
+                        int[] pixels;
+                        try {
+                            pixels = makeArgbPixels(image);
+                        } catch (Throwable throwable) {
+                            LOGGER.error("Failed to convert the 3D view into Litematica preview pixels", throwable);
+                            this.previewImageWriteInProgress.set(false);
+                            callback.accept(Text.translatable("quickcraft.litematica.preview_3d.preview_write_failed"));
+                            return;
+                        } finally {
+                            image.close();
+                            preview.snapshotInProgress.set(false);
+                        }
+                        this.writePreviewAsync(preview, target, pixels, callback);
+                    }
             );
-            if (image == null) {
-                this.previewImageWriteInProgress.set(false);
-                return;
-            }
-
-            int[] pixels;
-            try {
-                pixels = makeArgbPixels(image);
-            } catch (Throwable throwable) {
-                LOGGER.error("Failed to convert the 3D view into Litematica preview pixels", throwable);
-                this.previewImageWriteInProgress.set(false);
-                callback.accept(Text.translatable("quickcraft.litematica.preview_3d.preview_write_failed"));
-                return;
-            } finally {
-                image.close();
-                preview.snapshotInProgress.set(false);
-            }
-            this.writePreviewAsync(preview, target, pixels, callback);
         }
 
         void selectPreviewImage(Consumer<Text> callback) {
@@ -1547,6 +1547,58 @@ public final class QuickLitematicaPreview3D {
             });
         }
 
+        private void captureSnapshot(
+                int resolution,
+                int backgroundColor,
+                DragState drag,
+                String failureTranslationKey,
+                Consumer<Text> messageCallback,
+                Consumer<NativeImage> imageCallback
+        ) {
+            MeshData data = this.meshData;
+            if (this.state != State.READY || data == null) {
+                messageCallback.accept(Text.translatable("quickcraft.litematica.preview_3d.export_not_ready"));
+                return;
+            }
+
+            this.uploadIfNeeded();
+            this.prepareDynamicBuffers(data);
+            if (data.hasDynamicContent() && !this.dynamicBuffersReady) {
+                messageCallback.accept(Text.translatable("quickcraft.litematica.preview_3d.export_dynamic_failed"));
+                return;
+            }
+            if (data.vertexCount() > 0 && this.layerBuffers.isEmpty()) {
+                messageCallback.accept(Text.translatable(failureTranslationKey));
+                return;
+            }
+            if (!this.snapshotInProgress.compareAndSet(false, true)) {
+                messageCallback.accept(Text.translatable("quickcraft.litematica.preview_3d.exporting"));
+                return;
+            }
+
+            Framebuffer framebuffer;
+            try {
+                framebuffer = new SimpleFramebuffer("QuickCraft preview snapshot", resolution, resolution, true);
+                RenderSystem.getDevice().createCommandEncoder().clearColorAndDepthTextures(
+                        Objects.requireNonNull(framebuffer.getColorAttachment()),
+                        backgroundColor,
+                        Objects.requireNonNull(framebuffer.getDepthAttachment()),
+                        1.0D
+                );
+                this.renderSnapshot(framebuffer, data, drag);
+            } catch (Throwable ignored) {
+                this.snapshotInProgress.set(false);
+                messageCallback.accept(Text.translatable(failureTranslationKey));
+                return;
+            }
+
+            boolean keepBackgroundOpaque = ((backgroundColor >>> 24) & 0xFF) == 0xFF;
+            copySnapshot(framebuffer, keepBackgroundOpaque, imageCallback, throwable -> {
+                this.snapshotInProgress.set(false);
+                messageCallback.accept(Text.translatable(failureTranslationKey));
+            });
+        }
+
         private void renderSnapshot(Framebuffer framebuffer, MeshData data, DragState drag) {
             var previousColorTarget = RenderSystem.outputColorTextureOverride;
             var previousDepthTarget = RenderSystem.outputDepthTextureOverride;
@@ -2329,7 +2381,7 @@ public final class QuickLitematicaPreview3D {
     private static String currentResourcePackSignature() {
         try {
             MessageDigest digest = MessageDigest.getInstance("SHA-256");
-            updateDigest(digest, SharedConstants.getGameVersion().getName());
+            updateDigest(digest, SharedConstants.getGameVersion().name());
             MinecraftClient.getInstance().getResourcePackManager().getEnabledProfiles()
                     .forEach(profile -> updateDigest(digest, profile.getId()));
             return HexFormat.of().formatHex(digest.digest());
