@@ -151,7 +151,7 @@ final class QuickLitematicaEntityPlacementScreen extends Screen {
                 int slot = 9 + row * 9 + column;
                 int x = left + 8 + column * SLOT_SIZE;
                 int y = top + 139 + row * SLOT_SIZE;
-                ItemStack stack = this.client.player.getInventory().main.get(slot);
+                ItemStack stack = this.client.player.getInventory().getMainStacks().get(slot);
                 context.drawItem(stack, x, y);
                 context.drawStackOverlay(this.textRenderer, stack, x, y);
                 if (mouseX >= x && mouseX < x + 16 && mouseY >= y && mouseY < y + 16) {
@@ -162,7 +162,7 @@ final class QuickLitematicaEntityPlacementScreen extends Screen {
         for (int column = 0; column < 9; column++) {
             int x = left + 8 + column * SLOT_SIZE;
             int y = top + 197;
-            ItemStack stack = this.client.player.getInventory().main.get(column);
+            ItemStack stack = this.client.player.getInventory().getMainStacks().get(column);
             context.drawItem(stack, x, y);
             context.drawStackOverlay(this.textRenderer, stack, x, y);
             if (mouseX >= x && mouseX < x + 16 && mouseY >= y && mouseY < y + 16) {
