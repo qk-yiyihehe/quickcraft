@@ -9,6 +9,13 @@ import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.systems.VertexSorter;
 import com.mojang.blaze3d.textures.AddressMode;
 import com.mojang.blaze3d.textures.FilterMode;
+import com.mojang.blaze3d.vertex.VertexFormat;
+import com.sun.jna.Native;
+import com.sun.jna.Platform;
+import com.sun.jna.Pointer;
+import com.sun.jna.platform.win32.BaseTSD;
+import com.sun.jna.win32.StdCallLibrary;
+import com.sun.jna.win32.W32APIOptions;
 import com.yiyihehe.quickcraft.config.QuickCraftConfigs;
 import com.yiyihehe.quickcraft.mixin.RenderLayerAccessor;
 import fi.dy.masa.litematica.render.schematic.ChunkCacheSchematic;
@@ -101,6 +108,8 @@ import org.joml.Matrix4fStack;
 import org.joml.Vector3f;
 import org.joml.Vector4f;
 import org.lwjgl.system.MemoryStack;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.BufferedInputStream;
 import java.io.BufferedOutputStream;
@@ -108,6 +117,7 @@ import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -141,6 +151,8 @@ import java.util.zip.GZIPOutputStream;
  * 构建阶段调用 Minecraft 自带方块渲染器，把材质、异形模型、透明层和流体都录成可缓存的 CPU 顶点。
  */
 public final class QuickLitematicaPreview3D {
+    private static final Logger LOGGER = LoggerFactory.getLogger(QuickLitematicaPreview3D.class);
+
     // 1.21.11 exposes no replacement for setCachedState on detached preview block entities.
     @SuppressWarnings("deprecation")
     private static void setPreviewBlockEntityState(BlockEntity blockEntity, BlockState state) {
@@ -166,6 +178,7 @@ public final class QuickLitematicaPreview3D {
     private static final String CACHE_VERSION_FILE_NAME = "cache-version.txt";
     private static final String CACHE_RENDER_MARKER = "quickcraft-model-mesh-v17-float-uv-full-light-dynamic-render-state-mc1.21.11";
     private static final int EXPAND_BUTTON_SIZE = 16;
+    private static final int COMPAT_CLIPBOARD_MAX_DIMENSION = 4096;
     // 预算必须卡在构建阶段前面：顶点 packed 后仍会占用 CPU/GPU 大块连续内存。
     private static final int MAX_UPLOAD_VERTICES = 12_000_000;
     private static final int MAX_DYNAMIC_BLOCK_STATES = 300_000;
@@ -354,6 +367,15 @@ public final class QuickLitematicaPreview3D {
             preview.exportPng(resolution, backgroundColor, this.drag, this.outputDirectory(), callback);
         }
 
+        void copyImage(int resolution, int backgroundColor, Consumer<Text> callback) {
+            Preview preview = this.current;
+            if (preview == null) {
+                callback.accept(Text.translatable("quickcraft.litematica.preview_3d.copy_failed"));
+                return;
+            }
+            preview.copyImage(resolution, backgroundColor, this.drag, callback);
+        }
+
         @Override
         public void close() {
             this.clearCurrent();
@@ -457,7 +479,7 @@ public final class QuickLitematicaPreview3D {
         private boolean dynamicBuffersReady;
         private boolean dynamicBufferFallback;
         private boolean uploadScheduled;
-        private final AtomicBoolean exportInProgress = new AtomicBoolean();
+        private final AtomicBoolean snapshotInProgress = new AtomicBoolean();
 
         private Preview(Path sourcePath, Path cachePath, Path tmpPath) {
             this.sourcePath = sourcePath;
@@ -916,7 +938,11 @@ public final class QuickLitematicaPreview3D {
                 callback.accept(Text.translatable("quickcraft.litematica.preview_3d.export_dynamic_failed"));
                 return;
             }
-            if (!this.exportInProgress.compareAndSet(false, true)) {
+            if (data.vertexCount() > 0 && this.layerBuffers.isEmpty()) {
+                callback.accept(Text.translatable("quickcraft.litematica.preview_3d.export_failed"));
+                return;
+            }
+            if (!this.snapshotInProgress.compareAndSet(false, true)) {
                 callback.accept(Text.translatable("quickcraft.litematica.preview_3d.exporting"));
                 return;
             }
@@ -935,7 +961,7 @@ public final class QuickLitematicaPreview3D {
                 );
                 this.renderSnapshot(framebuffer, data, drag);
             } catch (Throwable ignored) {
-                this.exportInProgress.set(false);
+                this.snapshotInProgress.set(false);
                 callback.accept(Text.translatable("quickcraft.litematica.preview_3d.export_failed"));
                 return;
             }
@@ -954,11 +980,78 @@ public final class QuickLitematicaPreview3D {
                     )));
                 } finally {
                     image.close();
-                    this.exportInProgress.set(false);
+                    this.snapshotInProgress.set(false);
                 }
             }), throwable -> {
-                this.exportInProgress.set(false);
+                this.snapshotInProgress.set(false);
                 callback.accept(Text.translatable("quickcraft.litematica.preview_3d.export_failed"));
+            });
+        }
+
+        private void copyImage(int resolution, int backgroundColor, DragState drag, Consumer<Text> callback) {
+            if (!Platform.isWindows()) {
+                callback.accept(Text.translatable("quickcraft.litematica.preview_3d.copy_failed"));
+                return;
+            }
+
+            MeshData data = this.meshData;
+            if (this.state != State.READY || data == null) {
+                callback.accept(Text.translatable("quickcraft.litematica.preview_3d.export_not_ready"));
+                return;
+            }
+
+            this.uploadIfNeeded();
+            this.prepareDynamicBuffers(data);
+            if (data.hasDynamicContent() && !this.dynamicBuffersReady) {
+                callback.accept(Text.translatable("quickcraft.litematica.preview_3d.export_dynamic_failed"));
+                return;
+            }
+            if (data.vertexCount() > 0 && this.layerBuffers.isEmpty()) {
+                callback.accept(Text.translatable("quickcraft.litematica.preview_3d.copy_failed"));
+                return;
+            }
+            if (!this.snapshotInProgress.compareAndSet(false, true)) {
+                callback.accept(Text.translatable("quickcraft.litematica.preview_3d.exporting"));
+                return;
+            }
+
+            Framebuffer framebuffer;
+            try {
+                framebuffer = new SimpleFramebuffer("QuickCraft clipboard snapshot", resolution, resolution, true);
+                RenderSystem.getDevice().createCommandEncoder().clearColorAndDepthTextures(
+                        Objects.requireNonNull(framebuffer.getColorAttachment()),
+                        backgroundColor,
+                        Objects.requireNonNull(framebuffer.getDepthAttachment()),
+                        1.0D
+                );
+                this.renderSnapshot(framebuffer, data, drag);
+            } catch (Throwable ignored) {
+                this.snapshotInProgress.set(false);
+                callback.accept(Text.translatable("quickcraft.litematica.preview_3d.copy_failed"));
+                return;
+            }
+
+            boolean keepBackgroundOpaque = ((backgroundColor >>> 24) & 0xFF) == 0xFF;
+            copySnapshot(framebuffer, keepBackgroundOpaque, image -> {
+                Util.getIoWorkerExecutor().execute(() -> {
+                    try {
+                        copyToWindowsClipboard(image);
+                        MinecraftClient.getInstance().execute(() -> callback.accept(Text.translatable(
+                                "quickcraft.litematica.preview_3d.copy_success"
+                        )));
+                    } catch (Throwable throwable) {
+                        LOGGER.error("Failed to copy the 3D preview image to the Windows clipboard", throwable);
+                        MinecraftClient.getInstance().execute(() -> callback.accept(Text.translatable(
+                                "quickcraft.litematica.preview_3d.copy_failed"
+                        )));
+                    } finally {
+                        image.close();
+                        this.snapshotInProgress.set(false);
+                    }
+                });
+            }, throwable -> {
+                this.snapshotInProgress.set(false);
+                callback.accept(Text.translatable("quickcraft.litematica.preview_3d.copy_failed"));
             });
         }
 
@@ -1054,6 +1147,163 @@ public final class QuickLitematicaPreview3D {
                     }
                 });
             }, 0);
+        }
+
+        // Minecraft 客户端会启用 java.awt.headless，图片剪贴板必须绕过 AWT 直接写 Win32。
+        private static void copyToWindowsClipboard(NativeImage image) throws InterruptedException {
+            int width = image.getWidth();
+            int height = image.getHeight();
+            double compatScale = Math.min(1.0, COMPAT_CLIPBOARD_MAX_DIMENSION / (double) Math.max(width, height));
+            int compatWidth = Math.max(1, (int) Math.round(width * compatScale));
+            int compatHeight = Math.max(1, (int) Math.round(height * compatScale));
+            long pixelBytes = (long) width * height * 4L;
+            long compatPixelBytes = (long) compatWidth * compatHeight * 4L;
+            Pointer dibV5Handle = WindowsMemory.INSTANCE.GlobalAlloc(
+                    WindowsMemory.GHND,
+                    new BaseTSD.SIZE_T(WindowsMemory.BITMAP_V5_HEADER_SIZE + pixelBytes)
+            );
+            Pointer dibHandle = WindowsMemory.INSTANCE.GlobalAlloc(
+                    WindowsMemory.GHND,
+                    new BaseTSD.SIZE_T(WindowsMemory.BITMAP_INFO_HEADER_SIZE + compatPixelBytes)
+            );
+            if (dibV5Handle == null || dibHandle == null) {
+                if (dibV5Handle != null) {
+                    WindowsMemory.INSTANCE.GlobalFree(dibV5Handle);
+                }
+                if (dibHandle != null) {
+                    WindowsMemory.INSTANCE.GlobalFree(dibHandle);
+                }
+                throw new IllegalStateException("GlobalAlloc failed");
+            }
+
+            boolean clipboardOwnsDibV5 = false;
+            boolean clipboardOwnsDib = false;
+            boolean clipboardOpen = false;
+            try {
+                Pointer dibV5Memory = WindowsMemory.INSTANCE.GlobalLock(dibV5Handle);
+                Pointer dibMemory = WindowsMemory.INSTANCE.GlobalLock(dibHandle);
+                if (dibV5Memory == null || dibMemory == null) {
+                    if (dibV5Memory != null) {
+                        WindowsMemory.INSTANCE.GlobalUnlock(dibV5Handle);
+                    }
+                    if (dibMemory != null) {
+                        WindowsMemory.INSTANCE.GlobalUnlock(dibHandle);
+                    }
+                    throw new IllegalStateException("GlobalLock failed");
+                }
+                try {
+                    dibV5Memory.write(0, createBitmapV5Header(width, height), 0, WindowsMemory.BITMAP_V5_HEADER_SIZE);
+                    dibMemory.write(
+                            0,
+                            createBitmapInfoHeader(compatWidth, compatHeight),
+                            0,
+                            WindowsMemory.BITMAP_INFO_HEADER_SIZE
+                    );
+                    int[] row = new int[width];
+                    boolean sameDimensions = width == compatWidth && height == compatHeight;
+                    for (int y = 0; y < height; y++) {
+                        for (int x = 0; x < width; x++) {
+                            row[x] = image.getColorArgb(x, y);
+                        }
+                        dibV5Memory.write(WindowsMemory.BITMAP_V5_HEADER_SIZE + (long) y * width * 4L, row, 0, width);
+                        if (sameDimensions) {
+                            dibMemory.write(
+                                    WindowsMemory.BITMAP_INFO_HEADER_SIZE + (long) (height - 1 - y) * width * 4L,
+                                    row,
+                                    0,
+                                    width
+                            );
+                        }
+                    }
+                    if (!sameDimensions) {
+                        int[] compatRow = new int[compatWidth];
+                        for (int y = 0; y < compatHeight; y++) {
+                            int sourceY = Math.min(height - 1, (int) ((y + 0.5) * height / compatHeight));
+                            for (int x = 0; x < compatWidth; x++) {
+                                int sourceX = Math.min(width - 1, (int) ((x + 0.5) * width / compatWidth));
+                                compatRow[x] = image.getColorArgb(sourceX, sourceY);
+                            }
+                            dibMemory.write(
+                                    WindowsMemory.BITMAP_INFO_HEADER_SIZE
+                                            + (long) (compatHeight - 1 - y) * compatWidth * 4L,
+                                    compatRow,
+                                    0,
+                                    compatWidth
+                            );
+                        }
+                    }
+                } finally {
+                    WindowsMemory.INSTANCE.GlobalUnlock(dibV5Handle);
+                    WindowsMemory.INSTANCE.GlobalUnlock(dibHandle);
+                }
+
+                clipboardOpen = openWindowsClipboard();
+                if (!clipboardOpen || !WindowsClipboard.INSTANCE.EmptyClipboard()) {
+                    throw new IllegalStateException("Windows clipboard is unavailable");
+                }
+                // QQ 等旧客户端按枚举顺序取第一个可识别格式，兼容 DIB 必须放在完整 DIBV5 前面。
+                if (WindowsClipboard.INSTANCE.SetClipboardData(WindowsClipboard.CF_DIB, dibHandle) == null) {
+                    throw new IllegalStateException("SetClipboardData(CF_DIB) failed");
+                }
+                clipboardOwnsDib = true;
+                if (WindowsClipboard.INSTANCE.SetClipboardData(WindowsClipboard.CF_DIBV5, dibV5Handle) != null) {
+                    clipboardOwnsDibV5 = true;
+                } else {
+                    LOGGER.warn("Could not add CF_DIBV5 to the clipboard; CF_DIB remains available");
+                }
+            } finally {
+                if (clipboardOpen) {
+                    WindowsClipboard.INSTANCE.CloseClipboard();
+                }
+                if (!clipboardOwnsDibV5) {
+                    WindowsMemory.INSTANCE.GlobalFree(dibV5Handle);
+                }
+                if (!clipboardOwnsDib) {
+                    WindowsMemory.INSTANCE.GlobalFree(dibHandle);
+                }
+            }
+        }
+
+        private static boolean openWindowsClipboard() throws InterruptedException {
+            for (int attempt = 0; attempt < 5; attempt++) {
+                if (WindowsClipboard.INSTANCE.OpenClipboard(null)) {
+                    return true;
+                }
+                Thread.sleep(10L);
+            }
+            return false;
+        }
+
+        private static byte[] createBitmapV5Header(int width, int height) {
+            ByteBuffer header = ByteBuffer.allocate(WindowsMemory.BITMAP_V5_HEADER_SIZE).order(ByteOrder.LITTLE_ENDIAN);
+            header.putInt(WindowsMemory.BITMAP_V5_HEADER_SIZE);
+            header.putInt(width);
+            header.putInt(-height);
+            header.putShort((short) 1);
+            header.putShort((short) 32);
+            header.putInt(WindowsMemory.BI_BITFIELDS);
+            header.putInt(width * height * 4);
+            header.position(40);
+            header.putInt(0x00FF0000);
+            header.putInt(0x0000FF00);
+            header.putInt(0x000000FF);
+            header.putInt(0xFF000000);
+            header.putInt(WindowsMemory.LCS_SRGB);
+            header.position(108);
+            header.putInt(WindowsMemory.LCS_GM_IMAGES);
+            return header.array();
+        }
+
+        private static byte[] createBitmapInfoHeader(int width, int height) {
+            ByteBuffer header = ByteBuffer.allocate(WindowsMemory.BITMAP_INFO_HEADER_SIZE).order(ByteOrder.LITTLE_ENDIAN);
+            header.putInt(WindowsMemory.BITMAP_INFO_HEADER_SIZE);
+            header.putInt(width);
+            header.putInt(height);
+            header.putShort((short) 1);
+            header.putShort((short) 32);
+            header.putInt(WindowsMemory.BI_RGB);
+            header.putInt(width * height * 4);
+            return header.array();
         }
 
         private Path nextOutputPath(Path outputDirectory, int resolution) {
@@ -1657,6 +1907,39 @@ public final class QuickLitematicaPreview3D {
         if (path.getFileName() != null && path.getFileName().toString().endsWith(".tmp")) {
             deleteQuietly(path);
         }
+    }
+
+    private interface WindowsClipboard extends StdCallLibrary {
+        WindowsClipboard INSTANCE = Native.load("user32", WindowsClipboard.class, W32APIOptions.DEFAULT_OPTIONS);
+        int CF_DIB = 8;
+        int CF_DIBV5 = 17;
+
+        boolean OpenClipboard(Pointer owner);
+
+        boolean EmptyClipboard();
+
+        Pointer SetClipboardData(int format, Pointer memoryHandle);
+
+        boolean CloseClipboard();
+    }
+
+    private interface WindowsMemory extends StdCallLibrary {
+        WindowsMemory INSTANCE = Native.load("kernel32", WindowsMemory.class, W32APIOptions.DEFAULT_OPTIONS);
+        int GHND = 0x0042;
+        int BITMAP_INFO_HEADER_SIZE = 40;
+        int BITMAP_V5_HEADER_SIZE = 124;
+        int BI_RGB = 0;
+        int BI_BITFIELDS = 3;
+        int LCS_SRGB = 0x73524742;
+        int LCS_GM_IMAGES = 4;
+
+        Pointer GlobalAlloc(int flags, BaseTSD.SIZE_T bytes);
+
+        Pointer GlobalLock(Pointer memoryHandle);
+
+        boolean GlobalUnlock(Pointer memoryHandle);
+
+        Pointer GlobalFree(Pointer memoryHandle);
     }
 
     private enum State {

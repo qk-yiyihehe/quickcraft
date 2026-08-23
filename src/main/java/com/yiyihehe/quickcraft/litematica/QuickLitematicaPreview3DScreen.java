@@ -48,6 +48,7 @@ public final class QuickLitematicaPreview3DScreen extends Screen {
     private ButtonWidget backgroundButton;
     private ButtonWidget colorButton;
     private ButtonWidget exportButton;
+    private ButtonWidget copyButton;
     private Text status = Text.empty();
 
     QuickLitematicaPreview3DScreen(
@@ -129,8 +130,13 @@ public final class QuickLitematicaPreview3DScreen extends Screen {
         y += 24;
         this.exportButton = this.addDrawableChild(this.button(
                 Text.translatable("quickcraft.litematica.preview_3d.export_png"),
-                panelX, y, buttonWidth,
+                panelX, y, halfWidth,
                 this::exportPng
+        ));
+        this.copyButton = this.addDrawableChild(this.button(
+                Text.translatable("quickcraft.litematica.preview_3d.copy_image"),
+                panelX + halfWidth + 4, y, halfWidth,
+                this::copyImage
         ));
         int bottomY = this.height - MARGIN - BUTTON_HEIGHT;
         this.addDrawableChild(this.button(
@@ -186,7 +192,7 @@ public final class QuickLitematicaPreview3DScreen extends Screen {
     private Text resolutionText() {
         int resolution = EXPORT_RESOLUTIONS[this.resolutionIndex];
         String name = resolution < 1024 ? Integer.toString(resolution) : resolution / 1024 + "K";
-        return Text.translatable("quickcraft.litematica.preview_3d.resolution", name, resolution, resolution);
+        return Text.translatable("quickcraft.litematica.preview_3d.resolution", name);
     }
 
     private void cycleBackground() {
@@ -217,12 +223,26 @@ public final class QuickLitematicaPreview3DScreen extends Screen {
     }
 
     private void exportPng() {
-        this.exportButton.active = false;
+        this.setSnapshotButtonsActive(false);
         this.status = Text.translatable("quickcraft.litematica.preview_3d.exporting");
         this.manager.exportPng(EXPORT_RESOLUTIONS[this.resolutionIndex], this.backgroundColor(), message -> {
             this.status = message;
-            this.exportButton.active = true;
+            this.setSnapshotButtonsActive(true);
         });
+    }
+
+    private void copyImage() {
+        this.setSnapshotButtonsActive(false);
+        this.status = Text.translatable("quickcraft.litematica.preview_3d.copying");
+        this.manager.copyImage(EXPORT_RESOLUTIONS[this.resolutionIndex], this.backgroundColor(), message -> {
+            this.status = message;
+            this.setSnapshotButtonsActive(true);
+        });
+    }
+
+    private void setSnapshotButtonsActive(boolean active) {
+        this.exportButton.active = active;
+        this.copyButton.active = active;
     }
 
     private void openOutputFolder() {
