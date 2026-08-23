@@ -288,7 +288,7 @@ public final class QuickLitematicaPreview3D {
                 return;
             }
 
-            Path path = entry.getFullPath().toPath().toAbsolutePath().normalize();
+            Path path = entry.getFullPath().toAbsolutePath().normalize();
             if (!path.equals(this.currentPath)) {
                 this.switchTo(path, entry);
             }
