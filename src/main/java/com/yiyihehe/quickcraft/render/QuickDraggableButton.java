@@ -69,7 +69,7 @@ public class QuickDraggableButton extends ButtonWidget {
 
     @Override
     public boolean mouseClicked(double mouseX, double mouseY, int button) {
-        if (!QuickCraftConfigs.isActionButtonDraggingEnabled() || !Screen.hasShiftDown() || !this.clicked(mouseX, mouseY)) {
+        if (!QuickCraftConfigs.isActionButtonDraggingEnabled() || !Screen.hasShiftDown() || !this.isMouseOver(mouseX, mouseY)) {
             return super.mouseClicked(mouseX, mouseY, button);
         }
         if (button == 0) {
