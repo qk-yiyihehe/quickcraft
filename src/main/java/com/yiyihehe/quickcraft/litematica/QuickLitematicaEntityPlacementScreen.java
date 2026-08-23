@@ -2,7 +2,7 @@ package com.yiyihehe.quickcraft.litematica;
 
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.gui.screen.Screen;
-import net.minecraft.client.render.RenderLayer;
+import net.minecraft.client.gl.RenderPipelines;
 import net.minecraft.item.ItemStack;
 import net.minecraft.text.Text;
 import net.minecraft.util.Identifier;
@@ -57,7 +57,7 @@ final class QuickLitematicaEntityPlacementScreen extends Screen {
         int left = (this.width - PANEL_WIDTH) / 2;
         int top = (this.height - PANEL_HEIGHT) / 2;
         boolean serverAvailable = QuickLitematicaEntityPlacement.isServerAvailable();
-        context.drawTexture(RenderLayer::getGuiTextured, CHEST_TEXTURE,
+        context.drawTexture(RenderPipelines.GUI_TEXTURED, CHEST_TEXTURE,
                 left, top, 0, 0, PANEL_WIDTH, PANEL_HEIGHT, 256, 256);
         context.drawCenteredTextWithShadow(this.textRenderer, this.title, this.width / 2, top + 6, 0xFFFFFF);
 
@@ -197,7 +197,7 @@ final class QuickLitematicaEntityPlacementScreen extends Screen {
                 ? yBelow
                 : Math.max(4, mouseY - height - 16);
         if (preview.type() == QuickLitematicaEntityPlacement.ContainerPreviewType.HOPPER) {
-            context.drawTexture(RenderLayer::getGuiTextured, HOPPER_TEXTURE, x, y,
+            context.drawTexture(RenderPipelines.GUI_TEXTURED, HOPPER_TEXTURE, x, y,
                     HOPPER_CROP_X, HOPPER_CROP_Y, HOPPER_CROP_WIDTH, HOPPER_CROP_HEIGHT, 256, 256);
             List<ItemStack> stacks = candidate.getStoredStacks(this.client, preview.size());
             for (int slot = 0; slot < stacks.size(); slot++) {
@@ -205,7 +205,7 @@ final class QuickLitematicaEntityPlacementScreen extends Screen {
             }
         } else {
             int rows = preview.size() / 9;
-            context.drawTexture(RenderLayer::getGuiTextured, CHEST_TEXTURE,
+            context.drawTexture(RenderPipelines.GUI_TEXTURED, CHEST_TEXTURE,
                     x, y, 0, 0, width, rows * 18 + 17, 256, 256);
             List<ItemStack> stacks = candidate.getStoredStacks(this.client, preview.size());
             for (int slot = 0; slot < stacks.size(); slot++) {
