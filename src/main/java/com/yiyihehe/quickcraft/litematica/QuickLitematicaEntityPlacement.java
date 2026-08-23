@@ -351,7 +351,7 @@ public final class QuickLitematicaEntityPlacement {
         if (!normalizeEntityTreeIds(nbt, 0)) {
             return null;
         }
-        Identifier entityId = Identifier.tryParse(nbt.getString("id"));
+        Identifier entityId = Identifier.tryParse(nbt.getString("id", ""));
         EntityType<?> type = Registries.ENTITY_TYPE.get(entityId);
         List<ItemStack> materials = getMaterials(type, nbt);
         if (materials.isEmpty()) {
@@ -425,10 +425,10 @@ public final class QuickLitematicaEntityPlacement {
             return false;
         }
 
-        NbtList passengers = nbt.getList("Passengers", 10);
+        NbtList passengers = nbt.getListOrEmpty("Passengers");
         for (int index = 0; index < passengers.size(); index++) {
-            NbtCompound passenger = passengers.getCompound(index);
-            Identifier id = Identifier.tryParse(passenger.getString("id"));
+            NbtCompound passenger = passengers.getCompoundOrEmpty(index);
+            Identifier id = Identifier.tryParse(passenger.getString("id", ""));
             if (id == null || !Registries.ENTITY_TYPE.containsId(id)
                     || !appendEntityTreeMaterials(Registries.ENTITY_TYPE.get(id), passenger,
                     materials, depth + 1, entityCount)) {
@@ -440,7 +440,7 @@ public final class QuickLitematicaEntityPlacement {
 
     private static ItemStack getBaseMaterial(EntityType<?> type, NbtCompound nbt) {
         if (type == EntityType.ITEM && nbt.contains("Item")) {
-            return ItemStack.fromNbt(MinecraftClient.getInstance().world.getRegistryManager(), nbt.getCompound("Item"))
+            return ItemStack.fromNbt(MinecraftClient.getInstance().world.getRegistryManager(), nbt.getCompoundOrEmpty("Item"))
                     .orElse(ItemStack.EMPTY);
         }
         SpawnEggItem spawnEgg = SpawnEggItem.forEntity(type);
@@ -460,8 +460,8 @@ public final class QuickLitematicaEntityPlacement {
             case "furnace_minecart" -> Items.FURNACE_MINECART;
             case "tnt_minecart" -> Items.TNT_MINECART;
             case "hopper_minecart" -> Items.HOPPER_MINECART;
-            case "boat" -> getBoatItem(nbt.getString("Type"), false);
-            case "chest_boat" -> getBoatItem(nbt.getString("Type"), true);
+            case "boat" -> getBoatItem(nbt.getString("Type", ""), false);
+            case "chest_boat" -> getBoatItem(nbt.getString("Type", ""), true);
             default -> getSplitBoatItem(entityId);
         };
         return item == null ? ItemStack.EMPTY : new ItemStack(item);
@@ -471,7 +471,7 @@ public final class QuickLitematicaEntityPlacement {
         if (depth > MAX_ENTITY_TREE_DEPTH) {
             return false;
         }
-        Identifier id = Identifier.tryParse(nbt.getString("id"));
+        Identifier id = Identifier.tryParse(nbt.getString("id", ""));
         if (id == null) {
             return false;
         }
@@ -483,9 +483,9 @@ public final class QuickLitematicaEntityPlacement {
             nbt.putString("id", id.toString());
         }
 
-        NbtList passengers = nbt.getList("Passengers", 10);
+        NbtList passengers = nbt.getListOrEmpty("Passengers");
         for (int index = 0; index < passengers.size(); index++) {
-            if (!normalizeEntityTreeIds(passengers.getCompound(index), depth + 1)) {
+            if (!normalizeEntityTreeIds(passengers.getCompoundOrEmpty(index), depth + 1)) {
                 return false;
             }
         }
@@ -500,7 +500,7 @@ public final class QuickLitematicaEntityPlacement {
         if (!chestBoat && !id.getPath().equals("boat")) {
             return null;
         }
-        String path = getSplitBoatPath(nbt.getString("Type"), chestBoat);
+        String path = getSplitBoatPath(nbt.getString("Type", ""), chestBoat);
         return path == null ? null : Identifier.ofVanilla(path);
     }
 
@@ -539,7 +539,7 @@ public final class QuickLitematicaEntityPlacement {
         if (!entityNbt.contains(key)) {
             return true;
         }
-        NbtCompound itemNbt = entityNbt.getCompound(key);
+        NbtCompound itemNbt = entityNbt.getCompoundOrEmpty(key);
         if (itemNbt.isEmpty()) {
             return true;
         }
@@ -568,18 +568,18 @@ public final class QuickLitematicaEntityPlacement {
         if (!entityNbt.contains(key)) {
             return true;
         }
-        NbtList items = entityNbt.getList(key, 10);
+        NbtList items = entityNbt.getListOrEmpty(key);
         if (capacity < 0 && !items.isEmpty()) {
             return false;
         }
         Set<Integer> slots = capacity > 0 ? new HashSet<>() : null;
         for (int index = 0; index < items.size(); index++) {
-            NbtCompound itemNbt = items.getCompound(index);
+            NbtCompound itemNbt = items.getCompoundOrEmpty(index);
             if (itemNbt.isEmpty()) {
                 continue;
             }
             if (capacity > 0) {
-                int slot = itemNbt.getByte("Slot") & 255;
+                int slot = itemNbt.getByte("Slot", (byte) 0) & 255;
                 if (!itemNbt.contains("Slot") || slot >= capacity || !slots.add(slot)) {
                     return false;
                 }
@@ -600,7 +600,7 @@ public final class QuickLitematicaEntityPlacement {
     private static boolean isChestedHorse(EntityType<?> type, NbtCompound nbt) {
         String path = Registries.ENTITY_TYPE.getId(type).getPath();
         return switch (path) {
-            case "donkey", "mule", "llama", "trader_llama" -> nbt.getBoolean("ChestedHorse");
+            case "donkey", "mule", "llama", "trader_llama" -> nbt.getBoolean("ChestedHorse", false);
             default -> false;
         };
     }
@@ -613,17 +613,17 @@ public final class QuickLitematicaEntityPlacement {
         return switch (path) {
             case "hopper_minecart" -> 5;
             case "chest_minecart", "chest_boat" -> 27;
-            case "donkey", "mule" -> nbt.getBoolean("ChestedHorse") ? 15 : -1;
+            case "donkey", "mule" -> nbt.getBoolean("ChestedHorse", false) ? 15 : -1;
             case "llama", "trader_llama" -> llamaContainerCapacity(nbt);
             default -> -1;
         };
     }
 
     private static int llamaContainerCapacity(NbtCompound nbt) {
-        if (!nbt.getBoolean("ChestedHorse")) {
+        if (!nbt.getBoolean("ChestedHorse", false)) {
             return -1;
         }
-        int strength = nbt.getInt("Strength");
+        int strength = nbt.getInt("Strength", 0);
         return strength >= 1 && strength <= 5 ? strength * 3 : Integer.MIN_VALUE;
     }
 
@@ -725,9 +725,9 @@ public final class QuickLitematicaEntityPlacement {
         transformFacing(nbt, "facing", placement, subRegion);
         transformDecorationPosition(nbt, placement, subRegion, blockOffset);
 
-        NbtList passengers = nbt.getList("Passengers", 10);
+        NbtList passengers = nbt.getListOrEmpty("Passengers");
         for (int index = 0; index < passengers.size(); index++) {
-            transformEntityTreeState(passengers.getCompound(index), placement, subRegion, blockOffset, depth + 1);
+            transformEntityTreeState(passengers.getCompoundOrEmpty(index), placement, subRegion, blockOffset, depth + 1);
         }
     }
 
@@ -740,7 +740,11 @@ public final class QuickLitematicaEntityPlacement {
         if (!nbt.contains("TileX") || !nbt.contains("TileY") || !nbt.contains("TileZ")) {
             return;
         }
-        BlockPos position = new BlockPos(nbt.getInt("TileX"), nbt.getInt("TileY"), nbt.getInt("TileZ"));
+        BlockPos position = new BlockPos(
+                nbt.getInt("TileX", 0),
+                nbt.getInt("TileY", 0),
+                nbt.getInt("TileZ", 0)
+        );
         position = PositionUtils.getTransformedBlockPos(position, placement.getMirror(), placement.getRotation());
         position = PositionUtils.getTransformedBlockPos(position, subRegion.getMirror(), subRegion.getRotation());
         position = position.add(blockOffset);
@@ -758,25 +762,31 @@ public final class QuickLitematicaEntityPlacement {
         if (!nbt.contains(key)) {
             return;
         }
-        Direction direction = Direction.byId(nbt.getByte(key));
+        Direction direction = Direction.byIndex(nbt.getByte(key, (byte) 0));
         Vec3d transformed = transformVector(Vec3d.of(direction.getVector()), placement, subRegion);
-        nbt.putByte(key, (byte) Direction.getFacing(transformed).getId());
+        nbt.putByte(key, (byte) Direction.getFacing(transformed).getIndex());
     }
 
     private static float readRotation(NbtCompound nbt, int index) {
         if (!nbt.contains("Rotation")) {
             return 0.0F;
         }
-        var rotation = nbt.getList("Rotation", 5);
-        return rotation.size() > index ? rotation.getFloat(index) : 0.0F;
+        var rotation = nbt.getListOrEmpty("Rotation");
+        return rotation.size() > index ? rotation.getFloat(index, 0.0F) : 0.0F;
     }
 
     private static Vec3d readMotion(NbtCompound nbt) {
         if (!nbt.contains("Motion")) {
             return Vec3d.ZERO;
         }
-        var motion = nbt.getList("Motion", 6);
-        return motion.size() == 3 ? new Vec3d(motion.getDouble(0), motion.getDouble(1), motion.getDouble(2)) : Vec3d.ZERO;
+        var motion = nbt.getListOrEmpty("Motion");
+        return motion.size() == 3
+                ? new Vec3d(
+                        motion.getDouble(0, 0.0D),
+                        motion.getDouble(1, 0.0D),
+                        motion.getDouble(2, 0.0D)
+                )
+                : Vec3d.ZERO;
     }
 
     static final class Candidate {
@@ -844,7 +854,7 @@ public final class QuickLitematicaEntityPlacement {
             if (client.player.isCreative() && QuickCraftConfigs.isCreativeEntityPlacementAllowed()) {
                 return true;
             }
-            return materials.stream().allMatch(required -> client.player.getInventory().main.stream()
+            return materials.stream().allMatch(required -> client.player.getInventory().getMainStacks().stream()
                     .filter(stack -> ItemStack.areItemsAndComponentsEqual(stack, required))
                     .mapToInt(ItemStack::getCount)
                     .sum() >= required.getCount());
@@ -870,9 +880,9 @@ public final class QuickLitematicaEntityPlacement {
 
         private static int countEntityTree(NbtCompound root) {
             int count = 1;
-            NbtList passengers = root.getList("Passengers", 10);
+            NbtList passengers = root.getListOrEmpty("Passengers");
             for (int index = 0; index < passengers.size(); index++) {
-                count += countEntityTree(passengers.getCompound(index));
+                count += countEntityTree(passengers.getCompoundOrEmpty(index));
             }
             return count;
         }
@@ -882,10 +892,10 @@ public final class QuickLitematicaEntityPlacement {
             if (client == null || client.world == null || !nbt.contains("Items")) {
                 return stacks;
             }
-            var items = nbt.getList("Items", 10);
+            var items = nbt.getListOrEmpty("Items");
             for (int i = 0; i < items.size(); i++) {
-                var itemNbt = items.getCompound(i);
-                int slot = itemNbt.getByte("Slot") & 255;
+                var itemNbt = items.getCompoundOrEmpty(i);
+                int slot = itemNbt.getByte("Slot", (byte) 0) & 255;
                 if (slot >= 0 && slot < size) {
                     ItemStack.fromNbt(client.world.getRegistryManager(), itemNbt)
                             .ifPresent(stack -> stacks.set(slot, stack));
@@ -928,15 +938,15 @@ public final class QuickLitematicaEntityPlacement {
         }
 
         private static boolean matchesPassengerTree(NbtCompound expected, Entity actual) {
-            NbtList expectedPassengers = expected.getList("Passengers", 10);
+            NbtList expectedPassengers = expected.getListOrEmpty("Passengers");
             List<Entity> actualPassengers = actual.getPassengerList();
             if (expectedPassengers.size() != actualPassengers.size()) {
                 return false;
             }
             for (int index = 0; index < expectedPassengers.size(); index++) {
-                NbtCompound expectedPassenger = expectedPassengers.getCompound(index);
+                NbtCompound expectedPassenger = expectedPassengers.getCompoundOrEmpty(index);
                 Entity actualPassenger = actualPassengers.get(index);
-                Identifier expectedId = Identifier.tryParse(expectedPassenger.getString("id"));
+                Identifier expectedId = Identifier.tryParse(expectedPassenger.getString("id", ""));
                 if (expectedId == null
                         || actualPassenger.getType() != Registries.ENTITY_TYPE.get(expectedId)
                         || !containsProjectedData(
