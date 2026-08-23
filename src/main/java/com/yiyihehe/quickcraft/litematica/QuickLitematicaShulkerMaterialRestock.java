@@ -21,7 +21,7 @@ import net.minecraft.item.Item;
 import net.minecraft.item.ItemPlacementContext;
 import net.minecraft.item.ItemStack;
 import net.minecraft.item.ItemUsageContext;
-import net.minecraft.item.MiningToolItem;
+import fi.dy.masa.malilib.util.EquipmentUtils;
 import net.minecraft.network.packet.CustomPayload;
 import net.minecraft.screen.ScreenHandler;
 import net.minecraft.screen.ShulkerBoxScreenHandler;
@@ -817,7 +817,7 @@ public final class QuickLitematicaShulkerMaterialRestock implements ClientModIni
             return -1;
         }
 
-        int selectedSlot = inventory.selectedSlot;
+        int selectedSlot = inventory.getSelectedSlot();
         if (configuredSlots.contains(selectedSlot) && isLitematicaPickBlockTarget(inventory, selectedSlot)) {
             return selectedSlot;
         }
@@ -849,7 +849,7 @@ public final class QuickLitematicaShulkerMaterialRestock implements ClientModIni
         ItemStack stack = inventory.getStack(slot);
         return !isShulkerBox(stack)
                 && (!Configs.Generic.PICK_BLOCK_AVOID_DAMAGEABLE.getBooleanValue() || !stack.isDamageable())
-                && (!Configs.Generic.PICK_BLOCK_AVOID_TOOLS.getBooleanValue() || !(stack.getItem() instanceof MiningToolItem));
+                && (!Configs.Generic.PICK_BLOCK_AVOID_TOOLS.getBooleanValue() || !EquipmentUtils.isRegularTool(stack));
     }
 
     private static Slot findPlayerMaterialSlot(ShulkerBoxScreenHandler handler, Item item) {
