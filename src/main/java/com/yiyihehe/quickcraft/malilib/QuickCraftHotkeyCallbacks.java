@@ -134,7 +134,7 @@ public final class QuickCraftHotkeyCallbacks {
             return false;
         }
 
-        if (QuickCraftConfigs.isWorkbenchQuickCraftEnabled() && client.gui.screen() instanceof CraftingScreen) {
+        if (QuickCraftConfigs.isWorkbenchQuickCraftFeatureEnabled() && client.gui.screen() instanceof CraftingScreen) {
             return true;
         }
         if (QuickCraftConfigs.isBackpackQuickCraftEnabled() && client.gui.screen() instanceof InventoryScreen) {

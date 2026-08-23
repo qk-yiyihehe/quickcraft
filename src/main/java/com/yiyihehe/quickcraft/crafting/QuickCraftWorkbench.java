@@ -69,6 +69,12 @@ public class QuickCraftWorkbench implements ClientModInitializer {
 
     private ItemStack lockedResultTemplate = ItemStack.EMPTY;
 
+    private boolean quickShulkerDirectRecipe = false;
+
+    private boolean stopAfterShulkerTask = false;
+
+    private Component pendingStopMessage;
+
     private enum ManualPatternState {
         COMPLETE,
         MISSING,
@@ -88,9 +94,36 @@ public class QuickCraftWorkbench implements ClientModInitializer {
         return INSTANCE.handleCraftButton(Minecraft.getInstance(), rapidCraft);
     }
 
+    public static boolean shouldSuppressRecipeGhostSlots() {
+        return (INSTANCE != null && INSTANCE.rapidCraftingActive) || QuickCraftWorkbenchShulker.isBusy();
+    }
+
+    private static void clearWorkbenchRecipeGhostSlots() {
+        Minecraft client = Minecraft.getInstance();
+        if (client.screen instanceof CraftingScreen screen) {
+            ((com.yiyihehe.quickcraft.mixin.RecipeBookScreenAccessor) (Object) screen)
+                    .quickcraft$getRecipeBook()
+                    .slotClicked(screen.getMenu().getSlot(OUTPUT_SLOT));
+        }
+    }
+
     private void onClientTick(Minecraft client) {
         if (!QuickCraftConfigs.isWorkbenchQuickCraftEnabled()) {
+            if (QuickCraftWorkbenchShulker.isBusy()) {
+                QuickCraftWorkbenchShulker.requestStopAfterCurrentAction();
+                QuickCraftWorkbenchShulker.tick(client);
+                if (QuickCraftWorkbenchShulker.consumeResult() != QuickCraftWorkbenchShulker.TaskResult.NONE) {
+                    QuickCraftWorkbenchShulker.consumeMessage();
+                    resetAll();
+                }
+                return;
+            }
             resetAll();
+            return;
+        }
+
+        if (QuickCraftWorkbenchShulker.isBusy()) {
+            processQuickShulkerTask(client);
             return;
         }
 
@@ -133,7 +166,8 @@ public class QuickCraftWorkbench implements ClientModInitializer {
             if (progressed) {
                 anyProgress = true;
             }
-            if (!rapidCraftingActive || craftingResultWaitTicks > 0 || manualGridSyncWaitTicks > 0) {
+            if (!rapidCraftingActive || craftingResultWaitTicks > 0 || manualGridSyncWaitTicks > 0
+                    || QuickCraftWorkbenchShulker.isBusy()) {
                 break;
             }
             if (!progressed) {
@@ -144,6 +178,11 @@ public class QuickCraftWorkbench implements ClientModInitializer {
         if (anyProgress) {
             consecutiveFailures = 0;
         } else {
+            QuickCraftWorkbenchShulker.RefillStart refillStart = tryBeginQuickShulkerRefill(handler);
+            if (refillStart == QuickCraftWorkbenchShulker.RefillStart.STARTED) {
+                consecutiveFailures = 0;
+                return;
+            }
             consecutiveFailures++;
 
             if (consecutiveFailures >= MAX_CONSECUTIVE_FAILURES) {
@@ -191,6 +230,10 @@ public class QuickCraftWorkbench implements ClientModInitializer {
                 return thrown;
             }
 
+            if (isQuickShulkerRapidMode()) {
+                return throwCraftingOutput(client, handler);
+            }
+
             if (canPlayerInventoryAccept(handler, resultTemplate)) {
                 return tryTakeOutputForRecipe(client, handler, recipe);
             }
@@ -208,6 +251,10 @@ public class QuickCraftWorkbench implements ClientModInitializer {
             return throwCraftingOutput(client, handler);
         }
 
+        if (tryDirectShulkerRefill(client, handler)) {
+            return true;
+        }
+
         if (restockCraftingGrid(client, handler, recipe)) {
             if (rapidCraftingActive && !handler.getSlot(OUTPUT_SLOT).hasItem()) {
                 craftingResultWaitTicks = CRAFTING_RESULT_WAIT_TICKS;
@@ -219,6 +266,42 @@ public class QuickCraftWorkbench implements ClientModInitializer {
         }
 
         return false;
+    }
+
+    private boolean tryDirectShulkerRefill(Minecraft client,
+                                           CraftingMenu handler) {
+        if (!isQuickShulkerRapidMode()) {
+            return false;
+        }
+
+        fillManualPatternStacks(client, handler);
+        if (getManualPatternState(handler) == ManualPatternState.COMPLETE) {
+            craftingResultWaitTicks = CRAFTING_RESULT_WAIT_TICKS;
+            return true;
+        }
+        QuickCraftWorkbenchShulker.RefillStart refillStart = tryBeginQuickShulkerRefill(handler);
+        if (refillStart == QuickCraftWorkbenchShulker.RefillStart.STARTED) {
+            clearWorkbenchRecipeGhostSlots();
+            if (QuickCraftConfigs.getQuickShulkerActionIntervalTicks() == 0) {
+                QuickCraftWorkbenchShulker.tick(client);
+                QuickCraftWorkbenchShulker.TaskResult immediateResult = QuickCraftWorkbenchShulker.consumeResult();
+                if (immediateResult == QuickCraftWorkbenchShulker.TaskResult.REFILLED) {
+                    QuickCraftWorkbenchShulker.consumeMessage();
+                    consecutiveFailures = 0;
+                    craftingResultWaitTicks = CRAFTING_RESULT_WAIT_TICKS;
+                    return true;
+                }
+                if (immediateResult == QuickCraftWorkbenchShulker.TaskResult.STOPPED) {
+                    Component message = QuickCraftWorkbenchShulker.consumeMessage();
+                    stopRapidCraft(client, message != null
+                            ? message
+                            : Component.translatable("quickcraft.message.crafting.no_ingredients"));
+                }
+            }
+        } else {
+            stopRapidCraft(client, Component.translatable("quickcraft.message.crafting.no_ingredients"));
+        }
+        return true;
     }
 
     private boolean waitForCraftingResult(Minecraft client, CraftingMenu handler) {
@@ -233,7 +316,10 @@ public class QuickCraftWorkbench implements ClientModInitializer {
 
         craftingResultWaitTicks--;
         if (craftingResultWaitTicks <= 0) {
-            stopRapidCraft(client, Component.translatable("quickcraft.message.crafting.no_ingredients"));
+            QuickCraftWorkbenchShulker.RefillStart refillStart = tryBeginQuickShulkerRefill(handler);
+            if (refillStart != QuickCraftWorkbenchShulker.RefillStart.STARTED) {
+                stopRapidCraft(client, Component.translatable("quickcraft.message.crafting.no_ingredients"));
+            }
         }
         return true;
     }
@@ -290,6 +376,8 @@ public class QuickCraftWorkbench implements ClientModInitializer {
             return false;
         }
         try {
+            // 原版 RecipeBookComponent.mouseClicked 会先清空幽灵槽；程序化点击也保持相同顺序。
+            clearWorkbenchRecipeGhostSlots();
             client.gameMode.handlePlaceRecipe(handler.containerId, lockedNetworkRecipeId, true);
             client.player.removeRecipeHighlight(lockedNetworkRecipeId);
             if (rapidCraftingActive && !handler.getSlot(OUTPUT_SLOT).hasItem()) {
@@ -937,6 +1025,7 @@ public class QuickCraftWorkbench implements ClientModInitializer {
                 ? handler.getSlot(OUTPUT_SLOT).getItem().copy()
                 : ItemStack.EMPTY;
         lockedNetworkRecipeId = findCurrentNetworkRecipeId(Minecraft.getInstance(), handler, lockedResultTemplate);
+        quickShulkerDirectRecipe = supportsQuickShulkerDirectRecipe(handler, recipe);
     }
 
     private boolean hasLockedCraftingPlan() {
@@ -1037,11 +1126,7 @@ public class QuickCraftWorkbench implements ClientModInitializer {
         }
 
         if (moved && rapidCraftingActive) {
-            dropMatchingResultsFromInventory(
-                    client,
-                    handler,
-                    getRecipeResultStack(client, recipe)
-            );
+            dropMatchingResultsFromInventory(client, handler, getRecipeResultStack(client, recipe));
         }
         return moved;
     }
@@ -1282,11 +1367,22 @@ public class QuickCraftWorkbench implements ClientModInitializer {
 
         rapidCraftingActive = true;
         rapidCraftStartedByButton = fromButton;
+        clearWorkbenchRecipeGhostSlots();
         rapidCooldown = 0;
         consecutiveFailures = 0;
         craftingResultWaitTicks = 0;
         manualGridSyncWaitTicks = 0;
-        sendStatusMessage(client, Component.translatable("quickcraft.message.crafting.started"));
+        stopAfterShulkerTask = false;
+        pendingStopMessage = null;
+        Component startMessage = Component.translatable("quickcraft.message.crafting.started");
+        if (QuickCraftWorkbenchShulker.isConfigured()) {
+            startMessage = !QuickCraftWorkbenchShulker.isAvailable()
+                    ? Component.translatable("quickcraft.message.crafting.shulker_unavailable")
+                    : !quickShulkerDirectRecipe
+                    ? Component.translatable("quickcraft.message.crafting.shulker_recipe_remainder")
+                    : startMessage;
+        }
+        sendStatusMessage(client, startMessage);
         return true;
     }
 
@@ -1324,17 +1420,41 @@ public class QuickCraftWorkbench implements ClientModInitializer {
     }
 
     private void stopRapidCraft(Minecraft client, Component message) {
-        if (hasLockedCraftingPlan() && QuickCraftConfigs.isDropCraftResultsOnStopEnabled()) {
-            dropCraftResultsAfterStop(client, (CraftingMenu) client.player.containerMenu, lockedRecipe);
+        rapidCraftingActive = false;
+        rapidCraftStartedByButton = false;
+        rapidCooldown = 0;
+        if (QuickCraftWorkbenchShulker.isBusy()) {
+            stopAfterShulkerTask = true;
+            pendingStopMessage = message;
+            QuickCraftWorkbenchShulker.requestStopAfterCurrentAction();
+            return;
         }
 
+        if (hasLockedCraftingPlan() && QuickCraftConfigs.isDropCraftResultsOnStopEnabled()) {
+            CraftingMenu handler = client.player.containerMenu instanceof CraftingMenu craftingHandler
+                    ? craftingHandler
+                    : null;
+            if (handler != null) {
+                dropCraftResultsAfterStop(client, handler, lockedRecipe);
+            }
+        }
+
+        finishRapidCraft(client, message);
+    }
+
+    private void finishRapidCraft(Minecraft client, Component message) {
         rapidCraftingActive = false;
         rapidCraftStartedByButton = false;
         rapidCooldown = 0;
         consecutiveFailures = 0;
         craftingResultWaitTicks = 0;
         manualGridSyncWaitTicks = 0;
-        sendStatusMessage(client, message);
+        stopAfterShulkerTask = false;
+        pendingStopMessage = null;
+        clearWorkbenchRecipeGhostSlots();
+        if (message != null) {
+            sendStatusMessage(client, message);
+        }
     }
 
     private void resetAll() {
@@ -1348,6 +1468,10 @@ public class QuickCraftWorkbench implements ClientModInitializer {
         lockedCraftingPattern.clear();
         lockedNetworkRecipeId = null;
         lockedResultTemplate = ItemStack.EMPTY;
+        quickShulkerDirectRecipe = false;
+        stopAfterShulkerTask = false;
+        pendingStopMessage = null;
+        QuickCraftWorkbenchShulker.reset();
         lastVDown = false;
         lastAltCDown = false;
     }
@@ -1371,6 +1495,72 @@ public class QuickCraftWorkbench implements ClientModInitializer {
         if (!resultTemplate.isEmpty()) {
             dropMatchingResultsFromInventory(client, handler, resultTemplate);
         }
+    }
+
+    private boolean supportsQuickShulkerDirectRecipe(CraftingMenu handler,
+                                                      RecipeHolder<CraftingRecipe> recipe) {
+        if (recipe == null) {
+            return false;
+        }
+        try {
+            boolean hasRemainder = false;
+            for (ItemStack remainder : recipe.value().getRemainder(getCraftingRecipeInput(handler))) {
+                hasRemainder |= !remainder.isEmpty();
+            }
+            return canDirectFillRecipe(true, hasRemainder);
+        } catch (Throwable t) {
+            return false;
+        }
+    }
+
+    static boolean canDirectFillRecipe(boolean recipeKnown, boolean hasRemainder) {
+        return recipeKnown && !hasRemainder;
+    }
+
+    private boolean isQuickShulkerRapidMode() {
+        return rapidCraftingActive && quickShulkerDirectRecipe && QuickCraftWorkbenchShulker.isAvailable();
+    }
+
+    private QuickCraftWorkbenchShulker.RefillStart tryBeginQuickShulkerRefill(CraftingMenu handler) {
+        if (!isQuickShulkerRapidMode() || QuickCraftWorkbenchShulker.isBusy()) {
+            return QuickCraftWorkbenchShulker.RefillStart.NOT_STARTED;
+        }
+        return QuickCraftWorkbenchShulker.beginRefill(handler, lockedCraftingPattern);
+    }
+
+    private void processQuickShulkerTask(Minecraft client) {
+        if (rapidCraftingActive && !isRapidCraftInputHeld(client)) {
+            stopRapidCraft(client, Component.translatable("quickcraft.message.crafting.stopped"));
+        }
+
+        QuickCraftWorkbenchShulker.tick(client);
+        QuickCraftWorkbenchShulker.TaskResult result = QuickCraftWorkbenchShulker.consumeResult();
+        if (result == QuickCraftWorkbenchShulker.TaskResult.NONE) {
+            return;
+        }
+
+        Component taskMessage = QuickCraftWorkbenchShulker.consumeMessage();
+        if (result == QuickCraftWorkbenchShulker.TaskResult.STOPPED || stopAfterShulkerTask) {
+            Component finalMessage = taskMessage != null ? taskMessage : pendingStopMessage;
+            if (QuickCraftConfigs.isDropCraftResultsOnStopEnabled()
+                    && client.player != null
+                    && client.player.containerMenu instanceof CraftingMenu handler) {
+                dropCraftResultsAfterStop(client, handler, lockedRecipe);
+            }
+            finishRapidCraft(client, finalMessage);
+            return;
+        }
+        if (taskMessage != null) {
+            sendStatusMessage(client, taskMessage);
+        }
+        consecutiveFailures = 0;
+        craftingResultWaitTicks = CRAFTING_RESULT_WAIT_TICKS;
+    }
+
+    private boolean isRapidCraftInputHeld(Minecraft client) {
+        return rapidCraftStartedByButton
+                ? isCraftButtonRapidModeHeld(client)
+                : QuickCraftConfigs.getRapidCraftHotkey().isKeybindHeld();
     }
 
 }

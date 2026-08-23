@@ -4,7 +4,7 @@ import com.yiyihehe.quickcraft.QuickContainerLock;
 import com.yiyihehe.quickcraft.config.QuickCraftConfigs;
 import com.yiyihehe.quickcraft.crafting.QuickCraftBackpack;
 import com.yiyihehe.quickcraft.crafting.QuickCraftStonecutter;
-import com.yiyihehe.quickcraft.crafting.QuickCraftWorkbench;
+import com.yiyihehe.quickcraft.crafting.QuickCraftWorkbenchRouter;
 import com.yiyihehe.quickcraft.render.QuickContainerLockButton;
 import com.yiyihehe.quickcraft.render.QuickDraggableButton;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
@@ -40,7 +40,7 @@ public abstract class CraftActionButtonMixin extends AbstractContainerScreen<Cra
 
     @Inject(method = "init", at = @At("TAIL"))
     private void quickcraft$addCraftButton(CallbackInfo ci) {
-        if (!QuickCraftConfigs.isWorkbenchQuickCraftEnabled()
+        if (!QuickCraftConfigs.isWorkbenchQuickCraftFeatureEnabled()
                 || !QuickCraftConfigs.isCraftActionButtonVisible()) {
             return;
         }
@@ -50,18 +50,24 @@ public abstract class CraftActionButtonMixin extends AbstractContainerScreen<Cra
         int buttonY = this.topPos + this.getMenu().getSlot(0).y + 13;
         this.quickcraft$craftButton = this.addRenderableWidget(new QuickDraggableButton(
                 buttonX, buttonY, 10, 10, Component.literal("Q"),
-                button -> QuickCraftWorkbench.handleWorkbenchCraftButton(quickcraft$isAltDown()),
+                button -> QuickCraftWorkbenchRouter.handleCraftButton(quickcraft$isAltDown()),
                 QuickDraggableButton.PositionKey.WORKBENCH_CRAFT
         ));
     }
 
     @Inject(method = "extractBackground", at = @At("HEAD"))
     private void quickcraft$syncCraftButton(GuiGraphicsExtractor context, int mouseX, int mouseY, float delta, CallbackInfo ci) {
+        if (QuickCraftWorkbenchRouter.shouldSuppressRecipeGhostSlots()) {
+            CraftingScreen screen = (CraftingScreen) (Object) this;
+            ((RecipeBookScreenAccessor) (Object) screen)
+                    .quickcraft$getRecipeBook()
+                    .slotClicked(screen.getMenu().getSlot(0));
+        }
         if (this.quickcraft$craftButton == null) {
             return;
         }
 
-        this.quickcraft$craftButton.visible = QuickCraftConfigs.isWorkbenchQuickCraftEnabled()
+        this.quickcraft$craftButton.visible = QuickCraftConfigs.isWorkbenchQuickCraftFeatureEnabled()
                 && QuickCraftConfigs.isCraftActionButtonVisible();
         this.quickcraft$craftButton.setDefaultPosition(
                 this.leftPos + this.getMenu().getSlot(0).x + 13,

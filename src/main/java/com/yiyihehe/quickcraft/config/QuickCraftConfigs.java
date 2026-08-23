@@ -159,10 +159,75 @@ public final class QuickCraftConfigs implements IConfigHandler {
         }
     }
 
+    public enum WorkbenchShulkerPipelineMode implements IConfigOptionListEntry {
+        RESPONSE_STABLE(
+                "response_stable",
+                "quickcraft.label.workbench_shulker_pipeline_mode.response_stable"),
+        BALANCED(
+                "balanced",
+                "quickcraft.label.workbench_shulker_pipeline_mode.balanced"),
+        COMBINED_ULTRA(
+                "combined_ultra",
+                "quickcraft.label.workbench_shulker_pipeline_mode.combined_ultra");
+
+        private final String configValue;
+        private final String translationKey;
+
+        WorkbenchShulkerPipelineMode(String configValue, String translationKey) {
+            this.configValue = configValue;
+            this.translationKey = translationKey;
+        }
+
+        @Override
+        public String getStringValue() {
+            return this.configValue;
+        }
+
+        @Override
+        public String getDisplayName() {
+            return StringUtils.translate(this.translationKey);
+        }
+
+        @Override
+        public IConfigOptionListEntry cycle(boolean forward) {
+            int next = this.ordinal() + (forward ? 1 : -1);
+            if (next < 0) {
+                next = values().length - 1;
+            } else if (next >= values().length) {
+                next = 0;
+            }
+            return values()[next];
+        }
+
+        @Override
+        public IConfigOptionListEntry fromString(String value) {
+            for (WorkbenchShulkerPipelineMode mode : values()) {
+                if (mode.configValue.equalsIgnoreCase(value)) {
+                    return mode;
+                }
+            }
+            return RESPONSE_STABLE;
+        }
+    }
+
     public static final class Crafting {
         public static final ConfigBooleanHotkeyed ENABLE_WORKBENCH = new ConfigBooleanHotkeyed(
                 "enableWorkbenchQuickCraft",
                 true,
+                ""
+        ).apply(CRAFTING_TRANSLATION_PREFIX);
+        public static final ConfigBooleanHotkeyed ENABLE_WORKBENCH_QUICK_SHULKER = new ConfigBooleanHotkeyed(
+                "enableWorkbenchQuickCraftWithQuickShulker",
+                false,
+                ""
+        ).apply(CRAFTING_TRANSLATION_PREFIX);
+        public static final ConfigOptionList WORKBENCH_QUICK_SHULKER_PIPELINE_MODE = new ConfigOptionList(
+                "workbenchQuickShulkerPipelineMode",
+                WorkbenchShulkerPipelineMode.RESPONSE_STABLE
+        ).apply(CRAFTING_TRANSLATION_PREFIX);
+        public static final ConfigBooleanHotkeyed ENABLE_WORKBENCH_QUICK_SHULKER_OUTPUT = new ConfigBooleanHotkeyed(
+                "enableWorkbenchQuickCraftOutputToShulker",
+                false,
                 ""
         ).apply(CRAFTING_TRANSLATION_PREFIX);
         public static final ConfigBooleanHotkeyed ENABLE_BACKPACK = new ConfigBooleanHotkeyed(
@@ -200,6 +265,9 @@ public final class QuickCraftConfigs implements IConfigHandler {
 
         public static final List<IConfigBase> OPTIONS = List.of(
                 ENABLE_WORKBENCH,
+                ENABLE_WORKBENCH_QUICK_SHULKER,
+                WORKBENCH_QUICK_SHULKER_PIPELINE_MODE,
+                ENABLE_WORKBENCH_QUICK_SHULKER_OUTPUT,
                 ENABLE_BACKPACK,
                 ENABLE_STONECUTTER,
                 ENABLE_ANVIL_RENAME,
@@ -797,6 +865,8 @@ public final class QuickCraftConfigs implements IConfigHandler {
     public static List<IHotkey> getAllHotkeys() {
         return List.of(
                 Crafting.ENABLE_WORKBENCH,
+                Crafting.ENABLE_WORKBENCH_QUICK_SHULKER,
+                Crafting.ENABLE_WORKBENCH_QUICK_SHULKER_OUTPUT,
                 Crafting.ENABLE_BACKPACK,
                 Crafting.ENABLE_STONECUTTER,
                 Crafting.ENABLE_ANVIL_RENAME,
@@ -856,6 +926,8 @@ public final class QuickCraftConfigs implements IConfigHandler {
     public static List<ConfigBooleanHotkeyed> getBooleanHotkeyConfigs() {
         return List.of(
                 Crafting.ENABLE_WORKBENCH,
+                Crafting.ENABLE_WORKBENCH_QUICK_SHULKER,
+                Crafting.ENABLE_WORKBENCH_QUICK_SHULKER_OUTPUT,
                 Crafting.ENABLE_BACKPACK,
                 Crafting.ENABLE_STONECUTTER,
                 Crafting.ENABLE_ANVIL_RENAME,
@@ -908,7 +980,31 @@ public final class QuickCraftConfigs implements IConfigHandler {
     }
 
     public static boolean isWorkbenchQuickCraftEnabled() {
+        return Crafting.ENABLE_WORKBENCH.getBooleanValue()
+                && !isWorkbenchQuickCraftWithQuickShulkerEnabled();
+    }
+
+    public static boolean isWorkbenchQuickCraftFeatureEnabled() {
         return Crafting.ENABLE_WORKBENCH.getBooleanValue();
+    }
+
+    public static boolean isWorkbenchQuickShulkerCraftEnabled() {
+        return isWorkbenchQuickCraftFeatureEnabled()
+                && isWorkbenchQuickCraftWithQuickShulkerEnabled();
+    }
+
+    public static boolean isWorkbenchQuickCraftWithQuickShulkerEnabled() {
+        return Crafting.ENABLE_WORKBENCH_QUICK_SHULKER.getBooleanValue()
+                && ModSupport.ENABLE_QUICK_SHULKER.getBooleanValue();
+    }
+
+    public static boolean isWorkbenchQuickCraftOutputToShulkerEnabled() {
+        return Crafting.ENABLE_WORKBENCH_QUICK_SHULKER_OUTPUT.getBooleanValue();
+    }
+
+    public static WorkbenchShulkerPipelineMode getWorkbenchQuickShulkerPipelineMode() {
+        return (WorkbenchShulkerPipelineMode)
+                Crafting.WORKBENCH_QUICK_SHULKER_PIPELINE_MODE.getOptionListValue();
     }
 
     public static boolean isBackpackQuickCraftEnabled() {
@@ -1310,6 +1406,14 @@ public final class QuickCraftConfigs implements IConfigHandler {
         ConfigUtils.readConfigBase(root, "Hotkeys", Hotkeys.OPTIONS);
         migrateBeaconRegenerationLevelName();
         readButtonPositions(root);
+
+        JsonObject crafting = root.getAsJsonObject("Crafting");
+        if (crafting != null
+                && !crafting.has("workbenchQuickShulkerPipelineMode")
+                && getLegacyEnabledValue(crafting.get("enableWorkbenchQuickShulkerUltraFast"))) {
+            Crafting.WORKBENCH_QUICK_SHULKER_PIPELINE_MODE.setOptionListValue(
+                    WorkbenchShulkerPipelineMode.COMBINED_ULTRA);
+        }
 
         JsonObject containerTools = root.getAsJsonObject("ContainerTools");
         if (containerTools != null) {
