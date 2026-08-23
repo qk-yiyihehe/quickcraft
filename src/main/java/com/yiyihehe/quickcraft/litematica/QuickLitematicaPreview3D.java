@@ -15,7 +15,6 @@ import com.sun.jna.platform.win32.BaseTSD;
 import com.sun.jna.win32.StdCallLibrary;
 import com.sun.jna.win32.W32APIOptions;
 import com.yiyihehe.quickcraft.config.QuickCraftConfigs;
-import fi.dy.masa.litematica.compat.iris.IrisCompat;
 import fi.dy.masa.litematica.render.schematic.ChunkCacheSchematic;
 import fi.dy.masa.litematica.render.schematic.WorldRendererSchematic;
 import fi.dy.masa.litematica.schematic.LitematicaSchematic;
@@ -319,12 +318,16 @@ public final class QuickLitematicaPreview3D {
 
     public static boolean isShaderPackActive() {
         try {
-            return IrisCompat.isShaderActive();
+            Class<?> apiClass = Class.forName("net.irisshaders.iris.api.v0.IrisApi");
+            Object api = apiClass.getMethod("getInstance").invoke(null);
+            return (boolean) apiClass.getMethod("isShaderPackInUse").invoke(api);
+        } catch (ClassNotFoundException ignored) {
+            return false;
         } catch (Throwable throwable) {
             if (SHADER_API_WARNING_LOGGED.compareAndSet(false, true)) {
                 LOGGER.warn("Iris shader state could not be queried; disabling QuickCraft 3D previews for this session", throwable);
             }
-            return IrisCompat.isIrisActive;
+            return true;
         }
     }
 
