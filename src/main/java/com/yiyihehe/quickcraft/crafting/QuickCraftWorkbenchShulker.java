@@ -16,9 +16,6 @@ import net.minecraft.screen.slot.Slot;
 import net.minecraft.screen.slot.SlotActionType;
 import net.minecraft.text.Text;
 import net.minecraft.util.Identifier;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashSet;
@@ -30,7 +27,6 @@ import java.util.Set;
  * 通过 Quick Shulker 的“光标持盒右键合成格”路径直接铺满配方，不打开潜影盒界面。
  */
 public final class QuickCraftWorkbenchShulker {
-    private static final Logger LOGGER = LoggerFactory.getLogger("QuickCraft/WorkbenchShulker");
     private static final int GRID_START = 1;
     private static final int GRID_END = 9;
     private static final int MAX_UNBUNDLE_CLICKS_PER_SOURCE = GRID_END - GRID_START + 1;
@@ -40,14 +36,11 @@ public final class QuickCraftWorkbenchShulker {
             Identifier.of("quickshulker", "open_shulker_packet");
 
     private static Task task;
-    private static long nextTaskId;
     private static TaskResult pendingResult = TaskResult.NONE;
     private static Text pendingMessage;
     private static TaskOwner pendingOwner;
-    private static long debugSessionStartedAtNanos;
-    private static int debugSessionTaskCount;
-    private static int debugSessionSourceBatches;
-    private static QuickCraftConfigs.WorkbenchShulkerPipelineMode debugSessionMode =
+    private static int sessionSourceBatches;
+    private static QuickCraftConfigs.WorkbenchShulkerPipelineMode sessionMode =
             QuickCraftConfigs.WorkbenchShulkerPipelineMode.RESPONSE_STABLE;
 
     private QuickCraftWorkbenchShulker() {
@@ -70,32 +63,18 @@ public final class QuickCraftWorkbenchShulker {
         return QuickCraftConfigs.isWorkbenchQuickCraftWithQuickShulkerEnabled();
     }
 
-    static void beginDebugSession(QuickCraftConfigs.WorkbenchShulkerPipelineMode mode) {
-        debugSessionStartedAtNanos = System.nanoTime();
-        debugSessionTaskCount = 0;
-        debugSessionSourceBatches = 0;
-        debugSessionMode = mode;
+    static void beginSession(QuickCraftConfigs.WorkbenchShulkerPipelineMode mode) {
+        sessionSourceBatches = 0;
+        sessionMode = mode;
     }
 
-    static void clearDebugSession() {
-        debugSessionStartedAtNanos = 0L;
-        debugSessionTaskCount = 0;
-        debugSessionSourceBatches = 0;
-        debugSessionMode = QuickCraftConfigs.WorkbenchShulkerPipelineMode.RESPONSE_STABLE;
+    static void clearSession() {
+        sessionSourceBatches = 0;
+        sessionMode = QuickCraftConfigs.WorkbenchShulkerPipelineMode.RESPONSE_STABLE;
     }
 
-    static long debugElapsedMillis() {
-        return debugSessionStartedAtNanos == 0L
-                ? 0L
-                : (System.nanoTime() - debugSessionStartedAtNanos) / 1_000_000L;
-    }
-
-    static int debugSessionTaskCount() {
-        return debugSessionTaskCount;
-    }
-
-    static int debugSessionSourceBatches() {
-        return debugSessionSourceBatches;
+    static int sessionSourceBatches() {
+        return sessionSourceBatches;
     }
 
     public static boolean isBusy() {
@@ -116,7 +95,6 @@ public final class QuickCraftWorkbenchShulker {
         }
         task.stopRequested = true;
         task.exitAfterStop = true;
-        LOGGER.debug("收到 Esc，等待当前直接取料动作结束：任务 #{}", task.id);
         return true;
     }
 
@@ -174,9 +152,6 @@ public final class QuickCraftWorkbenchShulker {
                                            List<ItemStack> pattern,
                                            TaskOwner owner) {
         if (task != null || handler == null || pattern == null || pattern.isEmpty() || !isAvailable()) {
-            LOGGER.debug("跳过直接潜影盒补料：owner={}，busyOwner={}，handler={}，pattern={}，available={}",
-                    owner, task == null ? "NONE" : task.owner, className(handler),
-                    pattern == null ? -1 : pattern.size(), isAvailable());
             return RefillStart.NOT_STARTED;
         }
         if (!handler.getCursorStack().isEmpty()) {
@@ -185,16 +160,11 @@ public final class QuickCraftWorkbenchShulker {
                     && recoverUnexpectedShulker(handler, -1)) {
                 return RefillStart.RECOVERED_DESYNC;
             }
-            LOGGER.warn("无法启动直接潜影盒补料：光标上已有物品，revision={}，光标={}，合成格={}",
-                    handler.getRevision(), describeStack(handler.getCursorStack()), describeGrid(handler));
             return RefillStart.NOT_STARTED;
         }
         List<ItemStack> normalizedPattern = normalizePattern(pattern);
         if (!isGridCompatible(handler, normalizedPattern)) {
             int unexpectedShulkerSlot = findUnexpectedGridShulker(handler, normalizedPattern);
-            LOGGER.warn("无法启动直接潜影盒补料：合成格与锁定配方不一致，revision={}，异常盒槽={}，光标={}，期望={}，实际={}",
-                    handler.getRevision(), unexpectedShulkerSlot, describeStack(handler.getCursorStack()),
-                    describePattern(normalizedPattern), describeGrid(handler));
             if (owner == TaskOwner.SHULKER_CRAFT
                     && unexpectedShulkerSlot != -1
                     && recoverUnexpectedShulker(handler, unexpectedShulkerSlot)) {
@@ -203,19 +173,11 @@ public final class QuickCraftWorkbenchShulker {
             return RefillStart.GRID_MISMATCH;
         }
         task = new Task(normalizedPattern, handler.syncId, owner);
-        task.nextSource = findSourceTimed(handler, normalizedPattern, Set.of());
+        task.nextSource = findSource(handler, normalizedPattern, Set.of());
         if (task.nextSource == null) {
-            LOGGER.debug("无法启动直接潜影盒补料：完整玩家物品栏中没有可直填的单材料盒");
             task = null;
             return RefillStart.NO_MATERIALS;
         }
-        if (owner == TaskOwner.SHULKER_CRAFT) {
-            debugSessionTaskCount++;
-        }
-
-        LOGGER.debug("开始潜影盒直填任务 #{}：会话t+{} ms，owner={}，流水线模式={}，扫描 {} 格玩家物品栏，目标合成格={}",
-                task.id, debugElapsedMillis(), owner, debugSessionMode,
-                MAX_SOURCE_SHULKERS, describePattern(normalizedPattern));
         return RefillStart.STARTED;
     }
 
@@ -225,10 +187,6 @@ public final class QuickCraftWorkbenchShulker {
 
     public static void tickShulkerCraft(MinecraftClient client) {
         tick(client, TaskOwner.SHULKER_CRAFT);
-    }
-
-    public static void tickShulkerCraftOnce(MinecraftClient client) {
-        tick(client, TaskOwner.SHULKER_CRAFT, 1);
     }
 
     private static void tick(MinecraftClient client, TaskOwner owner) {
@@ -251,43 +209,32 @@ public final class QuickCraftWorkbenchShulker {
             return;
         }
 
-        task.tickCount++;
         if (owner != TaskOwner.SHULKER_CRAFT && task.actionCooldown > 0) {
             task.actionCooldown--;
-            task.cooldownWaitTicks++;
             return;
         }
         int maxSourceBatches = owner == TaskOwner.SHULKER_CRAFT
-                ? sourceBatchesPerAck(debugSessionMode)
+                ? sourceBatchesPerAck(sessionMode)
                 : 1;
         if (sourceBatchLimit > 0) {
             maxSourceBatches = Math.min(maxSourceBatches, sourceBatchLimit);
         }
-        long taskId = task.id;
-        int processedBatches = 0;
         for (int batch = 0; batch < maxSourceBatches && task != null; batch++) {
             extractDirectly(client, handler);
-            processedBatches++;
             if (task == null || isActionCoolingDown(owner)) {
                 break;
             }
         }
-        if (processedBatches > 1) {
-            LOGGER.debug("响应来源批处理 #{}：会话t+{} ms，同确认批次处理={} 批，上限={} 批，模式={}",
-                    taskId, debugElapsedMillis(), processedBatches, maxSourceBatches, debugSessionMode);
-        }
     }
 
     private static void extractDirectly(MinecraftClient client, CraftingScreenHandler handler) {
-        int revisionBefore = handler.getRevision();
-        task.sourceBatches++;
         if (task.owner == TaskOwner.SHULKER_CRAFT) {
-            debugSessionSourceBatches++;
+            sessionSourceBatches++;
         }
         SourceShulker source = task.nextSource;
         task.nextSource = null;
         if (source == null) {
-            source = findSourceTimed(handler, task.pattern, task.exhaustedSourcePlayerIndices);
+            source = findSource(handler, task.pattern, task.exhaustedSourcePlayerIndices);
         }
         if (source == null) {
             finish(task.movedItems > 0 ? TaskResult.REFILLED : TaskResult.STOPPED,
@@ -301,10 +248,8 @@ public final class QuickCraftWorkbenchShulker {
             return;
         }
 
-        long pickupStartedAtNanos = System.nanoTime();
         client.interactionManager.clickSlot(handler.syncId, sourceSlot.id, 0,
                 SlotActionType.PICKUP, client.player);
-        task.pickupBoxNanos += System.nanoTime() - pickupStartedAtNanos;
         task.currentSourcePlayerIndex = source.playerIndex();
         ItemStack cursorBox = handler.getCursorStack();
         if (!isSingleShulker(cursorBox) || !isHomogeneousShulker(cursorBox)) {
@@ -313,7 +258,6 @@ public final class QuickCraftWorkbenchShulker {
                 return;
             }
             task.exhaustedSourcePlayerIndices.add(source.playerIndex());
-            LOGGER.warn("跳过非单材料潜影盒：玩家槽位={}，光标={}", source.playerIndex(), cursorBox.getName().getString());
             return;
         }
 
@@ -327,14 +271,11 @@ public final class QuickCraftWorkbenchShulker {
             return;
         }
 
-        int movedItems = 0;
         int clicks = 0;
         boolean extractionUnavailable = false;
         while (clicks < MAX_UNBUNDLE_CLICKS_PER_SOURCE) {
             ItemStack currentCursorBox = handler.getCursorStack();
             if (!isSingleShulker(currentCursorBox) || getFirstStoredStack(currentCursorBox).isEmpty()) {
-                LOGGER.trace("当前盒材料已取完：玩家槽={}，本盒直填={} 个，材料={}",
-                        source.playerIndex(), movedItems, boxMaterial.getName().getString());
                 break;
             }
             int targetSlotId = findFillableGridSlot(handler, task.pattern, boxMaterial);
@@ -344,10 +285,8 @@ public final class QuickCraftWorkbenchShulker {
 
             Slot target = handler.getSlot(targetSlotId);
             int before = target.hasStack() ? target.getStack().getCount() : 0;
-            long unbundleStartedAtNanos = System.nanoTime();
             client.interactionManager.clickSlot(handler.syncId, targetSlotId, 1,
                     SlotActionType.PICKUP, client.player);
-            task.unbundleNanos += System.nanoTime() - unbundleStartedAtNanos;
             ItemStack after = target.getStack();
             int afterCount = !after.isEmpty() && ItemStack.areItemsAndComponentsEqual(after, boxMaterial)
                     ? after.getCount()
@@ -358,18 +297,11 @@ public final class QuickCraftWorkbenchShulker {
                             SlotActionType.PICKUP, client.player);
                 }
                 extractionUnavailable = true;
-                LOGGER.warn("右键合成格未直填材料：盒玩家槽={}，合成槽={}，材料={}，填充前={}，填充后={}",
-                        source.playerIndex(), targetSlotId, boxMaterial.getName().getString(), before, afterCount);
                 break;
             }
             int moved = afterCount - before;
             clicks++;
-            movedItems += moved;
             task.movedItems += moved;
-            task.unbundleClicks++;
-            LOGGER.trace("潜影盒直填：材料={}，盒玩家槽={}，合成槽={}，移动={}，槽内={}/{}",
-                    after.getName().getString(), source.playerIndex(), targetSlotId, moved,
-                    afterCount, target.getMaxItemCount(after));
         }
 
         if (!returnHeldBox(client, handler, sourceSlot)) {
@@ -382,15 +314,11 @@ public final class QuickCraftWorkbenchShulker {
         }
         task.exhaustedSourcePlayerIndices.add(source.playerIndex());
         setActionCooldown();
-        LOGGER.debug("潜影盒直填任务 #{}：会话t+{} ms，来源盒玩家槽={}，材料={}，本次直填={} 个/{} 次右键，"
-                        + "累计={} 个，revision={}->{}, 下一来源最早 {} Tick 后处理",
-                task.id, debugElapsedMillis(), source.playerIndex(), boxMaterial.getName().getString(), movedItems, clicks,
-                task.movedItems, revisionBefore, handler.getRevision(), getCurrentActionCooldown(task.owner));
         if (!hasAnyFillableGridSlot(handler, task.pattern)) {
             finish(TaskResult.REFILLED, null);
             return;
         }
-        task.nextSource = findSourceTimed(handler, task.pattern, task.exhaustedSourcePlayerIndices);
+        task.nextSource = findSource(handler, task.pattern, task.exhaustedSourcePlayerIndices);
         if (task.nextSource == null) {
             finish(TaskResult.REFILLED, null);
         }
@@ -413,7 +341,6 @@ public final class QuickCraftWorkbenchShulker {
     }
 
     private static boolean returnHeldBox(MinecraftClient client, CraftingScreenHandler handler, Slot sourceSlot) {
-        long startedAtNanos = System.nanoTime();
         if (handler.getCursorStack().isEmpty()) {
             return true;
         }
@@ -421,26 +348,12 @@ public final class QuickCraftWorkbenchShulker {
             client.interactionManager.clickSlot(handler.syncId, sourceSlot.id, 0,
                     SlotActionType.PICKUP, client.player);
         }
-        boolean returned = handler.getCursorStack().isEmpty();
-        if (task != null) {
-            task.returnBoxNanos += System.nanoTime() - startedAtNanos;
-        }
-        return returned;
+        return handler.getCursorStack().isEmpty();
     }
 
     private static void finish(TaskResult result, Text message) {
         boolean exitAfterStop = task != null && task.exitAfterStop;
         TaskOwner owner = task == null ? null : task.owner;
-        if (task != null) {
-            long elapsedMillis = (System.nanoTime() - task.startedAtNanos) / 1_000_000L;
-            LOGGER.debug("潜影盒直填任务结束 #{}：会话t+{} ms，结果={}，移动={} 个/{} 次右键，处理批次={}，总耗时={} ms，"
-                            + "任务Tick={}，间隔等待={} Tick，扫描={} us，拿盒={} us，取料={} us，还盒={} us，消息={}",
-                    task.id, debugElapsedMillis(), result, task.movedItems, task.unbundleClicks,
-                    task.sourceBatches, elapsedMillis,
-                    task.tickCount, task.cooldownWaitTicks, task.sourceScanNanos / 1_000L,
-                    task.pickupBoxNanos / 1_000L, task.unbundleNanos / 1_000L,
-                    task.returnBoxNanos / 1_000L, message == null ? "无" : message.getString());
-        }
         task = null;
         pendingResult = result;
         pendingMessage = message;
@@ -521,10 +434,6 @@ public final class QuickCraftWorkbenchShulker {
         return owner != TaskOwner.SHULKER_CRAFT
                 && task != null
                 && task.actionCooldown > 0;
-    }
-
-    private static int getCurrentActionCooldown(TaskOwner owner) {
-        return owner == TaskOwner.SHULKER_CRAFT || task == null ? 0 : task.actionCooldown;
     }
 
     private static List<Slot> getPlayerStorageSlots(ScreenHandler handler) {
@@ -611,8 +520,6 @@ public final class QuickCraftWorkbenchShulker {
         }
         Slot destination = getFirstEmptyPlayerSlot(handler, -1);
         if (destination == null) {
-            LOGGER.error("无法恢复错位潜影盒：玩家物品栏没有空槽，revision={}，光标={}，合成格={}",
-                    handler.getRevision(), describeStack(handler.getCursorStack()), describeGrid(handler));
             return false;
         }
 
@@ -627,19 +534,13 @@ public final class QuickCraftWorkbenchShulker {
                 client.interactionManager.clickSlot(handler.syncId, gridSlotId, 0,
                         SlotActionType.PICKUP, client.player);
             }
-            LOGGER.error("恢复错位潜影盒失败：拿起后光标不是单个潜影盒，revision={}，光标={}，合成格={}",
-                    handler.getRevision(), describeStack(handler.getCursorStack()), describeGrid(handler));
             return false;
         }
 
-        ItemStack recoveredBox = handler.getCursorStack().copy();
         client.interactionManager.clickSlot(handler.syncId, destination.id, 0,
                 SlotActionType.PICKUP, client.player);
         boolean recovered = handler.getCursorStack().isEmpty()
                 && isSingleShulker(destination.getStack());
-        LOGGER.warn("检测到服务端槽位纠正，尝试回收错位潜影盒：成功={}，来源合成槽={}，目标玩家槽={}，盒={}，revision={}，合成格={}",
-                recovered, gridSlotId, destination.getIndex(), describeStack(recoveredBox),
-                handler.getRevision(), describeGrid(handler));
         return recovered;
     }
 
@@ -730,50 +631,10 @@ public final class QuickCraftWorkbenchShulker {
             ItemStack material = getFirstStoredStack(slot.getStack());
             if (handler instanceof CraftingScreenHandler craftingHandler
                     && findFillableGridSlot(craftingHandler, pattern, material) != -1) {
-                LOGGER.trace("选择潜影盒直填来源：扫描序号={}，玩家槽={}，材料={}",
-                        scannedShulkers, slot.getIndex(), material.getName().getString());
                 return new SourceShulker(slot.getIndex());
             }
         }
         return null;
-    }
-
-    private static SourceShulker findSourceTimed(ScreenHandler handler,
-                                                 List<ItemStack> pattern,
-                                                 Set<Integer> excludedPlayerIndices) {
-        long startedAtNanos = System.nanoTime();
-        SourceShulker source = findSource(handler, pattern, excludedPlayerIndices);
-        if (task != null) {
-            task.sourceScanNanos += System.nanoTime() - startedAtNanos;
-        }
-        return source;
-    }
-
-    private static String className(Object value) {
-        return value == null ? "null" : value.getClass().getName();
-    }
-
-    private static String describePattern(List<ItemStack> pattern) {
-        List<String> descriptions = new ArrayList<>();
-        for (int i = 0; i < pattern.size(); i++) {
-            ItemStack material = pattern.get(i);
-            if (!material.isEmpty()) {
-                descriptions.add((i + 1) + ":" + material.getName().getString());
-            }
-        }
-        return String.join(", ", descriptions);
-    }
-
-    private static String describeGrid(CraftingScreenHandler handler) {
-        List<String> descriptions = new ArrayList<>();
-        for (int slotId = GRID_START; slotId <= GRID_END; slotId++) {
-            descriptions.add(slotId + ":" + describeStack(handler.getSlot(slotId).getStack()));
-        }
-        return String.join(", ", descriptions);
-    }
-
-    private static String describeStack(ItemStack stack) {
-        return stack.isEmpty() ? "空" : stack.getName().getString() + "x" + stack.getCount();
     }
 
     public enum TaskResult {
@@ -791,23 +652,13 @@ public final class QuickCraftWorkbenchShulker {
     }
 
     private static final class Task {
-        private final long id = ++nextTaskId;
         private final int workbenchSyncId;
         private final List<ItemStack> pattern;
         private final TaskOwner owner;
         private final Set<Integer> exhaustedSourcePlayerIndices = new HashSet<>();
-        private final long startedAtNanos = System.nanoTime();
         private int actionCooldown;
-        private int tickCount;
-        private int cooldownWaitTicks;
         private int currentSourcePlayerIndex = -1;
         private int movedItems;
-        private int unbundleClicks;
-        private int sourceBatches;
-        private long sourceScanNanos;
-        private long pickupBoxNanos;
-        private long unbundleNanos;
-        private long returnBoxNanos;
         private SourceShulker nextSource;
         private boolean stopRequested;
         private boolean exitAfterStop;
