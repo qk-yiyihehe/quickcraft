@@ -354,7 +354,10 @@ public final class QuickLitematicaContainerVerifier {
         MinecraftClient client = MinecraftClient.getInstance();
         if (client.world != null) {
             try {
-                return stack.toNbt(client.world.getRegistryManager()).toString();
+                return ItemStack.CODEC.encodeStart(
+                        client.world.getRegistryManager().getOps(NbtOps.INSTANCE),
+                        stack
+                ).getOrThrow().toString();
             } catch (RuntimeException ignored) {
                 // 组件损坏时仍保留可比较的本地表示，不能让刷新验证结果的路径崩溃。
             }
