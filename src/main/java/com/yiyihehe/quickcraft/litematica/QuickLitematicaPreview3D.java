@@ -306,7 +306,7 @@ public final class QuickLitematicaPreview3D {
 
     private static void renderShaderDisabled(DrawContext context, int x, int y, int size) {
         MinecraftClient client = MinecraftClient.getInstance();
-        RenderUtils.drawOutlinedBox(x, y, size, size, 0xB0101010, 0xFF707070);
+        RenderUtils.drawOutlinedBox(context, x, y, size, size, 0xB0101010, 0xFF707070);
         Text message = Text.translatable("quickcraft.message.litematica.preview_3d.shader_disabled");
         var lines = client.textRenderer.wrapLines(message, Math.max(1, size - 16));
         int lineStep = client.textRenderer.fontHeight + 2;
