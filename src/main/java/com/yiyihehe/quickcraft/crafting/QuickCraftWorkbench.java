@@ -101,7 +101,7 @@ public class QuickCraftWorkbench implements ClientModInitializer {
 
     private static void clearWorkbenchRecipeGhostSlots() {
         Minecraft client = Minecraft.getInstance();
-        if (client.screen instanceof CraftingScreen screen) {
+        if (client.gui.screen() instanceof CraftingScreen screen) {
             ((RecipeBookScreenAccessor) (Object) screen)
                     .quickcraft$getRecipeBook()
                     .slotClicked(screen.getMenu().getSlot(OUTPUT_SLOT));

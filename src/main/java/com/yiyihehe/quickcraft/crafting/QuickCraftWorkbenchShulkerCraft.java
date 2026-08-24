@@ -1073,7 +1073,7 @@ public final class QuickCraftWorkbenchShulkerCraft implements ClientModInitializ
 
     private RecipeHolder<CraftingRecipe> findCurrentRecipe(Minecraft client,
                                                            CraftingMenu handler) {
-        // 26.1 客户端只同步配方展示数据；产物槽与合成格快照仍可安全驱动这条执行链。
+        // 26.1+ 客户端只同步配方展示数据；产物槽与合成格快照仍可安全驱动这条执行链。
         return null;
     }
 
@@ -1576,7 +1576,7 @@ public final class QuickCraftWorkbenchShulkerCraft implements ClientModInitializ
 
     private boolean isWorkbenchOpen(Minecraft client) {
         return client != null && client.player != null && client.level != null
-                && client.screen instanceof CraftingScreen
+                && client.gui.screen() instanceof CraftingScreen
                 && client.player.containerMenu instanceof CraftingMenu;
     }
 
