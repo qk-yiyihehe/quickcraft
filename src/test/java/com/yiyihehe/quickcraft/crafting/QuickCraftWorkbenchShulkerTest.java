@@ -359,6 +359,14 @@ class QuickCraftWorkbenchShulkerTest {
     }
 
     @Test
+    @DisplayName("1.21.3 客户端只要产物槽已显示配方即可建立快照")
+    void recipeStart_acceptsVisibleOutputWithoutReusableSnapshot() {
+        assertThat(QuickCraftWorkbenchShulkerCraft.canStartWithRecipeState(true, false)).isTrue();
+        assertThat(QuickCraftWorkbenchShulkerCraft.canStartWithRecipeState(false, true)).isTrue();
+        assertThat(QuickCraftWorkbenchShulkerCraft.canStartWithRecipeState(false, false)).isFalse();
+    }
+
+    @Test
     @DisplayName("背包散料不足以覆盖所有空配方格时留给潜影盒直填")
     void looseItemFill_requiresAtLeastOneCompletePatternRound() {
         assertThat(QuickCraftWorkbenchShulkerCraft.canLooseItemsCompleteEmptyPatternSlots(2, 3)).isFalse();

@@ -1166,17 +1166,17 @@ public final class QuickCraftWorkbenchShulkerCraft implements ClientModInitializ
         }
         CraftingScreenHandler handler = (CraftingScreenHandler) client.player.currentScreenHandler;
         RecipeEntry<CraftingRecipe> currentRecipe = findCurrentRecipe(client, handler);
-        boolean capturedCurrentRecipe = currentRecipe != null && handler.getSlot(OUTPUT_SLOT).hasStack();
+        boolean capturedVisibleRecipe = handler.getSlot(OUTPUT_SLOT).hasStack();
         boolean canReuseSnapshot = canReuseSnapshot(handler.syncId, snapshotSyncId,
-                recipe != null && !pattern.isEmpty() && !resultTemplate.isEmpty());
-        if (!capturedCurrentRecipe && !canReuseSnapshot) {
+                !pattern.isEmpty() && !resultTemplate.isEmpty());
+        if (!canStartWithRecipeState(capturedVisibleRecipe, canReuseSnapshot)) {
             LOGGER.debug("潜影盒工作台喷射启动失败：recipe={}，output={}，grid={}",
                     currentRecipe == null ? "NONE" : currentRecipe.id(),
                     handler.getSlot(OUTPUT_SLOT).getStack(), describePattern(snapshotPattern(handler)));
             sendMessage(client, Text.translatable("quickcraft.message.crafting.no_recipe"));
             return false;
         }
-        if (capturedCurrentRecipe) {
+        if (capturedVisibleRecipe) {
             if (hasRemainder(currentRecipe, handler)) {
                 sendMessage(client, Text.translatable("quickcraft.message.crafting.shulker_recipe_remainder"));
                 return false;
@@ -1186,10 +1186,10 @@ public final class QuickCraftWorkbenchShulkerCraft implements ClientModInitializ
             resultTemplate = handler.getSlot(OUTPUT_SLOT).getStack().copy();
             snapshotSyncId = handler.syncId;
             LOGGER.debug("锁定潜影盒工作台配方快照：syncId={}，配方={}，合成格={}",
-                    snapshotSyncId, recipe.id(), describePattern(pattern));
+                    snapshotSyncId, recipe == null ? "NONE" : recipe.id(), describePattern(pattern));
         } else {
             LOGGER.debug("复用潜影盒工作台配方快照：syncId={}，配方={}，合成格={}",
-                    snapshotSyncId, recipe.id(), describePattern(pattern));
+                    snapshotSyncId, recipe == null ? "NONE" : recipe.id(), describePattern(pattern));
         }
         active = true;
         startedByButton = fromButton;
@@ -1226,7 +1226,7 @@ public final class QuickCraftWorkbenchShulkerCraft implements ClientModInitializ
             craftStatsBaselineNetworkHandler = null;
         } else {
             LOGGER.debug("请求服务端合成统计基线：配方={}，产物={}",
-                    recipe.id(), describeStack(resultTemplate));
+                    recipe == null ? "NONE" : recipe.id(), describeStack(resultTemplate));
         }
         beginSessionImmediately(client);
         return true;
@@ -1261,7 +1261,7 @@ public final class QuickCraftWorkbenchShulkerCraft implements ClientModInitializ
                         + "确认窗口={}，来源盒上限={}，光标策略={}/{}/{} Tick，配方={}，输出装盒={}",
                 sessionMode, pipelineDescription(sessionMode), effectiveSourceBatches,
                 sessionCursorSettleTicks, sessionRecoveryPauseTicks,
-                sessionCursorTimeoutTicks, recipe.id(), sessionOutputToShulker);
+                sessionCursorTimeoutTicks, recipe == null ? "NONE" : recipe.id(), sessionOutputToShulker);
     }
 
     private void handleServerStatistics(MinecraftClient client,
@@ -1517,15 +1517,23 @@ public final class QuickCraftWorkbenchShulkerCraft implements ClientModInitializ
     }
 
     private boolean primeOutputLocally(MinecraftClient client, CraftingScreenHandler handler) {
-        if (client.world == null || recipe == null || resultTemplate.isEmpty()) {
+        if (client.world == null || resultTemplate.isEmpty()) {
             return false;
         }
         try {
             CraftingRecipeInput input = createInput(handler);
-            if (!recipe.value().matches(input, client.world)) {
-                return false;
+            ItemStack result;
+            if (recipe != null) {
+                if (!recipe.value().matches(input, client.world)) {
+                    return false;
+                }
+                result = recipe.value().craft(input, client.world.getRegistryManager());
+            } else {
+                if (!isPatternShapeComplete(handler)) {
+                    return false;
+                }
+                result = resultTemplate.copy();
             }
-            ItemStack result = recipe.value().craft(input, client.world.getRegistryManager());
             if (!isExpectedOutput(result)) {
                 return false;
             }
@@ -1533,11 +1541,14 @@ public final class QuickCraftWorkbenchShulkerCraft implements ClientModInitializ
             if (!(outputSlot.inventory instanceof CraftingResultInventory resultInventory)) {
                 return false;
             }
-            resultInventory.setLastRecipe(recipe);
+            if (recipe != null) {
+                resultInventory.setLastRecipe(recipe);
+            }
             resultInventory.setStack(outputSlot.getIndex(), result.copy());
             return isExpectedOutput(outputSlot.getStack());
         } catch (Throwable throwable) {
-            LOGGER.debug("本地计算潜影盒合成产物失败：配方={}", recipe.id(), throwable);
+            LOGGER.debug("本地计算潜影盒合成产物失败：配方={}",
+                    recipe == null ? "NONE" : recipe.id(), throwable);
             return false;
         }
     }
@@ -1563,10 +1574,11 @@ public final class QuickCraftWorkbenchShulkerCraft implements ClientModInitializ
 
     private RecipeEntry<CraftingRecipe> findCurrentRecipe(MinecraftClient client,
                                                            CraftingScreenHandler handler) {
+        if (client == null || client.world == null
+                || !(client.world.getRecipeManager() instanceof ServerRecipeManager recipeManager)) {
+            return null;
+        }
         try {
-            if (!(client.world.getRecipeManager() instanceof ServerRecipeManager recipeManager)) {
-                return null;
-            }
             Optional<RecipeEntry<CraftingRecipe>> match = recipeManager.getFirstMatch(
                     RecipeType.CRAFTING, createInput(handler), client.world);
             return match.orElse(null);
@@ -1578,7 +1590,11 @@ public final class QuickCraftWorkbenchShulkerCraft implements ClientModInitializ
     private boolean hasRemainder(RecipeEntry<CraftingRecipe> currentRecipe,
                                  CraftingScreenHandler handler) {
         try {
-            for (ItemStack remainder : currentRecipe.value().getRecipeRemainders(createInput(handler))) {
+            CraftingRecipeInput input = createInput(handler);
+            List<ItemStack> remainders = currentRecipe != null
+                    ? currentRecipe.value().getRecipeRemainders(input)
+                    : CraftingRecipe.collectRecipeRemainders(input);
+            for (ItemStack remainder : remainders) {
                 if (!remainder.isEmpty()) {
                     return true;
                 }
@@ -1599,6 +1615,10 @@ public final class QuickCraftWorkbenchShulkerCraft implements ClientModInitializ
 
     static boolean canReuseSnapshot(int currentSyncId, int capturedSyncId, boolean snapshotComplete) {
         return currentSyncId == capturedSyncId && snapshotComplete;
+    }
+
+    static boolean canStartWithRecipeState(boolean outputVisible, boolean snapshotReusable) {
+        return outputVisible || snapshotReusable;
     }
 
     private boolean hasMissingPerCraftMaterial(CraftingScreenHandler handler) {
