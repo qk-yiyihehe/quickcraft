@@ -247,7 +247,7 @@ public final class QuickLitematicaContainerMaterials {
             HolderLookup.Provider registryLookup,
             GroupAccumulator accumulator
     ) {
-        Map<BlockPos, CompoundTag> blockEntities = schematic.getBlockEntityMapForRegion(regionName);
+        Map<BlockPos, ?> blockEntities = schematic.getBlockEntityMapForRegion(regionName);
 
         if (blockEntities == null || blockEntities.isEmpty()) {
             return;
@@ -256,14 +256,14 @@ public final class QuickLitematicaContainerMaterials {
         LitematicaBlockStateContainer stateContainer = schematic.getSubRegionContainer(regionName);
         Set<BlockPos> consumed = new HashSet<>();
 
-        for (Map.Entry<BlockPos, CompoundTag> entry : blockEntities.entrySet()) {
+        for (Map.Entry<BlockPos, ?> entry : blockEntities.entrySet()) {
             BlockPos pos = entry.getKey();
 
             if (consumed.contains(pos)) {
                 continue;
             }
 
-            CompoundTag nbt = entry.getValue();
+            CompoundTag nbt = QuickLitematicaDataCompat.toVanillaNbt(entry.getValue());
             List<ItemStack> stacks = readItems(nbt, registryLookup);
 
             if (stacks.isEmpty()) {
@@ -277,7 +277,7 @@ public final class QuickLitematicaContainerMaterials {
             consumed.add(pos);
 
             if (pairedChestPos != null) {
-                CompoundTag pairedNbt = blockEntities.get(pairedChestPos);
+                CompoundTag pairedNbt = QuickLitematicaDataCompat.toVanillaNbt(blockEntities.get(pairedChestPos));
                 stacks.addAll(readItems(pairedNbt, registryLookup));
                 consumed.add(pairedChestPos);
             }
@@ -299,7 +299,7 @@ public final class QuickLitematicaContainerMaterials {
         }
 
         for (EntityInfo info : entities) {
-            CompoundTag nbt = info.nbt();
+            CompoundTag nbt = QuickLitematicaDataCompat.entityNbt(info);
             List<ItemStack> stacks = readItems(nbt, registryLookup);
 
             if (stacks.isEmpty()) {
@@ -467,7 +467,7 @@ public final class QuickLitematicaContainerMaterials {
             BlockPos pos,
             BlockState state,
             LitematicaBlockStateContainer stateContainer,
-            Map<BlockPos, CompoundTag> blockEntities,
+            Map<BlockPos, ?> blockEntities,
             Set<BlockPos> consumed
     ) {
         if (!(state != null && state.getBlock() instanceof ChestBlock)) {
