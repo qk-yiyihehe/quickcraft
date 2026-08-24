@@ -62,7 +62,7 @@
 		"WorkbenchShulkerClientClickTelemetryMixin",
 		"WorkbenchShulkerIntegratedServerTelemetryMixin",
 		"WorkbenchShulkerNetworkTelemetryMixin",
-		"RecipeBookWidgetAccessor",
+		"RecipeBookScreenAccessor",
 		"QuickDraggableButtonScreenMixin",
 		"QuickFreeCameraGameRendererMixin",
 		"QuickFreeCameraInteractionManagerMixin",
