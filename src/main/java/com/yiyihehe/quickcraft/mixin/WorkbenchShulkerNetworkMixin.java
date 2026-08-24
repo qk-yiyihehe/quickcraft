@@ -22,7 +22,7 @@ public abstract class WorkbenchShulkerNetworkMixin {
     @Inject(method = "onInventory", at = @At("RETURN"))
     private void quickcraft$handleInventoryUpdate(InventoryS2CPacket packet, CallbackInfo ci) {
         QuickCraftWorkbenchShulkerCraft.onServerContainerUpdate(
-                packet.getSyncId(), packet.getRevision(), true);
+                packet.syncId(), packet.revision(), true);
     }
 
     // 统计回包只作为完整终态批次的顺序屏障，不读取或记录玩家统计内容。
