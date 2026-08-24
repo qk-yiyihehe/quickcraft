@@ -107,11 +107,15 @@ public final class QuickLitematicaEntityPlacement {
         return true;
     }
 
-    public static boolean requestPlacement(MinecraftClient client, Candidate candidate) {
+    public static boolean requestPlacement(
+            MinecraftClient client,
+            Candidate candidate,
+            List<Candidate> candidates
+    ) {
         if (!QuickCraftConfigs.isEasyPlaceEntitiesEnabled() || !isServerAvailable() || candidate == null) {
             return false;
         }
-        PlacementStatus status = evaluatePlacementStatuses(client, List.of(candidate))
+        PlacementStatus status = evaluatePlacementStatuses(client, candidates)
                 .getOrDefault(candidate, PlacementStatus.UNPLACED);
         if (status == PlacementStatus.MATCHED) {
             if (client.player != null) {
