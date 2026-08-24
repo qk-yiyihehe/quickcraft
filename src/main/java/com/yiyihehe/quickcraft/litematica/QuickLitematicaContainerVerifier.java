@@ -1161,18 +1161,20 @@ public final class QuickLitematicaContainerVerifier {
             return null;
         }
 
-        Map<BlockPos, NbtCompound> blockEntities = placementPos.placement().getSchematic()
+        Map<BlockPos, ?> blockEntities = placementPos.placement().getSchematic()
                 .getBlockEntityMapForRegion(placementPos.region());
 
         if (blockEntities == null) {
             return null;
         }
 
-        NbtCompound nbt = blockEntities.get(placementPos.pos());
+        Object data = blockEntities.get(placementPos.pos());
 
-        if (nbt == null) {
+        if (data == null) {
             return null;
         }
+
+        NbtCompound nbt = QuickLitematicaDataCompat.toVanillaNbt(data);
 
         MinecraftClient client = MinecraftClient.getInstance();
         World clientWorld = client.world;
