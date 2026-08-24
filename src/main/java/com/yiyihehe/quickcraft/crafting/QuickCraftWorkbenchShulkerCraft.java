@@ -1433,7 +1433,7 @@ public final class QuickCraftWorkbenchShulkerCraft implements ClientModInitializ
                                                 ItemStack template) {
         int bestSlot = -1;
         int bestCount = Integer.MAX_VALUE;
-        for (int inventoryIndex = 0; inventoryIndex < inventory.main.size(); inventoryIndex++) {
+        for (int inventoryIndex = 0; inventoryIndex < inventory.getMainStacks().size(); inventoryIndex++) {
             int handlerSlot = playerInventoryIndexToHandlerSlot(inventoryIndex);
             if (handlerSlot == -1) {
                 continue;
