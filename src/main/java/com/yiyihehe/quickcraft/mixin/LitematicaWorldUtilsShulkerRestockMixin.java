@@ -19,7 +19,7 @@ public final class LitematicaWorldUtilsShulkerRestockMixin {
             method = "handleEasyPlace",
             at = @At(
                     value = "INVOKE",
-                    target = "Lfi/dy/masa/litematica/util/WorldUtils;doEasyPlaceAction(Lnet/minecraft/client/Minecraft;)Lnet/minecraft/util/InteractionResult;"
+                    target = "Lfi/dy/masa/litematica/util/WorldUtils;doEasyPlaceAction(Lnet/minecraft/client/Minecraft;)Lnet/minecraft/world/InteractionResult;"
             ),
             cancellable = true,
             remap = false
@@ -40,4 +40,3 @@ public final class LitematicaWorldUtilsShulkerRestockMixin {
         }
     }
 }
-
