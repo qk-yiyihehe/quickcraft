@@ -284,7 +284,7 @@ public final class QuickLitematicaEntityPlacement {
             List<Entity> nearby = new ArrayList<>(nearbyEntities.stream()
                     .filter(entity -> candidateBox.intersects(entity.getBoundingBox()))
                     .toList());
-            nearby.sort(Comparator.comparingDouble(entity -> entity.getPos().squaredDistanceTo(candidate.position)));
+            nearby.sort(Comparator.comparingDouble(entity -> entity.getEntityPos().squaredDistanceTo(candidate.position)));
             nearbyByCandidate.put(candidate, nearby);
         }
 
@@ -330,9 +330,9 @@ public final class QuickLitematicaEntityPlacement {
         }
         Candidate representative = candidates.stream()
                 .filter(candidate -> Registries.ENTITY_TYPE.get(candidate.entityType) == entity.getType())
-                .min(Comparator.comparingDouble(candidate -> candidate.position.squaredDistanceTo(entity.getPos())))
+                .min(Comparator.comparingDouble(candidate -> candidate.position.squaredDistanceTo(entity.getEntityPos())))
                 .orElseGet(() -> candidates.stream()
-                        .min(Comparator.comparingDouble(candidate -> candidate.position.squaredDistanceTo(entity.getPos())))
+                        .min(Comparator.comparingDouble(candidate -> candidate.position.squaredDistanceTo(entity.getEntityPos())))
                         .orElse(null));
         return new ExcessDisplay(representative == null ? ItemStack.EMPTY : representative.material().copy());
     }
@@ -939,7 +939,7 @@ public final class QuickLitematicaEntityPlacement {
             if (entity.getType() != Registries.ENTITY_TYPE.get(entityType)) {
                 return PlacementStatus.WRONG;
             }
-            if (entity.getPos().squaredDistanceTo(position) > POSITION_TOLERANCE * POSITION_TOLERANCE
+            if (entity.getEntityPos().squaredDistanceTo(position) > POSITION_TOLERANCE * POSITION_TOLERANCE
                     || Math.abs(net.minecraft.util.math.MathHelper.wrapDegrees(entity.getYaw() - yaw)) > ROTATION_TOLERANCE
                     || Math.abs(entity.getPitch() - pitch) > ROTATION_TOLERANCE) {
                 return PlacementStatus.MISMATCHED;

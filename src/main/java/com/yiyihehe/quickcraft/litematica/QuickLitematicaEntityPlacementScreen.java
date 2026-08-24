@@ -1,6 +1,7 @@
 package com.yiyihehe.quickcraft.litematica;
 
 import net.minecraft.client.gui.DrawContext;
+import net.minecraft.client.gui.Click;
 import net.minecraft.client.gui.screen.Screen;
 import net.minecraft.client.gl.RenderPipelines;
 import net.minecraft.item.ItemStack;
@@ -220,16 +221,19 @@ final class QuickLitematicaEntityPlacementScreen extends Screen {
     }
 
     @Override
-    public boolean mouseClicked(double mouseX, double mouseY, int button) {
+    public boolean mouseClicked(Click click, boolean doubled) {
+        double mouseX = click.x();
+        double mouseY = click.y();
+        int button = click.button();
         if (button != 0 || !QuickLitematicaEntityPlacement.isServerAvailable()) {
-            return super.mouseClicked(mouseX, mouseY, button);
+            return super.mouseClicked(click, doubled);
         }
         int left = (this.width - PANEL_WIDTH) / 2;
         int top = (this.height - PANEL_HEIGHT) / 2;
         int column = ((int) mouseX - left - 8) / SLOT_SIZE;
         int row = ((int) mouseY - top - 18) / SLOT_SIZE;
         if (column < 0 || column >= COLUMNS || row < 0 || row >= ROWS) {
-            return super.mouseClicked(mouseX, mouseY, button);
+            return super.mouseClicked(click, doubled);
         }
         int index = row * COLUMNS + column;
         if (index < candidates.size()
@@ -241,7 +245,7 @@ final class QuickLitematicaEntityPlacementScreen extends Screen {
             }
             return true;
         }
-        return super.mouseClicked(mouseX, mouseY, button);
+        return super.mouseClicked(click, doubled);
     }
 
     private static int getSlotColor(QuickLitematicaEntityPlacement.PlacementStatus status, boolean hovered) {
