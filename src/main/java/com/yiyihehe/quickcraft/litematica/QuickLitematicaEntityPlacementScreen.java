@@ -235,7 +235,8 @@ final class QuickLitematicaEntityPlacementScreen extends Screen {
         if (index < candidates.size()
                 && mouseX < left + 8 + column * SLOT_SIZE + 16
                 && mouseY < top + 18 + row * SLOT_SIZE + 16) {
-            if (QuickLitematicaEntityPlacement.requestPlacement(this.client, candidates.get(index))) {
+            if (QuickLitematicaEntityPlacement.requestPlacement(
+                    this.client, candidates.get(index), this.candidates)) {
                 this.close();
             }
             return true;
