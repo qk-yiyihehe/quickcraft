@@ -30,13 +30,13 @@ public abstract class MerchantScreenMixin {
         QuickTrade.renderFavoriteStar((MerchantScreen) (Object) this, context);
     }
 
-    @Inject(method = "render", at = @At("HEAD"), cancellable = true)
+    @Inject(method = "renderMain", at = @At("HEAD"), cancellable = true)
     private void quickcraft$hideContinuousTradeScreen(DrawContext context,
                                                       int mouseX,
                                                       int mouseY,
                                                       float delta,
                                                       CallbackInfo ci) {
-        // 持续交易保留界面实例处理槽位和网络同步，但不绘制原版交易窗口，避免自动扫描时闪屏。
+        // 1.21.10 的 MerchantScreen 不再覆写 render；取消其 renderMain 可保留界面实例和网络同步，同时避免扫描闪屏。
         if (QuickTrade.shouldHideContinuousTradeScreen((MerchantScreen) (Object) this)) {
             ci.cancel();
         }
