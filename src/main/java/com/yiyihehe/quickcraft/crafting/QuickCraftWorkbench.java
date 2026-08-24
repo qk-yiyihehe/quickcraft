@@ -2,6 +2,7 @@ package com.yiyihehe.quickcraft.crafting;
 
 import com.yiyihehe.quickcraft.QuickContainerLock;
 import com.yiyihehe.quickcraft.config.QuickCraftConfigs;
+import com.yiyihehe.quickcraft.mixin.RecipeBookScreenAccessor;
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.minecraft.client.MinecraftClient;
@@ -106,7 +107,9 @@ public class QuickCraftWorkbench implements ClientModInitializer {
     private static void clearWorkbenchRecipeGhostSlots() {
         MinecraftClient client = MinecraftClient.getInstance();
         if (client.currentScreen instanceof CraftingScreen screen) {
-            screen.getRecipeBookWidget().slotClicked(screen.getScreenHandler().getSlot(OUTPUT_SLOT));
+            ((RecipeBookScreenAccessor) (Object) screen)
+                    .quickcraft$getRecipeBook()
+                    .onMouseClick(screen.getScreenHandler().getSlot(OUTPUT_SLOT));
         }
     }
 
@@ -1527,7 +1530,7 @@ public class QuickCraftWorkbench implements ClientModInitializer {
         }
         try {
             boolean hasRemainder = false;
-            for (ItemStack remainder : recipe.value().getRemainder(getCraftingRecipeInput(handler))) {
+            for (ItemStack remainder : recipe.value().getRecipeRemainders(getCraftingRecipeInput(handler))) {
                 hasRemainder |= !remainder.isEmpty();
             }
             return canDirectFillRecipe(true, hasRemainder);
