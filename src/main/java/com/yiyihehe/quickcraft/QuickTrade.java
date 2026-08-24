@@ -293,7 +293,7 @@ public final class QuickTrade implements ClientModInitializer {
         if (client.player == null
                 || client.level == null
                 || client.gameMode == null
-                || client.screen != null
+                || client.gui.screen() != null
                 || pendingAutoTrade
                 || pendingMerchantKey != null) {
             return;
@@ -337,7 +337,7 @@ public final class QuickTrade implements ClientModInitializer {
     public static boolean shouldHideContinuousTradeScreen(MerchantScreen screen) {
         return pendingContinuousTrade
                 && QuickCraftConfigs.isContinuousTradeEnabled()
-                && Minecraft.getInstance().screen == screen;
+                && Minecraft.getInstance().gui.screen() == screen;
     }
 
     public static boolean shouldSuppressContinuousTradeScreenOpen() {
