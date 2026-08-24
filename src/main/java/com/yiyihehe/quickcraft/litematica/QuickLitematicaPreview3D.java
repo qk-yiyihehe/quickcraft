@@ -2679,7 +2679,7 @@ public final class QuickLitematicaPreview3D {
 
                 RegionBlockView view = new RegionBlockView(container, area);
                 RegionBounds regionBounds = RegionBounds.from(area);
-                Map<BlockPos, CompoundTag> schematicBlockEntities = schematic.getBlockEntityMapForRegion(regionName);
+                Map<BlockPos, ?> schematicBlockEntities = schematic.getBlockEntityMapForRegion(regionName);
                 recordEntities(blockStates, entities, view, schematic, regionName, area, bounds, cancelled);
 
                 for (BlockPos pos : BlockPos.betweenClosed(regionBounds.min(), regionBounds.max())) {
@@ -2735,7 +2735,7 @@ public final class QuickLitematicaPreview3D {
                 Map<BlockState, Boolean> blockEntityRendererCache,
                 RegionBlockView view,
                 BlockState state,
-                @Nullable Map<BlockPos, CompoundTag> schematicBlockEntities,
+                @Nullable Map<BlockPos, ?> schematicBlockEntities,
                 BlockPos schematicPos,
                 BlockPos renderPos,
                 Bounds bounds
@@ -2757,9 +2757,12 @@ public final class QuickLitematicaPreview3D {
                 }
             }
 
-            CompoundTag nbt = schematicBlockEntities == null
+            Object data = schematicBlockEntities == null
+                    ? null
+                    : schematicBlockEntities.get(schematicPos.subtract(view.bounds.min()));
+            CompoundTag nbt = data == null
                     ? new CompoundTag()
-                    : schematicBlockEntities.getOrDefault(schematicPos.subtract(view.bounds.min()), new CompoundTag());
+                    : QuickLitematicaDataCompat.toVanillaNbt(data);
             CompoundTag entityNbt = sanitizeBlockEntityNbt(nbt);
             entityNbt.putInt("x", renderPos.getX());
             entityNbt.putInt("y", renderPos.getY());
@@ -2812,10 +2815,12 @@ public final class QuickLitematicaPreview3D {
             BlockPos regionOrigin = area.getPos1() == null ? BlockPos.ZERO : area.getPos1();
             for (LitematicaSchematic.EntityInfo info : regionEntities) {
                 throwIfCancelled(cancelled);
-                double x = info.posVec.x + regionOrigin.getX() - bounds.min().getX();
-                double y = info.posVec.y + regionOrigin.getY() - bounds.min().getY();
-                double z = info.posVec.z + regionOrigin.getZ() - bounds.min().getZ();
-                entities.add(new EntityData(x, y, z, copyEntityNbtAt(info.nbt, x, y, z)));
+                Vec3 pos = QuickLitematicaDataCompat.entityPos(info);
+                double x = pos.x + regionOrigin.getX() - bounds.min().getX();
+                double y = pos.y + regionOrigin.getY() - bounds.min().getY();
+                double z = pos.z + regionOrigin.getZ() - bounds.min().getZ();
+                CompoundTag nbt = QuickLitematicaDataCompat.entityNbt(info);
+                entities.add(new EntityData(x, y, z, copyEntityNbtAt(nbt, x, y, z)));
                 recordEntityNearbyBlockStates(blockStates, view, bounds, x, y, z);
                 if (entities.size() > MAX_DYNAMIC_ENTITIES) {
                     throw new PreviewTooLargeException();

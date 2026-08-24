@@ -361,7 +361,7 @@ public final class QuickLitematicaEntityPlacement {
             int index,
             LitematicaSchematic.EntityInfo entity
     ) {
-        CompoundTag nbt = entity.nbt.copy();
+        CompoundTag nbt = QuickLitematicaDataCompat.entityNbt(entity).copy();
         if (!normalizeEntityTreeIds(nbt, 0)) {
             return null;
         }
@@ -372,7 +372,8 @@ public final class QuickLitematicaEntityPlacement {
             return null;
         }
 
-        Vec3 position = PositionUtils.getTransformedPosition(entity.posVec, placement.getMirror(), placement.getRotation());
+        Vec3 position = PositionUtils.getTransformedPosition(
+                QuickLitematicaDataCompat.entityPos(entity), placement.getMirror(), placement.getRotation());
         position = PositionUtils.getTransformedPosition(position, subRegion.getMirror(), subRegion.getRotation());
         BlockPos blockOffset = placement.getOrigin().offset(
                 PositionUtils.getTransformedBlockPos(subRegion.getPos(), placement.getMirror(), placement.getRotation())
