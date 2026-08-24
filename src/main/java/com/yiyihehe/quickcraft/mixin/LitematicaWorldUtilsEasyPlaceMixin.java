@@ -32,7 +32,7 @@ public class LitematicaWorldUtilsEasyPlaceMixin {
 
     @Inject(method = "handlePlacementRestriction", at = @At("HEAD"), cancellable = true, remap = false)
     private static void quickcraft$letVanillaUseBypassPlacementRestriction(
-            MinecraftClient mc,
+            Minecraft mc,
             CallbackInfoReturnable<Boolean> cir
     ) {
         if (QuickLitematicaEasyPlaceInteractions.shouldAllowVanillaUse(mc)) {
