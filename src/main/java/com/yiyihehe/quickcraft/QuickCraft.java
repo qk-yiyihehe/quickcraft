@@ -7,7 +7,7 @@ import com.yiyihehe.quickcraft.malilib.QuickCraftMalilibInit;
 import fi.dy.masa.malilib.event.InitializationHandler;
 import net.fabricmc.api.ModInitializer;
 import net.fabricmc.loader.api.FabricLoader;
-import net.minecraft.client.MinecraftClient;
+import net.minecraft.client.Minecraft;
 
 /**
  * QuickCraft 的 Fabric 主入口。
@@ -28,7 +28,7 @@ public class QuickCraft implements ModInitializer {
         }
     }
 
-    public static boolean openEasyPlaceEntitySelector(MinecraftClient client) {
+    public static boolean openEasyPlaceEntitySelector(Minecraft client) {
         return FabricLoader.getInstance().isModLoaded("litematica")
                 && QuickLitematicaEntityPlacement.openSelector(client);
     }

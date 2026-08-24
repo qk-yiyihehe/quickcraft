@@ -1,12 +1,13 @@
 package com.yiyihehe.quickcraft.litematica;
 
-import net.minecraft.client.gui.DrawContext;
-import net.minecraft.client.gui.Click;
-import net.minecraft.client.gui.screen.Screen;
-import net.minecraft.client.gl.RenderPipelines;
-import net.minecraft.item.ItemStack;
-import net.minecraft.text.Text;
-import net.minecraft.util.Identifier;
+import net.minecraft.client.gui.GuiGraphicsExtractor;
+import net.minecraft.client.gui.screens.Screen;
+import net.minecraft.client.input.MouseButtonEvent;
+import net.minecraft.client.renderer.RenderPipelines;
+import net.minecraft.network.chat.Component;
+import net.minecraft.resources.Identifier;
+import net.minecraft.world.entity.Entity;
+import net.minecraft.world.item.ItemStack;
 
 import java.util.List;
 import java.util.Map;
@@ -14,8 +15,8 @@ import java.util.IdentityHashMap;
 
 /** 原版 54 格箱子选择器；背包和容器预览均直接复用原版纹理与物品渲染。 */
 final class QuickLitematicaEntityPlacementScreen extends Screen {
-    private static final Identifier CHEST_TEXTURE = Identifier.ofVanilla("textures/gui/container/generic_54.png");
-    private static final Identifier HOPPER_TEXTURE = Identifier.ofVanilla("textures/gui/container/hopper.png");
+    private static final Identifier CHEST_TEXTURE = Identifier.withDefaultNamespace("textures/gui/container/generic_54.png");
+    private static final Identifier HOPPER_TEXTURE = Identifier.withDefaultNamespace("textures/gui/container/hopper.png");
     private static final int COLUMNS = 9;
     private static final int ROWS = 6;
     private static final int SLOT_SIZE = 18;
@@ -28,13 +29,13 @@ final class QuickLitematicaEntityPlacementScreen extends Screen {
 
     private final List<QuickLitematicaEntityPlacement.Candidate> candidates;
     private QuickLitematicaEntityPlacement.PlacementEvaluation evaluation;
-    private final Map<net.minecraft.entity.Entity, QuickLitematicaEntityPlacement.ExcessDisplay> excessDisplays = new IdentityHashMap<>();
+    private final Map<Entity, QuickLitematicaEntityPlacement.ExcessDisplay> excessDisplays = new IdentityHashMap<>();
     private int evaluationRefreshTicks;
 
     QuickLitematicaEntityPlacementScreen(
             List<QuickLitematicaEntityPlacement.Candidate> candidates
     ) {
-        super(Text.translatable("quickcraft.entity_placement.title"));
+        super(Component.translatable("quickcraft.entity_placement.title"));
         this.candidates = candidates;
     }
 
@@ -42,10 +43,10 @@ final class QuickLitematicaEntityPlacementScreen extends Screen {
     public void tick() {
         super.tick();
         if (this.evaluation == null || --this.evaluationRefreshTicks <= 0) {
-            this.evaluation = QuickLitematicaEntityPlacement.evaluatePlacement(this.client, this.candidates);
+            this.evaluation = QuickLitematicaEntityPlacement.evaluatePlacement(this.minecraft, this.candidates);
             this.evaluationRefreshTicks = 4;
             this.excessDisplays.clear();
-            for (net.minecraft.entity.Entity entity : this.evaluation.excessEntities()) {
+            for (Entity entity : this.evaluation.excessEntities()) {
                 this.excessDisplays.put(entity,
                         QuickLitematicaEntityPlacement.createExcessDisplay(entity, this.candidates));
             }
@@ -53,32 +54,32 @@ final class QuickLitematicaEntityPlacementScreen extends Screen {
     }
 
     @Override
-    public void render(DrawContext context, int mouseX, int mouseY, float delta) {
+    public void extractRenderState(GuiGraphicsExtractor context, int mouseX, int mouseY, float delta) {
         int left = (this.width - PANEL_WIDTH) / 2;
         int top = (this.height - PANEL_HEIGHT) / 2;
         boolean serverAvailable = QuickLitematicaEntityPlacement.isServerAvailable();
-        context.drawTexture(RenderPipelines.GUI_TEXTURED, CHEST_TEXTURE,
+        context.blit(RenderPipelines.GUI_TEXTURED, CHEST_TEXTURE,
                 left, top, 0, 0, PANEL_WIDTH, PANEL_HEIGHT, 256, 256);
-        context.drawCenteredTextWithShadow(this.textRenderer, this.title, this.width / 2, top + 6, 0xFFFFFFFF);
+        context.centeredText(this.font, this.title, this.width / 2, top + 6, 0xFFFFFFFF);
 
         int noticeY = top - 13;
         if (!serverAvailable) {
-            context.drawCenteredTextWithShadow(this.textRenderer,
-                    Text.translatable("quickcraft.entity_placement.server_unavailable"),
+            context.centeredText(this.font,
+                    Component.translatable("quickcraft.entity_placement.server_unavailable"),
                     this.width / 2, noticeY, 0xFFFF5555);
             noticeY -= 13;
         }
 
         if (this.evaluation == null) {
-            this.evaluation = QuickLitematicaEntityPlacement.evaluatePlacement(this.client, this.candidates);
+            this.evaluation = QuickLitematicaEntityPlacement.evaluatePlacement(this.minecraft, this.candidates);
         }
         QuickLitematicaEntityPlacement.PlacementEvaluation evaluation = this.evaluation;
         Map<QuickLitematicaEntityPlacement.Candidate, QuickLitematicaEntityPlacement.PlacementStatus> statuses =
                 evaluation.statuses();
         int excessCount = evaluation.excessEntities().size();
         if (excessCount > 0) {
-            context.drawTextWithShadow(this.textRenderer,
-                    Text.translatable("quickcraft.entity_placement.excess", excessCount),
+            context.text(this.font,
+                    Component.translatable("quickcraft.entity_placement.excess", excessCount),
                     left + 8, noticeY, 0xFFD070D0);
         }
 
@@ -95,7 +96,7 @@ final class QuickLitematicaEntityPlacementScreen extends Screen {
                     candidate, QuickLitematicaEntityPlacement.PlacementStatus.UNPLACED);
             boolean hovered = mouseX >= x && mouseX < x + 16 && mouseY >= y && mouseY < y + 16;
             context.fill(x, y, x + 16, y + 16, getSlotColor(status, hovered));
-            context.drawItem(candidate.material(), x, y);
+            context.item(candidate.material(), x, y);
             if (hovered) {
                 hoveredCandidate = candidate;
                 hoveredStatus = status;
@@ -116,8 +117,8 @@ final class QuickLitematicaEntityPlacementScreen extends Screen {
                     entity -> QuickLitematicaEntityPlacement.createExcessDisplay(entity, this.candidates));
             context.fill(x, y, x + 16, y + 16, 0xB06A3D9A);
             if (!excess.stack().isEmpty()) {
-                context.drawItem(excess.stack(), x, y);
-                context.drawStackOverlay(this.textRenderer, excess.stack(), x, y);
+                context.item(excess.stack(), x, y);
+                context.itemDecorations(this.font, excess.stack(), x, y);
             }
             if (mouseX >= x && mouseX < x + 16 && mouseY >= y && mouseY < y + 16) {
                 hoveredExcess = excess;
@@ -127,22 +128,22 @@ final class QuickLitematicaEntityPlacementScreen extends Screen {
         renderPlayerInventory(context, left, top, mouseX, mouseY);
         if (hoveredCandidate != null) {
             renderContainerPreview(context, hoveredCandidate, mouseX, mouseY);
-            List<Text> tooltip = hoveredCandidate.getTooltip(hoveredStatus);
-            context.drawTooltip(this.textRenderer, tooltip, mouseX, mouseY);
+            List<Component> tooltip = hoveredCandidate.getTooltip(hoveredStatus);
+            context.setComponentTooltipForNextFrame(this.font, tooltip, mouseX, mouseY);
         } else if (hoveredExcess != null) {
-            context.drawTooltip(this.textRenderer,
-                    Text.translatable("quickcraft.entity_placement.excess_entity"), mouseX, mouseY);
+            context.setTooltipForNextFrame(this.font,
+                    Component.translatable("quickcraft.entity_placement.excess_entity"), mouseX, mouseY);
         }
 
         if (candidates.isEmpty()) {
-            Text message = Text.translatable("quickcraft.entity_placement.empty");
-            context.drawText(this.textRenderer, message,
-                    (this.width - this.textRenderer.getWidth(message)) / 2, top + 86, 0xFF404040, false);
+            Component message = Component.translatable("quickcraft.entity_placement.empty");
+            context.text(this.font, message,
+                    (this.width - this.font.width(message)) / 2, top + 86, 0xFF404040, false);
         }
     }
 
-    private void renderPlayerInventory(DrawContext context, int left, int top, int mouseX, int mouseY) {
-        if (this.client == null || this.client.player == null) {
+    private void renderPlayerInventory(GuiGraphicsExtractor context, int left, int top, int mouseX, int mouseY) {
+        if (this.minecraft == null || this.minecraft.player == null) {
             return;
         }
         ItemStack hovered = ItemStack.EMPTY;
@@ -151,9 +152,9 @@ final class QuickLitematicaEntityPlacementScreen extends Screen {
                 int slot = 9 + row * 9 + column;
                 int x = left + 8 + column * SLOT_SIZE;
                 int y = top + 139 + row * SLOT_SIZE;
-                ItemStack stack = this.client.player.getInventory().getMainStacks().get(slot);
-                context.drawItem(stack, x, y);
-                context.drawStackOverlay(this.textRenderer, stack, x, y);
+                ItemStack stack = this.minecraft.player.getInventory().getItem(slot);
+                context.item(stack, x, y);
+                context.itemDecorations(this.font, stack, x, y);
                 if (mouseX >= x && mouseX < x + 16 && mouseY >= y && mouseY < y + 16) {
                     hovered = stack;
                 }
@@ -162,20 +163,20 @@ final class QuickLitematicaEntityPlacementScreen extends Screen {
         for (int column = 0; column < 9; column++) {
             int x = left + 8 + column * SLOT_SIZE;
             int y = top + 197;
-            ItemStack stack = this.client.player.getInventory().getMainStacks().get(column);
-            context.drawItem(stack, x, y);
-            context.drawStackOverlay(this.textRenderer, stack, x, y);
+            ItemStack stack = this.minecraft.player.getInventory().getItem(column);
+            context.item(stack, x, y);
+            context.itemDecorations(this.font, stack, x, y);
             if (mouseX >= x && mouseX < x + 16 && mouseY >= y && mouseY < y + 16) {
                 hovered = stack;
             }
         }
         if (!hovered.isEmpty()) {
-            context.drawItemTooltip(this.textRenderer, hovered, mouseX, mouseY);
+            context.setTooltipForNextFrame(this.font, hovered, mouseX, mouseY);
         }
     }
 
     private void renderContainerPreview(
-            DrawContext context,
+            GuiGraphicsExtractor context,
             QuickLitematicaEntityPlacement.Candidate candidate,
             int mouseX,
             int mouseY
@@ -197,17 +198,17 @@ final class QuickLitematicaEntityPlacementScreen extends Screen {
                 ? yBelow
                 : Math.max(4, mouseY - height - 16);
         if (preview.type() == QuickLitematicaEntityPlacement.ContainerPreviewType.HOPPER) {
-            context.drawTexture(RenderPipelines.GUI_TEXTURED, HOPPER_TEXTURE, x, y,
+            context.blit(RenderPipelines.GUI_TEXTURED, HOPPER_TEXTURE, x, y,
                     HOPPER_CROP_X, HOPPER_CROP_Y, HOPPER_CROP_WIDTH, HOPPER_CROP_HEIGHT, 256, 256);
-            List<ItemStack> stacks = candidate.getStoredStacks(this.client, preview.size());
+            List<ItemStack> stacks = candidate.getStoredStacks(this.minecraft, preview.size());
             for (int slot = 0; slot < stacks.size(); slot++) {
                 drawStack(context, stacks.get(slot), x + 6 + slot * SLOT_SIZE, y + 8);
             }
         } else {
             int rows = preview.size() / 9;
-            context.drawTexture(RenderPipelines.GUI_TEXTURED, CHEST_TEXTURE,
+            context.blit(RenderPipelines.GUI_TEXTURED, CHEST_TEXTURE,
                     x, y, 0, 0, width, rows * 18 + 17, 256, 256);
-            List<ItemStack> stacks = candidate.getStoredStacks(this.client, preview.size());
+            List<ItemStack> stacks = candidate.getStoredStacks(this.minecraft, preview.size());
             for (int slot = 0; slot < stacks.size(); slot++) {
                 drawStack(context, stacks.get(slot), x + 8 + (slot % 9) * SLOT_SIZE,
                         y + 18 + (slot / 9) * SLOT_SIZE);
@@ -215,13 +216,13 @@ final class QuickLitematicaEntityPlacementScreen extends Screen {
         }
     }
 
-    private void drawStack(DrawContext context, ItemStack stack, int x, int y) {
-        context.drawItem(stack, x, y);
-        context.drawStackOverlay(this.textRenderer, stack, x, y);
+    private void drawStack(GuiGraphicsExtractor context, ItemStack stack, int x, int y) {
+        context.item(stack, x, y);
+        context.itemDecorations(this.font, stack, x, y);
     }
 
     @Override
-    public boolean mouseClicked(Click click, boolean doubled) {
+    public boolean mouseClicked(MouseButtonEvent click, boolean doubled) {
         double mouseX = click.x();
         double mouseY = click.y();
         int button = click.button();
@@ -240,8 +241,8 @@ final class QuickLitematicaEntityPlacementScreen extends Screen {
                 && mouseX < left + 8 + column * SLOT_SIZE + 16
                 && mouseY < top + 18 + row * SLOT_SIZE + 16) {
             if (QuickLitematicaEntityPlacement.requestPlacement(
-                    this.client, candidates.get(index), this.candidates)) {
-                this.close();
+                    this.minecraft, candidates.get(index), this.candidates)) {
+                this.onClose();
             }
             return true;
         }

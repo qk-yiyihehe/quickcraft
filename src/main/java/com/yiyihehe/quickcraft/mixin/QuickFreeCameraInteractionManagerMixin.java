@@ -1,17 +1,17 @@
 package com.yiyihehe.quickcraft.mixin;
 
 import com.yiyihehe.quickcraft.QuickFreeCameraInteractions;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.network.ClientPlayerEntity;
-import net.minecraft.client.network.ClientPlayerInteractionManager;
-import net.minecraft.entity.Entity;
-import net.minecraft.entity.player.PlayerEntity;
-import net.minecraft.util.ActionResult;
-import net.minecraft.util.Hand;
-import net.minecraft.util.hit.BlockHitResult;
-import net.minecraft.util.hit.EntityHitResult;
-import net.minecraft.util.math.BlockPos;
-import net.minecraft.util.math.Direction;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.multiplayer.MultiPlayerGameMode;
+import net.minecraft.client.player.LocalPlayer;
+import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
+import net.minecraft.world.InteractionHand;
+import net.minecraft.world.InteractionResult;
+import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.phys.BlockHitResult;
+import net.minecraft.world.phys.EntityHitResult;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
@@ -19,94 +19,79 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
 /**
- * 在灵魂相机交互产生客户端预测前复用 1.21 服务端的本体距离判定。
+ * 在灵魂相机交互产生客户端预测前复用 26.1 服务端的本体距离判定。
  * 如果此处失效，超距放置或破坏会先在客户端生效，再被服务端回滚成幽灵方块。
  */
-@Mixin(ClientPlayerInteractionManager.class)
+@Mixin(MultiPlayerGameMode.class)
 public class QuickFreeCameraInteractionManagerMixin {
-    @Inject(method = "interactBlock", at = @At("HEAD"), cancellable = true)
+    @Inject(method = "useItemOn", at = @At("HEAD"), cancellable = true)
     private void quickcraft$rejectOutOfRangeBlockUse(
-            ClientPlayerEntity player,
-            Hand hand,
+            LocalPlayer player,
+            InteractionHand hand,
             BlockHitResult hitResult,
-            CallbackInfoReturnable<ActionResult> cir
+            CallbackInfoReturnable<InteractionResult> cir
     ) {
         if (QuickFreeCameraInteractions.isBlockOutsideServerInteractionRange(
-                MinecraftClient.getInstance(),
+                Minecraft.getInstance(),
                 hitResult.getBlockPos()
         )) {
-            cir.setReturnValue(ActionResult.FAIL);
+            cir.setReturnValue(InteractionResult.FAIL);
         }
     }
 
-    @Inject(method = "attackBlock", at = @At("HEAD"), cancellable = true)
+    @Inject(method = "startDestroyBlock", at = @At("HEAD"), cancellable = true)
     private void quickcraft$rejectOutOfRangeBlockAttack(
             BlockPos position,
             Direction direction,
             CallbackInfoReturnable<Boolean> cir
     ) {
         if (QuickFreeCameraInteractions.isBlockOutsideServerInteractionRange(
-                MinecraftClient.getInstance(),
+                Minecraft.getInstance(),
                 position
         )) {
             cir.setReturnValue(false);
         }
     }
 
-    @Inject(method = "updateBlockBreakingProgress", at = @At("HEAD"), cancellable = true)
+    @Inject(method = "continueDestroyBlock", at = @At("HEAD"), cancellable = true)
     private void quickcraft$rejectOutOfRangeBlockBreaking(
             BlockPos position,
             Direction direction,
             CallbackInfoReturnable<Boolean> cir
     ) {
         if (QuickFreeCameraInteractions.isBlockOutsideServerInteractionRange(
-                MinecraftClient.getInstance(),
+                Minecraft.getInstance(),
                 position
         )) {
-            ((ClientPlayerInteractionManager) (Object) this).cancelBlockBreaking();
+            ((MultiPlayerGameMode) (Object) this).stopDestroyBlock();
             cir.setReturnValue(false);
         }
     }
 
-    @Inject(method = "interactEntity", at = @At("HEAD"), cancellable = true)
-    private void quickcraft$rejectOutOfRangeEntityUse(
-            PlayerEntity player,
-            Entity entity,
-            Hand hand,
-            CallbackInfoReturnable<ActionResult> cir
-    ) {
-        if (QuickFreeCameraInteractions.isEntityOutsideServerInteractionRange(
-                MinecraftClient.getInstance(),
-                entity
-        )) {
-            cir.setReturnValue(ActionResult.FAIL);
-        }
-    }
-
-    @Inject(method = "interactEntityAtLocation", at = @At("HEAD"), cancellable = true)
+    @Inject(method = "interact", at = @At("HEAD"), cancellable = true)
     private void quickcraft$rejectOutOfRangeEntityUseAtLocation(
-            PlayerEntity player,
+            Player player,
             Entity entity,
             EntityHitResult hitResult,
-            Hand hand,
-            CallbackInfoReturnable<ActionResult> cir
+            InteractionHand hand,
+            CallbackInfoReturnable<InteractionResult> cir
     ) {
         if (QuickFreeCameraInteractions.isEntityOutsideServerInteractionRange(
-                MinecraftClient.getInstance(),
+                Minecraft.getInstance(),
                 entity
         )) {
-            cir.setReturnValue(ActionResult.FAIL);
+            cir.setReturnValue(InteractionResult.FAIL);
         }
     }
 
-    @Inject(method = "attackEntity", at = @At("HEAD"), cancellable = true)
+    @Inject(method = "attack", at = @At("HEAD"), cancellable = true)
     private void quickcraft$rejectOutOfRangeEntityAttack(
-            PlayerEntity player,
+            Player player,
             Entity entity,
             CallbackInfo ci
     ) {
         if (QuickFreeCameraInteractions.isEntityOutsideServerInteractionRange(
-                MinecraftClient.getInstance(),
+                Minecraft.getInstance(),
                 entity
         )) {
             ci.cancel();

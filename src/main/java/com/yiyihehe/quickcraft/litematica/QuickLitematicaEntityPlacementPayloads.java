@@ -1,11 +1,11 @@
 package com.yiyihehe.quickcraft.litematica;
 
-import net.minecraft.nbt.NbtCompound;
-import net.minecraft.network.PacketByteBuf;
-import net.minecraft.network.codec.PacketCodec;
-import net.minecraft.network.packet.CustomPayload;
-import net.minecraft.util.Identifier;
-import net.minecraft.util.math.Vec3d;
+import net.minecraft.nbt.CompoundTag;
+import net.minecraft.network.RegistryFriendlyByteBuf;
+import net.minecraft.network.codec.StreamCodec;
+import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
+import net.minecraft.resources.Identifier;
+import net.minecraft.world.phys.Vec3;
 
 /**
  * 轻松放置实体的跨端线协议。
@@ -19,9 +19,9 @@ public final class QuickLitematicaEntityPlacementPayloads {
     private QuickLitematicaEntityPlacementPayloads() {
     }
 
-    public record HelloPayload(int version, int features, int maxNbtBytes) implements CustomPayload {
-        public static final Id<HelloPayload> ID = new Id<>(Identifier.of("quickcraft", "entity_place_hello"));
-        public static final PacketCodec<PacketByteBuf, HelloPayload> CODEC = CustomPayload.codecOf(
+    public record HelloPayload(int version, int features, int maxNbtBytes) implements CustomPacketPayload {
+        public static final Type<HelloPayload> ID = new Type<>(Identifier.fromNamespaceAndPath("quickcraft", "entity_place_hello"));
+        public static final StreamCodec<RegistryFriendlyByteBuf, HelloPayload> CODEC = CustomPacketPayload.codec(
                 (payload, buffer) -> {
                     buffer.writeVarInt(payload.version);
                     buffer.writeVarInt(payload.features);
@@ -31,7 +31,7 @@ public final class QuickLitematicaEntityPlacementPayloads {
         );
 
         @Override
-        public Id<HelloPayload> getId() {
+        public Type<HelloPayload> type() {
             return ID;
         }
     }
@@ -43,16 +43,16 @@ public final class QuickLitematicaEntityPlacementPayloads {
             int maxNbtBytes,
             int features,
             String sessionToken
-    ) implements CustomPayload {
-        public static final Id<CapabilityPayload> ID = new Id<>(Identifier.of("quickcraft", "entity_place_capability"));
-        public static final PacketCodec<PacketByteBuf, CapabilityPayload> CODEC = CustomPayload.codecOf(
+    ) implements CustomPacketPayload {
+        public static final Type<CapabilityPayload> ID = new Type<>(Identifier.fromNamespaceAndPath("quickcraft", "entity_place_capability"));
+        public static final StreamCodec<RegistryFriendlyByteBuf, CapabilityPayload> CODEC = CustomPacketPayload.codec(
                 (payload, buffer) -> {
                     buffer.writeVarInt(payload.version);
                     buffer.writeBoolean(payload.enabled);
                     buffer.writeDouble(payload.reach);
                     buffer.writeVarInt(payload.maxNbtBytes);
                     buffer.writeVarInt(payload.features);
-                    buffer.writeString(payload.sessionToken, 128);
+                    buffer.writeUtf(payload.sessionToken, 128);
                 },
                 buffer -> new CapabilityPayload(
                         buffer.readVarInt(),
@@ -60,12 +60,12 @@ public final class QuickLitematicaEntityPlacementPayloads {
                         buffer.readDouble(),
                         buffer.readVarInt(),
                         buffer.readVarInt(),
-                        buffer.readString(128)
+                        buffer.readUtf(128)
                 )
         );
 
         @Override
-        public Id<CapabilityPayload> getId() {
+        public Type<CapabilityPayload> type() {
             return ID;
         }
     }
@@ -74,84 +74,84 @@ public final class QuickLitematicaEntityPlacementPayloads {
             String sessionToken,
             long nonce,
             Identifier dimension,
-            Vec3d target,
+            Vec3 target,
             Identifier entityType,
             String region,
             int entityIndex,
             float yaw,
             float pitch,
-            Vec3d velocity,
+            Vec3 velocity,
             boolean creativeMaterialBypass,
-            NbtCompound entityNbt
-    ) implements CustomPayload {
-        public static final Id<RequestPayload> ID = new Id<>(Identifier.of("quickcraft", "entity_place_request"));
-        public static final PacketCodec<PacketByteBuf, RequestPayload> CODEC = CustomPayload.codecOf(
+            CompoundTag entityNbt
+    ) implements CustomPacketPayload {
+        public static final Type<RequestPayload> ID = new Type<>(Identifier.fromNamespaceAndPath("quickcraft", "entity_place_request"));
+        public static final StreamCodec<RegistryFriendlyByteBuf, RequestPayload> CODEC = CustomPacketPayload.codec(
                 (payload, buffer) -> {
-                    buffer.writeString(payload.sessionToken, 128);
+                    buffer.writeUtf(payload.sessionToken, 128);
                     buffer.writeLong(payload.nonce);
                     buffer.writeIdentifier(payload.dimension);
-                    writeVec3d(buffer, payload.target);
+                    writeVec3(buffer, payload.target);
                     buffer.writeIdentifier(payload.entityType);
-                    buffer.writeString(payload.region, 256);
+                    buffer.writeUtf(payload.region, 256);
                     buffer.writeVarInt(payload.entityIndex);
                     buffer.writeFloat(payload.yaw);
                     buffer.writeFloat(payload.pitch);
-                    writeVec3d(buffer, payload.velocity);
+                    writeVec3(buffer, payload.velocity);
                     buffer.writeBoolean(payload.creativeMaterialBypass);
                     buffer.writeNbt(payload.entityNbt);
                 },
                 buffer -> new RequestPayload(
-                        buffer.readString(128),
+                        buffer.readUtf(128),
                         buffer.readLong(),
                         buffer.readIdentifier(),
-                        readVec3d(buffer),
+                        readVec3(buffer),
                         buffer.readIdentifier(),
-                        buffer.readString(256),
+                        buffer.readUtf(256),
                         buffer.readVarInt(),
                         buffer.readFloat(),
                         buffer.readFloat(),
-                        readVec3d(buffer),
+                        readVec3(buffer),
                         buffer.readBoolean(),
                         buffer.readNbt()
                 )
         );
 
         @Override
-        public Id<RequestPayload> getId() {
+        public Type<RequestPayload> type() {
             return ID;
         }
     }
 
-    public record ResultPayload(long nonce, String status, String entityUuid, String messageKey) implements CustomPayload {
-        public static final Id<ResultPayload> ID = new Id<>(Identifier.of("quickcraft", "entity_place_result"));
-        public static final PacketCodec<PacketByteBuf, ResultPayload> CODEC = CustomPayload.codecOf(
+    public record ResultPayload(long nonce, String status, String entityUuid, String messageKey) implements CustomPacketPayload {
+        public static final Type<ResultPayload> ID = new Type<>(Identifier.fromNamespaceAndPath("quickcraft", "entity_place_result"));
+        public static final StreamCodec<RegistryFriendlyByteBuf, ResultPayload> CODEC = CustomPacketPayload.codec(
                 (payload, buffer) -> {
                     buffer.writeLong(payload.nonce);
-                    buffer.writeString(payload.status, 64);
-                    buffer.writeString(payload.entityUuid, 64);
-                    buffer.writeString(payload.messageKey, 256);
+                    buffer.writeUtf(payload.status, 64);
+                    buffer.writeUtf(payload.entityUuid, 64);
+                    buffer.writeUtf(payload.messageKey, 256);
                 },
                 buffer -> new ResultPayload(
                         buffer.readLong(),
-                        buffer.readString(64),
-                        buffer.readString(64),
-                        buffer.readString(256)
+                        buffer.readUtf(64),
+                        buffer.readUtf(64),
+                        buffer.readUtf(256)
                 )
         );
 
         @Override
-        public Id<ResultPayload> getId() {
+        public Type<ResultPayload> type() {
             return ID;
         }
     }
 
-    private static void writeVec3d(PacketByteBuf buffer, Vec3d value) {
+    private static void writeVec3(RegistryFriendlyByteBuf buffer, Vec3 value) {
         buffer.writeDouble(value.x);
         buffer.writeDouble(value.y);
         buffer.writeDouble(value.z);
     }
 
-    private static Vec3d readVec3d(PacketByteBuf buffer) {
-        return new Vec3d(buffer.readDouble(), buffer.readDouble(), buffer.readDouble());
+    private static Vec3 readVec3(RegistryFriendlyByteBuf buffer) {
+        return new Vec3(buffer.readDouble(), buffer.readDouble(), buffer.readDouble());
     }
 }
