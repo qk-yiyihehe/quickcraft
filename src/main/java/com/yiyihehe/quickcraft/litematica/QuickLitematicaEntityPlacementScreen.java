@@ -53,7 +53,6 @@ final class QuickLitematicaEntityPlacementScreen extends Screen {
 
     @Override
     public void render(DrawContext context, int mouseX, int mouseY, float delta) {
-        this.renderBackground(context, mouseX, mouseY, delta);
         int left = (this.width - PANEL_WIDTH) / 2;
         int top = (this.height - PANEL_HEIGHT) / 2;
         boolean serverAvailable = QuickLitematicaEntityPlacement.isServerAvailable();
