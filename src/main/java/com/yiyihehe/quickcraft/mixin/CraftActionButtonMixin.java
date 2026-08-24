@@ -58,9 +58,9 @@ public abstract class CraftActionButtonMixin extends HandledScreen<CraftingScree
     private void quickcraft$syncCraftButton(DrawContext context, float delta, int mouseX, int mouseY, CallbackInfo ci) {
         if (QuickCraftWorkbenchRouter.shouldSuppressRecipeGhostSlots()) {
             CraftingScreen screen = (CraftingScreen) (Object) this;
-            ((RecipeBookWidgetAccessor) (Object) screen.getRecipeBookWidget())
-                    .quickcraft$getGhostSlots()
-                    .reset();
+            ((RecipeBookScreenAccessor) (Object) screen)
+                    .quickcraft$getRecipeBook()
+                    .onMouseClick(screen.getScreenHandler().getSlot(0));
         }
         if (this.quickcraft$craftButton == null) {
             return;
