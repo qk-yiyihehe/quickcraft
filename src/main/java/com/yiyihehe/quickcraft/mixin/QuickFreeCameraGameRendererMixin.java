@@ -23,16 +23,6 @@ public abstract class QuickFreeCameraGameRendererMixin {
     @Final
     private MinecraftClient client;
 
-    @Shadow
-    private HitResult findCrosshairTarget(
-            Entity camera,
-            double blockInteractionRange,
-            double entityInteractionRange,
-            float tickDelta
-    ) {
-        throw new AssertionError();
-    }
-
     @Inject(method = "updateCrosshairTarget", at = @At("TAIL"))
     private void quickcraft$useFreeCameraCrosshair(float tickDelta, CallbackInfo ci) {
         if (!QuickFreeCameraInteractions.shouldOverrideCrosshair(this.client)) {
@@ -40,12 +30,7 @@ public abstract class QuickFreeCameraGameRendererMixin {
         }
 
         Entity camera = this.client.getCameraEntity();
-        HitResult target = this.findCrosshairTarget(
-                camera,
-                this.client.player.getBlockInteractionRange(),
-                this.client.player.getEntityInteractionRange(),
-                tickDelta
-        );
+        HitResult target = this.client.player.getCrosshairTarget(tickDelta, camera);
         target = QuickFreeCameraInteractions.filterCrosshairTarget(this.client, camera, target);
         this.client.crosshairTarget = target;
         this.client.targetedEntity = target instanceof EntityHitResult entityHitResult
