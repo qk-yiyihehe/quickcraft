@@ -1505,7 +1505,7 @@ public class QuickCraftWorkbench implements ClientModInitializer {
         }
         try {
             boolean hasRemainder = false;
-            for (ItemStack remainder : recipe.value().getRecipeRemainders(getCraftingRecipeInput(handler))) {
+            for (ItemStack remainder : recipe.value().getRemainingItems(getCraftingRecipeInput(handler))) {
                 hasRemainder |= !remainder.isEmpty();
             }
             return canDirectFillRecipe(true, hasRemainder);

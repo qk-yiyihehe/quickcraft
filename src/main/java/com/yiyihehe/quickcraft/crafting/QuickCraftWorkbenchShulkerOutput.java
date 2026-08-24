@@ -1,15 +1,15 @@
 package com.yiyihehe.quickcraft.crafting;
 
-import net.minecraft.block.ShulkerBoxBlock;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.component.DataComponentTypes;
-import net.minecraft.component.type.ContainerComponent;
-import net.minecraft.entity.player.PlayerInventory;
-import net.minecraft.item.BlockItem;
-import net.minecraft.item.ItemStack;
-import net.minecraft.screen.CraftingScreenHandler;
-import net.minecraft.screen.slot.Slot;
-import net.minecraft.screen.slot.SlotActionType;
+import net.minecraft.world.level.block.ShulkerBoxBlock;
+import net.minecraft.client.Minecraft;
+import net.minecraft.core.component.DataComponents;
+import net.minecraft.world.item.component.ItemContainerContents;
+import net.minecraft.world.entity.player.Inventory;
+import net.minecraft.world.item.BlockItem;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.inventory.CraftingMenu;
+import net.minecraft.world.inventory.Slot;
+import net.minecraft.world.inventory.ContainerInput;
 
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -22,11 +22,11 @@ final class QuickCraftWorkbenchShulkerOutput {
     private QuickCraftWorkbenchShulkerOutput() {
     }
 
-    static int takeBox(MinecraftClient client,
-                       CraftingScreenHandler handler,
+    static int takeBox(Minecraft client,
+                       CraftingMenu handler,
                        ItemStack output) {
-        if (client.player == null || client.interactionManager == null
-                || !handler.getCursorStack().isEmpty() || output.isEmpty() || isShulkerBox(output)) {
+        if (client.player == null || client.gameMode == null
+                || !handler.getCarried().isEmpty() || output.isEmpty() || isShulkerBox(output)) {
             return -1;
         }
 
@@ -35,49 +35,49 @@ final class QuickCraftWorkbenchShulkerOutput {
             return -1;
         }
 
-        client.interactionManager.clickSlot(handler.syncId, target.id, 0,
-                SlotActionType.PICKUP, client.player);
-        if (isSingleShulker(handler.getCursorStack())
-                && getCapacity(handler.getCursorStack(), output) >= output.getCount()) {
-            return target.id;
+        client.gameMode.handleContainerInput(handler.containerId, target.index, 0,
+                ContainerInput.PICKUP, client.player);
+        if (isSingleShulker(handler.getCarried())
+                && getCapacity(handler.getCarried(), output) >= output.getCount()) {
+            return target.index;
         }
-        if (!handler.getCursorStack().isEmpty() && !target.hasStack()) {
-            client.interactionManager.clickSlot(handler.syncId, target.id, 0,
-                    SlotActionType.PICKUP, client.player);
+        if (!handler.getCarried().isEmpty() && !target.hasItem()) {
+            client.gameMode.handleContainerInput(handler.containerId, target.index, 0,
+                    ContainerInput.PICKUP, client.player);
         }
         return -1;
     }
 
-    static boolean storeOnce(MinecraftClient client,
-                             CraftingScreenHandler handler,
+    static boolean storeOnce(Minecraft client,
+                             CraftingMenu handler,
                              ItemStack output) {
-        if (client.player == null || client.interactionManager == null
-                || !handler.getSlot(0).hasStack()
-                || !ItemStack.areItemsAndComponentsEqual(handler.getSlot(0).getStack(), output)
-                || getCapacity(handler.getCursorStack(), output) < output.getCount()) {
+        if (client.player == null || client.gameMode == null
+                || !handler.getSlot(0).hasItem()
+                || !ItemStack.isSameItemSameComponents(handler.getSlot(0).getItem(), output)
+                || getCapacity(handler.getCarried(), output) < output.getCount()) {
             return false;
         }
 
-        int capacityBefore = getCapacity(handler.getCursorStack(), output);
-        client.interactionManager.clickSlot(handler.syncId, 0, 1,
-                SlotActionType.PICKUP, client.player);
-        return getCapacity(handler.getCursorStack(), output) < capacityBefore;
+        int capacityBefore = getCapacity(handler.getCarried(), output);
+        client.gameMode.handleContainerInput(handler.containerId, 0, 1,
+                ContainerInput.PICKUP, client.player);
+        return getCapacity(handler.getCarried(), output) < capacityBefore;
     }
 
-    static boolean returnBox(MinecraftClient client,
-                             CraftingScreenHandler handler,
+    static boolean returnBox(Minecraft client,
+                             CraftingMenu handler,
                              int sourceSlotId) {
-        if (handler.getCursorStack().isEmpty()) {
+        if (handler.getCarried().isEmpty()) {
             return true;
         }
-        if (client.player == null || client.interactionManager == null
+        if (client.player == null || client.gameMode == null
                 || sourceSlotId < 0 || sourceSlotId >= handler.slots.size()
-                || handler.getSlot(sourceSlotId).hasStack()) {
+                || handler.getSlot(sourceSlotId).hasItem()) {
             return false;
         }
-        client.interactionManager.clickSlot(handler.syncId, sourceSlotId, 0,
-                SlotActionType.PICKUP, client.player);
-        return handler.getCursorStack().isEmpty();
+        client.gameMode.handleContainerInput(handler.containerId, sourceSlotId, 0,
+                ContainerInput.PICKUP, client.player);
+        return handler.getCarried().isEmpty();
     }
 
     static boolean isShulkerBox(ItemStack stack) {
@@ -94,11 +94,11 @@ final class QuickCraftWorkbenchShulkerOutput {
         int matchingCapacity = 0;
         for (ItemStack stored : getStoredStacks(shulker)) {
             usedSlots++;
-            if (ItemStack.areItemsAndComponentsEqual(stored, output)) {
-                matchingCapacity += Math.max(0, stored.getMaxCount() - stored.getCount());
+            if (ItemStack.isSameItemSameComponents(stored, output)) {
+                matchingCapacity += Math.max(0, stored.getMaxStackSize() - stored.getCount());
             }
         }
-        return calculateCapacity(output.getMaxCount(), usedSlots, matchingCapacity);
+        return calculateCapacity(output.getMaxStackSize(), usedSlots, matchingCapacity);
     }
 
     static int calculateCapacity(int maxStackSize,
@@ -108,17 +108,17 @@ final class QuickCraftWorkbenchShulkerOutput {
                 + Math.max(0, 27 - usedSlots) * Math.max(0, maxStackSize);
     }
 
-    private static Slot findBox(CraftingScreenHandler handler,
+    private static Slot findBox(CraftingMenu handler,
                                 ItemStack output) {
         Slot emptyCandidate = null;
         for (Slot slot : getPlayerStorageSlots(handler)) {
-            if (!slot.hasStack() || slot.getStack().getCount() != 1 || !isShulkerBox(slot.getStack())) {
+            if (!slot.hasItem() || slot.getItem().getCount() != 1 || !isShulkerBox(slot.getItem())) {
                 continue;
             }
-            boolean empty = getStoredStacks(slot.getStack()).isEmpty();
+            boolean empty = getStoredStacks(slot.getItem()).isEmpty();
             int priority = outputBoxContentPriority(empty,
-                    isOutputOnlyBox(slot.getStack(), output),
-                    getCapacity(slot.getStack(), output) >= output.getCount());
+                    isOutputOnlyBox(slot.getItem(), output),
+                    getCapacity(slot.getItem(), output) >= output.getCount());
             if (priority == 0) {
                 return slot;
             }
@@ -140,7 +140,7 @@ final class QuickCraftWorkbenchShulkerOutput {
 
     private static boolean isOutputOnlyBox(ItemStack shulker, ItemStack output) {
         for (ItemStack stored : getStoredStacks(shulker)) {
-            if (!ItemStack.areItemsAndComponentsEqual(stored, output)) {
+            if (!ItemStack.isSameItemSameComponents(stored, output)) {
                 return false;
             }
         }
@@ -152,33 +152,33 @@ final class QuickCraftWorkbenchShulkerOutput {
     }
 
     private static List<ItemStack> getStoredStacks(ItemStack shulker) {
-        ContainerComponent container = shulker.getOrDefault(DataComponentTypes.CONTAINER, ContainerComponent.DEFAULT);
+        ItemContainerContents container = shulker.getOrDefault(DataComponents.CONTAINER, ItemContainerContents.EMPTY);
         List<ItemStack> stacks = new ArrayList<>();
-        for (ItemStack stack : container.iterateNonEmpty()) {
+        for (ItemStack stack : container.nonEmptyItemCopyStream().toList()) {
             stacks.add(stack);
         }
         return stacks;
     }
 
-    private static List<Slot> getPlayerStorageSlots(CraftingScreenHandler handler) {
+    private static List<Slot> getPlayerStorageSlots(CraftingMenu handler) {
         List<Slot> slots = new ArrayList<>();
         for (Slot slot : handler.slots) {
-            if (slot.inventory instanceof PlayerInventory
-                    && slot.getIndex() >= 0
-                    && slot.getIndex() < PlayerInventory.MAIN_SIZE
-                    && slot.isEnabled()) {
+            if (slot.container instanceof Inventory
+                    && slot.getContainerSlot() >= 0
+                    && slot.getContainerSlot() < Inventory.INVENTORY_SIZE
+                    && slot.isActive()) {
                 slots.add(slot);
             }
         }
         // 工作台界面中主背包（9..35）位于快捷栏上方，优先从那里取产物盒，避免占用常用快捷栏。
-        slots.sort(Comparator.comparingInt((Slot slot) -> outputBoxScanPriority(slot.getIndex()))
-                .thenComparingInt(Slot::getIndex)
-                .thenComparingInt(slot -> slot.id));
+        slots.sort(Comparator.comparingInt((Slot slot) -> outputBoxScanPriority(slot.getContainerSlot()))
+                .thenComparingInt(Slot::getContainerSlot)
+                .thenComparingInt(slot -> slot.index));
         return slots;
     }
 
     static int outputBoxScanPriority(int inventoryIndex) {
-        if (inventoryIndex >= 9 && inventoryIndex < PlayerInventory.MAIN_SIZE) {
+        if (inventoryIndex >= 9 && inventoryIndex < Inventory.INVENTORY_SIZE) {
             return 0;
         }
         if (inventoryIndex >= 0 && inventoryIndex < 9) {
