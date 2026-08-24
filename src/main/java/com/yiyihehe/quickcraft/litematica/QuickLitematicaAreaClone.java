@@ -41,7 +41,7 @@ public final class QuickLitematicaAreaClone {
         if (action != KeyAction.PRESS
                 || client.player == null
                 || client.level == null
-                || client.screen != null) {
+                || client.gui.screen() != null) {
             return false;
         }
 

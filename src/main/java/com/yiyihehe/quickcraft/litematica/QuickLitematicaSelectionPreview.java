@@ -43,7 +43,7 @@ public final class QuickLitematicaSelectionPreview {
         if (action != KeyAction.PRESS
                 || client.player == null
                 || client.level == null
-                || client.screen != null) {
+                || client.gui.screen() != null) {
             return false;
         }
         if (!QuickCraftConfigs.isLitematica3DPreviewEnabled()) {
@@ -76,7 +76,7 @@ public final class QuickLitematicaSelectionPreview {
         AreaSelection selectionSnapshot = selection.copy();
         String displayName = StringUtils.translate("quickcraft.litematica.preview_3d.area_title");
         String author = client.player.getName().getString();
-        QuickLitematicaPreview3D.openGenerated(client.screen, displayName, () ->
+        QuickLitematicaPreview3D.openGenerated(client.gui.screen(), displayName, () ->
                 captureSelection(client.level, selectionSnapshot, author)
         );
         return true;

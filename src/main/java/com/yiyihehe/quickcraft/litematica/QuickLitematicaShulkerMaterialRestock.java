@@ -141,7 +141,7 @@ public final class QuickLitematicaShulkerMaterialRestock implements ClientModIni
         switch (operation) {
             case IDLE -> {
                 if (pendingRequest != null
-                        && client.screen == null
+                        && client.gui.screen() == null
                         && !startPendingRequest(client)) {
                     pendingRequest = null;
                 }
@@ -159,7 +159,7 @@ public final class QuickLitematicaShulkerMaterialRestock implements ClientModIni
         if (operation != Operation.WAITING_FOR_OPEN
                 || activeAction == null
                 || client.player == null
-                || client.screen != null
+                || client.gui.screen() != null
                 || !(client.player.containerMenu instanceof ShulkerBoxMenu handler)
                 || handler.containerId != syncId) {
             return;
@@ -206,7 +206,7 @@ public final class QuickLitematicaShulkerMaterialRestock implements ClientModIni
     }
 
     private static boolean startPendingRequest(Minecraft client) {
-        if (pendingRequest == null || client.player == null || client.screen != null) {
+        if (pendingRequest == null || client.player == null || client.gui.screen() != null) {
             return false;
         }
 
@@ -284,7 +284,7 @@ public final class QuickLitematicaShulkerMaterialRestock implements ClientModIni
             return;
         }
 
-        if (client.screen != null) {
+        if (client.gui.screen() != null) {
             resetState(client);
             return;
         }
