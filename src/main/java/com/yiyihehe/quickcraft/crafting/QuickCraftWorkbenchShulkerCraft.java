@@ -15,6 +15,7 @@ import net.minecraft.item.ItemStack;
 import net.minecraft.network.packet.c2s.play.ClientStatusC2SPacket;
 import net.minecraft.recipe.CraftingRecipe;
 import net.minecraft.recipe.RecipeEntry;
+import net.minecraft.recipe.ServerRecipeManager;
 import net.minecraft.recipe.RecipeType;
 import net.minecraft.recipe.input.CraftingRecipeInput;
 import net.minecraft.screen.CraftingScreenHandler;
@@ -1563,7 +1564,10 @@ public final class QuickCraftWorkbenchShulkerCraft implements ClientModInitializ
     private RecipeEntry<CraftingRecipe> findCurrentRecipe(MinecraftClient client,
                                                            CraftingScreenHandler handler) {
         try {
-            Optional<RecipeEntry<CraftingRecipe>> match = client.world.getRecipeManager().getFirstMatch(
+            if (!(client.world.getRecipeManager() instanceof ServerRecipeManager recipeManager)) {
+                return null;
+            }
+            Optional<RecipeEntry<CraftingRecipe>> match = recipeManager.getFirstMatch(
                     RecipeType.CRAFTING, createInput(handler), client.world);
             return match.orElse(null);
         } catch (Throwable throwable) {
@@ -1574,7 +1578,7 @@ public final class QuickCraftWorkbenchShulkerCraft implements ClientModInitializ
     private boolean hasRemainder(RecipeEntry<CraftingRecipe> currentRecipe,
                                  CraftingScreenHandler handler) {
         try {
-            for (ItemStack remainder : currentRecipe.value().getRemainder(createInput(handler))) {
+            for (ItemStack remainder : currentRecipe.value().getRecipeRemainders(createInput(handler))) {
                 if (!remainder.isEmpty()) {
                     return true;
                 }
