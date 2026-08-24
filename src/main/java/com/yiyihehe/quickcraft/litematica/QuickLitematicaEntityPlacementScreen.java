@@ -58,13 +58,13 @@ final class QuickLitematicaEntityPlacementScreen extends Screen {
         boolean serverAvailable = QuickLitematicaEntityPlacement.isServerAvailable();
         context.drawTexture(RenderPipelines.GUI_TEXTURED, CHEST_TEXTURE,
                 left, top, 0, 0, PANEL_WIDTH, PANEL_HEIGHT, 256, 256);
-        context.drawCenteredTextWithShadow(this.textRenderer, this.title, this.width / 2, top + 6, 0xFFFFFF);
+        context.drawCenteredTextWithShadow(this.textRenderer, this.title, this.width / 2, top + 6, 0xFFFFFFFF);
 
         int noticeY = top - 13;
         if (!serverAvailable) {
             context.drawCenteredTextWithShadow(this.textRenderer,
                     Text.translatable("quickcraft.entity_placement.server_unavailable"),
-                    this.width / 2, noticeY, 0xFF5555);
+                    this.width / 2, noticeY, 0xFFFF5555);
             noticeY -= 13;
         }
 
@@ -136,7 +136,7 @@ final class QuickLitematicaEntityPlacementScreen extends Screen {
         if (candidates.isEmpty()) {
             Text message = Text.translatable("quickcraft.entity_placement.empty");
             context.drawText(this.textRenderer, message,
-                    (this.width - this.textRenderer.getWidth(message)) / 2, top + 86, 0x404040, false);
+                    (this.width - this.textRenderer.getWidth(message)) / 2, top + 86, 0xFF404040, false);
         }
     }
 
