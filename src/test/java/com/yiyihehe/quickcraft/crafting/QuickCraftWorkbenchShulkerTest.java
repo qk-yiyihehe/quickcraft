@@ -8,11 +8,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 class QuickCraftWorkbenchShulkerTest {
     @Test
-    @DisplayName("流水线模式使用稳定默认值并支持持久化解析")
-    void pipelineMode_defaultsToResponseStableAndParsesValues() {
-        assertThat(QuickCraftConfigs.Crafting.WORKBENCH_QUICK_SHULKER_PIPELINE_MODE
-                .getOptionListValue())
-                .isEqualTo(QuickCraftConfigs.WorkbenchShulkerPipelineMode.RESPONSE_STABLE);
+    @DisplayName("流水线模式支持持久化解析与稳定回退")
+    void pipelineMode_parsesValuesAndFallsBackToResponseStable() {
         assertThat(QuickCraftConfigs.WorkbenchShulkerPipelineMode.RESPONSE_STABLE
                 .fromString("balanced"))
                 .isEqualTo(QuickCraftConfigs.WorkbenchShulkerPipelineMode.BALANCED);

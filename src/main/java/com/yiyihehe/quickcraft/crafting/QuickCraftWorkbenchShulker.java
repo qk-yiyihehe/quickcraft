@@ -3,19 +3,19 @@ package com.yiyihehe.quickcraft.crafting;
 import com.yiyihehe.quickcraft.config.QuickCraftConfigs;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
 import net.fabricmc.loader.api.FabricLoader;
-import net.minecraft.block.ShulkerBoxBlock;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.component.DataComponentTypes;
-import net.minecraft.component.type.ContainerComponent;
-import net.minecraft.entity.player.PlayerInventory;
-import net.minecraft.item.BlockItem;
-import net.minecraft.item.ItemStack;
-import net.minecraft.screen.CraftingScreenHandler;
-import net.minecraft.screen.ScreenHandler;
-import net.minecraft.screen.slot.Slot;
-import net.minecraft.screen.slot.SlotActionType;
-import net.minecraft.text.Text;
-import net.minecraft.util.Identifier;
+import net.minecraft.world.level.block.ShulkerBoxBlock;
+import net.minecraft.client.Minecraft;
+import net.minecraft.core.component.DataComponents;
+import net.minecraft.world.item.component.ItemContainerContents;
+import net.minecraft.world.entity.player.Inventory;
+import net.minecraft.world.item.BlockItem;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.inventory.CraftingMenu;
+import net.minecraft.world.inventory.AbstractContainerMenu;
+import net.minecraft.world.inventory.Slot;
+import net.minecraft.world.inventory.ContainerInput;
+import net.minecraft.network.chat.Component;
+import net.minecraft.resources.Identifier;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashSet;
@@ -30,14 +30,14 @@ public final class QuickCraftWorkbenchShulker {
     private static final int GRID_START = 1;
     private static final int GRID_END = 9;
     private static final int MAX_UNBUNDLE_CLICKS_PER_SOURCE = GRID_END - GRID_START + 1;
-    static final int MAX_SOURCE_SHULKERS = PlayerInventory.MAIN_SIZE;
+    static final int MAX_SOURCE_SHULKERS = Inventory.INVENTORY_SIZE;
     private static final int MULTI_SOURCE_BATCHES_PER_ACK = 3;
     private static final Identifier QUICK_SHULKER_OPEN_PACKET =
-            Identifier.of("quickshulker", "open_shulker_packet");
+            Identifier.fromNamespaceAndPath("quickshulker", "open_shulker_packet");
 
     private static Task task;
     private static TaskResult pendingResult = TaskResult.NONE;
-    private static Text pendingMessage;
+    private static Component pendingMessage;
     private static TaskOwner pendingOwner;
     private static int sessionSourceBatches;
     private static QuickCraftConfigs.WorkbenchShulkerPipelineMode sessionMode =
@@ -89,7 +89,7 @@ public final class QuickCraftWorkbenchShulker {
         return task != null;
     }
 
-    public static boolean handleEscape(MinecraftClient client) {
+    public static boolean handleEscape(Minecraft client) {
         if (!shouldBlockWorkbenchInput()) {
             return false;
         }
@@ -126,37 +126,37 @@ public final class QuickCraftWorkbenchShulker {
         return consumeResult(TaskOwner.SHULKER_CRAFT);
     }
 
-    public static Text consumeMessage() {
+    public static Component consumeMessage() {
         return consumeMessage(TaskOwner.LEGACY);
     }
 
-    public static Text consumeShulkerCraftMessage() {
+    public static Component consumeShulkerCraftMessage() {
         return consumeMessage(TaskOwner.SHULKER_CRAFT);
     }
 
-    public static boolean recoverShulkerCraftCursor(CraftingScreenHandler handler) {
+    public static boolean recoverShulkerCraftCursor(CraftingMenu handler) {
         return handler != null
-                && isSingleShulker(handler.getCursorStack())
+                && isSingleShulker(handler.getCarried())
                 && recoverUnexpectedShulker(handler, -1);
     }
 
-    public static RefillStart beginRefill(CraftingScreenHandler handler, List<ItemStack> pattern) {
+    public static RefillStart beginRefill(CraftingMenu handler, List<ItemStack> pattern) {
         return beginRefill(handler, pattern, TaskOwner.LEGACY);
     }
 
-    public static RefillStart beginShulkerCraftRefill(CraftingScreenHandler handler, List<ItemStack> pattern) {
+    public static RefillStart beginShulkerCraftRefill(CraftingMenu handler, List<ItemStack> pattern) {
         return beginRefill(handler, pattern, TaskOwner.SHULKER_CRAFT);
     }
 
-    private static RefillStart beginRefill(CraftingScreenHandler handler,
+    private static RefillStart beginRefill(CraftingMenu handler,
                                            List<ItemStack> pattern,
                                            TaskOwner owner) {
         if (task != null || handler == null || pattern == null || pattern.isEmpty() || !isAvailable()) {
             return RefillStart.NOT_STARTED;
         }
-        if (!handler.getCursorStack().isEmpty()) {
+        if (!handler.getCarried().isEmpty()) {
             if (owner == TaskOwner.SHULKER_CRAFT
-                    && isSingleShulker(handler.getCursorStack())
+                    && isSingleShulker(handler.getCarried())
                     && recoverUnexpectedShulker(handler, -1)) {
                 return RefillStart.RECOVERED_DESYNC;
             }
@@ -172,7 +172,7 @@ public final class QuickCraftWorkbenchShulker {
             }
             return RefillStart.GRID_MISMATCH;
         }
-        task = new Task(normalizedPattern, handler.syncId, owner);
+        task = new Task(normalizedPattern, handler.containerId, owner);
         task.nextSource = findSource(handler, normalizedPattern, Set.of());
         if (task.nextSource == null) {
             task = null;
@@ -181,27 +181,27 @@ public final class QuickCraftWorkbenchShulker {
         return RefillStart.STARTED;
     }
 
-    public static void tick(MinecraftClient client) {
+    public static void tick(Minecraft client) {
         tick(client, TaskOwner.LEGACY);
     }
 
-    public static void tickShulkerCraft(MinecraftClient client) {
+    public static void tickShulkerCraft(Minecraft client) {
         tick(client, TaskOwner.SHULKER_CRAFT);
     }
 
-    private static void tick(MinecraftClient client, TaskOwner owner) {
+    private static void tick(Minecraft client, TaskOwner owner) {
         tick(client, owner, -1);
     }
 
-    private static void tick(MinecraftClient client, TaskOwner owner, int sourceBatchLimit) {
+    private static void tick(Minecraft client, TaskOwner owner, int sourceBatchLimit) {
         if (!isTaskOwnedBy(owner)) {
             return;
         }
-        if (client == null || client.player == null || client.interactionManager == null
-                || client.world == null
-                || !(client.player.currentScreenHandler instanceof CraftingScreenHandler handler)
-                || handler.syncId != task.workbenchSyncId) {
-            finish(TaskResult.STOPPED, Text.translatable("quickcraft.message.crafting.shulker_screen_invalid"));
+        if (client == null || client.player == null || client.gameMode == null
+                || client.level == null
+                || !(client.player.containerMenu instanceof CraftingMenu handler)
+                || handler.containerId != task.workbenchSyncId) {
+            finish(TaskResult.STOPPED, Component.translatable("quickcraft.message.crafting.shulker_screen_invalid"));
             return;
         }
         if (task.stopRequested) {
@@ -227,7 +227,7 @@ public final class QuickCraftWorkbenchShulker {
         }
     }
 
-    private static void extractDirectly(MinecraftClient client, CraftingScreenHandler handler) {
+    private static void extractDirectly(Minecraft client, CraftingMenu handler) {
         if (task.owner == TaskOwner.SHULKER_CRAFT) {
             sessionSourceBatches++;
         }
@@ -238,23 +238,23 @@ public final class QuickCraftWorkbenchShulker {
         }
         if (source == null) {
             finish(task.movedItems > 0 ? TaskResult.REFILLED : TaskResult.STOPPED,
-                    task.movedItems > 0 ? null : Text.translatable("quickcraft.message.crafting.no_ingredients"));
+                    task.movedItems > 0 ? null : Component.translatable("quickcraft.message.crafting.no_ingredients"));
             return;
         }
 
         Slot sourceSlot = findPlayerSlot(handler, source.playerIndex());
-        if (sourceSlot == null || !sourceSlot.hasStack()) {
+        if (sourceSlot == null || !sourceSlot.hasItem()) {
             task.exhaustedSourcePlayerIndices.add(source.playerIndex());
             return;
         }
 
-        client.interactionManager.clickSlot(handler.syncId, sourceSlot.id, 0,
-                SlotActionType.PICKUP, client.player);
+        client.gameMode.handleContainerInput(handler.containerId, sourceSlot.index, 0,
+                ContainerInput.PICKUP, client.player);
         task.currentSourcePlayerIndex = source.playerIndex();
-        ItemStack cursorBox = handler.getCursorStack();
+        ItemStack cursorBox = handler.getCarried();
         if (!isSingleShulker(cursorBox) || !isHomogeneousShulker(cursorBox)) {
             if (!returnHeldBox(client, handler, sourceSlot)) {
-                finish(TaskResult.STOPPED, Text.translatable("quickcraft.message.crafting.shulker_cursor_blocked"));
+                finish(TaskResult.STOPPED, Component.translatable("quickcraft.message.crafting.shulker_cursor_blocked"));
                 return;
             }
             task.exhaustedSourcePlayerIndices.add(source.playerIndex());
@@ -264,7 +264,7 @@ public final class QuickCraftWorkbenchShulker {
         ItemStack boxMaterial = getFirstStoredStack(cursorBox);
         if (findFillableGridSlot(handler, task.pattern, boxMaterial) == -1) {
             if (!returnHeldBox(client, handler, sourceSlot)) {
-                finish(TaskResult.STOPPED, Text.translatable("quickcraft.message.crafting.shulker_cursor_blocked"));
+                finish(TaskResult.STOPPED, Component.translatable("quickcraft.message.crafting.shulker_cursor_blocked"));
                 return;
             }
             task.exhaustedSourcePlayerIndices.add(source.playerIndex());
@@ -274,7 +274,7 @@ public final class QuickCraftWorkbenchShulker {
         int clicks = 0;
         boolean extractionUnavailable = false;
         while (clicks < MAX_UNBUNDLE_CLICKS_PER_SOURCE) {
-            ItemStack currentCursorBox = handler.getCursorStack();
+            ItemStack currentCursorBox = handler.getCarried();
             if (!isSingleShulker(currentCursorBox) || getFirstStoredStack(currentCursorBox).isEmpty()) {
                 break;
             }
@@ -284,17 +284,17 @@ public final class QuickCraftWorkbenchShulker {
             }
 
             Slot target = handler.getSlot(targetSlotId);
-            int before = target.hasStack() ? target.getStack().getCount() : 0;
-            client.interactionManager.clickSlot(handler.syncId, targetSlotId, 1,
-                    SlotActionType.PICKUP, client.player);
-            ItemStack after = target.getStack();
-            int afterCount = !after.isEmpty() && ItemStack.areItemsAndComponentsEqual(after, boxMaterial)
+            int before = target.hasItem() ? target.getItem().getCount() : 0;
+            client.gameMode.handleContainerInput(handler.containerId, targetSlotId, 1,
+                    ContainerInput.PICKUP, client.player);
+            ItemStack after = target.getItem();
+            int afterCount = !after.isEmpty() && ItemStack.isSameItemSameComponents(after, boxMaterial)
                     ? after.getCount()
                     : 0;
             if (afterCount <= before) {
-                if (handler.getCursorStack().isEmpty() && isSingleShulker(after)) {
-                    client.interactionManager.clickSlot(handler.syncId, targetSlotId, 0,
-                            SlotActionType.PICKUP, client.player);
+                if (handler.getCarried().isEmpty() && isSingleShulker(after)) {
+                    client.gameMode.handleContainerInput(handler.containerId, targetSlotId, 0,
+                            ContainerInput.PICKUP, client.player);
                 }
                 extractionUnavailable = true;
                 break;
@@ -305,11 +305,11 @@ public final class QuickCraftWorkbenchShulker {
         }
 
         if (!returnHeldBox(client, handler, sourceSlot)) {
-            finish(TaskResult.STOPPED, Text.translatable("quickcraft.message.crafting.shulker_cursor_blocked"));
+            finish(TaskResult.STOPPED, Component.translatable("quickcraft.message.crafting.shulker_cursor_blocked"));
             return;
         }
         if (extractionUnavailable) {
-            finish(TaskResult.STOPPED, Text.translatable("quickcraft.message.crafting.shulker_unavailable"));
+            finish(TaskResult.STOPPED, Component.translatable("quickcraft.message.crafting.shulker_unavailable"));
             return;
         }
         task.exhaustedSourcePlayerIndices.add(source.playerIndex());
@@ -324,34 +324,34 @@ public final class QuickCraftWorkbenchShulker {
         }
     }
 
-    private static void finishAfterReturningHeldBox(MinecraftClient client, CraftingScreenHandler handler) {
-        if (!handler.getCursorStack().isEmpty()) {
+    private static void finishAfterReturningHeldBox(Minecraft client, CraftingMenu handler) {
+        if (!handler.getCarried().isEmpty()) {
             Slot source = findPlayerSlot(handler, task.currentSourcePlayerIndex);
-            if (source == null || !source.getStack().isEmpty()) {
+            if (source == null || !source.getItem().isEmpty()) {
                 source = getFirstEmptyPlayerSlot(handler, -1);
             }
             if (source != null) {
-                client.interactionManager.clickSlot(handler.syncId, source.id, 0,
-                        SlotActionType.PICKUP, client.player);
+                client.gameMode.handleContainerInput(handler.containerId, source.index, 0,
+                        ContainerInput.PICKUP, client.player);
             }
         }
-        finish(TaskResult.STOPPED, handler.getCursorStack().isEmpty()
+        finish(TaskResult.STOPPED, handler.getCarried().isEmpty()
                 ? null
-                : Text.translatable("quickcraft.message.crafting.shulker_cursor_blocked"));
+                : Component.translatable("quickcraft.message.crafting.shulker_cursor_blocked"));
     }
 
-    private static boolean returnHeldBox(MinecraftClient client, CraftingScreenHandler handler, Slot sourceSlot) {
-        if (handler.getCursorStack().isEmpty()) {
+    private static boolean returnHeldBox(Minecraft client, CraftingMenu handler, Slot sourceSlot) {
+        if (handler.getCarried().isEmpty()) {
             return true;
         }
-        if (!sourceSlot.hasStack() && sourceSlot.canInsert(handler.getCursorStack())) {
-            client.interactionManager.clickSlot(handler.syncId, sourceSlot.id, 0,
-                    SlotActionType.PICKUP, client.player);
+        if (!sourceSlot.hasItem() && sourceSlot.mayPlace(handler.getCarried())) {
+            client.gameMode.handleContainerInput(handler.containerId, sourceSlot.index, 0,
+                    ContainerInput.PICKUP, client.player);
         }
-        return handler.getCursorStack().isEmpty();
+        return handler.getCarried().isEmpty();
     }
 
-    private static void finish(TaskResult result, Text message) {
+    private static void finish(TaskResult result, Component message) {
         boolean exitAfterStop = task != null && task.exitAfterStop;
         TaskOwner owner = task == null ? null : task.owner;
         task = null;
@@ -364,34 +364,34 @@ public final class QuickCraftWorkbenchShulker {
     }
 
     private static void closeWorkbenchScreenIfSafe() {
-        MinecraftClient client = MinecraftClient.getInstance();
-        if (client.player == null || client.player.currentScreenHandler == null
-                || !client.player.currentScreenHandler.getCursorStack().isEmpty()) {
+        Minecraft client = Minecraft.getInstance();
+        if (client.player == null || client.player.containerMenu == null
+                || !client.player.containerMenu.getCarried().isEmpty()) {
             return;
         }
-        if (client.player.currentScreenHandler instanceof CraftingScreenHandler handler) {
+        if (client.player.containerMenu instanceof CraftingMenu handler) {
             for (int slotId = GRID_START; slotId <= GRID_END; slotId++) {
-                if (handler.getSlot(slotId).hasStack()) {
+                if (handler.getSlot(slotId).hasItem()) {
                     return;
                 }
             }
         }
-        client.player.closeHandledScreen();
+        client.player.closeContainer();
         client.setScreen(null);
     }
 
-    private static Slot findPlayerSlot(ScreenHandler handler, int playerIndex) {
+    private static Slot findPlayerSlot(AbstractContainerMenu handler, int playerIndex) {
         for (Slot slot : getPlayerStorageSlots(handler)) {
-            if (slot.getIndex() == playerIndex) {
+            if (slot.getContainerSlot() == playerIndex) {
                 return slot;
             }
         }
         return null;
     }
 
-    private static Slot getFirstEmptyPlayerSlot(ScreenHandler handler, int excludedIndex) {
+    private static Slot getFirstEmptyPlayerSlot(AbstractContainerMenu handler, int excludedIndex) {
         for (Slot slot : getPlayerStorageSlots(handler)) {
-            if (slot.getIndex() != excludedIndex && !slot.hasStack()) {
+            if (slot.getContainerSlot() != excludedIndex && !slot.hasItem()) {
                 return slot;
             }
         }
@@ -408,7 +408,7 @@ public final class QuickCraftWorkbenchShulker {
             return false;
         }
         for (ItemStack stored : getStoredStacks(shulker)) {
-            if (!ItemStack.areItemsAndComponentsEqual(first, stored)) {
+            if (!ItemStack.isSameItemSameComponents(first, stored)) {
                 return false;
             }
         }
@@ -416,8 +416,8 @@ public final class QuickCraftWorkbenchShulker {
     }
 
     private static ItemStack getFirstStoredStack(ItemStack shulker) {
-        ContainerComponent container = shulker.getOrDefault(DataComponentTypes.CONTAINER, ContainerComponent.DEFAULT);
-        for (ItemStack stored : container.iterateNonEmpty()) {
+        ItemContainerContents container = shulker.getOrDefault(DataComponents.CONTAINER, ItemContainerContents.EMPTY);
+        for (ItemStack stored : container.nonEmptyItemCopyStream().toList()) {
             return stored;
         }
         return ItemStack.EMPTY;
@@ -436,17 +436,17 @@ public final class QuickCraftWorkbenchShulker {
                 && task.actionCooldown > 0;
     }
 
-    private static List<Slot> getPlayerStorageSlots(ScreenHandler handler) {
+    private static List<Slot> getPlayerStorageSlots(AbstractContainerMenu handler) {
         List<Slot> slots = new ArrayList<>();
         for (Slot slot : handler.slots) {
-            if (slot.inventory instanceof PlayerInventory
-                    && slot.getIndex() >= 0
-                    && slot.getIndex() < PlayerInventory.MAIN_SIZE
-                    && slot.isEnabled()) {
+            if (slot.container instanceof Inventory
+                    && slot.getContainerSlot() >= 0
+                    && slot.getContainerSlot() < Inventory.INVENTORY_SIZE
+                    && slot.isActive()) {
                 slots.add(slot);
             }
         }
-        slots.sort(Comparator.comparingInt(Slot::getIndex).thenComparingInt(slot -> slot.id));
+        slots.sort(Comparator.comparingInt(Slot::getContainerSlot).thenComparingInt(slot -> slot.index));
         return slots;
     }
 
@@ -487,11 +487,11 @@ public final class QuickCraftWorkbenchShulker {
         return result;
     }
 
-    private static Text consumeMessage(TaskOwner owner) {
+    private static Component consumeMessage(TaskOwner owner) {
         if (pendingOwner != owner) {
             return null;
         }
-        Text message = pendingMessage;
+        Component message = pendingMessage;
         pendingMessage = null;
         if (pendingResult == TaskResult.NONE) {
             pendingOwner = null;
@@ -499,23 +499,23 @@ public final class QuickCraftWorkbenchShulker {
         return message;
     }
 
-    private static int findUnexpectedGridShulker(CraftingScreenHandler handler,
+    private static int findUnexpectedGridShulker(CraftingMenu handler,
                                                   List<ItemStack> pattern) {
         for (int patternIndex = 0; patternIndex < pattern.size(); patternIndex++) {
             ItemStack expected = pattern.get(patternIndex);
             int slotId = GRID_START + patternIndex;
-            ItemStack actual = handler.getSlot(slotId).getStack();
+            ItemStack actual = handler.getSlot(slotId).getItem();
             if (isSingleShulker(actual)
-                    && (expected.isEmpty() || !ItemStack.areItemsAndComponentsEqual(expected, actual))) {
+                    && (expected.isEmpty() || !ItemStack.isSameItemSameComponents(expected, actual))) {
                 return slotId;
             }
         }
         return -1;
     }
 
-    private static boolean recoverUnexpectedShulker(CraftingScreenHandler handler, int gridSlotId) {
-        MinecraftClient client = MinecraftClient.getInstance();
-        if (client.player == null || client.interactionManager == null) {
+    private static boolean recoverUnexpectedShulker(CraftingMenu handler, int gridSlotId) {
+        Minecraft client = Minecraft.getInstance();
+        if (client.player == null || client.gameMode == null) {
             return false;
         }
         Slot destination = getFirstEmptyPlayerSlot(handler, -1);
@@ -524,23 +524,23 @@ public final class QuickCraftWorkbenchShulker {
         }
 
         if (gridSlotId >= GRID_START && gridSlotId <= GRID_END) {
-            client.interactionManager.clickSlot(handler.syncId, gridSlotId, 0,
-                    SlotActionType.PICKUP, client.player);
+            client.gameMode.handleContainerInput(handler.containerId, gridSlotId, 0,
+                    ContainerInput.PICKUP, client.player);
         }
-        if (!isSingleShulker(handler.getCursorStack())) {
+        if (!isSingleShulker(handler.getCarried())) {
             if (gridSlotId >= GRID_START && gridSlotId <= GRID_END
-                    && !handler.getCursorStack().isEmpty()
-                    && !handler.getSlot(gridSlotId).hasStack()) {
-                client.interactionManager.clickSlot(handler.syncId, gridSlotId, 0,
-                        SlotActionType.PICKUP, client.player);
+                    && !handler.getCarried().isEmpty()
+                    && !handler.getSlot(gridSlotId).hasItem()) {
+                client.gameMode.handleContainerInput(handler.containerId, gridSlotId, 0,
+                        ContainerInput.PICKUP, client.player);
             }
             return false;
         }
 
-        client.interactionManager.clickSlot(handler.syncId, destination.id, 0,
-                SlotActionType.PICKUP, client.player);
-        boolean recovered = handler.getCursorStack().isEmpty()
-                && isSingleShulker(destination.getStack());
+        client.gameMode.handleContainerInput(handler.containerId, destination.index, 0,
+                ContainerInput.PICKUP, client.player);
+        boolean recovered = handler.getCarried().isEmpty()
+                && isSingleShulker(destination.getItem());
         return recovered;
     }
 
@@ -553,24 +553,24 @@ public final class QuickCraftWorkbenchShulker {
         return normalized;
     }
 
-    private static boolean isGridCompatible(CraftingScreenHandler handler, List<ItemStack> pattern) {
+    private static boolean isGridCompatible(CraftingMenu handler, List<ItemStack> pattern) {
         for (int patternIndex = 0; patternIndex < pattern.size(); patternIndex++) {
             ItemStack expected = pattern.get(patternIndex);
-            ItemStack actual = handler.getSlot(GRID_START + patternIndex).getStack();
+            ItemStack actual = handler.getSlot(GRID_START + patternIndex).getItem();
             if (expected.isEmpty() != actual.isEmpty()) {
                 if (expected.isEmpty()) {
                     return false;
                 }
                 continue;
             }
-            if (!expected.isEmpty() && !ItemStack.areItemsAndComponentsEqual(expected, actual)) {
+            if (!expected.isEmpty() && !ItemStack.isSameItemSameComponents(expected, actual)) {
                 return false;
             }
         }
         return true;
     }
 
-    private static boolean hasAnyFillableGridSlot(CraftingScreenHandler handler, List<ItemStack> pattern) {
+    private static boolean hasAnyFillableGridSlot(CraftingMenu handler, List<ItemStack> pattern) {
         for (ItemStack material : pattern) {
             if (!material.isEmpty() && findFillableGridSlot(handler, pattern, material) != -1) {
                 return true;
@@ -579,19 +579,19 @@ public final class QuickCraftWorkbenchShulker {
         return false;
     }
 
-    private static int findFillableGridSlot(CraftingScreenHandler handler,
+    private static int findFillableGridSlot(CraftingMenu handler,
                                             List<ItemStack> pattern,
                                             ItemStack material) {
         for (int patternIndex = 0; patternIndex < pattern.size(); patternIndex++) {
             ItemStack expected = pattern.get(patternIndex);
-            if (expected.isEmpty() || !ItemStack.areItemsAndComponentsEqual(expected, material)) {
+            if (expected.isEmpty() || !ItemStack.isSameItemSameComponents(expected, material)) {
                 continue;
             }
             int slotId = GRID_START + patternIndex;
             Slot slot = handler.getSlot(slotId);
-            ItemStack current = slot.getStack();
+            ItemStack current = slot.getItem();
             // Quick Shulker 3.0.0 只拦截空目标槽；非空槽会回落到原版点击并可能交换盒子。
-            if (!current.isEmpty() || !slot.canInsert(material)) {
+            if (!current.isEmpty() || !slot.mayPlace(material)) {
                 continue;
             }
             return slotId;
@@ -600,9 +600,9 @@ public final class QuickCraftWorkbenchShulker {
     }
 
     private static List<ItemStack> getStoredStacks(ItemStack shulker) {
-        ContainerComponent container = shulker.getOrDefault(DataComponentTypes.CONTAINER, ContainerComponent.DEFAULT);
+        ItemContainerContents container = shulker.getOrDefault(DataComponents.CONTAINER, ItemContainerContents.EMPTY);
         List<ItemStack> stacks = new ArrayList<>();
-        for (ItemStack stack : container.iterateNonEmpty()) {
+        for (ItemStack stack : container.nonEmptyItemCopyStream().toList()) {
             stacks.add(stack);
         }
         return stacks;
@@ -612,26 +612,26 @@ public final class QuickCraftWorkbenchShulker {
         return stack.getItem() instanceof BlockItem blockItem && blockItem.getBlock() instanceof ShulkerBoxBlock;
     }
 
-    private static SourceShulker findSource(ScreenHandler handler,
+    private static SourceShulker findSource(AbstractContainerMenu handler,
                                             List<ItemStack> pattern,
                                             Set<Integer> excludedPlayerIndices) {
         int scannedShulkers = 0;
         for (Slot slot : getPlayerStorageSlots(handler)) {
-            if (!slot.hasStack() || slot.getStack().getCount() != 1 || !isShulkerBox(slot.getStack())) {
+            if (!slot.hasItem() || slot.getItem().getCount() != 1 || !isShulkerBox(slot.getItem())) {
                 continue;
             }
             scannedShulkers++;
             if (scannedShulkers > MAX_SOURCE_SHULKERS) {
                 break;
             }
-            if (excludedPlayerIndices.contains(slot.getIndex())
-                    || !isHomogeneousShulker(slot.getStack())) {
+            if (excludedPlayerIndices.contains(slot.getContainerSlot())
+                    || !isHomogeneousShulker(slot.getItem())) {
                 continue;
             }
-            ItemStack material = getFirstStoredStack(slot.getStack());
-            if (handler instanceof CraftingScreenHandler craftingHandler
+            ItemStack material = getFirstStoredStack(slot.getItem());
+            if (handler instanceof CraftingMenu craftingHandler
                     && findFillableGridSlot(craftingHandler, pattern, material) != -1) {
-                return new SourceShulker(slot.getIndex());
+                return new SourceShulker(slot.getContainerSlot());
             }
         }
         return null;

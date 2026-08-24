@@ -52,6 +52,7 @@
 		"MerchantScreenAccessor",
 		"MerchantScreenMixin",
 		"QuickContainerBackgroundFillScreenMixin",
+		"QuickContainerBackgroundFillInputMixin",
 		"QuickContainerLockClientPlayerInteractionManagerMixin",
 		"QuickContainerLockInGameHudMixin",
 		"QuickContainerLockMerchantScreenHandlerMixin",
