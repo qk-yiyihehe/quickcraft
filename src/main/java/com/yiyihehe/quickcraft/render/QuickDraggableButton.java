@@ -2,6 +2,7 @@ package com.yiyihehe.quickcraft.render;
 
 import com.yiyihehe.quickcraft.config.QuickCraftConfigs;
 import net.minecraft.client.MinecraftClient;
+import net.minecraft.client.gui.Click;
 import net.minecraft.client.gui.Element;
 import net.minecraft.client.gui.screen.Screen;
 import net.minecraft.client.gui.screen.ingame.HandledScreen;
@@ -53,7 +54,7 @@ public class QuickDraggableButton extends ButtonWidget {
     public static boolean isEditGestureOverCurrentButton() {
         MinecraftClient client = MinecraftClient.getInstance();
         if (!QuickCraftConfigs.isActionButtonDraggingEnabled()
-                || !Screen.hasShiftDown()
+                || !client.isShiftPressed()
                 || !(client.currentScreen instanceof HandledScreen<?> screen)) {
             return false;
         }
@@ -68,9 +69,14 @@ public class QuickDraggableButton extends ButtonWidget {
     }
 
     @Override
-    public boolean mouseClicked(double mouseX, double mouseY, int button) {
-        if (!QuickCraftConfigs.isActionButtonDraggingEnabled() || !Screen.hasShiftDown() || !this.isMouseOver(mouseX, mouseY)) {
-            return super.mouseClicked(mouseX, mouseY, button);
+    public boolean mouseClicked(Click click, boolean doubled) {
+        double mouseX = click.x();
+        double mouseY = click.y();
+        int button = click.button();
+        if (!QuickCraftConfigs.isActionButtonDraggingEnabled()
+                || !MinecraftClient.getInstance().isShiftPressed()
+                || !this.isMouseOver(mouseX, mouseY)) {
+            return super.mouseClicked(click, doubled);
         }
         if (button == 0) {
             this.dragging = true;
@@ -89,16 +95,20 @@ public class QuickDraggableButton extends ButtonWidget {
     }
 
     @Override
-    public boolean mouseDragged(double mouseX, double mouseY, int button, double deltaX, double deltaY) {
+    public boolean mouseDragged(Click click, double deltaX, double deltaY) {
+        double mouseX = click.x();
+        double mouseY = click.y();
+        int button = click.button();
         if (this.dragging && button == 0) {
             this.setClampedPosition((int)Math.round(mouseX - this.grabOffsetX), (int)Math.round(mouseY - this.grabOffsetY));
             return true;
         }
-        return super.mouseDragged(mouseX, mouseY, button, deltaX, deltaY);
+        return super.mouseDragged(click, deltaX, deltaY);
     }
 
     @Override
-    public boolean mouseReleased(double mouseX, double mouseY, int button) {
+    public boolean mouseReleased(Click click) {
+        int button = click.button();
         if (this.dragging && button == 0) {
             this.dragging = false;
             QuickCraftConfigs.setActionButtonOffset(
@@ -109,7 +119,7 @@ public class QuickDraggableButton extends ButtonWidget {
             QuickCraftConfigs.saveToFile();
             return true;
         }
-        return super.mouseReleased(mouseX, mouseY, button);
+        return super.mouseReleased(click);
     }
 
     public boolean isPositionDragging() {
