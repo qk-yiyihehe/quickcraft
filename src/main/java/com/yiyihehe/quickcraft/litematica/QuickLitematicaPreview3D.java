@@ -240,7 +240,7 @@ public final class QuickLitematicaPreview3D {
     static void openGenerated(Screen parent, String displayName, Supplier<LitematicaSchematic> schematicSupplier) {
         Manager manager = new Manager(parent, () -> {});
         manager.current = Preview.createGenerated(displayName, schematicSupplier);
-        Minecraft.getInstance().setScreen(new QuickLitematicaPreview3DScreen(
+        Minecraft.getInstance().gui.setScreen(new QuickLitematicaPreview3DScreen(
                 parent,
                 displayName,
                 manager,
@@ -1528,87 +1528,6 @@ public final class QuickLitematicaPreview3D {
             }
         }
 
-        private void prepareDynamicBuffers(MeshData data) {
-            if (this.dynamicBuffersReady || this.dynamicBufferFallback || !data.hasDynamicContent()) {
-                return;
-            }
-
-            DynamicScene scene = data.dynamicScene();
-            if (scene.isEmpty()) {
-                this.dynamicBuffersReady = true;
-                data.closeDynamic();
-                return;
-            }
-
-            DynamicMeshCollector collector = new DynamicMeshCollector();
-            try {
-                Minecraft client = Minecraft.getInstance();
-                SubmitNodeStorage queue = new SubmitNodeStorage();
-                CameraRenderState cameraState = new CameraRenderState();
-                PoseStack matrices = new PoseStack();
-                try (FeatureRenderDispatcher dispatcher = new FeatureRenderDispatcher(
-                        queue,
-                        client.getModelManager(),
-                        collector,
-                        client.getAtlasManager(),
-                        client.renderBuffers().outlineBufferSource(),
-                        collector,
-                        client.font,
-                        client.gameRenderer.getGameRenderState()
-                )) {
-                    scene.blockEntities().forEach((pos, entity) -> {
-                        matrices.pushPose();
-                        try {
-                            matrices.translate(pos.getX(), pos.getY(), pos.getZ());
-                            renderBlockEntity(client, entity, matrices, queue, cameraState);
-                        } catch (DynamicBufferTooLargeException e) {
-                            throw e;
-                        } catch (Throwable ignored) {
-                        } finally {
-                            matrices.popPose();
-                        }
-                    });
-
-                    scene.entities().forEach(renderedEntity -> {
-                        try {
-                            EntityRenderState renderState = client.getEntityRenderDispatcher()
-                                    .extractEntity(renderedEntity.entity(), 0.0F);
-                            renderState.lightCoords = renderedEntity.light();
-                            renderState.distanceToCameraSq = 0.0D;
-                            client.getEntityRenderDispatcher().submit(
-                                    renderState,
-                                    cameraState,
-                                    renderedEntity.x(),
-                                    renderedEntity.y(),
-                                    renderedEntity.z(),
-                                    matrices,
-                                    queue
-                            );
-                        } catch (DynamicBufferTooLargeException e) {
-                            throw e;
-                        } catch (Throwable ignored) {
-                        }
-                    });
-                    dispatcher.renderAllFeatures();
-                }
-
-                this.dynamicBuffers = collector.upload();
-                this.dynamicBuffersReady = true;
-                data.closeDynamic();
-            } catch (Throwable ignored) {
-                this.closeDynamicBuffers();
-                this.dynamicBufferFallback = true;
-            } finally {
-                collector.close();
-            }
-        }
-
-        private void drawDynamicBuffers(Matrix4f modelView) {
-            for (DynamicLayerBuffer layerBuffer : this.dynamicBuffers) {
-                drawLayerBuffer(layerBuffer.layer(), layerBuffer.buffer(), modelView);
-            }
-        }
-
         private int recommendedExportResolution() {
             MeshData data = this.meshData;
             if (data == null) return 0;
@@ -1708,10 +1627,9 @@ public final class QuickLitematicaPreview3D {
             }
 
             this.uploadIfNeeded();
-            this.prepareDynamicBuffers(data);
-            if (data.hasDynamicContent() && !this.dynamicBuffersReady) {
-                callback.accept(Component.translatable("quickcraft.litematica.preview_3d.export_dynamic_failed"));
-                return;
+            this.prepareDynamicFrame(data);
+            if (this.dynamicFrame == null) {
+                this.prepareDynamicStates(data);
             }
             if (data.vertexCount() > 0 && this.layerBuffers.isEmpty()) {
                 callback.accept(Component.translatable("quickcraft.litematica.preview_3d.copy_failed"));
@@ -1724,12 +1642,18 @@ public final class QuickLitematicaPreview3D {
 
             RenderTarget framebuffer;
             try {
-                framebuffer = new TextureTarget("QuickCraft clipboard snapshot", resolution, resolution, true);
+                framebuffer = new TextureTarget("QuickCraft clipboard snapshot", resolution, resolution, true, GpuFormat.RGBA8_UNORM);
+                Vector4f clearColor = new Vector4f(
+                        ((backgroundColor >> 16) & 0xFF) / 255.0F,
+                        ((backgroundColor >> 8) & 0xFF) / 255.0F,
+                        (backgroundColor & 0xFF) / 255.0F,
+                        ((backgroundColor >>> 24) & 0xFF) / 255.0F
+                );
                 RenderSystem.getDevice().createCommandEncoder().clearColorAndDepthTextures(
                         Objects.requireNonNull(framebuffer.getColorTexture()),
-                        backgroundColor,
+                        clearColor,
                         Objects.requireNonNull(framebuffer.getDepthTexture()),
-                        1.0D
+                        0.0D
                 );
                 this.renderSnapshot(framebuffer, data, drag);
             } catch (Throwable ignored) {
@@ -1774,10 +1698,9 @@ public final class QuickLitematicaPreview3D {
             }
 
             this.uploadIfNeeded();
-            this.prepareDynamicBuffers(data);
-            if (data.hasDynamicContent() && !this.dynamicBuffersReady) {
-                callback.accept(Component.translatable("quickcraft.litematica.preview_3d.export_dynamic_failed"));
-                return;
+            this.prepareDynamicFrame(data);
+            if (this.dynamicFrame == null) {
+                this.prepareDynamicStates(data);
             }
             if (data.vertexCount() > 0 && this.layerBuffers.isEmpty()) {
                 callback.accept(Component.translatable("quickcraft.litematica.preview_3d.preview_write_failed"));
@@ -1790,12 +1713,18 @@ public final class QuickLitematicaPreview3D {
 
             RenderTarget framebuffer;
             try {
-                framebuffer = new TextureTarget("QuickCraft embedded preview", resolution, resolution, true);
+                framebuffer = new TextureTarget("QuickCraft embedded preview", resolution, resolution, true, GpuFormat.RGBA8_UNORM);
+                Vector4f clearColor = new Vector4f(
+                        ((backgroundColor >> 16) & 0xFF) / 255.0F,
+                        ((backgroundColor >> 8) & 0xFF) / 255.0F,
+                        (backgroundColor & 0xFF) / 255.0F,
+                        ((backgroundColor >>> 24) & 0xFF) / 255.0F
+                );
                 RenderSystem.getDevice().createCommandEncoder().clearColorAndDepthTextures(
                         Objects.requireNonNull(framebuffer.getColorTexture()),
-                        backgroundColor,
+                        clearColor,
                         Objects.requireNonNull(framebuffer.getDepthTexture()),
-                        1.0D
+                        0.0D
                 );
                 this.renderSnapshot(framebuffer, data, drag);
             } catch (Throwable throwable) {
