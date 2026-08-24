@@ -3,11 +3,11 @@ package com.yiyihehe.quickcraft.render;
 import com.yiyihehe.quickcraft.config.QuickCraftConfigs;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.gui.Click;
+import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.gui.Element;
 import net.minecraft.client.gui.screen.Screen;
 import net.minecraft.client.gui.screen.ingame.HandledScreen;
 import net.minecraft.client.gui.widget.ButtonWidget;
-import net.minecraft.text.Text;
 import net.minecraft.util.math.MathHelper;
 
 /** Button that preserves normal clicks while reserving Shift + mouse gestures for layout editing. */
@@ -35,7 +35,7 @@ public class QuickDraggableButton extends ButtonWidget {
     private boolean dragging;
     private boolean consumeRightRelease;
 
-    public QuickDraggableButton(int x, int y, int width, int height, Text message,
+    public QuickDraggableButton(int x, int y, int width, int height, net.minecraft.text.Text message,
                                 PressAction onPress, PositionKey positionKey) {
         super(x, y, width, height, message, onPress, DEFAULT_NARRATION_SUPPLIER);
         this.positionKey = positionKey;
@@ -120,6 +120,12 @@ public class QuickDraggableButton extends ButtonWidget {
             return true;
         }
         return super.mouseReleased(click);
+    }
+
+    @Override
+    protected void drawIcon(DrawContext context, int mouseX, int mouseY, float deltaTicks) {
+        this.drawButton(context);
+        this.drawLabel(context.getHoverListener(this, DrawContext.HoverType.NONE));
     }
 
     public boolean isPositionDragging() {

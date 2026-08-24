@@ -2,19 +2,19 @@ package com.yiyihehe.quickcraft.render;
 
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.gui.tooltip.Tooltip;
-import net.minecraft.text.Text;
 
 /** Compact icon button used on the title bars of vanilla container screens. */
 public abstract class QuickCompactIconButton extends QuickDraggableButton {
     public static final int SIZE = 14;
 
-    protected QuickCompactIconButton(int x, int y, Text label, PressAction onPress, PositionKey positionKey) {
+    protected QuickCompactIconButton(int x, int y, net.minecraft.text.Text label,
+                                     PressAction onPress, PositionKey positionKey) {
         super(x, y, SIZE, SIZE, label, onPress, positionKey);
         this.setTooltip(Tooltip.of(label));
     }
 
     @Override
-    protected final void renderWidget(DrawContext context, int mouseX, int mouseY, float delta) {
+    protected final void drawIcon(DrawContext context, int mouseX, int mouseY, float delta) {
         boolean hovered = this.isMouseOver(mouseX, mouseY);
         int surfaceColor = this.isPositionDragging()
                 ? 0xE04A6F8F

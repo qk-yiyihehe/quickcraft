@@ -2,7 +2,6 @@ package com.yiyihehe.quickcraft.render;
 
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.gl.RenderPipelines;
-import net.minecraft.text.Text;
 import net.minecraft.util.Identifier;
 
 import java.util.function.BooleanSupplier;
@@ -14,7 +13,7 @@ public final class QuickContainerLockButton extends QuickCompactIconButton {
     private final BooleanSupplier locked;
 
     public QuickContainerLockButton(int x, int y, PressAction onPress, BooleanSupplier locked,
-                                    PositionKey positionKey, Text tooltip) {
+                                    PositionKey positionKey, net.minecraft.text.Text tooltip) {
         super(x, y, tooltip, onPress, positionKey);
         this.locked = locked;
     }

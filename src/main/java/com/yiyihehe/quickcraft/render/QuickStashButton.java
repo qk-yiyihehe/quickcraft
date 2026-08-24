@@ -1,11 +1,11 @@
 package com.yiyihehe.quickcraft.render;
 
 import net.minecraft.client.gui.DrawContext;
-import net.minecraft.text.Text;
 
 /** Icon button for moving matching player items into the open container. */
 public final class QuickStashButton extends QuickCompactIconButton {
-    public QuickStashButton(int x, int y, PressAction onPress, PositionKey positionKey, Text tooltip) {
+    public QuickStashButton(int x, int y, PressAction onPress, PositionKey positionKey,
+                            net.minecraft.text.Text tooltip) {
         super(x, y, tooltip, onPress, positionKey);
     }
 
