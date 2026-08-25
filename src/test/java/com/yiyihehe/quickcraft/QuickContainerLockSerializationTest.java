@@ -220,14 +220,12 @@ class QuickContainerLockSerializationTest {
                 new Object[]{element, target});
     }
 
-    @SuppressWarnings("unchecked")
     private static JsonArray invokeToStringArray(Set<String> values) {
         return (JsonArray) invokePrivateStatic("toStringArray",
                 new Class[]{Set.class},
                 new Object[]{values});
     }
 
-    @SuppressWarnings("unchecked")
     private static JsonArray invokeToIntArray(Set<Integer> values) {
         return (JsonArray) invokePrivateStatic("toIntArray",
                 new Class[]{Set.class},

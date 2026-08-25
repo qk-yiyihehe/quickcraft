@@ -39,23 +39,25 @@ public abstract class LitematicaWidgetSchematicVerificationResultMixin
 
     @Inject(method = "postRenderHovered", at = @At("HEAD"), cancellable = true)
     private void quickcraft$renderInventoryOverlay(int mouseX, int mouseY, boolean selected, DrawContext drawContext, CallbackInfo ci) {
-        if (this.mismatchEntry == null
-                || this.mismatchEntry.blockMismatch == null
-                || !QuickLitematicaContainerVerifier.isContainerMismatchType(this.mismatchEntry.blockMismatch.mismatchType)) {
+        GuiSchematicVerifier.BlockMismatchEntry mismatchEntry = this.mismatchEntry;
+        if (mismatchEntry == null) {
             return;
         }
-
-        BlockMismatchExtension extension =
-                (BlockMismatchExtension) this.mismatchEntry.blockMismatch;
-
-        if (extension.quickcraft$getContainerMismatch() == null) {
+        var blockMismatch = mismatchEntry.blockMismatch;
+        if (blockMismatch == null
+                || !QuickLitematicaContainerVerifier.isContainerMismatchType(blockMismatch.mismatchType)) {
+            return;
+        }
+        BlockMismatchExtension extension = (BlockMismatchExtension) blockMismatch;
+        var containerMismatch = extension.quickcraft$getContainerMismatch();
+        if (containerMismatch == null) {
             return;
         }
 
         QuickLitematicaContainerVerifier.renderInventoryPair(
-                extension.quickcraft$getContainerMismatch(),
-                this.mismatchEntry.blockMismatch.stateExpected,
-                this.mismatchEntry.blockMismatch.stateFound,
+                containerMismatch,
+                blockMismatch.stateExpected,
+                blockMismatch.stateFound,
                 extension.quickcraft$getExpectedDisabledSlots(),
                 extension.quickcraft$getFoundDisabledSlots(),
                 mouseX,
