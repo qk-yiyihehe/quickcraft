@@ -7,7 +7,6 @@ import com.mojang.blaze3d.systems.VertexSorter;
 import com.yiyihehe.quickcraft.QuickContainerCopy;
 import com.yiyihehe.quickcraft.config.QuickCraftConfigs;
 import net.fabricmc.loader.api.FabricLoader;
-import fi.dy.masa.litematica.config.Configs;
 import fi.dy.masa.litematica.data.DataManager;
 import fi.dy.masa.litematica.data.EntitiesDataStorage;
 import fi.dy.masa.litematica.schematic.LitematicaSchematic;
@@ -505,11 +504,10 @@ public final class QuickLitematicaContainerVerifier {
             MinecraftClient mc,
             DrawContext drawContext
     ) {
-        Pair<Inventory, Inventory> inventories = mismatch != null ? mismatch.inventories() : null;
-
-        if (inventories == null) {
+        if (mismatch == null) {
             return;
         }
+        Pair<Inventory, Inventory> inventories = mismatch.inventories();
 
         renderInventoryOverlay(BlockInfoAlignment.CENTER, LeftRight.LEFT, 0, mismatch.type(), inventories.getLeft(), expectedState, expectedDisabledSlots, List.of(), false, mouseX, mouseY, mc, drawContext);
         renderInventoryOverlay(BlockInfoAlignment.CENTER, LeftRight.RIGHT, 0, mismatch.type(), inventories.getRight(), foundState, foundDisabledSlots, mismatch.slotMismatches(), true, mouseX, mouseY, mc, drawContext);
@@ -1118,10 +1116,6 @@ public final class QuickLitematicaContainerVerifier {
                 : null;
     }
 
-    private static ExpectedContainer getExpectedContainerInternal(BlockPos worldPos) {
-        return getExpectedContainerInternal(worldPos, null);
-    }
-
     private static ExpectedContainer getExpectedContainerInternal(
             BlockPos worldPos,
             @Nullable SchematicPlacement placementFilter
@@ -1169,10 +1163,6 @@ public final class QuickLitematicaContainerVerifier {
                 copyInventory(inventory),
                 getDisabledSlots(blockEntity, nbt)
         );
-    }
-
-    private static LocalPlacementPos getLocalPlacementPos(BlockPos worldPos) {
-        return getLocalPlacementPos(worldPos, null);
     }
 
     private static LocalPlacementPos getLocalPlacementPos(

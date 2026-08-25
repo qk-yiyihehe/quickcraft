@@ -147,6 +147,9 @@ public final class QuickLitematicaSelectionPreview {
 
             BlockPos pos1 = box.getPos1();
             BlockPos pos2 = box.getPos2();
+            if (pos1 == null || pos2 == null) {
+                continue;
+            }
             long sizeX = Math.abs((long) pos1.getX() - pos2.getX()) + 1L;
             long sizeY = Math.abs((long) pos1.getY() - pos2.getY()) + 1L;
             long sizeZ = Math.abs((long) pos1.getZ() - pos2.getZ()) + 1L;
