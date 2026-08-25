@@ -56,7 +56,7 @@ public final class QuickLitematicaAreaClone {
         }
 
         AreaSelection selection = DataManager.getSelectionManager().getCurrentSelection();
-        if (!hasCompleteSelection(selection)) {
+        if (selection == null || !hasCompleteSelection(selection)) {
             InfoUtils.printActionbarMessage("quickcraft.message.litematica.area_clone.no_selection");
             return true;
         }

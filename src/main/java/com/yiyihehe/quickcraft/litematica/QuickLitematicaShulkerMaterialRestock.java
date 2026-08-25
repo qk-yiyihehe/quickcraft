@@ -115,6 +115,9 @@ public final class QuickLitematicaShulkerMaterialRestock implements ClientModIni
         );
         BlockPos position = placementContext.getBlockPos();
         World schematicWorld = SchematicWorldHandler.getSchematicWorld();
+        if (schematicWorld == null) {
+            return false;
+        }
         BlockState schematicState = schematicWorld.getBlockState(position);
 
         if (schematicState.isAir()
