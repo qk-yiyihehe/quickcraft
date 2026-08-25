@@ -66,9 +66,11 @@ public final class QuickLitematicaEntityPlacement {
     private static final Map<String, UUID> confirmedEntityUuids = new java.util.HashMap<>();
 
     public static void initializeClient() {
-        // 单机时 Carpet-FGA 与客户端共享同一个注册表，并携带相同二进制名的协议类。
-        // 由先初始化的服务端扩展注册 codec，避免相同 payload ID 被 Fabric 拒绝二次注册。
-        if (!FabricLoader.getInstance().isModLoaded("carpet-fga-addition")) {
+        // 只有实际包含实体放置服务端实现的 FGA 才会在 main 入口先注册 codec。
+        // 旧版 FGA 只有相同的 mod ID，不能据此跳过客户端注册。
+        if (FabricLoader.getInstance().getModContainer("carpet-fga-addition")
+                .flatMap(container -> container.findPath("carpet/fga/QuickCraftEntityPlacementServer.class"))
+                .isEmpty()) {
             PayloadTypeRegistry.serverboundPlay().register(
                     QuickLitematicaEntityPlacementPayloads.HelloPayload.ID,
                     QuickLitematicaEntityPlacementPayloads.HelloPayload.CODEC
