@@ -14,8 +14,6 @@ import net.minecraft.item.ItemStack;
 import net.minecraft.network.packet.c2s.play.ClientStatusC2SPacket;
 import net.minecraft.recipe.CraftingRecipe;
 import net.minecraft.recipe.RecipeEntry;
-import net.minecraft.recipe.ServerRecipeManager;
-import net.minecraft.recipe.RecipeType;
 import net.minecraft.recipe.input.CraftingRecipeInput;
 import net.minecraft.screen.CraftingScreenHandler;
 import net.minecraft.screen.ScreenHandler;
@@ -26,7 +24,6 @@ import org.lwjgl.glfw.GLFW;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Optional;
 
 /**
  * 工作台潜影盒喷射执行器。只负责潜影盒直填和对应输出策略，不处理普通配方书合成。
@@ -878,7 +875,6 @@ public final class QuickCraftWorkbenchShulkerCraft implements ClientModInitializ
             return false;
         }
         CraftingScreenHandler handler = (CraftingScreenHandler) client.player.currentScreenHandler;
-        RecipeEntry<CraftingRecipe> currentRecipe = findCurrentRecipe(client, handler);
         boolean capturedVisibleRecipe = handler.getSlot(OUTPUT_SLOT).hasStack();
         boolean canReuseSnapshot = canReuseSnapshot(handler.syncId, snapshotSyncId,
                 !pattern.isEmpty() && !resultTemplate.isEmpty());
@@ -887,11 +883,11 @@ public final class QuickCraftWorkbenchShulkerCraft implements ClientModInitializ
             return false;
         }
         if (capturedVisibleRecipe) {
-            if (hasRemainder(currentRecipe, handler)) {
+            if (hasRemainder(handler)) {
                 sendMessage(client, Text.translatable("quickcraft.message.crafting.shulker_recipe_remainder"));
                 return false;
             }
-            recipe = currentRecipe;
+            recipe = null;
             pattern = snapshotPattern(handler);
             resultTemplate = handler.getSlot(OUTPUT_SLOT).getStack().copy();
             snapshotSyncId = handler.syncId;
@@ -1074,28 +1070,10 @@ public final class QuickCraftWorkbenchShulkerCraft implements ClientModInitializ
                 && ItemStack.areItemsAndComponentsEqual(stack, resultTemplate);
     }
 
-    private RecipeEntry<CraftingRecipe> findCurrentRecipe(MinecraftClient client,
-                                                           CraftingScreenHandler handler) {
-        if (client == null || client.world == null
-                || !(client.world.getRecipeManager() instanceof ServerRecipeManager recipeManager)) {
-            return null;
-        }
-        try {
-            Optional<RecipeEntry<CraftingRecipe>> match = recipeManager.getFirstMatch(
-                    RecipeType.CRAFTING, createInput(handler), client.world);
-            return match.orElse(null);
-        } catch (Throwable throwable) {
-            return null;
-        }
-    }
-
-    private boolean hasRemainder(RecipeEntry<CraftingRecipe> currentRecipe,
-                                 CraftingScreenHandler handler) {
+    private boolean hasRemainder(CraftingScreenHandler handler) {
         try {
             CraftingRecipeInput input = createInput(handler);
-            List<ItemStack> remainders = currentRecipe != null
-                    ? currentRecipe.value().getRecipeRemainders(input)
-                    : CraftingRecipe.collectRecipeRemainders(input);
+            List<ItemStack> remainders = CraftingRecipe.collectRecipeRemainders(input);
             for (ItemStack remainder : remainders) {
                 if (!remainder.isEmpty()) {
                     return true;
