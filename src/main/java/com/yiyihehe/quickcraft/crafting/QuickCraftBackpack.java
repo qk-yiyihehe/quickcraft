@@ -5,18 +5,12 @@ import com.yiyihehe.quickcraft.config.QuickCraftConfigs;
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.gui.screen.recipebook.RecipeResultCollection;
 import net.minecraft.client.gui.screen.ingame.InventoryScreen;
 import net.minecraft.entity.player.PlayerInventory;
 import net.minecraft.item.ItemStack;
 import net.minecraft.recipe.CraftingRecipe;
 import net.minecraft.recipe.NetworkRecipeId;
-import net.minecraft.recipe.RecipeDisplayEntry;
 import net.minecraft.recipe.RecipeEntry;
-import net.minecraft.recipe.RecipeFinder;
-import net.minecraft.recipe.ServerRecipeManager;
-import net.minecraft.recipe.RecipeType;
-import net.minecraft.recipe.display.SlotDisplayContexts;
 import net.minecraft.recipe.input.CraftingRecipeInput;
 import net.minecraft.registry.DynamicRegistryManager;
 import net.minecraft.screen.PlayerScreenHandler;
@@ -24,13 +18,10 @@ import net.minecraft.screen.ScreenHandler;
 import net.minecraft.screen.slot.Slot;
 import net.minecraft.screen.slot.SlotActionType;
 import net.minecraft.text.Text;
-import net.minecraft.util.context.ContextParameterMap;
-import net.minecraft.world.World;
 import org.lwjgl.glfw.GLFW;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
-import java.util.Optional;
 
 /**
  * 背包 2x2 快速合成：普通配方走原版配方书点击，特殊配方按锁定格子手动补料。
@@ -260,9 +251,8 @@ public class QuickCraftBackpack implements ClientModInitializer {
 
     private void handleSingleCraft(MinecraftClient client, PlayerScreenHandler handler) {
 
-        RecipeEntry<CraftingRecipe> currentRecipe = getCurrentCraftingRecipe(client, handler);
-        if (currentRecipe != null || handler.getSlot(OUTPUT_SLOT).hasStack()) {
-            lockCurrentRecipe(currentRecipe, handler);
+        if (handler.getSlot(OUTPUT_SLOT).hasStack()) {
+            lockCurrentRecipe(handler);
         }
 
         if (!hasLockedCraftingPlan()) {
@@ -938,53 +928,19 @@ public class QuickCraftBackpack implements ClientModInitializer {
                 && ItemStack.areItemsAndComponentsEqual(stack, lockedResultTemplate);
     }
 
-    private void lockCurrentRecipe(RecipeEntry<CraftingRecipe> recipe,
-                                   PlayerScreenHandler handler) {
-        lockedRecipe = recipe;
+    private void lockCurrentRecipe(PlayerScreenHandler handler) {
+        lockedRecipe = null;
         lockedCraftingPattern = snapshotCraftingGrid(handler);
         lockedResultTemplate = handler.getSlot(OUTPUT_SLOT).hasStack()
                 ? handler.getSlot(OUTPUT_SLOT).getStack().copy()
                 : ItemStack.EMPTY;
-        lockedNetworkRecipeId = findCurrentNetworkRecipeId(MinecraftClient.getInstance(), handler, lockedResultTemplate);
+        lockedNetworkRecipeId = QuickCraftClientRecipeMatcher.findUniqueRecipeId(
+                MinecraftClient.getInstance(), handler, lockedResultTemplate, CRAFTING_GRID_WIDTH, CRAFTING_GRID_HEIGHT
+        );
     }
 
     private boolean hasLockedCraftingPlan() {
         return !lockedCraftingPattern.isEmpty() && !lockedResultTemplate.isEmpty();
-    }
-
-    private NetworkRecipeId findCurrentNetworkRecipeId(MinecraftClient client,
-                                                       PlayerScreenHandler handler,
-                                                       ItemStack resultTemplate) {
-        if (client == null || client.player == null || client.world == null || resultTemplate.isEmpty()) {
-            return null;
-        }
-
-        RecipeFinder finder = new RecipeFinder();
-        client.player.getInventory().populateRecipeFinder(finder);
-        handler.populateRecipeFinder(finder);
-        ContextParameterMap context = SlotDisplayContexts.createParameters(client.world);
-
-        for (RecipeResultCollection collection : client.player.getRecipeBook().getOrderedResults()) {
-            collection.populateRecipes(finder, display -> true);
-            for (RecipeDisplayEntry entry : collection.getAllRecipes()) {
-                if (!collection.isCraftable(entry.id())) {
-                    continue;
-                }
-                for (ItemStack stack : entry.getStacks(context)) {
-                    if (isSameRecipeBookResult(stack, resultTemplate)) {
-                        return entry.id();
-                    }
-                }
-            }
-        }
-
-        return null;
-    }
-
-    private boolean isSameRecipeBookResult(ItemStack displayed, ItemStack template) {
-        return !displayed.isEmpty()
-                && !template.isEmpty()
-                && ItemStack.areItemsAndComponentsEqual(displayed, template);
     }
 
     private List<ItemStack> snapshotCraftingGrid(PlayerScreenHandler handler) {
@@ -1225,37 +1181,6 @@ public class QuickCraftBackpack implements ClientModInitializer {
         }
     }
 
-    private RecipeEntry<CraftingRecipe> getCurrentCraftingRecipe(MinecraftClient client, PlayerScreenHandler handler) {
-        if (client.world == null) {
-            return null;
-        }
-
-        if (!handler.getSlot(OUTPUT_SLOT).hasStack()) {
-            return null;
-        }
-
-        return tryFindCurrentRecipe(client.world, handler);
-    }
-
-    private RecipeEntry<CraftingRecipe> tryFindCurrentRecipe(World world, PlayerScreenHandler handler) {
-        try {
-            CraftingRecipeInput input = getCraftingRecipeInput(handler);
-
-            if (!(world.getRecipeManager() instanceof ServerRecipeManager recipeManager)) {
-                return null;
-            }
-            Optional<RecipeEntry<CraftingRecipe>> match = recipeManager.getFirstMatch(
-                    RecipeType.CRAFTING,
-                    input,
-                    world
-            );
-
-            return match.orElse(null);
-        } catch (Throwable t) {
-            return null;
-        }
-    }
-
     private CraftingRecipeInput getCraftingRecipeInput(PlayerScreenHandler handler) {
         List<ItemStack> inputStacks = new ArrayList<>();
         for (int i = 1; i <= CRAFTING_GRID_SIZE; i++) {
@@ -1298,9 +1223,8 @@ public class QuickCraftBackpack implements ClientModInitializer {
     private boolean startRapidCraft(MinecraftClient client,
                                     PlayerScreenHandler handler,
                                     boolean fromButton) {
-        RecipeEntry<CraftingRecipe> currentRecipe = getCurrentCraftingRecipe(client, handler);
-        if (currentRecipe != null || handler.getSlot(OUTPUT_SLOT).hasStack()) {
-            lockCurrentRecipe(currentRecipe, handler);
+        if (handler.getSlot(OUTPUT_SLOT).hasStack()) {
+            lockCurrentRecipe(handler);
         }
 
         if (!hasLockedCraftingPlan()) {

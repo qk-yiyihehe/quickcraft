@@ -577,7 +577,7 @@ public final class QuickLitematicaEntityPlacement {
         if (capacity < 0 && !items.isEmpty()) {
             return false;
         }
-        Set<Integer> slots = capacity > 0 ? new HashSet<>() : null;
+        Set<Integer> slots = new HashSet<>();
         for (int index = 0; index < items.size(); index++) {
             NbtCompound itemNbt = items.getCompound(index);
             if (itemNbt.isEmpty()) {
@@ -819,10 +819,6 @@ public final class QuickLitematicaEntityPlacement {
             this.yaw = yaw;
             this.pitch = pitch;
             this.velocity = velocity;
-        }
-
-        private boolean sameEntity(Candidate other) {
-            return region.equals(other.region) && index == other.index && entityType.equals(other.entityType);
         }
 
         private String key() {

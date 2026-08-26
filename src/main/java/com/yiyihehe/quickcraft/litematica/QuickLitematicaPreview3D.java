@@ -43,7 +43,6 @@ import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.gui.screen.Screen;
 import net.minecraft.client.render.BufferBuilder;
 import net.minecraft.client.render.BuiltBuffer;
-import net.minecraft.client.render.GameRenderer;
 import net.minecraft.client.render.LightmapTextureManager;
 import net.minecraft.client.render.OverlayTexture;
 import net.minecraft.client.render.RenderLayer;
@@ -55,7 +54,6 @@ import net.minecraft.client.render.VertexFormats;
 import net.minecraft.client.render.WorldRenderer;
 import net.minecraft.client.render.block.entity.BlockEntityRenderer;
 import net.minecraft.client.render.block.BlockRenderManager;
-import net.minecraft.client.render.chunk.BlockBufferAllocatorStorage;
 import net.minecraft.client.texture.NativeImage;
 import net.minecraft.client.util.BufferAllocator;
 import net.minecraft.client.util.math.MatrixStack;
@@ -2032,19 +2030,6 @@ public final class QuickLitematicaPreview3D {
         return false;
     }
 
-    // 渲染方块实体到指定 VertexConsumerProvider。动态 BE 会走各自专用 atlas，不能录进普通方块 VBO。
-    private static <T extends BlockEntity> void renderBlockEntity(MinecraftClient client, T entity, MatrixStack matrices, VertexConsumerProvider consumers) {
-        BlockEntityRenderer<T> renderer = client.getBlockEntityRenderDispatcher().get(entity);
-        if (renderer == null) {
-            return;
-        }
-
-        int light = entity.getWorld() != null
-                ? WorldRenderer.getLightmapCoordinates(entity.getWorld(), entity.getPos())
-                : LightmapTextureManager.MAX_LIGHT_COORDINATE;
-        renderer.render(entity, 0.0F, matrices, consumers, light, OverlayTexture.DEFAULT_UV);
-    }
-
     private static void translateToScreen(Matrix4fStack matrixStack, MinecraftClient client, float x, float y) {
         int screenWidth = client.currentScreen == null ? client.getWindow().getScaledWidth() : client.currentScreen.width;
         int screenHeight = client.currentScreen == null ? client.getWindow().getScaledHeight() : client.currentScreen.height;
@@ -2592,7 +2577,8 @@ public final class QuickLitematicaPreview3D {
                 return;
             }
 
-            BlockPos regionOrigin = area.getPos1() == null ? BlockPos.ORIGIN : area.getPos1();
+            BlockPos areaOrigin = area.getPos1();
+            BlockPos regionOrigin = areaOrigin != null ? areaOrigin : BlockPos.ORIGIN;
             for (LitematicaSchematic.EntityInfo info : regionEntities) {
                 throwIfCancelled(cancelled);
                 double x = info.posVec.x + regionOrigin.getX() - bounds.min().getX();
@@ -3262,8 +3248,10 @@ public final class QuickLitematicaPreview3D {
 
     private record RegionBounds(BlockPos min, BlockPos max) {
         private static RegionBounds from(Box box) {
-            BlockPos pos1 = box.getPos1() == null ? BlockPos.ORIGIN : box.getPos1();
-            BlockPos pos2 = box.getPos2() == null ? pos1 : box.getPos2();
+            BlockPos first = box.getPos1();
+            BlockPos pos1 = first != null ? first : BlockPos.ORIGIN;
+            BlockPos second = box.getPos2();
+            BlockPos pos2 = second != null ? second : pos1;
             return new RegionBounds(BlockPos.min(pos1, pos2), BlockPos.max(pos1, pos2));
         }
 

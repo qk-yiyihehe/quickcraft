@@ -783,14 +783,18 @@ public class QuickCraftStonecutter implements ClientModInitializer {
         }
 
         List<CuttingRecipeDisplay.GroupEntry<StonecuttingRecipe>> entries = handler.getAvailableRecipes().entries();
+        int matchedIndex = -1;
         for (int i = 0; i < entries.size(); i++) {
             ItemStack displayedResult = getDisplayResultStack(client, handler, i);
             if (!displayedResult.isEmpty()
                     && ItemStack.areItemsAndComponentsEqual(displayedResult, resultTemplate)) {
-                return i;
+                if (matchedIndex >= 0) {
+                    return -1;
+                }
+                matchedIndex = i;
             }
         }
-        return -1;
+        return matchedIndex;
     }
 
     private ItemStack getDisplayResultStack(MinecraftClient client,
