@@ -48,7 +48,6 @@ import net.minecraft.client.gui.render.state.special.SpecialGuiElementRenderStat
 import net.minecraft.client.gui.screen.Screen;
 import net.minecraft.client.render.BufferBuilder;
 import net.minecraft.client.render.BuiltBuffer;
-import net.minecraft.client.render.GameRenderer;
 import net.minecraft.client.render.LightmapTextureManager;
 import net.minecraft.client.render.OverlayTexture;
 import net.minecraft.client.render.BlockRenderLayer;
@@ -58,11 +57,8 @@ import net.minecraft.client.render.RenderLayer;
 import net.minecraft.client.render.RenderLayers;
 import net.minecraft.client.render.VertexConsumer;
 import net.minecraft.client.render.VertexConsumerProvider;
-import net.minecraft.client.render.VertexFormats;
-import net.minecraft.client.render.WorldRenderer;
 import net.minecraft.client.render.block.entity.BlockEntityRenderer;
 import net.minecraft.client.render.block.BlockRenderManager;
-import net.minecraft.client.render.chunk.BlockBufferAllocatorStorage;
 import net.minecraft.client.texture.NativeImage;
 import net.minecraft.client.util.BufferAllocator;
 import net.minecraft.client.util.math.MatrixStack;
@@ -1230,70 +1226,6 @@ public final class QuickLitematicaPreview3D {
             this.flushDynamic();
         }
 
-        private void drawMesh(DrawContext context, int x, int y, int size, DragState drag) {
-            MeshData data = this.meshData;
-            MinecraftClient client = MinecraftClient.getInstance();
-            if (data == null || client.currentScreen == null) {
-                return;
-            }
-
-            Framebuffer framebuffer = client.getFramebuffer();
-            int[] scissor = previewScissor(client, x, y, size);
-            RenderSystem.getDevice().createCommandEncoder().clearColorAndDepthTextures(
-                    framebuffer.getColorAttachment(), 0xFF101010, framebuffer.getDepthAttachment(), 1.0D,
-                    scissor[0], scissor[1], scissor[2], scissor[3]
-            );
-
-            var previousColorTarget = RenderSystem.outputColorTextureOverride;
-            var previousDepthTarget = RenderSystem.outputDepthTextureOverride;
-            var previousScissor = RenderSystem.getScissorStateForRenderTypeDraws();
-            boolean hadScissor = previousScissor.method_72091();
-            int previousScissorX = previousScissor.method_72092();
-            int previousScissorY = previousScissor.method_72093();
-            int previousScissorWidth = previousScissor.method_72094();
-            int previousScissorHeight = previousScissor.method_72095();
-            var previousLights = RenderSystem.getShaderLights();
-            RenderSystem.outputColorTextureOverride = framebuffer.getColorAttachmentView();
-            RenderSystem.outputDepthTextureOverride = framebuffer.getDepthAttachmentView();
-            RenderSystem.enableScissorForRenderTypeDraws(scissor[0], scissor[1], scissor[2], scissor[3]);
-
-            float aspectRatio = client.getWindow().getFramebufferWidth() / (float) client.getWindow().getFramebufferHeight();
-            Matrix4f projection = new Matrix4f().setOrtho(-aspectRatio, aspectRatio, -1.0F, 1.0F, -1000.0F, 3000.0F);
-            RenderSystem.backupProjectionMatrix();
-            RenderSystem.setProjectionMatrix(this.previewProjection.set(projection), ProjectionType.ORTHOGRAPHIC);
-
-            Matrix4fStack modelView = RenderSystem.getModelViewStack();
-            modelView.pushMatrix();
-            try {
-                modelView.identity();
-                translateToScreen(modelView, client, x + size / 2.0F + drag.dx, y + size / 2.0F + drag.dy);
-                modelView.rotate(RotationAxis.POSITIVE_X.rotation(drag.pitch));
-                modelView.rotate(RotationAxis.POSITIVE_Y.rotation((float) drag.angle));
-                float scale = data.scaleFactor(size, client.currentScreen.height) * drag.scale;
-                modelView.scale(scale, scale, scale);
-                modelView.translate(-data.sizeX() / 2.0F, -data.sizeY() / 2.0F, -data.sizeZ() / 2.0F);
-                this.applyLight(modelView);
-                this.prepareDynamicBuffers(data);
-                if (this.dynamicBuffersReady) {
-                    this.drawDynamicBuffers(framebuffer, x, y, size);
-                } else {
-                    this.drawDynamic(data, modelView, projection, x, y, size);
-                }
-                this.drawBuffers(framebuffer, x, y, size);
-            } finally {
-                modelView.popMatrix();
-                RenderSystem.restoreProjectionMatrix();
-                RenderSystem.outputColorTextureOverride = previousColorTarget;
-                RenderSystem.outputDepthTextureOverride = previousDepthTarget;
-                RenderSystem.setShaderLights(previousLights);
-                if (hadScissor) {
-                    RenderSystem.enableScissorForRenderTypeDraws(previousScissorX, previousScissorY, previousScissorWidth, previousScissorHeight);
-                } else {
-                    RenderSystem.disableScissorForRenderTypeDraws();
-                }
-            }
-        }
-
         // 1.21.6+ 的地形明暗已烘焙进顶点颜色；独立 UBO 只修正动态方块实体和实体，且不污染原版全局光照。
         private void applyLight(Matrix4f viewMatrix) {
             Matrix4f lightTransform = new Matrix4f(viewMatrix);
@@ -1320,23 +1252,10 @@ public final class QuickLitematicaPreview3D {
             RenderSystem.setShaderLights(this.previewLightingBuffer.slice());
         }
 
-        private void drawBuffers(Framebuffer framebuffer, int x, int y, int size) {
-            for (LayerKey layer : LayerKey.DRAW_ORDER) {
-                LayerBuffer buffer = this.layerBuffers.get(layer);
-                if (buffer != null) {
-                    drawLayerBuffer(layer.renderLayer(), buffer, framebuffer, x, y, size, true);
-                }
-            }
-        }
-
         private static void drawLayerBuffer(
                 RenderLayer renderLayer,
                 LayerBuffer buffer,
-                Framebuffer framebuffer,
-                int viewX,
-                int viewY,
-                int viewSize,
-                boolean useScissor
+                Framebuffer framebuffer
         ) {
             renderLayer.startDrawing();
             try {
@@ -1366,9 +1285,6 @@ public final class QuickLitematicaPreview3D {
                         OptionalDouble.empty()
                 )) {
                     pass.setPipeline(pipeline);
-                    if (useScissor) {
-                        enablePreviewScissor(pass, viewX, viewY, viewSize);
-                    }
                     RenderSystem.bindDefaultUniforms(pass);
                     pass.setUniform("DynamicTransforms", dynamicTransforms);
                     pass.setVertexBuffer(0, buffer.vertexBuffer());
@@ -1384,21 +1300,6 @@ public final class QuickLitematicaPreview3D {
             } finally {
                 renderLayer.endDrawing();
             }
-        }
-
-        private static void enablePreviewScissor(RenderPass pass, int viewX, int viewY, int viewSize) {
-            MinecraftClient client = MinecraftClient.getInstance();
-            int[] scissor = previewScissor(client, viewX, viewY, viewSize);
-            pass.enableScissor(scissor[0], scissor[1], scissor[2], scissor[3]);
-        }
-
-        private static int[] previewScissor(MinecraftClient client, int viewX, int viewY, int viewSize) {
-            int scale = client.getWindow().getScaleFactor();
-            int width = Math.max(1, (viewSize - 2) * scale);
-            int height = Math.max(1, (viewSize - 2) * scale);
-            int x = (viewX + 1) * scale;
-            int y = client.getWindow().getFramebufferHeight() - (viewY + viewSize - 1) * scale;
-            return new int[]{x, y, width, height};
         }
 
         private void prepareDynamicBuffers(MeshData data) {
@@ -1459,24 +1360,18 @@ public final class QuickLitematicaPreview3D {
             }
         }
 
-        private void drawDynamicBuffers(Framebuffer framebuffer, int viewX, int viewY, int viewSize) {
-            for (DynamicLayerBuffer layerBuffer : this.dynamicBuffers) {
-                drawLayerBuffer(layerBuffer.layer(), layerBuffer.buffer(), framebuffer, viewX, viewY, viewSize, true);
-            }
-        }
-
         private void drawSnapshotBuffers(Framebuffer framebuffer) {
             for (LayerKey layer : LayerKey.DRAW_ORDER) {
                 LayerBuffer buffer = this.layerBuffers.get(layer);
                 if (buffer != null) {
-                    drawLayerBuffer(layer.renderLayer(), buffer, framebuffer, 0, 0, 0, false);
+                    drawLayerBuffer(layer.renderLayer(), buffer, framebuffer);
                 }
             }
         }
 
         private void drawSnapshotDynamicBuffers(Framebuffer framebuffer) {
             for (DynamicLayerBuffer layerBuffer : this.dynamicBuffers) {
-                drawLayerBuffer(layerBuffer.layer(), layerBuffer.buffer(), framebuffer, 0, 0, 0, false);
+                drawLayerBuffer(layerBuffer.layer(), layerBuffer.buffer(), framebuffer);
             }
         }
 
@@ -2042,55 +1937,6 @@ public final class QuickLitematicaPreview3D {
             return outputPath;
         }
 
-        private void drawDynamic(MeshData data, Matrix4f modelView, Matrix4f projection, int viewX, int viewY, int viewSize) {
-            DynamicScene scene = data.dynamicScene();
-            if (scene.isEmpty()) {
-                return;
-            }
-
-            MinecraftClient client = MinecraftClient.getInstance();
-            // 视口剔除器：把每个动态对象变换到 framebuffer 像素，落在预览框外的直接跳过。
-            // 预览框本身已有 scissor 裁剪，剔除框外对象纯属减负，不影响可见内容。
-            ViewportCuller culler = new ViewportCuller(modelView, projection, client, viewX, viewY, viewSize);
-            MatrixStack matrices = new MatrixStack();
-            scene.blockEntities().forEach((pos, entity) -> {
-                // 用方块中心点判定，覆盖大多数方块实体模型
-                if (culler.isOutside(pos.getX() + 0.5F, pos.getY() + 0.5F, pos.getZ() + 0.5F)) {
-                    return;
-                }
-                matrices.push();
-                try {
-                    matrices.translate(pos.getX(), pos.getY(), pos.getZ());
-                    // 高层方块实体渲染会按真实相机做距离判断，预览里的离屏假世界不能走那条路径。
-                    renderBlockEntity(client, entity, matrices, client.getBufferBuilders().getEntityVertexConsumers());
-                } catch (Throwable ignored) {
-                } finally {
-                    matrices.pop();
-                }
-            });
-
-            scene.entities().forEach(entity -> {
-                if (culler.isOutside((float) entity.x(), (float) entity.y(), (float) entity.z())) {
-                    return;
-                }
-                try {
-                    client.getEntityRenderDispatcher().render(
-                            entity.entity(),
-                            entity.x(),
-                            entity.y(),
-                            entity.z(),
-                            entity.entity().getYaw(0.0F),
-                            matrices,
-                            client.getBufferBuilders().getEntityVertexConsumers(),
-                            entity.light()
-                    );
-                } catch (Throwable ignored) {
-                }
-            });
-            // BE 和实体共用同一个 EntityVertexConsumers，一次 flush 提交所有动态顶点。
-            this.flushDynamic();
-        }
-
         private void flushDynamic() {
             MinecraftClient.getInstance().getBufferBuilders().getEntityVertexConsumers().draw();
         }
@@ -2474,30 +2320,6 @@ public final class QuickLitematicaPreview3D {
             current = current.getCause();
         }
         return false;
-    }
-
-    // 渲染方块实体到指定 VertexConsumerProvider。动态 BE 会走各自专用 atlas，不能录进普通方块 VBO。
-    private static <T extends BlockEntity> void renderBlockEntity(MinecraftClient client, T entity, MatrixStack matrices, VertexConsumerProvider consumers) {
-        BlockEntityRenderer<T> renderer = client.getBlockEntityRenderDispatcher().get(entity);
-        if (renderer == null) {
-            return;
-        }
-
-        renderer.render(
-                entity,
-                0.0F,
-                matrices,
-                consumers,
-                LightmapTextureManager.MAX_LIGHT_COORDINATE,
-                OverlayTexture.DEFAULT_UV,
-                new net.minecraft.util.math.Vec3d(0.0D, 0.0D, 0.0D)
-        );
-    }
-
-    private static void translateToScreen(Matrix4fStack matrixStack, MinecraftClient client, float x, float y) {
-        int screenWidth = client.currentScreen == null ? client.getWindow().getScaledWidth() : client.currentScreen.width;
-        int screenHeight = client.currentScreen == null ? client.getWindow().getScaledHeight() : client.currentScreen.height;
-        matrixStack.translate((2.0F * x - screenWidth) / screenHeight, -(2.0F * y - screenHeight) / screenHeight, 0.0F);
     }
 
     static String cacheKey(Path sourcePath) {
@@ -3213,11 +3035,6 @@ public final class QuickLitematicaPreview3D {
         private final EnumMap<LayerKey, RecordingVertexConsumer> consumers = new EnumMap<>(LayerKey.class);
         private int vertexCount;
 
-        private VertexConsumer consumerFor(RenderLayer renderLayer) {
-            LayerKey layer = LayerKey.from(renderLayer);
-            return this.consumers.computeIfAbsent(layer, ignored -> new RecordingVertexConsumer(this));
-        }
-
         private VertexConsumer consumerFor(BlockRenderLayer renderLayer) {
             LayerKey layer = LayerKey.from(renderLayer);
             return this.consumers.computeIfAbsent(layer, ignored -> new RecordingVertexConsumer(this));
@@ -3468,16 +3285,6 @@ public final class QuickLitematicaPreview3D {
             return this.layers;
         }
 
-        @Nullable
-        private LayerMesh layer(LayerKey key) {
-            for (LayerMesh layer : this.layers) {
-                if (layer.layer() == key) {
-                    return layer;
-                }
-            }
-            return null;
-        }
-
         private int sizeX() {
             return this.sizeX;
         }
@@ -3634,53 +3441,6 @@ public final class QuickLitematicaPreview3D {
 
         private DynamicScene(Map<BlockPos, BlockEntity> blockEntities, List<RenderedEntity> entities) {
             this(null, blockEntities, entities);
-        }
-    }
-
-    /**
-     * 动态内容视口剔除器：把模型空间点变换到 framebuffer 像素，判定是否落在预览框（含安全余量）内。
-     * 预览框外对象本就被 scissor 裁掉看不见，剔除纯属减负，不改可见效果。
-     */
-    private static final class ViewportCuller {
-        private final Matrix4f modelView;
-        private final Matrix4f projection;
-        private final float framebufferWidth;
-        private final float framebufferHeight;
-        private final float minX;
-        private final float maxX;
-        private final float minY;
-        private final float maxY;
-        private final Vector4f scratch = new Vector4f();
-
-        private ViewportCuller(Matrix4f modelView, Matrix4f projection, MinecraftClient client, int viewX, int viewY, int viewSize) {
-            this.modelView = modelView;
-            this.projection = projection;
-            this.framebufferWidth = client.getWindow().getFramebufferWidth();
-            this.framebufferHeight = client.getWindow().getFramebufferHeight();
-            int screenHeight = client.currentScreen == null ? client.getWindow().getScaledHeight() : client.currentScreen.height;
-            float guiScale = screenHeight > 0 ? this.framebufferHeight / screenHeight : 1.0F;
-            // 安全余量：实体/方块实体模型可能延伸出位置点，给 48px 覆盖盔甲架/画等大模型。
-            float margin = 48.0F;
-            this.minX = (viewX - margin) * guiScale;
-            this.maxX = (viewX + viewSize + margin) * guiScale;
-            this.minY = (viewY - margin) * guiScale;
-            this.maxY = (viewY + viewSize + margin) * guiScale;
-        }
-
-        private boolean isOutside(float x, float y, float z) {
-            // 模型空间 -> 视图空间 -> 裁剪空间 -> NDC -> framebuffer 像素
-            this.scratch.set(x, y, z, 1.0F);
-            this.modelView.transform(this.scratch);
-            this.projection.transform(this.scratch);
-            float w = this.scratch.w;
-            if (w == 0.0F) {
-                return false;
-            }
-            float ndcX = this.scratch.x / w;
-            float ndcY = this.scratch.y / w;
-            float pixelX = (ndcX + 1.0F) * 0.5F * this.framebufferWidth;
-            float pixelY = (1.0F - ndcY) * 0.5F * this.framebufferHeight;
-            return pixelX < this.minX || pixelX > this.maxX || pixelY < this.minY || pixelY > this.maxY;
         }
     }
 

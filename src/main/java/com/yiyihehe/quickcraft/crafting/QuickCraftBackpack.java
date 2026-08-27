@@ -964,6 +964,7 @@ public class QuickCraftBackpack implements ClientModInitializer {
         handler.populateRecipeFinder(finder);
         ContextParameterMap context = SlotDisplayContexts.createParameters(client.world);
 
+        NetworkRecipeId matchedId = null;
         for (RecipeResultCollection collection : client.player.getRecipeBook().getOrderedResults()) {
             collection.populateRecipes(finder, display -> true);
             for (RecipeDisplayEntry entry : collection.getAllRecipes()) {
@@ -972,13 +973,16 @@ public class QuickCraftBackpack implements ClientModInitializer {
                 }
                 for (ItemStack stack : entry.getStacks(context)) {
                     if (isSameRecipeBookResult(stack, resultTemplate)) {
-                        return entry.id();
+                        if (matchedId != null && !matchedId.equals(entry.id())) {
+                            return null;
+                        }
+                        matchedId = entry.id();
                     }
                 }
             }
         }
 
-        return null;
+        return matchedId;
     }
 
     private boolean isSameRecipeBookResult(ItemStack displayed, ItemStack template) {
@@ -1241,6 +1245,8 @@ public class QuickCraftBackpack implements ClientModInitializer {
         try {
             CraftingRecipeInput input = getCraftingRecipeInput(handler);
 
+            // ClientWorld exposes ClientRecipeManager, so recipe entries are unavailable here;
+            // network recipe IDs and the captured grid remain the safe client-side fallback.
             if (!(world.getRecipeManager() instanceof ServerRecipeManager recipeManager)) {
                 return null;
             }
