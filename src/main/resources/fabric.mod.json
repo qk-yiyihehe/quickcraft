@@ -48,10 +48,13 @@
     "minecraft": ">=1.21 <=1.21.1",
     "java": ">=21",
     "fabric-api": "*",
-    "malilib": ">=0.21.8"
+    "malilib": ">=0.21.10"
   },
   "suggests": {
-    "litematica": ">=0.19.57",
+    "litematica": ">=0.19.61",
     "quickshulker": "*"
+  },
+  "breaks": {
+    "litematica": "<0.19.61"
   }
 }

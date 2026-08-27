@@ -9,7 +9,7 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.ModifyArg;
 
 /**
- * Litematica 0.19.60 的轻松放置固定从 mc.player 发起射线；灵魂出窍联动只替换射线实体，
+ * Litematica 0.19.61 的轻松放置固定从 mc.player 发起射线；灵魂出窍联动只替换射线实体，
  * 背包取材、放置玩家和交互距离仍使用真实玩家。调用点失效时只会退回玩家视角选取投影。
  */
 @Mixin(value = WorldUtils.class, remap = false)

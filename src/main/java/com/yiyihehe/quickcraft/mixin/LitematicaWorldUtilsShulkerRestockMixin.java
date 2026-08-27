@@ -10,7 +10,7 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
 /**
- * 在 Litematica 0.19.60 的放置限制判定前启动潜影盒补料。
+ * 在 Litematica 0.19.61 的放置限制判定前启动潜影盒补料。
  * 该位置早于主手为空时的限制返回；若目标调用顺序变更，症状仅为缺料时不再自动开盒。
  */
 @Mixin(value = WorldUtils.class, remap = false)

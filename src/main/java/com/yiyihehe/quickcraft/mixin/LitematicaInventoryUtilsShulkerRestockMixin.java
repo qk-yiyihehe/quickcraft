@@ -12,7 +12,7 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 /**
- * 接管 Litematica 0.19.60 轻松放置的实际物品选取入口。
+ * 接管 Litematica 0.19.61 轻松放置的实际物品选取入口。
  * WorldUtils 已在此处解析出投影的准确材料；若调用点消失，投影命中时将不再触发潜影盒补料。
  */
 @Mixin(value = InventoryUtils.class, remap = false)
