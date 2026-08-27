@@ -9,7 +9,6 @@ import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.systems.VertexSorter;
 import com.mojang.blaze3d.textures.AddressMode;
 import com.mojang.blaze3d.textures.FilterMode;
-import com.mojang.blaze3d.vertex.VertexFormat;
 import com.sun.jna.Native;
 import com.sun.jna.Platform;
 import com.sun.jna.Pointer;
@@ -50,7 +49,6 @@ import net.minecraft.client.gui.render.SpecialGuiElementRenderer;
 import net.minecraft.client.gui.render.state.special.SpecialGuiElementRenderState;
 import net.minecraft.client.render.BufferBuilder;
 import net.minecraft.client.render.BuiltBuffer;
-import net.minecraft.client.render.GameRenderer;
 import net.minecraft.client.render.LightmapTextureManager;
 import net.minecraft.client.render.OverlayTexture;
 import net.minecraft.client.render.BlockRenderLayer;
@@ -62,11 +60,8 @@ import net.minecraft.client.render.RenderSetup;
 import net.minecraft.client.render.RenderLayers;
 import net.minecraft.client.render.VertexConsumer;
 import net.minecraft.client.render.VertexConsumerProvider;
-import net.minecraft.client.render.VertexFormats;
-import net.minecraft.client.render.WorldRenderer;
 import net.minecraft.client.render.block.entity.BlockEntityRenderer;
 import net.minecraft.client.render.block.BlockRenderManager;
-import net.minecraft.client.render.chunk.BlockBufferAllocatorStorage;
 import net.minecraft.client.render.command.OrderedRenderCommandQueue;
 import net.minecraft.client.render.command.OrderedRenderCommandQueueImpl;
 import net.minecraft.client.render.command.RenderDispatcher;
@@ -164,6 +159,7 @@ public final class QuickLitematicaPreview3D {
     private static final Logger LOGGER = LoggerFactory.getLogger(QuickLitematicaPreview3D.class);
     private static final AtomicBoolean SHADER_API_WARNING_LOGGED = new AtomicBoolean();
     private static final AtomicBoolean SHADER_DISABLE_WARNING_LOGGED = new AtomicBoolean();
+    private static final AtomicBoolean ENTITY_PREVIEW_WARNING_LOGGED = new AtomicBoolean();
     // 1.21.11 exposes no replacement for setCachedState on detached preview block entities.
     @SuppressWarnings("deprecation")
     private static void setPreviewBlockEntityState(BlockEntity blockEntity, BlockState state) {
@@ -1350,7 +1346,8 @@ public final class QuickLitematicaPreview3D {
                             );
                         } catch (DynamicBufferTooLargeException e) {
                             throw e;
-                        } catch (Throwable ignored) {
+                        } catch (Throwable throwable) {
+                            logEntityPreviewFailure("building render buffers", throwable);
                         }
                     });
                     dispatcher.render();
@@ -1966,12 +1963,19 @@ public final class QuickLitematicaPreview3D {
                             matrices,
                             queue
                     );
-                } catch (Throwable ignored) {
+                } catch (Throwable throwable) {
+                    logEntityPreviewFailure("submitting render commands", throwable);
                 }
             });
 
             // 1.21.9+ 的实体 renderer 只记录命令；special GUI 离屏目标仍需在本层显式执行队列。
             dispatcher.render();
+        }
+
+        private static void logEntityPreviewFailure(String stage, Throwable throwable) {
+            if (ENTITY_PREVIEW_WARNING_LOGGED.compareAndSet(false, true)) {
+                LOGGER.warn("Failed while {} for a Litematica 3D preview entity", stage, throwable);
+            }
         }
 
         private static <T extends BlockEntity, S extends BlockEntityRenderState> void renderBlockEntity(
@@ -2384,12 +2388,6 @@ public final class QuickLitematicaPreview3D {
             current = current.getCause();
         }
         return false;
-    }
-
-    private static void translateToScreen(Matrix4fStack matrixStack, MinecraftClient client, float x, float y) {
-        int screenWidth = client.currentScreen == null ? client.getWindow().getScaledWidth() : client.currentScreen.width;
-        int screenHeight = client.currentScreen == null ? client.getWindow().getScaledHeight() : client.currentScreen.height;
-        matrixStack.translate((2.0F * x - screenWidth) / screenHeight, -(2.0F * y - screenHeight) / screenHeight, 0.0F);
     }
 
     static String cacheKey(Path sourcePath) {
@@ -3069,22 +3067,6 @@ public final class QuickLitematicaPreview3D {
 
         abstract RenderLayer renderLayer();
 
-        private static LayerKey from(RenderLayer layer) {
-            if (layer == RenderLayers.solid()) {
-                return SOLID;
-            }
-            if (layer == RenderLayers.cutout()) {
-                return CUTOUT;
-            }
-            if (layer == RenderLayers.tripwire()) {
-                return TRIPWIRE;
-            }
-            if (layer == RenderLayers.translucentMovingBlock() || layer.isTranslucent()) {
-                return TRANSLUCENT;
-            }
-            return SOLID;
-        }
-
         private static LayerKey from(BlockRenderLayer layer) {
             return switch (layer) {
                 case SOLID -> SOLID;
@@ -3108,11 +3090,6 @@ public final class QuickLitematicaPreview3D {
     private static final class MeshCollector {
         private final EnumMap<LayerKey, RecordingVertexConsumer> consumers = new EnumMap<>(LayerKey.class);
         private int vertexCount;
-
-        private VertexConsumer consumerFor(RenderLayer renderLayer) {
-            LayerKey layer = LayerKey.from(renderLayer);
-            return this.consumers.computeIfAbsent(layer, ignored -> new RecordingVertexConsumer(this));
-        }
 
         private VertexConsumer consumerFor(BlockRenderLayer renderLayer) {
             LayerKey layer = LayerKey.from(renderLayer);
@@ -3393,16 +3370,6 @@ public final class QuickLitematicaPreview3D {
             return this.layers;
         }
 
-        @Nullable
-        private LayerMesh layer(LayerKey key) {
-            for (LayerMesh layer : this.layers) {
-                if (layer.layer() == key) {
-                    return layer;
-                }
-            }
-            return null;
-        }
-
         private int sizeX() {
             return this.sizeX;
         }
@@ -3468,6 +3435,8 @@ public final class QuickLitematicaPreview3D {
     }
 
     private record EntityData(double x, double y, double z, NbtCompound entityNbt) {
+        // Litematica 0.26.12 没有 Data 入口；保留 NBT 桥接以兼容 0.26.12 和 0.26.13。
+        @SuppressWarnings({"deprecation", "removal"})
         @Nullable
         private RenderedEntity instantiate(DummyWorld world) {
             try {
@@ -3479,7 +3448,8 @@ public final class QuickLitematicaPreview3D {
                 entity.setPosition(this.x, this.y, this.z);
                 int light = MinecraftClient.getInstance().getEntityRenderDispatcher().getLight(entity, 0.0F);
                 return new RenderedEntity(entity, this.x, this.y, this.z, light);
-            } catch (Throwable ignored) {
+            } catch (Throwable throwable) {
+                Preview.logEntityPreviewFailure("instantiating", throwable);
                 return null;
             }
         }
@@ -3790,7 +3760,7 @@ public final class QuickLitematicaPreview3D {
                     // 批量读取量化顶点字节，直接存进 LayerMesh，渲染线程再解码进 BufferBuilder。
                     // 直接读取 packed 顶点字节，大文件读取避免逐顶点对象分配。
                     long quantizedBytes = (long) vertexCount * QUANTIZED_VERTEX_BYTES;
-                    if (quantizedBytes > MAX_QUANTIZED_LAYER_BYTES || quantizedBytes > Integer.MAX_VALUE - 8L) {
+                    if (quantizedBytes > MAX_QUANTIZED_LAYER_BYTES) {
                         deleteQuietly(path);
                         return null;
                     }

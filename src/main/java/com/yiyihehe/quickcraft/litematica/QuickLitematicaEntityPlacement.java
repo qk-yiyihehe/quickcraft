@@ -849,10 +849,6 @@ public final class QuickLitematicaEntityPlacement {
             this.velocity = velocity;
         }
 
-        private boolean sameEntity(Candidate other) {
-            return region.equals(other.region) && index == other.index && entityType.equals(other.entityType);
-        }
-
         private String key() {
             return region + "#" + index + "#" + entityType + "@" + position;
         }
@@ -918,7 +914,7 @@ public final class QuickLitematicaEntityPlacement {
             for (int i = 0; i < items.size(); i++) {
                 var itemNbt = items.getCompoundOrEmpty(i);
                 int slot = itemNbt.getByte("Slot", (byte) 0) & 255;
-                if (slot >= 0 && slot < size) {
+                if (slot < size) {
                     decodeItemStack(itemNbt)
                             .ifPresent(stack -> stacks.set(slot, stack));
                 }

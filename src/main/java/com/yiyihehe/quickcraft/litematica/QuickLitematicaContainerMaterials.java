@@ -24,7 +24,6 @@ import fi.dy.masa.malilib.gui.GuiListBase;
 import fi.dy.masa.malilib.gui.Message.MessageType;
 import fi.dy.masa.malilib.gui.button.ButtonBase;
 import fi.dy.masa.malilib.gui.button.ButtonGeneric;
-import fi.dy.masa.malilib.gui.button.ButtonOnOff;
 import fi.dy.masa.malilib.gui.button.IButtonActionListener;
 import fi.dy.masa.malilib.gui.widgets.WidgetFileBrowserBase.DirectoryEntry;
 import fi.dy.masa.malilib.gui.widgets.WidgetListBase;
@@ -42,6 +41,7 @@ import net.minecraft.block.ChestBlock;
 import net.minecraft.block.ShulkerBoxBlock;
 import net.minecraft.block.enums.ChestType;
 import net.minecraft.client.MinecraftClient;
+import net.minecraft.client.gui.Click;
 import net.minecraft.client.gui.screen.Screen;
 import net.minecraft.item.BlockItem;
 import net.minecraft.item.Item;
@@ -50,9 +50,7 @@ import net.minecraft.item.Items;
 import net.minecraft.nbt.NbtCompound;
 import net.minecraft.nbt.NbtList;
 import net.minecraft.nbt.NbtOps;
-import net.minecraft.registry.Registries;
 import net.minecraft.registry.RegistryWrapper;
-import net.minecraft.util.Identifier;
 import net.minecraft.util.collection.DefaultedList;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.Direction;
@@ -568,10 +566,6 @@ public final class QuickLitematicaContainerMaterials {
 
     private static String itemSignature(ItemStack stack) {
         return new ItemType(stack, true, true).toString();
-    }
-
-    private static String itemId(ItemStack stack) {
-        return Registries.ITEM.getId(stack.getItem()).toString();
     }
 
     private static String contentSignature(List<ItemCount> contents) {
@@ -1249,7 +1243,8 @@ public final class QuickLitematicaContainerMaterials {
             }
         }
 
-        public boolean canSelectAt(int mouseX, int mouseY, int mouseButton) {
+        @Override
+        public boolean canSelectAt(Click click) {
             return false;
         }
 

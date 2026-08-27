@@ -1078,6 +1078,7 @@ public final class QuickCraftWorkbenchShulkerCraft implements ClientModInitializ
                                                            CraftingScreenHandler handler) {
         if (client == null || client.world == null
                 || !(client.world.getRecipeManager() instanceof ServerRecipeManager recipeManager)) {
+            // ClientWorld uses ClientRecipeManager; the visible output and captured grid are used instead.
             return null;
         }
         try {
