@@ -48,9 +48,7 @@ import net.minecraft.item.Items;
 import net.minecraft.nbt.NbtCompound;
 import net.minecraft.nbt.NbtList;
 import net.minecraft.nbt.NbtOps;
-import net.minecraft.registry.Registries;
 import net.minecraft.registry.RegistryWrapper;
-import net.minecraft.util.Identifier;
 import net.minecraft.util.collection.DefaultedList;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.Direction;
@@ -555,10 +553,6 @@ public final class QuickLitematicaContainerMaterials {
 
     private static String itemSignature(ItemStack stack) {
         return new ItemType(stack, true, true).toString();
-    }
-
-    private static String itemId(ItemStack stack) {
-        return Registries.ITEM.getId(stack.getItem()).toString();
     }
 
     private static String contentSignature(List<ItemCount> contents) {

@@ -4,7 +4,6 @@ import com.chocohead.mm.api.ClassTinkerers;
 import com.yiyihehe.quickcraft.QuickContainerCopy;
 import com.yiyihehe.quickcraft.config.QuickCraftConfigs;
 import net.fabricmc.loader.api.FabricLoader;
-import fi.dy.masa.litematica.config.Configs;
 import fi.dy.masa.litematica.data.DataManager;
 import fi.dy.masa.litematica.data.EntitiesDataStorage;
 import fi.dy.masa.litematica.schematic.LitematicaSchematic;
@@ -20,7 +19,6 @@ import fi.dy.masa.malilib.gui.LeftRight;
 import fi.dy.masa.malilib.render.InventoryOverlay;
 import fi.dy.masa.malilib.render.InventoryOverlayType;
 import fi.dy.masa.malilib.util.game.BlockUtils;
-import fi.dy.masa.malilib.util.data.Constants;
 import fi.dy.masa.malilib.util.nbt.NbtBlockUtils;
 import net.minecraft.block.AbstractFurnaceBlock;
 import net.minecraft.block.BrewingStandBlock;
@@ -311,7 +309,7 @@ public final class QuickLitematicaContainerVerifier {
                 continue;
             }
             int slot = itemNbt.getByte("Slot").orElse((byte) 0) & 255;
-            if (slot < 0 || slot >= size) {
+            if (slot >= size) {
                 continue;
             }
 
@@ -1126,10 +1124,6 @@ public final class QuickLitematicaContainerVerifier {
                 : null;
     }
 
-    private static ExpectedContainer getExpectedContainerInternal(BlockPos worldPos) {
-        return getExpectedContainerInternal(worldPos, null);
-    }
-
     private static ExpectedContainer getExpectedContainerInternal(
             BlockPos worldPos,
             @Nullable SchematicPlacement placementFilter
@@ -1177,10 +1171,6 @@ public final class QuickLitematicaContainerVerifier {
                 copyInventory(inventory),
                 getDisabledSlots(blockEntity, nbt)
         );
-    }
-
-    private static LocalPlacementPos getLocalPlacementPos(BlockPos worldPos) {
-        return getLocalPlacementPos(worldPos, null);
     }
 
     private static LocalPlacementPos getLocalPlacementPos(

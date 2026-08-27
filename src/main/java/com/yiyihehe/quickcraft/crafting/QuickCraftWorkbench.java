@@ -1051,6 +1051,7 @@ public class QuickCraftWorkbench implements ClientModInitializer {
         handler.populateRecipeFinder(finder);
         ContextParameterMap context = SlotDisplayContexts.createParameters(client.world);
 
+        NetworkRecipeId matchedId = null;
         for (RecipeResultCollection collection : client.player.getRecipeBook().getOrderedResults()) {
             collection.populateRecipes(finder, display -> true);
             for (RecipeDisplayEntry entry : collection.getAllRecipes()) {
@@ -1059,13 +1060,16 @@ public class QuickCraftWorkbench implements ClientModInitializer {
                 }
                 for (ItemStack stack : entry.getStacks(context)) {
                     if (isSameRecipeBookResult(stack, resultTemplate)) {
-                        return entry.id();
+                        if (matchedId != null && !matchedId.equals(entry.id())) {
+                            return null;
+                        }
+                        matchedId = entry.id();
                     }
                 }
             }
         }
 
-        return null;
+        return matchedId;
     }
 
     private boolean isSameRecipeBookResult(ItemStack displayed, ItemStack template) {
@@ -1322,6 +1326,8 @@ public class QuickCraftWorkbench implements ClientModInitializer {
         try {
             CraftingRecipeInput input = getCraftingRecipeInput(handler);
 
+            // ClientWorld supplies ClientRecipeManager, so RecipeEntry lookup is unavailable here;
+            // network recipe IDs and the captured grid remain the client-side source of truth.
             if (!(world.getRecipeManager() instanceof ServerRecipeManager recipeManager)) {
                 return null;
             }
@@ -1525,12 +1531,15 @@ public class QuickCraftWorkbench implements ClientModInitializer {
 
     private boolean supportsQuickShulkerDirectRecipe(CraftingScreenHandler handler,
                                                       RecipeEntry<CraftingRecipe> recipe) {
-        if (recipe == null) {
+        if (recipe == null && lockedNetworkRecipeId == null) {
             return false;
         }
         try {
             boolean hasRemainder = false;
-            for (ItemStack remainder : recipe.value().getRecipeRemainders(getCraftingRecipeInput(handler))) {
+            List<ItemStack> remainders = recipe != null
+                    ? recipe.value().getRecipeRemainders(getCraftingRecipeInput(handler))
+                    : CraftingRecipe.collectRecipeRemainders(getCraftingRecipeInput(handler));
+            for (ItemStack remainder : remainders) {
                 hasRemainder |= !remainder.isEmpty();
             }
             return canDirectFillRecipe(true, hasRemainder);

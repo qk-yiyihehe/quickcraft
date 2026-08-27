@@ -3029,25 +3029,6 @@ public final class QuickLitematicaPreview3D {
 
         abstract RenderLayer renderLayer();
 
-        private static LayerKey from(RenderLayer layer) {
-            if (layer == RenderLayer.getSolid()) {
-                return SOLID;
-            }
-            if (layer == RenderLayer.getCutoutMipped()) {
-                return CUTOUT_MIPPED;
-            }
-            if (layer == RenderLayer.getCutout()) {
-                return CUTOUT;
-            }
-            if (layer == RenderLayer.getTripwire()) {
-                return TRIPWIRE;
-            }
-            if (layer == RenderLayer.getTranslucentMovingBlock() || layer.isTranslucent()) {
-                return TRANSLUCENT;
-            }
-            return SOLID;
-        }
-
         private static LayerKey from(BlockRenderLayer layer) {
             return switch (layer) {
                 case SOLID -> SOLID;
@@ -3072,11 +3053,6 @@ public final class QuickLitematicaPreview3D {
     private static final class MeshCollector {
         private final EnumMap<LayerKey, RecordingVertexConsumer> consumers = new EnumMap<>(LayerKey.class);
         private int vertexCount;
-
-        private VertexConsumer consumerFor(RenderLayer renderLayer) {
-            LayerKey layer = LayerKey.from(renderLayer);
-            return this.consumers.computeIfAbsent(layer, ignored -> new RecordingVertexConsumer(this));
-        }
 
         private VertexConsumer consumerFor(BlockRenderLayer renderLayer) {
             LayerKey layer = LayerKey.from(renderLayer);
@@ -3326,16 +3302,6 @@ public final class QuickLitematicaPreview3D {
 
         private List<LayerMesh> layers() {
             return this.layers;
-        }
-
-        @Nullable
-        private LayerMesh layer(LayerKey key) {
-            for (LayerMesh layer : this.layers) {
-                if (layer.layer() == key) {
-                    return layer;
-                }
-            }
-            return null;
         }
 
         private int sizeX() {
@@ -3725,7 +3691,7 @@ public final class QuickLitematicaPreview3D {
                     // 批量读取量化顶点字节，直接存进 LayerMesh，渲染线程再解码进 BufferBuilder。
                     // 直接读取 packed 顶点字节，大文件读取避免逐顶点对象分配。
                     long quantizedBytes = (long) vertexCount * QUANTIZED_VERTEX_BYTES;
-                    if (quantizedBytes > MAX_QUANTIZED_LAYER_BYTES || quantizedBytes > Integer.MAX_VALUE - 8L) {
+                    if (quantizedBytes > MAX_QUANTIZED_LAYER_BYTES) {
                         deleteQuietly(path);
                         return null;
                     }
