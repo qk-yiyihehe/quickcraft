@@ -42,18 +42,14 @@ import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.gui.screen.Screen;
 import net.minecraft.client.render.BufferBuilder;
 import net.minecraft.client.render.BuiltBuffer;
-import net.minecraft.client.render.GameRenderer;
 import net.minecraft.client.render.LightmapTextureManager;
 import net.minecraft.client.render.OverlayTexture;
 import net.minecraft.client.render.RenderLayer;
 import net.minecraft.client.render.RenderLayers;
 import net.minecraft.client.render.VertexConsumer;
 import net.minecraft.client.render.VertexConsumerProvider;
-import net.minecraft.client.render.VertexFormats;
-import net.minecraft.client.render.WorldRenderer;
 import net.minecraft.client.render.block.entity.BlockEntityRenderer;
 import net.minecraft.client.render.block.BlockRenderManager;
-import net.minecraft.client.render.chunk.BlockBufferAllocatorStorage;
 import net.minecraft.client.texture.NativeImage;
 import net.minecraft.client.util.BufferAllocator;
 import net.minecraft.client.util.math.MatrixStack;
@@ -2136,24 +2132,6 @@ public final class QuickLitematicaPreview3D {
         return false;
     }
 
-    // 渲染方块实体到指定 VertexConsumerProvider。动态 BE 会走各自专用 atlas，不能录进普通方块 VBO。
-    private static <T extends BlockEntity> void renderBlockEntity(MinecraftClient client, T entity, MatrixStack matrices, VertexConsumerProvider consumers) {
-        BlockEntityRenderer<T> renderer = client.getBlockEntityRenderDispatcher().get(entity);
-        if (renderer == null) {
-            return;
-        }
-
-        renderer.render(
-                entity,
-                0.0F,
-                matrices,
-                consumers,
-                LightmapTextureManager.MAX_LIGHT_COORDINATE,
-                OverlayTexture.DEFAULT_UV,
-                new net.minecraft.util.math.Vec3d(0.0D, 0.0D, 0.0D)
-        );
-    }
-
     private static void translateToScreen(Matrix4fStack matrixStack, MinecraftClient client, float x, float y) {
         int screenWidth = client.currentScreen == null ? client.getWindow().getScaledWidth() : client.currentScreen.width;
         int screenHeight = client.currentScreen == null ? client.getWindow().getScaledHeight() : client.currentScreen.height;
@@ -3106,16 +3084,6 @@ public final class QuickLitematicaPreview3D {
 
         private List<LayerMesh> layers() {
             return this.layers;
-        }
-
-        @Nullable
-        private LayerMesh layer(LayerKey key) {
-            for (LayerMesh layer : this.layers) {
-                if (layer.layer() == key) {
-                    return layer;
-                }
-            }
-            return null;
         }
 
         private int sizeX() {
