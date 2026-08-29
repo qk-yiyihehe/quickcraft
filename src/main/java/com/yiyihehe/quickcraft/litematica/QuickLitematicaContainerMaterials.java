@@ -2,6 +2,7 @@ package com.yiyihehe.quickcraft.litematica;
 
 import com.yiyihehe.quickcraft.QuickMaterialCollector;
 import com.yiyihehe.quickcraft.config.QuickCraftConfigs;
+import com.yiyihehe.quickcraft.malilib.QuickCraftGuiButtonAccess;
 import fi.dy.masa.litematica.data.DataManager;
 import fi.dy.masa.litematica.gui.GuiMaterialList;
 import fi.dy.masa.litematica.gui.GuiMainMenu.ButtonListenerChangeMenu;
@@ -23,7 +24,6 @@ import fi.dy.masa.malilib.gui.GuiListBase;
 import fi.dy.masa.malilib.gui.Message.MessageType;
 import fi.dy.masa.malilib.gui.button.ButtonBase;
 import fi.dy.masa.malilib.gui.button.ButtonGeneric;
-import fi.dy.masa.malilib.gui.button.ButtonOnOff;
 import fi.dy.masa.malilib.gui.button.IButtonActionListener;
 import fi.dy.masa.malilib.gui.widgets.WidgetFileBrowserBase.DirectoryEntry;
 import fi.dy.masa.malilib.gui.widgets.WidgetListBase;
@@ -1028,13 +1028,14 @@ public final class QuickLitematicaContainerMaterials {
         }
 
         private ButtonPlacement getContainerNavButtonPlacement(int gap, String detailsLabel, String materialLabel) {
-            int x = 12;
-            x += this.getStringWidth(StringUtils.translate("litematica.gui.button.material_list.refresh_list")) + 10 + gap;
-            x += new ButtonOnOff(0, 0, -1, false, "litematica.gui.button.material_list.hide_available", false).getWidth() + gap;
-            x += new ButtonOnOff(0, 0, -1, false, "litematica.gui.button.material_list.toggle_info_hud", false).getWidth() + gap;
-            x += this.getStringWidth(StringUtils.translate("litematica.gui.button.material_list.clear_ignored")) + 10 + gap;
-            x += this.getStringWidth(StringUtils.translate("litematica.gui.button.material_list.clear_cache")) + 10 + gap;
-            x += this.getStringWidth(StringUtils.translate("litematica.gui.button.material_list.write_to_file")) + 10 + gap;
+            List<ButtonBase> buttons = ((QuickCraftGuiButtonAccess) (Object) this).quickcraft$getButtons();
+            int bottomButtonRow = this.height - 22;
+            int y = buttons.stream().anyMatch(button -> button.getY() == bottomButtonRow) ? bottomButtonRow : 24;
+            int x = buttons.stream()
+                    .filter(button -> button.getY() == y)
+                    .mapToInt(button -> button.getX() + button.getWidth() + gap)
+                    .max()
+                    .orElse(12);
 
             int detailsWidth = this.getStringWidth(detailsLabel) + 10;
             int materialWidth = this.getStringWidth(materialLabel) + 10;
@@ -1043,7 +1044,7 @@ public final class QuickLitematicaContainerMaterials {
                 return new ButtonPlacement(12, Math.max(24, this.height - 58));
             }
 
-            return new ButtonPlacement(x, 24);
+            return new ButtonPlacement(x, y);
         }
 
         private ButtonGeneric createNavButton(int x, int y, String label) {
