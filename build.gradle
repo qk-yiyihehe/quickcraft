@@ -87,9 +87,6 @@ dependencies {
 	modLocalRuntime "fi.dy.masa.litematica:litematica-fabric-1.21.4:${project.litematica_version}"
 	modCompileOnly "com.terraformersmc:modmenu:${project.modmenu_version}"
 	modLocalRuntime "com.terraformersmc:modmenu:${project.modmenu_version}"
-	modLocalRuntime("net.kyrptonaught:quickshulker:${project.quickshulker_version}") {
-		transitive = false
-	}
 	modLocalRuntime "me.fallenbreath:conditional-mixin-fabric:${project.conditional_mixin_version}"
 
 	// ========== 测试框架 ==========
