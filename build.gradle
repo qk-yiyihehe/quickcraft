@@ -76,10 +76,6 @@ dependencies {
 	modLocalRuntime "fi.dy.masa.litematica:litematica-fabric-1.21:${project.litematica_version}"
 	modCompileOnly "com.terraformersmc:modmenu:${project.modmenu_version}"
 	modLocalRuntime "com.terraformersmc:modmenu:${project.modmenu_version}"
-	modLocalRuntime("net.kyrptonaught:quickshulker:${project.quickshulker_version}") {
-		transitive = false
-	}
-
 	// ========== 测试框架 ==========
 	testImplementation platform("org.junit:junit-bom:5.11.4")
 	testImplementation "org.junit.jupiter:junit-jupiter"
