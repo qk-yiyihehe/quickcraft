@@ -18,7 +18,7 @@ public final class LitematicaWorldUtilsFreeCameraMixin {
             method = "doEasyPlaceAction",
             at = @At(
                     value = "INVOKE",
-                    target = "Lfi/dy/masa/litematica/util/RayTraceUtils;getGenericTrace",
+                    target = "Lfi/dy/masa/litematica/util/RayTraceUtils;getGenericTrace(Lnet/minecraft/world/World;Lnet/minecraft/entity/Entity;DZZZ)Lfi/dy/masa/litematica/util/RayTraceUtils$RayTraceWrapper;",
                     remap = false
             ),
             index = 1,
@@ -32,7 +32,7 @@ public final class LitematicaWorldUtilsFreeCameraMixin {
             method = "doEasyPlaceAction",
             at = @At(
                     value = "INVOKE",
-                    target = "Lfi/dy/masa/litematica/util/RayTraceUtils;getFurthestSchematicWorldTraceBeforeVanilla",
+                    target = "Lfi/dy/masa/litematica/util/RayTraceUtils;getFurthestSchematicWorldTraceBeforeVanilla(Lnet/minecraft/world/World;Lnet/minecraft/entity/Entity;D)Lfi/dy/masa/litematica/util/RayTraceUtils$RayTraceWrapper;",
                     remap = false
             ),
             index = 1,
@@ -46,7 +46,7 @@ public final class LitematicaWorldUtilsFreeCameraMixin {
             method = "doEasyPlaceAction",
             at = @At(
                     value = "INVOKE",
-                    target = "Lfi/dy/masa/litematica/util/RayTraceUtils;getRayTraceFromEntity",
+                    target = "Lfi/dy/masa/litematica/util/RayTraceUtils;getRayTraceFromEntity(Lnet/minecraft/world/World;Lnet/minecraft/entity/Entity;ZD)Lnet/minecraft/util/hit/HitResult;",
                     remap = false
             ),
             index = 1,

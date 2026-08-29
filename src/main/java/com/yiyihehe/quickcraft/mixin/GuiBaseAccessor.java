@@ -1,5 +1,6 @@
 package com.yiyihehe.quickcraft.mixin;
 
+import com.yiyihehe.quickcraft.malilib.QuickCraftGuiButtonAccess;
 import fi.dy.masa.malilib.gui.GuiBase;
 import fi.dy.masa.malilib.gui.button.ButtonBase;
 import org.spongepowered.asm.mixin.Mixin;
@@ -12,7 +13,8 @@ import java.util.List;
  * 供原理图验证器插入自定义按钮后统一右移原有按钮。
  */
 @Mixin(value = GuiBase.class, remap = false)
-public interface GuiBaseAccessor {
+public interface GuiBaseAccessor extends QuickCraftGuiButtonAccess {
+    @Override
     @Accessor("buttons")
     List<ButtonBase> quickcraft$getButtons();
 }
