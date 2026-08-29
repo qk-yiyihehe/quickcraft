@@ -2,7 +2,7 @@ package com.yiyihehe.quickcraft.litematica;
 
 import com.yiyihehe.quickcraft.QuickMaterialCollector;
 import com.yiyihehe.quickcraft.config.QuickCraftConfigs;
-import com.yiyihehe.quickcraft.mixin.GuiBaseAccessor;
+import com.yiyihehe.quickcraft.malilib.QuickCraftGuiButtonAccess;
 import fi.dy.masa.litematica.data.DataManager;
 import fi.dy.masa.litematica.gui.GuiMaterialList;
 import fi.dy.masa.litematica.gui.GuiMainMenu.ButtonListenerChangeMenu;
@@ -24,7 +24,6 @@ import fi.dy.masa.malilib.gui.GuiListBase;
 import fi.dy.masa.malilib.gui.Message.MessageType;
 import fi.dy.masa.malilib.gui.button.ButtonBase;
 import fi.dy.masa.malilib.gui.button.ButtonGeneric;
-import fi.dy.masa.malilib.gui.button.ButtonOnOff;
 import fi.dy.masa.malilib.gui.button.IButtonActionListener;
 import fi.dy.masa.malilib.gui.widgets.WidgetFileBrowserBase.DirectoryEntry;
 import fi.dy.masa.malilib.gui.widgets.WidgetListBase;
@@ -42,6 +41,7 @@ import net.minecraft.world.level.block.ChestBlock;
 import net.minecraft.world.level.block.ShulkerBoxBlock;
 import net.minecraft.world.level.block.state.properties.ChestType;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.input.MouseButtonEvent;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.world.item.BlockItem;
 import net.minecraft.world.item.Item;
@@ -102,7 +102,7 @@ public final class QuickLitematicaContainerMaterials {
 
     public static ButtonPlacement getButtonPlacement(GuiSchematicLoad gui, int buttonWidth) {
         int y = gui.getScreenHeight() - 26;
-        List<ButtonBase> buttons = ((GuiBaseAccessor) (Object) gui).quickcraft$getButtons();
+        List<ButtonBase> buttons = ((QuickCraftGuiButtonAccess) (Object) gui).quickcraft$getButtons();
         ButtonBase mainMenuButton = buttons.stream()
                 .filter(button -> button.getY() == y)
                 // Litematica 0.28.3 把主菜单按钮固定在距右边缘 10 px 的位置。
@@ -1054,7 +1054,7 @@ public final class QuickLitematicaContainerMaterials {
         }
 
         private ButtonPlacement getContainerNavButtonPlacement(int gap, String detailsLabel, String materialLabel) {
-            List<ButtonBase> buttons = ((GuiBaseAccessor) (Object) this).quickcraft$getButtons();
+            List<ButtonBase> buttons = ((QuickCraftGuiButtonAccess) (Object) this).quickcraft$getButtons();
             int bottomButtonRow = this.height - 22;
             int y = buttons.stream().anyMatch(button -> button.getY() == bottomButtonRow) ? bottomButtonRow : 24;
             int x = buttons.stream()
@@ -1249,7 +1249,8 @@ public final class QuickLitematicaContainerMaterials {
             }
         }
 
-        public boolean canSelectAt(int mouseX, int mouseY, int mouseButton) {
+        @Override
+        public boolean canSelectAt(MouseButtonEvent event) {
             return false;
         }
 

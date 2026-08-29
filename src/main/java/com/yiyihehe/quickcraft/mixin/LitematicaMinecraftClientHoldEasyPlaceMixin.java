@@ -5,6 +5,7 @@ import com.yiyihehe.quickcraft.litematica.QuickLitematicaEasyPlaceInteractions;
 import fi.dy.masa.litematica.config.Configs;
 import fi.dy.masa.litematica.data.DataManager;
 import fi.dy.masa.litematica.tool.ToolMode;
+import fi.dy.masa.litematica.util.EasyPlaceUtils;
 import net.minecraft.client.Minecraft;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
@@ -30,6 +31,19 @@ public abstract class LitematicaMinecraftClientHoldEasyPlaceMixin {
             return;
         }
 
-        LitematicaWorldUtilsInvoker.quickcraft$doEasyPlaceAction(client);
+        if (Configs.Generic.EASY_PLACE_POST_REWRITE.getBooleanValue()) {
+            if (EasyPlaceUtils.isHandling()) {
+                return;
+            }
+
+            EasyPlaceUtils.setHandling(true);
+            try {
+                LitematicaEasyPlaceUtilsInvoker.quickcraft$handleEasyPlace();
+            } finally {
+                EasyPlaceUtils.setHandling(false);
+            }
+        } else {
+            LitematicaWorldUtilsInvoker.quickcraft$doEasyPlaceAction(client);
+        }
     }
 }

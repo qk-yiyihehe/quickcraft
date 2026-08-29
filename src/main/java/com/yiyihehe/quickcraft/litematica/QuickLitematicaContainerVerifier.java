@@ -1132,10 +1132,6 @@ public final class QuickLitematicaContainerVerifier {
                 : null;
     }
 
-    private static ExpectedContainer getExpectedContainerInternal(BlockPos worldPos) {
-        return getExpectedContainerInternal(worldPos, null);
-    }
-
     public static ExpectedContainer getExpectedContainerPartAt(SchematicPlacement placement, BlockPos pos) {
         return placement != null ? getExpectedContainerInternal(pos, placement) : null;
     }
@@ -1188,10 +1184,6 @@ public final class QuickLitematicaContainerVerifier {
                 copyInventory(inventory),
                 getDisabledSlots(blockEntity, nbt)
         );
-    }
-
-    private static LocalPlacementPos getLocalPlacementPos(BlockPos worldPos) {
-        return getLocalPlacementPos(worldPos, null);
     }
 
     private static LocalPlacementPos getLocalPlacementPos(

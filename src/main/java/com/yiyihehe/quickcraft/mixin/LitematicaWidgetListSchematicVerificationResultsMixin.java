@@ -47,10 +47,14 @@ public abstract class LitematicaWidgetListSchematicVerificationResultsMixin
         return true;
     }
 
+    // javac 把继承方法调用的所有者写成当前列表类；在首次重建前插入，否则容器分类不会进入列表。
     @Inject(
             method = "refreshBrowserEntries",
-            at = @At(value = "INVOKE", target = "Lfi/dy/masa/malilib/gui/widgets/WidgetListBase;reCreateListEntryWidgets()V"),
-            require = 0
+            at = @At(
+                    value = "INVOKE",
+                    target = "Lfi/dy/masa/litematica/gui/widgets/WidgetListSchematicVerificationResults;reCreateListEntryWidgets()V",
+                    ordinal = 0
+            )
     )
     private void quickcraft$addInventoryEntries(CallbackInfo ci) {
         if (!QuickLitematicaContainerVerifier.isEnabled()) {

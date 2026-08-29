@@ -25,6 +25,7 @@
 		"LitematicaClientPlayNetworkHandlerShulkerRestockMixin",
 		"LitematicaClientPlayerInteractionManagerMixin",
 		"LitematicaEasyPlaceUtilsMixin",
+		"LitematicaEasyPlaceUtilsInvoker",
 		"LitematicaGuiSchematicBrowserBaseMixin",
 		"LitematicaGuiMainMenuMixin",
 		"LitematicaGuiMaterialListMixin",
