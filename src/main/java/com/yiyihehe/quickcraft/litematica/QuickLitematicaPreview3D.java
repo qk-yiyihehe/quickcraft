@@ -25,7 +25,6 @@ import fi.dy.masa.litematica.render.schematic.WorldRendererSchematic;
 import fi.dy.masa.litematica.schematic.LitematicaSchematic;
 import fi.dy.masa.litematica.schematic.container.LitematicaBlockStateContainer;
 import fi.dy.masa.litematica.selection.Box;
-import fi.dy.masa.litematica.util.EntityUtils;
 import fi.dy.masa.litematica.util.FileType;
 import fi.dy.masa.litematica.util.PositionUtils;
 import fi.dy.masa.litematica.world.FakeLightingProvider;
@@ -3250,16 +3249,6 @@ public final class QuickLitematicaPreview3D {
             return this.layers;
         }
 
-        @Nullable
-        private LayerMesh layer(LayerKey key) {
-            for (LayerMesh layer : this.layers) {
-                if (layer.layer() == key) {
-                    return layer;
-                }
-            }
-            return null;
-        }
-
         private int sizeX() {
             return this.sizeX;
         }
@@ -3328,7 +3317,7 @@ public final class QuickLitematicaPreview3D {
         @Nullable
         private RenderedEntity instantiate(DummyWorld world) {
             try {
-                Entity entity = EntityUtils.createEntityAndPassengersFromNBT(this.entityNbt.copy(), world);
+                Entity entity = QuickLitematicaDataCompat.createEntity(this.entityNbt.copy(), world);
                 if (entity == null) {
                     return null;
                 }

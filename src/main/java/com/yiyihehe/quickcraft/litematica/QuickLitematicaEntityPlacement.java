@@ -923,7 +923,7 @@ public final class QuickLitematicaEntityPlacement {
             for (int i = 0; i < items.size(); i++) {
                 var itemNbt = items.getCompoundOrEmpty(i);
                 int slot = itemNbt.getByteOr("Slot", (byte) 0) & 255;
-                if (slot >= 0 && slot < size) {
+                if (slot < size) {
                     decodeItemStack(itemNbt)
                             .ifPresent(stack -> stacks.set(slot, stack));
                 }

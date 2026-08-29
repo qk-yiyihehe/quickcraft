@@ -6,6 +6,7 @@ import fi.dy.masa.litematica.gui.GuiSchematicBrowserBase;
 import fi.dy.masa.litematica.gui.Icons;
 import fi.dy.masa.litematica.gui.widgets.WidgetSchematicBrowser;
 import fi.dy.masa.litematica.schematic.SchematicMetadata;
+import fi.dy.masa.litematica.util.FileType;
 import fi.dy.masa.malilib.gui.interfaces.IDirectoryCache;
 import fi.dy.masa.malilib.gui.interfaces.ISelectionListener;
 import fi.dy.masa.malilib.gui.widgets.WidgetFileBrowserBase;
@@ -22,6 +23,7 @@ import org.spongepowered.asm.mixin.injection.Redirect;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import org.jetbrains.annotations.Nullable;
 
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Map;
 
@@ -94,8 +96,7 @@ public abstract class LitematicaWidgetSchematicBrowserMixin extends WidgetFileBr
             int textureWidth,
             int textureHeight
     ) {
-        if (QuickLitematicaPreview3D.is3DPreviewAvailable()
-                && QuickCraftConfigs.shouldReplaceLitematicaPreviewWith3D()) {
+        if (this.quickcraft$shouldReplaceNativePreview()) {
             return;
         }
 
@@ -120,11 +121,20 @@ public abstract class LitematicaWidgetSchematicBrowserMixin extends WidgetFileBr
             int fillColor,
             int borderColor
     ) {
-        if (QuickLitematicaPreview3D.is3DPreviewAvailable()
-                && QuickCraftConfigs.shouldReplaceLitematicaPreviewWith3D()) {
+        if (this.quickcraft$shouldReplaceNativePreview()) {
             return;
         }
 
         RenderUtils.drawOutlinedBox(drawContext, x, y, width, height, fillColor, borderColor);
+    }
+
+    private boolean quickcraft$shouldReplaceNativePreview() {
+        // 0.27.10+ 同页也显示材料 JSON/TXT；只有可渲染的 .litematic 才能隐藏原生预览。
+        DirectoryEntry entry = this.getLastSelectedEntry();
+        return entry != null
+                && Files.isRegularFile(entry.getFullPath())
+                && FileType.fromFile(entry.getFullPath()) == FileType.LITEMATICA_SCHEMATIC
+                && QuickLitematicaPreview3D.is3DPreviewAvailable()
+                && QuickCraftConfigs.shouldReplaceLitematicaPreviewWith3D();
     }
 }

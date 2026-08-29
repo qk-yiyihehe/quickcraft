@@ -1,9 +1,12 @@
 package com.yiyihehe.quickcraft.litematica;
 
 import fi.dy.masa.litematica.schematic.LitematicaSchematic.EntityInfo;
+import fi.dy.masa.litematica.util.EntityUtils;
 import fi.dy.masa.malilib.util.data.tag.CompoundData;
 import fi.dy.masa.malilib.util.data.tag.converter.DataConverterNbt;
 import net.minecraft.nbt.CompoundTag;
+import net.minecraft.world.entity.Entity;
+import net.minecraft.world.level.Level;
 import net.minecraft.world.phys.Vec3;
 
 import java.lang.reflect.Field;
@@ -18,6 +21,8 @@ final class QuickLitematicaDataCompat {
     private static final Field ENTITY_NBT_FIELD = ENTITY_NBT_METHOD == null ? findField("nbt") : null;
     private static final Method ENTITY_POS_METHOD = findMethod("posVec");
     private static final Field ENTITY_POS_FIELD = ENTITY_POS_METHOD == null ? findField("posVec") : null;
+    private static final Method CREATE_ENTITY_NBT_METHOD = findEntityMethod("createEntityAndPassengersFromNBT", CompoundTag.class);
+    private static final Method CREATE_ENTITY_DATA_METHOD = findEntityMethod("createEntityAndPassengersFromData", CompoundData.class);
 
     private QuickLitematicaDataCompat() {
     }
@@ -40,6 +45,20 @@ final class QuickLitematicaDataCompat {
         return (Vec3) readEntityMember(info, ENTITY_POS_METHOD, ENTITY_POS_FIELD, "posVec");
     }
 
+    static Entity createEntity(CompoundTag nbt, Level world) {
+        try {
+            if (CREATE_ENTITY_NBT_METHOD != null) {
+                return (Entity) CREATE_ENTITY_NBT_METHOD.invoke(null, nbt, world);
+            }
+            if (CREATE_ENTITY_DATA_METHOD != null) {
+                return (Entity) CREATE_ENTITY_DATA_METHOD.invoke(null, DataConverterNbt.fromVanillaCompound(nbt), world);
+            }
+        } catch (ReflectiveOperationException exception) {
+            throw new IllegalStateException("Unable to create Litematica preview entity", exception);
+        }
+        throw new IllegalStateException("Unsupported Litematica entity creation API");
+    }
+
     private static Method findMethod(String name) {
         try {
             return EntityInfo.class.getMethod(name);
@@ -52,6 +71,14 @@ final class QuickLitematicaDataCompat {
         try {
             return EntityInfo.class.getField(name);
         } catch (NoSuchFieldException ignored) {
+            return null;
+        }
+    }
+
+    private static Method findEntityMethod(String name, Class<?> dataType) {
+        try {
+            return EntityUtils.class.getMethod(name, dataType, Level.class);
+        } catch (NoSuchMethodException ignored) {
             return null;
         }
     }
