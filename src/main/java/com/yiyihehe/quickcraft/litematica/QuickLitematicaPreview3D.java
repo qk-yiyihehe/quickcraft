@@ -3435,7 +3435,7 @@ public final class QuickLitematicaPreview3D {
     }
 
     private record EntityData(double x, double y, double z, NbtCompound entityNbt) {
-        // Litematica 0.26.12 没有 Data 入口；保留 NBT 桥接以兼容 0.26.12 和 0.26.13。
+        // Litematica 0.26.11–0.26.12 没有 Data 入口；保留 NBT 桥接以兼容整个安全版本范围。
         @SuppressWarnings({"deprecation", "removal"})
         @Nullable
         private RenderedEntity instantiate(DummyWorld world) {

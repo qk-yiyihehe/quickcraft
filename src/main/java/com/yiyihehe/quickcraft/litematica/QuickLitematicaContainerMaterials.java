@@ -2,7 +2,7 @@ package com.yiyihehe.quickcraft.litematica;
 
 import com.yiyihehe.quickcraft.QuickMaterialCollector;
 import com.yiyihehe.quickcraft.config.QuickCraftConfigs;
-import com.yiyihehe.quickcraft.mixin.GuiBaseAccessor;
+import com.yiyihehe.quickcraft.malilib.QuickCraftGuiButtonAccess;
 import fi.dy.masa.litematica.data.DataManager;
 import fi.dy.masa.litematica.gui.GuiMaterialList;
 import fi.dy.masa.litematica.gui.GuiMainMenu.ButtonListenerChangeMenu;
@@ -100,7 +100,7 @@ public final class QuickLitematicaContainerMaterials {
 
     public static ButtonPlacement getButtonPlacement(GuiSchematicLoad gui, int buttonWidth) {
         int y = gui.getScreenHeight() - 26;
-        List<ButtonBase> buttons = ((GuiBaseAccessor) (Object) gui).quickcraft$getButtons();
+        List<ButtonBase> buttons = ((QuickCraftGuiButtonAccess) (Object) gui).quickcraft$getButtons();
         ButtonBase mainMenuButton = buttons.stream()
                 .filter(button -> button.getY() == y)
                 // Litematica 0.26.12 把主菜单按钮固定在距右边缘 10 px 的位置。
@@ -1048,7 +1048,7 @@ public final class QuickLitematicaContainerMaterials {
         }
 
         private ButtonPlacement getContainerNavButtonPlacement(int gap, String detailsLabel, String materialLabel) {
-            List<ButtonBase> buttons = ((GuiBaseAccessor) (Object) this).quickcraft$getButtons();
+            List<ButtonBase> buttons = ((QuickCraftGuiButtonAccess) (Object) this).quickcraft$getButtons();
             int bottomButtonRow = this.height - 22;
             int y = buttons.stream().anyMatch(button -> button.getY() == bottomButtonRow) ? bottomButtonRow : 24;
             int x = buttons.stream()
