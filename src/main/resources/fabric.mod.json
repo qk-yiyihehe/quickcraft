@@ -57,6 +57,7 @@
     "quickshulker": "*"
   },
   "breaks": {
-    "litematica": "<0.22.5"
+    "litematica": "<0.22.5",
+    "techutils": "*"
   }
 }
