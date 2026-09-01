@@ -1,0 +1,101 @@
+name: Bug 报告
+description: 报告 QuickCraft 的可复现问题
+title: "[Bug]: "
+labels:
+  - bug
+body:
+  - type: markdown
+    attributes:
+      value: |
+        提交前请确认已搜索现有 Issue。安全漏洞请不要在这里提交，请使用仓库的私密漏洞报告入口。
+  - type: input
+    id: minecraft-version
+    attributes:
+      label: Minecraft 版本
+      placeholder: "例如：1.21.1"
+    validations:
+      required: true
+  - type: input
+    id: quickcraft-version
+    attributes:
+      label: QuickCraft 版本
+      description: 请填写 Mod Menu 显示的完整版本号或下载文件名。
+      placeholder: "例如：quickcraft-mc1.21-1.21.1-1.0.2.jar"
+    validations:
+      required: true
+  - type: input
+    id: fabric-loader-version
+    attributes:
+      label: Fabric Loader 版本
+      placeholder: "例如：0.16.14"
+    validations:
+      required: true
+  - type: input
+    id: fabric-api-version
+    attributes:
+      label: Fabric API 版本
+      placeholder: "例如：0.102.0+1.21"
+    validations:
+      required: true
+  - type: input
+    id: malilib-version
+    attributes:
+      label: MaLiLib 版本
+      placeholder: "例如：0.21.10"
+    validations:
+      required: true
+  - type: input
+    id: litematica-version
+    attributes:
+      label: Litematica 版本
+      description: 未安装请填写“未安装”。
+      placeholder: "例如：0.19.61"
+    validations:
+      required: true
+  - type: textarea
+    id: other-mods
+    attributes:
+      label: 其他相关模组
+      description: 请列出可能影响容器、合成、投影、快捷键或物品栏操作的模组及版本。
+      placeholder: "例如：Item Scroller 0.24.60、Inventory Profiles Next 2.x"
+  - type: textarea
+    id: reproduction-steps
+    attributes:
+      label: 复现步骤
+      description: 从启动游戏开始，按顺序写出最小复现步骤。
+      placeholder: |
+        1. 启动游戏并进入单人存档
+        2. 打开...
+        3. 按下...
+    validations:
+      required: true
+  - type: textarea
+    id: expected-result
+    attributes:
+      label: 预期行为
+    validations:
+      required: true
+  - type: textarea
+    id: actual-result
+    attributes:
+      label: 实际行为
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: 日志或崩溃报告
+      description: 请上传 `logs/latest.log`、崩溃报告或使用 https://mclo.gs/ 分享完整日志链接。不要只粘贴截图。
+      placeholder: "https://mclo.gs/..."
+      render: shell
+    validations:
+      required: true
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: 提交前确认
+      options:
+        - label: 我已搜索现有 Issue，且未找到相同问题。
+          required: true
+        - label: 我已移除日志中的账号、服务器地址和其他敏感信息。
+          required: true

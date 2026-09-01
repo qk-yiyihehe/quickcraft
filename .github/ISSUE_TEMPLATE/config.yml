@@ -1,0 +1,5 @@
+blank_issues_enabled: false
+contact_links:
+  - name: 私密安全漏洞报告
+    url: https://github.com/qk-yiyihehe/quickcraft/security/advisories/new
+    about: 请不要通过公开 Issue 报告安全漏洞。
