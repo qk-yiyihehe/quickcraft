@@ -36,10 +36,15 @@ QuickCraft is a Fabric client-side utility mod that makes crafting, container ma
 
 ## Compatibility
 
-| Mod | Status | Notes |
-| --- | --- | --- |
-| [Tech Utils](https://github.com/Kikugie/techutils) | Incompatible | Conflicts with every version of Tech Utils; do not install both mods. |
-| [Inventory Profiles Next (IPN)](https://modrinth.com/mod/inventory-profiles-next) + [Item Scroller](https://modrinth.com/mod/item-scroller) | Not recommended | Do not use with QuickCraft at the same time, to avoid overlapping container actions and hotkeys. |
+<table>
+  <thead>
+    <tr><th>Mod</th><th>Status</th><th>Notes</th></tr>
+  </thead>
+  <tbody>
+    <tr><td nowrap><a href="https://github.com/Kikugie/techutils">Tech Utils</a></td><td nowrap>Incompatible</td><td>Conflicts with every version of Tech Utils; do not install both mods.</td></tr>
+    <tr><td nowrap><a href="https://modrinth.com/mod/inventory-profiles-next">Inventory Profiles Next (IPN)</a> + <a href="https://modrinth.com/mod/item-scroller">Item Scroller</a></td><td nowrap>Not recommended</td><td>Do not use with QuickCraft at the same time, to avoid overlapping container actions and hotkeys.</td></tr>
+  </tbody>
+</table>
 
 ## Documentation
 
