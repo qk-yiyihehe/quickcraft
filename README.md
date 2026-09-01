@@ -36,10 +36,15 @@ QuickCraft 是面向 Fabric 的客户端实用模组，让合成、容器和 Lit
 
 ## 兼容性
 
-| 模组 | 结论 | 说明 |
-| --- | --- | --- |
-| [Tech Utils](https://github.com/Kikugie/techutils) | 不兼容 | 与所有版本的 Tech Utils 存在冲突，请勿同时安装。 |
-| [Inventory Profiles Next (IPN)](https://modrinth.com/mod/inventory-profiles-next) + [Item Scroller](https://modrinth.com/mod/item-scroller) | 不推荐 | 不建议与 QuickCraft 同时安装，以避免容器操作与快捷键功能重叠。 |
+<table>
+  <thead>
+    <tr><th>模组</th><th>结论</th><th>说明</th></tr>
+  </thead>
+  <tbody>
+    <tr><td nowrap><a href="https://github.com/Kikugie/techutils">Tech Utils</a></td><td nowrap>不兼容</td><td>与所有版本的 Tech Utils 存在冲突，请勿同时安装。</td></tr>
+    <tr><td nowrap><a href="https://modrinth.com/mod/inventory-profiles-next">Inventory Profiles Next (IPN)</a> + <a href="https://modrinth.com/mod/item-scroller">Item Scroller</a></td><td nowrap>不推荐</td><td>不建议与 QuickCraft 同时安装，以避免容器操作与快捷键功能重叠。</td></tr>
+  </tbody>
+</table>
 
 ## 文档
 
