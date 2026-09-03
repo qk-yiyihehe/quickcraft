@@ -14,8 +14,11 @@ import fi.dy.masa.litematica.schematic.LitematicaSchematic;
 import fi.dy.masa.litematica.schematic.LitematicaSchematic.EntityInfo;
 import fi.dy.masa.litematica.schematic.container.LitematicaBlockStateContainer;
 import fi.dy.masa.litematica.schematic.placement.SchematicPlacement;
+import fi.dy.masa.litematica.schematic.placement.SubRegionPlacement;
 import fi.dy.masa.litematica.schematic.verifier.SchematicVerifier;
+import fi.dy.masa.litematica.util.BlockInfoListType;
 import fi.dy.masa.litematica.util.FileType;
+import fi.dy.masa.litematica.util.PositionUtils;
 import fi.dy.masa.litematica.util.WorldUtils;
 import fi.dy.masa.litematica.world.SchematicWorldHandler;
 import fi.dy.masa.litematica.world.WorldSchematic;
@@ -57,6 +60,8 @@ import net.minecraft.core.NonNullList;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.core.Vec3i;
+import net.minecraft.world.phys.Vec3;
+import org.jetbrains.annotations.Nullable;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -225,17 +230,23 @@ public final class QuickLitematicaContainerMaterials {
         return client.level != null ? client.level.registryAccess() : null;
     }
 
-    private static List<ContainerGroup> createContainerGroups(LitematicaSchematic schematic, Collection<String> regions) {
+    private static List<ContainerGroup> createContainerGroups(
+            LitematicaSchematic schematic,
+            Collection<String> regions,
+            @Nullable SchematicPlacement placement,
+            BlockInfoListType materialListType
+    ) {
         HolderLookup.Provider registryLookup = getRegistryLookup();
         GroupAccumulator accumulator = new GroupAccumulator();
+        boolean renderLayers = placement != null && materialListType == BlockInfoListType.RENDER_LAYERS;
 
         if (registryLookup == null) {
             return List.of();
         }
 
         for (String regionName : regions) {
-            addBlockEntityContainers(schematic, regionName, registryLookup, accumulator);
-            addEntityContainers(schematic, regionName, registryLookup, accumulator);
+            addBlockEntityContainers(schematic, regionName, registryLookup, accumulator, placement, renderLayers);
+            addEntityContainers(schematic, regionName, registryLookup, accumulator, placement, renderLayers);
         }
 
         return accumulator.toGroups();
@@ -245,7 +256,9 @@ public final class QuickLitematicaContainerMaterials {
             LitematicaSchematic schematic,
             String regionName,
             HolderLookup.Provider registryLookup,
-            GroupAccumulator accumulator
+            GroupAccumulator accumulator,
+            @Nullable SchematicPlacement placement,
+            boolean renderLayers
     ) {
         Map<BlockPos, ?> blockEntities = schematic.getBlockEntityMapForRegion(regionName);
 
@@ -265,14 +278,19 @@ public final class QuickLitematicaContainerMaterials {
 
             CompoundTag nbt = QuickLitematicaDataCompat.toVanillaNbt(entry.getValue());
             List<ItemStack> stacks = readItems(nbt, registryLookup);
-
-            if (stacks.isEmpty()) {
-                continue;
-            }
-
             BlockState state = getState(stateContainer, pos);
             BlockPos pairedChestPos = findPairedChest(pos, state, stateContainer, blockEntities, consumed);
             ContainerDescriptor descriptor = describeBlockContainer(state, nbt, pairedChestPos != null);
+
+            if (renderLayers
+                    && !isWithinRenderLayer(placement, schematic, regionName, pos)
+                    && (pairedChestPos == null || !isWithinRenderLayer(placement, schematic, regionName, pairedChestPos))) {
+                continue;
+            }
+
+            if (stacks.isEmpty() && pairedChestPos == null) {
+                continue;
+            }
 
             consumed.add(pos);
 
@@ -290,7 +308,9 @@ public final class QuickLitematicaContainerMaterials {
             LitematicaSchematic schematic,
             String regionName,
             HolderLookup.Provider registryLookup,
-            GroupAccumulator accumulator
+            GroupAccumulator accumulator,
+            @Nullable SchematicPlacement placement,
+            boolean renderLayers
     ) {
         List<EntityInfo> entities = schematic.getEntityListForRegion(regionName);
 
@@ -299,6 +319,10 @@ public final class QuickLitematicaContainerMaterials {
         }
 
         for (EntityInfo info : entities) {
+            if (renderLayers && !isWithinRenderLayer(placement, schematic, regionName, QuickLitematicaDataCompat.entityPos(info))) {
+                continue;
+            }
+
             CompoundTag nbt = QuickLitematicaDataCompat.entityNbt(info);
             List<ItemStack> stacks = readItems(nbt, registryLookup);
 
@@ -309,6 +333,56 @@ public final class QuickLitematicaContainerMaterials {
             ContainerDescriptor descriptor = describeEntityContainer(nbt.getString("id").orElse(""));
             addContainer(accumulator, descriptor, stacks);
         }
+    }
+
+    private static boolean isWithinRenderLayer(
+            SchematicPlacement placement,
+            LitematicaSchematic schematic,
+            String regionName,
+            BlockPos localPos
+    ) {
+        BlockPos regionSize = schematic.getAreaSize(regionName);
+        SubRegionPlacement regionPlacement = placement.getRelativeSubRegionPlacement(regionName);
+
+        if (regionSize == null || regionPlacement == null) {
+            return false;
+        }
+
+        BlockPos regionPos = regionPlacement.getPos();
+        BlockPos posEndRel = PositionUtils.getRelativeEndPositionFromAreaSize(regionSize).offset(regionPos);
+        BlockPos posMinRel = PositionUtils.getMinCorner(regionPos, posEndRel);
+        BlockPos relative = posMinRel.subtract(regionPos).offset(localPos);
+        relative = PositionUtils.getTransformedBlockPos(relative, placement.getMirror(), placement.getRotation());
+        relative = PositionUtils.getTransformedBlockPos(relative, regionPlacement.getMirror(), regionPlacement.getRotation());
+        BlockPos worldPos = placement.getOrigin().offset(
+                PositionUtils.getTransformedBlockPos(regionPos, placement.getMirror(), placement.getRotation())
+        ).offset(relative);
+        return DataManager.getRenderLayerRange().isPositionWithinRange(
+                new BlockPos((int) Math.floor(worldPos.getX()), (int) Math.floor(worldPos.getY()), (int) Math.floor(worldPos.getZ()))
+        );
+    }
+
+    private static boolean isWithinRenderLayer(
+            SchematicPlacement placement,
+            LitematicaSchematic schematic,
+            String regionName,
+            Vec3 localPos
+    ) {
+        BlockPos regionSize = schematic.getAreaSize(regionName);
+        SubRegionPlacement regionPlacement = placement.getRelativeSubRegionPlacement(regionName);
+
+        if (regionSize == null || regionPlacement == null) {
+            return false;
+        }
+
+        BlockPos regionPos = regionPlacement.getPos();
+        Vec3 transformed = PositionUtils.getTransformedPosition(localPos, placement.getMirror(), placement.getRotation());
+        transformed = PositionUtils.getTransformedPosition(transformed, regionPlacement.getMirror(), regionPlacement.getRotation());
+        BlockPos transformedRegionPos = PositionUtils.getTransformedBlockPos(regionPos, placement.getMirror(), placement.getRotation());
+        Vec3 worldPos = transformed.add(Vec3.atLowerCornerOf(placement.getOrigin().offset(transformedRegionPos)));
+        return DataManager.getRenderLayerRange().isPositionWithinRange(
+                new BlockPos((int) Math.floor(worldPos.x()), (int) Math.floor(worldPos.y()), (int) Math.floor(worldPos.z()))
+        );
     }
 
     private static void addContainer(GroupAccumulator accumulator, ContainerDescriptor descriptor, List<ItemStack> stacks) {
@@ -745,7 +819,7 @@ public final class QuickLitematicaContainerMaterials {
             this.schematic = schematic;
             this.regions = regions;
             this.placement = placement;
-            this.refresh();
+            this.refresh(BlockInfoListType.ALL);
         }
 
         private static ContainerMaterialsData create(LitematicaSchematic schematic) {
@@ -764,8 +838,8 @@ public final class QuickLitematicaContainerMaterials {
             );
         }
 
-        private void refresh() {
-            this.groups = createContainerGroups(this.schematic, this.regions);
+        private void refresh(BlockInfoListType materialListType) {
+            this.groups = createContainerGroups(this.schematic, this.regions, this.placement, materialListType);
         }
 
         private List<ContainerGroup> visibleGroups() {
@@ -937,8 +1011,18 @@ public final class QuickLitematicaContainerMaterials {
         }
 
         @Override
+        public boolean supportsRenderLayers() {
+            return this.data.placement != null;
+        }
+
+        @Override
+        public void setMaterialListType(BlockInfoListType type) {
+            super.setMaterialListType(this.supportsRenderLayers() ? type : BlockInfoListType.ALL);
+        }
+
+        @Override
         public void reCreateMaterialList() {
-            this.data.refresh();
+            this.data.refresh(this.getMaterialListType());
 
             if (this.data.placement == null) {
                 this.setMaterialListEntries(this.createMaterialEntries());
@@ -967,7 +1051,7 @@ public final class QuickLitematicaContainerMaterials {
 
         @Override
         public void onTaskCompleted() {
-            this.data.refresh();
+            this.data.refresh(this.getMaterialListType());
             this.setMaterialListEntries(this.createMaterialEntries());
         }
 
@@ -1039,9 +1123,25 @@ public final class QuickLitematicaContainerMaterials {
             int gap = 1;
             String detailsLabel = StringUtils.translate("quickcraft.litematica.button.container_material_details");
             String materialLabel = StringUtils.translate(BUTTON_KEY);
-            ButtonPlacement placement = this.getContainerNavButtonPlacement(gap, detailsLabel, materialLabel);
-            int x = placement.x();
-            int y = placement.y();
+            List<ButtonBase> buttons = ((QuickCraftGuiButtonAccess) (Object) this).quickcraft$getButtons();
+            int bottomRow = this.height - 22;
+            boolean nativeButtonsWrapped = buttons.stream().anyMatch(button -> button.getY() == bottomRow);
+            int topRowLimit = this.width - 60;
+            int topX = buttons.stream()
+                    .filter(button -> button.getY() == 24)
+                    .mapToInt(button -> button.getX() + button.getWidth() + gap)
+                    .max()
+                    .orElse(12);
+            int detailsWidth = this.getStringWidth(detailsLabel) + 10;
+            int materialWidth = this.getStringWidth(materialLabel) + 10;
+            boolean fitsTopRow = !nativeButtonsWrapped
+                    && topX + detailsWidth + gap + materialWidth <= topRowLimit;
+            int y = fitsTopRow ? 24 : bottomRow;
+            int x = buttons.stream()
+                    .filter(button -> button.getY() == y)
+                    .mapToInt(button -> button.getX() + button.getWidth() + gap)
+                    .max()
+                    .orElse(12);
 
             ButtonGeneric detailsButton = this.createNavButton(x, y, detailsLabel);
             this.addButton(detailsButton, (button, mouseButton) -> openDetailScreen(this.materialList));
@@ -1051,26 +1151,6 @@ public final class QuickLitematicaContainerMaterials {
             materialButton.setEnabled(false);
             this.addButton(materialButton, (button, mouseButton) -> {
             });
-        }
-
-        private ButtonPlacement getContainerNavButtonPlacement(int gap, String detailsLabel, String materialLabel) {
-            List<ButtonBase> buttons = ((QuickCraftGuiButtonAccess) (Object) this).quickcraft$getButtons();
-            int bottomButtonRow = this.height - 22;
-            int y = buttons.stream().anyMatch(button -> button.getY() == bottomButtonRow) ? bottomButtonRow : 24;
-            int x = buttons.stream()
-                    .filter(button -> button.getY() == y)
-                    .mapToInt(button -> button.getX() + button.getWidth() + gap)
-                    .max()
-                    .orElse(12);
-
-            int detailsWidth = this.getStringWidth(detailsLabel) + 10;
-            int materialWidth = this.getStringWidth(materialLabel) + 10;
-
-            if (x + detailsWidth + gap + materialWidth > this.width - 12) {
-                return new ButtonPlacement(12, Math.max(24, this.height - 58));
-            }
-
-            return new ButtonPlacement(x, y);
         }
 
         private ButtonGeneric createNavButton(int x, int y, String label) {
