@@ -390,7 +390,7 @@ public final class QuickCraftConfigs implements IConfigHandler {
         ).apply(CONTAINER_TRANSLATION_PREFIX);
         public static final ConfigBooleanHotkeyed ENABLE_FREE_CAMERA_ENHANCEMENT = new ConfigBooleanHotkeyed(
                 "enableFreeCameraEnhancement",
-                true,
+                false,
                 ""
         ).apply(CONTAINER_TRANSLATION_PREFIX);
         public static final ConfigBoolean FREE_CAMERA_BLOCK_INTERACTIONS = new ConfigBoolean(
