@@ -33,27 +33,29 @@ public abstract class LitematicaGuiMaterialListMixin {
 
         String materialLabel = StringUtils.translate(QuickLitematicaContainerMaterials.BUTTON_KEY);
         String detailsLabel = StringUtils.translate("quickcraft.litematica.button.container_material_details");
-        int gap = 1;
         int materialWidth = gui.getStringWidth(materialLabel) + 10;
         int detailsWidth = gui.getStringWidth(detailsLabel) + 10;
+        int gap = 1;
+        List<ButtonBase> buttons = ((GuiBaseAccessor) gui).quickcraft$getButtons();
+        int bottomRow = gui.getScreenHeight() - 22;
+        boolean nativeButtonsWrapped = buttons.stream().anyMatch(button -> button.getY() == bottomRow);
         int multiplierWidth = gui.getStringWidth(
                 StringUtils.translate("litematica.gui.label.material_list.multiplier")
         );
         int topRowLimit = gui.getScreenWidth() - multiplierWidth - 60;
-        List<ButtonBase> buttons = ((GuiBaseAccessor) gui).quickcraft$getButtons();
-        int x = 12;
-
-        for (ButtonBase button : buttons) {
-            if (button.getY() == 24) {
-                x = Math.max(x, button.getX() + button.getWidth() + gap);
-            }
-        }
-
-        int y = 24;
-        if (x + materialWidth + gap + detailsWidth > topRowLimit) {
-            x = 12;
-            y = Math.max(24, gui.getScreenHeight() - 58);
-        }
+        int topX = buttons.stream()
+                .filter(button -> button.getY() == 24)
+                .mapToInt(button -> button.getX() + button.getWidth() + gap)
+                .max()
+                .orElse(12);
+        boolean fitsTopRow = !nativeButtonsWrapped
+                && topX + materialWidth + gap + detailsWidth <= topRowLimit;
+        int y = fitsTopRow ? 24 : bottomRow;
+        int x = buttons.stream()
+                .filter(button -> button.getY() == y)
+                .mapToInt(button -> button.getX() + button.getWidth() + gap)
+                .max()
+                .orElse(12);
 
         ButtonGeneric materialButton = new ButtonGeneric(x, y, materialWidth, 20, materialLabel);
         materialButton.setHoverStrings(StringUtils.translate(QuickLitematicaContainerMaterials.BUTTON_HOVER_KEY));
