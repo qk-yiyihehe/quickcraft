@@ -70,10 +70,12 @@ QuickCraft 是面向 Fabric 的客户端实用模组，让合成、容器和 Lit
 
 ## GitHub Star 增长趋势
 
-<a href="https://www.star-history.com/?repos=qk-yiyihehe%2Fquickcraft&amp;type=date&amp;legend=top-left">
-  <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/chart?repos=qk-yiyihehe/quickcraft&amp;type=date&amp;theme=dark&amp;legend=top-left&amp;sealed_token=Yox50aNbXJxvwqV5q6WmujEzZD5698jvCHAeDBqJBQ7X2MfA04wkvWUFUFfCtrtI109G7EhpITm7jq__pwqzQZ52ZzWJzg0pqC2CNA-7dwkY-df2xv7gmQ">
-    <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/chart?repos=qk-yiyihehe/quickcraft&amp;type=date&amp;legend=top-left&amp;sealed_token=Yox50aNbXJxvwqV5q6WmujEzZD5698jvCHAeDBqJBQ7X2MfA04wkvWUFUFfCtrtI109G7EhpITm7jq__pwqzQZ52ZzWJzg0pqC2CNA-7dwkY-df2xv7gmQ">
-    <img alt="QuickCraft GitHub Star 增长趋势" src="https://api.star-history.com/chart?repos=qk-yiyihehe/quickcraft&amp;type=date&amp;legend=top-left&amp;sealed_token=Yox50aNbXJxvwqV5q6WmujEzZD5698jvCHAeDBqJBQ7X2MfA04wkvWUFUFfCtrtI109G7EhpITm7jq__pwqzQZ52ZzWJzg0pqC2CNA-7dwkY-df2xv7gmQ">
-  </picture>
+## Star History
+
+<a href="https://www.star-history.com/?repos=qk-yiyihehe%2Fquickcraft&type=date&legend=top-left">
+ <picture>
+   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/chart?repos=qk-yiyihehe/quickcraft&type=date&theme=dark&legend=top-left&sealed_token=uRylLK-r81ruivT-wIM6YqnkElmPuVzhFDI1krAHRnemmv7O0WwKw95C8gkhzjJbs8JKIePSq35e1MpCnUKm9yc9qSn64P_z_UajQ-GVidt69OFzYgo4-g" />
+   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/chart?repos=qk-yiyihehe/quickcraft&type=date&legend=top-left&sealed_token=uRylLK-r81ruivT-wIM6YqnkElmPuVzhFDI1krAHRnemmv7O0WwKw95C8gkhzjJbs8JKIePSq35e1MpCnUKm9yc9qSn64P_z_UajQ-GVidt69OFzYgo4-g" />
+   <img alt="Star History Chart" src="https://api.star-history.com/chart?repos=qk-yiyihehe/quickcraft&type=date&legend=top-left&sealed_token=uRylLK-r81ruivT-wIM6YqnkElmPuVzhFDI1krAHRnemmv7O0WwKw95C8gkhzjJbs8JKIePSq35e1MpCnUKm9yc9qSn64P_z_UajQ-GVidt69OFzYgo4-g" />
+ </picture>
 </a>

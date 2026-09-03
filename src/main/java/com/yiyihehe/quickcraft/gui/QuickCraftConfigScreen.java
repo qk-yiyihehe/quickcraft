@@ -351,7 +351,7 @@ public class QuickCraftConfigScreen extends GuiConfigsBase {
                             y,
                             EXPAND_BUTTON_WIDTH,
                             20,
-                            EXPANDED_GROUPS.contains(grouped.group) ? "[-]" : "[+]"
+                            EXPANDED_GROUPS.contains(grouped.group) ? "[-]" : "§c[+]"
                     ).setRenderDefaultBackground(false);
                     this.addButton(expandButton, (button, mouseButton) -> {
                         if (!EXPANDED_GROUPS.remove(grouped.group)) {
