@@ -176,12 +176,13 @@ public final class QuickLitematicaPreview3D {
     // v12：箱子顶点静态化到独立 VBO，缓存追加 chestVertices 字段。
     // v11：保留 v10 的 GZIP + 顶点量化；箱子方块实体改回动态渲染，避免 chest atlas 被写进方块 VBO。
     // 升版本会让旧缓存一次性失效；之后 mod 版本号变化不再清缓存（token 已不含 mod 版本）。
-    private static final int CACHE_FORMAT_VERSION = 16;
+    // 缓存协议 v17：26.1 API/渲染审查后重建，避免旧网格沿用过期语义。
+    private static final int CACHE_FORMAT_VERSION = 17;
     private static final int CACHE_MAGIC = 0x51435033; // QCP3
     private static final String CACHE_DIR_NAME = "litematica-preview-cache";
     private static final String CACHE_VERSION_FILE_NAME = "cache-version.txt";
     private static final String CACHE_INDEX_FILE_NAME = "cache-index.properties";
-    private static final String CACHE_RENDER_MARKER = "quickcraft-model-mesh-v18-stable-path-content-resource-signature-dynamic-render-state-mc26.1.2";
+    private static final String CACHE_RENDER_MARKER = "quickcraft-model-mesh-v19-api-audit-stable-path-content-resource-signature-dynamic-render-state-mc26.1.2";
     private static final int EXPAND_BUTTON_SIZE = 16;
     private static final int COMPAT_CLIPBOARD_MAX_DIMENSION = 4096;
     private static final int EMBEDDED_PREVIEW_DIMENSION = 1024;
@@ -1091,7 +1092,7 @@ public final class QuickLitematicaPreview3D {
                     matrices.scale(scale, scale, scale);
                     matrices.translate(-data.sizeX() / 2.0F, -data.sizeY() / 2.0F, -data.sizeZ() / 2.0F);
                     Matrix4f dynamicModelView = new Matrix4f(matrices.last().pose());
-                    this.applyLight(dynamicModelView);
+                    this.applyLight(element.pitch(), element.angle());
                     this.drawBuffers(dynamicModelView);
                     this.prepareDynamicBuffers(data);
                     if (this.dynamicBuffersReady) {
@@ -1115,8 +1116,9 @@ public final class QuickLitematicaPreview3D {
         }
 
         // 1.21.6+ 的地形明暗已烘焙进顶点颜色；独立 UBO 只修正动态方块实体和实体，且不污染原版全局光照。
-        private void applyLight(Matrix4f viewMatrix) {
-            Matrix4f lightTransform = new Matrix4f(viewMatrix);
+        private void applyLight(float pitch, double yaw) {
+            // 光照只跟随预览旋转；PIP 的轴翻转、平移和缩放不属于模型空间光照。
+            Matrix4f lightTransform = new Matrix4f().rotateX(pitch).rotateY((float) yaw);
             Vector4f lightDirection = new Vector4f(0.0F, 0.35F, 0.25F, 0.0F);
             lightTransform.invert();
             lightDirection.mul(lightTransform);
@@ -1647,7 +1649,7 @@ public final class QuickLitematicaPreview3D {
                 matrices.scale(scale, scale, scale);
                 matrices.translate(-data.sizeX() / 2.0F, -data.sizeY() / 2.0F, -data.sizeZ() / 2.0F);
                 Matrix4f modelView = new Matrix4f(matrices.last().pose());
-                this.applyLight(modelView);
+                this.applyLight(drag.pitch, drag.angle);
                 this.drawBuffers(modelView);
                 this.drawDynamicBuffers(modelView);
             } finally {
