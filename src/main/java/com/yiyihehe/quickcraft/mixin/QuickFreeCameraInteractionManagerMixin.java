@@ -19,8 +19,9 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
 /**
- * 在灵魂相机交互产生客户端预测前复用 26.1 服务端的本体距离判定。
+ * 在灵魂相机交互产生客户端预测前复用服务端的本体距离判定。
  * 如果此处失效，超距放置或破坏会先在客户端生效，再被服务端回滚成幽灵方块。
+ * 潜行放置和朝向同步必须包在 {@code useItemOn} 外：内部逻辑返回后才发送使用包，若先还原 SHIFT/朝向，服务端仍会开箱或按本体朝向放置。
  */
 @Mixin(MultiPlayerGameMode.class)
 public class QuickFreeCameraInteractionManagerMixin {
@@ -31,12 +32,21 @@ public class QuickFreeCameraInteractionManagerMixin {
             BlockHitResult hitResult,
             CallbackInfoReturnable<InteractionResult> cir
     ) {
-        if (QuickFreeCameraInteractions.isBlockOutsideServerInteractionRange(
-                Minecraft.getInstance(),
-                hitResult.getBlockPos()
-        )) {
+        Minecraft client = Minecraft.getInstance();
+        QuickFreeCameraInteractions.beginBlockUseFromFreeCamera(client);
+        if (QuickFreeCameraInteractions.isBlockOutsideServerInteractionRange(client, hitResult.getBlockPos())) {
             cir.setReturnValue(InteractionResult.FAIL);
         }
+    }
+
+    @Inject(method = "useItemOn", at = @At("RETURN"))
+    private void quickcraft$endBlockUseFromFreeCamera(
+            LocalPlayer player,
+            InteractionHand hand,
+            BlockHitResult hitResult,
+            CallbackInfoReturnable<InteractionResult> cir
+    ) {
+        QuickFreeCameraInteractions.endBlockUseFromFreeCamera(Minecraft.getInstance());
     }
 
     @Inject(method = "startDestroyBlock", at = @At("HEAD"), cancellable = true)
