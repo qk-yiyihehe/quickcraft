@@ -1241,11 +1241,12 @@ public final class QuickLitematicaPreview3D {
                     Matrix4f dynamicModelView = new Matrix4f(matrices.last().pose());
                     this.applyLight(element.pitch(), element.angle());
                     this.drawBuffers(dynamicModelView, false);
-                    this.prepareDynamicBuffers(data);
                     if (this.dynamicBuffersReady) {
                         this.drawDynamicBuffers(dynamicModelView);
-                    } else {
+                    } else if (data.hasDynamicContent()) {
                         this.drawDynamic(data, dynamicModelView, element.size());
+                        // 1.21.8 及更早每帧现画实体，首帧脏状态不会锁进 VBO。先现画再烘焙，避免首次解析实体纹理把错位网格锁死。
+                        this.prepareDynamicBuffers(data);
                     }
                     this.drawBuffers(dynamicModelView, true);
                 } finally {
@@ -1558,7 +1559,14 @@ public final class QuickLitematicaPreview3D {
                         } catch (Throwable ignored) {
                         }
                     });
-                    dispatcher.renderAllFeatures();
+                    Matrix4fStack bakeView = RenderSystem.getModelViewStack();
+                    bakeView.pushMatrix();
+                    try {
+                        bakeView.identity();
+                        dispatcher.renderAllFeatures();
+                    } finally {
+                        bakeView.popMatrix();
+                    }
                 }
 
                 this.dynamicBuffers = collector.upload();
