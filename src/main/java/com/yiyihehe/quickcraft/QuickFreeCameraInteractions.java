@@ -2,7 +2,11 @@ package com.yiyihehe.quickcraft;
 
 import com.yiyihehe.quickcraft.config.QuickCraftConfigs;
 import net.minecraft.client.MinecraftClient;
+import net.minecraft.client.network.ClientPlayerEntity;
 import net.minecraft.entity.Entity;
+import net.minecraft.network.packet.c2s.play.PlayerInputC2SPacket;
+import net.minecraft.util.PlayerInput;
+import net.minecraft.network.packet.c2s.play.PlayerMoveC2SPacket;
 import net.minecraft.util.hit.BlockHitResult;
 import net.minecraft.util.hit.EntityHitResult;
 import net.minecraft.util.hit.HitResult;
@@ -15,6 +19,11 @@ import net.minecraft.util.math.Vec3d;
  */
 public final class QuickFreeCameraInteractions {
     private static final String TWEAKEROO_CAMERA_CLASS = "fi.dy.masa.tweakeroo.util.CameraEntity";
+    private static boolean sneakPlacementCommandSent;
+    private static PlayerInput restoredPlayerInput;
+    private static boolean cameraFacingApplied;
+    private static float restoredYaw;
+    private static float restoredPitch;
 
     private QuickFreeCameraInteractions() {
     }
@@ -56,6 +65,121 @@ public final class QuickFreeCameraInteractions {
     public static boolean isEntityOutsideServerInteractionRange(MinecraftClient client, Entity entity) {
         return shouldOverrideCrosshair(client)
                 && !client.player.canInteractWithEntityIn(entity.getBoundingBox(), 1.0);
+    }
+
+    /**
+     * Tweakeroo 灵魂出窍默认用 DummyMovementInput 冻本体，潜行键只驱动相机下降，
+     * {@code player.isSneaking()} 仍为 false。这里改读潜行键，让客户端按原版规则取消方块交互并走放置。
+     */
+    public static boolean shouldSneakPlaceFromFreeCamera(MinecraftClient client) {
+        return shouldOverrideCrosshair(client)
+                && QuickCraftConfigs.areFreeCameraBlockInteractionsEnabled()
+                && client != null
+                && client.options != null
+                && client.options.sneakKey.isPressed();
+    }
+
+    public static void beginBlockUseFromFreeCamera(MinecraftClient client) {
+        beginCameraFacing(client);
+        beginSneakPlacement(client);
+    }
+
+    public static void endBlockUseFromFreeCamera(MinecraftClient client) {
+        endSneakPlacement(client);
+        endCameraFacing(client);
+    }
+
+    private static void beginSneakPlacement(MinecraftClient client) {
+        if (sneakPlacementCommandSent
+                || !shouldSneakPlaceFromFreeCamera(client)
+                || client.player == null
+                || client.player.networkHandler == null
+                || client.player.input == null) {
+            return;
+        }
+
+        // 1.21.6+ 删除了 ClientCommandC2SPacket 的 PRESS_SHIFT_KEY，潜行改走 PlayerInputC2SPacket。
+        restoredPlayerInput = client.player.input.playerInput;
+        PlayerInput sneaking = new PlayerInput(
+                restoredPlayerInput.forward(),
+                restoredPlayerInput.backward(),
+                restoredPlayerInput.left(),
+                restoredPlayerInput.right(),
+                restoredPlayerInput.jump(),
+                true,
+                restoredPlayerInput.sprint()
+        );
+        client.player.networkHandler.sendPacket(new PlayerInputC2SPacket(sneaking));
+        sneakPlacementCommandSent = true;
+    }
+
+    private static void endSneakPlacement(MinecraftClient client) {
+        if (!sneakPlacementCommandSent) {
+            return;
+        }
+
+        sneakPlacementCommandSent = false;
+        PlayerInput restored = restoredPlayerInput;
+        restoredPlayerInput = null;
+        if (client == null || client.player == null || client.player.networkHandler == null || restored == null) {
+            return;
+        }
+
+        client.player.networkHandler.sendPacket(new PlayerInputC2SPacket(restored));
+    }
+
+    /**
+     * 方向方块的朝向读的是玩家本体 yaw/pitch。灵魂出窍时改用相机朝向做客户端预测，
+     * 并先发一条 Look 包让服务端按同一朝向放置，放完立刻还原，避免本体转身。
+     * 1.21.2+ 的 LookAndOnGround 需要带上 horizontalCollision，否则服务端会拒绝或改写朝向。
+     */
+    private static void beginCameraFacing(MinecraftClient client) {
+        if (cameraFacingApplied
+                || !shouldOverrideCrosshair(client)
+                || !QuickCraftConfigs.areFreeCameraBlockInteractionsEnabled()
+                || client.player == null
+                || client.player.networkHandler == null) {
+            return;
+        }
+
+        Entity camera = client.getCameraEntity();
+        if (camera == null || camera == client.player) {
+            return;
+        }
+
+        ClientPlayerEntity player = client.player;
+        restoredYaw = player.getYaw();
+        restoredPitch = player.getPitch();
+        float cameraYaw = camera.getYaw();
+        float cameraPitch = camera.getPitch();
+        if (cameraYaw == restoredYaw && cameraPitch == restoredPitch) {
+            return;
+        }
+
+        player.setYaw(cameraYaw);
+        player.setPitch(cameraPitch);
+        player.networkHandler.sendPacket(
+                new PlayerMoveC2SPacket.LookAndOnGround(cameraYaw, cameraPitch, player.isOnGround(), player.horizontalCollision)
+        );
+        cameraFacingApplied = true;
+    }
+
+    private static void endCameraFacing(MinecraftClient client) {
+        if (!cameraFacingApplied) {
+            return;
+        }
+
+        cameraFacingApplied = false;
+        if (client == null || client.player == null || client.player.networkHandler == null) {
+            return;
+        }
+
+        ClientPlayerEntity player = client.player;
+        player.setYaw(restoredYaw);
+        player.setPitch(restoredPitch);
+        player.networkHandler.sendPacket(
+                new PlayerMoveC2SPacket.LookAndOnGround(restoredYaw, restoredPitch, player.isOnGround(), player.horizontalCollision)
+        );
     }
 
     private static boolean isTweakerooFreeCameraActive(MinecraftClient client) {
