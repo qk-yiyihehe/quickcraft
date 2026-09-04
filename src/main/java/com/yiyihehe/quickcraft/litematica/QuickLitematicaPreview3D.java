@@ -1245,7 +1245,6 @@ public final class QuickLitematicaPreview3D {
                     this.applyLight(element.pitch(), element.angle());
                     this.drawBuffers(dynamicModelView, false);
                     if (data.hasDynamicContent()) {
-                        this.prepareDynamicFrame(data);
                         if (this.dynamicFrame != null) {
                             this.drawDynamicFrame(dynamicModelView);
                         } else {
@@ -1257,6 +1256,8 @@ public final class QuickLitematicaPreview3D {
                                 this.drawDynamic(data, dynamicModelView, element.size(), fallbackNodes);
                             }
                             Minecraft.getInstance().gameRenderer.featureRenderDispatcher().renderAllFeatures(fallbackNodes);
+                            // 26.2 仍缓存 PreparedFrame 保性能；先按老路径现画一帧，避免首次解析实体纹理把错位网格锁死。
+                            this.prepareDynamicFrame(data);
                         }
                     }
                     this.drawBuffers(dynamicModelView, true);
