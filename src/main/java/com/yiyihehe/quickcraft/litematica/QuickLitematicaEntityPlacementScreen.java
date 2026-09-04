@@ -51,6 +51,11 @@ final class QuickLitematicaEntityPlacementScreen extends Screen {
     }
 
     @Override
+    public boolean shouldPause() {
+        return false;
+    }
+
+    @Override
     public void render(DrawContext context, int mouseX, int mouseY, float delta) {
         this.renderBackground(context, mouseX, mouseY, delta);
         int left = (this.width - PANEL_WIDTH) / 2;
@@ -234,11 +239,30 @@ final class QuickLitematicaEntityPlacementScreen extends Screen {
                 && mouseX < left + 8 + column * SLOT_SIZE + 16
                 && mouseY < top + 18 + row * SLOT_SIZE + 16) {
             if (QuickLitematicaEntityPlacement.requestPlacement(this.client, candidates.get(index), this.candidates)) {
-                this.close();
+                if (countUnplacedCandidates() <= 1) {
+                    this.close();
+                } else {
+                    this.evaluationRefreshTicks = 0;
+                }
             }
             return true;
         }
         return super.mouseClicked(mouseX, mouseY, button);
+    }
+
+    private int countUnplacedCandidates() {
+        if (this.evaluation == null) {
+            this.evaluation = QuickLitematicaEntityPlacement.evaluatePlacement(this.client, this.candidates);
+        }
+        int remaining = 0;
+        for (QuickLitematicaEntityPlacement.Candidate candidate : this.candidates) {
+            if (this.evaluation.statuses().getOrDefault(
+                    candidate, QuickLitematicaEntityPlacement.PlacementStatus.UNPLACED)
+                    != QuickLitematicaEntityPlacement.PlacementStatus.MATCHED) {
+                remaining++;
+            }
+        }
+        return remaining;
     }
 
     private static int getSlotColor(QuickLitematicaEntityPlacement.PlacementStatus status, boolean hovered) {
