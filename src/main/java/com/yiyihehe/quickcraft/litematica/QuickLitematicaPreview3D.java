@@ -1356,7 +1356,7 @@ public final class QuickLitematicaPreview3D {
                                 entity.x(),
                                 entity.y(),
                                 entity.z(),
-                                entity.entity().getYaw(0.0F),
+                                0.0F,
                                 matrices,
                                 collector,
                                 entity.light()
@@ -1827,7 +1827,7 @@ public final class QuickLitematicaPreview3D {
                             entity.x(),
                             entity.y(),
                             entity.z(),
-                            entity.entity().getYaw(0.0F),
+                            0.0F,
                             matrices,
                             client.getBufferBuilders().getEntityVertexConsumers(),
                             entity.light()
