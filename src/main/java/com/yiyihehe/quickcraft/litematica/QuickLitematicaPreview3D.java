@@ -159,12 +159,13 @@ public final class QuickLitematicaPreview3D {
     // v12：箱子顶点静态化到独立 VBO，缓存追加 chestVertices 字段。
     // v11：保留 v10 的 GZIP + 顶点量化；箱子方块实体改回动态渲染，避免 chest atlas 被写进方块 VBO。
     // 升版本会让旧缓存一次性失效；之后 mod 版本号变化不再清缓存（token 已不含 mod 版本）。
-    private static final int CACHE_FORMAT_VERSION = 15;
+    // 缓存协议 v16：1.21.4 API/渲染审查后重建，避免旧网格沿用过期语义。
+    private static final int CACHE_FORMAT_VERSION = 16;
     private static final int CACHE_MAGIC = 0x51435033; // QCP3
     private static final String CACHE_DIR_NAME = "litematica-preview-cache";
     private static final String CACHE_VERSION_FILE_NAME = "cache-version.txt";
     private static final String CACHE_INDEX_FILE_NAME = "cache-index.properties";
-    private static final String CACHE_RENDER_MARKER = "quickcraft-model-mesh-v15-stable-path-content-resource-signature-mc1.21.4";
+    private static final String CACHE_RENDER_MARKER = "quickcraft-model-mesh-v16-api-audit-stable-path-content-resource-signature-mc1.21.4";
     private static final int EXPAND_BUTTON_SIZE = 16;
     private static final int COMPAT_CLIPBOARD_MAX_DIMENSION = 4096;
     private static final int EMBEDDED_PREVIEW_DIMENSION = 1024;
