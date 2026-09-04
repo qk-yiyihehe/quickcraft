@@ -435,7 +435,14 @@ public final class QuickLitematicaPreview3DScreen extends Screen {
     }
 
     @Override
+    public void tick() {
+        super.tick();
+        this.manager.pollPendingPreviewImagePicker();
+    }
+
+    @Override
     public void close() {
+        this.manager.cancelPendingPreviewImagePicker();
         if (this.closeManagerOnExit) {
             this.manager.close();
         }
