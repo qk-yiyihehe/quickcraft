@@ -5,6 +5,7 @@ import net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.EntityType;
+import net.minecraft.entity.SpawnReason;
 import net.minecraft.entity.decoration.BlockAttachedEntity;
 import net.minecraft.item.Item;
 import net.minecraft.item.ItemStack;
@@ -141,7 +142,7 @@ public final class QuickLitematicaEntityPlacementServer {
             sendResult(player, payload.nonce(), "WORLD_RULE_BLOCKED", "");
             return;
         }
-        if (!world.canPlayerModifyAt(player, targetPos)) {
+        if (!world.canEntityModifyAt(player, targetPos)) {
             sendResult(player, payload.nonce(), "PERMISSION_DENIED", "");
             return;
         }
@@ -286,7 +287,7 @@ public final class QuickLitematicaEntityPlacementServer {
         if (type == null) {
             return null;
         }
-        Entity entity = type.create(world);
+        Entity entity = type.create(world, SpawnReason.LOAD);
         if (entity == null) {
             return null;
         }
@@ -376,7 +377,7 @@ public final class QuickLitematicaEntityPlacementServer {
         BlockPos position = root instanceof BlockAttachedEntity attached
                 ? attached.getAttachedBlockPos()
                 : root.getBlockPos();
-        if (!world.isChunkLoaded(position) || !world.canPlayerModifyAt(player, position)) {
+        if (!world.isChunkLoaded(position) || !world.canEntityModifyAt(player, position)) {
             return false;
         }
         for (Entity passenger : root.getPassengerList()) {
@@ -745,31 +746,31 @@ public final class QuickLitematicaEntityPlacementServer {
     }
 
     private static NbtCompound compoundAt(NbtList list, int index) {
-        return list.getCompound(index);
+        return list.getCompoundOrEmpty(index);
     }
 
     private static String stringValue(NbtCompound nbt, String key) {
-        return nbt.getString(key);
+        return nbt.getString(key, "");
     }
 
     private static boolean booleanValue(NbtCompound nbt, String key) {
-        return nbt.getBoolean(key);
+        return nbt.getBoolean(key, false);
     }
 
     private static int intValue(NbtCompound nbt, String key) {
-        return nbt.getInt(key);
+        return nbt.getInt(key, 0);
     }
 
     private static byte byteValue(NbtCompound nbt, String key) {
-        return nbt.getByte(key);
+        return nbt.getByte(key, (byte) 0);
     }
 
     private static double doubleAt(NbtList list, int index) {
-        return list.getDouble(index);
+        return list.getDouble(index, Double.NaN);
     }
 
     private static float floatAt(NbtList list, int index) {
-        return list.getFloat(index);
+        return list.getFloat(index, Float.NaN);
     }
 
     private static boolean isListOf(NbtList list, int type) {
@@ -797,7 +798,7 @@ public final class QuickLitematicaEntityPlacementServer {
     }
 
     private static List<ItemStack> inventoryItems(ServerPlayerEntity player) {
-        return player.getInventory().main;
+        return player.getInventory().getMainStacks();
     }
 
     private static final class Session {
