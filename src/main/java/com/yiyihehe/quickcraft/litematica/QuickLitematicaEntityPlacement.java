@@ -276,9 +276,9 @@ public final class QuickLitematicaEntityPlacement {
         Set<Entity> claimedEntities = Collections.newSetFromMap(new IdentityHashMap<>());
         Map<Candidate, PlacementStatus> statuses = new IdentityHashMap<>();
         Map<Candidate, List<Entity>> nearbyByCandidate = new IdentityHashMap<>();
-        AABB searchBox = candidates.getFirst().box.inflate(Candidate.POSITION_TOLERANCE);
+        AABB searchBox = candidates.getFirst().box.inflate(candidates.getFirst().positionTolerance());
         for (int index = 1; index < candidates.size(); index++) {
-            searchBox = searchBox.minmax(candidates.get(index).box.inflate(Candidate.POSITION_TOLERANCE));
+            searchBox = searchBox.minmax(candidates.get(index).box.inflate(candidates.get(index).positionTolerance()));
         }
         List<Entity> nearbyEntities = client.level.getEntities(
                 (Entity) null,
@@ -286,7 +286,7 @@ public final class QuickLitematicaEntityPlacement {
                 entity -> entity.isAlive() && !(entity instanceof Player)
         );
         for (Candidate candidate : candidates) {
-            AABB candidateBox = candidate.box.inflate(Candidate.POSITION_TOLERANCE);
+            AABB candidateBox = candidate.box.inflate(candidate.positionTolerance());
             List<Entity> nearby = new ArrayList<>(nearbyEntities.stream()
                     .filter(entity -> candidateBox.intersects(entity.getBoundingBox()))
                     .toList());
@@ -313,20 +313,37 @@ public final class QuickLitematicaEntityPlacement {
             Map<Candidate, PlacementStatus> statuses,
             PlacementStatus wantedStatus
     ) {
-        for (Candidate candidate : candidates) {
-            if (statuses.containsKey(candidate)) {
-                continue;
+        boolean assigned;
+        do {
+            assigned = false;
+            Candidate bestCandidate = null;
+            Entity bestEntity = null;
+            double bestDistance = Double.POSITIVE_INFINITY;
+            for (Candidate candidate : candidates) {
+                if (statuses.containsKey(candidate)) {
+                    continue;
+                }
+                for (Entity entity : nearbyByCandidate.getOrDefault(candidate, List.of())) {
+                    if (claimedEntities.contains(entity)
+                            || candidate.classifyEntity(entity) != wantedStatus) {
+                        continue;
+                    }
+                    double distance = candidate.matchesConfirmedUuid(entity)
+                            ? -1.0D
+                            : candidate.squaredDistanceTo(entity);
+                    if (bestEntity == null || distance < bestDistance) {
+                        bestCandidate = candidate;
+                        bestEntity = entity;
+                        bestDistance = distance;
+                    }
+                }
             }
-            Entity assigned = nearbyByCandidate.getOrDefault(candidate, List.of()).stream()
-                    .filter(entity -> !claimedEntities.contains(entity))
-                    .filter(entity -> candidate.classifyEntity(entity) == wantedStatus)
-                    .findFirst()
-                    .orElse(null);
-            if (assigned != null) {
-                assigned.getSelfAndPassengers().forEach(claimedEntities::add);
-                statuses.put(candidate, wantedStatus);
+            if (bestCandidate != null) {
+                bestEntity.getSelfAndPassengers().forEach(claimedEntities::add);
+                statuses.put(bestCandidate, wantedStatus);
+                assigned = true;
             }
-        }
+        } while (assigned);
     }
 
     static ExcessDisplay createExcessDisplay(Entity entity, List<Candidate> candidates) {
@@ -819,6 +836,7 @@ public final class QuickLitematicaEntityPlacement {
 
     static final class Candidate {
         static final double POSITION_TOLERANCE = 0.2D;
+        static final double MINECART_POSITION_TOLERANCE = 1.0D;
         private static final float ROTATION_TOLERANCE = 5.0F;
         private final String region;
         private final int index;
@@ -944,27 +962,84 @@ public final class QuickLitematicaEntityPlacement {
             return null;
         }
 
-        private PlacementStatus classifyEntity(Entity entity) {
-            if (entity.getType() != BuiltInRegistries.ENTITY_TYPE.getValue(entityType)) {
-                return PlacementStatus.WRONG;
+        private boolean isMinecart() {
+            return entityType.getPath().contains("minecart");
+        }
+
+        private double positionTolerance() {
+            return isMinecart() ? MINECART_POSITION_TOLERANCE : POSITION_TOLERANCE;
+        }
+
+        private double squaredDistanceTo(Entity entity) {
+            return entity.position().distanceToSqr(position);
+        }
+
+        private boolean matchesConfirmedUuid(Entity entity) {
+            UUID confirmedUuid = confirmedEntityUuids.get(key());
+            return confirmedUuid != null && confirmedUuid.equals(entity.getUUID());
+        }
+
+        private boolean rotationMatches(Entity entity) {
+            if (isMinecart()) {
+                return true;
             }
-            if (entity.position().distanceToSqr(position) > POSITION_TOLERANCE * POSITION_TOLERANCE
-                    || Math.abs(Mth.wrapDegrees(entity.getYRot() - yaw)) > ROTATION_TOLERANCE
-                    || Math.abs(entity.getXRot() - pitch) > ROTATION_TOLERANCE) {
+            return Math.abs(Mth.wrapDegrees(entity.getYRot() - yaw)) <= ROTATION_TOLERANCE
+                    && Math.abs(entity.getXRot() - pitch) <= ROTATION_TOLERANCE;
+        }
+
+        private boolean isOnSameRail(Entity entity) {
+            BlockPos expected = BlockPos.containing(position.x, position.y, position.z);
+            BlockPos actual = entity.blockPosition();
+            return expected.getX() == actual.getX()
+                    && expected.getZ() == actual.getZ()
+                    && Math.abs(expected.getY() - actual.getY()) <= 1;
+        }
+
+        private boolean minecartContentsMatch(Entity entity) {
+            List<ItemStack> expected = getMaterials(BuiltInRegistries.ENTITY_TYPE.getValue(entityType), nbt);
+            List<ItemStack> actual = getMaterials(entity.getType(), writeEntityNbt(entity));
+            if (expected.size() != actual.size()) {
+                return false;
+            }
+            for (int index = 0; index < expected.size(); index++) {
+                ItemStack expectedStack = expected.get(index);
+                ItemStack actualStack = actual.get(index);
+                if (!ItemStack.isSameItemSameComponents(expectedStack, actualStack) || expectedStack.getCount() != actualStack.getCount()) {
+                    return false;
+                }
+            }
+            return true;
+        }
+
+        private PlacementStatus classifyEntity(Entity entity) {
+            boolean sameType = entity.getType() == BuiltInRegistries.ENTITY_TYPE.getValue(entityType);
+            if (isMinecart()) {
+                if (!isOnSameRail(entity)) {
+                    return PlacementStatus.UNPLACED;
+                }
+                if (!sameType) {
+                    return PlacementStatus.WRONG;
+                }
+                if (matchesConfirmedUuid(entity) || (minecartContentsMatch(entity) && matchesPassengerTree(nbt, entity))) {
+                    return PlacementStatus.MATCHED;
+                }
                 return PlacementStatus.MISMATCHED;
             }
-            UUID confirmedUuid = confirmedEntityUuids.get(key());
-            if (confirmedUuid != null && confirmedUuid.equals(entity.getUUID())) {
+            if (!sameType) {
+                return PlacementStatus.WRONG;
+            }
+            if (matchesConfirmedUuid(entity)) {
                 return PlacementStatus.MATCHED;
             }
-
-            CompoundTag actual = writeEntityNbt(entity);
-            return containsProjectedData(normalizeForComparison(nbt), normalizeForComparison(actual))
+            double tolerance = positionTolerance();
+            if (squaredDistanceTo(entity) > tolerance * tolerance || !rotationMatches(entity)) {
+                return PlacementStatus.MISMATCHED;
+            }
+            return containsProjectedData(normalizeForComparison(nbt), normalizeForComparison(writeEntityNbt(entity)))
                     && matchesPassengerTree(nbt, entity)
                     ? PlacementStatus.MATCHED
                     : PlacementStatus.MISMATCHED;
         }
-
         private static boolean matchesPassengerTree(CompoundTag expected, Entity actual) {
             ListTag expectedPassengers = expected.getListOrEmpty("Passengers");
             List<Entity> actualPassengers = actual.getPassengers();
@@ -1018,6 +1093,8 @@ public final class QuickLitematicaEntityPlacement {
             normalized.remove("Thrower");
             normalized.remove("Dimension");
             normalized.remove("Passengers");
+            normalized.remove("Flipped");
+            normalized.remove("OnRail");
             return normalized;
         }
     }
