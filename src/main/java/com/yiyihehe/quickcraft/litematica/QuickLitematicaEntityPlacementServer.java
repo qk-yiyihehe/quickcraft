@@ -5,6 +5,7 @@ import net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.EntityType;
+import net.minecraft.entity.SpawnReason;
 import net.minecraft.entity.decoration.BlockAttachedEntity;
 import net.minecraft.item.Item;
 import net.minecraft.item.ItemStack;
@@ -286,7 +287,7 @@ public final class QuickLitematicaEntityPlacementServer {
         if (type == null) {
             return null;
         }
-        Entity entity = type.create(world);
+        Entity entity = type.create(world, SpawnReason.LOAD);
         if (entity == null) {
             return null;
         }
