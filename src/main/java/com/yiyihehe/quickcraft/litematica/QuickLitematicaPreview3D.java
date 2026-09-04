@@ -1333,7 +1333,7 @@ public final class QuickLitematicaPreview3D {
                 modelView.scale(scale, scale, scale);
                 modelView.translate(-data.sizeX() / 2.0F, -data.sizeY() / 2.0F, -data.sizeZ() / 2.0F);
                 this.applyLight(modelView);
-                this.drawBuffers();
+                this.drawBuffers(false);
                 this.prepareDynamicBuffers(data);
                 if (this.dynamicBuffersReady) {
                     this.drawDynamicBuffers();
@@ -1349,6 +1349,7 @@ public final class QuickLitematicaPreview3D {
                         modelView.popMatrix();
                     }
                 }
+                this.drawBuffers(true);
             } finally {
                 modelView.popMatrix();
                 RenderSystem.restoreProjectionMatrix();
@@ -1382,8 +1383,12 @@ public final class QuickLitematicaPreview3D {
             RenderSystem.setShaderLights(this.previewLightingBuffer.slice());
         }
 
-        private void drawBuffers() {
+        // 玻璃会写 depth。先画不透明层和实体，再画透明层，才能透过玻璃看到实体。
+        private void drawBuffers(boolean translucent) {
             for (LayerKey layer : LayerKey.DRAW_ORDER) {
+                if ((layer == LayerKey.TRANSLUCENT) != translucent) {
+                    continue;
+                }
                 LayerBuffer buffer = this.layerBuffers.get(layer);
                 if (buffer != null) {
                     drawLayerBuffer(layer, buffer);
@@ -1764,8 +1769,9 @@ public final class QuickLitematicaPreview3D {
                 modelView.scale(scale, scale, scale);
                 modelView.translate(-data.sizeX() / 2.0F, -data.sizeY() / 2.0F, -data.sizeZ() / 2.0F);
                 this.applyLight(modelView);
-                this.drawBuffers();
+                this.drawBuffers(false);
                 this.drawDynamicBuffers();
+                this.drawBuffers(true);
             } finally {
                 modelView.popMatrix();
                 RenderSystem.restoreProjectionMatrix();
