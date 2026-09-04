@@ -208,6 +208,7 @@ public final class QuickLitematicaPreview3D {
     private static final float PROGRESS_BLOCK_STATES_CACHE_END = 0.95F;
     private static final float PROGRESS_BLOCK_ENTITIES_CACHE_END = 0.99F;
     private static final AtomicBoolean SPECIAL_RENDERER_REGISTERED = new AtomicBoolean();
+    private static boolean refreshCachedPreviewDynamicTransforms;
     private static final AtomicBoolean CACHE_DIRECTORY_READY = new AtomicBoolean();
     private static final Object CACHE_INDEX_LOCK = new Object();
     private static final Properties CACHE_INDEX = new Properties();
@@ -216,6 +217,10 @@ public final class QuickLitematicaPreview3D {
     private static volatile Path currentCacheDirectory;
 
     private QuickLitematicaPreview3D() {
+    }
+
+    public static boolean shouldRefreshCachedPreviewDynamicTransforms() {
+        return refreshCachedPreviewDynamicTransforms;
     }
 
     public static void registerSpecialRenderer() {
@@ -1431,12 +1436,16 @@ public final class QuickLitematicaPreview3D {
             Matrix4f projection = this.snapshotProjection.getMatrix(new Matrix4f()).mul(modelView);
             RenderSystem.backupProjectionMatrix();
             RenderSystem.setProjectionMatrix(this.dynamicProjectionBuffer.getBuffer(projection), ProjectionType.ORTHOGRAPHIC);
+            // PreparedRenderType 会把 prepare 时的 DynamicTransforms 切片缓存下来；
+            // 原版每帧 endFrame 后旧 UBO 被关掉，复用缓存帧就会偶发崩溃。
+            refreshCachedPreviewDynamicTransforms = true;
             try {
                 frame.executeSolid();
                 frame.executeTranslucent();
                 frame.executeTranslucentAfterTerrain();
                 frame.executeAlwaysOnTop();
             } finally {
+                refreshCachedPreviewDynamicTransforms = false;
                 RenderSystem.restoreProjectionMatrix();
             }
         }

@@ -38,6 +38,7 @@
 		"LitematicaFeatureRenderDispatcherAccessor",
 		"LitematicaMaterialListHudRendererMixin",
 		"LitematicaMinecraftClientHoldEasyPlaceMixin",
+		"LitematicaPreparedRenderTypeMixin",
 		"LitematicaInventoryUtilsShulkerRestockMixin",
 		"LitematicaSchematicLoadMixin",
 		"LitematicaSchematicVerifierMixin",
