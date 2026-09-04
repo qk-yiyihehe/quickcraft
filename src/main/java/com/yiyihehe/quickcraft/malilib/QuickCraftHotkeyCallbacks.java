@@ -126,6 +126,7 @@ public final class QuickCraftHotkeyCallbacks {
 
     private static boolean handleEntitySelector(KeyAction action, IKeybind keybind) {
         return action == KeyAction.PRESS
+                && QuickCraftConfigs.isEasyPlaceEntitiesEnabled()
                 && QuickCraft.openEasyPlaceEntitySelector(MinecraftClient.getInstance());
     }
 
