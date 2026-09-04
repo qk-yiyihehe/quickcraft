@@ -192,7 +192,7 @@
   "quickcraft.litematica.preview_3d.rendering": "Rendering 3D Preview",
   "quickcraft.entity_placement.title": "Select Entity to Place",
   "quickcraft.entity_placement.empty": "No placeable schematic entities along the crosshair",
-  "quickcraft.entity_placement.server_unavailable": "Carpet-FGA Addition entity placement support is missing or disabled on the server",
+  "quickcraft.entity_placement.server_unavailable": "Easy entity placement is not installed or enabled on the server",
   "quickcraft.entity_placement.status.matched": "§aPlaced correctly",
   "quickcraft.entity_placement.status.mismatched": "§6Entity type matches, but position, rotation, or data differs",
   "quickcraft.entity_placement.status.wrong": "§cWrong entity type is occupying this position",
