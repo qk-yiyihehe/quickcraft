@@ -12,6 +12,8 @@ import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.fabric.api.networking.v1.PayloadTypeRegistry;
 import net.fabricmc.loader.api.FabricLoader;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.server.IntegratedServer;
+import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.entity.EntityType;
@@ -51,7 +53,8 @@ import java.util.UUID;
 import java.util.concurrent.ThreadLocalRandom;
 
 /**
- * 客户端实体放置入口：仅从投影收集候选并向已握手服务器发请求，不生成实体也不修改库存。
+ * 客户端实体放置入口：从投影收集候选后，优先走已握手的服务端协议；
+ * 单人/综合服没有可用网络能力时，改为在本进程直接调用放置逻辑。
  */
 public final class QuickLitematicaEntityPlacement {
     private static final double DEFAULT_REACH = 4.5D;
@@ -66,29 +69,32 @@ public final class QuickLitematicaEntityPlacement {
     private static final Map<Long, PendingRequest> pendingRequests = new java.util.HashMap<>();
     private static final Map<String, UUID> confirmedEntityUuids = new java.util.HashMap<>();
 
-    public static void initializeClient() {
+    public static void initializeCommon() {
         // 只有实际包含实体放置服务端实现的 FGA 才会在 main 入口先注册 codec。
         // 旧版 FGA 只有相同的 mod ID，不能据此跳过客户端注册。
-        if (FabricLoader.getInstance().getModContainer("carpet-fga-addition")
-                .flatMap(container -> container.findPath("carpet/fga/QuickCraftEntityPlacementServer.class"))
-                .isEmpty()) {
-            PayloadTypeRegistry.serverboundPlay().register(
-                    QuickLitematicaEntityPlacementPayloads.HelloPayload.ID,
-                    QuickLitematicaEntityPlacementPayloads.HelloPayload.CODEC
-            );
-            PayloadTypeRegistry.serverboundPlay().register(
-                    QuickLitematicaEntityPlacementPayloads.RequestPayload.ID,
-                    QuickLitematicaEntityPlacementPayloads.RequestPayload.CODEC
-            );
-            PayloadTypeRegistry.clientboundPlay().register(
-                    QuickLitematicaEntityPlacementPayloads.CapabilityPayload.ID,
-                    QuickLitematicaEntityPlacementPayloads.CapabilityPayload.CODEC
-            );
-            PayloadTypeRegistry.clientboundPlay().register(
-                    QuickLitematicaEntityPlacementPayloads.ResultPayload.ID,
-                    QuickLitematicaEntityPlacementPayloads.ResultPayload.CODEC
-            );
+        if (hasExternalEntityPlacementServer()) {
+            return;
         }
+        PayloadTypeRegistry.serverboundPlay().register(
+                QuickLitematicaEntityPlacementPayloads.HelloPayload.ID,
+                QuickLitematicaEntityPlacementPayloads.HelloPayload.CODEC
+        );
+        PayloadTypeRegistry.serverboundPlay().register(
+                QuickLitematicaEntityPlacementPayloads.RequestPayload.ID,
+                QuickLitematicaEntityPlacementPayloads.RequestPayload.CODEC
+        );
+        PayloadTypeRegistry.clientboundPlay().register(
+                QuickLitematicaEntityPlacementPayloads.CapabilityPayload.ID,
+                QuickLitematicaEntityPlacementPayloads.CapabilityPayload.CODEC
+        );
+        PayloadTypeRegistry.clientboundPlay().register(
+                QuickLitematicaEntityPlacementPayloads.ResultPayload.ID,
+                QuickLitematicaEntityPlacementPayloads.ResultPayload.CODEC
+        );
+        QuickLitematicaEntityPlacementServer.initialize();
+    }
+
+    public static void initializeClient() {
         ClientPlayNetworking.registerGlobalReceiver(
                 QuickLitematicaEntityPlacementPayloads.CapabilityPayload.ID,
                 (payload, context) -> receiveCapability(payload)
@@ -99,6 +105,12 @@ public final class QuickLitematicaEntityPlacement {
         );
         ClientTickEvents.END_CLIENT_TICK.register(QuickLitematicaEntityPlacement::tick);
         ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> clearSession());
+    }
+
+    private static boolean hasExternalEntityPlacementServer() {
+        return FabricLoader.getInstance().getModContainer("carpet-fga-addition")
+                .flatMap(container -> container.findPath("carpet/fga/QuickCraftEntityPlacementServer.class"))
+                .isPresent();
     }
 
     public static boolean openSelector(Minecraft client) {
@@ -137,9 +149,22 @@ public final class QuickLitematicaEntityPlacement {
     }
 
     public static boolean isServerAvailable() {
+        if (isNetworkCapabilityEnabled()) {
+            return true;
+        }
+        // 装着 FGA 时，以 FGA 规则为准；没装 FGA 的单人档才走本进程放置。
+        return !hasExternalEntityPlacementServer()
+                && isIntegratedServerAvailable(Minecraft.getInstance());
+    }
+
+    private static boolean isNetworkCapabilityEnabled() {
         return capability != null
                 && capability.enabled
                 && capability.version == QuickLitematicaEntityPlacementPayloads.PROTOCOL_VERSION;
+    }
+
+    private static boolean isIntegratedServerAvailable(Minecraft client) {
+        return client != null && client.getSingleplayerServer() != null && client.player != null;
     }
 
     public static void tick(Minecraft client) {
@@ -157,12 +182,16 @@ public final class QuickLitematicaEntityPlacement {
     }
 
     private static void sendHello() {
-        ClientPlayNetworking.send(new QuickLitematicaEntityPlacementPayloads.HelloPayload(
-                QuickLitematicaEntityPlacementPayloads.PROTOCOL_VERSION,
-                QuickLitematicaEntityPlacementPayloads.CLIENT_FEATURES,
-                QuickLitematicaEntityPlacementPayloads.MAX_CLIENT_NBT_BYTES
-        ));
         helloSent = true;
+        try {
+            ClientPlayNetworking.send(new QuickLitematicaEntityPlacementPayloads.HelloPayload(
+                    QuickLitematicaEntityPlacementPayloads.PROTOCOL_VERSION,
+                    QuickLitematicaEntityPlacementPayloads.CLIENT_FEATURES,
+                    QuickLitematicaEntityPlacementPayloads.MAX_CLIENT_NBT_BYTES
+            ));
+        } catch (RuntimeException ignored) {
+            // 专用服未声明频道时 hello 会失败；单人档改走本进程放置，不依赖这次握手。
+        }
     }
 
     private static void receiveCapability(QuickLitematicaEntityPlacementPayloads.CapabilityPayload payload) {
@@ -364,7 +393,7 @@ public final class QuickLitematicaEntityPlacement {
         if (client.player == null) {
             return List.of();
         }
-        double reach = capability != null ? capability.reach : DEFAULT_REACH;
+        double reach = currentReach(client);
         Vec3 start = client.player.getEyePosition(1.0F);
         Vec3 end = start.add(client.player.getViewVector(1.0F).scale(reach));
         return collectCandidates(client).stream()
@@ -692,6 +721,16 @@ public final class QuickLitematicaEntityPlacement {
         return List.copyOf(merged);
     }
 
+    private static double currentReach(Minecraft client) {
+        if (capability != null) {
+            return capability.reach;
+        }
+        if (client != null && client.player != null) {
+            return Math.max(DEFAULT_REACH, client.player.blockInteractionRange());
+        }
+        return DEFAULT_REACH;
+    }
+
     private static boolean canCollectCandidates(Minecraft client) {
         return QuickCraftConfigs.isEasyPlaceEntitiesEnabled()
                 && client != null
@@ -700,18 +739,54 @@ public final class QuickLitematicaEntityPlacement {
     }
 
     private static boolean sendRequest(Minecraft client, Candidate candidate) {
-        if (client.level == null
-                || client.player == null
-                || capability == null
-                || candidate.nbt.sizeInBytes() > capability.maxNbtBytes) {
+        if (client.level == null || client.player == null) {
+            return false;
+        }
+        int maxNbtBytes = isNetworkCapabilityEnabled()
+                ? capability.maxNbtBytes
+                : QuickLitematicaEntityPlacementPayloads.MAX_CLIENT_NBT_BYTES;
+        if (candidate.nbt.sizeInBytes() > maxNbtBytes) {
             return false;
         }
         long nonce = ThreadLocalRandom.current().nextLong();
+        Identifier dimension = client.level.dimension().identifier();
+        boolean creativeBypass = QuickCraftConfigs.isCreativeEntityPlacementAllowed() && client.player.isCreative();
+        CompoundTag nbt = candidate.nbt.copy();
         pendingRequests.put(nonce, new PendingRequest(candidate.key(), clientTick));
+        IntegratedServer server = client.getSingleplayerServer();
+        if (server != null) {
+            UUID playerId = client.player.getUUID();
+            server.execute(() -> {
+                ServerPlayer player = server.getPlayerList().getPlayer(playerId);
+                if (player == null) {
+                    return;
+                }
+                String token = QuickLitematicaEntityPlacementServer.ensureSession(player);
+                QuickLitematicaEntityPlacementServer.handleRequest(player, new QuickLitematicaEntityPlacementPayloads.RequestPayload(
+                        token,
+                        nonce,
+                        dimension,
+                        candidate.position,
+                        candidate.entityType,
+                        candidate.region,
+                        candidate.index,
+                        candidate.yaw,
+                        candidate.pitch,
+                        candidate.velocity,
+                        creativeBypass,
+                        nbt
+                ));
+            });
+            return true;
+        }
+        if (!isNetworkCapabilityEnabled()) {
+            pendingRequests.remove(nonce);
+            return false;
+        }
         ClientPlayNetworking.send(new QuickLitematicaEntityPlacementPayloads.RequestPayload(
                 capability.sessionToken,
                 nonce,
-                client.level.dimension().identifier(),
+                dimension,
                 candidate.position,
                 candidate.entityType,
                 candidate.region,
@@ -719,8 +794,8 @@ public final class QuickLitematicaEntityPlacement {
                 candidate.yaw,
                 candidate.pitch,
                 candidate.velocity,
-                QuickCraftConfigs.isCreativeEntityPlacementAllowed() && client.player.isCreative(),
-                candidate.nbt.copy()
+                creativeBypass,
+                nbt
         ));
         return true;
     }
