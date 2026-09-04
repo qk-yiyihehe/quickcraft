@@ -5,6 +5,7 @@ import net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.EntityType;
+import net.minecraft.entity.SpawnReason;
 import net.minecraft.entity.decoration.BlockAttachedEntity;
 import net.minecraft.item.Item;
 import net.minecraft.item.ItemStack;
@@ -13,9 +14,12 @@ import net.minecraft.nbt.NbtCompound;
 import net.minecraft.nbt.NbtDouble;
 import net.minecraft.nbt.NbtElement;
 import net.minecraft.nbt.NbtList;
+import net.minecraft.nbt.NbtOps;
 import net.minecraft.registry.Registries;
+import net.minecraft.storage.NbtReadView;
 import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.server.world.ServerWorld;
+import net.minecraft.util.ErrorReporter;
 import net.minecraft.util.Identifier;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.Vec3d;
@@ -102,7 +106,8 @@ public final class QuickLitematicaEntityPlacementServer {
             sendResult(player, payload.nonce(), "DISABLED", "");
             return;
         }
-        long tick = player.getServerWorld().getTime();
+        ServerWorld world = player.getEntityWorld();
+        long tick = world.getTime();
         if (!session.enabled || !QuickCraftConfigs.isEasyPlaceEntitiesEnabled()) {
             sendResult(player, payload.nonce(), "DISABLED", "");
             return;
@@ -121,8 +126,6 @@ public final class QuickLitematicaEntityPlacementServer {
             return;
         }
         session.lastRequestTick = tick;
-
-        ServerWorld world = player.getServerWorld();
         if (!dimensionId(world).equals(payload.dimension().toString())) {
             sendResult(player, payload.nonce(), "OUT_OF_REACH", "");
             return;
@@ -141,7 +144,7 @@ public final class QuickLitematicaEntityPlacementServer {
             sendResult(player, payload.nonce(), "WORLD_RULE_BLOCKED", "");
             return;
         }
-        if (!world.canPlayerModifyAt(player, targetPos)) {
+        if (!world.canEntityModifyAt(player, targetPos)) {
             sendResult(player, payload.nonce(), "PERMISSION_DENIED", "");
             return;
         }
@@ -286,7 +289,7 @@ public final class QuickLitematicaEntityPlacementServer {
         if (type == null) {
             return null;
         }
-        Entity entity = type.create(world);
+        Entity entity = type.create(world, SpawnReason.LOAD);
         if (entity == null) {
             return null;
         }
@@ -299,7 +302,7 @@ public final class QuickLitematicaEntityPlacementServer {
             position.add(NbtDouble.of(rootPosition.z));
             clean.put("Pos", position);
         }
-        entity.readNbt(clean);
+        entity.readData(NbtReadView.create(ErrorReporter.EMPTY, world.getRegistryManager(), clean));
         float yaw = root ? rootYaw : readRotation(nbt, 0);
         float pitch = root ? rootPitch : readRotation(nbt, 1);
         Vec3d velocity = root ? rootVelocity : readVector(nbt, "Motion");
@@ -312,7 +315,7 @@ public final class QuickLitematicaEntityPlacementServer {
         for (int i = 0; i < passengers.size(); i++) {
             Entity passenger = createEntityTree(world, compoundAt(passengers, i), rootPosition,
                     rootYaw, rootPitch, rootVelocity, false, depth + 1);
-            if (passenger == null || !passenger.startRiding(entity, true)) {
+            if (passenger == null || !passenger.startRiding(entity, true, true)) {
                 return null;
             }
         }
@@ -361,7 +364,7 @@ public final class QuickLitematicaEntityPlacementServer {
     }
 
     private static boolean isTreeWithinReach(ServerPlayerEntity player, Entity root, double reach) {
-        if (player.getEyePos().squaredDistanceTo(root.getPos()) > reach * reach) {
+        if (player.getEyePos().squaredDistanceTo(root.getEntityPos()) > reach * reach) {
             return false;
         }
         for (Entity passenger : root.getPassengerList()) {
@@ -376,7 +379,7 @@ public final class QuickLitematicaEntityPlacementServer {
         BlockPos position = root instanceof BlockAttachedEntity attached
                 ? attached.getAttachedBlockPos()
                 : root.getBlockPos();
-        if (!world.isChunkLoaded(position) || !world.canPlayerModifyAt(player, position)) {
+        if (!world.isChunkLoaded(position) || !world.canEntityModifyAt(player, position)) {
             return false;
         }
         for (Entity passenger : root.getPassengerList()) {
@@ -726,7 +729,10 @@ public final class QuickLitematicaEntityPlacementServer {
     }
 
     private static ItemStack parseItem(ServerWorld world, NbtCompound nbt) {
-        return ItemStack.fromNbt(world.getRegistryManager(), nbt).orElse(ItemStack.EMPTY);
+        return ItemStack.OPTIONAL_CODEC
+                .parse(world.getRegistryManager().getOps(NbtOps.INSTANCE), nbt)
+                .result()
+                .orElse(ItemStack.EMPTY);
     }
 
     private static boolean isTagOfType(NbtCompound nbt, String key, int type) {
@@ -745,31 +751,31 @@ public final class QuickLitematicaEntityPlacementServer {
     }
 
     private static NbtCompound compoundAt(NbtList list, int index) {
-        return list.getCompound(index);
+        return list.getCompoundOrEmpty(index);
     }
 
     private static String stringValue(NbtCompound nbt, String key) {
-        return nbt.getString(key);
+        return nbt.getString(key, "");
     }
 
     private static boolean booleanValue(NbtCompound nbt, String key) {
-        return nbt.getBoolean(key);
+        return nbt.getBoolean(key, false);
     }
 
     private static int intValue(NbtCompound nbt, String key) {
-        return nbt.getInt(key);
+        return nbt.getInt(key, 0);
     }
 
     private static byte byteValue(NbtCompound nbt, String key) {
-        return nbt.getByte(key);
+        return nbt.getByte(key, (byte) 0);
     }
 
     private static double doubleAt(NbtList list, int index) {
-        return list.getDouble(index);
+        return list.getDouble(index, Double.NaN);
     }
 
     private static float floatAt(NbtList list, int index) {
-        return list.getFloat(index);
+        return list.getFloat(index, Float.NaN);
     }
 
     private static boolean isListOf(NbtList list, int type) {
@@ -797,7 +803,7 @@ public final class QuickLitematicaEntityPlacementServer {
     }
 
     private static List<ItemStack> inventoryItems(ServerPlayerEntity player) {
-        return player.getInventory().main;
+        return player.getInventory().getMainStacks();
     }
 
     private static final class Session {
