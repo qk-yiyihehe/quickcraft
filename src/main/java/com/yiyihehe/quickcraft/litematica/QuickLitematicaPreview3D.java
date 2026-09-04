@@ -1243,7 +1243,7 @@ public final class QuickLitematicaPreview3D {
                     matrices.translate(-data.sizeX() / 2.0F, -data.sizeY() / 2.0F, -data.sizeZ() / 2.0F);
                     Matrix4f dynamicModelView = new Matrix4f(matrices.last().pose());
                     this.applyLight(element.pitch(), element.angle());
-                    this.drawBuffers(dynamicModelView);
+                    this.drawBuffers(dynamicModelView, false);
                     if (data.hasDynamicContent()) {
                         this.prepareDynamicFrame(data);
                         if (this.dynamicFrame != null) {
@@ -1259,6 +1259,7 @@ public final class QuickLitematicaPreview3D {
                             Minecraft.getInstance().gameRenderer.featureRenderDispatcher().renderAllFeatures(fallbackNodes);
                         }
                     }
+                    this.drawBuffers(dynamicModelView, true);
                 } finally {
                     matrices.popPose();
                 }
@@ -1301,8 +1302,12 @@ public final class QuickLitematicaPreview3D {
             RenderSystem.setShaderLights(this.previewLightingBuffer.slice());
         }
 
-        private void drawBuffers(Matrix4f modelView) {
+        // 玻璃会写 depth。先画不透明层和实体，再画透明层，才能透过玻璃看到实体。
+        private void drawBuffers(Matrix4f modelView, boolean translucent) {
             for (LayerKey layer : LayerKey.DRAW_ORDER) {
+                if ((layer == LayerKey.TRANSLUCENT) != translucent) {
+                    continue;
+                }
                 LayerBuffer buffer = this.layerBuffers.get(layer);
                 if (buffer != null) {
                     drawLayerBuffer(layer, buffer, modelView);
@@ -1924,7 +1929,7 @@ public final class QuickLitematicaPreview3D {
                 matrices.translate(-data.sizeX() / 2.0F, -data.sizeY() / 2.0F, -data.sizeZ() / 2.0F);
                 Matrix4f modelView = new Matrix4f(matrices.last().pose());
                 this.applyLight(drag.pitch, drag.angle);
-                this.drawBuffers(modelView);
+                this.drawBuffers(modelView, false);
                 if (data.hasDynamicContent()) {
                     if (this.dynamicFrame != null) {
                         this.drawDynamicFrame(modelView);
@@ -1938,6 +1943,7 @@ public final class QuickLitematicaPreview3D {
                         Minecraft.getInstance().gameRenderer.featureRenderDispatcher().renderAllFeatures(submitNodes);
                     }
                 }
+                this.drawBuffers(modelView, true);
             } finally {
                 RenderSystem.restoreProjectionMatrix();
                 RenderSystem.outputColorTextureOverride = previousColorTarget;
