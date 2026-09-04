@@ -13,6 +13,9 @@ import com.sun.jna.Native;
 import com.sun.jna.Platform;
 import com.sun.jna.Pointer;
 import com.sun.jna.platform.win32.BaseTSD;
+import com.sun.jna.platform.win32.User32;
+import com.sun.jna.platform.win32.WinDef.HWND;
+import com.sun.jna.platform.win32.WinUser;
 import com.sun.jna.win32.StdCallLibrary;
 import com.sun.jna.win32.W32APIOptions;
 import com.yiyihehe.quickcraft.config.QuickCraftConfigs;
@@ -99,6 +102,8 @@ import net.minecraft.world.level.CardinalLighting;
 import net.minecraft.world.level.lighting.LevelLightEngine;
 import net.minecraft.world.level.dimension.DimensionType;
 import org.jetbrains.annotations.Nullable;
+import org.lwjgl.glfw.GLFW;
+import org.lwjgl.glfw.GLFWNativeWin32;
 import org.joml.Matrix4f;
 import org.joml.Matrix4fStack;
 import org.joml.Vector3f;
@@ -366,6 +371,11 @@ public final class QuickLitematicaPreview3D {
         private final Screen owner;
         private final Runnable previewMetadataRefresh;
         private final AtomicBoolean previewImageWriteInProgress = new AtomicBoolean();
+        @Nullable
+        private Consumer<Component> pendingPreviewImageCallback;
+        private boolean pendingPreviewImageRestoreFullscreen;
+        private boolean pendingPreviewImageKeepMaximized;
+        private int pendingPreviewImageWaitTicks;
         private boolean hasEmbeddedPreviewImage;
         private int viewX;
         private int viewY;
@@ -568,20 +578,81 @@ public final class QuickLitematicaPreview3D {
         }
 
         void selectPreviewImage(Consumer<Component> callback) {
+            if (!this.canEditPreviewImage() || this.current == null || this.currentPath == null) {
+                callback.accept(Component.translatable("quickcraft.litematica.preview_3d.preview_write_unavailable"));
+                return;
+            }
+
+            Minecraft client = Minecraft.getInstance();
+            if (client.getWindow().isFullscreen()) {
+                // toggleFullScreen() 只改标记，真正退出独占全屏要等下一帧 swapBuffers。
+                client.getWindow().toggleFullScreen();
+                this.pendingPreviewImageCallback = callback;
+                this.pendingPreviewImageRestoreFullscreen = true;
+                this.pendingPreviewImageKeepMaximized = true;
+                this.pendingPreviewImageWaitTicks = 5;
+                return;
+            }
+            this.openPreviewImagePicker(callback, false, isMaximizedWindow());
+        }
+
+        void pollPendingPreviewImagePicker() {
+            Consumer<Component> callback = this.pendingPreviewImageCallback;
+            if (callback == null) {
+                return;
+            }
+            if (this.pendingPreviewImageRestoreFullscreen
+                    && this.pendingPreviewImageWaitTicks > 0
+                    && isExclusiveFullscreen()) {
+                this.pendingPreviewImageWaitTicks--;
+                return;
+            }
+            this.pendingPreviewImageCallback = null;
+            boolean restore = this.pendingPreviewImageRestoreFullscreen;
+            boolean keepMaximized = this.pendingPreviewImageKeepMaximized;
+            this.pendingPreviewImageRestoreFullscreen = false;
+            this.pendingPreviewImageKeepMaximized = false;
+            this.pendingPreviewImageWaitTicks = 0;
+            this.openPreviewImagePicker(callback, restore, keepMaximized);
+        }
+
+        void cancelPendingPreviewImagePicker() {
+            if (this.pendingPreviewImageCallback == null && !this.pendingPreviewImageRestoreFullscreen) {
+                return;
+            }
+            this.pendingPreviewImageCallback = null;
+            boolean restore = this.pendingPreviewImageRestoreFullscreen;
+            boolean keepMaximized = this.pendingPreviewImageKeepMaximized;
+            this.pendingPreviewImageRestoreFullscreen = false;
+            this.pendingPreviewImageKeepMaximized = false;
+            this.pendingPreviewImageWaitTicks = 0;
+            restoreGameWindow(restore, keepMaximized);
+        }
+
+        private void openPreviewImagePicker(Consumer<Component> callback, boolean restoreFullscreen, boolean keepMaximized) {
             Preview preview = this.current;
             Path target = this.currentPath;
-            if (!this.canEditPreviewImage() || preview == null || target == null) {
+            if (preview == null || target == null) {
+                restoreGameWindow(restoreFullscreen, keepMaximized);
                 callback.accept(Component.translatable("quickcraft.litematica.preview_3d.preview_write_unavailable"));
                 return;
             }
 
             Path selected;
+            if (keepMaximized) {
+                maximizeGameWindow();
+            }
+            long handle = Minecraft.getInstance().getWindow().handle();
+            setAutoIconify(handle, false);
             try {
                 selected = QuickLitematicaPreviewImageWriter.chooseImage(target);
             } catch (Throwable throwable) {
                 LOGGER.error("Failed to open the preview image file picker", throwable);
                 callback.accept(Component.translatable("quickcraft.litematica.preview_3d.preview_write_failed"));
                 return;
+            } finally {
+                setAutoIconify(handle, true);
+                restoreGameWindow(restoreFullscreen, keepMaximized);
             }
             if (selected == null) {
                 callback.accept(Component.translatable("quickcraft.litematica.preview_3d.image_selection_cancelled"));
@@ -604,6 +675,81 @@ public final class QuickLitematicaPreview3D {
                     this.failPreviewWrite(callback, throwable);
                 }
             });
+        }
+
+        private static long gameWindowHandle() {
+            return Minecraft.getInstance().getWindow().handle();
+        }
+
+        private static boolean isExclusiveFullscreen() {
+            long handle = gameWindowHandle();
+            return handle != 0L && GLFW.glfwGetWindowMonitor(handle) != 0L;
+        }
+
+        private static boolean isMaximizedWindow() {
+            long handle = gameWindowHandle();
+            return handle != 0L && GLFW.glfwGetWindowAttrib(handle, GLFW.GLFW_MAXIMIZED) != GLFW.GLFW_FALSE;
+        }
+
+        private static void maximizeGameWindow() {
+            long handle = gameWindowHandle();
+            if (handle == 0L) {
+                return;
+            }
+            if (GLFW.glfwGetWindowAttrib(handle, GLFW.GLFW_ICONIFIED) != GLFW.GLFW_FALSE) {
+                GLFW.glfwRestoreWindow(handle);
+            }
+            if (GLFW.glfwGetWindowAttrib(handle, GLFW.GLFW_MAXIMIZED) == GLFW.GLFW_FALSE) {
+                GLFW.glfwMaximizeWindow(handle);
+            }
+        }
+
+        private static void setAutoIconify(long handle, boolean enabled) {
+            if (handle == 0L) {
+                return;
+            }
+            GLFW.glfwSetWindowAttrib(handle, GLFW.GLFW_AUTO_ICONIFY, enabled ? GLFW.GLFW_TRUE : GLFW.GLFW_FALSE);
+        }
+
+        private static void restoreGameWindow(boolean restoreFullscreen, boolean keepMaximized) {
+            Minecraft client = Minecraft.getInstance();
+            long handle = client.getWindow().handle();
+            if (handle != 0L) {
+                boolean iconified = GLFW.glfwGetWindowAttrib(handle, GLFW.GLFW_ICONIFIED) != GLFW.GLFW_FALSE;
+                if (keepMaximized) {
+                    maximizeGameWindow();
+                } else if (iconified) {
+                    GLFW.glfwRestoreWindow(handle);
+                }
+                GLFW.glfwShowWindow(handle);
+                GLFW.glfwFocusWindow(handle);
+                restoreWindowsGameWindow(handle, keepMaximized, iconified);
+            }
+            if (restoreFullscreen && !client.getWindow().isFullscreen()) {
+                client.getWindow().toggleFullScreen();
+            }
+        }
+
+        private static void restoreWindowsGameWindow(long glfwHandle, boolean keepMaximized, boolean iconified) {
+            if (!Platform.isWindows()) {
+                return;
+            }
+            try {
+                long hwndValue = GLFWNativeWin32.glfwGetWin32Window(glfwHandle);
+                if (hwndValue == 0L) {
+                    return;
+                }
+                HWND hwnd = new HWND();
+                hwnd.setPointer(new Pointer(hwndValue));
+                if (keepMaximized) {
+                    User32.INSTANCE.ShowWindow(hwnd, WinUser.SW_SHOWMAXIMIZED);
+                } else if (iconified) {
+                    User32.INSTANCE.ShowWindow(hwnd, WinUser.SW_RESTORE);
+                }
+                User32.INSTANCE.SetForegroundWindow(hwnd);
+            } catch (Throwable throwable) {
+                LOGGER.debug("Failed to restore the game window after the preview image picker", throwable);
+            }
         }
 
         void removePreviewImage(Consumer<Component> callback) {
@@ -670,6 +816,7 @@ public final class QuickLitematicaPreview3D {
 
         @Override
         public void close() {
+            this.cancelPendingPreviewImagePicker();
             this.clearCurrent();
         }
 
