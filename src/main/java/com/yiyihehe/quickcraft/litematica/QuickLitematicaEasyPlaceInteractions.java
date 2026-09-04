@@ -94,12 +94,12 @@ public final class QuickLitematicaEasyPlaceInteractions {
             return false;
         }
 
-        if (isSchematicBlockCloser(client)) {
+        HitResult hitResult = client.crosshairTarget;
+        if (!(hitResult instanceof BlockHitResult blockHitResult) || blockHitResult.getType() != HitResult.Type.BLOCK) {
             return false;
         }
 
-        HitResult hitResult = client.crosshairTarget;
-        if (!(hitResult instanceof BlockHitResult blockHitResult) || blockHitResult.getType() != HitResult.Type.BLOCK) {
+        if (isSchematicBlockCloser(client, blockHitResult)) {
             return false;
         }
 
@@ -116,7 +116,7 @@ public final class QuickLitematicaEasyPlaceInteractions {
                 || isSpecialInteraction(client, block, heldStack);
     }
 
-    private static boolean isSchematicBlockCloser(MinecraftClient client) {
+    private static boolean isSchematicBlockCloser(MinecraftClient client, BlockHitResult vanillaHit) {
         net.minecraft.entity.Entity traceEntity = QuickFreeCameraInteractions.getEasyPlaceTraceEntity(client, client.player);
         boolean targetFluids = Configs.InfoOverlays.INFO_OVERLAYS_TARGET_FLUIDS.getBooleanValue();
         RayTraceWrapper trace = RayTraceUtils.getGenericTrace(
@@ -127,7 +127,11 @@ public final class QuickLitematicaEasyPlaceInteractions {
                 targetFluids,
                 false
         );
-        return trace != null && trace.getHitType() == HitType.SCHEMATIC_BLOCK;
+        if (trace == null || trace.getHitType() != HitType.SCHEMATIC_BLOCK) {
+            return false;
+        }
+        BlockHitResult schematicHit = trace.getBlockHitResult();
+        return schematicHit != null && !schematicHit.getBlockPos().equals(vanillaHit.getBlockPos());
     }
 
     private static boolean isScreenInteraction(Block block) {
