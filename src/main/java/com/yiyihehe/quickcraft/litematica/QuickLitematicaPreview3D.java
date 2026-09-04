@@ -145,18 +145,19 @@ public final class QuickLitematicaPreview3D {
         thread.setDaemon(true);
         return thread;
     });
+    // v16：API 审查后的 1.21 渲染语义重新建缓存，避免旧 v15 网格被误读。
     // v15：缓存文件固定绑定投影路径，内容哈希和材质包签名只决定是否原地重建。
     // v14：UV 恢复 float32，并保留完整 light 坐标，避免斜视面跨出方块图集 sprite 边界。
     // v13：回退箱子静态化（entity atlas 纹理与方块 VBO 不兼容，紫色方块）；保留 GZIP+量化+视口剔除+邻居登记修复。
     // v12：箱子顶点静态化到独立 VBO，缓存追加 chestVertices 字段。
     // v11：保留 v10 的 GZIP + 顶点量化；箱子方块实体改回动态渲染，避免 chest atlas 被写进方块 VBO。
     // 升版本会让旧缓存一次性失效；之后 mod 版本号变化不再清缓存（token 已不含 mod 版本）。
-    private static final int CACHE_FORMAT_VERSION = 15;
+    private static final int CACHE_FORMAT_VERSION = 16;
     private static final int CACHE_MAGIC = 0x51435033; // QCP3
     private static final String CACHE_DIR_NAME = "litematica-preview-cache";
     private static final String CACHE_VERSION_FILE_NAME = "cache-version.txt";
     private static final String CACHE_INDEX_FILE_NAME = "cache-index.properties";
-    private static final String CACHE_RENDER_MARKER = "quickcraft-model-mesh-v15-stable-path-content-resource-signature-mc1.21";
+    private static final String CACHE_RENDER_MARKER = "quickcraft-model-mesh-v16-api-audit-stable-path-content-resource-signature-mc1.21";
     private static final int EXPAND_BUTTON_SIZE = 16;
     private static final int COMPAT_CLIPBOARD_MAX_DIMENSION = 4096;
     private static final int EMBEDDED_PREVIEW_DIMENSION = 1024;
