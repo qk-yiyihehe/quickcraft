@@ -65,6 +65,7 @@
 		"QuickDraggableButtonScreenMixin",
 		"QuickFreeCameraGameRendererMixin",
 		"QuickFreeCameraInteractionManagerMixin",
+		"QuickFreeCameraPlayerEntityMixin",
 		"QuickTransferItemHighlightMixin",
 		"QuickTransferScreenMixin",
 		"ShulkerBoxScreenMixin"
