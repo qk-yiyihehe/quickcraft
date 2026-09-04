@@ -189,7 +189,7 @@
   "quickcraft.litematica.preview_3d.rendering": "渲染 3D 预览",
   "quickcraft.entity_placement.title": "选择要放置的实体",
   "quickcraft.entity_placement.empty": "准星方向没有可放置的投影实体",
-  "quickcraft.entity_placement.server_unavailable": "服务端未安装或未启用 Carpet-FGA Addition 的轻松放置实体支持",
+  "quickcraft.entity_placement.server_unavailable": "服务端未安装或未启用轻松放置实体支持",
   "quickcraft.entity_placement.status.matched": "§a已正确放置",
   "quickcraft.entity_placement.status.mismatched": "§6实体类型正确，但位置、方向或数据不符",
   "quickcraft.entity_placement.status.wrong": "§c此处是错误类型的实体",

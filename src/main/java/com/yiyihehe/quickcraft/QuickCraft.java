@@ -18,6 +18,7 @@ public class QuickCraft implements ModInitializer {
     @Override
     public void onInitialize() {
         InitializationHandler.getInstance().registerInitializationHandler(new QuickCraftMalilibInit());
+        QuickLitematicaEntityPlacement.initializeCommon();
     }
 
     public static void bindOptionalHotkeys() {
