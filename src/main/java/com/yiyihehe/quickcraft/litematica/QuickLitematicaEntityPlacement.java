@@ -53,8 +53,8 @@ import java.util.UUID;
 import java.util.concurrent.ThreadLocalRandom;
 
 /**
- * 客户端实体放置入口：从投影收集候选后，优先走已握手的服务端协议；
- * 单人/综合服没有可用网络能力时，改为在本进程直接调用放置逻辑。
+ * 客户端实体放置入口：单人/综合服以 QuickCraft 开关为准，本进程放置；
+ * 专用服必须通过 FGA 握手，并在规则关闭后立即停止放置。
  */
 public final class QuickLitematicaEntityPlacement {
     private static final double DEFAULT_REACH = 4.5D;
@@ -118,7 +118,7 @@ public final class QuickLitematicaEntityPlacement {
             return false;
         }
 
-        if (!isServerAvailable()) {
+        if (!isIntegratedServerAvailable(client)) {
             sendHello();
         }
         client.gui.setScreen(new QuickLitematicaEntityPlacementScreen(collectRayCandidates(client)));
@@ -149,12 +149,11 @@ public final class QuickLitematicaEntityPlacement {
     }
 
     public static boolean isServerAvailable() {
-        if (isNetworkCapabilityEnabled()) {
+        // 单人/综合服只看 QuickCraft 开关；FGA 装没装、规则开没开都不拦截。
+        if (isIntegratedServerAvailable(Minecraft.getInstance())) {
             return true;
         }
-        // 装着 FGA 时，以 FGA 规则为准；没装 FGA 的单人档才走本进程放置。
-        return !hasExternalEntityPlacementServer()
-                && isIntegratedServerAvailable(Minecraft.getInstance());
+        return isNetworkCapabilityEnabled();
     }
 
     private static boolean isNetworkCapabilityEnabled() {
@@ -174,9 +173,8 @@ public final class QuickLitematicaEntityPlacement {
             clearSession();
             return;
         }
-        // The hello is the mechanism that discovers server support, so it must not be gated by
-        // canSend(): Fabric only reports a channel after the server has already declared it.
-        if (!helloSent) {
+        // 专用服才握手 FGA。单人档不发 hello，避免被 FGA 规则把本进程放置挡住。
+        if (!isIntegratedServerAvailable(client) && !helloSent) {
             sendHello();
         }
     }
@@ -210,6 +208,16 @@ public final class QuickLitematicaEntityPlacement {
         PendingRequest pending = pendingRequests.remove(payload.nonce());
         if (pending != null) {
             pendingRequests.values().removeIf(request -> request.key.equals(pending.key));
+        }
+        if (payload.status().equals("DISABLED") && capability != null) {
+            capability = new ServerCapability(
+                    capability.version(),
+                    false,
+                    capability.reach(),
+                    capability.maxNbtBytes(),
+                    capability.sessionToken()
+            );
+            helloSent = false;
         }
         if (payload.status().equals("SUCCESS")) {
             if (pending != null && !payload.entityUuid().isBlank()) {
