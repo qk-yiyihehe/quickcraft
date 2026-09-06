@@ -157,7 +157,7 @@ public final class QuickLitematicaEntityPlacementServer {
             return;
         }
 
-        List<ItemStack> required = materialsForTree(requested, world);
+        List<ItemStack> required = materialsForTree(requested, world, player);
         if (required == null) {
             sendResult(player, payload.nonce(), "UNSUPPORTED_ENTITY", "");
             return;
@@ -404,10 +404,14 @@ public final class QuickLitematicaEntityPlacementServer {
         root.streamPassengersAndSelf().forEach(Entity::discard);
     }
 
-    private static List<ItemStack> materialsForTree(NbtCompound root, ServerWorld world) {
+    private static List<ItemStack> materialsForTree(
+            NbtCompound root,
+            ServerWorld world,
+            ServerPlayerEntity player
+    ) {
         List<ItemStack> materials = new ArrayList<>();
         int[] count = {0};
-        return appendEntityTreeMaterials(root, world, materials, 0, count)
+        return appendEntityTreeMaterials(root, world, materials, 0, count, player)
                 ? mergeMaterials(materials)
                 : null;
     }
@@ -417,7 +421,8 @@ public final class QuickLitematicaEntityPlacementServer {
             ServerWorld world,
             List<ItemStack> materials,
             int depth,
-            int[] count
+            int[] count,
+            ServerPlayerEntity player
     ) {
         if (depth > MAX_ENTITY_TREE_DEPTH || ++count[0] > MAX_ENTITY_TREE_SIZE) {
             return false;
@@ -426,11 +431,13 @@ public final class QuickLitematicaEntityPlacementServer {
         if (id == null || entityTypeForId(id) == null) {
             return false;
         }
-        ItemStack baseStack = stackForEntity(id, nbt, world);
-        if (baseStack == null || baseStack.isEmpty()) {
-            return false;
+        if (!appendConstructedEntityMaterials(id, materials, player)) {
+            ItemStack baseStack = stackForEntity(id, nbt, world);
+            if (baseStack == null || baseStack.isEmpty()) {
+                return false;
+            }
+            materials.add(baseStack);
         }
-        materials.add(baseStack);
 
         if (!pathOf(id).equals("item") && !appendStoredItem(materials, nbt, "Item", world)) {
             return false;
@@ -456,7 +463,7 @@ public final class QuickLitematicaEntityPlacementServer {
 
         NbtList passengers = listValue(nbt, "Passengers");
         for (int i = 0; i < passengers.size(); i++) {
-            if (!appendEntityTreeMaterials(compoundAt(passengers, i), world, materials, depth + 1, count)) {
+            if (!appendEntityTreeMaterials(compoundAt(passengers, i), world, materials, depth + 1, count, player)) {
                 return false;
             }
         }
@@ -500,6 +507,68 @@ public final class QuickLitematicaEntityPlacementServer {
         return egg == null ? null : new ItemStack(egg);
     }
 
+
+    private static boolean appendConstructedEntityMaterials(
+            String id,
+            List<ItemStack> materials,
+            ServerPlayerEntity player
+    ) {
+        String path = pathOf(id);
+        Item spawnEgg = itemForId(namespaceOf(id), path + "_spawn_egg");
+        if (spawnEgg != null && hasInventoryItem(player, spawnEgg)) {
+            return false;
+        }
+        switch (path) {
+            case "snow_golem" -> {
+                materials.add(new ItemStack(constructionPumpkin(player)));
+                materials.add(new ItemStack(Items.SNOW_BLOCK, 2));
+                return true;
+            }
+            case "iron_golem" -> {
+                materials.add(new ItemStack(constructionPumpkin(player)));
+                materials.add(new ItemStack(Items.IRON_BLOCK, 4));
+                return true;
+            }
+            case "copper_golem" -> {
+                materials.add(new ItemStack(Items.COPPER_BLOCK));
+                materials.add(new ItemStack(constructionPumpkin(player)));
+                Item copperChest = itemForId("minecraft", "copper_chest");
+                if (copperChest != null) {
+                    materials.add(new ItemStack(copperChest));
+                }
+                return true;
+            }
+            case "wither" -> {
+                materials.add(new ItemStack(constructionWitherBase(player), 4));
+                materials.add(new ItemStack(Items.WITHER_SKELETON_SKULL, 3));
+                return true;
+            }
+            default -> {
+                return false;
+            }
+        }
+    }
+
+    private static boolean hasInventoryItem(ServerPlayerEntity player, Item item) {
+        return player != null && inventoryItems(player).stream()
+                .anyMatch(stack -> stack.isOf(item) && !stack.isEmpty());
+    }
+
+    private static Item constructionPumpkin(ServerPlayerEntity player) {
+        return hasInventoryItem(player, Items.CARVED_PUMPKIN)
+                ? Items.CARVED_PUMPKIN
+                : hasInventoryItem(player, Items.PUMPKIN)
+                ? Items.PUMPKIN
+                : Items.CARVED_PUMPKIN;
+    }
+
+    private static Item constructionWitherBase(ServerPlayerEntity player) {
+        return hasInventoryItem(player, Items.SOUL_SAND)
+                ? Items.SOUL_SAND
+                : hasInventoryItem(player, Items.SOUL_SOIL)
+                ? Items.SOUL_SOIL
+                : Items.SOUL_SAND;
+    }
     private static boolean appendStoredItem(
             List<ItemStack> materials,
             NbtCompound nbt,
