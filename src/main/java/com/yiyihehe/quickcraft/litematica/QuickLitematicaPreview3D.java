@@ -29,6 +29,7 @@ import fi.dy.masa.malilib.util.StringUtils;
 import net.fabricmc.fabric.api.renderer.v1.RendererAccess;
 import net.fabricmc.fabric.impl.client.indigo.renderer.IndigoRenderer;
 import net.fabricmc.fabric.impl.client.indigo.renderer.render.WorldMesherRenderContext;
+import net.fabricmc.loader.api.FabricLoader;
 import net.minecraft.SharedConstants;
 import net.minecraft.block.BlockEntityProvider;
 import net.minecraft.block.BlockRenderType;
@@ -1309,12 +1310,26 @@ public final class QuickLitematicaPreview3D {
                 if (target != null) {
                     target.beginWrite(false);
                 }
+                boolean translucent = renderLayer.isTranslucent();
+                if (translucent) {
+                    // 原版半透明方块阶段关闭深度写入，否则前面的玻璃会把后面的传送门挡掉。
+                    RenderSystem.depthMask(false);
+                }
                 if (keepTargetOpaque) {
                     RenderSystem.colorMask(true, true, true, false);
                 }
-                buffer.bind();
-                buffer.draw(modelView, RenderSystem.getProjectionMatrix(), RenderSystem.getShader());
-                renderLayer.endDrawing();
+                try {
+                    buffer.bind();
+                    buffer.draw(modelView, RenderSystem.getProjectionMatrix(), RenderSystem.getShader());
+                } finally {
+                    if (translucent) {
+                        RenderSystem.depthMask(true);
+                    }
+                    if (keepTargetOpaque) {
+                        RenderSystem.colorMask(true, true, true, true);
+                    }
+                    renderLayer.endDrawing();
+                }
             }
             VertexBuffer.unbind();
         }
@@ -1390,12 +1405,25 @@ public final class QuickLitematicaPreview3D {
                 if (target != null) {
                     target.beginWrite(false);
                 }
+                boolean translucent = renderLayer.isTranslucent();
+                if (translucent) {
+                    RenderSystem.depthMask(false);
+                }
                 if (keepTargetOpaque) {
                     RenderSystem.colorMask(true, true, true, false);
                 }
-                buffer.bind();
-                buffer.draw(modelView, RenderSystem.getProjectionMatrix(), RenderSystem.getShader());
-                renderLayer.endDrawing();
+                try {
+                    buffer.bind();
+                    buffer.draw(modelView, RenderSystem.getProjectionMatrix(), RenderSystem.getShader());
+                } finally {
+                    if (translucent) {
+                        RenderSystem.depthMask(true);
+                    }
+                    if (keepTargetOpaque) {
+                        RenderSystem.colorMask(true, true, true, true);
+                    }
+                    renderLayer.endDrawing();
+                }
             }
             VertexBuffer.unbind();
         }
@@ -2310,7 +2338,8 @@ public final class QuickLitematicaPreview3D {
 
     private static String currentCacheVersionToken() {
         // 不含 mod 版本号：只有磁盘格式真正改变时才应清缓存，mod 版本升级不应触发清理。
-        return CACHE_FORMAT_VERSION + "|" + CACHE_RENDER_MARKER;
+        return CACHE_FORMAT_VERSION + "|" + CACHE_RENDER_MARKER
+                + "|ctm:" + MeshBuilder.PreviewCtm.runtimeToken();
     }
 
     @Nullable
@@ -2753,7 +2782,8 @@ public final class QuickLitematicaPreview3D {
             matrices.translate(renderPos.getX(), renderPos.getY(), renderPos.getZ());
 
             var model = blockRenderManager.getModel(state);
-            if (fabricContext != null && !model.isVanillaAdapter()) {
+            if (fabricContext != null
+                    && (!model.isVanillaAdapter() || PreviewCtm.isContinuityModel(model))) {
                 fabricContext.tessellateBlock(view, state, pos, model, matrices);
             } else {
                 RenderLayer blockLayer = RenderLayers.getBlockLayer(state);
@@ -2772,6 +2802,38 @@ public final class QuickLitematicaPreview3D {
             }
 
             matrices.pop();
+        }
+
+        /**
+         * Continuity 的连接纹理模型需要经过 Fabric Renderer 的 emitQuads 路径；
+         * 1.21 的原版 getParts 路径可能跳过连接纹理模型包装。
+         */
+        private static final class PreviewCtm {
+            private static final boolean ACTIVE = FabricLoader.getInstance().isModLoaded("continuity");
+            @Nullable
+            private static String cachedRuntimeToken;
+
+            private static boolean isContinuityModel(Object model) {
+                return ACTIVE
+                        && model != null
+                        && model.getClass().getName().startsWith("me.pepperbell.continuity.");
+            }
+
+            private static String runtimeToken() {
+                String token = cachedRuntimeToken;
+                if (token != null) {
+                    return token;
+                }
+
+                token = "none";
+                if (ACTIVE) {
+                    token = FabricLoader.getInstance().getModContainer("continuity")
+                            .map(container -> container.getMetadata().getVersion().getFriendlyString())
+                            .orElse("loaded-unknown");
+                }
+                cachedRuntimeToken = token;
+                return token;
+            }
         }
 
         private static void throwIfCancelled(AtomicBoolean cancelled) {
