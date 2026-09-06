@@ -35,6 +35,8 @@ import java.util.Map;
 // malilib/Guava 的泛型在 JDT 空安全检查下会产生大量误报，这里统一压制这类警告。
 public final class QuickCraftConfigs implements IConfigHandler {
     private static final String CONFIG_FILE_NAME = QuickCraft.MOD_ID + ".json";
+    /** futurecompat 用户映射原始 JSON 节：由 futurecompat 包读写内容，本类只负责随 quickcraft.json 持久化。 */
+    public static JsonObject futureCompatSection;
     private static final String HOTKEY_CATEGORY_KEY = "screen.quickcraft.tab.hotkeys";
     private static final String CRAFTING_TRANSLATION_PREFIX = QuickCraft.MOD_ID + ".config.crafting";
     private static final String CONTAINER_TRANSLATION_PREFIX = QuickCraft.MOD_ID + ".config.container_tools";
@@ -478,6 +480,10 @@ public final class QuickCraftConfigs implements IConfigHandler {
                 "replaceLitematicaPreviewWith3D",
                 true
         ).apply(PROJECTION_TRANSLATION_PREFIX);
+        public static final ConfigBoolean MAP_FUTURE_LITEMATIC_IDS = new ConfigBoolean(
+                "mapFutureLitematicIds",
+                true
+        ).apply(PROJECTION_TRANSLATION_PREFIX);
         public static final ConfigBooleanHotkeyed ALLOW_EASY_PLACE_VANILLA_INTERACTIONS = new ConfigBooleanHotkeyed(
                 "allowEasyPlaceOpenContainers",
                 false,
@@ -659,6 +665,7 @@ public final class QuickCraftConfigs implements IConfigHandler {
                 ENABLE_LITEMATICA_AREA_CLONE,
                 ALLOW_ADDING_LITEMATICA_PREVIEW_IMAGES,
                 REPLACE_LITEMATICA_PREVIEW_WITH_3D,
+                MAP_FUTURE_LITEMATIC_IDS,
                 ALLOW_EASY_PLACE_VANILLA_INTERACTIONS,
                 ALLOW_EASY_PLACE_INTERACTION_SCREENS,
                 ALLOW_EASY_PLACE_REDSTONE_INTERACTIONS,
@@ -1326,6 +1333,10 @@ public final class QuickCraftConfigs implements IConfigHandler {
         return ProjectionTools.SHOW_LITEMATICA_CONTAINER_MATERIAL_BUTTON.getBooleanValue();
     }
 
+    public static boolean isMapFutureLitematicIdsEnabled() {
+        return ProjectionTools.MAP_FUTURE_LITEMATIC_IDS.getBooleanValue();
+    }
+
     public static boolean isLitematica3DPreviewEnabled() {
         return ProjectionTools.SHOW_LITEMATICA_3D_PREVIEW.getBooleanValue();
     }
@@ -1404,6 +1415,7 @@ public final class QuickCraftConfigs implements IConfigHandler {
         ConfigUtils.readConfigBase(root, "ModSupport", ModSupport.OPTIONS);
         ConfigUtils.readConfigBase(root, "Hotkeys", Hotkeys.OPTIONS);
         readButtonPositions(root);
+        futureCompatSection = root.getAsJsonObject("FutureCompat");
 
         JsonObject crafting = root.getAsJsonObject("Crafting");
         if (crafting != null
@@ -1459,6 +1471,9 @@ public final class QuickCraftConfigs implements IConfigHandler {
         ConfigUtils.writeConfigBase(root, "ModSupport", ModSupport.OPTIONS);
         ConfigUtils.writeConfigBase(root, "Hotkeys", Hotkeys.OPTIONS);
         writeButtonPositions(root);
+        if (futureCompatSection != null && futureCompatSection.isJsonObject()) {
+            root.add("FutureCompat", futureCompatSection);
+        }
         JsonUtils.writeJsonToFileAsPath(root, dir.resolve(CONFIG_FILE_NAME));
     }
 

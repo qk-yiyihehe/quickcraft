@@ -1,6 +1,7 @@
 package com.yiyihehe.quickcraft.mixin;
 
 import com.yiyihehe.quickcraft.config.QuickCraftConfigs;
+import com.yiyihehe.quickcraft.litematica.QuickLitematicaFutureCompatBridge;
 import com.yiyihehe.quickcraft.litematica.QuickLitematicaPreview3D;
 import fi.dy.masa.litematica.gui.GuiSchematicBrowserBase;
 import fi.dy.masa.litematica.gui.Icons;
@@ -72,6 +73,7 @@ public abstract class LitematicaWidgetSchematicBrowserMixin extends WidgetFileBr
                 && previewPixels.length > 0
                 && previewSize * previewSize == previewPixels.length;
         QuickLitematicaPreview3D.render(this.parent, entry, hasEmbeddedPreview, drawContext, x, y, size);
+        QuickLitematicaFutureCompatBridge.updateBrowserButton(this.parent, entry);
     }
 
     @Redirect(

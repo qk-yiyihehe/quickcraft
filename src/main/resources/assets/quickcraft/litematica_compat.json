@@ -1,0 +1,9 @@
+{
+  "_comment": "未来版本 .litematic 兼容映射表（QuickCraft 在交给 Litematica 解析前改写）。key/value 均为完整 id（命名空间:路径），不做模糊匹配；blocks 用于方块 palette 条目，items 用于实体/方块实体 NBT 里嵌的 ItemStack；states 为完整状态对数组 {source:{name,properties},target:{name,properties}}，改写时整体替换 Properties。改写仅当：源 id 在当前版本注册表不存在 且 目标 id 存在。请直接写最终目标 id，不要链式映射。玩家在游戏内编辑的映射存于配置目录 litematica_user_mappings.json，运行时覆盖并扩展本表。",
+  "blocks": {
+    "minecraft:iron_chain": "minecraft:chain"
+  },
+  "items": {
+    "minecraft:iron_chain": "minecraft:chain"
+  }
+}

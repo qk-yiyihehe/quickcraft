@@ -2,6 +2,7 @@ package com.yiyihehe.quickcraft.gui;
 
 import com.yiyihehe.quickcraft.QuickCraft;
 import com.yiyihehe.quickcraft.config.QuickCraftConfigs;
+import com.yiyihehe.quickcraft.futurecompat.FutureCompatEditorScreen;
 import fi.dy.masa.malilib.config.IConfigBase;
 import fi.dy.masa.malilib.gui.GuiConfigsBase;
 import fi.dy.masa.malilib.gui.button.ButtonBase;
@@ -55,6 +56,16 @@ public class QuickCraftConfigScreen extends GuiConfigsBase {
 
         for (Tab tab : Tab.values()) {
             x += this.createTabButton(x, y, tab) + 2;
+        }
+
+        // 未来版本映射管理入口（仅功能开启时显示；打开无文件上下文的管理模式编辑器）
+        // 间距与分页按钮一致（+2px）
+        if (QuickCraftConfigs.isMapFutureLitematicIdsEnabled()) {
+            ButtonGeneric futureMappingsButton = new ButtonGeneric(
+                    x, y, -1, 20,
+                    tr("quickcraft.future_compat.button.manage", "Manage future mappings"));
+            this.addButton(futureMappingsButton, (button, mouseButton) ->
+                    MinecraftClient.getInstance().setScreen(new FutureCompatEditorScreen(this)));
         }
     }
 
@@ -172,7 +183,8 @@ public class QuickCraftConfigScreen extends GuiConfigsBase {
                 QuickCraftConfigs.ProjectionTools.SHOW_LITEMATICA_3D_PREVIEW,
                 QuickCraftConfigs.ProjectionTools.AUTO_DISABLE_SHADERS_FOR_3D_PREVIEW,
                 QuickCraftConfigs.ProjectionTools.ALLOW_ADDING_LITEMATICA_PREVIEW_IMAGES,
-                QuickCraftConfigs.ProjectionTools.REPLACE_LITEMATICA_PREVIEW_WITH_3D
+                QuickCraftConfigs.ProjectionTools.REPLACE_LITEMATICA_PREVIEW_WITH_3D,
+                QuickCraftConfigs.ProjectionTools.MAP_FUTURE_LITEMATIC_IDS
         ),
         HOLD_EASY_PLACE(
                 QuickCraftConfigs.ProjectionTools.HOLD_EASY_PLACE,
