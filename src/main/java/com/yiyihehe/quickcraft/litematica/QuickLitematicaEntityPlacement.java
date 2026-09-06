@@ -274,7 +274,7 @@ public final class QuickLitematicaEntityPlacement {
                 continue;
             }
             for (int index = 0; index < entities.size() && candidates.size() < MAX_SCAN_CANDIDATES; index++) {
-                Candidate candidate = createCandidate(placement, subRegion, region, index, entities.get(index));
+                Candidate candidate = createCandidate(client, placement, subRegion, region, index, entities.get(index));
                 if (candidate != null && DataManager.getRenderLayerRange().isPositionWithinRange(
                         (int) candidate.position.x,
                         (int) candidate.position.y,
@@ -404,6 +404,7 @@ public final class QuickLitematicaEntityPlacement {
     }
 
     private static Candidate createCandidate(
+            MinecraftClient client,
             SchematicPlacement placement,
             SubRegionPlacement subRegion,
             String region,
@@ -419,7 +420,7 @@ public final class QuickLitematicaEntityPlacement {
         if (type == null) {
             return null;
         }
-        List<ItemStack> materials = getMaterials(type, nbt);
+        List<ItemStack> materials = getMaterials(type, nbt, client);
         if (materials.isEmpty()) {
             return null;
         }
@@ -446,9 +447,17 @@ public final class QuickLitematicaEntityPlacement {
     }
 
     private static List<ItemStack> getMaterials(EntityType<?> type, NbtCompound nbt) {
+        return getMaterials(type, nbt, null);
+    }
+
+    private static List<ItemStack> getMaterials(
+            EntityType<?> type,
+            NbtCompound nbt,
+            MinecraftClient materialClient
+    ) {
         List<ItemStack> materials = new ArrayList<>();
         int[] entityCount = {0};
-        return appendEntityTreeMaterials(type, nbt, materials, 0, entityCount)
+        return appendEntityTreeMaterials(type, nbt, materials, 0, entityCount, materialClient)
                 ? mergeMaterials(materials)
                 : List.of();
     }
@@ -458,16 +467,19 @@ public final class QuickLitematicaEntityPlacement {
             NbtCompound nbt,
             List<ItemStack> materials,
             int depth,
-            int[] entityCount
+            int[] entityCount,
+            MinecraftClient materialClient
     ) {
         if (depth > MAX_ENTITY_TREE_DEPTH || ++entityCount[0] > MAX_ENTITY_TREE_SIZE) {
             return false;
         }
-        ItemStack baseMaterial = getBaseMaterial(type, nbt);
-        if (baseMaterial.isEmpty()) {
-            return false;
+        if (!appendConstructedEntityMaterials(type, materials, materialClient)) {
+            ItemStack baseMaterial = getBaseMaterial(type, nbt);
+            if (baseMaterial.isEmpty()) {
+                return false;
+            }
+            materials.add(baseMaterial);
         }
-        materials.add(baseMaterial);
 
         if (type != EntityType.ITEM && !appendStoredItem(materials, nbt, "Item")) {
             return false;
@@ -497,7 +509,7 @@ public final class QuickLitematicaEntityPlacement {
             Identifier id = Identifier.tryParse(passenger.getString("id"));
             if (id == null || !Registries.ENTITY_TYPE.containsId(id)
                     || !appendEntityTreeMaterials(Registries.ENTITY_TYPE.get(id), passenger,
-                    materials, depth + 1, entityCount)) {
+                    materials, depth + 1, entityCount, materialClient)) {
                 return false;
             }
         }
@@ -530,6 +542,73 @@ public final class QuickLitematicaEntityPlacement {
             default -> null;
         };
         return item == null ? ItemStack.EMPTY : new ItemStack(item);
+    }
+
+    private static boolean appendConstructedEntityMaterials(
+            EntityType<?> type,
+            List<ItemStack> materials,
+            MinecraftClient materialClient
+    ) {
+        SpawnEggItem spawnEgg = SpawnEggItem.forEntity(type);
+        if (spawnEgg != null && (materialClient == null || hasClientItem(materialClient, spawnEgg))) {
+            return false;
+        }
+        String path = Registries.ENTITY_TYPE.getId(type).getPath();
+        switch (path) {
+            case "snow_golem" -> {
+                materials.add(new ItemStack(constructionPumpkin(materialClient)));
+                materials.add(new ItemStack(Items.SNOW_BLOCK, 2));
+                return true;
+            }
+            case "iron_golem" -> {
+                materials.add(new ItemStack(constructionPumpkin(materialClient)));
+                materials.add(new ItemStack(Items.IRON_BLOCK, 4));
+                return true;
+            }
+            case "copper_golem" -> {
+                materials.add(new ItemStack(Items.COPPER_BLOCK));
+                materials.add(new ItemStack(constructionPumpkin(materialClient)));
+                Item copperChest = registeredItem("copper_chest");
+                if (copperChest != null) {
+                    materials.add(new ItemStack(copperChest));
+                }
+                return true;
+            }
+            case "wither" -> {
+                materials.add(new ItemStack(constructionWitherBase(materialClient), 4));
+                materials.add(new ItemStack(Items.WITHER_SKELETON_SKULL, 3));
+                return true;
+            }
+            default -> {
+                return false;
+            }
+        }
+    }
+
+    private static boolean hasClientItem(MinecraftClient client, Item item) {
+        return client.player != null && client.player.getInventory().main.stream()
+                .anyMatch(stack -> stack.isOf(item) && !stack.isEmpty());
+    }
+
+    private static Item constructionPumpkin(MinecraftClient client) {
+        return client != null && hasClientItem(client, Items.CARVED_PUMPKIN)
+                ? Items.CARVED_PUMPKIN
+                : client != null && hasClientItem(client, Items.PUMPKIN)
+                ? Items.PUMPKIN
+                : Items.CARVED_PUMPKIN;
+    }
+
+    private static Item constructionWitherBase(MinecraftClient client) {
+        return client != null && hasClientItem(client, Items.SOUL_SAND)
+                ? Items.SOUL_SAND
+                : client != null && hasClientItem(client, Items.SOUL_SOIL)
+                ? Items.SOUL_SOIL
+                : Items.SOUL_SAND;
+    }
+
+    private static Item registeredItem(String path) {
+        Identifier id = Identifier.of("minecraft", path);
+        return Registries.ITEM.containsId(id) ? Registries.ITEM.get(id) : null;
     }
 
     private static Item getBoatItem(String type, boolean chestBoat) {
