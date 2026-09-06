@@ -217,6 +217,7 @@ public final class QuickLitematicaEntityPlacementServer {
             sendResult(player, payload.nonce(), "INTERNAL_ERROR", "");
             return;
         }
+        giveCopperChests(player, requested);
         sendResult(player, payload.nonce(), "SUCCESS", root.getUUID().toString());
     }
 
@@ -537,10 +538,6 @@ public final class QuickLitematicaEntityPlacementServer {
                 }
                 materials.add(new ItemStack(copperBlock));
                 materials.add(new ItemStack(constructionPumpkin(player)));
-                Item copperChest = itemForId("minecraft", "copper_chest");
-                if (copperChest != null) {
-                    materials.add(new ItemStack(copperChest));
-                }
                 return true;
             }
             case "wither" -> {
@@ -573,6 +570,30 @@ public final class QuickLitematicaEntityPlacementServer {
                 : hasInventoryItem(player, Items.SOUL_SOIL)
                 ? Items.SOUL_SOIL
                 : Items.SOUL_SAND;
+    }
+
+    private static void giveCopperChests(ServerPlayer player, CompoundTag root) {
+        Item copperChest = itemForId("minecraft", "copper_chest");
+        if (copperChest == null) {
+            return;
+        }
+        int count = countEntities(root, "copper_golem");
+        for (int index = 0; index < count; index++) {
+            ItemStack stack = new ItemStack(copperChest);
+            if (!player.getInventory().add(stack) && !stack.isEmpty()) {
+                player.drop(stack, false, false);
+            }
+        }
+    }
+
+    private static int countEntities(CompoundTag nbt, String path) {
+        String id = readEntityId(nbt);
+        int count = path.equals(id == null ? "" : pathOf(id)) ? 1 : 0;
+        ListTag passengers = listValue(nbt, "Passengers");
+        for (int index = 0; index < passengers.size(); index++) {
+            count += countEntities(compoundAt(passengers, index), path);
+        }
+        return count;
     }
 
     private static boolean appendStoredItem(
