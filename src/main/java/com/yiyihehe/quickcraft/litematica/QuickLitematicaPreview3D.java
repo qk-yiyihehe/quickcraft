@@ -1314,12 +1314,26 @@ public final class QuickLitematicaPreview3D {
                 if (target != null) {
                     target.beginWrite(false);
                 }
+                boolean translucent = renderLayer.isTranslucent();
+                if (translucent) {
+                    // 原版半透明方块阶段关闭深度写入，否则前面的玻璃会把后面的传送门挡掉。
+                    RenderSystem.depthMask(false);
+                }
                 if (keepTargetOpaque) {
                     RenderSystem.colorMask(true, true, true, false);
                 }
-                buffer.bind();
-                buffer.draw(modelView, RenderSystem.getProjectionMatrix(), RenderSystem.getShader());
-                renderLayer.endDrawing();
+                try {
+                    buffer.bind();
+                    buffer.draw(modelView, RenderSystem.getProjectionMatrix(), RenderSystem.getShader());
+                } finally {
+                    if (translucent) {
+                        RenderSystem.depthMask(true);
+                    }
+                    if (keepTargetOpaque) {
+                        RenderSystem.colorMask(true, true, true, true);
+                    }
+                    renderLayer.endDrawing();
+                }
             }
             VertexBuffer.unbind();
         }
@@ -1394,12 +1408,25 @@ public final class QuickLitematicaPreview3D {
                 if (target != null) {
                     target.beginWrite(false);
                 }
+                boolean translucent = renderLayer.isTranslucent();
+                if (translucent) {
+                    RenderSystem.depthMask(false);
+                }
                 if (keepTargetOpaque) {
                     RenderSystem.colorMask(true, true, true, false);
                 }
-                buffer.bind();
-                buffer.draw(modelView, RenderSystem.getProjectionMatrix(), RenderSystem.getShader());
-                renderLayer.endDrawing();
+                try {
+                    buffer.bind();
+                    buffer.draw(modelView, RenderSystem.getProjectionMatrix(), RenderSystem.getShader());
+                } finally {
+                    if (translucent) {
+                        RenderSystem.depthMask(true);
+                    }
+                    if (keepTargetOpaque) {
+                        RenderSystem.colorMask(true, true, true, true);
+                    }
+                    renderLayer.endDrawing();
+                }
             }
             VertexBuffer.unbind();
         }
