@@ -38,6 +38,7 @@
 		"LitematicaMaterialListHudRendererMixin",
 		"LitematicaMinecraftClientHoldEasyPlaceMixin",
 		"LitematicaInventoryUtilsShulkerRestockMixin",
+		"LitematicaSchematicFutureCompatMixin",
 		"LitematicaSchematicLoadMixin",
 		"LitematicaSchematicVerifierMixin",
 		"LitematicaStagedVertexBufferAccessor",

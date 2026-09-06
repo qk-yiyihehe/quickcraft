@@ -2,6 +2,7 @@ package com.yiyihehe.quickcraft.gui;
 
 import com.yiyihehe.quickcraft.QuickCraft;
 import com.yiyihehe.quickcraft.config.QuickCraftConfigs;
+import com.yiyihehe.quickcraft.futurecompat.FutureCompatEditorScreen;
 import fi.dy.masa.malilib.config.IConfigBase;
 import fi.dy.masa.malilib.gui.GuiConfigsBase;
 import fi.dy.masa.malilib.gui.button.ButtonBase;
@@ -55,6 +56,14 @@ public class QuickCraftConfigScreen extends GuiConfigsBase {
 
         for (Tab tab : Tab.values()) {
             x += this.createTabButton(x, y, tab) + 2;
+        }
+        // 未来版本映射管理入口（仅功能开启时显示；打开无文件上下文的管理模式编辑器）
+        if (QuickCraftConfigs.isMapFutureLitematicIdsEnabled()) {
+            ButtonGeneric futureMappingsButton = new ButtonGeneric(
+                    x, y, -1, 20,
+                    tr("quickcraft.future_compat.button.manage", "Manage future mappings"));
+            this.addButton(futureMappingsButton, (button, mouseButton) ->
+                    Minecraft.getInstance().setScreenAndShow(new FutureCompatEditorScreen(this)));
         }
     }
 

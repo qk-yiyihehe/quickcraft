@@ -34,6 +34,14 @@ import fi.dy.masa.malilib.render.RenderUtils;
 import fi.dy.masa.malilib.util.InfoUtils;
 import fi.dy.masa.malilib.util.StringUtils;
 import net.fabricmc.fabric.api.client.rendering.v1.PictureInPictureRendererRegistry;
+import net.fabricmc.fabric.api.client.renderer.v1.Renderer;
+import net.fabricmc.fabric.api.client.renderer.v1.mesh.MutableQuadView;
+import net.fabricmc.fabric.api.client.renderer.v1.mesh.QuadEmitter;
+import net.fabricmc.fabric.api.client.renderer.v1.render.AltModelBlockRenderer;
+import net.fabricmc.loader.api.FabricLoader;
+import com.yiyihehe.quickcraft.futurecompat.FutureSchematicCompatibility;
+import net.minecraft.client.renderer.block.dispatch.BlockStateModel;
+import net.minecraft.util.LightCoordsUtil;
 import net.minecraft.SharedConstants;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.EntityBlock;
@@ -210,6 +218,9 @@ public final class QuickLitematicaPreview3D {
     @Nullable
     private static volatile Path currentCacheDirectory;
 
+    /** CTM 渲染路径回退原因（一次性记录，便于诊断"无缝玻璃未生效"）。 */
+    private static final java.util.concurrent.atomic.AtomicReference<String> CTM_FALLBACK_REASON = new java.util.concurrent.atomic.AtomicReference<>();
+
     private QuickLitematicaPreview3D() {
     }
 
@@ -217,6 +228,11 @@ public final class QuickLitematicaPreview3D {
         if (SPECIAL_RENDERER_REGISTERED.compareAndSet(false, true)) {
             PictureInPictureRendererRegistry.register(context -> new PreviewGuiElementRenderer());
         }
+    }
+
+    /** v1 兼容 mixin 的桥接入口：Litematica 本体加载 .litematic 前先按映射表改写 palette。 */
+    public static boolean rewriteSchematicNbtForFutureIds(CompoundTag nbt) {
+        return FutureSchematicCompatibility.rewriteForLitematicaLoad(nbt);
     }
 
     public static Manager init(fi.dy.masa.litematica.gui.GuiSchematicBrowserBase gui, Runnable previewMetadataRefresh) {
@@ -2434,7 +2450,10 @@ public final class QuickLitematicaPreview3D {
 
     private static String currentCacheVersionToken() {
         // 不含 mod 版本号：只有磁盘格式真正改变时才应清缓存，mod 版本升级不应触发清理。
-        return CACHE_FORMAT_VERSION + "|" + CACHE_RENDER_MARKER;
+        // ctm:/fc: 维度让 Continuity 装/卸/升级、映射表变化自动整体失效缓存。
+        return CACHE_FORMAT_VERSION + "|" + CACHE_RENDER_MARKER
+                + "|ctm:" + PreviewCtm.runtimeToken()
+                + "|fc:" + FutureSchematicCompatibility.mappingsFingerprint();
     }
 
     @Nullable
@@ -2614,7 +2633,10 @@ public final class QuickLitematicaPreview3D {
 
     private static final class MeshBuilder {
         private static MeshData build(DirectoryEntry entry, AtomicBoolean cancelled, ProgressSink progressSink) {
-            LitematicaSchematic schematic = LitematicaSchematic.createFromFile(entry.getDirectory(), entry.getName(), FileType.LITEMATICA_SCHEMATIC);
+            // Future-version .litematic compatibility: when the gate passes and the file is a future
+            // schematic, rewrite in memory and parse directly; otherwise keep Litematica's native path
+            // (including its null failure semantics).
+            LitematicaSchematic schematic = FutureSchematicCompatibility.loadSchematic(entry);
             throwIfCancelled(cancelled);
             if (schematic == null) {
                 throw new IllegalStateException("Cannot read litematic file");
@@ -2642,6 +2664,12 @@ public final class QuickLitematicaPreview3D {
 
             ModelBlockRenderer blockRenderer = new ModelBlockRenderer(true, true, client.getBlockColors());
             FluidRenderer fluidRenderer = new FluidRenderer(client.getModelManager().getFluidStateModelSet());
+            // CTM alternate path: fabric Renderer API renderer (null when none registered)
+            AltModelBlockRenderer altBlockRenderer = null;
+            Renderer renderer = Renderer.get();
+            if (renderer != null) {
+                altBlockRenderer = renderer.altModelBlockRenderer(true, true, client.getBlockColors());
+            }
 
             for (String regionName : schematic.getAreas().keySet()) {
                 throwIfCancelled(cancelled);
@@ -2663,7 +2691,7 @@ public final class QuickLitematicaPreview3D {
                         BlockPos renderPos = pos.subtract(bounds.min());
                         recordBlockEntity(blockStates, blockEntities, blockEntityRendererCache, view, state, schematicBlockEntities, pos, renderPos, bounds);
                         renderFluidIfPresent(collector, fluidRenderer, view, state, pos, renderPos);
-                        renderBlockModel(collector, blockRenderer, view, state, pos, renderPos);
+                        renderBlockModel(collector, blockRenderer, altBlockRenderer, view, state, pos, renderPos);
                     }
 
                     visited++;
@@ -2857,12 +2885,25 @@ public final class QuickLitematicaPreview3D {
         private static void renderBlockModel(
                 MeshCollector collector,
                 ModelBlockRenderer blockRenderer,
+                @Nullable AltModelBlockRenderer altBlockRenderer,
                 RegionBlockView view,
                 BlockState state,
                 BlockPos pos,
                 BlockPos renderPos
         ) {
             if (state.getRenderShape() != RenderShape.MODEL) {
+                return;
+            }
+
+            BlockStateModel model = Minecraft.getInstance().getModelManager().getBlockStateModelSet().get(state);
+            // Connected-texture path (seamless glass): when Continuity is active and has wrapped this
+            // model, tessellate through the fabric Renderer API so the wrapper's emitQuads runs (CTM is
+            // applied there; the parts-based vanilla path silently bypasses it). Failures fall back to
+            // the vanilla path below with an identical mesh.
+            if (altBlockRenderer != null
+                    && PreviewCtm.isActive()
+                    && PreviewCtm.isContinuityWrapped(model)
+                    && renderBlockModelCtm(collector, altBlockRenderer, view, state, pos, renderPos, model)) {
                 return;
             }
 
@@ -2875,15 +2916,125 @@ public final class QuickLitematicaPreview3D {
                     view,
                     pos,
                     state,
-                    Minecraft.getInstance().getModelManager().getBlockStateModelSet().get(state),
+                    model,
                     state.getSeed(pos)
             );
+        }
+
+        /**
+         * Continuity connected-texture path: tessellates via the fabric Renderer API's
+         * {@link AltModelBlockRenderer} (the 26.2 equivalent of the terrain-level stage; vanilla chunk
+         * rendering is auto-routed through it as well when a renderer is installed). It drives the
+         * model's emitQuads - the only hook where Continuity's CtmBlockStateModel wrapper applies
+         * connected textures - and performs culling/AO/tinting/shading like the vanilla path. Quads
+         * arrive fully processed (positions already offset) and are bucketed by their own chunk layer.
+         */
+        private static boolean renderBlockModelCtm(
+                MeshCollector collector,
+                AltModelBlockRenderer altBlockRenderer,
+                RegionBlockView view,
+                BlockState state,
+                BlockPos pos,
+                BlockPos renderPos,
+                BlockStateModel model
+        ) {
+            Renderer renderer = Renderer.get();
+            if (renderer == null) {
+                // Logging the reason once makes a missing renderer diagnosable instead of silently
+                // producing non-seamless glass.
+                if (CTM_FALLBACK_REASON.compareAndSet(null, "no Fabric Renderer implementation registered")) {
+                    LOGGER.warn("CTM path unavailable: no Fabric Renderer implementation registered; falling back to vanilla block rendering");
+                }
+                return false;
+            }
+            try {
+                QuadEmitter emitter = renderer.quadEmitter(quad -> writeCtmQuad(collector, quad));
+                altBlockRenderer.tesselateBlock(
+                        emitter,
+                        renderPos.getX(),
+                        renderPos.getY(),
+                        renderPos.getZ(),
+                        view,
+                        pos,
+                        state,
+                        model,
+                        state.getSeed(pos)
+                );
+            } catch (CancellationException e) {
+                throw e;
+            } catch (Throwable t) {
+                CTM_FALLBACK_REASON.compareAndSet(null, "render threw: " + t);
+                LOGGER.warn("Connected-texture render failed for {} at {}; falling back to vanilla path", state, pos, t);
+                return false;
+            }
+            CTM_FALLBACK_REASON.compareAndSet(null, "ok");
+            return true;
+        }
+
+        /** Records one fully processed quad (4 consecutive vertices) into the collector's layer bucket. */
+        private static void writeCtmQuad(MeshCollector collector, MutableQuadView quad) {
+            VertexConsumer sink = collector.consumerFor(quad.chunkLayer());
+            for (int i = 0; i < 4; i++) {
+                sink.addVertex(quad.x(i), quad.y(i), quad.z(i));
+                sink.setColor(quad.color(i));
+                sink.setUv(quad.u(i), quad.v(i));
+                int light = quad.lightmap(i);
+                sink.setUv2(LightCoordsUtil.block(light), LightCoordsUtil.sky(light));
+                if (quad.hasNormal(i)) {
+                    sink.setNormal(quad.normalX(i), quad.normalY(i), quad.normalZ(i));
+                } else {
+                    sink.setNormal(0.0F, 1.0F, 0.0F);
+                }
+            }
         }
 
         private static void throwIfCancelled(AtomicBoolean cancelled) {
             if (cancelled.get() || Thread.currentThread().isInterrupted()) {
                 throw new CancellationException();
             }
+        }
+    }
+
+    /**
+     * Continuity (optional mod) runtime detection and the cache token's CTM dimension.
+     * QuickCraft does not depend on Continuity: when it is absent {@link #isActive()} is false and
+     * rendering stays on the original path; when present, only models that Continuity actually
+     * wrapped (recognized by class-name prefix) are routed through the emitQuads path so connected
+     * textures apply; all other models keep the vanilla path unchanged.
+     */
+    private static final class PreviewCtm {
+        private static final String CONTINUITY_MODEL_PACKAGE = "me.pepperbell.continuity.client.model.";
+        private static final boolean ACTIVE = FabricLoader.getInstance().isModLoaded("continuity");
+        @Nullable
+        private static String cachedRuntimeToken;
+
+        private static boolean isActive() {
+            return ACTIVE;
+        }
+
+        /** True only for models wrapped by Continuity (CtmBlockStateModel / EmissiveBlockStateModel). */
+        private static boolean isContinuityWrapped(BlockStateModel model) {
+            return ACTIVE && model.getClass().getName().startsWith(CONTINUITY_MODEL_PACKAGE);
+        }
+
+        /** Cache token's CTM dimension: "none" or the Continuity version. Install/remove/upgrade all invalidate caches. */
+        private static String runtimeToken() {
+            String token = cachedRuntimeToken;
+            if (token != null) {
+                return token;
+            }
+            token = "none";
+            if (ACTIVE) {
+                try {
+                    token = FabricLoader.getInstance().getModContainer("continuity")
+                            .map(container -> container.getMetadata().getVersion().getFriendlyString())
+                            .orElse("loaded-unknown");
+                } catch (Throwable t) {
+                    token = "loaded-unknown";
+                }
+            }
+            cachedRuntimeToken = token;
+            return token;
         }
     }
 
