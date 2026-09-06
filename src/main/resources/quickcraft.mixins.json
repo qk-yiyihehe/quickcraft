@@ -34,6 +34,7 @@
 		"LitematicaMinecraftClientHoldEasyPlaceMixin",
 		"LitematicaMinecraftClientShulkerRestockMixin",
 		"LitematicaInventoryUtilsShulkerRestockMixin",
+		"LitematicaSchematicFutureCompatMixin",
 		"LitematicaSchematicLoadMixin",
 		"LitematicaSchematicVerifierMixin",
 		"LitematicaWidgetSchematicBrowserMixin",

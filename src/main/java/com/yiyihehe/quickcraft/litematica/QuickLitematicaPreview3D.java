@@ -15,6 +15,7 @@ import com.sun.jna.platform.win32.BaseTSD;
 import com.sun.jna.win32.StdCallLibrary;
 import com.sun.jna.win32.W32APIOptions;
 import com.yiyihehe.quickcraft.config.QuickCraftConfigs;
+import com.yiyihehe.quickcraft.futurecompat.FutureSchematicCompatibility;
 import com.yiyihehe.quickcraft.mixin.RenderLayerMultiPhaseAccessor;
 import fi.dy.masa.litematica.render.schematic.ChunkCacheSchematic;
 import fi.dy.masa.litematica.render.schematic.WorldRendererSchematic;
@@ -31,6 +32,10 @@ import fi.dy.masa.malilib.render.RenderUtils;
 import fi.dy.masa.malilib.util.InfoUtils;
 import fi.dy.masa.malilib.util.StringUtils;
 import net.fabricmc.fabric.api.client.rendering.v1.SpecialGuiElementRegistry;
+import net.fabricmc.fabric.api.renderer.v1.Renderer;
+import net.fabricmc.fabric.api.renderer.v1.render.BlockVertexConsumerProvider;
+import net.fabricmc.fabric.api.renderer.v1.render.FabricBlockModelRenderer;
+import net.fabricmc.loader.api.FabricLoader;
 import net.minecraft.SharedConstants;
 import net.minecraft.block.Block;
 import net.minecraft.block.BlockEntityProvider;
@@ -61,8 +66,10 @@ import net.minecraft.client.render.VertexConsumerProvider;
 import net.minecraft.client.render.VertexFormats;
 import net.minecraft.client.render.WorldRenderer;
 import net.minecraft.client.render.block.entity.BlockEntityRenderer;
+import net.minecraft.client.render.block.BlockModelRenderer;
 import net.minecraft.client.render.block.BlockRenderManager;
 import net.minecraft.client.render.chunk.BlockBufferAllocatorStorage;
+import net.minecraft.client.render.model.BlockStateModel;
 import net.minecraft.client.texture.NativeImage;
 import net.minecraft.client.util.BufferAllocator;
 import net.minecraft.client.util.math.MatrixStack;
@@ -71,17 +78,19 @@ import net.minecraft.entity.Entity;
 import net.minecraft.fluid.FluidState;
 import net.minecraft.nbt.NbtCompound;
 import net.minecraft.nbt.NbtDouble;
+import net.minecraft.nbt.NbtElement;
 import net.minecraft.nbt.NbtHelper;
 import net.minecraft.nbt.NbtIo;
 import net.minecraft.nbt.NbtList;
 import net.minecraft.nbt.NbtSizeTracker;
+import net.minecraft.nbt.NbtString;
 import net.minecraft.registry.DynamicRegistryManager;
 import net.minecraft.registry.RegistryEntryLookup;
 import net.minecraft.registry.RegistryKeys;
 import net.minecraft.registry.entry.RegistryEntry;
 import net.minecraft.storage.NbtReadView;
-import net.minecraft.util.ErrorReporter;
 import net.minecraft.text.Text;
+import net.minecraft.util.ErrorReporter;
 import net.minecraft.util.Util;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.Direction;
@@ -167,18 +176,21 @@ public final class QuickLitematicaPreview3D {
         thread.setDaemon(true);
         return thread;
     });
+    // v16：未来版本 .litematic 兼容（FutureSchematicCompatibility，解析前按白名单改写 palette/物品 id）。
+    // 磁盘缓存格式本身没变，但旧缓存里的未来方块可能已被烘成 AIR，所以整体失效一次强制重建。
+    // 之后若修改 litematica_compat.json，请把 CACHE_RENDER_MARKER 里的 future-compat-vN 顺延。
     // v15：缓存文件固定绑定投影路径，内容哈希和材质包签名只决定是否原地重建。
     // 1.21.8 同版缓存同时保留 float32 UV 与完整 light 坐标，避免方块图集坐标跨进相邻 sprite。
     // v13：回退箱子静态化（entity atlas 纹理与方块 VBO 不兼容，紫色方块）；保留 GZIP+量化+视口剔除+邻居登记修复。
     // v12：箱子顶点静态化到独立 VBO，缓存追加 chestVertices 字段。
     // v11：保留 v10 的 GZIP + 顶点量化；箱子方块实体改回动态渲染，避免 chest atlas 被写进方块 VBO。
     // 升版本会让旧缓存一次性失效；之后 mod 版本号变化不再清缓存（token 已不含 mod 版本）。
-    private static final int CACHE_FORMAT_VERSION = 15;
+    private static final int CACHE_FORMAT_VERSION = 16;
     private static final int CACHE_MAGIC = 0x51435033; // QCP3
     private static final String CACHE_DIR_NAME = "litematica-preview-cache";
     private static final String CACHE_VERSION_FILE_NAME = "cache-version.txt";
     private static final String CACHE_INDEX_FILE_NAME = "cache-index.properties";
-    private static final String CACHE_RENDER_MARKER = "quickcraft-model-mesh-v15-stable-path-content-resource-signature-mc1.21.8";
+    private static final String CACHE_RENDER_MARKER = "quickcraft-model-mesh-v17-stable-path-content-resource-signature-mc1.21.8-future-compat-v1";
     private static final int EXPAND_BUTTON_SIZE = 16;
     private static final int COMPAT_CLIPBOARD_MAX_DIMENSION = 4096;
     private static final int EMBEDDED_PREVIEW_DIMENSION = 1024;
@@ -223,6 +235,15 @@ public final class QuickLitematicaPreview3D {
         if (SPECIAL_RENDERER_REGISTERED.compareAndSet(false, true)) {
             SpecialGuiElementRegistry.register(context -> new PreviewGuiElementRenderer(context.vertexConsumers()));
         }
+    }
+
+    /**
+     * 供 {@code LitematicaSchematicFutureCompatMixin} 调用：在 Litematica 本体解析 .litematic
+     * （readFromNBT 入口）前按白名单改写未来版本 id，覆盖放置投影/世界渲染/材料清单等 QuickCraft
+     * 3D 预览之外的所有路径。与预览内改写共用同一份逻辑与开关，幂等、可重复执行。
+     */
+    public static boolean rewriteSchematicNbtForFutureIds(NbtCompound nbt) {
+        return FutureSchematicCompatibility.rewriteForLitematicaLoad(nbt);
     }
 
     public static Manager init(fi.dy.masa.litematica.gui.GuiSchematicBrowserBase gui, Runnable previewMetadataRefresh) {
@@ -2539,6 +2560,8 @@ public final class QuickLitematicaPreview3D {
         try {
             MessageDigest digest = MessageDigest.getInstance("SHA-256");
             updateDigest(digest, SharedConstants.getGameVersion().name());
+            // 兼容开关参与缓存签名：切换“映射未来版本改名方块/物品”后旧缓存自动失效并重建
+            updateDigest(digest, "future-litematic-id-mapping=" + QuickCraftConfigs.isMapFutureLitematicIdsEnabled());
             MinecraftClient.getInstance().getResourcePackManager().getEnabledProfiles()
                     .forEach(profile -> updateDigest(digest, profile.getId()));
             return HexFormat.of().formatHex(digest.digest());
@@ -2677,7 +2700,11 @@ public final class QuickLitematicaPreview3D {
 
     private static String currentCacheVersionToken() {
         // 不含 mod 版本号：只有磁盘格式真正改变时才应清缓存，mod 版本升级不应触发清理。
-        return CACHE_FORMAT_VERSION + "|" + CACHE_RENDER_MARKER;
+        // 但 CTM 状态（Continuity 装没装、什么版本）会改变网格内容，必须纳入令牌：
+        // 否则“先建缓存、再装/升级 Continuity”会命中旧的无缝/非无缝 mesh。
+        // 映射内容（内置+玩家）同样决定网格内容：指纹变化即整体失效（方案 v2.1 §8）。
+        return CACHE_FORMAT_VERSION + "|" + CACHE_RENDER_MARKER + "|ctm:" + PreviewCtm.runtimeToken()
+                + "|fc:" + FutureSchematicCompatibility.mappingsFingerprint();
     }
 
     @Nullable
@@ -2855,9 +2882,11 @@ public final class QuickLitematicaPreview3D {
         }
     }
 
+    private static final java.util.concurrent.atomic.AtomicReference<String> CTM_FALLBACK_REASON = new java.util.concurrent.atomic.AtomicReference<>();
     private static final class MeshBuilder {
         private static MeshData build(DirectoryEntry entry, AtomicBoolean cancelled, ProgressSink progressSink) {
-            LitematicaSchematic schematic = LitematicaSchematic.createFromFile(entry.getDirectory(), entry.getName(), FileType.LITEMATICA_SCHEMATIC);
+            // 未来版本 .litematic：交给 Litematica 解析前先按白名单改写未来 id（见 FutureSchematicCompatibility）
+            LitematicaSchematic schematic = FutureSchematicCompatibility.loadSchematic(entry);
             throwIfCancelled(cancelled);
             if (schematic == null) {
                 throw new IllegalStateException("Cannot read litematic file");
@@ -3108,6 +3137,21 @@ public final class QuickLitematicaPreview3D {
 
             var model = blockRenderManager.getModel(state);
             BlockRenderLayer blockLayer = RenderLayers.getBlockLayer(state);
+            // CTM 路径（无缝玻璃）：Continuity 激活且属于非 SOLID 层（玻璃=cutout、染色玻璃=translucent）时，
+            // 改走 Fabric Renderer API 的模型渲染入口——Continuity 的 CtmBlockStateModel 只在 emitQuads 上
+            // 应用连接纹理，而 fabric 的 FabricBlockModelRenderer 会正确驱动 emitQuads
+            // （getParts/renderBlock 老路会被静默绕过）。
+            // 该入口同时承担剔除/动态染色/明暗/AO（与 vanilla renderBlock 同等的“地形级”阶段）。
+            // 失败或条件不满足时回退老路径（与改前输出一致）。
+            // 注意：普通玻璃在 1.21.8 是 CUTOUT 层而非 TRANSLUCENT，门控曾只放行 TRANSLUCENT
+            // 导致普通玻璃永远进不了 CTM 管线。
+            if (PreviewCtm.isActive()
+                    && LayerKey.from(blockLayer) != LayerKey.SOLID
+                    && renderBlockModelCtm(collector, blockRenderManager, matrices, view, state, pos, blockLayer, model)) {
+                matrices.pop();
+                return;
+            }
+
             blockRenderManager.renderBlock(
                     state,
                     pos,
@@ -3119,6 +3163,61 @@ public final class QuickLitematicaPreview3D {
             );
 
             matrices.pop();
+        }
+
+        /**
+         * Continuity 连接纹理路径：经 fabric 的 {@code FabricBlockModelRenderer.render(...)}
+         * （注入在 vanilla BlockModelRenderer 上）渲染“地形级”模型——内部会驱动被 Continuity
+         * 包装模型的 {@code emitQuads}，并完成与 vanilla renderBlock 同等的剔除/动态染色/
+         * 明暗/AO 阶段；quad 按各自 RenderLayer 分发到录制端。
+         * RegionBlockView 已实现 BlockRenderView，schematic 邻居语义（越界→空气）照常参与连接判断。
+         */
+        private static boolean renderBlockModelCtm(
+                MeshCollector collector,
+                BlockRenderManager blockRenderManager,
+                MatrixStack matrices,
+                RegionBlockView view,
+                BlockState state,
+                BlockPos pos,
+                BlockRenderLayer blockLayer,
+                BlockStateModel model
+        ) {
+            if (Renderer.get() == null) {
+                // 静默回退曾让"无缝玻璃失效"无从诊断：一次性记录原因
+                if (CTM_FALLBACK_REASON.compareAndSet(null, "no Fabric Renderer implementation registered")) {
+                    LOGGER.warn("CTM path unavailable: no Fabric Renderer implementation registered; falling back to vanilla block rendering");
+                }
+                return false; // 没有 Renderer 实现（异常环境），走老路径
+            }
+            if (!(blockRenderManager.getModelRenderer() instanceof FabricBlockModelRenderer fabricRenderer)) {
+                if (CTM_FALLBACK_REASON.compareAndSet(null, "BlockModelRenderer is not a FabricBlockModelRenderer")) {
+                    LOGGER.warn("CTM path unavailable: BlockModelRenderer lacks the FabricBlockModelRenderer injection; falling back to vanilla block rendering");
+                }
+                return false;
+            }
+
+            BlockVertexConsumerProvider vertexConsumers = layer -> collector.consumerFor(layer);
+            try {
+                fabricRenderer.render(
+                        view,
+                        model,
+                        state,
+                        pos,
+                        matrices,
+                        vertexConsumers,
+                        true,
+                        state.getRenderingSeed(pos), // 确定性播种：与游戏内一致且跨 rebuild 稳定
+                        OverlayTexture.DEFAULT_UV
+                );
+            } catch (CancellationException e) {
+                throw e;
+            } catch (Throwable t) {
+                CTM_FALLBACK_REASON.compareAndSet(null, "render threw: " + t);
+                LOGGER.warn("Connected-texture render failed for {} at {}; falling back to vanilla path", state, pos, t);
+                return false;
+            }
+            CTM_FALLBACK_REASON.compareAndSet(null, "ok");
+            return true;
         }
 
         private static void throwIfCancelled(AtomicBoolean cancelled) {
@@ -3206,6 +3305,42 @@ public final class QuickLitematicaPreview3D {
                 }
             }
             return null;
+        }
+    }
+
+    /**
+     * Continuity（可选 mod）的运行期检测与缓存令牌维度。
+     * QuickCraft 不依赖 Continuity：未安装时 {@link #isActive()} 为 false，渲染完全走原路径；
+     * 安装后仅透明层（玻璃/染色玻璃/冰等）经 {@code MeshBuilder.renderBlockModelCtm} 走
+     * Fabric Renderer API 的 emitQuads 路径，使 Continuity 在烘烤期包上的模型应用连接纹理。
+     */
+    private static final class PreviewCtm {
+        private static final boolean ACTIVE = FabricLoader.getInstance().isModLoaded("continuity");
+        @Nullable
+        private static String cachedRuntimeToken;
+
+        private static boolean isActive() {
+            return ACTIVE;
+        }
+
+        /** 缓存令牌的 CTM 维度：none / Continuity 版本。装、卸、升级 Continuity 都会整体失效缓存。 */
+        private static String runtimeToken() {
+            String token = cachedRuntimeToken;
+            if (token != null) {
+                return token;
+            }
+            token = "none";
+            if (ACTIVE) {
+                try {
+                    token = FabricLoader.getInstance().getModContainer("continuity")
+                            .map(container -> container.getMetadata().getVersion().getFriendlyString())
+                            .orElse("loaded-unknown");
+                } catch (Throwable t) {
+                    token = "loaded-unknown";
+                }
+            }
+            cachedRuntimeToken = token;
+            return token;
         }
     }
 

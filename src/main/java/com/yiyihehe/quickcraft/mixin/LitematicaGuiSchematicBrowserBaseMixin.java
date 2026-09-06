@@ -1,5 +1,6 @@
 package com.yiyihehe.quickcraft.mixin;
 
+import com.yiyihehe.quickcraft.litematica.QuickLitematicaFutureCompatBridge;
 import com.yiyihehe.quickcraft.litematica.QuickLitematicaPreview3D;
 import fi.dy.masa.litematica.gui.GuiSchematicBrowserBase;
 import fi.dy.masa.litematica.gui.widgets.WidgetSchematicBrowser;
@@ -25,6 +26,8 @@ public abstract class LitematicaGuiSchematicBrowserBaseMixin
                 (GuiSchematicBrowserBase) (Object) this,
                 this::quickcraft$refreshPreviewMetadata
         );
+        // malilib 重建界面时会清空按钮列表：桥接持有的旧按钮对象随之作废，必须重置后懒重建
+        QuickLitematicaFutureCompatBridge.onBrowserGuiInit();
         super.initGui();
     }
 
