@@ -7,6 +7,7 @@ import com.mojang.blaze3d.systems.VertexSorter;
 import com.yiyihehe.quickcraft.QuickContainerCopy;
 import com.yiyihehe.quickcraft.config.QuickCraftConfigs;
 import net.fabricmc.loader.api.FabricLoader;
+import fi.dy.masa.litematica.config.Configs;
 import fi.dy.masa.litematica.data.DataManager;
 import fi.dy.masa.litematica.data.EntitiesDataStorage;
 import fi.dy.masa.litematica.schematic.LitematicaSchematic;
@@ -79,6 +80,7 @@ import org.joml.Matrix4f;
 import org.lwjgl.opengl.GL30;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -121,12 +123,20 @@ public final class QuickLitematicaContainerVerifier {
     private static List<SlotOverlay> currentScreenSlotOverlays = List.of();
     private static Inventory currentScreenContainerInventory;
     private static ActualInventoryReadStatus lastActualInventoryReadStatus = ActualInventoryReadStatus.NOT_READ;
+    private static World trustedCacheWorld;
+    private static final Map<BlockPos, SimpleInventory> trustedInventoryCache = new HashMap<>();
 
     private QuickLitematicaContainerVerifier() {
     }
 
     public static boolean isEnabled() {
-        return QuickCraftConfigs.isLitematicaContainerVerifierEnabled();
+        boolean enabled = QuickCraftConfigs.isLitematicaContainerVerifierEnabled();
+        if (enabled) {
+            // 容器验证依赖 Litematica 的实体数据缓存和备份查询；两项关闭时不会维护该数据源。
+            Configs.Generic.ENTITY_DATA_SYNC.setBooleanValue(true);
+            Configs.Generic.ENTITY_DATA_SYNC_BACKUP.setBooleanValue(true);
+        }
+        return enabled;
     }
 
     public static boolean areSlotHintsVisible() {
@@ -174,6 +184,11 @@ public final class QuickLitematicaContainerVerifier {
             return null;
         }
 
+        if (trustedCacheWorld != world) {
+            trustedCacheWorld = world;
+            trustedInventoryCache.clear();
+        }
+
         if (directInventory != null
                 && expected != null
                 && directInventory.size() == expected.size()
@@ -195,6 +210,7 @@ public final class QuickLitematicaContainerVerifier {
 
         if (cachedNbt != null && !cachedNbt.contains("Items") && expected != null && isInventoryEmpty(expected)) {
             // 服务器空容器 NBT 可能只带 x/y/z/id，没有 Items；这表示已读到空库存。
+            trustedInventoryCache.put(pos.toImmutable(), new SimpleInventory(expected.size()));
             lastActualInventoryReadStatus = ActualInventoryReadStatus.CACHE_INVENTORY;
             return new SimpleInventory(expected.size());
         }
@@ -203,6 +219,7 @@ public final class QuickLitematicaContainerVerifier {
             Inventory cachedInventory = getCachedInventory(world, pos, storage, expected != null ? expected.size() : -1);
 
             if (cachedInventory != null) {
+                trustedInventoryCache.put(pos.toImmutable(), copyInventory(cachedInventory));
                 lastActualInventoryReadStatus = ActualInventoryReadStatus.CACHE_INVENTORY;
                 return cachedInventory;
             }
@@ -212,6 +229,16 @@ public final class QuickLitematicaContainerVerifier {
             lastActualInventoryReadStatus = ActualInventoryReadStatus.CACHE_WITHOUT_ITEMS;
         } else {
             lastActualInventoryReadStatus = ActualInventoryReadStatus.NO_CACHE_NBT;
+        }
+
+        if (!storage.hasServuxServer()
+                && !storage.hasBackupStatus()
+                && expected != null) {
+            SimpleInventory trusted = trustedInventoryCache.get(pos);
+            if (trusted != null && trusted.size() == expected.size()) {
+                lastActualInventoryReadStatus = ActualInventoryReadStatus.CACHE_INVENTORY;
+                return copyInventory(trusted);
+            }
         }
 
         // 多人没有实体数据时不要拿客户端空壳库存硬比，避免把未知误报成错误填充。

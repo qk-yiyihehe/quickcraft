@@ -266,6 +266,15 @@ public abstract class LitematicaSchematicVerifierMixin extends TaskBase implemen
             return;
         }
 
+        BlockEntity expectedBlockEntity = chunkSchematic.getBlockEntity(pos);
+        ExpectedContainer expectedContainer = QuickLitematicaContainerVerifier.getExpectedContainerPartAt(
+                this.schematicPlacement,
+                pos
+        );
+        if (expectedContainer == null && !(expectedBlockEntity instanceof Inventory)) {
+            return;
+        }
+
         this.quickcraft$expectedContainerPositions.add(pos);
         List<ContainerMismatch> mismatches = this.quickcraft$collectContainerMismatchesFromChunks(
                 foundWorld,
