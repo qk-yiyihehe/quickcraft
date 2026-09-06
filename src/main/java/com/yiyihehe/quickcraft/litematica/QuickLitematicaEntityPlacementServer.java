@@ -217,6 +217,7 @@ public final class QuickLitematicaEntityPlacementServer {
             sendResult(player, payload.nonce(), "INTERNAL_ERROR", "");
             return;
         }
+        giveCopperChests(player, requested);
         sendResult(player, payload.nonce(), "SUCCESS", root.getUuid().toString());
     }
 
@@ -534,10 +535,6 @@ public final class QuickLitematicaEntityPlacementServer {
             case "copper_golem" -> {
                 materials.add(new ItemStack(Items.COPPER_BLOCK));
                 materials.add(new ItemStack(constructionPumpkin(player)));
-                Item copperChest = itemForId("minecraft", "copper_chest");
-                if (copperChest != null) {
-                    materials.add(new ItemStack(copperChest));
-                }
                 return true;
             }
             case "wither" -> {
@@ -570,6 +567,31 @@ public final class QuickLitematicaEntityPlacementServer {
                 : hasInventoryItem(player, Items.SOUL_SOIL)
                 ? Items.SOUL_SOIL
                 : Items.SOUL_SAND;
+    }
+
+    private static void giveCopperChests(ServerPlayerEntity player, NbtCompound root) {
+        Item copperChest = itemForId("minecraft", "copper_chest");
+        if (copperChest == null) {
+            return;
+        }
+        int count = countEntities(root, "copper_golem");
+        for (int index = 0; index < count; index++) {
+            ItemStack stack = new ItemStack(copperChest);
+            player.getInventory().insertStack(stack);
+            if (!stack.isEmpty()) {
+                player.dropItem(stack, false, false);
+            }
+        }
+    }
+
+    private static int countEntities(NbtCompound nbt, String path) {
+        String id = readEntityId(nbt);
+        int count = path.equals(id == null ? "" : pathOf(id)) ? 1 : 0;
+        NbtList passengers = listValue(nbt, "Passengers");
+        for (int index = 0; index < passengers.size(); index++) {
+            count += countEntities(compoundAt(passengers, index), path);
+        }
+        return count;
     }
     private static boolean appendStoredItem(
             List<ItemStack> materials,
