@@ -634,10 +634,6 @@ public final class QuickLitematicaEntityPlacement {
             case "copper_golem" -> {
                 materials.add(new ItemStack(Items.COPPER_BLOCK));
                 materials.add(new ItemStack(constructionPumpkin(materialClient)));
-                Item copperChest = registeredItem("copper_chest");
-                if (copperChest != null) {
-                    materials.add(new ItemStack(copperChest));
-                }
                 return true;
             }
             case "wither" -> {
