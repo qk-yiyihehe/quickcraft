@@ -1289,21 +1289,25 @@ public final class QuickLitematicaPreview3D {
             modelView.scale(scale, scale, scale);
             modelView.translate(-data.sizeX() / 2.0F, -data.sizeY() / 2.0F, -data.sizeZ() / 2.0F);
             this.applyLight(modelView);
+            this.drawBuffers(modelView, null, false, false);
             this.prepareDynamicBuffers(data);
             if (this.dynamicBuffersReady) {
                 this.drawDynamicBuffers(modelView, null, false);
             } else {
                 this.drawDynamic(data, modelView, x, y, size);
             }
-            this.drawBuffers(modelView, null, false);
+            this.drawBuffers(modelView, null, false, true);
 
             modelView.popMatrix();
             RenderSystem.restoreProjectionMatrix();
             context.disableScissor();
         }
 
-        private void drawBuffers(Matrix4f modelView, @Nullable Framebuffer target, boolean keepTargetOpaque) {
+        private void drawBuffers(Matrix4f modelView, @Nullable Framebuffer target, boolean keepTargetOpaque, boolean translucent) {
             for (LayerKey layer : LayerKey.DRAW_ORDER) {
+                if ((layer == LayerKey.TRANSLUCENT) != translucent) {
+                    continue;
+                }
                 LayerBuffer buffer = this.layerBuffers.get(layer);
                 if (buffer != null) {
                     drawLayerBuffer(layer.renderLayer(), buffer, target);
@@ -1657,10 +1661,11 @@ public final class QuickLitematicaPreview3D {
                 modelView.translate(-data.sizeX() / 2.0F, -data.sizeY() / 2.0F, -data.sizeZ() / 2.0F);
 
                 this.applyLight(modelView);
+                this.drawBuffers(modelView, framebuffer, false, false);
                 if (this.dynamicBuffersReady) {
                     this.drawDynamicBuffers(modelView, framebuffer, false);
                 }
-                this.drawBuffers(modelView, framebuffer, false);
+                this.drawBuffers(modelView, framebuffer, false, true);
             } finally {
                 modelView.popMatrix();
                 RenderSystem.restoreProjectionMatrix();
