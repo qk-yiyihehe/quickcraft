@@ -1791,6 +1791,10 @@ public final class QuickLitematicaPreview3D {
             }
 
             this.uploadIfNeeded();
+            if (!this.staticUploadComplete) {
+                callback.accept(Text.translatable("quickcraft.litematica.preview_3d.export_not_ready"));
+                return;
+            }
             this.prepareDynamicBuffers(data);
             if (data.hasDynamicContent() && !this.dynamicBuffersReady) {
                 callback.accept(Text.translatable("quickcraft.litematica.preview_3d.export_dynamic_failed"));
@@ -1941,6 +1945,10 @@ public final class QuickLitematicaPreview3D {
             }
 
             this.uploadIfNeeded();
+            if (!this.staticUploadComplete) {
+                messageCallback.accept(Text.translatable("quickcraft.litematica.preview_3d.export_not_ready"));
+                return;
+            }
             this.prepareDynamicBuffers(data);
             if (data.hasDynamicContent() && !this.dynamicBuffersReady) {
                 messageCallback.accept(Text.translatable("quickcraft.litematica.preview_3d.export_dynamic_failed"));
