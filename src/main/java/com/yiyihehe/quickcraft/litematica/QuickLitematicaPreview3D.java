@@ -37,7 +37,11 @@ import fi.dy.masa.malilib.render.GuiContext;
 import fi.dy.masa.malilib.render.RenderUtils;
 import fi.dy.masa.malilib.util.InfoUtils;
 import fi.dy.masa.malilib.util.StringUtils;
+import net.fabricmc.fabric.api.client.renderer.v1.Renderer;
+import net.fabricmc.fabric.api.client.renderer.v1.mesh.QuadEmitter;
+import net.fabricmc.fabric.api.client.renderer.v1.render.AltModelBlockRenderer;
 import net.fabricmc.fabric.api.client.rendering.v1.PictureInPictureRendererRegistry;
+import net.fabricmc.loader.api.FabricLoader;
 import net.minecraft.SharedConstants;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.EntityBlock;
@@ -2622,7 +2626,8 @@ public final class QuickLitematicaPreview3D {
 
     private static String currentCacheVersionToken() {
         // 不含 mod 版本号：只有磁盘格式真正改变时才应清缓存，mod 版本升级不应触发清理。
-        return CACHE_FORMAT_VERSION + "|" + CACHE_RENDER_MARKER;
+        return CACHE_FORMAT_VERSION + "|" + CACHE_RENDER_MARKER
+                + "|ctm:" + MeshBuilder.PreviewCtm.runtimeToken();
     }
 
     @Nullable
@@ -2821,6 +2826,7 @@ public final class QuickLitematicaPreview3D {
 
             Bounds bounds = Bounds.from(schematic.getAreas().values());
             MeshCollector collector = new MeshCollector();
+            @Nullable PreviewCtm.Context ctmContext = PreviewCtm.create(collector, client);
             Map<BlockPos, BlockStateData> blockStates = new HashMap<>();
             List<BlockEntityData> blockEntities = new ArrayList<>();
             List<EntityData> entities = new ArrayList<>();
@@ -2851,7 +2857,7 @@ public final class QuickLitematicaPreview3D {
                         BlockPos renderPos = pos.subtract(bounds.min());
                         recordBlockEntity(blockStates, blockEntities, blockEntityRendererCache, view, state, schematicBlockEntities, pos, renderPos, bounds);
                         renderFluidIfPresent(collector, fluidRenderer, view, state, pos, renderPos);
-                        renderBlockModel(collector, blockRenderer, view, state, pos, renderPos);
+                        renderBlockModel(collector, blockRenderer, ctmContext, view, state, pos, renderPos);
                     }
 
                     visited++;
@@ -3045,12 +3051,19 @@ public final class QuickLitematicaPreview3D {
         private static void renderBlockModel(
                 MeshCollector collector,
                 ModelBlockRenderer blockRenderer,
+                @Nullable PreviewCtm.Context ctmContext,
                 RegionBlockView view,
                 BlockState state,
                 BlockPos pos,
                 BlockPos renderPos
         ) {
             if (state.getRenderShape() != RenderShape.MODEL) {
+                return;
+            }
+
+            var model = Minecraft.getInstance().getModelManager().getBlockStateModelSet().get(state);
+            if (ctmContext != null && PreviewCtm.isContinuityModel(model)
+                    && ctmContext.emit(model, view, state, pos, renderPos)) {
                 return;
             }
 
@@ -3063,9 +3076,82 @@ public final class QuickLitematicaPreview3D {
                     view,
                     pos,
                     state,
-                    Minecraft.getInstance().getModelManager().getBlockStateModelSet().get(state),
+                    model,
                     state.getSeed(pos)
             );
+        }
+
+        private static final class PreviewCtm {
+            private static final boolean ACTIVE = FabricLoader.getInstance().isModLoaded("continuity");
+            @Nullable
+            private static String cachedRuntimeToken;
+
+            @Nullable
+            private static Context create(MeshCollector collector, Minecraft client) {
+                if (!ACTIVE) {
+                    return null;
+                }
+                try {
+                    Renderer renderer = Renderer.get();
+                    return new Context(
+                            renderer.altModelBlockRenderer(true, true, client.getBlockColors()),
+                            renderer.quadEmitter(quad -> quad.buffer(
+                                    OverlayTexture.NO_OVERLAY,
+                                    collector.consumerFor(quad.chunkLayer())
+                            ))
+                    );
+                } catch (Throwable ignored) {
+                    return null;
+                }
+            }
+
+            private static boolean isContinuityModel(Object model) {
+                return model != null
+                        && model.getClass().getName().startsWith("me.pepperbell.continuity.");
+            }
+
+            private static String runtimeToken() {
+                String token = cachedRuntimeToken;
+                if (token != null) {
+                    return token;
+                }
+
+                token = "none";
+                if (ACTIVE) {
+                    token = FabricLoader.getInstance().getModContainer("continuity")
+                            .map(container -> container.getMetadata().getVersion().getFriendlyString())
+                            .orElse("loaded-unknown");
+                }
+                cachedRuntimeToken = token;
+                return token;
+            }
+
+            private record Context(AltModelBlockRenderer renderer, QuadEmitter emitter) {
+                private boolean emit(
+                        net.minecraft.client.renderer.block.dispatch.BlockStateModel model,
+                        RegionBlockView view,
+                        BlockState state,
+                        BlockPos pos,
+                        BlockPos renderPos
+                ) {
+                    try {
+                        this.renderer.tesselateBlock(
+                                this.emitter,
+                                renderPos.getX(),
+                                renderPos.getY(),
+                                renderPos.getZ(),
+                                view,
+                                pos,
+                                state,
+                                model,
+                                state.getSeed(pos)
+                        );
+                        return true;
+                    } catch (Throwable ignored) {
+                        return false;
+                    }
+                }
+            }
         }
 
         private static void throwIfCancelled(AtomicBoolean cancelled) {
