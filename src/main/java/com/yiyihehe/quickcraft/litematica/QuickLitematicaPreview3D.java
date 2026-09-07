@@ -18,6 +18,9 @@ import com.sun.jna.platform.win32.WinUser;
 import com.sun.jna.win32.StdCallLibrary;
 import com.sun.jna.win32.W32APIOptions;
 import com.yiyihehe.quickcraft.config.QuickCraftConfigs;
+import net.fabricmc.fabric.api.renderer.v1.render.BlockVertexConsumerProvider;
+import net.fabricmc.fabric.impl.client.indigo.renderer.render.SimpleBlockRenderContext;
+import net.fabricmc.loader.api.FabricLoader;
 import fi.dy.masa.litematica.render.schematic.ChunkCacheSchematic;
 import fi.dy.masa.litematica.render.schematic.WorldRendererSchematic;
 import fi.dy.masa.litematica.schematic.LitematicaSchematic;
@@ -2697,7 +2700,8 @@ public final class QuickLitematicaPreview3D {
 
     private static String currentCacheVersionToken() {
         // 不含 mod 版本号：只有磁盘格式真正改变时才应清缓存，mod 版本升级不应触发清理。
-        return CACHE_FORMAT_VERSION + "|" + CACHE_RENDER_MARKER;
+        return CACHE_FORMAT_VERSION + "|" + CACHE_RENDER_MARKER
+                + "|ctm:" + MeshBuilder.PreviewCtm.runtimeToken();
     }
 
     @Nullable
@@ -3129,6 +3133,10 @@ public final class QuickLitematicaPreview3D {
             matrices.translate(renderPos.getX(), renderPos.getY(), renderPos.getZ());
 
             var model = blockRenderManager.getModel(state);
+            if (PreviewCtm.isContinuityModel(model) && PreviewCtm.emit(model, matrices, collector, view, state, pos)) {
+                matrices.pop();
+                return;
+            }
             BlockRenderLayer blockLayer = RenderLayers.getBlockLayer(state);
             blockRenderManager.renderBlock(
                     state,
@@ -3141,6 +3149,62 @@ public final class QuickLitematicaPreview3D {
             );
 
             matrices.pop();
+        }
+
+        private static final class PreviewCtm {
+            private static final boolean ACTIVE = FabricLoader.getInstance().isModLoaded("continuity");
+            @Nullable
+            private static String cachedRuntimeToken;
+
+            private static boolean isContinuityModel(Object model) {
+                return ACTIVE
+                        && model != null
+                        && model.getClass().getName().startsWith("me.pepperbell.continuity.");
+            }
+
+            private static boolean emit(
+                    Object model,
+                    MatrixStack matrices,
+                    MeshCollector collector,
+                    RegionBlockView view,
+                    BlockState state,
+                    BlockPos pos
+            ) {
+                try {
+                    SimpleBlockRenderContext.POOL.get().bufferModel(
+                            matrices.peek(),
+                            collector,
+                            (net.minecraft.client.render.model.BlockStateModel) model,
+                            1.0F,
+                            1.0F,
+                            1.0F,
+                            WorldRenderer.getLightmapCoordinates(view, pos),
+                            OverlayTexture.DEFAULT_UV,
+                            view,
+                            pos,
+                            state
+                    );
+                    return true;
+                } catch (Throwable ignored) {
+                    return false;
+                }
+            }
+
+            private static String runtimeToken() {
+                String token = cachedRuntimeToken;
+                if (token != null) {
+                    return token;
+                }
+
+                token = "none";
+                if (ACTIVE) {
+                    token = FabricLoader.getInstance().getModContainer("continuity")
+                            .map(container -> container.getMetadata().getVersion().getFriendlyString())
+                            .orElse("loaded-unknown");
+                }
+                cachedRuntimeToken = token;
+                return token;
+            }
         }
 
         private static void throwIfCancelled(AtomicBoolean cancelled) {
@@ -3212,13 +3276,18 @@ public final class QuickLitematicaPreview3D {
         }
     }
 
-    private static final class MeshCollector {
+    private static final class MeshCollector implements BlockVertexConsumerProvider {
         private final EnumMap<LayerKey, RecordingVertexConsumer> consumers = new EnumMap<>(LayerKey.class);
         private int vertexCount;
 
         private VertexConsumer consumerFor(BlockRenderLayer renderLayer) {
             LayerKey layer = LayerKey.from(renderLayer);
             return this.consumers.computeIfAbsent(layer, ignored -> new RecordingVertexConsumer(this));
+        }
+
+        @Override
+        public VertexConsumer getBuffer(BlockRenderLayer renderLayer) {
+            return this.consumerFor(renderLayer);
         }
 
         private void addVertex(QuantizedVertexBuffer vertices, float x, float y, float z, int argb, float u, float v, int overlay, int light, float nx, float ny, float nz) {
