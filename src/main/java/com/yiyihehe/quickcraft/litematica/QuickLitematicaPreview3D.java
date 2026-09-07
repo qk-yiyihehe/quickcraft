@@ -1328,12 +1328,13 @@ public final class QuickLitematicaPreview3D {
                 this.applyLight(modelView);
                 this.prepareDynamicBuffers(data);
                 Framebuffer framebuffer = MinecraftClient.getInstance().getFramebuffer();
+                this.drawSnapshotBuffers(framebuffer, false);
                 if (this.dynamicBuffersReady) {
                     this.drawSnapshotDynamicBuffers(framebuffer);
                 } else {
                     this.drawDynamicUnculled(data);
                 }
-                this.drawSnapshotBuffers(framebuffer);
+                this.drawSnapshotBuffers(framebuffer, true);
             } finally {
                 modelView.popMatrix();
                 RenderSystem.restoreProjectionMatrix();
@@ -1512,8 +1513,11 @@ public final class QuickLitematicaPreview3D {
             }
         }
 
-        private void drawSnapshotBuffers(Framebuffer framebuffer) {
+        private void drawSnapshotBuffers(Framebuffer framebuffer, boolean translucent) {
             for (LayerKey layer : LayerKey.DRAW_ORDER) {
+                if ((layer == LayerKey.TRANSLUCENT) != translucent) {
+                    continue;
+                }
                 LayerBuffer buffer = this.layerBuffers.get(layer);
                 if (buffer != null) {
                     drawLayerBuffer(layer.renderLayer(), buffer, framebuffer);
@@ -1783,10 +1787,11 @@ public final class QuickLitematicaPreview3D {
                 modelView.translate(-data.sizeX() / 2.0F, -data.sizeY() / 2.0F, -data.sizeZ() / 2.0F);
 
                 this.applyLight(modelView);
+                this.drawSnapshotBuffers(framebuffer, false);
                 if (this.dynamicBuffersReady) {
                     this.drawSnapshotDynamicBuffers(framebuffer);
                 }
-                this.drawSnapshotBuffers(framebuffer);
+                this.drawSnapshotBuffers(framebuffer, true);
             } finally {
                 modelView.popMatrix();
                 RenderSystem.restoreProjectionMatrix();
