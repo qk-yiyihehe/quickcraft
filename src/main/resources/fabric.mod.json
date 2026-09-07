@@ -54,6 +54,7 @@
   },
   "suggests": {
     "litematica": ">=0.23.7 <0.24.0",
+    "continuity": "*",
     "quickshulker": "*"
   },
   "breaks": {
