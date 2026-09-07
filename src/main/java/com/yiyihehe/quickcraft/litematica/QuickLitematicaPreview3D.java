@@ -31,6 +31,7 @@ import fi.dy.masa.malilib.util.StringUtils;
 import net.fabricmc.fabric.api.renderer.v1.RendererAccess;
 import net.fabricmc.fabric.impl.client.indigo.renderer.IndigoRenderer;
 import net.fabricmc.fabric.impl.client.indigo.renderer.render.WorldMesherRenderContext;
+import net.fabricmc.loader.api.FabricLoader;
 import net.minecraft.SharedConstants;
 import net.minecraft.block.Block;
 import net.minecraft.block.BlockEntityProvider;
@@ -2327,7 +2328,8 @@ public final class QuickLitematicaPreview3D {
 
     private static String currentCacheVersionToken() {
         // 不含 mod 版本号：只有磁盘格式真正改变时才应清缓存，mod 版本升级不应触发清理。
-        return CACHE_FORMAT_VERSION + "|" + CACHE_RENDER_MARKER;
+        return CACHE_FORMAT_VERSION + "|" + CACHE_RENDER_MARKER
+                + "|ctm:" + MeshBuilder.PreviewCtm.runtimeToken();
     }
 
     @Nullable
@@ -2770,7 +2772,8 @@ public final class QuickLitematicaPreview3D {
             matrices.translate(renderPos.getX(), renderPos.getY(), renderPos.getZ());
 
             var model = blockRenderManager.getModel(state);
-            if (fabricContext != null && !model.isVanillaAdapter()) {
+            if (fabricContext != null
+                    && (!model.isVanillaAdapter() || PreviewCtm.isContinuityModel(model))) {
                 fabricContext.tessellateBlock(view, state, pos, model, matrices);
             } else {
                 RenderLayer blockLayer = RenderLayers.getBlockLayer(state);
@@ -2789,6 +2792,34 @@ public final class QuickLitematicaPreview3D {
             }
 
             matrices.pop();
+        }
+
+        private static final class PreviewCtm {
+            private static final boolean ACTIVE = FabricLoader.getInstance().isModLoaded("continuity");
+            @Nullable
+            private static String cachedRuntimeToken;
+
+            private static boolean isContinuityModel(Object model) {
+                return ACTIVE
+                        && model != null
+                        && model.getClass().getName().startsWith("me.pepperbell.continuity.");
+            }
+
+            private static String runtimeToken() {
+                String token = cachedRuntimeToken;
+                if (token != null) {
+                    return token;
+                }
+
+                token = "none";
+                if (ACTIVE) {
+                    token = FabricLoader.getInstance().getModContainer("continuity")
+                            .map(container -> container.getMetadata().getVersion().getFriendlyString())
+                            .orElse("loaded-unknown");
+                }
+                cachedRuntimeToken = token;
+                return token;
+            }
         }
 
         private static void throwIfCancelled(AtomicBoolean cancelled) {
