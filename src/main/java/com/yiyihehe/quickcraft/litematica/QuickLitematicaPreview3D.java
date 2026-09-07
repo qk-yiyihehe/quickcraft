@@ -39,6 +39,7 @@ import net.minecraft.block.Block;
 import net.minecraft.block.BlockEntityProvider;
 import net.minecraft.block.BlockRenderType;
 import net.minecraft.block.BlockState;
+import net.minecraft.block.Blocks;
 import net.minecraft.block.entity.BlockEntity;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.gl.Framebuffer;
@@ -165,8 +166,8 @@ public final class QuickLitematicaPreview3D {
     // v12：箱子顶点静态化到独立 VBO，缓存追加 chestVertices 字段。
     // v11：保留 v10 的 GZIP + 顶点量化；箱子方块实体改回动态渲染，避免 chest atlas 被写进方块 VBO。
     // 升版本会让旧缓存一次性失效；之后 mod 版本号变化不再清缓存（token 已不含 mod 版本）。
-    // 缓存协议 v16：1.21.5 API/渲染审查后重建，避免旧网格沿用过期语义。
-    private static final int CACHE_FORMAT_VERSION = 16;
+    // 缓存协议 v17：透明网格分层后重建，避免旧缓存继续混合传送门、流体和玻璃。
+    private static final int CACHE_FORMAT_VERSION = 17;
     private static final int CACHE_MAGIC = 0x51435033; // QCP3
     private static final String CACHE_DIR_NAME = "litematica-preview-cache";
     private static final String CACHE_VERSION_FILE_NAME = "cache-version.txt";
@@ -1229,7 +1230,7 @@ public final class QuickLitematicaPreview3D {
                 }
 
                 try {
-                    if (layerMesh.layer() == LayerKey.TRANSLUCENT) {
+                    if (layerMesh.layer().isTranslucent()) {
                         built.sortQuads(allocator, VertexSorter.byDistance(0.0F, 0.0F, 1000.0F));
                     }
 
@@ -1303,9 +1304,9 @@ public final class QuickLitematicaPreview3D {
             context.disableScissor();
         }
 
-        private void drawBuffers(Matrix4f modelView, @Nullable Framebuffer target, boolean keepTargetOpaque, boolean translucent) {
+        private void drawBuffers(Matrix4f modelView, @Nullable Framebuffer target, boolean keepTargetOpaque, boolean afterEntities) {
             for (LayerKey layer : LayerKey.DRAW_ORDER) {
-                if ((layer == LayerKey.TRANSLUCENT) != translucent) {
+                if (layer.drawAfterEntities() != afterEntities) {
                     continue;
                 }
                 LayerBuffer buffer = this.layerBuffers.get(layer);
@@ -1319,6 +1320,14 @@ public final class QuickLitematicaPreview3D {
             renderLayer.startDrawing();
             try {
                 Framebuffer target = targetOverride != null ? targetOverride : renderLayer.getTarget();
+                // ShapeIndexBuffer 扩容会关闭旧 GPU buffer，非自有索引不能跨帧缓存其引用。
+                var sequentialIndices = buffer.ownsIndexBuffer() ? null : RenderSystem.getSequentialBuffer(renderLayer.getDrawMode());
+                GpuBuffer indexBuffer = buffer.ownsIndexBuffer()
+                        ? buffer.indexBuffer()
+                        : sequentialIndices.getIndexBuffer(buffer.indexCount());
+                VertexFormat.IndexType indexType = buffer.ownsIndexBuffer()
+                        ? buffer.indexType()
+                        : sequentialIndices.getIndexType();
                 try (RenderPass pass = RenderSystem.getDevice().createCommandEncoder().createRenderPass(
                         target.getColorAttachment(),
                         OptionalInt.empty(),
@@ -1336,7 +1345,7 @@ public final class QuickLitematicaPreview3D {
                             pass.bindSampler("Sampler" + textureUnit, texture);
                         }
                     }
-                    pass.setIndexBuffer(buffer.indexBuffer(), buffer.indexType());
+                    pass.setIndexBuffer(indexBuffer, indexType);
                     pass.drawIndexed(0, buffer.indexCount());
                 }
             } finally {
@@ -2880,7 +2889,7 @@ public final class QuickLitematicaPreview3D {
             matrices.push();
             matrices.translate(-(pos.getX() & 15), -(pos.getY() & 15), -(pos.getZ() & 15));
             matrices.translate(renderPos.getX(), renderPos.getY(), renderPos.getZ());
-            blockRenderManager.renderFluid(pos, view, new FluidVertexConsumer(collector.consumerFor(fluidLayer), matrices.peek().getPositionMatrix()), state, fluidState);
+            blockRenderManager.renderFluid(pos, view, new FluidVertexConsumer(collector.consumerFor(LayerKey.fromFluid(fluidLayer)), matrices.peek().getPositionMatrix()), state, fluidState);
             matrices.pop();
         }
 
@@ -2912,7 +2921,7 @@ public final class QuickLitematicaPreview3D {
                     pos,
                     view,
                     matrices,
-                    collector.consumerFor(blockLayer),
+                    collector.consumerFor(state.isOf(Blocks.NETHER_PORTAL) ? LayerKey.PORTAL : LayerKey.from(blockLayer)),
                     true,
                     model.getParts(random)
             );
@@ -3013,9 +3022,21 @@ public final class QuickLitematicaPreview3D {
             RenderLayer renderLayer() {
                 return RenderLayer.getTranslucent();
             }
+        },
+        PORTAL(5) {
+            @Override
+            RenderLayer renderLayer() {
+                return RenderLayer.getTranslucent();
+            }
+        },
+        FLUID(6) {
+            @Override
+            RenderLayer renderLayer() {
+                return RenderLayer.getTranslucent();
+            }
         };
 
-        private static final LayerKey[] DRAW_ORDER = {SOLID, CUTOUT_MIPPED, CUTOUT, TRIPWIRE, TRANSLUCENT};
+        private static final LayerKey[] DRAW_ORDER = {SOLID, CUTOUT_MIPPED, CUTOUT, TRIPWIRE, PORTAL, FLUID, TRANSLUCENT};
         private final int id;
 
         LayerKey(int id) {
@@ -3023,6 +3044,14 @@ public final class QuickLitematicaPreview3D {
         }
 
         abstract RenderLayer renderLayer();
+
+        private boolean isTranslucent() {
+            return this == PORTAL || this == FLUID || this == TRANSLUCENT;
+        }
+
+        private boolean drawAfterEntities() {
+            return this == TRANSLUCENT;
+        }
 
         private static LayerKey from(RenderLayer layer) {
             if (layer == RenderLayer.getSolid()) {
@@ -3043,6 +3072,11 @@ public final class QuickLitematicaPreview3D {
             return SOLID;
         }
 
+        private static LayerKey fromFluid(RenderLayer layer) {
+            LayerKey key = from(layer);
+            return key == TRANSLUCENT ? FLUID : key;
+        }
+
         @Nullable
         private static LayerKey byId(int id) {
             for (LayerKey value : values()) {
@@ -3059,7 +3093,10 @@ public final class QuickLitematicaPreview3D {
         private int vertexCount;
 
         private VertexConsumer consumerFor(RenderLayer renderLayer) {
-            LayerKey layer = LayerKey.from(renderLayer);
+            return this.consumerFor(LayerKey.from(renderLayer));
+        }
+
+        private VertexConsumer consumerFor(LayerKey layer) {
             return this.consumers.computeIfAbsent(layer, ignored -> new RecordingVertexConsumer(this));
         }
 
