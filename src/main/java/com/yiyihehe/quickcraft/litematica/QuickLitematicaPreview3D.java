@@ -20,6 +20,9 @@ import com.sun.jna.win32.StdCallLibrary;
 import com.sun.jna.win32.W32APIOptions;
 import com.yiyihehe.quickcraft.config.QuickCraftConfigs;
 import com.yiyihehe.quickcraft.mixin.RenderLayerAccessor;
+import net.fabricmc.fabric.api.renderer.v1.Renderer;
+import net.fabricmc.fabric.api.renderer.v1.render.BlockVertexConsumerProvider;
+import net.fabricmc.loader.api.FabricLoader;
 import fi.dy.masa.litematica.render.schematic.ChunkCacheSchematic;
 import fi.dy.masa.litematica.render.schematic.WorldRendererSchematic;
 import fi.dy.masa.litematica.schematic.LitematicaSchematic;
@@ -63,6 +66,7 @@ import net.minecraft.client.render.RenderSetup;
 import net.minecraft.client.render.RenderLayers;
 import net.minecraft.client.render.VertexConsumer;
 import net.minecraft.client.render.VertexConsumerProvider;
+import net.minecraft.client.render.WorldRenderer;
 import net.minecraft.client.render.block.entity.BlockEntityRenderer;
 import net.minecraft.client.render.block.BlockRenderManager;
 import net.minecraft.client.render.command.OrderedRenderCommandQueue;
@@ -2729,7 +2733,8 @@ public final class QuickLitematicaPreview3D {
 
     private static String currentCacheVersionToken() {
         // 不含 mod 版本号：只有磁盘格式真正改变时才应清缓存，mod 版本升级不应触发清理。
-        return CACHE_FORMAT_VERSION + "|" + CACHE_RENDER_MARKER;
+        return CACHE_FORMAT_VERSION + "|" + CACHE_RENDER_MARKER
+                + "|ctm:" + MeshBuilder.PreviewCtm.runtimeToken();
     }
 
     @Nullable
@@ -3166,6 +3171,11 @@ public final class QuickLitematicaPreview3D {
             matrices.translate(renderPos.getX(), renderPos.getY(), renderPos.getZ());
 
             var model = blockRenderManager.getModel(state);
+            if (PreviewCtm.isContinuityModel(model)
+                    && PreviewCtmRenderer.emit(model, matrices, collector, view, state, pos)) {
+                matrices.pop();
+                return;
+            }
             BlockRenderLayer blockLayer = BlockRenderLayers.getBlockLayer(state);
             random.setSeed(state.getRenderingSeed(pos));
             blockRenderManager.renderBlock(
@@ -3179,6 +3189,75 @@ public final class QuickLitematicaPreview3D {
             );
 
             matrices.pop();
+        }
+
+        private static final class PreviewCtm {
+            private static final boolean ACTIVE = FabricLoader.getInstance().isModLoaded("continuity");
+            @Nullable
+            private static String cachedRuntimeToken;
+
+            private static boolean isContinuityModel(Object model) {
+                return ACTIVE
+                        && model != null
+                        && model.getClass().getName().startsWith("me.pepperbell.continuity.");
+            }
+
+            private static String runtimeToken() {
+                String token = cachedRuntimeToken;
+                if (token != null) {
+                    return token;
+                }
+
+                token = "none";
+                if (ACTIVE) {
+                    token = FabricLoader.getInstance().getModContainer("continuity")
+                            .map(container -> container.getMetadata().getVersion().getFriendlyString())
+                            .orElse("loaded-unknown");
+                }
+                cachedRuntimeToken = token;
+                return token;
+            }
+        }
+
+        private static final class PreviewCtmRenderer implements BlockVertexConsumerProvider {
+            private final MeshCollector collector;
+
+            private PreviewCtmRenderer(MeshCollector collector) {
+                this.collector = collector;
+            }
+
+            private static boolean emit(
+                    net.minecraft.client.render.model.BlockStateModel model,
+                    MatrixStack matrices,
+                    MeshCollector collector,
+                    RegionBlockView view,
+                    BlockState state,
+                    BlockPos pos
+            ) {
+                try {
+                    Renderer.get().render(
+                            matrices.peek(),
+                            new PreviewCtmRenderer(collector),
+                            model,
+                            1.0F,
+                            1.0F,
+                            1.0F,
+                            WorldRenderer.getLightmapCoordinates(view, pos),
+                            OverlayTexture.DEFAULT_UV,
+                            view,
+                            pos,
+                            state
+                    );
+                    return true;
+                } catch (Throwable ignored) {
+                    return false;
+                }
+            }
+
+            @Override
+            public VertexConsumer getBuffer(BlockRenderLayer layer) {
+                return this.collector.consumerFor(layer);
+            }
         }
 
         private static void throwIfCancelled(AtomicBoolean cancelled) {
