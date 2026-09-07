@@ -44,6 +44,7 @@ import net.fabricmc.fabric.api.client.rendering.v1.PictureInPictureRendererRegis
 import net.fabricmc.loader.api.FabricLoader;
 import net.minecraft.SharedConstants;
 import net.minecraft.world.level.block.Block;
+import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.EntityBlock;
 import net.minecraft.world.level.block.RenderShape;
 import net.minecraft.world.level.block.state.BlockState;
@@ -78,6 +79,7 @@ import net.minecraft.client.renderer.SubmitNodeStorage;
 import net.minecraft.client.renderer.feature.FeatureRenderDispatcher;
 import com.mojang.blaze3d.vertex.ByteBufferBuilder;
 import com.mojang.blaze3d.vertex.PoseStack;
+import com.mojang.blaze3d.vertex.VertexFormat;
 import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.client.renderer.blockentity.state.BlockEntityRenderState;
 import net.minecraft.client.renderer.entity.state.EntityRenderState;
@@ -185,8 +187,8 @@ public final class QuickLitematicaPreview3D {
     // v12：箱子顶点静态化到独立 VBO，缓存追加 chestVertices 字段。
     // v11：保留 v10 的 GZIP + 顶点量化；箱子方块实体改回动态渲染，避免 chest atlas 被写进方块 VBO。
     // 升版本会让旧缓存一次性失效；之后 mod 版本号变化不再清缓存（token 已不含 mod 版本）。
-    // 缓存协议 v17：26.1 API/渲染审查后重建，避免旧网格沿用过期语义。
-    private static final int CACHE_FORMAT_VERSION = 17;
+    // 缓存协议 v18：透明网格分层并修复共享索引生命周期后重建。
+    private static final int CACHE_FORMAT_VERSION = 18;
     private static final int CACHE_MAGIC = 0x51435033; // QCP3
     private static final String CACHE_DIR_NAME = "litematica-preview-cache";
     private static final String CACHE_VERSION_FILE_NAME = "cache-version.txt";
@@ -1186,7 +1188,7 @@ public final class QuickLitematicaPreview3D {
                 }
 
                 try {
-                    if (layerMesh.layer() == LayerKey.TRANSLUCENT) {
+                    if (layerMesh.layer().isTranslucent()) {
                         built.sortQuads(allocator, VertexSorting.byDistance(0.0F, 0.0F, 1000.0F));
                     }
 
@@ -1295,10 +1297,9 @@ public final class QuickLitematicaPreview3D {
             RenderSystem.setShaderLights(this.previewLightingBuffer.slice());
         }
 
-        // 玻璃会写 depth。先画不透明层和实体，再画透明层，才能透过玻璃看到实体。
-        private void drawBuffers(Matrix4f modelView, boolean translucent) {
+        private void drawBuffers(Matrix4f modelView, boolean afterEntities) {
             for (LayerKey layer : LayerKey.DRAW_ORDER) {
-                if ((layer == LayerKey.TRANSLUCENT) != translucent) {
+                if (layer.drawAfterEntities() != afterEntities) {
                     continue;
                 }
                 LayerBuffer buffer = this.layerBuffers.get(layer);
@@ -1325,6 +1326,14 @@ public final class QuickLitematicaPreview3D {
             RenderSetup setup = ((RenderLayerAccessor) (Object) renderLayer).quickcraft$getRenderSetup();
             // 26.1 首次解析实体纹理可能上传 GPU，必须在 RenderPass 外完成。
             var resolvedTextures = setup.getTextures();
+            // AutoStorageIndexBuffer 扩容会关闭旧 GPU buffer，非自有索引不能跨帧缓存其引用。
+            var sequentialIndices = buffer.ownsIndexBuffer() ? null : RenderSystem.getSequentialBuffer(renderLayer.mode());
+            GpuBuffer indexBuffer = buffer.ownsIndexBuffer()
+                    ? buffer.indexBuffer()
+                    : sequentialIndices.getBuffer(buffer.indexCount());
+            VertexFormat.IndexType indexType = buffer.ownsIndexBuffer()
+                    ? buffer.indexType()
+                    : sequentialIndices.type();
             try (RenderPass pass = RenderSystem.getDevice().createCommandEncoder().createRenderPass(
                     () -> "QuickCraft preview " + renderLayer,
                     colorAttachment,
@@ -1340,7 +1349,7 @@ public final class QuickLitematicaPreview3D {
                     var texture = entry.getValue();
                     pass.bindTexture(entry.getKey(), texture.textureView(), texture.sampler());
                 }
-                pass.setIndexBuffer(buffer.indexBuffer(), buffer.indexType());
+                pass.setIndexBuffer(indexBuffer, indexType);
                 pass.drawIndexed(0, 0, buffer.indexCount(), 1);
             }
         }
@@ -3042,7 +3051,7 @@ public final class QuickLitematicaPreview3D {
             fluidRenderer.tesselate(
                     view,
                     pos,
-                    layer -> new FluidVertexConsumer(collector.consumerFor(layer), transform),
+                    layer -> new FluidVertexConsumer(collector.consumerFor(LayerKey.fromFluid(layer)), transform),
                     state,
                     fluidState
             );
@@ -3068,7 +3077,8 @@ public final class QuickLitematicaPreview3D {
             }
 
             blockRenderer.tesselateBlock(
-                    (x, y, z, quad, instance) -> collector.consumerFor(quad.materialInfo().layer())
+                    (x, y, z, quad, instance) -> collector.consumerFor(
+                                    state.is(Blocks.NETHER_PORTAL) ? LayerKey.PORTAL : LayerKey.from(quad.materialInfo().layer()))
                             .putBlockBakedQuad(x, y, z, quad, instance),
                     renderPos.getX(),
                     renderPos.getY(),
@@ -3191,9 +3201,21 @@ public final class QuickLitematicaPreview3D {
             RenderType renderLayer() {
                 return RenderTypes.translucentMovingBlock();
             }
+        },
+        PORTAL(5) {
+            @Override
+            RenderType renderLayer() {
+                return RenderTypes.translucentMovingBlock();
+            }
+        },
+        FLUID(6) {
+            @Override
+            RenderType renderLayer() {
+                return RenderTypes.translucentMovingBlock();
+            }
         };
 
-        private static final LayerKey[] DRAW_ORDER = {SOLID, CUTOUT_MIPPED, CUTOUT, TRIPWIRE, TRANSLUCENT};
+        private static final LayerKey[] DRAW_ORDER = {SOLID, CUTOUT_MIPPED, CUTOUT, TRIPWIRE, PORTAL, FLUID, TRANSLUCENT};
         private final int id;
 
         LayerKey(int id) {
@@ -3201,6 +3223,14 @@ public final class QuickLitematicaPreview3D {
         }
 
         abstract RenderType renderLayer();
+
+        private boolean isTranslucent() {
+            return this == PORTAL || this == FLUID || this == TRANSLUCENT;
+        }
+
+        private boolean drawAfterEntities() {
+            return this == TRANSLUCENT;
+        }
 
         private static LayerKey from(RenderType layer) {
             if (layer == RenderTypes.solidMovingBlock()) {
@@ -3223,6 +3253,11 @@ public final class QuickLitematicaPreview3D {
             };
         }
 
+        private static LayerKey fromFluid(ChunkSectionLayer layer) {
+            LayerKey key = from(layer);
+            return key == TRANSLUCENT ? FLUID : key;
+        }
+
         @Nullable
         private static LayerKey byId(int id) {
             for (LayerKey value : values()) {
@@ -3239,13 +3274,15 @@ public final class QuickLitematicaPreview3D {
         private int vertexCount;
 
         private VertexConsumer consumerFor(RenderType renderLayer) {
-            LayerKey layer = LayerKey.from(renderLayer);
+            return this.consumerFor(LayerKey.from(renderLayer));
+        }
+
+        private VertexConsumer consumerFor(LayerKey layer) {
             return this.consumers.computeIfAbsent(layer, ignored -> new RecordingVertexConsumer(this));
         }
 
         private VertexConsumer consumerFor(ChunkSectionLayer renderLayer) {
-            LayerKey layer = LayerKey.from(renderLayer);
-            return this.consumers.computeIfAbsent(layer, ignored -> new RecordingVertexConsumer(this));
+            return this.consumerFor(LayerKey.from(renderLayer));
         }
 
         private void addVertex(QuantizedVertexBuffer vertices, float x, float y, float z, int argb, float u, float v, int overlay, int light, float nx, float ny, float nz) {
