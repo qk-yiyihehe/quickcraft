@@ -269,7 +269,7 @@ public abstract class LitematicaSchematicVerifierMixin extends TaskBase implemen
                 this.schematicPlacement,
                 pos
         );
-        if (expectedContainer == null && !(expectedBlockEntity instanceof Inventory)) {
+        if (expectedContainer == null && !(expectedBlockEntity instanceof Container)) {
             return;
         }
 

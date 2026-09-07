@@ -113,8 +113,8 @@ public final class QuickLitematicaContainerVerifier {
     private static List<SlotOverlay> currentScreenSlotOverlays = List.of();
     private static Container currentScreenContainerInventory;
     private static ActualInventoryReadStatus lastActualInventoryReadStatus = ActualInventoryReadStatus.NOT_READ;
-    private static World trustedCacheWorld;
-    private static final Map<BlockPos, SimpleInventory> trustedInventoryCache = new HashMap<>();
+    private static Level trustedCacheWorld;
+    private static final Map<BlockPos, SimpleContainer> trustedInventoryCache = new HashMap<>();
 
     private QuickLitematicaContainerVerifier() {
     }
@@ -205,7 +205,7 @@ public final class QuickLitematicaContainerVerifier {
 
         if (cachedNbt != null && !cachedNbt.contains("Items") && expected != null && isInventoryEmpty(expected)) {
             // 服务器空容器 NBT 可能只带 x/y/z/id，没有 Items；这表示已读到空库存。
-            trustedInventoryCache.put(pos.toImmutable(), new SimpleInventory(expected.size()));
+            trustedInventoryCache.put(pos.immutable(), new SimpleContainer(expected.getContainerSize()));
             lastActualInventoryReadStatus = ActualInventoryReadStatus.CACHE_INVENTORY;
             return new SimpleContainer(expected.getContainerSize());
         }
@@ -214,7 +214,7 @@ public final class QuickLitematicaContainerVerifier {
             Container cachedInventory = getCachedInventory(world, pos, storage, expected != null ? expected.getContainerSize() : -1);
 
             if (cachedInventory != null) {
-                trustedInventoryCache.put(pos.toImmutable(), copyInventory(cachedInventory));
+                trustedInventoryCache.put(pos.immutable(), copyInventory(cachedInventory));
                 lastActualInventoryReadStatus = ActualInventoryReadStatus.CACHE_INVENTORY;
                 return cachedInventory;
             }
@@ -229,8 +229,8 @@ public final class QuickLitematicaContainerVerifier {
         if (!storage.hasServuxServer()
                 && !storage.hasBackupStatus()
                 && expected != null) {
-            SimpleInventory trusted = trustedInventoryCache.get(pos);
-            if (trusted != null && trusted.size() == expected.size()) {
+            SimpleContainer trusted = trustedInventoryCache.get(pos);
+            if (trusted != null && trusted.getContainerSize() == expected.getContainerSize()) {
                 lastActualInventoryReadStatus = ActualInventoryReadStatus.CACHE_INVENTORY;
                 return copyInventory(trusted);
             }
