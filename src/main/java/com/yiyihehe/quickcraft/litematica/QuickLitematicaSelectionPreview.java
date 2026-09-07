@@ -15,8 +15,6 @@ import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.world.ClientWorld;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.ChunkPos;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import java.util.HashSet;
 import java.util.UUID;
@@ -26,7 +24,6 @@ import java.util.UUID;
  * 这里只解析当前模式 1 选区，不参与网格、导出或剪贴板生命周期。
  */
 public final class QuickLitematicaSelectionPreview {
-    private static final Logger LOGGER = LoggerFactory.getLogger(QuickLitematicaSelectionPreview.class);
     // 选区快照需要逐方块读取客户端世界，先限制总体积以免误圈超大范围长期占用预览线程。
     private static final long MAX_SELECTION_CAPTURE_VOLUME = 8_000_000L;
 
@@ -97,7 +94,6 @@ public final class QuickLitematicaSelectionPreview {
                 new LitematicaSchematic.SchematicSaveInfo(false, false, false, false);
         var existingEntities = new HashSet<UUID>();
         BlockPos origin = selection.getEffectiveOrigin();
-        int loadedChunks = 0;
         for (ChunkPos chunkPos : PositionUtils.getTouchedChunks(boxes)) {
             if (!world.getChunkManager().isChunkLoaded(chunkPos.x, chunkPos.z)) {
                 continue;
@@ -119,16 +115,11 @@ public final class QuickLitematicaSelectionPreview {
                     existingEntities,
                     origin
             );
-            loadedChunks++;
         }
 
         int blockCount = schematic.getTotalBlocksReadFromWorld();
         schematic.getMetadata().setTotalBlocks(blockCount);
         if (blockCount == 0) {
-            LOGGER.warn(
-                    "Litematica area preview captured no world blocks from {} loaded client chunks",
-                    loadedChunks
-            );
             return null;
         }
         return schematic;
