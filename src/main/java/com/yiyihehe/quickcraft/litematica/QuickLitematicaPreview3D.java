@@ -171,7 +171,6 @@ public final class QuickLitematicaPreview3D {
     private static final Logger LOGGER = LoggerFactory.getLogger(QuickLitematicaPreview3D.class);
     private static final AtomicBoolean SHADER_API_ERROR_LOGGED = new AtomicBoolean();
     private static final AtomicBoolean SHADER_DISABLE_ERROR_LOGGED = new AtomicBoolean();
-    private static final AtomicBoolean ENTITY_PREVIEW_ERROR_LOGGED = new AtomicBoolean();
     // 1.21.11 exposes no replacement for setCachedState on detached preview block entities.
     @SuppressWarnings("deprecation")
     private static void setPreviewBlockEntityState(BlockEntity blockEntity, BlockState state) {
@@ -1650,8 +1649,7 @@ public final class QuickLitematicaPreview3D {
                             );
                         } catch (DynamicBufferTooLargeException e) {
                             throw e;
-                        } catch (Throwable throwable) {
-                            logEntityPreviewFailure("building render buffers", throwable);
+                        } catch (Throwable ignored) {
                         }
                     });
                     Matrix4fStack bakeView = RenderSystem.getModelViewStack();
@@ -2286,19 +2284,12 @@ public final class QuickLitematicaPreview3D {
                             matrices,
                             queue
                     );
-                } catch (Throwable throwable) {
-                    logEntityPreviewFailure("submitting render commands", throwable);
+                } catch (Throwable ignored) {
                 }
             });
 
             // 1.21.9+ 的实体 renderer 只记录命令；special GUI 离屏目标仍需在本层显式执行队列。
             dispatcher.render();
-        }
-
-        private static void logEntityPreviewFailure(String stage, Throwable throwable) {
-            if (ENTITY_PREVIEW_ERROR_LOGGED.compareAndSet(false, true)) {
-                LOGGER.error("Failed while {} for a Litematica 3D preview entity", stage, throwable);
-            }
         }
 
         private static <T extends BlockEntity, S extends BlockEntityRenderState> void renderBlockEntity(
@@ -4043,8 +4034,7 @@ public final class QuickLitematicaPreview3D {
                 entity.setPosition(this.x, this.y, this.z);
                 int light = MinecraftClient.getInstance().getEntityRenderDispatcher().getLight(entity, 0.0F);
                 return new RenderedEntity(entity, this.x, this.y, this.z, light);
-            } catch (Throwable throwable) {
-                Preview.logEntityPreviewFailure("instantiating", throwable);
+            } catch (Throwable ignored) {
                 return null;
             }
         }
