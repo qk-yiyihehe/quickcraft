@@ -12,6 +12,7 @@ import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.gui.screen.ingame.HandledScreen;
 import net.minecraft.client.gui.screen.ingame.MerchantScreen;
+import net.minecraft.client.network.ClientPlayNetworkHandler;
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.passive.MerchantEntity;
 import net.minecraft.entity.player.PlayerInventory;
@@ -468,9 +469,16 @@ public final class QuickTrade implements ClientModInitializer {
         if (displayTradeIndex < 0) {
             return;
         }
+        int serverTradeIndex = toServerTradeIndex(screen, displayTradeIndex);
 
         handler.setRecipeIndex(displayTradeIndex);
         handler.switchTo(displayTradeIndex);
+
+        MinecraftClient client = MinecraftClient.getInstance();
+        ClientPlayNetworkHandler networkHandler = client.getNetworkHandler();
+        if (networkHandler != null) {
+            networkHandler.sendPacket(new SelectMerchantTradeC2SPacket(serverTradeIndex));
+        }
     }
 
     private static int findVisibleTradeIndexAt(MerchantScreen screen, double mouseX, double mouseY) {
@@ -552,6 +560,23 @@ public final class QuickTrade implements ClientModInitializer {
             return null;
         }
         return offers.get(tradeIndex);
+    }
+
+    public static TradeOffer getValidOfferForCurrentOrder(TradeOfferList offers,
+                                                           ItemStack firstBuyItem,
+                                                           ItemStack secondBuyItem,
+                                                           int tradeIndex) {
+        if (tradeIndex == 0
+                && !offers.isEmpty()
+                && currentOrderState != null
+                && currentOrderState.displayToServerIndex().length > 0
+                && currentOrderState.displayToServerIndex()[0] != 0
+                && currentOrderState.screen().getScreenHandler().getRecipes() == offers) {
+            TradeOffer firstOffer = offers.get(0);
+            return firstOffer.matchesBuyItems(firstBuyItem, secondBuyItem) ? firstOffer : null;
+        }
+
+        return offers.getValidOffer(firstBuyItem, secondBuyItem, tradeIndex);
     }
 
     private static int countMatchingItems(PlayerInventory inventory, ItemStack template) {
