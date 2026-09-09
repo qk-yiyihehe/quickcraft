@@ -139,6 +139,7 @@ public class QuickCraftConfigScreen extends GuiConfigsBase {
         ),
         QUICK_TRADE(
                 QuickCraftConfigs.ContainerTools.ENABLE_QUICK_TRADE,
+                QuickCraftConfigs.ContainerTools.QUICK_TRADE_RIGHT_CLICK,
                 QuickCraftConfigs.ContainerTools.ENABLE_CONTINUOUS_TRADE,
                 QuickCraftConfigs.ContainerTools.ENABLE_FAVORITE_TRADE
         ),
