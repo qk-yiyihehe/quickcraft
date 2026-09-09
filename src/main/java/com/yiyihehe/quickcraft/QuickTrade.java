@@ -114,8 +114,9 @@ public final class QuickTrade implements ClientModInitializer {
             return true;
         }
 
-        // 交易界面里的右键连续成交是独立功能，不受“快速交易”开关影响。
-        if (button == GLFW.GLFW_MOUSE_BUTTON_RIGHT) {
+        // 交易界面里的右键连续成交由独立开关控制；关闭时交还原版右键行为。
+        if (button == GLFW.GLFW_MOUSE_BUTTON_RIGHT
+                && QuickCraftConfigs.isQuickTradeRightClickEnabled()) {
             if (tradeAllAvailable(screen, tradeIndex)) {
                 sendTradeBlockedMessage(Minecraft.getInstance());
             }
