@@ -3,7 +3,6 @@ package com.yiyihehe.quickcraft.mixin;
 import com.google.common.collect.ArrayListMultimap;
 import com.google.common.collect.HashMultimap;
 import com.yiyihehe.quickcraft.litematica.QuickLitematicaContainerVerifier;
-import com.yiyihehe.quickcraft.litematica.QuickLitematicaContainerVerifier.ActualInventoryReadStatus;
 import com.yiyihehe.quickcraft.litematica.QuickLitematicaVerifierPalette;
 import com.yiyihehe.quickcraft.litematica.QuickLitematicaContainerVerifier.BlockMismatchExtension;
 import com.yiyihehe.quickcraft.litematica.QuickLitematicaContainerVerifier.ContainerMismatch;
@@ -33,6 +32,7 @@ import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.world.ClientWorld;
 import net.minecraft.inventory.Inventory;
 import net.minecraft.item.ItemStack;
+import net.minecraft.nbt.NbtCompound;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.ChunkPos;
 import net.minecraft.world.World;
@@ -55,7 +55,6 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -135,44 +134,19 @@ public abstract class LitematicaSchematicVerifierMixin extends TaskBase implemen
     private int quickcraft$refreshCursor;
 
     @Unique
-    private long quickcraft$verificationStartNanos;
+    private boolean quickcraft$diagnosticLogPending;
 
     @Unique
-    private long quickcraft$containerCandidateCheckNanos;
+    private int quickcraft$unsupportedExpectedContainers;
 
     @Unique
-    private int quickcraft$verifiedBoxes;
+    private int quickcraft$missingActualBlockEntities;
 
     @Unique
-    private int quickcraft$blockEntityCandidates;
+    private int quickcraft$unsupportedActualContainers;
 
     @Unique
-    private int quickcraft$schematicBlockEntityCount;
-
-    @Unique
-    private int quickcraft$touchedChunkCount;
-
-    @Unique
-    private long quickcraft$containerIndexNanos;
-
-    @Unique
-    private boolean quickcraft$performanceLogPending;
-
-    @Unique
-    private boolean quickcraft$containerVerifierEnabledForRun;
-
-    @Unique
-    private final Map<ActualInventoryReadStatus, Integer> quickcraft$actualInventoryReadStatuses =
-            new EnumMap<>(ActualInventoryReadStatus.class);
-
-    @Unique
-    private int quickcraft$expectedNonEmptyContainers;
-
-    @Unique
-    private int quickcraft$foundNonEmptyContainers;
-
-    @Unique
-    private int quickcraft$missingFoundBlockEntities;
+    private int quickcraft$unavailableWorldBoxes;
 
     @Unique
     private int quickcraft$unavailableFoundInventories;
@@ -181,10 +155,7 @@ public abstract class LitematicaSchematicVerifierMixin extends TaskBase implemen
     private int quickcraft$inventorySizeMismatches;
 
     @Unique
-    private int quickcraft$mismatchedContainers;
-
-    @Unique
-    private int quickcraft$comparisonSamplesLogged;
+    private final List<String> quickcraft$diagnosticSamples = new ArrayList<>();
 
     @Override
     public List<BlockMismatch> quickcraft$getSelectedInventoryMismatches() {
@@ -319,7 +290,6 @@ public abstract class LitematicaSchematicVerifierMixin extends TaskBase implemen
             return;
         }
 
-        this.quickcraft$verifiedBoxes++;
         ChunkPos chunkPos = new ChunkPos(box.minX >> 4, box.minZ >> 4);
 
         if (!this.quickcraft$containerDataChunks.contains(chunkPos)) {
@@ -329,6 +299,10 @@ public abstract class LitematicaSchematicVerifierMixin extends TaskBase implemen
         World foundWorld = fi.dy.masa.malilib.util.WorldUtils.getBestWorld(MinecraftClient.getInstance());
 
         if (foundWorld == null) {
+            this.quickcraft$unavailableWorldBoxes++;
+            if (this.quickcraft$diagnosticSamples.size() < 5) {
+                this.quickcraft$diagnosticSamples.add("world_unavailable@" + chunkPos);
+            }
             return;
         }
 
@@ -340,41 +314,34 @@ public abstract class LitematicaSchematicVerifierMixin extends TaskBase implemen
                 continue;
             }
 
-            this.quickcraft$blockEntityCandidates++;
-            long checkStartNanos = System.nanoTime();
+            BlockPos pos = candidate.toImmutable();
+            BlockState schematicState = chunkSchematic.getBlockState(pos);
+            BlockEntity expectedBlockEntity = chunkSchematic.getBlockEntity(pos);
+            ExpectedContainer expectedContainer = QuickLitematicaContainerVerifier.getExpectedContainerPartAt(
+                    this.schematicPlacement,
+                    pos
+            );
+            if (expectedContainer == null && !(expectedBlockEntity instanceof Inventory)) {
+                continue;
+            }
 
-            try {
-                BlockPos pos = candidate.toImmutable();
-                BlockState schematicState = chunkSchematic.getBlockState(pos);
-                BlockEntity expectedBlockEntity = chunkSchematic.getBlockEntity(pos);
-                ExpectedContainer expectedContainer = QuickLitematicaContainerVerifier.getExpectedContainerPartAt(
-                        this.schematicPlacement,
-                        pos
-                );
-                if (expectedContainer == null && !(expectedBlockEntity instanceof Inventory)) {
-                    continue;
-                }
+            this.quickcraft$expectedContainerPositions.add(pos);
+            List<ContainerMismatch> mismatches = this.quickcraft$collectContainerMismatchesDuringVerification(
+                    foundWorld,
+                    chunkClient,
+                    pos,
+                    schematicState,
+                    expectedBlockEntity,
+                    expectedContainer
+            );
 
-                this.quickcraft$expectedContainerPositions.add(pos);
-                List<ContainerMismatch> mismatches = this.quickcraft$collectContainerMismatchesDuringVerification(
-                        foundWorld,
-                        chunkClient,
-                        pos,
-                        schematicState,
-                        expectedBlockEntity,
-                        expectedContainer
-                );
-
-                if (mismatches != null) {
-                    this.quickcraft$markContainerChecked(pos);
-                    this.quickcraft$removeContainerMismatchesAt(pos);
-                    mismatches.forEach(this::quickcraft$addContainerMismatch);
-                } else {
-                    this.quickcraft$markContainerPending(pos);
-                    this.quickcraft$requestContainerInventoryData(this.worldClient, pos);
-                }
-            } finally {
-                this.quickcraft$containerCandidateCheckNanos += System.nanoTime() - checkStartNanos;
+            if (mismatches != null) {
+                this.quickcraft$markContainerChecked(pos);
+                this.quickcraft$removeContainerMismatchesAt(pos);
+                mismatches.forEach(this::quickcraft$addContainerMismatch);
+            } else {
+                this.quickcraft$markContainerPending(pos);
+                this.quickcraft$requestContainerInventoryData(this.worldClient, pos);
             }
         }
     }
@@ -534,70 +501,57 @@ public abstract class LitematicaSchematicVerifierMixin extends TaskBase implemen
             return;
         }
 
-        this.quickcraft$containerVerifierEnabledForRun = QuickLitematicaContainerVerifier.isEnabled();
-        this.quickcraft$verificationStartNanos = System.nanoTime();
-        this.quickcraft$containerCandidateCheckNanos = 0L;
-        this.quickcraft$verifiedBoxes = 0;
-        this.quickcraft$blockEntityCandidates = 0;
-        this.quickcraft$schematicBlockEntityCount = 0;
-        this.quickcraft$containerIndexNanos = 0L;
-        this.quickcraft$performanceLogPending = true;
-        this.quickcraft$actualInventoryReadStatuses.clear();
-        this.quickcraft$expectedNonEmptyContainers = 0;
-        this.quickcraft$foundNonEmptyContainers = 0;
-        this.quickcraft$missingFoundBlockEntities = 0;
+        boolean enabled = QuickLitematicaContainerVerifier.isEnabled();
+        this.quickcraft$diagnosticLogPending = enabled;
+        this.quickcraft$unsupportedExpectedContainers = 0;
+        this.quickcraft$missingActualBlockEntities = 0;
+        this.quickcraft$unsupportedActualContainers = 0;
+        this.quickcraft$unavailableWorldBoxes = 0;
         this.quickcraft$unavailableFoundInventories = 0;
         this.quickcraft$inventorySizeMismatches = 0;
-        this.quickcraft$mismatchedContainers = 0;
-        this.quickcraft$comparisonSamplesLogged = 0;
+        this.quickcraft$diagnosticSamples.clear();
 
-        if (this.quickcraft$containerVerifierEnabledForRun) {
-            long indexStartNanos = System.nanoTime();
+        if (enabled) {
             this.quickcraft$rebuildContainerDataChunks(worldSchematic, schematicPlacement);
-            this.quickcraft$containerIndexNanos = System.nanoTime() - indexStartNanos;
             this.quickcraft$requestContainerInventoryDataChunks(worldClient, this.quickcraft$containerDataChunks);
-        } else {
-            this.quickcraft$touchedChunkCount = schematicPlacement.getTouchedChunks().size();
         }
-
-        QUICKCRAFT_LOGGER.info(
-                "[ContainerVerifierPerf] START enabled={} touchedChunks={} schematicBlockEntities={} containerDataChunks={} indexMs={}",
-                this.quickcraft$containerVerifierEnabledForRun,
-                this.quickcraft$touchedChunkCount,
-                this.quickcraft$schematicBlockEntityCount,
-                this.quickcraft$containerDataChunks.size(),
-                quickcraft$millis(this.quickcraft$containerIndexNanos)
-        );
     }
 
     @Inject(method = "verifyChunks", at = @At("RETURN"))
-    private void quickcraft$logContainerVerificationCompletion(CallbackInfoReturnable<Boolean> cir) {
-        if (!this.quickcraft$performanceLogPending || !Boolean.TRUE.equals(cir.getReturnValue())) {
+    private void quickcraft$logContainerVerificationProblems(CallbackInfoReturnable<Boolean> cir) {
+        if (!this.quickcraft$diagnosticLogPending || !Boolean.TRUE.equals(cir.getReturnValue())) {
             return;
         }
 
-        this.quickcraft$performanceLogPending = false;
-        long elapsedNanos = System.nanoTime() - this.quickcraft$verificationStartNanos;
-        QUICKCRAFT_LOGGER.info(
-                "[ContainerVerifierPerf] END enabled={} elapsedMs={} verifiedBoxes={} blockEntityCandidates={} containers={} checked={} pending={} mismatches={} mismatchContainers={} expectedNonEmpty={} foundNonEmpty={} missingFoundBlockEntities={} unavailableFoundInventories={} sizeMismatches={} readSources={} requestedChunks={} indexMs={} candidateCheckMs={}",
-                this.quickcraft$containerVerifierEnabledForRun,
-                quickcraft$millis(elapsedNanos),
-                this.quickcraft$verifiedBoxes,
-                this.quickcraft$blockEntityCandidates,
+        this.quickcraft$diagnosticLogPending = false;
+        if (this.quickcraft$unsupportedExpectedContainers == 0
+                && this.quickcraft$missingActualBlockEntities == 0
+                && this.quickcraft$unsupportedActualContainers == 0
+                && this.quickcraft$unavailableWorldBoxes == 0
+                && this.quickcraft$unavailableFoundInventories == 0
+                && this.quickcraft$inventorySizeMismatches == 0
+                && this.quickcraft$pendingContainerPositions.isEmpty()) {
+            return;
+        }
+
+        EntitiesDataStorage storage = EntitiesDataStorage.getInstance();
+        QUICKCRAFT_LOGGER.warn(
+                "[ContainerVerifier] Container data was not fully comparable: expectedContainers={}, checked={}, pending={}, unsupportedExpected={}, missingActualBlockEntities={}, unsupportedActual={}, unavailableWorldBoxes={}, unavailableInventories={}, sizeMismatches={}, requestedChunks={}, integratedServer={}, servux={}, backupPackets={}, entityDataSync={}, samples={}",
                 this.quickcraft$expectedContainerPositions.size(),
                 this.quickcraft$checkedContainerPositions.size(),
                 this.quickcraft$pendingContainerPositions.size(),
-                this.quickcraft$containerMismatchesByKey.size(),
-                this.quickcraft$mismatchedContainers,
-                this.quickcraft$expectedNonEmptyContainers,
-                this.quickcraft$foundNonEmptyContainers,
-                this.quickcraft$missingFoundBlockEntities,
+                this.quickcraft$unsupportedExpectedContainers,
+                this.quickcraft$missingActualBlockEntities,
+                this.quickcraft$unsupportedActualContainers,
+                this.quickcraft$unavailableWorldBoxes,
                 this.quickcraft$unavailableFoundInventories,
                 this.quickcraft$inventorySizeMismatches,
-                this.quickcraft$actualInventoryReadStatuses,
                 this.quickcraft$requestedContainerDataChunks.size(),
-                quickcraft$millis(this.quickcraft$containerIndexNanos),
-                quickcraft$millis(this.quickcraft$containerCandidateCheckNanos)
+                DataManager.getInstance().hasIntegratedServer(),
+                storage.hasServuxServer(),
+                storage.getIfReceivedBackupPackets(),
+                Configs.Generic.ENTITY_DATA_SYNC.getBooleanValue(),
+                this.quickcraft$diagnosticSamples
         );
     }
 
@@ -716,25 +670,23 @@ public abstract class LitematicaSchematicVerifierMixin extends TaskBase implemen
         BlockEntity expectedData = expectedContainer != null
                 ? expectedContainer.blockEntity()
                 : expectedBlockEntity;
-        boolean expectedNonEmpty = !quickcraft$isInventoryEmpty(expected);
-        if (expectedNonEmpty) {
-            this.quickcraft$expectedNonEmptyContainers++;
-        }
+        BlockState expectedState = expectedContainer != null ? expectedContainer.state() : schematicState;
+        BlockState foundState = chunkClient.getBlockState(pos);
 
         if (!(foundBlockEntity instanceof Inventory foundInventory)) {
-            this.quickcraft$missingFoundBlockEntities++;
-            if (this.quickcraft$comparisonSamplesLogged < 8) {
-                this.quickcraft$comparisonSamplesLogged++;
-                QUICKCRAFT_LOGGER.info(
-                        "[ContainerVerifierPerf] MISSING_ACTUAL pos={} schematicState={} chunkState={} worldState={} chunkBlockEntity={} worldBlockEntity={} expected={}",
-                        pos,
-                        schematicState,
-                        chunkClient.getBlockState(pos),
-                        foundWorld.getBlockState(pos),
-                        foundBlockEntity,
-                        foundWorld.getBlockEntity(pos),
-                        quickcraft$inventorySummary(expected)
-                );
+            if (foundState.getBlock() == expectedState.getBlock()) {
+                if (foundBlockEntity == null) {
+                    this.quickcraft$missingActualBlockEntities++;
+                    this.quickcraft$recordDiagnostic("missing_block_entity", pos, expectedState, foundState);
+                } else {
+                    this.quickcraft$unsupportedActualContainers++;
+                    this.quickcraft$recordDiagnostic(
+                            "unsupported_actual=" + foundBlockEntity.getType(),
+                            pos,
+                            expectedState,
+                            foundState
+                    );
+                }
             }
             if (!fi.dy.masa.litematica.data.DataManager.getInstance().hasIntegratedServer()) {
                 if (this.quickcraft$shouldWaitForMissingInventory(foundWorld, pos, foundBlockEntity)) {
@@ -754,28 +706,33 @@ public abstract class LitematicaSchematicVerifierMixin extends TaskBase implemen
                 foundInventory,
                 expected
         );
-        ActualInventoryReadStatus readStatus = QuickLitematicaContainerVerifier.getLastActualInventoryReadStatus();
-        this.quickcraft$actualInventoryReadStatuses.merge(readStatus, 1, Integer::sum);
 
         if (found == null) {
             this.quickcraft$unavailableFoundInventories++;
+            this.quickcraft$recordDiagnostic(
+                    "inventory_unavailable=" + QuickLitematicaContainerVerifier.getLastActualInventoryReadStatus(),
+                    pos,
+                    expectedState,
+                    foundState
+            );
             return null;
         }
 
         if (found.size() != expected.size()) {
             this.quickcraft$inventorySizeMismatches++;
+            this.quickcraft$recordDiagnostic(
+                    "size_mismatch=" + expected.size() + "/" + found.size(),
+                    pos,
+                    expectedState,
+                    foundState
+            );
             return null;
         }
 
-        boolean foundNonEmpty = !quickcraft$isInventoryEmpty(found);
-        if (foundNonEmpty) {
-            this.quickcraft$foundNonEmptyContainers++;
-        }
-
-        List<ContainerMismatch> mismatches = QuickLitematicaContainerVerifier.findMismatches(
+        return QuickLitematicaContainerVerifier.findMismatches(
                 pos,
-                expectedContainer != null ? expectedContainer.state() : schematicState,
-                chunkClient.getBlockState(pos),
+                expectedState,
+                foundState,
                 expectedData,
                 foundBlockEntity,
                 expectedContainer != null
@@ -785,56 +742,15 @@ public abstract class LitematicaSchematicVerifierMixin extends TaskBase implemen
                 expected,
                 found
         );
-        if (!mismatches.isEmpty()) {
-            this.quickcraft$mismatchedContainers++;
-        }
-        if (this.quickcraft$comparisonSamplesLogged < 8 && (expectedNonEmpty || foundNonEmpty || !mismatches.isEmpty())) {
-            this.quickcraft$comparisonSamplesLogged++;
-            QUICKCRAFT_LOGGER.info(
-                    "[ContainerVerifierPerf] SAMPLE pos={} source={} expected={} found={} mismatchRecords={}",
-                    pos,
-                    readStatus,
-                    quickcraft$inventorySummary(expected),
-                    quickcraft$inventorySummary(found),
-                    mismatches.size()
+    }
+
+    @Unique
+    private void quickcraft$recordDiagnostic(String reason, BlockPos pos, BlockState expected, BlockState found) {
+        if (this.quickcraft$diagnosticSamples.size() < 5) {
+            this.quickcraft$diagnosticSamples.add(
+                    reason + "@" + pos + " expected=" + expected.getBlock() + " found=" + found.getBlock()
             );
         }
-        return mismatches;
-    }
-
-    @Unique
-    private static boolean quickcraft$isInventoryEmpty(Inventory inventory) {
-        for (int slot = 0; slot < inventory.size(); slot++) {
-            if (!inventory.getStack(slot).isEmpty()) {
-                return false;
-            }
-        }
-        return true;
-    }
-
-    @Unique
-    private static String quickcraft$inventorySummary(Inventory inventory) {
-        int occupiedSlots = 0;
-        int itemCount = 0;
-        List<String> samples = new ArrayList<>(3);
-
-        for (int slot = 0; slot < inventory.size(); slot++) {
-            ItemStack stack = inventory.getStack(slot);
-            if (stack.isEmpty()) {
-                continue;
-            }
-
-            occupiedSlots++;
-            itemCount += stack.getCount();
-            if (samples.size() < 3) {
-                samples.add(slot + "=" + stack);
-            }
-        }
-
-        return "size=" + inventory.size()
-                + ",occupied=" + occupiedSlots
-                + ",items=" + itemCount
-                + ",sample=" + samples;
     }
 
     @Unique
@@ -1072,7 +988,6 @@ public abstract class LitematicaSchematicVerifierMixin extends TaskBase implemen
     private void quickcraft$rebuildContainerDataChunks(WorldSchematic worldSchematic, SchematicPlacement placement) {
         this.quickcraft$containerDataChunks.clear();
         Set<ChunkPos> touchedChunks = placement.getTouchedChunks();
-        this.quickcraft$touchedChunkCount = touchedChunks.size();
 
         for (ChunkPos chunkPos : touchedChunks) {
             Chunk chunkSchematic = worldSchematic.getChunk(chunkPos.x, chunkPos.z);
@@ -1093,11 +1008,22 @@ public abstract class LitematicaSchematicVerifierMixin extends TaskBase implemen
                     continue;
                 }
 
-                this.quickcraft$schematicBlockEntityCount++;
-
-                if (!hasContainer && (chunkSchematic.getBlockEntity(pos) instanceof Inventory
-                        || QuickLitematicaContainerVerifier.getExpectedContainerPartAt(placement, pos) != null)) {
+                BlockEntity expectedBlockEntity = chunkSchematic.getBlockEntity(pos);
+                ExpectedContainer expectedContainer = QuickLitematicaContainerVerifier.getExpectedContainerPartAt(
+                        placement,
+                        pos
+                );
+                if (expectedContainer != null || expectedBlockEntity instanceof Inventory) {
                     hasContainer = true;
+                } else if (quickcraft$hasSerializedContainerData(worldSchematic, expectedBlockEntity)) {
+                    this.quickcraft$unsupportedExpectedContainers++;
+                    BlockState state = chunkSchematic.getBlockState(pos);
+                    this.quickcraft$recordDiagnostic(
+                            "unsupported_expected=" + expectedBlockEntity.getType(),
+                            pos,
+                            state,
+                            state
+                    );
                 }
             }
 
@@ -1108,8 +1034,17 @@ public abstract class LitematicaSchematicVerifierMixin extends TaskBase implemen
     }
 
     @Unique
-    private static long quickcraft$millis(long nanos) {
-        return Math.round(nanos / 1_000_000.0);
+    private static boolean quickcraft$hasSerializedContainerData(WorldSchematic world, BlockEntity blockEntity) {
+        if (blockEntity == null) {
+            return false;
+        }
+
+        try {
+            NbtCompound nbt = blockEntity.createNbtWithIdentifyingData(world.getRegistryManager());
+            return nbt.contains("Items") || nbt.contains("RecordItem");
+        } catch (RuntimeException ignored) {
+            return false;
+        }
     }
 
     @Unique
