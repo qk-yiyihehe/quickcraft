@@ -335,6 +335,60 @@ final class QuickCraftRecipeBookInventory {
         return -1;
     }
 
+    static int countMatchingUnlockedSlots(ScreenHandler handler,
+                                          QuickCraftRecipeBookLayout.Layout layout,
+                                          ItemStack template) {
+        if (handler == null || layout == null || template == null || template.isEmpty()) {
+            return 0;
+        }
+        int matchingSlots = 0;
+        for (int inventoryIndex = 0;
+             inventoryIndex < QuickCraftRecipeBookLayout.PLAYER_INVENTORY_SIZE;
+             inventoryIndex++) {
+            int handlerSlot = layout.handlerSlotForInventoryIndex(inventoryIndex);
+            if (handlerSlot < 0 || QuickContainerLock.isLockedSlot(handler, handlerSlot)) {
+                continue;
+            }
+            ItemStack stack = handler.getSlot(handlerSlot).getStack();
+            if (!stack.isEmpty() && ItemStack.areItemsAndComponentsEqual(stack, template)) {
+                matchingSlots++;
+            }
+        }
+        return matchingSlots;
+    }
+
+    static int dropMatchingUnlockedInventory(MinecraftClient client,
+                                             ScreenHandler handler,
+                                             QuickCraftRecipeBookLayout.Layout layout,
+                                             ItemStack template,
+                                             String reason) {
+        if (client == null || client.player == null || client.interactionManager == null
+                || handler == null || layout == null || template == null || template.isEmpty()
+                || !handler.getCursorStack().isEmpty()) {
+            return 0;
+        }
+
+        int droppedSlots = 0;
+        for (int inventoryIndex = 0;
+             inventoryIndex < QuickCraftRecipeBookLayout.PLAYER_INVENTORY_SIZE;
+             inventoryIndex++) {
+            int handlerSlot = layout.handlerSlotForInventoryIndex(inventoryIndex);
+            if (handlerSlot < 0 || QuickContainerLock.isLockedSlot(handler, handlerSlot)) {
+                continue;
+            }
+            ItemStack stack = handler.getSlot(handlerSlot).getStack();
+            if (stack.isEmpty() || !ItemStack.areItemsAndComponentsEqual(stack, template)) {
+                continue;
+            }
+            ItemStack dropped = stack.copy();
+            client.interactionManager.clickSlot(
+                    handler.syncId, handlerSlot, 1, SlotActionType.THROW, client.player);
+            droppedSlots++;
+            LOGGER.info("{}：界面={}，槽={}，物品={}", reason, layout.name(), handlerSlot, dropped);
+        }
+        return droppedSlots;
+    }
+
     static boolean hasLockedPlayerSlot(ScreenHandler handler,
                                        QuickCraftRecipeBookLayout.Layout layout) {
         if (handler == null || layout == null) {
