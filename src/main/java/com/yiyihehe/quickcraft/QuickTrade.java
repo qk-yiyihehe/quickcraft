@@ -1,5 +1,6 @@
 package com.yiyihehe.quickcraft;
 
+import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.mojang.brigadier.exceptions.CommandSyntaxException;
@@ -34,6 +35,7 @@ import net.minecraft.world.item.trading.MerchantOffer;
 import net.minecraft.world.item.trading.MerchantOffers;
 import org.lwjgl.glfw.GLFW;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -42,11 +44,11 @@ import java.util.Set;
 
 /**
  * 村民交易增强：
- * - 中键收藏一条交易，再次中键同一条交易会取消收藏
- * - 收藏交易会在原版交易列表顺序中排到第一位
+ * - 中键收藏多条交易，再次中键已收藏交易会逐条取消
+ * - 收藏交易会按收藏顺序排在原版交易列表前面
  * - 右键一条交易时，尽可能连续完成该交易
- * - 开启快速交易后，对着村民右键会自动完成收藏交易并关闭界面
- * - 开启持续交易后，自动扫描交互距离内的村民并完成收藏交易
+ * - 开启快速交易后，对着村民右键会按顺序自动完成全部收藏交易并关闭界面
+ * - 开启持续交易后，自动扫描交互距离内的村民并按顺序完成全部收藏交易
  */
 public final class QuickTrade implements ClientModInitializer {
     private static final int ROW_X_OFFSET = 5;
@@ -63,7 +65,7 @@ public final class QuickTrade implements ClientModInitializer {
     // 扫描盒按原版默认实体交互距离外扩，实际目标仍由玩家实体交互范围校验。
     private static final double CONTINUOUS_TRADE_SCAN_RADIUS = 4.5;
 
-    private static final Map<String, FavoriteTrade> FAVORITE_TRADES = new HashMap<>();
+    private static final Map<String, List<FavoriteTrade>> FAVORITE_TRADES = new HashMap<>();
     private static final Set<String> CONTINUOUS_HANDLED_MERCHANTS = new HashSet<>();
     private static boolean lastUseDown;
     private static boolean pendingAutoTrade;
@@ -137,9 +139,14 @@ public final class QuickTrade implements ClientModInitializer {
         }
 
         MerchantOffer[] originalOffers = offers.toArray(new MerchantOffer[0]);
-        int[] displayToServerIndex = buildDisplayToServerIndex(originalOffers, getFavoriteTrade(screen));
-        applyDisplayOrder(offers, originalOffers, displayToServerIndex);
-        currentOrderState = new TradeOrderState(screen, originalOffers, displayToServerIndex);
+        TradeDisplayOrder displayOrder = buildDisplayOrder(originalOffers, getFavoriteTrades(screen));
+        applyDisplayOrder(offers, originalOffers, displayOrder.displayToServerIndex());
+        currentOrderState = new TradeOrderState(
+                screen,
+                originalOffers,
+                displayOrder.displayToServerIndex(),
+                displayOrder.favoriteCount()
+        );
 
         setIndexStartOffset(screen, 0);
     }
@@ -148,37 +155,33 @@ public final class QuickTrade implements ClientModInitializer {
         bindCurrentMerchant(screen);
         prepareTradeOrder(screen);
 
-        FavoriteTrade favoriteTrade = getFavoriteTrade(screen);
-        if (!QuickCraftConfigs.isFavoriteTradeEnabled() || favoriteTrade == null) {
-            return;
-        }
-
-        MerchantOffers offers = screen.getMenu().getOffers();
-        int favoriteIndex = findFavoriteOfferIndex(offers, favoriteTrade);
-        if (favoriteIndex < 0) {
+        if (!QuickCraftConfigs.isFavoriteTradeEnabled()
+                || currentOrderState == null
+                || currentOrderState.screen() != screen
+                || currentOrderState.favoriteCount() == 0) {
             return;
         }
 
         int startOffset = getIndexStartOffset(screen);
-        int visibleRow = favoriteIndex - startOffset;
-        if (visibleRow < 0 || visibleRow >= VISIBLE_ROW_COUNT) {
-            return;
-        }
-
         Minecraft client = Minecraft.getInstance();
         if (client.font == null) {
             return;
         }
 
         int rowLeft = getGuiLeft(screen) + ROW_X_OFFSET;
-        int rowTop = getGuiTop(screen) + ROW_Y_OFFSET + visibleRow * ROW_HEIGHT;
-        context.text(
-                client.font,
-                "★",
-                rowLeft + STAR_X_OFFSET,
-                rowTop + STAR_Y_OFFSET,
-                0xFFFFE066
-        );
+        int firstVisibleFavorite = Math.max(0, startOffset);
+        int favoriteEnd = Math.min(currentOrderState.favoriteCount(), startOffset + VISIBLE_ROW_COUNT);
+        for (int favoriteIndex = firstVisibleFavorite; favoriteIndex < favoriteEnd; favoriteIndex++) {
+            int visibleRow = favoriteIndex - startOffset;
+            int rowTop = getGuiTop(screen) + ROW_Y_OFFSET + visibleRow * ROW_HEIGHT;
+            context.text(
+                    client.font,
+                    "★",
+                    rowLeft + STAR_X_OFFSET,
+                    rowTop + STAR_Y_OFFSET,
+                    0xFFFFE066
+            );
+        }
     }
 
     private static void handleMerchantUseAttempt(Minecraft client) {
@@ -195,7 +198,7 @@ public final class QuickTrade implements ClientModInitializer {
                 pendingMerchantTicks = 0;
 
                 if (QuickCraftConfigs.isQuickTradeEnabled()) {
-                    if (getFavoriteTrade(pendingMerchantKey) == null) {
+                    if (getFavoriteTrades(pendingMerchantKey).isEmpty()) {
                         sendStatusMessage(client, Component.translatable("quickcraft.message.trade.no_favorite_saved"));
                     } else {
                         pendingAutoTrade = true;
@@ -246,11 +249,10 @@ public final class QuickTrade implements ClientModInitializer {
             return;
         }
 
-        FavoriteTrade favoriteTrade = screen != null
-                ? getFavoriteTrade(screen)
-                : getFavoriteTrade(currentScreenMerchantKey);
-        int favoriteIndex = findFavoriteOfferIndex(offers, favoriteTrade);
-        if (favoriteIndex < 0) {
+        List<FavoriteTrade> favoriteTrades = screen != null
+                ? getFavoriteTrades(screen)
+                : getFavoriteTrades(currentScreenMerchantKey);
+        if (favoriteTrades.isEmpty()) {
             if (pendingContinuousTrade) {
                 sendStatusMessage(client, Component.translatable("quickcraft.message.trade.current_villager_no_favorite"));
                 finishPendingAutoTrade(client, false);
@@ -261,27 +263,47 @@ public final class QuickTrade implements ClientModInitializer {
             return;
         }
 
-        MerchantOffer favoriteOffer = getOffer(offers, favoriteIndex);
-        if (favoriteOffer != null && favoriteOffer.isOutOfStock()) {
-            finishPendingAutoTrade(client, false);
-            return;
+        boolean foundFavorite = false;
+        boolean failed = false;
+        for (FavoriteTrade favoriteTrade : favoriteTrades) {
+            int favoriteIndex = findFavoriteOfferIndex(offers, favoriteTrade);
+            if (favoriteIndex < 0) {
+                continue;
+            }
+
+            foundFavorite = true;
+            MerchantOffer favoriteOffer = getOffer(offers, favoriteIndex);
+            if (favoriteOffer == null || favoriteOffer.isOutOfStock()) {
+                continue;
+            }
+
+            if (screen != null) {
+                selectTrade(screen, favoriteIndex);
+            } else {
+                selectTrade(handler, favoriteIndex);
+            }
+            if (!handler.getSlot(OUTPUT_SLOT_ID).hasItem()) {
+                failed = true;
+                continue;
+            }
+
+            boolean tradeFailed = screen != null
+                    ? tradeAllAvailable(screen, favoriteIndex)
+                    : tradeAllAvailable(handler, favoriteIndex);
+            failed = failed || tradeFailed;
         }
 
-        if (screen != null) {
-            selectTrade(screen, favoriteIndex);
-        } else {
-            selectTrade(handler, favoriteIndex);
-        }
-        if (!handler.getSlot(OUTPUT_SLOT_ID).hasItem()) {
-            if (pendingAutoTradeTicks > AUTO_TRADE_TIMEOUT_TICKS) {
-                finishPendingAutoTrade(client, true);
+        if (!foundFavorite) {
+            sendStatusMessage(client, Component.translatable("quickcraft.message.trade.current_villager_no_favorite"));
+            if (pendingContinuousTrade) {
+                finishPendingAutoTrade(client, false);
+            } else {
+                clearPendingAutoTradeState();
             }
             return;
         }
 
-        finishPendingAutoTrade(client, screen != null
-                ? tradeAllAvailable(screen, favoriteIndex)
-                : tradeAllAvailable(handler, favoriteIndex));
+        finishPendingAutoTrade(client, failed);
     }
 
     private static void processContinuousTrade(Minecraft client) {
@@ -314,7 +336,7 @@ public final class QuickTrade implements ClientModInitializer {
 
         AbstractVillager target = nearbyMerchants.stream()
                 .filter(merchant -> !CONTINUOUS_HANDLED_MERCHANTS.contains(buildMerchantKey(merchant)))
-                .filter(merchant -> getFavoriteTrade(buildMerchantKey(merchant)) != null)
+                .filter(merchant -> !getFavoriteTrades(buildMerchantKey(merchant)).isEmpty())
                 .min((left, right) -> Double.compare(
                         client.player.distanceToSqr(left),
                         client.player.distanceToSqr(right)
@@ -526,19 +548,35 @@ public final class QuickTrade implements ClientModInitializer {
         }
 
         Minecraft client = Minecraft.getInstance();
-        FavoriteTrade favoriteTrade = getFavoriteTrade(merchantKey);
-        if (favoriteTrade != null && favoriteTrade.matches(offer)) {
-            FAVORITE_TRADES.remove(merchantKey);
+        List<FavoriteTrade> favoriteTrades = FAVORITE_TRADES.computeIfAbsent(
+                merchantKey,
+                ignored -> new ArrayList<>()
+        );
+        int favoriteIndex = findFavoriteTradeIndex(favoriteTrades, offer);
+        if (favoriteIndex >= 0) {
+            favoriteTrades.remove(favoriteIndex);
+            if (favoriteTrades.isEmpty()) {
+                FAVORITE_TRADES.remove(merchantKey);
+            }
             refreshTradeOrder(screen, true);
             QuickPersistentState.saveCurrentProfileState();
             sendStatusMessage(client, Component.translatable("quickcraft.message.trade.favorite_removed"));
             return;
         }
 
-        FAVORITE_TRADES.put(merchantKey, FavoriteTrade.from(offer));
+        favoriteTrades.add(FavoriteTrade.from(offer));
         refreshTradeOrder(screen, true);
         QuickPersistentState.saveCurrentProfileState();
         sendStatusMessage(client, Component.translatable("quickcraft.message.trade.favorite_added"));
+    }
+
+    private static int findFavoriteTradeIndex(List<FavoriteTrade> favoriteTrades, MerchantOffer offer) {
+        for (int index = 0; index < favoriteTrades.size(); index++) {
+            if (favoriteTrades.get(index).matches(offer)) {
+                return index;
+            }
+        }
+        return -1;
     }
 
     private static int findFavoriteOfferIndex(MerchantOffers offers, FavoriteTrade favoriteTrade) {
@@ -569,8 +607,7 @@ public final class QuickTrade implements ClientModInitializer {
         if (tradeIndex == 0
                 && !offers.isEmpty()
                 && currentOrderState != null
-                && currentOrderState.displayToServerIndex().length > 0
-                && currentOrderState.displayToServerIndex()[0] != 0
+                && currentOrderState.favoriteCount() > 0
                 && currentOrderState.screen().getMenu().getOffers() == offers) {
             MerchantOffer firstOffer = offers.get(0);
             return firstOffer.satisfiedBy(firstBuyItem, secondBuyItem) ? firstOffer : null;
@@ -639,9 +676,14 @@ public final class QuickTrade implements ClientModInitializer {
                 ? currentOrderState.originalOffers()
                 : offers.toArray(new MerchantOffer[0]);
 
-        int[] displayToServerIndex = buildDisplayToServerIndex(originalOffers, getFavoriteTrade(screen));
-        applyDisplayOrder(offers, originalOffers, displayToServerIndex);
-        currentOrderState = new TradeOrderState(screen, originalOffers, displayToServerIndex);
+        TradeDisplayOrder displayOrder = buildDisplayOrder(originalOffers, getFavoriteTrades(screen));
+        applyDisplayOrder(offers, originalOffers, displayOrder.displayToServerIndex());
+        currentOrderState = new TradeOrderState(
+                screen,
+                originalOffers,
+                displayOrder.displayToServerIndex(),
+                displayOrder.favoriteCount()
+        );
 
         if (resetScroll) {
             setIndexStartOffset(screen, 0);
@@ -659,25 +701,29 @@ public final class QuickTrade implements ClientModInitializer {
         }
     }
 
-    private static int[] buildDisplayToServerIndex(MerchantOffer[] originalOffers, FavoriteTrade favoriteTrade) {
+    private static TradeDisplayOrder buildDisplayOrder(MerchantOffer[] originalOffers,
+                                                        List<FavoriteTrade> favoriteTrades) {
         int[] displayToServerIndex = new int[originalOffers.length];
-        int favoriteServerIndex = findFavoriteOfferIndex(originalOffers, favoriteTrade);
-        if (favoriteServerIndex < 0) {
-            for (int index = 0; index < originalOffers.length; index++) {
-                displayToServerIndex[index] = index;
+        boolean[] pinnedServerIndices = new boolean[originalOffers.length];
+        int displayIndex = 0;
+
+        if (QuickCraftConfigs.isFavoriteTradeEnabled()) {
+            for (FavoriteTrade favoriteTrade : favoriteTrades) {
+                int serverIndex = findFavoriteOfferIndex(originalOffers, favoriteTrade, pinnedServerIndices);
+                if (serverIndex >= 0) {
+                    displayToServerIndex[displayIndex++] = serverIndex;
+                    pinnedServerIndices[serverIndex] = true;
+                }
             }
-            return displayToServerIndex;
         }
 
-        displayToServerIndex[0] = favoriteServerIndex;
-        int displayIndex = 1;
+        int favoriteCount = displayIndex;
         for (int serverIndex = 0; serverIndex < originalOffers.length; serverIndex++) {
-            if (serverIndex == favoriteServerIndex) {
-                continue;
+            if (!pinnedServerIndices[serverIndex]) {
+                displayToServerIndex[displayIndex++] = serverIndex;
             }
-            displayToServerIndex[displayIndex++] = serverIndex;
         }
-        return displayToServerIndex;
+        return new TradeDisplayOrder(displayToServerIndex, favoriteCount);
     }
 
     private static void applyDisplayOrder(MerchantOffers offers,
@@ -744,13 +790,16 @@ public final class QuickTrade implements ClientModInitializer {
         return currentScreenMerchantKey;
     }
 
-    private static FavoriteTrade getFavoriteTrade(MerchantScreen screen) {
+    private static List<FavoriteTrade> getFavoriteTrades(MerchantScreen screen) {
         String merchantKey = getCurrentMerchantKey(screen);
-        return merchantKey == null ? null : FAVORITE_TRADES.get(merchantKey);
+        return getFavoriteTrades(merchantKey);
     }
 
-    private static FavoriteTrade getFavoriteTrade(String merchantKey) {
-        return merchantKey == null ? null : FAVORITE_TRADES.get(merchantKey);
+    private static List<FavoriteTrade> getFavoriteTrades(String merchantKey) {
+        if (merchantKey == null) {
+            return List.of();
+        }
+        return FAVORITE_TRADES.getOrDefault(merchantKey, List.of());
     }
 
     private static String buildMerchantKey(AbstractVillager merchant) {
@@ -767,13 +816,19 @@ public final class QuickTrade implements ClientModInitializer {
         return entity instanceof AbstractVillager merchant ? merchant : null;
     }
 
-    private static int findFavoriteOfferIndex(MerchantOffer[] offers, FavoriteTrade favoriteTrade) {
-        if (!QuickCraftConfigs.isFavoriteTradeEnabled() || favoriteTrade == null || offers == null) {
+    private static int findFavoriteOfferIndex(MerchantOffer[] offers,
+                                              FavoriteTrade favoriteTrade,
+                                              boolean[] excludedIndices) {
+        if (!QuickCraftConfigs.isFavoriteTradeEnabled()
+                || favoriteTrade == null
+                || offers == null
+                || excludedIndices == null
+                || offers.length != excludedIndices.length) {
             return -1;
         }
 
         for (int index = 0; index < offers.length; index++) {
-            if (favoriteTrade.matches(offers[index])) {
+            if (!excludedIndices[index] && favoriteTrade.matches(offers[index])) {
                 return index;
             }
         }
@@ -804,13 +859,31 @@ public final class QuickTrade implements ClientModInitializer {
         }
 
         for (Map.Entry<String, JsonElement> entry : favoriteTrades.entrySet()) {
-            if (!entry.getValue().isJsonObject()) {
-                continue;
+            List<FavoriteTrade> loadedFavorites = new ArrayList<>();
+            JsonElement value = entry.getValue();
+            if (value.isJsonObject()) {
+                FavoriteTrade favoriteTrade = FavoriteTrade.fromJson(value.getAsJsonObject(), registryLookup);
+                if (favoriteTrade != null) {
+                    loadedFavorites.add(favoriteTrade);
+                }
+            } else if (value.isJsonArray()) {
+                for (JsonElement favoriteElement : value.getAsJsonArray()) {
+                    if (!favoriteElement.isJsonObject()) {
+                        continue;
+                    }
+
+                    FavoriteTrade favoriteTrade = FavoriteTrade.fromJson(
+                            favoriteElement.getAsJsonObject(),
+                            registryLookup
+                    );
+                    if (favoriteTrade != null) {
+                        loadedFavorites.add(favoriteTrade);
+                    }
+                }
             }
 
-            FavoriteTrade favoriteTrade = FavoriteTrade.fromJson(entry.getValue().getAsJsonObject(), registryLookup);
-            if (favoriteTrade != null) {
-                FAVORITE_TRADES.put(entry.getKey(), favoriteTrade);
+            if (!loadedFavorites.isEmpty()) {
+                FAVORITE_TRADES.put(entry.getKey(), loadedFavorites);
             }
         }
     }
@@ -818,8 +891,12 @@ public final class QuickTrade implements ClientModInitializer {
     static void writePersistentState(JsonObject root, HolderLookup.Provider registryLookup) {
         JsonObject state = new JsonObject();
         JsonObject favoriteTrades = new JsonObject();
-        for (Map.Entry<String, FavoriteTrade> entry : FAVORITE_TRADES.entrySet()) {
-            favoriteTrades.add(entry.getKey(), entry.getValue().toJson(registryLookup));
+        for (Map.Entry<String, List<FavoriteTrade>> entry : FAVORITE_TRADES.entrySet()) {
+            JsonArray merchantFavorites = new JsonArray();
+            for (FavoriteTrade favoriteTrade : entry.getValue()) {
+                merchantFavorites.add(favoriteTrade.toJson(registryLookup));
+            }
+            favoriteTrades.add(entry.getKey(), merchantFavorites);
         }
         state.add("favoriteTrades", favoriteTrades);
         root.add("quickTrade", state);
@@ -830,7 +907,13 @@ public final class QuickTrade implements ClientModInitializer {
         return element != null && element.isJsonObject() ? element.getAsJsonObject() : null;
     }
 
-    private record TradeOrderState(MerchantScreen screen, MerchantOffer[] originalOffers, int[] displayToServerIndex) {
+    private record TradeOrderState(MerchantScreen screen,
+                                   MerchantOffer[] originalOffers,
+                                   int[] displayToServerIndex,
+                                   int favoriteCount) {
+    }
+
+    private record TradeDisplayOrder(int[] displayToServerIndex, int favoriteCount) {
     }
 
     private record FavoriteTrade(ItemStack firstBuyItem, ItemStack secondBuyItem, ItemStack sellItem) {
