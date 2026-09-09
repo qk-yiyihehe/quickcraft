@@ -312,6 +312,10 @@ public final class QuickCraftConfigs implements IConfigHandler {
                 false,
                 ""
         ).apply(CONTAINER_TRANSLATION_PREFIX);
+        public static final ConfigBoolean QUICK_TRADE_RIGHT_CLICK = new ConfigBoolean(
+                "quickTradeRightClick",
+                true
+        ).apply(CONTAINER_TRANSLATION_PREFIX);
         public static final ConfigBooleanHotkeyed ENABLE_CONTINUOUS_TRADE = new ConfigBooleanHotkeyed(
                 "enableContinuousTrade",
                 false,
@@ -421,6 +425,7 @@ public final class QuickCraftConfigs implements IConfigHandler {
                 SHOW_QUICK_STASH_BUTTON,
                 ENABLE_QUICK_THROW,
                 ENABLE_QUICK_TRADE,
+                QUICK_TRADE_RIGHT_CLICK,
                 ENABLE_CONTINUOUS_TRADE,
                 ENABLE_FAVORITE_TRADE,
                 ENABLE_QUICK_SORT,
@@ -1036,6 +1041,10 @@ public final class QuickCraftConfigs implements IConfigHandler {
 
     public static boolean isQuickTradeEnabled() {
         return ContainerTools.ENABLE_QUICK_TRADE.getBooleanValue();
+    }
+
+    public static boolean isQuickTradeRightClickEnabled() {
+        return ContainerTools.QUICK_TRADE_RIGHT_CLICK.getBooleanValue();
     }
 
     public static boolean isContinuousTradeEnabled() {
