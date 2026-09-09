@@ -40,7 +40,6 @@ public final class QuickCraftRecipeBookAckExecutor {
     private static final int MAX_REFILL_RETRIES = 3;
     private static final int MAX_DRAIN_RETRIES = 3;
     private static final int MAX_PICKUP_WAIT_TICKS = 5;
-    private static final int MAX_PICKUP_WAIT_BATCHES = 3;
     private static final int MAX_CURSOR_RECOVERY_ATTEMPTS = 4;
     private static QuickCraftRecipeBookAckExecutor activeExecutor;
     private static final List<CanceledBatchDrain> CANCELED_BATCH_DRAINS = new ArrayList<>();
@@ -217,12 +216,16 @@ public final class QuickCraftRecipeBookAckExecutor {
                 client.player,
                 System.nanoTime()
         );
+        session.outputFillSlotsRemaining = QuickCraftRecipeBookInventory.unlockedEmptySlots(
+                handler, layout);
+        session.outputSprayMode = session.outputFillSlotsRemaining == 0;
         activeExecutor = this;
         dispatchedThisTick = 0;
         LOGGER.info("手动补货ACK会话开始：界面={}，配方={}，产物={}，syncId={}，revision={}，"
-                        + "每Tick批次上限={}，停止尾货丢弃={}，按住={}",
+                        + "每Tick批次上限={}，初始空格={}，喷射模式={}，停止尾货丢弃={}，按住={}",
                 layout.name(), recipeId, describeStack(resultTemplate), handler.syncId,
                 handler.getRevision(), QuickCraftConfigs.getCraftLoopsPerTick(),
+                session.outputFillSlotsRemaining, session.outputSprayMode,
                 QuickCraftConfigs.isDropCraftResultsOnStopEnabled(),
                 session.inputHeld.getAsBoolean());
         return true;
@@ -283,7 +286,12 @@ public final class QuickCraftRecipeBookAckExecutor {
                         ingredientsAvailable ? "检测到可补原料" : "等待到期",
                         describeGrid(current.handler),
                         current.inputHeld.getAsBoolean());
-                pump(client);
+                if (ingredientsAvailable) {
+                    pump(client);
+                } else {
+                    finish(Text.translatable("quickcraft.message.crafting.no_ingredients"),
+                            "释放满包产物后等待拾取到期");
+                }
             }
             return;
         }
@@ -394,6 +402,7 @@ public final class QuickCraftRecipeBookAckExecutor {
             int outputOperations = 0;
             int outputSlotClicksBefore = current.outputSlotClicks;
             boolean refilled = false;
+            boolean outputThrown = false;
 
             if (!isExpectedOutput(output, current.resultTemplate)) {
                 refilled = refillSnapshot(client, handler, operationBudget);
@@ -411,17 +420,52 @@ public final class QuickCraftRecipeBookAckExecutor {
             int plannedOutputThrows = plannedOutputThrows(
                     isExpectedOutput(output, current.resultTemplate), patternComplete);
             if (plannedOutputThrows > 0) {
-                // 1.21.3 的结果槽 THROW(button=1) 等同原版 Ctrl+丢弃：
-                // 服务端会连续合成并丢出全部同类结果，因此每个 ACK 批次只能发送一次。
-                interactionManager.clickSlot(
-                        handler.syncId,
-                        QuickCraftRecipeBookLayout.OUTPUT_SLOT,
-                        1,
-                        SlotActionType.THROW,
-                        client.player
-                );
+                boolean canAcceptOutput = QuickCraftRecipeBookInventory.canAcceptUnlocked(
+                        handler, layout, output);
+                if (shouldEnterOutputSprayMode(
+                        current.outputSprayMode,
+                        current.outputFillSlotsRemaining,
+                        QuickCraftRecipeBookInventory.unlockedEmptySlots(handler, layout),
+                        canAcceptOutput)) {
+                    activateOutputSprayMode(client, current, "背包首次占满");
+                }
+
+                boolean movedToInventory = false;
+                if (!current.outputSprayMode) {
+                    int matchingSlotsBefore = QuickCraftRecipeBookInventory.countMatchingUnlockedSlots(
+                            handler, layout, current.resultTemplate);
+                    movedToInventory = QuickCraftRecipeBookInventory.moveOutputToUnlockedInventory(
+                            client, handler, layout);
+                    if (movedToInventory) {
+                        int matchingSlotsAfter = QuickCraftRecipeBookInventory.countMatchingUnlockedSlots(
+                                handler, layout, current.resultTemplate);
+                        current.outputFillSlotsRemaining = remainingOutputFillSlots(
+                                current.outputFillSlotsRemaining,
+                                Math.max(0, matchingSlotsAfter - matchingSlotsBefore));
+                        if (shouldEnterOutputSprayMode(
+                                false,
+                                current.outputFillSlotsRemaining,
+                                QuickCraftRecipeBookInventory.unlockedEmptySlots(handler, layout),
+                                true)) {
+                            activateOutputSprayMode(client, current, "填包阶段完成");
+                        }
+                    }
+                }
+                if (!movedToInventory) {
+                    activateOutputSprayMode(client, current, "产物无法放入背包");
+                    // 1.21.3 的结果槽 THROW(button=1) 等同原版 Ctrl+丢弃：
+                    // 服务端会连续合成并丢出全部同类结果，因此每个 ACK 批次只能发送一次。
+                    interactionManager.clickSlot(
+                            handler.syncId,
+                            QuickCraftRecipeBookLayout.OUTPUT_SLOT,
+                            1,
+                            SlotActionType.THROW,
+                            client.player
+                    );
+                    current.outputThrows++;
+                    outputThrown = true;
+                }
                 outputOperations = plannedOutputThrows;
-                current.outputThrows++;
                 current.outputExpectedAtDispatch = true;
                 refreshClientPrediction(handler);
             } else if (!refilled && output.isEmpty() && !patternComplete) {
@@ -472,10 +516,13 @@ public final class QuickCraftRecipeBookAckExecutor {
             current.localDispatchNanos += System.nanoTime() - dispatchStartedAtNanos;
             if (shouldInfoLogBatch(current.batchId)) {
                 LOGGER.info("手动补货ACK批次发送：界面={}，批次=#{}，路径={}，配方={}，"
-                                + "输出槽点击={}，输出槽丢出={}，补料={}，revision={}，耗时={} us，"
+                                + "输出槽点击={}，输出槽丢出={}，模式={}，填包剩余={}，补料={}，"
+                                + "revision={}，耗时={} us，"
                                 + "点击前格子={}，当前格子={}，材料前={}，材料后={}，按住={}",
                         layout.name(), current.batchId, path.description, current.recipeId,
-                        current.batchOutputSlotClicks, outputOperations, refilled,
+                        current.batchOutputSlotClicks, outputThrown,
+                        current.outputSprayMode ? "喷射" : "填包",
+                        current.outputFillSlotsRemaining, refilled,
                         current.batchStartRevision, dispatchMicros,
                         describeGridCounts(gridBeforeClicks), describeGrid(handler),
                         materialsBefore, materialsAfter, current.inputHeld.getAsBoolean());
@@ -492,6 +539,31 @@ public final class QuickCraftRecipeBookAckExecutor {
                                    int operationBudget) {
         return snapshotRefillHandler != null
                 && snapshotRefillHandler.refill(client, handler, operationBudget);
+    }
+
+    private void activateOutputSprayMode(MinecraftClient client,
+                                         Session current,
+                                         String reason) {
+        if (!current.outputSprayMode) {
+            current.outputSprayMode = true;
+            current.outputFillSlotsRemaining = 0;
+            LOGGER.info("手动补货ACK切换永久喷射模式：界面={}，批次=#{}，原因={}",
+                    layout.name(), current.batchId + 1, reason);
+        }
+        if (current.sprayInventoryCleared) {
+            return;
+        }
+        current.sprayInventoryCleared = true;
+        dropInventoryCraftResults(client, current, "进入喷射模式丢出背包产物");
+    }
+
+    private int dropInventoryCraftResults(MinecraftClient client,
+                                          Session current,
+                                          String reason) {
+        int dropped = QuickCraftRecipeBookInventory.dropMatchingUnlockedInventory(
+                client, current.handler, layout, current.resultTemplate, reason);
+        current.inventoryResultDrops += dropped;
+        return dropped;
     }
 
     private void beginAwaitingBatch(Session current,
@@ -891,24 +963,14 @@ public final class QuickCraftRecipeBookAckExecutor {
                 boolean hasIngredients = ingredientAvailabilityHandler != null
                         && ingredientAvailabilityHandler.hasIngredients(current.handler);
                 if (!patternComplete && !hasIngredients
-                        && current.pickupWaitBatches < MAX_PICKUP_WAIT_BATCHES) {
-                    current.pickupWaitBatches++;
-                    current.pickupWaitTicks = MAX_PICKUP_WAIT_TICKS;
-                    LOGGER.info("手动补货ACK等待脚下原料拾取：界面={}，批次=#{}，等待={} Tick，"
-                                    + "批次={}/{}, 空格={}，按住={}",
-                            layout.name(), current.batchId, MAX_PICKUP_WAIT_TICKS,
-                            current.pickupWaitBatches, MAX_PICKUP_WAIT_BATCHES,
-                            QuickCraftRecipeBookInventory.unlockedEmptySlots(
-                                    current.handler, layout),
-                            current.inputHeld.getAsBoolean());
-                    acknowledgeBatch(current, current.handler.getRevision(), now,
-                            "补货无原料，等待脚下拾取");
-                    pump(client);
+                        && tryStartNoIngredientRescue(client, current, now)) {
                     return;
                 }
                 if (!patternComplete && !hasIngredients) {
                     finish(Text.translatable("quickcraft.message.crafting.no_ingredients"),
-                            "等待拾取后仍无可补原料");
+                            current.noIngredientRescueAttempted
+                                    ? "释放满包产物后仍无可补原料"
+                                    : "首次检查无可补原料");
                     return;
                 }
                 acknowledgeBatch(current, current.handler.getRevision(), now,
@@ -928,6 +990,35 @@ public final class QuickCraftRecipeBookAckExecutor {
                         ? Text.translatable("quickcraft.message.crafting.no_ingredients")
                         : Text.translatable("quickcraft.message.crafting.stopped"),
                 "统计屏障终态不可续用：" + current.batchPath.description);
+    }
+
+    private boolean tryStartNoIngredientRescue(MinecraftClient client,
+                                               Session current,
+                                               long now) {
+        if (current.noIngredientRescueAttempted
+                || QuickCraftRecipeBookInventory.unlockedEmptySlots(
+                current.handler, layout) > 0) {
+            return false;
+        }
+        current.noIngredientRescueAttempted = true;
+        current.outputSprayMode = true;
+        current.outputFillSlotsRemaining = 0;
+        int dropped = dropInventoryCraftResults(
+                client, current, "首次缺料时释放满包产物");
+        current.sprayInventoryCleared = true;
+        if (dropped <= 0) {
+            return false;
+        }
+
+        current.pickupWaitBatches++;
+        current.pickupWaitTicks = MAX_PICKUP_WAIT_TICKS;
+        LOGGER.info("手动补货ACK首次缺料释放背包后等待拾取：界面={}，批次=#{}，"
+                        + "丢出产物槽={}，等待={} Tick，按住={}",
+                layout.name(), current.batchId, dropped, MAX_PICKUP_WAIT_TICKS,
+                current.inputHeld.getAsBoolean());
+        acknowledgeBatch(current, current.handler.getRevision(), now,
+                "首次缺料已释放满包产物，等待拾取");
+        return true;
     }
 
     private boolean tryConfirmCurrentBatch(int acknowledgementRevision, long now) {
@@ -1264,7 +1355,7 @@ public final class QuickCraftRecipeBookAckExecutor {
                 ? 0L : completed.confirmedBatches * 1_000L / elapsedMillis;
         LOGGER.info("手动补货ACK会话汇总：界面={}，配方={}，耗时={} ms，批次={}/{}确认，"
                         + "请求={}，全量屏障={}，统计确认={}/{}，输出搬运={}，输出槽点击={}，"
-                        + "输出槽丢出={}，返还物丢出={}，丢原料={}，快照补料={}/{}，"
+                        + "输出槽丢出={}，背包产物丢出={}，返还物丢出={}，丢原料={}，快照补料={}/{}，"
                         + "回退旧流程={}，槽位/全量/失败包={}/{}/{}，超时={}，"
                         + "ACK平均/最小/最大={}/{}/{} us，ACK等待={} ms({}%)，本地发送={} us，"
                         + "确认批次/秒={}，首个全量平均={} us，统计平均={} us，"
@@ -1273,7 +1364,8 @@ public final class QuickCraftRecipeBookAckExecutor {
                 completed.batches, completed.recipeRequests, completed.barriersSent,
                 completed.statsProbeResponses, completed.statsProbesSent, completed.quickMoves,
                 completed.outputSlotClicks,
-                completed.outputThrows, completed.remainderThrows, completed.ingredientDrops,
+                completed.outputThrows, completed.inventoryResultDrops,
+                completed.remainderThrows, completed.ingredientDrops,
                 completed.snapshotRefillSuccesses, completed.snapshotRefillBatches,
                 completed.legacyHandoffs, completed.slotUpdates, completed.fullUpdates,
                 completed.failurePackets, completed.timeouts, averageAckMicros,
@@ -1830,6 +1922,20 @@ public final class QuickCraftRecipeBookAckExecutor {
 
     static int plannedOutputThrows(boolean expectedOutput, boolean patternComplete) {
         return expectedOutput && patternComplete ? 1 : 0;
+    }
+
+    static int remainingOutputFillSlots(int remaining, int newlyOccupiedResultSlots) {
+        return Math.max(0, remaining - Math.max(0, newlyOccupiedResultSlots));
+    }
+
+    static boolean shouldEnterOutputSprayMode(boolean alreadySpraying,
+                                              int remainingInitialFillSlots,
+                                              int currentEmptySlots,
+                                              boolean canAcceptOutput) {
+        return alreadySpraying
+                || remainingInitialFillSlots <= 0
+                || currentEmptySlots <= 0
+                || !canAcceptOutput;
     }
 
     static long ackTimeoutMillis(long observedMaxAckNanos) {
@@ -2458,6 +2564,11 @@ public final class QuickCraftRecipeBookAckExecutor {
         private boolean invalidAuthoritativeOutput;
         private boolean batchSawExpectedOutput;
         private boolean outputExpectedAtDispatch;
+        private boolean outputSprayMode;
+        private boolean sprayInventoryCleared;
+        private boolean noIngredientRescueAttempted;
+        private int outputFillSlotsRemaining;
+        private int inventoryResultDrops;
         private int intermediateOutputPackets;
         private int authoritativeWrongOutputPackets;
         private String lastAuthoritativeMaterialLedger = "未收到";
