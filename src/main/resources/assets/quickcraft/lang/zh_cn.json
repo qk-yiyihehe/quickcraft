@@ -38,7 +38,7 @@
   "quickcraft.config.crafting.comment.showCraftActionButton": "§6功能：§r在工作台、背包 2x2 和切石机产物槽右下角显示小按钮。\n§e单击：§r等同于单次合成。\n§e连续：§r按住 §bAlt + 按钮§r 启动连续合成。\n§7说明：§r松开 Alt 或按钮会停止。",
   "quickcraft.config.crafting.prettyName.dropCraftResultsOnStop": "结束后丢出产物",
   "quickcraft.config.crafting.name.dropCraftResultsOnStop": "结束后丢出产物",
-  "quickcraft.config.crafting.comment.dropCraftResultsOnStop": "§6功能：§r连续合成停止后，立即把背包里的当前合成产物丢出去。",
+  "quickcraft.config.crafting.comment.dropCraftResultsOnStop": "§6功能：§r单次或连续合成结束后，立即把背包里的当前合成产物丢出去。",
   "quickcraft.config.container_tools.prettyName.enableQuickTransfer": "快速转移",
   "quickcraft.config.container_tools.name.enableQuickTransfer": "快速转移",
   "quickcraft.config.container_tools.comment.enableQuickTransfer": "§6功能：§r启用点击和滑动快速转移。\n§e同类转移：§r默认按住 §bAlt + 左键§r，点击或滑过物品时按物品种类批量模拟 Shift 转移。\n§e整组转移：§r默认按住 §bShift + 左键§r，点击或滑过格子时执行一次 Shift 转移。\n§e说明：§r两个绑定都可以在通用快捷键里修改。",
