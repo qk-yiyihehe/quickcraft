@@ -45,6 +45,7 @@
 		"LitematicaWorldUtilsInvoker",
 		"MinecraftClientContinuousFillUseMixin",
 		"MinecraftClientContinuousTradeScreenMixin",
+		"MerchantInventoryMixin",
 		"MerchantScreenAccessor",
 		"MerchantScreenMixin",
 		"QuickContainerBackgroundFillScreenMixin",
