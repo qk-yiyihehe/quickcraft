@@ -117,13 +117,7 @@ public final class QuickLitematicaContainerVerifier {
     }
 
     public static boolean isEnabled() {
-        boolean enabled = QuickCraftConfigs.isLitematicaContainerVerifierEnabled();
-        if (enabled) {
-            // 容器验证依赖 Litematica 的实体数据缓存和备份查询；两项关闭时不会维护该数据源。
-            Configs.Generic.ENTITY_DATA_SYNC.setBooleanValue(true);
-            Configs.Generic.ENTITY_DATA_SYNC_BACKUP.setBooleanValue(true);
-        }
-        return enabled;
+        return QuickCraftConfigs.isLitematicaContainerVerifierEnabled();
     }
 
     public static boolean areSlotHintsVisible() {
@@ -229,6 +223,7 @@ public final class QuickLitematicaContainerVerifier {
         }
 
         // 多人没有实体数据时不要拿客户端空壳库存硬比，避免把未知误报成错误填充。
+        ensureEntityDataSyncEnabled();
         storage.requestBlockEntity(world, pos);
         return null;
     }
@@ -393,6 +388,7 @@ public final class QuickLitematicaContainerVerifier {
 
     public static void requestInventoryData(World world, BlockPos pos) {
         if (world != null) {
+            ensureEntityDataSyncEnabled();
             EntitiesDataStorage.getInstance().requestBlockEntity(world, pos);
         }
     }
@@ -402,6 +398,7 @@ public final class QuickLitematicaContainerVerifier {
             return false;
         }
 
+        ensureEntityDataSyncEnabled();
         EntitiesDataStorage storage = EntitiesDataStorage.getInstance();
         if (storage.hasServuxServer()) {
             storage.requestServuxBulkEntityData(chunkPos, minY, maxY);
@@ -413,6 +410,12 @@ public final class QuickLitematicaContainerVerifier {
         }
 
         return false;
+    }
+
+    private static void ensureEntityDataSyncEnabled() {
+        // 容器验证依赖 Litematica 的实体数据缓存和备份查询；只在实际请求数据时开启，避免污染逐方块热路径。
+        Configs.Generic.ENTITY_DATA_SYNC.setBooleanValue(true);
+        Configs.Generic.ENTITY_DATA_SYNC_BACKUP.setBooleanValue(true);
     }
 
     public static List<ContainerMismatch> findMismatches(
