@@ -13,6 +13,28 @@ class QuickCraftRecipeBookAckExecutorTest {
     }
 
     @Test
+    void outputSprayModeLatchesAfterInitialFillPhase() {
+        assertThat(QuickCraftRecipeBookAckExecutor.shouldEnterOutputSprayMode(
+                false, 2, 2, true)).isFalse();
+        assertThat(QuickCraftRecipeBookAckExecutor.remainingOutputFillSlots(2, 1)).isEqualTo(1);
+        assertThat(QuickCraftRecipeBookAckExecutor.remainingOutputFillSlots(1, 1)).isZero();
+        assertThat(QuickCraftRecipeBookAckExecutor.shouldEnterOutputSprayMode(
+                false, 0, 3, true)).isTrue();
+        assertThat(QuickCraftRecipeBookAckExecutor.shouldEnterOutputSprayMode(
+                true, 0, 9, true)).isTrue();
+    }
+
+    @Test
+    void fullInventoryStartsOutputSprayEvenWhenOutputCouldStack() {
+        assertThat(QuickCraftRecipeBookAckExecutor.shouldEnterOutputSprayMode(
+                false, 0, 0, true)).isTrue();
+        assertThat(QuickCraftRecipeBookAckExecutor.shouldEnterOutputSprayMode(
+                false, 2, 0, true)).isTrue();
+        assertThat(QuickCraftRecipeBookAckExecutor.shouldEnterOutputSprayMode(
+                false, 2, 2, false)).isTrue();
+    }
+
+    @Test
     void materialLedgerUsesRefilledGridAsCtrlThrowCraftLimit() {
         boolean[] honeyBottleSlots = {
                 true, true, false,
