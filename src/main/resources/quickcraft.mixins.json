@@ -46,6 +46,7 @@
 		"MinecraftClientContinuousFillUseMixin",
 		"MinecraftClientAccessor",
 		"MinecraftClientContinuousTradeScreenMixin",
+		"MerchantInventoryMixin",
 		"MerchantScreenAccessor",
 		"MerchantScreenMixin",
 		"QuickContainerBackgroundFillScreenMixin",
