@@ -12,6 +12,7 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 import net.minecraft.client.gui.screens.inventory.MerchantScreen;
+import net.minecraft.client.multiplayer.ClientPacketListener;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.npc.villager.AbstractVillager;
 import net.minecraft.world.entity.player.Inventory;
@@ -468,9 +469,16 @@ public final class QuickTrade implements ClientModInitializer {
         if (displayTradeIndex < 0) {
             return;
         }
+        int serverTradeIndex = toServerTradeIndex(screen, displayTradeIndex);
 
         handler.setSelectionHint(displayTradeIndex);
         handler.tryMoveItems(displayTradeIndex);
+
+        Minecraft client = Minecraft.getInstance();
+        ClientPacketListener connection = client.getConnection();
+        if (connection != null) {
+            connection.send(new ServerboundSelectTradePacket(serverTradeIndex));
+        }
     }
 
     private static int findVisibleTradeIndexAt(MerchantScreen screen, double mouseX, double mouseY) {
@@ -552,6 +560,23 @@ public final class QuickTrade implements ClientModInitializer {
             return null;
         }
         return offers.get(tradeIndex);
+    }
+
+    public static MerchantOffer getValidOfferForCurrentOrder(MerchantOffers offers,
+                                                              ItemStack firstBuyItem,
+                                                              ItemStack secondBuyItem,
+                                                              int tradeIndex) {
+        if (tradeIndex == 0
+                && !offers.isEmpty()
+                && currentOrderState != null
+                && currentOrderState.displayToServerIndex().length > 0
+                && currentOrderState.displayToServerIndex()[0] != 0
+                && currentOrderState.screen().getMenu().getOffers() == offers) {
+            MerchantOffer firstOffer = offers.get(0);
+            return firstOffer.satisfiedBy(firstBuyItem, secondBuyItem) ? firstOffer : null;
+        }
+
+        return offers.getRecipeFor(firstBuyItem, secondBuyItem, tradeIndex);
     }
 
     private static int countMatchingItems(Inventory inventory, ItemStack template) {

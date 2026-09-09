@@ -59,5 +59,6 @@ public abstract class MerchantScreenMixin {
     @Inject(method = "postButtonClick", at = @At("HEAD"), cancellable = true)
     private void quickcraft$syncMappedRecipeIndex(CallbackInfo ci) {
         QuickTrade.syncRecipeIndex((MerchantScreen) (Object) this);
+        ci.cancel();
     }
 }
