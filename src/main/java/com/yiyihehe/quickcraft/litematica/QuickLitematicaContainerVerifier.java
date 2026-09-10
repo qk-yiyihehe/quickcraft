@@ -201,26 +201,18 @@ public final class QuickLitematicaContainerVerifier {
 
         EntitiesDataStorage storage = EntitiesDataStorage.getInstance();
         NbtCompound cachedNbt = storage.getFromBlockEntityCacheNbt(pos);
-
-        if (cachedNbt != null && !cachedNbt.contains("Items") && expected != null && isInventoryEmpty(expected)) {
-            // 服务器空容器 NBT 可能只带 x/y/z/id，没有 Items；这表示已读到空库存。
-            trustedInventoryCache.put(pos.toImmutable(), new SimpleInventory(expected.size()));
-            lastActualInventoryReadStatus = ActualInventoryReadStatus.CACHE_INVENTORY;
-            return new SimpleInventory(expected.size());
-        }
-
-        if (cachedNbt != null && (cachedNbt.contains("Items") || isInventoryEmpty(expected))) {
+        if (cachedNbt != null) {
             Inventory cachedInventory = getCachedInventory(world, pos, storage, expected != null ? expected.size() : -1);
 
-            if (cachedInventory != null) {
+            if (cachedInventory != null && isTrustedCachedInventory(storage, pos, cachedNbt, cachedInventory, expected)) {
                 trustedInventoryCache.put(pos.toImmutable(), copyInventory(cachedInventory));
                 lastActualInventoryReadStatus = ActualInventoryReadStatus.CACHE_INVENTORY;
                 return cachedInventory;
             }
 
-            lastActualInventoryReadStatus = ActualInventoryReadStatus.CACHE_PARSE_FAILED;
-        } else if (cachedNbt != null) {
-            lastActualInventoryReadStatus = ActualInventoryReadStatus.CACHE_WITHOUT_ITEMS;
+            lastActualInventoryReadStatus = cachedInventory != null
+                    ? ActualInventoryReadStatus.CACHE_WITHOUT_ITEMS
+                    : ActualInventoryReadStatus.CACHE_PARSE_FAILED;
         } else {
             lastActualInventoryReadStatus = ActualInventoryReadStatus.NO_CACHE_NBT;
         }
@@ -249,10 +241,11 @@ public final class QuickLitematicaContainerVerifier {
         }
 
         NbtCompound cachedNbt = storage.getFromBlockEntityCacheNbt(pos);
-        Inventory special = getCachedSpecialInventory(world, cachedNbt, expectedSize);
+        BlockEntity cachedBlockEntity = storage.getFromBlockEntityCache(pos);
 
-        if (special != null) {
-            return special;
+        if (cachedBlockEntity instanceof Inventory inventory
+                && (expectedSize <= 0 || inventory.size() == expectedSize)) {
+            return copyInventory(inventory);
         }
 
         return cachedNbt != null
@@ -264,18 +257,24 @@ public final class QuickLitematicaContainerVerifier {
                 : null;
     }
 
-    private static Inventory getCachedSpecialInventory(World world, NbtCompound cachedNbt, int expectedSize) {
-        if (world == null || cachedNbt == null || expectedSize != 1 || !cachedNbt.contains("RecordItem")) {
-            return null;
+    private static boolean isTrustedCachedInventory(
+            EntitiesDataStorage storage,
+            BlockPos pos,
+            NbtCompound cachedNbt,
+            Inventory cachedInventory,
+            Inventory expected
+    ) {
+        if (cachedNbt.contains("Items", Constants.NBT.TAG_LIST) || !isInventoryEmpty(cachedInventory)) {
+            return true;
         }
 
-        SimpleInventory inventory = new SimpleInventory(1);
-        inventory.setStack(
-                0,
-                ItemStack.fromNbt(world.getRegistryManager(), cachedNbt.getCompound("RecordItem"))
-                        .orElse(ItemStack.EMPTY)
-        );
-        return inventory;
+        if (expected != null && isInventoryEmpty(expected)) {
+            return true;
+        }
+
+        // 无物品字段既可能表示服务器确认的空容器，也可能只是客户端空壳；仅在整区块数据已回齐时信任为空。
+        return (storage.hasServuxServer() || storage.getIfReceivedBackupPackets())
+                && storage.hasCompletedChunk(new ChunkPos(pos));
     }
 
     private static Inventory getMergedCachedDoubleChestInventory(World world, BlockPos pos, EntitiesDataStorage storage, int expectedSize) {
@@ -1636,6 +1635,8 @@ public final class QuickLitematicaContainerVerifier {
         int quickcraft$getCheckedContainerCount();
 
         int quickcraft$getPendingContainerCount();
+
+        void quickcraft$setContainerOnly(boolean containerOnly);
 
         List<ContainerMismatch> quickcraft$refreshContainerMismatchAt(BlockPos pos, Inventory foundInventory, Set<Integer> foundDisabledSlots);
     }
