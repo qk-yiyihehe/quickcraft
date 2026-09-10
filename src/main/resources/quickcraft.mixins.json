@@ -63,7 +63,9 @@
 		"QuickDraggableButtonScreenMixin",
 		"QuickFreeCameraGameRendererMixin",
 		"QuickFreeCameraInteractionManagerMixin",
+		"QuickFreeCameraMinecraftClientMixin",
 		"QuickFreeCameraPlayerEntityMixin",
+		"TweakerooPlacementTweaksFreeCameraMixin",
 		"QuickTransferItemHighlightMixin",
 		"QuickTransferScreenMixin",
 		"ShulkerBoxScreenMixin"
