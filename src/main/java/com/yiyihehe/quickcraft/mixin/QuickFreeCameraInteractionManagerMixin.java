@@ -59,7 +59,6 @@ public class QuickFreeCameraInteractionManagerMixin {
             BlockHitResult hitResult,
             CallbackInfoReturnable<ActionResult> cir
     ) {
-        QuickFreeCameraInteractions.logBlockUseResult(hitResult, cir.getReturnValue());
         QuickFreeCameraInteractions.endBlockUseFromFreeCamera(MinecraftClient.getInstance());
     }
 
