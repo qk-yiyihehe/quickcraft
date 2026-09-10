@@ -13,7 +13,6 @@ import net.minecraft.network.packet.c2s.play.PlayerMoveC2SPacket;
 import net.minecraft.state.property.DirectionProperty;
 import net.minecraft.state.property.Properties;
 import net.minecraft.state.property.Property;
-import net.minecraft.util.ActionResult;
 import net.minecraft.util.Hand;
 import net.minecraft.util.hit.BlockHitResult;
 import net.minecraft.util.hit.EntityHitResult;
@@ -22,8 +21,6 @@ import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.Direction;
 import net.minecraft.util.math.MathHelper;
 import net.minecraft.util.math.Vec3d;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -35,7 +32,6 @@ import java.util.Set;
  * 为 Tweakeroo 灵魂出窍提供相机准星交互；普通放置不读取 Litematica 投影状态。
  */
 public final class QuickFreeCameraInteractions {
-    private static final Logger LOGGER = LoggerFactory.getLogger("QuickCraft-FreeCamera");
     private static final String TWEAKEROO_CAMERA_CLASS = "fi.dy.masa.tweakeroo.util.CameraEntity";
     private static final Set<Property<?>> V3_PROPERTIES_WITHOUT_DIRECTION = Set.of(
             Properties.INVERTED,
@@ -108,18 +104,8 @@ public final class QuickFreeCameraInteractions {
     }
 
     public static boolean isBlockOutsideServerInteractionRange(MinecraftClient client, BlockPos position) {
-        boolean outside = shouldOverrideCrosshair(client)
+        return shouldOverrideCrosshair(client)
                 && !client.player.canInteractWithBlockAt(position, 1.0);
-        if (outside) {
-            Entity camera = client.getCameraEntity();
-            LOGGER.info(
-                    "Free-camera block interaction rejected by body reach: block={}, body={}, camera={}",
-                    position,
-                    client.player.getPos(),
-                    camera != null ? camera.getPos() : null
-            );
-        }
-        return outside;
     }
 
     public static boolean isEntityOutsideServerInteractionRange(MinecraftClient client, Entity entity) {
@@ -220,7 +206,6 @@ public final class QuickFreeCameraInteractions {
         client.player.networkHandler.sendPacket(
                 new PlayerMoveC2SPacket.LookAndOnGround(restoredYaw, restoredPitch, client.player.isOnGround())
         );
-        LOGGER.info("Free-camera server facing restored: yaw={}, pitch={}", restoredYaw, restoredPitch);
     }
 
     public static void beginEasyPlaceAction() {
@@ -258,13 +243,11 @@ public final class QuickFreeCameraInteractions {
         );
         BlockState targetState = blockItem.getBlock().getPlacementState(context);
         if (targetState == null) {
-            LOGGER.info("Free-camera placement state unavailable: item={}, hit={}", stack.getItem(), hitResult);
             return hitResult;
         }
 
         Integer protocolValue = encodeV3PlacementState(targetState);
         if (protocolValue == null) {
-            LOGGER.info("Free-camera vanilla placement state needs no protocol encoding: state={}", targetState);
             return hitResult;
         }
 
@@ -274,29 +257,12 @@ public final class QuickFreeCameraInteractions {
                 hitResult.getPos().y,
                 hitResult.getPos().z
         );
-        LOGGER.info(
-                "Free-camera placement encoded: hand={}, state={}, protocol={}, clicked={}, placement={}, side={}, cameraYaw={}, cameraPitch={}",
-                activeBlockUseHand,
-                targetState,
-                protocolValue,
-                hitResult.getBlockPos(),
-                placementPos,
-                hitResult.getSide(),
-                client.getCameraEntity() != null ? client.getCameraEntity().getYaw() : null,
-                client.getCameraEntity() != null ? client.getCameraEntity().getPitch() : null
-        );
         return new BlockHitResult(
                 encodedPos,
                 hitResult.getSide(),
                 hitResult.getBlockPos(),
                 hitResult.isInsideBlock()
         );
-    }
-
-    public static void logBlockUseResult(BlockHitResult hitResult, ActionResult result) {
-        if (cameraFacingApplied) {
-            LOGGER.info("Free-camera interactBlock returned: result={}, hit={}", result, hitResult);
-        }
     }
 
     private static void beginSneakPlacement(MinecraftClient client) {
@@ -370,17 +336,6 @@ public final class QuickFreeCameraInteractions {
         );
         cameraFacingApplied = true;
         cameraFacingDepth = 1;
-        LOGGER.info(
-                "Free-camera placement begin: hand={}, hit={}, body={}, camera={}, bodyYaw={}, bodyPitch={}, cameraYaw={}, cameraPitch={}",
-                activeBlockUseHand,
-                hitResult,
-                player.getPos(),
-                camera.getPos(),
-                restoredYaw,
-                restoredPitch,
-                cameraYaw,
-                cameraPitch
-        );
     }
 
     private static void endCameraFacing(MinecraftClient client) {
