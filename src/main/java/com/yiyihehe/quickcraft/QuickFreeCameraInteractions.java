@@ -3,33 +3,77 @@ package com.yiyihehe.quickcraft;
 import com.yiyihehe.quickcraft.config.QuickCraftConfigs;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.network.ClientPlayerEntity;
+import net.minecraft.block.BlockState;
 import net.minecraft.entity.Entity;
+import net.minecraft.item.BlockItem;
 import net.minecraft.item.ItemPlacementContext;
 import net.minecraft.item.ItemStack;
-import net.minecraft.item.Items;
 import net.minecraft.network.packet.c2s.play.ClientCommandC2SPacket;
 import net.minecraft.network.packet.c2s.play.PlayerMoveC2SPacket;
+import net.minecraft.state.property.DirectionProperty;
+import net.minecraft.state.property.Properties;
+import net.minecraft.state.property.Property;
+import net.minecraft.util.ActionResult;
 import net.minecraft.util.Hand;
 import net.minecraft.util.hit.BlockHitResult;
 import net.minecraft.util.hit.EntityHitResult;
 import net.minecraft.util.hit.HitResult;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.Direction;
+import net.minecraft.util.math.MathHelper;
 import net.minecraft.util.math.Vec3d;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.List;
+import java.util.Optional;
+import java.util.Set;
 
 /**
- * 为 Tweakeroo 灵魂出窍提供相机准星交互，不修改玩家位置或服务端距离校验。
+ * 为 Tweakeroo 灵魂出窍提供相机准星交互；普通放置不读取 Litematica 投影状态。
  */
 public final class QuickFreeCameraInteractions {
+    private static final Logger LOGGER = LoggerFactory.getLogger("QuickCraft-FreeCamera");
     private static final String TWEAKEROO_CAMERA_CLASS = "fi.dy.masa.tweakeroo.util.CameraEntity";
+    private static final Set<Property<?>> V3_PROPERTIES_WITHOUT_DIRECTION = Set.of(
+            Properties.INVERTED,
+            Properties.OPEN,
+            Properties.ATTACHMENT,
+            Properties.AXIS,
+            Properties.BLOCK_HALF,
+            Properties.BLOCK_FACE,
+            Properties.CHEST_TYPE,
+            Properties.COMPARATOR_MODE,
+            Properties.DOOR_HINGE,
+            Properties.FACING,
+            Properties.HOPPER_FACING,
+            Properties.HORIZONTAL_FACING,
+            Properties.ORIENTATION,
+            Properties.RAIL_SHAPE,
+            Properties.STRAIGHT_RAIL_SHAPE,
+            Properties.SLAB_TYPE,
+            Properties.STAIR_SHAPE,
+            Properties.DELAY,
+            Properties.BITES,
+            Properties.NOTE,
+            Properties.ROTATION
+    );
     private static boolean sneakPlacementCommandSent;
     private static boolean entitySneakingReleasePending;
     private static boolean cameraFacingApplied;
     private static int cameraFacingDepth;
     private static boolean serverFacingRestorePending;
     private static int serverFacingRestoreDelayTicks;
+    private static Hand activeBlockUseHand;
+    private static int easyPlaceActionDepth;
     private static float restoredYaw;
     private static float restoredPitch;
+    private static float restoredPrevYaw;
+    private static float restoredPrevPitch;
+    private static float restoredHeadYaw;
+    private static float restoredBodyYaw;
 
     private QuickFreeCameraInteractions() {
     }
@@ -64,8 +108,18 @@ public final class QuickFreeCameraInteractions {
     }
 
     public static boolean isBlockOutsideServerInteractionRange(MinecraftClient client, BlockPos position) {
-        return shouldOverrideCrosshair(client)
+        boolean outside = shouldOverrideCrosshair(client)
                 && !client.player.canInteractWithBlockAt(position, 1.0);
+        if (outside) {
+            Entity camera = client.getCameraEntity();
+            LOGGER.info(
+                    "Free-camera block interaction rejected by body reach: block={}, body={}, camera={}",
+                    position,
+                    client.player.getPos(),
+                    camera != null ? camera.getPos() : null
+            );
+        }
+        return outside;
     }
 
     public static boolean isEntityOutsideServerInteractionRange(MinecraftClient client, Entity entity) {
@@ -123,19 +177,34 @@ public final class QuickFreeCameraInteractions {
         );
     }
 
+    public static void beginBlockUseFromFreeCamera(MinecraftClient client, Hand hand, BlockHitResult hitResult) {
+        if (easyPlaceActionDepth > 0) {
+            return;
+        }
+        activeBlockUseHand = hand;
+        beginCameraFacing(client, hitResult);
+        beginSneakPlacement(client);
+    }
+
     public static void beginBlockUseFromFreeCamera(MinecraftClient client) {
-        beginCameraFacing(client);
+        if (easyPlaceActionDepth > 0) {
+            return;
+        }
+        beginCameraFacing(client, client != null && client.crosshairTarget instanceof BlockHitResult hit ? hit : null);
         beginSneakPlacement(client);
     }
 
     public static void beginItemUseFromFreeCamera(MinecraftClient client) {
-        beginCameraFacingToCrosshair(client);
+        beginCameraFacing(client, client != null && client.crosshairTarget instanceof BlockHitResult hit ? hit : null);
         beginSneakPlacement(client);
     }
 
     public static void endBlockUseFromFreeCamera(MinecraftClient client) {
         endSneakPlacement(client);
         endCameraFacing(client);
+        if (!cameraFacingApplied) {
+            activeBlockUseHand = null;
+        }
     }
 
     public static void tick(MinecraftClient client) {
@@ -152,45 +221,70 @@ public final class QuickFreeCameraInteractions {
                 new PlayerMoveC2SPacket.LookAndOnGround(restoredYaw, restoredPitch,
                         client.player.isOnGround(), client.player.horizontalCollision)
         );
+        LOGGER.info("Free-camera server facing restored: yaw={}, pitch={}", restoredYaw, restoredPitch);
     }
 
-    /**
-     * Tweakeroo's accurate-placement protocol stores direction bits in the hit X coordinate.
-     * Litematica can leave those bits pointing east even after the player yaw is synchronized.
-     */
-    public static BlockHitResult encodeObserverPlacementDirection(MinecraftClient client, BlockHitResult hitResult) {
-        if (!shouldOverrideCrosshair(client)
-                || !QuickCraftConfigs.areFreeCameraBlockInteractionsEnabled()
-                || client.player == null
-                || (!client.player.getMainHandStack().isOf(Items.OBSERVER)
-                && !client.player.getOffHandStack().isOf(Items.OBSERVER))) {
+    public static void beginEasyPlaceAction() {
+        easyPlaceActionDepth++;
+    }
+
+    public static void endEasyPlaceAction() {
+        if (easyPlaceActionDepth > 0) {
+            easyPlaceActionDepth--;
+        }
+    }
+
+    public static BlockHitResult encodeFreeCameraPlacementState(
+            MinecraftClient client,
+            BlockHitResult hitResult
+    ) {
+        if (!cameraFacingApplied
+                || easyPlaceActionDepth > 0
+                || activeBlockUseHand == null
+                || client == null
+                || client.player == null) {
             return hitResult;
         }
 
-        Entity camera = client.getCameraEntity();
-        if (camera == null || camera == client.player) {
+        ItemStack stack = client.player.getStackInHand(activeBlockUseHand);
+        if (!(stack.getItem() instanceof BlockItem blockItem)) {
             return hitResult;
         }
 
-        Direction direction = Direction.getEntityFacingOrder(camera)[0];
-        Hand placementHand = client.player.getMainHandStack().isOf(Items.OBSERVER)
-                ? Hand.MAIN_HAND
-                : Hand.OFF_HAND;
-        ItemStack placementStack = client.player.getStackInHand(placementHand);
-        ItemPlacementContext placementContext = new ItemPlacementContext(
+        ItemPlacementContext context = new ItemPlacementContext(
                 client.player,
-                placementHand,
-                placementStack,
+                activeBlockUseHand,
+                stack,
                 hitResult
         );
-        BlockPos placementPos = placementContext.getBlockPos();
-        int previousProtocolValue = (int) (hitResult.getPos().x - placementPos.getX()) - 2;
-        int preservedValueBits = previousProtocolValue >= 0 ? previousProtocolValue & ~0xF : 0;
-        int protocolValue = preservedValueBits | (direction.getId() << 1);
+        BlockState targetState = blockItem.getBlock().getPlacementState(context);
+        if (targetState == null) {
+            LOGGER.info("Free-camera placement state unavailable: item={}, hit={}", stack.getItem(), hitResult);
+            return hitResult;
+        }
+
+        Integer protocolValue = encodeV3PlacementState(targetState);
+        if (protocolValue == null) {
+            LOGGER.info("Free-camera vanilla placement state needs no protocol encoding: state={}", targetState);
+            return hitResult;
+        }
+
+        BlockPos placementPos = context.getBlockPos();
         Vec3d encodedPos = new Vec3d(
                 placementPos.getX() + 2.25D + protocolValue,
                 hitResult.getPos().y,
                 hitResult.getPos().z
+        );
+        LOGGER.info(
+                "Free-camera placement encoded: hand={}, state={}, protocol={}, clicked={}, placement={}, side={}, cameraYaw={}, cameraPitch={}",
+                activeBlockUseHand,
+                targetState,
+                protocolValue,
+                hitResult.getBlockPos(),
+                placementPos,
+                hitResult.getSide(),
+                client.getCameraEntity() != null ? client.getCameraEntity().getYaw() : null,
+                client.getCameraEntity() != null ? client.getCameraEntity().getPitch() : null
         );
         return new BlockHitResult(
                 encodedPos,
@@ -198,6 +292,12 @@ public final class QuickFreeCameraInteractions {
                 hitResult.getBlockPos(),
                 hitResult.isInsideBlock()
         );
+    }
+
+    public static void logBlockUseResult(BlockHitResult hitResult, ActionResult result) {
+        if (cameraFacingApplied) {
+            LOGGER.info("Free-camera interactBlock returned: result={}, hit={}", result, hitResult);
+        }
     }
 
     private static void beginSneakPlacement(MinecraftClient client) {
@@ -230,13 +330,14 @@ public final class QuickFreeCameraInteractions {
     }
 
     /**
-     * 方向方块的朝向读的是玩家本体 yaw/pitch。灵魂出窍时改用相机朝向做客户端预测，
-     * 并先发一条 Look 包让服务端按同一朝向放置，放完立刻还原，避免本体转身。
-     * 1.21.2+ 的 LookAndOnGround 需要带上 horizontalCollision，否则服务端会拒绝或改写朝向。
+     * 原版放置上下文会从玩家姿态派生水平朝向、六向顺序和 16 段旋转。
+     * 这里只同步姿态，不移动本体碰撞箱；方向状态由精准放置 V3 编码稳定传给服务端。
+     * 1.21.2+ 的 LookAndOnGround 必须带上 horizontalCollision。
      */
-    private static void beginCameraFacing(MinecraftClient client) {
+    private static void beginCameraFacing(MinecraftClient client, BlockHitResult hitResult) {
         if (!shouldOverrideCrosshair(client)
                 || !QuickCraftConfigs.areFreeCameraBlockInteractionsEnabled()
+                || easyPlaceActionDepth > 0
                 || client.player == null
                 || client.player.networkHandler == null) {
             return;
@@ -255,72 +356,33 @@ public final class QuickFreeCameraInteractions {
         ClientPlayerEntity player = client.player;
         restoredYaw = player.getYaw();
         restoredPitch = player.getPitch();
+        restoredPrevYaw = player.prevYaw;
+        restoredPrevPitch = player.prevPitch;
+        restoredHeadYaw = player.getHeadYaw();
+        restoredBodyYaw = player.getBodyYaw();
         float cameraYaw = camera.getYaw();
         float cameraPitch = camera.getPitch();
-        if (cameraYaw == restoredYaw && cameraPitch == restoredPitch) {
-            return;
-        }
 
         serverFacingRestorePending = false;
-        player.setYaw(cameraYaw);
-        player.setPitch(cameraPitch);
+        player.setAngles(cameraYaw, cameraPitch);
+        player.setHeadYaw(cameraYaw);
+        player.setBodyYaw(cameraYaw);
         player.networkHandler.sendPacket(
                 new PlayerMoveC2SPacket.LookAndOnGround(cameraYaw, cameraPitch, player.isOnGround(), player.horizontalCollision)
         );
         cameraFacingApplied = true;
         cameraFacingDepth = 1;
-    }
-
-    /**
-     * 桶的 {@code use} 会在客户端和服务端都从玩家眼睛重新射线；将临时朝向指向相机命中点，
-     * 才能让偏离本体的灵魂视角在原版交互距离内命中同一方块。
-     */
-    private static void beginCameraFacingToCrosshair(MinecraftClient client) {
-        if (!shouldOverrideCrosshair(client)
-                || !QuickCraftConfigs.areFreeCameraBlockInteractionsEnabled()
-                || client.player == null
-                || client.player.networkHandler == null) {
-            return;
-        }
-
-        if (cameraFacingApplied) {
-            cameraFacingDepth++;
-            return;
-        }
-
-        Entity camera = client.getCameraEntity();
-        if (camera == null || camera == client.player) {
-            return;
-        }
-
-        HitResult target = client.crosshairTarget;
-        if (!(target instanceof BlockHitResult blockHitResult)
-                || blockHitResult.getType() != HitResult.Type.BLOCK) {
-            beginCameraFacing(client);
-            return;
-        }
-
-        ClientPlayerEntity player = client.player;
-        Vec3d delta = blockHitResult.getPos().subtract(player.getEyePos());
-        double horizontalLength = Math.sqrt(delta.x * delta.x + delta.z * delta.z);
-        if (delta.lengthSquared() < 1.0E-7D) {
-            beginCameraFacing(client);
-            return;
-        }
-
-        restoredYaw = player.getYaw();
-        restoredPitch = player.getPitch();
-        float targetYaw = (float) (Math.atan2(-delta.x, delta.z) * (180.0D / Math.PI));
-        float targetPitch = (float) (Math.atan2(-delta.y, horizontalLength) * (180.0D / Math.PI));
-        serverFacingRestorePending = false;
-        player.setYaw(targetYaw);
-        player.setPitch(targetPitch);
-        player.networkHandler.sendPacket(
-                new PlayerMoveC2SPacket.LookAndOnGround(targetYaw, targetPitch,
-                        player.isOnGround(), player.horizontalCollision)
+        LOGGER.info(
+                "Free-camera placement begin: hand={}, hit={}, body={}, camera={}, bodyYaw={}, bodyPitch={}, cameraYaw={}, cameraPitch={}",
+                activeBlockUseHand,
+                hitResult,
+                player.getPos(),
+                camera.getPos(),
+                restoredYaw,
+                restoredPitch,
+                cameraYaw,
+                cameraPitch
         );
-        cameraFacingApplied = true;
-        cameraFacingDepth = 1;
     }
 
     private static void endCameraFacing(MinecraftClient client) {
@@ -342,8 +404,56 @@ public final class QuickFreeCameraInteractions {
         ClientPlayerEntity player = client.player;
         player.setYaw(restoredYaw);
         player.setPitch(restoredPitch);
+        player.prevYaw = restoredPrevYaw;
+        player.prevPitch = restoredPrevPitch;
+        player.setHeadYaw(restoredHeadYaw);
+        player.setBodyYaw(restoredBodyYaw);
         serverFacingRestorePending = true;
         serverFacingRestoreDelayTicks = 1;
+    }
+
+    private static Integer encodeV3PlacementState(BlockState state) {
+        Optional<DirectionProperty> directionProperty = state.getProperties().stream()
+                .filter(DirectionProperty.class::isInstance)
+                .map(DirectionProperty.class::cast)
+                .findFirst();
+        int protocolValue = 0;
+        int shift;
+
+        if (directionProperty.isPresent()) {
+            Direction facing = state.get(directionProperty.get());
+            protocolValue = facing.getId() << 1;
+            shift = 4;
+        } else {
+            shift = 1;
+        }
+
+        List<Property<?>> properties = new ArrayList<>(state.getProperties());
+        properties.sort(Comparator.comparing(Property::getName));
+        boolean encodedProperty = directionProperty.isPresent();
+        for (Property<?> property : properties) {
+            if (directionProperty.isPresent()) {
+                if (property.equals(directionProperty.get())) {
+                    continue;
+                }
+            } else if (!V3_PROPERTIES_WITHOUT_DIRECTION.contains(property)) {
+                continue;
+            }
+
+            int valueIndex = getSortedValueIndex(state, property);
+            int requiredBits = MathHelper.ceilLog2(property.getValues().size());
+            protocolValue |= valueIndex << shift;
+            shift += requiredBits;
+            encodedProperty = true;
+        }
+
+        return encodedProperty ? protocolValue : null;
+    }
+
+    private static <T extends Comparable<T>> int getSortedValueIndex(BlockState state, Property<T> property) {
+        List<T> values = new ArrayList<>(property.getValues());
+        values.sort(Comparable::compareTo);
+        return values.indexOf(state.get(property));
     }
 
     private static boolean isSneakKeyPressed(MinecraftClient client) {
