@@ -542,6 +542,14 @@ public final class QuickCraftConfigs implements IConfigHandler {
                 "allowCreativeEntityPlacement",
                 true
         ).apply(PROJECTION_TRANSLATION_PREFIX);
+        public static final ConfigBoolean REQUIRE_EASY_PLACE_ENTITY_PASSENGER_MATERIALS = new ConfigBoolean(
+                "requireEasyPlaceEntityPassengerMaterials",
+                true
+        ).apply(PROJECTION_TRANSLATION_PREFIX);
+        public static final ConfigBoolean REQUIRE_EASY_PLACE_ENTITY_CONTAINER_CONTENT_MATERIALS = new ConfigBoolean(
+                "requireEasyPlaceEntityContainerContentMaterials",
+                false
+        ).apply(PROJECTION_TRANSLATION_PREFIX);
         public static final ConfigInteger HOLD_EASY_PLACE_CACHE_TIME_MS = new ConfigInteger(
                 "holdEasyPlaceCacheTimeMs",
                 DEFAULT_HOLD_EASY_PLACE_CACHE_TIME_MS,
@@ -678,6 +686,8 @@ public final class QuickCraftConfigs implements IConfigHandler {
                 HOLD_EASY_PLACE,
                 ENABLE_EASY_PLACE_ENTITIES,
                 ALLOW_CREATIVE_ENTITY_PLACEMENT,
+                REQUIRE_EASY_PLACE_ENTITY_PASSENGER_MATERIALS,
+                REQUIRE_EASY_PLACE_ENTITY_CONTAINER_CONTENT_MATERIALS,
                 HOLD_EASY_PLACE_CACHE_TIME_MS,
                 SHOW_LITEMATICA_SCHEMATIC_FOLDER_BUTTON,
                 SHOW_LITEMATICA_CONTAINER_MATERIAL_BUTTON,
@@ -1316,6 +1326,14 @@ public final class QuickCraftConfigs implements IConfigHandler {
 
     public static boolean isCreativeEntityPlacementAllowed() {
         return ProjectionTools.ALLOW_CREATIVE_ENTITY_PLACEMENT.getBooleanValue();
+    }
+
+    public static boolean areEasyPlaceEntityPassengerMaterialsRequired() {
+        return ProjectionTools.REQUIRE_EASY_PLACE_ENTITY_PASSENGER_MATERIALS.getBooleanValue();
+    }
+
+    public static boolean areEasyPlaceEntityContainerContentMaterialsRequired() {
+        return ProjectionTools.REQUIRE_EASY_PLACE_ENTITY_CONTAINER_CONTENT_MATERIALS.getBooleanValue();
     }
 
     public static int getHoldEasyPlaceCacheTimeMs() {
