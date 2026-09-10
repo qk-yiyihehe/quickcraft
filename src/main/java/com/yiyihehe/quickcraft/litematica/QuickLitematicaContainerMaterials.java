@@ -40,10 +40,12 @@ import it.unimi.dsi.fastutil.objects.Object2IntOpenHashMap;
 import net.minecraft.block.BlockState;
 import net.minecraft.block.ChestBlock;
 import net.minecraft.block.ShulkerBoxBlock;
+import net.minecraft.block.entity.BlockEntity;
 import net.minecraft.block.enums.ChestType;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.gui.screen.Screen;
+import net.minecraft.inventory.Inventory;
 import net.minecraft.item.BlockItem;
 import net.minecraft.item.Item;
 import net.minecraft.item.ItemStack;
@@ -86,6 +88,7 @@ public final class QuickLitematicaContainerMaterials {
     private static final int ITEM_CELL_WIDTH = 34;
     private static final int ITEM_CELL_HEIGHT = 20;
     private static final int HEADER_HEIGHT = 22;
+    private static final Set<String> NON_INVENTORY_BLOCK_ENTITY_IDS = new HashSet<>();
     private static final Direction[] HORIZONTAL_DIRECTIONS = new Direction[] {
             Direction.NORTH, Direction.SOUTH, Direction.WEST, Direction.EAST
     };
@@ -148,7 +151,7 @@ public final class QuickLitematicaContainerMaterials {
         }
 
         ContainerMaterialsData data = ContainerMaterialsData.create(schematic);
-        ContainerMaterialList materialList = new ContainerMaterialList(data, gui);
+        ContainerMaterialList materialList = new ContainerMaterialList(data, gui, true);
         DataManager.setMaterialList(materialList);
         openMaterialListScreen(materialList);
     }
@@ -156,7 +159,8 @@ public final class QuickLitematicaContainerMaterials {
     public static void openForPlacement(SchematicPlacement placement, Screen parent) {
         ContainerMaterialList materialList = new ContainerMaterialList(
                 ContainerMaterialsData.create(placement),
-                parent
+                parent,
+                true
         );
         DataManager.setMaterialList(materialList);
         openMaterialListScreen(materialList);
@@ -165,7 +169,8 @@ public final class QuickLitematicaContainerMaterials {
     public static void openDetailsForPlacement(SchematicPlacement placement, Screen parent) {
         ContainerMaterialList materialList = new ContainerMaterialList(
                 ContainerMaterialsData.create(placement),
-                parent
+                parent,
+                false
         );
         DataManager.setMaterialList(materialList);
         openDetailScreen(materialList);
@@ -174,7 +179,8 @@ public final class QuickLitematicaContainerMaterials {
     public static void openForSchematic(LitematicaSchematic schematic, Collection<String> regions, Screen parent) {
         ContainerMaterialList materialList = new ContainerMaterialList(
                 ContainerMaterialsData.create(schematic, regions),
-                parent
+                parent,
+                true
         );
         DataManager.setMaterialList(materialList);
         openMaterialListScreen(materialList);
@@ -183,7 +189,8 @@ public final class QuickLitematicaContainerMaterials {
     public static void openDetailsForSchematic(LitematicaSchematic schematic, Collection<String> regions, Screen parent) {
         ContainerMaterialList materialList = new ContainerMaterialList(
                 ContainerMaterialsData.create(schematic, regions),
-                parent
+                parent,
+                false
         );
         DataManager.setMaterialList(materialList);
         openDetailScreen(materialList);
@@ -272,10 +279,17 @@ public final class QuickLitematicaContainerMaterials {
             }
 
             NbtCompound nbt = entry.getValue();
-            List<ItemStack> stacks = readItems(nbt, registryLookup);
+            if (nbt == null) {
+                continue;
+            }
+
             BlockState state = getState(stateContainer, pos);
+            List<ItemStack> stacks = readBlockEntityItems(pos, state, nbt, registryLookup);
+            if (stacks == null) {
+                continue;
+            }
+
             BlockPos pairedChestPos = findPairedChest(pos, state, stateContainer, blockEntities, consumed);
-            ContainerDescriptor descriptor = describeBlockContainer(state, nbt, pairedChestPos != null);
 
             if (renderLayers
                     && !isWithinRenderLayer(placement, schematic, regionName, pos)
@@ -291,10 +305,20 @@ public final class QuickLitematicaContainerMaterials {
 
             if (pairedChestPos != null) {
                 NbtCompound pairedNbt = blockEntities.get(pairedChestPos);
-                stacks.addAll(readItems(pairedNbt, registryLookup));
+                BlockState pairedState = getState(stateContainer, pairedChestPos);
+                List<ItemStack> pairedStacks = readBlockEntityItems(
+                        pairedChestPos,
+                        pairedState,
+                        pairedNbt,
+                        registryLookup
+                );
+                if (pairedStacks != null) {
+                    stacks.addAll(pairedStacks);
+                }
                 consumed.add(pairedChestPos);
             }
 
+            ContainerDescriptor descriptor = describeBlockContainer(state, nbt, pairedChestPos != null);
             addContainer(accumulator, descriptor, stacks);
         }
     }
@@ -314,6 +338,9 @@ public final class QuickLitematicaContainerMaterials {
         }
 
         for (EntityInfo info : entities) {
+            if (info.nbt == null || !info.nbt.contains("Items", Constants.NBT.TAG_LIST)) {
+                continue;
+            }
             if (renderLayers && !isWithinRenderLayer(placement, schematic, regionName, info.posVec)) {
                 continue;
             }
@@ -447,6 +474,40 @@ public final class QuickLitematicaContainerMaterials {
             }
         }
 
+        return stacks;
+    }
+
+    @Nullable
+    private static List<ItemStack> readBlockEntityItems(
+            BlockPos pos,
+            BlockState state,
+            NbtCompound nbt,
+            RegistryWrapper.WrapperLookup registryLookup
+    ) {
+        if (nbt == null || registryLookup == null) {
+            return null;
+        }
+
+        String blockEntityId = nbt.getString("id");
+        if (NON_INVENTORY_BLOCK_ENTITY_IDS.contains(blockEntityId)) {
+            return null;
+        }
+
+        BlockEntity blockEntity = BlockEntity.createFromNbt(pos, state, nbt, registryLookup);
+        if (!(blockEntity instanceof Inventory inventory)) {
+            if (!blockEntityId.isEmpty()) {
+                NON_INVENTORY_BLOCK_ENTITY_IDS.add(blockEntityId);
+            }
+            return null;
+        }
+
+        List<ItemStack> stacks = new ArrayList<>(inventory.size());
+        for (int slot = 0; slot < inventory.size(); slot++) {
+            ItemStack stack = inventory.getStack(slot);
+            if (!stack.isEmpty()) {
+                stacks.add(stack.copy());
+            }
+        }
         return stacks;
     }
 
@@ -807,7 +868,7 @@ public final class QuickLitematicaContainerMaterials {
             this.schematic = schematic;
             this.regions = regions;
             this.placement = placement;
-            this.refresh(BlockInfoListType.ALL);
+            this.groups = List.of();
         }
 
         private static ContainerMaterialsData create(LitematicaSchematic schematic) {
@@ -894,11 +955,11 @@ public final class QuickLitematicaContainerMaterials {
         }
 
         private Object2IntOpenHashMap<ItemType> createWorldMissingCounts(
-                Object2IntOpenHashMap<ItemType> totalCounts
+                Object2IntOpenHashMap<ItemType> totalCounts,
+                @Nullable QuickLitematicaContainerVerifier.VerifierExtension verifier
         ) {
             if (this.placement == null
-                    || !this.placement.hasVerifier()
-                    || !(this.placement.getSchematicVerifier() instanceof QuickLitematicaContainerVerifier.VerifierExtension verifier)
+                    || verifier == null
                     || verifier.quickcraft$getExpectedContainerCount() <= 0
                     || verifier.quickcraft$getCheckedContainerCount() < verifier.quickcraft$getExpectedContainerCount()) {
                 return null;
@@ -981,11 +1042,18 @@ public final class QuickLitematicaContainerMaterials {
             implements ContainerMaterialRequestSource, ICompletionListener {
         private final ContainerMaterialsData data;
         private final Screen parent;
+        private SchematicVerifier containerVerifier;
+        private Object2IntOpenHashMap<ItemType> worldMissingCounts;
+        private boolean materialEntriesInitialized;
 
-        private ContainerMaterialList(ContainerMaterialsData data, Screen parent) {
+        private ContainerMaterialList(ContainerMaterialsData data, Screen parent, boolean initializeMaterialEntries) {
             this.data = data;
             this.parent = parent;
-            this.reCreateMaterialList();
+            if (initializeMaterialEntries) {
+                this.reCreateMaterialList();
+            } else {
+                this.data.refresh(BlockInfoListType.ALL);
+            }
         }
 
         @Override
@@ -1011,8 +1079,15 @@ public final class QuickLitematicaContainerMaterials {
         @Override
         public void reCreateMaterialList() {
             this.data.refresh(this.getMaterialListType());
+            this.initializeMaterialEntries();
+        }
+
+        private void initializeMaterialEntries() {
+            this.materialEntriesInitialized = true;
 
             if (this.data.placement == null) {
+                this.containerVerifier = null;
+                this.worldMissingCounts = null;
                 this.setMaterialListEntries(this.createMaterialEntries());
                 return;
             }
@@ -1025,29 +1100,50 @@ public final class QuickLitematicaContainerMaterials {
                 return;
             }
 
-            SchematicVerifier verifier = this.data.placement.getSchematicVerifier();
-            verifier.setCompletionListener(this);
-
-            if (verifier.isPaused()) {
-                verifier.resume();
-            } else if (!verifier.isActive()) {
-                verifier.startVerification(client.world, schematicWorld, this.data.placement, this);
+            if (this.containerVerifier != null) {
+                return;
             }
 
+            this.worldMissingCounts = null;
+            this.containerVerifier = new SchematicVerifier();
+            this.containerVerifier.toggleShouldRenderInfoHUD();
+            ((QuickLitematicaContainerVerifier.VerifierExtension) this.containerVerifier)
+                    .quickcraft$setContainerOnly(true);
+            this.containerVerifier.startVerification(client.world, schematicWorld, this.data.placement, this);
             InfoUtils.showGuiOrInGameMessage(MessageType.INFO, "litematica.message.scheduled_task_added");
         }
 
         @Override
         public void onTaskCompleted() {
-            this.data.refresh(this.getMaterialListType());
+            if (this.containerVerifier == null) {
+                return;
+            }
             this.setMaterialListEntries(this.createMaterialEntries());
+            this.containerVerifier = null;
+        }
+
+        @Override
+        public void onTaskAborted() {
+            this.containerVerifier = null;
+        }
+
+        private void ensureMaterialEntriesInitialized() {
+            if (!this.materialEntriesInitialized) {
+                this.initializeMaterialEntries();
+            }
+        }
+
+        private void invalidateMaterialEntries() {
+            this.materialEntriesInitialized = false;
+            this.worldMissingCounts = null;
+            this.setMaterialListEntries(List.of());
         }
 
         @Override
         public void clearIgnored() {
             this.data.clearIgnoredGroups();
             super.clearIgnored();
-            this.reCreateMaterialList();
+            this.setMaterialListEntries(this.createMaterialEntries());
         }
 
         private List<MaterialListEntry> createMaterialEntries() {
@@ -1064,7 +1160,19 @@ public final class QuickLitematicaContainerMaterials {
                 }
             }
 
-            Object2IntOpenHashMap<ItemType> worldMissing = this.data.createWorldMissingCounts(counts);
+            QuickLitematicaContainerVerifier.VerifierExtension verifier =
+                    this.containerVerifier instanceof QuickLitematicaContainerVerifier.VerifierExtension extension
+                            ? extension
+                            : null;
+            Object2IntOpenHashMap<ItemType> worldMissing = this.data.createWorldMissingCounts(counts, verifier);
+            if (worldMissing != null) {
+                this.worldMissingCounts = new Object2IntOpenHashMap<>(worldMissing);
+            } else if (this.worldMissingCounts != null) {
+                worldMissing = new Object2IntOpenHashMap<>(this.worldMissingCounts);
+                for (ItemType type : worldMissing.keySet()) {
+                    worldMissing.put(type, Math.min(worldMissing.getInt(type), counts.getInt(type)));
+                }
+            }
 
             if (this.data.placement != null && worldMissing == null) {
                 return List.of();
@@ -1144,6 +1252,7 @@ public final class QuickLitematicaContainerMaterials {
         private ButtonGeneric createNavButton(int x, int y, String label) {
             return new ButtonGeneric(x, y, this.getStringWidth(label) + 10, 20, label);
         }
+
     }
 
     private static final class ContainerMaterialsScreen
@@ -1229,21 +1338,24 @@ public final class QuickLitematicaContainerMaterials {
         }
 
         private void refreshData() {
-            this.materialList.reCreateMaterialList();
+            this.data.refresh(this.materialList.getMaterialListType());
+            this.materialList.invalidateMaterialEntries();
             this.reCreateListWidget();
             this.initGui();
         }
 
         private void ignoreGroup(ContainerGroup group) {
             this.data.ignoreGroup(group);
-            this.materialList.reCreateMaterialList();
+            this.materialList.invalidateMaterialEntries();
             this.reCreateListWidget();
             this.initGui();
         }
 
         private void openMaterialList() {
+            this.materialList.ensureMaterialEntriesInitialized();
             openMaterialListScreen(this.materialList);
         }
+
     }
 
     private static final class ContainerGroupListWidget extends WidgetListBase<ContainerGroup, ContainerGroupEntryWidget> {
