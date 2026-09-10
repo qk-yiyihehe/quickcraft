@@ -180,7 +180,9 @@ public class QuickCraftConfigScreen extends GuiConfigsBase {
         ),
         EASY_PLACE_ENTITIES(
                 QuickCraftConfigs.ProjectionTools.ENABLE_EASY_PLACE_ENTITIES,
-                QuickCraftConfigs.ProjectionTools.ALLOW_CREATIVE_ENTITY_PLACEMENT
+                QuickCraftConfigs.ProjectionTools.ALLOW_CREATIVE_ENTITY_PLACEMENT,
+                QuickCraftConfigs.ProjectionTools.REQUIRE_EASY_PLACE_ENTITY_PASSENGER_MATERIALS,
+                QuickCraftConfigs.ProjectionTools.REQUIRE_EASY_PLACE_ENTITY_CONTAINER_CONTENT_MATERIALS
         ),
         EASY_PLACE_VANILLA_INTERACTIONS(
                 QuickCraftConfigs.ProjectionTools.ALLOW_EASY_PLACE_VANILLA_INTERACTIONS,
