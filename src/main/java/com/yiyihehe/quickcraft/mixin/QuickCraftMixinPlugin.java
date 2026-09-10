@@ -10,11 +10,12 @@ import java.util.Set;
 
 /**
  * 按依赖环境决定哪些 mixin 参与加载。
- * 目前主要用于把全部 Litematica 相关 mixin 限制在安装了 Litematica 时才启用。
+ * 目前用于把 Litematica、JEI 和 Tweakeroo 相关 mixin 限制在对应模组存在时启用。
  */
 public class QuickCraftMixinPlugin implements IMixinConfigPlugin {
     private static final String LITEMATICA_MIXIN_PREFIX = "com.yiyihehe.quickcraft.mixin.Litematica";
     private static final String JEI_MIXIN_PREFIX = "com.yiyihehe.quickcraft.mixin.Jei";
+    private static final String TWEAKEROO_MIXIN_PREFIX = "com.yiyihehe.quickcraft.mixin.Tweakeroo";
 
     @Override
     public void onLoad(String mixinPackage) {
@@ -32,6 +33,9 @@ public class QuickCraftMixinPlugin implements IMixinConfigPlugin {
         }
         if (mixinClassName.startsWith(JEI_MIXIN_PREFIX)) {
             return FabricLoader.getInstance().isModLoaded("jei");
+        }
+        if (mixinClassName.startsWith(TWEAKEROO_MIXIN_PREFIX)) {
+            return FabricLoader.getInstance().isModLoaded("tweakeroo");
         }
 
         return true;
