@@ -7,13 +7,17 @@ import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
 import net.minecraft.resources.Identifier;
 import net.minecraft.world.phys.Vec3;
 
+import java.util.UUID;
+
 /**
  * 轻松放置实体的跨端线协议。
  * 服务端扩展必须使用相同的字段顺序；所有放置内容仍必须由服务端重新校验。
  */
 public final class QuickLitematicaEntityPlacementPayloads {
     public static final int PROTOCOL_VERSION = 2;
-    public static final int CLIENT_FEATURES = 0;
+    public static final int FEATURE_PASSENGER_SUPPLEMENT = 1;
+    public static final int CLIENT_FEATURES = FEATURE_PASSENGER_SUPPLEMENT;
+    public static final int SERVER_FEATURES = FEATURE_PASSENGER_SUPPLEMENT;
     public static final int MAX_CLIENT_NBT_BYTES = 262_144;
 
     private QuickLitematicaEntityPlacementPayloads() {
