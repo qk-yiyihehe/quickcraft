@@ -2,6 +2,11 @@ package com.yiyihehe.quickcraft.mixin;
 
 import com.yiyihehe.quickcraft.QuickFreeCameraInteractions;
 import net.minecraft.client.MinecraftClient;
+import net.minecraft.client.network.ClientPlayerEntity;
+import net.minecraft.client.network.ClientPlayerInteractionManager;
+import net.minecraft.client.world.ClientWorld;
+import net.minecraft.util.Hand;
+import net.minecraft.util.hit.BlockHitResult;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
@@ -14,9 +19,16 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 @Mixin(targets = "fi.dy.masa.tweakeroo.tweaks.PlacementTweaks", remap = false)
 public abstract class TweakerooPlacementTweaksFreeCameraMixin {
     @Inject(method = "onProcessRightClickBlock", at = @At("HEAD"), remap = false)
-    private static void quickcraft$beginBlockUseFromFreeCamera(CallbackInfoReturnable<?> cir) {
+    private static void quickcraft$beginBlockUseFromFreeCamera(
+            ClientPlayerInteractionManager controller,
+            ClientPlayerEntity player,
+            ClientWorld world,
+            Hand hand,
+            BlockHitResult hitResult,
+            CallbackInfoReturnable<?> cir
+    ) {
         MinecraftClient client = MinecraftClient.getInstance();
-        QuickFreeCameraInteractions.beginBlockUseFromFreeCamera(client);
+        QuickFreeCameraInteractions.beginBlockUseFromFreeCamera(client, hand, hitResult);
     }
 
     @Inject(method = "onProcessRightClickBlock", at = @At("RETURN"), remap = false)
