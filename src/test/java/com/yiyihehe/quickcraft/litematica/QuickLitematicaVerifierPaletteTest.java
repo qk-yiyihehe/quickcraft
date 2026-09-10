@@ -92,9 +92,9 @@ class QuickLitematicaVerifierPaletteTest {
     // ---- ghostItemAlpha ----
 
     @Test
-    @DisplayName("ghostItemAlpha = 0.30F")
+    @DisplayName("ghostItemAlpha = 0.80F")
     void ghostItemAlpha() {
-        assertThat(QuickLitematicaVerifierPalette.ghostItemAlpha()).isEqualTo(0.30F);
+        assertThat(QuickLitematicaVerifierPalette.ghostItemAlpha()).isEqualTo(0.80F);
     }
 
     // ---- formatSectionTitle ----

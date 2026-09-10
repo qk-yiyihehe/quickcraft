@@ -1429,6 +1429,7 @@ public final class QuickLitematicaContainerVerifier {
                     0,
                     QuickLitematicaVerifierPalette.ghostItemAlpha()
             );
+            drawContext.fill(x, y, x + 16, y + 16, mismatch.status().ghostMaskColor());
             drawOutline(drawContext, x, y, 16, 16, mismatch.status().borderColor());
         }
     }
@@ -1613,6 +1614,10 @@ public final class QuickLitematicaContainerVerifier {
             return this.status.borderColor();
         }
 
+        public int ghostMaskColor() {
+            return this.status.ghostMaskColor();
+        }
+
     }
 
     /**
@@ -1676,6 +1681,10 @@ public final class QuickLitematicaContainerVerifier {
 
         public int borderColor() {
             return QuickLitematicaVerifierPalette.slotBorderColor(this.mismatchType());
+        }
+
+        public int ghostMaskColor() {
+            return QuickLitematicaVerifierPalette.ghostMaskColor(this.mismatchType());
         }
 
         private MismatchType mismatchType() {
