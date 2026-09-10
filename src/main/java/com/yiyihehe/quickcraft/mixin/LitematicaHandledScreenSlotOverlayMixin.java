@@ -90,6 +90,7 @@ public abstract class LitematicaHandledScreenSlotOverlayMixin<T extends ScreenHa
                 accessor.quickcraft$getGuiTop(),
                 QuickLitematicaVerifierPalette.ghostItemAlpha()
         );
+        context.fill(slot.x, slot.y, slot.x + 16, slot.y + 16, this.quickcraft$currentSlotOverlay.ghostMaskColor());
         quickcraft$drawSlotOutline(context, slot, this.quickcraft$ghostSlotBorderColor);
         this.quickcraft$currentSlotOverlay = null;
     }
