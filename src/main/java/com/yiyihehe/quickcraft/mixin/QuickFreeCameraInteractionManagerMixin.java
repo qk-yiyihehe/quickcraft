@@ -21,8 +21,8 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
 /**
- * 在灵魂相机交互产生客户端预测前复用 1.21 服务端的本体距离判定。
- * 如果此处失效，超距放置或破坏会先在客户端生效，再被服务端回滚成幽灵方块。
+ * 在灵魂相机交互产生客户端预测前复用 1.21 服务端距离判定。
+ * 普通放置仍遵守本体的服务端交互距离，但方向上下文来自相机且不移动本体碰撞箱。
  * 潜行放置和朝向同步必须包在 {@code interactBlock} 外，不能包 {@code interactBlockInternal}：
  * 内部方法返回后才发送 {@code PlayerInteractBlockC2SPacket}，若先还原 SHIFT/朝向，服务端仍会开箱或按本体朝向放置。
  * 实体交互包自身携带潜行标志，因此需要在包构造处替换该参数，并在发送后恢复服务端潜行状态。
@@ -30,8 +30,8 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 @Mixin(ClientPlayerInteractionManager.class)
 public class QuickFreeCameraInteractionManagerMixin {
     @ModifyVariable(method = "interactBlock", at = @At("HEAD"), argsOnly = true)
-    private BlockHitResult quickcraft$encodeFreeCameraObserverDirection(BlockHitResult hitResult) {
-        return QuickFreeCameraInteractions.encodeObserverPlacementDirection(
+    private BlockHitResult quickcraft$encodeFreeCameraPlacementState(BlockHitResult hitResult) {
+        return QuickFreeCameraInteractions.encodeFreeCameraPlacementState(
                 MinecraftClient.getInstance(),
                 hitResult
         );
@@ -59,6 +59,7 @@ public class QuickFreeCameraInteractionManagerMixin {
             BlockHitResult hitResult,
             CallbackInfoReturnable<ActionResult> cir
     ) {
+        QuickFreeCameraInteractions.logBlockUseResult(hitResult, cir.getReturnValue());
         QuickFreeCameraInteractions.endBlockUseFromFreeCamera(MinecraftClient.getInstance());
     }
 

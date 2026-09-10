@@ -6,14 +6,33 @@ import net.minecraft.client.MinecraftClient;
 import net.minecraft.entity.Entity;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
+import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.ModifyArg;
+import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
+import net.minecraft.util.ActionResult;
 
 /**
  * Litematica 0.19.61 的轻松放置固定从 mc.player 发起射线；灵魂出窍联动只替换射线实体，
  * 背包取材、放置玩家和交互距离仍使用真实玩家。调用点失效时只会退回玩家视角选取投影。
  */
-@Mixin(value = WorldUtils.class, remap = false)
+@Mixin(value = WorldUtils.class, remap = false, priority = 1100)
 public final class LitematicaWorldUtilsFreeCameraMixin {
+    @Inject(method = "doEasyPlaceAction", at = @At("HEAD"), remap = false)
+    private static void quickcraft$beginEasyPlaceAction(
+            MinecraftClient client,
+            CallbackInfoReturnable<ActionResult> cir
+    ) {
+        QuickFreeCameraInteractions.beginEasyPlaceAction();
+    }
+
+    @Inject(method = "doEasyPlaceAction", at = @At("RETURN"), remap = false)
+    private static void quickcraft$endEasyPlaceAction(
+            MinecraftClient client,
+            CallbackInfoReturnable<ActionResult> cir
+    ) {
+        QuickFreeCameraInteractions.endEasyPlaceAction();
+    }
+
     @ModifyArg(
             method = "doEasyPlaceAction",
             at = @At(
