@@ -494,6 +494,10 @@ public final class QuickCraftConfigs implements IConfigHandler {
                 false,
                 ""
         ).apply(PROJECTION_TRANSLATION_PREFIX);
+        public static final ConfigBoolean ALLOW_EASY_PLACE_ICE_OVER_SOURCE_WATER = new ConfigBoolean(
+                "allowEasyPlaceIceOverSourceWater",
+                true
+        ).apply(PROJECTION_TRANSLATION_PREFIX);
         public static final ConfigBoolean ALLOW_EASY_PLACE_INTERACTION_SCREENS = new ConfigBoolean(
                 "allowEasyPlaceInteractionScreens",
                 true
@@ -679,6 +683,7 @@ public final class QuickCraftConfigs implements IConfigHandler {
                 ALLOW_ADDING_LITEMATICA_PREVIEW_IMAGES,
                 REPLACE_LITEMATICA_PREVIEW_WITH_3D,
                 ALLOW_EASY_PLACE_VANILLA_INTERACTIONS,
+                ALLOW_EASY_PLACE_ICE_OVER_SOURCE_WATER,
                 ALLOW_EASY_PLACE_INTERACTION_SCREENS,
                 ALLOW_EASY_PLACE_REDSTONE_INTERACTIONS,
                 ALLOW_EASY_PLACE_FUNCTIONAL_BLOCK_INTERACTIONS,
@@ -1286,6 +1291,10 @@ public final class QuickCraftConfigs implements IConfigHandler {
     }
     public static boolean areEasyPlaceVanillaInteractionsAllowed() {
         return ProjectionTools.ALLOW_EASY_PLACE_VANILLA_INTERACTIONS.getBooleanValue();
+    }
+
+    public static boolean isEasyPlaceIceOverSourceWaterAllowed() {
+        return ProjectionTools.ALLOW_EASY_PLACE_ICE_OVER_SOURCE_WATER.getBooleanValue();
     }
 
     public static boolean areEasyPlaceInteractionScreensAllowed() {
