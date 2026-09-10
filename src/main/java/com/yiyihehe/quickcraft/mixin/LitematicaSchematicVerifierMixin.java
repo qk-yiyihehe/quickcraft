@@ -11,6 +11,8 @@ import com.yiyihehe.quickcraft.litematica.QuickLitematicaContainerVerifier.Expec
 import com.yiyihehe.quickcraft.litematica.QuickLitematicaContainerVerifier.VerifierExtension;
 import fi.dy.masa.litematica.config.Configs;
 import fi.dy.masa.litematica.data.EntityDataManager;
+import fi.dy.masa.litematica.data.DataManager;
+import fi.dy.masa.litematica.render.infohud.InfoHud;
 import fi.dy.masa.litematica.scheduler.tasks.TaskBase;
 import fi.dy.masa.litematica.schematic.placement.SchematicPlacement;
 import fi.dy.masa.litematica.schematic.verifier.SchematicVerifier;
@@ -71,10 +73,21 @@ public abstract class LitematicaSchematicVerifierMixin extends TaskBase implemen
     private static final Logger QUICKCRAFT_LOGGER = LoggerFactory.getLogger("QuickCraft-ContainerVerifier");
 
     @Shadow
+    @Final
+    private static List<SchematicVerifier> ACTIVE_VERIFIERS;
+
+    @Shadow
     private ClientWorld worldClient;
 
     @Shadow
     private SchematicPlacement schematicPlacement;
+
+    @Shadow
+    @Final
+    private Set<ChunkPos> requiredChunks;
+
+    @Shadow
+    private int totalRequiredChunks;
 
     @Shadow
     @Final
@@ -128,6 +141,9 @@ public abstract class LitematicaSchematicVerifierMixin extends TaskBase implemen
 
     @Unique
     private final Set<ChunkPos> quickcraft$containerDataChunks = new HashSet<>();
+
+    @Unique
+    private boolean quickcraft$containerOnly;
 
     @Unique
     private int quickcraft$refreshCursor;
@@ -222,6 +238,11 @@ public abstract class LitematicaSchematicVerifierMixin extends TaskBase implemen
     }
 
     @Override
+    public void quickcraft$setContainerOnly(boolean containerOnly) {
+        this.quickcraft$containerOnly = containerOnly;
+    }
+
+    @Override
     public int quickcraft$getPendingContainerCount() {
         return QuickLitematicaContainerVerifier.isEnabled() ? this.quickcraft$pendingContainerPositions.size() : 0;
     }
@@ -275,15 +296,43 @@ public abstract class LitematicaSchematicVerifierMixin extends TaskBase implemen
                 && this.quickcraft$canProcessContainerDataChunk(new ChunkPos(chunkX, chunkZ));
     }
 
+    // 独立的容器材料验证器在 HEAD 直接收集方块实体，再结束原版的逐坐标体积扫描。
+    // 若 Litematica 改变 verifyChunk 的调用约定，最明显的症状会是投影容器材料页没有结果。
     @Inject(
             method = "verifyChunk",
-            at = @At("RETURN")
+            at = @At("HEAD"),
+            cancellable = true
     )
-    private void quickcraft$checkContainerInventories(
+    private void quickcraft$skipBlockVolumeForContainerOnlyVerification(
             Chunk chunkClient,
             Chunk chunkSchematic,
             IntBoundingBox box,
             CallbackInfoReturnable<Boolean> cir
+    ) {
+        if (this.quickcraft$containerOnly) {
+            this.quickcraft$collectContainerInventories(chunkClient, chunkSchematic, box);
+            cir.setReturnValue(true);
+        }
+    }
+
+    @Inject(
+            method = "verifyChunk",
+            at = @At("RETURN")
+    )
+    private void quickcraft$checkContainerInventoriesAfterBlockVerification(
+            Chunk chunkClient,
+            Chunk chunkSchematic,
+            IntBoundingBox box,
+            CallbackInfoReturnable<Boolean> cir
+    ) {
+        this.quickcraft$collectContainerInventories(chunkClient, chunkSchematic, box);
+    }
+
+    @Unique
+    private void quickcraft$collectContainerInventories(
+            Chunk chunkClient,
+            Chunk chunkSchematic,
+            IntBoundingBox box
     ) {
         if (!QuickLitematicaContainerVerifier.isEnabled()) {
             return;
@@ -514,6 +563,13 @@ public abstract class LitematicaSchematicVerifierMixin extends TaskBase implemen
             this.quickcraft$rebuildContainerDataChunks(worldSchematic, schematicPlacement);
             this.quickcraft$requestContainerInventoryDataChunks(worldClient, this.quickcraft$containerDataChunks);
         }
+        if (this.quickcraft$containerOnly) {
+            this.requiredChunks.retainAll(this.quickcraft$containerDataChunks);
+            this.totalRequiredChunks = this.requiredChunks.size();
+            SchematicVerifier verifier = (SchematicVerifier) (Object) this;
+            ACTIVE_VERIFIERS.remove(verifier);
+            InfoHud.getInstance().removeInfoHudRenderer(verifier, false);
+        }
     }
 
     @Inject(method = "verifyChunks", at = @At("RETURN"))
@@ -533,7 +589,7 @@ public abstract class LitematicaSchematicVerifierMixin extends TaskBase implemen
             return;
         }
 
-        EntitiesDataStorage storage = EntitiesDataStorage.getInstance();
+        EntityDataManager storage = EntityDataManager.getInstance();
         QUICKCRAFT_LOGGER.warn(
                 "[ContainerVerifier] Container data was not fully comparable: expectedContainers={}, checked={}, pending={}, unsupportedExpected={}, missingActualBlockEntities={}, unsupportedActual={}, unavailableWorldBoxes={}, unavailableInventories={}, sizeMismatches={}, requestedChunks={}, integratedServer={}, servux={}, backupPackets={}, entityDataSync={}, samples={}",
                 this.quickcraft$expectedContainerPositions.size(),
@@ -749,6 +805,13 @@ public abstract class LitematicaSchematicVerifierMixin extends TaskBase implemen
             this.quickcraft$diagnosticSamples.add(
                     reason + "@" + pos + " expected=" + expected.getBlock() + " found=" + found.getBlock()
             );
+        }
+    }
+
+    @Inject(method = "execute", at = @At("RETURN"), cancellable = true)
+    private void quickcraft$removeFinishedContainerOnlyVerifier(CallbackInfoReturnable<Boolean> cir) {
+        if (this.quickcraft$containerOnly && this.finished) {
+            cir.setReturnValue(true);
         }
     }
 
@@ -1040,7 +1103,7 @@ public abstract class LitematicaSchematicVerifierMixin extends TaskBase implemen
 
         try {
             NbtCompound nbt = blockEntity.createNbtWithIdentifyingData(world.getRegistryManager());
-            return nbt.contains("Items") || nbt.contains("RecordItem");
+            return nbt.contains("Items") || nbt.contains("RecordItem") || nbt.contains("item");
         } catch (RuntimeException ignored) {
             return false;
         }
