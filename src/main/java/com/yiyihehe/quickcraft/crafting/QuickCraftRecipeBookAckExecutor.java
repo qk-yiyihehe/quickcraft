@@ -39,8 +39,9 @@ public final class QuickCraftRecipeBookAckExecutor {
     private static final long CANCELED_BATCH_DRAIN_TIMEOUT_NANOS = 15_000_000_000L;
     private static final int MAX_REFILL_RETRIES = 3;
     private static final int MAX_DRAIN_RETRIES = 3;
-    private static final int MAX_PICKUP_WAIT_TICKS = 5;
+    private static final int MAX_PICKUP_WAIT_TICKS = 10;
     private static final int MAX_CURSOR_RECOVERY_ATTEMPTS = 4;
+    private static final int FULL_GRID_CRAFTS = 64;
     private static QuickCraftRecipeBookAckExecutor activeExecutor;
     private static final List<CanceledBatchDrain> CANCELED_BATCH_DRAINS = new ArrayList<>();
 
@@ -219,6 +220,10 @@ public final class QuickCraftRecipeBookAckExecutor {
         session.outputFillSlotsRemaining = QuickCraftRecipeBookInventory.unlockedEmptySlots(
                 handler, layout);
         session.outputSprayMode = session.outputFillSlotsRemaining == 0;
+        MaterialSnapshot initialMaterials = materialSnapshotFromHandler(session, handler);
+        session.lastAuthoritativeMaterialLedger = initialMaterials.ledger();
+        session.lastAuthoritativeMaterialCounts = initialMaterials.counts();
+        session.lastAuthoritativeMaterialRevision = handler.getRevision();
         activeExecutor = this;
         dispatchedThisTick = 0;
         LOGGER.info("手动补货ACK会话开始：界面={}，配方={}，产物={}，syncId={}，revision={}，"
@@ -243,6 +248,12 @@ public final class QuickCraftRecipeBookAckExecutor {
         }
         if (current.awaiting) {
             long now = System.nanoTime();
+            if (shouldSendDeferredStatsProbe(
+                    current.awaiting,
+                    current.statsProbeDeferred,
+                    current.statsProbePending)) {
+                requestStatsProbe(current, current.networkHandler, "一个客户端 tick 内未取得可确认全量终态");
+            }
             long elapsedMillis = nanosToMillis(now - current.batchSentAtNanos);
             long stalledMillis = nanosToMillis(now - current.lastProgressAtNanos);
             long timeoutMillis = ackTimeoutMillis(current.maxAckLatencyNanos);
@@ -290,7 +301,9 @@ public final class QuickCraftRecipeBookAckExecutor {
                     pump(client);
                 } else {
                     finish(Text.translatable("quickcraft.message.crafting.no_ingredients"),
-                            "释放满包产物后等待拾取到期");
+                            current.pickupWaitForFullInventory
+                                    ? "释放满包产物后等待拾取到期"
+                                    : "非满包自然拾取等待到期后仍无可补原料");
                 }
             }
             return;
@@ -394,12 +407,13 @@ public final class QuickCraftRecipeBookAckExecutor {
 
             long dispatchStartedAtNanos = System.nanoTime();
             int[] gridBeforeClicks = snapshotGridCounts(handler);
-            int[] authoritativeMaterialCountsBefore = current.lastAuthoritativeMaterialCounts == null
+            int[] previousAuthoritativeMaterialCounts = current.lastAuthoritativeMaterialCounts == null
                     ? null
                     : current.lastAuthoritativeMaterialCounts.clone();
-            String materialsBefore = describeMaterialLedger(current, handler);
-            int operationBudget = Math.max(1, QuickCraftConfigs.getCraftLoopsPerTick());
+            MaterialSnapshot materialsBeforeClicks = materialSnapshotFromHandler(current, handler);
+            int operationBudget = QuickCraftRecipeBookLayout.PLAYER_INVENTORY_SIZE;
             int outputOperations = 0;
+            int clientSlotClicksBefore = current.clientSlotClicks;
             int outputSlotClicksBefore = current.outputSlotClicks;
             boolean refilled = false;
             boolean outputThrown = false;
@@ -407,18 +421,32 @@ public final class QuickCraftRecipeBookAckExecutor {
             if (!isExpectedOutput(output, current.resultTemplate)) {
                 refilled = refillSnapshot(client, handler, operationBudget);
                 refreshClientPrediction(handler);
-                if (!parkCursor(client, handler, "手动补货后")) {
+                boolean deferCursorParking = shouldDeferCursorParking(
+                        refilled, handler.getCursorStack().isEmpty());
+                if (!deferCursorParking && !parkCursor(client, handler, "手动补货后")) {
                     finish(Text.translatable("quickcraft.message.crafting.stopped"), "手动补货后光标无法放回");
                     return false;
                 }
+                if (deferCursorParking) {
+                    current.deferredTailCursorBatches++;
+                    LOGGER.info("手动补货ACK尾料余数等待权威确认：界面={}，下一批=#{}，光标={}，"
+                                    + "格子={}；本批不取产物、不继续发送光标点击",
+                            layout.name(), current.batchId + 1,
+                            describeStack(handler.getCursorStack()), describeGrid(handler));
+                }
                 output = handler.getSlot(QuickCraftRecipeBookLayout.OUTPUT_SLOT).getStack();
+                if (deferCursorParking) {
+                    output = ItemStack.EMPTY;
+                }
             }
 
             int[] gridBeforeOutput = snapshotGridCounts(handler);
             boolean patternComplete = QuickCraftRecipeBookInventory.isPatternComplete(
                     handler, layout, current.pattern);
-            int plannedOutputThrows = plannedOutputThrows(
-                    isExpectedOutput(output, current.resultTemplate), patternComplete);
+            boolean cursorSettlementRequired = !handler.getCursorStack().isEmpty();
+            int plannedOutputThrows = cursorSettlementRequired
+                    ? 0
+                    : plannedOutputThrows(isExpectedOutput(output, current.resultTemplate), patternComplete);
             if (plannedOutputThrows > 0) {
                 boolean canAcceptOutput = QuickCraftRecipeBookInventory.canAcceptUnlocked(
                         handler, layout, output);
@@ -477,7 +505,7 @@ public final class QuickCraftRecipeBookAckExecutor {
                         describeGrid(handler));
             }
 
-            if (!parkCursor(client, handler, "批次发送前")) {
+            if (!cursorSettlementRequired && !parkCursor(client, handler, "批次发送前")) {
                 finish(Text.translatable("quickcraft.message.crafting.stopped"), "批次发送前光标无法放回");
                 return false;
             }
@@ -492,19 +520,35 @@ public final class QuickCraftRecipeBookAckExecutor {
             }
 
             recordOutputActions(current, outputOperations);
-            String materialsAfter = describeMaterialLedger(current, handler);
+            MaterialSnapshot materialsAfterClicks = materialSnapshotFromHandler(current, handler);
             beginAwaitingBatch(current, handler, path, gridBeforeClicks, gridBeforeOutput);
+            current.batchPlannedCrafts = maximumCraftsFromBatchGrid(current);
+            if (outputOperations > 0) {
+                current.plannedCrafts += current.batchPlannedCrafts;
+                if (current.batchPlannedCrafts >= FULL_GRID_CRAFTS) {
+                    current.fullCraftBatches++;
+                } else if (current.batchPlannedCrafts > 0) {
+                    current.tailCraftBatches++;
+                }
+            }
             current.batchOutputOperations = outputOperations;
+            current.batchClientSlotClicks = Math.max(0,
+                    current.clientSlotClicks - clientSlotClicksBefore);
+            current.maxClientSlotClicksPerBatch = Math.max(
+                    current.maxClientSlotClicksPerBatch, current.batchClientSlotClicks);
             current.batchOutputSlotClicks = Math.max(0,
                     current.outputSlotClicks - outputSlotClicksBefore);
-            current.batchAuthoritativeMaterialCountsBefore = authoritativeMaterialCountsBefore;
+            current.batchMaterialCountsBeforeClicks = cloneMaterialCounts(materialsBeforeClicks.counts());
             if (refilled) {
                 current.snapshotRefillBatches++;
                 current.snapshotRefillSuccesses++;
             }
+            if (outputOperations > 0) {
+                current.pickupWaitAttempted = false;
+            }
 
             try {
-                sendAckBoundary(networkHandler, handler, current);
+                sendAckBoundary(networkHandler, current);
             } catch (Throwable throwable) {
                 LOGGER.warn("手动补货ACK屏障发送失败：界面={}，批次=#{}，配方={}",
                         layout.name(), current.batchId, current.recipeId, throwable);
@@ -516,19 +560,28 @@ public final class QuickCraftRecipeBookAckExecutor {
             current.localDispatchNanos += System.nanoTime() - dispatchStartedAtNanos;
             if (shouldInfoLogBatch(current.batchId)) {
                 LOGGER.info("手动补货ACK批次发送：界面={}，批次=#{}，路径={}，配方={}，"
-                                + "输出槽点击={}，输出槽丢出={}，模式={}，填包剩余={}，补料={}，"
+                                + "槽位点击={}，输出槽点击={}，输出槽丢出={}，模式={}，填包剩余={}，补料={}，"
                                 + "revision={}，耗时={} us，"
-                                + "点击前格子={}，当前格子={}，材料前={}，材料后={}，按住={}",
+                                + "计划轮数={}，点击前格子={}，当前格子={}，上一权威材料={}，点击前实际材料={}，"
+                                + "跨批变化={}，本地点击后材料={}，本地点击变化={}，按住={}",
                         layout.name(), current.batchId, path.description, current.recipeId,
-                        current.batchOutputSlotClicks, outputThrown,
+                        current.batchClientSlotClicks, current.batchOutputSlotClicks, outputThrown,
                         current.outputSprayMode ? "喷射" : "填包",
                         current.outputFillSlotsRemaining, refilled,
                         current.batchStartRevision, dispatchMicros,
+                        current.batchPlannedCrafts,
                         describeGridCounts(gridBeforeClicks), describeGrid(handler),
-                        materialsBefore, materialsAfter, current.inputHeld.getAsBoolean());
+                        describeMaterialCounts(previousAuthoritativeMaterialCounts),
+                        materialsBeforeClicks.ledger(),
+                        describeMaterialCountDelta(current, previousAuthoritativeMaterialCounts,
+                                materialsBeforeClicks.counts()),
+                        materialsAfterClicks.ledger(),
+                        describeMaterialCountDelta(current, materialsBeforeClicks.counts(),
+                                materialsAfterClicks.counts()),
+                        current.inputHeld.getAsBoolean());
             }
             logBatchDispatch(current, outputOperations, dispatchMicros,
-                    path.description + "+全量屏障+统计确认");
+                    path.description + "+全量优先ACK");
             return true;
         } finally {
             dispatchingBatch = false;
@@ -590,8 +643,10 @@ public final class QuickCraftRecipeBookAckExecutor {
         current.batchSawExpectedOutput = false;
         current.intermediateOutputPackets = 0;
         current.authoritativeWrongOutputPackets = 0;
-        current.lastAuthoritativeMaterialLedger = "未收到";
-        current.statsProbePending = true;
+        // pending 表示“请求已经发出、等待回包”，不能在发送前预置为 true。
+        current.statsProbePending = false;
+        current.statsProbeDeferred = false;
+        current.statsProbeSentForBatch = false;
         current.cursorRecoveryActive = false;
         current.cursorRecoveryAttempts = 0;
         current.firstFullUpdateAtNanos = 0L;
@@ -603,13 +658,34 @@ public final class QuickCraftRecipeBookAckExecutor {
     }
 
     private void sendAckBoundary(ClientPlayNetworkHandler networkHandler,
-                                 ScreenHandler handler,
                                  Session current) {
-        sendFullSyncBarrier(networkHandler, handler);
-        current.barriersSent++;
+        if (current == null || networkHandler == null) {
+            return;
+        }
+        if (current.batchPath == BatchPath.OUTPUT_DRAIN) {
+            // 纯取产物路径的输出槽 THROW 是最后一个请求；严格排空终态可直接证明本批完成。
+            current.statsProbeDeferred = true;
+            LOGGER.debug("普通配方书ACK延迟统计顺序探针：界面={}，批次=#{}，等待输出操作全量终态",
+                    layout.name(), current.batchId);
+        } else {
+            requestStatsProbe(current, networkHandler, "纯补货批次边界");
+        }
+    }
+
+    private void requestStatsProbe(Session current,
+                                   ClientPlayNetworkHandler networkHandler,
+                                   String reason) {
+        if (current == null || networkHandler == null || current.statsProbePending) {
+            return;
+        }
+        current.statsProbeDeferred = false;
+        current.statsProbeSentForBatch = true;
+        current.statsProbePending = true;
         networkHandler.sendPacket(new ClientStatusC2SPacket(
                 ClientStatusC2SPacket.Mode.REQUEST_STATS));
         current.statsProbesSent++;
+        LOGGER.debug("普通配方书ACK发送统计顺序探针：界面={}，批次=#{}，原因={}",
+                layout.name(), current.batchId, reason);
     }
 
     private void sendFullSyncBarrier(ClientPlayNetworkHandler networkHandler,
@@ -682,10 +758,9 @@ public final class QuickCraftRecipeBookAckExecutor {
                 || isRevisionAfter(
                 revision, current.lastAuthoritativeMaterialRevision)) {
             current.lastAuthoritativeMaterialRevision = revision;
-            current.lastAuthoritativeMaterialLedger =
-                    describeMaterialLedgerContents(current, contents);
-            current.lastAuthoritativeMaterialCounts =
-                    materialCountsFromContents(current, contents);
+            MaterialSnapshot materials = materialSnapshotFromContents(current, contents, cursorStack);
+            current.lastAuthoritativeMaterialLedger = materials.ledger();
+            current.lastAuthoritativeMaterialCounts = materials.counts();
         } else {
             LOGGER.debug("普通配方书ACK忽略旧材料全量包：界面={}，批次=#{}，revision={}，"
                             + "最新材料revision={}",
@@ -756,7 +831,10 @@ public final class QuickCraftRecipeBookAckExecutor {
             handleCursorRecoveryFullUpdate(current, revision, now);
             return;
         }
-        tryConfirmCurrentBatch(revision, now);
+        boolean currentBatchAuthoritativeFull = isRevisionAfter(
+                revision, current.batchStartRevision)
+                && current.lastAuthoritativeMaterialRevision == revision;
+        tryConfirmCurrentBatch(revision, now, currentBatchAuthoritativeFull);
     }
 
     private void handleServerStatistics(ClientPlayNetworkHandler source) {
@@ -773,15 +851,6 @@ public final class QuickCraftRecipeBookAckExecutor {
         }
         current.statsProbeResponses++;
         current.lastProgressAtNanos = now;
-        if (fullUpdatesAfterDispatch <= 0) {
-            // Statistics and Inventory packets are independent server responses.
-            // Keep an early statistics ACK instead of waiting for a second one;
-            // the later full packet will run the normal confirmation path.
-            LOGGER.debug("手动补货ACK记录早到统计回包：界面={}，批次=#{}，尚未收到本批全量包；"
-                            + "等待后续全量包确认",
-                    layout.name(), current.batchId);
-            return;
-        }
         MinecraftClient client = MinecraftClient.getInstance();
         if (!isContextValid(client, current)) {
             cancel("统计屏障到达时界面失效");
@@ -793,6 +862,22 @@ public final class QuickCraftRecipeBookAckExecutor {
                 .getStack();
         boolean cursorEmpty = current.handler.getCursorStack().isEmpty();
         boolean currentRecipeMatches = recipeMatches(current);
+        // 统计响应已证明服务器处理完本批更早的点击；同连接上更早的槽位纠正也已应用。
+        current.lastAuthoritativeMaterialRevision = current.handler.getRevision();
+        MaterialSnapshot materials = materialSnapshotFromHandler(current, current.handler);
+        current.lastAuthoritativeMaterialLedger = materials.ledger();
+        current.lastAuthoritativeMaterialCounts = materials.counts();
+        if (!output.isEmpty() && !isExpectedOutput(output, current.resultTemplate)
+                && currentRecipeMatches && !current.invalidAuthoritativeOutput) {
+            current.invalidAuthoritativeOutput = true;
+            current.authoritativeWrongOutputPackets++;
+            current.authoritativeWrongOutputPacketsTotal++;
+            LOGGER.warn("普通配方书ACK统计顺序屏障确认错误终态产物：界面={}，批次=#{}，"
+                            + "配方={}，期望={}，实际={}，revision={}，格子={}",
+                    layout.name(), current.batchId, current.recipeId,
+                    describeStack(current.resultTemplate), describeStack(output),
+                    current.handler.getRevision(), describeGrid(current.handler));
+        }
         boolean decreased = ingredientsDecreased(
                 current.batchGridCounts, snapshotGridCounts(current.handler));
         boolean terminalGridCompatible = isPatternOrRemainderGridCompatible(
@@ -833,20 +918,24 @@ public final class QuickCraftRecipeBookAckExecutor {
         String materialViolation = findMaterialLedgerViolation(current);
         if (materialViolation != null) {
             LOGGER.warn("普通配方书ACK材料守恒异常，停止本批次：界面={}，批次=#{}，配方={}，"
-                            + "输出搬运={}，输出槽点击={}，前后权威材料={} -> {}，详情={}，格子={}；"
+                            + "输出搬运={}，输出槽点击={}，计划轮数={}，点击前实际材料={}，最终权威材料={}，"
+                            + "本批净变化={}，详情={}，格子={}；"
                             + "不会继续发送下一批",
                     layout.name(), current.batchId, current.recipeId,
                     current.batchOutputOperations,
                     current.batchOutputSlotClicks,
-                    describeMaterialCounts(current.batchAuthoritativeMaterialCountsBefore),
+                    current.batchPlannedCrafts,
+                    describeMaterialCounts(current.batchMaterialCountsBeforeClicks),
                     describeMaterialCounts(current.lastAuthoritativeMaterialCounts),
+                    describeMaterialCountDelta(current, current.batchMaterialCountsBeforeClicks,
+                            current.lastAuthoritativeMaterialCounts),
                     materialViolation, describeGrid(current.handler));
             finish(Text.translatable("quickcraft.message.crafting.stopped"),
                     "材料守恒异常");
             return;
         }
 
-        if (tryConfirmCurrentBatch(current.handler.getRevision(), now)) {
+        if (tryConfirmCurrentBatch(current.handler.getRevision(), now, false)) {
             return;
         }
 
@@ -880,7 +969,7 @@ public final class QuickCraftRecipeBookAckExecutor {
 
         if (current.batchPath == BatchPath.MANUAL_COMBINED
                 && canConfirmCombinedBatch(
-                fullUpdatesAfterDispatch > 0,
+                true,
                 cursorEmpty,
                 output.isEmpty()
                         || isExpectedOutput(output, current.resultTemplate)
@@ -960,22 +1049,39 @@ public final class QuickCraftRecipeBookAckExecutor {
             if (output.isEmpty()) {
                 boolean patternComplete = QuickCraftRecipeBookInventory.isPatternComplete(
                         current.handler, layout, current.pattern);
-                boolean hasIngredients = ingredientAvailabilityHandler != null
-                        && ingredientAvailabilityHandler.hasIngredients(current.handler);
-                if (!patternComplete && !hasIngredients
-                        && tryStartNoIngredientRescue(client, current, now)) {
+            boolean hasIngredients = ingredientAvailabilityHandler != null
+                    && ingredientAvailabilityHandler.hasIngredients(current.handler);
+            if (!patternComplete && !hasIngredients
+                        && (tryStartNoIngredientRescue(client, current, now)
+                        || tryStartPickupGrace(current, now))) {
                     return;
                 }
                 if (!patternComplete && !hasIngredients) {
                     finish(Text.translatable("quickcraft.message.crafting.no_ingredients"),
-                            current.noIngredientRescueAttempted
-                                    ? "释放满包产物后仍无可补原料"
+                            (current.noIngredientRescueAttempted || current.pickupWaitAttempted)
+                                    ? "拾取等待后仍无可补原料"
                                     : "首次检查无可补原料");
                     return;
                 }
                 acknowledgeBatch(current, current.handler.getRevision(), now,
                         "补货后仍无产物，检查脚下拾取");
                 pump(client);
+                return;
+            }
+            boolean patternComplete = QuickCraftRecipeBookInventory.isPatternComplete(
+                    current.handler, layout, current.pattern);
+            boolean hasIngredients = ingredientAvailabilityHandler != null
+                    && ingredientAvailabilityHandler.hasIngredients(current.handler);
+            if (isMissingLockedRecipeTerminal(
+                    patternComplete, hasIngredients, isIntermediateOutput(current, current.handler))) {
+                if (tryStartNoIngredientRescue(client, current, now)
+                        || tryStartPickupGrace(current, now)) {
+                    return;
+                }
+                finish(Text.translatable("quickcraft.message.crafting.no_ingredients"),
+                        (current.noIngredientRescueAttempted || current.pickupWaitAttempted)
+                                ? "中间产物终态拾取等待后仍无可补原料"
+                                : "中间产物终态无可补原料");
                 return;
             }
         }
@@ -990,6 +1096,12 @@ public final class QuickCraftRecipeBookAckExecutor {
                         ? Text.translatable("quickcraft.message.crafting.no_ingredients")
                         : Text.translatable("quickcraft.message.crafting.stopped"),
                 "统计屏障终态不可续用：" + current.batchPath.description);
+    }
+
+    static boolean isMissingLockedRecipeTerminal(boolean patternComplete,
+                                                  boolean ingredientsAvailable,
+                                                  boolean intermediateOutput) {
+        return !patternComplete && !ingredientsAvailable && intermediateOutput;
     }
 
     private boolean tryStartNoIngredientRescue(MinecraftClient client,
@@ -1011,6 +1123,7 @@ public final class QuickCraftRecipeBookAckExecutor {
         }
 
         current.pickupWaitBatches++;
+        current.pickupWaitForFullInventory = true;
         current.pickupWaitTicks = MAX_PICKUP_WAIT_TICKS;
         LOGGER.info("手动补货ACK首次缺料释放背包后等待拾取：界面={}，批次=#{}，"
                         + "丢出产物槽={}，等待={} Tick，按住={}",
@@ -1021,14 +1134,32 @@ public final class QuickCraftRecipeBookAckExecutor {
         return true;
     }
 
-    private boolean tryConfirmCurrentBatch(int acknowledgementRevision, long now) {
+    private boolean tryStartPickupGrace(Session current, long now) {
+        if (current.pickupWaitAttempted
+                || QuickCraftRecipeBookInventory.unlockedEmptySlots(current.handler, layout) <= 0) {
+            return false;
+        }
+        current.pickupWaitAttempted = true;
+        current.pickupWaitForFullInventory = false;
+        current.pickupWaitBatches++;
+        current.pickupWaitTicks = MAX_PICKUP_WAIT_TICKS;
+        LOGGER.info("手动补货ACK非满包缺料，等待自然拾取后重扫：界面={}，批次=#{}，空格={}，"
+                        + "最多等待={} Tick，按住={}",
+                layout.name(), current.batchId, QuickCraftRecipeBookInventory.unlockedEmptySlots(
+                        current.handler, layout), MAX_PICKUP_WAIT_TICKS,
+                current.inputHeld.getAsBoolean());
+        acknowledgeBatch(current, current.handler.getRevision(), now,
+                "非满包缺料等待自然拾取");
+        return true;
+    }
+
+    private boolean tryConfirmCurrentBatch(int acknowledgementRevision,
+                                           long now,
+                                           boolean authoritativeFullState) {
         if (!isActive() || !session.awaiting) {
             return false;
         }
         Session current = session;
-        if (!shouldCheckBatchTerminal(current.statsProbePending)) {
-            return false;
-        }
         MinecraftClient client = MinecraftClient.getInstance();
         if (!isContextValid(client, current)) {
             cancel("ACK终态到达时界面失效");
@@ -1039,45 +1170,64 @@ public final class QuickCraftRecipeBookAckExecutor {
                 .getStack();
         boolean patternComplete = QuickCraftRecipeBookInventory.isPatternComplete(
                 current.handler, layout, current.pattern);
-        boolean fullReceived = current.fullUpdates > current.batchFullUpdatesStart;
+        boolean currentRecipeMatches = recipeMatches(current);
         boolean cursorEmpty = current.handler.getCursorStack().isEmpty();
         boolean expectedOutput = isExpectedOutput(currentOutput, current.resultTemplate);
         boolean authoritativeExpectedOutput = hasAuthoritativeExpectedOutput(current);
+        int[] currentGridCounts = snapshotGridCounts(current.handler);
         boolean decreased = ingredientsDecreased(
-                current.batchGridCounts, snapshotGridCounts(current.handler));
+                current.batchGridCounts, currentGridCounts);
+        boolean outputIngredientsDecreased = ingredientsDecreased(
+                current.batchCraftGridCounts, currentGridCounts);
         boolean terminalGridCompatible = isPatternOrRemainderGridCompatible(
                 current, current.handler);
-        boolean statsReceived = !current.statsProbePending;
+        boolean statsReceived = current.statsProbeSentForBatch && !current.statsProbePending;
+        boolean fastFullState = authoritativeFullState && canUseAuthoritativeFullAck(
+                current.batchPath,
+                current.batchOutputOperations > 0,
+                current.outputExpectedAtDispatch,
+                cursorEmpty,
+                currentOutput.isEmpty(),
+                outputIngredientsDecreased,
+                current.outputAck.sawAuthoritativeEmpty(),
+                terminalGridCompatible);
+        boolean authoritativeStateReceived = fastFullState || statsReceived;
         boolean pathReady;
         if (current.batchPath == BatchPath.OUTPUT_DRAIN) {
             pathReady = canConfirmOutputDrain(
-                    fullReceived, cursorEmpty, currentOutput.isEmpty(), decreased, expectedOutput,
+                    authoritativeStateReceived, cursorEmpty, currentOutput.isEmpty(), decreased, expectedOutput,
                     authoritativeExpectedOutput || current.outputExpectedAtDispatch);
         } else if (current.batchPath == BatchPath.MANUAL_COMBINED) {
             boolean compatibleTerminalOutput = currentOutput.isEmpty()
                     || expectedOutput
                     || isIntermediateOutput(current, current.handler);
             pathReady = canConfirmCombinedBatch(
-                    fullReceived, cursorEmpty, compatibleTerminalOutput,
+                    authoritativeStateReceived, cursorEmpty, compatibleTerminalOutput,
                     (current.batchSawExpectedOutput || current.outputExpectedAtDispatch)
                             && !current.invalidAuthoritativeOutput,
                     terminalGridCompatible);
         } else {
             pathReady = canConfirmManualBatch(
-                    fullReceived, cursorEmpty, recipeMatches(current) || patternComplete,
-                    expectedOutput && authoritativeExpectedOutput);
+                    authoritativeStateReceived, cursorEmpty, currentRecipeMatches || patternComplete,
+                    expectedOutput && (authoritativeExpectedOutput || statsReceived));
         }
-        boolean terminalPrefix = canFinishBatch(statsReceived, pathReady);
+        boolean terminalPrefix = canFinishBatch(
+                fastFullState,
+                current.statsProbeSentForBatch,
+                current.statsProbePending,
+                pathReady && !current.invalidAuthoritativeOutput);
         if (LOGGER.isDebugEnabled()) {
             LOGGER.debug("手动补货ACK确认检查：界面={}，批次=#{}，路径={}，全量包={}，光标空={}，"
                             + "配方匹配={}，格子齐={}，原料减少={}，产物={}，结果={}，"
-                            + "权威正确产物={}，批次开始正确产物={}，统计已到={}，权威错误={}，"
+                            + "权威正确产物={}，批次开始正确产物={}，全量终态={}，统计已发/待回={}/{}, 权威错误={}，"
                             + "点击前格子={}，当前格子={}，按住={}",
                     layout.name(), current.batchId, current.batchPath.description,
                     current.fullUpdates - current.batchFullUpdatesStart,
-                    cursorEmpty, recipeMatches(current), patternComplete, decreased,
+                    cursorEmpty, currentRecipeMatches, patternComplete, decreased,
                     describeStack(currentOutput), terminalPrefix, authoritativeExpectedOutput,
-                    current.outputExpectedAtDispatch, statsReceived, current.invalidAuthoritativeOutput,
+                    current.outputExpectedAtDispatch, fastFullState,
+                    current.statsProbeSentForBatch, current.statsProbePending,
+                    current.invalidAuthoritativeOutput,
                     describeGridCounts(current.batchGridCounts), describeGrid(current.handler),
                     current.inputHeld.getAsBoolean());
         }
@@ -1085,6 +1235,13 @@ public final class QuickCraftRecipeBookAckExecutor {
             return false;
         }
 
+        String materialViolation = findMaterialLedgerViolation(current);
+        if (materialViolation != null) {
+            LOGGER.warn("普通配方书ACK快速全量确认材料守恒异常：界面={}，批次={}，详情={}；停止",
+                    layout.name(), current.batchId, materialViolation);
+            finish(Text.translatable("quickcraft.message.crafting.stopped"), "材料守恒异常");
+            return false;
+        }
         if (expectedOutput) {
             current.refillRetries = 0;
         }
@@ -1092,9 +1249,10 @@ public final class QuickCraftRecipeBookAckExecutor {
             current.drainRetries = 0;
         }
         acknowledgeBatch(current, acknowledgementRevision, now,
-                current.batchPath == BatchPath.OUTPUT_DRAIN && currentOutput.isEmpty()
-                        ? "全量包确认输出已排空，继续手动补货"
-                        : "终态确认");
+                (fastFullState ? "权威全量终态：" : "统计顺序探针：")
+                        + (current.batchPath == BatchPath.OUTPUT_DRAIN && currentOutput.isEmpty()
+                        ? "输出已排空，继续手动补货"
+                        : "终态确认"));
 
         if (!isContextValid(client, current)) {
             cancel("ACK后界面失效");
@@ -1113,8 +1271,20 @@ public final class QuickCraftRecipeBookAckExecutor {
                                   long now,
                                   String outcome) {
         long latencyNanos = Math.max(0L, now - current.batchSentAtNanos);
+        boolean probeUsed = current.statsProbeSentForBatch;
         current.awaiting = false;
+        current.statsProbeDeferred = false;
         current.confirmedBatches++;
+        if (probeUsed) {
+            current.statsProbeFallbackAcks++;
+        } else {
+            current.authoritativeFullAcks++;
+            current.statsProbesOmitted++;
+        }
+        int batchFullUpdates = Math.max(0,
+                current.fullUpdates - current.batchFullUpdatesStart);
+        current.maxFullUpdatesPerBatch = Math.max(
+                current.maxFullUpdatesPerBatch, batchFullUpdates);
         current.ackLatencyNanos += latencyNanos;
         current.minAckLatencyNanos = minNonZero(current.minAckLatencyNanos, latencyNanos);
         current.maxAckLatencyNanos = Math.max(current.maxAckLatencyNanos, latencyNanos);
@@ -1138,10 +1308,11 @@ public final class QuickCraftRecipeBookAckExecutor {
         if (shouldInfoLogBatch(current.batchId)) {
             LOGGER.info("手动补货ACK批次确认：界面={}，批次=#{}，路径={}，配方={}，"
                             + "耗时={} us，客户端收到全量={} us，客户端收到统计={} us，"
-                            + "终态校验={} us，revision={}->{}, Tick预算={}/{}, 结果={}",
+                            + "终态校验={} us，槽位点击={}，全量回包={}，revision={}->{}, Tick预算={}/{}, 结果={}",
                     layout.name(), current.batchId, current.batchPath.description,
                     current.recipeId, latencyNanos / 1_000L, fullUpdateMicros,
-                    statsResponseMicros, validationMicros, current.batchStartRevision,
+                    statsResponseMicros, validationMicros, current.batchClientSlotClicks,
+                    batchFullUpdates, current.batchStartRevision,
                     acknowledgementRevision, dispatchedThisTick,
                     QuickCraftConfigs.getCraftLoopsPerTick(), outcome);
         }
@@ -1299,7 +1470,8 @@ public final class QuickCraftRecipeBookAckExecutor {
         }
         boolean cursorEmpty = completed.handler.getCursorStack().isEmpty();
         boolean needsDrain = needsCanceledBatchDrain(
-                completed.awaiting, cursorEmpty, completed.statsProbePending);
+                completed.awaiting, cursorEmpty,
+                completed.statsProbePending);
         boolean allowTailDrop = canDropTail(completed.awaiting, cursorEmpty);
         if (needsDrain) {
             beginCanceledBatchDrain(completed, layout);
@@ -1328,15 +1500,16 @@ public final class QuickCraftRecipeBookAckExecutor {
                                   String action) {
         if (LOGGER.isDebugEnabled()) {
             LOGGER.debug("手动补货ACK批次发送：界面={}，批次=#{}，配方={}，动作={}，输出搬运={}，"
-                            + "输出槽点击={}，revision={}，发送耗时={} us",
+                            + "槽位点击={}，输出槽点击={}，revision={}，发送耗时={} us",
                     layout.name(), current.batchId, current.recipeId, action, outputMoveOperations,
-                    current.batchOutputSlotClicks, current.batchStartRevision, dispatchMicros);
+                    current.batchClientSlotClicks, current.batchOutputSlotClicks,
+                    current.batchStartRevision, dispatchMicros);
         }
         if (shouldInfoLogBatch(current.batchId)) {
             LOGGER.info("手动补货ACK批次发送：界面={}，批次=#{}，动作={}，输出搬运={}，"
-                            + "revision={}，耗时={} us",
+                            + "槽位点击={}，revision={}，耗时={} us",
                     layout.name(), current.batchId, action, outputMoveOperations,
-                    current.batchStartRevision, dispatchMicros);
+                    current.batchClientSlotClicks, current.batchStartRevision, dispatchMicros);
         }
     }
 
@@ -1354,21 +1527,31 @@ public final class QuickCraftRecipeBookAckExecutor {
         long confirmedPerSecond = elapsedMillis <= 0L
                 ? 0L : completed.confirmedBatches * 1_000L / elapsedMillis;
         LOGGER.info("手动补货ACK会话汇总：界面={}，配方={}，耗时={} ms，批次={}/{}确认，"
-                        + "请求={}，全量屏障={}，统计确认={}/{}，输出搬运={}，输出槽点击={}，"
+                        + "请求={}，强制全量请求={}，全量快速确认={}，探针兜底确认={}，省略探针={}，"
+                        + "统计ACK={}/{}，计划合成轮数={}，满64批={}，尾料批={}，尾料光标延后={}，"
+                        + "槽位点击={}，输出搬运={}，输出槽点击={}，"
                         + "输出槽丢出={}，背包产物丢出={}，返还物丢出={}，丢原料={}，快照补料={}/{}，"
                         + "回退旧流程={}，槽位/全量/失败包={}/{}/{}，超时={}，"
+                        + "单批最大点击/全量={}/{}, "
                         + "ACK平均/最小/最大={}/{}/{} us，ACK等待={} ms({}%)，本地发送={} us，"
                         + "确认批次/秒={}，首个全量平均={} us，统计平均={} us，"
                         + "补货重试={}，取产物重试={}，等待拾取={}，停止尾货槽={}，按住={}，结束原因={}",
                 layout.name(), completed.recipeId, elapsedMillis, completed.confirmedBatches,
                 completed.batches, completed.recipeRequests, completed.barriersSent,
-                completed.statsProbeResponses, completed.statsProbesSent, completed.quickMoves,
-                completed.outputSlotClicks,
+                completed.authoritativeFullAcks, completed.statsProbeFallbackAcks,
+                completed.statsProbesOmitted,
+                completed.statsProbeResponses, completed.statsProbesSent,
+                completed.plannedCrafts, completed.fullCraftBatches, completed.tailCraftBatches,
+                completed.deferredTailCursorBatches,
+                completed.clientSlotClicks,
+                completed.quickMoves, completed.outputSlotClicks,
                 completed.outputThrows, completed.inventoryResultDrops,
                 completed.remainderThrows, completed.ingredientDrops,
                 completed.snapshotRefillSuccesses, completed.snapshotRefillBatches,
                 completed.legacyHandoffs, completed.slotUpdates, completed.fullUpdates,
-                completed.failurePackets, completed.timeouts, averageAckMicros,
+                completed.failurePackets, completed.timeouts,
+                completed.maxClientSlotClicksPerBatch, completed.maxFullUpdatesPerBatch,
+                averageAckMicros,
                 completed.minAckLatencyNanos / 1_000L, completed.maxAckLatencyNanos / 1_000L,
                 ackWaitMillis, ackWaitPercent, completed.localDispatchNanos / 1_000L,
                 confirmedPerSecond, averageFullUpdateMicros, averageStatsResponseMicros,
@@ -1403,6 +1586,10 @@ public final class QuickCraftRecipeBookAckExecutor {
         if (handler == null || handler.getCursorStack().isEmpty()) {
             return true;
         }
+        if (client == null || client.player == null || client.interactionManager == null) {
+            return false;
+        }
+        ClientPlayerInteractionManager interactionManager = client.interactionManager;
         ItemStack before = handler.getCursorStack().copy();
         boolean parked = QuickCraftRecipeBookInventory.returnCursorToUnlockedInventory(
                 client, handler, layout);
@@ -1410,14 +1597,14 @@ public final class QuickCraftRecipeBookAckExecutor {
             int patternSlot = QuickCraftRecipeBookInventory.firstPatternSlotWithRoom(
                     handler, layout, session.pattern, handler.getCursorStack());
             if (patternSlot >= 0) {
-                client.interactionManager.clickSlot(
+                interactionManager.clickSlot(
                         handler.syncId, patternSlot, 0, SlotActionType.PICKUP, client.player);
             }
             parked = handler.getCursorStack().isEmpty();
         }
         if (!parked && session != null
                 && isSameItem(handler.getCursorStack(), session.resultTemplate)) {
-            client.interactionManager.clickSlot(
+            interactionManager.clickSlot(
                     handler.syncId, -999, 0, SlotActionType.PICKUP, client.player);
             parked = handler.getCursorStack().isEmpty();
         }
@@ -1425,10 +1612,10 @@ public final class QuickCraftRecipeBookAckExecutor {
             int productSlot = QuickCraftRecipeBookInventory.findMatchingUnlockedSlot(
                     handler, layout, session.resultTemplate);
             if (productSlot >= 0) {
-                client.interactionManager.clickSlot(
+                interactionManager.clickSlot(
                         handler.syncId, productSlot, 0, SlotActionType.PICKUP, client.player);
                 if (isSameItem(handler.getCursorStack(), session.resultTemplate)) {
-                    client.interactionManager.clickSlot(
+                    interactionManager.clickSlot(
                             handler.syncId, -999, 0, SlotActionType.PICKUP, client.player);
                 }
             }
@@ -1469,11 +1656,8 @@ public final class QuickCraftRecipeBookAckExecutor {
         if (current.handler.getCursorStack().isEmpty()) {
             current.cursorRecoveryActive = false;
             current.cursorRecoveryAttempts = 0;
-            current.statsProbePending = true;
             current.lastProgressAtNanos = now;
-            current.networkHandler.sendPacket(new ClientStatusC2SPacket(
-                    ClientStatusC2SPacket.Mode.REQUEST_STATS));
-            current.statsProbesSent++;
+            requestStatsProbe(current, current.networkHandler, "光标恢复后的顺序确认");
             LOGGER.info("手动补货ACK光标恢复已获权威确认：界面={}，批次=#{}，revision={}；"
                             + "重新发送统计屏障后继续",
                     layout.name(), current.batchId, revision);
@@ -1605,75 +1789,79 @@ public final class QuickCraftRecipeBookAckExecutor {
         return builder.toString();
     }
 
-    private String describeMaterialLedgerContents(Session current,
-                                                  List<ItemStack> contents) {
+    private MaterialSnapshot materialSnapshotFromContents(Session current,
+                                                          List<ItemStack> contents,
+                                                          ItemStack cursorStack) {
         if (current == null || contents == null) {
-            return "不可用";
+            return MaterialSnapshot.UNAVAILABLE;
         }
-        StringBuilder builder = new StringBuilder();
-        for (int i = 0; i < current.pattern.size(); i++) {
-            ItemStack template = current.pattern.get(i);
-            if (template.isEmpty() || hasEarlierPattern(current.pattern, i, template)) {
-                continue;
-            }
-            if (builder.length() > 0) {
-                builder.append(';');
-            }
-            int gridCount = 0;
-            for (int gridIndex = 0; gridIndex < layout.gridSize(); gridIndex++) {
-                int slotId = layout.gridSlotId(gridIndex);
-                if (slotId >= contents.size()) {
-                    return "不可用";
-                }
-                ItemStack stack = contents.get(slotId);
-                if (ItemStack.areItemsAndComponentsEqual(stack, template)) {
-                    gridCount += stack.getCount();
-                }
-            }
-            int inventoryCount = 0;
-            for (int inventoryIndex = 0;
-                 inventoryIndex < QuickCraftRecipeBookLayout.PLAYER_INVENTORY_SIZE;
-                 inventoryIndex++) {
-                int slotId = layout.handlerSlotForInventoryIndex(inventoryIndex);
-                if (slotId < 0 || slotId >= contents.size()) {
-                    return "不可用";
-                }
-                ItemStack stack = contents.get(slotId);
-                if (ItemStack.areItemsAndComponentsEqual(stack, template)) {
-                    inventoryCount += stack.getCount();
-                }
-            }
-            builder.append(template.getName().getString())
-                    .append(" grid=").append(gridCount)
-                    .append(" inventory=").append(inventoryCount);
-        }
-        return builder.length() == 0 ? "无配方原料" : builder.toString();
-    }
-
-    private int[] materialCountsFromContents(Session current,
-                                             List<ItemStack> contents) {
-        if (current == null || contents == null) {
-            return null;
-        }
-        List<ItemStack> templates = uniquePatternIngredients(current);
-        int[] counts = new int[templates.size()];
+        List<ItemStack> templates = current.materialTemplates;
+        int[] gridCounts = new int[templates.size()];
+        int[] inventoryCounts = new int[templates.size()];
+        int[] cursorCounts = new int[templates.size()];
         for (int gridIndex = 0; gridIndex < layout.gridSize(); gridIndex++) {
             int slotId = layout.gridSlotId(gridIndex);
             if (slotId < 0 || slotId >= contents.size()) {
-                return null;
+                return MaterialSnapshot.UNAVAILABLE;
             }
-            addMaterialCount(counts, templates, contents.get(slotId));
+            addMaterialCount(gridCounts, templates, contents.get(slotId));
         }
         for (int inventoryIndex = 0;
              inventoryIndex < QuickCraftRecipeBookLayout.PLAYER_INVENTORY_SIZE;
              inventoryIndex++) {
             int slotId = layout.handlerSlotForInventoryIndex(inventoryIndex);
             if (slotId < 0 || slotId >= contents.size()) {
-                return null;
+                return MaterialSnapshot.UNAVAILABLE;
             }
-            addMaterialCount(counts, templates, contents.get(slotId));
+            addMaterialCount(inventoryCounts, templates, contents.get(slotId));
         }
-        return counts;
+        addMaterialCount(cursorCounts, templates, cursorStack);
+        return materialSnapshot(templates, gridCounts, inventoryCounts, cursorCounts);
+    }
+
+    private MaterialSnapshot materialSnapshotFromHandler(Session current, ScreenHandler handler) {
+        if (current == null || handler == null) {
+            return MaterialSnapshot.UNAVAILABLE;
+        }
+        List<ItemStack> templates = current.materialTemplates;
+        int[] gridCounts = new int[templates.size()];
+        int[] inventoryCounts = new int[templates.size()];
+        int[] cursorCounts = new int[templates.size()];
+        for (int gridIndex = 0; gridIndex < layout.gridSize(); gridIndex++) {
+            addMaterialCount(gridCounts, templates,
+                    handler.getSlot(layout.gridSlotId(gridIndex)).getStack());
+        }
+        for (int inventoryIndex = 0;
+             inventoryIndex < QuickCraftRecipeBookLayout.PLAYER_INVENTORY_SIZE;
+             inventoryIndex++) {
+            int slotId = layout.handlerSlotForInventoryIndex(inventoryIndex);
+            if (slotId >= 0) {
+                addMaterialCount(inventoryCounts, templates, handler.getSlot(slotId).getStack());
+            }
+        }
+        addMaterialCount(cursorCounts, templates, handler.getCursorStack());
+        return materialSnapshot(templates, gridCounts, inventoryCounts, cursorCounts);
+    }
+
+    private static MaterialSnapshot materialSnapshot(List<ItemStack> templates,
+                                                      int[] gridCounts,
+                                                      int[] inventoryCounts,
+                                                      int[] cursorCounts) {
+        int[] totals = new int[templates.size()];
+        StringBuilder ledger = new StringBuilder();
+        for (int i = 0; i < templates.size(); i++) {
+            totals[i] = gridCounts[i] + inventoryCounts[i] + cursorCounts[i];
+            if (i > 0) {
+                ledger.append(';');
+            }
+            ledger.append(templates.get(i).getName().getString())
+                    .append(" grid=").append(gridCounts[i])
+                    .append(" inventory=").append(inventoryCounts[i])
+                    .append(" cursor=").append(cursorCounts[i]);
+        }
+        return new MaterialSnapshot(
+                totals,
+                ledger.length() == 0 ? "无配方原料" : ledger.toString());
     }
 
     private void addMaterialCount(int[] counts,
@@ -1691,11 +1879,12 @@ public final class QuickCraftRecipeBookAckExecutor {
     }
 
     private List<ItemStack> uniquePatternIngredients(Session current) {
+        return current == null ? List.of() : current.materialTemplates;
+    }
+
+    private static List<ItemStack> uniquePatternIngredients(List<ItemStack> pattern) {
         List<ItemStack> templates = new ArrayList<>();
-        if (current == null) {
-            return templates;
-        }
-        for (ItemStack patternStack : current.pattern) {
+        for (ItemStack patternStack : pattern) {
             if (patternStack.isEmpty()) {
                 continue;
             }
@@ -1715,9 +1904,9 @@ public final class QuickCraftRecipeBookAckExecutor {
 
     private String findMaterialLedgerViolation(Session current) {
         if (current == null
-                || current.batchAuthoritativeMaterialCountsBefore == null
+                || current.batchMaterialCountsBeforeClicks == null
                 || current.lastAuthoritativeMaterialCounts == null
-                || current.batchAuthoritativeMaterialCountsBefore.length
+                || current.batchMaterialCountsBeforeClicks.length
                 != current.lastAuthoritativeMaterialCounts.length) {
             return null;
         }
@@ -1729,7 +1918,7 @@ public final class QuickCraftRecipeBookAckExecutor {
             return null;
         }
         for (int i = 0; i < templates.size(); i++) {
-            int before = current.batchAuthoritativeMaterialCountsBefore[i];
+            int before = current.batchMaterialCountsBeforeClicks[i];
             int after = current.lastAuthoritativeMaterialCounts[i];
             int consumed = before - after;
             if (consumed <= 0) {
@@ -1744,7 +1933,8 @@ public final class QuickCraftRecipeBookAckExecutor {
             }
             int safeCrafts = maximumCrafts;
             long expectedMaximum = (long) safeCrafts * occurrences;
-            if (consumed > expectedMaximum) {
+            if (materialConsumptionExceedsBatchLimit(
+                    before, after, occurrences, safeCrafts)) {
                 return templates.get(i).getName().getString()
                         + " 消耗=" + consumed
                         + "，本批最多应消耗=" + expectedMaximum
@@ -1754,6 +1944,36 @@ public final class QuickCraftRecipeBookAckExecutor {
             }
         }
         return null;
+    }
+
+    static boolean materialConsumptionExceedsBatchLimit(int before,
+                                                        int after,
+                                                        int occurrences,
+                                                        int maximumCrafts) {
+        return (long) before - after > (long) occurrences * maximumCrafts;
+    }
+
+    private static int[] cloneMaterialCounts(int[] counts) {
+        return counts == null ? null : counts.clone();
+    }
+
+    private String describeMaterialCountDelta(Session current, int[] before, int[] after) {
+        if (current == null || before == null || after == null
+                || before.length != after.length
+                || before.length != current.materialTemplates.size()) {
+            return "不可用";
+        }
+        StringBuilder builder = new StringBuilder();
+        for (int i = 0; i < before.length; i++) {
+            if (i > 0) {
+                builder.append(';');
+            }
+            int delta = after[i] - before[i];
+            builder.append(current.materialTemplates.get(i).getName().getString())
+                    .append(delta >= 0 ? "+" : "")
+                    .append(delta);
+        }
+        return builder.length() == 0 ? "无配方原料" : builder.toString();
     }
 
     /**
@@ -1806,13 +2026,21 @@ public final class QuickCraftRecipeBookAckExecutor {
         return builder.length() == 0 ? "无配方原料" : builder.toString();
     }
 
-    static boolean canFinishBatch(boolean statsProbeReceived, boolean pathConfirmable) {
-        // 早到全量包可能还是上一批的库存，必须等统计屏障后才能发下一批。
-        return statsProbeReceived && pathConfirmable;
+    static boolean canFinishBatch(boolean authoritativeFullState,
+                                  boolean statsProbeSent,
+                                  boolean statsProbePending,
+                                  boolean pathConfirmable) {
+        if (!pathConfirmable) {
+            return false;
+        }
+        // 探针一旦发出就必须等它返回，防止迟到统计包被下一批误认。
+        return statsProbeSent ? !statsProbePending : authoritativeFullState;
     }
 
-    static boolean shouldCheckBatchTerminal(boolean statsProbePending) {
-        return !statsProbePending;
+    static boolean shouldSendDeferredStatsProbe(boolean awaiting,
+                                                boolean statsProbeDeferred,
+                                                boolean statsProbePending) {
+        return awaiting && statsProbeDeferred && !statsProbePending;
     }
 
     static boolean shouldResumePickupWait(boolean ingredientsAvailable,
@@ -1822,6 +2050,10 @@ public final class QuickCraftRecipeBookAckExecutor {
 
     static boolean canRetryCursorRecovery(int attempts, int maxAttempts) {
         return attempts >= 0 && attempts < Math.max(0, maxAttempts);
+    }
+
+    static boolean shouldDeferCursorParking(boolean refilled, boolean cursorEmpty) {
+        return refilled && !cursorEmpty;
     }
 
     /** Revision 回卷感知的比较：candidate 是否在 base 之后的半圈窗口内（revision 限制在 0..32767）。 */
@@ -1911,12 +2143,30 @@ public final class QuickCraftRecipeBookAckExecutor {
         return path == BatchPath.MANUAL_REFILL || path == BatchPath.MANUAL_COMBINED;
     }
 
-    static boolean canConfirmCombinedBatch(boolean fullReceived,
+    static boolean canUseAuthoritativeFullAck(BatchPath path,
+                                              boolean outputActionSent,
+                                              boolean expectedOutputAtDispatch,
+                                              boolean cursorEmpty,
+                                              boolean outputEmpty,
+                                              boolean outputIngredientsDecreased,
+                                              boolean authoritativeEmptyObserved,
+                                              boolean patternOrRemainderCompatible) {
+        return path == BatchPath.OUTPUT_DRAIN
+                && outputActionSent
+                && expectedOutputAtDispatch
+                && cursorEmpty
+                && outputEmpty
+                && outputIngredientsDecreased
+                && authoritativeEmptyObserved
+                && patternOrRemainderCompatible;
+    }
+
+    static boolean canConfirmCombinedBatch(boolean authoritativeStateReceived,
                                            boolean cursorEmpty,
                                            boolean terminalOutputCompatible,
                                            boolean authoritativeExpectedOutput,
                                            boolean patternCompatible) {
-        return fullReceived && cursorEmpty && terminalOutputCompatible
+        return authoritativeStateReceived && cursorEmpty && terminalOutputCompatible
                 && authoritativeExpectedOutput && patternCompatible;
     }
 
@@ -2041,6 +2291,11 @@ public final class QuickCraftRecipeBookAckExecutor {
         }
     }
 
+    private record MaterialSnapshot(int[] counts, String ledger) {
+        private static final MaterialSnapshot UNAVAILABLE =
+                new MaterialSnapshot(null, "不可用");
+    }
+
     /**
      * Captures the exact client-side click before and after vanilla builds the
      * ClickSlot packet. This is the only reliable way to distinguish a client
@@ -2067,6 +2322,9 @@ public final class QuickCraftRecipeBookAckExecutor {
                 || actionType == SlotActionType.PICKUP
                 || actionType == SlotActionType.THROW)) {
             current.outputSlotClicks++;
+        }
+        if (active.dispatchingBatch) {
+            current.clientSlotClicks++;
         }
         ItemStack target = slotId >= 0 && slotId < handler.slots.size()
                 ? handler.getSlot(slotId).getStack().copy()
@@ -2151,87 +2409,37 @@ public final class QuickCraftRecipeBookAckExecutor {
     }
 
     private String describeMaterialLedger(Session current, ScreenHandler handler) {
-        if (current == null || handler == null) {
-            return "不可用";
-        }
-        StringBuilder builder = new StringBuilder();
-        for (int i = 0; i < current.pattern.size(); i++) {
-            ItemStack template = current.pattern.get(i);
-            if (template.isEmpty() || hasEarlierPattern(current.pattern, i, template)) {
-                continue;
-            }
-            if (builder.length() > 0) {
-                builder.append(';');
-            }
-            int gridCount = 0;
-            for (int gridIndex = 0; gridIndex < layout.gridSize(); gridIndex++) {
-                ItemStack stack = handler.getSlot(layout.gridSlotId(gridIndex)).getStack();
-                if (ItemStack.areItemsAndComponentsEqual(stack, template)) {
-                    gridCount += stack.getCount();
-                }
-            }
-            int inventoryCount = 0;
-            for (int inventoryIndex = 0;
-                 inventoryIndex < QuickCraftRecipeBookLayout.PLAYER_INVENTORY_SIZE;
-                 inventoryIndex++) {
-                int slotId = layout.handlerSlotForInventoryIndex(inventoryIndex);
-                if (slotId < 0) {
-                    continue;
-                }
-                ItemStack stack = handler.getSlot(slotId).getStack();
-                if (ItemStack.areItemsAndComponentsEqual(stack, template)) {
-                    inventoryCount += stack.getCount();
-                }
-            }
-            builder.append(template.getName().getString())
-                    .append(" grid=").append(gridCount)
-                    .append(" inventory=").append(inventoryCount);
-        }
-        return builder.length() == 0 ? "无配方原料" : builder.toString();
-    }
-
-    private static boolean hasEarlierPattern(List<ItemStack> pattern,
-                                             int index,
-                                             ItemStack template) {
-        for (int i = 0; i < index; i++) {
-            ItemStack earlier = pattern.get(i);
-            if (!earlier.isEmpty() && ItemStack.areItemsAndComponentsEqual(earlier, template)) {
-                return true;
-            }
-        }
-        return false;
+        return materialSnapshotFromHandler(current, handler).ledger();
     }
 
     public static void onServerSlotUpdate(int syncId,
                                           int revision,
                                           int slotId,
                                           ItemStack stack) {
-        if (hasCanceledBatchDrain(syncId)) {
-            updateCanceledBatchDrains(syncId, revision, slotId, stack);
+        if (!CANCELED_BATCH_DRAINS.isEmpty()
+                && updateCanceledBatchDrains(syncId, revision, slotId, stack)) {
             return;
         }
         QuickCraftRecipeBookAckExecutor active = activeExecutor;
         if (active != null) {
             active.handleServerSlotUpdate(syncId, revision, slotId, stack);
         }
-        updateCanceledBatchDrains(syncId, revision, slotId, stack);
     }
 
     public static void onServerInventoryUpdate(int syncId,
                                                int revision,
                                                List<ItemStack> contents,
                                                ItemStack cursorStack) {
-        if (hasCanceledBatchDrain(syncId)) {
-            updateCanceledBatchDrainsFull(
-                    syncId, revision, contents, cursorStack);
-            return;
+        if (!CANCELED_BATCH_DRAINS.isEmpty()) {
+            if (updateCanceledBatchDrainsFull(
+                    syncId, revision, contents, cursorStack)) {
+                return;
+            }
         }
         QuickCraftRecipeBookAckExecutor active = activeExecutor;
         if (active != null) {
             active.handleServerInventoryUpdate(syncId, revision, contents, cursorStack);
         }
-        updateCanceledBatchDrainsFull(
-                syncId, revision, contents, cursorStack);
     }
 
     public static void onServerStatistics(ClientPlayNetworkHandler source) {
@@ -2247,8 +2455,16 @@ public final class QuickCraftRecipeBookAckExecutor {
 
     private static boolean hasCanceledBatchDrain(int syncId) {
         pruneExpiredCanceledBatchDrains();
-        return CANCELED_BATCH_DRAINS.stream()
-                .anyMatch(drain -> drain.syncId == syncId);
+        return hasCanceledBatchDrainWithoutPruning(syncId);
+    }
+
+    private static boolean hasCanceledBatchDrainWithoutPruning(int syncId) {
+        for (CanceledBatchDrain drain : CANCELED_BATCH_DRAINS) {
+            if (drain.syncId == syncId) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private static void beginCanceledBatchDrain(
@@ -2292,17 +2508,19 @@ public final class QuickCraftRecipeBookAckExecutor {
         return matched;
     }
 
-    private static void updateCanceledBatchDrainsFull(int syncId,
-                                                      int revision,
-                                                      List<ItemStack> contents,
-                                                      ItemStack cursorStack) {
+    private static boolean updateCanceledBatchDrainsFull(int syncId,
+                                                         int revision,
+                                                         List<ItemStack> contents,
+                                                         ItemStack cursorStack) {
         pruneExpiredCanceledBatchDrains();
+        boolean matched = false;
         Iterator<CanceledBatchDrain> iterator = CANCELED_BATCH_DRAINS.iterator();
         while (iterator.hasNext()) {
             CanceledBatchDrain drain = iterator.next();
             if (drain.syncId != syncId) {
                 continue;
             }
+            matched = true;
             drain.observeFull(revision, contents, cursorStack);
             if (drain.isTerminalFull(revision)) {
                 LOGGER.debug("手动补货取消批次终态已排空：syncId={}，配方={}，revision={}",
@@ -2310,6 +2528,7 @@ public final class QuickCraftRecipeBookAckExecutor {
                 iterator.remove();
             }
         }
+        return matched;
     }
 
     private static void pruneExpiredCanceledBatchDrains() {
@@ -2548,6 +2767,7 @@ public final class QuickCraftRecipeBookAckExecutor {
         private final NetworkRecipeId recipeId;
         private final ItemStack resultTemplate;
         private final java.util.List<ItemStack> pattern;
+        private final java.util.List<ItemStack> materialTemplates;
         private final BooleanSupplier inputHeld;
         private final FinishHandler finishHandler;
         private final ClientPlayNetworkHandler networkHandler;
@@ -2567,6 +2787,8 @@ public final class QuickCraftRecipeBookAckExecutor {
         private boolean outputSprayMode;
         private boolean sprayInventoryCleared;
         private boolean noIngredientRescueAttempted;
+        private boolean pickupWaitAttempted;
+        private boolean pickupWaitForFullInventory;
         private int outputFillSlotsRemaining;
         private int inventoryResultDrops;
         private int intermediateOutputPackets;
@@ -2574,9 +2796,13 @@ public final class QuickCraftRecipeBookAckExecutor {
         private String lastAuthoritativeMaterialLedger = "未收到";
         private int[] lastAuthoritativeMaterialCounts;
         private int lastAuthoritativeMaterialRevision = Integer.MIN_VALUE;
-        private int[] batchAuthoritativeMaterialCountsBefore;
+        private int[] batchMaterialCountsBeforeClicks;
         private int batchOutputOperations;
+        private int batchClientSlotClicks;
         private int batchOutputSlotClicks;
+        private int clientSlotClicks;
+        private int maxClientSlotClicksPerBatch;
+        private int maxFullUpdatesPerBatch;
         private int outputSlotClicks;
         private int remainderThrows;
         private long batchId;
@@ -2585,6 +2811,8 @@ public final class QuickCraftRecipeBookAckExecutor {
         private int lastProgressRevision;
         private long batchSentAtNanos;
         private long lastProgressAtNanos;
+        private boolean statsProbeDeferred;
+        private boolean statsProbeSentForBatch;
         private boolean statsProbePending;
         private boolean cursorRecoveryActive;
         private int cursorRecoveryAttempts;
@@ -2605,6 +2833,13 @@ public final class QuickCraftRecipeBookAckExecutor {
         private int barriersSent;
         private int statsProbesSent;
         private int statsProbeResponses;
+        private int authoritativeFullAcks;
+        private int statsProbeFallbackAcks;
+        private int statsProbesOmitted;
+        private long plannedCrafts;
+        private int fullCraftBatches;
+        private int tailCraftBatches;
+        private int deferredTailCursorBatches;
         private int quickMoves;
         private int snapshotRefillBatches;
         private int snapshotRefillSuccesses;
@@ -2626,6 +2861,7 @@ public final class QuickCraftRecipeBookAckExecutor {
         private int fullUpdateSamples;
         private int statsResponseSamples;
         private int ackPhaseSamples;
+        private int batchPlannedCrafts;
 
         private Session(ScreenHandler handler,
                         int syncId,
@@ -2642,6 +2878,7 @@ public final class QuickCraftRecipeBookAckExecutor {
             this.recipeId = recipeId;
             this.resultTemplate = resultTemplate;
             this.pattern = pattern;
+            this.materialTemplates = uniquePatternIngredients(pattern);
             this.inputHeld = inputHeld;
             this.finishHandler = finishHandler;
             this.networkHandler = networkHandler;
