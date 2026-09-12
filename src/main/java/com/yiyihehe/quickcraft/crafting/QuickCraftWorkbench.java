@@ -8,13 +8,13 @@ import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.gui.screen.ingame.CraftingScreen;
 
 /**
- * 原版工作台配方书合成入口；潜影盒流水线由路由器选择另一执行器。
+ * 原版工作台鼠标点击合成入口；潜影盒流水线由路由器选择另一执行器。
  */
 public class QuickCraftWorkbench implements ClientModInitializer {
     private static QuickCraftWorkbench instance;
 
-    private final QuickCraftRecipeBookCrafting crafting = new QuickCraftRecipeBookCrafting(
-            QuickCraftRecipeBookLayout.WORKBENCH,
+    private final QuickCraftMouseCrafting crafting = new QuickCraftMouseCrafting(
+            QuickCraftMouseCraftLayout.WORKBENCH,
             QuickCraftConfigs::isWorkbenchQuickCraftEnabled,
             QuickCraftWorkbench::clearRecipeGhostSlots
     );
@@ -38,7 +38,7 @@ public class QuickCraftWorkbench implements ClientModInitializer {
         if (client.currentScreen instanceof CraftingScreen screen) {
             ((RecipeBookScreenAccessor) (Object) screen)
                     .quickcraft$getRecipeBook()
-                    .onMouseClick(screen.getScreenHandler().getSlot(QuickCraftRecipeBookLayout.OUTPUT_SLOT));
+                    .onMouseClick(screen.getScreenHandler().getSlot(QuickCraftMouseCraftLayout.OUTPUT_SLOT));
         }
     }
 }

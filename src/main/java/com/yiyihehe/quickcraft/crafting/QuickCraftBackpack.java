@@ -10,8 +10,8 @@ import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 public class QuickCraftBackpack implements ClientModInitializer {
     private static QuickCraftBackpack instance;
 
-    private final QuickCraftRecipeBookCrafting crafting = new QuickCraftRecipeBookCrafting(
-            QuickCraftRecipeBookLayout.BACKPACK,
+    private final QuickCraftMouseCrafting crafting = new QuickCraftMouseCrafting(
+            QuickCraftMouseCraftLayout.BACKPACK,
             QuickCraftConfigs::isBackpackQuickCraftEnabled,
             null
     );
