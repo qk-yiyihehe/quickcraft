@@ -12,7 +12,7 @@ import net.minecraft.screen.ScreenHandler;
  * Describes the vanilla recipe-book slot layout for the two player crafting screens.
  * It intentionally contains no item movement or recipe execution logic.
  */
-public final class QuickCraftRecipeBookLayout {
+public final class QuickCraftMouseCraftLayout {
     public static final int OUTPUT_SLOT = 0;
     public static final int PLAYER_INVENTORY_SIZE = 36;
 
@@ -22,7 +22,7 @@ public final class QuickCraftRecipeBookLayout {
     /** PlayerScreenHandler: grid 1..4, main inventory starts at 9, hotbar at 36. */
     public static final Layout BACKPACK = new Layout("backpack", 1, 4, 2, 2, 9, 36);
 
-    private QuickCraftRecipeBookLayout() {
+    private QuickCraftMouseCraftLayout() {
     }
 
     public static Layout fromScreen(Screen screen) {

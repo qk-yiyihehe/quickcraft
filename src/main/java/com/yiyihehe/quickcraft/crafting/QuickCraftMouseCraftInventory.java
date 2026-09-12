@@ -16,14 +16,14 @@ import java.util.List;
 /**
  * 两种原版合成界面共用的玩家库存输出操作。
  */
-final class QuickCraftRecipeBookInventory {
+final class QuickCraftMouseCraftInventory {
     private static final Logger LOGGER = LoggerFactory.getLogger("QuickCraft/RecipeBookCraft");
 
-    private QuickCraftRecipeBookInventory() {
+    private QuickCraftMouseCraftInventory() {
     }
 
     static boolean isPatternComplete(ScreenHandler handler,
-                                     QuickCraftRecipeBookLayout.Layout layout,
+                                     QuickCraftMouseCraftLayout.Layout layout,
                                      List<ItemStack> pattern) {
         if (handler == null || layout == null || pattern == null
                 || pattern.size() != layout.gridSize()) {
@@ -46,7 +46,7 @@ final class QuickCraftRecipeBookInventory {
     }
 
     static boolean canAcceptUnlocked(ScreenHandler handler,
-                                     QuickCraftRecipeBookLayout.Layout layout,
+                                     QuickCraftMouseCraftLayout.Layout layout,
                                      ItemStack stack) {
         if (handler == null || layout == null || stack == null || stack.isEmpty()) {
             return false;
@@ -58,13 +58,13 @@ final class QuickCraftRecipeBookInventory {
     }
 
     static int unlockedEmptySlots(ScreenHandler handler,
-                                  QuickCraftRecipeBookLayout.Layout layout) {
+                                  QuickCraftMouseCraftLayout.Layout layout) {
         if (handler == null || layout == null) {
             return 0;
         }
         int empty = 0;
         for (int inventoryIndex = 0;
-             inventoryIndex < QuickCraftRecipeBookLayout.PLAYER_INVENTORY_SIZE;
+             inventoryIndex < QuickCraftMouseCraftLayout.PLAYER_INVENTORY_SIZE;
              inventoryIndex++) {
             int handlerSlot = layout.handlerSlotForInventoryIndex(inventoryIndex);
             if (handlerSlot < 0 || QuickContainerLock.isLockedSlot(handler, handlerSlot)) {
@@ -79,7 +79,7 @@ final class QuickCraftRecipeBookInventory {
     }
 
     static int unlockedCapacity(ScreenHandler handler,
-                                QuickCraftRecipeBookLayout.Layout layout,
+                                QuickCraftMouseCraftLayout.Layout layout,
                                 ItemStack stack) {
         if (handler == null || layout == null || stack == null || stack.isEmpty()) {
             return 0;
@@ -87,7 +87,7 @@ final class QuickCraftRecipeBookInventory {
 
         long capacity = 0L;
         for (int inventoryIndex = 0;
-             inventoryIndex < QuickCraftRecipeBookLayout.PLAYER_INVENTORY_SIZE;
+             inventoryIndex < QuickCraftMouseCraftLayout.PLAYER_INVENTORY_SIZE;
              inventoryIndex++) {
             int handlerSlot = layout.handlerSlotForInventoryIndex(inventoryIndex);
             if (handlerSlot < 0 || QuickContainerLock.isLockedSlot(handler, handlerSlot)) {
@@ -108,13 +108,13 @@ final class QuickCraftRecipeBookInventory {
     }
 
     static int findAcceptingUnlockedSlot(ScreenHandler handler,
-                                         QuickCraftRecipeBookLayout.Layout layout,
+                                         QuickCraftMouseCraftLayout.Layout layout,
                                          ItemStack stack) {
         if (handler == null || stack == null || stack.isEmpty()) {
             return -1;
         }
         for (int inventoryIndex = 0;
-             inventoryIndex < QuickCraftRecipeBookLayout.PLAYER_INVENTORY_SIZE;
+             inventoryIndex < QuickCraftMouseCraftLayout.PLAYER_INVENTORY_SIZE;
              inventoryIndex++) {
             int handlerSlot = layout.handlerSlotForInventoryIndex(inventoryIndex);
             if (handlerSlot < 0 || QuickContainerLock.isLockedSlot(handler, handlerSlot)) {
@@ -129,7 +129,7 @@ final class QuickCraftRecipeBookInventory {
     }
 
     static boolean hasUnevenMatchingGridStacks(ScreenHandler handler,
-                                               QuickCraftRecipeBookLayout.Layout layout) {
+                                               QuickCraftMouseCraftLayout.Layout layout) {
         if (handler == null || layout == null) {
             return false;
         }
@@ -153,14 +153,14 @@ final class QuickCraftRecipeBookInventory {
 
     static boolean takeOneOutputToUnlockedInventory(MinecraftClient client,
                                                     ScreenHandler handler,
-                                                    QuickCraftRecipeBookLayout.Layout layout) {
+                                                    QuickCraftMouseCraftLayout.Layout layout) {
         if (client == null || client.player == null || client.interactionManager == null
                 || handler == null || !handler.getCursorStack().isEmpty()
-                || !handler.getSlot(QuickCraftRecipeBookLayout.OUTPUT_SLOT).hasStack()) {
+                || !handler.getSlot(QuickCraftMouseCraftLayout.OUTPUT_SLOT).hasStack()) {
             return false;
         }
 
-        ItemStack output = handler.getSlot(QuickCraftRecipeBookLayout.OUTPUT_SLOT).getStack().copy();
+        ItemStack output = handler.getSlot(QuickCraftMouseCraftLayout.OUTPUT_SLOT).getStack().copy();
         int targetSlot = findAcceptingUnlockedSlot(handler, layout, output);
         if (targetSlot < 0) {
             return false;
@@ -168,7 +168,7 @@ final class QuickCraftRecipeBookInventory {
         int countBefore = countMatching(handler, layout, output);
         client.interactionManager.clickSlot(
                 handler.syncId,
-                QuickCraftRecipeBookLayout.OUTPUT_SLOT,
+                QuickCraftMouseCraftLayout.OUTPUT_SLOT,
                 0,
                 SlotActionType.PICKUP,
                 client.player
@@ -184,7 +184,7 @@ final class QuickCraftRecipeBookInventory {
                 SlotActionType.PICKUP,
                 client.player
         );
-        ItemStack after = handler.getSlot(QuickCraftRecipeBookLayout.OUTPUT_SLOT).getStack();
+        ItemStack after = handler.getSlot(QuickCraftMouseCraftLayout.OUTPUT_SLOT).getStack();
         boolean outputChanged = after.isEmpty()
                 || !ItemStack.areItemsAndComponentsEqual(output, after)
                 || output.getCount() != after.getCount();
@@ -194,21 +194,21 @@ final class QuickCraftRecipeBookInventory {
 
     static boolean moveOutputToUnlockedInventory(MinecraftClient client,
                                                  ScreenHandler handler,
-                                                 QuickCraftRecipeBookLayout.Layout layout) {
+                                                 QuickCraftMouseCraftLayout.Layout layout) {
         return moveOutputToUnlockedInventory(client, handler, layout, false);
     }
 
     private static boolean moveOutputToUnlockedInventory(MinecraftClient client,
                                                          ScreenHandler handler,
-                                                         QuickCraftRecipeBookLayout.Layout layout,
+                                                         QuickCraftMouseCraftLayout.Layout layout,
                                                          boolean preferQuickMove) {
         if (client == null || client.player == null || client.interactionManager == null
                 || handler == null || !handler.getCursorStack().isEmpty()
-                || !handler.getSlot(QuickCraftRecipeBookLayout.OUTPUT_SLOT).hasStack()) {
+                || !handler.getSlot(QuickCraftMouseCraftLayout.OUTPUT_SLOT).hasStack()) {
             return false;
         }
 
-        ItemStack output = handler.getSlot(QuickCraftRecipeBookLayout.OUTPUT_SLOT).getStack().copy();
+        ItemStack output = handler.getSlot(QuickCraftMouseCraftLayout.OUTPUT_SLOT).getStack().copy();
         // The ACK path follows ItemScroller's shift-click fast path. The legacy
         // path retains its direct pickup behavior when locked slots are present.
         if (preferQuickMove && moveOutputWithQuickMove(client, handler, layout)) {
@@ -224,20 +224,20 @@ final class QuickCraftRecipeBookInventory {
 
     private static boolean moveOutputWithPickup(MinecraftClient client,
                                                 ScreenHandler handler,
-                                                QuickCraftRecipeBookLayout.Layout layout) {
+                                                QuickCraftMouseCraftLayout.Layout layout) {
         if (client == null || client.player == null || client.interactionManager == null
                 || handler == null || !handler.getCursorStack().isEmpty()
-                || !handler.getSlot(QuickCraftRecipeBookLayout.OUTPUT_SLOT).hasStack()) {
+                || !handler.getSlot(QuickCraftMouseCraftLayout.OUTPUT_SLOT).hasStack()) {
             return false;
         }
 
-        ItemStack output = handler.getSlot(QuickCraftRecipeBookLayout.OUTPUT_SLOT).getStack().copy();
+        ItemStack output = handler.getSlot(QuickCraftMouseCraftLayout.OUTPUT_SLOT).getStack().copy();
         return moveOutputWithPickup(client, handler, layout, output);
     }
 
     private static boolean moveOutputWithPickup(MinecraftClient client,
                                                 ScreenHandler handler,
-                                                QuickCraftRecipeBookLayout.Layout layout,
+                                                QuickCraftMouseCraftLayout.Layout layout,
                                                 ItemStack output) {
         if (findAcceptingUnlockedSlot(handler, layout, output) < 0) {
             return false;
@@ -245,7 +245,7 @@ final class QuickCraftRecipeBookInventory {
         int countBefore = countMatching(handler, layout, output);
         client.interactionManager.clickSlot(
                 handler.syncId,
-                QuickCraftRecipeBookLayout.OUTPUT_SLOT,
+                QuickCraftMouseCraftLayout.OUTPUT_SLOT,
                 0,
                 SlotActionType.PICKUP,
                 client.player
@@ -274,7 +274,7 @@ final class QuickCraftRecipeBookInventory {
         );
 
         int countAfter = countMatching(handler, layout, output);
-        ItemStack after = handler.getSlot(QuickCraftRecipeBookLayout.OUTPUT_SLOT).getStack();
+        ItemStack after = handler.getSlot(QuickCraftMouseCraftLayout.OUTPUT_SLOT).getStack();
         boolean outputChanged = after.isEmpty()
                 || !ItemStack.areItemsAndComponentsEqual(output, after)
                 || output.getCount() != after.getCount();
@@ -284,24 +284,24 @@ final class QuickCraftRecipeBookInventory {
 
     static boolean moveOutputWithQuickMove(MinecraftClient client,
                                            ScreenHandler handler,
-                                           QuickCraftRecipeBookLayout.Layout layout) {
+                                           QuickCraftMouseCraftLayout.Layout layout) {
         if (client == null || client.player == null || client.interactionManager == null
                 || handler == null
-                || !handler.getSlot(QuickCraftRecipeBookLayout.OUTPUT_SLOT).hasStack()) {
+                || !handler.getSlot(QuickCraftMouseCraftLayout.OUTPUT_SLOT).hasStack()) {
             return false;
         }
 
-        ItemStack output = handler.getSlot(QuickCraftRecipeBookLayout.OUTPUT_SLOT).getStack().copy();
+        ItemStack output = handler.getSlot(QuickCraftMouseCraftLayout.OUTPUT_SLOT).getStack().copy();
         int countBefore = countMatching(handler, layout, output);
         client.interactionManager.clickSlot(
                 handler.syncId,
-                QuickCraftRecipeBookLayout.OUTPUT_SLOT,
+                QuickCraftMouseCraftLayout.OUTPUT_SLOT,
                 0,
                 SlotActionType.QUICK_MOVE,
                 client.player
         );
 
-        ItemStack after = handler.getSlot(QuickCraftRecipeBookLayout.OUTPUT_SLOT).getStack();
+        ItemStack after = handler.getSlot(QuickCraftMouseCraftLayout.OUTPUT_SLOT).getStack();
         boolean outputChanged = after.isEmpty()
                 || !ItemStack.areItemsAndComponentsEqual(output, after)
                 || output.getCount() != after.getCount();
@@ -315,13 +315,13 @@ final class QuickCraftRecipeBookInventory {
     }
 
     static int findMatchingUnlockedSlot(ScreenHandler handler,
-                                        QuickCraftRecipeBookLayout.Layout layout,
+                                        QuickCraftMouseCraftLayout.Layout layout,
                                         ItemStack template) {
         if (handler == null || layout == null || template == null || template.isEmpty()) {
             return -1;
         }
         for (int inventoryIndex = 0;
-             inventoryIndex < QuickCraftRecipeBookLayout.PLAYER_INVENTORY_SIZE;
+             inventoryIndex < QuickCraftMouseCraftLayout.PLAYER_INVENTORY_SIZE;
              inventoryIndex++) {
             int handlerSlot = layout.handlerSlotForInventoryIndex(inventoryIndex);
             if (handlerSlot < 0 || QuickContainerLock.isLockedSlot(handler, handlerSlot)) {
@@ -336,14 +336,14 @@ final class QuickCraftRecipeBookInventory {
     }
 
     static int countMatchingUnlockedSlots(ScreenHandler handler,
-                                          QuickCraftRecipeBookLayout.Layout layout,
+                                          QuickCraftMouseCraftLayout.Layout layout,
                                           ItemStack template) {
         if (handler == null || layout == null || template == null || template.isEmpty()) {
             return 0;
         }
         int matchingSlots = 0;
         for (int inventoryIndex = 0;
-             inventoryIndex < QuickCraftRecipeBookLayout.PLAYER_INVENTORY_SIZE;
+             inventoryIndex < QuickCraftMouseCraftLayout.PLAYER_INVENTORY_SIZE;
              inventoryIndex++) {
             int handlerSlot = layout.handlerSlotForInventoryIndex(inventoryIndex);
             if (handlerSlot < 0 || QuickContainerLock.isLockedSlot(handler, handlerSlot)) {
@@ -359,7 +359,7 @@ final class QuickCraftRecipeBookInventory {
 
     static int dropMatchingUnlockedInventory(MinecraftClient client,
                                              ScreenHandler handler,
-                                             QuickCraftRecipeBookLayout.Layout layout,
+                                             QuickCraftMouseCraftLayout.Layout layout,
                                              ItemStack template,
                                              String reason) {
         if (client == null || client.player == null || client.interactionManager == null
@@ -370,7 +370,7 @@ final class QuickCraftRecipeBookInventory {
 
         int droppedSlots = 0;
         for (int inventoryIndex = 0;
-             inventoryIndex < QuickCraftRecipeBookLayout.PLAYER_INVENTORY_SIZE;
+             inventoryIndex < QuickCraftMouseCraftLayout.PLAYER_INVENTORY_SIZE;
              inventoryIndex++) {
             int handlerSlot = layout.handlerSlotForInventoryIndex(inventoryIndex);
             if (handlerSlot < 0 || QuickContainerLock.isLockedSlot(handler, handlerSlot)) {
@@ -390,12 +390,12 @@ final class QuickCraftRecipeBookInventory {
     }
 
     static boolean hasLockedPlayerSlot(ScreenHandler handler,
-                                       QuickCraftRecipeBookLayout.Layout layout) {
+                                       QuickCraftMouseCraftLayout.Layout layout) {
         if (handler == null || layout == null) {
             return false;
         }
         for (int inventoryIndex = 0;
-             inventoryIndex < QuickCraftRecipeBookLayout.PLAYER_INVENTORY_SIZE;
+             inventoryIndex < QuickCraftMouseCraftLayout.PLAYER_INVENTORY_SIZE;
              inventoryIndex++) {
             int handlerSlot = layout.handlerSlotForInventoryIndex(inventoryIndex);
             if (handlerSlot >= 0 && QuickContainerLock.isLockedSlot(handler, handlerSlot)) {
@@ -406,11 +406,11 @@ final class QuickCraftRecipeBookInventory {
     }
 
     private static int countMatching(ScreenHandler handler,
-                                     QuickCraftRecipeBookLayout.Layout layout,
+                                     QuickCraftMouseCraftLayout.Layout layout,
                                      ItemStack template) {
         int total = 0;
         for (int inventoryIndex = 0;
-             inventoryIndex < QuickCraftRecipeBookLayout.PLAYER_INVENTORY_SIZE;
+             inventoryIndex < QuickCraftMouseCraftLayout.PLAYER_INVENTORY_SIZE;
              inventoryIndex++) {
             int handlerSlot = layout.handlerSlotForInventoryIndex(inventoryIndex);
             if (handlerSlot < 0) {
@@ -433,7 +433,7 @@ final class QuickCraftRecipeBookInventory {
     }
 
     static int firstPatternSlotWithRoom(ScreenHandler handler,
-                                        QuickCraftRecipeBookLayout.Layout layout,
+                                        QuickCraftMouseCraftLayout.Layout layout,
                                         List<ItemStack> pattern,
                                         ItemStack stack) {
         if (handler == null || layout == null || pattern == null || stack == null || stack.isEmpty()) {
@@ -456,7 +456,7 @@ final class QuickCraftRecipeBookInventory {
     }
 
     static int firstAcceptingGridSlot(ScreenHandler handler,
-                                      QuickCraftRecipeBookLayout.Layout layout,
+                                      QuickCraftMouseCraftLayout.Layout layout,
                                       ItemStack template) {
         if (handler == null || layout == null || template == null || template.isEmpty()) {
             return -1;
@@ -565,7 +565,7 @@ final class QuickCraftRecipeBookInventory {
 
     static boolean returnCursorToUnlockedInventory(MinecraftClient client,
                                                    ScreenHandler handler,
-                                                   QuickCraftRecipeBookLayout.Layout layout) {
+                                                   QuickCraftMouseCraftLayout.Layout layout) {
         if (client == null || client.player == null || client.interactionManager == null
                 || handler == null) {
             return false;
@@ -596,13 +596,13 @@ final class QuickCraftRecipeBookInventory {
     }
 
     private static int findPartialAcceptingUnlockedSlot(ScreenHandler handler,
-                                                        QuickCraftRecipeBookLayout.Layout layout,
+                                                        QuickCraftMouseCraftLayout.Layout layout,
                                                         ItemStack stack) {
         if (handler == null || layout == null || stack == null || stack.isEmpty()) {
             return -1;
         }
         for (int inventoryIndex = 0;
-             inventoryIndex < QuickCraftRecipeBookLayout.PLAYER_INVENTORY_SIZE;
+             inventoryIndex < QuickCraftMouseCraftLayout.PLAYER_INVENTORY_SIZE;
              inventoryIndex++) {
             int handlerSlot = layout.handlerSlotForInventoryIndex(inventoryIndex);
             if (handlerSlot < 0 || QuickContainerLock.isLockedSlot(handler, handlerSlot)) {
