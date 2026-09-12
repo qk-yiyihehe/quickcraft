@@ -479,6 +479,10 @@ final class QuickCraftMouseCraftInventory {
         return retainSample ? 1 : 0;
     }
 
+    static int maximumRetainedHalfPickup(int maxStackCount) {
+        return Math.max(0, (maxStackCount + 1) / 2);
+    }
+
     record GridBalanceMove(int source, int target, int count) {}
 
     static List<GridBalanceMove> planGridTailBalance(int[] counts) {
@@ -513,23 +517,13 @@ final class QuickCraftMouseCraftInventory {
         return moves;
     }
 
-    static int[] planSampleRefillSources(int[] sourceCounts, int missingSlots) {
-        int[] remaining = sourceCounts.clone();
-        int[] plan = new int[missingSlots];
-        for (int target = 0; target < missingSlots; target++) {
-            int best = -1;
-            for (int source = 0; source < remaining.length; source++) {
-                if (remaining[source] > 1 && (best < 0 || remaining[source] > remaining[best])) {
-                    best = source;
-                }
-            }
-            if (best < 0) {
-                return null;
-            }
-            plan[target] = best;
-            remaining[best] /= 2;
+    static int retainedItemsPerSlot(int pickedUpCount,
+                                    int targetSlots,
+                                    int remainingCapacityPerSlot) {
+        if (pickedUpCount <= 0 || targetSlots <= 0 || remainingCapacityPerSlot <= 0) {
+            return 0;
         }
-        return plan;
+        return Math.min(pickedUpCount / targetSlots, remainingCapacityPerSlot);
     }
 
     static boolean wholeStackFitsInSlot(int sourceCount, int existingCount, int maxCount) {
