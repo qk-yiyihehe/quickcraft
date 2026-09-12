@@ -1,7 +1,6 @@
 package com.yiyihehe.quickcraft.crafting;
 
 import com.yiyihehe.quickcraft.config.QuickCraftConfigs;
-import it.unimi.dsi.fastutil.ints.Int2ObjectOpenHashMap;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.network.ClientPlayNetworkHandler;
 import net.minecraft.client.network.ClientPlayerEntity;
@@ -10,7 +9,6 @@ import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.inventory.CraftingResultInventory;
 import net.minecraft.inventory.RecipeInputInventory;
 import net.minecraft.item.ItemStack;
-import net.minecraft.network.packet.c2s.play.ClickSlotC2SPacket;
 import net.minecraft.network.packet.c2s.play.ClientStatusC2SPacket;
 import net.minecraft.recipe.NetworkRecipeId;
 import net.minecraft.recipe.input.CraftingRecipeInput;
@@ -35,7 +33,6 @@ public final class QuickCraftRecipeBookAckExecutor {
     private static final long MIN_ACK_TIMEOUT_MILLIS = 3_000L;
     private static final long MAX_ACK_TIMEOUT_MILLIS = 15_000L;
     private static final int PERIODIC_BATCH_LOG_INTERVAL = 10;
-    private static final int FORCED_REVISION_MISMATCH = 0x8000;
     private static final long CANCELED_BATCH_DRAIN_TIMEOUT_NANOS = 15_000_000_000L;
     private static final int MAX_REFILL_RETRIES = 3;
     private static final int MAX_DRAIN_RETRIES = 3;
@@ -247,74 +244,74 @@ public final class QuickCraftRecipeBookAckExecutor {
             return;
         }
         if (current.awaiting) {
-            long now = System.nanoTime();
-            if (shouldSendDeferredStatsProbe(
-                    current.awaiting,
-                    current.statsProbeDeferred,
-                    current.statsProbePending)) {
-                requestStatsProbe(current, current.networkHandler, "一个客户端 tick 内未取得可确认全量终态");
-            }
-            long elapsedMillis = nanosToMillis(now - current.batchSentAtNanos);
-            long stalledMillis = nanosToMillis(now - current.lastProgressAtNanos);
-            long timeoutMillis = ackTimeoutMillis(current.maxAckLatencyNanos);
-            if (stalledMillis >= timeoutMillis || elapsedMillis >= MAX_ACK_TIMEOUT_MILLIS) {
-                current.timeouts++;
-                LOGGER.warn("手动补货ACK超时：界面={}，批次=#{}，配方={}，等待={} ms，阈值={} ms，"
-                                + "revision={}->{}, 空边界={}，正确产物={}，配方终态全量={}@{}，"
-                                + "统计确认={}/{}, pending={}，当前配方匹配={}，失败包={}，光标={}，输出={}",
-                        layout.name(), current.batchId, current.recipeId, elapsedMillis,
-                        timeoutMillis, current.batchStartRevision, current.handler.getRevision(),
-                        current.outputAck.sawAuthoritativeEmpty(),
-                        current.outputAck.sawExpectedAfterEmpty(),
-                        current.outputAck.sawRecipeReadyFull(),
-                        current.outputAck.recipeReadyFullRevision(),
-                        current.statsProbeResponses, current.statsProbesSent,
-                        current.statsProbePending,
-                        recipeMatches(current),
-                        current.craftFailed, describeStack(current.handler.getCursorStack()),
-                        describeStack(current.handler.getSlot(QuickCraftRecipeBookLayout.OUTPUT_SLOT).getStack()));
-                finish(Text.translatable("quickcraft.message.crafting.no_ingredients"), "ACK超时");
-            }
+            tickAwaitingBatch(current);
             return;
         }
         if (current.pickupWaitTicks > 0) {
-            if (current.stopRequested || !current.inputHeld.getAsBoolean()) {
-                current.pickupWaitTicks = 0;
-                finish(current.stopMessage != null
-                        ? current.stopMessage
-                        : Text.translatable("quickcraft.message.crafting.stopped"),
-                        "拾取等待期间输入释放");
-                return;
-            }
-            boolean ingredientsAvailable = ingredientAvailabilityHandler != null
-                    && ingredientAvailabilityHandler.hasIngredients(current.handler);
-            current.pickupWaitTicks--;
-            if (shouldResumePickupWait(ingredientsAvailable, current.pickupWaitTicks)) {
-                current.pickupWaitTicks = 0;
-                LOGGER.info("手动补货ACK拾取等待结束，重新检查原料：界面={}，批次=#{}，原因={}，"
-                                + "格子={}，按住={}",
-                        layout.name(), current.batchId,
-                        ingredientsAvailable ? "检测到可补原料" : "等待到期",
-                        describeGrid(current.handler),
-                        current.inputHeld.getAsBoolean());
-                if (ingredientsAvailable) {
-                    pump(client);
-                } else {
-                    finish(Text.translatable("quickcraft.message.crafting.no_ingredients"),
-                            current.pickupWaitForFullInventory
-                                    ? "释放满包产物后等待拾取到期"
-                                    : "非满包自然拾取等待到期后仍无可补原料");
-                }
-            }
+            tickPickupWait(client, current);
             return;
         }
         if (current.stopRequested || !current.inputHeld.getAsBoolean()) {
-            finish(current.stopMessage != null
-                    ? current.stopMessage
-                    : Text.translatable("quickcraft.message.crafting.stopped"), "输入释放");
+            finishAfterInputRelease(current, "输入释放");
             return;
         }
         pump(client);
+    }
+
+    private void tickAwaitingBatch(Session current) {
+        long now = System.nanoTime();
+        if (shouldSendDeferredStatsProbe(
+                current.awaiting, current.statsProbeDeferred, current.statsProbePending)) {
+            requestStatsProbe(current, current.networkHandler, "一个客户端 tick 内未取得可确认全量终态");
+        }
+        long elapsedMillis = nanosToMillis(now - current.batchSentAtNanos);
+        long stalledMillis = nanosToMillis(now - current.lastProgressAtNanos);
+        long timeoutMillis = ackTimeoutMillis(current.maxAckLatencyNanos);
+        if (stalledMillis < timeoutMillis && elapsedMillis < MAX_ACK_TIMEOUT_MILLIS) {
+            return;
+        }
+        current.timeouts++;
+        LOGGER.warn("手动补货ACK超时：界面={}，批次=#{}，配方={}，等待={} ms，阈值={} ms，"
+                        + "revision={}->{}, 空边界={}，正确产物={}，配方终态全量={}@{}，"
+                        + "统计确认={}/{}, pending={}，当前配方匹配={}，失败包={}，光标={}，输出={}",
+                layout.name(), current.batchId, current.recipeId, elapsedMillis,
+                timeoutMillis, current.batchStartRevision, current.handler.getRevision(),
+                current.outputAck.sawAuthoritativeEmpty(),
+                current.outputAck.sawExpectedAfterEmpty(),
+                current.outputAck.sawRecipeReadyFull(),
+                current.outputAck.recipeReadyFullRevision(),
+                current.statsProbeResponses, current.statsProbesSent,
+                current.statsProbePending, recipeMatches(current), current.craftFailed,
+                describeStack(current.handler.getCursorStack()),
+                describeStack(current.handler.getSlot(QuickCraftRecipeBookLayout.OUTPUT_SLOT).getStack()));
+        finishNoIngredients("ACK超时");
+    }
+
+    private void tickPickupWait(MinecraftClient client, Session current) {
+        if (current.stopRequested || !current.inputHeld.getAsBoolean()) {
+            current.pickupWaitTicks = 0;
+            finishAfterInputRelease(current, "拾取等待期间输入释放");
+            return;
+        }
+        boolean ingredientsAvailable = hasIngredients(current.handler);
+        current.pickupWaitTicks--;
+        if (!shouldResumePickupWait(ingredientsAvailable, current.pickupWaitTicks)) {
+            return;
+        }
+        current.pickupWaitTicks = 0;
+        LOGGER.info("手动补货ACK拾取等待结束，重新检查原料：界面={}，批次=#{}，原因={}，"
+                        + "格子={}，按住={}",
+                layout.name(), current.batchId,
+                ingredientsAvailable ? "检测到可补原料" : "等待到期",
+                describeGrid(current.handler), current.inputHeld.getAsBoolean());
+        if (ingredientsAvailable) {
+            pump(client);
+        } else {
+            finishNoIngredients(
+                    current.pickupWaitForFullInventory
+                            ? "释放满包产物后等待拾取到期"
+                            : "非满包自然拾取等待到期后仍无可补原料");
+        }
     }
 
     public void requestStop(MinecraftClient client, Text message) {
@@ -357,9 +354,7 @@ public final class QuickCraftRecipeBookAckExecutor {
                         dispatchedThisTick,
                         QuickCraftConfigs.getCraftLoopsPerTick())) {
                     if (session.stopRequested || !session.inputHeld.getAsBoolean()) {
-                        finish(session.stopMessage != null
-                                ? session.stopMessage
-                                : Text.translatable("quickcraft.message.crafting.stopped"), "输入释放");
+                        finishAfterInputRelease(session, "输入释放");
                         return;
                     }
                     if (!dispatchBatch(client)) {
@@ -389,21 +384,22 @@ public final class QuickCraftRecipeBookAckExecutor {
             if (!handler.getCursorStack().isEmpty()) {
                 LOGGER.warn("手动补货ACK拒绝在光标有物品时继续发包：界面={}，批次=#{}，光标={}",
                         layout.name(), current.batchId, describeStack(handler.getCursorStack()));
-                finish(Text.translatable("quickcraft.message.crafting.stopped"), "光标非空");
+                finishStopped("光标非空");
                 return false;
             }
 
             ItemStack output = handler.getSlot(QuickCraftRecipeBookLayout.OUTPUT_SLOT).getStack();
+            boolean expectedOutput = isExpectedOutput(output, current.resultTemplate);
             if (!output.isEmpty()
-                    && !isExpectedOutput(output, current.resultTemplate)
+                    && !expectedOutput
                     && !isIntermediateOutput(current, handler)) {
                 LOGGER.warn("手动补货ACK输出与快照不一致：界面={}，配方={}，期望={}，实际={}",
                         layout.name(), current.recipeId, describeStack(current.resultTemplate),
                         describeStack(output));
-                finish(Text.translatable("quickcraft.message.crafting.stopped"), "输出不一致");
+                finishStopped("输出不一致");
                 return false;
             }
-            current.outputExpectedAtDispatch = isExpectedOutput(output, current.resultTemplate);
+            current.outputExpectedAtDispatch = expectedOutput;
 
             long dispatchStartedAtNanos = System.nanoTime();
             int[] gridBeforeClicks = snapshotGridCounts(handler);
@@ -411,20 +407,19 @@ public final class QuickCraftRecipeBookAckExecutor {
                     ? null
                     : current.lastAuthoritativeMaterialCounts.clone();
             MaterialSnapshot materialsBeforeClicks = materialSnapshotFromHandler(current, handler);
-            int operationBudget = QuickCraftRecipeBookLayout.PLAYER_INVENTORY_SIZE;
-            int outputOperations = 0;
             int clientSlotClicksBefore = current.clientSlotClicks;
             int outputSlotClicksBefore = current.outputSlotClicks;
             boolean refilled = false;
             boolean outputThrown = false;
 
-            if (!isExpectedOutput(output, current.resultTemplate)) {
-                refilled = refillSnapshot(client, handler, operationBudget);
+            if (!expectedOutput) {
+                refilled = snapshotRefillHandler != null && snapshotRefillHandler.refill(
+                        client, handler, QuickCraftConfigs.getCraftLoopsPerTick());
                 refreshClientPrediction(handler);
                 boolean deferCursorParking = shouldDeferCursorParking(
                         refilled, handler.getCursorStack().isEmpty());
                 if (!deferCursorParking && !parkCursor(client, handler, "手动补货后")) {
-                    finish(Text.translatable("quickcraft.message.crafting.stopped"), "手动补货后光标无法放回");
+                    finishStopped("手动补货后光标无法放回");
                     return false;
                 }
                 if (deferCursorParking) {
@@ -438,67 +433,22 @@ public final class QuickCraftRecipeBookAckExecutor {
                 if (deferCursorParking) {
                     output = ItemStack.EMPTY;
                 }
+                expectedOutput = isExpectedOutput(output, current.resultTemplate);
             }
 
             int[] gridBeforeOutput = snapshotGridCounts(handler);
-            boolean patternComplete = QuickCraftRecipeBookInventory.isPatternComplete(
-                    handler, layout, current.pattern);
+            boolean patternComplete = recipeMatches(current);
             boolean cursorSettlementRequired = !handler.getCursorStack().isEmpty();
-            int plannedOutputThrows = cursorSettlementRequired
+            int outputOperations = cursorSettlementRequired
                     ? 0
-                    : plannedOutputThrows(isExpectedOutput(output, current.resultTemplate), patternComplete);
-            if (plannedOutputThrows > 0) {
-                boolean canAcceptOutput = QuickCraftRecipeBookInventory.canAcceptUnlocked(
-                        handler, layout, output);
-                if (shouldEnterOutputSprayMode(
-                        current.outputSprayMode,
-                        current.outputFillSlotsRemaining,
-                        QuickCraftRecipeBookInventory.unlockedEmptySlots(handler, layout),
-                        canAcceptOutput)) {
-                    activateOutputSprayMode(client, current, "背包首次占满");
-                }
-
-                boolean movedToInventory = false;
-                if (!current.outputSprayMode) {
-                    int matchingSlotsBefore = QuickCraftRecipeBookInventory.countMatchingUnlockedSlots(
-                            handler, layout, current.resultTemplate);
-                    movedToInventory = QuickCraftRecipeBookInventory.moveOutputToUnlockedInventory(
-                            client, handler, layout);
-                    if (movedToInventory) {
-                        int matchingSlotsAfter = QuickCraftRecipeBookInventory.countMatchingUnlockedSlots(
-                                handler, layout, current.resultTemplate);
-                        current.outputFillSlotsRemaining = remainingOutputFillSlots(
-                                current.outputFillSlotsRemaining,
-                                Math.max(0, matchingSlotsAfter - matchingSlotsBefore));
-                        if (shouldEnterOutputSprayMode(
-                                false,
-                                current.outputFillSlotsRemaining,
-                                QuickCraftRecipeBookInventory.unlockedEmptySlots(handler, layout),
-                                true)) {
-                            activateOutputSprayMode(client, current, "填包阶段完成");
-                        }
-                    }
-                }
-                if (!movedToInventory) {
-                    activateOutputSprayMode(client, current, "产物无法放入背包");
-                    // 1.21.3 的结果槽 THROW(button=1) 等同原版 Ctrl+丢弃：
-                    // 服务端会连续合成并丢出全部同类结果，因此每个 ACK 批次只能发送一次。
-                    interactionManager.clickSlot(
-                            handler.syncId,
-                            QuickCraftRecipeBookLayout.OUTPUT_SLOT,
-                            1,
-                            SlotActionType.THROW,
-                            client.player
-                    );
-                    current.outputThrows++;
-                    outputThrown = true;
-                }
-                outputOperations = plannedOutputThrows;
+                    : plannedOutputThrows(expectedOutput, patternComplete);
+            if (outputOperations > 0) {
+                outputThrown = moveOrThrowOutput(
+                        client, current, handler, interactionManager, output);
                 current.outputExpectedAtDispatch = true;
                 refreshClientPrediction(handler);
             } else if (!refilled && output.isEmpty() && !patternComplete) {
-                boolean hasIngredients = ingredientAvailabilityHandler != null
-                        && ingredientAvailabilityHandler.hasIngredients(handler);
+                boolean hasIngredients = hasIngredients(handler);
                 LOGGER.info("手动补货ACK本地未补上，发送屏障后重试：界面={}，批次=#{}，"
                                 + "背包可补={}，格子={}",
                         layout.name(), current.batchId + 1, hasIngredients,
@@ -506,20 +456,15 @@ public final class QuickCraftRecipeBookAckExecutor {
             }
 
             if (!cursorSettlementRequired && !parkCursor(client, handler, "批次发送前")) {
-                finish(Text.translatable("quickcraft.message.crafting.stopped"), "批次发送前光标无法放回");
+                finishStopped("批次发送前光标无法放回");
                 return false;
             }
 
-            BatchPath path;
-            if (outputOperations > 0 && refilled) {
-                path = BatchPath.MANUAL_COMBINED;
-            } else if (outputOperations > 0) {
-                path = BatchPath.OUTPUT_DRAIN;
-            } else {
-                path = BatchPath.MANUAL_REFILL;
-            }
+            BatchPath path = outputOperations == 0
+                    ? BatchPath.MANUAL_REFILL
+                    : refilled ? BatchPath.MANUAL_COMBINED : BatchPath.OUTPUT_DRAIN;
 
-            recordOutputActions(current, outputOperations);
+            current.quickMoves += outputOperations;
             MaterialSnapshot materialsAfterClicks = materialSnapshotFromHandler(current, handler);
             beginAwaitingBatch(current, handler, path, gridBeforeClicks, gridBeforeOutput);
             current.batchPlannedCrafts = maximumCraftsFromBatchGrid(current);
@@ -552,7 +497,7 @@ public final class QuickCraftRecipeBookAckExecutor {
             } catch (Throwable throwable) {
                 LOGGER.warn("手动补货ACK屏障发送失败：界面={}，批次=#{}，配方={}",
                         layout.name(), current.batchId, current.recipeId, throwable);
-                finish(Text.translatable("quickcraft.message.crafting.stopped"), "屏障发送异常");
+                finishStopped("屏障发送异常");
                 return false;
             }
 
@@ -587,11 +532,57 @@ public final class QuickCraftRecipeBookAckExecutor {
             dispatchingBatch = false;
         }
     }
-    private boolean refillSnapshot(MinecraftClient client,
-                                   ScreenHandler handler,
-                                   int operationBudget) {
-        return snapshotRefillHandler != null
-                && snapshotRefillHandler.refill(client, handler, operationBudget);
+
+    private boolean moveOrThrowOutput(MinecraftClient client,
+                                      Session current,
+                                      ScreenHandler handler,
+                                      ClientPlayerInteractionManager interactionManager,
+                                      ItemStack output) {
+        if (shouldEnterOutputSprayMode(
+                current.outputSprayMode,
+                current.outputFillSlotsRemaining,
+                QuickCraftRecipeBookInventory.unlockedEmptySlots(handler, layout),
+                QuickCraftRecipeBookInventory.canAcceptUnlocked(handler, layout, output))) {
+            activateOutputSprayMode(client, current, "背包首次占满");
+        }
+
+        boolean movedToInventory = false;
+        if (!current.outputSprayMode) {
+            int matchingSlotsBefore = QuickCraftRecipeBookInventory.countMatchingUnlockedSlots(
+                    handler, layout, current.resultTemplate);
+            movedToInventory = QuickCraftRecipeBookInventory.moveOutputToUnlockedInventory(
+                    client, handler, layout);
+            if (movedToInventory) {
+                int matchingSlotsAfter = QuickCraftRecipeBookInventory.countMatchingUnlockedSlots(
+                        handler, layout, current.resultTemplate);
+                current.outputFillSlotsRemaining = remainingOutputFillSlots(
+                        current.outputFillSlotsRemaining,
+                        Math.max(0, matchingSlotsAfter - matchingSlotsBefore));
+                if (shouldEnterOutputSprayMode(
+                        false,
+                        current.outputFillSlotsRemaining,
+                        QuickCraftRecipeBookInventory.unlockedEmptySlots(handler, layout),
+                        true)) {
+                    activateOutputSprayMode(client, current, "填包阶段完成");
+                }
+            }
+        }
+        if (movedToInventory) {
+            return false;
+        }
+
+        activateOutputSprayMode(client, current, "产物无法放入背包");
+        // 1.21.3 的结果槽 THROW(button=1) 等同原版 Ctrl+丢弃：
+        // 服务端会连续合成并丢出全部同类结果，因此每个 ACK 批次只能发送一次。
+        interactionManager.clickSlot(
+                handler.syncId,
+                QuickCraftRecipeBookLayout.OUTPUT_SLOT,
+                1,
+                SlotActionType.THROW,
+                client.player
+        );
+        current.outputThrows++;
+        return true;
     }
 
     private void activateOutputSprayMode(MinecraftClient client,
@@ -686,21 +677,6 @@ public final class QuickCraftRecipeBookAckExecutor {
         current.statsProbesSent++;
         LOGGER.debug("普通配方书ACK发送统计顺序探针：界面={}，批次=#{}，原因={}",
                 layout.name(), current.batchId, reason);
-    }
-
-    private void sendFullSyncBarrier(ClientPlayNetworkHandler networkHandler,
-                                     ScreenHandler handler) {
-        // 1.21 的 revision 始终限制在 0..32767。slot=-1 对 QUICK_MOVE 是合法空操作；
-        // 故意使用范围外 revision 可在不改物品的前提下强制服务端回传一次全量库存。
-        networkHandler.sendPacket(new ClickSlotC2SPacket(
-                handler.syncId,
-                FORCED_REVISION_MISMATCH,
-                -1,
-                0,
-                SlotActionType.QUICK_MOVE,
-                handler.getCursorStack().copy(),
-                new Int2ObjectOpenHashMap<>()
-        ));
     }
 
     private void handleServerSlotUpdate(int syncId, int revision, int slotId, ItemStack stack) {
@@ -828,7 +804,10 @@ public final class QuickCraftRecipeBookAckExecutor {
             return;
         }
         if (current.cursorRecoveryActive) {
-            handleCursorRecoveryFullUpdate(current, revision, now);
+            LOGGER.debug("手动补货ACK光标恢复期间收到全量包：界面={}，批次=#{}，revision={}，光标={}；"
+                            + "只更新权威状态，等待统计顺序屏障",
+                    layout.name(), current.batchId, revision,
+                    describeStack(current.handler.getCursorStack()));
             return;
         }
         boolean currentBatchAuthoritativeFull = isRevisionAfter(
@@ -843,6 +822,7 @@ public final class QuickCraftRecipeBookAckExecutor {
             return;
         }
         Session current = session;
+        ScreenHandler handler = current.handler;
         int fullUpdatesAfterDispatch = current.fullUpdates - current.batchFullUpdatesStart;
         long now = System.nanoTime();
         current.statsProbePending = false;
@@ -857,17 +837,25 @@ public final class QuickCraftRecipeBookAckExecutor {
             return;
         }
 
-        ItemStack output = current.handler
+        if (current.cursorRecoveryActive
+                && !handleCursorRecoveryStatistics(client, current, now)) {
+            return;
+        }
+
+        ItemStack output = handler
                 .getSlot(QuickCraftRecipeBookLayout.OUTPUT_SLOT)
                 .getStack();
-        boolean cursorEmpty = current.handler.getCursorStack().isEmpty();
+        int revision = handler.getRevision();
+        boolean outputEmpty = output.isEmpty();
+        boolean expectedOutput = isExpectedOutput(output, current.resultTemplate);
+        boolean cursorEmpty = handler.getCursorStack().isEmpty();
         boolean currentRecipeMatches = recipeMatches(current);
         // 统计响应已证明服务器处理完本批更早的点击；同连接上更早的槽位纠正也已应用。
-        current.lastAuthoritativeMaterialRevision = current.handler.getRevision();
-        MaterialSnapshot materials = materialSnapshotFromHandler(current, current.handler);
+        current.lastAuthoritativeMaterialRevision = revision;
+        MaterialSnapshot materials = materialSnapshotFromHandler(current, handler);
         current.lastAuthoritativeMaterialLedger = materials.ledger();
         current.lastAuthoritativeMaterialCounts = materials.counts();
-        if (!output.isEmpty() && !isExpectedOutput(output, current.resultTemplate)
+        if (!outputEmpty && !expectedOutput
                 && currentRecipeMatches && !current.invalidAuthoritativeOutput) {
             current.invalidAuthoritativeOutput = true;
             current.authoritativeWrongOutputPackets++;
@@ -876,12 +864,12 @@ public final class QuickCraftRecipeBookAckExecutor {
                             + "配方={}，期望={}，实际={}，revision={}，格子={}",
                     layout.name(), current.batchId, current.recipeId,
                     describeStack(current.resultTemplate), describeStack(output),
-                    current.handler.getRevision(), describeGrid(current.handler));
+                    revision, describeGrid(handler));
         }
         boolean decreased = ingredientsDecreased(
-                current.batchGridCounts, snapshotGridCounts(current.handler));
+                current.batchGridCounts, snapshotGridCounts(handler));
         boolean terminalGridCompatible = isPatternOrRemainderGridCompatible(
-                current, current.handler);
+                current, handler);
         if (shouldInfoLogBatch(current.batchId) || current.batchPath == BatchPath.OUTPUT_DRAIN) {
             LOGGER.info("手动补货ACK统计屏障：界面={}，批次=#{}，等待={} us，全量包={}，"
                             + "revision={}->{}, 输出={}，空边界={}，正确产物={}，终态全量={}，"
@@ -891,13 +879,13 @@ public final class QuickCraftRecipeBookAckExecutor {
                     layout.name(), current.batchId,
                     (now - current.batchSentAtNanos) / 1_000L,
                     fullUpdatesAfterDispatch, current.batchStartRevision,
-                    current.handler.getRevision(), describeStack(output),
+                    revision, describeStack(output),
                     current.outputAck.sawAuthoritativeEmpty(),
                     current.outputAck.sawExpectedAfterEmpty(),
                     current.outputAck.sawRecipeReadyFull(),
                     currentRecipeMatches, terminalGridCompatible,
                     cursorEmpty, current.craftFailed, decreased,
-                    describeGridCounts(current.batchGridCounts), describeGrid(current.handler),
+                    describeGridCounts(current.batchGridCounts), describeGrid(handler),
                     current.outputExpectedAtDispatch, current.invalidAuthoritativeOutput,
                     current.intermediateOutputPackets, current.lastAuthoritativeMaterialLedger,
                     current.inputHeld.getAsBoolean());
@@ -909,9 +897,8 @@ public final class QuickCraftRecipeBookAckExecutor {
                             + "不再确认或发送下一批",
                     layout.name(), current.batchId, current.recipeId,
                     current.authoritativeWrongOutputPackets, describeStack(output),
-                    describeGrid(current.handler), decreased);
-            finish(Text.translatable("quickcraft.message.crafting.stopped"),
-                    "权威错误产物");
+                    describeGrid(handler), decreased);
+            finishStopped("权威错误产物");
             return;
         }
 
@@ -929,179 +916,152 @@ public final class QuickCraftRecipeBookAckExecutor {
                     describeMaterialCounts(current.lastAuthoritativeMaterialCounts),
                     describeMaterialCountDelta(current, current.batchMaterialCountsBeforeClicks,
                             current.lastAuthoritativeMaterialCounts),
-                    materialViolation, describeGrid(current.handler));
-            finish(Text.translatable("quickcraft.message.crafting.stopped"),
-                    "材料守恒异常");
+                    materialViolation, describeGrid(handler));
+            finishStopped("材料守恒异常");
             return;
         }
 
-        if (tryConfirmCurrentBatch(current.handler.getRevision(), now, false)) {
+        if (tryConfirmCurrentBatch(revision, now, false)) {
             return;
         }
 
         if (!cursorEmpty) {
             LOGGER.warn("手动补货ACK统计屏障时光标非空：界面={}，批次=#{}，光标={}",
-                    layout.name(), current.batchId, describeStack(current.handler.getCursorStack()));
+                    layout.name(), current.batchId, describeStack(handler.getCursorStack()));
             beginCursorRecovery(client, current, now);
             return;
         }
 
         if (current.stopRequested || !current.inputHeld.getAsBoolean()) {
-            finish(current.stopMessage != null
-                            ? current.stopMessage
-                            : Text.translatable("quickcraft.message.crafting.stopped"),
-                    "统计屏障后输入释放");
+            finishAfterInputRelease(current, "统计屏障后输入释放");
             return;
         }
 
-        boolean intermediateOutput = !output.isEmpty()
-                && !isExpectedOutput(output, current.resultTemplate)
-                && isIntermediateOutput(current, current.handler);
-        if (current.batchPath == BatchPath.OUTPUT_DRAIN
-                && canContinueOutputDrainWithIntermediate(
-                cursorEmpty, current.outputExpectedAtDispatch, decreased, intermediateOutput)) {
-            current.drainRetries = 0;
-            acknowledgeBatch(current, current.handler.getRevision(), now,
-                    "批量取产物后出现兼容中间产物，继续补货");
-            pump(client);
-            return;
+        boolean intermediateOutput = !outputEmpty && !expectedOutput
+                && isIntermediateOutput(current, handler);
+        BatchPath path = current.batchPath;
+        boolean authoritativeExpectedOutput = hasAuthoritativeExpectedOutput(current);
+        if (path == BatchPath.OUTPUT_DRAIN) {
+            if (canContinueOutputDrainWithIntermediate(
+                    cursorEmpty, current.outputExpectedAtDispatch, decreased, intermediateOutput)) {
+                current.drainRetries = 0;
+                acknowledgeAndPump(client, current, now,
+                        "批量取产物后出现兼容中间产物，继续补货");
+                return;
+            }
+            if (shouldContinueOutputDrain(
+                    cursorEmpty, outputEmpty, expectedOutput,
+                    authoritativeExpectedOutput || current.outputExpectedAtDispatch,
+                    decreased, current.drainRetries, MAX_DRAIN_RETRIES)) {
+                String drainOutcome;
+                if (outputEmpty) {
+                    current.drainRetries = 0;
+                    drainOutcome = "分段输出已排空，继续手动补货";
+                } else if (decreased) {
+                    current.drainRetries = 0;
+                    drainOutcome = "统计屏障后产物仍在，继续取产物";
+                } else {
+                    current.drainRetries++;
+                    current.drainRetryBatches++;
+                    drainOutcome = "统计屏障后产物仍在但原料未减少，重试取产物";
+                    LOGGER.info("手动补货ACK重试取产物：界面={}，批次=#{}，重试={}/{}，"
+                                    + "点击前格子={}，当前格子={}，按住={}",
+                            layout.name(), current.batchId, current.drainRetries, MAX_DRAIN_RETRIES,
+                            describeGridCounts(current.batchGridCounts), describeGrid(handler),
+                            current.inputHeld.getAsBoolean());
+                }
+                acknowledgeAndPump(client, current, now, drainOutcome);
+                return;
+            }
+            if (outputEmpty && !authoritativeExpectedOutput
+                    && !current.outputExpectedAtDispatch) {
+                LOGGER.warn("普通配方书ACK拒绝空输出确认：界面={}，批次=#{}，配方={}，"
+                                + "原料减少={}，全量包={}，批次开始正确产物=false，正确产物回包=false，格子={}；"
+                                + "这类状态只能停止，不能继续补货或发下一批",
+                        layout.name(), current.batchId, current.recipeId, decreased,
+                        fullUpdatesAfterDispatch, describeGrid(handler));
+            }
         }
 
-        if (current.batchPath == BatchPath.MANUAL_COMBINED
+        if (includesManualRefill(path)) {
+            if (currentRecipeMatches && expectedOutput
+                    && authoritativeExpectedOutput) {
+                current.refillRetries = 0;
+                acknowledgeAndPump(client, current, now,
+                        "手动补货后配方仍可继续");
+                return;
+            }
+            if (!isPatternGridCompatible(handler, current.pattern)) {
+                LOGGER.warn("手动补货ACK权威配方错位：界面={}，批次=#{}，格子={}；不是缺料，不进入拾取等待",
+                        layout.name(), current.batchId, describeGrid(handler));
+                finishStopped("权威配方错位");
+                return;
+            }
+            if (outputEmpty && tryRetryManualRefill(current, now, "统计屏障后补货未齐")) {
+                return;
+            }
+            boolean patternComplete = recipeMatches(current);
+            boolean hasIngredients = hasIngredients(handler);
+            boolean missingTerminal = (outputEmpty && !patternComplete && !hasIngredients)
+                    || isMissingLockedRecipeTerminal(
+                    patternComplete, hasIngredients, intermediateOutput);
+            if (missingTerminal) {
+                handleMissingIngredients(client, current, now, outputEmpty);
+                return;
+            }
+            if (outputEmpty) {
+                acknowledgeAndPump(client, current, now,
+                        "补货后仍无产物，检查脚下拾取");
+                return;
+            }
+        } else if (path == BatchPath.MANUAL_COMBINED
                 && canConfirmCombinedBatch(
                 true,
                 cursorEmpty,
-                output.isEmpty()
-                        || isExpectedOutput(output, current.resultTemplate)
-                        || intermediateOutput,
+                outputEmpty || expectedOutput || intermediateOutput,
                 (current.batchSawExpectedOutput || current.outputExpectedAtDispatch)
                         && !current.invalidAuthoritativeOutput,
                 terminalGridCompatible)) {
             current.refillRetries = 0;
             current.drainRetries = 0;
-            acknowledgeBatch(current, current.handler.getRevision(), now,
+            acknowledgeAndPump(client, current, now,
                     "同批补料并整批取产物已确认");
-            pump(client);
             return;
-        }
-
-        if (current.batchPath == BatchPath.OUTPUT_DRAIN
-                && shouldContinueOutputDrain(
-                cursorEmpty,
-                output.isEmpty(),
-                isExpectedOutput(output, current.resultTemplate),
-                hasAuthoritativeExpectedOutput(current) || current.outputExpectedAtDispatch,
-                decreased,
-                current.drainRetries,
-                MAX_DRAIN_RETRIES)) {
-            String drainOutcome;
-            if (output.isEmpty()) {
-                current.drainRetries = 0;
-                drainOutcome = "分段输出已排空，继续手动补货";
-            } else if (decreased) {
-                current.drainRetries = 0;
-                drainOutcome = "统计屏障后产物仍在，继续取产物";
-            } else {
-                current.drainRetries++;
-                current.drainRetryBatches++;
-                drainOutcome = "统计屏障后产物仍在但原料未减少，重试取产物";
-                LOGGER.info("手动补货ACK重试取产物：界面={}，批次=#{}，重试={}/{}，"
-                                + "点击前格子={}，当前格子={}，按住={}",
-                        layout.name(), current.batchId, current.drainRetries, MAX_DRAIN_RETRIES,
-                        describeGridCounts(current.batchGridCounts), describeGrid(current.handler),
-                        current.inputHeld.getAsBoolean());
-            }
-            acknowledgeBatch(current, current.handler.getRevision(), now, drainOutcome);
-            pump(client);
-            return;
-        }
-
-        if (current.batchPath == BatchPath.OUTPUT_DRAIN
-                && output.isEmpty()
-                && !hasAuthoritativeExpectedOutput(current)
-                && !current.outputExpectedAtDispatch) {
-            LOGGER.warn("普通配方书ACK拒绝空输出确认：界面={}，批次=#{}，配方={}，"
-                            + "原料减少={}，全量包={}，批次开始正确产物=false，正确产物回包=false，格子={}；"
-                            + "这类状态只能停止，不能继续补货或发下一批",
-                    layout.name(), current.batchId, current.recipeId, decreased,
-                    fullUpdatesAfterDispatch, describeGrid(current.handler));
-        }
-
-        if (includesManualRefill(current.batchPath) && cursorEmpty) {
-            boolean authoritativeExpectedOutput = hasAuthoritativeExpectedOutput(current);
-            if (currentRecipeMatches && isExpectedOutput(output, current.resultTemplate)
-                    && authoritativeExpectedOutput) {
-                current.refillRetries = 0;
-                acknowledgeBatch(current, current.handler.getRevision(), now,
-                        "手动补货后配方仍可继续");
-                pump(client);
-                return;
-            }
-            if (!isPatternGridCompatible(current.handler, current.pattern)) {
-                LOGGER.warn("手动补货ACK权威配方错位：界面={}，批次=#{}，格子={}；不是缺料，不进入拾取等待",
-                        layout.name(), current.batchId, describeGrid(current.handler));
-                finish(Text.translatable("quickcraft.message.crafting.stopped"), "权威配方错位");
-                return;
-            }
-            if (output.isEmpty() && tryRetryManualRefill(current, now, "统计屏障后补货未齐")) {
-                return;
-            }
-            if (output.isEmpty()) {
-                boolean patternComplete = QuickCraftRecipeBookInventory.isPatternComplete(
-                        current.handler, layout, current.pattern);
-            boolean hasIngredients = ingredientAvailabilityHandler != null
-                    && ingredientAvailabilityHandler.hasIngredients(current.handler);
-            if (!patternComplete && !hasIngredients
-                        && (tryStartNoIngredientRescue(client, current, now)
-                        || tryStartPickupGrace(current, now))) {
-                    return;
-                }
-                if (!patternComplete && !hasIngredients) {
-                    finish(Text.translatable("quickcraft.message.crafting.no_ingredients"),
-                            (current.noIngredientRescueAttempted || current.pickupWaitAttempted)
-                                    ? "拾取等待后仍无可补原料"
-                                    : "首次检查无可补原料");
-                    return;
-                }
-                acknowledgeBatch(current, current.handler.getRevision(), now,
-                        "补货后仍无产物，检查脚下拾取");
-                pump(client);
-                return;
-            }
-            boolean patternComplete = QuickCraftRecipeBookInventory.isPatternComplete(
-                    current.handler, layout, current.pattern);
-            boolean hasIngredients = ingredientAvailabilityHandler != null
-                    && ingredientAvailabilityHandler.hasIngredients(current.handler);
-            if (isMissingLockedRecipeTerminal(
-                    patternComplete, hasIngredients, isIntermediateOutput(current, current.handler))) {
-                if (tryStartNoIngredientRescue(client, current, now)
-                        || tryStartPickupGrace(current, now)) {
-                    return;
-                }
-                finish(Text.translatable("quickcraft.message.crafting.no_ingredients"),
-                        (current.noIngredientRescueAttempted || current.pickupWaitAttempted)
-                                ? "中间产物终态拾取等待后仍无可补原料"
-                                : "中间产物终态无可补原料");
-                return;
-            }
         }
 
         LOGGER.warn("手动补货ACK统计屏障终态不可续用：界面={}，批次=#{}，路径={}，输出={}，"
                         + "权威正确产物={}，原料减少={}，点击前格子={}，当前格子={}，按住={}",
-                layout.name(), current.batchId, current.batchPath.description, describeStack(output),
-                hasAuthoritativeExpectedOutput(current), decreased,
-                describeGridCounts(current.batchGridCounts), describeGrid(current.handler),
+                layout.name(), current.batchId, path.description, describeStack(output),
+                authoritativeExpectedOutput, decreased,
+                describeGridCounts(current.batchGridCounts), describeGrid(handler),
                 current.inputHeld.getAsBoolean());
-        finish(output.isEmpty()
+        finish(outputEmpty
                         ? Text.translatable("quickcraft.message.crafting.no_ingredients")
                         : Text.translatable("quickcraft.message.crafting.stopped"),
-                "统计屏障终态不可续用：" + current.batchPath.description);
+                "统计屏障终态不可续用：" + path.description);
     }
 
     static boolean isMissingLockedRecipeTerminal(boolean patternComplete,
                                                   boolean ingredientsAvailable,
                                                   boolean intermediateOutput) {
         return !patternComplete && !ingredientsAvailable && intermediateOutput;
+    }
+
+    private void handleMissingIngredients(MinecraftClient client,
+                                          Session current,
+                                          long now,
+                                          boolean outputEmpty) {
+        if (tryStartNoIngredientRescue(client, current, now)
+                || tryStartPickupGrace(current, now)) {
+            return;
+        }
+        boolean pickupAttempted = current.noIngredientRescueAttempted
+                || current.pickupWaitAttempted;
+        finishNoIngredients(outputEmpty
+                ? (pickupAttempted ? "拾取等待后仍无可补原料" : "首次检查无可补原料")
+                : (pickupAttempted
+                ? "中间产物终态拾取等待后仍无可补原料"
+                : "中间产物终态无可补原料"));
     }
 
     private boolean tryStartNoIngredientRescue(MinecraftClient client,
@@ -1239,7 +1199,7 @@ public final class QuickCraftRecipeBookAckExecutor {
         if (materialViolation != null) {
             LOGGER.warn("普通配方书ACK快速全量确认材料守恒异常：界面={}，批次={}，详情={}；停止",
                     layout.name(), current.batchId, materialViolation);
-            finish(Text.translatable("quickcraft.message.crafting.stopped"), "材料守恒异常");
+            finishStopped("材料守恒异常");
             return false;
         }
         if (expectedOutput) {
@@ -1257,13 +1217,19 @@ public final class QuickCraftRecipeBookAckExecutor {
         if (!isContextValid(client, current)) {
             cancel("ACK后界面失效");
         } else if (current.stopRequested || !current.inputHeld.getAsBoolean()) {
-            finish(current.stopMessage != null
-                    ? current.stopMessage
-                    : Text.translatable("quickcraft.message.crafting.stopped"), "ACK后停止");
+            finishAfterInputRelease(current, "ACK后停止");
         } else {
             pump(client);
         }
         return true;
+    }
+
+    private void acknowledgeAndPump(MinecraftClient client,
+                                    Session current,
+                                    long now,
+                                    String outcome) {
+        acknowledgeBatch(current, current.handler.getRevision(), now, outcome);
+        pump(client);
     }
 
     private void acknowledgeBatch(Session current,
@@ -1353,10 +1319,6 @@ public final class QuickCraftRecipeBookAckExecutor {
         }
     }
 
-    private void recordOutputActions(Session current, int outputMoveOperations) {
-        current.quickMoves += outputMoveOperations;
-    }
-
     void recordRemainderThrow() {
         if (isActive() && dispatchingBatch) {
             session.remainderThrows++;
@@ -1366,6 +1328,11 @@ public final class QuickCraftRecipeBookAckExecutor {
     private boolean recipeMatches(Session current) {
         return QuickCraftRecipeBookInventory.isPatternComplete(
                 current.handler, layout, current.pattern);
+    }
+
+    private boolean hasIngredients(ScreenHandler handler) {
+        return ingredientAvailabilityHandler != null
+                && ingredientAvailabilityHandler.hasIngredients(handler);
     }
 
     private boolean isIntermediateOutput(Session current, ScreenHandler handler) {
@@ -1479,6 +1446,20 @@ public final class QuickCraftRecipeBookAckExecutor {
         clearSession();
         int stopTailSlots = completed.finishHandler.finish(message, allowTailDrop);
         logSummary(completed, reason, stopTailSlots, held);
+    }
+
+    private void finishAfterInputRelease(Session current, String reason) {
+        finish(current.stopMessage != null
+                ? current.stopMessage
+                : Text.translatable("quickcraft.message.crafting.stopped"), reason);
+    }
+
+    private void finishNoIngredients(String reason) {
+        finish(Text.translatable("quickcraft.message.crafting.no_ingredients"), reason);
+    }
+
+    private void finishStopped(String reason) {
+        finish(Text.translatable("quickcraft.message.crafting.stopped"), reason);
     }
 
     private void handoffToLegacy(MinecraftClient client, String reason) {
@@ -1634,34 +1615,19 @@ public final class QuickCraftRecipeBookAckExecutor {
         }
         current.cursorRecoveryActive = true;
         current.cursorRecoveryAttempts = 0;
-        if (isSameItem(current.handler.getCursorStack(), current.resultTemplate)) {
-            ItemStack product = current.handler.getCursorStack().copy();
-            client.interactionManager.clickSlot(
-                    current.handler.syncId, -999, 0, SlotActionType.PICKUP, client.player);
-            current.cursorRecoveryAttempts++;
-            LOGGER.info("手动补货ACK直接丢出光标产物：界面={}，批次=#{}，产物={}；等待全量确认",
-                    layout.name(), current.batchId, describeStack(product));
-        }
-        sendCursorRecoveryFullSync(current, now, "发现权威光标非空");
+        parkCursorAndRequestRecoveryProbe(client, current, now, "发现权威光标非空");
     }
 
-    private void handleCursorRecoveryFullUpdate(Session current,
-                                                int revision,
-                                                long now) {
-        MinecraftClient client = MinecraftClient.getInstance();
-        if (!isContextValid(client, current)) {
-            cancel("光标恢复全量回包到达时界面失效");
-            return;
-        }
+    private boolean handleCursorRecoveryStatistics(MinecraftClient client,
+                                                   Session current,
+                                                   long now) {
         if (current.handler.getCursorStack().isEmpty()) {
             current.cursorRecoveryActive = false;
             current.cursorRecoveryAttempts = 0;
             current.lastProgressAtNanos = now;
-            requestStatsProbe(current, current.networkHandler, "光标恢复后的顺序确认");
-            LOGGER.info("手动补货ACK光标恢复已获权威确认：界面={}，批次=#{}，revision={}；"
-                            + "重新发送统计屏障后继续",
-                    layout.name(), current.batchId, revision);
-            return;
+            LOGGER.info("手动补货ACK光标恢复已获顺序确认：界面={}，批次=#{}，revision={}；继续校验本批终态",
+                    layout.name(), current.batchId, current.handler.getRevision());
+            return true;
         }
         if (!canRetryCursorRecovery(
                 current.cursorRecoveryAttempts, MAX_CURSOR_RECOVERY_ATTEMPTS)) {
@@ -1671,34 +1637,41 @@ public final class QuickCraftRecipeBookAckExecutor {
                     MAX_CURSOR_RECOVERY_ATTEMPTS,
                     describeStack(current.handler.getCursorStack()));
             cancel("权威光标恢复超过上限");
-            return;
+            return false;
         }
-
-        ItemStack before = current.handler.getCursorStack().copy();
-        current.cursorRecoveryAttempts++;
-        boolean parked = parkCursor(client, current.handler, "权威光标恢复");
-        LOGGER.info("手动补货ACK按权威快照恢复光标：界面={}，批次=#{}，尝试={}/{}, "
-                        + "原光标={}，本地结果={}，当前光标={}；等待全量确认",
-                layout.name(), current.batchId, current.cursorRecoveryAttempts,
-                MAX_CURSOR_RECOVERY_ATTEMPTS, describeStack(before), parked,
-                describeStack(current.handler.getCursorStack()));
-        sendCursorRecoveryFullSync(current, now, "确认光标放回结果");
+        parkCursorAndRequestRecoveryProbe(client, current, now, "顺序确认后光标仍非空");
+        return false;
     }
 
-    private void sendCursorRecoveryFullSync(Session current, long now, String reason) {
-        try {
-            sendFullSyncBarrier(current.networkHandler, current.handler);
-            current.barriersSent++;
-            current.lastProgressAtNanos = now;
-            LOGGER.info("手动补货ACK请求光标权威同步：界面={}，批次=#{}，原因={}，尝试={}/{}, 光标={}",
-                    layout.name(), current.batchId, reason, current.cursorRecoveryAttempts,
-                    MAX_CURSOR_RECOVERY_ATTEMPTS,
-                    describeStack(current.handler.getCursorStack()));
-        } catch (Throwable throwable) {
-            LOGGER.warn("手动补货ACK光标同步请求失败：界面={}，批次=#{}，原因={}",
-                    layout.name(), current.batchId, reason, throwable);
-            cancel("光标同步请求异常");
+    private void parkCursorAndRequestRecoveryProbe(MinecraftClient client,
+                                                   Session current,
+                                                   long now,
+                                                   String reason) {
+        ItemStack before = current.handler.getCursorStack().copy();
+        current.cursorRecoveryAttempts++;
+        boolean parked;
+        if (isSameItem(before, current.resultTemplate)) {
+            client.interactionManager.clickSlot(
+                    current.handler.syncId, -999, 0, SlotActionType.PICKUP, client.player);
+            parked = current.handler.getCursorStack().isEmpty();
+        } else {
+            int patternSlot = QuickCraftRecipeBookInventory.firstPatternSlotWithRoom(
+                    current.handler, layout, current.pattern, before);
+            if (patternSlot >= 0) {
+                client.interactionManager.clickSlot(
+                        current.handler.syncId, patternSlot, 0,
+                        SlotActionType.PICKUP, client.player);
+            }
+            parked = current.handler.getCursorStack().isEmpty()
+                    || parkCursor(client, current.handler, "权威光标恢复");
         }
+        requestStatsProbe(current, current.networkHandler, "光标恢复顺序确认");
+        current.lastProgressAtNanos = now;
+        LOGGER.info("手动补货ACK按权威状态恢复光标：界面={}，批次=#{}，原因={}，尝试={}/{}, "
+                        + "原光标={}，本地结果={}，当前光标={}；等待统计顺序屏障",
+                layout.name(), current.batchId, reason, current.cursorRecoveryAttempts,
+                MAX_CURSOR_RECOVERY_ATTEMPTS, describeStack(before), parked,
+                describeStack(current.handler.getCursorStack()));
     }
 
     private boolean tryRetryManualRefill(Session current, long now, String reason) {
@@ -1710,9 +1683,7 @@ public final class QuickCraftRecipeBookAckExecutor {
                     layout.name(), current.batchId, current.refillRetries, MAX_REFILL_RETRIES);
             return false;
         }
-        boolean hasIngredients = ingredientAvailabilityHandler != null
-                && ingredientAvailabilityHandler.hasIngredients(current.handler);
-        if (!hasIngredients) {
+        if (!hasIngredients(current.handler)) {
             LOGGER.info("手动补货ACK无原料可重试：界面={}，批次=#{}，格子={}",
                     layout.name(), current.batchId, describeGrid(current.handler));
             return false;
