@@ -1165,12 +1165,50 @@ final class QuickCraftRecipeBookCrafting {
         }
         int returned = cursorCountBeforeDrag - expectedIncreasePerSlot * targetSlots.size();
         if (returned > 0) {
+            boolean cursorReturned = returnTailCursorToOccupiedMatchingSlot(
+                    client, handler, sourceSlot);
             LOGGER.info("普通配方书尾料快速拖拽：界面={}，来源={}，目标槽={}，每槽增加={}，"
-                            + "待权威确认余数={}，槽位操作={}，配方={}",
+                            + "余数={}，安全归位={}，基础槽位操作={}，配方={}",
                     layout.name(), cursorCountBeforeDrag, targetSlots, expectedIncreasePerSlot,
-                    returned, targetSlots.size() + 3, template.getName().getString());
+                    returned, cursorReturned, targetSlots.size() + 3 + (cursorReturned ? 1 : 0),
+                    template.getName().getString());
+            if (!cursorReturned) {
+                LOGGER.info("普通配方书尾料没有稳定的同类半栈：界面={}，来源槽={}，光标={}；"
+                                + "保留光标并交给ACK顺序屏障恢复，不继续发送本批点击",
+                        layout.name(), sourceSlot, handler.getCursorStack());
+            }
         }
         return true;
+    }
+
+    private boolean returnTailCursorToOccupiedMatchingSlot(MinecraftClient client,
+                                                            ScreenHandler handler,
+                                                            int sourceSlot) {
+        ItemStack cursor = handler.getCursorStack();
+        if (cursor.isEmpty()) {
+            return true;
+        }
+        for (int inventoryIndex = 0;
+             inventoryIndex < QuickCraftRecipeBookLayout.PLAYER_INVENTORY_SIZE;
+             inventoryIndex++) {
+            int handlerSlot = layout.handlerSlotForInventoryIndex(inventoryIndex);
+            if (handlerSlot < 0 || handlerSlot == sourceSlot
+                    || QuickContainerLock.isLockedSlot(handler, handlerSlot)) {
+                continue;
+            }
+            Slot slot = handler.getSlot(handlerSlot);
+            ItemStack existing = slot.getStack();
+            if (existing.isEmpty()
+                    || !ItemStack.areItemsAndComponentsEqual(existing, cursor)
+                    || !slot.canInsert(cursor)
+                    || existing.getCount() + cursor.getCount() > slot.getMaxItemCount(cursor)) {
+                continue;
+            }
+            client.interactionManager.clickSlot(
+                    handler.syncId, handlerSlot, 0, SlotActionType.PICKUP, client.player);
+            return handler.getCursorStack().isEmpty();
+        }
+        return false;
     }
 
     private List<Integer> getMissingPatternSlots(ScreenHandler handler,
