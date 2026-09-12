@@ -1,7 +1,7 @@
 package com.yiyihehe.quickcraft.mixin;
 
 import com.yiyihehe.quickcraft.crafting.QuickCraftWorkbenchShulkerCraft;
-import com.yiyihehe.quickcraft.crafting.QuickCraftRecipeBookAckExecutor;
+import com.yiyihehe.quickcraft.crafting.QuickCraftMouseCraftAckExecutor;
 import net.minecraft.client.network.ClientPlayerInteractionManager;
 import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.screen.slot.SlotActionType;
@@ -12,15 +12,15 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 @Mixin(ClientPlayerInteractionManager.class)
 public abstract class WorkbenchShulkerClientClickMixin {
-    // HEAD 保存点击发出前的准确槽位/光标状态，供普通配方书 ACK 遥测统计。
+    // HEAD 保存点击发出前的准确槽位/光标状态，供普通鼠标合成 ACK 遥测统计。
     @Inject(method = "clickSlot", at = @At("HEAD"))
-    private void quickcraft$recordRecipeBookClickStart(int syncId,
+    private void quickcraft$recordMouseCraftClickStart(int syncId,
                                                        int slotId,
                                                        int button,
                                                        SlotActionType actionType,
                                                        PlayerEntity player,
                                                        CallbackInfo ci) {
-        QuickCraftRecipeBookAckExecutor.onClientClickStart(
+        QuickCraftMouseCraftAckExecutor.onClientClickStart(
                 syncId, slotId, button, actionType, player);
     }
 
@@ -33,7 +33,7 @@ public abstract class WorkbenchShulkerClientClickMixin {
                                                  PlayerEntity player,
                                                  CallbackInfo ci) {
         QuickCraftWorkbenchShulkerCraft.onWorkbenchClickSent(syncId);
-        QuickCraftRecipeBookAckExecutor.onClientClickEnd(
+        QuickCraftMouseCraftAckExecutor.onClientClickEnd(
                 syncId, slotId, button, actionType, player);
     }
 }
