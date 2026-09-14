@@ -446,7 +446,7 @@ public final class QuickLitematicaEntityPlacement {
     }
 
     private static void applyOptionalEntityMaterials(NbtCompound nbt) {
-        Identifier entityId = Identifier.tryParse(nbt.getString("id"));
+        Identifier entityId = Identifier.tryParse(nbt.getString("id", ""));
         if (entityId != null && Registries.ENTITY_TYPE.containsId(entityId)) {
             EntityType<?> type = Registries.ENTITY_TYPE.get(entityId);
             if (!QuickCraftConfigs.areEasyPlaceEntityContainerContentMaterialsRequired()
@@ -459,9 +459,9 @@ public final class QuickLitematicaEntityPlacement {
             nbt.remove("Passengers");
             return;
         }
-        NbtList passengers = nbt.getList("Passengers", 10);
+        NbtList passengers = nbt.getListOrEmpty("Passengers");
         for (int index = 0; index < passengers.size(); index++) {
-            applyOptionalEntityMaterials(passengers.getCompound(index));
+            applyOptionalEntityMaterials(passengers.getCompoundOrEmpty(index));
         }
     }
 
@@ -1238,7 +1238,7 @@ public final class QuickLitematicaEntityPlacement {
 
         private static NbtCompound normalizeForComparison(NbtCompound source) {
             NbtCompound normalized = source.copy();
-            Identifier entityId = Identifier.tryParse(normalized.getString("id"));
+            Identifier entityId = Identifier.tryParse(normalized.getString("id", ""));
             String entityPath = entityId == null ? "" : entityId.getPath();
             normalized.remove("id");
             normalized.remove("Pos");
