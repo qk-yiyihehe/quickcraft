@@ -131,9 +131,7 @@ final class QuickLitematicaEntityPlacementScreen extends Screen {
         renderPlayerInventory(context, left, top, mouseX, mouseY);
         if (hoveredCandidate != null) {
             renderContainerPreview(context, hoveredCandidate, mouseX, mouseY);
-            boolean passengerSupplement = QuickLitematicaEntityPlacement.findPassengerSupplementTarget(
-                    this.client, hoveredCandidate) != null;
-            List<Text> tooltip = hoveredCandidate.getTooltip(hoveredStatus, passengerSupplement);
+            List<Text> tooltip = hoveredCandidate.getTooltip(hoveredStatus);
             context.drawTooltip(this.textRenderer, tooltip, mouseX, mouseY);
         } else if (hoveredExcess != null) {
             context.drawTooltip(this.textRenderer,
