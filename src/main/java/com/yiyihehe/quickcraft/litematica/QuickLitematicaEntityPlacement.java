@@ -38,6 +38,7 @@ import net.minecraft.world.phys.AABB;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.world.phys.Vec3;
+import net.minecraft.tags.BlockTags;
 
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -223,7 +224,7 @@ public final class QuickLitematicaEntityPlacement {
                 try {
                     confirmedEntityUuids.put(pending.key, UUID.fromString(payload.entityUuid()));
                 } catch (IllegalArgumentException ignored) {
-                    // The UUID only improves client-side matching; the server result remains authoritative.
+                    // UUID 只用于把新生成实体分配给刚点击的候选项，状态仍由实时校验决定。
                 }
             }
             if (client.player != null) {
@@ -1174,12 +1175,23 @@ public final class QuickLitematicaEntityPlacement {
                     && Math.abs(entity.getXRot() - pitch) <= ROTATION_TOLERANCE;
         }
 
-        private boolean isOnSameRail(Entity entity) {
+        private boolean minecartPositionMatches(Entity entity) {
             BlockPos expected = BlockPos.containing(position.x, position.y, position.z);
             BlockPos actual = entity.blockPosition();
-            return expected.getX() == actual.getX()
-                    && expected.getZ() == actual.getZ()
-                    && Math.abs(expected.getY() - actual.getY()) <= 1;
+            BlockPos expectedRail = railPosition(entity, expected);
+            BlockPos actualRail = railPosition(entity, actual);
+            if (expectedRail != null && actualRail != null) {
+                return expectedRail.equals(actualRail);
+            }
+            return squaredDistanceTo(entity) <= POSITION_TOLERANCE * POSITION_TOLERANCE;
+        }
+
+        private static BlockPos railPosition(Entity entity, BlockPos position) {
+            if (entity.level().getBlockState(position).is(BlockTags.RAILS)) {
+                return position;
+            }
+            BlockPos below = position.below();
+            return entity.level().getBlockState(below).is(BlockTags.RAILS) ? below : null;
         }
 
         private boolean minecartContentsMatch(Entity entity) {
@@ -1201,22 +1213,19 @@ public final class QuickLitematicaEntityPlacement {
         private PlacementStatus classifyEntity(Entity entity) {
             boolean sameType = entity.getType() == BuiltInRegistries.ENTITY_TYPE.getValue(entityType);
             if (isMinecart()) {
-                if (!isOnSameRail(entity)) {
+                if (!minecartPositionMatches(entity)) {
                     return PlacementStatus.UNPLACED;
                 }
                 if (!sameType) {
                     return PlacementStatus.WRONG;
                 }
-                if (matchesConfirmedUuid(entity) || (minecartContentsMatch(entity) && matchesPassengerTree(nbt, entity))) {
+                if (minecartContentsMatch(entity) && matchesPassengerTree(nbt, entity)) {
                     return PlacementStatus.MATCHED;
                 }
                 return PlacementStatus.MISMATCHED;
             }
             if (!sameType) {
                 return PlacementStatus.WRONG;
-            }
-            if (matchesConfirmedUuid(entity)) {
-                return PlacementStatus.MATCHED;
             }
             double tolerance = positionTolerance();
             if (squaredDistanceTo(entity) > tolerance * tolerance || !rotationMatches(entity)) {
@@ -1260,6 +1269,9 @@ public final class QuickLitematicaEntityPlacement {
 
         private static CompoundTag normalizeForComparison(CompoundTag source) {
             CompoundTag normalized = source.copy();
+            Identifier entityId = Identifier.tryParse(normalized.getStringOr("id", ""));
+            String entityPath = entityId == null ? "" : entityId.getPath();
+            normalized.remove("id");
             normalized.remove("Pos");
             normalized.remove("Rotation");
             normalized.remove("Motion");
@@ -1279,9 +1291,37 @@ public final class QuickLitematicaEntityPlacement {
             normalized.remove("PickupDelay");
             normalized.remove("Thrower");
             normalized.remove("Dimension");
+            normalized.remove("Leash");
+            normalized.remove("leash");
+            normalized.remove("Owner");
+            normalized.remove("OwnerUUID");
+            normalized.remove("Attributes");
+            normalized.remove("attributes");
+            normalized.remove("ActiveEffects");
+            normalized.remove("active_effects");
+            normalized.remove("Invulnerable");
+            normalized.remove("NoAI");
+            normalized.remove("Command");
+            normalized.remove("LastOutput");
+            normalized.remove("SuccessCount");
+            normalized.remove("DeathLootTable");
+            normalized.remove("DeathLootTableSeed");
+            normalized.remove("Offers");
+            normalized.remove("Gossips");
             normalized.remove("Passengers");
             normalized.remove("Flipped");
             normalized.remove("OnRail");
+            if (entityPath.equals("furnace_minecart")) {
+                normalized.remove("Fuel");
+                normalized.remove("PushX");
+                normalized.remove("PushZ");
+            }
+            if (entityPath.equals("tnt_minecart") || entityPath.equals("creeper")) {
+                normalized.remove("Fuse");
+                normalized.remove("ExplosionRadius");
+                normalized.remove("ignited");
+                normalized.remove("powered");
+            }
             return normalized;
         }
     }
