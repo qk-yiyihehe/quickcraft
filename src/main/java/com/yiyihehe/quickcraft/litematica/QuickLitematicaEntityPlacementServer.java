@@ -60,11 +60,6 @@ public final class QuickLitematicaEntityPlacementServer {
                 (payload, context) -> context.server().execute(
                         () -> handleRequest(context.player(), payload))
         );
-        ServerPlayNetworking.registerGlobalReceiver(
-                QuickLitematicaEntityPlacementPayloads.PassengerRequestPayload.ID,
-                (payload, context) -> context.server().execute(
-                        () -> handlePassengerRequest(context.player(), payload))
-        );
         ServerPlayConnectionEvents.DISCONNECT.register((handler, server) -> clear(handler.player));
     }
 
@@ -94,7 +89,7 @@ public final class QuickLitematicaEntityPlacementServer {
                 session.enabled,
                 placementReach(player),
                 Math.min(MAX_ENTITY_NBT_BYTES, Math.max(0, payload.maxNbtBytes())),
-                payload.features() & QuickLitematicaEntityPlacementPayloads.SERVER_FEATURES,
+                0,
                 token
         ));
     }
@@ -103,9 +98,30 @@ public final class QuickLitematicaEntityPlacementServer {
         if (player == null || payload == null) {
             return;
         }
-        if (!beginRequest(player, payload.sessionToken(), payload.nonce())) {
+        Session session = SESSIONS.get(player.getUuid());
+        if (session == null || !session.token.equals(payload.sessionToken())) {
+            sendResult(player, payload.nonce(), "DISABLED", "");
             return;
         }
+        long tick = player.getServerWorld().getTime();
+        if (!session.enabled || !QuickCraftConfigs.isEasyPlaceEntitiesEnabled()) {
+            sendResult(player, payload.nonce(), "DISABLED", "");
+            return;
+        }
+        if (session.nonces.contains(payload.nonce())) {
+            sendResult(player, payload.nonce(), "REPLAYED_REQUEST", "");
+            return;
+        }
+        if (session.nonces.size() >= MAX_NONCES) {
+            session.nonces.removeFirst();
+        }
+        session.nonces.add(payload.nonce());
+        if (session.lastRequestTick != Long.MIN_VALUE
+                && tick - session.lastRequestTick < REQUEST_COOLDOWN_TICKS) {
+            sendResult(player, payload.nonce(), "RATE_LIMITED", "");
+            return;
+        }
+        session.lastRequestTick = tick;
 
         ServerWorld world = player.getServerWorld();
         if (!dimensionId(world).equals(payload.dimension().toString())) {
@@ -203,133 +219,6 @@ public final class QuickLitematicaEntityPlacementServer {
         sendResult(player, payload.nonce(), "SUCCESS", root.getUuid().toString());
     }
 
-    public static void handlePassengerRequest(
-            ServerPlayerEntity player,
-            QuickLitematicaEntityPlacementPayloads.PassengerRequestPayload payload
-    ) {
-        if (player == null || payload == null
-                || !beginRequest(player, payload.sessionToken(), payload.nonce())) {
-            return;
-        }
-        ServerWorld world = player.getServerWorld();
-        if (!dimensionId(world).equals(payload.dimension().toString())) {
-            sendResult(player, payload.nonce(), "OUT_OF_REACH", "");
-            return;
-        }
-        Entity vehicle = world.getEntity(payload.vehicleUuid());
-        double reach = placementReach(player);
-        if (vehicle == null || !vehicle.isAlive()
-                || player.getEyePos().squaredDistanceTo(vehicle.getPos()) > reach * reach) {
-            sendResult(player, payload.nonce(), "TARGET_ENTITY_MISSING", "");
-            return;
-        }
-        BlockPos targetPos = vehicle.getBlockPos();
-        if (!world.isChunkLoaded(targetPos)) {
-            sendResult(player, payload.nonce(), "WORLD_RULE_BLOCKED", "");
-            return;
-        }
-        if (!world.canPlayerModifyAt(player, targetPos)) {
-            sendResult(player, payload.nonce(), "PERMISSION_DENIED", "");
-            return;
-        }
-        if (!vehicle.getPassengerList().isEmpty()) {
-            sendResult(player, payload.nonce(), "PASSENGERS_PRESENT", "");
-            return;
-        }
-
-        NbtCompound requested = payload.entityNbt();
-        int[] entityCount = {0};
-        if (requested == null || requested.getSizeInBytes() > MAX_ENTITY_NBT_BYTES
-                || !Registries.ENTITY_TYPE.getId(vehicle.getType()).toString().equals(readEntityId(requested))
-                || !validateEntityTree(requested, 0, entityCount)) {
-            sendResult(player, payload.nonce(), "INVALID_NBT", "");
-            return;
-        }
-        NbtList passengerNbt = listValue(requested, "Passengers");
-        if (passengerNbt.isEmpty()) {
-            sendResult(player, payload.nonce(), "INVALID_NBT", "");
-            return;
-        }
-        List<ItemStack> required = materialsForPassengers(requested, world, player);
-        if (required == null) {
-            sendResult(player, payload.nonce(), "UNSUPPORTED_ENTITY", "");
-            return;
-        }
-        boolean creativeMaterialBypass = payload.creativeMaterialBypass() && player.isCreative();
-        if (!creativeMaterialBypass && !hasMaterials(player, required)) {
-            sendResult(player, payload.nonce(), "NO_MATERIAL", "");
-            return;
-        }
-
-        List<Entity> passengers = new ArrayList<>();
-        try {
-            for (int index = 0; index < passengerNbt.size(); index++) {
-                NbtCompound passenger = compoundAt(passengerNbt, index);
-                Entity entity = createEntityTree(world, passenger, vehicle.getPos(),
-                        0.0F, 0.0F, Vec3d.ZERO, false, 1);
-                if (entity == null) {
-                    passengers.forEach(QuickLitematicaEntityPlacementServer::discardTree);
-                    sendResult(player, payload.nonce(), "INVALID_NBT", "");
-                    return;
-                }
-                passengers.add(entity);
-            }
-        } catch (RuntimeException ignored) {
-            passengers.forEach(QuickLitematicaEntityPlacementServer::discardTree);
-            sendResult(player, payload.nonce(), "INVALID_NBT", "");
-            return;
-        }
-        for (Entity passenger : passengers) {
-            if (!isTreeWithinReach(player, passenger, reach)
-                    || !isTreePlacementAllowed(world, player, passenger)
-                    || !isTreeInsideWorldBorder(world, passenger)
-                    || !canTreeStayAttached(passenger)) {
-                passengers.forEach(QuickLitematicaEntityPlacementServer::discardTree);
-                sendResult(player, payload.nonce(), "COLLISION", "");
-                return;
-            }
-        }
-
-        List<ItemStack> snapshot = creativeMaterialBypass
-                ? List.of()
-                : inventoryItems(player).stream().map(ItemStack::copy).toList();
-        if (!creativeMaterialBypass) {
-            consumeMaterials(player, required);
-        }
-        boolean added = true;
-        try {
-            for (Entity passenger : passengers) {
-                if (!world.spawnNewEntityAndPassengers(passenger)) {
-                    added = false;
-                    break;
-                }
-            }
-            if (added) {
-                for (Entity passenger : passengers) {
-                    if (!passenger.startRiding(vehicle, true)) {
-                        added = false;
-                        break;
-                    }
-                }
-            }
-        } catch (RuntimeException ignored) {
-            added = false;
-        }
-        if (!added) {
-            passengers.forEach(QuickLitematicaEntityPlacementServer::discardTree);
-            if (!creativeMaterialBypass) {
-                restoreInventory(player, snapshot);
-            }
-            sendResult(player, payload.nonce(), "INTERNAL_ERROR", "");
-            return;
-        }
-        for (int index = 0; index < passengerNbt.size(); index++) {
-            giveCopperChests(player, compoundAt(passengerNbt, index));
-        }
-        sendResult(player, payload.nonce(), "SUCCESS", "",
-                "quickcraft.entity_placement.result.passengers_added");
-    }
-
     public static void clear(ServerPlayerEntity player) {
         if (player != null) {
             SESSIONS.remove(player.getUuid());
@@ -337,46 +226,8 @@ public final class QuickLitematicaEntityPlacementServer {
     }
 
     private static void sendResult(ServerPlayerEntity player, long nonce, String status, String uuid) {
-        sendResult(player, nonce, status, uuid, "");
-    }
-
-    private static void sendResult(
-            ServerPlayerEntity player,
-            long nonce,
-            String status,
-            String uuid,
-            String messageKey
-    ) {
         ServerPlayNetworking.send(player, new QuickLitematicaEntityPlacementPayloads.ResultPayload(
-                nonce, status, uuid, messageKey));
-    }
-
-    private static boolean beginRequest(ServerPlayerEntity player, String token, long nonce) {
-        Session session = SESSIONS.get(player.getUuid());
-        if (session == null || !session.token.equals(token)) {
-            sendResult(player, nonce, "DISABLED", "");
-            return false;
-        }
-        if (!session.enabled || !QuickCraftConfigs.isEasyPlaceEntitiesEnabled()) {
-            sendResult(player, nonce, "DISABLED", "");
-            return false;
-        }
-        if (session.nonces.contains(nonce)) {
-            sendResult(player, nonce, "REPLAYED_REQUEST", "");
-            return false;
-        }
-        if (session.nonces.size() >= MAX_NONCES) {
-            session.nonces.removeFirst();
-        }
-        session.nonces.add(nonce);
-        long tick = player.getServerWorld().getTime();
-        if (session.lastRequestTick != Long.MIN_VALUE
-                && tick - session.lastRequestTick < REQUEST_COOLDOWN_TICKS) {
-            sendResult(player, nonce, "RATE_LIMITED", "");
-            return false;
-        }
-        session.lastRequestTick = tick;
-        return true;
+                nonce, status, uuid, ""));
     }
 
     private static double placementReach(ServerPlayerEntity player) {
@@ -564,23 +415,6 @@ public final class QuickLitematicaEntityPlacementServer {
         return appendEntityTreeMaterials(root, world, materials, 0, count, player)
                 ? mergeMaterials(materials)
                 : null;
-    }
-
-    private static List<ItemStack> materialsForPassengers(
-            NbtCompound root,
-            ServerWorld world,
-            ServerPlayerEntity player
-    ) {
-        List<ItemStack> materials = new ArrayList<>();
-        int[] count = {0};
-        NbtList passengers = listValue(root, "Passengers");
-        for (int index = 0; index < passengers.size(); index++) {
-            if (!appendEntityTreeMaterials(
-                    compoundAt(passengers, index), world, materials, 1, count, player)) {
-                return null;
-            }
-        }
-        return mergeMaterials(materials);
     }
 
     private static boolean appendEntityTreeMaterials(
