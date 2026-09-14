@@ -10,6 +10,7 @@ public final class QuickLitematicaVerifierPalette {
     private static final String TXT_WHITE = "\u00a7f";
     private static final String TXT_BOLD = "\u00a7l";
     private static final String TXT_RED = "\u00a7c";
+    private static final String TXT_GREEN = "\u00a7a";
     private static final String TXT_BLUE = "\u00a79";
     private static final String TXT_PURPLE = "\u00a7d";
     private static final String TXT_GOLD = "\u00a76";
@@ -19,6 +20,7 @@ public final class QuickLitematicaVerifierPalette {
     private static final Tone MISSING_FILL = new Tone(0x2979FF, TXT_BLUE);
     private static final Tone EXTRA_FILL = new Tone(0xD500F9, TXT_PURPLE);
     private static final Tone WRONG_FILL_STATE = new Tone(0xFF9100, TXT_GOLD);
+    private static final Tone CORRECT_STATE = new Tone(0x11FF11, TXT_GREEN);
 
     private static final int SLOT_FILL_ALPHA = 0x48;
     private static final int SLOT_BORDER_ALPHA = 0xD8;
@@ -44,6 +46,10 @@ public final class QuickLitematicaVerifierPalette {
 
     public static int wrongFillStateRgb() {
         return WRONG_FILL_STATE.rgb();
+    }
+
+    public static int correctStateRgb() {
+        return CORRECT_STATE.rgb();
     }
 
     public static String wrongFillFormattingCode() {
