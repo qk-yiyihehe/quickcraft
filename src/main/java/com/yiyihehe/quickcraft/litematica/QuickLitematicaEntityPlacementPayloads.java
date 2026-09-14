@@ -7,17 +7,13 @@ import net.minecraft.network.packet.CustomPayload;
 import net.minecraft.util.Identifier;
 import net.minecraft.util.math.Vec3d;
 
-import java.util.UUID;
-
 /**
  * 轻松放置实体的跨端线协议。
  * 服务端扩展必须使用相同的字段顺序；所有放置内容仍必须由服务端重新校验。
  */
 public final class QuickLitematicaEntityPlacementPayloads {
     public static final int PROTOCOL_VERSION = 2;
-    public static final int FEATURE_PASSENGER_SUPPLEMENT = 1;
-    public static final int CLIENT_FEATURES = FEATURE_PASSENGER_SUPPLEMENT;
-    public static final int SERVER_FEATURES = FEATURE_PASSENGER_SUPPLEMENT;
+    public static final int CLIENT_FEATURES = 0;
     public static final int MAX_CLIENT_NBT_BYTES = 262_144;
 
     private QuickLitematicaEntityPlacementPayloads() {
@@ -122,42 +118,6 @@ public final class QuickLitematicaEntityPlacementPayloads {
 
         @Override
         public Id<RequestPayload> getId() {
-            return ID;
-        }
-    }
-
-    public record PassengerRequestPayload(
-            String sessionToken,
-            long nonce,
-            Identifier dimension,
-            UUID vehicleUuid,
-            boolean creativeMaterialBypass,
-            NbtCompound entityNbt
-    ) implements CustomPayload {
-        public static final Id<PassengerRequestPayload> ID = new Id<>(
-                Identifier.of("quickcraft", "entity_place_passengers"));
-        public static final PacketCodec<PacketByteBuf, PassengerRequestPayload> CODEC = CustomPayload.codecOf(
-                (payload, buffer) -> {
-                    buffer.writeString(payload.sessionToken, 128);
-                    buffer.writeLong(payload.nonce);
-                    buffer.writeIdentifier(payload.dimension);
-                    buffer.writeLong(payload.vehicleUuid.getMostSignificantBits());
-                    buffer.writeLong(payload.vehicleUuid.getLeastSignificantBits());
-                    buffer.writeBoolean(payload.creativeMaterialBypass);
-                    buffer.writeNbt(payload.entityNbt);
-                },
-                buffer -> new PassengerRequestPayload(
-                        buffer.readString(128),
-                        buffer.readLong(),
-                        buffer.readIdentifier(),
-                        new UUID(buffer.readLong(), buffer.readLong()),
-                        buffer.readBoolean(),
-                        buffer.readNbt()
-                )
-        );
-
-        @Override
-        public Id<PassengerRequestPayload> getId() {
             return ID;
         }
     }
