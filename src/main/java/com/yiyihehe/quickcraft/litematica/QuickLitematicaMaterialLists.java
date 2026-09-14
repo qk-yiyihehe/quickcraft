@@ -29,6 +29,14 @@ public final class QuickLitematicaMaterialLists {
         return isHudVisible(DataManager.getMaterialList());
     }
 
+    public static int getCollectorSuccessColor() {
+        return QuickLitematicaVerifierPalette.correctStateRgb();
+    }
+
+    public static int getCollectorShortageColor() {
+        return QuickLitematicaVerifierPalette.wrongFillStateRgb();
+    }
+
     private static void addRequests(MaterialListBase materialList,
                                     PlayerEntity player,
                                     List<QuickMaterialCollector.MaterialRequest> requests) {
@@ -37,17 +45,15 @@ public final class QuickLitematicaMaterialLists {
         }
 
         if (materialList instanceof QuickLitematicaContainerMaterials.ContainerMaterialRequestSource source) {
-            // 容器材料列表返回总需求；没有替换规则时会原样返回物品，避免后续再扣一次玩家库存。
+            // 两类材料表都返回总需求，玩家库存统一由收集计划扣除；容器材料表只额外应用替换规则。
             requests.addAll(source.quickcraft$getReplacementMaterialRequests());
             return;
         }
 
         MaterialListUtils.updateAvailableCounts(materialList.getMaterialsAll(), player);
         for (MaterialListEntry entry : getIgnoredFilteredEntries(materialList)) {
-            int missing = materialList.getMultiplier() == 1
-                    ? entry.getCountMissing()
-                    : materialList.getMultiplier() * entry.getCountTotal();
-            requests.add(new QuickMaterialCollector.MaterialRequest(entry.getStack().copy(), Math.max(0, missing)));
+            int total = Math.max(1, materialList.getMultiplier()) * entry.getCountTotal();
+            requests.add(new QuickMaterialCollector.MaterialRequest(entry.getStack().copy(), Math.max(0, total)));
         }
     }
 

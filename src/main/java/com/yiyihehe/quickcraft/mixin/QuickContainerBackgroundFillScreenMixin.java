@@ -1,6 +1,7 @@
 package com.yiyihehe.quickcraft.mixin;
 
 import com.yiyihehe.quickcraft.QuickContainerCopy;
+import com.yiyihehe.quickcraft.QuickMaterialCollector;
 import com.yiyihehe.quickcraft.crafting.QuickCraftWorkbenchShulker;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.gui.DrawContext;
@@ -19,7 +20,8 @@ import org.lwjgl.glfw.GLFW;
 public abstract class QuickContainerBackgroundFillScreenMixin {
     @Inject(method = "render", at = @At("HEAD"), cancellable = true)
     private void quickcraft$hideBackgroundFillScreen(DrawContext context, int mouseX, int mouseY, float delta, CallbackInfo ci) {
-        if (QuickContainerCopy.shouldHideBackgroundHandledScreen()) {
+        if (QuickContainerCopy.shouldHideBackgroundHandledScreen()
+                || QuickMaterialCollector.shouldHideBackgroundHandledScreen()) {
             ci.cancel();
         }
     }
