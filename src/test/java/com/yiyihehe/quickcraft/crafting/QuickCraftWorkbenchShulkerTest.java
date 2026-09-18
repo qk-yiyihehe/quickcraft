@@ -46,14 +46,6 @@ class QuickCraftWorkbenchShulkerTest {
     }
 
     @Test
-    @DisplayName("直填接受所有已识别且无返还物的配方")
-    void directFillRecipePolicy_excludesUnknownAndRemainderRecipes() {
-        assertThat(QuickCraftWorkbenchShulkerCraft.canDirectFillRecipe(true, false)).isTrue();
-        assertThat(QuickCraftWorkbenchShulkerCraft.canDirectFillRecipe(false, false)).isFalse();
-        assertThat(QuickCraftWorkbenchShulkerCraft.canDirectFillRecipe(true, true)).isFalse();
-    }
-
-    @Test
     @DisplayName("仅组合极速把补货和输出放进同一个确认批次")
     void pipelineMode_onlyCombinedUltraMergesRefillAndOutput() {
         assertThat(QuickCraftWorkbenchShulkerCraft.combinesRefillAndOutput(
@@ -80,6 +72,33 @@ class QuickCraftWorkbenchShulkerTest {
         assertThat(QuickCraftWorkbenchShulkerCraft.shouldStopForOccupiedCursor(10, 10)).isTrue();
         assertThat(QuickCraftWorkbenchShulkerCraft.shouldStopForOccupiedCursor(19, 20)).isFalse();
         assertThat(QuickCraftWorkbenchShulkerCraft.shouldStopForOccupiedCursor(20, 20)).isTrue();
+    }
+
+    @Test
+    @DisplayName("会话汇总按实际耗时计算每秒合成次数")
+    void sessionThroughput_usesCraftCountAndElapsedMillis() {
+        assertThat(QuickCraftWorkbenchShulkerCraft.craftsPerSecond(64, 1_000L)).isEqualTo(64.0D);
+        assertThat(QuickCraftWorkbenchShulkerCraft.craftsPerSecond(9, 1_500L)).isEqualTo(6.0D);
+        assertThat(QuickCraftWorkbenchShulkerCraft.craftsPerSecond(0, 1_000L)).isZero();
+        assertThat(QuickCraftWorkbenchShulkerCraft.craftsPerSecond(64, 0L)).isZero();
+        assertThat(QuickCraftWorkbenchShulkerCraft.averageHundredths(111, 57)).isEqualTo(1.95D);
+        assertThat(QuickCraftWorkbenchShulkerCraft.percentageHundredths(8_145L, 8_383L))
+                .isEqualTo(97.16D);
+    }
+
+    @Test
+    @DisplayName("服务端合成统计排除重复或被纠正的输出点击")
+    void serverCraftStats_countOnlyAuthoritativeCrafts() {
+        assertThat(QuickCraftWorkbenchShulkerCraft.confirmedCraftsFromStats(
+                1_000, 2_728, 1, 3_221)).isEqualTo(1_728);
+        assertThat(QuickCraftWorkbenchShulkerCraft.confirmedCraftsFromStats(
+                1_000, 1_256, 4, 64)).isEqualTo(64);
+        assertThat(QuickCraftWorkbenchShulkerCraft.confirmedCraftsFromStats(
+                1_000, 1_257, 4, 65)).isEqualTo(-1);
+        assertThat(QuickCraftWorkbenchShulkerCraft.confirmedCraftsFromStats(
+                2_000, 1_999, 1, 1)).isEqualTo(-1);
+        assertThat(QuickCraftWorkbenchShulkerCraft.confirmedCraftsFromStats(
+                1_000, 1_065, 1, 64)).isEqualTo(-1);
     }
 
     @Test
@@ -227,6 +246,47 @@ class QuickCraftWorkbenchShulkerTest {
     }
 
     @Test
+    @DisplayName("ACK 终态允许缺少单次材料时出现安全的中间配方产物")
+    void ackTerminalOutput_allowsCompatibleIntermediateRecipe() {
+        assertThat(QuickCraftWorkbenchShulkerCraft.isAckTerminalOutputSafe(
+                false, false, false, true)).isTrue();
+        assertThat(QuickCraftWorkbenchShulkerCraft.isAckTerminalOutputSafe(
+                false, false, true, true)).isFalse();
+        assertThat(QuickCraftWorkbenchShulkerCraft.isAckTerminalOutputSafe(
+                false, false, false, false)).isFalse();
+        assertThat(QuickCraftWorkbenchShulkerCraft.isAckTerminalOutputSafe(
+                false, true, true, true)).isTrue();
+    }
+
+    @Test
+    @DisplayName("返还配方只丢弃已缓存的合法返还物")
+    void recipeRemainder_usesCachedDiscardPath() {
+        assertThat(QuickCraftWorkbenchShulkerCraft.shouldDiscardGridRemainder(
+                false, true)).isTrue();
+        assertThat(QuickCraftWorkbenchShulkerCraft.shouldDiscardGridRemainder(
+                true, true)).isFalse();
+        assertThat(QuickCraftWorkbenchShulkerCraft.shouldDiscardGridRemainder(
+                false, false)).isFalse();
+    }
+
+    @Test
+    @DisplayName("裁剪后的配方返还物恢复到原工作台槽位")
+    void recipeRemainder_restoresCompactInputOffsets() {
+        assertThat(QuickCraftWorkbenchShulkerCraft.expandRemainderIndex(0, 2, 1, 0)).isEqualTo(1);
+        assertThat(QuickCraftWorkbenchShulkerCraft.expandRemainderIndex(1, 2, 1, 0)).isEqualTo(2);
+        assertThat(QuickCraftWorkbenchShulkerCraft.expandRemainderIndex(2, 2, 1, 0)).isEqualTo(4);
+        assertThat(QuickCraftWorkbenchShulkerCraft.expandRemainderIndex(3, 2, 1, 0)).isEqualTo(5);
+    }
+
+    @Test
+    @DisplayName("返还物占用产物盒原槽时先丢弃再归还盒子")
+    void outputBoxReturn_discardsOnlyCachedRemainders() {
+        assertThat(QuickCraftWorkbenchShulkerCraft.shouldDiscardOutputBoxSlot(true, true)).isTrue();
+        assertThat(QuickCraftWorkbenchShulkerCraft.shouldDiscardOutputBoxSlot(true, false)).isFalse();
+        assertThat(QuickCraftWorkbenchShulkerCraft.shouldDiscardOutputBoxSlot(false, true)).isFalse();
+    }
+
+    @Test
     @DisplayName("确认驱动只按服务端停止推进计算停滞超时")
     void ackPipeline_stallTimeoutAdaptsWithoutSlowingNormalBatches() {
         assertThat(QuickCraftWorkbenchShulkerCraft.ackStallTimeoutMillis(20, 72L))
@@ -261,6 +321,41 @@ class QuickCraftWorkbenchShulkerTest {
     }
 
     @Test
+    @DisplayName("动态烟花、不可堆叠产物和不可堆叠材料使用有序探针")
+    void orderedProbeRecipePolicy_coversFireworksUnstackableOutputsAndDispenser() {
+        assertThat(QuickCraftWorkbenchShulkerCraft.requiresOrderedAckProbe(
+                true, 64, false, false)).isTrue();
+        assertThat(QuickCraftWorkbenchShulkerCraft.requiresOrderedAckProbe(
+                false, 1, false, false)).isTrue();
+        assertThat(QuickCraftWorkbenchShulkerCraft.requiresOrderedAckProbe(
+                false, 64, true, false)).isTrue();
+        assertThat(QuickCraftWorkbenchShulkerCraft.requiresOrderedAckProbe(
+                false, 64, false, true)).isTrue();
+        assertThat(QuickCraftWorkbenchShulkerCraft.requiresOrderedAckProbe(
+                false, 64, false, false)).isFalse();
+    }
+
+    @Test
+    @DisplayName("有风险批次在统计基线就绪后立即发送有序探针")
+    void orderedProbe_startsImmediatelyForCompleteAckBatches() {
+        assertThat(QuickCraftWorkbenchShulkerCraft.shouldRequestImmediateAckStatsProbe(
+                true, QuickCraftWorkbenchShulkerCraft.AckBatchKind.OUTPUT,
+                0, false, true, false)).isTrue();
+        assertThat(QuickCraftWorkbenchShulkerCraft.shouldRequestImmediateAckStatsProbe(
+                true, QuickCraftWorkbenchShulkerCraft.AckBatchKind.REFILL,
+                1, false, true, false)).isTrue();
+        assertThat(QuickCraftWorkbenchShulkerCraft.shouldRequestImmediateAckStatsProbe(
+                true, QuickCraftWorkbenchShulkerCraft.AckBatchKind.PREPARATION,
+                0, false, true, false)).isFalse();
+        assertThat(QuickCraftWorkbenchShulkerCraft.shouldRequestImmediateAckStatsProbe(
+                true, QuickCraftWorkbenchShulkerCraft.AckBatchKind.OUTPUT,
+                0, true, false, false)).isFalse();
+        assertThat(QuickCraftWorkbenchShulkerCraft.shouldRequestImmediateAckStatsProbe(
+                false, QuickCraftWorkbenchShulkerCraft.AckBatchKind.OUTPUT,
+                0, false, true, false)).isFalse();
+    }
+
+    @Test
     @DisplayName("静默探针回包必须属于当前唯一在途批次")
     void ackStatsProbe_rejectsStaleOrDifferentBatchResponses() {
         assertThat(QuickCraftWorkbenchShulkerCraft.isCurrentAckStatsProbe(
@@ -291,6 +386,28 @@ class QuickCraftWorkbenchShulkerTest {
                 9_999_999_999L)).isFalse();
         assertThat(QuickCraftWorkbenchShulkerCraft.hasAckStatsProbeTimedOut(
                 10_000_000_000L)).isTrue();
+    }
+
+    @Test
+    @DisplayName("容器 revision 环回后仍能识别新的服务端响应")
+    void telemetryRevisionComparison_handlesVanillaWraparound() {
+        assertThat(QuickCraftWorkbenchShulkerTelemetry.isRevisionAfter(18, 17)).isTrue();
+        assertThat(QuickCraftWorkbenchShulkerTelemetry.isRevisionAfter(0, 32767)).isTrue();
+        assertThat(QuickCraftWorkbenchShulkerTelemetry.isRevisionAfter(17, 17)).isFalse();
+        assertThat(QuickCraftWorkbenchShulkerTelemetry.isRevisionAfter(32767, 0)).isFalse();
+    }
+
+    @Test
+    @DisplayName("集成服务器阶段时序只接受同一单调时钟上的正向区间")
+    void integratedTiming_rejectsMissingOrReversedTimestamps() {
+        assertThat(QuickCraftWorkbenchShulkerTelemetry.phaseDurationNanos(10L, 25L))
+                .isEqualTo(15L);
+        assertThat(QuickCraftWorkbenchShulkerTelemetry.phaseDurationNanos(10L, 10L))
+                .isZero();
+        assertThat(QuickCraftWorkbenchShulkerTelemetry.phaseDurationNanos(0L, 25L))
+                .isEqualTo(-1L);
+        assertThat(QuickCraftWorkbenchShulkerTelemetry.phaseDurationNanos(25L, 10L))
+                .isEqualTo(-1L);
     }
 
     @Test
