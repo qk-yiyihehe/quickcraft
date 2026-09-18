@@ -193,6 +193,29 @@ class QuickCraftWorkbenchShulkerTest {
     }
 
     @Test
+    @DisplayName("多次输出末尾出现中间配方时用顺序探针确认后继续补货")
+    void ackPipeline_reconcilesSafeOutputMismatchAfterNearlyCompleteUpdates() {
+        assertThat(QuickCraftWorkbenchShulkerCraft.shouldProbeReconciledOutput(
+                QuickCraftWorkbenchShulkerCraft.AckBatchKind.OUTPUT,
+                15, 15, 14, false, true, false, true, false)).isTrue();
+        assertThat(QuickCraftWorkbenchShulkerCraft.shouldProbeReconciledOutput(
+                QuickCraftWorkbenchShulkerCraft.AckBatchKind.OUTPUT,
+                15, 15, 13, false, true, false, true, false)).isFalse();
+        assertThat(QuickCraftWorkbenchShulkerCraft.shouldProbeReconciledOutput(
+                QuickCraftWorkbenchShulkerCraft.AckBatchKind.OUTPUT,
+                15, 15, 14, true, true, false, true, false)).isFalse();
+        assertThat(QuickCraftWorkbenchShulkerCraft.shouldProbeReconciledOutput(
+                QuickCraftWorkbenchShulkerCraft.AckBatchKind.OUTPUT,
+                15, 15, 14, false, false, false, true, false)).isFalse();
+        assertThat(QuickCraftWorkbenchShulkerCraft.shouldProbeReconciledOutput(
+                QuickCraftWorkbenchShulkerCraft.AckBatchKind.OUTPUT,
+                15, 15, 14, false, true, true, true, false)).isFalse();
+        assertThat(QuickCraftWorkbenchShulkerCraft.shouldProbeReconciledOutput(
+                QuickCraftWorkbenchShulkerCraft.AckBatchKind.REFILL_OUTPUT,
+                18, 15, 15, false, true, false, true, false)).isTrue();
+    }
+
+    @Test
     @DisplayName("停止请求会等待已发送或正在记录的点击完成确认")
     void ackPipeline_defersStopOnlyWhenClicksAreInFlight() {
         assertThat(QuickCraftWorkbenchShulkerCraft.shouldDeferStopForAck(
