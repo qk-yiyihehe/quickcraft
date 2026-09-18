@@ -310,6 +310,13 @@ public final class QuickCraftWorkbenchShulkerCraft implements ClientModInitializ
             boolean exactStateMatches = handlerMatchesAckExpected(handler);
             boolean terminalStateSafe = isAckBatchTerminalStateSafe(handler);
             boolean revisionAdvanced = ackBatchLastRevision != ackBatchStartRevision;
+            if (shouldProbeReconciledOutput(ackBatchKind, ackBatchClickCount,
+                    ackBatchOutputClicks, ackBatchFullInventoryUpdates,
+                    exactStateMatches, terminalStateSafe, craftStatsBaselinePending,
+                    sessionCraftedStatBaseline >= 0, ackStatsProbePending)
+                    && requestAckStatsProbe(client, handler, now, 0L)) {
+                return;
+            }
             boolean settled;
             if (ackBatchKind == AckBatchKind.OUTPUT) {
                 settled = shouldConfirmSettledSingleOutput(ackBatchClickCount,
@@ -515,6 +522,14 @@ public final class QuickCraftWorkbenchShulkerCraft implements ClientModInitializ
                     exactStateMatches, terminalStateSafe, false);
         }
         if (!confirmed) {
+            ItemStack output = handler.getSlot(OUTPUT_SLOT).getStack();
+            if (!output.isEmpty() && !isExpectedOutput(output)
+                    && shouldProbeReconciledOutput(ackBatchKind, ackBatchClickCount,
+                    ackBatchOutputClicks, ackBatchFullInventoryUpdates,
+                    exactStateMatches, terminalStateSafe, craftStatsBaselinePending,
+                    sessionCraftedStatBaseline >= 0, ackStatsProbePending)) {
+                requestAckStatsProbe(client, handler, now, 0L);
+            }
             return;
         }
 
@@ -670,6 +685,27 @@ public final class QuickCraftWorkbenchShulkerCraft implements ClientModInitializ
                                                        boolean probePending) {
         return orderedProbeRecipe
                 && requiresCompleteAckState(kind, sourceBatches)
+                && !baselinePending
+                && baselineAvailable
+                && !probePending;
+    }
+
+    static boolean shouldProbeReconciledOutput(AckBatchKind kind,
+                                               int batchClickCount,
+                                               int outputClickCount,
+                                               int fullInventoryUpdates,
+                                               boolean exactStateMatches,
+                                               boolean terminalStateSafe,
+                                               boolean baselinePending,
+                                               boolean baselineAvailable,
+                                               boolean probePending) {
+        return includesOutput(kind)
+                && outputClickCount > 1
+                && batchClickCount >= outputClickCount
+                && fullInventoryUpdates >= (batchClickCount > outputClickCount
+                        ? outputClickCount : outputClickCount - 1)
+                && !exactStateMatches
+                && terminalStateSafe
                 && !baselinePending
                 && baselineAvailable
                 && !probePending;
