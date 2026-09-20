@@ -391,6 +391,7 @@
   "quickcraft.message.container_copy.recorded": "QuickCraft: 已记录%s内容",
   "quickcraft.message.container_copy.copied": "QuickCraft: 已复制%s内容",
   "quickcraft.message.container_copy.projection_filled": "QuickCraft: 已自动填充投影%s内容",
+  "quickcraft.message.container_copy.hold_to_fill": "QuickCraft: 请长按右键填充容器",
   "quickcraft.message.container_copy.projection_type_mismatch": "QuickCraft: 当前容器和投影容器类型不匹配",
   "quickcraft.message.container_copy.no_fill_template": "QuickCraft: 当前没有可用的容器填充模板",
   "quickcraft.message.container_copy.no_record_for_type": "QuickCraft: 当前没有可用的%s记录",
