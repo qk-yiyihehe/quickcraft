@@ -50,6 +50,7 @@ import net.minecraft.screen.slot.Slot;
 import net.minecraft.screen.slot.SlotActionType;
 import net.minecraft.text.MutableText;
 import net.minecraft.text.Text;
+import net.minecraft.util.Formatting;
 import net.minecraft.util.Hand;
 import net.minecraft.util.Identifier;
 import net.minecraft.util.collection.DefaultedList;
@@ -72,12 +73,14 @@ public final class QuickContainerCopy implements ClientModInitializer {
     private static final int OPEN_TIMEOUT_TICKS = 20;
     private static final int BACKGROUND_ACTION_TIMEOUT_TICKS = 40;
     private static final int CONTINUOUS_REOPEN_DELAY_TICKS = 1;
+    private static final int CONTINUOUS_FILL_LONG_PRESS_TICKS = 4;
     private static final int VANILLA_SHULKER_SLOTS = 27;
     private static final Identifier QUICK_SHULKER_BUNDLE_PACKET = Identifier.of("quickshulker", "quick_bundleheld_packet");
     private static final Identifier QUICK_SHULKER_OPEN_PACKET = Identifier.of("quickshulker", "open_shulker_packet");
 
     private static boolean lastUseDown;
     private static boolean lastContinuousFillDown;
+    private static int continuousFillHoldTicks;
     private static int pendingTicks;
     private static PendingAction pendingAction = PendingAction.NONE;
     private static SupportedContainerType pendingContainerType;
@@ -169,6 +172,7 @@ public final class QuickContainerCopy implements ClientModInitializer {
                 && !QuickCraftConfigs.isLitematicaContainerAutofillEnabled()) {
             lastUseDown = false;
             lastContinuousFillDown = false;
+            continuousFillHoldTicks = 0;
             pendingAction = PendingAction.NONE;
             pendingContainerType = null;
             pendingTicks = 0;
@@ -189,14 +193,25 @@ public final class QuickContainerCopy implements ClientModInitializer {
         boolean fillDown = QuickCraftConfigs.Hotkeys.CONTINUOUS_CONTAINER_FILL.getKeybind().isKeybindHeld();
         if (!fillDown) {
             if (lastContinuousFillDown) {
+                if (continuousTask == null
+                        && continuousFillHoldTicks < CONTINUOUS_FILL_LONG_PRESS_TICKS
+                        && canHandleContinuousContainerFillHotkey(client)) {
+                    sendStatusMessage(
+                            client,
+                            Text.translatable("quickcraft.message.container_copy.hold_to_fill")
+                                    .formatted(Formatting.RED)
+                    );
+                }
                 stopContinuousTask(client, true, null);
             }
             suppressedContinuousTarget = null;
             lastContinuousFillDown = false;
+            continuousFillHoldTicks = 0;
             return;
         }
 
-        if (continuousTask == null) {
+        if (continuousTask == null
+                && ++continuousFillHoldTicks >= CONTINUOUS_FILL_LONG_PRESS_TICKS) {
             tryStartContinuousTask(client);
         }
         lastContinuousFillDown = true;
