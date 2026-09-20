@@ -391,6 +391,7 @@
   "quickcraft.message.container_copy.recorded": "QuickCraft: Recorded %s contents",
   "quickcraft.message.container_copy.copied": "QuickCraft: Copied %s contents",
   "quickcraft.message.container_copy.projection_filled": "QuickCraft: Filled projected %s contents",
+  "quickcraft.message.container_copy.hold_to_fill": "QuickCraft: Hold use to fill the container",
   "quickcraft.message.container_copy.projection_type_mismatch": "QuickCraft: The current container does not match the projection container type",
   "quickcraft.message.container_copy.no_fill_template": "QuickCraft: No usable container fill template is available",
   "quickcraft.message.container_copy.no_record_for_type": "QuickCraft: No record available for %s",
