@@ -1,8 +1,8 @@
 package com.yiyihehe.quickcraft.mixin;
 
 import com.yiyihehe.quickcraft.QuickContainerLock;
+import com.yiyihehe.quickcraft.QuickCraftKeyBindings;
 import net.minecraft.client.gui.DrawContext;
-import net.minecraft.client.gui.screen.Screen;
 import net.minecraft.client.gui.screen.ingame.HandledScreen;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
@@ -32,7 +32,7 @@ public abstract class QuickContainerLockScreenMixin {
         HandledScreen<?> screen = (HandledScreen<?>) (Object) this;
         HandledScreenAccessor accessor = (HandledScreenAccessor) this;
         QuickContainerLock.bindCurrentScreen(screen);
-        if (button == GLFW.GLFW_MOUSE_BUTTON_RIGHT && !Screen.hasAltDown()) {
+        if (button == GLFW.GLFW_MOUSE_BUTTON_RIGHT && !QuickCraftKeyBindings.isAltDown()) {
             QuickContainerLock.prepareQuickShulkerOpen(
                     screen,
                     mouseX,
@@ -42,7 +42,7 @@ public abstract class QuickContainerLockScreenMixin {
             );
         }
         if (button == GLFW.GLFW_MOUSE_BUTTON_RIGHT
-                && Screen.hasAltDown()
+                && QuickCraftKeyBindings.isAltDown()
                 && QuickContainerLock.handleSlotLockHotkey(
                         screen,
                         mouseX,
