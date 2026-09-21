@@ -725,7 +725,7 @@ public final class QuickContainerLock implements ClientModInitializer {
             return;
         }
 
-        boolean useDown = QuickCraftKeyBindings.isBoundKeyDown(client, client.options.useKey);
+        boolean useDown = QuickCraftKeyBindings.isVanillaKeyDown(client, client.options.useKey);
         if (useDown && !lastUseDown && client.crosshairTarget instanceof BlockHitResult blockHitResult) {
             String containerKey = getSupportedContainerKey(client, blockHitResult);
             if (containerKey != null) {
