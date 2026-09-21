@@ -28,6 +28,7 @@
       "com.yiyihehe.quickcraft.QuickSort",
       "com.yiyihehe.quickcraft.QuickTrade",
       "com.yiyihehe.quickcraft.QuickStash",
+      "com.yiyihehe.quickcraft.QuickFillContainer",
       "com.yiyihehe.quickcraft.QuickClearContainer",
       "com.yiyihehe.quickcraft.QuickBeacon",
       "com.yiyihehe.quickcraft.QuickContainerLock",
