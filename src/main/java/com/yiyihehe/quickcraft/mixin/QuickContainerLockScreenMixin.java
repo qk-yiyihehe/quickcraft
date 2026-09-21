@@ -1,12 +1,11 @@
 package com.yiyihehe.quickcraft.mixin;
 
 import com.yiyihehe.quickcraft.QuickContainerLock;
+import com.yiyihehe.quickcraft.QuickCraftKeyBindings;
 import net.minecraft.client.gui.Click;
 import net.minecraft.client.gui.DrawContext;
-import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.gui.screen.ingame.HandledScreen;
 import org.spongepowered.asm.mixin.Mixin;
-import org.spongepowered.asm.mixin.Unique;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
@@ -34,7 +33,7 @@ public abstract class QuickContainerLockScreenMixin {
         HandledScreen<?> screen = (HandledScreen<?>) (Object) this;
         HandledScreenAccessor accessor = (HandledScreenAccessor) this;
         QuickContainerLock.bindCurrentScreen(screen);
-        if (click.button() == GLFW.GLFW_MOUSE_BUTTON_RIGHT && !quickcraft$isAltDown()) {
+        if (click.button() == GLFW.GLFW_MOUSE_BUTTON_RIGHT && !QuickCraftKeyBindings.isAltDown()) {
             QuickContainerLock.prepareQuickShulkerOpen(
                     screen,
                     click.x(),
@@ -44,7 +43,7 @@ public abstract class QuickContainerLockScreenMixin {
             );
         }
         if (click.button() == GLFW.GLFW_MOUSE_BUTTON_RIGHT
-                && quickcraft$isAltDown()
+                && QuickCraftKeyBindings.isAltDown()
                 && QuickContainerLock.handleSlotLockHotkey(
                         screen,
                         click.x(),
@@ -57,15 +56,4 @@ public abstract class QuickContainerLockScreenMixin {
         }
     }
 
-    @Unique
-    private static boolean quickcraft$isAltDown() {
-        MinecraftClient client = MinecraftClient.getInstance();
-        if (client == null) {
-            return false;
-        }
-
-        long handle = client.getWindow().getHandle();
-        return GLFW.glfwGetKey(handle, GLFW.GLFW_KEY_LEFT_ALT) == GLFW.GLFW_PRESS
-                || GLFW.glfwGetKey(handle, GLFW.GLFW_KEY_RIGHT_ALT) == GLFW.GLFW_PRESS;
-    }
 }

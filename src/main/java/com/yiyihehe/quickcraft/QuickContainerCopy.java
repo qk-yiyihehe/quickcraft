@@ -187,7 +187,11 @@ public final class QuickContainerCopy implements ClientModInitializer {
     }
 
     private void handleContinuousFillHotkey(MinecraftClient client) {
-        boolean fillDown = QuickCraftConfigs.Hotkeys.CONTINUOUS_CONTAINER_FILL.getKeybind().isKeybindHeld();
+        boolean fillDown = QuickCraftKeyBindings.isHotkeyDown(
+                client,
+                QuickCraftConfigs.Hotkeys.CONTINUOUS_CONTAINER_FILL.getKeybind(),
+                client.options.useKey
+        );
         if (!fillDown) {
             if (lastContinuousFillDown) {
                 if (continuousTask == null
@@ -704,7 +708,7 @@ public final class QuickContainerCopy implements ClientModInitializer {
             return;
         }
 
-        boolean useDown = QuickCraftKeyBindings.isBoundKeyDown(client, client.options.useKey);
+        boolean useDown = QuickCraftKeyBindings.isVanillaKeyDown(client, client.options.useKey);
         if (useDown && !lastUseDown) {
             if (QuickMaterialCollector.shouldHandleCurrentTarget(client)
                     || QuickLitematicaContainerAutofill.shouldHandleCurrentTarget(client)) {
