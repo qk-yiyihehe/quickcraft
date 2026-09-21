@@ -1,5 +1,6 @@
 package com.yiyihehe.quickcraft.render;
 
+import com.yiyihehe.quickcraft.QuickCraftKeyBindings;
 import com.yiyihehe.quickcraft.config.QuickCraftConfigs;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.gui.Element;
@@ -54,7 +55,7 @@ public class QuickDraggableButton extends ButtonWidget {
     public static boolean isEditGestureOverCurrentButton() {
         MinecraftClient client = MinecraftClient.getInstance();
         if (!QuickCraftConfigs.isActionButtonDraggingEnabled()
-                || !Screen.hasShiftDown()
+                || !QuickCraftKeyBindings.isShiftDown()
                 || !(client.currentScreen instanceof HandledScreen<?> screen)) {
             return false;
         }
@@ -70,7 +71,9 @@ public class QuickDraggableButton extends ButtonWidget {
 
     @Override
     public boolean mouseClicked(double mouseX, double mouseY, int button) {
-        if (!QuickCraftConfigs.isActionButtonDraggingEnabled() || !Screen.hasShiftDown() || !this.clicked(mouseX, mouseY)) {
+        if (!QuickCraftConfigs.isActionButtonDraggingEnabled()
+                || !QuickCraftKeyBindings.isShiftDown()
+                || !this.clicked(mouseX, mouseY)) {
             return super.mouseClicked(mouseX, mouseY, button);
         }
         if (button == 0) {
