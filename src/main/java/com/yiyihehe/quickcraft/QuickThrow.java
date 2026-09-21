@@ -95,7 +95,7 @@ public final class QuickThrow implements ClientModInitializer, IKeyboardInputHan
                                                      boolean repeatedEvent,
                                                      ThrowMode mode,
                                                      HandledScreen<?> screen) {
-        if (!keybind.isKeybindHeld() || !isRepeatTriggerKey(keybind, keyCode)) {
+        if (!QuickCraftKeyBindings.isHotkeyDown(keybind) || !isRepeatTriggerKey(keybind, keyCode)) {
             return false;
         }
 
@@ -136,8 +136,8 @@ public final class QuickThrow implements ClientModInitializer, IKeyboardInputHan
         return QuickCraftConfigs.isQuickThrowEnabled()
                 && client != null
                 && client.currentScreen instanceof AnvilScreen
-                && (QuickCraftConfigs.Hotkeys.DROP_MATCHING.getKeybind().isKeybindHeld()
-                || QuickCraftConfigs.Hotkeys.DROP_WHOLE_STACK.getKeybind().isKeybindHeld());
+                && (QuickCraftKeyBindings.isHotkeyDown(QuickCraftConfigs.Hotkeys.DROP_MATCHING.getKeybind())
+                || QuickCraftKeyBindings.isHotkeyDown(QuickCraftConfigs.Hotkeys.DROP_WHOLE_STACK.getKeybind()));
     }
 
     private void onClientTick(MinecraftClient client) {
@@ -179,10 +179,10 @@ public final class QuickThrow implements ClientModInitializer, IKeyboardInputHan
     }
 
     private static ThrowMode getHeldThrowMode() {
-        if (QuickCraftConfigs.Hotkeys.DROP_MATCHING.getKeybind().isKeybindHeld()) {
+        if (QuickCraftKeyBindings.isHotkeyDown(QuickCraftConfigs.Hotkeys.DROP_MATCHING.getKeybind())) {
             return ThrowMode.MATCHING;
         }
-        if (QuickCraftConfigs.Hotkeys.DROP_WHOLE_STACK.getKeybind().isKeybindHeld()) {
+        if (QuickCraftKeyBindings.isHotkeyDown(QuickCraftConfigs.Hotkeys.DROP_WHOLE_STACK.getKeybind())) {
             return ThrowMode.WHOLE_STACK;
         }
         return ThrowMode.NONE;

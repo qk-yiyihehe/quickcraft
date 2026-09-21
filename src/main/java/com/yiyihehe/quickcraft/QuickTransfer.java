@@ -9,7 +9,6 @@ import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.minecraft.block.ShulkerBoxBlock;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.gui.Element;
-import net.minecraft.client.gui.screen.Screen;
 import net.minecraft.client.gui.screen.ingame.CreativeInventoryScreen;
 import net.minecraft.client.gui.screen.ingame.HandledScreen;
 import net.minecraft.client.gui.widget.TextFieldWidget;
@@ -139,10 +138,10 @@ public final class QuickTransfer implements ClientModInitializer {
         }
 
         boolean moveToOtherInventory = verticalAmount > 0;
-        if (Screen.hasShiftDown()) {
+        if (QuickCraftKeyBindings.isShiftDown()) {
             return moveFullStackByScroll(screen, hoveredSlot, moveToOtherInventory);
         }
-        if (Screen.hasAltDown()) {
+        if (QuickCraftKeyBindings.isAltDown()) {
             return moveMatchingStacksByScroll(screen, hoveredSlot, moveToOtherInventory);
         }
         return moveSingleItemByScroll(screen, hoveredSlot, moveToOtherInventory);
@@ -297,13 +296,13 @@ public final class QuickTransfer implements ClientModInitializer {
     }
 
     private static TransferMode getHeldTransferMode() {
-        if (QuickCraftConfigs.Hotkeys.QUICK_TRANSFER_RETAIN_ONE.getKeybind().isKeybindHeld()) {
+        if (QuickCraftKeyBindings.isHotkeyDown(QuickCraftConfigs.Hotkeys.QUICK_TRANSFER_RETAIN_ONE.getKeybind())) {
             return TransferMode.MATCHING_RETAIN_ONE;
         }
-        if (QuickCraftConfigs.Hotkeys.SLOT_QUICK_TRANSFER.getKeybind().isKeybindHeld()) {
+        if (QuickCraftKeyBindings.isHotkeyDown(QuickCraftConfigs.Hotkeys.SLOT_QUICK_TRANSFER.getKeybind())) {
             return TransferMode.SLOT;
         }
-        if (QuickCraftConfigs.Hotkeys.QUICK_TRANSFER.getKeybind().isKeybindHeld()) {
+        if (QuickCraftKeyBindings.isHotkeyDown(QuickCraftConfigs.Hotkeys.QUICK_TRANSFER.getKeybind())) {
             return TransferMode.MATCHING;
         }
         return TransferMode.NONE;
