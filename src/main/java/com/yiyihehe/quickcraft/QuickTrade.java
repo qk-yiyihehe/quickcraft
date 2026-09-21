@@ -191,7 +191,7 @@ public final class QuickTrade implements ClientModInitializer {
             return;
         }
 
-        boolean useDown = QuickCraftKeyBindings.isBoundKeyDown(client, client.options.useKey);
+        boolean useDown = QuickCraftKeyBindings.isVanillaKeyDown(client, client.options.useKey);
         if (useDown && !lastUseDown && client.currentScreen == null) {
             MerchantEntity merchant = getLookedAtMerchant(client);
             if (merchant != null) {

@@ -1,6 +1,7 @@
 package com.yiyihehe.quickcraft.crafting;
 
 import com.yiyihehe.quickcraft.QuickContainerLock;
+import com.yiyihehe.quickcraft.QuickCraftKeyBindings;
 import com.yiyihehe.quickcraft.config.QuickCraftConfigs;
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
@@ -44,8 +45,8 @@ public final class QuickCraftAnvilRename implements ClientModInitializer {
         return QuickCraftConfigs.isAnvilRenameQuickCraftEnabled()
                 && client != null
                 && client.currentScreen instanceof AnvilScreen
-                && (QuickCraftConfigs.getSingleCraftHotkey().isKeybindHeld()
-                || QuickCraftConfigs.getRapidCraftHotkey().isKeybindHeld());
+                && (QuickCraftKeyBindings.isHotkeyDown(QuickCraftConfigs.getSingleCraftHotkey())
+                || QuickCraftKeyBindings.isHotkeyDown(QuickCraftConfigs.getRapidCraftHotkey()));
     }
 
     public static boolean shouldConsumeRenameHotkeyKeyPress(int keyCode) {
@@ -60,8 +61,8 @@ public final class QuickCraftAnvilRename implements ClientModInitializer {
             return true;
         }
 
-        return QuickCraftConfigs.getSingleCraftHotkey().isKeybindHeld()
-                || QuickCraftConfigs.getRapidCraftHotkey().isKeybindHeld();
+        return QuickCraftKeyBindings.isHotkeyDown(QuickCraftConfigs.getSingleCraftHotkey())
+                || QuickCraftKeyBindings.isHotkeyDown(QuickCraftConfigs.getRapidCraftHotkey());
     }
 
     public static boolean consumePendingRenameHotkeyChar() {
@@ -186,8 +187,8 @@ public final class QuickCraftAnvilRename implements ClientModInitializer {
     }
 
     private void handleHotkeys(MinecraftClient client, AnvilScreenHandler handler) {
-        boolean vDown = QuickCraftConfigs.getSingleCraftHotkey().isKeybindHeld();
-        boolean rapidDown = QuickCraftConfigs.getRapidCraftHotkey().isKeybindHeld();
+        boolean vDown = QuickCraftKeyBindings.isHotkeyDown(QuickCraftConfigs.getSingleCraftHotkey());
+        boolean rapidDown = QuickCraftKeyBindings.isHotkeyDown(QuickCraftConfigs.getRapidCraftHotkey());
 
         if (vDown && !lastVDown) {
             handleSingleRename(client, handler);
