@@ -1,5 +1,6 @@
 package com.yiyihehe.quickcraft.mixin;
 
+import com.yiyihehe.quickcraft.QuickCraftKeyBindings;
 import com.yiyihehe.quickcraft.QuickContainerLock;
 import com.yiyihehe.quickcraft.config.QuickCraftConfigs;
 import com.yiyihehe.quickcraft.crafting.QuickCraftBackpack;
@@ -8,7 +9,6 @@ import com.yiyihehe.quickcraft.crafting.QuickCraftWorkbenchRouter;
 import com.yiyihehe.quickcraft.render.QuickContainerLockButton;
 import com.yiyihehe.quickcraft.render.QuickDraggableButton;
 import net.minecraft.client.gui.DrawContext;
-import net.minecraft.client.gui.screen.Screen;
 import net.minecraft.client.gui.screen.ingame.CraftingScreen;
 import net.minecraft.client.gui.screen.ingame.HandledScreen;
 import net.minecraft.client.gui.screen.ingame.InventoryScreen;
@@ -49,7 +49,7 @@ public abstract class CraftActionButtonMixin extends HandledScreen<CraftingScree
         int buttonY = this.y + this.getScreenHandler().getSlot(0).y + 13;
         this.quickcraft$craftButton = this.addDrawableChild(new QuickDraggableButton(
                 buttonX, buttonY, 10, 10, Text.literal("Q"),
-                button -> QuickCraftWorkbenchRouter.handleCraftButton(Screen.hasAltDown()),
+                button -> QuickCraftWorkbenchRouter.handleCraftButton(QuickCraftKeyBindings.isAltDown()),
                 QuickDraggableButton.PositionKey.WORKBENCH_CRAFT
         ));
     }
@@ -103,7 +103,7 @@ abstract class CraftActionButtonBackpackMixin extends HandledScreen<PlayerScreen
         int buttonY = this.y + this.getScreenHandler().getSlot(0).y + 13;
         this.quickcraft$craftButton = this.addDrawableChild(new QuickDraggableButton(
                 buttonX, buttonY, 10, 10, Text.literal("Q"),
-                button -> QuickCraftBackpack.handleBackpackCraftButton(Screen.hasAltDown()),
+                button -> QuickCraftBackpack.handleBackpackCraftButton(QuickCraftKeyBindings.isAltDown()),
                 QuickDraggableButton.PositionKey.BACKPACK_CRAFT
         ));
     }
@@ -196,7 +196,7 @@ abstract class CraftActionButtonStonecutterMixin extends HandledScreen<Stonecutt
         int buttonY = this.y + this.getScreenHandler().getSlot(1).y + 13;
         this.quickcraft$craftButton = this.addDrawableChild(new QuickDraggableButton(
                 buttonX, buttonY, 10, 10, Text.literal("Q"),
-                button -> QuickCraftStonecutter.handleStonecutterCraftButton(Screen.hasAltDown()),
+                button -> QuickCraftStonecutter.handleStonecutterCraftButton(QuickCraftKeyBindings.isAltDown()),
                 QuickDraggableButton.PositionKey.STONECUTTER_CRAFT
         ));
         this.quickcraft$syncCraftButtonPosition();

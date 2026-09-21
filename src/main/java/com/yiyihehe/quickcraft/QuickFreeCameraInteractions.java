@@ -412,7 +412,7 @@ public final class QuickFreeCameraInteractions {
     private static boolean isSneakKeyPressed(MinecraftClient client) {
         return client != null
                 && client.options != null
-                && client.options.sneakKey.isPressed();
+                && QuickCraftKeyBindings.isVanillaKeyDown(client, client.options.sneakKey);
     }
 
     private static boolean isTweakerooFreeCameraActive(MinecraftClient client) {

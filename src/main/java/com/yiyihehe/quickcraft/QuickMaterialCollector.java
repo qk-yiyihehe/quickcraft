@@ -91,7 +91,7 @@ public final class QuickMaterialCollector implements ClientModInitializer {
 
         boolean useDown = client.player != null
                 && client.world != null
-                && QuickCraftKeyBindings.isBoundKeyDown(client, client.options.useKey);
+                && QuickCraftKeyBindings.isVanillaKeyDown(client, client.options.useKey);
         if (!useDown) {
             if (activeTask != null) {
                 activeTask.stopRequested = true;
