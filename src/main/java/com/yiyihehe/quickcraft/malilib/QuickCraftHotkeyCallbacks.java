@@ -2,6 +2,7 @@ package com.yiyihehe.quickcraft.malilib;
 
 import com.yiyihehe.quickcraft.QuickCraft;
 import com.yiyihehe.quickcraft.QuickContainerCopy;
+import com.yiyihehe.quickcraft.QuickContainerLock;
 import com.yiyihehe.quickcraft.QuickCreativePacking;
 import com.yiyihehe.quickcraft.QuickThrow;
 import com.yiyihehe.quickcraft.QuickTransfer;
@@ -95,7 +96,8 @@ public final class QuickCraftHotkeyCallbacks {
     }
 
     private static boolean handleSlotLock(KeyAction action, IKeybind keybind) {
-        return false;
+        return action == KeyAction.PRESS
+                && QuickContainerLock.handleSlotLockHotkey(MinecraftClient.getInstance());
     }
 
     private static boolean handleCopyContainerTemplate(KeyAction action, IKeybind keybind) {
