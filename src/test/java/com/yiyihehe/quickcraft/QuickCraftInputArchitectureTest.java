@@ -20,6 +20,10 @@ class QuickCraftInputArchitectureTest {
     private static final Path MAIN_JAVA = Path.of("src", "main", "java");
     private static final Path INPUT_HELPER = MAIN_JAVA.resolve(Path.of(
             "com", "yiyihehe", "quickcraft", "QuickCraftKeyBindings.java"));
+    private static final Path HOTKEY_CALLBACKS = MAIN_JAVA.resolve(Path.of(
+            "com", "yiyihehe", "quickcraft", "malilib", "QuickCraftHotkeyCallbacks.java"));
+    private static final Path SLOT_LOCK_SCREEN_MIXIN = MAIN_JAVA.resolve(Path.of(
+            "com", "yiyihehe", "quickcraft", "mixin", "QuickContainerLockScreenMixin.java"));
 
     private static final List<String> DIRECT_INPUT_READS = List.of(
             ".isKeybindHeld()",
@@ -52,5 +56,18 @@ class QuickCraftInputArchitectureTest {
         assertThat(violations)
                 .as("新增输入读取时应扩展 QuickCraftKeyBindings，而不是散落在业务类中")
                 .isEmpty();
+    }
+
+    @Test
+    @DisplayName("槽位锁只能由可配置热键回调触发")
+    void slotLockUsesConfiguredHotkeyCallback() throws IOException {
+        String callbacks = Files.readString(HOTKEY_CALLBACKS);
+        String screenMixin = Files.readString(SLOT_LOCK_SCREEN_MIXIN);
+
+        assertThat(callbacks)
+                .contains("QuickContainerLock.handleSlotLockHotkey(MinecraftClient.getInstance())");
+        assertThat(screenMixin)
+                .doesNotContain("handleSlotLockHotkey(")
+                .doesNotContain("isAltDown()");
     }
 }
