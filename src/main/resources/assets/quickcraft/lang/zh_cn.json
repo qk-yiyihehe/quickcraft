@@ -278,7 +278,7 @@
   "quickcraft.config.projection_tools.comment.enableContainerFillOverflowDrop": "§6功能：§r清理容器复制 / 投影填充的多余物品时，允许丢到地上。\n§e说明：§r会先放回背包，启用快捷潜影盒时再尝试装盒。\n§7限制：§r仍放不下时才整组丢弃。",
   "quickcraft.config.projection_tools.prettyName.containerFillFreeSlotsLimit": "填充前腾背包格数",
   "quickcraft.config.projection_tools.name.containerFillFreeSlotsLimit": "填充前腾背包格数",
-  "quickcraft.config.projection_tools.comment.containerFillFreeSlotsLimit": "§6功能：§r设置快捷潜影盒批量取货前，最多主动腾出的背包空格数。\n§e说明：§r可填 0 到 36，默认 5。\n§7提示：§r0 表示除了保护白名单外尽可能腾格子。",
+  "quickcraft.config.projection_tools.comment.containerFillFreeSlotsLimit": "§6功能：§r设置快捷潜影盒批量取货前应保留的最少背包空格数。\n§e说明：§r空格不足时会主动把非保护物品装盒，直到达到目标或没有可安全移动的物品；可填 0 到 36，默认 5。\n§7提示：§r0 表示除了保护白名单外尽可能腾格子。",
   "quickcraft.config.projection_tools.prettyName.containerFillProtectedItems": "填充腾格保护物品",
   "quickcraft.config.projection_tools.name.containerFillProtectedItems": "填充腾格保护物品",
   "quickcraft.config.projection_tools.comment.containerFillProtectedItems": "§6功能：§r设置填充前腾背包格子时需要保护的物品。\n§e说明：§r这些物品不会被临时塞进快捷潜影盒。\n§b格式：§r支持中文名、完整 ID 或简写 ID。\n§b示例：§r金胡萝卜、minecraft:golden_carrot\n§b示例：§rgolden_carrot\n§7固定保护：§r潜影盒、第一组烟花、附魔钻石/下界合金工具与盔甲。",
