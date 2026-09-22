@@ -1695,6 +1695,8 @@ public final class QuickContainerCopy implements ClientModInitializer {
             return null;
         }
 
+        SourceShulker bestSource = null;
+        SourceShulkerScore bestScore = null;
         for (int shulkerSlotId : getPlayerStorageSlotIds(handler)) {
             Slot shulkerSlot = handler.getSlot(shulkerSlotId);
             if (shulkerSlot.getIndex() == excludedPlayerIndex) {
@@ -1703,25 +1705,49 @@ public final class QuickContainerCopy implements ClientModInitializer {
 
             if (!shulkerSlot.hasStack()
                     || shulkerSlot.getStack().getCount() != 1
-                    || !isShulkerBox(shulkerSlot.getStack())
-                    || !containsStoredDemand(shulkerSlot.getStack(), demands)) {
+                    || !isShulkerBox(shulkerSlot.getStack())) {
                 continue;
             }
 
-            return new SourceShulker(shulkerSlotId, shulkerSlot.getIndex());
+            SourceShulkerScore score = getSourceShulkerScore(shulkerSlot.getStack(), demands);
+            if (score.usefulItemCount() <= 0
+                    || bestScore != null && !score.isBetterThan(bestScore)) {
+                continue;
+            }
+
+            bestSource = new SourceShulker(shulkerSlotId, shulkerSlot.getIndex());
+            bestScore = score;
         }
 
-        return null;
+        return bestSource;
     }
 
-    private boolean containsStoredDemand(ItemStack shulker, List<MissingDemand> demands) {
-        for (ItemStack stack : getStoredStacksBySlot(shulker)) {
-            if (findDemandForStack(demands, stack) != null) {
-                return true;
+    private SourceShulkerScore getSourceShulkerScore(ItemStack shulker, List<MissingDemand> demands) {
+        int usefulItemCount = 0;
+        int coveredDemandCount = 0;
+        long coverageScore = 0;
+        DefaultedList<ItemStack> storedStacks = getStoredStacksBySlot(shulker);
+
+        for (MissingDemand demand : demands) {
+            int available = 0;
+            for (ItemStack stack : storedStacks) {
+                if (ItemStack.areItemsAndComponentsEqual(stack, demand.template())) {
+                    available += stack.getCount();
+                }
             }
+
+            int useful = Math.min(available, demand.count());
+            if (useful <= 0) {
+                continue;
+            }
+
+            usefulItemCount += useful;
+            coveredDemandCount++;
+            // 各物品按缺口比例等权计分，优先选择一次覆盖更多种需求的盒子。
+            coverageScore += (long) useful * 1_000L / demand.count();
         }
 
-        return false;
+        return new SourceShulkerScore(coverageScore, usefulItemCount, coveredDemandCount);
     }
 
     private ExtractResult moveMatchingItemsFromOpenShulker(ShulkerBoxScreenHandler handler,
@@ -1734,11 +1760,18 @@ public final class QuickContainerCopy implements ClientModInitializer {
         int totalMoved = 0;
         boolean attemptedMove = false;
         List<MissingDemand> remainingDemands = demands;
-        for (int slotId : getContainerSlotIds(handler)) {
+        List<Integer> remainingSourceSlotIds = new ArrayList<>(getContainerSlotIds(handler));
+        while (!remainingSourceSlotIds.isEmpty()) {
             if (remainingDemands.isEmpty()
                     || !hasPlayerStorageCapacityForAnyDemand(handler, remainingDemands)) {
                 break;
             }
+
+            int slotId = findBestSourceContainerSlotId(handler, remainingSourceSlotIds, remainingDemands);
+            if (slotId == -1) {
+                break;
+            }
+            remainingSourceSlotIds.remove(Integer.valueOf(slotId));
 
             Slot slot = handler.getSlot(slotId);
             MissingDemand demand = slot.hasStack() ? findDemandForStack(remainingDemands, slot.getStack()) : null;
@@ -1775,6 +1808,54 @@ public final class QuickContainerCopy implements ClientModInitializer {
         }
 
         return new ExtractResult(totalMoved, remainingDemands, attemptedMove);
+    }
+
+    private int findBestSourceContainerSlotId(ShulkerBoxScreenHandler handler,
+                                               List<Integer> sourceSlotIds,
+                                               List<MissingDemand> demands) {
+        int bestSlotId = -1;
+        SourceStackScore bestScore = null;
+
+        for (int slotId : sourceSlotIds) {
+            Slot slot = handler.getSlot(slotId);
+            MissingDemand demand = slot.hasStack() ? findDemandForStack(demands, slot.getStack()) : null;
+            if (demand == null
+                    || QuickContainerLock.isLockedSlot(handler, slot)
+                    || !slot.canTakeItems(MinecraftClient.getInstance().player)
+                    || !canStoreAnyStackInPlayerStorage(handler, slot.getStack())) {
+                continue;
+            }
+
+            int usefulCount = Math.min(slot.getStack().getCount(), demand.count());
+            int excessCount = Math.max(0, slot.getStack().getCount() - demand.count());
+            SourceStackScore score = new SourceStackScore(
+                    hasMatchingPlayerStorageCapacity(handler, slot.getStack()),
+                    excessCount,
+                    usefulCount
+            );
+            if (bestScore == null || score.isBetterThan(bestScore)) {
+                bestSlotId = slotId;
+                bestScore = score;
+            }
+        }
+
+        return bestSlotId;
+    }
+
+    private boolean hasMatchingPlayerStorageCapacity(ScreenHandler handler, ItemStack stack) {
+        for (int slotId : getPlayerStorageSlotIds(handler)) {
+            Slot slot = handler.getSlot(slotId);
+            if (!slot.hasStack() || !ItemStack.areItemsAndComponentsEqual(slot.getStack(), stack)) {
+                continue;
+            }
+
+            int maxCount = Math.min(slot.getStack().getMaxCount(), slot.getMaxItemCount(stack));
+            if (slot.getStack().getCount() < maxCount) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private MissingDemand findDemandForStack(List<MissingDemand> demands, ItemStack stack) {
@@ -1915,15 +1996,6 @@ public final class QuickContainerCopy implements ClientModInitializer {
                                                                       List<Integer> containerSlotIds,
                                                                       List<MissingDemand> demands,
                                                                       MinecraftClient client) {
-        if (countEmptyPlayerStorageSlots(handler) > 0) {
-            if (continuousTask == null || continuousTask.batchFreeSlotsTarget == -1) {
-                return PrepareBatchResult.READY;
-            }
-            if (countEmptyPlayerStorageSlots(handler) >= continuousTask.batchFreeSlotsTarget) {
-                return PrepareBatchResult.READY;
-            }
-        }
-
         if (continuousTask != null && continuousTask.batchFreeSlotsTarget == -1) {
             int limit = QuickCraftConfigs.getContainerFillFreeSlotsLimit();
             continuousTask.batchFreeSlotsTarget = limit == 0 ? 36 : limit;
@@ -1932,6 +2004,9 @@ public final class QuickContainerCopy implements ClientModInitializer {
         int targetFreeSlots = continuousTask != null
                 ? continuousTask.batchFreeSlotsTarget
                 : Math.max(1, QuickCraftConfigs.getContainerFillFreeSlotsLimit());
+        if (countEmptyPlayerStorageSlots(handler) >= targetFreeSlots) {
+            return PrepareBatchResult.READY;
+        }
 
         PrepareBatchResult freeResult = freePlayerStorageSlotsIntoQuickShulkers(handler, demands, targetFreeSlots, client);
         if (freeResult == PrepareBatchResult.WAIT) {
@@ -1985,6 +2060,11 @@ public final class QuickContainerCopy implements ClientModInitializer {
 
     private int findFreeablePlayerStorageSlotId(ScreenHandler handler, List<MissingDemand> demands) {
         boolean keptFireworkRocketStack = false;
+        int bestSlotId = -1;
+        int bestDestinationCount = Integer.MAX_VALUE;
+        int bestDestinationCapacity = -1;
+        int bestStackCount = Integer.MAX_VALUE;
+
         for (int slotId : getPlayerStorageSlotIds(handler)) {
             Slot slot = handler.getSlot(slotId);
             if (!slot.hasStack()) {
@@ -1997,30 +2077,26 @@ public final class QuickContainerCopy implements ClientModInitializer {
                 continue;
             }
             if (!canUsePlayerStackToFreeQuickShulkerSpace(stack)
-                    || isTemplateRelatedStack(stack)
                     || findDemandForStack(demands, stack) != null
                     || !canStoreStackInQuickShulkers(handler, stack)) {
                 continue;
             }
 
-            return slotId;
-        }
-
-        return -1;
-    }
-
-    private boolean isTemplateRelatedStack(ItemStack stack) {
-        if (recordedTemplate == null || stack.isEmpty()) {
-            return false;
-        }
-
-        for (ItemStack template : recordedTemplate.slotTemplates) {
-            if (!template.isEmpty() && ItemStack.areItemsAndComponentsEqual(stack, template)) {
-                return true;
+            int destinationCount = getQuickShulkerDestinationCount(handler, stack, -1);
+            int destinationCapacity = getLargestQuickShulkerCapacity(handler, stack, -1);
+            if (destinationCount < bestDestinationCount
+                    || destinationCount == bestDestinationCount && destinationCapacity > bestDestinationCapacity
+                    || destinationCount == bestDestinationCount
+                    && destinationCapacity == bestDestinationCapacity
+                    && stack.getCount() < bestStackCount) {
+                bestSlotId = slotId;
+                bestDestinationCount = destinationCount;
+                bestDestinationCapacity = destinationCapacity;
+                bestStackCount = stack.getCount();
             }
         }
 
-        return false;
+        return bestSlotId;
     }
 
     private boolean stashOnePlayerStackInEmptyContainerSlot(ScreenHandler handler,
@@ -2102,7 +2178,7 @@ public final class QuickContainerCopy implements ClientModInitializer {
                 }
                 continue;
             }
-            if (canUsePlayerStackToFreeQuickShulkerSpace(stack) && !isTemplateRelatedStack(stack)) {
+            if (canUsePlayerStackToFreeQuickShulkerSpace(stack)) {
                 return slotId;
             }
         }
@@ -2366,6 +2442,8 @@ public final class QuickContainerCopy implements ClientModInitializer {
             return -1;
         }
 
+        int bestSlotId = -1;
+        int bestCapacity = 0;
         for (int slotId : getPlayerStorageSlotIds(handler)) {
             if (slotId == excludedSlotId) {
                 continue;
@@ -2376,12 +2454,60 @@ public final class QuickContainerCopy implements ClientModInitializer {
                 continue;
             }
 
-            if (getShulkerCapacityFor(slot.getStack(), insertStack) > 0) {
-                return slotId;
+            int capacity = getShulkerCapacityFor(slot.getStack(), insertStack);
+            if (capacity > bestCapacity) {
+                bestSlotId = slotId;
+                bestCapacity = capacity;
             }
         }
 
-        return -1;
+        return bestSlotId;
+    }
+
+    private int getLargestQuickShulkerCapacity(ScreenHandler handler, ItemStack insertStack, int excludedSlotId) {
+        int largestCapacity = 0;
+        for (int slotId : getPlayerStorageSlotIds(handler)) {
+            if (slotId == excludedSlotId) {
+                continue;
+            }
+
+            Slot slot = handler.getSlot(slotId);
+            if (!slot.hasStack() || slot.getStack().getCount() != 1 || !isShulkerBox(slot.getStack())) {
+                continue;
+            }
+
+            largestCapacity = Math.max(largestCapacity, getShulkerCapacityFor(slot.getStack(), insertStack));
+        }
+        return largestCapacity;
+    }
+
+    private int getQuickShulkerDestinationCount(ScreenHandler handler, ItemStack insertStack, int excludedSlotId) {
+        List<Integer> capacities = new ArrayList<>();
+        for (int slotId : getPlayerStorageSlotIds(handler)) {
+            if (slotId == excludedSlotId) {
+                continue;
+            }
+
+            Slot slot = handler.getSlot(slotId);
+            if (!slot.hasStack() || slot.getStack().getCount() != 1 || !isShulkerBox(slot.getStack())) {
+                continue;
+            }
+
+            int capacity = getShulkerCapacityFor(slot.getStack(), insertStack);
+            if (capacity > 0) {
+                capacities.add(capacity);
+            }
+        }
+
+        capacities.sort(Comparator.reverseOrder());
+        int remaining = insertStack.getCount();
+        for (int i = 0; i < capacities.size(); i++) {
+            remaining -= capacities.get(i);
+            if (remaining <= 0) {
+                return i + 1;
+            }
+        }
+        return Integer.MAX_VALUE;
     }
 
     private int getShulkerCapacityFor(ItemStack shulker, ItemStack insertStack) {
@@ -2742,6 +2868,26 @@ public final class QuickContainerCopy implements ClientModInitializer {
     }
 
     private record SourceShulker(int slotId, int playerIndex) {
+    }
+
+    private record SourceShulkerScore(long coverageScore, int usefulItemCount, int coveredDemandCount) {
+        private boolean isBetterThan(SourceShulkerScore other) {
+            return coverageScore > other.coverageScore
+                    || coverageScore == other.coverageScore && usefulItemCount > other.usefulItemCount
+                    || coverageScore == other.coverageScore
+                    && usefulItemCount == other.usefulItemCount
+                    && coveredDemandCount > other.coveredDemandCount;
+        }
+    }
+
+    private record SourceStackScore(boolean canMerge, int excessCount, int usefulCount) {
+        private boolean isBetterThan(SourceStackScore other) {
+            return canMerge && !other.canMerge
+                    || canMerge == other.canMerge && excessCount < other.excessCount
+                    || canMerge == other.canMerge
+                    && excessCount == other.excessCount
+                    && usefulCount > other.usefulCount;
+        }
     }
 
     private record MissingDemand(ItemStack template, int count) {
