@@ -1,7 +1,6 @@
 package com.yiyihehe.quickcraft.mixin;
 
 import com.yiyihehe.quickcraft.QuickContainerLock;
-import com.yiyihehe.quickcraft.QuickCraftKeyBindings;
 import net.minecraft.client.gui.Click;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.gui.screen.ingame.HandledScreen;
@@ -9,12 +8,11 @@ import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
-import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 import org.lwjgl.glfw.GLFW;
 
 /**
  * 通用槽位锁覆盖层。
- * 这里只负责显示和槽位点击，右上角按钮由各自界面 mixin 负责。
+ * 这里只负责显示锁标记和记录 QuickShulker 的右键来源槽位，槽位锁切换由 malilib 热键回调负责。
  * 1.21.6+ 的 RecipeBookScreen 绕过 render 并直接调用 renderMain，注入后者才能覆盖生存背包等配方书界面。
  * 优先于 QuickShulker 的 mouseClicked 取消回调记录潜影盒来源槽位，否则快捷打开后无法绑定锁状态。
  */
@@ -28,12 +26,12 @@ public abstract class QuickContainerLockScreenMixin {
         QuickContainerLock.renderSlotLocks(screen, context, accessor.quickcraft$getGuiLeft(), accessor.quickcraft$getGuiTop());
     }
 
-    @Inject(method = "mouseClicked", at = @At("HEAD"), cancellable = true)
-    private void quickcraft$handleSlotLockClick(Click click, boolean doubled, CallbackInfoReturnable<Boolean> cir) {
+    @Inject(method = "mouseClicked", at = @At("HEAD"))
+    private void quickcraft$prepareQuickShulkerOpen(Click click, boolean doubled, CallbackInfo ci) {
         HandledScreen<?> screen = (HandledScreen<?>) (Object) this;
         HandledScreenAccessor accessor = (HandledScreenAccessor) this;
         QuickContainerLock.bindCurrentScreen(screen);
-        if (click.button() == GLFW.GLFW_MOUSE_BUTTON_RIGHT && !QuickCraftKeyBindings.isAltDown()) {
+        if (click.button() == GLFW.GLFW_MOUSE_BUTTON_RIGHT) {
             QuickContainerLock.prepareQuickShulkerOpen(
                     screen,
                     click.x(),
@@ -41,18 +39,6 @@ public abstract class QuickContainerLockScreenMixin {
                     accessor.quickcraft$getGuiLeft(),
                     accessor.quickcraft$getGuiTop()
             );
-        }
-        if (click.button() == GLFW.GLFW_MOUSE_BUTTON_RIGHT
-                && QuickCraftKeyBindings.isAltDown()
-                && QuickContainerLock.handleSlotLockHotkey(
-                        screen,
-                        click.x(),
-                        click.y(),
-                        accessor.quickcraft$getGuiLeft(),
-                        accessor.quickcraft$getGuiTop()
-                )) {
-            cir.setReturnValue(true);
-            return;
         }
     }
 
