@@ -19,14 +19,6 @@ public final class QuickContainerLockButton extends QuickCompactIconButton {
     }
 
     @Override
-    protected int getSurfaceColor(boolean hovered) {
-        if (this.locked.getAsBoolean()) {
-            return hovered ? 0xE0786740 : 0xC05C4C30;
-        }
-        return super.getSurfaceColor(hovered);
-    }
-
-    @Override
     protected void drawIcon(DrawContext context, int x, int y, boolean hovered) {
         Identifier icon = this.locked.getAsBoolean() ? LOCK_ICON : UNLOCK_ICON;
         context.drawTexture(RenderPipelines.GUI_TEXTURED, icon, x, y, 0.0F, 0.0F, 10, 10, 10, 10, 10, 10);

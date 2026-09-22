@@ -3,6 +3,7 @@ package com.yiyihehe.quickcraft.mixin;
 import com.yiyihehe.quickcraft.QuickCraftKeyBindings;
 import com.yiyihehe.quickcraft.QuickContainerLock;
 import com.yiyihehe.quickcraft.config.QuickCraftConfigs;
+import com.yiyihehe.quickcraft.crafting.QuickCraftActionButton;
 import com.yiyihehe.quickcraft.crafting.QuickCraftBackpack;
 import com.yiyihehe.quickcraft.crafting.QuickCraftStonecutter;
 import com.yiyihehe.quickcraft.crafting.QuickCraftWorkbenchRouter;
@@ -25,13 +26,13 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 /**
- * 给工作台界面补一个 Q 小按钮。
+ * 给工作台界面补一个快速合成小按钮。
  * 按钮点击后走 QuickCraftWorkbench 的快速合成逻辑。
  */
 @Mixin(CraftingScreen.class)
 public abstract class CraftActionButtonMixin extends HandledScreen<CraftingScreenHandler> {
     @Unique
-    private QuickDraggableButton quickcraft$craftButton;
+    private QuickCraftActionButton quickcraft$craftButton;
 
     protected CraftActionButtonMixin(CraftingScreenHandler handler, PlayerInventory inventory, Text title) {
         super(handler, inventory, title);
@@ -47,10 +48,11 @@ public abstract class CraftActionButtonMixin extends HandledScreen<CraftingScree
         // 按钮放到产物槽右下外侧，尽量不遮挡产物图标。
         int buttonX = this.x + this.getScreenHandler().getSlot(0).x + 13;
         int buttonY = this.y + this.getScreenHandler().getSlot(0).y + 13;
-        this.quickcraft$craftButton = this.addDrawableChild(new QuickDraggableButton(
-                buttonX, buttonY, 10, 10, Text.literal("Q"),
+        this.quickcraft$craftButton = this.addDrawableChild(new QuickCraftActionButton(
+                buttonX, buttonY,
                 button -> QuickCraftWorkbenchRouter.handleCraftButton(QuickCraftKeyBindings.isAltDown()),
-                QuickDraggableButton.PositionKey.WORKBENCH_CRAFT
+                QuickDraggableButton.PositionKey.WORKBENCH_CRAFT,
+                Text.translatable("quickcraft.button.craft_action")
         ));
     }
 
@@ -77,13 +79,13 @@ public abstract class CraftActionButtonMixin extends HandledScreen<CraftingScree
 }
 
 /**
- * 给玩家背包 2x2 合成界面补一个 Q 小按钮。
+ * 给玩家背包 2x2 合成界面补一个快速合成小按钮。
  * 按钮点击后走 QuickCraftBackpack 的快速合成逻辑。
  */
 @Mixin(InventoryScreen.class)
 abstract class CraftActionButtonBackpackMixin extends HandledScreen<PlayerScreenHandler> {
     @Unique
-    private QuickDraggableButton quickcraft$craftButton;
+    private QuickCraftActionButton quickcraft$craftButton;
 
     @Unique
     private QuickContainerLockButton quickcraft$lockButton;
@@ -102,10 +104,11 @@ abstract class CraftActionButtonBackpackMixin extends HandledScreen<PlayerScreen
         // 按钮放到产物槽右下外侧，尽量不遮挡产物图标。
         int buttonX = this.x + this.getScreenHandler().getSlot(0).x + 13;
         int buttonY = this.y + this.getScreenHandler().getSlot(0).y + 13;
-        this.quickcraft$craftButton = this.addDrawableChild(new QuickDraggableButton(
-                buttonX, buttonY, 10, 10, Text.literal("Q"),
+        this.quickcraft$craftButton = this.addDrawableChild(new QuickCraftActionButton(
+                buttonX, buttonY,
                 button -> QuickCraftBackpack.handleBackpackCraftButton(QuickCraftKeyBindings.isAltDown()),
-                QuickDraggableButton.PositionKey.BACKPACK_CRAFT
+                QuickDraggableButton.PositionKey.BACKPACK_CRAFT,
+                Text.translatable("quickcraft.button.craft_action")
         ));
     }
 
@@ -165,13 +168,13 @@ abstract class CraftActionButtonBackpackMixin extends HandledScreen<PlayerScreen
 }
 
 /**
- * 给切石机界面补一个 Q 小按钮。
+ * 给切石机界面补一个快速合成小按钮。
  * 按钮点击后走 QuickCraftStonecutter 的快速切石逻辑。
  */
 @Mixin(StonecutterScreen.class)
 abstract class CraftActionButtonStonecutterMixin extends HandledScreen<StonecutterScreenHandler> {
     @Unique
-    private QuickDraggableButton quickcraft$craftButton;
+    private QuickCraftActionButton quickcraft$craftButton;
 
     protected CraftActionButtonStonecutterMixin(StonecutterScreenHandler handler, PlayerInventory inventory, Text title) {
         super(handler, inventory, title);
@@ -196,10 +199,11 @@ abstract class CraftActionButtonStonecutterMixin extends HandledScreen<Stonecutt
         // 按钮放到产物槽右下外侧，尽量不遮挡产物图标。
         int buttonX = this.x + this.getScreenHandler().getSlot(1).x + 13;
         int buttonY = this.y + this.getScreenHandler().getSlot(1).y + 13;
-        this.quickcraft$craftButton = this.addDrawableChild(new QuickDraggableButton(
-                buttonX, buttonY, 10, 10, Text.literal("Q"),
+        this.quickcraft$craftButton = this.addDrawableChild(new QuickCraftActionButton(
+                buttonX, buttonY,
                 button -> QuickCraftStonecutter.handleStonecutterCraftButton(QuickCraftKeyBindings.isAltDown()),
-                QuickDraggableButton.PositionKey.STONECUTTER_CRAFT
+                QuickDraggableButton.PositionKey.STONECUTTER_CRAFT,
+                Text.translatable("quickcraft.button.craft_action")
         ));
         this.quickcraft$syncCraftButtonPosition();
     }
