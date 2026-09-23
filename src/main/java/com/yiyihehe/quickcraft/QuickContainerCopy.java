@@ -3,6 +3,7 @@ package com.yiyihehe.quickcraft;
 import com.yiyihehe.quickcraft.config.QuickCraftConfigs;
 import com.yiyihehe.quickcraft.litematica.QuickLitematicaContainerAutofill;
 import com.yiyihehe.quickcraft.litematica.QuickLitematicaContainerVerifier;
+import com.yiyihehe.quickcraft.render.QuickContainerFillStatus;
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
@@ -73,7 +74,7 @@ public final class QuickContainerCopy implements ClientModInitializer {
     private static final int OPEN_TIMEOUT_TICKS = 20;
     private static final int BACKGROUND_ACTION_TIMEOUT_TICKS = 40;
     private static final int CONTINUOUS_REOPEN_DELAY_TICKS = 1;
-    private static final int CONTINUOUS_FILL_LONG_PRESS_TICKS = 4;
+    private static final int CONTINUOUS_FILL_SHORT_PRESS_TICKS = 4;
     private static final int VANILLA_SHULKER_SLOTS = 27;
     private static final Identifier QUICK_SHULKER_BUNDLE_PACKET = Identifier.of("quickshulker", "quick_bundleheld_packet");
     private static final Identifier QUICK_SHULKER_OPEN_PACKET = Identifier.of("quickshulker", "open_shulker_packet");
@@ -84,6 +85,7 @@ public final class QuickContainerCopy implements ClientModInitializer {
     private static int pendingTicks;
     private static PendingAction pendingAction = PendingAction.NONE;
     private static SupportedContainerType pendingContainerType;
+    private static HitResult pendingFillTarget;
     private static RecordedContainerTemplate recordedTemplate;
     private static boolean allowQuickShulkerSources;
     private static ContinuousFillTask continuousTask;
@@ -93,6 +95,7 @@ public final class QuickContainerCopy implements ClientModInitializer {
     @Override
     public void onInitializeClient() {
         ClientTickEvents.END_CLIENT_TICK.register(this::onClientTick);
+        QuickContainerFillStatus.initialize();
     }
 
     public static boolean handleRecordHotkey(MinecraftClient client) {
@@ -118,6 +121,8 @@ public final class QuickContainerCopy implements ClientModInitializer {
 
         pendingAction = PendingAction.RECORD;
         pendingContainerType = type;
+        QuickContainerFillStatus.stop(client, pendingFillTarget, false);
+        pendingFillTarget = null;
         pendingTicks = 0;
         if (hitResult instanceof BlockHitResult blockHitResult) {
             client.interactionManager.interactBlock(client.player, Hand.MAIN_HAND, blockHitResult);
@@ -138,7 +143,8 @@ public final class QuickContainerCopy implements ClientModInitializer {
     public static void applyTemplateSnapshot(MinecraftClient client,
                                              ScreenHandler handler,
                                              TemplateSnapshot snapshot,
-                                             boolean useQuickShulkerSources) {
+                                             boolean useQuickShulkerSources,
+                                             HitResult target) {
         SupportedContainerType type = SupportedContainerType.fromPublicType(snapshot.type());
         if (type == null || !isSupportedHandlerForType(handler, type)) {
             sendStatusMessage(client, Text.translatable("quickcraft.message.container_copy.projection_type_mismatch"));
@@ -155,12 +161,17 @@ public final class QuickContainerCopy implements ClientModInitializer {
         allowQuickShulkerSources = useQuickShulkerSources;
 
         try {
-            new QuickContainerCopy().applyTemplate(
+            QuickContainerCopy copy = new QuickContainerCopy();
+            FillResult result = copy.applyTemplate(
                     client,
                     handler,
                     SuccessMessage.of("quickcraft.message.container_copy.projection_filled", type.displayName()),
                     true
             );
+            QuickContainerFillStatus.finish(client, target, result.issueCount());
+            if (result.isComplete()) {
+                suppressContinuousFillAfterSingleAction(client, target, type);
+            }
         } finally {
             recordedTemplate = previousTemplate;
             allowQuickShulkerSources = previousQuickShulkerSources;
@@ -175,6 +186,8 @@ public final class QuickContainerCopy implements ClientModInitializer {
             continuousFillHoldTicks = 0;
             pendingAction = PendingAction.NONE;
             pendingContainerType = null;
+            QuickContainerFillStatus.stop(client, pendingFillTarget, true);
+            pendingFillTarget = null;
             pendingTicks = 0;
             stopContinuousTask(client, false, null);
             return;
@@ -198,7 +211,8 @@ public final class QuickContainerCopy implements ClientModInitializer {
         if (!fillDown) {
             if (lastContinuousFillDown) {
                 if (continuousTask == null
-                        && continuousFillHoldTicks < CONTINUOUS_FILL_LONG_PRESS_TICKS
+                        && suppressedContinuousTarget == null
+                        && continuousFillHoldTicks < CONTINUOUS_FILL_SHORT_PRESS_TICKS
                         && canHandleContinuousContainerFillHotkey(client)) {
                     sendStatusMessage(
                             client,
@@ -214,14 +228,17 @@ public final class QuickContainerCopy implements ClientModInitializer {
             return;
         }
 
-        if (continuousTask == null
-                && ++continuousFillHoldTicks >= CONTINUOUS_FILL_LONG_PRESS_TICKS) {
+        continuousFillHoldTicks++;
+        if (continuousTask == null) {
             tryStartContinuousTask(client);
         }
         lastContinuousFillDown = true;
     }
 
     private void tryStartContinuousTask(MinecraftClient client) {
+        if (pendingAction == PendingAction.RECORD) {
+            return;
+        }
         if (client == null
                 || client.player == null
                 || client.world == null
@@ -239,7 +256,7 @@ public final class QuickContainerCopy implements ClientModInitializer {
         if (type == null) {
             return;
         }
-        if (suppressedContinuousTarget != null && targetMatches(suppressedContinuousTarget, hitResult, type)) {
+        if (suppressedContinuousTarget != null && targetMatches(client, suppressedContinuousTarget, hitResult, type)) {
             return;
         }
 
@@ -251,11 +268,15 @@ public final class QuickContainerCopy implements ClientModInitializer {
             return;
         }
 
+        QuickLitematicaContainerAutofill.cancelPendingForContinuousFill(client);
         pendingAction = PendingAction.NONE;
         pendingContainerType = null;
+        QuickContainerFillStatus.stop(client, pendingFillTarget, false);
+        pendingFillTarget = null;
         pendingTicks = 0;
         suppressedContinuousTarget = null;
         continuousTask = new ContinuousFillTask(new TargetInteraction(hitResult, type), template);
+        QuickContainerFillStatus.begin(client, hitResult);
         sendStatusMessage(client, Text.translatable("quickcraft.message.container_copy.background_start", type.displayName()));
     }
 
@@ -430,8 +451,10 @@ public final class QuickContainerCopy implements ClientModInitializer {
             recordedTemplate = previousTemplate;
             allowQuickShulkerSources = previousQuickShulkerSources;
         }
+        QuickContainerFillStatus.progress(client, continuousTask.target.hitResult(), result.issueCount());
 
         if (result.isComplete()) {
+            QuickContainerFillStatus.finish(client, continuousTask.target.hitResult(), 0);
             if (continuousTask.temporaryStash != null
                     && !restoreTemporaryContainerStash(handler, containerSlotIds, client)) {
                 stopContinuousTask(client, true, Text.translatable("quickcraft.message.container_copy.filled_but_stash_restore_failed"));
@@ -444,6 +467,7 @@ public final class QuickContainerCopy implements ClientModInitializer {
         if (!continuousTask.template.useQuickShulker()
                 || result.missingDemands().isEmpty()
                 || !canUseQuickShulkerOpenPacket()) {
+            QuickContainerFillStatus.finish(client, continuousTask.target.hitResult(), result.issueCount());
             stopContinuousTask(client, true, result.message(continuousTask.template.successMessage()));
             return;
         }
@@ -471,6 +495,7 @@ public final class QuickContainerCopy implements ClientModInitializer {
 
         SourceShulker source = findSourceShulkerForDemandsExcept(handler, result.missingDemands(), -1);
         if (source == null) {
+            QuickContainerFillStatus.finish(client, continuousTask.target.hitResult(), result.issueCount());
             stopContinuousTask(client, true, result.message(continuousTask.template.successMessage()));
             return;
         }
@@ -629,7 +654,12 @@ public final class QuickContainerCopy implements ClientModInitializer {
         if (continuousTask == null) {
             return;
         }
+        QuickContainerFillStatus.stop(client, continuousTask.target.hitResult(), message != null);
         suppressedContinuousTarget = lastContinuousFillDown ? continuousTask.target : null;
+        if (lastContinuousFillDown) {
+            // 本 tick 结束后台任务后仍会进入普通右键处理；消费同一次按住，避免重复打开已填完的容器。
+            lastUseDown = true;
+        }
         continuousTask.batchFreeSlotsTarget = -1;
         continuousTask = null;
         allowQuickShulkerSources = false;
@@ -687,22 +717,16 @@ public final class QuickContainerCopy implements ClientModInitializer {
         return handler;
     }
 
-    private boolean targetMatches(TargetInteraction target, HitResult hitResult, SupportedContainerType type) {
-        if (target.type() != type) {
-            return false;
-        }
-        if (target.hitResult() instanceof BlockHitResult targetBlock
-                && hitResult instanceof BlockHitResult currentBlock) {
-            return targetBlock.getBlockPos().equals(currentBlock.getBlockPos());
-        }
-        if (target.hitResult() instanceof EntityHitResult targetEntity
-                && hitResult instanceof EntityHitResult currentEntity) {
-            return targetEntity.getEntity().getId() == currentEntity.getEntity().getId();
-        }
-        return false;
+    private boolean targetMatches(MinecraftClient client, TargetInteraction target, HitResult hitResult, SupportedContainerType type) {
+        return target.type() == type
+                && QuickContainerFillStatus.sameTarget(client, target.hitResult(), hitResult);
     }
 
     private void handleUseAttempt(MinecraftClient client) {
+        if (suppressedContinuousTarget != null && lastContinuousFillDown) {
+            lastUseDown = QuickCraftKeyBindings.isVanillaKeyDown(client, client.options.useKey);
+            return;
+        }
         if (pendingAction != PendingAction.NONE
                 || !QuickCraftConfigs.isQuickContainerCopyEnabled()
                 || recordedTemplate == null
@@ -725,7 +749,9 @@ public final class QuickContainerCopy implements ClientModInitializer {
             if (type == recordedTemplate.type) {
                 pendingAction = PendingAction.APPLY;
                 pendingContainerType = type;
+                pendingFillTarget = client.crosshairTarget;
                 pendingTicks = 0;
+                QuickContainerFillStatus.begin(client, pendingFillTarget);
             }
         }
 
@@ -740,8 +766,10 @@ public final class QuickContainerCopy implements ClientModInitializer {
         pendingTicks++;
         if (!(client.currentScreen instanceof HandledScreen<?> screen)) {
             if (pendingTicks > OPEN_TIMEOUT_TICKS) {
+                QuickContainerFillStatus.stop(client, pendingFillTarget, true);
                 pendingAction = PendingAction.NONE;
                 pendingContainerType = null;
+                pendingFillTarget = null;
                 pendingTicks = 0;
             }
             return;
@@ -750,15 +778,19 @@ public final class QuickContainerCopy implements ClientModInitializer {
         ScreenHandler handler = screen.getScreenHandler();
         SupportedContainerType type = pendingContainerType;
         if (type == null || !isSupportedHandlerForType(handler, type)) {
+            QuickContainerFillStatus.stop(client, pendingFillTarget, true);
             pendingAction = PendingAction.NONE;
             pendingContainerType = null;
+            pendingFillTarget = null;
             pendingTicks = 0;
             return;
         }
 
         PendingAction action = pendingAction;
+        HitResult fillTarget = pendingFillTarget;
         pendingAction = PendingAction.NONE;
         pendingContainerType = null;
+        pendingFillTarget = null;
         pendingTicks = 0;
 
         if (action == PendingAction.RECORD) {
@@ -768,6 +800,7 @@ public final class QuickContainerCopy implements ClientModInitializer {
         }
 
         if (recordedTemplate == null || recordedTemplate.type != type) {
+            QuickContainerFillStatus.stop(client, fillTarget, true);
             sendStatusMessage(client, Text.translatable("quickcraft.message.container_copy.no_record_for_type", type.displayName()));
             closeCurrentScreen(client);
             return;
@@ -775,16 +808,36 @@ public final class QuickContainerCopy implements ClientModInitializer {
 
         allowQuickShulkerSources = shouldUseQuickShulker();
         try {
-            applyTemplate(
+            FillResult result = applyTemplate(
                     client,
                     handler,
                     SuccessMessage.of("quickcraft.message.container_copy.copied", recordedTemplate.type.displayName()),
                     true
             );
+            QuickContainerFillStatus.finish(client, fillTarget, result.issueCount());
+            if (result.isComplete()) {
+                suppressContinuousFillAfterSingleAction(client, fillTarget, type);
+            }
         } finally {
             allowQuickShulkerSources = false;
         }
         closeCurrentScreen(client);
+    }
+
+    private static void suppressContinuousFillAfterSingleAction(
+            MinecraftClient client,
+            HitResult target,
+            SupportedContainerType type
+    ) {
+        boolean hotkeyHeld = QuickCraftKeyBindings.isHotkeyDown(
+                client,
+                QuickCraftConfigs.Hotkeys.CONTINUOUS_CONTAINER_FILL.getKeybind(),
+                client.options.useKey
+        );
+        if ((!lastContinuousFillDown && !hotkeyHeld) || continuousTask != null || target == null) {
+            return;
+        }
+        suppressedContinuousTarget = new TargetInteraction(target, type);
     }
 
     private void recordTemplate(MinecraftClient client, ScreenHandler handler, SupportedContainerType type) {
@@ -2912,6 +2965,10 @@ public final class QuickContainerCopy implements ClientModInitializer {
 
         private boolean isComplete() {
             return missingMessages.isEmpty() && blockedMessages.isEmpty();
+        }
+
+        private int issueCount() {
+            return missingMessages.size() + blockedMessages.size();
         }
 
         private Text message(SuccessMessage successMessage) {
