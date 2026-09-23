@@ -9,6 +9,7 @@ import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.gui.screen.ingame.CraftingScreen;
 import net.minecraft.client.network.ClientPlayNetworkHandler;
+import net.minecraft.entity.ItemEntity;
 import net.minecraft.entity.player.PlayerInventory;
 import net.minecraft.inventory.CraftingResultInventory;
 import net.minecraft.item.Item;
@@ -24,6 +25,7 @@ import net.minecraft.screen.slot.Slot;
 import net.minecraft.screen.slot.SlotActionType;
 import net.minecraft.stat.Stats;
 import net.minecraft.text.Text;
+import net.minecraft.util.math.Box;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -134,6 +136,9 @@ public final class QuickCraftWorkbenchShulkerCraft implements ClientModInitializ
 
         CraftingScreenHandler handler = (CraftingScreenHandler) client.player.currentScreenHandler;
         handleHotkey(client);
+        if (active && hasNearbyDroppedItems(client)) {
+            requestAckStopOrStop(client, Text.translatable("quickcraft.message.crafting.shulker_nearby_items"));
+        }
         if (active && startedByButton && !isButtonRapidModeHeld(client)) {
             requestAckStopOrStop(client);
             return;
@@ -280,6 +285,10 @@ public final class QuickCraftWorkbenchShulkerCraft implements ClientModInitializ
 
     private void driveAckPipeline(MinecraftClient client, CraftingScreenHandler handler) {
         if (!active || !isAckPipelineEnabled() || ackBatchAwaiting) {
+            return;
+        }
+        if (hasNearbyDroppedItems(client)) {
+            requestAckStopOrStop(client, Text.translatable("quickcraft.message.crafting.shulker_nearby_items"));
             return;
         }
         if (ackStopRequested || !isRapidInputHeld(client)) {
@@ -431,7 +440,7 @@ public final class QuickCraftWorkbenchShulkerCraft implements ClientModInitializ
         ackExpectedSlotIds = List.of();
         ackExpectedCursor = ItemStack.EMPTY;
         if (ackStopRequested || !isRapidInputHeld(client)) {
-            stop(client, Text.translatable("quickcraft.message.crafting.stopped"));
+            stop(client, getAckStopMessage());
             return;
         }
         QuickContainerLock.runWithPlayerSlotLocksBypassed(
@@ -1012,6 +1021,10 @@ public final class QuickCraftWorkbenchShulkerCraft implements ClientModInitializ
         boolean available = QuickCraftWorkbenchShulker.isAvailable();
         if (!workbenchOpen || !available) {
             sendMessage(client, Text.translatable("quickcraft.message.crafting.shulker_unavailable"));
+            return false;
+        }
+        if (hasNearbyDroppedItems(client)) {
+            sendMessage(client, Text.translatable("quickcraft.message.crafting.shulker_nearby_items"));
             return false;
         }
         CraftingScreenHandler handler = (CraftingScreenHandler) client.player.currentScreenHandler;
@@ -1855,6 +1868,20 @@ public final class QuickCraftWorkbenchShulkerCraft implements ClientModInitializ
         return client != null && client.player != null && client.world != null
                 && client.currentScreen instanceof CraftingScreen
                 && client.player.currentScreenHandler instanceof CraftingScreenHandler;
+    }
+
+    private boolean hasNearbyDroppedItems(MinecraftClient client) {
+        if (client == null || client.player == null || client.world == null) {
+            return true;
+        }
+        double x = client.player.getX();
+        double y = client.player.getY();
+        double z = client.player.getZ();
+        // 脚边水平两格、脚下到脚上一格；拾取延迟中的掉落物也必须先清走。
+        Box feetArea = new Box(x - 2.0, y - 1.0, z - 2.0,
+                x + 2.0, y + 1.0, z + 2.0);
+        return !client.world.getEntitiesByClass(ItemEntity.class, feetArea,
+                item -> item.isAlive() && !item.getStack().isEmpty()).isEmpty();
     }
 
     private void stopHelperSafely(MinecraftClient client) {
