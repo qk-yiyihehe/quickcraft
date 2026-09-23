@@ -17,6 +17,8 @@ public class QuickDraggableButton extends ButtonWidget {
         QUICK_STASH("quickStash"),
         QUICK_RETRIEVE("quickRetrieve"),
         WORKBENCH_CRAFT("workbenchCraft"),
+        WORKBENCH_MODE("workbenchMode"),
+        WORKBENCH_OUTPUT("workbenchOutput"),
         BACKPACK_CRAFT("backpackCraft"),
         STONECUTTER_CRAFT("stonecutterCraft");
 
