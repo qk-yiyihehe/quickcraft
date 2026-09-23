@@ -18,8 +18,10 @@ public abstract class QuickCompactIconButton extends QuickDraggableButton {
 
     @Override
     protected final void renderWidget(DrawContext context, int mouseX, int mouseY, float delta) {
-        boolean hovered = this.isMouseOver(mouseX, mouseY);
-        int textureV = this.isPositionDragging() ? SIZE * 2 : hovered ? SIZE : 0;
+        boolean hovered = this.active && this.isMouseOver(mouseX, mouseY);
+        boolean selected = this.isToggleSelected();
+        int textureV = this.isPositionDragging() || (hovered && selected)
+                ? SIZE * 2 : hovered || selected ? SIZE : 0;
         context.drawTexture(
                 BACKGROUND_TEXTURE,
                 this.getX(),
@@ -32,6 +34,10 @@ public abstract class QuickCompactIconButton extends QuickDraggableButton {
                 SIZE * 3
         );
         this.drawIcon(context, this.getX() + 2, this.getY() + 2, hovered);
+    }
+
+    protected boolean isToggleSelected() {
+        return false;
     }
 
     protected abstract void drawIcon(DrawContext context, int x, int y, boolean hovered);
