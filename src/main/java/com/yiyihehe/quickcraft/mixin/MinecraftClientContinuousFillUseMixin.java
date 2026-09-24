@@ -1,6 +1,7 @@
 package com.yiyihehe.quickcraft.mixin;
 
 import com.yiyihehe.quickcraft.QuickContainerCopy;
+import com.yiyihehe.quickcraft.QuickMaterialCollector;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
@@ -16,14 +17,17 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 public abstract class MinecraftClientContinuousFillUseMixin {
     @Inject(method = "setScreen", at = @At("HEAD"), cancellable = true)
     private void quickcraft$suppressBackgroundHandledScreen(Screen screen, CallbackInfo ci) {
-        if (screen instanceof AbstractContainerScreen<?> && QuickContainerCopy.shouldSuppressBackgroundHandledScreenOpen()) {
+        if (screen instanceof AbstractContainerScreen<?>
+                && (QuickContainerCopy.shouldSuppressBackgroundHandledScreenOpen()
+                || QuickMaterialCollector.shouldSuppressBackgroundHandledScreenOpen())) {
             ci.cancel();
         }
     }
 
     @Inject(method = "startUseItem", at = @At("HEAD"), cancellable = true)
     private void quickcraft$suppressContinuousFillUse(CallbackInfo ci) {
-        if (QuickContainerCopy.shouldSuppressContinuousFillUseInput()) {
+        if (QuickContainerCopy.shouldSuppressContinuousFillUseInput()
+                || QuickMaterialCollector.shouldSuppressUseInput()) {
             ci.cancel();
         }
     }
