@@ -74,6 +74,7 @@ final class QuickCraftRecipeBookCrafting {
     private RecipeDisplayId lockedRecipeId = null;
 
     private List<ItemStack> lockedCraftingPattern = new ArrayList<>();
+    private final List<ItemStack> knownRecipeRemainders = new ArrayList<>();
 
     private ItemStack lockedResultTemplate = ItemStack.EMPTY;
 
@@ -290,6 +291,10 @@ final class QuickCraftRecipeBookCrafting {
         }
 
         boolean success = runOneCraftSubLoop(client, handler, lockedRecipe);
+        if (success && QuickCraftConfigs.isDropCraftResultsOnStopEnabled()) {
+            QuickCraftRecipeBookInventory.dropMatchingUnlockedInventory(
+                    client, handler, layout, lockedResultTemplate, "单次合成结束丢出背包产物");
+        }
         if (!success) {
             sendStatusMessage(client, Component.translatable("quickcraft.message.crafting.no_ingredients"));
         }
@@ -318,6 +323,7 @@ final class QuickCraftRecipeBookCrafting {
     private boolean restockCraftingGrid(Minecraft client,
                                         AbstractContainerMenu handler,
                                         RecipeHolder<CraftingRecipe> recipe) {
+        dropKnownRecipeRemainders(client, handler);
         relocateMismatchedGridItems(client, handler);
         if (rapidCraftingActive) {
             return fillManualPatternStacks(client, handler);
@@ -340,6 +346,7 @@ final class QuickCraftRecipeBookCrafting {
             return false;
         }
 
+        dropKnownRecipeRemainders(client, handler);
         int relocated = relocateMismatchedGridItems(client, handler);
         if (getManualPatternState(handler) == ManualPatternState.INVALID) {
             relocated += relocateMismatchedGridItems(client, handler);
@@ -1520,6 +1527,7 @@ final class QuickCraftRecipeBookCrafting {
             boolean isIngredient = matchesLockedPatternIngredient(moving)
                     || matchesCurrentRecipeIngredient(moving);
             if (!isIngredient) {
+                rememberRecipeRemainder(moving);
                 LOGGER.info("手动补货整组丢出合成格返还物：界面={}，格={}，物品={}",
                         layout.name(), gridSlot, moving);
                 client.gameMode.handleContainerInput(
@@ -1618,6 +1626,48 @@ final class QuickCraftRecipeBookCrafting {
             }
         }
         return relocated;
+    }
+
+    private void rememberRecipeRemainder(ItemStack stack) {
+        if (stack == null || stack.isEmpty()) {
+            return;
+        }
+        for (ItemStack known : knownRecipeRemainders) {
+            if (ItemStack.isSameItemSameComponents(known, stack)) {
+                return;
+            }
+        }
+        ItemStack template = stack.copy();
+        template.setCount(1);
+        knownRecipeRemainders.add(template);
+    }
+
+    private int dropKnownRecipeRemainders(Minecraft client, AbstractContainerMenu handler) {
+        if (client == null || client.player == null || client.gameMode == null
+                || handler == null || !handler.getCarried().isEmpty()
+                || knownRecipeRemainders.isEmpty()) {
+            return 0;
+        }
+        int dropped = 0;
+        for (int invIndex = 0; invIndex < QuickCraftRecipeBookLayout.PLAYER_INVENTORY_SIZE; invIndex++) {
+            int handlerSlot = layout.handlerSlotForInventoryIndex(invIndex);
+            if (handlerSlot < 0 || QuickContainerLock.isLockedSlot(handler, handlerSlot)) {
+                continue;
+            }
+            ItemStack stack = handler.getSlot(handlerSlot).getItem();
+            if (stack.isEmpty() || !knownRecipeRemainders.stream()
+                    .anyMatch(known -> ItemStack.isSameItemSameComponents(known, stack))) {
+                continue;
+            }
+            ItemStack droppedStack = stack.copy();
+            client.gameMode.handleContainerInput(
+                    handler.containerId, handlerSlot, 1, ContainerInput.THROW, client.player);
+            dropped++;
+            recipeBookAckExecutor.recordRemainderThrow();
+            LOGGER.info("手动补货整组丢出背包返还物：界面={}，槽={}，物品={}",
+                    layout.name(), handlerSlot, droppedStack);
+        }
+        return dropped;
     }
 
     private ManualPatternState getManualPatternState(AbstractContainerMenu handler) {
@@ -1737,6 +1787,7 @@ final class QuickCraftRecipeBookCrafting {
     private void lockCurrentRecipe(Minecraft client,
                                    RecipeHolder<CraftingRecipe> recipe,
                                    AbstractContainerMenu handler) {
+        knownRecipeRemainders.clear();
         lockedRecipe = recipe;
         lockedCraftingPattern = snapshotCraftingGrid(handler);
         lockedResultTemplate = handler.getSlot(OUTPUT_SLOT).hasItem()
@@ -1796,11 +1847,13 @@ final class QuickCraftRecipeBookCrafting {
     }
 
     private boolean tryQuickMoveOutput(Minecraft client, AbstractContainerMenu handler) {
-        return QuickCraftRecipeBookInventory.moveOutputToUnlockedInventory(
-                client,
-                handler,
-                layout
-        );
+        if (QuickCraftRecipeBookInventory.canAcceptUnlocked(
+                handler, layout, handler.getSlot(OUTPUT_SLOT).getItem())
+                && QuickCraftRecipeBookInventory.moveOutputToUnlockedInventory(
+                client, handler, layout)) {
+            return true;
+        }
+        return throwCraftingOutput(client, handler);
     }
 
     private boolean tryTakeOutputForRecipe(Minecraft client,
@@ -1836,7 +1889,7 @@ final class QuickCraftRecipeBookCrafting {
         ItemStack before = handler.getSlot(OUTPUT_SLOT).getItem().copy();
         int returnSlot = findAcceptingPlayerInventoryHandlerSlot(handler, before);
         if (returnSlot == -1) {
-            return false;
+            return throwCraftingOutput(client, handler);
         }
 
         int beforeResultCount = countMatchingItems(client.player.getInventory(), before);
@@ -2113,6 +2166,13 @@ final class QuickCraftRecipeBookCrafting {
     }
 
     private void finishRapidCraft(Minecraft client, Component message) {
+        if (QuickCraftConfigs.isDropCraftResultsOnStopEnabled()
+                && client != null && client.player != null
+                && client.player.containerMenu != null) {
+            QuickCraftRecipeBookInventory.dropMatchingUnlockedInventory(
+                    client, client.player.containerMenu, layout,
+                    lockedResultTemplate, "连续合成结束丢出背包产物");
+        }
         rapidCraftingActive = false;
         rapidCraftStartedByButton = false;
         rapidCooldown = 0;
@@ -2142,6 +2202,7 @@ final class QuickCraftRecipeBookCrafting {
         lockedRecipeId = null;
         lockedCraftingPattern.clear();
         lockedResultTemplate = ItemStack.EMPTY;
+        knownRecipeRemainders.clear();
         if (hadCraftState) {
             clearRecipeGhosts.run();
         }

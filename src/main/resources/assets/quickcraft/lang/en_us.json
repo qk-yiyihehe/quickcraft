@@ -38,7 +38,7 @@
   "quickcraft.config.crafting.comment.showCraftActionButton": "§6Function: §rShows a small button at the lower-right of the workbench, 2x2 grid, and stonecutter output slot.\n§eClick: §rSame as single craft.\n§eRapid: §rHold §bAlt + Button§r to start rapid crafting.\n§7Note: §rReleasing Alt or the button stops it.",
   "quickcraft.config.crafting.prettyName.dropCraftResultsOnStop": "Drop Results On Stop",
   "quickcraft.config.crafting.name.dropCraftResultsOnStop": "Drop Results On Stop",
-  "quickcraft.config.crafting.comment.dropCraftResultsOnStop": "§6Function: §rWhen rapid crafting stops, immediately drops the current crafted result from the inventory.",
+  "quickcraft.config.crafting.comment.dropCraftResultsOnStop": "§6Function: §rWhen single or rapid crafting ends, immediately drops the current crafted result from the inventory.",
   "quickcraft.config.container_tools.prettyName.enableQuickTransfer": "Quick Transfer",
   "quickcraft.config.container_tools.name.enableQuickTransfer": "Quick Transfer",
   "quickcraft.config.container_tools.comment.enableQuickTransfer": "§6Function: §rEnables click and slide quick transfer.\n§eMatching Transfer: §rBy default, hold §bAlt + Left Click§r and click or slide over items to batch simulate Shift-transfer by item type.\n§eStack Transfer: §rBy default, hold §bShift + Left Click§r and click or slide over slots to run one Shift-transfer.\n§eNote: §rBoth bindings can be changed in the general hotkey settings.",
