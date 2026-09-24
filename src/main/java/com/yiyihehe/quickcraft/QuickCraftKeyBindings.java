@@ -3,7 +3,6 @@ package com.yiyihehe.quickcraft;
 import fi.dy.masa.malilib.hotkeys.IKeybind;
 import fi.dy.masa.malilib.hotkeys.KeybindMulti;
 import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.gui.screen.Screen;
 import net.minecraft.client.option.KeyBinding;
 import net.minecraft.client.util.InputUtil;
 import org.lwjgl.glfw.GLFW;
@@ -46,11 +45,13 @@ public final class QuickCraftKeyBindings {
     }
 
     public static boolean isShiftDown() {
-        return Screen.hasShiftDown();
+        MinecraftClient client = MinecraftClient.getInstance();
+        return client != null && client.isShiftPressed();
     }
 
     public static boolean isAltDown() {
-        return Screen.hasAltDown();
+        MinecraftClient client = MinecraftClient.getInstance();
+        return client != null && client.isAltPressed();
     }
 
     public static boolean isMouseButtonDown(MinecraftClient client, int button) {

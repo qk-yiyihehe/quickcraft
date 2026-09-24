@@ -3,14 +3,16 @@ package com.yiyihehe.quickcraft.render;
 import com.yiyihehe.quickcraft.config.QuickCraftConfigs;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.fabric.api.client.rendering.v1.HudRenderCallback;
-import net.fabricmc.fabric.api.client.rendering.v1.WorldRenderEvents;
 import net.minecraft.block.BlockState;
 import net.minecraft.block.ChestBlock;
 import net.minecraft.block.enums.ChestType;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.gui.DrawContext;
+import net.minecraft.client.render.Camera;
 import net.minecraft.client.render.RenderLayer;
 import net.minecraft.client.render.VertexRendering;
+import net.minecraft.client.render.VertexConsumerProvider;
+import net.minecraft.client.util.math.MatrixStack;
 import net.minecraft.client.world.ClientWorld;
 import net.minecraft.entity.Entity;
 import net.minecraft.text.Text;
@@ -39,7 +41,6 @@ public final class QuickContainerFillStatus {
 
     public static void initialize() {
         ClientTickEvents.END_CLIENT_TICK.register(QuickContainerFillStatus::onClientTick);
-        WorldRenderEvents.AFTER_ENTITIES.register(QuickContainerFillStatus::renderWorld);
         HudRenderCallback.EVENT.register((context, tickCounter) -> renderHud(context));
     }
 
@@ -124,17 +125,18 @@ public final class QuickContainerFillStatus {
                 && QuickCraftConfigs.areContainerFillStatusOutlinesVisible();
     }
 
-    private static void renderWorld(net.fabricmc.fabric.api.client.rendering.v1.WorldRenderContext context) {
-        MinecraftClient client = MinecraftClient.getInstance();
-        if (!isAvailable(client) || context.consumers() == null || MARKERS.isEmpty()) {
+    public static void renderWorld(MinecraftClient client, Camera camera) {
+        if (!isAvailable(client) || MARKERS.isEmpty()) {
             return;
         }
-        Vec3d camera = context.camera().getPos();
-        context.matrixStack().push();
-        context.matrixStack().translate(-camera.x, -camera.y, -camera.z);
+        Vec3d cameraPos = camera.getPos();
+        MatrixStack matrices = new MatrixStack();
+        VertexConsumerProvider.Immediate consumers = client.getBufferBuilders().getEntityVertexConsumers();
+        matrices.push();
+        matrices.translate(-cameraPos.x, -cameraPos.y, -cameraPos.z);
         for (Map.Entry<Target, Marker> entry : MARKERS.entrySet()) {
             Box box = entry.getKey().box(client.world);
-            if (box == null || box.getCenter().squaredDistanceTo(camera) > MAX_RENDER_DISTANCE_SQUARED) {
+            if (box == null || box.getCenter().squaredDistanceTo(cameraPos) > MAX_RENDER_DISTANCE_SQUARED) {
                 continue;
             }
             Status status = entry.getValue().status;
@@ -144,13 +146,14 @@ public final class QuickContainerFillStatus {
                     box.maxX + 0.01, box.maxY + 0.01, box.maxZ + 0.01
             );
             VertexRendering.drawBox(
-                    context.matrixStack(),
-                    context.consumers().getBuffer(RenderLayer.getLines()),
+                    matrices.peek(),
+                    consumers.getBuffer(RenderLayer.getLines()),
                     outline,
                     status.red, status.green, status.blue, 0.95F
             );
         }
-        context.matrixStack().pop();
+        matrices.pop();
+        consumers.draw(RenderLayer.getLines());
     }
 
     private static void renderHud(DrawContext context) {
