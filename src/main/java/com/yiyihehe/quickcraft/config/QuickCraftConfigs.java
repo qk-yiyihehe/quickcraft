@@ -113,7 +113,8 @@ public final class QuickCraftConfigs implements IConfigHandler {
     public enum ContainerToolMode implements IConfigOptionListEntry {
         QUICK_STASH("quick_stash", "quickcraft.label.container_tool_mode.quick_stash"),
         QUICK_COPY("quick_copy", "quickcraft.label.container_tool_mode.quick_copy"),
-        QUICK_CLEAR("quick_clear", "quickcraft.label.container_tool_mode.quick_clear");
+        QUICK_CLEAR("quick_clear", "quickcraft.label.container_tool_mode.quick_clear"),
+        QUICK_FILL("quick_fill", "quickcraft.label.container_tool_mode.quick_fill");
 
         private final String configValue;
         private final String translationKey;
@@ -1228,6 +1229,11 @@ public final class QuickCraftConfigs implements IConfigHandler {
     public static boolean isQuickContainerCopyEnabled() {
         return isContainerToolModeEnabled()
                 && ContainerTools.CONTAINER_TOOL_MODE.getOptionListValue() == ContainerToolMode.QUICK_COPY;
+    }
+
+    public static boolean isQuickFillContainerEnabled() {
+        return isContainerToolModeEnabled()
+                && ContainerTools.CONTAINER_TOOL_MODE.getOptionListValue() == ContainerToolMode.QUICK_FILL;
     }
 
     public static boolean isCreativePackingEnabled() {
