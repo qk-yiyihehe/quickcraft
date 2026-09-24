@@ -1339,8 +1339,8 @@ final class QuickCraftMouseCrafting {
                 continue;
             }
             ItemStack handlerStack = handler.getSlot(handlerSlot).getStack();
-            ItemStack inventoryStack = playerInventory != null && invIndex < playerInventory.main.size()
-                    ? playerInventory.main.get(invIndex)
+            ItemStack inventoryStack = playerInventory != null && invIndex < playerInventory.getMainStacks().size()
+                    ? playerInventory.getMainStacks().get(invIndex)
                     : ItemStack.EMPTY;
             boolean locked = QuickContainerLock.isLockedSlot(handler, handlerSlot);
             if (locked) {
@@ -1655,8 +1655,8 @@ final class QuickCraftMouseCrafting {
         if (!retainIngredientSamples()) {
             int bestSlot = -1;
             int bestCount = -1;
-            for (int inventoryIndex = 0; inventoryIndex < inventory.main.size(); inventoryIndex++) {
-                ItemStack stack = inventory.main.get(inventoryIndex);
+            for (int inventoryIndex = 0; inventoryIndex < inventory.getMainStacks().size(); inventoryIndex++) {
+                ItemStack stack = inventory.getMainStacks().get(inventoryIndex);
                 if (stack.isEmpty() || !ItemStack.areItemsAndComponentsEqual(stack, template)) {
                     continue;
                 }
@@ -2104,7 +2104,7 @@ final class QuickCraftMouseCrafting {
         }
 
         int total = 0;
-        for (ItemStack stack : inventory.main) {
+        for (ItemStack stack : inventory.getMainStacks()) {
             if (stack.isEmpty()) continue;
             if (ItemStack.areItemsAndComponentsEqual(stack, template)) {
                 total += stack.getCount();
