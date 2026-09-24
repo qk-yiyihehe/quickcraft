@@ -10,7 +10,7 @@ import net.minecraft.block.enums.ChestType;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.render.RenderLayer;
-import net.minecraft.client.render.WorldRenderer;
+import net.minecraft.client.render.VertexRendering;
 import net.minecraft.client.world.ClientWorld;
 import net.minecraft.entity.Entity;
 import net.minecraft.text.Text;
@@ -143,7 +143,7 @@ public final class QuickContainerFillStatus {
                     box.minX - 0.01, box.minY + 0.0125, box.minZ - 0.01,
                     box.maxX + 0.01, box.maxY + 0.01, box.maxZ + 0.01
             );
-            WorldRenderer.drawBox(
+            VertexRendering.drawBox(
                     context.matrixStack(),
                     context.consumers().getBuffer(RenderLayer.getLines()),
                     outline,
