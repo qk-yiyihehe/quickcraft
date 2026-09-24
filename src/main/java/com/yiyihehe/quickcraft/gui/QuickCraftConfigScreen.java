@@ -187,6 +187,7 @@ public class QuickCraftConfigScreen extends GuiConfigsBase {
         ),
         EASY_PLACE_VANILLA_INTERACTIONS(
                 QuickCraftConfigs.ProjectionTools.ALLOW_EASY_PLACE_VANILLA_INTERACTIONS,
+                QuickCraftConfigs.ProjectionTools.ALLOW_EASY_PLACE_ICE_OVER_SOURCE_WATER,
                 QuickCraftConfigs.ProjectionTools.ALLOW_EASY_PLACE_INTERACTION_SCREENS,
                 QuickCraftConfigs.ProjectionTools.ALLOW_EASY_PLACE_REDSTONE_INTERACTIONS,
                 QuickCraftConfigs.ProjectionTools.ALLOW_EASY_PLACE_FUNCTIONAL_BLOCK_INTERACTIONS,

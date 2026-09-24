@@ -9,16 +9,13 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
-/**
- * 灵魂出窍增强开启时，按潜行键让客户端按原版规则取消方块交互。
- * Tweakeroo 冻本体后 {@code isShiftKeyDown()} 不会跟随潜行键；若此处失效，对着箱子右键仍会开箱而不是放置。
- */
+/** 灵魂出窍增强时，潜行键应取消方块或实体的默认交互。 */
 @Mixin(Player.class)
 public abstract class QuickFreeCameraPlayerEntityMixin {
     @Inject(method = "isSecondaryUseActive", at = @At("HEAD"), cancellable = true)
-    private void quickcraft(CallbackInfoReturnable<Boolean> cir) {
+    private void quickcraft$cancelInteractionFromFreeCamera(CallbackInfoReturnable<Boolean> cir) {
         if ((Object) this instanceof LocalPlayer
-                && QuickFreeCameraInteractions.shouldSneakPlaceFromFreeCamera(Minecraft.getInstance())) {
+                && QuickFreeCameraInteractions.shouldCancelInteractionFromFreeCamera(Minecraft.getInstance())) {
             cir.setReturnValue(true);
         }
     }
