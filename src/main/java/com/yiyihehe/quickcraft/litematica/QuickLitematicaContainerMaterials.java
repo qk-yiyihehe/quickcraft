@@ -339,7 +339,7 @@ public final class QuickLitematicaContainerMaterials {
         }
 
         for (EntityInfo info : entities) {
-            if (info.nbt == null || !info.nbt.contains("Items", Constants.NBT.TAG_LIST)) {
+            if (info.nbt == null || !info.nbt.contains("Items")) {
                 continue;
             }
             if (renderLayers && !isWithinRenderLayer(placement, schematic, regionName, info.posVec)) {

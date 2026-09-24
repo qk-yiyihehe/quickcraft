@@ -269,7 +269,7 @@ public final class QuickLitematicaContainerVerifier {
             Inventory cachedInventory,
             Inventory expected
     ) {
-        if (cachedNbt.contains("Items", Constants.NBT.TAG_LIST) || !isInventoryEmpty(cachedInventory)) {
+        if (cachedNbt.contains("Items") || !isInventoryEmpty(cachedInventory)) {
             return true;
         }
 
