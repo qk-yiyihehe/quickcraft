@@ -4,6 +4,7 @@ import com.yiyihehe.quickcraft.config.QuickCraftConfigs;
 import com.yiyihehe.quickcraft.litematica.QuickLitematicaContainerAutofill;
 import com.yiyihehe.quickcraft.litematica.QuickLitematicaContainerVerifier;
 import com.yiyihehe.quickcraft.render.QuickContainerFillStatus;
+import com.yiyihehe.quickcraft.render.QuickContainerToolModeHud;
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
@@ -93,6 +94,7 @@ public final class QuickContainerCopy implements ClientModInitializer {
     public void onInitializeClient() {
         ClientTickEvents.END_CLIENT_TICK.register(this::onClientTick);
         QuickContainerFillStatus.initialize();
+        QuickContainerToolModeHud.initialize();
     }
 
     public static boolean handleRecordHotkey(Minecraft client) {
