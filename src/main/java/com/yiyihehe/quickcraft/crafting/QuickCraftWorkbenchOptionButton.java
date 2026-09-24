@@ -2,7 +2,7 @@ package com.yiyihehe.quickcraft.crafting;
 
 import com.yiyihehe.quickcraft.render.QuickCompactIconButton;
 import net.minecraft.client.gui.DrawContext;
-import net.minecraft.client.render.RenderLayer;
+import net.minecraft.client.gl.RenderPipelines;
 import net.minecraft.text.Text;
 import net.minecraft.util.Identifier;
 
@@ -33,6 +33,6 @@ public final class QuickCraftWorkbenchOptionButton extends QuickCompactIconButto
     @Override
     protected void drawIcon(DrawContext context, int x, int y, boolean hovered) {
         Identifier icon = this.iconState.getAsBoolean() ? this.onIcon : this.offIcon;
-        context.drawTexture(RenderLayer::getGuiTextured, icon, x, y, 0, 0, 10, 10, 10, 10);
+        context.drawTexture(RenderPipelines.GUI_TEXTURED, icon, x, y, 0, 0, 10, 10, 10, 10);
     }
 }

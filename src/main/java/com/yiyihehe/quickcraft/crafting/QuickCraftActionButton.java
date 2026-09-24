@@ -3,7 +3,7 @@ package com.yiyihehe.quickcraft.crafting;
 import com.yiyihehe.quickcraft.render.QuickDraggableButton;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.gui.tooltip.Tooltip;
-import net.minecraft.client.render.RenderLayer;
+import net.minecraft.client.gl.RenderPipelines;
 import net.minecraft.text.Text;
 import net.minecraft.util.Identifier;
 
@@ -22,7 +22,7 @@ public final class QuickCraftActionButton extends QuickDraggableButton {
     protected void renderWidget(DrawContext context, int mouseX, int mouseY, float delta) {
         boolean hovered = this.isMouseOver(mouseX, mouseY);
         int textureV = this.isPositionDragging() ? SIZE * 2 : hovered ? SIZE : 0;
-        context.drawTexture(RenderLayer::getGuiTextured, TEXTURE, this.getX(), this.getY(), 0, textureV,
+        context.drawTexture(RenderPipelines.GUI_TEXTURED, TEXTURE, this.getX(), this.getY(), 0, textureV,
                 SIZE, SIZE, SIZE, SIZE * 3);
     }
 }
