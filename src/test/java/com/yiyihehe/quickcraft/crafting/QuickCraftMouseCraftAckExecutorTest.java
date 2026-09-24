@@ -54,6 +54,25 @@ class QuickCraftMouseCraftAckExecutorTest {
     }
 
     @Test
+    void sampleRefillRequiresOneItemToRemainInEachSourceStack() {
+        assertThat(QuickCraftMouseCraftInventory.usableIngredientCount(1, false)).isEqualTo(1);
+        assertThat(QuickCraftMouseCraftInventory.usableIngredientCount(64, false)).isEqualTo(64);
+        assertThat(QuickCraftMouseCraftInventory.ingredientPickupButton(false)).isZero();
+        assertThat(QuickCraftMouseCraftInventory.usableIngredientCount(1, true)).isZero();
+        assertThat(QuickCraftMouseCraftInventory.usableIngredientCount(2, true)).isEqualTo(1);
+        assertThat(QuickCraftMouseCraftInventory.ingredientPickupButton(true)).isEqualTo(1);
+        assertThat(QuickCraftMouseCraftInventory.maximumRetainedHalfPickup(64)).isEqualTo(32);
+        assertThat(QuickCraftMouseCraftInventory.maximumRetainedHalfPickup(16)).isEqualTo(8);
+    }
+
+    @Test
+    void retainedHalfStackRefillFillsLowestRecipeSlotsUpToCapacity() {
+        assertThat(QuickCraftMouseCraftInventory.retainedItemsPerSlot(32, 3, 64)).isEqualTo(10);
+        assertThat(QuickCraftMouseCraftInventory.retainedItemsPerSlot(32, 3, 4)).isEqualTo(4);
+        assertThat(QuickCraftMouseCraftInventory.retainedItemsPerSlot(1, 1, 64)).isEqualTo(1);
+    }
+
+    @Test
     void completePatternQuickMoveCannotMakeRepeatedIngredientsUneven() {
         assertThat(QuickCraftMouseCraftInventory.canQuickTopUpCompleteGroup(1, 10, 32)).isTrue();
         assertThat(QuickCraftMouseCraftInventory.canQuickTopUpCompleteGroup(3, 96, 96)).isTrue();
