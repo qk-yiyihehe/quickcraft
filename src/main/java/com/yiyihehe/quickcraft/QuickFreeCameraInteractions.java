@@ -10,7 +10,6 @@ import net.minecraft.item.ItemPlacementContext;
 import net.minecraft.item.ItemStack;
 import net.minecraft.network.packet.c2s.play.ClientCommandC2SPacket;
 import net.minecraft.network.packet.c2s.play.PlayerMoveC2SPacket;
-import net.minecraft.state.property.DirectionProperty;
 import net.minecraft.state.property.Properties;
 import net.minecraft.state.property.Property;
 import net.minecraft.util.Hand;
@@ -368,15 +367,14 @@ public final class QuickFreeCameraInteractions {
     }
 
     private static Integer encodeV3PlacementState(BlockState state) {
-        Optional<DirectionProperty> directionProperty = state.getProperties().stream()
-                .filter(DirectionProperty.class::isInstance)
-                .map(DirectionProperty.class::cast)
+        Optional<Property<?>> directionProperty = state.getProperties().stream()
+                .filter(property -> property.getType() == Direction.class)
                 .findFirst();
         int protocolValue = 0;
         int shift;
 
         if (directionProperty.isPresent()) {
-            Direction facing = state.get(directionProperty.get());
+            Direction facing = (Direction) state.get(directionProperty.get());
             protocolValue = facing.getId() << 1;
             shift = 4;
         } else {
