@@ -86,7 +86,8 @@ public class LitematicaWorldUtilsEasyPlaceMixin {
         }
 
         ActionResult result = client.interactionManager.interactBlock(client.player, hand, placementHit);
-        if (result.shouldSwingHand()) {
+        if (result instanceof ActionResult.Success success
+                && success.swingSource() == ActionResult.SwingSource.CLIENT) {
             client.player.swingHand(hand);
         }
         cir.setReturnValue(result == ActionResult.FAIL ? ActionResult.FAIL : ActionResult.SUCCESS);
