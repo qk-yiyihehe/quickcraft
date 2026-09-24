@@ -21,6 +21,7 @@ import fi.dy.masa.malilib.hotkeys.KeybindSettings;
 import fi.dy.masa.malilib.util.FileUtils;
 import fi.dy.masa.malilib.util.data.json.JsonUtils;
 import fi.dy.masa.malilib.util.StringUtils;
+import net.fabricmc.loader.api.FabricLoader;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -43,7 +44,11 @@ public final class QuickCraftConfigs implements IConfigHandler {
     private static final String MOD_SUPPORT_TRANSLATION_PREFIX = QuickCraft.MOD_ID + ".config.mod_support";
     private static final String HOTKEY_TRANSLATION_PREFIX = QuickCraft.MOD_ID + ".config.hotkeys";
     private static final String BUTTON_POSITIONS_KEY = "ButtonPositions";
+    private static final String MIGRATIONS_KEY = "Migrations";
+    private static final String IPN_BUTTON_DEFAULTS_MIGRATION_KEY = "ipnButtonDefaultsV1";
+    private static final String IPN_MOD_ID = "inventoryprofilesnext";
     private static final Map<String, ButtonOffset> BUTTON_OFFSETS = new HashMap<>();
+    private static boolean ipnButtonDefaultsApplied;
 
     public static final int DEFAULT_CRAFT_LOOPS_PER_TICK = 20;
     public static final int MIN_CRAFT_LOOPS_PER_TICK = 1;
@@ -1441,6 +1446,7 @@ public final class QuickCraftConfigs implements IConfigHandler {
 
     public static void loadFromFile() {
         BUTTON_OFFSETS.clear();
+        ipnButtonDefaultsApplied = false;
         Path configFile = FileUtils.getConfigDirectory().resolve(CONFIG_FILE_NAME);
 
         if (!Files.exists(configFile) || !Files.isReadable(configFile)) {
@@ -1460,6 +1466,7 @@ public final class QuickCraftConfigs implements IConfigHandler {
         ConfigUtils.readConfigBase(root, "Hotkeys", Hotkeys.OPTIONS);
         migrateBeaconRegenerationLevelName();
         readButtonPositions(root);
+        readMigrations(root);
 
         JsonObject crafting = root.getAsJsonObject("Crafting");
         if (crafting != null
@@ -1539,7 +1546,38 @@ public final class QuickCraftConfigs implements IConfigHandler {
         ConfigUtils.writeConfigBase(root, "ModSupport", ModSupport.OPTIONS);
         ConfigUtils.writeConfigBase(root, "Hotkeys", Hotkeys.OPTIONS);
         writeButtonPositions(root);
+        writeMigrations(root);
         JsonUtils.writeJsonToFile(root, dir.resolve(CONFIG_FILE_NAME));
+    }
+
+    private static void readMigrations(JsonObject root) {
+        JsonObject migrations = root.getAsJsonObject(MIGRATIONS_KEY);
+        if (migrations == null) {
+            return;
+        }
+
+        JsonElement ipnDefaults = migrations.get(IPN_BUTTON_DEFAULTS_MIGRATION_KEY);
+        ipnButtonDefaultsApplied = ipnDefaults != null
+                && ipnDefaults.isJsonPrimitive()
+                && ipnDefaults.getAsJsonPrimitive().isBoolean()
+                && ipnDefaults.getAsBoolean();
+    }
+
+    private static void writeMigrations(JsonObject root) {
+        JsonObject migrations = new JsonObject();
+        migrations.addProperty(IPN_BUTTON_DEFAULTS_MIGRATION_KEY, ipnButtonDefaultsApplied);
+        root.add(MIGRATIONS_KEY, migrations);
+    }
+
+    static boolean applyIpnButtonDefaultsIfNeeded(boolean ipnLoaded) {
+        if (!ipnLoaded || ipnButtonDefaultsApplied) {
+            return false;
+        }
+
+        ContainerTools.SHOW_QUICK_STASH_BUTTON.setBooleanValue(false);
+        ContainerTools.SHOW_CONTAINER_LOCK_BUTTON.setBooleanValue(false);
+        ipnButtonDefaultsApplied = true;
+        return true;
     }
 
     private static void readButtonPositions(JsonObject root) {
@@ -1621,6 +1659,9 @@ public final class QuickCraftConfigs implements IConfigHandler {
     @Override
     public void load() {
         loadFromFile();
+        if (applyIpnButtonDefaultsIfNeeded(FabricLoader.getInstance().isModLoaded(IPN_MOD_ID))) {
+            saveToFile();
+        }
     }
 
     @Override
