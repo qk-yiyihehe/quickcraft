@@ -31,6 +31,8 @@ public final class QuickCraftHotkeyCallbacks {
         QuickCraftConfigs.getBooleanHotkeyConfigs().forEach(config ->
                 config.getKeybind().setCallback(new QuickCraftLocalizedToggleCallback(config))
         );
+        QuickCraftConfigs.ContainerTools.ENABLE_CONTAINER_TOOL_MODE.getKeybind()
+                .setCallback(QuickCraftHotkeyCallbacks::handleContainerToolSwitch);
         QuickCraftConfigs.Hotkeys.OPEN_CONFIG.getKeybind().setCallback(QuickCraftHotkeyCallbacks::handleOpenConfig);
         QuickCraftConfigs.Hotkeys.SINGLE_CRAFT.getKeybind().setCallback(QuickCraftHotkeyCallbacks::consumeCraftHotkey);
         QuickCraftConfigs.Hotkeys.RAPID_CRAFT.getKeybind().setCallback(QuickCraftHotkeyCallbacks::consumeRapidCraftHotkey);
@@ -110,16 +112,31 @@ public final class QuickCraftHotkeyCallbacks {
                 && QuickContainerCopy.canHandleContinuousContainerFillHotkey(Minecraft.getInstance());
     }
 
+    private static boolean handleContainerToolSwitch(KeyAction action, IKeybind keybind) {
+        if (action != KeyAction.PRESS) {
+            return false;
+        }
+
+        var config = QuickCraftConfigs.ContainerTools.ENABLE_CONTAINER_TOOL_MODE;
+        config.toggleBooleanValue();
+        if (!config.getBooleanValue()) {
+            InfoUtils.printBooleanConfigToggleMessage(config.getConfigGuiDisplayName(), false);
+        }
+        return true;
+    }
+
     private static boolean handleToggleContainerToolMode(KeyAction action, IKeybind keybind) {
         if (action != KeyAction.PRESS) {
             return false;
         }
 
         QuickCraftConfigs.cycleContainerToolMode(true);
-        InfoUtils.printActionbarMessage(
-                "quickcraft.message.container_tool_mode.changed",
-                QuickCraftConfigs.getContainerToolMode().getDisplayName()
-        );
+        if (!QuickCraftConfigs.isContainerToolModeEnabled()) {
+            InfoUtils.printActionbarMessage(
+                    "quickcraft.message.container_tool_mode.changed",
+                    QuickCraftConfigs.getContainerToolMode().getDisplayName()
+            );
+        }
         return true;
     }
 
