@@ -1,6 +1,6 @@
 package com.yiyihehe.quickcraft.mixin;
 
-import com.yiyihehe.quickcraft.crafting.QuickCraftRecipeBookAckExecutor;
+import com.yiyihehe.quickcraft.crafting.QuickCraftMouseCraftAckExecutor;
 import com.yiyihehe.quickcraft.crafting.QuickCraftWorkbenchShulkerCraft;
 import net.minecraft.client.multiplayer.ClientPacketListener;
 import net.minecraft.network.protocol.game.ClientboundContainerSetContentPacket;
@@ -18,7 +18,7 @@ public abstract class WorkbenchShulkerNetworkMixin {
     private void quickcraft$handleSlotUpdate(ClientboundContainerSetSlotPacket packet, CallbackInfo ci) {
         QuickCraftWorkbenchShulkerCraft.onServerContainerUpdate(
                 packet.getContainerId(), packet.getStateId(), false);
-        QuickCraftRecipeBookAckExecutor.onServerSlotUpdate(
+        QuickCraftMouseCraftAckExecutor.onServerSlotUpdate(
                 packet.getContainerId(), packet.getStateId(), packet.getSlot(), packet.getItem());
     }
 
@@ -26,7 +26,7 @@ public abstract class WorkbenchShulkerNetworkMixin {
     private void quickcraft$handleInventoryUpdate(ClientboundContainerSetContentPacket packet, CallbackInfo ci) {
         QuickCraftWorkbenchShulkerCraft.onServerContainerUpdate(
                 packet.containerId(), packet.stateId(), true);
-        QuickCraftRecipeBookAckExecutor.onServerInventoryUpdate(
+        QuickCraftMouseCraftAckExecutor.onServerInventoryUpdate(
                 packet.containerId(), packet.stateId(), packet.items(), packet.carriedItem());
     }
 
@@ -35,7 +35,7 @@ public abstract class WorkbenchShulkerNetworkMixin {
     private void quickcraft$handleServerStatistics(ClientboundAwardStatsPacket packet, CallbackInfo ci) {
         QuickCraftWorkbenchShulkerCraft.onServerStatistics(
                 (ClientPacketListener) (Object) this);
-        QuickCraftRecipeBookAckExecutor.onServerStatistics(
+        QuickCraftMouseCraftAckExecutor.onServerStatistics(
                 (ClientPacketListener) (Object) this);
     }
 }
