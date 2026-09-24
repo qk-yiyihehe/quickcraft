@@ -27,8 +27,8 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 @Mixin(MultiPlayerGameMode.class)
 public class QuickFreeCameraInteractionManagerMixin {
     @ModifyVariable(method = "useItemOn", at = @At("HEAD"), argsOnly = true)
-    private BlockHitResult quickcraft$encodeFreeCameraObserverDirection(BlockHitResult hitResult) {
-        return QuickFreeCameraInteractions.encodeObserverPlacementDirection(Minecraft.getInstance(), hitResult);
+    private BlockHitResult quickcraft$encodeFreeCameraPlacementState(BlockHitResult hitResult) {
+        return QuickFreeCameraInteractions.encodeFreeCameraPlacementState(Minecraft.getInstance(), hitResult);
     }
 
     @Inject(method = "useItemOn", at = @At("HEAD"), cancellable = true)
@@ -40,7 +40,7 @@ public class QuickFreeCameraInteractionManagerMixin {
             cir.setReturnValue(InteractionResult.FAIL);
             return;
         }
-        QuickFreeCameraInteractions.beginBlockUseFromFreeCamera(client);
+        QuickFreeCameraInteractions.beginBlockUseFromFreeCamera(client, hand, hitResult);
     }
 
     @Inject(method = "useItemOn", at = @At("RETURN"))

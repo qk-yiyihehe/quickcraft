@@ -2,6 +2,11 @@ package com.yiyihehe.quickcraft.mixin;
 
 import com.yiyihehe.quickcraft.QuickFreeCameraInteractions;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.multiplayer.ClientLevel;
+import net.minecraft.client.multiplayer.MultiPlayerGameMode;
+import net.minecraft.client.player.LocalPlayer;
+import net.minecraft.world.InteractionHand;
+import net.minecraft.world.phys.BlockHitResult;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
@@ -14,9 +19,11 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 @Mixin(targets = "fi.dy.masa.tweakeroo.tweaks.PlacementTweaks", remap = false)
 public abstract class TweakerooPlacementTweaksFreeCameraMixin {
     @Inject(method = "onProcessRightClickBlock", at = @At("HEAD"), remap = false)
-    private static void quickcraft$beginBlockUseFromFreeCamera(CallbackInfoReturnable<?> cir) {
+    private static void quickcraft$beginBlockUseFromFreeCamera(
+            MultiPlayerGameMode controller, LocalPlayer player, ClientLevel world,
+            InteractionHand hand, BlockHitResult hitResult, CallbackInfoReturnable<?> cir) {
         Minecraft client = Minecraft.getInstance();
-        QuickFreeCameraInteractions.beginBlockUseFromFreeCamera(client);
+        QuickFreeCameraInteractions.beginBlockUseFromFreeCamera(client, hand, hitResult);
     }
 
     @Inject(method = "onProcessRightClickBlock", at = @At("RETURN"), remap = false)
