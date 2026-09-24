@@ -2,7 +2,6 @@ package com.yiyihehe.quickcraft.crafting;
 
 import com.yiyihehe.quickcraft.render.QuickCompactIconButton;
 import net.minecraft.client.gui.DrawContext;
-import net.minecraft.text.Text;
 import net.minecraft.util.Identifier;
 
 import java.util.function.BooleanSupplier;
@@ -14,7 +13,7 @@ public final class QuickCraftWorkbenchOptionButton extends QuickCompactIconButto
     private final BooleanSupplier iconState;
     private final BooleanSupplier selectedState;
 
-    public QuickCraftWorkbenchOptionButton(int x, int y, Text label, PressAction onPress,
+    public QuickCraftWorkbenchOptionButton(int x, int y, net.minecraft.text.Text label, PressAction onPress,
                                            PositionKey positionKey, Identifier offIcon, Identifier onIcon,
                                            BooleanSupplier iconState, BooleanSupplier selectedState) {
         super(x, y, label, onPress, positionKey);
@@ -32,6 +31,7 @@ public final class QuickCraftWorkbenchOptionButton extends QuickCompactIconButto
     @Override
     protected void drawIcon(DrawContext context, int x, int y, boolean hovered) {
         Identifier icon = this.iconState.getAsBoolean() ? this.onIcon : this.offIcon;
-        context.drawTexture(icon, x, y, 0, 0, 10, 10, 10, 10);
+        context.drawTexture(net.minecraft.client.gl.RenderPipelines.GUI_TEXTURED, icon, x, y, 0, 0,
+                10, 10, 10, 10);
     }
 }

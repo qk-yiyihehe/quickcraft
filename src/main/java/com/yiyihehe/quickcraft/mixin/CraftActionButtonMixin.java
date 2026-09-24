@@ -108,7 +108,8 @@ public abstract class CraftActionButtonMixin extends HandledScreen<CraftingScree
         if (this.quickcraft$modeButton != null) {
             boolean shulkerMode = QuickCraftConfigs.isWorkbenchQuickShulkerCraftEnabled();
             this.quickcraft$modeButton.visible = QuickCraftConfigs.isWorkbenchQuickCraftFeatureEnabled()
-                    && !(this.width < 379 && ((CraftingScreen) (Object) this).getRecipeBookWidget().isOpen());
+                    && !(this.width < 379 && ((RecipeBookScreenAccessor) (Object) this)
+                    .quickcraft$getRecipeBook().isOpen());
             this.quickcraft$modeButton.active = !QuickCraftWorkbenchRouter.shouldSuppressRecipeGhostSlots();
             this.quickcraft$modeButton.setDefaultPosition(this.x + 138, this.y + 2);
             Text modeTooltip = Text.translatable(shulkerMode
