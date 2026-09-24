@@ -5,7 +5,6 @@ import net.minecraft.text.Text;
 import net.minecraft.util.Identifier;
 /** Icon button for moving matching player items into the open container. */
 public final class QuickStashButton extends QuickCompactIconButton {
-    public QuickStashButton(int x, int y, PressAction onPress, PositionKey positionKey,
     private static final Identifier ICON = Identifier.of("quickcraft", "textures/gui/quick_stash.png");
 
     public QuickStashButton(int x, int y, PressAction onPress, PositionKey positionKey, Text tooltip) {
