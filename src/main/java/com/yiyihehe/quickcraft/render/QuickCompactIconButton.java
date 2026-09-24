@@ -2,7 +2,7 @@ package com.yiyihehe.quickcraft.render;
 
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.gui.tooltip.Tooltip;
-import net.minecraft.client.render.RenderLayer;
+import net.minecraft.client.gl.RenderPipelines;
 import net.minecraft.text.Text;
 import net.minecraft.util.Identifier;
 
@@ -24,7 +24,7 @@ public abstract class QuickCompactIconButton extends QuickDraggableButton {
         int textureV = this.isPositionDragging() || (hovered && selected)
                 ? SIZE * 2 : hovered || selected ? SIZE : 0;
         context.drawTexture(
-                RenderLayer::getGuiTextured,
+                RenderPipelines.GUI_TEXTURED,
                 BACKGROUND_TEXTURE,
                 this.getX(),
                 this.getY(),
