@@ -556,17 +556,15 @@ public final class QuickLitematicaContainerVerifier {
         clearCurrentScreenContainerBinding();
     }
 
-    public static void drawGhostItem(
+    public static void drawGhostItems(
             DrawContext context,
             MinecraftClient client,
-            ItemStack stack,
-            int x,
-            int y,
+            List<GhostItemDraw> items,
             int guiLeft,
             int guiTop,
             float alpha
     ) {
-        GhostItemBuffer.drawGhostItem(context, client, stack, x, y, guiLeft, guiTop, alpha);
+        GhostItemBuffer.drawGhostItems(context, client, items, guiLeft, guiTop, alpha);
     }
 
     public static void rememberContainerUse(MinecraftClient client, BlockHitResult hitResult) {
@@ -1405,26 +1403,26 @@ public final class QuickLitematicaContainerVerifier {
             int slotsPerRow,
             List<SlotMismatch> slotMismatches
     ) {
+        List<GhostItemDraw> ghostItems = new ArrayList<>();
         for (SlotMismatch mismatch : slotMismatches) {
             if (mismatch.status() != SlotMismatchStatus.MISSING || mismatch.expectedStack().isEmpty()) {
                 continue;
             }
 
             SlotPosition pos = getInventoryOverlaySlotPosition(type, xSlots, ySlots, slotsPerRow, mismatch.slot());
-            int x = pos.x();
-            int y = pos.y();
-            drawGhostItem(
-                    drawContext,
-                    mc,
-                    mismatch.expectedStack(),
-                    x,
-                    y,
-                    0,
-                    0,
-                    QuickLitematicaVerifierPalette.ghostItemAlpha()
-            );
-            drawContext.fill(x, y, x + 16, y + 16, mismatch.status().ghostMaskColor());
-            drawOutline(drawContext, x, y, 16, 16, mismatch.status().borderColor());
+            ghostItems.add(new GhostItemDraw(mismatch.expectedStack(), pos.x(), pos.y()));
+        }
+
+        drawGhostItems(drawContext, mc, ghostItems, 0, 0, QuickLitematicaVerifierPalette.ghostItemAlpha());
+
+        for (SlotMismatch mismatch : slotMismatches) {
+            if (mismatch.status() != SlotMismatchStatus.MISSING || mismatch.expectedStack().isEmpty()) {
+                continue;
+            }
+
+            SlotPosition pos = getInventoryOverlaySlotPosition(type, xSlots, ySlots, slotsPerRow, mismatch.slot());
+            drawContext.fill(pos.x(), pos.y(), pos.x() + 16, pos.y() + 16, mismatch.status().ghostMaskColor());
+            drawOutline(drawContext, pos.x(), pos.y(), 16, 16, mismatch.status().borderColor());
         }
     }
 
@@ -1596,6 +1594,9 @@ public final class QuickLitematicaContainerVerifier {
     private record SlotPosition(int x, int y) {
     }
 
+    public record GhostItemDraw(ItemStack stack, int x, int y) {
+    }
+
     public record SlotOverlay(
             SlotMismatchStatus status,
             ItemStack expectedStack
@@ -1744,6 +1745,7 @@ public final class QuickLitematicaContainerVerifier {
 
     /**
      * 参考 techutils 的透明缓冲做法，让 GUI 里的物品本体也能真正半透明。
+     * 同一批虚影共用一次全屏缓冲清理和合成，避免成本随槽位数重复放大。
      */
     private static final class GhostItemBuffer {
         private static Framebuffer framebuffer;
@@ -1752,17 +1754,15 @@ public final class QuickLitematicaContainerVerifier {
         private GhostItemBuffer() {
         }
 
-        private static void drawGhostItem(
+        private static void drawGhostItems(
                 DrawContext context,
                 MinecraftClient client,
-                ItemStack stack,
-                int x,
-                int y,
+                List<GhostItemDraw> items,
                 int guiLeft,
                 int guiTop,
                 float alpha
         ) {
-            if (stack.isEmpty()) {
+            if (items.isEmpty()) {
                 return;
             }
 
@@ -1771,8 +1771,14 @@ public final class QuickLitematicaContainerVerifier {
             framebuffer.clear(MinecraftClient.IS_SYSTEM_MAC);
             framebuffer.beginWrite(false);
 
-            context.drawItem(stack, x, y);
-            context.drawItemInSlot(client.textRenderer, stack, x, y);
+            for (GhostItemDraw item : items) {
+                if (item.stack().isEmpty()) {
+                    continue;
+                }
+
+                context.drawItem(item.stack(), item.x(), item.y());
+                context.drawItemInSlot(client.textRenderer, item.stack(), item.x(), item.y());
+            }
 
             GlStateManager._glBindFramebuffer(GL30.GL_FRAMEBUFFER, previousFramebuffer);
 
