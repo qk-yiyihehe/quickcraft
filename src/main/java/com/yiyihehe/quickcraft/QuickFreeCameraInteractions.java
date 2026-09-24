@@ -11,7 +11,6 @@ import net.minecraft.item.ItemStack;
 import net.minecraft.item.Items;
 import net.minecraft.network.packet.c2s.play.PlayerInputC2SPacket;
 import net.minecraft.util.PlayerInput;
-import net.minecraft.network.packet.c2s.play.ClientCommandC2SPacket;
 import net.minecraft.network.packet.c2s.play.PlayerMoveC2SPacket;
 import net.minecraft.state.property.Properties;
 import net.minecraft.state.property.Property;
@@ -161,9 +160,9 @@ public final class QuickFreeCameraInteractions {
             return;
         }
 
-        client.player.networkHandler.sendPacket(
-                new ClientCommandC2SPacket(client.player, ClientCommandC2SPacket.Mode.RELEASE_SHIFT_KEY)
-        );
+        if (client.player.input != null) {
+            client.player.networkHandler.sendPacket(new PlayerInputC2SPacket(client.player.input.playerInput));
+        }
     }
 
     public static void beginBlockUseFromFreeCamera(MinecraftClient client, Hand hand, BlockHitResult hitResult) {
