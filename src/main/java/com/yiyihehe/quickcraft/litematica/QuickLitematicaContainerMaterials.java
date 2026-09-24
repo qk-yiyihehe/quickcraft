@@ -338,7 +338,7 @@ public final class QuickLitematicaContainerMaterials {
         }
 
         for (EntityInfo info : entities) {
-            if (info.nbt == null || !info.nbt.contains("Items", Constants.NBT.TAG_LIST)) {
+            if (info.nbt == null || !info.nbt.contains("Items")) {
                 continue;
             }
             if (renderLayers && !isWithinRenderLayer(placement, schematic, regionName, info.posVec)) {
@@ -488,7 +488,7 @@ public final class QuickLitematicaContainerMaterials {
             return null;
         }
 
-        String blockEntityId = nbt.getString("id");
+        String blockEntityId = nbt.getString("id").orElse("");
         if (NON_INVENTORY_BLOCK_ENTITY_IDS.contains(blockEntityId)) {
             return null;
         }

@@ -321,8 +321,8 @@ public final class QuickFreeCameraInteractions {
         ClientPlayerEntity player = client.player;
         restoredYaw = player.getYaw();
         restoredPitch = player.getPitch();
-        restoredPrevYaw = player.prevYaw;
-        restoredPrevPitch = player.prevPitch;
+        restoredPrevYaw = player.lastYaw;
+        restoredPrevPitch = player.lastPitch;
         restoredHeadYaw = player.getHeadYaw();
         restoredBodyYaw = player.getBodyYaw();
         float cameraYaw = camera.getYaw();
@@ -358,8 +358,8 @@ public final class QuickFreeCameraInteractions {
         ClientPlayerEntity player = client.player;
         player.setYaw(restoredYaw);
         player.setPitch(restoredPitch);
-        player.prevYaw = restoredPrevYaw;
-        player.prevPitch = restoredPrevPitch;
+        player.lastYaw = restoredPrevYaw;
+        player.lastPitch = restoredPrevPitch;
         player.setHeadYaw(restoredHeadYaw);
         player.setBodyYaw(restoredBodyYaw);
         serverFacingRestorePending = true;
@@ -375,7 +375,7 @@ public final class QuickFreeCameraInteractions {
 
         if (directionProperty.isPresent()) {
             Direction facing = (Direction) state.get(directionProperty.get());
-            protocolValue = facing.getId() << 1;
+            protocolValue = facing.getIndex() << 1;
             shift = 4;
         } else {
             shift = 1;
