@@ -1,5 +1,6 @@
 package com.yiyihehe.quickcraft.mixin;
 
+import com.yiyihehe.quickcraft.crafting.QuickCraftRecipeBookAckExecutor;
 import com.yiyihehe.quickcraft.crafting.QuickCraftWorkbenchShulkerCraft;
 import net.minecraft.client.multiplayer.ClientPacketListener;
 import net.minecraft.network.protocol.game.ClientboundContainerSetContentPacket;
@@ -17,18 +18,24 @@ public abstract class WorkbenchShulkerNetworkMixin {
     private void quickcraft$handleSlotUpdate(ClientboundContainerSetSlotPacket packet, CallbackInfo ci) {
         QuickCraftWorkbenchShulkerCraft.onServerContainerUpdate(
                 packet.getContainerId(), packet.getStateId(), false);
+        QuickCraftRecipeBookAckExecutor.onServerSlotUpdate(
+                packet.getContainerId(), packet.getStateId(), packet.getSlot(), packet.getItem());
     }
 
     @Inject(method = "handleContainerContent", at = @At("RETURN"))
     private void quickcraft$handleInventoryUpdate(ClientboundContainerSetContentPacket packet, CallbackInfo ci) {
         QuickCraftWorkbenchShulkerCraft.onServerContainerUpdate(
                 packet.containerId(), packet.stateId(), true);
+        QuickCraftRecipeBookAckExecutor.onServerInventoryUpdate(
+                packet.containerId(), packet.stateId(), packet.items(), packet.carriedItem());
     }
 
     // 统计回包只作为完整终态批次的顺序屏障，不读取或记录玩家统计内容。
     @Inject(method = "handleAwardStats", at = @At("RETURN"))
     private void quickcraft$handleServerStatistics(ClientboundAwardStatsPacket packet, CallbackInfo ci) {
         QuickCraftWorkbenchShulkerCraft.onServerStatistics(
+                (ClientPacketListener) (Object) this);
+        QuickCraftRecipeBookAckExecutor.onServerStatistics(
                 (ClientPacketListener) (Object) this);
     }
 }
