@@ -1,6 +1,7 @@
 package com.yiyihehe.quickcraft.mixin;
 
 import com.yiyihehe.quickcraft.QuickContainerCopy;
+import com.yiyihehe.quickcraft.QuickMaterialCollector;
 import net.minecraft.client.gui.Gui;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
@@ -17,7 +18,8 @@ public abstract class GuiContinuousFillScreenMixin {
     @Inject(method = "setScreen", at = @At("HEAD"), cancellable = true)
     private void quickcraft$suppressBackgroundHandledScreen(Screen screen, CallbackInfo ci) {
         if (screen instanceof AbstractContainerScreen<?>
-                && QuickContainerCopy.shouldSuppressBackgroundHandledScreenOpen()) {
+                && (QuickContainerCopy.shouldSuppressBackgroundHandledScreenOpen()
+                || QuickMaterialCollector.shouldSuppressBackgroundHandledScreenOpen())) {
             ci.cancel();
         }
     }

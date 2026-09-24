@@ -1,6 +1,7 @@
 package com.yiyihehe.quickcraft.mixin;
 
 import com.yiyihehe.quickcraft.QuickContainerCopy;
+import com.yiyihehe.quickcraft.QuickMaterialCollector;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
@@ -17,7 +18,8 @@ public abstract class QuickContainerBackgroundFillScreenMixin {
     @Inject(method = "extractRenderStateWithTooltipAndSubtitles", at = @At("HEAD"), cancellable = true)
     private void quickcraft$hideBackgroundFillScreen(GuiGraphicsExtractor context, int mouseX, int mouseY, float delta, CallbackInfo ci) {
         if ((Object) this instanceof AbstractContainerScreen<?>
-                && QuickContainerCopy.shouldHideBackgroundHandledScreen()) {
+                && (QuickContainerCopy.shouldHideBackgroundHandledScreen()
+                || QuickMaterialCollector.shouldHideBackgroundHandledScreen())) {
             ci.cancel();
         }
     }
