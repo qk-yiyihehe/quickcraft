@@ -338,7 +338,7 @@ public abstract class LitematicaSchematicVerifierMixin extends TaskBase implemen
             return;
         }
 
-        ChunkPos chunkPos = new ChunkPos(box.minX >> 4, box.minZ >> 4);
+        ChunkPos chunkPos = new ChunkPos(box.minX() >> 4, box.minZ() >> 4);
 
         if (!this.quickcraft$containerDataChunks.contains(chunkPos)) {
             return;
