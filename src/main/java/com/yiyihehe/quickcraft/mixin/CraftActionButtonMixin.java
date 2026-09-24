@@ -1,5 +1,6 @@
 package com.yiyihehe.quickcraft.mixin;
 
+import com.yiyihehe.quickcraft.QuickCraftKeyBindings;
 import com.yiyihehe.quickcraft.QuickContainerLock;
 import com.yiyihehe.quickcraft.config.QuickCraftConfigs;
 import com.yiyihehe.quickcraft.crafting.QuickCraftBackpack;
@@ -50,7 +51,7 @@ public abstract class CraftActionButtonMixin extends AbstractContainerScreen<Cra
         int buttonY = this.topPos + this.getMenu().getSlot(0).y + 13;
         this.quickcraft$craftButton = this.addRenderableWidget(new QuickDraggableButton(
                 buttonX, buttonY, 10, 10, Component.literal("Q"),
-                button -> QuickCraftWorkbenchRouter.handleCraftButton(quickcraft$isAltDown()),
+                button -> QuickCraftWorkbenchRouter.handleCraftButton(QuickCraftKeyBindings.isAltDown()),
                 QuickDraggableButton.PositionKey.WORKBENCH_CRAFT
         ));
     }
@@ -75,17 +76,7 @@ public abstract class CraftActionButtonMixin extends AbstractContainerScreen<Cra
         );
     }
 
-    @Unique
-    private static boolean quickcraft$isAltDown() {
-        Minecraft client = Minecraft.getInstance();
-        if (client == null) {
-            return false;
-        }
 
-        long handle = client.getWindow().handle();
-        return GLFW.glfwGetKey(handle, GLFW.GLFW_KEY_LEFT_ALT) == GLFW.GLFW_PRESS
-                || GLFW.glfwGetKey(handle, GLFW.GLFW_KEY_RIGHT_ALT) == GLFW.GLFW_PRESS;
-    }
 }
 
 /**
@@ -116,7 +107,7 @@ abstract class CraftActionButtonBackpackMixin extends AbstractContainerScreen<In
         int buttonY = this.topPos + this.getMenu().getSlot(0).y + 13;
         this.quickcraft$craftButton = this.addRenderableWidget(new QuickDraggableButton(
                 buttonX, buttonY, 10, 10, Component.literal("Q"),
-                button -> QuickCraftBackpack.handleBackpackCraftButton(quickcraft$isAltDown()),
+                button -> QuickCraftBackpack.handleBackpackCraftButton(QuickCraftKeyBindings.isAltDown()),
                 QuickDraggableButton.PositionKey.BACKPACK_CRAFT
         ));
     }
@@ -174,17 +165,7 @@ abstract class CraftActionButtonBackpackMixin extends AbstractContainerScreen<In
         this.quickcraft$lockButton.setDefaultPosition(this.leftPos + this.imageWidth - 18, this.topPos + 65);
     }
 
-    @Unique
-    private static boolean quickcraft$isAltDown() {
-        Minecraft client = Minecraft.getInstance();
-        if (client == null) {
-            return false;
-        }
 
-        long handle = client.getWindow().handle();
-        return GLFW.glfwGetKey(handle, GLFW.GLFW_KEY_LEFT_ALT) == GLFW.GLFW_PRESS
-                || GLFW.glfwGetKey(handle, GLFW.GLFW_KEY_RIGHT_ALT) == GLFW.GLFW_PRESS;
-    }
 }
 
 /**
@@ -221,25 +202,14 @@ abstract class CraftActionButtonStonecutterMixin extends AbstractContainerScreen
         int buttonY = this.topPos + this.getMenu().getSlot(1).y + 13;
         this.quickcraft$craftButton = this.addRenderableWidget(new QuickDraggableButton(
                 buttonX, buttonY, 10, 10, Component.literal("Q"),
-                button -> QuickCraftStonecutter.handleStonecutterCraftButton(quickcraft$isAltDown()),
+                button -> QuickCraftStonecutter.handleStonecutterCraftButton(QuickCraftKeyBindings.isAltDown()),
                 QuickDraggableButton.PositionKey.STONECUTTER_CRAFT
         ));
         this.quickcraft$syncCraftButtonPosition();
     }
 
     @Unique
-    private static boolean quickcraft$isAltDown() {
-        Minecraft client = Minecraft.getInstance();
-        if (client == null) {
-            return false;
-        }
 
-        long handle = client.getWindow().handle();
-        return GLFW.glfwGetKey(handle, GLFW.GLFW_KEY_LEFT_ALT) == GLFW.GLFW_PRESS
-                || GLFW.glfwGetKey(handle, GLFW.GLFW_KEY_RIGHT_ALT) == GLFW.GLFW_PRESS;
-    }
-
-    @Unique
     private void quickcraft$syncCraftButtonPosition() {
         if (this.quickcraft$craftButton == null) {
             return;

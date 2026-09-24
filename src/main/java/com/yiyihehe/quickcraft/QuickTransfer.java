@@ -138,10 +138,10 @@ public final class QuickTransfer implements ClientModInitializer {
         }
 
         boolean moveToOtherInventory = verticalAmount > 0;
-        if (client.hasShiftDown()) {
+        if (QuickCraftKeyBindings.isShiftDown()) {
             return moveFullStackByScroll(screen, hoveredSlot, moveToOtherInventory);
         }
-        if (client.hasAltDown()) {
+        if (QuickCraftKeyBindings.isAltDown()) {
             return moveMatchingStacksByScroll(screen, hoveredSlot, moveToOtherInventory);
         }
         return moveSingleItemByScroll(screen, hoveredSlot, moveToOtherInventory);
@@ -296,13 +296,13 @@ public final class QuickTransfer implements ClientModInitializer {
     }
 
     private static TransferMode getHeldTransferMode() {
-        if (QuickCraftConfigs.Hotkeys.QUICK_TRANSFER_RETAIN_ONE.getKeybind().isKeybindHeld()) {
+        if (QuickCraftKeyBindings.isHotkeyDown(QuickCraftConfigs.Hotkeys.QUICK_TRANSFER_RETAIN_ONE.getKeybind())) {
             return TransferMode.MATCHING_RETAIN_ONE;
         }
-        if (QuickCraftConfigs.Hotkeys.SLOT_QUICK_TRANSFER.getKeybind().isKeybindHeld()) {
+        if (QuickCraftKeyBindings.isHotkeyDown(QuickCraftConfigs.Hotkeys.SLOT_QUICK_TRANSFER.getKeybind())) {
             return TransferMode.SLOT;
         }
-        if (QuickCraftConfigs.Hotkeys.QUICK_TRANSFER.getKeybind().isKeybindHeld()) {
+        if (QuickCraftKeyBindings.isHotkeyDown(QuickCraftConfigs.Hotkeys.QUICK_TRANSFER.getKeybind())) {
             return TransferMode.MATCHING;
         }
         return TransferMode.NONE;

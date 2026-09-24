@@ -88,7 +88,7 @@ public final class QuickBeacon implements ClientModInitializer {
             return;
         }
 
-        boolean useDown = QuickCraftKeyBindings.isBoundKeyDown(client, client.options.keyUse);
+        boolean useDown = QuickCraftKeyBindings.isVanillaKeyDown(client, client.options.keyUse);
         BlockHitResult beaconHitResult = getLookedAtBeaconHitResult(client);
         if (useDown && !lastUseDown && client.gui.screen() == null && beaconHitResult != null) {
             pendingBeaconPos = beaconHitResult.getBlockPos().immutable();

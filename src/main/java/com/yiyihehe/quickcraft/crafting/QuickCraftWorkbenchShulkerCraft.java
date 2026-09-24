@@ -1,5 +1,6 @@
 package com.yiyihehe.quickcraft.crafting;
 
+import com.yiyihehe.quickcraft.QuickCraftKeyBindings;
 import com.yiyihehe.quickcraft.QuickContainerLock;
 import com.yiyihehe.quickcraft.config.QuickCraftConfigs;
 import com.yiyihehe.quickcraft.config.QuickCraftConfigs.WorkbenchShulkerPipelineMode;
@@ -1849,8 +1850,8 @@ public final class QuickCraftWorkbenchShulkerCraft implements ClientModInitializ
     }
 
     private void handleHotkey(Minecraft client) {
-        boolean singleDown = QuickCraftConfigs.getSingleCraftHotkey().isKeybindHeld();
-        boolean rapidDown = QuickCraftConfigs.getRapidCraftHotkey().isKeybindHeld();
+        boolean singleDown = QuickCraftKeyBindings.isHotkeyDown(QuickCraftConfigs.getSingleCraftHotkey());
+        boolean rapidDown = QuickCraftKeyBindings.isHotkeyDown(QuickCraftConfigs.getRapidCraftHotkey());
         if (singleDown && !lastSingleKeyDown && !active) {
             QuickCraftWorkbench.handleWorkbenchCraftButton(false);
         }
@@ -1867,14 +1868,12 @@ public final class QuickCraftWorkbenchShulkerCraft implements ClientModInitializ
     private boolean isRapidInputHeld(Minecraft client) {
         return startedByButton
                 ? isButtonRapidModeHeld(client)
-                : QuickCraftConfigs.getRapidCraftHotkey().isKeybindHeld();
+                : QuickCraftKeyBindings.isHotkeyDown(QuickCraftConfigs.getRapidCraftHotkey());
     }
 
     private boolean isButtonRapidModeHeld(Minecraft client) {
-        long window = client.getWindow().handle();
-        boolean altDown = GLFW.glfwGetKey(window, GLFW.GLFW_KEY_LEFT_ALT) == GLFW.GLFW_PRESS
-                || GLFW.glfwGetKey(window, GLFW.GLFW_KEY_RIGHT_ALT) == GLFW.GLFW_PRESS;
-        return altDown && GLFW.glfwGetMouseButton(window, GLFW.GLFW_MOUSE_BUTTON_LEFT) == GLFW.GLFW_PRESS;
+        return QuickCraftKeyBindings.isAltDown()
+                && QuickCraftKeyBindings.isLeftMouseButtonDown(client);
     }
 
     private boolean isWorkbenchOpen(Minecraft client) {

@@ -54,7 +54,7 @@ public final class QuickClearContainer implements ClientModInitializer {
             return;
         }
 
-        boolean useDown = QuickCraftKeyBindings.isBoundKeyDown(client, client.options.keyUse);
+        boolean useDown = QuickCraftKeyBindings.isVanillaKeyDown(client, client.options.keyUse);
         if (useDown
                 && !lastUseDown
                 && client.gui.screen() == null

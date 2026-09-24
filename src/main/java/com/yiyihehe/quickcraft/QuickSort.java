@@ -67,7 +67,7 @@ public class QuickSort implements ClientModInitializer {
     }
 
     private void onClientTick(Minecraft client) {
-        boolean quickSortDown = QuickCraftConfigs.getQuickSortHotkey().isKeybindHeld();
+        boolean quickSortDown = QuickCraftKeyBindings.isHotkeyDown(QuickCraftConfigs.getQuickSortHotkey());
         if (quickSortDown && !lastQuickSortDown) {
             handleQuickSortHotkey(client);
         }
