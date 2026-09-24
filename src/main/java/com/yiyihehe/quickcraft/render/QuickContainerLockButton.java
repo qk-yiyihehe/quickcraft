@@ -1,7 +1,6 @@
 package com.yiyihehe.quickcraft.render;
 
 import net.minecraft.client.gui.GuiGraphicsExtractor;
-import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.renderer.RenderPipelines;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.Identifier;
@@ -18,14 +17,6 @@ public final class QuickContainerLockButton extends QuickCompactIconButton {
                                     PositionKey positionKey, Component tooltip) {
         super(x, y, tooltip, onPress, positionKey);
         this.locked = locked;
-    }
-
-    @Override
-    protected int getSurfaceColor(boolean hovered) {
-        if (this.locked.getAsBoolean()) {
-            return hovered ? 0xE0786740 : 0xC05C4C30;
-        }
-        return super.getSurfaceColor(hovered);
     }
 
     @Override
