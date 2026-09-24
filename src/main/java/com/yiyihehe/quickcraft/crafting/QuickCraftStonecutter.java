@@ -1,5 +1,6 @@
 package com.yiyihehe.quickcraft.crafting;
 
+import com.yiyihehe.quickcraft.QuickCraftKeyBindings;
 import com.yiyihehe.quickcraft.QuickContainerLock;
 import com.yiyihehe.quickcraft.config.QuickCraftConfigs;
 import net.fabricmc.api.ClientModInitializer;
@@ -845,8 +846,8 @@ public class QuickCraftStonecutter implements ClientModInitializer {
     }
 
     private void handleHotkeys(Minecraft client, StonecutterMenu handler) {
-        boolean vDown = QuickCraftConfigs.getSingleCraftHotkey().isKeybindHeld();
-        boolean rapidDown = QuickCraftConfigs.getRapidCraftHotkey().isKeybindHeld();
+        boolean vDown = QuickCraftKeyBindings.isHotkeyDown(QuickCraftConfigs.getSingleCraftHotkey());
+        boolean rapidDown = QuickCraftKeyBindings.isHotkeyDown(QuickCraftConfigs.getRapidCraftHotkey());
 
         if (vDown && !lastVDown) {
             handleSingleCraft(client, handler);
@@ -1028,16 +1029,9 @@ public class QuickCraftStonecutter implements ClientModInitializer {
         lastAltCDown = false;
     }
 
-    private boolean isAltDown(Minecraft client) {
-        long windowHandle = client.getWindow().handle();
-        return GLFW.glfwGetKey(windowHandle, GLFW.GLFW_KEY_LEFT_ALT) == GLFW.GLFW_PRESS
-                || GLFW.glfwGetKey(windowHandle, GLFW.GLFW_KEY_RIGHT_ALT) == GLFW.GLFW_PRESS;
-    }
-
     private boolean isCraftButtonRapidModeHeld(Minecraft client) {
-        long windowHandle = client.getWindow().handle();
-        return isAltDown(client)
-                && GLFW.glfwGetMouseButton(windowHandle, GLFW.GLFW_MOUSE_BUTTON_LEFT) == GLFW.GLFW_PRESS;
+        return QuickCraftKeyBindings.isAltDown()
+                && QuickCraftKeyBindings.isLeftMouseButtonDown(client);
     }
 
     private void dropCraftResultsAfterStop(Minecraft client,

@@ -1,5 +1,6 @@
 package com.yiyihehe.quickcraft.mixin;
 
+import com.yiyihehe.quickcraft.QuickCraftKeyBindings;
 import com.yiyihehe.quickcraft.QuickContainerLock;
 import net.minecraft.client.input.MouseButtonEvent;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
@@ -34,7 +35,7 @@ public abstract class QuickContainerLockScreenMixin {
         AbstractContainerScreen<?> screen = (AbstractContainerScreen<?>) (Object) this;
         HandledScreenAccessor accessor = (HandledScreenAccessor) this;
         QuickContainerLock.bindCurrentScreen(screen);
-        if (click.button() == GLFW.GLFW_MOUSE_BUTTON_RIGHT && !quickcraft$isAltDown()) {
+        if (click.button() == GLFW.GLFW_MOUSE_BUTTON_RIGHT && !QuickCraftKeyBindings.isAltDown()) {
             QuickContainerLock.prepareQuickShulkerOpen(
                     screen,
                     click.x(),
@@ -44,7 +45,7 @@ public abstract class QuickContainerLockScreenMixin {
             );
         }
         if (click.button() == GLFW.GLFW_MOUSE_BUTTON_RIGHT
-                && quickcraft$isAltDown()
+                && QuickCraftKeyBindings.isAltDown()
                 && QuickContainerLock.handleSlotLockHotkey(
                         screen,
                         click.x(),
@@ -57,15 +58,5 @@ public abstract class QuickContainerLockScreenMixin {
         }
     }
 
-    @Unique
-    private static boolean quickcraft$isAltDown() {
-        Minecraft client = Minecraft.getInstance();
-        if (client == null) {
-            return false;
-        }
 
-        long handle = client.getWindow().handle();
-        return GLFW.glfwGetKey(handle, GLFW.GLFW_KEY_LEFT_ALT) == GLFW.GLFW_PRESS
-                || GLFW.glfwGetKey(handle, GLFW.GLFW_KEY_RIGHT_ALT) == GLFW.GLFW_PRESS;
-    }
 }

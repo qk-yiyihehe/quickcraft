@@ -58,7 +58,7 @@ public final class QuickStash implements ClientModInitializer {
             return;
         }
 
-        boolean useDown = QuickCraftKeyBindings.isBoundKeyDown(client, client.options.keyUse);
+        boolean useDown = QuickCraftKeyBindings.isVanillaKeyDown(client, client.options.keyUse);
         if (useDown
                 && !lastUseDown
                 && client.screen == null
