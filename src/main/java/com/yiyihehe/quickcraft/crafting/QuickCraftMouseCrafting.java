@@ -1,6 +1,7 @@
 package com.yiyihehe.quickcraft.crafting;
 
 import com.yiyihehe.quickcraft.QuickContainerLock;
+import com.yiyihehe.quickcraft.QuickCraftKeyBindings;
 import com.yiyihehe.quickcraft.config.QuickCraftConfigs;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.entity.player.PlayerInventory;
@@ -18,7 +19,6 @@ import net.minecraft.screen.slot.Slot;
 import net.minecraft.screen.slot.SlotActionType;
 import net.minecraft.text.Text;
 import net.minecraft.world.World;
-import org.lwjgl.glfw.GLFW;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import java.util.ArrayList;
@@ -2027,8 +2027,8 @@ final class QuickCraftMouseCrafting {
 
     private void handleHotkeys(MinecraftClient client, ScreenHandler handler) {
 
-        boolean vDown = QuickCraftConfigs.getSingleCraftHotkey().isKeybindHeld();
-        boolean rapidDown = QuickCraftConfigs.getRapidCraftHotkey().isKeybindHeld();
+        boolean vDown = QuickCraftKeyBindings.isHotkeyDown(QuickCraftConfigs.getSingleCraftHotkey());
+        boolean rapidDown = QuickCraftKeyBindings.isHotkeyDown(QuickCraftConfigs.getRapidCraftHotkey());
 
         if (vDown && !lastVDown) {
             handleSingleCraft(client, handler);
@@ -2046,15 +2046,15 @@ final class QuickCraftMouseCrafting {
     }
 
     private void trackHotkeyState() {
-        lastVDown = QuickCraftConfigs.getSingleCraftHotkey().isKeybindHeld();
-        lastAltCDown = QuickCraftConfigs.getRapidCraftHotkey().isKeybindHeld();
+        lastVDown = QuickCraftKeyBindings.isHotkeyDown(QuickCraftConfigs.getSingleCraftHotkey());
+        lastAltCDown = QuickCraftKeyBindings.isHotkeyDown(QuickCraftConfigs.getRapidCraftHotkey());
     }
 
     private void trackHotkeyStateWhileBlocked() {
         lastVDown = keepHotkeyLatchedWhileBlocked(
-                lastVDown, QuickCraftConfigs.getSingleCraftHotkey().isKeybindHeld());
+                lastVDown, QuickCraftKeyBindings.isHotkeyDown(QuickCraftConfigs.getSingleCraftHotkey()));
         lastAltCDown = keepHotkeyLatchedWhileBlocked(
-                lastAltCDown, QuickCraftConfigs.getRapidCraftHotkey().isKeybindHeld());
+                lastAltCDown, QuickCraftKeyBindings.isHotkeyDown(QuickCraftConfigs.getRapidCraftHotkey()));
     }
 
     static boolean keepHotkeyLatchedWhileBlocked(boolean previouslyDown,
@@ -2172,16 +2172,9 @@ final class QuickCraftMouseCrafting {
         lastAltCDown = false;
     }
 
-    private boolean isAltDown(MinecraftClient client) {
-        long windowHandle = client.getWindow().getHandle();
-        return GLFW.glfwGetKey(windowHandle, GLFW.GLFW_KEY_LEFT_ALT) == GLFW.GLFW_PRESS
-                || GLFW.glfwGetKey(windowHandle, GLFW.GLFW_KEY_RIGHT_ALT) == GLFW.GLFW_PRESS;
-    }
-
     private boolean isCraftButtonRapidModeHeld(MinecraftClient client) {
-        long windowHandle = client.getWindow().getHandle();
-        return isAltDown(client)
-                && GLFW.glfwGetMouseButton(windowHandle, GLFW.GLFW_MOUSE_BUTTON_LEFT) == GLFW.GLFW_PRESS;
+        return QuickCraftKeyBindings.isAltDown()
+                && QuickCraftKeyBindings.isLeftMouseButtonDown(client);
     }
 
     private boolean tryStartMouseCraftAck(MinecraftClient client, ScreenHandler handler) {
@@ -2223,7 +2216,7 @@ final class QuickCraftMouseCrafting {
     private boolean isRapidCraftInputHeld(MinecraftClient client) {
         return rapidCraftStartedByButton
                 ? isCraftButtonRapidModeHeld(client)
-                : QuickCraftConfigs.getRapidCraftHotkey().isKeybindHeld();
+                : QuickCraftKeyBindings.isHotkeyDown(QuickCraftConfigs.getRapidCraftHotkey());
     }
 
     private int finishMouseCraftAck(MinecraftClient client,

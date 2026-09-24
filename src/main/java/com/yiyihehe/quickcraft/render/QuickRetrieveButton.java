@@ -1,6 +1,7 @@
 package com.yiyihehe.quickcraft.render;
 
 import net.minecraft.client.gui.DrawContext;
+import net.minecraft.client.render.RenderLayer;
 import net.minecraft.text.Text;
 import net.minecraft.util.Identifier;
 
@@ -14,6 +15,6 @@ public final class QuickRetrieveButton extends QuickCompactIconButton {
 
     @Override
     protected void drawIcon(DrawContext context, int x, int y, boolean hovered) {
-        context.drawTexture(ICON, x, y, 0, 0, 10, 10, 10, 10);
+        context.drawTexture(RenderLayer::getGuiTextured, ICON, x, y, 0, 0, 10, 10, 10, 10);
     }
 }
