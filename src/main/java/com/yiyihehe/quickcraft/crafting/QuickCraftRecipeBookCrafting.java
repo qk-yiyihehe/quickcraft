@@ -333,7 +333,7 @@ final class QuickCraftRecipeBookCrafting {
 
     private boolean fillManualPatternStacks(Minecraft client,
                                             AbstractContainerMenu handler) {
-        return fillManualPatternStacks(client, handler, MAX_OUTPUT_THROW_BURST, false);
+        return fillFullStacksThenTail(client, handler, MAX_OUTPUT_THROW_BURST);
     }
 
     private boolean refillAckSnapshot(Minecraft client,
@@ -369,15 +369,8 @@ final class QuickCraftRecipeBookCrafting {
         // fillable occurrence has its own full source stack. The final 1..N
         // source stacks are distributed together, so 128 planks for three slab
         // slots becomes 42/42/42 instead of the invalid 64/64/empty pattern.
-        boolean filled = fillManualPatternStacks(
-                client, handler, maxSourceStacksPerIngredient, true, true);
-        boolean tailFilled = false;
-        if (getManualPatternState(handler) == ManualPatternState.MISSING
-                && hasTotalItemsForMissingPatternSlots(handler)) {
-            tailFilled = fillManualPatternStacks(
-                    client, handler, maxSourceStacksPerIngredient, false, false);
-        }
-        filled |= tailFilled;
+        boolean filled = fillFullStacksThenTail(
+                client, handler, maxSourceStacksPerIngredient);
         ManualPatternState state = getManualPatternState(handler);
         boolean outputPresent = handler.getSlot(OUTPUT_SLOT).hasItem();
         LOGGER.info("手动补货ACK补料：界面={}，配方={}，挪走错位={}，补料={}，格状态={}，"
@@ -393,6 +386,111 @@ final class QuickCraftRecipeBookCrafting {
                 handler.getCarried().isEmpty() ? "空" : handler.getCarried(),
                 outputPresent ? handler.getSlot(OUTPUT_SLOT).getItem() : "空");
         return relocated > 0 || filled || (state == ManualPatternState.COMPLETE && outputPresent);
+    }
+
+    private boolean fillFullStacksThenTail(Minecraft client,
+                                           AbstractContainerMenu handler,
+                                           int maxSourceStacksPerIngredient) {
+        boolean filled = fillManualPatternStacks(
+                client, handler, maxSourceStacksPerIngredient, true, true);
+        ManualPatternState stateAfterFullStacks = getManualPatternState(handler);
+        if (stateAfterFullStacks == ManualPatternState.COMPLETE) {
+            filled |= topUpCompletePattern(client, handler, maxSourceStacksPerIngredient);
+            filled |= fillManualPatternStacks(
+                    client, handler, maxSourceStacksPerIngredient, false, false);
+        } else if (stateAfterFullStacks == ManualPatternState.MISSING
+                && hasTotalItemsForMissingPatternSlots(handler)) {
+            filled |= fillManualPatternStacks(
+                    client, handler, maxSourceStacksPerIngredient, false, false);
+        }
+        return filled;
+    }
+
+    private boolean topUpCompletePattern(Minecraft client,
+                                         AbstractContainerMenu handler,
+                                         int maxSourceStacksPerIngredient) {
+        var player = client.player;
+        var interactionManager = client.gameMode;
+        if (player == null || interactionManager == null
+                || retainIngredientSamples()
+                || !handler.getCarried().isEmpty()
+                || getManualPatternState(handler) != ManualPatternState.COMPLETE) {
+            return false;
+        }
+
+        int sourceBudget = Math.max(1, maxSourceStacksPerIngredient);
+        int movedSources = 0;
+        int movedIngredientTypes = 0;
+        boolean movedAny = false;
+        String before = describeLiveGrid(handler);
+        for (int patternIndex = 0; patternIndex < lockedCraftingPattern.size(); patternIndex++) {
+            ItemStack template = lockedCraftingPattern.get(patternIndex);
+            if (template.isEmpty() || hasEarlierMatchingPatternStack(patternIndex, template)) {
+                continue;
+            }
+            List<Integer> fillableSlots = getFillablePatternSlots(handler, template);
+            if (fillableSlots.isEmpty()) {
+                continue;
+            }
+            int occurrences = patternIngredientOccurrences(template);
+            int remainingCapacity = fillableSlots.stream()
+                    .mapToInt(slotId -> handler.getSlot(slotId).getMaxStackSize(template)
+                            - handler.getSlot(slotId).getItem().getCount())
+                    .sum();
+            if (!QuickCraftRecipeBookInventory.canQuickTopUpCompleteGroup(
+                    occurrences,
+                    countMatchingUnlockedItems(handler, template),
+                    remainingCapacity)) {
+                continue;
+            }
+
+            int attempts = 0;
+            boolean movedIngredient = false;
+            while (attempts < sourceBudget && hasFillablePatternSlot(handler, template)) {
+                int sourceSlot = findMatchingPlayerInventoryHandlerSlot(
+                        player.getInventory(), handler, template, 1);
+                if (sourceSlot == -1) {
+                    break;
+                }
+                List<Integer> targets = getFillablePatternSlots(handler, template);
+                int beforeCount = countMatchingItemsInSlots(handler, targets, template);
+                boolean moved = distributeIngredientStackAcrossPatternSlots(
+                        client,
+                        handler,
+                        sourceSlot,
+                        targets,
+                        template,
+                        true
+                );
+                int afterCount = countMatchingItemsInSlots(handler, targets, template);
+                if (!moved || afterCount <= beforeCount || !handler.getCarried().isEmpty()) {
+                    break;
+                }
+                attempts++;
+                movedSources++;
+                movedAny = true;
+                if (!movedIngredient) {
+                    movedIngredient = true;
+                    movedIngredientTypes++;
+                }
+            }
+        }
+        if (movedAny) {
+            LOGGER.info("普通配方书完整图案补至最大：界面={}，原料种类={}，来源栈={}，补前={}，补后={}",
+                    layout.name(), movedIngredientTypes, movedSources, before, describeLiveGrid(handler));
+        }
+        return movedAny;
+    }
+
+    private int patternIngredientOccurrences(ItemStack template) {
+        int occurrences = 0;
+        for (ItemStack patternStack : lockedCraftingPattern) {
+            if (!patternStack.isEmpty()
+                    && ItemStack.isSameItemSameComponents(patternStack, template)) {
+                occurrences++;
+            }
+        }
+        return occurrences;
     }
 
     private List<QuickCraftRecipeBookInventory.GridBalanceMove> planGridTailBalance(AbstractContainerMenu handler) {
@@ -536,24 +634,21 @@ final class QuickCraftRecipeBookCrafting {
             if (template.isEmpty() || hasEarlierMatchingPatternStack(patternIndex, template)) {
                 continue;
             }
-            if (fullStacksOnly && !hasEnoughFullStacksForFillablePatternSlots(handler, template)) {
+            if (fullStacksOnly && !hasEnoughFullStacksForMissingPatternSlots(handler, template)) {
                 continue;
             }
 
             int attempts = 0;
             boolean movedIngredient = false;
-            // 整栈补进单格时只填空着的配方格。原版从背包 QUICK_MOVE 会按 1..9 顺序灌所有合成格；
-            // 配方格还剩 1 个空位时再灌一整组，多出来的会摊到第二格，工作台配方直接作废。
-            while (QuickCraftRecipeBookInventory.shouldKeepFillingManualPattern(
-                    moveWholeStackToSingleSlot
-                            ? hasFillablePatternSlot(handler, template)
-                            : hasMissingPatternSlot(handler, template),
-                    moveWholeStackToSingleSlot,
-                    attempts,
-                    sourceStackBudget)) {
+            // 普通阶段只把完整来源栈放进空配方格，不反复给半栈补到 64；
+            // 尾料阶段才把所有剩余来源汇总到当前数量最低的同类格。
+            while (attempts < sourceStackBudget
+                    && (moveWholeStackToSingleSlot
+                    ? hasMissingPatternSlot(handler, template)
+                    : hasFillablePatternSlot(handler, template))) {
                 List<Integer> targetSlots = moveWholeStackToSingleSlot
-                        ? getFillablePatternSlots(handler, template)
-                        : getMissingPatternSlots(handler, 0, template);
+                        ? getMissingPatternSlots(handler, 0, template)
+                        : getLowestFillablePatternSlots(handler, template);
                 if (targetSlots.isEmpty()) {
                     break;
                 }
@@ -661,10 +756,10 @@ final class QuickCraftRecipeBookCrafting {
         return true;
     }
 
-    private boolean hasEnoughFullStacksForFillablePatternSlots(AbstractContainerMenu handler,
-                                                                ItemStack template) {
-        int fillableSlots = getFillablePatternSlots(handler, template).size();
-        if (fillableSlots == 0) {
+    private boolean hasEnoughFullStacksForMissingPatternSlots(AbstractContainerMenu handler,
+                                                               ItemStack template) {
+        int missingSlots = getMissingPatternSlots(handler, 0, template).size();
+        if (missingSlots == 0) {
             return true;
         }
 
@@ -683,7 +778,7 @@ final class QuickCraftRecipeBookCrafting {
                 fullSourceStacks++;
             }
         }
-        return fullSourceStacks >= fillableSlots;
+        return fullSourceStacks >= missingSlots;
     }
 
     private boolean hasFillablePatternSlot(AbstractContainerMenu handler, ItemStack template) {
@@ -726,6 +821,17 @@ final class QuickCraftRecipeBookCrafting {
         return slots;
     }
 
+    private List<Integer> getLowestFillablePatternSlots(AbstractContainerMenu handler,
+                                                         ItemStack template) {
+        List<Integer> fillable = getFillablePatternSlots(handler, template);
+        if (fillable.size() < 2) {
+            return fillable;
+        }
+        int lowestCount = handler.getSlot(fillable.get(0)).getItem().getCount();
+        fillable.removeIf(slotId -> handler.getSlot(slotId).getItem().getCount() != lowestCount);
+        return fillable;
+    }
+
     private boolean distributeIngredientStackAcrossPatternSlots(Minecraft client,
                                                                 AbstractContainerMenu handler,
                                                                 int sourceSlot,
@@ -745,13 +851,21 @@ final class QuickCraftRecipeBookCrafting {
                     client, handler, sourceSlot, targetSlots.get(0), template);
         }
 
-        int targetCount = Math.min(sourceCount, targetSlots.size());
-        List<Integer> selectedTargets = new ArrayList<>(targetSlots.subList(0, targetCount));
-        if (selectedTargets.size() == 1) {
+        if (targetSlots.size() == 1) {
             return moveIngredientStackToSinglePatternSlot(
-                    client, handler, sourceSlot, selectedTargets.get(0), template);
+                    client, handler, sourceSlot, targetSlots.get(0), template);
         }
 
+        int remainingCapacity = targetSlots.stream()
+                .mapToInt(slotId -> handler.getSlot(slotId).getMaxStackSize(template)
+                        - handler.getSlot(slotId).getItem().getCount())
+                .min()
+                .orElse(0);
+        int itemsPerSlot = QuickCraftRecipeBookInventory.tailItemsPerSlot(
+                sourceCount, targetSlots.size(), remainingCapacity);
+        if (itemsPerSlot <= 0) {
+            return false;
+        }
         if (!pickupIngredientStack(client, handler, sourceSlot)) {
             return false;
         }
@@ -763,8 +877,9 @@ final class QuickCraftRecipeBookCrafting {
                 client,
                 handler,
                 sourceSlot,
-                selectedTargets,
-                template
+                targetSlots,
+                template,
+                itemsPerSlot
         );
     }
 
@@ -854,127 +969,16 @@ final class QuickCraftRecipeBookCrafting {
             return false;
         }
         relocateMismatchedGridItems(client, handler);
-        if (getManualPatternState(handler) == ManualPatternState.INVALID
-                || !hasItemsForMissingPatternSlots(handler)) {
+        if (getManualPatternState(handler) == ManualPatternState.INVALID) {
             return false;
         }
-
-        boolean hasPattern = false;
-        boolean changed = false;
-        for (int i = 0; i < lockedCraftingPattern.size(); i++) {
-            ItemStack template = lockedCraftingPattern.get(i);
-            if (template.isEmpty()) {
-                continue;
-            }
-
-            hasPattern = true;
-            int gridSlot = layout.gridSlotId(i);
-            ItemStack existing = handler.getSlot(gridSlot).getItem();
-            if (!existing.isEmpty()) {
-                if (!ItemStack.isSameItemSameComponents(existing, template)) {
-                    return false;
-                }
-                continue;
-            }
-
-            int sourceSlot = findMatchingPlayerInventoryHandlerSlot(
-                    client.player.getInventory(),
-                    handler,
-                    template
-            );
-            int sameMissingSlots = 1 + countMissingPatternSlots(handler, i + 1, template);
-            if (sourceSlot == -1 || !moveIngredientStackToGridSlot(client, handler, sourceSlot, gridSlot, template, i, sameMissingSlots)) {
-                return false;
-            }
-            changed = true;
+        if (getManualPatternState(handler) == ManualPatternState.MISSING
+                && !hasTotalItemsForMissingPatternSlots(handler)) {
+            return rebalanceGridTail(client, handler);
         }
-
-        return hasPattern && (changed || handler.getSlot(OUTPUT_SLOT).hasItem());
-    }
-
-    private boolean moveIngredientStackToGridSlot(Minecraft client,
-                                                  AbstractContainerMenu handler,
-                                                  int sourceSlot,
-                                                  int gridSlot,
-                                                  ItemStack template,
-                                                  int patternIndex,
-                                                  int sameMissingSlots) {
-        int sourceCount = usableIngredientCount(handler.getSlot(sourceSlot).getItem().getCount());
-        if (sameMissingSlots > 1 && sourceCount >= sameMissingSlots) {
-            return quickCraftDistributeToMissingPatternSlots(client, handler, sourceSlot, patternIndex, template);
-        }
-
-        if (sourceCount >= template.getMaxStackSize() && canFillSamePatternSlotsWithFullStacks(handler, template)) {
-            return moveFullStackToGridSlot(client, handler, sourceSlot, gridSlot, template);
-        }
-
-        if (sourceCount <= sameMissingSlots) {
-            return moveOneItemToGridSlot(client, handler, sourceSlot, gridSlot, template);
-        }
-
-        if (!pickupIngredientStack(client, handler, sourceSlot)) {
-            return false;
-        }
-        if (handler.getCarried().isEmpty()) {
-            return false;
-        }
-
-        client.gameMode.handleContainerInput(
-                handler.containerId,
-                gridSlot,
-                0,
-                ContainerInput.PICKUP,
-                client.player
-        );
-
-        return handler.getCarried().isEmpty()
-                && handler.getSlot(gridSlot).hasItem()
-                && ItemStack.isSameItemSameComponents(handler.getSlot(gridSlot).getItem(), template);
-    }
-
-    private boolean canFillSamePatternSlotsWithFullStacks(AbstractContainerMenu handler,
-                                                          ItemStack template) {
-        for (int i = 0; i < lockedCraftingPattern.size(); i++) {
-            ItemStack patternStack = lockedCraftingPattern.get(i);
-            if (patternStack.isEmpty() || !ItemStack.isSameItemSameComponents(patternStack, template)) {
-                continue;
-            }
-
-            ItemStack existing = handler.getSlot(layout.gridSlotId(i)).getItem();
-            if (existing.isEmpty()) {
-                continue;
-            }
-            if (!ItemStack.isSameItemSameComponents(existing, template)
-                    || existing.getCount() < template.getMaxStackSize()) {
-                return false;
-            }
-        }
-        return true;
-    }
-
-    private boolean moveFullStackToGridSlot(Minecraft client,
-                                            AbstractContainerMenu handler,
-                                            int sourceSlot,
-                                            int gridSlot,
-                                            ItemStack template) {
-        if (!pickupIngredientStack(client, handler, sourceSlot)) {
-            return false;
-        }
-        if (handler.getCarried().isEmpty()) {
-            return false;
-        }
-
-        client.gameMode.handleContainerInput(
-                handler.containerId,
-                gridSlot,
-                0,
-                ContainerInput.PICKUP,
-                client.player
-        );
-
-        return handler.getCarried().isEmpty()
-                && handler.getSlot(gridSlot).hasItem()
-                && ItemStack.isSameItemSameComponents(handler.getSlot(gridSlot).getItem(), template);
+        boolean filled = fillFullStacksThenTail(client, handler, MAX_OUTPUT_THROW_BURST);
+        return filled || (getManualPatternState(handler) == ManualPatternState.COMPLETE
+                && handler.getSlot(OUTPUT_SLOT).hasItem());
     }
 
     private record SampleRefillMove(int sourceSlot, int targetSlot, ItemStack template) {}
@@ -1098,36 +1102,12 @@ final class QuickCraftRecipeBookCrafting {
         return placed && cursorReturned;
     }
 
-    private boolean quickCraftDistributeToMissingPatternSlots(Minecraft client,
-                                                              AbstractContainerMenu handler,
-                                                              int sourceSlot,
-                                                              int startPatternIndex,
-                                                              ItemStack template) {
-        List<Integer> targetSlots = getMissingPatternSlots(handler, startPatternIndex, template);
-        if (targetSlots.size() <= 1) {
-            return moveOneItemToGridSlot(client, handler, sourceSlot, 1 + startPatternIndex, template);
-        }
-
-        if (!pickupIngredientStack(client, handler, sourceSlot)) {
-            return false;
-        }
-        if (handler.getCarried().isEmpty()) {
-            return false;
-        }
-
-        if (handler.getCarried().getCount() < targetSlots.size()) {
-            returnCursorStack(client, handler, sourceSlot);
-            return false;
-        }
-
-        return distributeCursorStackToPatternSlots(client, handler, sourceSlot, targetSlots, template);
-    }
-
     private boolean distributeCursorStackToPatternSlots(Minecraft client,
                                                          AbstractContainerMenu handler,
                                                          int sourceSlot,
                                                          List<Integer> targetSlots,
-                                                         ItemStack template) {
+                                                         ItemStack template,
+                                                         int expectedIncreasePerSlot) {
         if (handler.getCarried().isEmpty()) {
             return false;
         }
@@ -1138,46 +1118,10 @@ final class QuickCraftRecipeBookCrafting {
             targetCountsBefore[i] = target.isEmpty() ? 0 : target.getCount();
         }
 
-        // Vanilla quick-craft divides the entire cursor stack. Keep only a
-        // multiple of the target count in the cursor so duplicate recipe slots
-        // stay equal (64 across 3 slots must become 21/21/21, with one item
-        // returned to the source slot), otherwise the final QUICK_MOVE leaves a
-        // one-item partial recipe and exposes a button/pressure-plate result.
-        int cursorCountBeforeTrim = handler.getCarried().getCount();
-        int remainder = cursorCountBeforeTrim % targetSlots.size();
-        for (int i = 0; i < remainder; i++) {
-            client.gameMode.handleContainerInput(
-                    handler.containerId,
-                    sourceSlot,
-                    1,
-                    ContainerInput.PICKUP,
-                    client.player
-            );
-        }
+        int cursorCountBeforeDrag = handler.getCarried().getCount();
 
-        int expectedCursorAfterTrim = cursorCountBeforeTrim - remainder;
-        int cursorAfterTrim = handler.getCarried().getCount();
-        int sourceAfterTrim = handler.getSlot(sourceSlot).getItem().isEmpty()
-                ? 0
-                : handler.getSlot(sourceSlot).getItem().getCount();
-        if (remainder > 0
-                && (cursorAfterTrim != expectedCursorAfterTrim || sourceAfterTrim < remainder)) {
-            // A right-click used as the remainder deposit can be rejected by a
-            // stale client handler. Never start QUICK_CRAFT with 64 items here:
-            // vanilla rounds 64/3 to 22/21/21 and the leftover item creates a
-            // different recipe on the server. The slow path is limited to this
-            // final partial stack and is verified after every placement.
-            LOGGER.warn("普通配方书尾料均分余数未确认，切换逐个放置：界面={}，来源槽={}，目标槽={}，"
-                            + "游标={}，期望={}，来源槽={}，配方={}",
-                    layout.name(), sourceSlot, targetSlots, cursorAfterTrim,
-                    expectedCursorAfterTrim, sourceAfterTrim, template.getHoverName().getString());
-            if (!returnCursorStack(client, handler, sourceSlot)) {
-                return false;
-            }
-            return distributeCursorStackOneByOne(
-                    client, handler, sourceSlot, targetSlots, template, cursorCountBeforeTrim);
-        }
-
+        // 1.21.3 AbstractContainerMenu QUICK_CRAFT(mode=0) 会按目标数向下均分、逐槽按容量截断，
+        // 未放下的余料保留在光标，因此一次拖拽即可替代逐物品右键补料。
         client.gameMode.handleContainerInput(
                 handler.containerId,
                 -999,
@@ -1202,12 +1146,6 @@ final class QuickCraftRecipeBookCrafting {
                 client.player
         );
 
-        boolean cursorReturned = returnCursorStack(client, handler, sourceSlot);
-        if (!cursorReturned) {
-            return false;
-        }
-
-        int expectedIncreasePerSlot = expectedCursorAfterTrim / targetSlots.size();
         for (int i = 0; i < targetSlots.size(); i++) {
             int targetSlot = targetSlots.get(i);
             ItemStack placed = handler.getSlot(targetSlot).getItem();
@@ -1219,83 +1157,19 @@ final class QuickCraftRecipeBookCrafting {
                 LOGGER.warn("普通配方书尾料均分结果不一致，禁止继续发包：界面={}，槽={}，实际={}，期望={}，"
                                 + "目标槽={}，来源余数={}，配方={}",
                         layout.name(), targetSlot, placed.getCount(), expectedCount,
-                        targetSlots, remainder, template.getHoverName().getString());
+                        targetSlots,
+                        cursorCountBeforeDrag - expectedIncreasePerSlot * targetSlots.size(),
+                        template.getHoverName().getString());
                 return false;
             }
         }
-        if (remainder > 0) {
-            LOGGER.info("普通配方书尾料均分裁剪生效：界面={}，来源={}，目标槽={}，每槽={}，保留余数={}，"
-                            + "配方={}",
-                    layout.name(), cursorCountBeforeTrim, targetSlots, expectedIncreasePerSlot,
-                    remainder, template.getHoverName().getString());
+        int returned = cursorCountBeforeDrag - expectedIncreasePerSlot * targetSlots.size();
+        if (returned > 0) {
+            LOGGER.info("普通配方书尾料快速拖拽：界面={}，来源={}，目标槽={}，每槽增加={}，"
+                            + "待权威确认余数={}，槽位操作={}，配方={}",
+                    layout.name(), cursorCountBeforeDrag, targetSlots, expectedIncreasePerSlot,
+                    returned, targetSlots.size() + 3, template.getHoverName().getString());
         }
-        return true;
-    }
-
-    private boolean distributeCursorStackOneByOne(Minecraft client,
-                                                   AbstractContainerMenu handler,
-                                                   int sourceSlot,
-                                                   List<Integer> targetSlots,
-                                                   ItemStack template,
-                                                   int sourceCount) {
-        if (sourceCount < targetSlots.size()) {
-            return false;
-        }
-
-        int perSlot = sourceCount / targetSlots.size();
-        int expectedPlaced = perSlot * targetSlots.size();
-        if (!pickupIngredientStack(client, handler, sourceSlot)) {
-            return false;
-        }
-        if (handler.getCarried().isEmpty()
-                || !ItemStack.isSameItemSameComponents(handler.getCarried(), template)) {
-            return false;
-        }
-
-        int placed = 0;
-        for (int round = 0; round < perSlot; round++) {
-            for (int targetSlot : targetSlots) {
-                ItemStack before = handler.getSlot(targetSlot).getItem();
-                int beforeCount = before.isEmpty() ? 0 : before.getCount();
-                client.gameMode.handleContainerInput(
-                        handler.containerId,
-                        targetSlot,
-                        1,
-                        ContainerInput.PICKUP,
-                        client.player
-                );
-                ItemStack after = handler.getSlot(targetSlot).getItem();
-                if (after.isEmpty()
-                        || !ItemStack.isSameItemSameComponents(after, template)
-                        || after.getCount() != beforeCount + 1) {
-                    LOGGER.warn("普通配方书尾料逐个放置未确认，停止本次补料：界面={}，槽={}，前={}，后={}，"
-                                    + "已放置={}/{}，配方={}",
-                            layout.name(), targetSlot, beforeCount,
-                            after.isEmpty() ? 0 : after.getCount(), placed, expectedPlaced,
-                            template.getHoverName().getString());
-                    returnCursorStack(client, handler, sourceSlot);
-                    return false;
-                }
-                placed++;
-            }
-        }
-
-        boolean cursorReturned = returnCursorStack(client, handler, sourceSlot);
-        if (!cursorReturned) {
-            return false;
-        }
-        for (int targetSlot : targetSlots) {
-            ItemStack placedStack = handler.getSlot(targetSlot).getItem();
-            if (placedStack.isEmpty()
-                    || !ItemStack.isSameItemSameComponents(placedStack, template)
-                    || placedStack.getCount() != perSlot) {
-                return false;
-            }
-        }
-        LOGGER.info("普通配方书尾料逐个均分完成：界面={}，来源={}，目标槽={}，每槽={}，保留余数={}，"
-                        + "配方={}",
-                layout.name(), sourceCount, targetSlots, perSlot,
-                sourceCount - expectedPlaced, template.getHoverName().getString());
         return true;
     }
 
@@ -1359,24 +1233,6 @@ final class QuickCraftRecipeBookCrafting {
         return targetStack.isEmpty()
                 || (ItemStack.isSameItemSameComponents(targetStack, cursorStack)
                 && targetStack.getCount() + cursorStack.getCount() <= targetStack.getMaxStackSize());
-    }
-
-    private int countMissingPatternSlots(AbstractContainerMenu handler,
-                                         int startPatternIndex,
-                                         ItemStack template) {
-        int total = 0;
-        for (int i = startPatternIndex; i < lockedCraftingPattern.size(); i++) {
-            ItemStack patternStack = lockedCraftingPattern.get(i);
-            if (patternStack.isEmpty() || !ItemStack.isSameItemSameComponents(patternStack, template)) {
-                continue;
-            }
-
-            ItemStack existing = handler.getSlot(layout.gridSlotId(i)).getItem();
-            if (existing.isEmpty()) {
-                total++;
-            }
-        }
-        return total;
     }
 
     private boolean hasItemsForMissingPatternSlots(AbstractContainerMenu handler) {
