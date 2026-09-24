@@ -7,6 +7,7 @@ import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
 import net.fabricmc.loader.api.FabricLoader;
+import net.minecraft.ChatFormatting;
 import net.minecraft.world.level.block.BarrelBlock;
 import net.minecraft.world.level.block.BlastFurnaceBlock;
 import net.minecraft.world.level.block.Block;
@@ -69,12 +70,14 @@ public final class QuickContainerCopy implements ClientModInitializer {
     private static final int OPEN_TIMEOUT_TICKS = 20;
     private static final int BACKGROUND_ACTION_TIMEOUT_TICKS = 40;
     private static final int CONTINUOUS_REOPEN_DELAY_TICKS = 1;
+    private static final int CONTINUOUS_FILL_LONG_PRESS_TICKS = 4;
     private static final int VANILLA_SHULKER_SLOTS = 27;
     private static final Identifier QUICK_SHULKER_BUNDLE_PACKET = Identifier.fromNamespaceAndPath("quickshulker", "quick_bundleheld_packet");
     private static final Identifier QUICK_SHULKER_OPEN_PACKET = Identifier.fromNamespaceAndPath("quickshulker", "open_shulker_packet");
 
     private static boolean lastUseDown;
     private static boolean lastContinuousFillDown;
+    private static int continuousFillHoldTicks;
     private static int pendingTicks;
     private static PendingAction pendingAction = PendingAction.NONE;
     private static SupportedContainerType pendingContainerType;
@@ -166,6 +169,7 @@ public final class QuickContainerCopy implements ClientModInitializer {
                 && !QuickCraftConfigs.isLitematicaContainerAutofillEnabled()) {
             lastUseDown = false;
             lastContinuousFillDown = false;
+            continuousFillHoldTicks = 0;
             pendingAction = PendingAction.NONE;
             pendingContainerType = null;
             pendingTicks = 0;
@@ -186,14 +190,25 @@ public final class QuickContainerCopy implements ClientModInitializer {
         boolean fillDown = QuickCraftConfigs.Hotkeys.CONTINUOUS_CONTAINER_FILL.getKeybind().isKeybindHeld();
         if (!fillDown) {
             if (lastContinuousFillDown) {
+                if (continuousTask == null
+                        && continuousFillHoldTicks < CONTINUOUS_FILL_LONG_PRESS_TICKS
+                        && canHandleContinuousContainerFillHotkey(client)) {
+                    sendStatusMessage(
+                            client,
+                            Component.translatable("quickcraft.message.container_copy.hold_to_fill")
+                                    .withStyle(ChatFormatting.RED)
+                    );
+                }
                 stopContinuousTask(client, true, null);
             }
             suppressedContinuousTarget = null;
             lastContinuousFillDown = false;
+            continuousFillHoldTicks = 0;
             return;
         }
 
-        if (continuousTask == null) {
+        if (continuousTask == null
+                && ++continuousFillHoldTicks >= CONTINUOUS_FILL_LONG_PRESS_TICKS) {
             tryStartContinuousTask(client);
         }
         lastContinuousFillDown = true;
