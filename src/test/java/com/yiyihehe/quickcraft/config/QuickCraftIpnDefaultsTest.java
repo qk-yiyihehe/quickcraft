@@ -1,15 +1,52 @@
 package com.yiyihehe.quickcraft.config;
 
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import net.minecraft.Bootstrap;
+import net.minecraft.SharedConstants;
+import net.fabricmc.loader.impl.FabricLoaderImpl;
 
 import java.lang.reflect.Field;
+import java.nio.file.Path;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
 class QuickCraftIpnDefaultsTest {
+    private static Path previousGameDir;
+    private static Path previousConfigDir;
+
+    @BeforeAll
+    static void initializeMinecraftVersion() throws ReflectiveOperationException {
+        SharedConstants.createGameVersion();
+        Field initialized = Bootstrap.class.getDeclaredField("initialized");
+        initialized.setAccessible(true);
+        initialized.setBoolean(null, true);
+
+        // MaLiLib 0.27.14–0.27.18 在配置类初始化时读取游戏目录，单元测试没有启动 Fabric Loader。
+        Field gameDir = FabricLoaderImpl.class.getDeclaredField("gameDir");
+        gameDir.setAccessible(true);
+        previousGameDir = (Path) gameDir.get(FabricLoaderImpl.INSTANCE);
+        gameDir.set(FabricLoaderImpl.INSTANCE, Path.of(".").toAbsolutePath().normalize());
+        Field configDir = FabricLoaderImpl.class.getDeclaredField("configDir");
+        configDir.setAccessible(true);
+        previousConfigDir = (Path) configDir.get(FabricLoaderImpl.INSTANCE);
+        configDir.set(FabricLoaderImpl.INSTANCE, Path.of(".").toAbsolutePath().normalize());
+    }
+
+    @AfterAll
+    static void restoreGameDir() throws ReflectiveOperationException {
+        Field gameDir = FabricLoaderImpl.class.getDeclaredField("gameDir");
+        gameDir.setAccessible(true);
+        gameDir.set(FabricLoaderImpl.INSTANCE, previousGameDir);
+        Field configDir = FabricLoaderImpl.class.getDeclaredField("configDir");
+        configDir.setAccessible(true);
+        configDir.set(FabricLoaderImpl.INSTANCE, previousConfigDir);
+    }
+
     @BeforeEach
     void setUp() throws ReflectiveOperationException {
         resetMigrationState();
