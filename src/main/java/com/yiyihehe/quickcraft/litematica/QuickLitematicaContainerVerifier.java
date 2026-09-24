@@ -554,25 +554,15 @@ public final class QuickLitematicaContainerVerifier {
         clearCurrentScreenContainerBinding();
     }
 
-    public static void drawGhostItem(
+    public static void drawGhostItems(
             DrawContext context,
             MinecraftClient client,
-            ItemStack stack,
-            int x,
-            int y,
+            List<GhostItemDraw> items,
             int guiLeft,
             int guiTop,
             float alpha
     ) {
-        GhostItemBuffer.drawGhostItem(context, client, stack, x, y, guiLeft, guiTop, alpha);
-    }
-
-    public static boolean beginHandledScreenGhostRender(DrawContext context, MinecraftClient client) {
-        return GhostItemBuffer.beginHandledScreenGhostRender(context, client);
-    }
-
-    public static void endHandledScreenGhostRender(DrawContext context, int guiLeft, int guiTop, float alpha) {
-        GhostItemBuffer.endHandledScreenGhostRender(context, guiLeft, guiTop, alpha);
+        GhostItemBuffer.drawGhostItems(context, client, items, guiLeft, guiTop, alpha);
     }
 
     public static void rememberContainerUse(MinecraftClient client, BlockHitResult hitResult) {
@@ -1411,26 +1401,26 @@ public final class QuickLitematicaContainerVerifier {
             int slotsPerRow,
             List<SlotMismatch> slotMismatches
     ) {
+        List<GhostItemDraw> ghostItems = new ArrayList<>();
         for (SlotMismatch mismatch : slotMismatches) {
             if (mismatch.status() != SlotMismatchStatus.MISSING || mismatch.expectedStack().isEmpty()) {
                 continue;
             }
 
             SlotPosition pos = getInventoryOverlaySlotPosition(type, xSlots, ySlots, slotsPerRow, mismatch.slot());
-            int x = pos.x();
-            int y = pos.y();
-            drawGhostItem(
-                    drawContext,
-                    mc,
-                    mismatch.expectedStack(),
-                    x,
-                    y,
-                    0,
-                    0,
-                    QuickLitematicaVerifierPalette.ghostItemAlpha()
-            );
-            drawContext.fill(x, y, x + 16, y + 16, mismatch.status().ghostMaskColor());
-            drawOutline(drawContext, x, y, 16, 16, mismatch.status().borderColor());
+            ghostItems.add(new GhostItemDraw(mismatch.expectedStack(), pos.x(), pos.y()));
+        }
+
+        drawGhostItems(drawContext, mc, ghostItems, 0, 0, QuickLitematicaVerifierPalette.ghostItemAlpha());
+
+        for (SlotMismatch mismatch : slotMismatches) {
+            if (mismatch.status() != SlotMismatchStatus.MISSING || mismatch.expectedStack().isEmpty()) {
+                continue;
+            }
+
+            SlotPosition pos = getInventoryOverlaySlotPosition(type, xSlots, ySlots, slotsPerRow, mismatch.slot());
+            drawContext.fill(pos.x(), pos.y(), pos.x() + 16, pos.y() + 16, mismatch.status().ghostMaskColor());
+            drawOutline(drawContext, pos.x(), pos.y(), 16, 16, mismatch.status().borderColor());
         }
     }
 
@@ -1600,6 +1590,9 @@ public final class QuickLitematicaContainerVerifier {
     }
 
     private record SlotPosition(int x, int y) {
+    }
+
+    public record GhostItemDraw(ItemStack stack, int x, int y) {
     }
 
     public record SlotOverlay(
@@ -1801,17 +1794,15 @@ public final class QuickLitematicaContainerVerifier {
             previousFramebuffer = null;
         }
 
-        private static void drawGhostItem(
+        private static void drawGhostItems(
                 DrawContext context,
                 MinecraftClient client,
-                ItemStack stack,
-                int x,
-                int y,
+                List<GhostItemDraw> items,
                 int guiLeft,
                 int guiTop,
                 float alpha
         ) {
-            if (stack.isEmpty()) {
+            if (items.isEmpty()) {
                 return;
             }
 
@@ -1820,10 +1811,14 @@ public final class QuickLitematicaContainerVerifier {
                 return;
             }
 
-            context.drawItem(stack, x, y);
-            context.drawStackOverlay(client.textRenderer, stack, x, y);
-            context.draw();
-            endHandledScreenGhostRender(context, guiLeft, guiTop, clampedAlpha);
+            try {
+                for (GhostItemDraw item : items) {
+                    context.drawItem(item.stack(), item.x(), item.y());
+                    context.drawStackOverlay(client.textRenderer, item.stack(), item.x(), item.y());
+                }
+            } finally {
+                endHandledScreenGhostRender(context, guiLeft, guiTop, clampedAlpha);
+            }
         }
 
         private static SimpleFramebuffer getFramebuffer(MinecraftClient client) {
