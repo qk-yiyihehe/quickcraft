@@ -546,12 +546,21 @@ final class QuickCraftRecipeBookInventory {
                 && wholeStackFitsInSlot(sourceCount, existingCount, maxCount);
     }
 
-    static boolean shouldKeepFillingManualPattern(boolean missingPatternSlot,
-                                                  boolean moveWholeStackToSingleSlot,
-                                                  int attempts,
-                                                  int sourceStackBudget) {
-        return missingPatternSlot
-                || (!moveWholeStackToSingleSlot && attempts < sourceStackBudget);
+    static int tailItemsPerSlot(int sourceCount,
+                                int targetSlots,
+                                int remainingCapacityPerSlot) {
+        if (sourceCount <= 0 || targetSlots <= 0 || remainingCapacityPerSlot <= 0) {
+            return 0;
+        }
+        return Math.min(sourceCount / targetSlots, remainingCapacityPerSlot);
+    }
+
+    static boolean canQuickTopUpCompleteGroup(int occurrences,
+                                               int availableItems,
+                                               int remainingCapacity) {
+        return occurrences == 1
+                || (occurrences > 1 && remainingCapacity > 0
+                && availableItems >= remainingCapacity);
     }
 
     static boolean returnCursorToUnlockedInventory(Minecraft client,
