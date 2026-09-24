@@ -3,6 +3,7 @@ package com.yiyihehe.quickcraft.litematica;
 import com.yiyihehe.quickcraft.QuickContainerCopy;
 import com.yiyihehe.quickcraft.QuickCraftKeyBindings;
 import com.yiyihehe.quickcraft.config.QuickCraftConfigs;
+import com.yiyihehe.quickcraft.render.QuickContainerFillStatus;
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
@@ -17,27 +18,45 @@ import net.minecraft.world.phys.HitResult;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.level.Level;
 
+import java.util.concurrent.atomic.AtomicReference;
+
 /**
  * 根据当前投影中对应位置的容器内容，自动填充玩家右键打开的实际容器。
  */
 public final class QuickLitematicaContainerAutofill implements ClientModInitializer {
     private static final int OPEN_TIMEOUT_TICKS = 20;
     private static final Identifier QUICK_SHULKER_BUNDLE_PACKET = Identifier.fromNamespaceAndPath("quickshulker", "quick_bundleheld_packet");
+    private static final AtomicReference<QuickLitematicaContainerAutofill> ACTIVE = new AtomicReference<>();
 
     private boolean lastUseDown;
     private BlockPos pendingContainerPos;
+    private BlockHitResult pendingFillTarget;
     private int pendingTicks;
 
     @Override
     public void onInitializeClient() {
         QuickLitematicaPreview3D.registerSpecialRenderer();
+        ACTIVE.set(this);
         ClientTickEvents.END_CLIENT_TICK.register(this::onClientTick);
+    }
+
+    public static void cancelPendingForContinuousFill(Minecraft client) {
+        QuickLitematicaContainerAutofill active = ACTIVE.get();
+        if (active == null || active.pendingContainerPos == null) {
+            return;
+        }
+        QuickContainerFillStatus.stop(client, active.pendingFillTarget, false);
+        active.pendingContainerPos = null;
+        active.pendingFillTarget = null;
+        active.pendingTicks = 0;
     }
 
     private void onClientTick(Minecraft client) {
         if (!QuickCraftConfigs.isLitematicaContainerAutofillEnabled()) {
             lastUseDown = false;
             pendingContainerPos = null;
+            QuickContainerFillStatus.stop(client, pendingFillTarget, true);
+            pendingFillTarget = null;
             pendingTicks = 0;
             return;
         }
@@ -58,7 +77,9 @@ public final class QuickLitematicaContainerAutofill implements ClientModInitiali
             if (hitResult != null && shouldHandleTarget(client, hitResult)) {
                 BlockPos pos = hitResult.getBlockPos();
                 pendingContainerPos = pos.immutable();
+                pendingFillTarget = hitResult;
                 pendingTicks = 0;
+                QuickContainerFillStatus.begin(client, hitResult);
             }
         }
         lastUseDown = useDown;
@@ -72,18 +93,23 @@ public final class QuickLitematicaContainerAutofill implements ClientModInitiali
         pendingTicks++;
         if (!(client.gui.screen() instanceof AbstractContainerScreen<?> screen)) {
             if (pendingTicks > OPEN_TIMEOUT_TICKS) {
+                QuickContainerFillStatus.stop(client, pendingFillTarget, true);
                 pendingContainerPos = null;
+                pendingFillTarget = null;
                 pendingTicks = 0;
             }
             return;
         }
 
         BlockPos pos = pendingContainerPos;
+        BlockHitResult target = pendingFillTarget;
         pendingContainerPos = null;
+        pendingFillTarget = null;
         pendingTicks = 0;
 
         QuickContainerCopy.TemplateSnapshot snapshot = getTemplateSnapshot(client, pos);
         if (snapshot == null) {
+            QuickContainerFillStatus.stop(client, target, true);
             sendStatusMessage(client, Component.translatable("quickcraft.message.litematica_autofill.no_container_content"));
             closeCurrentScreen(client);
             return;
@@ -91,12 +117,13 @@ public final class QuickLitematicaContainerAutofill implements ClientModInitiali
 
         AbstractContainerMenu handler = screen.getMenu();
         if (!QuickContainerCopy.canApplyTemplateSnapshot(handler, snapshot)) {
+            QuickContainerFillStatus.stop(client, target, true);
             sendStatusMessage(client, Component.translatable("quickcraft.message.container_copy.projection_type_mismatch"));
             closeCurrentScreen(client);
             return;
         }
 
-        QuickContainerCopy.applyTemplateSnapshot(client, handler, snapshot, shouldUseQuickShulker());
+        QuickContainerCopy.applyTemplateSnapshot(client, handler, snapshot, shouldUseQuickShulker(), target);
         closeCurrentScreen(client);
     }
 

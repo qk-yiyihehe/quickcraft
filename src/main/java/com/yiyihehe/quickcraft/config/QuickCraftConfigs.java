@@ -373,6 +373,11 @@ public final class QuickCraftConfigs implements IConfigHandler {
                 false,
                 ""
         ).apply(CONTAINER_TRANSLATION_PREFIX);
+        public static final ConfigBooleanHotkeyed SHOW_CONTAINER_FILL_STATUS_OUTLINES = new ConfigBooleanHotkeyed(
+                "showContainerFillStatusOutlines",
+                true,
+                ""
+        ).apply(CONTAINER_TRANSLATION_PREFIX);
         public static final ConfigBooleanHotkeyed ALLOW_MANUAL_LOCKED_SLOT_INTERACTION = new ConfigBooleanHotkeyed(
                 "allowManualLockedSlotInteraction",
                 true,
@@ -455,6 +460,7 @@ public final class QuickCraftConfigs implements IConfigHandler {
                 QUICK_SORT_BUNDLES_AT_END,
                 SHOW_CONTAINER_LOCK_BUTTON,
                 SHOW_SLOT_LOCK_OVERLAY,
+                SHOW_CONTAINER_FILL_STATUS_OUTLINES,
                 ALLOW_MANUAL_LOCKED_SLOT_INTERACTION,
                 ENABLE_CONTAINER_TOOL_MODE,
                 CONTAINER_TOOL_MODE,
@@ -916,6 +922,7 @@ public final class QuickCraftConfigs implements IConfigHandler {
                 ContainerTools.ENABLE_QUICK_SORT,
                 ContainerTools.SHOW_CONTAINER_LOCK_BUTTON,
                 ContainerTools.SHOW_SLOT_LOCK_OVERLAY,
+                ContainerTools.SHOW_CONTAINER_FILL_STATUS_OUTLINES,
                 ContainerTools.ALLOW_MANUAL_LOCKED_SLOT_INTERACTION,
                 ContainerTools.ENABLE_CONTAINER_TOOL_MODE,
                 ContainerTools.ENABLE_CREATIVE_PACKING,
@@ -977,6 +984,7 @@ public final class QuickCraftConfigs implements IConfigHandler {
                 ContainerTools.ENABLE_QUICK_SORT,
                 ContainerTools.SHOW_CONTAINER_LOCK_BUTTON,
                 ContainerTools.SHOW_SLOT_LOCK_OVERLAY,
+                ContainerTools.SHOW_CONTAINER_FILL_STATUS_OUTLINES,
                 ContainerTools.ALLOW_MANUAL_LOCKED_SLOT_INTERACTION,
                 ContainerTools.ENABLE_CONTAINER_TOOL_MODE,
                 ContainerTools.ENABLE_CREATIVE_PACKING,
@@ -1283,6 +1291,10 @@ public final class QuickCraftConfigs implements IConfigHandler {
 
     public static boolean isSlotLockOverlayVisible() {
         return ContainerTools.SHOW_SLOT_LOCK_OVERLAY.getBooleanValue();
+    }
+
+    public static boolean areContainerFillStatusOutlinesVisible() {
+        return ContainerTools.SHOW_CONTAINER_FILL_STATUS_OUTLINES.getBooleanValue();
     }
 
     public static boolean areManualLockedSlotInteractionsAllowed() {
