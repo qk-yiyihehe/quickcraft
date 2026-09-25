@@ -13,6 +13,7 @@ import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.player.Input;
 import net.minecraft.world.item.BlockItem;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Items;
 import net.minecraft.world.item.context.BlockPlaceContext;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.block.state.properties.BlockStateProperties;
@@ -21,6 +22,7 @@ import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.phys.EntityHitResult;
 import net.minecraft.world.phys.HitResult;
 import net.minecraft.world.phys.Vec3;
+import net.minecraft.world.level.ClipContext;
 
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -148,9 +150,63 @@ public final class QuickFreeCameraInteractions {
         beginSneakPlacement(client);
     }
 
-    public static void beginItemUseFromFreeCamera(Minecraft client) {
-        beginCameraFacing(client);
+    public static boolean beginItemUseFromFreeCamera(Minecraft client, InteractionHand hand) {
+        if (shouldOverrideCrosshair(client) && client.player.getItemInHand(hand).is(Items.WATER_BUCKET)) {
+            if (!beginWaterBucketUseFromFreeCamera(client)) {
+                return false;
+            }
+        } else {
+            beginCameraFacing(client);
+        }
         beginSneakPlacement(client);
+        return true;
+    }
+
+    private static boolean beginWaterBucketUseFromFreeCamera(Minecraft client) {
+        if (!QuickCraftConfigs.areFreeCameraBlockInteractionsEnabled()
+                || easyPlaceActionDepth > 0
+                || cameraFacingApplied
+                || client.level == null
+                || client.player == null
+                || client.player.connection == null
+                || !(client.hitResult instanceof BlockHitResult target)
+                || target.getType() != HitResult.Type.BLOCK) {
+            return false;
+        }
+
+        LocalPlayer player = client.player;
+        Direction side = target.getDirection();
+        Vec3 eye = player.getEyePosition();
+        // 命中点向方块内偏移 0.01 格，避免射线停在方块面边界产生浮点误判。
+        Vec3 hit = target.getLocation().subtract(
+                side.getStepX() * 0.01D,
+                side.getStepY() * 0.01D,
+                side.getStepZ() * 0.01D
+        );
+        Vec3 direction = hit.subtract(eye);
+        if (direction.lengthSqr() < 1.0E-6D) {
+            return false;
+        }
+
+        double horizontal = Math.sqrt(direction.x * direction.x + direction.z * direction.z);
+        float yaw = (float) Math.toDegrees(Math.atan2(-direction.x, direction.z));
+        float pitch = (float) -Math.toDegrees(Math.atan2(direction.y, horizontal));
+        // 使用物品包没有方块坐标；从本体视点无法命中相机所指的同一面时，不能让水落在别处。
+        BlockHitResult bodyHit = client.level.clip(new ClipContext(
+                eye,
+                eye.add(direction.normalize().scale(player.blockInteractionRange())),
+                ClipContext.Block.OUTLINE,
+                ClipContext.Fluid.NONE,
+                player
+        ));
+        if (bodyHit.getType() != HitResult.Type.BLOCK
+                || !bodyHit.getBlockPos().equals(target.getBlockPos())
+                || bodyHit.getDirection() != side) {
+            return false;
+        }
+
+        beginFacing(client, yaw, pitch);
+        return true;
     }
 
     public static void endBlockUseFromFreeCamera(Minecraft client) {
@@ -249,6 +305,10 @@ public final class QuickFreeCameraInteractions {
         if (camera == null || camera == client.player) {
             return;
         }
+        beginFacing(client, camera.getYRot(), camera.getXRot());
+    }
+
+    private static void beginFacing(Minecraft client, float yaw, float pitch) {
         LocalPlayer player = client.player;
         restoredYaw = player.getYRot();
         restoredPitch = player.getXRot();
@@ -256,8 +316,6 @@ public final class QuickFreeCameraInteractions {
         restoredPrevPitch = player.xRotO;
         restoredHeadYaw = player.getYHeadRot();
         restoredBodyYaw = player.yBodyRot;
-        float yaw = camera.getYRot();
-        float pitch = camera.getXRot();
         serverFacingRestorePending = false;
         player.setYRot(yaw);
         player.setXRot(pitch);
