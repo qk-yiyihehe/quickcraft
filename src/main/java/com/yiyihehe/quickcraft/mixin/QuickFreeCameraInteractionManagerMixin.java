@@ -23,6 +23,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 /**
  * 在灵魂相机交互产生客户端预测前复用服务端的本体距离判定。
  * 潜行和方向同步必须包在 useItemOn 外：它返回前才发送使用包。
+ * 水桶通过 useItem 发送不含目标位置的包，需在 HEAD 对准本体可命中的相机目标，否则阻止误倒水。
  */
 @Mixin(MultiPlayerGameMode.class)
 public class QuickFreeCameraInteractionManagerMixin {
@@ -50,10 +51,12 @@ public class QuickFreeCameraInteractionManagerMixin {
         QuickFreeCameraInteractions.endBlockUseFromFreeCamera(Minecraft.getInstance());
     }
 
-    @Inject(method = "useItem", at = @At("HEAD"))
+    @Inject(method = "useItem", at = @At("HEAD"), cancellable = true)
     private void quickcraft$beginItemUseFromFreeCamera(
             Player player, InteractionHand hand, CallbackInfoReturnable<InteractionResult> cir) {
-        QuickFreeCameraInteractions.beginItemUseFromFreeCamera(Minecraft.getInstance());
+        if (!QuickFreeCameraInteractions.beginItemUseFromFreeCamera(Minecraft.getInstance(), hand)) {
+            cir.setReturnValue(InteractionResult.FAIL);
+        }
     }
 
     @Inject(method = "useItem", at = @At("RETURN"))
