@@ -8,6 +8,7 @@ import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
+import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 import org.lwjgl.glfw.GLFW;
 
 /**
@@ -27,7 +28,7 @@ public abstract class QuickContainerLockScreenMixin {
     }
 
     @Inject(method = "mouseClicked", at = @At("HEAD"))
-    private void quickcraft$prepareQuickShulkerOpen(Click click, boolean doubled, CallbackInfo ci) {
+    private void quickcraft$prepareQuickShulkerOpen(Click click, boolean doubled, CallbackInfoReturnable<Boolean> cir) {
         HandledScreen<?> screen = (HandledScreen<?>) (Object) this;
         HandledScreenAccessor accessor = (HandledScreenAccessor) this;
         QuickContainerLock.bindCurrentScreen(screen);
