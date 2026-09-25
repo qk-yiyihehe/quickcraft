@@ -189,6 +189,35 @@ class QuickCraftWorkbenchShulkerTest {
     }
 
     @Test
+    @DisplayName("补料时仅输出槽由服务端重算，收到全量包后立即使用顺序探针")
+    void ackPipeline_reconcilesRefillOutputOnlyMismatch() {
+        assertThat(QuickCraftWorkbenchShulkerCraft.shouldProbeReconciledRefill(
+                QuickCraftWorkbenchShulkerCraft.AckBatchKind.REFILL,
+                1, true, true, false, true, false)).isTrue();
+        assertThat(QuickCraftWorkbenchShulkerCraft.shouldProbeReconciledRefill(
+                QuickCraftWorkbenchShulkerCraft.AckBatchKind.OUTPUT,
+                1, true, true, false, true, false)).isFalse();
+        assertThat(QuickCraftWorkbenchShulkerCraft.shouldProbeReconciledRefill(
+                QuickCraftWorkbenchShulkerCraft.AckBatchKind.REFILL,
+                0, true, true, false, true, false)).isFalse();
+        assertThat(QuickCraftWorkbenchShulkerCraft.shouldProbeReconciledRefill(
+                QuickCraftWorkbenchShulkerCraft.AckBatchKind.REFILL,
+                1, false, true, false, true, false)).isFalse();
+        assertThat(QuickCraftWorkbenchShulkerCraft.shouldProbeReconciledRefill(
+                QuickCraftWorkbenchShulkerCraft.AckBatchKind.REFILL,
+                1, true, false, false, true, false)).isFalse();
+        assertThat(QuickCraftWorkbenchShulkerCraft.shouldProbeReconciledRefill(
+                QuickCraftWorkbenchShulkerCraft.AckBatchKind.REFILL,
+                1, true, true, true, true, false)).isFalse();
+        assertThat(QuickCraftWorkbenchShulkerCraft.shouldProbeReconciledRefill(
+                QuickCraftWorkbenchShulkerCraft.AckBatchKind.REFILL,
+                1, true, true, false, false, false)).isFalse();
+        assertThat(QuickCraftWorkbenchShulkerCraft.shouldProbeReconciledRefill(
+                QuickCraftWorkbenchShulkerCraft.AckBatchKind.REFILL,
+                1, true, true, false, true, true)).isFalse();
+    }
+
+    @Test
     @DisplayName("停止请求会等待已发送或正在记录的点击完成确认")
     void ackPipeline_defersStopOnlyWhenClicksAreInFlight() {
         assertThat(QuickCraftWorkbenchShulkerCraft.shouldDeferStopForAck(
