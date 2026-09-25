@@ -12,7 +12,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 @Mixin(MultiPlayerGameMode.class)
 public abstract class WorkbenchShulkerClientClickMixin {
-    // HEAD 保存点击发出前的准确槽位/光标状态，供普通鼠标合成 ACK 遥测统计。
+    // HEAD 记录普通鼠标合成 ACK 判定批次路径所需的点击计数。
     @Inject(method = "handleContainerInput", at = @At("HEAD"))
     private void quickcraft$recordMouseCraftClickStart(int containerId,
                                                        int slotId,
@@ -24,7 +24,7 @@ public abstract class WorkbenchShulkerClientClickMixin {
                 containerId, slotId, button, actionType, player);
     }
 
-    // RETURN 表示本次原版点击已完成本地预测并发包，随后才能计入当前确认批次。
+    // RETURN 表示本次原版点击已经完成，供潜影盒工作台推进确认状态。
     @Inject(method = "handleContainerInput", at = @At("RETURN"))
     private void quickcraft$recordWorkbenchClick(int containerId,
                                                  int slotId,
@@ -33,7 +33,5 @@ public abstract class WorkbenchShulkerClientClickMixin {
                                                  Player player,
                                                  CallbackInfo ci) {
         QuickCraftWorkbenchShulkerCraft.onWorkbenchClickSent(containerId);
-        QuickCraftMouseCraftAckExecutor.onClientClickEnd(
-                containerId, slotId, button, actionType, player);
     }
 }
