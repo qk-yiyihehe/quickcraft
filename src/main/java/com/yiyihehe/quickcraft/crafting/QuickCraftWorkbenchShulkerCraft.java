@@ -231,10 +231,14 @@ public final class QuickCraftWorkbenchShulkerCraft implements ClientModInitializ
             boolean exactStateMatches = handlerMatchesAckExpected(handler);
             boolean terminalStateSafe = isAckBatchTerminalStateSafe(handler);
             boolean revisionAdvanced = ackBatchLastRevision != ackBatchStartRevision;
-            if (shouldProbeReconciledOutput(ackBatchKind, ackBatchClickCount,
+            if ((shouldProbeReconciledOutput(ackBatchKind, ackBatchClickCount,
                     ackBatchOutputClicks, ackBatchFullInventoryUpdates,
                     exactStateMatches, terminalStateSafe, craftStatsBaselinePending,
                     sessionCraftedStatBaseline >= 0, ackStatsProbePending)
+                    || shouldProbeReconciledRefill(ackBatchKind, ackBatchFullInventoryUpdates,
+                    ackBatchKind == AckBatchKind.REFILL && ackDiffersOnlyInOutputSlot(handler),
+                    terminalStateSafe, craftStatsBaselinePending,
+                    sessionCraftedStatBaseline >= 0, ackStatsProbePending))
                     && requestAckStatsProbe(client, now)) {
                 return;
             }
@@ -412,10 +416,14 @@ public final class QuickCraftWorkbenchShulkerCraft implements ClientModInitializ
         }
         if (!confirmed) {
             ItemStack output = handler.getSlot(OUTPUT_SLOT).getStack();
-            if (!output.isEmpty() && !isExpectedOutput(output)
+            if ((!output.isEmpty() && !isExpectedOutput(output)
                     && shouldProbeReconciledOutput(ackBatchKind, ackBatchClickCount,
                     ackBatchOutputClicks, ackBatchFullInventoryUpdates,
                     exactStateMatches, terminalStateSafe, craftStatsBaselinePending,
+                    sessionCraftedStatBaseline >= 0, ackStatsProbePending))
+                    || shouldProbeReconciledRefill(ackBatchKind, ackBatchFullInventoryUpdates,
+                    ackBatchKind == AckBatchKind.REFILL && ackDiffersOnlyInOutputSlot(handler),
+                    terminalStateSafe, craftStatsBaselinePending,
                     sessionCraftedStatBaseline >= 0, ackStatsProbePending)) {
                 requestAckStatsProbe(client, now);
             }
@@ -578,6 +586,23 @@ public final class QuickCraftWorkbenchShulkerCraft implements ClientModInitializ
                 && !probePending;
     }
 
+    static boolean shouldProbeReconciledRefill(AckBatchKind kind,
+                                               int fullInventoryUpdates,
+                                               boolean outputOnlyMismatch,
+                                               boolean terminalStateSafe,
+                                               boolean baselinePending,
+                                               boolean baselineAvailable,
+                                               boolean probePending) {
+        // 1.21.3 的服务端配方计算可能只修正输出槽；统计回包用作补料点击的顺序屏障。
+        return kind == AckBatchKind.REFILL
+                && fullInventoryUpdates > 0
+                && outputOnlyMismatch
+                && terminalStateSafe
+                && !baselinePending
+                && baselineAvailable
+                && !probePending;
+    }
+
     static boolean isCurrentAckStatsProbe(boolean probePending,
                                           long probeBatchId,
                                           long currentBatchId,
@@ -649,6 +674,22 @@ public final class QuickCraftWorkbenchShulkerCraft implements ClientModInitializ
         }
         for (int slotId : ackExpectedSlotIds) {
             if (!ItemStack.areEqual(ackExpectedSlots.get(slotId), handler.getSlot(slotId).getStack())) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private boolean ackDiffersOnlyInOutputSlot(CraftingScreenHandler handler) {
+        if (ackExpectedSlots.size() != handler.slots.size()
+                || !ItemStack.areEqual(ackExpectedCursor, handler.getCursorStack())
+                || ItemStack.areEqual(ackExpectedSlots.get(OUTPUT_SLOT),
+                handler.getSlot(OUTPUT_SLOT).getStack())) {
+            return false;
+        }
+        for (int slotId : ackExpectedSlotIds) {
+            if (slotId != OUTPUT_SLOT
+                    && !ItemStack.areEqual(ackExpectedSlots.get(slotId), handler.getSlot(slotId).getStack())) {
                 return false;
             }
         }
