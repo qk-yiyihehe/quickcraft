@@ -26,6 +26,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
  * 潜行放置和朝向同步必须包在 {@code interactBlock} 外，不能包 {@code interactBlockInternal}：
  * 内部方法返回后才发送 {@code PlayerInteractBlockC2SPacket}，若先还原 SHIFT/朝向，服务端仍会开箱或按本体朝向放置。
  * 实体交互包自身携带潜行标志，因此需要在包构造处替换该参数，并在发送后恢复服务端潜行状态。
+ * 水桶的 interactItem 包不带命中位置，需在 HEAD 对准本体可命中的相机目标，否则阻止误倒水。
  */
 @Mixin(ClientPlayerInteractionManager.class)
 public class QuickFreeCameraInteractionManagerMixin {
@@ -62,13 +63,15 @@ public class QuickFreeCameraInteractionManagerMixin {
         QuickFreeCameraInteractions.endBlockUseFromFreeCamera(MinecraftClient.getInstance());
     }
 
-    @Inject(method = "interactItem", at = @At("HEAD"))
+    @Inject(method = "interactItem", at = @At("HEAD"), cancellable = true)
     private void quickcraft$beginItemUseFromFreeCamera(
             PlayerEntity player,
             Hand hand,
             CallbackInfoReturnable<ActionResult> cir
     ) {
-        QuickFreeCameraInteractions.beginItemUseFromFreeCamera(MinecraftClient.getInstance());
+        if (!QuickFreeCameraInteractions.beginItemUseFromFreeCamera(MinecraftClient.getInstance(), hand)) {
+            cir.setReturnValue(ActionResult.FAIL);
+        }
     }
 
     @Inject(method = "interactItem", at = @At("RETURN"))
