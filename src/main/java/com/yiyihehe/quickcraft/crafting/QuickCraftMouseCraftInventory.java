@@ -6,8 +6,6 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.inventory.AbstractContainerMenu;
 import net.minecraft.world.inventory.Slot;
 import net.minecraft.world.inventory.ContainerInput;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -17,8 +15,6 @@ import java.util.List;
  * 两种原版合成界面共用的玩家库存输出操作。
  */
 final class QuickCraftMouseCraftInventory {
-    private static final Logger LOGGER = LoggerFactory.getLogger("QuickCraft/RecipeBookCraft");
-
     private QuickCraftMouseCraftInventory() {
     }
 
@@ -380,11 +376,10 @@ final class QuickCraftMouseCraftInventory {
             if (stack.isEmpty() || !ItemStack.isSameItemSameComponents(stack, template)) {
                 continue;
             }
-            ItemStack dropped = stack.copy();
             client.gameMode.handleContainerInput(
                     handler.containerId, handlerSlot, 1, ContainerInput.THROW, client.player);
             droppedSlots++;
-            LOGGER.info("{}：界面={}，槽={}，物品={}", reason, layout.name(), handlerSlot, dropped);
+
         }
         return droppedSlots;
     }
