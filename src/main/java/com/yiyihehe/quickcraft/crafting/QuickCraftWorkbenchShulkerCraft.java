@@ -42,6 +42,9 @@ public final class QuickCraftWorkbenchShulkerCraft implements ClientModInitializ
     private static final int MAX_OUTPUT_BURST = 64;
     private static final int MAX_FAILURES = 3;
     private static final int MAX_ACK_LOCAL_STEPS = 8;
+    // 1.21 PlayerEntity.dropItem 给喷出的产物 40 tick 拾取延迟，但客户端不接收该延迟。
+    // 用客户端实体年龄跳过前 30 tick，提前 10 tick 恢复检测以留出联机延迟余量。
+    private static final int THROWN_OUTPUT_GRACE_TICKS = 30;
     private static final int CURSOR_SETTLE_TICKS = 4;
     private static final int RECOVERY_PAUSE_TICKS = 4;
     private static final int CURSOR_TIMEOUT_TICKS = 20;
@@ -1959,14 +1962,15 @@ public final class QuickCraftWorkbenchShulkerCraft implements ClientModInitializ
         if (client == null || client.player == null || client.world == null) {
             return true;
         }
-        double x = client.player.getX();
-        double y = client.player.getY();
-        double z = client.player.getZ();
-        // 脚边水平两格、脚下到脚上一格；拾取延迟中的掉落物也必须先清走。
-        Box feetArea = new Box(x - 2.0, y - 1.0, z - 2.0,
-                x + 2.0, y + 1.0, z + 2.0);
-        return !client.world.getEntitiesByClass(ItemEntity.class, feetArea,
-                item -> item.isAlive() && !item.getStack().isEmpty()).isEmpty();
+        // 与 1.21 PlayerEntity.tickMovement 的物品碰撞查询范围一致。
+        Box pickupArea = client.player.hasVehicle() && !client.player.getVehicle().isRemoved()
+                ? client.player.getBoundingBox().union(client.player.getVehicle().getBoundingBox()).expand(1.0, 0.0, 1.0)
+                : client.player.getBoundingBox().expand(1.0, 0.5, 1.0);
+        return !client.world.getEntitiesByClass(ItemEntity.class, pickupArea,
+                item -> item.isAlive() && !item.getStack().isEmpty()
+                        && !(active && !sessionOutputToShulker && sessionOutputClicks > 0
+                                && item.getItemAge() >= 0 && item.getItemAge() < THROWN_OUTPUT_GRACE_TICKS
+                                && ItemStack.areItemsAndComponentsEqual(item.getStack(), resultTemplate))).isEmpty();
     }
 
     private void stopHelperSafely(MinecraftClient client) {
