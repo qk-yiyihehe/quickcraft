@@ -1,8 +1,6 @@
 package com.yiyihehe.quickcraft.litematica;
 
 import com.yiyihehe.quickcraft.config.QuickCraftConfigs;
-import com.mojang.blaze3d.vertex.BufferBuilder;
-import com.mojang.blaze3d.vertex.MeshData;
 import fi.dy.masa.litematica.config.Configs;
 import fi.dy.masa.litematica.data.DataManager;
 import fi.dy.masa.litematica.schematic.LitematicaSchematic;
@@ -11,9 +9,6 @@ import fi.dy.masa.litematica.schematic.placement.SchematicPlacement;
 import fi.dy.masa.litematica.schematic.placement.SubRegionPlacement;
 import fi.dy.masa.litematica.util.PositionUtils;
 import fi.dy.masa.litematica.world.SchematicWorldHandler;
-import fi.dy.masa.malilib.render.MaLiLibPipelines;
-import fi.dy.masa.malilib.render.RenderContext;
-import fi.dy.masa.malilib.render.RenderUtils;
 import fi.dy.masa.malilib.util.data.Color4f;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.fabric.api.client.rendering.v1.level.LevelRenderContext;
@@ -21,11 +16,14 @@ import net.fabricmc.fabric.api.client.rendering.v1.level.LevelRenderEvents;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.core.BlockPos;
+import net.minecraft.gizmos.GizmoStyle;
+import net.minecraft.gizmos.Gizmos;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.world.Container;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 
 import java.util.ArrayList;
@@ -151,17 +149,13 @@ public final class QuickLitematicaContainerHighlight {
         int maxDistance = (client.options.renderDistance().get() + 2) * 16;
         Color4f selectedColor = QuickCraftConfigs.ProjectionTools.PROJECTION_CONTAINER_HIGHLIGHT_COLOR.getColor();
         float verifierAlpha = (float) Configs.InfoOverlays.VERIFIER_ERROR_HILIGHT_ALPHA.getDoubleValue();
-        Color4f color = new Color4f(
-                selectedColor.r, selectedColor.g, selectedColor.b, Math.min(selectedColor.a, verifierAlpha)
-        );
+        int color = Math.round(Math.min(selectedColor.a, verifierAlpha) * 255.0f) << 24
+                | Math.round(selectedColor.r * 255.0f) << 16
+                | Math.round(selectedColor.g * 255.0f) << 8
+                | Math.round(selectedColor.b * 255.0f);
 
-        // MaLiLib's no-depth pipeline preserves visibility through walls without changing global render state.
-        try (RenderContext render = new RenderContext(
-                () -> "QuickCraft projected container highlight",
-                MaLiLibPipelines.POSITION_COLOR_TRANSLUCENT_NO_DEPTH,
-                0
-        )) {
-            BufferBuilder buffer = render.getBuilder();
+        // 26.2 collects gizmos before executing the world frame; immediate drawing here is cleared by that frame.
+        try (Gizmos.TemporaryCollection ignored = client.levelRenderer.collectPerFrameRenderThreadGizmos()) {
             for (ProjectedContainer container : positions) {
                 BlockPos pos = container.pos();
                 if (Math.abs(pos.getX() - cameraPos.x) > maxDistance
@@ -172,17 +166,8 @@ public final class QuickLitematicaContainerHighlight {
                         || !(client.level.getBlockEntity(pos) instanceof Container)) {
                     continue;
                 }
-                RenderUtils.renderAreaSidesBatched(pos, pos, color, 0.002, buffer);
+                Gizmos.cuboid(new AABB(pos).inflate(0.002), GizmoStyle.fill(color)).setAlwaysOnTop();
             }
-            MeshData built = buffer.build();
-            if (built != null) {
-                try (built) {
-                    render.upload(built, false);
-                    render.drawPost();
-                }
-            }
-        } catch (Exception e) {
-            throw new IllegalStateException("Failed to render projected containers", e);
         }
     }
 
