@@ -396,7 +396,7 @@
   "quickcraft.message.crafting.shulker_cursor_blocked": "QuickCraft: Cursor is occupied; Quick Shulker crafting stopped",
   "quickcraft.message.crafting.shulker_screen_invalid": "QuickCraft: Workbench screen state is invalid; Quick Shulker crafting stopped",
   "quickcraft.message.crafting.shulker_grid_desync": "QuickCraft: Server slot state no longer matches the recipe; stopped to keep shulkers out of the crafting grid",
-  "quickcraft.message.crafting.shulker_recipe_remainder": "QuickCraft: Recipe returns container items; skipping direct Quick Shulker refill",
+  "quickcraft.message.crafting.shulker_recipe_remainder": "QuickCraft: Recipes with returned materials cannot use Box Jet",
   "quickcraft.message.crafting.no_output_shulker": "QuickCraft: No empty output shulker available; stopped and kept the result",
   "quickcraft.message.crafting.shulker_output_unsupported": "QuickCraft: Shulker output cannot be nested; stopped and kept the result",
   "quickcraft.message.crafting.shulker_output_failed": "QuickCraft: Failed to store output in shulker; stopped and kept the result",
