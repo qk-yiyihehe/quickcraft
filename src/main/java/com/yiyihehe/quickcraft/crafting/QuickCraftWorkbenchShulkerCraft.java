@@ -1081,25 +1081,41 @@ public final class QuickCraftWorkbenchShulkerCraft implements ClientModInitializ
         if (capturedVisibleRecipe) {
             List<ItemStack> capturedRemainders;
             try {
-                capturedRemainders = CraftingRecipe.collectRecipeRemainders(createInput(handler));
+                CraftingRecipeInput input = createInput(handler);
+                capturedRemainders = currentRecipe != null
+                        ? currentRecipe.value().getRecipeRemainders(input)
+                        : CraftingRecipe.collectRecipeRemainders(input);
             } catch (Throwable throwable) {
                 sendMessage(client, Text.translatable("quickcraft.message.crafting.shulker_grid_desync"));
+                return false;
+            }
+            boolean capturedHasRemainder = containsRemainder(capturedRemainders);
+            if (capturedHasRemainder) {
+                sendMessage(client, Text.translatable("quickcraft.message.crafting.shulker_recipe_remainder"));
                 return false;
             }
             recipe = currentRecipe;
             pattern = snapshotPattern(handler);
             remainderPattern = capturedRemainders;
-            recipeHasRemainder = containsRemainder(capturedRemainders);
+            recipeHasRemainder = capturedHasRemainder;
             resultTemplate = handler.getSlot(OUTPUT_SLOT).getStack().copy();
             snapshotSyncId = handler.syncId;
+        } else if (recipeHasRemainder || hasRemainder(currentRecipe, handler)) {
+            sendMessage(client, Text.translatable("quickcraft.message.crafting.shulker_recipe_remainder"));
+            return false;
         }
         active = true;
         startedByButton = fromButton;
         consecutiveFailures = 0;
         sessionOutputClicks = 0;
         sessionOutputToShulker = QuickCraftConfigs.isWorkbenchQuickCraftOutputToShulkerEnabled();
+        // 1.21.2+ 客户端通常拿不到原始配方；配方书无唯一展示项时按特殊配方逐批确认。
+        boolean unidentifiedRecipe = recipe == null
+                ? QuickCraftClientRecipeMatcher.findUniqueRecipeId(
+                        client, handler, resultTemplate, 3, 3) == null
+                : isIgnoredInRecipeBook(recipe);
         sessionRequiresOrderedProbe = requiresOrderedAckProbe(
-                isIgnoredInRecipeBook(recipe),
+                unidentifiedRecipe,
                 resultTemplate.getMaxCount(),
                 hasPerCraftMaterial(pattern),
                 recipeHasRemainder);
