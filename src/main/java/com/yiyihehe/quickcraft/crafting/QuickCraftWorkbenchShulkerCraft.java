@@ -9,6 +9,7 @@ import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.inventory.CraftingScreen;
 import net.minecraft.client.multiplayer.ClientPacketListener;
+import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.world.entity.item.ItemEntity;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.inventory.ResultContainer;
@@ -30,7 +31,9 @@ import net.minecraft.world.phys.AABB;
 import org.lwjgl.glfw.GLFW;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * 工作台潜影盒喷射执行器。只负责潜影盒直填和对应输出策略，不处理普通配方书合成。
@@ -42,8 +45,10 @@ public final class QuickCraftWorkbenchShulkerCraft implements ClientModInitializ
     private static final int MAX_OUTPUT_BURST = 64;
     private static final int MAX_FAILURES = 3;
     private static final int MAX_ACK_LOCAL_STEPS = 8;
-    // Thrown outputs have a server-side pickup delay that is not available on the client entity.
-    private static final int THROWN_OUTPUT_GRACE_TICKS = 30;
+    // 服务端玩家抛物设 40 tick 拾取延迟，但该值不随实体同步给客户端。
+    private static final int PLAYER_DROP_PICKUP_DELAY_TICKS = 40;
+    // 额外 20 tick 覆盖联机往返与掉落物合并后沿用旧实体年龄的情况。
+    private static final int LOCAL_THROW_GRACE_TICKS = 60;
     private static final int CURSOR_SETTLE_TICKS = 4;
     private static final int RECOVERY_PAUSE_TICKS = 4;
     private static final int CURSOR_TIMEOUT_TICKS = 20;
@@ -64,6 +69,9 @@ public final class QuickCraftWorkbenchShulkerCraft implements ClientModInitializ
     private ItemStack resultTemplate = ItemStack.EMPTY;
     private int snapshotSyncId = -1;
     private int sessionOutputClicks;
+    private final Map<Item, Long> recentLocalThrows = new HashMap<>();
+    private ClientLevel recentThrowWorld;
+    private long clientTicks;
     private boolean sessionOutputToShulker;
     private boolean sessionRequiresOrderedProbe;
     private WorkbenchShulkerPipelineMode sessionMode = WorkbenchShulkerPipelineMode.RESPONSE_STABLE;
@@ -125,6 +133,12 @@ public final class QuickCraftWorkbenchShulkerCraft implements ClientModInitializ
     }
 
     private void onClientTick(Minecraft client) {
+        clientTicks++;
+        if (client.level != recentThrowWorld) {
+            recentLocalThrows.clear();
+            recentThrowWorld = client.level;
+        }
+        recentLocalThrows.values().removeIf(expiresAt -> expiresAt <= clientTicks);
         handleCraftStatsTimeout(client);
         if (!QuickCraftConfigs.isWorkbenchQuickShulkerCraftEnabled()) {
             stopHelperSafely(client);
@@ -905,8 +919,10 @@ public final class QuickCraftWorkbenchShulkerCraft implements ClientModInitializ
             if (!isExpectedOutput(handler.getSlot(OUTPUT_SLOT).getItem())) {
                 break;
             }
+            ItemStack thrown = handler.getSlot(OUTPUT_SLOT).getItem().copy();
             client.gameMode.handleContainerInput(handler.containerId, OUTPUT_SLOT, 1,
                     ContainerInput.THROW, client.player);
+            recordLocalThrow(client, thrown);
             completed++;
             sessionOutputClicks++;
         }
@@ -1421,8 +1437,10 @@ public final class QuickCraftWorkbenchShulkerCraft implements ClientModInitializ
                     isExpectedRemainder(patternIndex, actual))) {
                 continue;
             }
+            ItemStack thrown = actual.copy();
             client.gameMode.handleContainerInput(
                     handler.containerId, slotId, 1, ContainerInput.THROW, client.player);
+            recordLocalThrow(client, thrown);
             discarded++;
         }
         return discarded;
@@ -1960,10 +1978,21 @@ public final class QuickCraftWorkbenchShulkerCraft implements ClientModInitializ
                 ? client.player.getBoundingBox().minmax(client.player.getVehicle().getBoundingBox()).inflate(1.0, 0.0, 1.0)
                 : client.player.getBoundingBox().inflate(1.0, 0.5, 1.0);
         return !client.level.getEntitiesOfClass(ItemEntity.class, pickupArea,
-                item -> item.isAlive() && !item.getItem().isEmpty()
-                        && !(active && !sessionOutputToShulker && sessionOutputClicks > 0
-                                && item.getAge() >= 0 && item.getAge() < THROWN_OUTPUT_GRACE_TICKS
-                                && ItemStack.isSameItemSameComponents(item.getItem(), resultTemplate))).isEmpty();
+                item -> item.isAlive() && !item.getItem().isEmpty() && !item.hasPickUpDelay()
+                        && !(item.getAge() >= 0 && item.getAge() < PLAYER_DROP_PICKUP_DELAY_TICKS)
+                        && !(client.level == recentThrowWorld
+                                && recentLocalThrows.getOrDefault(item.getItem().getItem(), 0L) > clientTicks)).isEmpty();
+    }
+
+    private void recordLocalThrow(Minecraft client, ItemStack stack) {
+        if (stack.isEmpty() || client.level == null) {
+            return;
+        }
+        if (client.level != recentThrowWorld) {
+            recentLocalThrows.clear();
+            recentThrowWorld = client.level;
+        }
+        recentLocalThrows.put(stack.getItem(), clientTicks + LOCAL_THROW_GRACE_TICKS);
     }
 
     private void stopHelperSafely(Minecraft client) {
