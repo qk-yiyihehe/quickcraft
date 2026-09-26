@@ -155,7 +155,7 @@ public final class QuickContainerFillStatus {
                     | (int) (status.blue * 255);
             ShapeRenderer.renderShape(context.poseStack(),
                     context.bufferSource().getBuffer(RenderTypes.linesTranslucent()),
-                    Shapes.create(outline), 0, 0, 0, color, 1.0F);
+                    Shapes.create(outline), 0, 0, 0, color, client.getWindow().getAppropriateLineWidth());
         }
         context.poseStack().popPose();
     }
