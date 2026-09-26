@@ -644,7 +644,7 @@ public final class QuickCraftWorkbenchShulker {
             ItemStack material = getFirstStoredStack(slot.getItem());
             if (handler instanceof CraftingMenu craftingHandler
                     && findFillableGridSlot(craftingHandler, pattern, material) != -1) {
-                return new SourceShulker(slot.index);
+                return new SourceShulker(slot.getContainerSlot());
             }
         }
         return null;
