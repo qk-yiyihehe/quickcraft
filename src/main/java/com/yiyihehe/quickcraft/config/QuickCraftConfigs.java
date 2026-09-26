@@ -10,6 +10,7 @@ import fi.dy.masa.malilib.config.IConfigHandler;
 import fi.dy.masa.malilib.config.IConfigOptionListEntry;
 import fi.dy.masa.malilib.config.options.ConfigBoolean;
 import fi.dy.masa.malilib.config.options.ConfigBooleanHotkeyed;
+import fi.dy.masa.malilib.config.options.ConfigColor;
 import fi.dy.masa.malilib.config.options.ConfigHotkey;
 import fi.dy.masa.malilib.config.options.ConfigInteger;
 import fi.dy.masa.malilib.config.options.ConfigOptionList;
@@ -588,6 +589,15 @@ public final class QuickCraftConfigs implements IConfigHandler {
                 true,
                 ""
         ).apply(PROJECTION_TRANSLATION_PREFIX);
+        public static final ConfigBooleanHotkeyed HIGHLIGHT_NONEMPTY_PROJECTION_CONTAINERS = new ConfigBooleanHotkeyed(
+                "highlightNonemptyProjectionContainers",
+                false,
+                ""
+        ).apply(PROJECTION_TRANSLATION_PREFIX);
+        public static final ConfigColor PROJECTION_CONTAINER_HIGHLIGHT_COLOR = new ConfigColor(
+                "projectionContainerHighlightColor",
+                "#FFB36BFF"
+        ).apply(PROJECTION_TRANSLATION_PREFIX);
         public static final ConfigBooleanHotkeyed ENABLE_AUTO_COLLECT_MATERIALS = new ConfigBooleanHotkeyed(
                 "enableAutoCollectMaterials",
                 false,
@@ -705,6 +715,8 @@ public final class QuickCraftConfigs implements IConfigHandler {
                 SHOW_LITEMATICA_CONTAINER_MATERIAL_BUTTON,
                 SHOW_LITEMATICA_CONTAINER_SLOT_HINTS,
                 SHOW_LITEMATICA_CONTAINER_VERIFIER,
+                HIGHLIGHT_NONEMPTY_PROJECTION_CONTAINERS,
+                PROJECTION_CONTAINER_HIGHLIGHT_COLOR,
                 ENABLE_AUTO_COLLECT_MATERIALS,
                 MATERIAL_COLLECT_EXTRA_0_TO_10,
                 MATERIAL_COLLECT_EXTRA_10_TO_20,
@@ -924,6 +936,7 @@ public final class QuickCraftConfigs implements IConfigHandler {
                 ProjectionTools.SHOW_LITEMATICA_CONTAINER_MATERIAL_BUTTON,
                 ProjectionTools.SHOW_LITEMATICA_CONTAINER_SLOT_HINTS,
                 ProjectionTools.SHOW_LITEMATICA_CONTAINER_VERIFIER,
+                ProjectionTools.HIGHLIGHT_NONEMPTY_PROJECTION_CONTAINERS,
                 ProjectionTools.ENABLE_AUTO_COLLECT_MATERIALS,
                 ProjectionTools.ENABLE_LITEMATICA_CONTAINER_AUTOFILL,
                 ProjectionTools.ENABLE_CREATIVE_CONTAINER_FILL,
@@ -985,6 +998,7 @@ public final class QuickCraftConfigs implements IConfigHandler {
                 ProjectionTools.SHOW_LITEMATICA_CONTAINER_MATERIAL_BUTTON,
                 ProjectionTools.SHOW_LITEMATICA_CONTAINER_SLOT_HINTS,
                 ProjectionTools.SHOW_LITEMATICA_CONTAINER_VERIFIER,
+                ProjectionTools.HIGHLIGHT_NONEMPTY_PROJECTION_CONTAINERS,
                 ProjectionTools.ENABLE_AUTO_COLLECT_MATERIALS,
                 ProjectionTools.ENABLE_LITEMATICA_CONTAINER_AUTOFILL,
                 ProjectionTools.ENABLE_CREATIVE_CONTAINER_FILL,
