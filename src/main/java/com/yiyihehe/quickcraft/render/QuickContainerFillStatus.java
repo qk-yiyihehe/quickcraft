@@ -240,11 +240,11 @@ public final class QuickContainerFillStatus {
     }
 
     private enum Status {
-        FILLING(0.20F, 0.65F, 1.00F, 0x55B5FF),
-        COMPLETE(0.30F, 0.95F, 0.35F, 0x76EE88),
-        PARTIAL(1.00F, 0.75F, 0.15F, 0xFFD05E),
-        STOPPED(0.65F, 0.70F, 0.75F, 0xB3BEC9),
-        FAILED(1.00F, 0.30F, 0.30F, 0xFF7777);
+        FILLING(0.20F, 0.65F, 1.00F, 0xFF55B5FF),
+        COMPLETE(0.30F, 0.95F, 0.35F, 0xFF76EE88),
+        PARTIAL(1.00F, 0.75F, 0.15F, 0xFFFFD05E),
+        STOPPED(0.65F, 0.70F, 0.75F, 0xFFB3BEC9),
+        FAILED(1.00F, 0.30F, 0.30F, 0xFFFF7777);
 
         private final float red;
         private final float green;
