@@ -51,6 +51,7 @@
 		"MerchantScreenMixin",
 		"QuickContainerBackgroundFillScreenMixin",
 		"QuickContainerFillStatusWorldRendererMixin",
+		"QuickProjectionContainerHighlightWorldRendererMixin",
 		"QuickContainerLockClientPlayerInteractionManagerMixin",
 		"QuickContainerLockInGameHudMixin",
 		"QuickContainerLockMerchantScreenHandlerMixin",
