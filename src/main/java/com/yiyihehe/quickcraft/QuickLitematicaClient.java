@@ -1,6 +1,7 @@
 package com.yiyihehe.quickcraft;
 
 import com.yiyihehe.quickcraft.litematica.QuickLitematicaContainerAutofill;
+import com.yiyihehe.quickcraft.litematica.QuickLitematicaContainerHighlight;
 import com.yiyihehe.quickcraft.litematica.QuickLitematicaEntityPlacement;
 import com.yiyihehe.quickcraft.litematica.QuickLitematicaShulkerMaterialRestock;
 import net.fabricmc.api.ClientModInitializer;
@@ -17,6 +18,7 @@ public final class QuickLitematicaClient implements ClientModInitializer {
         }
 
         new QuickLitematicaContainerAutofill().onInitializeClient();
+        QuickLitematicaContainerHighlight.initialize();
         QuickLitematicaEntityPlacement.initializeClient();
         new QuickLitematicaShulkerMaterialRestock().onInitializeClient();
     }
