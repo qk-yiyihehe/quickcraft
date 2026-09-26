@@ -1,6 +1,7 @@
 package com.yiyihehe.quickcraft.mixin;
 
 import com.yiyihehe.quickcraft.render.QuickContainerFillStatus;
+import com.yiyihehe.quickcraft.litematica.QuickLitematicaContainerHighlight;
 import com.mojang.blaze3d.buffers.GpuBufferSlice;
 import com.mojang.blaze3d.systems.RenderSystem;
 import net.minecraft.client.MinecraftClient;
@@ -41,6 +42,7 @@ public abstract class QuickContainerFillStatusWorldRendererMixin {
         try {
             modelView.mul(positionMatrix);
             QuickContainerFillStatus.renderWorld(MinecraftClient.getInstance(), camera);
+            QuickLitematicaContainerHighlight.renderWorld(MinecraftClient.getInstance(), camera);
         } finally {
             modelView.popMatrix();
         }
