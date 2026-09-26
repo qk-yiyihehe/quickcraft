@@ -396,7 +396,7 @@
   "quickcraft.message.crafting.shulker_cursor_blocked": "QuickCraft: 光标上仍有物品，已停止潜影盒联动",
   "quickcraft.message.crafting.shulker_screen_invalid": "QuickCraft: 工作台界面状态异常，已停止潜影盒联动",
   "quickcraft.message.crafting.shulker_grid_desync": "QuickCraft: 服务端槽位状态与配方不一致，已停止以避免潜影盒进入合成格",
-  "quickcraft.message.crafting.shulker_recipe_remainder": "QuickCraft: 配方会返还容器物品，跳过潜影盒直填",
+  "quickcraft.message.crafting.shulker_recipe_remainder": "QuickCraft: 配方会返还材料，不能盒喷",
   "quickcraft.message.crafting.no_output_shulker": "QuickCraft: 没有可用的空潜影盒，已停止并保留产物",
   "quickcraft.message.crafting.shulker_output_unsupported": "QuickCraft: 潜影盒产物不能嵌套装盒，已停止并保留产物",
   "quickcraft.message.crafting.shulker_output_failed": "QuickCraft: 产物装盒失败，已停止并保留产物",
