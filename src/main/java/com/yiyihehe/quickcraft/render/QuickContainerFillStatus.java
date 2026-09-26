@@ -152,7 +152,7 @@ public final class QuickContainerFillStatus {
                         | ((int) (status.red * 255) << 16)
                         | ((int) (status.green * 255) << 8)
                         | (int) (status.blue * 255);
-                Gizmos.cuboid(outline, GizmoStyle.stroke(color, 1.0F));
+                Gizmos.cuboid(outline, GizmoStyle.stroke(color, client.getWindow().getAppropriateLineWidth()));
             }
         }
     }
