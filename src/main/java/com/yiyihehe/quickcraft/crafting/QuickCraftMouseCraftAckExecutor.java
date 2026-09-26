@@ -176,7 +176,7 @@ public final class QuickCraftMouseCraftAckExecutor {
                          FinishHandler finishHandler) {
         if (client == null || client.player == null || client.level == null
                 || client.gameMode == null || client.getConnection() == null
-                || handler == null || recipeId == null
+                || handler == null
                 || resultTemplate == null || resultTemplate.isEmpty()
                 || pattern == null || pattern.isEmpty()
                 || inputHeld == null || finishHandler == null

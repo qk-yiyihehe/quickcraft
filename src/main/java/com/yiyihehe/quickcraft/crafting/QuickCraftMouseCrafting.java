@@ -1579,6 +1579,7 @@ final class QuickCraftMouseCrafting {
         lockedResultTemplate = handler.getSlot(OUTPUT_SLOT).hasItem()
                 ? handler.getSlot(OUTPUT_SLOT).getItem().copy()
                 : ItemStack.EMPTY;
+        // 烟花等特殊配方不进入配方书；ACK 仍可凭服务端可见产物与合成格快照锁定。
         lockedRecipeId = QuickCraftClientRecipeMatcher.findUniqueRecipeId(
                 client,
                 handler,
@@ -1980,9 +1981,6 @@ final class QuickCraftMouseCrafting {
         }
         if (mouseCraftAckExecutor.isActive()) {
             return mouseCraftAckExecutor.owns(handler);
-        }
-        if (lockedRecipeId == null) {
-            return false;
         }
         return mouseCraftAckExecutor.start(
                 client,
