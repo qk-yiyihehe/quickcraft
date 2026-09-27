@@ -21,7 +21,11 @@ public abstract class QuickContainerLockMinecraftClientMixin {
             )
     )
     private boolean quickcraft$blockLockedHotbarDrop(ClientPlayerEntity player, boolean entireStack) {
+        //#if MC>=12105
+        //$$ if (QuickContainerLock.isLockedPlayerHotbarSlot(player.getInventory().getSelectedSlot())) {
+        //#else
         if (QuickContainerLock.isLockedPlayerHotbarSlot(player.getInventory().selectedSlot)) {
+        //#endif
             return false;
         }
 

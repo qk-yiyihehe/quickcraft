@@ -47,12 +47,21 @@ public abstract class LitematicaWidgetSchematicVerificationResultMixin
     ) {
         if (this.mismatchEntry == null
                 || this.mismatchEntry.blockMismatch == null
+                //#if MC>=260200
+                //$$ || !QuickLitematicaContainerVerifier.isContainerMismatchType(this.mismatchEntry.blockMismatch.mismatchType())) {
+                //#else
                 || !QuickLitematicaContainerVerifier.isContainerMismatchType(this.mismatchEntry.blockMismatch.mismatchType)) {
+                //#endif
             return;
         }
 
+        //#if MC>=260200
+        //$$ BlockMismatchExtension extension =
+        //$$         (BlockMismatchExtension) (Object) this.mismatchEntry.blockMismatch;
+        //#else
         BlockMismatchExtension extension =
                 (BlockMismatchExtension) this.mismatchEntry.blockMismatch;
+        //#endif
 
         if (extension.quickcraft$getContainerMismatch() == null) {
             return;
@@ -60,8 +69,13 @@ public abstract class LitematicaWidgetSchematicVerificationResultMixin
 
         QuickLitematicaContainerVerifier.renderInventoryPair(
                 extension.quickcraft$getContainerMismatch(),
+                //#if MC>=260200
+                //$$ this.mismatchEntry.blockMismatch.stateExpected(),
+                //$$ this.mismatchEntry.blockMismatch.stateFound(),
+                //#else
                 this.mismatchEntry.blockMismatch.stateExpected,
                 this.mismatchEntry.blockMismatch.stateFound,
+                //#endif
                 extension.quickcraft$getExpectedDisabledSlots(),
                 extension.quickcraft$getFoundDisabledSlots(),
                 mouseX,

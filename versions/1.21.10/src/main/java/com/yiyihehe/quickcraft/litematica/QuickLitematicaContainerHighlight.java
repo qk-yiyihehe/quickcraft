@@ -85,16 +85,34 @@ public final class QuickLitematicaContainerHighlight {
                 }
 
                 String regionName = region.getName();
+                //#if MC>=12111
+                //$$ Map<BlockPos, ?> blockEntities = schematic.getBlockEntityMapForRegion(regionName);
+                //#else
                 Map<BlockPos, NbtCompound> blockEntities = schematic.getBlockEntityMapForRegion(regionName);
+                //#endif
                 LitematicaBlockStateContainer blocks = schematic.getSubRegionContainer(regionName);
                 BlockPos size = schematic.getAreaSize(regionName);
                 if (blockEntities == null || blocks == null || size == null) {
                     continue;
                 }
 
+                //#if MC>=12111
+                //$$ for (Map.Entry<BlockPos, ?> entry : blockEntities.entrySet()) {
+                //#else
                 for (Map.Entry<BlockPos, NbtCompound> entry : blockEntities.entrySet()) {
+                //#endif
+                    //#if MC>=12111
+                    //$$ if (entry.getValue() == null) {
+                    //$$     continue;
+                    //$$ }
+                    //$$ NbtCompound nbt = QuickLitematicaDataCompat.toVanillaNbt(entry.getValue());
+                    //#else
                     NbtCompound nbt = entry.getValue();
-                    if (nbt == null || NON_INVENTORY_BLOCK_ENTITY_IDS.contains(nbt.getString("id").orElse(""))) {
+                    if (nbt == null) {
+                        continue;
+                    }
+                    //#endif
+                    if (NON_INVENTORY_BLOCK_ENTITY_IDS.contains(nbt.getString("id").orElse(""))) {
                         continue;
                     }
 
@@ -141,7 +159,11 @@ public final class QuickLitematicaContainerHighlight {
             return;
         }
 
+        //#if MC>=12111
+        //$$ Vec3d cameraPos = camera.getCameraPos();
+        //#else
         Vec3d cameraPos = camera.getPos();
+        //#endif
         int maxDistance = (client.options.getViewDistance().getValue() + 2) * 16;
         Color4f selectedColor = QuickCraftConfigs.ProjectionTools.PROJECTION_CONTAINER_HIGHLIGHT_COLOR.getColor();
         float verifierAlpha = (float) Configs.InfoOverlays.VERIFIER_ERROR_HILIGHT_ALPHA.getDoubleValue();

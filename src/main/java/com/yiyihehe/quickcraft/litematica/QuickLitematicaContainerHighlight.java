@@ -19,10 +19,14 @@ import net.minecraft.block.Block;
 import net.minecraft.block.BlockState;
 import net.minecraft.block.entity.BlockEntity;
 import net.minecraft.client.MinecraftClient;
+//#if MC>=12103
+//$$ import net.minecraft.client.gl.ShaderProgramKeys;
+//#else
+import net.minecraft.client.render.GameRenderer;
+//#endif
 import net.minecraft.client.render.BufferBuilder;
 import net.minecraft.client.render.BufferRenderer;
 import net.minecraft.client.render.BuiltBuffer;
-import net.minecraft.client.render.GameRenderer;
 import net.minecraft.client.render.Tessellator;
 import net.minecraft.client.render.VertexFormat;
 import net.minecraft.client.render.VertexFormats;
@@ -162,7 +166,11 @@ public final class QuickLitematicaContainerHighlight {
         RenderSystem.enableBlend();
         RenderSystem.defaultBlendFunc();
         RenderSystem.disableCull();
+        //#if MC>=12103
+        //$$ RenderSystem.setShader(ShaderProgramKeys.POSITION_COLOR);
+        //#else
         RenderSystem.setShader(GameRenderer::getPositionColorProgram);
+        //#endif
         try {
             BufferBuilder buffer = Tessellator.getInstance().begin(VertexFormat.DrawMode.QUADS, VertexFormats.POSITION_COLOR);
             for (ProjectedContainer container : positions) {

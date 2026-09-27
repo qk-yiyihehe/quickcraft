@@ -16,7 +16,12 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 @Mixin(HandledScreen.class)
 public abstract class QuickTransferItemHighlightMixin<T extends ScreenHandler> {
     @Inject(method = "drawSlot", at = @At("HEAD"))
+    //#if MC>=12111
+    //$$ private void quickcraft$drawMatchingTransferHighlight(
+    //$$         DrawContext context, Slot slot, int mouseX, int mouseY, CallbackInfo ci) {
+    //#else
     private void quickcraft$drawMatchingTransferHighlight(DrawContext context, Slot slot, CallbackInfo ci) {
+    //#endif
         HandledScreen<?> screen = (HandledScreen<?>) (Object) this;
         if (QuickTransfer.shouldHighlightMatchingSlot(screen, slot)) {
             context.fill(slot.x, slot.y, slot.x + 16, slot.y + 16, 0x553F6FFF);

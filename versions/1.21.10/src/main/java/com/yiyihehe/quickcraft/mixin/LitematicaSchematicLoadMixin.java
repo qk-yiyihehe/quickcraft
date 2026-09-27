@@ -29,8 +29,8 @@ public abstract class LitematicaSchematicLoadMixin extends GuiSchematicBrowserBa
     }
 
     /**
-     * Litematica 0.24.9 选择文件时会清空并重建按钮；0.24.8 没有这个回调。
-     * 可选注入让两个安全版本共用同一构建产物，并在重建结束后恢复入口。
+     * 某些受支持的 Litematica 版本会在选择文件时清空并重建按钮。
+     * 可选注入在回调存在时恢复入口；没有该回调的版本仍由初始化注入负责。
      */
     @Inject(
             method = "onSelectionChange(Lfi/dy/masa/malilib/gui/widgets/WidgetFileBrowserBase$DirectoryEntry;)V",

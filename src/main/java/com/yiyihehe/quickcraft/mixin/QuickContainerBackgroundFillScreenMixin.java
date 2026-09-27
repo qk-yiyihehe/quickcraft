@@ -4,6 +4,10 @@ import com.yiyihehe.quickcraft.QuickContainerCopy;
 import com.yiyihehe.quickcraft.QuickMaterialCollector;
 import com.yiyihehe.quickcraft.crafting.QuickCraftWorkbenchShulker;
 import net.minecraft.client.MinecraftClient;
+//#if MC>=12110
+//$$ import net.minecraft.client.gui.Click;
+//$$ import net.minecraft.client.input.KeyInput;
+//#endif
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.gui.screen.ingame.HandledScreen;
 import org.spongepowered.asm.mixin.Mixin;
@@ -27,9 +31,13 @@ public abstract class QuickContainerBackgroundFillScreenMixin {
     }
 
     @Inject(method = "mouseClicked", at = @At("HEAD"), cancellable = true)
+    //#if MC>=12110
+    //$$ private void quickcraft$blockWorkbenchRefillClick(Click click, boolean doubled,
+    //#else
     private void quickcraft$blockWorkbenchRefillClick(double mouseX,
                                                       double mouseY,
                                                       int button,
+    //#endif
                                                       CallbackInfoReturnable<Boolean> cir) {
         if (QuickCraftWorkbenchShulker.shouldBlockWorkbenchInput()) {
             cir.setReturnValue(true);
@@ -37,9 +45,13 @@ public abstract class QuickContainerBackgroundFillScreenMixin {
     }
 
     @Inject(method = "mouseReleased", at = @At("HEAD"), cancellable = true)
+    //#if MC>=12110
+    //$$ private void quickcraft$blockWorkbenchRefillRelease(Click click,
+    //#else
     private void quickcraft$blockWorkbenchRefillRelease(double mouseX,
                                                         double mouseY,
                                                         int button,
+    //#endif
                                                         CallbackInfoReturnable<Boolean> cir) {
         if (QuickCraftWorkbenchShulker.shouldBlockWorkbenchInput()) {
             cir.setReturnValue(true);
@@ -47,9 +59,13 @@ public abstract class QuickContainerBackgroundFillScreenMixin {
     }
 
     @Inject(method = "mouseDragged", at = @At("HEAD"), cancellable = true)
+    //#if MC>=12110
+    //$$ private void quickcraft$blockWorkbenchRefillDrag(Click click,
+    //#else
     private void quickcraft$blockWorkbenchRefillDrag(double mouseX,
                                                      double mouseY,
                                                      int button,
+    //#endif
                                                      double deltaX,
                                                      double deltaY,
                                                      CallbackInfoReturnable<Boolean> cir) {
@@ -59,13 +75,20 @@ public abstract class QuickContainerBackgroundFillScreenMixin {
     }
 
     @Inject(method = "keyPressed", at = @At("HEAD"), cancellable = true)
+    //#if MC>=12110
+    //$$ private void quickcraft$blockWorkbenchRefillKey(KeyInput input,
+    //#else
     private void quickcraft$blockWorkbenchRefillKey(int keyCode,
                                                     int scanCode,
                                                     int modifiers,
+    //#endif
                                                     CallbackInfoReturnable<Boolean> cir) {
         if (!QuickCraftWorkbenchShulker.shouldBlockWorkbenchInput()) {
             return;
         }
+        //#if MC>=12110
+        //$$ int keyCode = input.key();
+        //#endif
         if (keyCode == GLFW.GLFW_KEY_ESCAPE) {
             QuickCraftWorkbenchShulker.handleEscape(MinecraftClient.getInstance());
         }

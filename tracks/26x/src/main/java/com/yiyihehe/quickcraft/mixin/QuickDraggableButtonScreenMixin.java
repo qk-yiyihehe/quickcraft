@@ -30,7 +30,9 @@ public abstract class QuickDraggableButtonScreenMixin {
         }
         if (event.button() == 0 && actionButton.isPositionDragging()) {
             boolean handled = actionButton.mouseReleased(event);
+            //#if MC<260200
             screen.clearDraggingState();
+            //#endif
             cir.setReturnValue(handled);
         } else if (event.button() == 1 && actionButton.consumeRightRelease()) {
             cir.setReturnValue(true);

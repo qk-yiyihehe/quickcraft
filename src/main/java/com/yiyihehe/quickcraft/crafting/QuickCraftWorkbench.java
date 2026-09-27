@@ -1,6 +1,9 @@
 package com.yiyihehe.quickcraft.crafting;
 
 import com.yiyihehe.quickcraft.config.QuickCraftConfigs;
+//#if MC>=12103
+//$$ import com.yiyihehe.quickcraft.mixin.RecipeBookScreenAccessor;
+//#endif
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.minecraft.client.MinecraftClient;
@@ -35,8 +38,14 @@ public class QuickCraftWorkbench implements ClientModInitializer {
     private static void clearRecipeGhostSlots() {
         MinecraftClient client = MinecraftClient.getInstance();
         if (client.currentScreen instanceof CraftingScreen screen) {
+            //#if MC>=12103
+            //$$ ((RecipeBookScreenAccessor) (Object) screen)
+            //$$         .quickcraft$getRecipeBook()
+            //$$         .onMouseClick(screen.getScreenHandler().getSlot(QuickCraftMouseCraftLayout.OUTPUT_SLOT));
+            //#else
             screen.getRecipeBookWidget().slotClicked(
                     screen.getScreenHandler().getSlot(QuickCraftMouseCraftLayout.OUTPUT_SLOT));
+            //#endif
         }
     }
 }
