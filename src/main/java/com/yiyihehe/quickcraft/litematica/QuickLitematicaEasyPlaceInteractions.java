@@ -127,11 +127,17 @@ public final class QuickLitematicaEasyPlaceInteractions {
                 targetFluids,
                 false
         );
+        //#if MC<12105
         if (trace == null || trace.getHitType() != HitType.SCHEMATIC_BLOCK) {
             return false;
         }
         BlockHitResult schematicHit = trace.getBlockHitResult();
         return schematicHit != null && !schematicHit.getBlockPos().equals(vanillaHit.getBlockPos());
+        //#else
+        //$$ return trace != null
+        //$$         && trace.getHitType() == HitType.SCHEMATIC_BLOCK
+        //$$         && !trace.getBlockHitResult().getBlockPos().equals(vanillaHit.getBlockPos());
+        //#endif
     }
 
     private static boolean isScreenInteraction(Block block) {
