@@ -1,0 +1,65 @@
+{
+  "schemaVersion": 1,
+  "id": "quickcraft",
+  "version": "${version}",
+  "name": "QuickCraft",
+  "description": "QuickCraft 让 Minecraft 的合成、容器和投影操作更快更顺手：支持工作台、背包、切石机和铁砧快捷合成，提供整理、转移、复制、填充、清空、回存、交易与容器锁定；安装 Litematica 后还可使用 3D 投影预览、材料统计、容器校验和轻松放置辅助。",
+  "authors": ["yiyihehe"],
+  "contact": {
+    "homepage": "https://github.com/qk-yiyihehe/quickcraft",
+    "issues": "https://github.com/qk-yiyihehe/quickcraft/issues",
+    "sources": "https://github.com/qk-yiyihehe/quickcraft"
+  },
+  "license": "MIT",
+  "icon": "assets/quickcraft/icon.png",
+  "environment": "client",
+  "entrypoints": {
+    "main": [
+      "com.yiyihehe.quickcraft.QuickCraft"
+    ],
+    "client": [
+      "com.yiyihehe.quickcraft.crafting.QuickCraftWorkbench",
+      "com.yiyihehe.quickcraft.crafting.QuickCraftWorkbenchShulkerCraft",
+      "com.yiyihehe.quickcraft.crafting.QuickCraftStonecutter",
+      "com.yiyihehe.quickcraft.crafting.QuickCraftBackpack",
+      "com.yiyihehe.quickcraft.crafting.QuickCraftAnvilRename",
+      "com.yiyihehe.quickcraft.QuickTransfer",
+      "com.yiyihehe.quickcraft.QuickThrow",
+      "com.yiyihehe.quickcraft.QuickSort",
+      "com.yiyihehe.quickcraft.QuickTrade",
+      "com.yiyihehe.quickcraft.QuickStash",
+      "com.yiyihehe.quickcraft.QuickFillContainer",
+      "com.yiyihehe.quickcraft.QuickClearContainer",
+      "com.yiyihehe.quickcraft.QuickBeacon",
+      "com.yiyihehe.quickcraft.QuickContainerLock",
+      "com.yiyihehe.quickcraft.QuickContainerCopy",
+      "com.yiyihehe.quickcraft.QuickMaterialCollector",
+      "com.yiyihehe.quickcraft.QuickLitematicaClient"
+    ],
+    "modmenu": [
+      "com.yiyihehe.quickcraft.gui.QuickCraftModMenuIntegration"
+    ],
+    "mm:early_risers": [
+      "com.yiyihehe.quickcraft.litematica.QuickLitematicaContainerVerifier$EarlyRiser"
+    ]
+  },
+  "mixins": [
+    "quickcraft.mixins.json"
+  ],
+  "depends": {
+    "fabricloader": ">=0.18.4",
+    "minecraft": ">=26.1 <=26.1.2",
+    "java": ">=25",
+    "fabric-api": "*",
+    "malilib": ">=0.28.8 <0.29.0"
+  },
+  "suggests": {
+    "litematica": ">=0.27.9 <0.28.0",
+    "continuity": "*",
+    "quickshulker": "*"
+  },
+  "breaks": {
+    "litematica": "<0.27.9",
+    "techutils": "*"
+  }
+}

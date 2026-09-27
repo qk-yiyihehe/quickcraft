@@ -1,0 +1,36 @@
+import groovy.json.JsonSlurper
+
+pluginManagement {
+	repositories {
+		maven {
+			name = 'Fabric'
+			url = 'https://maven.fabricmc.net/'
+		}
+		maven {
+			name = 'JitPack'
+			url = 'https://jitpack.io'
+		}
+		mavenCentral()
+		gradlePluginPortal()
+	}
+	resolutionStrategy {
+		eachPlugin {
+			if (requested.id.id == 'com.replaymod.preprocess' ||
+					requested.id.id == 'com.replaymod.preprocess-root') {
+				useModule "com.github.ReplayMod:preprocessor:${requested.version}"
+			}
+		}
+	}
+}
+
+gradle.startParameter.projectCacheDir = file('../../.gradle/26x')
+
+rootProject.name = 'quickcraft-26x'
+
+def versionMatrix = new JsonSlurper().parse(file('../../version-matrix.json'))
+versionMatrix.tracks['26x'].versions.collect { it.project }.each { versionName ->
+	include ":${versionName}"
+	def descriptor = project(":${versionName}")
+	descriptor.projectDir = file("versions/${versionName}")
+	descriptor.buildFileName = '../../common.gradle'
+}

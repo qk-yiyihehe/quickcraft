@@ -1,0 +1,51 @@
+import com.replaymod.gradle.preprocess.Node
+import groovy.json.JsonSlurper
+
+plugins {
+	id 'net.fabricmc.fabric-loom' version '1.17.17' apply false
+	id 'com.github.spotbugs' version '6.1.7' apply false
+	id 'com.replaymod.preprocess-root' version '221276c7d4316055744c499bb66dbc5b9d0a508c'
+}
+
+apply from: file('../../gradle/quickcraft-layout.gradle')
+layout.buildDirectory.set(new File(quickcraftBuildRoot, 'gradle/26x'))
+
+preprocess {
+	strictExtraMappings = false
+
+	final List<Node> versionNodes = []
+	def versionMatrix = new JsonSlurper().parse(file('../../version-matrix.json'))
+	versionMatrix.tracks['26x'].versions.each { versionSpec ->
+		def parts = versionSpec.project.split(/\./)
+		def patchVersion = parts.length > 2 ? parts[2] : '0'
+		def numericVersion = (parts[0] + parts[1].padLeft(2, '0') + patchVersion.padLeft(2, '0')).toInteger()
+		versionNodes << createNode(versionSpec.project, numericVersion, null)
+	}
+
+	versionNodes.sort { it.mcVersion }
+	for (int index = 0; index < versionNodes.size() - 1; index++) {
+		def source = versionNodes[index]
+		def target = versionNodes[index + 1]
+		source.link target, null
+	}
+}
+
+def versionProjects = subprojects.collect { it.path }
+
+tasks.register('buildAll26x') {
+	group = 'build'
+	description = 'Build every supported Minecraft 26.x artifact.'
+	dependsOn versionProjects.collect { "${it}:build" }
+}
+
+tasks.register('testAll26x') {
+	group = 'verification'
+	description = 'Run tests for every supported Minecraft 26.x artifact.'
+	dependsOn versionProjects.collect { "${it}:test" }
+}
+
+tasks.register('cleanAll26x') {
+	group = 'build'
+	description = 'Clean generated outputs for every Minecraft 26.x target.'
+	dependsOn versionProjects.collect { "${it}:clean" }
+}

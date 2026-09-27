@@ -1,0 +1,166 @@
+apply from: rootProject.file('gradle/quickcraft-layout.gradle')
+apply plugin: 'net.fabricmc.fabric-loom-remap'
+apply plugin: 'maven-publish'
+apply plugin: 'com.github.spotbugs'
+apply plugin: 'com.replaymod.preprocess'
+
+layout.buildDirectory.set(new File(quickcraftBuildRoot, "targets/${project.name}"))
+
+version = project.mod_version
+group = project.maven_group
+
+base {
+	archivesName = "quickcraft-mc${project.supported_minecraft_versions}"
+}
+
+spotbugs {
+	effort = com.github.spotbugs.snom.Effort.MAX
+	toolVersion = '4.10.3'
+	excludeFilter = rootProject.file('config/spotbugs/exclude.xml')
+}
+
+spotbugsMain {
+	reports {
+		html.required = true
+	}
+	ignoreFailures = true
+}
+
+spotbugsTest {
+	enabled = false
+}
+
+loom {
+	runs {
+		client {
+			runDir new File(quickcraftRunRoot, "${project.name}/client").absolutePath
+		}
+		server {
+			runDir new File(quickcraftRunRoot, "${project.name}/server").absolutePath
+		}
+	}
+}
+
+repositories {
+	exclusiveContent {
+		forRepository {
+			maven {
+				name = 'FallenBreath'
+				url = 'https://maven.fallenbreath.me/releases'
+			}
+		}
+		filter {
+			includeGroup 'me.fallenbreath'
+		}
+	}
+	maven {
+		name = 'masa'
+		url = 'https://masa.dy.fi/maven/sakura-ryoko/'
+	}
+	maven {
+		name = 'Terraformers'
+		url = 'https://maven.terraformersmc.com/'
+	}
+	maven {
+		name = 'Modrinth'
+		url = 'https://api.modrinth.com/maven'
+	}
+	maven {
+		name = 'JitPack'
+		url = 'https://jitpack.io'
+	}
+	maven {
+		name = 'MoRanpcy'
+		url = 'https://maven.moranpcy.com/releases'
+	}
+}
+
+def compatibilityOverride = project.findProperty('compat_target') == project.name
+def malilibDependencyVersion = compatibilityOverride
+	? project.property('compat_malilib_version')
+	: project.malilib_version
+def litematicaDependencyVersion = compatibilityOverride
+	? project.property('compat_litematica_version')
+	: project.litematica_version
+
+dependencies {
+	minecraft "com.mojang:minecraft:${project.minecraft_version}"
+	mappings "net.fabricmc:yarn:${project.yarn_mappings}:v2"
+	modImplementation "net.fabricmc:fabric-loader:${project.loader_version}"
+	modImplementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_api_version}"
+	modImplementation include("com.github.Chocohead:Fabric-ASM:v${project.fabric_asm_version}")
+
+	if (project.findProperty('masa_dependency_source') == 'masa') {
+		def masaMinecraftVersion = project.masa_minecraft_version
+		modImplementation "fi.dy.masa.malilib:malilib-fabric-${masaMinecraftVersion}:${malilibDependencyVersion}"
+		modCompileOnly "fi.dy.masa.litematica:litematica-fabric-${masaMinecraftVersion}:${litematicaDependencyVersion}"
+		modLocalRuntime "fi.dy.masa.litematica:litematica-fabric-${masaMinecraftVersion}:${litematicaDependencyVersion}"
+	} else {
+		modImplementation "maven.modrinth:malilib:${malilibDependencyVersion}"
+		modCompileOnly "maven.modrinth:litematica:${litematicaDependencyVersion}"
+		modLocalRuntime "maven.modrinth:litematica:${litematicaDependencyVersion}"
+	}
+
+	modCompileOnly "com.terraformersmc:modmenu:${project.modmenu_version}"
+	modLocalRuntime "com.terraformersmc:modmenu:${project.modmenu_version}"
+	if (project.hasProperty('conditional_mixin_version')) {
+		modLocalRuntime "me.fallenbreath:conditional-mixin-fabric:${project.conditional_mixin_version}"
+	}
+
+	testImplementation platform('org.junit:junit-bom:5.11.4')
+	testImplementation 'org.junit.jupiter:junit-jupiter'
+	testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+	testImplementation 'org.assertj:assertj-core:3.27.3'
+	testImplementation 'org.mockito:mockito-core:5.15.2'
+	testImplementation 'com.tngtech.archunit:archunit-junit5:1.4.0'
+}
+
+def deletedResources = file('deleted-resources.txt')
+if (deletedResources.isFile()) {
+	def excludes = deletedResources.readLines('UTF-8')
+		.collect { it.trim() }
+		.findAll { !it.isEmpty() && !it.startsWith('#') }
+	sourceSets.main.resources.exclude(excludes)
+}
+
+tasks.test {
+	useJUnitPlatform()
+	systemProperty 'file.encoding', 'UTF-8'
+	systemProperty 'quickcraft.sourceRoot', new File(quickcraftRepositoryRoot, 'src/main/java').absolutePath
+	workingDir = layout.buildDirectory.dir('test-runtime').get().asFile
+	doFirst {
+		workingDir.mkdirs()
+	}
+}
+
+processResources {
+	inputs.property 'version', project.version
+	filesMatching('fabric.mod.json') {
+		filter { line -> line.replace('${version}', project.version.toString()) }
+	}
+}
+
+tasks.withType(JavaCompile).configureEach {
+	options.release = 21
+	options.encoding = 'UTF-8'
+}
+
+java {
+	withSourcesJar()
+	sourceCompatibility = JavaVersion.VERSION_21
+	targetCompatibility = JavaVersion.VERSION_21
+}
+
+jar {
+	from(rootProject.file('LICENSE')) {
+		rename { "${it}_quickcraft" }
+	}
+}
+
+publishing {
+	publications {
+		create('mavenJava', MavenPublication) {
+			from components.java
+		}
+	}
+}

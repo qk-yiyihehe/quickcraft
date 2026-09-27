@@ -48,15 +48,19 @@ QuickCraft 是面向 Fabric 的客户端实用模组，让合成、容器和 Lit
 
 ## 文档
 
-详细功能说明正在整理中。文档入口已预留在 [`doc/`](doc/README.md) 目录，后续内容会从这里维护。
+多版本目标和依赖范围统一登记在 [`version-matrix.json`](version-matrix.json)。
 
 ## 开发
 
-项目使用 Java 21。Windows 下可执行：
+项目采用两条隔离构建线：Minecraft 1.21.x 输出 Java 21 字节码，Minecraft 26.x 使用 Java 25。Windows 下可执行：
 
 ```powershell
-.\gradlew.bat build
+.\scripts\verify-version-matrix.ps1
+.\gradlew.bat buildAllVersions
+.\gradlew.bat collectArtifacts
 ```
+
+正式 Jar 统一输出到 `build/distributions/`。各版本编译目录位于 `build/targets/<版本>/`，客户端目录位于 `run/<版本>/client/`；运行 `.\gradlew.bat showWorkspaceLayout` 可查看当前机器解析后的完整路径。
 
 ## 许可证
 

@@ -1,0 +1,38 @@
+def repositoryRoot = rootProject.file('version-matrix.json').isFile()
+	? rootProject.projectDir
+	: rootProject.file('../..')
+
+def localPathProperties = new Properties()
+def localPathFile = new File(repositoryRoot, 'quickcraft.paths.properties')
+if (localPathFile.isFile()) {
+	localPathFile.withInputStream { localPathProperties.load(it) }
+}
+
+def resolveOutputRoot = { String propertyName, String environmentName, String defaultPath ->
+	def configuredPath = project.findProperty(propertyName)?.toString()?.trim()
+	if (!configuredPath) {
+		configuredPath = System.getenv(environmentName)?.trim()
+	}
+	if (!configuredPath) {
+		configuredPath = localPathProperties.getProperty(propertyName)?.trim()
+	}
+	if (!configuredPath) {
+		configuredPath = defaultPath
+	}
+
+	def outputRoot = new File(configuredPath)
+	if (!outputRoot.isAbsolute()) {
+		outputRoot = new File(repositoryRoot, configuredPath)
+	}
+	return outputRoot.canonicalFile
+}
+
+ext.quickcraftRepositoryRoot = repositoryRoot.canonicalFile
+ext.quickcraftBuildRoot = resolveOutputRoot(
+	'quickcraft_build_root',
+	'QUICKCRAFT_BUILD_ROOT',
+	'build')
+ext.quickcraftRunRoot = resolveOutputRoot(
+	'quickcraft_run_root',
+	'QUICKCRAFT_RUN_ROOT',
+	'run')

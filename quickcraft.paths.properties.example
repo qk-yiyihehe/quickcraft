@@ -1,0 +1,4 @@
+# Copy this file to quickcraft.paths.properties to keep machine-local paths.
+# Relative paths are resolved from the repository root. Forward slashes also work on Windows.
+quickcraft_build_root=build
+quickcraft_run_root=run

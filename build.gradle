@@ -1,141 +1,148 @@
+import com.replaymod.gradle.preprocess.Node
+import groovy.json.JsonSlurper
+
 plugins {
-	id 'net.fabricmc.fabric-loom-remap' version "${loom_version}"
-	id 'maven-publish'
-	id 'com.github.spotbugs' version '6.1.7'
+	id 'net.fabricmc.fabric-loom-remap' version '1.17.20' apply false
+	id 'com.github.spotbugs' version '6.1.7' apply false
+	id 'com.replaymod.preprocess-root' version '221276c7d4316055744c499bb66dbc5b9d0a508c'
 }
 
-// SpotBugs 静态分析配置：发现潜在 bug、死代码、传参错误
-spotbugs {
-	effort = com.github.spotbugs.snom.Effort.MAX
-	excludeFilter = file("$rootDir/spotbugs-exclude.xml")
-}
-spotbugsMain {
-	reports {
-		html.required = true
+apply from: file('gradle/quickcraft-layout.gradle')
+layout.buildDirectory.set(quickcraftBuildRoot)
+
+def versionMatrix = new JsonSlurper().parse(file('version-matrix.json'))
+
+preprocess {
+	strictExtraMappings = false
+
+	final List<Node> versionNodes = []
+	versionMatrix.tracks['1.21x'].versions.each { versionSpec ->
+		def parts = versionSpec.project.split(/\./)
+		def patchVersion = parts.length > 2 ? parts[2] : '0'
+		def numericVersion = (parts[0] + parts[1].padLeft(2, '0') + patchVersion.padLeft(2, '0')).toInteger()
+		versionNodes << createNode(versionSpec.project, numericVersion, '')
 	}
-	// 仅报告不阻塞构建，CI中检查 build/reports/spotbugs/main.html
-	ignoreFailures = true
-}
-spotbugsTest {
-	enabled = false // 测试代码不跑 SpotBugs
-}
 
-version = project.mod_version
-group = project.maven_group
-
-base {
-	archivesName = "${project.name}-mc${project.supported_minecraft_versions}"
-}
-
-loom {
-	runs {
-		client {
-			runDir "run"
-		}
-		server {
-			runDir "run"
-		}
+	versionNodes.sort { it.mcVersion }
+	for (int index = 0; index < versionNodes.size() - 1; index++) {
+		def source = versionNodes[index]
+		def target = versionNodes[index + 1]
+		source.link target, null
 	}
 }
 
-repositories {
-	// Add repositories to retrieve artifacts from in here.
-	// You should only use this when depending on other mods because
-	// Loom adds the essential maven repositories to download Minecraft and libraries from automatically.
-	// See https://docs.gradle.org/current/userguide/declaring_repositories.html
-	// for more information about repositories.
-	maven {
-		name = "masa"
-		url = "https://masa.dy.fi/maven/sakura-ryoko/"
-	}
-	maven {
-		name = "Terraformers"
-		url = "https://maven.terraformersmc.com/"
-	}
-	maven {
-		name = "JitPack"
-		url = "https://jitpack.io"
-	}
-	maven {
-		name = "MoRanpcy"
-		url = "https://maven.moranpcy.com/releases"
-	}
-}
+def minecraft121Projects = versionMatrix.tracks['1.21x'].versions.collect { ":${it.project}" }
+def minecraft26Projects = versionMatrix.tracks['26x'].versions.collect { project(":${it.project}") }
+def minecraft26Build = gradle.includedBuild('quickcraft-26x')
 
-dependencies {
-	// To change the versions see the gradle.properties file
-	minecraft "com.mojang:minecraft:${project.minecraft_version}"
-	mappings "net.fabricmc:yarn:${project.yarn_mappings}:v2"
-	modImplementation "net.fabricmc:fabric-loader:${project.loader_version}"
-
-	// Fabric API. This is technically optional, but you probably want it anyway.
-	modImplementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_api_version}"
-	modImplementation include("com.github.Chocohead:Fabric-ASM:v${project.fabric_asm_version}")
-	modImplementation "fi.dy.masa.malilib:malilib-fabric-1.21:${project.malilib_version}"
-	modCompileOnly "fi.dy.masa.litematica:litematica-fabric-1.21:${project.litematica_version}"
-	modLocalRuntime "fi.dy.masa.litematica:litematica-fabric-1.21:${project.litematica_version}"
-	modCompileOnly "com.terraformersmc:modmenu:${project.modmenu_version}"
-	modLocalRuntime "com.terraformersmc:modmenu:${project.modmenu_version}"
-	// ========== 测试框架 ==========
-	testImplementation platform("org.junit:junit-bom:5.11.4")
-	testImplementation "org.junit.jupiter:junit-jupiter"
-	testRuntimeOnly "org.junit.platform:junit-platform-launcher"
-	testImplementation "org.assertj:assertj-core:3.27.3"
-	testImplementation "org.mockito:mockito-core:5.15.2"
-	// ArchUnit 架构测试（包依赖、命名规范、分层检查）
-	testImplementation "com.tngtech.archunit:archunit-junit5:1.4.0"
-	
-}
-
-tasks.test {
-	useJUnitPlatform()
-	// 在 CI 或本地跑测试时输出中文不乱码
-	systemProperty "file.encoding", "UTF-8"
-}
-
-processResources {
-	inputs.property "version", project.version
-
-	filesMatching("fabric.mod.json") {
-		filter { line -> line.replace('${version}', project.version.toString()) }
-	}
-}
-
-tasks.withType(JavaCompile).configureEach {
-	it.options.release = 21
-}
-
-java {
-	// Loom will automatically attach sourcesJar to a RemapSourcesJar task and to the "build" task
-	// if it is present.
-	// If you remove this line, sources will not be generated.
-	withSourcesJar()
-
-	sourceCompatibility = JavaVersion.VERSION_21
-	targetCompatibility = JavaVersion.VERSION_21
-}
-
-jar {
-	inputs.property "projectName", project.name
-
-	from("LICENSE") {
-		rename { "${it}_${project.name}"}
-	}
-}
-
-// configure the maven publication
-publishing {
-	publications {
-		create("mavenJava", MavenPublication) {
-			from components.java
+minecraft26Projects.each { proxyProject ->
+	[
+		'build': [group: 'build', description: "Build Minecraft ${proxyProject.name}."],
+		'test': [group: 'verification', description: "Test Minecraft ${proxyProject.name}."],
+		'runClient': [group: 'fabric', description: "Run the Minecraft ${proxyProject.name} client."],
+		'runServer': [group: 'fabric', description: "Run the Minecraft ${proxyProject.name} server."],
+		'clean': [group: 'build', description: "Clean generated outputs for Minecraft ${proxyProject.name}."]
+	].each { taskName, taskSpec ->
+		proxyProject.tasks.register(taskName) {
+			group = taskSpec.group
+			description = taskSpec.description
+			dependsOn minecraft26Build.task(":${proxyProject.name}:${taskName}")
 		}
 	}
+}
 
-	// See https://docs.gradle.org/current/userguide/publishing_maven.html for information on how to set up publishing.
-	repositories {
-		// Add repositories to publish to here.
-		// Notice: This block does NOT have the same function as the block in the top level.
-		// The repositories here will be used for publishing your artifact, not for
-		// retrieving dependencies.
+tasks.register('showWorkspaceLayout') {
+	group = 'help'
+	description = 'Show centralized build, run, artifact, and log locations.'
+	doLast {
+		println "Build root: ${quickcraftBuildRoot}"
+		println "Release Jars: ${new File(quickcraftBuildRoot, 'distributions')}"
+		println "Run root: ${quickcraftRunRoot}"
+		versionMatrix.tracks.values().each { track ->
+			track.versions.each { versionSpec ->
+				def target = versionSpec.project
+				println "${target}:"
+				println "  build: ${new File(quickcraftBuildRoot, "targets/${target}")}"
+				println "  client: ${new File(quickcraftRunRoot, "${target}/client")}"
+				println "  client log: ${new File(quickcraftRunRoot, "${target}/client/logs/latest.log")}"
+				println "  server: ${new File(quickcraftRunRoot, "${target}/server")}"
+			}
+		}
 	}
+}
+
+tasks.register('build121') {
+	group = 'build'
+	description = 'Build every supported Minecraft 1.21.x artifact.'
+	dependsOn minecraft121Projects.collect { "${it}:build" }
+}
+
+tasks.register('test121') {
+	group = 'verification'
+	description = 'Run tests for every supported Minecraft 1.21.x artifact.'
+	dependsOn minecraft121Projects.collect { "${it}:test" }
+}
+
+tasks.register('build26x') {
+	group = 'build'
+	description = 'Build the isolated Minecraft 26.x track with Java 25.'
+	dependsOn minecraft26Build.task(':buildAll26x')
+}
+
+tasks.register('test26x') {
+	group = 'verification'
+	description = 'Run tests for the isolated Minecraft 26.x track.'
+	dependsOn minecraft26Build.task(':testAll26x')
+}
+
+[
+	'build2612': [task: ':26.1.2:build', description: 'Build Minecraft 26.1.2.'],
+	'build262': [task: ':26.2:build', description: 'Build Minecraft 26.2.'],
+	'runClient2612': [task: ':26.1.2:runClient', description: 'Run the Minecraft 26.1.2 client.'],
+	'runClient262': [task: ':26.2:runClient', description: 'Run the Minecraft 26.2 client.']
+].each { taskName, target ->
+	tasks.register(taskName) {
+		group = 'minecraft 26.x'
+		description = target.description
+		dependsOn minecraft26Build.task(target.task)
+	}
+}
+
+tasks.register('buildAllVersions') {
+	group = 'build'
+	description = 'Build every declared Minecraft version in both build tracks.'
+	dependsOn 'build121', 'build26x'
+}
+
+tasks.register('collectArtifacts', Sync) {
+	group = 'build'
+	description = 'Build and collect one release Jar for every declared Minecraft target.'
+	dependsOn 'buildAllVersions'
+	into layout.buildDirectory.dir('distributions')
+	duplicatesStrategy = DuplicatesStrategy.FAIL
+
+	from(minecraft121Projects.collect { project(it).layout.buildDirectory.dir('libs') }) {
+		include '*.jar'
+		exclude '*-sources.jar'
+	}
+	from(versionMatrix.tracks['26x'].versions.collect { versionSpec ->
+		new File(quickcraftBuildRoot, "targets/${versionSpec.project}/libs")
+	}) {
+		include '*.jar'
+		exclude '*-sources.jar'
+	}
+
+	doLast {
+		def expectedCount = versionMatrix.tracks.values().sum { it.versions.size() }
+		def artifacts = destinationDir.listFiles({ file -> file.name.endsWith('.jar') } as FileFilter)
+		if (artifacts == null || artifacts.size() != expectedCount) {
+			throw new GradleException("Expected ${expectedCount} release Jars, found ${artifacts?.size() ?: 0}")
+		}
+	}
+}
+
+tasks.register('testAllVersions') {
+	group = 'verification'
+	description = 'Run tests for every declared Minecraft version in both build tracks.'
+	dependsOn 'test121', 'test26x'
 }
