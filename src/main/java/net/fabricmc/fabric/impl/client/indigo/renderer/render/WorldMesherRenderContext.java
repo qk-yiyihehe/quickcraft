@@ -40,7 +40,11 @@ public class WorldMesherRenderContext extends AbstractBlockRenderContext {
             this.blockView = blockView;
             this.blockInfo.prepareForWorld(blockView, true);
 
+            //#if MC<12103
             Vec3d offset = blockState.getModelOffset(blockView, blockPos);
+            //#else
+            //$$ Vec3d offset = blockState.getModelOffset(blockPos);
+            //#endif
             matrixStack.translate(offset.x, offset.y, offset.z);
 
             this.matrix = matrixStack.peek().getPositionMatrix();
@@ -50,7 +54,12 @@ public class WorldMesherRenderContext extends AbstractBlockRenderContext {
 
             this.aoCalc.clear();
             this.blockInfo.prepareForBlock(blockState, blockPos, model.useAmbientOcclusion());
+            //#if MC>=12104
+            //$$ model.emitBlockQuads(this.getEmitter(), this.blockInfo.blockView, this.blockInfo.blockState,
+            //$$         this.blockInfo.blockPos, this.blockInfo.randomSupplier, this.blockInfo::shouldCullSide);
+            //#else
             model.emitBlockQuads(this.blockInfo.blockView, this.blockInfo.blockState, this.blockInfo.blockPos, this.blockInfo.randomSupplier, this);
+            //#endif
         } catch (Throwable throwable) {
             CrashReport report = CrashReport.create(throwable, "Tessellating block in QuickCraft Litematica preview mesh");
             CrashReportSection section = report.addElement("Block being tessellated");
