@@ -27,7 +27,11 @@ import com.yiyihehe.quickcraft.config.QuickCraftConfigs;
 import net.fabricmc.loader.api.FabricLoader;
 import fi.dy.masa.litematica.config.Configs;
 import fi.dy.masa.litematica.data.DataManager;
+//#if MC<12111
 import fi.dy.masa.litematica.data.EntitiesDataStorage;
+//#else
+//$$ import fi.dy.masa.litematica.data.EntityDataManager;
+//#endif
 import fi.dy.masa.litematica.schematic.LitematicaSchematic;
 import fi.dy.masa.litematica.schematic.container.LitematicaBlockStateContainer;
 import fi.dy.masa.litematica.schematic.placement.SchematicPlacement;
@@ -39,6 +43,9 @@ import fi.dy.masa.litematica.util.BlockInfoAlignment;
 import fi.dy.masa.litematica.util.SchematicUtils;
 import fi.dy.masa.malilib.gui.LeftRight;
 import fi.dy.masa.malilib.render.InventoryOverlay;
+//#if MC>=12111
+//$$ import fi.dy.masa.malilib.render.GuiContext;
+//#endif
 //#if MC>=12110
 //$$ import fi.dy.masa.malilib.render.InventoryOverlayType;
 //#endif
@@ -178,6 +185,7 @@ public final class QuickLitematicaContainerVerifier {
     private static ActualInventoryReadStatus lastActualInventoryReadStatus = ActualInventoryReadStatus.NOT_READ;
     private static World trustedCacheWorld;
     private static final Map<BlockPos, SimpleInventory> trustedInventoryCache = new HashMap<>();
+    private static final EntityDataAccess ENTITY_DATA = new EntityDataAccess();
 
     private QuickLitematicaContainerVerifier() {
     }
@@ -202,17 +210,22 @@ public final class QuickLitematicaContainerVerifier {
     }
 
     public static Inventory getExpectedInventory(BlockEntity expectedBlockEntity, Inventory directInventory) {
-        if (expectedBlockEntity == null || expectedBlockEntity.getWorld() == null) {
+        if (expectedBlockEntity == null) {
             return directInventory;
         }
 
-        NbtCompound nbt = expectedBlockEntity.createNbtWithIdentifyingData(expectedBlockEntity.getWorld().getRegistryManager());
+        World blockEntityWorld = expectedBlockEntity.getWorld();
+        if (blockEntityWorld == null) {
+            return directInventory;
+        }
+
+        NbtCompound nbt = expectedBlockEntity.createNbtWithIdentifyingData(blockEntityWorld.getRegistryManager());
 
         if (nbt.contains("Items")) {
             Inventory nbtInventory = getNbtInventoryPreservingComponents(
                     nbt,
                     directInventory != null ? directInventory.size() : -1,
-                    expectedBlockEntity.getWorld().getRegistryManager()
+                    blockEntityWorld.getRegistryManager()
             );
 
             if (nbtInventory != null) {
@@ -252,9 +265,21 @@ public final class QuickLitematicaContainerVerifier {
             return mergedOrDirect != null ? mergedOrDirect : directInventory;
         }
 
-        EntitiesDataStorage storage = EntitiesDataStorage.getInstance();
-        NbtCompound cachedNbt = storage.getFromBlockEntityCacheNbt(pos);
+        EntityDataAccess storage = ENTITY_DATA;
+        NbtCompound cachedNbt = storage.getBlockEntityNbt(pos);
+        //#if MC>=12111
+        //$$ if (cachedNbt != null && !cachedNbt.contains("Items") && expected != null && isInventoryEmpty(expected)) {
+        //$$     // 服务器空容器 NBT 可能只带 x/y/z/id，没有 Items；这表示已读到空库存。
+        //$$     trustedInventoryCache.put(pos.toImmutable(), new SimpleInventory(expected.size()));
+        //$$     lastActualInventoryReadStatus = ActualInventoryReadStatus.CACHE_INVENTORY;
+        //$$     return new SimpleInventory(expected.size());
+        //$$ }
+        //#endif
+        //#if MC<12111
         if (cachedNbt != null) {
+        //#else
+        //$$ if (cachedNbt != null && (cachedNbt.contains("Items") || isInventoryEmpty(expected))) {
+        //#endif
             Inventory cachedInventory = getCachedInventory(world, pos, storage, expected != null ? expected.size() : -1);
 
             if (cachedInventory != null && isTrustedCachedInventory(storage, pos, cachedNbt, cachedInventory, expected)) {
@@ -281,26 +306,25 @@ public final class QuickLitematicaContainerVerifier {
         }
 
         // 多人没有实体数据时不要拿客户端空壳库存硬比，避免把未知误报成错误填充。
-        ensureEntityDataSyncEnabled();
         storage.requestBlockEntity(world, pos);
         return null;
     }
 
-    private static Inventory getCachedInventory(World world, BlockPos pos, EntitiesDataStorage storage, int expectedSize) {
+    private static Inventory getCachedInventory(World world, BlockPos pos, EntityDataAccess storage, int expectedSize) {
         Inventory merged = getMergedCachedDoubleChestInventory(world, pos, storage, expectedSize);
 
         if (merged != null) {
             return merged;
         }
 
-        NbtCompound cachedNbt = storage.getFromBlockEntityCacheNbt(pos);
+        NbtCompound cachedNbt = storage.getBlockEntityNbt(pos);
         //#if MC>=12105
         //$$ Inventory special = getCachedSpecialInventory(world, cachedNbt, expectedSize);
         //$$ if (special != null) {
         //$$     return special;
         //$$ }
         //#endif
-        BlockEntity cachedBlockEntity = storage.getFromBlockEntityCache(pos);
+        BlockEntity cachedBlockEntity = storage.getBlockEntity(pos);
 
         if (cachedBlockEntity instanceof Inventory inventory
                 && (expectedSize <= 0 || inventory.size() == expectedSize)) {
@@ -338,7 +362,7 @@ public final class QuickLitematicaContainerVerifier {
     //#endif
 
     private static boolean isTrustedCachedInventory(
-            EntitiesDataStorage storage,
+            EntityDataAccess storage,
             BlockPos pos,
             NbtCompound cachedNbt,
             Inventory cachedInventory,
@@ -361,7 +385,7 @@ public final class QuickLitematicaContainerVerifier {
                 && storage.hasCompletedChunk(new ChunkPos(pos));
     }
 
-    private static Inventory getMergedCachedDoubleChestInventory(World world, BlockPos pos, EntitiesDataStorage storage, int expectedSize) {
+    private static Inventory getMergedCachedDoubleChestInventory(World world, BlockPos pos, EntityDataAccess storage, int expectedSize) {
         if (expectedSize != 54) {
             return null;
         }
@@ -374,8 +398,8 @@ public final class QuickLitematicaContainerVerifier {
         }
 
         BlockPos adjacentPos = pos.add(ChestBlock.getFacing(state).getVector());
-        NbtCompound currentNbt = storage.getFromBlockEntityCacheNbt(pos);
-        NbtCompound adjacentNbt = storage.getFromBlockEntityCacheNbt(adjacentPos);
+        NbtCompound currentNbt = storage.getBlockEntityNbt(pos);
+        NbtCompound adjacentNbt = storage.getBlockEntityNbt(adjacentPos);
 
         if (currentNbt == null || adjacentNbt == null) {
             return null;
@@ -519,8 +543,7 @@ public final class QuickLitematicaContainerVerifier {
 
     public static void requestInventoryData(World world, BlockPos pos) {
         if (world != null) {
-            ensureEntityDataSyncEnabled();
-            EntitiesDataStorage.getInstance().requestBlockEntity(world, pos);
+            ENTITY_DATA.requestBlockEntity(world, pos);
         }
     }
 
@@ -529,8 +552,8 @@ public final class QuickLitematicaContainerVerifier {
             return false;
         }
 
-        ensureEntityDataSyncEnabled();
-        EntitiesDataStorage storage = EntitiesDataStorage.getInstance();
+        EntityDataAccess storage = ENTITY_DATA;
+        storage.prepareBulkRequest();
         if (storage.hasServuxServer()) {
             storage.requestServuxBulkEntityData(chunkPos, minY, maxY);
             return true;
@@ -547,6 +570,66 @@ public final class QuickLitematicaContainerVerifier {
         // 容器验证依赖 Litematica 的实体数据缓存和备份查询；只在实际请求数据时开启，避免污染逐方块热路径。
         Configs.Generic.ENTITY_DATA_SYNC.setBooleanValue(true);
         Configs.Generic.ENTITY_DATA_SYNC_BACKUP.setBooleanValue(true);
+    }
+
+    /** 把 Litematica 1.21.11 的实体数据管理器替换限制在一个适配点。 */
+    private static final class EntityDataAccess {
+        //#if MC<12111
+        private final EntitiesDataStorage delegate = EntitiesDataStorage.getInstance();
+        //#else
+        //$$ private final EntityDataManager delegate = EntityDataManager.getInstance();
+        //#endif
+
+        private NbtCompound getBlockEntityNbt(BlockPos pos) {
+            //#if MC<12111
+            return this.delegate.getFromBlockEntityCacheNbt(pos);
+            //#else
+            //$$ return this.delegate.getCache().getBlockEntityNbtFromCache(pos);
+            //#endif
+        }
+
+        private BlockEntity getBlockEntity(BlockPos pos) {
+            return this.delegate.getFromBlockEntityCache(pos);
+        }
+
+        private boolean hasServuxServer() {
+            return this.delegate.hasServuxServer();
+        }
+
+        private boolean hasBackupStatus() {
+            return this.delegate.hasBackupStatus();
+        }
+
+        private boolean getIfReceivedBackupPackets() {
+            return this.delegate.getIfReceivedBackupPackets();
+        }
+
+        private boolean hasCompletedChunk(ChunkPos chunkPos) {
+            return this.delegate.hasCompletedChunk(chunkPos);
+        }
+
+        private void requestBlockEntity(World world, BlockPos pos) {
+            //#if MC<12111
+            ensureEntityDataSyncEnabled();
+            this.delegate.requestBlockEntity(world, pos);
+            //#else
+            //$$ this.delegate.requestBlockEntityWrapped(world, pos);
+            //#endif
+        }
+
+        private void prepareBulkRequest() {
+            //#if MC<12111
+            ensureEntityDataSyncEnabled();
+            //#endif
+        }
+
+        private void requestServuxBulkEntityData(ChunkPos chunkPos, int minY, int maxY) {
+            this.delegate.requestServuxBulkEntityData(chunkPos, minY, maxY);
+        }
+
+        private void requestBackupBulkEntityData(ChunkPos chunkPos, int minY, int maxY) {
+            this.delegate.requestBackupBulkEntityData(chunkPos, minY, maxY);
+        }
     }
 
     public static List<ContainerMismatch> findMismatches(
@@ -1077,9 +1160,18 @@ public final class QuickLitematicaContainerVerifier {
         }
 
         World world = fi.dy.masa.malilib.util.WorldUtils.getBestWorld(client);
+        //#if MC<12111
         BlockEntity blockEntity = world != null
                 ? world.getBlockEntity(blockHitResult.getBlockPos())
                 : client.world.getBlockEntity(blockHitResult.getBlockPos());
+        //#else
+        //$$ World clientWorld = client.world;
+        //$$ World lookupWorld = world != null ? world : clientWorld;
+        //$$ if (lookupWorld == null) {
+        //$$     return null;
+        //$$ }
+        //$$ BlockEntity blockEntity = lookupWorld.getBlockEntity(blockHitResult.getBlockPos());
+        //#endif
 
         return blockEntity instanceof Inventory ? blockHitResult.getBlockPos().toImmutable() : null;
     }
@@ -1325,22 +1417,38 @@ public final class QuickLitematicaContainerVerifier {
             return null;
         }
 
+        //#if MC<12111
         Map<BlockPos, NbtCompound> blockEntities = placementPos.placement().getSchematic()
                 .getBlockEntityMapForRegion(placementPos.region());
+        //#else
+        //$$ Map<BlockPos, ?> blockEntities = placementPos.placement().getSchematic()
+        //$$         .getBlockEntityMapForRegion(placementPos.region());
+        //#endif
 
         if (blockEntities == null) {
             return null;
         }
 
-        NbtCompound nbt = blockEntities.get(placementPos.pos());
+        //#if MC<12111
+        NbtCompound data = blockEntities.get(placementPos.pos());
+        //#else
+        //$$ Object data = blockEntities.get(placementPos.pos());
+        //#endif
 
-        if (nbt == null) {
+        if (data == null) {
             return null;
         }
 
-        MinecraftClient client = MinecraftClient.getInstance();
+        //#if MC<12111
+        NbtCompound nbt = data;
+        //#else
+        //$$ NbtCompound nbt = QuickLitematicaDataCompat.toVanillaNbt(data);
+        //#endif
 
-        if (client.world == null) {
+        MinecraftClient client = MinecraftClient.getInstance();
+        World clientWorld = client.world;
+
+        if (clientWorld == null) {
             return null;
         }
 
@@ -1348,7 +1456,7 @@ public final class QuickLitematicaContainerVerifier {
                 placementPos.pos(),
                 placementPos.rawState(),
                 nbt,
-                client.world.getRegistryManager()
+                clientWorld.getRegistryManager()
         );
 
         if (!(blockEntity instanceof Inventory inventory)) {
@@ -1539,10 +1647,36 @@ public final class QuickLitematicaContainerVerifier {
             xInv += props.width / 2 + 4;
         }
 
+        //#if MC<12111
         renderInventoryBackground(drawContext, type, xInv, yInv, props.slotsPerRow, props.totalSlots, mc);
+        //#else
+        //$$ GuiContext guiContext = GuiContext.fromGuiGraphics(drawContext);
+        //$$ InventoryOverlay.renderInventoryBackground(
+        //$$         guiContext,
+        //$$         InventoryOverlayType.valueOf(type.name()),
+        //$$         xInv,
+        //$$         yInv,
+        //$$         props.slotsPerRow,
+        //$$         props.totalSlots
+        //$$ );
+        //#endif
         drawSlotHighlights(drawContext, type, xInv + props.slotOffsetX, yInv + props.slotOffsetY, props.slotsPerRow, slotMismatches);
+        //#if MC<12111
         renderInventoryStacks(drawContext, type, inventory, xInv + props.slotOffsetX, yInv + props.slotOffsetY,
                 props.slotsPerRow, disabledSlots, mc);
+        //#else
+        //$$ InventoryOverlay.renderInventoryStacks(
+        //$$         guiContext,
+        //$$         InventoryOverlayType.valueOf(type.name()),
+        //$$         inventory,
+        //$$         xInv + props.slotOffsetX,
+        //$$         yInv + props.slotOffsetY,
+        //$$         props.slotsPerRow,
+        //$$         0,
+        //$$         inventory.size(),
+        //$$         disabledSlots
+        //$$ );
+        //#endif
 
         if (renderGhostStacks) {
             drawMissingGhostStacks(drawContext, mc, type, xInv + props.slotOffsetX, yInv + props.slotOffsetY, props.slotsPerRow, slotMismatches);
@@ -1692,10 +1826,15 @@ public final class QuickLitematicaContainerVerifier {
         //#if MC<12110
         return InventoryOverlay.getInventoryPropsTemp(InventoryOverlay.InventoryRenderType.valueOf(type.name()), size);
         //#else
+        //#if MC<12111
         //$$ return InventoryOverlay.getInventoryPropsTempNew(InventoryOverlayType.valueOf(type.name()), size);
+        //#else
+        //$$ return InventoryOverlay.getInventoryPropsTemp(InventoryOverlayType.valueOf(type.name()), size);
+        //#endif
         //#endif
     }
 
+    //#if MC<12111
     private static void renderInventoryBackground(
             DrawContext context,
             InventoryOverlayKind type,
@@ -1748,6 +1887,7 @@ public final class QuickLitematicaContainerVerifier {
         //$$         inventory, x, y, slotsPerRow, 0, inventory.size(), disabledSlots, client);
         //#endif
     }
+    //#endif
 
     private enum InventoryOverlayKind {
         FURNACE,
