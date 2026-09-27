@@ -3,13 +3,24 @@ package com.yiyihehe.quickcraft.render;
 import com.yiyihehe.quickcraft.config.QuickCraftConfigs;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.fabric.api.client.rendering.v1.HudRenderCallback;
+//#if MC<12110
 import net.fabricmc.fabric.api.client.rendering.v1.WorldRenderEvents;
+//#endif
 import net.minecraft.block.BlockState;
 import net.minecraft.block.ChestBlock;
 import net.minecraft.block.enums.ChestType;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.gui.DrawContext;
+//#if MC>=12110
+//$$ import net.minecraft.client.render.Camera;
+//$$ import net.minecraft.client.render.VertexConsumerProvider;
+//$$ import net.minecraft.client.util.math.MatrixStack;
+//#endif
+//#if MC<12111
 import net.minecraft.client.render.RenderLayer;
+//#else
+//$$ import net.minecraft.client.render.RenderLayers;
+//#endif
 //#if MC<12103
 import net.minecraft.client.render.WorldRenderer;
 //#else
@@ -24,6 +35,10 @@ import net.minecraft.util.hit.HitResult;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.Box;
 import net.minecraft.util.math.Vec3d;
+//#if MC>=12111
+//$$ import net.minecraft.util.math.ColorHelper;
+//$$ import net.minecraft.util.shape.VoxelShapes;
+//#endif
 
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -43,7 +58,9 @@ public final class QuickContainerFillStatus {
 
     public static void initialize() {
         ClientTickEvents.END_CLIENT_TICK.register(QuickContainerFillStatus::onClientTick);
+        //#if MC<12110
         WorldRenderEvents.AFTER_ENTITIES.register(QuickContainerFillStatus::renderWorld);
+        //#endif
         HudRenderCallback.EVENT.register((context, tickCounter) -> renderHud(context));
     }
 
@@ -128,6 +145,7 @@ public final class QuickContainerFillStatus {
                 && QuickCraftConfigs.areContainerFillStatusOutlinesVisible();
     }
 
+    //#if MC<12110
     private static void renderWorld(net.fabricmc.fabric.api.client.rendering.v1.WorldRenderContext context) {
         MinecraftClient client = MinecraftClient.getInstance();
         if (!isAvailable(client) || context.consumers() == null || MARKERS.isEmpty()) {
@@ -160,6 +178,53 @@ public final class QuickContainerFillStatus {
         }
         context.matrixStack().pop();
     }
+    //#else
+    //$$ public static void renderWorld(MinecraftClient client, Camera camera) {
+    //$$     if (!isAvailable(client) || MARKERS.isEmpty()) {
+    //$$         return;
+    //$$     }
+    //$$     //#if MC<12111
+    //$$     Vec3d cameraPos = camera.getPos();
+    //$$     //#else
+    //$$     //$$ Vec3d cameraPos = camera.getCameraPos();
+    //$$     //#endif
+    //$$     MatrixStack matrices = new MatrixStack();
+    //$$     VertexConsumerProvider.Immediate consumers = client.getBufferBuilders().getEntityVertexConsumers();
+    //$$     matrices.push();
+    //$$     matrices.translate(-cameraPos.x, -cameraPos.y, -cameraPos.z);
+    //$$     for (Map.Entry<Target, Marker> entry : MARKERS.entrySet()) {
+    //$$         Box box = entry.getKey().box(client.world);
+    //$$         if (box == null || box.getCenter().squaredDistanceTo(cameraPos) > MAX_RENDER_DISTANCE_SQUARED) {
+    //$$             continue;
+    //$$         }
+    //$$         Status status = entry.getValue().status;
+    //$$         // 0.2 个方块像素等于 0.0125 格；仅微抬底边，其余边略微外移以避免贴面闪烁。
+    //$$         Box outline = new Box(
+    //$$                 box.minX - 0.01, box.minY + 0.0125, box.minZ - 0.01,
+    //$$                 box.maxX + 0.01, box.maxY + 0.01, box.maxZ + 0.01
+    //$$         );
+    //$$         //#if MC<12111
+    //$$         VertexRendering.drawBox(
+    //$$                 matrices.peek(),
+    //$$                 consumers.getBuffer(RenderLayer.getLines()),
+    //$$                 outline,
+    //$$                 status.red, status.green, status.blue, 0.95F
+    //$$         );
+    //$$         //#else
+    //$$         //$$ VertexRendering.drawOutline(matrices, consumers.getBuffer(RenderLayers.lines()),
+    //$$         //$$         VoxelShapes.cuboid(outline), 0, 0, 0,
+    //$$         //$$         ColorHelper.fromFloats(0.95F, status.red, status.green, status.blue),
+    //$$         //$$         client.getWindow().getMinimumLineWidth());
+    //$$         //#endif
+    //$$     }
+    //$$     matrices.pop();
+    //$$     //#if MC<12111
+    //$$     consumers.draw(RenderLayer.getLines());
+    //$$     //#else
+    //$$     //$$ consumers.draw(RenderLayers.lines());
+    //$$     //#endif
+    //$$ }
+    //#endif
 
     private static void renderHud(DrawContext context) {
         MinecraftClient client = MinecraftClient.getInstance();
