@@ -16,6 +16,7 @@ import net.minecraft.entity.Entity;
 import net.minecraft.server.integrated.IntegratedServer;
 import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.entity.player.PlayerEntity;
+import net.minecraft.entity.player.PlayerInventory;
 import net.minecraft.entity.EntityType;
 import net.minecraft.item.Item;
 import net.minecraft.item.ItemStack;
@@ -25,9 +26,18 @@ import net.minecraft.nbt.NbtCompound;
 import net.minecraft.nbt.NbtDouble;
 import net.minecraft.nbt.NbtFloat;
 import net.minecraft.nbt.NbtList;
+//#if MC>=12108
+//$$ import net.minecraft.nbt.NbtOps;
+//#endif
 import net.minecraft.registry.Registries;
+//#if MC>=12108
+//$$ import net.minecraft.storage.NbtWriteView;
+//#endif
 import net.minecraft.registry.tag.BlockTags;
 import net.minecraft.text.Text;
+//#if MC>=12108
+//$$ import net.minecraft.util.ErrorReporter;
+//#endif
 import net.minecraft.util.Identifier;
 import net.minecraft.util.math.Box;
 import net.minecraft.util.math.BlockPos;
@@ -320,7 +330,7 @@ public final class QuickLitematicaEntityPlacement {
             List<Entity> nearby = new ArrayList<>(nearbyEntities.stream()
                     .filter(entity -> candidateBox.intersects(entity.getBoundingBox()))
                     .toList());
-            nearby.sort(Comparator.comparingDouble(entity -> entity.getPos().squaredDistanceTo(candidate.position)));
+            nearby.sort(Comparator.comparingDouble(entity -> entityPosition(entity).squaredDistanceTo(candidate.position)));
             nearbyByCandidate.put(candidate, nearby);
         }
 
@@ -377,15 +387,15 @@ public final class QuickLitematicaEntityPlacement {
     }
 
     static ExcessDisplay createExcessDisplay(Entity entity, List<Candidate> candidates) {
-        List<ItemStack> actualMaterials = getMaterials(entity.getType(), entity.writeNbt(new NbtCompound()));
+        List<ItemStack> actualMaterials = getMaterials(entity.getType(), writeEntityNbt(entity));
         if (!actualMaterials.isEmpty()) {
             return new ExcessDisplay(actualMaterials.getFirst().copy());
         }
         Candidate representative = candidates.stream()
-                .filter(candidate -> Registries.ENTITY_TYPE.get(candidate.entityType) == entity.getType())
-                .min(Comparator.comparingDouble(candidate -> candidate.position.squaredDistanceTo(entity.getPos())))
+                .filter(candidate -> resolveEntityType(candidate.entityType) == entity.getType())
+                .min(Comparator.comparingDouble(candidate -> candidate.position.squaredDistanceTo(entityPosition(entity))))
                 .orElseGet(() -> candidates.stream()
-                        .min(Comparator.comparingDouble(candidate -> candidate.position.squaredDistanceTo(entity.getPos())))
+                        .min(Comparator.comparingDouble(candidate -> candidate.position.squaredDistanceTo(entityPosition(entity))))
                         .orElse(null));
         return new ExcessDisplay(representative == null ? ItemStack.EMPTY : representative.material().copy());
     }
@@ -412,22 +422,39 @@ public final class QuickLitematicaEntityPlacement {
             int index,
             LitematicaSchematic.EntityInfo entity
     ) {
+        //#if MC<12111
         NbtCompound nbt = entity.nbt.copy();
-        Identifier entityId = Identifier.tryParse(nbt.getString("id"));
+        //#else
+        //$$ NbtCompound nbt = QuickLitematicaDataCompat.entityNbt(entity).copy();
+        //#endif
+        //#if MC<12103
+        Identifier entityId = Identifier.tryParse(readString(nbt, "id"));
         if (entityId == null) {
             return null;
         }
-        EntityType<?> type = Registries.ENTITY_TYPE.get(entityId);
+        EntityType<?> type = resolveEntityType(entityId);
         if (type == null) {
             return null;
         }
+        //#else
+        //$$ if (!normalizeEntityTreeIds(nbt, 0)) {
+        //$$     return null;
+        //$$ }
+        //$$ Identifier entityId = Identifier.tryParse(readString(nbt, "id"));
+        //$$ EntityType<?> type = resolveEntityType(entityId);
+        //#endif
         applyOptionalEntityMaterials(nbt);
         List<ItemStack> materials = getMaterials(type, nbt, client);
         if (materials.isEmpty()) {
             return null;
         }
 
+        //#if MC<12111
         Vec3d position = PositionUtils.getTransformedPosition(entity.posVec, placement.getMirror(), placement.getRotation());
+        //#else
+        //$$ Vec3d position = PositionUtils.getTransformedPosition(
+        //$$         QuickLitematicaDataCompat.entityPos(entity), placement.getMirror(), placement.getRotation());
+        //#endif
         position = PositionUtils.getTransformedPosition(position, subRegion.getMirror(), subRegion.getRotation());
         BlockPos blockOffset = placement.getOrigin().add(
                 PositionUtils.getTransformedBlockPos(subRegion.getPos(), placement.getMirror(), placement.getRotation())
@@ -449,9 +476,9 @@ public final class QuickLitematicaEntityPlacement {
     }
 
     private static void applyOptionalEntityMaterials(NbtCompound nbt) {
-        Identifier entityId = Identifier.tryParse(nbt.getString("id"));
+        Identifier entityId = Identifier.tryParse(readString(nbt, "id"));
         if (entityId != null && Registries.ENTITY_TYPE.containsId(entityId)) {
-            EntityType<?> type = Registries.ENTITY_TYPE.get(entityId);
+            EntityType<?> type = resolveEntityType(entityId);
             if (!QuickCraftConfigs.areEasyPlaceEntityContainerContentMaterialsRequired()
                     && containerCapacity(type, nbt) >= 0) {
                 nbt.remove("Items");
@@ -462,9 +489,9 @@ public final class QuickLitematicaEntityPlacement {
             nbt.remove("Passengers");
             return;
         }
-        NbtList passengers = nbt.getList("Passengers", 10);
+        NbtList passengers = readCompoundList(nbt, "Passengers");
         for (int index = 0; index < passengers.size(); index++) {
-            applyOptionalEntityMaterials(passengers.getCompound(index));
+            applyOptionalEntityMaterials(readCompound(passengers, index));
         }
     }
 
@@ -525,12 +552,12 @@ public final class QuickLitematicaEntityPlacement {
             return false;
         }
 
-        NbtList passengers = nbt.getList("Passengers", 10);
+        NbtList passengers = readCompoundList(nbt, "Passengers");
         for (int index = 0; index < passengers.size(); index++) {
-            NbtCompound passenger = passengers.getCompound(index);
-            Identifier id = Identifier.tryParse(passenger.getString("id"));
+            NbtCompound passenger = readCompound(passengers, index);
+            Identifier id = Identifier.tryParse(readString(passenger, "id"));
             if (id == null || !Registries.ENTITY_TYPE.containsId(id)
-                    || !appendEntityTreeMaterials(Registries.ENTITY_TYPE.get(id), passenger,
+                    || !appendEntityTreeMaterials(resolveEntityType(id), passenger,
                     materials, depth + 1, entityCount, materialClient)) {
                 return false;
             }
@@ -540,14 +567,15 @@ public final class QuickLitematicaEntityPlacement {
 
     private static ItemStack getBaseMaterial(EntityType<?> type, NbtCompound nbt) {
         if (type == EntityType.ITEM && nbt.contains("Item")) {
-            return ItemStack.fromNbt(MinecraftClient.getInstance().world.getRegistryManager(), nbt.getCompound("Item"))
+            return decodeItemStack(readCompound(nbt, "Item"))
                     .orElse(ItemStack.EMPTY);
         }
         SpawnEggItem spawnEgg = SpawnEggItem.forEntity(type);
         if (spawnEgg != null) {
             return new ItemStack(spawnEgg);
         }
-        String entityPath = Registries.ENTITY_TYPE.getId(type).getPath();
+        Identifier entityId = Registries.ENTITY_TYPE.getId(type);
+        String entityPath = entityId.getPath();
         Item item = switch (entityPath) {
             case "armor_stand" -> Items.ARMOR_STAND;
             case "painting" -> Items.PAINTING;
@@ -559,12 +587,219 @@ public final class QuickLitematicaEntityPlacement {
             case "furnace_minecart" -> Items.FURNACE_MINECART;
             case "tnt_minecart" -> Items.TNT_MINECART;
             case "hopper_minecart" -> Items.HOPPER_MINECART;
-            case "boat" -> getBoatItem(nbt.getString("Type"), false);
-            case "chest_boat" -> getBoatItem(nbt.getString("Type"), true);
+            case "boat" -> getBoatItem(readString(nbt, "Type"), false);
+            case "chest_boat" -> getBoatItem(readString(nbt, "Type"), true);
+            //#if MC<12103
             default -> null;
+            //#else
+            //$$ default -> getSplitBoatItem(entityId);
+            //#endif
         };
         return item == null ? ItemStack.EMPTY : new ItemStack(item);
     }
+
+    private static NbtCompound writeEntityNbt(Entity entity) {
+        //#if MC<12108
+        return entity.writeNbt(new NbtCompound());
+        //#else
+        //$$ NbtWriteView view = NbtWriteView.create(ErrorReporter.EMPTY, entity.getRegistryManager());
+        //$$ entity.saveSelfData(view);
+        //$$ return view.getNbt();
+        //#endif
+    }
+
+    private static java.util.Optional<ItemStack> decodeItemStack(NbtCompound nbt) {
+        //#if MC<12105
+        return ItemStack.fromNbt(MinecraftClient.getInstance().world.getRegistryManager(), nbt);
+        //#else
+        //$$ MinecraftClient client = MinecraftClient.getInstance();
+        //$$ if (client.world == null) {
+        //$$     return java.util.Optional.empty();
+        //$$ }
+        //$$ //#if MC<12108
+        //$$ return ItemStack.fromNbt(client.world.getRegistryManager(), nbt);
+        //$$ //#else
+        //$$ //$$ return ItemStack.CODEC.parse(client.world.getRegistryManager().getOps(NbtOps.INSTANCE), nbt).result();
+        //$$ //#endif
+        //#endif
+    }
+
+    private static String readString(NbtCompound nbt, String key) {
+        //#if MC<12105
+        return nbt.getString(key);
+        //#else
+        //$$ return nbt.getString(key, "");
+        //#endif
+    }
+
+    private static NbtList readCompoundList(NbtCompound nbt, String key) {
+        //#if MC<12105
+        return nbt.getList(key, 10);
+        //#else
+        //$$ return nbt.getListOrEmpty(key);
+        //#endif
+    }
+
+    private static NbtList readFloatList(NbtCompound nbt, String key) {
+        //#if MC<12105
+        return nbt.getList(key, 5);
+        //#else
+        //$$ return nbt.getListOrEmpty(key);
+        //#endif
+    }
+
+    private static NbtList readDoubleList(NbtCompound nbt, String key) {
+        //#if MC<12105
+        return nbt.getList(key, 6);
+        //#else
+        //$$ return nbt.getListOrEmpty(key);
+        //#endif
+    }
+
+    private static NbtCompound readCompound(NbtCompound nbt, String key) {
+        //#if MC<12105
+        return nbt.getCompound(key);
+        //#else
+        //$$ return nbt.getCompoundOrEmpty(key);
+        //#endif
+    }
+
+    private static NbtCompound readCompound(NbtList list, int index) {
+        //#if MC<12105
+        return list.getCompound(index);
+        //#else
+        //$$ return list.getCompoundOrEmpty(index);
+        //#endif
+    }
+
+    private static byte readByte(NbtCompound nbt, String key) {
+        //#if MC<12105
+        return nbt.getByte(key);
+        //#else
+        //$$ return nbt.getByte(key, (byte) 0);
+        //#endif
+    }
+
+    private static boolean readBoolean(NbtCompound nbt, String key) {
+        //#if MC<12105
+        return nbt.getBoolean(key);
+        //#else
+        //$$ return nbt.getBoolean(key, false);
+        //#endif
+    }
+
+    private static int readInt(NbtCompound nbt, String key) {
+        //#if MC<12105
+        return nbt.getInt(key);
+        //#else
+        //$$ return nbt.getInt(key, 0);
+        //#endif
+    }
+
+    private static float readFloat(NbtList list, int index) {
+        //#if MC<12105
+        return list.getFloat(index);
+        //#else
+        //$$ return list.getFloat(index, 0.0F);
+        //#endif
+    }
+
+    private static double readDouble(NbtList list, int index) {
+        //#if MC<12105
+        return list.getDouble(index);
+        //#else
+        //$$ return list.getDouble(index, 0.0D);
+        //#endif
+    }
+
+    private static Direction readDirection(NbtCompound nbt, String key) {
+        //#if MC<12105
+        return Direction.byId(readByte(nbt, key));
+        //#else
+        //$$ return Direction.byIndex(readByte(nbt, key));
+        //#endif
+    }
+
+    private static byte writeDirection(Direction direction) {
+        //#if MC<12105
+        return (byte) direction.getId();
+        //#else
+        //$$ return (byte) direction.getIndex();
+        //#endif
+    }
+
+    private static List<ItemStack> mainStacks(PlayerInventory inventory) {
+        //#if MC<12105
+        return inventory.main;
+        //#else
+        //$$ return inventory.getMainStacks();
+        //#endif
+    }
+
+    private static EntityType<?> resolveEntityType(Identifier id) {
+        //#if MC<12103
+        return Registries.ENTITY_TYPE.get(id);
+        //#else
+        //$$ return Registries.ENTITY_TYPE.get(id);
+        //#endif
+    }
+
+    private static Item item(Identifier id) {
+        //#if MC<12103
+        return Registries.ITEM.get(id);
+        //#else
+        //$$ return Registries.ITEM.get(id);
+        //#endif
+    }
+
+    private static boolean normalizeEntityTreeIds(NbtCompound nbt, int depth) {
+        if (depth > MAX_ENTITY_TREE_DEPTH) {
+            return false;
+        }
+        Identifier id = Identifier.tryParse(readString(nbt, "id"));
+        if (id == null) {
+            return false;
+        }
+        if (!Registries.ENTITY_TYPE.containsId(id)) {
+            id = getModernBoatId(id, nbt);
+            if (id == null || !Registries.ENTITY_TYPE.containsId(id)) {
+                return false;
+            }
+            nbt.putString("id", id.toString());
+        }
+
+        NbtList passengers = readCompoundList(nbt, "Passengers");
+        for (int index = 0; index < passengers.size(); index++) {
+            if (!normalizeEntityTreeIds(readCompound(passengers, index), depth + 1)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private static Identifier getModernBoatId(Identifier id, NbtCompound nbt) {
+        if (!id.getNamespace().equals(Identifier.DEFAULT_NAMESPACE)) {
+            return null;
+        }
+        boolean chestBoat = id.getPath().equals("chest_boat");
+        if (!chestBoat && !id.getPath().equals("boat")) {
+            return null;
+        }
+        String path = getSplitBoatPath(readString(nbt, "Type"), chestBoat);
+        return path == null ? null : Identifier.ofVanilla(path);
+    }
+
+    private static Item getSplitBoatItem(Identifier entityId) {
+        return isSplitBoatPath(entityId.getPath()) && Registries.ITEM.containsId(entityId)
+                ? item(entityId)
+                : null;
+    }
+
+    private static boolean isSplitBoatPath(String path) {
+        return path.endsWith("_boat") || path.endsWith("_chest_boat")
+                || path.endsWith("_raft") || path.endsWith("_chest_raft");
+    }
+
 
     private static boolean appendConstructedEntityMaterials(
             EntityType<?> type,
@@ -604,7 +839,7 @@ public final class QuickLitematicaEntityPlacement {
     }
 
     private static boolean hasClientItem(MinecraftClient client, Item item) {
-        return client.player != null && client.player.getInventory().main.stream()
+        return client.player != null && mainStacks(client.player.getInventory()).stream()
                 .anyMatch(stack -> stack.isOf(item) && !stack.isEmpty());
     }
 
@@ -626,10 +861,10 @@ public final class QuickLitematicaEntityPlacement {
 
     private static Item registeredItem(String path) {
         Identifier id = Identifier.of("minecraft", path);
-        return Registries.ITEM.containsId(id) ? Registries.ITEM.get(id) : null;
+        return Registries.ITEM.containsId(id) ? item(id) : null;
     }
-
     private static Item getBoatItem(String type, boolean chestBoat) {
+        //#if MC<12103
         return switch (type) {
             case "spruce" -> chestBoat ? Items.SPRUCE_CHEST_BOAT : Items.SPRUCE_BOAT;
             case "birch" -> chestBoat ? Items.BIRCH_CHEST_BOAT : Items.BIRCH_BOAT;
@@ -642,19 +877,36 @@ public final class QuickLitematicaEntityPlacement {
             case "oak", "" -> chestBoat ? Items.OAK_CHEST_BOAT : Items.OAK_BOAT;
             default -> null;
         };
+        //#else
+        //$$ String path = getSplitBoatPath(type, chestBoat);
+        //$$ return path == null ? null : getSplitBoatItem(Identifier.ofVanilla(path));
+        //#endif
+    }
+
+    private static String getSplitBoatPath(String type, boolean chestBoat) {
+        String prefix = switch (type) {
+            case "spruce", "birch", "jungle", "acacia", "cherry", "dark_oak", "mangrove",
+                    "pale_oak", "bamboo", "oak" -> type;
+            case "" -> "oak";
+            default -> null;
+        };
+        if (prefix == null) {
+            return null;
+        }
+        return prefix.equals("bamboo")
+                ? (chestBoat ? "bamboo_chest_raft" : "bamboo_raft")
+                : prefix + (chestBoat ? "_chest_boat" : "_boat");
     }
 
     private static boolean appendStoredItem(List<ItemStack> materials, NbtCompound entityNbt, String key) {
         if (!entityNbt.contains(key)) {
             return true;
         }
-        NbtCompound itemNbt = entityNbt.getCompound(key);
+        NbtCompound itemNbt = readCompound(entityNbt, key);
         if (itemNbt.isEmpty()) {
             return true;
         }
-        return ItemStack.fromNbt(
-                MinecraftClient.getInstance().world.getRegistryManager(), itemNbt
-        ).map(stack -> {
+        return decodeItemStack(itemNbt).map(stack -> {
             materials.add(stack);
             return true;
         }).orElse(false);
@@ -677,26 +929,23 @@ public final class QuickLitematicaEntityPlacement {
         if (!entityNbt.contains(key)) {
             return true;
         }
-        NbtList items = entityNbt.getList(key, 10);
+        NbtList items = readCompoundList(entityNbt, key);
         if (capacity < 0 && !items.isEmpty()) {
             return false;
         }
-        Set<Integer> slots = new HashSet<>();
+        Set<Integer> slots = capacity > 0 ? new HashSet<>() : null;
         for (int index = 0; index < items.size(); index++) {
-            NbtCompound itemNbt = items.getCompound(index);
+            NbtCompound itemNbt = readCompound(items, index);
             if (itemNbt.isEmpty()) {
                 continue;
             }
             if (capacity > 0) {
-                int slot = itemNbt.getByte("Slot") & 255;
+                int slot = readByte(itemNbt, "Slot") & 255;
                 if (!itemNbt.contains("Slot") || slot >= capacity || !slots.add(slot)) {
                     return false;
                 }
             }
-            if (ItemStack.fromNbt(
-                    MinecraftClient.getInstance().world.getRegistryManager(),
-                    itemNbt
-            ).map(stack -> {
+            if (decodeItemStack(itemNbt).map(stack -> {
                 materials.add(stack);
                 return true;
             }).orElse(false) == false) {
@@ -709,27 +958,32 @@ public final class QuickLitematicaEntityPlacement {
     private static boolean isChestedHorse(EntityType<?> type, NbtCompound nbt) {
         String path = Registries.ENTITY_TYPE.getId(type).getPath();
         return switch (path) {
-            case "donkey", "mule", "llama", "trader_llama" -> nbt.getBoolean("ChestedHorse");
+            case "donkey", "mule", "llama", "trader_llama" -> readBoolean(nbt, "ChestedHorse");
             default -> false;
         };
     }
 
     private static int containerCapacity(EntityType<?> type, NbtCompound nbt) {
         String path = Registries.ENTITY_TYPE.getId(type).getPath();
+        //#if MC>=12103
+        //$$ if (path.endsWith("_chest_boat") || path.endsWith("_chest_raft")) {
+        //$$     return 27;
+        //$$ }
+        //#endif
         return switch (path) {
             case "hopper_minecart" -> 5;
             case "chest_minecart", "chest_boat" -> 27;
-            case "donkey", "mule" -> nbt.getBoolean("ChestedHorse") ? 15 : -1;
+            case "donkey", "mule" -> readBoolean(nbt, "ChestedHorse") ? 15 : -1;
             case "llama", "trader_llama" -> llamaContainerCapacity(nbt);
             default -> -1;
         };
     }
 
     private static int llamaContainerCapacity(NbtCompound nbt) {
-        if (!nbt.getBoolean("ChestedHorse")) {
+        if (!readBoolean(nbt, "ChestedHorse")) {
             return -1;
         }
-        int strength = nbt.getInt("Strength");
+        int strength = readInt(nbt, "Strength");
         return strength >= 1 && strength <= 5 ? strength * 3 : Integer.MIN_VALUE;
     }
 
@@ -876,9 +1130,9 @@ public final class QuickLitematicaEntityPlacement {
         transformFacing(nbt, "facing", placement, subRegion);
         transformDecorationPosition(nbt, placement, subRegion, blockOffset);
 
-        NbtList passengers = nbt.getList("Passengers", 10);
+        NbtList passengers = readCompoundList(nbt, "Passengers");
         for (int index = 0; index < passengers.size(); index++) {
-            transformEntityTreeState(passengers.getCompound(index), placement, subRegion, blockOffset, depth + 1);
+            transformEntityTreeState(readCompound(passengers, index), placement, subRegion, blockOffset, depth + 1);
         }
     }
 
@@ -891,7 +1145,11 @@ public final class QuickLitematicaEntityPlacement {
         if (!nbt.contains("TileX") || !nbt.contains("TileY") || !nbt.contains("TileZ")) {
             return;
         }
-        BlockPos position = new BlockPos(nbt.getInt("TileX"), nbt.getInt("TileY"), nbt.getInt("TileZ"));
+        BlockPos position = new BlockPos(
+                readInt(nbt, "TileX"),
+                readInt(nbt, "TileY"),
+                readInt(nbt, "TileZ")
+        );
         position = PositionUtils.getTransformedBlockPos(position, placement.getMirror(), placement.getRotation());
         position = PositionUtils.getTransformedBlockPos(position, subRegion.getMirror(), subRegion.getRotation());
         position = position.add(blockOffset);
@@ -909,25 +1167,39 @@ public final class QuickLitematicaEntityPlacement {
         if (!nbt.contains(key)) {
             return;
         }
-        Direction direction = Direction.byId(nbt.getByte(key));
+        Direction direction = readDirection(nbt, key);
         Vec3d transformed = transformVector(Vec3d.of(direction.getVector()), placement, subRegion);
-        nbt.putByte(key, (byte) Direction.getFacing(transformed).getId());
+        nbt.putByte(key, writeDirection(Direction.getFacing(transformed)));
     }
 
     private static float readRotation(NbtCompound nbt, int index) {
         if (!nbt.contains("Rotation")) {
             return 0.0F;
         }
-        var rotation = nbt.getList("Rotation", 5);
-        return rotation.size() > index ? rotation.getFloat(index) : 0.0F;
+        var rotation = readFloatList(nbt, "Rotation");
+        return rotation.size() > index ? readFloat(rotation, index) : 0.0F;
     }
 
     private static Vec3d readMotion(NbtCompound nbt) {
         if (!nbt.contains("Motion")) {
             return Vec3d.ZERO;
         }
-        var motion = nbt.getList("Motion", 6);
-        return motion.size() == 3 ? new Vec3d(motion.getDouble(0), motion.getDouble(1), motion.getDouble(2)) : Vec3d.ZERO;
+        var motion = readDoubleList(nbt, "Motion");
+        return motion.size() == 3
+                ? new Vec3d(
+                        readDouble(motion, 0),
+                        readDouble(motion, 1),
+                        readDouble(motion, 2)
+                )
+                : Vec3d.ZERO;
+    }
+
+    private static Vec3d entityPosition(Entity entity) {
+        //#if MC<12110
+        return entity.getPos();
+        //#else
+        //$$ return entity.getEntityPos();
+        //#endif
     }
 
     static final class Candidate {
@@ -993,7 +1265,7 @@ public final class QuickLitematicaEntityPlacement {
             if (client.player.isCreative() && QuickCraftConfigs.isCreativeEntityPlacementAllowed()) {
                 return true;
             }
-            return materials.stream().allMatch(required -> client.player.getInventory().main.stream()
+            return materials.stream().allMatch(required -> mainStacks(client.player.getInventory()).stream()
                     .filter(stack -> ItemStack.areItemsAndComponentsEqual(stack, required))
                     .mapToInt(ItemStack::getCount)
                     .sum() >= required.getCount());
@@ -1019,9 +1291,9 @@ public final class QuickLitematicaEntityPlacement {
 
         private static int countEntityTree(NbtCompound root) {
             int count = 1;
-            NbtList passengers = root.getList("Passengers", 10);
+            NbtList passengers = readCompoundList(root, "Passengers");
             for (int index = 0; index < passengers.size(); index++) {
-                count += countEntityTree(passengers.getCompound(index));
+                count += countEntityTree(readCompound(passengers, index));
             }
             return count;
         }
@@ -1031,12 +1303,12 @@ public final class QuickLitematicaEntityPlacement {
             if (client == null || client.world == null || !nbt.contains("Items")) {
                 return stacks;
             }
-            var items = nbt.getList("Items", 10);
+            var items = readCompoundList(nbt, "Items");
             for (int i = 0; i < items.size(); i++) {
-                var itemNbt = items.getCompound(i);
-                int slot = itemNbt.getByte("Slot") & 255;
-                if (slot >= 0 && slot < size) {
-                    ItemStack.fromNbt(client.world.getRegistryManager(), itemNbt)
+                var itemNbt = readCompound(items, i);
+                int slot = readByte(itemNbt, "Slot") & 255;
+                if (slot < size) {
+                    decodeItemStack(itemNbt)
                             .ifPresent(stack -> stacks.set(slot, stack));
                 }
             }
@@ -1048,7 +1320,12 @@ public final class QuickLitematicaEntityPlacement {
             if (path.equals("hopper_minecart")) {
                 return new ContainerPreview(ContainerPreviewType.HOPPER, 5);
             }
+            //#if MC<12103
             if (path.equals("chest_minecart") || path.equals("chest_boat")) {
+            //#else
+            //$$ if (path.equals("chest_minecart") || path.equals("chest_boat")
+            //$$         || path.endsWith("_chest_boat") || path.endsWith("_chest_raft")) {
+            //#endif
                 return new ContainerPreview(ContainerPreviewType.GENERIC, 27);
             }
             return null;
@@ -1063,7 +1340,7 @@ public final class QuickLitematicaEntityPlacement {
         }
 
         private double squaredDistanceTo(Entity entity) {
-            return entity.getPos().squaredDistanceTo(position);
+            return entityPosition(entity).squaredDistanceTo(position);
         }
 
         private boolean matchesConfirmedUuid(Entity entity) {
@@ -1091,16 +1368,24 @@ public final class QuickLitematicaEntityPlacement {
         }
 
         private static BlockPos railPosition(Entity entity, BlockPos position) {
+            //#if MC<12110
             if (entity.getWorld().getBlockState(position).isIn(BlockTags.RAILS)) {
+            //#else
+            //$$ if (entity.getEntityWorld().getBlockState(position).isIn(BlockTags.RAILS)) {
+            //#endif
                 return position;
             }
             BlockPos below = position.down();
+            //#if MC<12110
             return entity.getWorld().getBlockState(below).isIn(BlockTags.RAILS) ? below : null;
+            //#else
+            //$$ return entity.getEntityWorld().getBlockState(below).isIn(BlockTags.RAILS) ? below : null;
+            //#endif
         }
 
         private boolean minecartContentsMatch(Entity entity) {
-            List<ItemStack> expected = getMaterials(Registries.ENTITY_TYPE.get(entityType), nbt);
-            List<ItemStack> actual = getMaterials(entity.getType(), entity.writeNbt(new NbtCompound()));
+            List<ItemStack> expected = getMaterials(resolveEntityType(entityType), nbt);
+            List<ItemStack> actual = getMaterials(entity.getType(), writeEntityNbt(entity));
             if (expected.size() != actual.size()) {
                 return false;
             }
@@ -1115,7 +1400,7 @@ public final class QuickLitematicaEntityPlacement {
         }
 
         private PlacementStatus classifyEntity(Entity entity) {
-            boolean sameType = entity.getType() == Registries.ENTITY_TYPE.get(entityType);
+            boolean sameType = entity.getType() == resolveEntityType(entityType);
             if (isMinecart()) {
                 if (!minecartPositionMatches(entity)) {
                     return PlacementStatus.UNPLACED;
@@ -1135,26 +1420,26 @@ public final class QuickLitematicaEntityPlacement {
             if (squaredDistanceTo(entity) > tolerance * tolerance || !rotationMatches(entity)) {
                 return PlacementStatus.MISMATCHED;
             }
-            return containsProjectedData(normalizeForComparison(nbt), normalizeForComparison(entity.writeNbt(new NbtCompound())))
+            return containsProjectedData(normalizeForComparison(nbt), normalizeForComparison(writeEntityNbt(entity)))
                     && matchesPassengerTree(nbt, entity)
                     ? PlacementStatus.MATCHED
                     : PlacementStatus.MISMATCHED;
         }
         private static boolean matchesPassengerTree(NbtCompound expected, Entity actual) {
-            NbtList expectedPassengers = expected.getList("Passengers", 10);
+            NbtList expectedPassengers = readCompoundList(expected, "Passengers");
             List<Entity> actualPassengers = actual.getPassengerList();
             if (expectedPassengers.size() != actualPassengers.size()) {
                 return false;
             }
             for (int index = 0; index < expectedPassengers.size(); index++) {
-                NbtCompound expectedPassenger = expectedPassengers.getCompound(index);
+                NbtCompound expectedPassenger = readCompound(expectedPassengers, index);
                 Entity actualPassenger = actualPassengers.get(index);
-                Identifier expectedId = Identifier.tryParse(expectedPassenger.getString("id"));
+                Identifier expectedId = Identifier.tryParse(readString(expectedPassenger, "id"));
                 if (expectedId == null
-                        || actualPassenger.getType() != Registries.ENTITY_TYPE.get(expectedId)
+                        || actualPassenger.getType() != resolveEntityType(expectedId)
                         || !containsProjectedData(
                         normalizeForComparison(expectedPassenger),
-                        normalizeForComparison(actualPassenger.writeNbt(new NbtCompound())))
+                        normalizeForComparison(writeEntityNbt(actualPassenger)))
                         || !matchesPassengerTree(expectedPassenger, actualPassenger)) {
                     return false;
                 }
@@ -1173,7 +1458,7 @@ public final class QuickLitematicaEntityPlacement {
 
         private static NbtCompound normalizeForComparison(NbtCompound source) {
             NbtCompound normalized = source.copy();
-            Identifier entityId = Identifier.tryParse(normalized.getString("id"));
+            Identifier entityId = Identifier.tryParse(readString(normalized, "id"));
             String entityPath = entityId == null ? "" : entityId.getPath();
             normalized.remove("id");
             normalized.remove("Pos");
