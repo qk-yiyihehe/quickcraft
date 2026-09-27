@@ -12,6 +12,10 @@ import net.minecraft.item.ItemStack;
 import net.minecraft.recipe.Ingredient;
 import net.minecraft.recipe.RecipeEntry;
 import net.minecraft.recipe.StonecuttingRecipe;
+//#if MC>=12103
+//$$ import net.minecraft.recipe.display.CuttingRecipeDisplay;
+//$$ import net.minecraft.recipe.display.SlotDisplayContexts;
+//#endif
 import net.minecraft.recipe.input.SingleStackRecipeInput;
 import net.minecraft.screen.StonecutterScreenHandler;
 import net.minecraft.screen.slot.SlotActionType;
@@ -31,7 +35,12 @@ public class QuickCraftStonecutter implements ClientModInitializer {
     private static final int INPUT_SLOT = 0;
     private static final int OUTPUT_SLOT = 1;
     private static final int MAX_FAKE_PROGRESS = 3;
+    //#if MC<12103
     private static final int RECIPE_RESULT_WAIT_TICKS = 3;
+    //#else
+    // 40 tick 给普通多人服务器约两秒时间返回权威切石机槽位。
+    //$$ private static final int SERVER_SYNC_TIMEOUT_TICKS = 40;
+    //#endif
 
     private boolean lastVDown = false;
     private boolean lastAltCDown = false;
@@ -49,7 +58,12 @@ public class QuickCraftStonecutter implements ClientModInitializer {
     private boolean ingredientDropLocked = false;
     private int lastObservedOutputSignature = 0;
     private int fakeProgressTicks = 0;
+    //#if MC<12103
     private int recipeResultWaitTicks = 0;
+    //#else
+    //$$ private boolean singleCraftPending = false;
+    //$$ private int singleCraftWaitTicks = 0;
+    //#endif
 
     @Override
     public void onInitializeClient() {
@@ -78,6 +92,9 @@ public class QuickCraftStonecutter implements ClientModInitializer {
         StonecutterScreenHandler handler = (StonecutterScreenHandler) client.player.currentScreenHandler;
         updateIngredientDropLock(handler);
         handleHotkeys(client, handler);
+        //#if MC>=12103
+        //$$ processPendingSingleCraft(client, handler);
+        //#endif
 
         if (rapidCraftingActive && rapidCraftStartedByButton && !isCraftButtonRapidModeHeld(client)) {
             stopRapidCraft(client, Text.translatable("quickcraft.message.crafting.stopped"));
@@ -95,9 +112,11 @@ public class QuickCraftStonecutter implements ClientModInitializer {
     private void processRapidCraftTick(MinecraftClient client,
                                        StonecutterScreenHandler handler,
                                        RecipeEntry<StonecuttingRecipe> recipe) {
+        //#if MC<12103
         if (waitForRecipeResult(client, handler)) {
             return;
         }
+        //#endif
 
         boolean anyProgress = false;
         int craftLoopsPerTick = QuickCraftConfigs.getCraftLoopsPerTick();
@@ -107,7 +126,11 @@ public class QuickCraftStonecutter implements ClientModInitializer {
             if (progressed) {
                 anyProgress = true;
             }
+            //#if MC<12103
             if (!rapidCraftingActive || recipeResultWaitTicks > 0) {
+            //#else
+            //$$ if (!rapidCraftingActive) {
+            //#endif
                 break;
             }
             if (!progressed) {
@@ -201,12 +224,15 @@ public class QuickCraftStonecutter implements ClientModInitializer {
             return true;
         }
 
+        //#if MC<12103
         if (recipeResultWaitTicks > 0) {
             return true;
         }
+        //#endif
         return handler.getSlot(OUTPUT_SLOT).hasStack();
     }
 
+    //#if MC<12103
     private boolean waitForRecipeResult(MinecraftClient client, StonecutterScreenHandler handler) {
         if (recipeResultWaitTicks <= 0) {
             return false;
@@ -223,6 +249,7 @@ public class QuickCraftStonecutter implements ClientModInitializer {
         }
         return true;
     }
+    //#endif
 
     private boolean resolveOutputSlotBlockageStrict(MinecraftClient client,
                                                     StonecutterScreenHandler handler,
@@ -239,7 +266,11 @@ public class QuickCraftStonecutter implements ClientModInitializer {
 
         if (!handler.getSlot(OUTPUT_SLOT).hasStack()) {
             ingredientDropLocked = false;
+            //#if MC<12103
             return false;
+            //#else
+            //$$ return true;
+            //#endif
         }
 
         if (dropOutputsBeforeTakingAndTryTake(client, handler, resultTemplate, OUTPUT_TAKE_ATTEMPTS_AFTER_DROP)) {
@@ -251,7 +282,11 @@ public class QuickCraftStonecutter implements ClientModInitializer {
 
         if (!handler.getSlot(OUTPUT_SLOT).hasStack()) {
             ingredientDropLocked = false;
+            //#if MC<12103
             return false;
+            //#else
+            //$$ return true;
+            //#endif
         }
 
         if (!ingredientDropLocked) {
@@ -276,6 +311,11 @@ public class QuickCraftStonecutter implements ClientModInitializer {
     }
 
     private void handleSingleCraft(MinecraftClient client, StonecutterScreenHandler handler) {
+        //#if MC>=12103
+        //$$ if (rapidCraftingActive || singleCraftPending) {
+        //$$     return;
+        //$$ }
+        //#endif
         if (!lockCurrentSelection(client, handler)) {
             sendStatusMessage(client, Text.translatable("quickcraft.message.stonecutter.no_selection"));
             return;
@@ -283,9 +323,62 @@ public class QuickCraftStonecutter implements ClientModInitializer {
 
         boolean success = runOneCraftSubLoop(client, handler, lockedRecipe);
         if (!success) {
+            //#if MC<12103
             sendStatusMessage(client, Text.translatable("quickcraft.message.crafting.no_ingredients"));
+            //#else
+            //$$ handleSingleCraftFailure(client, handler);
+            //#endif
         }
     }
+
+    //#if MC>=12103
+    //$$ private void processPendingSingleCraft(MinecraftClient client, StonecutterScreenHandler handler) {
+    //$$     if (!singleCraftPending || rapidCraftingActive) {
+    //$$         return;
+    //$$     }
+    //$$
+    //$$     if (handler.getSlot(OUTPUT_SLOT).hasStack()) {
+    //$$         ItemStack output = handler.getSlot(OUTPUT_SLOT).getStack();
+    //$$         if (!ItemStack.areItemsAndComponentsEqual(output, lockedResultTemplate)) {
+    //$$             clearPendingSingleCraft();
+    //$$             return;
+    //$$         }
+    //$$
+    //$$         if (runOneCraftSubLoop(client, handler, lockedRecipe)) {
+    //$$             clearPendingSingleCraft();
+    //$$             return;
+    //$$         }
+    //$$     }
+    //$$
+    //$$     singleCraftWaitTicks++;
+    //$$     if (singleCraftWaitTicks >= SERVER_SYNC_TIMEOUT_TICKS) {
+    //$$         clearPendingSingleCraft();
+    //$$         sendStatusMessage(client, Text.translatable("quickcraft.message.stonecutter.sync_timeout"));
+    //$$     }
+    //$$ }
+    //$$
+    //$$ private void handleSingleCraftFailure(MinecraftClient client, StonecutterScreenHandler handler) {
+    //$$     if (isIngredientUnavailable(client, handler, lockedRecipe)) {
+    //$$         sendStatusMessage(client, Text.translatable("quickcraft.message.crafting.no_ingredients"));
+    //$$     } else {
+    //$$         singleCraftPending = true;
+    //$$         singleCraftWaitTicks = 0;
+    //$$     }
+    //$$ }
+    //$$
+    //$$ private boolean isIngredientUnavailable(MinecraftClient client,
+    //$$                                         StonecutterScreenHandler handler,
+    //$$                                         RecipeEntry<StonecuttingRecipe> recipe) {
+    //$$     return !handler.getSlot(OUTPUT_SLOT).hasStack()
+    //$$             && !handler.getSlot(INPUT_SLOT).hasStack()
+    //$$             && findBestSupplyIngredientSlot(client.player.getInventory(), handler, recipe) == -1;
+    //$$ }
+    //$$
+    //$$ private void clearPendingSingleCraft() {
+    //$$     singleCraftPending = false;
+    //$$     singleCraftWaitTicks = 0;
+    //$$ }
+    //#endif
 
     private boolean handleCraftButton(MinecraftClient client, boolean rapidCraft) {
         if (!isCraftingContextValid(client)) {
@@ -308,6 +401,7 @@ public class QuickCraftStonecutter implements ClientModInitializer {
             return false;
         }
 
+        //#if MC<12103
         int recipeIndex = findAvailableRecipeIndex(handler, recipe);
         if (recipeIndex < 0) {
             recipeIndex = findAvailableRecipeIndexByResult(client, handler, lockedResultTemplate);
@@ -315,18 +409,35 @@ public class QuickCraftStonecutter implements ClientModInitializer {
         if (recipeIndex < 0) {
             recipeIndex = lockedRecipeIndex;
         }
+        //#else
+        //$$ int recipeIndex = isRecipeIndexAvailable(handler, lockedRecipeIndex) ? lockedRecipeIndex : -1;
+        if (recipeIndex < 0) {
+            //$$ recipeIndex = findAvailableRecipeIndex(handler, recipe);
+        }
+        if (recipeIndex < 0) {
+            //$$ recipeIndex = findAvailableRecipeIndexByResult(client, handler, lockedResultTemplate);
+        }
+        //#endif
         if (!isRecipeIndexAvailable(handler, recipeIndex)) {
             return false;
         }
 
         try {
+            //#if MC<12103
             if (handler.getSelectedRecipe() != recipeIndex || !handler.getSlot(OUTPUT_SLOT).hasStack()) {
+            //#else
+            // 1.21.2+ 客户端只有配方展示数据，重复本地 onButtonClick 不能生成真实产物。
+            //$$ boolean selectionChanged = handler.getSelectedRecipe() != recipeIndex;
+            //$$ if (selectionChanged) {
+            //#endif
                 handler.onButtonClick(client.player, recipeIndex);
                 client.interactionManager.clickButton(handler.syncId, recipeIndex);
             }
+            //#if MC<12103
             if (rapidCraftingActive && !handler.getSlot(OUTPUT_SLOT).hasStack()) {
                 recipeResultWaitTicks = RECIPE_RESULT_WAIT_TICKS;
             }
+            //#endif
             return true;
         } catch (Throwable throwable) {
             return false;
@@ -379,6 +490,9 @@ public class QuickCraftStonecutter implements ClientModInitializer {
         }
 
         ItemStack before = handler.getSlot(OUTPUT_SLOT).getStack().copy();
+        //#if MC>=12103
+        //$$ boolean canAcceptOutput = canAcceptOutputInMainInventory(client.player.getInventory(), before);
+        //#endif
         int beforeResultCount = countMatchingItems(client.player.getInventory(), before);
         client.interactionManager.clickSlot(
                 handler.syncId,
@@ -392,7 +506,28 @@ public class QuickCraftStonecutter implements ClientModInitializer {
         return after.isEmpty()
                 || !ItemStack.areItemsAndComponentsEqual(before, after)
                 || after.getCount() != before.getCount()
-                || countMatchingItems(client.player.getInventory(), before) > beforeResultCount;
+                || countMatchingItems(client.player.getInventory(), before) > beforeResultCount
+                //#if MC>=12103
+                //$$ || canAcceptOutput
+                //#endif
+                ;
+    }
+
+    private boolean canAcceptOutputInMainInventory(PlayerInventory inventory, ItemStack output) {
+        if (output.isEmpty()) {
+            return false;
+        }
+
+        for (ItemStack stack : mainStacks(inventory)) {
+            if (stack.isEmpty()) {
+                return true;
+            }
+            if (ItemStack.areItemsAndComponentsEqual(stack, output)
+                    && stack.getCount() < Math.min(stack.getMaxCount(), output.getMaxCount())) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private int getOutputSignature(StonecutterScreenHandler handler) {
@@ -468,8 +603,8 @@ public class QuickCraftStonecutter implements ClientModInitializer {
             boolean anyDroppedInRound = false;
             PlayerInventory inventory = client.player.getInventory();
 
-            for (int invIndex = 0; invIndex < inventory.main.size(); invIndex++) {
-                ItemStack stack = inventory.main.get(invIndex);
+            for (int invIndex = 0; invIndex < mainStacks(inventory).size(); invIndex++) {
+                ItemStack stack = mainStacks(inventory).get(invIndex);
                 if (stack.isEmpty()) continue;
                 if (!ItemStack.areItemsAndComponentsEqual(stack, resultTemplate)) continue;
 
@@ -537,13 +672,13 @@ public class QuickCraftStonecutter implements ClientModInitializer {
             return findBestMatchingItemSlot(inventory, handler, lockedInputTemplate, false);
         }
 
-        List<Ingredient> ingredients = recipe.value().getIngredients();
+        List<Ingredient> ingredients = recipeIngredients(recipe);
         int bestIndex = -1;
         int bestTotalCount = -1;
         int bestStackCount = -1;
 
-        for (int invIndex = 0; invIndex < inventory.main.size(); invIndex++) {
-            ItemStack stack = inventory.main.get(invIndex);
+        for (int invIndex = 0; invIndex < mainStacks(inventory).size(); invIndex++) {
+            ItemStack stack = mainStacks(inventory).get(invIndex);
             if (stack.isEmpty()) continue;
             if (isLockedPlayerInventorySlot(handler, invIndex)) continue;
             if (!matchesAnyIngredient(stack, ingredients)) continue;
@@ -567,13 +702,13 @@ public class QuickCraftStonecutter implements ClientModInitializer {
             return findBestMatchingItemSlot(inventory, handler, lockedInputTemplate, true);
         }
 
-        List<Ingredient> ingredients = recipe.value().getIngredients();
+        List<Ingredient> ingredients = recipeIngredients(recipe);
         int bestIndex = -1;
         int bestTotalCount = -1;
         int bestStackCount = -1;
 
-        for (int invIndex = 0; invIndex < inventory.main.size(); invIndex++) {
-            ItemStack stack = inventory.main.get(invIndex);
+        for (int invIndex = 0; invIndex < mainStacks(inventory).size(); invIndex++) {
+            ItemStack stack = mainStacks(inventory).get(invIndex);
             if (stack.isEmpty()) continue;
             if (isLockedPlayerInventorySlot(handler, invIndex)) continue;
             if (stack.getCount() <= 1) continue;
@@ -603,8 +738,8 @@ public class QuickCraftStonecutter implements ClientModInitializer {
         int bestTotalCount = -1;
         int bestStackCount = -1;
 
-        for (int invIndex = 0; invIndex < inventory.main.size(); invIndex++) {
-            ItemStack stack = inventory.main.get(invIndex);
+        for (int invIndex = 0; invIndex < mainStacks(inventory).size(); invIndex++) {
+            ItemStack stack = mainStacks(inventory).get(invIndex);
             if (stack.isEmpty()) continue;
             if (isLockedPlayerInventorySlot(handler, invIndex)) continue;
             if (requireExtraItem && stack.getCount() <= 1) continue;
@@ -626,8 +761,8 @@ public class QuickCraftStonecutter implements ClientModInitializer {
                                            StonecutterScreenHandler handler,
                                            ItemStack template) {
         int total = 0;
-        for (int invIndex = 0; invIndex < inventory.main.size(); invIndex++) {
-            ItemStack stack = inventory.main.get(invIndex);
+        for (int invIndex = 0; invIndex < mainStacks(inventory).size(); invIndex++) {
+            ItemStack stack = mainStacks(inventory).get(invIndex);
             if (!stack.isEmpty()
                     && !isLockedPlayerInventorySlot(handler, invIndex)
                     && ItemStack.areItemsAndComponentsEqual(stack, template)) {
@@ -644,10 +779,24 @@ public class QuickCraftStonecutter implements ClientModInitializer {
 
     private boolean matchesAnyIngredient(ItemStack stack, List<Ingredient> ingredients) {
         for (Ingredient ingredient : ingredients) {
+            //#if MC<12103
             if (ingredient == null || ingredient.isEmpty()) continue;
+            //#elseif MC<12104
+            //$$ if (ingredient == null || ingredient.getMatchingItems().isEmpty()) continue;
+            //#else
+            //$$ if (ingredient == null || ingredient.isEmpty()) continue;
+            //#endif
             if (ingredient.test(stack)) return true;
         }
         return false;
+    }
+
+    private static List<Ingredient> recipeIngredients(RecipeEntry<StonecuttingRecipe> recipe) {
+        //#if MC<12103
+        return recipe.value().getIngredients();
+        //#else
+        //$$ return recipe.value().getIngredientPlacement().getIngredients();
+        //#endif
     }
 
     private ItemStack getRecipeResultStack(MinecraftClient client, RecipeEntry<StonecuttingRecipe> recipe) {
@@ -703,7 +852,11 @@ public class QuickCraftStonecutter implements ClientModInitializer {
             return null;
         }
 
+        //#if MC<12103
         return handler.getAvailableRecipes().get(recipeIndex);
+        //#else
+        //$$ return handler.getAvailableRecipes().entries().get(recipeIndex).recipe().recipe().orElse(null);
+        //#endif
     }
 
     private int findAvailableRecipeIndex(StonecutterScreenHandler handler,
@@ -712,17 +865,35 @@ public class QuickCraftStonecutter implements ClientModInitializer {
             return -1;
         }
 
+        //#if MC<12103
         List<RecipeEntry<StonecuttingRecipe>> recipes = handler.getAvailableRecipes();
         for (int i = 0; i < recipes.size(); i++) {
             if (recipes.get(i).id().equals(recipe.id())) {
                 return i;
             }
         }
+        //#else
+        //$$ List<CuttingRecipeDisplay.GroupEntry<StonecuttingRecipe>> entries = handler.getAvailableRecipes().entries();
+        //$$ for (int i = 0; i < entries.size(); i++) {
+            //$$ RecipeEntry<StonecuttingRecipe> availableRecipe = entries.get(i).recipe().recipe().orElse(null);
+            //$$ if (availableRecipe != null && availableRecipe.id().equals(recipe.id())) {
+            //$$     return i;
+            //$$ }
+        //$$ }
+        //#endif
         return -1;
     }
 
     private boolean isRecipeIndexAvailable(StonecutterScreenHandler handler, int recipeIndex) {
-        return recipeIndex >= 0 && recipeIndex < handler.getAvailableRecipes().size();
+        return recipeIndex >= 0 && recipeIndex < availableRecipeCount(handler);
+    }
+
+    private int availableRecipeCount(StonecutterScreenHandler handler) {
+        //#if MC<12103
+        return handler.getAvailableRecipes().size();
+        //#else
+        //$$ return handler.getAvailableRecipeCount();
+        //#endif
     }
 
     private int findAvailableRecipeIndexByResult(MinecraftClient client,
@@ -732,15 +903,32 @@ public class QuickCraftStonecutter implements ClientModInitializer {
             return -1;
         }
 
-        List<RecipeEntry<StonecuttingRecipe>> recipes = handler.getAvailableRecipes();
-        for (int i = 0; i < recipes.size(); i++) {
+        //#if MC>=12103 && MC<12105
+        //$$ int matchedIndex = -1;
+        //#endif
+        for (int i = 0; i < availableRecipeCount(handler); i++) {
             ItemStack displayedResult = getDisplayResultStack(client, handler, i);
             if (!displayedResult.isEmpty()
                     && ItemStack.areItemsAndComponentsEqual(displayedResult, resultTemplate)) {
+                //#if MC<12103
                 return i;
+                //#elseif MC<12105
+                //$$ if (matchedIndex >= 0) {
+                //$$     return -1;
+                //$$ }
+                //$$ matchedIndex = i;
+                //#else
+                //$$ return i;
+                //#endif
             }
         }
+        //#if MC<12103
         return -1;
+        //#elseif MC<12105
+        //$$ return matchedIndex;
+        //#else
+        //$$ return -1;
+        //#endif
     }
 
     private ItemStack getDisplayResultStack(MinecraftClient client,
@@ -751,7 +939,17 @@ public class QuickCraftStonecutter implements ClientModInitializer {
         }
 
         try {
+            //#if MC<12103
             return craftRecipeResult(client, getRecipeAt(handler, recipeIndex));
+            //#else
+            //$$ return handler.getAvailableRecipes()
+            //$$         .entries()
+            //$$         .get(recipeIndex)
+            //$$         .recipe()
+            //$$         .optionDisplay()
+            //$$         .getFirst(SlotDisplayContexts.createParameters(client.world))
+            //$$         .copy();
+            //#endif
         } catch (Throwable throwable) {
             return ItemStack.EMPTY;
         }
@@ -811,6 +1009,9 @@ public class QuickCraftStonecutter implements ClientModInitializer {
     private boolean startRapidCraft(MinecraftClient client,
                                     StonecutterScreenHandler handler,
                                     boolean fromButton) {
+        //#if MC>=12103
+        //$$ clearPendingSingleCraft();
+        //#endif
         if (!lockCurrentSelection(client, handler)) {
             rapidCraftingActive = false;
             rapidCraftStartedByButton = false;
@@ -826,7 +1027,9 @@ public class QuickCraftStonecutter implements ClientModInitializer {
         ingredientDropLocked = false;
         lastObservedOutputSignature = 0;
         fakeProgressTicks = 0;
+        //#if MC<12103
         recipeResultWaitTicks = 0;
+        //#endif
 
         refreshProgressSnapshot(client, lockedRecipe);
         sendStatusMessage(client, Text.translatable("quickcraft.message.crafting.started"));
@@ -898,8 +1101,8 @@ public class QuickCraftStonecutter implements ClientModInitializer {
             return false;
         }
 
-        for (int invIndex = 0; invIndex < inventory.main.size(); invIndex++) {
-            ItemStack stack = inventory.main.get(invIndex);
+        for (int invIndex = 0; invIndex < mainStacks(inventory).size(); invIndex++) {
+            ItemStack stack = mainStacks(inventory).get(invIndex);
             if (stack.isEmpty()) continue;
             if (isLockedPlayerInventorySlot(handler, invIndex)) continue;
             if (ItemStack.areItemsAndComponentsEqual(stack, template)) {
@@ -915,7 +1118,7 @@ public class QuickCraftStonecutter implements ClientModInitializer {
         }
 
         int total = 0;
-        for (ItemStack stack : inventory.main) {
+        for (ItemStack stack : mainStacks(inventory)) {
             if (stack.isEmpty()) continue;
             if (ItemStack.areItemsAndComponentsEqual(stack, template)) {
                 total += stack.getCount();
@@ -926,12 +1129,20 @@ public class QuickCraftStonecutter implements ClientModInitializer {
 
     private int countEmptyMainSlots(PlayerInventory inventory) {
         int total = 0;
-        for (ItemStack stack : inventory.main) {
+        for (ItemStack stack : mainStacks(inventory)) {
             if (stack.isEmpty()) {
                 total++;
             }
         }
         return total;
+    }
+
+    private static List<ItemStack> mainStacks(PlayerInventory inventory) {
+        //#if MC<12105
+        return inventory.main;
+        //#else
+        //$$ return inventory.getMainStacks();
+        //#endif
     }
 
     private void sendStatusMessage(MinecraftClient client, Text message) {
@@ -952,7 +1163,9 @@ public class QuickCraftStonecutter implements ClientModInitializer {
         noProgressTicks = 0;
         ingredientDropLocked = false;
         lastObservedOutputSignature = 0;
+        //#if MC<12103
         recipeResultWaitTicks = 0;
+        //#endif
         sendStatusMessage(client, message);
     }
 
@@ -968,7 +1181,11 @@ public class QuickCraftStonecutter implements ClientModInitializer {
         ingredientDropLocked = false;
         lastObservedOutputSignature = 0;
         fakeProgressTicks = 0;
+        //#if MC<12103
         recipeResultWaitTicks = 0;
+        //#else
+        //$$ clearPendingSingleCraft();
+        //#endif
         lastVDown = false;
         lastAltCDown = false;
     }
