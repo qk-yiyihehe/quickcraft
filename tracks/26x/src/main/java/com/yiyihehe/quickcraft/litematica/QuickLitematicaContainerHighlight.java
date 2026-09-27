@@ -1,8 +1,10 @@
 package com.yiyihehe.quickcraft.litematica;
 
 import com.yiyihehe.quickcraft.config.QuickCraftConfigs;
+//#if MC<260200
 import com.mojang.blaze3d.vertex.BufferBuilder;
 import com.mojang.blaze3d.vertex.MeshData;
+//#endif
 import fi.dy.masa.litematica.config.Configs;
 import fi.dy.masa.litematica.data.DataManager;
 import fi.dy.masa.litematica.schematic.LitematicaSchematic;
@@ -11,9 +13,11 @@ import fi.dy.masa.litematica.schematic.placement.SchematicPlacement;
 import fi.dy.masa.litematica.schematic.placement.SubRegionPlacement;
 import fi.dy.masa.litematica.util.PositionUtils;
 import fi.dy.masa.litematica.world.SchematicWorldHandler;
+//#if MC<260200
 import fi.dy.masa.malilib.render.MaLiLibPipelines;
 import fi.dy.masa.malilib.render.RenderContext;
 import fi.dy.masa.malilib.render.RenderUtils;
+//#endif
 import fi.dy.masa.malilib.util.data.Color4f;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.fabric.api.client.rendering.v1.level.LevelRenderContext;
@@ -21,11 +25,18 @@ import net.fabricmc.fabric.api.client.rendering.v1.level.LevelRenderEvents;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.core.BlockPos;
+//#if MC>=260200
+//$$ import net.minecraft.gizmos.GizmoStyle;
+//$$ import net.minecraft.gizmos.Gizmos;
+//#endif
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.world.Container;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
+//#if MC>=260200
+//$$ import net.minecraft.world.phys.AABB;
+//#endif
 import net.minecraft.world.phys.Vec3;
 
 import java.util.ArrayList;
@@ -151,10 +162,10 @@ public final class QuickLitematicaContainerHighlight {
         int maxDistance = (client.options.renderDistance().get() + 2) * 16;
         Color4f selectedColor = QuickCraftConfigs.ProjectionTools.PROJECTION_CONTAINER_HIGHLIGHT_COLOR.getColor();
         float verifierAlpha = (float) Configs.InfoOverlays.VERIFIER_ERROR_HILIGHT_ALPHA.getDoubleValue();
+        //#if MC<260200
         Color4f color = new Color4f(
                 selectedColor.r, selectedColor.g, selectedColor.b, Math.min(selectedColor.a, verifierAlpha)
         );
-
         // MaLiLib's no-depth pipeline preserves visibility through walls without changing global render state.
         try (RenderContext render = new RenderContext(
                 () -> "QuickCraft projected container highlight",
@@ -183,6 +194,27 @@ public final class QuickLitematicaContainerHighlight {
         } catch (Exception e) {
             throw new IllegalStateException("Failed to render projected containers", e);
         }
+        //#else
+        //$$ int color = Math.round(Math.min(selectedColor.a, verifierAlpha) * 255.0f) << 24
+        //$$         | Math.round(selectedColor.r * 255.0f) << 16
+        //$$         | Math.round(selectedColor.g * 255.0f) << 8
+        //$$         | Math.round(selectedColor.b * 255.0f);
+        //$$ // 26.2 collects gizmos before executing the world frame; immediate drawing here is cleared by that frame.
+        //$$ try (Gizmos.TemporaryCollection ignored = client.levelRenderer.collectPerFrameRenderThreadGizmos()) {
+        //$$     for (ProjectedContainer container : positions) {
+        //$$         BlockPos pos = container.pos();
+        //$$         if (Math.abs(pos.getX() - cameraPos.x) > maxDistance
+        //$$                 || Math.abs(pos.getZ() - cameraPos.z) > maxDistance
+        //$$                 || !DataManager.getRenderLayerRange().isPositionWithinRange(pos)
+        //$$                 || !client.level.hasChunkAt(pos)
+        //$$                 || client.level.getBlockState(pos).getBlock() != container.block()
+        //$$                 || !(client.level.getBlockEntity(pos) instanceof Container)) {
+        //$$             continue;
+        //$$         }
+        //$$         Gizmos.cuboid(new AABB(pos).inflate(0.002), GizmoStyle.fill(color)).setAlwaysOnTop();
+        //$$     }
+        //$$ }
+        //#endif
     }
 
     private record ProjectedContainer(BlockPos pos, Block block) {
