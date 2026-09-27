@@ -1,7 +1,11 @@
 package com.yiyihehe.quickcraft.litematica;
 
 import com.yiyihehe.quickcraft.config.QuickCraftConfigs;
+//#if MC<12105
 import com.mojang.blaze3d.systems.RenderSystem;
+//#elseif MC<12108
+//$$ import com.mojang.blaze3d.buffers.BufferUsage;
+//#endif
 import fi.dy.masa.litematica.config.Configs;
 import fi.dy.masa.litematica.data.DataManager;
 import fi.dy.masa.litematica.schematic.LitematicaSchematic;
@@ -10,26 +14,41 @@ import fi.dy.masa.litematica.schematic.placement.SchematicPlacement;
 import fi.dy.masa.litematica.schematic.placement.SubRegionPlacement;
 import fi.dy.masa.litematica.util.PositionUtils;
 import fi.dy.masa.litematica.world.SchematicWorldHandler;
+//#if MC>=12105
+//$$ import fi.dy.masa.malilib.render.MaLiLibPipelines;
+//$$ import fi.dy.masa.malilib.render.RenderContext;
+//#endif
 import fi.dy.masa.malilib.render.RenderUtils;
+//#if MC<12105
 import fi.dy.masa.malilib.util.Color4f;
+//#else
+//$$ import fi.dy.masa.malilib.util.data.Color4f;
+//#endif
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
+//#if MC<12110
 import net.fabricmc.fabric.api.client.rendering.v1.WorldRenderContext;
 import net.fabricmc.fabric.api.client.rendering.v1.WorldRenderEvents;
+//#endif
 import net.minecraft.block.Block;
 import net.minecraft.block.BlockState;
 import net.minecraft.block.entity.BlockEntity;
 import net.minecraft.client.MinecraftClient;
-//#if MC>=12103
+//#if MC>=12110
+//$$ import net.minecraft.client.render.Camera;
+//#endif
+//#if MC>=12103 && MC<12105
 //$$ import net.minecraft.client.gl.ShaderProgramKeys;
-//#else
+//#elseif MC<12103
 import net.minecraft.client.render.GameRenderer;
 //#endif
 import net.minecraft.client.render.BufferBuilder;
-import net.minecraft.client.render.BufferRenderer;
 import net.minecraft.client.render.BuiltBuffer;
+//#if MC<12105
+import net.minecraft.client.render.BufferRenderer;
 import net.minecraft.client.render.Tessellator;
 import net.minecraft.client.render.VertexFormat;
 import net.minecraft.client.render.VertexFormats;
+//#endif
 import net.minecraft.inventory.Inventory;
 import net.minecraft.nbt.NbtCompound;
 import net.minecraft.util.math.BlockPos;
@@ -55,7 +74,9 @@ public final class QuickLitematicaContainerHighlight {
 
     public static void initialize() {
         ClientTickEvents.END_CLIENT_TICK.register(QuickLitematicaContainerHighlight::onClientTick);
+        //#if MC<12110
         WorldRenderEvents.LAST.register(QuickLitematicaContainerHighlight::render);
+        //#endif
     }
 
     private static void onClientTick(MinecraftClient client) {
@@ -95,16 +116,35 @@ public final class QuickLitematicaContainerHighlight {
                 }
 
                 String regionName = region.getName();
+                //#if MC>=12111
+                //$$ Map<BlockPos, ?> blockEntities = schematic.getBlockEntityMapForRegion(regionName);
+                //#else
                 Map<BlockPos, NbtCompound> blockEntities = schematic.getBlockEntityMapForRegion(regionName);
+                //#endif
                 LitematicaBlockStateContainer blocks = schematic.getSubRegionContainer(regionName);
                 BlockPos size = schematic.getAreaSize(regionName);
                 if (blockEntities == null || blocks == null || size == null) {
                     continue;
                 }
 
+                //#if MC>=12111
+                //$$ for (Map.Entry<BlockPos, ?> entry : blockEntities.entrySet()) {
+                //#else
                 for (Map.Entry<BlockPos, NbtCompound> entry : blockEntities.entrySet()) {
+                //#endif
+                    //#if MC>=12111
+                    //$$ if (entry.getValue() == null) {
+                    //$$     continue;
+                    //$$ }
+                    //$$ NbtCompound nbt = QuickLitematicaDataCompat.toVanillaNbt(entry.getValue());
+                    //#else
                     NbtCompound nbt = entry.getValue();
-                    if (nbt == null || NON_INVENTORY_BLOCK_ENTITY_IDS.contains(nbt.getString("id"))) {
+                    if (nbt == null) {
+                        continue;
+                    }
+                    //#endif
+                    String blockEntityId = blockEntityId(nbt);
+                    if (NON_INVENTORY_BLOCK_ENTITY_IDS.contains(blockEntityId)) {
                         continue;
                     }
 
@@ -114,7 +154,7 @@ public final class QuickLitematicaContainerHighlight {
                             localPos, state, nbt, world.getRegistryManager()
                     );
                     if (!(blockEntity instanceof Inventory inventory)) {
-                        NON_INVENTORY_BLOCK_ENTITY_IDS.add(nbt.getString("id"));
+                        NON_INVENTORY_BLOCK_ENTITY_IDS.add(blockEntityId);
                         continue;
                     }
                     if (!inventory.isEmpty()) {
@@ -126,6 +166,14 @@ public final class QuickLitematicaContainerHighlight {
             }
         }
         return new ArrayList<>(found);
+    }
+
+    private static String blockEntityId(NbtCompound nbt) {
+        //#if MC<12105
+        return nbt.getString("id");
+        //#else
+        //$$ return nbt.getString("id").orElse("");
+        //#endif
     }
 
     private static BlockPos toWorldPos(
@@ -142,17 +190,43 @@ public final class QuickLitematicaContainerHighlight {
                 .add(relative);
     }
 
+    //#if MC<12110
     private static void render(WorldRenderContext context) {
         MinecraftClient client = MinecraftClient.getInstance();
-        if (client.world == null || positions.isEmpty()
-                || !QuickCraftConfigs.ProjectionTools.HIGHLIGHT_NONEMPTY_PROJECTION_CONTAINERS.getBooleanValue()
-                || !Configs.Visuals.ENABLE_RENDERING.getBooleanValue()
-                || !Configs.Visuals.ENABLE_SCHEMATIC_RENDERING.getBooleanValue()
-                || !Configs.Visuals.ENABLE_SCHEMATIC_BLOCKS.getBooleanValue()) {
+        if (!shouldRender(client)) {
             return;
         }
-
         Vec3d camera = context.camera().getPos();
+        //#if MC<12105
+        renderLegacy(client, camera);
+        //#else
+        //$$ renderWithMaLiLib(client, camera);
+        //#endif
+    }
+    //#else
+    //$$ public static void renderWorld(MinecraftClient client, Camera camera) {
+    //$$     if (!shouldRender(client)) {
+    //$$         return;
+    //$$     }
+    //$$     //#if MC>=12111
+    //$$     //$$ Vec3d cameraPos = camera.getCameraPos();
+    //$$     //#else
+    //$$     Vec3d cameraPos = camera.getPos();
+    //$$     //#endif
+    //$$     renderWithMaLiLib(client, cameraPos);
+    //$$ }
+    //#endif
+
+    private static boolean shouldRender(MinecraftClient client) {
+        return client.world != null && !positions.isEmpty()
+                && QuickCraftConfigs.ProjectionTools.HIGHLIGHT_NONEMPTY_PROJECTION_CONTAINERS.getBooleanValue()
+                && Configs.Visuals.ENABLE_RENDERING.getBooleanValue()
+                && Configs.Visuals.ENABLE_SCHEMATIC_RENDERING.getBooleanValue()
+                && Configs.Visuals.ENABLE_SCHEMATIC_BLOCKS.getBooleanValue();
+    }
+
+    //#if MC<12105
+    private static void renderLegacy(MinecraftClient client, Vec3d camera) {
         int maxDistance = (client.options.getViewDistance().getValue() + 2) * 16;
         Color4f selectedColor = QuickCraftConfigs.ProjectionTools.PROJECTION_CONTAINER_HIGHLIGHT_COLOR.getColor();
         float verifierAlpha = (float) Configs.InfoOverlays.VERIFIER_ERROR_HILIGHT_ALPHA.getDoubleValue();
@@ -174,15 +248,10 @@ public final class QuickLitematicaContainerHighlight {
         try {
             BufferBuilder buffer = Tessellator.getInstance().begin(VertexFormat.DrawMode.QUADS, VertexFormats.POSITION_COLOR);
             for (ProjectedContainer container : positions) {
-                BlockPos pos = container.pos();
-                if (Math.abs(pos.getX() - camera.x) > maxDistance
-                        || Math.abs(pos.getZ() - camera.z) > maxDistance
-                        || !DataManager.getRenderLayerRange().isPositionWithinRange(pos)
-                        || !client.world.isChunkLoaded(pos)
-                        || client.world.getBlockState(pos).getBlock() != container.block()
-                        || !(client.world.getBlockEntity(pos) instanceof Inventory)) {
+                if (!shouldRenderContainer(client, container, camera, maxDistance)) {
                     continue;
                 }
+                BlockPos pos = container.pos();
                 RenderUtils.renderAreaSidesBatched(pos, pos, color, 0.002, buffer, client);
             }
             BuiltBuffer built = buffer.endNullable();
@@ -197,6 +266,56 @@ public final class QuickLitematicaContainerHighlight {
             RenderSystem.depthMask(true);
             RenderSystem.enableDepthTest();
         }
+    }
+    //#else
+    //$$ private static void renderWithMaLiLib(MinecraftClient client, Vec3d camera) {
+    //$$     int maxDistance = (client.options.getViewDistance().getValue() + 2) * 16;
+    //$$     Color4f selectedColor = QuickCraftConfigs.ProjectionTools.PROJECTION_CONTAINER_HIGHLIGHT_COLOR.getColor();
+    //$$     float verifierAlpha = (float) Configs.InfoOverlays.VERIFIER_ERROR_HILIGHT_ALPHA.getDoubleValue();
+    //$$     Color4f color = new Color4f(
+    //$$             selectedColor.r, selectedColor.g, selectedColor.b, Math.min(selectedColor.a, verifierAlpha)
+    //$$     );
+    //$$
+    //$$     // MaLiLib's no-depth pipeline preserves visibility through walls without changing global render state.
+    //$$     try (RenderContext render = new RenderContext(
+    //$$             //#if MC>=12108
+    //$$             //$$ () -> "QuickCraft projected container highlight",
+    //$$             //$$ MaLiLibPipelines.POSITION_COLOR_TRANSLUCENT_NO_DEPTH
+    //$$             //#else
+    //$$             MaLiLibPipelines.POSITION_COLOR_TRANSLUCENT_NO_DEPTH, BufferUsage.STATIC_WRITE
+    //$$             //#endif
+    //$$     )) {
+    //$$         BufferBuilder buffer = render.getBuilder();
+    //$$         for (ProjectedContainer container : positions) {
+    //$$             if (!shouldRenderContainer(client, container, camera, maxDistance)) {
+    //$$                 continue;
+    //$$             }
+    //$$             BlockPos pos = container.pos();
+    //$$             RenderUtils.renderAreaSidesBatched(pos, pos, color, 0.002, buffer);
+    //$$         }
+    //$$         BuiltBuffer built = buffer.endNullable();
+    //$$         if (built != null) {
+    //$$             try (built) {
+    //$$                 render.upload(built, false);
+    //$$                 render.drawPost();
+    //$$             }
+    //$$         }
+    //$$     } catch (Exception e) {
+    //$$         throw new IllegalStateException("Failed to render projected containers", e);
+    //$$     }
+    //$$ }
+    //#endif
+
+    private static boolean shouldRenderContainer(
+            MinecraftClient client, ProjectedContainer container, Vec3d camera, int maxDistance
+    ) {
+        BlockPos pos = container.pos();
+        return Math.abs(pos.getX() - camera.x) <= maxDistance
+                && Math.abs(pos.getZ() - camera.z) <= maxDistance
+                && DataManager.getRenderLayerRange().isPositionWithinRange(pos)
+                && client.world.isChunkLoaded(pos)
+                && client.world.getBlockState(pos).getBlock() == container.block()
+                && client.world.getBlockEntity(pos) instanceof Inventory;
     }
 
     private record ProjectedContainer(BlockPos pos, Block block) {
