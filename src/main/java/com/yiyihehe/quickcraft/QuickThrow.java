@@ -15,9 +15,20 @@ import net.minecraft.client.gui.screen.ingame.AnvilScreen;
 import net.minecraft.client.gui.screen.ingame.CreativeInventoryScreen;
 import net.minecraft.client.gui.screen.ingame.HandledScreen;
 import net.minecraft.client.gui.widget.TextFieldWidget;
+//#if MC>=12110
+//$$ import net.minecraft.client.input.KeyInput;
+//#endif
 import net.minecraft.entity.player.PlayerInventory;
 import net.minecraft.inventory.Inventory;
 import net.minecraft.item.ItemStack;
+//#if MC>=12103
+//$$ import net.minecraft.network.packet.c2s.play.ClickSlotC2SPacket;
+//$$ import it.unimi.dsi.fastutil.ints.Int2ObjectMap;
+//$$ import it.unimi.dsi.fastutil.ints.Int2ObjectOpenHashMap;
+//#endif
+//#if MC>=12105
+//$$ import net.minecraft.screen.sync.ItemStackHash;
+//#endif
 import net.minecraft.screen.ScreenHandler;
 import net.minecraft.screen.slot.Slot;
 import net.minecraft.screen.slot.SlotActionType;
@@ -53,7 +64,12 @@ public final class QuickThrow implements ClientModInitializer, IKeyboardInputHan
     }
 
     @Override
+    //#if MC<12110
     public boolean onKeyInput(int keyCode, int scanCode, int modifiers, boolean eventKeyState) {
+    //#else
+    //$$ public boolean onKeyInput(KeyInput input, boolean eventKeyState) {
+    //$$     int keyCode = input.key();
+    //#endif
         if (keyCode < 0) {
             return false;
         }
@@ -291,6 +307,7 @@ public final class QuickThrow implements ClientModInitializer, IKeyboardInputHan
             return;
         }
 
+        //#if MC<12103
         ScreenHandler previousHandler = client.player.currentScreenHandler;
         boolean usingCreativePlayerInventory = target.screen() instanceof CreativeInventoryScreen;
         try {
@@ -310,7 +327,57 @@ public final class QuickThrow implements ClientModInitializer, IKeyboardInputHan
                 client.player.currentScreenHandler = previousHandler;
             }
         }
+        //#else
+        //$$ if (target.screen() instanceof CreativeInventoryScreen) {
+        //$$     sendCreativePlayerThrowPacket(target, client);
+        //$$     return;
+        //$$ }
+        //$$ client.interactionManager.clickSlot(
+        //$$         target.handler().syncId,
+        //$$         target.clickSlotId(),
+        //$$         1,
+        //$$         SlotActionType.THROW,
+        //$$         client.player
+        //$$ );
+        //#endif
     }
+
+    //#if MC>=12103
+    //$$ private static void sendCreativePlayerThrowPacket(ThrowTarget target, MinecraftClient client) {
+    //$$     if (client.getNetworkHandler() == null) {
+    //$$         return;
+    //$$     }
+    //$$     // 1.21.2+ 的创造丢弃包有服务端限流；原版 clickSlot 又会在创造客户端本地先生成掉落。
+    //$$     // 这里直接给玩家真实背包发 THROW 包，只让服务端执行一次丢弃。
+    //$$     target.visibleSlot().setStackNoCallbacks(ItemStack.EMPTY);
+    //$$     target.effectiveSlot().setStackNoCallbacks(ItemStack.EMPTY);
+    //$$     //#if MC<12105
+    //$$     Int2ObjectMap<ItemStack> modifiedStacks = new Int2ObjectOpenHashMap<>();
+    //$$     modifiedStacks.put(target.clickSlotId(), ItemStack.EMPTY);
+    //$$     client.getNetworkHandler().sendPacket(new ClickSlotC2SPacket(
+    //$$             target.handler().syncId,
+    //$$             target.handler().getRevision(),
+    //$$             target.clickSlotId(),
+    //$$             1,
+    //$$             SlotActionType.THROW,
+    //$$             target.handler().getCursorStack().copy(),
+    //$$             modifiedStacks
+    //$$     ));
+    //$$     //#else
+    //$$     //$$ Int2ObjectMap<ItemStackHash> modifiedStacks = new Int2ObjectOpenHashMap<>();
+    //$$     //$$ modifiedStacks.put(target.clickSlotId(), ItemStackHash.EMPTY);
+    //$$     //$$ client.getNetworkHandler().sendPacket(new ClickSlotC2SPacket(
+    //$$     //$$         target.handler().syncId,
+    //$$     //$$         target.handler().getRevision(),
+    //$$     //$$         (short) target.clickSlotId(),
+    //$$     //$$         (byte) 1,
+    //$$     //$$         SlotActionType.THROW,
+    //$$     //$$         modifiedStacks,
+    //$$     //$$         ItemStackHash.EMPTY
+    //$$     //$$ ));
+    //$$     //#endif
+    //$$ }
+    //#endif
 
     private static List<Slot> findHoveredSlotsAlongPath(HandledScreen<?> screen, int mouseX, int mouseY) {
         if (!hasLastMousePosition) {
