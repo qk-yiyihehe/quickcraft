@@ -13,7 +13,7 @@ import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 
 /**
- * Litematica 0.27.11+ stores schematic block entity and entity data as MaLiLib data tags.
+ * Supported 26.x Litematica versions store schematic block entity and entity data as MaLiLib data tags.
  * Minecraft APIs used by QuickCraft still consume vanilla NBT, so conversion stays at this boundary.
  */
 final class QuickLitematicaDataCompat {
