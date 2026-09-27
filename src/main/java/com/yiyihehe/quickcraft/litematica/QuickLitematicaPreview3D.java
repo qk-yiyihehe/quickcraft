@@ -28,7 +28,7 @@ import com.sun.jna.platform.win32.WinUser;
 import com.sun.jna.win32.StdCallLibrary;
 import com.sun.jna.win32.W32APIOptions;
 import com.yiyihehe.quickcraft.config.QuickCraftConfigs;
-//#if MC>=12108
+//#if MC>=12108 && MC<12110
 //$$ import com.yiyihehe.quickcraft.mixin.RenderLayerMultiPhaseAccessor;
 //#endif
 //#if MC<12105
@@ -96,6 +96,9 @@ import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.gui.screen.Screen;
 import net.minecraft.client.render.BufferBuilder;
 import net.minecraft.client.render.BuiltBuffer;
+//#if MC>=12110
+//$$ import net.minecraft.client.render.GameRenderer;
+//#endif
 //#if MC>=12108
 //$$ import net.minecraft.client.render.BlockRenderLayer;
 //$$ import net.minecraft.client.render.DiffuseLighting;
@@ -114,6 +117,15 @@ import net.minecraft.client.render.VertexFormats;
 import net.minecraft.client.render.WorldRenderer;
 import net.minecraft.client.render.block.entity.BlockEntityRenderer;
 import net.minecraft.client.render.block.BlockRenderManager;
+//#if MC>=12110
+//$$ import net.minecraft.client.render.chunk.BlockBufferAllocatorStorage;
+//$$ import net.minecraft.client.render.command.OrderedRenderCommandQueue;
+//$$ import net.minecraft.client.render.command.OrderedRenderCommandQueueImpl;
+//$$ import net.minecraft.client.render.command.RenderDispatcher;
+//$$ import net.minecraft.client.render.block.entity.state.BlockEntityRenderState;
+//$$ import net.minecraft.client.render.entity.state.EntityRenderState;
+//$$ import net.minecraft.client.render.state.CameraRenderState;
+//#endif
 import net.minecraft.client.texture.NativeImage;
 import net.minecraft.client.util.BufferAllocator;
 import net.minecraft.client.util.math.MatrixStack;
@@ -145,6 +157,9 @@ import net.minecraft.util.Util;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.Direction;
 import net.minecraft.util.math.RotationAxis;
+//#if MC>=12110
+//$$ import net.minecraft.util.math.Vec3d;
+//#endif
 import net.minecraft.util.math.random.Random;
 //#if MC<12103
 import net.minecraft.util.profiler.Profiler;
@@ -263,8 +278,10 @@ public final class QuickLitematicaPreview3D {
     //$$ private static final String CACHE_RENDER_MARKER = "quickcraft-model-mesh-v16-api-audit-stable-path-content-resource-signature-mc1.21.4";
     //#elseif MC<12108
     //$$ private static final String CACHE_RENDER_MARKER = "quickcraft-model-mesh-v16-api-audit-stable-path-content-resource-signature-mc1.21.5";
-    //#else
+    //#elseif MC<12110
     //$$ private static final String CACHE_RENDER_MARKER = "quickcraft-model-mesh-v16-api-audit-stable-path-content-resource-signature-mc1.21.8";
+    //#else
+    //$$ private static final String CACHE_RENDER_MARKER = "quickcraft-model-mesh-v16-api-audit-stable-path-content-resource-signature-dynamic-render-state-mc1.21.10";
     //#endif
     private static final int EXPAND_BUTTON_SIZE = 16;
     private static final int COMPAT_CLIPBOARD_MAX_DIMENSION = 4096;
@@ -302,6 +319,9 @@ public final class QuickLitematicaPreview3D {
     private static final float PROGRESS_STATIC_CACHE_END = 0.93F;
     private static final float PROGRESS_BLOCK_STATES_CACHE_END = 0.95F;
     private static final float PROGRESS_BLOCK_ENTITIES_CACHE_END = 0.99F;
+    //#if MC>=12110
+    //$$ private static final Vector3f ZERO_MODEL_OFFSET = new Vector3f();
+    //#endif
     //#if MC>=12108
     //$$ private static final AtomicBoolean SPECIAL_RENDERER_REGISTERED = new AtomicBoolean();
     //#endif
@@ -1827,7 +1847,11 @@ public final class QuickLitematicaPreview3D {
         //$$ }
         //#endif
         //#else
+        //#if MC<12110
         //$$ private void drawSpecial(PreviewGuiElement element) {
+        //#else
+        //$$ private void drawSpecial(PreviewGuiElement element, VertexConsumerProvider.Immediate vertexConsumers) {
+        //#endif
             //$$ MeshData data = this.meshData;
             //$$ PreviewDimensions dimensions = this.dimensions;
             //$$ if (dimensions == null || this.cancelled.get()) {
@@ -1854,21 +1878,48 @@ public final class QuickLitematicaPreview3D {
                 //$$ modelView.scale(scale, scale, scale);
                 //$$ modelView.translate(-dimensions.sizeX() / 2.0F, -dimensions.sizeY() / 2.0F, -dimensions.sizeZ() / 2.0F);
                 //$$ this.applyLight(modelView);
+                //#if MC<12110
                 //$$ Framebuffer framebuffer = MinecraftClient.getInstance().getFramebuffer();
                 //$$ this.drawSnapshotBuffers(framebuffer, false);
+                //#else
+                //$$ this.drawBuffers(false);
+                //#endif
                 //$$ if (data != null && this.staticUploadComplete) {
                     //$$ if (this.dynamicPreparationArmed) {
+                        //#if MC<12110
                         //$$ this.prepareDynamicBuffers(data);
                         //$$ if (this.dynamicBuffersReady) {
                             //$$ this.drawSnapshotDynamicBuffers(framebuffer);
                         //$$ } else if (this.dynamicBufferFallback) {
                             //$$ this.drawDynamicUnculled(data);
                         //$$ }
+                        //#else
+                        //$$ if (this.dynamicBuffersReady) {
+                            //$$ this.drawDynamicBuffers();
+                        //$$ } else if (data.hasDynamicContent()) {
+                            //$$ Matrix4f dynamicModelView = new Matrix4f(modelView);
+                            //$$ modelView.pushMatrix();
+                            //$$ try {
+                                //$$ // Immediate 会在 dispatcher 切换 RenderLayer 时提前提交；保持单位矩阵，避免预览变换应用两次。
+                                //$$ modelView.identity();
+                                //$$ this.drawDynamic(data, dynamicModelView, projection, element.size());
+                                //$$ vertexConsumers.draw();
+                            //$$ } finally {
+                                //$$ modelView.popMatrix();
+                            //$$ }
+                            //$$ // 1.21.8 及更早每帧现画实体，首帧脏状态不会锁进 VBO。先现画再烘焙，避免 1.21.9+ 首次解析实体纹理把错位网格锁死。
+                            //$$ this.prepareDynamicBuffers(data);
+                        //$$ }
+                        //#endif
                     //$$ } else {
                         //$$ this.dynamicPreparationArmed = true;
                     //$$ }
                 //$$ }
+                //#if MC<12110
                 //$$ this.drawSnapshotBuffers(framebuffer, true);
+                //#else
+                //$$ this.drawBuffers(true);
+                //#endif
             //$$ } finally {
                 //$$ modelView.popMatrix();
                 //$$ RenderSystem.restoreProjectionMatrix();
@@ -1876,6 +1927,7 @@ public final class QuickLitematicaPreview3D {
             //$$ }
         //$$ }
         //$$
+        //#if MC<12110
         //$$ private void drawDynamicUnculled(MeshData data) {
             //$$ DynamicScene scene = data.dynamicScene();
             //$$ if (scene.isEmpty()) {
@@ -1912,6 +1964,7 @@ public final class QuickLitematicaPreview3D {
             //$$ });
             //$$ this.flushDynamic();
         //$$ }
+        //#endif
         //$$
         //$$ // 1.21.6+ 的地形明暗已烘焙进顶点颜色；独立 UBO 只修正动态方块实体和实体，且不污染原版全局光照。
         //$$ private void applyLight(Matrix4f viewMatrix) {
@@ -1939,6 +1992,7 @@ public final class QuickLitematicaPreview3D {
             //$$ RenderSystem.setShaderLights(this.previewLightingBuffer.slice());
         //$$ }
         //$$
+        //#if MC<12110
         //$$ private static void drawLayerBuffer(
                 //$$ RenderLayer renderLayer,
                 //$$ LayerBuffer buffer,
@@ -1996,8 +2050,56 @@ public final class QuickLitematicaPreview3D {
                 //$$ renderLayer.endDrawing();
             //$$ }
         //$$ }
+        //#else
+        //$$ private static void drawLayerBuffer(RenderLayer renderLayer, LayerBuffer buffer) {
+            //$$ renderLayer.startDrawing();
+            //$$ try {
+                //$$ RenderPipeline pipeline = buffer.pipeline(renderLayer, renderLayer.getRenderPipeline());
+                //$$ var colorAttachment = Objects.requireNonNull(RenderSystem.outputColorTextureOverride);
+                //$$ var depthAttachment = RenderSystem.outputDepthTextureOverride;
+                //$$ var dynamicTransforms = RenderSystem.getDynamicUniforms().write(
+                        //$$ RenderSystem.getModelViewMatrix(),
+                        //$$ new Vector4f(1.0F, 1.0F, 1.0F, 1.0F),
+                        //$$ ZERO_MODEL_OFFSET,
+                        //$$ RenderSystem.getTextureMatrix(),
+                        //$$ RenderSystem.getShaderLineWidth()
+                //$$ );
+                //$$ // ShapeIndexBuffer 扩容会关闭旧 GPU buffer，非自有索引不能跨帧缓存其引用。
+                //$$ var sequentialIndices = buffer.ownsIndexBuffer() ? null : RenderSystem.getSequentialBuffer(renderLayer.getDrawMode());
+                //$$ GpuBuffer indexBuffer = buffer.ownsIndexBuffer()
+                        //$$ ? buffer.indexBuffer()
+                        //$$ : sequentialIndices.getIndexBuffer(buffer.indexCount());
+                //$$ VertexFormat.IndexType indexType = buffer.ownsIndexBuffer()
+                        //$$ ? buffer.indexType()
+                        //$$ : sequentialIndices.getIndexType();
+                //$$ try (RenderPass pass = RenderSystem.getDevice().createCommandEncoder().createRenderPass(
+                        //$$ () -> "QuickCraft preview " + renderLayer,
+                        //$$ colorAttachment,
+                        //$$ OptionalInt.empty(),
+                        //$$ depthAttachment,
+                        //$$ OptionalDouble.empty()
+                //$$ )) {
+                    //$$ pass.setPipeline(pipeline);
+                    //$$ RenderSystem.bindDefaultUniforms(pass);
+                    //$$ pass.setUniform("DynamicTransforms", dynamicTransforms);
+                    //$$ pass.setVertexBuffer(0, buffer.vertexBuffer());
+                    //$$ for (int textureUnit = 0; textureUnit < 12; textureUnit++) {
+                        //$$ var texture = RenderSystem.getShaderTexture(textureUnit);
+                        //$$ if (texture != null) {
+                            //$$ pass.bindSampler("Sampler" + textureUnit, texture);
+                        //$$ }
+                    //$$ }
+                    //$$ pass.setIndexBuffer(indexBuffer, indexType);
+                    //$$ pass.drawIndexed(0, 0, buffer.indexCount(), 1);
+                //$$ }
+            //$$ } finally {
+                //$$ renderLayer.endDrawing();
+            //$$ }
+        //$$ }
+        //#endif
         //#endif
 
+        //#if MC<12110
         private void prepareDynamicBuffers(MeshData data) {
             if (this.dynamicBuffersReady || this.dynamicBufferFallback || !data.hasDynamicContent()) {
                 return;
@@ -2058,6 +2160,88 @@ public final class QuickLitematicaPreview3D {
                 collector.close();
             }
         }
+        //#else
+        //$$ private void prepareDynamicBuffers(MeshData data) {
+            //$$ if (this.dynamicBuffersReady || this.dynamicBufferFallback || !data.hasDynamicContent()) {
+                //$$ return;
+            //$$ }
+        //$$
+            //$$ DynamicScene scene = data.dynamicScene();
+            //$$ if (scene.isEmpty()) {
+                //$$ this.dynamicBuffersReady = true;
+                //$$ data.closeDynamic();
+                //$$ return;
+            //$$ }
+        //$$
+            //$$ DynamicMeshCollector collector = new DynamicMeshCollector();
+            //$$ try {
+                //$$ MinecraftClient client = MinecraftClient.getInstance();
+                //$$ OrderedRenderCommandQueueImpl queue = new OrderedRenderCommandQueueImpl();
+                //$$ CameraRenderState cameraState = new CameraRenderState();
+                //$$ MatrixStack matrices = new MatrixStack();
+                //$$ try (RenderDispatcher dispatcher = new RenderDispatcher(
+                        //$$ queue,
+                        //$$ client.getBlockRenderManager(),
+                        //$$ collector,
+                        //$$ client.getAtlasManager(),
+                        //$$ client.getBufferBuilders().getOutlineVertexConsumers(),
+                        //$$ collector,
+                        //$$ client.textRenderer
+                //$$ )) {
+                    //$$ scene.blockEntities().forEach((pos, entity) -> {
+                        //$$ matrices.push();
+                        //$$ try {
+                            //$$ matrices.translate(pos.getX(), pos.getY(), pos.getZ());
+                            //$$ renderBlockEntity(client, entity, matrices, queue, cameraState);
+                        //$$ } catch (DynamicBufferTooLargeException e) {
+                            //$$ throw e;
+                        //$$ } catch (Throwable ignored) {
+                        //$$ } finally {
+                            //$$ matrices.pop();
+                        //$$ }
+                    //$$ });
+        //$$
+                    //$$ scene.entities().forEach(renderedEntity -> {
+                        //$$ try {
+                            //$$ EntityRenderState renderState = client.getEntityRenderDispatcher()
+                                    //$$ .getAndUpdateRenderState(renderedEntity.entity(), 0.0F);
+                            //$$ renderState.light = LightmapTextureManager.MAX_LIGHT_COORDINATE;
+                            //$$ renderState.squaredDistanceToCamera = 0.0D;
+                            //$$ client.getEntityRenderDispatcher().render(
+                                    //$$ renderState,
+                                    //$$ cameraState,
+                                    //$$ renderedEntity.x(),
+                                    //$$ renderedEntity.y(),
+                                    //$$ renderedEntity.z(),
+                                    //$$ matrices,
+                                    //$$ queue
+                            //$$ );
+                        //$$ } catch (DynamicBufferTooLargeException e) {
+                            //$$ throw e;
+                        //$$ } catch (Throwable ignored) {
+                        //$$ }
+                    //$$ });
+                    //$$ Matrix4fStack bakeView = RenderSystem.getModelViewStack();
+                    //$$ bakeView.pushMatrix();
+                    //$$ try {
+                        //$$ bakeView.identity();
+                        //$$ dispatcher.render();
+                    //$$ } finally {
+                        //$$ bakeView.popMatrix();
+                    //$$ }
+                //$$ }
+        //$$
+                //$$ this.dynamicBuffers = collector.upload();
+                //$$ this.dynamicBuffersReady = true;
+                //$$ data.closeDynamic();
+            //$$ } catch (Throwable ignored) {
+                //$$ this.closeDynamicBuffers();
+                //$$ this.dynamicBufferFallback = true;
+            //$$ } finally {
+                //$$ collector.close();
+            //$$ }
+        //$$ }
+        //#endif
 
         //#if MC<12108
         private void drawDynamicBuffers(Matrix4f modelView, @Nullable Framebuffer target, boolean keepTargetOpaque) {
@@ -2093,7 +2277,7 @@ public final class QuickLitematicaPreview3D {
             VertexBuffer.unbind();
             //#endif
         }
-        //#else
+        //#elseif MC<12110
         //$$ private void drawSnapshotBuffers(Framebuffer framebuffer, boolean afterEntities) {
             //$$ for (LayerKey layer : LayerKey.DRAW_ORDER) {
                 //$$ if (layer.drawAfterEntities() != afterEntities) {
@@ -2115,6 +2299,30 @@ public final class QuickLitematicaPreview3D {
         //$$ private void drawSnapshotDynamicBuffers(Framebuffer framebuffer) {
             //$$ for (DynamicLayerBuffer layerBuffer : this.dynamicBuffers) {
                 //$$ drawLayerBuffer(layerBuffer.layer(), layerBuffer.buffer(), framebuffer);
+            //$$ }
+        //$$ }
+        //#else
+        //$$ private void drawBuffers(boolean afterEntities) {
+            //$$ for (LayerKey layer : LayerKey.DRAW_ORDER) {
+                //$$ if (layer.drawAfterEntities() != afterEntities) {
+                    //$$ continue;
+                //$$ }
+                //$$ if (layer.isTranslucent() && !this.staticUploadComplete) {
+                    //$$ continue;
+                //$$ }
+                //$$ List<LayerBuffer> buffers = this.layerBuffers.get(layer);
+                //$$ if (buffers == null || buffers.isEmpty()) {
+                    //$$ continue;
+                //$$ }
+                //$$ for (LayerBuffer buffer : buffers) {
+                    //$$ drawLayerBuffer(layer.renderLayer(), buffer);
+                //$$ }
+            //$$ }
+        //$$ }
+        //$$
+        //$$ private void drawDynamicBuffers() {
+            //$$ for (DynamicLayerBuffer layerBuffer : this.dynamicBuffers) {
+                //$$ drawLayerBuffer(layerBuffer.layer(), layerBuffer.buffer());
             //$$ }
         //$$ }
         //#endif
@@ -2798,16 +3006,20 @@ public final class QuickLitematicaPreview3D {
         //$$ private void renderSnapshot(Framebuffer framebuffer, MeshData data, DragState drag) {
             //$$ var previousColorTarget = RenderSystem.outputColorTextureOverride;
             //$$ var previousDepthTarget = RenderSystem.outputDepthTextureOverride;
+            //#if MC<12110
             //$$ var previousScissor = RenderSystem.getScissorStateForRenderTypeDraws();
             //$$ boolean hadScissor = previousScissor.method_72091();
             //$$ int previousScissorX = previousScissor.method_72092();
             //$$ int previousScissorY = previousScissor.method_72093();
             //$$ int previousScissorWidth = previousScissor.method_72094();
             //$$ int previousScissorHeight = previousScissor.method_72095();
+            //#endif
             //$$ var previousLights = RenderSystem.getShaderLights();
             //$$ RenderSystem.outputColorTextureOverride = framebuffer.getColorAttachmentView();
             //$$ RenderSystem.outputDepthTextureOverride = framebuffer.getDepthAttachmentView();
+            //#if MC<12110
             //$$ RenderSystem.disableScissorForRenderTypeDraws();
+            //#endif
         //$$
             //$$ RenderSystem.backupProjectionMatrix();
             //$$ RenderSystem.setProjectionMatrix(
@@ -2833,22 +3045,30 @@ public final class QuickLitematicaPreview3D {
                 //$$ modelView.translate(-data.sizeX() / 2.0F, -data.sizeY() / 2.0F, -data.sizeZ() / 2.0F);
         //$$
                 //$$ this.applyLight(modelView);
+                //#if MC<12110
                 //$$ this.drawSnapshotBuffers(framebuffer, false);
                 //$$ if (this.dynamicBuffersReady) {
                     //$$ this.drawSnapshotDynamicBuffers(framebuffer);
                 //$$ }
                 //$$ this.drawSnapshotBuffers(framebuffer, true);
+                //#else
+                //$$ this.drawBuffers(false);
+                //$$ this.drawDynamicBuffers();
+                //$$ this.drawBuffers(true);
+                //#endif
             //$$ } finally {
                 //$$ modelView.popMatrix();
                 //$$ RenderSystem.restoreProjectionMatrix();
                 //$$ RenderSystem.outputColorTextureOverride = previousColorTarget;
                 //$$ RenderSystem.outputDepthTextureOverride = previousDepthTarget;
                 //$$ RenderSystem.setShaderLights(previousLights);
+                //#if MC<12110
                 //$$ if (hadScissor) {
                     //$$ RenderSystem.enableScissorForRenderTypeDraws(previousScissorX, previousScissorY, previousScissorWidth, previousScissorHeight);
                 //$$ } else {
                     //$$ RenderSystem.disableScissorForRenderTypeDraws();
                 //$$ }
+                //#endif
             //$$ }
         //$$ }
         //$$
@@ -3294,11 +3514,69 @@ public final class QuickLitematicaPreview3D {
             // BE 和实体共用同一个 EntityVertexConsumers，一次 flush 提交所有动态顶点。
             this.flushDynamic();
         }
+        //#elseif MC>=12110
+        //$$ private void drawDynamic(MeshData data, Matrix4f modelView, Matrix4f projection, int viewSize) {
+            //$$ DynamicScene scene = data.dynamicScene();
+            //$$ if (scene.isEmpty()) {
+                //$$ return;
+            //$$ }
+        //$$
+            //$$ MinecraftClient client = MinecraftClient.getInstance();
+            //$$ ViewportCuller culler = new ViewportCuller(modelView, projection, viewSize);
+            //$$ MatrixStack matrices = new MatrixStack();
+            //$$ matrices.multiplyPositionMatrix(modelView);
+            //$$ CameraRenderState cameraState = new CameraRenderState();
+            //$$ RenderDispatcher dispatcher = client.gameRenderer.getEntityRenderDispatcher();
+            //$$ OrderedRenderCommandQueue queue = dispatcher.getQueue();
+        //$$
+            //$$ scene.blockEntities().forEach((pos, entity) -> {
+                //$$ if (culler.isOutside(pos.getX() + 0.5F, pos.getY() + 0.5F, pos.getZ() + 0.5F)) {
+                    //$$ return;
+                //$$ }
+        //$$
+                //$$ matrices.push();
+                //$$ try {
+                    //$$ matrices.translate(pos.getX(), pos.getY(), pos.getZ());
+                    //$$ renderBlockEntity(client, entity, matrices, queue, cameraState);
+                //$$ } catch (Throwable ignored) {
+                //$$ } finally {
+                    //$$ matrices.pop();
+                //$$ }
+            //$$ });
+        //$$
+            //$$ scene.entities().forEach(renderedEntity -> {
+                //$$ if (culler.isOutside((float) renderedEntity.x(), (float) renderedEntity.y(), (float) renderedEntity.z())) {
+                    //$$ return;
+                //$$ }
+        //$$
+                //$$ try {
+                    //$$ EntityRenderState renderState = client.getEntityRenderDispatcher()
+                            //$$ .getAndUpdateRenderState(renderedEntity.entity(), 0.0F);
+                    //$$ renderState.light = LightmapTextureManager.MAX_LIGHT_COORDINATE;
+                    //$$ renderState.squaredDistanceToCamera = 0.0D;
+                    //$$ client.getEntityRenderDispatcher().render(
+                            //$$ renderState,
+                            //$$ cameraState,
+                            //$$ renderedEntity.x(),
+                            //$$ renderedEntity.y(),
+                            //$$ renderedEntity.z(),
+                            //$$ matrices,
+                            //$$ queue
+                    //$$ );
+                //$$ } catch (Throwable ignored) {
+                //$$ }
+            //$$ });
+        //$$
+            //$$ // 1.21.9+ 的实体 renderer 只记录命令；special GUI 离屏目标仍需在本层显式执行队列。
+            //$$ dispatcher.render();
+        //$$ }
         //#endif
 
+        //#if MC<12110
         private void flushDynamic() {
             MinecraftClient.getInstance().getBufferBuilders().getEntityVertexConsumers().draw();
         }
+        //#endif
 
         //#if MC<12108
         private void applyLight(Matrix4f viewMatrix) {
@@ -3512,7 +3790,11 @@ public final class QuickLitematicaPreview3D {
     //$$
         //$$ @Override
         //$$ protected void render(PreviewGuiElement element, MatrixStack matrices) {
+            //#if MC<12110
             //$$ element.preview().drawSpecial(element);
+            //#else
+            //$$ element.preview().drawSpecial(element, this.vertexConsumers);
+            //#endif
         //$$ }
     //$$
         //$$ @Override
@@ -3530,10 +3812,26 @@ public final class QuickLitematicaPreview3D {
     //$$ }
     //#endif
 
+    //#if MC<12110
     private static final class DynamicMeshCollector implements VertexConsumerProvider, AutoCloseable {
+    //#else
+    //$$ private static final class DynamicMeshCollector extends VertexConsumerProvider.Immediate implements AutoCloseable {
+    //$$     private final BufferAllocator fallbackAllocator;
+    //#endif
         private final Map<RenderLayer, DynamicMeshBuilder> sharedBuilders = new LinkedHashMap<>();
         private final List<DynamicMeshBuilder> builders = new ArrayList<>();
         private long allocatedBytes;
+
+        //#if MC>=12110
+        //$$ private DynamicMeshCollector() {
+        //$$     this(new BufferAllocator(256));
+        //$$ }
+        //$$
+        //$$ private DynamicMeshCollector(BufferAllocator fallbackAllocator) {
+        //$$     super(fallbackAllocator, new LinkedHashMap<>());
+        //$$     this.fallbackAllocator = fallbackAllocator;
+        //$$ }
+        //#endif
 
         @Override
         public VertexConsumer getBuffer(RenderLayer layer) {
@@ -3581,7 +3879,9 @@ public final class QuickLitematicaPreview3D {
             List<DynamicLayerBuffer> uploaded = new ArrayList<>();
             try {
                 for (DynamicMeshBuilder meshBuilder : this.builders) {
+                    //#if MC<12110
                     try {
+                    //#endif
                         try (BuiltBuffer built = meshBuilder.builder().endNullable()) {
                             if (built == null) {
                                 continue;
@@ -3614,9 +3914,11 @@ public final class QuickLitematicaPreview3D {
                             }
                             //#endif
                         }
+                    //#if MC<12110
                     } finally {
                         meshBuilder.allocator().close();
                     }
+                    //#endif
                 }
                 return List.copyOf(uploaded);
             } catch (Throwable throwable) {
@@ -3679,11 +3981,28 @@ public final class QuickLitematicaPreview3D {
         //$$ }
         //#endif
 
+        //#if MC>=12110
+        //$$ @Override
+        //$$ public void draw() {
+        //$$ }
+        //$$
+        //$$ @Override
+        //$$ public void drawCurrentLayer() {
+        //$$ }
+        //$$
+        //$$ @Override
+        //$$ public void draw(RenderLayer layer) {
+        //$$ }
+        //#endif
+
         @Override
         public void close() {
             this.builders.forEach(meshBuilder -> meshBuilder.allocator().close());
             this.builders.clear();
             this.sharedBuilders.clear();
+            //#if MC>=12110
+            //$$ this.fallbackAllocator.close();
+            //#endif
         }
     }
 
@@ -3792,6 +4111,7 @@ public final class QuickLitematicaPreview3D {
         return false;
     }
 
+    //#if MC<12110
     // 渲染方块实体到指定 VertexConsumerProvider。动态 BE 会走各自专用 atlas，不能录进普通方块 VBO。
     private static <T extends BlockEntity> void renderBlockEntity(MinecraftClient client, T entity, MatrixStack matrices, VertexConsumerProvider consumers) {
         BlockEntityRenderer<T> renderer = client.getBlockEntityRenderDispatcher().get(entity);
@@ -3816,6 +4136,26 @@ public final class QuickLitematicaPreview3D {
         //$$ );
         //#endif
     }
+    //#else
+    //$$ private static <T extends BlockEntity, S extends BlockEntityRenderState> void renderBlockEntity(
+    //$$         MinecraftClient client,
+    //$$         T entity,
+    //$$         MatrixStack matrices,
+    //$$         OrderedRenderCommandQueue queue,
+    //$$         CameraRenderState cameraState
+    //$$ ) {
+    //$$     BlockEntityRenderer<T, S> renderer = client.getBlockEntityRenderDispatcher().get(entity);
+    //$$     if (renderer == null) {
+    //$$         return;
+    //$$     }
+    //$$
+    //$$     S renderState = renderer.createRenderState();
+    //$$     // 预览对象位于离屏假世界，不能使用真实玩家相机做方块实体距离判断和状态提取。
+    //$$     renderer.updateRenderState(entity, renderState, 0.0F, Vec3d.ZERO, null);
+    //$$     renderState.lightmapCoordinates = LightmapTextureManager.MAX_LIGHT_COORDINATE;
+    //$$     renderer.render(renderState, matrices, queue, cameraState);
+    //$$ }
+    //#endif
 
     //#if MC<12108
     private static void translateToScreen(Matrix4fStack matrixStack, MinecraftClient client, float x, float y) {
@@ -4523,8 +4863,15 @@ public final class QuickLitematicaPreview3D {
 
         private static void recordEntityNearbyBlockStates(Map<BlockPos, BlockStateData> blockStates, RegionBlockView view, Bounds bounds, double x, double y, double z) {
             BlockPos center = BlockPos.ofFloored(x, y, z);
+            //#if MC>=12110
+            //$$ // 矿车 controller 会读取实体所在的铁轨；高版本渲染状态提取必须把中心方块放入假世界。
+            //$$ BlockState centerState = view.getBlockState(center.add(bounds.min()));
+            //$$ if (!centerState.isAir()) {
+            //$$     recordDynamicBlockState(blockStates, centerState, center);
+            //$$ }
+            //#endif
             // 展示框/画等挂载实体会查询附着方块（facing 反方向）；假世界缺邻居会被原版判成 invalid position。
-            // 只登记 6 方向邻居（覆盖任意 facing），不登记 center 本身（实体位置通常是 air）。
+            // 低版本只登记 6 方向邻居；1.21.10+ 还登记中心方块，供矿车渲染状态读取铁轨。
             // 原 3x3x3=27 个过多，导致 blockStates 暴涨、缓存膨胀、首次渲染变慢。
             for (Direction direction : Direction.values()) {
                 BlockPos renderPos = center.offset(direction);
@@ -5388,7 +5735,43 @@ public final class QuickLitematicaPreview3D {
             return pixelX < this.minX || pixelX > this.maxX || pixelY < this.minY || pixelY > this.maxY;
         }
     }
-
+    //#elseif MC>=12110
+    //$$ /**
+    //$$  * 1.21.10+ special GUI 使用独立离屏纹理，动态对象按标准化设备坐标剔除。
+    //$$  */
+    //$$ private static final class ViewportCuller {
+    //$$     private final Matrix4f modelView;
+    //$$     private final Matrix4f projection;
+    //$$     private final float minX;
+    //$$     private final float maxX;
+    //$$     private final float minY;
+    //$$     private final float maxY;
+    //$$     private final Vector4f scratch = new Vector4f();
+    //$$
+    //$$     private ViewportCuller(Matrix4f modelView, Matrix4f projection, int viewSize) {
+    //$$         this.modelView = modelView;
+    //$$         this.projection = projection;
+    //$$         // 48px 安全余量换算成 NDC，覆盖延伸出位置点的模型。
+    //$$         float margin = 96.0F / Math.max(1, viewSize);
+    //$$         this.minX = -1.0F - margin;
+    //$$         this.maxX = 1.0F + margin;
+    //$$         this.minY = -1.0F - margin;
+    //$$         this.maxY = 1.0F + margin;
+    //$$     }
+    //$$
+    //$$     private boolean isOutside(float x, float y, float z) {
+    //$$         this.scratch.set(x, y, z, 1.0F);
+    //$$         this.modelView.transform(this.scratch);
+    //$$         this.projection.transform(this.scratch);
+    //$$         float w = this.scratch.w;
+    //$$         if (w == 0.0F) {
+    //$$             return false;
+    //$$         }
+    //$$         float ndcX = this.scratch.x / w;
+    //$$         float ndcY = this.scratch.y / w;
+    //$$         return ndcX < this.minX || ndcX > this.maxX || ndcY < this.minY || ndcY > this.maxY;
+    //$$     }
+    //$$ }
     //#endif
 
     private record Bounds(BlockPos min, BlockPos max) {
