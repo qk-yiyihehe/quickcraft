@@ -58,6 +58,7 @@ foreach ($trackProperty in $matrix.tracks.PSObject.Properties) {
         $properties = Read-GradleProperties (Join-Path $versionRoot 'gradle.properties')
         Assert-Equal "$trackName/$($version.project) minecraft_version" $version.minecraft $properties.minecraft_version
         Assert-Equal "$trackName/$($version.project) supported_minecraft_versions" $version.supportedMinecraft $properties.supported_minecraft_versions
+        Assert-Equal "$trackName/$($version.project) loader_version" $version.loader.compile $properties.loader_version
         Assert-Equal "$trackName/$($version.project) malilib_version" $version.malilib.compile $properties.malilib_version
         Assert-Equal "$trackName/$($version.project) litematica_version" $version.litematica.compile $properties.litematica_version
 
@@ -69,6 +70,7 @@ foreach ($trackProperty in $matrix.tracks.PSObject.Properties) {
         $metadata = Get-Content -LiteralPath $metadataPath -Raw -Encoding UTF8 | ConvertFrom-Json
         Assert-Equal "$trackName/$($version.project) fabric.mod minecraft" $version.minecraftDeclared $metadata.depends.minecraft
         Assert-Equal "$trackName/$($version.project) fabric.mod java" ">=$($track.java)" $metadata.depends.java
+        Assert-Equal "$trackName/$($version.project) fabric.mod fabricloader" $version.loader.declared $metadata.depends.fabricloader
         Assert-Equal "$trackName/$($version.project) fabric.mod malilib" $version.malilib.declared $metadata.depends.malilib
         Assert-Equal "$trackName/$($version.project) fabric.mod litematica" $version.litematica.declared $metadata.suggests.litematica
 
