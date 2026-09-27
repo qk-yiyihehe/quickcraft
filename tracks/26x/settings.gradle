@@ -23,7 +23,10 @@ pluginManagement {
 	}
 }
 
-gradle.startParameter.projectCacheDir = file('../../.gradle/26x')
+def projectCacheOverride = System.getenv('QUICKCRAFT_26X_PROJECT_CACHE')?.trim()
+gradle.startParameter.projectCacheDir = projectCacheOverride
+	? file(projectCacheOverride)
+	: file('../../.gradle/26x')
 
 rootProject.name = 'quickcraft-26x'
 
