@@ -55,6 +55,8 @@ tasks.register('showWorkspaceLayout') {
 	group = 'help'
 	description = 'Show centralized build, run, artifact, and log locations.'
 	doLast {
+		println "Gradle user home: ${gradle.gradleUserHomeDir}"
+		println "Gradle project cache: ${rootProject.file('.gradle')}"
 		println "Build root: ${quickcraftBuildRoot}"
 		println "Release Jars: ${new File(quickcraftBuildRoot, 'distributions')}"
 		println "Run root: ${quickcraftRunRoot}"
