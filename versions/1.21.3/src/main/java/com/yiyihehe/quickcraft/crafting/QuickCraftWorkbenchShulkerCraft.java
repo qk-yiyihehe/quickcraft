@@ -18,6 +18,10 @@ import net.minecraft.item.ItemStack;
 import net.minecraft.network.packet.c2s.play.ClientStatusC2SPacket;
 import net.minecraft.recipe.CraftingRecipe;
 import net.minecraft.recipe.RecipeEntry;
+//#if MC>=12105
+//$$ import net.minecraft.recipe.ServerRecipeManager;
+//$$ import net.minecraft.recipe.RecipeType;
+//#endif
 import net.minecraft.recipe.input.CraftingRecipeInput;
 import net.minecraft.screen.CraftingScreenHandler;
 import net.minecraft.screen.ScreenHandler;
@@ -31,6 +35,9 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+//#if MC>=12105
+//$$ import java.util.Optional;
+//#endif
 
 /**
  * 工作台潜影盒喷射执行器。只负责潜影盒直填和对应输出策略，不处理普通配方书合成。
@@ -42,7 +49,7 @@ public final class QuickCraftWorkbenchShulkerCraft implements ClientModInitializ
     private static final int MAX_OUTPUT_BURST = 64;
     private static final int MAX_FAILURES = 3;
     private static final int MAX_ACK_LOCAL_STEPS = 8;
-    // 1.21.3 服务端玩家抛物设 40 tick 拾取延迟，但该值不随实体同步给客户端。
+    // 服务端玩家抛物设 40 tick 拾取延迟，但该值不随实体同步给客户端。
     private static final int PLAYER_DROP_PICKUP_DELAY_TICKS = 40;
     // 额外 20 tick 覆盖联机往返与掉落物合并后沿用旧实体年龄的情况。
     private static final int LOCAL_THROW_GRACE_TICKS = 60;
@@ -1085,6 +1092,11 @@ public final class QuickCraftWorkbenchShulkerCraft implements ClientModInitializ
             return false;
         }
         CraftingScreenHandler handler = (CraftingScreenHandler) client.player.currentScreenHandler;
+        //#if MC<12105
+        RecipeEntry<CraftingRecipe> currentRecipe = null;
+        //#else
+        //$$ RecipeEntry<CraftingRecipe> currentRecipe = findCurrentRecipe(client, handler);
+        //#endif
         boolean capturedVisibleRecipe = handler.getSlot(OUTPUT_SLOT).hasStack();
         boolean canReuseSnapshot = canReuseSnapshot(handler.syncId, snapshotSyncId,
                 !pattern.isEmpty() && !resultTemplate.isEmpty());
@@ -1095,7 +1107,14 @@ public final class QuickCraftWorkbenchShulkerCraft implements ClientModInitializ
         if (capturedVisibleRecipe) {
             List<ItemStack> capturedRemainders;
             try {
-                capturedRemainders = CraftingRecipe.collectRecipeRemainders(createInput(handler));
+                CraftingRecipeInput input = createInput(handler);
+                //#if MC<12105
+                capturedRemainders = CraftingRecipe.collectRecipeRemainders(input);
+                //#else
+                //$$ capturedRemainders = currentRecipe != null
+                //$$         ? currentRecipe.value().getRecipeRemainders(input)
+                //$$         : CraftingRecipe.collectRecipeRemainders(input);
+                //#endif
             } catch (Throwable throwable) {
                 sendMessage(client, Text.translatable("quickcraft.message.crafting.shulker_grid_desync"));
                 return false;
@@ -1105,13 +1124,17 @@ public final class QuickCraftWorkbenchShulkerCraft implements ClientModInitializ
                 sendMessage(client, Text.translatable("quickcraft.message.crafting.shulker_recipe_remainder"));
                 return false;
             }
+            //#if MC<12105
             recipe = null;
+            //#else
+            //$$ recipe = currentRecipe;
+            //#endif
             pattern = snapshotPattern(handler);
             remainderPattern = capturedRemainders;
             recipeHasRemainder = capturedHasRemainder;
             resultTemplate = handler.getSlot(OUTPUT_SLOT).getStack().copy();
             snapshotSyncId = handler.syncId;
-        } else if (recipeHasRemainder || hasRemainder(handler)) {
+        } else if (recipeHasRemainder || hasRemainder(currentRecipe, handler)) {
             sendMessage(client, Text.translatable("quickcraft.message.crafting.shulker_recipe_remainder"));
             return false;
         }
@@ -1121,8 +1144,15 @@ public final class QuickCraftWorkbenchShulkerCraft implements ClientModInitializ
         sessionOutputClicks = 0;
         sessionOutputToShulker = QuickCraftConfigs.isWorkbenchQuickCraftOutputToShulkerEnabled();
         // 1.21.2+ 客户端通常拿不到原始配方；配方书无唯一展示项时按特殊配方逐批确认。
+        //#if MC<12105
         boolean unidentifiedRecipe = QuickCraftClientRecipeMatcher.findUniqueRecipeId(
                 client, handler, resultTemplate, 3, 3) == null;
+        //#else
+        //$$ boolean unidentifiedRecipe = recipe == null
+        //$$         ? QuickCraftClientRecipeMatcher.findUniqueRecipeId(
+        //$$                 client, handler, resultTemplate, 3, 3) == null
+        //$$         : isIgnoredInRecipeBook(recipe);
+        //#endif
         sessionRequiresOrderedProbe = requiresOrderedAckProbe(
                 unidentifiedRecipe,
                 resultTemplate.getMaxCount(),
@@ -1309,10 +1339,35 @@ public final class QuickCraftWorkbenchShulkerCraft implements ClientModInitializ
                 && ItemStack.areItemsAndComponentsEqual(stack, resultTemplate);
     }
 
-    private boolean hasRemainder(CraftingScreenHandler handler) {
+    //#if MC>=12105
+    //$$ private RecipeEntry<CraftingRecipe> findCurrentRecipe(MinecraftClient client,
+    //$$                                                          CraftingScreenHandler handler) {
+    //$$     if (client == null || client.world == null
+    //$$             || !(client.world.getRecipeManager() instanceof ServerRecipeManager recipeManager)) {
+    //$$         // ClientWorld uses ClientRecipeManager; the visible output and grid snapshot are used instead.
+    //$$         return null;
+    //$$     }
+    //$$     try {
+    //$$         Optional<RecipeEntry<CraftingRecipe>> match = recipeManager.getFirstMatch(
+    //$$                 RecipeType.CRAFTING, createInput(handler), client.world);
+    //$$         return match.orElse(null);
+    //$$     } catch (Throwable throwable) {
+    //$$         return null;
+    //$$     }
+    //$$ }
+    //#endif
+
+    private boolean hasRemainder(RecipeEntry<CraftingRecipe> currentRecipe,
+                                 CraftingScreenHandler handler) {
         try {
             CraftingRecipeInput input = createInput(handler);
+            //#if MC<12105
             List<ItemStack> remainders = CraftingRecipe.collectRecipeRemainders(input);
+            //#else
+            //$$ List<ItemStack> remainders = currentRecipe != null
+            //$$         ? currentRecipe.value().getRecipeRemainders(input)
+            //$$         : CraftingRecipe.collectRecipeRemainders(input);
+            //#endif
             for (ItemStack remainder : remainders) {
                 if (!remainder.isEmpty()) {
                     return true;
@@ -1790,7 +1845,12 @@ public final class QuickCraftWorkbenchShulkerCraft implements ClientModInitializ
                                                 ItemStack template) {
         int bestSlot = -1;
         int bestCount = Integer.MAX_VALUE;
-        for (int inventoryIndex = 0; inventoryIndex < inventory.main.size(); inventoryIndex++) {
+        //#if MC<12105
+        int inventorySize = inventory.main.size();
+        //#else
+        //$$ int inventorySize = inventory.getMainStacks().size();
+        //#endif
+        for (int inventoryIndex = 0; inventoryIndex < inventorySize; inventoryIndex++) {
             int handlerSlot = playerInventoryIndexToHandlerSlot(inventoryIndex);
             if (handlerSlot == -1) {
                 continue;
@@ -1951,7 +2011,7 @@ public final class QuickCraftWorkbenchShulkerCraft implements ClientModInitializ
         if (client == null || client.player == null || client.world == null) {
             return true;
         }
-        // 与 1.21.3 PlayerEntity.tickMovement 的物品碰撞查询范围一致。
+        // 与 PlayerEntity.tickMovement 的物品碰撞查询范围一致。
         Box pickupArea = client.player.hasVehicle() && !client.player.getVehicle().isRemoved()
                 ? client.player.getBoundingBox().union(client.player.getVehicle().getBoundingBox()).expand(1.0, 0.0, 1.0)
                 : client.player.getBoundingBox().expand(1.0, 0.5, 1.0);
