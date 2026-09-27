@@ -9,8 +9,13 @@ import net.fabricmc.fabric.api.client.rendering.v1.level.LevelRenderEvents;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.multiplayer.ClientLevel;
+//#if MC<260200
 import net.minecraft.client.renderer.ShapeRenderer;
 import net.minecraft.client.renderer.rendertype.RenderTypes;
+//#else
+//$$ import net.minecraft.gizmos.GizmoStyle;
+//$$ import net.minecraft.gizmos.Gizmos;
+//#endif
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.Identifier;
@@ -23,7 +28,9 @@ import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.phys.EntityHitResult;
 import net.minecraft.world.phys.HitResult;
 import net.minecraft.world.phys.Vec3;
+//#if MC<260200
 import net.minecraft.world.phys.shapes.Shapes;
+//#endif
 
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -132,12 +139,21 @@ public final class QuickContainerFillStatus {
 
     private static void renderWorld(LevelRenderContext context) {
         Minecraft client = Minecraft.getInstance();
+        //#if MC<260200
         if (!isAvailable(client) || context.poseStack() == null || MARKERS.isEmpty()) {
+        //#else
+        //$$ if (!isAvailable(client) || MARKERS.isEmpty()) {
+        //#endif
             return;
         }
         Vec3 camera = context.levelState().cameraRenderState.pos;
+        //#if MC<260200
         context.poseStack().pushPose();
         context.poseStack().translate(-camera.x, -camera.y, -camera.z);
+        //#else
+        //$$ // 26.2 的 gizmo 收集发生在 BEFORE_GIZMOS 后，必须在此阶段提交世界坐标轮廓。
+        //$$ try (Gizmos.TemporaryCollection ignored = client.levelRenderer.collectPerFrameRenderThreadGizmos()) {
+        //#endif
         for (Map.Entry<Target, Marker> entry : MARKERS.entrySet()) {
             AABB box = entry.getKey().box(client.level);
             if (box == null || box.getCenter().distanceToSqr(camera) > MAX_RENDER_DISTANCE_SQUARED) {
@@ -153,16 +169,28 @@ public final class QuickContainerFillStatus {
                     | ((int) (status.red * 255) << 16)
                     | ((int) (status.green * 255) << 8)
                     | (int) (status.blue * 255);
+            //#if MC<260200
             ShapeRenderer.renderShape(context.poseStack(),
                     context.bufferSource().getBuffer(RenderTypes.linesTranslucent()),
                     Shapes.create(outline), 0, 0, 0, color, client.getWindow().getAppropriateLineWidth());
+            //#else
+            //$$ Gizmos.cuboid(outline, GizmoStyle.stroke(color, client.getWindow().getAppropriateLineWidth()));
+            //#endif
         }
+        //#if MC<260200
         context.poseStack().popPose();
+        //#else
+        //$$ }
+        //#endif
     }
 
     private static void renderHud(GuiGraphicsExtractor graphics) {
         Minecraft client = Minecraft.getInstance();
+        //#if MC<260200
         if (!isAvailable(client) || client.screen != null || client.options.hideGui) {
+        //#else
+        //$$ if (!isAvailable(client) || client.gui.screen() != null || client.gui.hud.isHidden()) {
+        //#endif
             return;
         }
         Marker marker = MARKERS.get(Target.from(client.level, client.hitResult));
