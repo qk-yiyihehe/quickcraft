@@ -231,8 +231,9 @@ public final class QuickMaterialCollector implements ClientModInitializer {
             return;
         }
 
+        // 最后一格需留给来源盒临时开盒；不能等它也被占满才收空盒。
         if (shouldUseQuickShulker()
-                && findEmptyPlayerStorageSlot(handler) == null
+                && countEmptyPlayerStorageSlots(handler) <= 1
                 && takeEmptyContainerShulker(handler, activeTask.plan.targetTemplates())) {
             return;
         }
@@ -499,6 +500,17 @@ public final class QuickMaterialCollector implements ClientModInitializer {
             }
         }
         return best;
+    }
+
+    private int countEmptyPlayerStorageSlots(ScreenHandler handler) {
+        int count = 0;
+        ItemStack shulker = new ItemStack(net.minecraft.item.Items.SHULKER_BOX);
+        for (Slot slot : getPlayerStorageSlots(handler)) {
+            if (!slot.hasStack() && slot.canInsert(shulker)) {
+                count++;
+            }
+        }
+        return count;
     }
 
     private Slot findEmptyPlayerStorageSlot(ScreenHandler handler) {
@@ -1260,8 +1272,9 @@ public final class QuickMaterialCollector implements ClientModInitializer {
         List<StoredCount> counts = new ArrayList<>();
         for (ItemStack stored : getStoredStacks(shulker)) {
             Demand demand = findDemand(demands, stored);
-            if (demand == null) {
-                continue;
+            if (demand == null || demand.remaining() <= 0) {
+                // 已满足或不在本轮需求中的材料也会随整盒搬走，不能忽略。
+                return List.of();
             }
 
             StoredCount count = findStoredCount(counts, demand);
