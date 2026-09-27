@@ -7,19 +7,21 @@ import com.mojang.blaze3d.platform.GlStateManager;
 //#if MC>=12103 && MC<12105
 //$$ import com.mojang.blaze3d.systems.ProjectionType;
 //#endif
+//#if MC<12108
 import com.mojang.blaze3d.systems.RenderSystem;
-//#if MC>=12105
+//#endif
+//#if MC>=12105 && MC<12108
 //$$ import com.mojang.blaze3d.textures.GpuTexture;
 //#endif
 //#if MC<12103
 import com.mojang.blaze3d.systems.VertexSorter;
 //#endif
 import com.yiyihehe.quickcraft.QuickContainerCopy;
-//#if MC>=12103
+//#if MC>=12103 && MC<12108
 //$$ import com.yiyihehe.quickcraft.QuickCraft;
 //#endif
 import com.yiyihehe.quickcraft.config.QuickCraftConfigs;
-//#if MC>=12103
+//#if MC>=12103 && MC<12108
 //$$ import com.yiyihehe.quickcraft.mixin.MinecraftClientAccessor;
 //#endif
 import net.fabricmc.loader.api.FabricLoader;
@@ -37,6 +39,9 @@ import fi.dy.masa.litematica.util.BlockInfoAlignment;
 import fi.dy.masa.litematica.util.SchematicUtils;
 import fi.dy.masa.malilib.gui.LeftRight;
 import fi.dy.masa.malilib.render.InventoryOverlay;
+//#if MC>=12110
+//$$ import fi.dy.masa.malilib.render.InventoryOverlayType;
+//#endif
 import fi.dy.masa.malilib.util.game.BlockUtils;
 //#if MC<12105
 import fi.dy.masa.malilib.util.data.Constants;
@@ -53,11 +58,15 @@ import net.minecraft.block.entity.BlockEntity;
 import net.minecraft.block.entity.CrafterBlockEntity;
 import net.minecraft.block.enums.ChestType;
 import net.minecraft.client.MinecraftClient;
+//#if MC<12108
 import net.minecraft.client.gl.Framebuffer;
-//#if MC>=12105
+//#endif
+//#if MC>=12105 && MC<12108
 //$$ import net.minecraft.client.gl.RenderPipelines;
 //#endif
+//#if MC<12108
 import net.minecraft.client.gl.SimpleFramebuffer;
+//#endif
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.gui.screen.ingame.HandledScreen;
 //#if MC<12103
@@ -65,7 +74,8 @@ import net.minecraft.client.render.BufferBuilder;
 import net.minecraft.client.render.BufferRenderer;
 import net.minecraft.client.render.GameRenderer;
 import net.minecraft.client.render.Tessellator;
-//#else
+//#endif
+//#if MC>=12103 && MC<12108
 //$$ import net.minecraft.client.render.RenderLayer;
 //#if MC<12105
 //$$ import net.minecraft.client.render.RenderPhase;
@@ -76,8 +86,10 @@ import net.minecraft.client.render.Tessellator;
 import net.minecraft.client.render.VertexFormat;
 import net.minecraft.client.render.VertexFormats;
 //#endif
+//#if MC<12108
 import net.minecraft.client.util.Window;
-//#if MC>=12103
+//#endif
+//#if MC>=12103 && MC<12108
 //$$ import net.minecraft.client.util.math.MatrixStack;
 //#endif
 import net.minecraft.component.DataComponentTypes;
@@ -88,6 +100,9 @@ import net.minecraft.inventory.SimpleInventory;
 import net.minecraft.item.ItemStack;
 import net.minecraft.nbt.NbtCompound;
 import net.minecraft.nbt.NbtList;
+//#if MC>=12108
+//$$ import net.minecraft.nbt.NbtOps;
+//#endif
 import net.minecraft.registry.RegistryWrapper;
 import net.minecraft.registry.entry.RegistryEntry;
 import net.minecraft.screen.BlastFurnaceScreenHandler;
@@ -311,7 +326,11 @@ public final class QuickLitematicaContainerVerifier {
     //$$     inventory.setStack(
     //$$             0,
     //$$             cachedNbt.getCompound("RecordItem")
+    //#if MC<12108
     //$$                     .flatMap(nbt -> ItemStack.fromNbt(world.getRegistryManager(), nbt))
+    //#else
+    //$$                     .map(nbt -> itemStackFromNbt(world.getRegistryManager(), nbt))
+    //#endif
     //$$                     .orElse(ItemStack.EMPTY)
     //$$     );
     //$$     return inventory;
@@ -425,7 +444,11 @@ public final class QuickLitematicaContainerVerifier {
                 continue;
             }
 
+            //#if MC<12108
             ItemStack stack = ItemStack.fromNbt(registryLookup, itemNbt).orElse(ItemStack.EMPTY);
+            //#else
+            //$$ ItemStack stack = itemStackFromNbt(registryLookup, itemNbt);
+            //#endif
             if (!stack.isEmpty()) {
                 inventory.setStack(slot, stack);
             }
@@ -433,6 +456,15 @@ public final class QuickLitematicaContainerVerifier {
 
         return inventory;
     }
+
+    //#if MC>=12108
+    //$$ private static ItemStack itemStackFromNbt(RegistryWrapper.WrapperLookup registryLookup, NbtCompound nbt) {
+    //$$     return ItemStack.OPTIONAL_CODEC
+    //$$             .parse(registryLookup.getOps(NbtOps.INSTANCE), nbt)
+    //$$             .result()
+    //$$             .orElse(ItemStack.EMPTY);
+    //$$ }
+    //#endif
 
     private static int inferInventorySize(NbtList items) {
         int size = 0;
@@ -467,7 +499,14 @@ public final class QuickLitematicaContainerVerifier {
                 //#if MC<12105
                 //$$ return stack.toNbtAllowEmpty(client.world.getRegistryManager()).toString();
                 //#else
+                //#if MC<12108
                 //$$ return stack.toNbt(client.world.getRegistryManager()).toString();
+                //#else
+                //$$ return ItemStack.CODEC.encodeStart(
+                //$$         client.world.getRegistryManager().getOps(NbtOps.INSTANCE),
+                //$$         stack
+                //$$ ).getOrThrow().toString();
+                //#endif
                 //#endif
                 //#endif
             } catch (RuntimeException ignored) {
@@ -663,6 +702,7 @@ public final class QuickLitematicaContainerVerifier {
         clearCurrentScreenContainerBinding();
     }
 
+    //#if MC<12108
     public static void drawGhostItems(
             DrawContext context,
             MinecraftClient client,
@@ -673,6 +713,27 @@ public final class QuickLitematicaContainerVerifier {
     ) {
         GhostItemBuffer.drawGhostItems(context, client, items, guiLeft, guiTop, alpha);
     }
+    //#else
+    //$$ public static void drawGhostItem(
+    //$$         DrawContext context,
+    //$$         MinecraftClient client,
+    //$$         ItemStack stack,
+    //$$         int x,
+    //$$         int y,
+    //$$         int guiLeft,
+    //$$         int guiTop,
+    //$$         float alpha
+    //$$ ) {
+    //$$     GhostItemBuffer.drawGhostItem(context, client, stack, x, y, guiLeft, guiTop, alpha);
+    //$$ }
+    //$$
+    //$$ public static boolean beginHandledScreenGhostRender(DrawContext context, MinecraftClient client) {
+    //$$     return client != null;
+    //$$ }
+    //$$
+    //$$ public static void endHandledScreenGhostRender(DrawContext context, int guiLeft, int guiTop, float alpha) {
+    //$$ }
+    //#endif
 
     public static void rememberContainerUse(MinecraftClient client, BlockHitResult hitResult) {
         if (!isEnabled() || client.world == null) {
@@ -1456,8 +1517,8 @@ public final class QuickLitematicaContainerVerifier {
             MinecraftClient mc,
             DrawContext drawContext
     ) {
-        InventoryOverlay.InventoryRenderType type = getInventoryType(inventory, state);
-        InventoryOverlay.InventoryProperties props = InventoryOverlay.getInventoryPropsTemp(type, inventory.size());
+        InventoryOverlayKind type = getInventoryType(inventory, state);
+        InventoryOverlay.InventoryProperties props = getInventoryProperties(type, inventory.size());
         int xInv = 0;
         int yInv = 0;
 
@@ -1478,14 +1539,10 @@ public final class QuickLitematicaContainerVerifier {
             xInv += props.width / 2 + 4;
         }
 
-        fi.dy.masa.malilib.render.RenderUtils.color(1f, 1f, 1f, 1f);
-        //#if MC<12105
-        InventoryOverlay.renderInventoryBackground(type, xInv, yInv, props.slotsPerRow, props.totalSlots, mc);
-        //#else
-        //$$ InventoryOverlay.renderInventoryBackground(type, xInv, yInv, props.slotsPerRow, props.totalSlots, mc, drawContext);
-        //#endif
+        renderInventoryBackground(drawContext, type, xInv, yInv, props.slotsPerRow, props.totalSlots, mc);
         drawSlotHighlights(drawContext, type, xInv + props.slotOffsetX, yInv + props.slotOffsetY, props.slotsPerRow, slotMismatches);
-        InventoryOverlay.renderInventoryStacks(type, inventory, xInv + props.slotOffsetX, yInv + props.slotOffsetY, props.slotsPerRow, 0, inventory.size(), disabledSlots, mc, drawContext);
+        renderInventoryStacks(drawContext, type, inventory, xInv + props.slotOffsetX, yInv + props.slotOffsetY,
+                props.slotsPerRow, disabledSlots, mc);
 
         if (renderGhostStacks) {
             drawMissingGhostStacks(drawContext, mc, type, xInv + props.slotOffsetX, yInv + props.slotOffsetY, props.slotsPerRow, slotMismatches);
@@ -1494,7 +1551,7 @@ public final class QuickLitematicaContainerVerifier {
 
     private static void drawSlotHighlights(
             DrawContext drawContext,
-            InventoryOverlay.InventoryRenderType type,
+            InventoryOverlayKind type,
             int xSlots,
             int ySlots,
             int slotsPerRow,
@@ -1512,12 +1569,13 @@ public final class QuickLitematicaContainerVerifier {
     private static void drawMissingGhostStacks(
             DrawContext drawContext,
             MinecraftClient mc,
-            InventoryOverlay.InventoryRenderType type,
+            InventoryOverlayKind type,
             int xSlots,
             int ySlots,
             int slotsPerRow,
             List<SlotMismatch> slotMismatches
     ) {
+        //#if MC<12108
         List<GhostItemDraw> ghostItems = new ArrayList<>();
         for (SlotMismatch mismatch : slotMismatches) {
             if (mismatch.status() != SlotMismatchStatus.MISSING || mismatch.expectedStack().isEmpty()) {
@@ -1529,6 +1587,7 @@ public final class QuickLitematicaContainerVerifier {
         }
 
         drawGhostItems(drawContext, mc, ghostItems, 0, 0, QuickLitematicaVerifierPalette.ghostItemAlpha());
+        //#endif
 
         for (SlotMismatch mismatch : slotMismatches) {
             if (mismatch.status() != SlotMismatchStatus.MISSING || mismatch.expectedStack().isEmpty()) {
@@ -1536,20 +1595,34 @@ public final class QuickLitematicaContainerVerifier {
             }
 
             SlotPosition pos = getInventoryOverlaySlotPosition(type, xSlots, ySlots, slotsPerRow, mismatch.slot());
-            drawContext.fill(pos.x(), pos.y(), pos.x() + 16, pos.y() + 16, mismatch.status().ghostMaskColor());
-            drawOutline(drawContext, pos.x(), pos.y(), 16, 16, mismatch.status().borderColor());
+            int x = pos.x();
+            int y = pos.y();
+            //#if MC>=12108
+            //$$ drawGhostItem(
+            //$$         drawContext,
+            //$$         mc,
+            //$$         mismatch.expectedStack(),
+            //$$         x,
+            //$$         y,
+            //$$         0,
+            //$$         0,
+            //$$         QuickLitematicaVerifierPalette.ghostItemAlpha()
+            //$$ );
+            //#endif
+            drawContext.fill(x, y, x + 16, y + 16, mismatch.status().ghostMaskColor());
+            drawOutline(drawContext, x, y, 16, 16, mismatch.status().borderColor());
         }
     }
 
     private static SlotPosition getInventoryOverlaySlotPosition(
-            InventoryOverlay.InventoryRenderType type,
+            InventoryOverlayKind type,
             int xSlots,
             int ySlots,
             int slotsPerRow,
             int slot
     ) {
         // 炉子类和酿造台在 malilib 的 InventoryOverlay 里不是普通网格槽位。
-        if (type == InventoryOverlay.InventoryRenderType.FURNACE) {
+        if (type == InventoryOverlayKind.FURNACE) {
             return switch (slot) {
                 case 0 -> new SlotPosition(xSlots + 8, ySlots + 8);
                 case 1 -> new SlotPosition(xSlots + 8, ySlots + 44);
@@ -1558,7 +1631,7 @@ public final class QuickLitematicaContainerVerifier {
             };
         }
 
-        if (type == InventoryOverlay.InventoryRenderType.BREWING_STAND) {
+        if (type == InventoryOverlayKind.BREWING_STAND) {
             return switch (slot) {
                 case 0 -> new SlotPosition(xSlots + 47, ySlots + 42);
                 case 1 -> new SlotPosition(xSlots + 70, ySlots + 49);
@@ -1586,33 +1659,105 @@ public final class QuickLitematicaContainerVerifier {
         drawContext.fill(x + width - 1, y + 1, x + width, y + height - 1, color);
     }
 
-    private static InventoryOverlay.InventoryRenderType getInventoryType(Inventory inventory, BlockState state) {
+    private static InventoryOverlayKind getInventoryType(Inventory inventory, BlockState state) {
         if (state != null) {
             if (state.getBlock() instanceof AbstractFurnaceBlock) {
-                return InventoryOverlay.InventoryRenderType.FURNACE;
+                return InventoryOverlayKind.FURNACE;
             }
             if (state.getBlock() instanceof BrewingStandBlock) {
-                return InventoryOverlay.InventoryRenderType.BREWING_STAND;
+                return InventoryOverlayKind.BREWING_STAND;
             }
             if (state.getBlock() instanceof CrafterBlock) {
-                return InventoryOverlay.InventoryRenderType.CRAFTER;
+                return InventoryOverlayKind.CRAFTER;
             }
             if (state.getBlock() instanceof DispenserBlock) {
-                return InventoryOverlay.InventoryRenderType.DISPENSER;
+                return InventoryOverlayKind.DISPENSER;
             }
             if (state.getBlock() instanceof HopperBlock) {
-                return InventoryOverlay.InventoryRenderType.HOPPER;
+                return InventoryOverlayKind.HOPPER;
             }
         }
 
         return switch (inventory.size()) {
-            case 3 -> InventoryOverlay.InventoryRenderType.FURNACE;
-            case 5 -> InventoryOverlay.InventoryRenderType.HOPPER;
-            case 9 -> InventoryOverlay.InventoryRenderType.DISPENSER;
-            case 27 -> InventoryOverlay.InventoryRenderType.FIXED_27;
-            case 54 -> InventoryOverlay.InventoryRenderType.FIXED_54;
-            default -> InventoryOverlay.InventoryRenderType.GENERIC;
+            case 3 -> InventoryOverlayKind.FURNACE;
+            case 5 -> InventoryOverlayKind.HOPPER;
+            case 9 -> InventoryOverlayKind.DISPENSER;
+            case 27 -> InventoryOverlayKind.FIXED_27;
+            case 54 -> InventoryOverlayKind.FIXED_54;
+            default -> InventoryOverlayKind.GENERIC;
         };
+    }
+
+    private static InventoryOverlay.InventoryProperties getInventoryProperties(InventoryOverlayKind type, int size) {
+        //#if MC<12110
+        return InventoryOverlay.getInventoryPropsTemp(InventoryOverlay.InventoryRenderType.valueOf(type.name()), size);
+        //#else
+        //$$ return InventoryOverlay.getInventoryPropsTempNew(InventoryOverlayType.valueOf(type.name()), size);
+        //#endif
+    }
+
+    private static void renderInventoryBackground(
+            DrawContext context,
+            InventoryOverlayKind type,
+            int x,
+            int y,
+            int slotsPerRow,
+            int totalSlots,
+            MinecraftClient client
+    ) {
+        //#if MC<12105
+        fi.dy.masa.malilib.render.RenderUtils.color(1f, 1f, 1f, 1f);
+        InventoryOverlay.renderInventoryBackground(InventoryOverlay.InventoryRenderType.valueOf(type.name()),
+                x, y, slotsPerRow, totalSlots, client);
+        //#endif
+        //#if MC>=12105 && MC<12108
+        //$$ fi.dy.masa.malilib.render.RenderUtils.color(1f, 1f, 1f, 1f);
+        //$$ InventoryOverlay.renderInventoryBackground(InventoryOverlay.InventoryRenderType.valueOf(type.name()),
+        //$$         x, y, slotsPerRow, totalSlots, client, context);
+        //#endif
+        //#if MC>=12108 && MC<12110
+        //$$ InventoryOverlay.renderInventoryBackground(context, InventoryOverlay.InventoryRenderType.valueOf(type.name()),
+        //$$         x, y, slotsPerRow, totalSlots, client);
+        //#endif
+        //#if MC>=12110
+        //$$ InventoryOverlay.renderInventoryBackgroundNew(context, InventoryOverlayType.valueOf(type.name()),
+        //$$         x, y, slotsPerRow, totalSlots, client);
+        //#endif
+    }
+
+    private static void renderInventoryStacks(
+            DrawContext context,
+            InventoryOverlayKind type,
+            Inventory inventory,
+            int x,
+            int y,
+            int slotsPerRow,
+            Set<Integer> disabledSlots,
+            MinecraftClient client
+    ) {
+        //#if MC<12108
+        InventoryOverlay.renderInventoryStacks(InventoryOverlay.InventoryRenderType.valueOf(type.name()),
+                inventory, x, y, slotsPerRow, 0, inventory.size(), disabledSlots, client, context);
+        //#endif
+        //#if MC>=12108 && MC<12110
+        //$$ InventoryOverlay.renderInventoryStacks(context, InventoryOverlay.InventoryRenderType.valueOf(type.name()),
+        //$$         inventory, x, y, slotsPerRow, 0, inventory.size(), disabledSlots, client);
+        //#endif
+        //#if MC>=12110
+        //$$ InventoryOverlay.renderInventoryStacksNew(context, InventoryOverlayType.valueOf(type.name()),
+        //$$         inventory, x, y, slotsPerRow, 0, inventory.size(), disabledSlots, client);
+        //#endif
+    }
+
+    private enum InventoryOverlayKind {
+        FURNACE,
+        BREWING_STAND,
+        CRAFTER,
+        DISPENSER,
+        HOPPER,
+        FIXED_27,
+        FIXED_54,
+        GENERIC
     }
 
     private static boolean isInventoryEmpty(Inventory inventory) {
@@ -1709,8 +1854,10 @@ public final class QuickLitematicaContainerVerifier {
     private record SlotPosition(int x, int y) {
     }
 
+    //#if MC<12108
     public record GhostItemDraw(ItemStack stack, int x, int y) {
     }
+    //#endif
 
     public record SlotOverlay(
             SlotMismatchStatus status,
@@ -1877,7 +2024,7 @@ public final class QuickLitematicaContainerVerifier {
         //$$                 .build(false)
         //$$ );
         //#endif
-        //#if MC>=12105
+        //#if MC>=12105 && MC<12108
         //$$ private static final RenderLayer TRANSPARENCY_LAYER = RenderLayer.of(
         //$$         QuickCraft.MOD_ID + "_ghost_item_transparency",
         //$$         1536,
@@ -1890,14 +2037,19 @@ public final class QuickLitematicaContainerVerifier {
         //#if MC<12103
         private static Framebuffer framebuffer;
         private static int previousFramebuffer;
-        //#else
+        //#endif
+        //#if MC>=12103 && MC<12108
         //$$ private static SimpleFramebuffer framebuffer;
         //$$ private static Framebuffer previousFramebuffer;
+        //#endif
+        //#if MC>=12108
+        //$$ private static final int MISSING_SLOT_GHOST_MASK = 0xD0E2FF;
         //#endif
 
         private GhostItemBuffer() {
         }
 
+        //#if MC<12108
         private static void drawGhostItems(
                 DrawContext context,
                 MinecraftClient client,
@@ -1936,7 +2088,29 @@ public final class QuickLitematicaContainerVerifier {
             //$$ }
             //#endif
         }
+        //#else
+        //$$ private static void drawGhostItem(
+        //$$         DrawContext context,
+        //$$         MinecraftClient client,
+        //$$         ItemStack stack,
+        //$$         int x,
+        //$$         int y,
+        //$$         int guiLeft,
+        //$$         int guiTop,
+        //$$         float alpha
+        //$$ ) {
+        //$$     if (stack.isEmpty()) {
+        //$$         return;
+        //$$     }
+        //$$
+        //$$     context.drawItem(stack, x, y);
+        //$$     context.drawStackOverlay(client.textRenderer, stack, x, y);
+        //$$     int maskAlpha = Math.round((1.0F - Math.max(0.0F, Math.min(1.0F, alpha))) * 255.0F);
+        //$$     context.fill(x, y, x + 16, y + 16, (maskAlpha << 24) | (MISSING_SLOT_GHOST_MASK & 0x00FFFFFF));
+        //$$ }
+        //#endif
 
+        //#if MC<12108
         private static boolean beginHandledScreenGhostRender(DrawContext context, MinecraftClient client) {
             //#if MC<12103
             framebuffer = getFramebuffer();
@@ -2043,6 +2217,7 @@ public final class QuickLitematicaContainerVerifier {
             //$$ }
             //#endif
         }
+        //#endif
 
         //#if MC<12103
         private static Framebuffer getFramebuffer() {
@@ -2084,7 +2259,7 @@ public final class QuickLitematicaContainerVerifier {
         //$$     return framebuffer;
         //$$ }
         //#endif
-        //#if MC>=12105
+        //#if MC>=12105 && MC<12108
         //$$ private static SimpleFramebuffer getFramebuffer(MinecraftClient client) {
         //$$     Window window = client.getWindow();
         //$$     int width = window.getFramebufferWidth();
@@ -2157,7 +2332,8 @@ public final class QuickLitematicaContainerVerifier {
             //#endif
             RenderSystem.restoreProjectionMatrix();
         }
-        //#else
+        //#endif
+        //#if MC>=12105 && MC<12108
         //$$ private static void drawFramebuffer(DrawContext context, Framebuffer ghostFramebuffer, float alpha) {
         //$$     GpuTexture previousTexture = RenderSystem.getShaderTexture(0);
         //$$     MatrixStack matrices = context.getMatrices();
