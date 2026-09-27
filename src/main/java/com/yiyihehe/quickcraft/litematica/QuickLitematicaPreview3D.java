@@ -1,6 +1,9 @@
 package com.yiyihehe.quickcraft.litematica;
 
 import com.mojang.blaze3d.systems.RenderSystem;
+//#if MC>=12103
+//$$ import com.mojang.blaze3d.systems.ProjectionType;
+//#endif
 import com.mojang.blaze3d.systems.VertexSorter;
 import com.sun.jna.Native;
 import com.sun.jna.Platform;
@@ -14,6 +17,9 @@ import com.sun.jna.win32.W32APIOptions;
 import com.yiyihehe.quickcraft.config.QuickCraftConfigs;
 import fi.dy.masa.litematica.compat.iris.IrisCompat;
 import fi.dy.masa.litematica.render.schematic.ChunkCacheSchematic;
+//#if MC>=12103
+//$$ import fi.dy.masa.litematica.render.schematic.WorldRendererSchematic;
+//#endif
 import fi.dy.masa.litematica.schematic.LitematicaSchematic;
 import fi.dy.masa.litematica.schematic.container.LitematicaBlockStateContainer;
 import fi.dy.masa.litematica.selection.Box;
@@ -31,12 +37,18 @@ import net.fabricmc.fabric.impl.client.indigo.renderer.IndigoRenderer;
 import net.fabricmc.fabric.impl.client.indigo.renderer.render.WorldMesherRenderContext;
 import net.fabricmc.loader.api.FabricLoader;
 import net.minecraft.SharedConstants;
+//#if MC>=12103
+//$$ import net.minecraft.block.Block;
+//#endif
 import net.minecraft.block.BlockEntityProvider;
 import net.minecraft.block.BlockRenderType;
 import net.minecraft.block.BlockState;
 import net.minecraft.block.Blocks;
 import net.minecraft.block.entity.BlockEntity;
 import net.minecraft.client.MinecraftClient;
+//#if MC>=12103
+//$$ import net.minecraft.client.gl.GlUsage;
+//#endif
 import net.minecraft.client.gl.Framebuffer;
 import net.minecraft.client.gl.SimpleFramebuffer;
 import net.minecraft.client.gl.VertexBuffer;
@@ -68,7 +80,12 @@ import net.minecraft.nbt.NbtIo;
 import net.minecraft.nbt.NbtList;
 import net.minecraft.nbt.NbtSizeTracker;
 import net.minecraft.registry.DynamicRegistryManager;
+//#if MC<12103
 import net.minecraft.registry.Registries;
+//#else
+//$$ import net.minecraft.registry.RegistryEntryLookup;
+//$$ import net.minecraft.registry.RegistryKeys;
+//#endif
 import net.minecraft.registry.entry.RegistryEntry;
 import net.minecraft.text.Text;
 import net.minecraft.util.Util;
@@ -76,7 +93,9 @@ import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.Direction;
 import net.minecraft.util.math.RotationAxis;
 import net.minecraft.util.math.random.Random;
+//#if MC<12103
 import net.minecraft.util.profiler.Profiler;
+//#endif
 import net.minecraft.world.BlockRenderView;
 import net.minecraft.world.MutableWorldProperties;
 import net.minecraft.world.biome.ColorResolver;
@@ -166,7 +185,11 @@ public final class QuickLitematicaPreview3D {
     private static final String CACHE_DIR_NAME = "litematica-preview-cache";
     private static final String CACHE_VERSION_FILE_NAME = "cache-version.txt";
     private static final String CACHE_INDEX_FILE_NAME = "cache-index.properties";
+    //#if MC<12103
     private static final String CACHE_RENDER_MARKER = "quickcraft-model-mesh-v16-api-audit-stable-path-content-resource-signature-mc1.21";
+    //#else
+    //$$ private static final String CACHE_RENDER_MARKER = "quickcraft-model-mesh-v16-api-audit-stable-path-content-resource-signature-mc1.21.3";
+    //#endif
     private static final int EXPAND_BUTTON_SIZE = 16;
     private static final int COMPAT_CLIPBOARD_MAX_DIMENSION = 4096;
     private static final int EMBEDDED_PREVIEW_DIMENSION = 1024;
@@ -1344,7 +1367,11 @@ public final class QuickLitematicaPreview3D {
                     built.sortQuads(allocator, VertexSorter.byDistance(0.0F, 0.0F, 1000.0F));
                 }
 
+                //#if MC<12103
                 VertexBuffer buffer = new VertexBuffer(VertexBuffer.Usage.STATIC);
+                //#else
+                //$$ VertexBuffer buffer = new VertexBuffer(GlUsage.STATIC_WRITE);
+                //#endif
                 boolean uploaded = false;
                 try {
                     buffer.bind();
@@ -1379,7 +1406,11 @@ public final class QuickLitematicaPreview3D {
             RenderSystem.backupProjectionMatrix();
 
             float aspectRatio = client.getWindow().getFramebufferWidth() / (float) client.getWindow().getFramebufferHeight();
+            //#if MC<12103
             RenderSystem.setProjectionMatrix(new Matrix4f().setOrtho(-aspectRatio, aspectRatio, -1.0F, 1.0F, -1000.0F, 3000.0F), VertexSorter.BY_Z);
+            //#else
+            //$$ RenderSystem.setProjectionMatrix(new Matrix4f().setOrtho(-aspectRatio, aspectRatio, -1.0F, 1.0F, -1000.0F, 3000.0F), ProjectionType.ORTHOGRAPHIC);
+            //#endif
             RenderSystem.enableDepthTest();
             RenderSystem.enableBlend();
             RenderSystem.defaultBlendFunc();
@@ -1393,7 +1424,9 @@ public final class QuickLitematicaPreview3D {
             float scale = dimensions.scaleFactor(size, client.currentScreen.height) * drag.scale;
             modelView.scale(scale, scale, scale);
             modelView.translate(-dimensions.sizeX() / 2.0F, -dimensions.sizeY() / 2.0F, -dimensions.sizeZ() / 2.0F);
+            //#if MC<12103
             RenderSystem.applyModelViewMatrix();
+            //#endif
 
             this.applyLight(modelView);
             this.drawBuffers(modelView, null, false, false);
@@ -1412,7 +1445,9 @@ public final class QuickLitematicaPreview3D {
             this.drawBuffers(modelView, null, false, true);
 
             modelView.popMatrix();
+            //#if MC<12103
             RenderSystem.applyModelViewMatrix();
+            //#endif
             RenderSystem.disableDepthTest();
             RenderSystem.disableBlend();
             RenderSystem.restoreProjectionMatrix();
@@ -1493,7 +1528,9 @@ public final class QuickLitematicaPreview3D {
                                 entity.x(),
                                 entity.y(),
                                 entity.z(),
+                                //#if MC<12103
                                 entity.entity().getYaw(0.0F),
+                                //#endif
                                 0.0F,
                                 matrices,
                                 collector,
@@ -1678,7 +1715,11 @@ public final class QuickLitematicaPreview3D {
 
             Framebuffer framebuffer = null;
             try {
+                //#if MC<12103
                 framebuffer = new SimpleFramebuffer(resolution, resolution, true, MinecraftClient.IS_SYSTEM_MAC);
+                //#else
+                //$$ framebuffer = new SimpleFramebuffer(resolution, resolution, true);
+                //#endif
                 RenderSystem.colorMask(true, true, true, true);
                 framebuffer.setClearColor(
                         ((backgroundColor >> 16) & 0xFF) / 255.0F,
@@ -1686,7 +1727,11 @@ public final class QuickLitematicaPreview3D {
                         (backgroundColor & 0xFF) / 255.0F,
                         ((backgroundColor >>> 24) & 0xFF) / 255.0F
                 );
+                //#if MC<12103
                 framebuffer.clear(MinecraftClient.IS_SYSTEM_MAC);
+                //#else
+                //$$ framebuffer.clear();
+                //#endif
                 this.renderSnapshot(framebuffer, data, drag, ((backgroundColor >>> 24) & 0xFF) == 0xFF);
                 return takeSnapshot(framebuffer);
             } catch (Throwable ignored) {
@@ -1702,6 +1747,17 @@ public final class QuickLitematicaPreview3D {
                     MinecraftClient.getInstance().getFramebuffer().beginWrite(true);
                 }
             }
+        }
+
+        private static int readImageArgb(NativeImage image, int x, int y) {
+            //#if MC<12103
+            int abgr = image.getColor(x, y);
+            return (abgr & 0xFF00FF00)
+                    | ((abgr & 0x00FF0000) >>> 16)
+                    | ((abgr & 0x000000FF) << 16);
+            //#else
+            //$$ return image.getColorArgb(x, y);
+            //#endif
         }
 
         // Minecraft 客户端会启用 java.awt.headless，图片剪贴板必须绕过 AWT 直接写 Win32。
@@ -1758,10 +1814,7 @@ public final class QuickLitematicaPreview3D {
                     boolean sameDimensions = width == compatWidth && height == compatHeight;
                     for (int y = 0; y < height; y++) {
                         for (int x = 0; x < width; x++) {
-                            int abgr = image.getColor(x, y);
-                            row[x] = (abgr & 0xFF00FF00)
-                                    | ((abgr & 0x00FF0000) >>> 16)
-                                    | ((abgr & 0x000000FF) << 16);
+                            row[x] = readImageArgb(image, x, y);
                         }
                         dibV5Memory.write(WindowsMemory.BITMAP_V5_HEADER_SIZE + (long) y * width * 4L, row, 0, width);
                         if (sameDimensions) {
@@ -1779,10 +1832,7 @@ public final class QuickLitematicaPreview3D {
                             int sourceY = Math.min(height - 1, (int) ((y + 0.5) * height / compatHeight));
                             for (int x = 0; x < compatWidth; x++) {
                                 int sourceX = Math.min(width - 1, (int) ((x + 0.5) * width / compatWidth));
-                                int abgr = image.getColor(sourceX, sourceY);
-                                compatRow[x] = (abgr & 0xFF00FF00)
-                                        | ((abgr & 0x00FF0000) >>> 16)
-                                        | ((abgr & 0x000000FF) << 16);
+                                compatRow[x] = readImageArgb(image, sourceX, sourceY);
                             }
                             dibMemory.write(
                                     WindowsMemory.BITMAP_INFO_HEADER_SIZE
@@ -1870,7 +1920,11 @@ public final class QuickLitematicaPreview3D {
             RenderSystem.backupProjectionMatrix();
             RenderSystem.setProjectionMatrix(
                     new Matrix4f().setOrtho(-1.0F, 1.0F, -1.0F, 1.0F, -1000.0F, 3000.0F),
+                    //#if MC<12103
                     VertexSorter.BY_Z
+                    //#else
+                    //$$ ProjectionType.ORTHOGRAPHIC
+                    //#endif
             );
             RenderSystem.enableDepthTest();
             RenderSystem.enableBlend();
@@ -1892,7 +1946,9 @@ public final class QuickLitematicaPreview3D {
                 float scale = (float) (2.0 * PREVIEW_FIT_PADDING / Math.max(1.0, diagonal)) * drag.scale;
                 modelView.scale(scale, scale, scale);
                 modelView.translate(-data.sizeX() / 2.0F, -data.sizeY() / 2.0F, -data.sizeZ() / 2.0F);
+                //#if MC<12103
                 RenderSystem.applyModelViewMatrix();
+                //#endif
 
                 this.applyLight(modelView);
                 framebuffer.beginWrite(true);
@@ -1904,7 +1960,9 @@ public final class QuickLitematicaPreview3D {
             } finally {
                 RenderSystem.colorMask(true, true, true, true);
                 modelView.popMatrix();
+                //#if MC<12103
                 RenderSystem.applyModelViewMatrix();
+                //#endif
                 RenderSystem.disableDepthTest();
                 RenderSystem.disableBlend();
                 RenderSystem.restoreProjectionMatrix();
@@ -1980,7 +2038,9 @@ public final class QuickLitematicaPreview3D {
                             entity.x(),
                             entity.y(),
                             entity.z(),
+                            //#if MC<12103
                             entity.entity().getYaw(0.0F),
+                            //#endif
                             0.0F,
                             matrices,
                             client.getBufferBuilders().getEntityVertexConsumers(),
@@ -2141,10 +2201,18 @@ public final class QuickLitematicaPreview3D {
                                 continue;
                             }
                             if (meshBuilder.layer().isTranslucent()) {
+                                //#if MC<12103
                                 built.sortQuads(meshBuilder.allocator(), RenderSystem.getVertexSorting());
+                                //#else
+                                //$$ built.sortQuads(meshBuilder.allocator(), VertexSorter.byDistance(0.0F, 0.0F, 1000.0F));
+                                //#endif
                             }
 
+                            //#if MC<12103
                             VertexBuffer buffer = new VertexBuffer(VertexBuffer.Usage.STATIC);
+                            //#else
+                            //$$ VertexBuffer buffer = new VertexBuffer(GlUsage.STATIC_WRITE);
+                            //#endif
                             try {
                                 buffer.bind();
                                 buffer.upload(built);
@@ -3423,9 +3491,19 @@ public final class QuickLitematicaPreview3D {
         }
     }
 
+    //#if MC>=12103
+    //$$ private static RegistryEntryLookup<Block> blockLookup(DynamicRegistryManager registryManager) {
+    //$$     return registryManager.getOrThrow(RegistryKeys.BLOCK);
+    //$$ }
+    //#endif
+
     private record BlockStateData(int x, int y, int z, NbtCompound stateNbt) {
-        private BlockState state() {
+        private BlockState state(DynamicRegistryManager registryManager) {
+            //#if MC<12103
             return NbtHelper.toBlockState(Registries.BLOCK.getReadOnlyWrapper(), this.stateNbt);
+            //#else
+            //$$ return NbtHelper.toBlockState(blockLookup(registryManager), this.stateNbt);
+            //#endif
         }
     }
 
@@ -3544,7 +3622,11 @@ public final class QuickLitematicaPreview3D {
     private record BlockEntityData(int x, int y, int z, NbtCompound stateNbt, NbtCompound entityNbt) {
         @Nullable
         private BlockEntity instantiate(DummyWorld world) {
+            //#if MC<12103
             BlockState state = NbtHelper.toBlockState(Registries.BLOCK.getReadOnlyWrapper(), this.stateNbt);
+            //#else
+            //$$ BlockState state = NbtHelper.toBlockState(blockLookup(world.getRegistryManager()), this.stateNbt);
+            //#endif
             if (!(state.getBlock() instanceof BlockEntityProvider provider)) {
                 return null;
             }
@@ -3582,7 +3664,7 @@ public final class QuickLitematicaPreview3D {
             DummyWorld world = DummyWorld.fromWorld(client.world);
             Map<BlockPos, BlockState> blockStates = new HashMap<>();
             for (BlockStateData data : blockStateData) {
-                blockStates.put(new BlockPos(data.x(), data.y(), data.z()), data.state());
+                blockStates.put(new BlockPos(data.x(), data.y(), data.z()), data.state(world.getRegistryManager()));
             }
             world.setBlockStates(blockStates);
 
@@ -3788,12 +3870,22 @@ public final class QuickLitematicaPreview3D {
         private Map<BlockPos, BlockState> blockStates = Map.of();
         private Map<BlockPos, BlockEntity> blockEntities = Map.of();
 
+        //#if MC<12103
         private DummyWorld(MutableWorldProperties properties, DynamicRegistryManager registryManager, RegistryEntry<DimensionType> dimensionEntry, Supplier<Profiler> profiler) {
             super(properties, registryManager, dimensionEntry, profiler, null);
         }
+        //#else
+        //$$ private DummyWorld(MutableWorldProperties properties, DynamicRegistryManager registryManager, RegistryEntry<DimensionType> dimensionEntry, WorldRendererSchematic renderer) {
+        //$$     super(properties, registryManager, dimensionEntry, renderer);
+        //$$ }
+        //#endif
 
         private static DummyWorld fromWorld(ClientWorld world) {
+            //#if MC<12103
             return new DummyWorld(world.getLevelProperties(), world.getRegistryManager(), world.getDimensionEntry(), world.getProfilerSupplier());
+            //#else
+            //$$ return new DummyWorld(world.getLevelProperties(), world.getRegistryManager(), world.getDimensionEntry(), new WorldRendererSchematic(MinecraftClient.getInstance()));
+            //#endif
         }
 
         private void setBlockStates(Map<BlockPos, BlockState> blockStates) {
