@@ -89,13 +89,24 @@ public abstract class CraftActionButtonMixin extends HandledScreen<CraftingScree
         ));
     }
 
+    //#if MC<12103
     @Inject(method = "render", at = @At("HEAD"))
     private void quickcraft$syncCraftButton(DrawContext context, int mouseX, int mouseY, float delta, CallbackInfo ci) {
+    //#else
+    //$$ @Inject(method = "drawBackground", at = @At("HEAD"))
+    //$$ private void quickcraft$syncCraftButton(DrawContext context, float delta, int mouseX, int mouseY, CallbackInfo ci) {
+    //#endif
         if (QuickCraftWorkbenchRouter.shouldSuppressRecipeGhostSlots()) {
             CraftingScreen screen = (CraftingScreen) (Object) this;
+            //#if MC<12103
             ((RecipeBookWidgetAccessor) (Object) screen.getRecipeBookWidget())
                     .quickcraft$getGhostSlots()
                     .reset();
+            //#else
+            //$$ ((RecipeBookScreenAccessor) (Object) screen)
+            //$$         .quickcraft$getRecipeBook()
+            //$$         .onMouseClick(screen.getScreenHandler().getSlot(0));
+            //#endif
         }
         if (this.quickcraft$craftButton != null) {
             this.quickcraft$craftButton.visible = QuickCraftConfigs.isWorkbenchQuickCraftFeatureEnabled()
@@ -107,8 +118,17 @@ public abstract class CraftActionButtonMixin extends HandledScreen<CraftingScree
         }
         if (this.quickcraft$modeButton != null) {
             boolean shulkerMode = QuickCraftConfigs.isWorkbenchQuickShulkerCraftEnabled();
+            //#if MC<12103
             this.quickcraft$modeButton.visible = QuickCraftConfigs.isWorkbenchQuickCraftFeatureEnabled()
                     && !(this.width < 379 && ((CraftingScreen) (Object) this).getRecipeBookWidget().isOpen());
+            //#elseif MC<12111
+            //$$ this.quickcraft$modeButton.visible = QuickCraftConfigs.isWorkbenchQuickCraftFeatureEnabled()
+            //$$         && !(this.width < 379 && ((RecipeBookScreenAccessor) this).quickcraft$getRecipeBook().isOpen());
+            //#else
+            //$$ this.quickcraft$modeButton.visible = QuickCraftConfigs.isWorkbenchQuickCraftFeatureEnabled()
+            //$$         && !(this.width < 379 && ((RecipeBookScreenAccessor) (Object) this)
+            //$$         .quickcraft$getRecipeBook().isOpen());
+            //#endif
             this.quickcraft$modeButton.active = !QuickCraftWorkbenchRouter.shouldSuppressRecipeGhostSlots();
             this.quickcraft$modeButton.setDefaultPosition(this.x + 138, this.y + 2);
             Text modeTooltip = Text.translatable(shulkerMode
