@@ -98,8 +98,10 @@ tasks.register('test26x') {
 [
 	'build2612': [task: ':26.1.2:build', description: 'Build Minecraft 26.1.2.'],
 	'build262': [task: ':26.2:build', description: 'Build Minecraft 26.2.'],
+	'build263': [task: ':26.3:build', description: 'Build Minecraft 26.3.'],
 	'runClient2612': [task: ':26.1.2:runClient', description: 'Run the Minecraft 26.1.2 client.'],
-	'runClient262': [task: ':26.2:runClient', description: 'Run the Minecraft 26.2 client.']
+	'runClient262': [task: ':26.2:runClient', description: 'Run the Minecraft 26.2 client.'],
+	'runClient263': [task: ':26.3:runClient', description: 'Run the Minecraft 26.3 client.']
 ].each { taskName, target ->
 	tasks.register(taskName) {
 		group = 'minecraft 26.x'

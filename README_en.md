@@ -1,10 +1,10 @@
 # QuickCraft
 
-[![License](https://img.shields.io/github/license/qk-yiyihehe/quickcraft?style=flat-square&label=license&color=6B7280)](LICENSE) [![Modrinth downloads](https://img.shields.io/modrinth/dt/totNXL64?style=flat-square&logo=modrinth&label=Modrinth%20downloads&color=1BD96A)](https://modrinth.com/mod/quickcraft-yiyihehe) [![GitHub downloads](https://img.shields.io/github/downloads/qk-yiyihehe/quickcraft/total?style=flat-square&logo=github&label=GitHub%20downloads&color=24292F)](https://github.com/qk-yiyihehe/quickcraft/releases) [![Minecraft version](https://img.shields.io/badge/Minecraft-1.21--26.2-F97316?style=flat-square&logo=minecraft&logoColor=white)](https://github.com/qk-yiyihehe/quickcraft/branches) [![Primary branch](https://img.shields.io/badge/branch-1.21--1.21.1-2563EB?style=flat-square&logo=git&logoColor=white)](https://github.com/qk-yiyihehe/quickcraft/tree/1.21-1.21.1)
+[![License](https://img.shields.io/github/license/qk-yiyihehe/quickcraft?style=flat-square&label=license&color=6B7280)](LICENSE) [![Modrinth downloads](https://img.shields.io/modrinth/dt/totNXL64?style=flat-square&logo=modrinth&label=Modrinth%20downloads&color=1BD96A)](https://modrinth.com/mod/quickcraft-yiyihehe) [![GitHub downloads](https://img.shields.io/github/downloads/qk-yiyihehe/quickcraft/total?style=flat-square&logo=github&label=GitHub%20downloads&color=24292F)](https://github.com/qk-yiyihehe/quickcraft/releases) [![Minecraft version](https://img.shields.io/badge/Minecraft-1.21--26.3-F97316?style=flat-square&logo=minecraft&logoColor=white)](https://github.com/qk-yiyihehe/quickcraft/branches) [![Primary branch](https://img.shields.io/badge/branch-main-2563EB?style=flat-square&logo=git&logoColor=white)](https://github.com/qk-yiyihehe/quickcraft/tree/main)
 
 [中文](README.md) | English
 
-QuickCraft is a Fabric client-side utility mod that makes crafting, container management, and Litematica workflows faster and easier to use, with support for Minecraft 1.21-26.2.
+QuickCraft is a Fabric client-side utility mod that makes crafting, container management, and Litematica workflows faster and easier to use, with support for Minecraft 1.21-26.3.
 
 ## Dependencies
 
@@ -33,6 +33,7 @@ QuickCraft is a Fabric client-side utility mod that makes crafting, container ma
 | 1.21.11 | Maintained | [`1.21.11`](https://github.com/qk-yiyihehe/quickcraft/tree/1.21.11) |
 | 26.1-26.1.2 | Maintained | [`26.1-26.1.2`](https://github.com/qk-yiyihehe/quickcraft/tree/26.1-26.1.2) |
 | 26.2 | Maintained | [`26.2`](https://github.com/qk-yiyihehe/quickcraft/tree/26.2) |
+| 26.3 | Maintained | [`main`](https://github.com/qk-yiyihehe/quickcraft/tree/main) |
 
 ## Compatibility
 

@@ -1,10 +1,10 @@
 # QuickCraft
 
-[![许可证](https://img.shields.io/github/license/qk-yiyihehe/quickcraft?style=flat-square&label=license&color=6B7280)](LICENSE) [![Modrinth 下载量](https://img.shields.io/modrinth/dt/totNXL64?style=flat-square&logo=modrinth&label=Modrinth%20downloads&color=1BD96A)](https://modrinth.com/mod/quickcraft-yiyihehe) [![GitHub 下载量](https://img.shields.io/github/downloads/qk-yiyihehe/quickcraft/total?style=flat-square&logo=github&label=GitHub%20downloads&color=24292F)](https://github.com/qk-yiyihehe/quickcraft/releases) [![Minecraft 版本](https://img.shields.io/badge/Minecraft-1.21--26.2-F97316?style=flat-square&logo=minecraft&logoColor=white)](https://github.com/qk-yiyihehe/quickcraft/branches) [![主力分支](https://img.shields.io/badge/branch-1.21--1.21.1-2563EB?style=flat-square&logo=git&logoColor=white)](https://github.com/qk-yiyihehe/quickcraft/tree/1.21-1.21.1)
+[![许可证](https://img.shields.io/github/license/qk-yiyihehe/quickcraft?style=flat-square&label=license&color=6B7280)](LICENSE) [![Modrinth 下载量](https://img.shields.io/modrinth/dt/totNXL64?style=flat-square&logo=modrinth&label=Modrinth%20downloads&color=1BD96A)](https://modrinth.com/mod/quickcraft-yiyihehe) [![GitHub 下载量](https://img.shields.io/github/downloads/qk-yiyihehe/quickcraft/total?style=flat-square&logo=github&label=GitHub%20downloads&color=24292F)](https://github.com/qk-yiyihehe/quickcraft/releases) [![Minecraft 版本](https://img.shields.io/badge/Minecraft-1.21--26.3-F97316?style=flat-square&logo=minecraft&logoColor=white)](https://github.com/qk-yiyihehe/quickcraft/branches) [![主力分支](https://img.shields.io/badge/branch-main-2563EB?style=flat-square&logo=git&logoColor=white)](https://github.com/qk-yiyihehe/quickcraft/tree/main)
 
 中文 | [English](README_en.md)
 
-QuickCraft 是面向 Fabric 的客户端实用模组，让合成、容器和 Litematica 投影操作更快、更顺手，支持 Minecraft 1.21-26.2。
+QuickCraft 是面向 Fabric 的客户端实用模组，让合成、容器和 Litematica 投影操作更快、更顺手，支持 Minecraft 1.21-26.3。
 
 ## 依赖
 
@@ -33,6 +33,7 @@ QuickCraft 是面向 Fabric 的客户端实用模组，让合成、容器和 Lit
 | 1.21.11 | 维护中 | [`1.21.11`](https://github.com/qk-yiyihehe/quickcraft/tree/1.21.11) |
 | 26.1-26.1.2 | 维护中 | [`26.1-26.1.2`](https://github.com/qk-yiyihehe/quickcraft/tree/26.1-26.1.2) |
 | 26.2 | 维护中 | [`26.2`](https://github.com/qk-yiyihehe/quickcraft/tree/26.2) |
+| 26.3 | 维护中 | [`main`](https://github.com/qk-yiyihehe/quickcraft/tree/main) |
 
 ## 兼容性
 
