@@ -3,10 +3,14 @@ package com.yiyihehe.quickcraft.litematica;
 import com.chocohead.mm.api.ClassTinkerers;
 //#if MC<12103
 import com.mojang.blaze3d.platform.GlStateManager;
-//#else
+//#endif
+//#if MC>=12103 && MC<12105
 //$$ import com.mojang.blaze3d.systems.ProjectionType;
 //#endif
 import com.mojang.blaze3d.systems.RenderSystem;
+//#if MC>=12105
+//$$ import com.mojang.blaze3d.textures.GpuTexture;
+//#endif
 //#if MC<12103
 import com.mojang.blaze3d.systems.VertexSorter;
 //#endif
@@ -34,7 +38,9 @@ import fi.dy.masa.litematica.util.SchematicUtils;
 import fi.dy.masa.malilib.gui.LeftRight;
 import fi.dy.masa.malilib.render.InventoryOverlay;
 import fi.dy.masa.malilib.util.game.BlockUtils;
+//#if MC<12105
 import fi.dy.masa.malilib.util.data.Constants;
+//#endif
 import fi.dy.masa.malilib.util.nbt.NbtBlockUtils;
 import net.minecraft.block.AbstractFurnaceBlock;
 import net.minecraft.block.BrewingStandBlock;
@@ -48,6 +54,9 @@ import net.minecraft.block.entity.CrafterBlockEntity;
 import net.minecraft.block.enums.ChestType;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.gl.Framebuffer;
+//#if MC>=12105
+//$$ import net.minecraft.client.gl.RenderPipelines;
+//#endif
 import net.minecraft.client.gl.SimpleFramebuffer;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.gui.screen.ingame.HandledScreen;
@@ -58,11 +67,15 @@ import net.minecraft.client.render.GameRenderer;
 import net.minecraft.client.render.Tessellator;
 //#else
 //$$ import net.minecraft.client.render.RenderLayer;
+//#if MC<12105
 //$$ import net.minecraft.client.render.RenderPhase;
+//#endif
 //$$ import net.minecraft.client.render.VertexConsumer;
 //#endif
+//#if MC<12105
 import net.minecraft.client.render.VertexFormat;
 import net.minecraft.client.render.VertexFormats;
+//#endif
 import net.minecraft.client.util.Window;
 //#if MC>=12103
 //$$ import net.minecraft.client.util.math.MatrixStack;
@@ -97,7 +110,9 @@ import net.minecraft.util.math.ChunkPos;
 import net.minecraft.world.World;
 import org.apache.commons.lang3.tuple.Pair;
 import org.jetbrains.annotations.Nullable;
+//#if MC<12105
 import org.joml.Matrix4f;
+//#endif
 //#if MC<12103
 import org.lwjgl.opengl.GL30;
 //#endif
@@ -264,6 +279,12 @@ public final class QuickLitematicaContainerVerifier {
         }
 
         NbtCompound cachedNbt = storage.getFromBlockEntityCacheNbt(pos);
+        //#if MC>=12105
+        //$$ Inventory special = getCachedSpecialInventory(world, cachedNbt, expectedSize);
+        //$$ if (special != null) {
+        //$$     return special;
+        //$$ }
+        //#endif
         BlockEntity cachedBlockEntity = storage.getFromBlockEntityCache(pos);
 
         if (cachedBlockEntity instanceof Inventory inventory
@@ -280,6 +301,23 @@ public final class QuickLitematicaContainerVerifier {
                 : null;
     }
 
+    //#if MC>=12105
+    //$$ private static Inventory getCachedSpecialInventory(World world, NbtCompound cachedNbt, int expectedSize) {
+    //$$     if (world == null || cachedNbt == null || expectedSize != 1 || !cachedNbt.contains("RecordItem")) {
+    //$$         return null;
+    //$$     }
+    //$$
+    //$$     SimpleInventory inventory = new SimpleInventory(1);
+    //$$     inventory.setStack(
+    //$$             0,
+    //$$             cachedNbt.getCompound("RecordItem")
+    //$$                     .flatMap(nbt -> ItemStack.fromNbt(world.getRegistryManager(), nbt))
+    //$$                     .orElse(ItemStack.EMPTY)
+    //$$     );
+    //$$     return inventory;
+    //$$ }
+    //#endif
+
     private static boolean isTrustedCachedInventory(
             EntitiesDataStorage storage,
             BlockPos pos,
@@ -287,7 +325,11 @@ public final class QuickLitematicaContainerVerifier {
             Inventory cachedInventory,
             Inventory expected
     ) {
+        //#if MC<12105
         if (cachedNbt.contains("Items", Constants.NBT.TAG_LIST) || !isInventoryEmpty(cachedInventory)) {
+        //#else
+        //$$ if (cachedNbt.contains("Items") || !isInventoryEmpty(cachedInventory)) {
+        //#endif
             return true;
         }
 
@@ -345,11 +387,22 @@ public final class QuickLitematicaContainerVerifier {
             int expectedSize,
             RegistryWrapper.WrapperLookup registryLookup
     ) {
+        //#if MC<12105
         if (nbt == null || registryLookup == null || !nbt.contains("Items", Constants.NBT.TAG_LIST)) {
             return null;
         }
 
         NbtList items = nbt.getList("Items", Constants.NBT.TAG_COMPOUND);
+        //#else
+        //$$ if (nbt == null || registryLookup == null || !nbt.contains("Items")) {
+        //$$     return null;
+        //$$ }
+        //$$
+        //$$ NbtList items = nbt.getList("Items").orElse(null);
+        //$$ if (items == null) {
+        //$$     return null;
+        //$$ }
+        //#endif
         int size = expectedSize > 0 ? expectedSize : inferInventorySize(items);
         if (size <= 0) {
             return null;
@@ -357,9 +410,18 @@ public final class QuickLitematicaContainerVerifier {
 
         SimpleInventory inventory = new SimpleInventory(size);
         for (int i = 0; i < items.size(); i++) {
+            //#if MC<12105
             NbtCompound itemNbt = items.getCompound(i);
             int slot = itemNbt.getByte("Slot") & 255;
             if (slot < 0 || slot >= size) {
+            //#else
+            //$$ NbtCompound itemNbt = items.getCompound(i).orElse(null);
+            //$$ if (itemNbt == null) {
+            //$$     continue;
+            //$$ }
+            //$$ int slot = itemNbt.getByte("Slot").orElse((byte) 0) & 255;
+            //$$ if (slot >= size) {
+            //#endif
                 continue;
             }
 
@@ -375,7 +437,14 @@ public final class QuickLitematicaContainerVerifier {
     private static int inferInventorySize(NbtList items) {
         int size = 0;
         for (int i = 0; i < items.size(); i++) {
+            //#if MC<12105
             size = Math.max(size, (items.getCompound(i).getByte("Slot") & 255) + 1);
+            //#else
+            //$$ NbtCompound itemNbt = items.getCompound(i).orElse(null);
+            //$$ if (itemNbt != null) {
+            //$$     size = Math.max(size, (itemNbt.getByte("Slot").orElse((byte) 0) & 255) + 1);
+            //$$ }
+            //#endif
         }
         return size;
     }
@@ -395,7 +464,11 @@ public final class QuickLitematicaContainerVerifier {
                 //#if MC<12103
                 return stack.encodeAllowEmpty(client.world.getRegistryManager()).toString();
                 //#else
+                //#if MC<12105
                 //$$ return stack.toNbtAllowEmpty(client.world.getRegistryManager()).toString();
+                //#else
+                //$$ return stack.toNbt(client.world.getRegistryManager()).toString();
+                //#endif
                 //#endif
             } catch (RuntimeException ignored) {
                 // 组件损坏时仍保留可比较的本地表示，不能让刷新验证结果的路径崩溃。
@@ -560,10 +633,17 @@ public final class QuickLitematicaContainerVerifier {
             MinecraftClient mc,
             DrawContext drawContext
     ) {
+        //#if MC<12105
         if (mismatch == null) {
             return;
         }
         Pair<Inventory, Inventory> inventories = mismatch.inventories();
+        //#else
+        //$$ Pair<Inventory, Inventory> inventories = mismatch != null ? mismatch.inventories() : null;
+        //$$ if (inventories == null) {
+        //$$     return;
+        //$$ }
+        //#endif
 
         renderInventoryOverlay(BlockInfoAlignment.CENTER, LeftRight.LEFT, 0, mismatch.type(), inventories.getLeft(), expectedState, expectedDisabledSlots, List.of(), false, mouseX, mouseY, mc, drawContext);
         renderInventoryOverlay(BlockInfoAlignment.CENTER, LeftRight.RIGHT, 0, mismatch.type(), inventories.getRight(), foundState, foundDisabledSlots, mismatch.slotMismatches(), true, mouseX, mouseY, mc, drawContext);
@@ -694,9 +774,11 @@ public final class QuickLitematicaContainerVerifier {
         if (expected == null || found == null) {
             return expected == found;
         }
+        //#if MC<12105
         if (showsEnchantmentsInTooltip(expected) != showsEnchantmentsInTooltip(found)) {
             return false;
         }
+        //#endif
         if (expected.getSize() != found.getSize()) {
             return false;
         }
@@ -723,9 +805,11 @@ public final class QuickLitematicaContainerVerifier {
         return true;
     }
 
+    //#if MC<12105
     private static boolean showsEnchantmentsInTooltip(ItemEnchantmentsComponent enchantments) {
         return enchantments.equals(enchantments.withShowInTooltip(true));
     }
+    //#endif
 
     private static boolean isSlotLockMismatch(Set<Integer> expectedDisabledSlots, Set<Integer> foundDisabledSlots, int slot) {
         return expectedDisabledSlots.contains(slot) != foundDisabledSlots.contains(slot);
@@ -1395,7 +1479,11 @@ public final class QuickLitematicaContainerVerifier {
         }
 
         fi.dy.masa.malilib.render.RenderUtils.color(1f, 1f, 1f, 1f);
+        //#if MC<12105
         InventoryOverlay.renderInventoryBackground(type, xInv, yInv, props.slotsPerRow, props.totalSlots, mc);
+        //#else
+        //$$ InventoryOverlay.renderInventoryBackground(type, xInv, yInv, props.slotsPerRow, props.totalSlots, mc, drawContext);
+        //#endif
         drawSlotHighlights(drawContext, type, xInv + props.slotOffsetX, yInv + props.slotOffsetY, props.slotsPerRow, slotMismatches);
         InventoryOverlay.renderInventoryStacks(type, inventory, xInv + props.slotOffsetX, yInv + props.slotOffsetY, props.slotsPerRow, 0, inventory.size(), disabledSlots, mc, drawContext);
 
@@ -1771,11 +1859,10 @@ public final class QuickLitematicaContainerVerifier {
     }
 
     /**
-     * 参考 techutils 的透明缓冲做法，让 GUI 里的物品本体也能真正半透明。
-     * 同一批虚影共用一次全屏缓冲清理和合成，避免成本随槽位数重复放大。
+     * 透明物品渲染的业务入口保持统一；三个 Minecraft 渲染时代只在帧缓冲适配方法内分支。
      */
     private static final class GhostItemBuffer {
-        //#if MC>=12103
+        //#if MC>=12103 && MC<12105
         //$$ private static final RenderLayer TRANSPARENCY_LAYER = RenderLayer.of(
         //$$         QuickCraft.MOD_ID + "_ghost_item_transparency",
         //$$         VertexFormats.POSITION_TEXTURE,
@@ -1788,6 +1875,16 @@ public final class QuickLitematicaContainerVerifier {
         //$$                 .program(RenderPhase.POSITION_TEXTURE_PROGRAM)
         //$$                 .transparency(RenderPhase.TRANSLUCENT_TRANSPARENCY)
         //$$                 .build(false)
+        //$$ );
+        //#endif
+        //#if MC>=12105
+        //$$ private static final RenderLayer TRANSPARENCY_LAYER = RenderLayer.of(
+        //$$         QuickCraft.MOD_ID + "_ghost_item_transparency",
+        //$$         1536,
+        //$$         false,
+        //$$         true,
+        //$$         RenderPipelines.GUI_TEXTURED_OVERLAY,
+        //$$         RenderLayer.MultiPhaseParameters.builder().build(false)
         //$$ );
         //#endif
         //#if MC<12103
@@ -1830,12 +1927,12 @@ public final class QuickLitematicaContainerVerifier {
             //#else
             //$$ float clampedAlpha = Math.max(0.0F, Math.min(1.0F, alpha));
             //$$ try {
-                //$$ for (GhostItemDraw item : items) {
-                    //$$ context.drawItem(item.stack(), item.x(), item.y());
-                    //$$ context.drawStackOverlay(client.textRenderer, item.stack(), item.x(), item.y());
-                //$$ }
+            //$$     for (GhostItemDraw item : items) {
+            //$$         context.drawItem(item.stack(), item.x(), item.y());
+            //$$         context.drawStackOverlay(client.textRenderer, item.stack(), item.x(), item.y());
+            //$$     }
             //$$ } finally {
-                //$$ endHandledScreenGhostRender(context, guiLeft, guiTop, clampedAlpha);
+            //$$     endHandledScreenGhostRender(context, guiLeft, guiTop, clampedAlpha);
             //$$ }
             //#endif
         }
@@ -1847,17 +1944,36 @@ public final class QuickLitematicaContainerVerifier {
             framebuffer.clear(MinecraftClient.IS_SYSTEM_MAC);
             framebuffer.beginWrite(false);
             return true;
-            //#else
+            //#endif
+            //#if MC>=12103 && MC<12105
             //$$ if (client == null) {
             //$$     return false;
             //$$ }
             //$$
             //$$ SimpleFramebuffer ghostFramebuffer = getFramebuffer(client);
-            //$$ // 切换目标前刷完当前 GUI，避免背景和文字进入幽灵缓冲。
+            //$$ // 这一代 GUI 延迟提交顶点，切换目标前必须刷完主界面批次。
             //$$ context.draw();
             //$$ ghostFramebuffer.clear();
             //$$ previousFramebuffer = client.getFramebuffer();
             //$$ ((MinecraftClientAccessor) client).quickcraft$setFramebuffer(ghostFramebuffer);
+            //$$ return true;
+            //#endif
+            //#if MC>=12105
+            //$$ if (client == null || previousFramebuffer != null) {
+            //$$     return false;
+            //$$ }
+            //$$
+            //$$ SimpleFramebuffer ghostFramebuffer = getFramebuffer(client);
+            //$$ // 1.21.5 的 GUI 仍延迟提交顶点；切换目标前必须先刷完主界面批次。
+            //$$ context.draw();
+            //$$ RenderSystem.getDevice().createCommandEncoder().clearColorAndDepthTextures(
+            //$$         ghostFramebuffer.getColorAttachment(),
+            //$$         0,
+            //$$         ghostFramebuffer.getDepthAttachment(),
+            //$$         1.0
+            //$$ );
+            //$$ previousFramebuffer = client.getFramebuffer();
+            //$$ ((MinecraftClientAccessor) (Object) client).quickcraft$setFramebuffer(ghostFramebuffer);
             //$$ return true;
             //#endif
         }
@@ -1880,7 +1996,8 @@ public final class QuickLitematicaContainerVerifier {
             context.getMatrices().pop();
 
             RenderSystem.setShaderColor(1.0F, 1.0F, 1.0F, 1.0F);
-            //#else
+            //#endif
+            //#if MC>=12103 && MC<12105
             //$$ if (previousFramebuffer == null || framebuffer == null) {
             //$$     return;
             //$$ }
@@ -1898,6 +2015,32 @@ public final class QuickLitematicaContainerVerifier {
             //$$
             //$$ RenderSystem.setShaderColor(1.0F, 1.0F, 1.0F, 1.0F);
             //$$ previousFramebuffer = null;
+            //#endif
+            //#if MC>=12105
+            //$$ if (previousFramebuffer == null || framebuffer == null) {
+            //$$     return;
+            //$$ }
+            //$$
+            //$$ MinecraftClient client = MinecraftClient.getInstance();
+            //$$ Framebuffer targetFramebuffer = previousFramebuffer;
+            //$$ float clampedAlpha = Math.max(0.0F, Math.min(1.0F, alpha));
+            //$$
+            //$$ try {
+            //$$     context.draw();
+            //$$     ((MinecraftClientAccessor) (Object) client).quickcraft$setFramebuffer(targetFramebuffer);
+            //$$
+            //$$     MatrixStack matrices = context.getMatrices();
+            //$$     matrices.push();
+            //$$     try {
+            //$$         matrices.translate(-guiLeft, -guiTop, 0.0F);
+            //$$         drawFramebuffer(context, framebuffer, clampedAlpha);
+            //$$     } finally {
+            //$$         matrices.pop();
+            //$$     }
+            //$$ } finally {
+            //$$     ((MinecraftClientAccessor) (Object) client).quickcraft$setFramebuffer(targetFramebuffer);
+            //$$     previousFramebuffer = null;
+            //$$ }
             //#endif
         }
 
@@ -1918,7 +2061,8 @@ public final class QuickLitematicaContainerVerifier {
 
             return framebuffer;
         }
-        //#else
+        //#endif
+        //#if MC>=12103 && MC<12105
         //$$ private static SimpleFramebuffer getFramebuffer(MinecraftClient client) {
         //$$     Window window = client.getWindow();
         //$$
@@ -1940,7 +2084,28 @@ public final class QuickLitematicaContainerVerifier {
         //$$     return framebuffer;
         //$$ }
         //#endif
+        //#if MC>=12105
+        //$$ private static SimpleFramebuffer getFramebuffer(MinecraftClient client) {
+        //$$     Window window = client.getWindow();
+        //$$     int width = window.getFramebufferWidth();
+        //$$     int height = window.getFramebufferHeight();
+        //$$
+        //$$     if (framebuffer == null) {
+        //$$         framebuffer = new SimpleFramebuffer(
+        //$$                 QuickCraft.MOD_ID + "_ghost_item",
+        //$$                 width,
+        //$$                 height,
+        //$$                 true
+        //$$         );
+        //$$     } else if (framebuffer.textureWidth != width || framebuffer.textureHeight != height) {
+        //$$         framebuffer.resize(width, height);
+        //$$     }
+        //$$
+        //$$     return framebuffer;
+        //$$ }
+        //#endif
 
+        //#if MC<12105
         private static void drawFramebuffer(DrawContext context, Framebuffer ghostFramebuffer) {
             RenderSystem.setShaderTexture(0, ghostFramebuffer.getColorAttachment());
             RenderSystem.backupProjectionMatrix();
@@ -1992,6 +2157,37 @@ public final class QuickLitematicaContainerVerifier {
             //#endif
             RenderSystem.restoreProjectionMatrix();
         }
+        //#else
+        //$$ private static void drawFramebuffer(DrawContext context, Framebuffer ghostFramebuffer, float alpha) {
+        //$$     GpuTexture previousTexture = RenderSystem.getShaderTexture(0);
+        //$$     MatrixStack matrices = context.getMatrices();
+        //$$
+        //$$     try {
+        //$$         RenderSystem.setShaderTexture(0, ghostFramebuffer.getColorAttachment());
+        //$$         context.draw(vertexConsumerProvider -> {
+        //$$             VertexConsumer vertices = vertexConsumerProvider.getBuffer(TRANSPARENCY_LAYER);
+        //$$             float width = context.getScaledWindowWidth();
+        //$$             float height = context.getScaledWindowHeight();
+        //$$             int alphaChannel = Math.round(alpha * 255.0F);
+        //$$
+        //$$             vertices.vertex(matrices.peek().getPositionMatrix(), 0.0F, 0.0F, 0.0F)
+        //$$                     .texture(0.0F, 1.0F)
+        //$$                     .color(255, 255, 255, alphaChannel);
+        //$$             vertices.vertex(matrices.peek().getPositionMatrix(), 0.0F, height, 0.0F)
+        //$$                     .texture(0.0F, 0.0F)
+        //$$                     .color(255, 255, 255, alphaChannel);
+        //$$             vertices.vertex(matrices.peek().getPositionMatrix(), width, height, 0.0F)
+        //$$                     .texture(1.0F, 0.0F)
+        //$$                     .color(255, 255, 255, alphaChannel);
+        //$$             vertices.vertex(matrices.peek().getPositionMatrix(), width, 0.0F, 0.0F)
+        //$$                     .texture(1.0F, 1.0F)
+        //$$                     .color(255, 255, 255, alphaChannel);
+        //$$         });
+        //$$     } finally {
+        //$$         RenderSystem.setShaderTexture(0, previousTexture);
+        //$$     }
+        //$$ }
+        //#endif
     }
 
 }
