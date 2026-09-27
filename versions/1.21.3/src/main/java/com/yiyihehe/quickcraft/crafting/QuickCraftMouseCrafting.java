@@ -1461,8 +1461,13 @@ final class QuickCraftMouseCrafting {
         if (!retainIngredientSamples()) {
             int bestSlot = -1;
             int bestCount = -1;
+            //#if MC<12105
             for (int inventoryIndex = 0; inventoryIndex < inventory.main.size(); inventoryIndex++) {
                 ItemStack stack = inventory.main.get(inventoryIndex);
+            //#else
+            //$$ for (int inventoryIndex = 0; inventoryIndex < inventory.getMainStacks().size(); inventoryIndex++) {
+            //$$     ItemStack stack = inventory.getMainStacks().get(inventoryIndex);
+            //#endif
                 if (stack.isEmpty() || !ItemStack.areItemsAndComponentsEqual(stack, template)) {
                     continue;
                 }
@@ -1883,7 +1888,11 @@ final class QuickCraftMouseCrafting {
         }
 
         int total = 0;
+        //#if MC<12105
         for (ItemStack stack : inventory.main) {
+        //#else
+        //$$ for (ItemStack stack : inventory.getMainStacks()) {
+        //#endif
             if (stack.isEmpty()) continue;
             if (ItemStack.areItemsAndComponentsEqual(stack, template)) {
                 total += stack.getCount();

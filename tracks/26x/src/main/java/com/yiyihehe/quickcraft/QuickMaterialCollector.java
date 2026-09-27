@@ -11,6 +11,7 @@ import net.minecraft.world.level.block.ChestBlock;
 import net.minecraft.world.level.block.EnderChestBlock;
 import net.minecraft.world.level.block.ShulkerBoxBlock;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.world.item.component.ItemContainerContents;
@@ -150,7 +151,7 @@ public final class QuickMaterialCollector implements ClientModInitializer {
             return;
         }
 
-        if (client.screen != null) {
+        if (getCurrentScreen(client) != null) {
             return;
         }
 
@@ -550,7 +551,7 @@ public final class QuickMaterialCollector implements ClientModInitializer {
         if (client == null || client.player == null) {
             return null;
         }
-        if (client.screen instanceof AbstractContainerScreen<?> screen) {
+        if (getCurrentScreen(client) instanceof AbstractContainerScreen<?> screen) {
             return screen.getMenu();
         }
         AbstractContainerMenu handler = client.player.containerMenu;
@@ -1586,9 +1587,25 @@ public final class QuickMaterialCollector implements ClientModInitializer {
         if (client.player != null) {
             client.player.closeContainer();
         }
-        if (client.screen instanceof AbstractContainerScreen<?>) {
-            client.setScreen(null);
+        if (getCurrentScreen(client) instanceof AbstractContainerScreen<?>) {
+            clearCurrentScreen(client);
         }
+    }
+
+    private static Screen getCurrentScreen(Minecraft client) {
+        //#if MC<260200
+        return client.screen;
+        //#else
+        //$$ return client.gui.screen();
+        //#endif
+    }
+
+    private static void clearCurrentScreen(Minecraft client) {
+        //#if MC<260200
+        client.setScreen(null);
+        //#else
+        //$$ client.gui.setScreen(null);
+        //#endif
     }
 
     private enum CollectionStage {

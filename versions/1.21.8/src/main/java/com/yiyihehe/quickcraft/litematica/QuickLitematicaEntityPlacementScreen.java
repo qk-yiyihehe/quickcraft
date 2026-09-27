@@ -1,6 +1,9 @@
 package com.yiyihehe.quickcraft.litematica;
 
 import net.minecraft.client.gui.DrawContext;
+//#if MC>=12110
+//$$ import net.minecraft.client.gui.Click;
+//#endif
 import net.minecraft.client.gui.screen.Screen;
 import net.minecraft.client.gl.RenderPipelines;
 import net.minecraft.item.ItemStack;
@@ -225,16 +228,31 @@ final class QuickLitematicaEntityPlacementScreen extends Screen {
     }
 
     @Override
+    //#if MC<12110
     public boolean mouseClicked(double mouseX, double mouseY, int button) {
+    //#else
+    //$$ public boolean mouseClicked(Click click, boolean doubled) {
+    //$$     double mouseX = click.x();
+    //$$     double mouseY = click.y();
+    //$$     int button = click.button();
+    //#endif
         if (button != 0 || !QuickLitematicaEntityPlacement.isServerAvailable()) {
+            //#if MC<12110
             return super.mouseClicked(mouseX, mouseY, button);
+            //#else
+            //$$ return super.mouseClicked(click, doubled);
+            //#endif
         }
         int left = (this.width - PANEL_WIDTH) / 2;
         int top = (this.height - PANEL_HEIGHT) / 2;
         int column = ((int) mouseX - left - 8) / SLOT_SIZE;
         int row = ((int) mouseY - top - 18) / SLOT_SIZE;
         if (column < 0 || column >= COLUMNS || row < 0 || row >= ROWS) {
+            //#if MC<12110
             return super.mouseClicked(mouseX, mouseY, button);
+            //#else
+            //$$ return super.mouseClicked(click, doubled);
+            //#endif
         }
         int index = row * COLUMNS + column;
         if (index < candidates.size()
@@ -250,7 +268,11 @@ final class QuickLitematicaEntityPlacementScreen extends Screen {
             }
             return true;
         }
+        //#if MC<12110
         return super.mouseClicked(mouseX, mouseY, button);
+        //#else
+        //$$ return super.mouseClicked(click, doubled);
+        //#endif
     }
 
     private int countUnplacedCandidates() {

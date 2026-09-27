@@ -15,6 +15,7 @@ import net.minecraft.world.level.block.EnderChestBlock;
 import net.minecraft.world.level.block.ShulkerBoxBlock;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.gui.screens.inventory.CreativeModeInventoryScreen;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 import net.minecraft.client.renderer.RenderPipelines;
@@ -232,7 +233,7 @@ public final class QuickContainerLock implements ClientModInitializer {
     }
 
     public static boolean handleSlotLockHotkey(Minecraft client) {
-        if (!(client.screen instanceof AbstractContainerScreen<?> screen)) {
+        if (!(getCurrentScreen(client) instanceof AbstractContainerScreen<?> screen)) {
             return false;
         }
         bindCurrentScreen(screen);
@@ -285,7 +286,7 @@ public final class QuickContainerLock implements ClientModInitializer {
         }
 
         Minecraft client = Minecraft.getInstance();
-        if (client == null || !(client.screen instanceof AbstractContainerScreen<?> screen)) {
+        if (client == null || !(getCurrentScreen(client) instanceof AbstractContainerScreen<?> screen)) {
             return false;
         }
 
@@ -510,7 +511,7 @@ public final class QuickContainerLock implements ClientModInitializer {
         Minecraft client = Minecraft.getInstance();
         if (client == null
                 || client.player == null
-                || client.screen != null
+                || getCurrentScreen(client) != null
                 || client.player.containerMenu != handler) {
             return false;
         }
@@ -676,7 +677,7 @@ public final class QuickContainerLock implements ClientModInitializer {
         Minecraft client = Minecraft.getInstance();
         if (client == null
                 || client.player == null
-                || client.screen != null
+                || getCurrentScreen(client) != null
                 || !QuickCraftConfigs.isSlotLockOverlayVisible()
                 || !hasLockedPlayerHotbarSlot()) {
             return;
@@ -723,7 +724,7 @@ public final class QuickContainerLock implements ClientModInitializer {
     }
 
     private void handleUseAttempt(Minecraft client) {
-        if (client == null || client.player == null || client.level == null || client.screen != null) {
+        if (client == null || client.player == null || client.level == null || getCurrentScreen(client) != null) {
             lastUseDown = false;
             return;
         }
@@ -748,7 +749,7 @@ public final class QuickContainerLock implements ClientModInitializer {
         }
 
         pendingTicks++;
-        if (client.screen instanceof AbstractContainerScreen<?> screen
+        if (getCurrentScreen(client) instanceof AbstractContainerScreen<?> screen
                 && isPendingContainerScreen(screen.getMenu())) {
             currentScreenContainerKey = pendingContainerKey;
             rememberHandlerKey(screen.getMenu(), currentScreenContainerKey);
@@ -762,7 +763,7 @@ public final class QuickContainerLock implements ClientModInitializer {
     }
 
     private void clearCurrentScreenKeyIfNeeded(Minecraft client) {
-        if (!(client.screen instanceof AbstractContainerScreen<?> screen)) {
+        if (!(getCurrentScreen(client) instanceof AbstractContainerScreen<?> screen)) {
             currentScreenContainerKey = null;
             return;
         }
@@ -781,9 +782,17 @@ public final class QuickContainerLock implements ClientModInitializer {
         currentScreenContainerKey = null;
     }
 
+    private static Screen getCurrentScreen(Minecraft client) {
+        //#if MC<260200
+        return client.screen;
+        //#else
+        //$$ return client.gui.screen();
+        //#endif
+    }
+
     private static String getCurrentScreenContainerKey(AbstractContainerScreen<?> screen) {
         Minecraft client = Minecraft.getInstance();
-        if (client == null || client.screen != screen) {
+        if (client == null || getCurrentScreen(client) != screen) {
             return null;
         }
 
@@ -830,7 +839,7 @@ public final class QuickContainerLock implements ClientModInitializer {
         }
 
         Minecraft client = Minecraft.getInstance();
-        if (client != null && client.screen instanceof AbstractContainerScreen<?> screen && screen.getMenu() == handler) {
+        if (client != null && getCurrentScreen(client) instanceof AbstractContainerScreen<?> screen && screen.getMenu() == handler) {
             String currentKey = getCurrentScreenContainerKey(screen);
             if (currentKey != null) {
                 rememberHandlerKey(handler, currentKey);

@@ -10,6 +10,7 @@ import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.minecraft.world.level.block.ShulkerBoxBlock;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.components.events.GuiEventListener;
+import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.gui.screens.inventory.CreativeModeInventoryScreen;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 import net.minecraft.client.gui.components.EditBox;
@@ -79,7 +80,7 @@ public class QuickSort implements ClientModInitializer {
             return false;
         }
 
-        if (client.screen instanceof AbstractContainerScreen<?> handledScreen) {
+        if (getCurrentScreen(client) instanceof AbstractContainerScreen<?> handledScreen) {
             if (isTextInputFocused(handledScreen)) {
                 return false;
             }
@@ -88,6 +89,14 @@ public class QuickSort implements ClientModInitializer {
         }
 
         return false;
+    }
+
+    private static Screen getCurrentScreen(Minecraft client) {
+        //#if MC<260200
+        return client.screen;
+        //#else
+        //$$ return client.gui.screen();
+        //#endif
     }
 
     public static void sortInventory(AbstractContainerScreen<?> gui) {
@@ -686,7 +695,7 @@ public class QuickSort implements ClientModInitializer {
     }
 
     private static boolean isSafeVisibleStorageSlot(AbstractContainerMenu handler, Slot slot, Minecraft client) {
-        if (client.screen instanceof CreativeModeInventoryScreen creativeScreen
+        if (getCurrentScreen(client) instanceof CreativeModeInventoryScreen creativeScreen
             && handler == creativeScreen.getMenu()) {
             return isPlayerAreaSlot(creativeScreen, slot);
         }
@@ -968,7 +977,11 @@ public class QuickSort implements ClientModInitializer {
 
     private static StorageContentsSortKey getBundleContentsSortKey(ItemStack stack) {
         BundleContents bundleContents = stack.getOrDefault(DataComponents.BUNDLE_CONTENTS, BundleContents.EMPTY);
+        //#if MC<260300
         return buildStorageContentsSortKey(bundleContents.itemCopyStream().toList());
+        //#else
+        //$$ return buildStorageContentsSortKey(bundleContents.itemCopies().toList());
+        //#endif
     }
 
     private static StorageContentsSortKey buildStorageContentsSortKey(Iterable<ItemStack> storedStacks) {
@@ -1064,7 +1077,7 @@ public class QuickSort implements ClientModInitializer {
         }
 
         try {
-            if (client.screen instanceof CreativeModeInventoryScreen creativeScreen
+            if (getCurrentScreen(client) instanceof CreativeModeInventoryScreen creativeScreen
                 && handler == creativeScreen.getMenu()) {
                 Slot slot = slotId >= 0 && slotId < handler.slots.size()
                     ? handler.getSlot(slotId)

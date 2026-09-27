@@ -28,7 +28,6 @@ import net.minecraft.world.inventory.ContainerInput;
 import net.minecraft.stats.Stats;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.phys.AABB;
-import org.lwjgl.glfw.GLFW;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -1324,7 +1323,7 @@ public final class QuickCraftWorkbenchShulkerCraft implements ClientModInitializ
 
     private RecipeHolder<CraftingRecipe> findCurrentRecipe(Minecraft client,
                                                            CraftingMenu handler) {
-        // 26.1 客户端只同步配方展示数据；产物槽与合成格快照仍可安全驱动这条执行链。
+        // 26.1+ 客户端只同步配方展示数据；产物槽与合成格快照仍可安全驱动这条执行链。
         return null;
     }
 
@@ -1965,7 +1964,11 @@ public final class QuickCraftWorkbenchShulkerCraft implements ClientModInitializ
 
     private boolean isWorkbenchOpen(Minecraft client) {
         return client != null && client.player != null && client.level != null
+                //#if MC<260200
                 && client.screen instanceof CraftingScreen
+                //#else
+                //$$ && client.gui.screen() instanceof CraftingScreen
+                //#endif
                 && client.player.containerMenu instanceof CraftingMenu;
     }
 

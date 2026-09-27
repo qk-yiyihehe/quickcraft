@@ -44,9 +44,7 @@ public abstract class LitematicaHandledScreenSlotOverlayMixin<T extends ScreenHa
         quickcraft$drawSlotOutline(context, slot, overlay.borderColor());
     }
 
-    /**
-     * 1.21.3 在 drawSlots 后绘制前景高亮；先合成虚影，再交还给原版绘制悬停效果。
-     */
+    /** 在 drawSlots 后合成虚影，再交还给原版绘制悬停效果。 */
     @Inject(
             method = "render",
             at = @At(

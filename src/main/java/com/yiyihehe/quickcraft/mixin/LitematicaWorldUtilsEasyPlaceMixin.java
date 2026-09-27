@@ -86,7 +86,12 @@ public class LitematicaWorldUtilsEasyPlaceMixin {
         }
 
         ActionResult result = client.interactionManager.interactBlock(client.player, hand, placementHit);
+        //#if MC<12103
         if (result.shouldSwingHand()) {
+        //#else
+        //$$ if (result instanceof ActionResult.Success success
+        //$$         && success.swingSource() == ActionResult.SwingSource.CLIENT) {
+        //#endif
             client.player.swingHand(hand);
         }
         cir.setReturnValue(result == ActionResult.FAIL ? ActionResult.FAIL : ActionResult.SUCCESS);
@@ -105,4 +110,16 @@ public class LitematicaWorldUtilsEasyPlaceMixin {
             ci.cancel();
         }
     }
+
+    //#if MC>=12103
+    //$$ @Inject(method = "handlePlacementRestriction", at = @At("HEAD"), cancellable = true, remap = false)
+    //$$ private static void quickcraft$letVanillaUseBypassPlacementRestriction(
+    //$$         MinecraftClient mc,
+    //$$         CallbackInfoReturnable<Boolean> cir
+    //$$ ) {
+    //$$     if (QuickLitematicaEasyPlaceInteractions.shouldAllowVanillaUse(mc)) {
+    //$$         cir.setReturnValue(false);
+    //$$     }
+    //$$ }
+    //#endif
 }

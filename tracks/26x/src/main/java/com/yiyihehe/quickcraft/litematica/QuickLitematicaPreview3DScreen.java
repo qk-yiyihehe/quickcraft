@@ -1,5 +1,9 @@
 package com.yiyihehe.quickcraft.litematica;
 
+//#if MC>=260300
+//$$ import com.mojang.blaze3d.Blaze3D;
+//#endif
+import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.screens.Screen;
@@ -7,7 +11,9 @@ import net.minecraft.client.input.MouseButtonEvent;
 import net.minecraft.network.chat.CommonComponents;
 import net.minecraft.network.chat.Component;
 import net.minecraft.util.FormattedCharSequence;
+//#if MC<260300
 import net.minecraft.util.Util;
+//#endif
 import net.minecraft.util.Mth;
 import org.jetbrains.annotations.Nullable;
 
@@ -271,7 +277,7 @@ public final class QuickLitematicaPreview3DScreen extends Screen {
     }
 
     private void openColorPicker() {
-        this.minecraft.setScreen(new ColorPickerScreen(this));
+        setScreen(this.minecraft, new ColorPickerScreen(this));
     }
 
     private void exportPng() {
@@ -338,7 +344,11 @@ public final class QuickLitematicaPreview3DScreen extends Screen {
     private void openOutputFolder() {
         try {
             Files.createDirectories(this.manager.outputDirectory());
+            //#if MC<260300
             Util.getPlatform().openFile(this.manager.outputDirectory().toFile());
+            //#else
+            //$$ Blaze3D.openPath(this.manager.outputDirectory());
+            //#endif
         } catch (IOException e) {
             this.status = Component.translatable("quickcraft.litematica.preview_3d.open_folder_failed");
         }
@@ -426,7 +436,7 @@ public final class QuickLitematicaPreview3DScreen extends Screen {
         if (this.closeManagerOnExit) {
             this.manager.close();
         }
-        this.minecraft.setScreen(this.parent);
+        setScreen(this.minecraft, this.parent);
     }
 
     @Override
@@ -574,13 +584,21 @@ public final class QuickLitematicaPreview3DScreen extends Screen {
 
         @Override
         public void onClose() {
-            this.minecraft.setScreen(this.parent);
+            setScreen(this.minecraft, this.parent);
         }
 
         @Override
         public boolean isPauseScreen() {
             return false;
         }
+    }
+
+    private static void setScreen(Minecraft client, Screen screen) {
+        //#if MC<260200
+        client.setScreen(screen);
+        //#else
+        //$$ client.gui.setScreen(screen);
+        //#endif
     }
 
     private enum Background {

@@ -1541,7 +1541,11 @@ public final class QuickLitematicaContainerMaterials {
 
                 RenderUtils.drawRect(itemX, itemY, 16, 16, 0x20FFFFFF);
                 drawContext.drawItem(displayStack, itemX, itemY);
+                //#if MC<12103
                 drawContext.drawItemInSlot(
+                //#else
+                //$$ drawContext.drawStackOverlay(
+                //#endif
                         this.textRenderer,
                         displayStack,
                         itemX,

@@ -9,7 +9,11 @@ import net.minecraft.block.enums.ChestType;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.render.Camera;
+//#if MC<12111
 import net.minecraft.client.render.RenderLayer;
+//#else
+//$$ import net.minecraft.client.render.RenderLayers;
+//#endif
 import net.minecraft.client.render.VertexRendering;
 import net.minecraft.client.render.VertexConsumerProvider;
 import net.minecraft.client.util.math.MatrixStack;
@@ -22,6 +26,10 @@ import net.minecraft.util.hit.HitResult;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.Box;
 import net.minecraft.util.math.Vec3d;
+//#if MC>=12111
+//$$ import net.minecraft.util.shape.VoxelShapes;
+//$$ import net.minecraft.util.math.ColorHelper;
+//#endif
 
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -129,7 +137,11 @@ public final class QuickContainerFillStatus {
         if (!isAvailable(client) || MARKERS.isEmpty()) {
             return;
         }
+        //#if MC<12111
         Vec3d cameraPos = camera.getPos();
+        //#else
+        //$$ Vec3d cameraPos = camera.getCameraPos();
+        //#endif
         MatrixStack matrices = new MatrixStack();
         VertexConsumerProvider.Immediate consumers = client.getBufferBuilders().getEntityVertexConsumers();
         matrices.push();
@@ -145,15 +157,26 @@ public final class QuickContainerFillStatus {
                     box.minX - 0.01, box.minY + 0.0125, box.minZ - 0.01,
                     box.maxX + 0.01, box.maxY + 0.01, box.maxZ + 0.01
             );
+            //#if MC<12111
             VertexRendering.drawBox(
                     matrices.peek(),
                     consumers.getBuffer(RenderLayer.getLines()),
                     outline,
                     status.red, status.green, status.blue, 0.95F
             );
+            //#else
+            //$$ VertexRendering.drawOutline(matrices, consumers.getBuffer(RenderLayers.lines()),
+            //$$         VoxelShapes.cuboid(outline), 0, 0, 0,
+            //$$         ColorHelper.fromFloats(0.95F, status.red, status.green, status.blue),
+            //$$         client.getWindow().getMinimumLineWidth());
+            //#endif
         }
         matrices.pop();
+        //#if MC<12111
         consumers.draw(RenderLayer.getLines());
+        //#else
+        //$$ consumers.draw(RenderLayers.lines());
+        //#endif
     }
 
     private static void renderHud(DrawContext context) {

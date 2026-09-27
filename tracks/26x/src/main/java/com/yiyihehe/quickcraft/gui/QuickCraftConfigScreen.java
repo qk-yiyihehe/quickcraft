@@ -42,7 +42,11 @@ public class QuickCraftConfigScreen extends GuiConfigsBase {
     }
 
     public static boolean isOpen(Minecraft client) {
+        //#if MC<260200
         return client != null && client.screen instanceof QuickCraftConfigScreen;
+        //#else
+        //$$ return client != null && client.gui.screen() instanceof QuickCraftConfigScreen;
+        //#endif
     }
 
     @Override

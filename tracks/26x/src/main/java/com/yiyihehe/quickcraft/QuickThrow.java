@@ -14,6 +14,7 @@ import net.minecraft.client.gui.components.events.GuiEventListener;
 import net.minecraft.client.gui.screens.inventory.AnvilScreen;
 import net.minecraft.client.gui.screens.inventory.CreativeModeInventoryScreen;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
+import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.input.KeyEvent;
 import net.minecraft.world.entity.player.Inventory;
@@ -74,7 +75,7 @@ public final class QuickThrow implements ClientModInitializer, IKeyboardInputHan
         }
 
         Minecraft client = Minecraft.getInstance();
-        if (!(client.screen instanceof AbstractContainerScreen<?> screen) || !canUseQuickThrow(client, screen)) {
+        if (!(getCurrentScreen(client) instanceof AbstractContainerScreen<?> screen) || !canUseQuickThrow(client, screen)) {
             return false;
         }
 
@@ -138,7 +139,7 @@ public final class QuickThrow implements ClientModInitializer, IKeyboardInputHan
         Minecraft client = Minecraft.getInstance();
         return QuickCraftConfigs.isQuickThrowEnabled()
                 && client != null
-                && client.screen instanceof AnvilScreen
+                && getCurrentScreen(client) instanceof AnvilScreen
                 && (QuickCraftKeyBindings.isHotkeyDown(QuickCraftConfigs.Hotkeys.DROP_MATCHING.getKeybind())
                 || QuickCraftKeyBindings.isHotkeyDown(QuickCraftConfigs.Hotkeys.DROP_WHOLE_STACK.getKeybind()));
     }
@@ -156,7 +157,7 @@ public final class QuickThrow implements ClientModInitializer, IKeyboardInputHan
             return;
         }
 
-        if (!(client.screen instanceof AbstractContainerScreen<?> screen) || !canUseQuickThrow(client, screen)) {
+        if (!(getCurrentScreen(client) instanceof AbstractContainerScreen<?> screen) || !canUseQuickThrow(client, screen)) {
             resetHoldGesture();
             return;
         }
@@ -193,7 +194,7 @@ public final class QuickThrow implements ClientModInitializer, IKeyboardInputHan
 
     private static boolean handleBoundThrow(ThrowMode mode) {
         Minecraft client = Minecraft.getInstance();
-        if (!(client.screen instanceof AbstractContainerScreen<?> screen) || !canUseQuickThrow(client, screen)) {
+        if (!(getCurrentScreen(client) instanceof AbstractContainerScreen<?> screen) || !canUseQuickThrow(client, screen)) {
             return false;
         }
 
@@ -212,6 +213,14 @@ public final class QuickThrow implements ClientModInitializer, IKeyboardInputHan
         lastMouseX = mouseX;
         lastMouseY = mouseY;
         return handled;
+    }
+
+    private static Screen getCurrentScreen(Minecraft client) {
+        //#if MC<260200
+        return client.screen;
+        //#else
+        //$$ return client.gui.screen();
+        //#endif
     }
 
     private static boolean canUseQuickThrow(Minecraft client, AbstractContainerScreen<?> screen) {

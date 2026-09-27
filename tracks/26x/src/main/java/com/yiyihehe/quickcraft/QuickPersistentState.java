@@ -107,7 +107,7 @@ public final class QuickPersistentState {
             return null;
         }
 
-        if (client.isSingleplayer()) {
+        if (hasSingleplayerServer(client)) {
             IntegratedServer server = client.getSingleplayerServer();
             if (server == null) {
                 return null;
@@ -125,6 +125,14 @@ public final class QuickPersistentState {
 
         String address = serverInfo.ip.trim();
         return createProfileContext(MULTIPLAYER_DIR, address, address);
+    }
+
+    private static boolean hasSingleplayerServer(Minecraft client) {
+        //#if MC<260200
+        return client.isSingleplayer();
+        //#else
+        //$$ return client.hasSingleplayerServer();
+        //#endif
     }
 
     private static ProfileContext createProfileContext(String scope, String rawKey, String displayName) {

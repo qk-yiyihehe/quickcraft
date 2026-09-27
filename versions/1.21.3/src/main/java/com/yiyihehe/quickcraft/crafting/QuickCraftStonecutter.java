@@ -432,7 +432,7 @@ public class QuickCraftStonecutter implements ClientModInitializer {
             return false;
         }
 
-        for (ItemStack stack : inventory.main) {
+        for (ItemStack stack : mainStacks(inventory)) {
             if (stack.isEmpty()) {
                 return true;
             }
@@ -517,8 +517,8 @@ public class QuickCraftStonecutter implements ClientModInitializer {
             boolean anyDroppedInRound = false;
             PlayerInventory inventory = client.player.getInventory();
 
-            for (int invIndex = 0; invIndex < inventory.main.size(); invIndex++) {
-                ItemStack stack = inventory.main.get(invIndex);
+            for (int invIndex = 0; invIndex < mainStacks(inventory).size(); invIndex++) {
+                ItemStack stack = mainStacks(inventory).get(invIndex);
                 if (stack.isEmpty()) continue;
                 if (!ItemStack.areItemsAndComponentsEqual(stack, resultTemplate)) continue;
 
@@ -591,8 +591,8 @@ public class QuickCraftStonecutter implements ClientModInitializer {
         int bestTotalCount = -1;
         int bestStackCount = -1;
 
-        for (int invIndex = 0; invIndex < inventory.main.size(); invIndex++) {
-            ItemStack stack = inventory.main.get(invIndex);
+        for (int invIndex = 0; invIndex < mainStacks(inventory).size(); invIndex++) {
+            ItemStack stack = mainStacks(inventory).get(invIndex);
             if (stack.isEmpty()) continue;
             if (isLockedPlayerInventorySlot(handler, invIndex)) continue;
             if (!matchesAnyIngredient(stack, ingredients)) continue;
@@ -621,8 +621,8 @@ public class QuickCraftStonecutter implements ClientModInitializer {
         int bestTotalCount = -1;
         int bestStackCount = -1;
 
-        for (int invIndex = 0; invIndex < inventory.main.size(); invIndex++) {
-            ItemStack stack = inventory.main.get(invIndex);
+        for (int invIndex = 0; invIndex < mainStacks(inventory).size(); invIndex++) {
+            ItemStack stack = mainStacks(inventory).get(invIndex);
             if (stack.isEmpty()) continue;
             if (isLockedPlayerInventorySlot(handler, invIndex)) continue;
             if (stack.getCount() <= 1) continue;
@@ -652,8 +652,8 @@ public class QuickCraftStonecutter implements ClientModInitializer {
         int bestTotalCount = -1;
         int bestStackCount = -1;
 
-        for (int invIndex = 0; invIndex < inventory.main.size(); invIndex++) {
-            ItemStack stack = inventory.main.get(invIndex);
+        for (int invIndex = 0; invIndex < mainStacks(inventory).size(); invIndex++) {
+            ItemStack stack = mainStacks(inventory).get(invIndex);
             if (stack.isEmpty()) continue;
             if (isLockedPlayerInventorySlot(handler, invIndex)) continue;
             if (requireExtraItem && stack.getCount() <= 1) continue;
@@ -675,8 +675,8 @@ public class QuickCraftStonecutter implements ClientModInitializer {
                                            StonecutterScreenHandler handler,
                                            ItemStack template) {
         int total = 0;
-        for (int invIndex = 0; invIndex < inventory.main.size(); invIndex++) {
-            ItemStack stack = inventory.main.get(invIndex);
+        for (int invIndex = 0; invIndex < mainStacks(inventory).size(); invIndex++) {
+            ItemStack stack = mainStacks(inventory).get(invIndex);
             if (!stack.isEmpty()
                     && !isLockedPlayerInventorySlot(handler, invIndex)
                     && ItemStack.areItemsAndComponentsEqual(stack, template)) {
@@ -693,7 +693,11 @@ public class QuickCraftStonecutter implements ClientModInitializer {
 
     private boolean matchesAnyIngredient(ItemStack stack, List<Ingredient> ingredients) {
         for (Ingredient ingredient : ingredients) {
+            //#if MC<12104
             if (ingredient == null || ingredient.getMatchingItems().isEmpty()) continue;
+            //#else
+            //$$ if (ingredient == null || ingredient.isEmpty()) continue;
+            //#endif
             if (ingredient.test(stack)) return true;
         }
         return false;
@@ -783,18 +787,28 @@ public class QuickCraftStonecutter implements ClientModInitializer {
         }
 
         List<CuttingRecipeDisplay.GroupEntry<StonecuttingRecipe>> entries = handler.getAvailableRecipes().entries();
+        //#if MC<12105
         int matchedIndex = -1;
+        //#endif
         for (int i = 0; i < entries.size(); i++) {
             ItemStack displayedResult = getDisplayResultStack(client, handler, i);
             if (!displayedResult.isEmpty()
                     && ItemStack.areItemsAndComponentsEqual(displayedResult, resultTemplate)) {
+                //#if MC<12105
                 if (matchedIndex >= 0) {
                     return -1;
                 }
                 matchedIndex = i;
+                //#else
+                //$$ return i;
+                //#endif
             }
         }
+        //#if MC<12105
         return matchedIndex;
+        //#else
+        //$$ return -1;
+        //#endif
     }
 
     private ItemStack getDisplayResultStack(MinecraftClient client,
@@ -958,8 +972,8 @@ public class QuickCraftStonecutter implements ClientModInitializer {
             return false;
         }
 
-        for (int invIndex = 0; invIndex < inventory.main.size(); invIndex++) {
-            ItemStack stack = inventory.main.get(invIndex);
+        for (int invIndex = 0; invIndex < mainStacks(inventory).size(); invIndex++) {
+            ItemStack stack = mainStacks(inventory).get(invIndex);
             if (stack.isEmpty()) continue;
             if (isLockedPlayerInventorySlot(handler, invIndex)) continue;
             if (ItemStack.areItemsAndComponentsEqual(stack, template)) {
@@ -975,7 +989,7 @@ public class QuickCraftStonecutter implements ClientModInitializer {
         }
 
         int total = 0;
-        for (ItemStack stack : inventory.main) {
+        for (ItemStack stack : mainStacks(inventory)) {
             if (stack.isEmpty()) continue;
             if (ItemStack.areItemsAndComponentsEqual(stack, template)) {
                 total += stack.getCount();
@@ -986,12 +1000,20 @@ public class QuickCraftStonecutter implements ClientModInitializer {
 
     private int countEmptyMainSlots(PlayerInventory inventory) {
         int total = 0;
-        for (ItemStack stack : inventory.main) {
+        for (ItemStack stack : mainStacks(inventory)) {
             if (stack.isEmpty()) {
                 total++;
             }
         }
         return total;
+    }
+
+    private static List<ItemStack> mainStacks(PlayerInventory inventory) {
+        //#if MC<12105
+        return inventory.main;
+        //#else
+        //$$ return inventory.getMainStacks();
+        //#endif
     }
 
     private void sendStatusMessage(MinecraftClient client, Text message) {

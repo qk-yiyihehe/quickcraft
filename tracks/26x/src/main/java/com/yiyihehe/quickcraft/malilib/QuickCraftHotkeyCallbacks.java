@@ -15,6 +15,7 @@ import fi.dy.masa.malilib.hotkeys.KeyAction;
 import fi.dy.masa.malilib.hotkeys.KeybindMulti;
 import fi.dy.masa.malilib.util.InfoUtils;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.gui.screens.inventory.AnvilScreen;
 import net.minecraft.client.gui.screens.inventory.CraftingScreen;
 import net.minecraft.client.gui.screens.inventory.InventoryScreen;
@@ -55,7 +56,7 @@ public final class QuickCraftHotkeyCallbacks {
         if (action != KeyAction.PRESS
                 || client == null
                 || client.player == null
-                || client.screen != null
+                || currentScreen(client) != null
                 || !QuickCraftConfigs.isOpenConfigHotkeyEnabled()) {
             return false;
         }
@@ -156,15 +157,24 @@ public final class QuickCraftHotkeyCallbacks {
             return false;
         }
 
-        if (QuickCraftConfigs.isWorkbenchQuickCraftFeatureEnabled() && client.screen instanceof CraftingScreen) {
+        Screen screen = currentScreen(client);
+        if (QuickCraftConfigs.isWorkbenchQuickCraftFeatureEnabled() && screen instanceof CraftingScreen) {
             return true;
         }
-        if (QuickCraftConfigs.isBackpackQuickCraftEnabled() && client.screen instanceof InventoryScreen) {
+        if (QuickCraftConfigs.isBackpackQuickCraftEnabled() && screen instanceof InventoryScreen) {
             return true;
         }
-        if (QuickCraftConfigs.isStonecutterQuickCraftEnabled() && client.screen instanceof StonecutterScreen) {
+        if (QuickCraftConfigs.isStonecutterQuickCraftEnabled() && screen instanceof StonecutterScreen) {
             return true;
         }
-        return QuickCraftConfigs.isAnvilRenameQuickCraftEnabled() && client.screen instanceof AnvilScreen;
+        return QuickCraftConfigs.isAnvilRenameQuickCraftEnabled() && screen instanceof AnvilScreen;
+    }
+
+    private static Screen currentScreen(Minecraft client) {
+        //#if MC<260200
+        return client.screen;
+        //#else
+        //$$ return client.gui.screen();
+        //#endif
     }
 }

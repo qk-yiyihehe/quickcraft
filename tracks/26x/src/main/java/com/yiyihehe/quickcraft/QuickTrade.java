@@ -11,6 +11,7 @@ import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
+import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 import net.minecraft.client.gui.screens.inventory.MerchantScreen;
 import net.minecraft.client.multiplayer.ClientPacketListener;
@@ -33,7 +34,11 @@ import net.minecraft.world.phys.HitResult;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.item.trading.MerchantOffer;
 import net.minecraft.world.item.trading.MerchantOffers;
+//#if MC<260300
 import org.lwjgl.glfw.GLFW;
+//#else
+//$$ import com.mojang.blaze3d.platform.InputConstants;
+//#endif
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -94,7 +99,7 @@ public final class QuickTrade implements ClientModInitializer {
 
         processContinuousTrade(client);
 
-        if (currentOrderState != null && client.screen != currentOrderState.screen()) {
+        if (currentOrderState != null && getCurrentScreen(client) != currentOrderState.screen()) {
             restoreTradeOrder(currentOrderState.screen(), currentOrderState.originalOffers());
             currentOrderState = null;
         }
@@ -109,13 +114,13 @@ public final class QuickTrade implements ClientModInitializer {
             return false;
         }
 
-        if (button == GLFW.GLFW_MOUSE_BUTTON_MIDDLE && QuickCraftConfigs.isFavoriteTradeEnabled()) {
+        if (button == getMiddleMouseButton() && QuickCraftConfigs.isFavoriteTradeEnabled()) {
             toggleFavorite(screen, tradeIndex);
             return true;
         }
 
         // 交易界面里的右键连续成交由独立开关控制；关闭时交还原版右键行为。
-        if (button == GLFW.GLFW_MOUSE_BUTTON_RIGHT
+        if (button == getRightMouseButton()
                 && QuickCraftConfigs.isQuickTradeRightClickEnabled()) {
             if (tradeAllAvailable(screen, tradeIndex)) {
                 sendTradeBlockedMessage(Minecraft.getInstance());
@@ -192,7 +197,7 @@ public final class QuickTrade implements ClientModInitializer {
         }
 
         boolean useDown = QuickCraftKeyBindings.isVanillaKeyDown(client, client.options.keyUse);
-        if (useDown && !lastUseDown && client.screen == null) {
+        if (useDown && !lastUseDown && getCurrentScreen(client) == null) {
             AbstractVillager merchant = getLookedAtMerchant(client);
             if (merchant != null) {
                 pendingMerchantKey = buildMerchantKey(merchant);
@@ -219,7 +224,7 @@ public final class QuickTrade implements ClientModInitializer {
         }
 
         pendingAutoTradeTicks++;
-        MerchantScreen screen = client.screen instanceof MerchantScreen merchantScreen ? merchantScreen : null;
+        MerchantScreen screen = getCurrentScreen(client) instanceof MerchantScreen merchantScreen ? merchantScreen : null;
         MerchantMenu handler = screen != null ? screen.getMenu() : getOpenMerchantHandler(client);
         if (handler == null || (!pendingContinuousTrade && screen == null)) {
             if (pendingAutoTradeTicks > AUTO_TRADE_TIMEOUT_TICKS) {
@@ -317,7 +322,7 @@ public final class QuickTrade implements ClientModInitializer {
         if (client.player == null
                 || client.level == null
                 || client.gameMode == null
-                || client.screen != null
+                || getCurrentScreen(client) != null
                 || pendingAutoTrade
                 || pendingMerchantKey != null) {
             return;
@@ -361,7 +366,7 @@ public final class QuickTrade implements ClientModInitializer {
     public static boolean shouldHideContinuousTradeScreen(MerchantScreen screen) {
         return pendingContinuousTrade
                 && QuickCraftConfigs.isContinuousTradeEnabled()
-                && Minecraft.getInstance().screen == screen;
+                && getCurrentScreen(Minecraft.getInstance()) == screen;
     }
 
     public static boolean shouldSuppressContinuousTradeScreenOpen() {
@@ -374,7 +379,7 @@ public final class QuickTrade implements ClientModInitializer {
         }
 
         pendingMerchantTicks++;
-        if (client.screen instanceof MerchantScreen || getOpenMerchantHandler(client) != null) {
+        if (getCurrentScreen(client) instanceof MerchantScreen || getOpenMerchantHandler(client) != null) {
             currentScreenMerchantKey = pendingMerchantKey;
             pendingMerchantKey = null;
             pendingMerchantTicks = 0;
@@ -388,7 +393,7 @@ public final class QuickTrade implements ClientModInitializer {
     }
 
     private static void clearCurrentMerchantKeyIfNeeded(Minecraft client) {
-        if (!(client.screen instanceof MerchantScreen) && getOpenMerchantHandler(client) == null) {
+        if (!(getCurrentScreen(client) instanceof MerchantScreen) && getOpenMerchantHandler(client) == null) {
             currentScreenMerchantKey = null;
         }
     }
@@ -653,7 +658,7 @@ public final class QuickTrade implements ClientModInitializer {
         }
 
         if (client.player != null
-                && (client.screen instanceof MerchantScreen || getOpenMerchantHandler(client) != null)) {
+                && (getCurrentScreen(client) instanceof MerchantScreen || getOpenMerchantHandler(client) != null)) {
             client.player.closeContainer();
         }
 
@@ -749,6 +754,30 @@ public final class QuickTrade implements ClientModInitializer {
         return currentOrderState.displayToServerIndex()[displayTradeIndex];
     }
 
+    private static Screen getCurrentScreen(Minecraft client) {
+        //#if MC<260200
+        return client.screen;
+        //#else
+        //$$ return client.gui.screen();
+        //#endif
+    }
+
+    private static int getMiddleMouseButton() {
+        //#if MC<260300
+        return GLFW.GLFW_MOUSE_BUTTON_MIDDLE;
+        //#else
+        //$$ return InputConstants.MOUSE_BUTTON_MIDDLE;
+        //#endif
+    }
+
+    private static int getRightMouseButton() {
+        //#if MC<260300
+        return GLFW.GLFW_MOUSE_BUTTON_RIGHT;
+        //#else
+        //$$ return InputConstants.MOUSE_BUTTON_RIGHT;
+        //#endif
+    }
+
     private static int getGuiLeft(AbstractContainerScreen<?> screen) {
         return ((HandledScreenAccessor) screen).quickcraft$getGuiLeft();
     }
@@ -775,7 +804,7 @@ public final class QuickTrade implements ClientModInitializer {
 
     private static void bindCurrentMerchant(MerchantScreen screen) {
         Minecraft client = Minecraft.getInstance();
-        if (client == null || client.screen != screen) {
+        if (client == null || getCurrentScreen(client) != screen) {
             return;
         }
 

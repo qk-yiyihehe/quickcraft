@@ -7,6 +7,7 @@ import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.minecraft.world.level.block.EnderChestBlock;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.Container;
@@ -53,7 +54,7 @@ public final class QuickFillContainer implements ClientModInitializer {
         boolean useDown = QuickCraftKeyBindings.isVanillaKeyDown(client, client.options.keyUse);
         if (useDown
                 && !lastUseDown
-                && client.screen == null
+                && getCurrentScreen(client) == null
                 && !QuickMaterialCollector.shouldHandleCurrentTarget(client)
                 && !QuickLitematicaContainerAutofill.shouldHandleCurrentTarget(client)
                 && isLookingAtSupportedContainer(client)) {
@@ -70,7 +71,7 @@ public final class QuickFillContainer implements ClientModInitializer {
         }
 
         pendingTicks++;
-        if (!(client.screen instanceof AbstractContainerScreen<?> screen)) {
+        if (!(getCurrentScreen(client) instanceof AbstractContainerScreen<?> screen)) {
             if (pendingTicks > OPEN_TIMEOUT_TICKS) {
                 pendingOpen = false;
                 pendingTicks = 0;
@@ -85,6 +86,14 @@ public final class QuickFillContainer implements ClientModInitializer {
         }
         fillContainer(screen);
         closeCurrentScreen(client);
+    }
+
+    private static Screen getCurrentScreen(Minecraft client) {
+        //#if MC<260200
+        return client.screen;
+        //#else
+        //$$ return client.gui.screen();
+        //#endif
     }
 
     private boolean isLookingAtSupportedContainer(Minecraft client) {

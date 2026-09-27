@@ -853,7 +853,11 @@ public final class QuickLitematicaContainerVerifier {
     private static void bindCurrentScreen(AbstractContainerScreen<?> screen) {
         Minecraft client = Minecraft.getInstance();
 
+        //#if MC<260200
         if (client.screen != screen) {
+        //#else
+        //$$ if (client.gui.screen() != screen) {
+        //#endif
             return;
         }
         if (currentHandledScreen != screen) {
@@ -1244,7 +1248,11 @@ public final class QuickLitematicaContainerVerifier {
 
         for (SchematicPlacementManager.PlacementPart part : parts) {
             if ((placementFilter != null && part.getPlacement() != placementFilter)
+                    //#if MC<260200
                     || !part.getBox().containsPos(worldPos)) {
+                    //#else
+                    //$$ || !part.getBox().contains(worldPos)) {
+                    //#endif
                 continue;
             }
 

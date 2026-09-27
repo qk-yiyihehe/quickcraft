@@ -148,6 +148,9 @@ public class QuickCraftConfigScreen extends GuiConfigsBase {
                 QuickCraftConfigs.ContainerTools.QUICK_SORT_TOP_PRIORITY_ITEMS,
                 QuickCraftConfigs.ContainerTools.QUICK_SORT_BOTTOM_PRIORITY_ITEMS,
                 QuickCraftConfigs.ContainerTools.QUICK_SORT_SHULKER_BOXES_AT_END
+                //#if MC>=12103
+                //$$ , QuickCraftConfigs.ContainerTools.QUICK_SORT_BUNDLES_AT_END
+                //#endif
         ),
         QUICK_BEACON(
                 QuickCraftConfigs.ContainerTools.ENABLE_QUICK_BEACON,

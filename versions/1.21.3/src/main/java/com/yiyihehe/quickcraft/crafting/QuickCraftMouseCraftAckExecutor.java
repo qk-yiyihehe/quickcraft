@@ -113,7 +113,11 @@ public final class QuickCraftMouseCraftAckExecutor {
                                                    CraftingResultInventory resultInventory) {
         QuickCraftMouseCraftAckExecutor active = activeExecutor;
         if (active == null || !active.isActive()
+                //#if MC<12110
                 || world == null || !world.isClient
+                //#else
+                //$$ || world == null || !world.isClient()
+                //#endif
                 || handler == null || input == null || resultInventory == null) {
             return false;
         }

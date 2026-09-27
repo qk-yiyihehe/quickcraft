@@ -13,6 +13,9 @@ import net.minecraft.nbt.Tag;
 import net.minecraft.resources.Identifier;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
+//#if MC>=260300
+//$$ import net.minecraft.util.Prediction;
+//#endif
 import net.minecraft.util.ProblemReporter;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntitySpawnReason;
@@ -581,7 +584,11 @@ public final class QuickLitematicaEntityPlacementServer {
         for (int index = 0; index < count; index++) {
             ItemStack stack = new ItemStack(copperChest);
             if (!player.getInventory().add(stack) && !stack.isEmpty()) {
+                //#if MC<260300
                 player.drop(stack, false, false);
+                //#else
+                //$$ player.drop(stack, false, Prediction.SERVER_ONLY);
+                //#endif
             }
         }
     }

@@ -389,7 +389,11 @@ public final class QuickCraftWorkbenchShulker {
             }
         }
         client.player.closeContainer();
+        //#if MC<260200
         client.setScreen(null);
+        //#else
+        //$$ client.gui.setScreen(null);
+        //#endif
     }
 
     private static Slot findPlayerSlot(AbstractContainerMenu handler, int playerIndex) {
