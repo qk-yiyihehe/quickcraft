@@ -17,6 +17,11 @@ import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.gui.screen.ingame.CreativeInventoryScreen;
 import net.minecraft.client.gui.screen.ingame.HandledScreen;
+//#if MC>=12108
+//$$ import net.minecraft.client.gl.RenderPipelines;
+//#elseif MC>=12103
+//$$ import net.minecraft.client.render.RenderLayer;
+//#endif
 import net.minecraft.entity.player.PlayerInventory;
 import net.minecraft.item.BlockItem;
 import net.minecraft.item.ItemStack;
@@ -694,6 +699,7 @@ public final class QuickContainerLock implements ClientModInitializer {
     }
 
     private static void renderSlotLockIcon(DrawContext context, int left, int top) {
+        //#if MC<12103
         context.drawTexture(
                 SLOT_LOCK_TEXTURE,
                 left,
@@ -707,6 +713,37 @@ public final class QuickContainerLock implements ClientModInitializer {
                 SLOT_LOCK_TEXTURE_WIDTH,
                 SLOT_LOCK_TEXTURE_HEIGHT
         );
+        //#elseif MC<12108
+        //$$ context.drawTexture(
+        //$$         RenderLayer::getGuiTextured,
+        //$$         SLOT_LOCK_TEXTURE,
+        //$$         left,
+        //$$         top,
+        //$$         0.0F,
+        //$$         0.0F,
+        //$$         SLOT_LOCK_WIDTH,
+        //$$         SLOT_LOCK_HEIGHT,
+        //$$         SLOT_LOCK_TEXTURE_WIDTH,
+        //$$         SLOT_LOCK_TEXTURE_HEIGHT,
+        //$$         SLOT_LOCK_TEXTURE_WIDTH,
+        //$$         SLOT_LOCK_TEXTURE_HEIGHT
+        //$$ );
+        //#else
+        //$$ context.drawTexture(
+        //$$         RenderPipelines.GUI_TEXTURED,
+        //$$         SLOT_LOCK_TEXTURE,
+        //$$         left,
+        //$$         top,
+        //$$         0.0F,
+        //$$         0.0F,
+        //$$         SLOT_LOCK_WIDTH,
+        //$$         SLOT_LOCK_HEIGHT,
+        //$$         SLOT_LOCK_TEXTURE_WIDTH,
+        //$$         SLOT_LOCK_TEXTURE_HEIGHT,
+        //$$         SLOT_LOCK_TEXTURE_WIDTH,
+        //$$         SLOT_LOCK_TEXTURE_HEIGHT
+        //$$ );
+        //#endif
     }
 
     private static Slot unwrapCreativeSlot(Slot slot) {

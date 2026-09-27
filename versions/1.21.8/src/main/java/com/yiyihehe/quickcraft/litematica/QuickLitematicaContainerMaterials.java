@@ -43,6 +43,9 @@ import net.minecraft.block.ShulkerBoxBlock;
 import net.minecraft.block.entity.BlockEntity;
 import net.minecraft.block.enums.ChestType;
 import net.minecraft.client.MinecraftClient;
+//#if MC>=12110
+//$$ import net.minecraft.client.gui.Click;
+//#endif
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.gui.screen.Screen;
 import net.minecraft.inventory.Inventory;
@@ -53,7 +56,6 @@ import net.minecraft.item.Items;
 import net.minecraft.nbt.NbtCompound;
 import net.minecraft.nbt.NbtList;
 import net.minecraft.nbt.NbtOps;
-import net.minecraft.registry.Registries;
 import net.minecraft.registry.RegistryWrapper;
 import net.minecraft.util.collection.DefaultedList;
 import net.minecraft.util.math.BlockPos;
@@ -1438,7 +1440,11 @@ public final class QuickLitematicaContainerMaterials {
         }
 
         @Override
+        //#if MC<12110
         public boolean canSelectAt(int mouseX, int mouseY, int mouseButton) {
+        //#else
+        //$$ public boolean canSelectAt(Click click) {
+        //#endif
             return false;
         }
 

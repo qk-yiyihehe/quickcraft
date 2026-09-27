@@ -28,13 +28,10 @@ import net.minecraft.component.DataComponentTypes;
 import net.minecraft.component.type.ContainerComponent;
 import net.minecraft.entity.player.PlayerInventory;
 import net.minecraft.entity.vehicle.HopperMinecartEntity;
-import net.minecraft.item.ArmorItem;
 import net.minecraft.item.BlockItem;
 import net.minecraft.item.Item;
 import net.minecraft.item.ItemStack;
 import net.minecraft.item.Items;
-import net.minecraft.item.SwordItem;
-import net.minecraft.item.ToolItem;
 import net.minecraft.network.packet.CustomPayload;
 import net.minecraft.registry.Registries;
 import net.minecraft.screen.AbstractFurnaceScreenHandler;
@@ -212,6 +209,7 @@ public final class QuickContainerCopy implements ClientModInitializer {
         );
         if (!fillDown) {
             if (lastContinuousFillDown) {
+                //#if MC<12108
                 if (continuousTask == null
                         && suppressedContinuousTarget == null
                         && continuousFillHoldTicks < CONTINUOUS_FILL_SHORT_PRESS_TICKS
@@ -223,6 +221,24 @@ public final class QuickContainerCopy implements ClientModInitializer {
                     );
                 }
                 stopContinuousTask(client, true, null);
+                //#else
+                //$$ boolean stoppedBeforeFill = continuousTask == null
+                //$$         || continuousTask.stage == ContinuousStage.OPEN_TARGET
+                //$$         || continuousTask.stage == ContinuousStage.WAIT_TARGET_SCREEN
+                //$$         || continuousTask.stage == ContinuousStage.FILL_TARGET;
+                //$$ boolean showShortPressHint = stoppedBeforeFill
+                //$$         && suppressedContinuousTarget == null
+                //$$         && continuousFillHoldTicks < CONTINUOUS_FILL_SHORT_PRESS_TICKS
+                //$$         && canHandleContinuousContainerFillHotkey(client);
+                //$$ stopContinuousTask(client, true, null);
+                //$$ if (showShortPressHint) {
+                //$$     sendStatusMessage(
+                //$$             client,
+                //$$             Text.translatable("quickcraft.message.container_copy.hold_to_fill")
+                //$$                     .formatted(Formatting.RED)
+                //$$     );
+                //$$ }
+                //#endif
             }
             suppressedContinuousTarget = null;
             lastContinuousFillDown = false;
@@ -264,9 +280,13 @@ public final class QuickContainerCopy implements ClientModInitializer {
 
         ContinuousTemplate template = resolveContinuousTemplate(client, hitResult, type);
         if (template == null) {
+            //#if MC<12110
             if (!lastContinuousFillDown) {
                 sendStatusMessage(client, Text.translatable("quickcraft.message.container_copy.no_fill_template"));
             }
+            //#else
+            //$$ // 默认热键与原版使用键同为右键；没有匹配模板时必须静默放行普通容器交互。
+            //#endif
             return;
         }
 
@@ -2406,10 +2426,7 @@ public final class QuickContainerCopy implements ClientModInitializer {
             return false;
         }
 
-        Item item = stack.getItem();
-        return isDiamondOrNetheriteItem(item) && (item instanceof ToolItem
-                || item instanceof SwordItem
-                || item instanceof ArmorItem);
+        return isDiamondOrNetheriteItem(stack.getItem());
     }
 
     private boolean isDiamondOrNetheriteItem(Item item) {

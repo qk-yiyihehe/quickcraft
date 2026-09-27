@@ -84,7 +84,7 @@ public final class QuickLitematicaAreaClone {
                     return;
                 }
 
-                // Litematica 0.19.61 的内存 TaskSaveSchematic 已在通知监听器前加入 SchematicHolder。
+                // 支持范围内的 Litematica 会在通知监听器前把内存投影加入 SchematicHolder。
                 releaseTemporaryName(name);
                 SchematicPlacement placement = SchematicPlacement.createFor(
                         schematic,

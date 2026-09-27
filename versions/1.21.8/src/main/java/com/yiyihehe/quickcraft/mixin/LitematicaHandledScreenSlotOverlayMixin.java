@@ -30,7 +30,12 @@ public abstract class LitematicaHandledScreenSlotOverlayMixin<T extends ScreenHa
     protected Slot focusedSlot;
 
     @Inject(method = "drawSlot", at = @At("HEAD"))
+    //#if MC<12111
     private void quickcraft$drawContainerVerifierSlotBackground(DrawContext context, Slot slot, CallbackInfo ci) {
+    //#else
+    //$$ private void quickcraft$drawContainerVerifierSlotBackground(
+    //$$         DrawContext context, Slot slot, int x, int y, CallbackInfo ci) {
+    //#endif
         this.quickcraft$currentSlotOverlay = QuickLitematicaContainerVerifier.getSlotOverlayForScreen(
                 (HandledScreen<?>) (Object) this,
                 slot
@@ -76,7 +81,12 @@ public abstract class LitematicaHandledScreenSlotOverlayMixin<T extends ScreenHa
     }
 
     @Inject(method = "drawSlot", at = @At("RETURN"))
+    //#if MC<12111
     private void quickcraft$drawContainerVerifierMissingGhost(DrawContext context, Slot slot, CallbackInfo ci) {
+    //#else
+    //$$ private void quickcraft$drawContainerVerifierMissingGhost(
+    //$$         DrawContext context, Slot slot, int x, int y, CallbackInfo ci) {
+    //#endif
         if (!this.quickcraft$ghostSlotRendering) {
             this.quickcraft$currentSlotOverlay = null;
             return;

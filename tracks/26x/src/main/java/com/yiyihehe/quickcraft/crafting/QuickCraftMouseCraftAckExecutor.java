@@ -1121,7 +1121,11 @@ public final class QuickCraftMouseCraftAckExecutor {
                 && client.getConnection() != null
                 && client.player.containerMenu == current.handler
                 && current.handler.containerId == current.containerId
+                //#if MC<260200
                 && QuickCraftMouseCraftLayout.fromScreen(client.screen) == layout;
+                //#else
+                //$$ && QuickCraftMouseCraftLayout.fromScreen(client.gui.screen()) == layout;
+                //#endif
     }
 
     private boolean parkCursor(Minecraft client, AbstractContainerMenu handler, String phase) {

@@ -16,6 +16,7 @@ public final class QuickLitematicaVerifierPalette {
     private static final String TXT_GOLD = "\u00a76";
     private static final String TXT_RST = "\u00a7r";
 
+    // 基础色同时用于容器槽位、边框和验证结果文字。
     private static final Tone WRONG_FILL = new Tone(0xFF1744, TXT_RED);
     private static final Tone MISSING_FILL = new Tone(0x2979FF, TXT_BLUE);
     private static final Tone EXTRA_FILL = new Tone(0xD500F9, TXT_PURPLE);

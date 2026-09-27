@@ -18,7 +18,6 @@ import net.minecraft.world.item.crafting.SingleRecipeInput;
 import net.minecraft.world.inventory.StonecutterMenu;
 import net.minecraft.world.inventory.ContainerInput;
 import net.minecraft.network.chat.Component;
-import org.lwjgl.glfw.GLFW;
 import java.util.List;
 
 /**
@@ -352,7 +351,7 @@ public class QuickCraftStonecutter implements ClientModInitializer {
         }
 
         try {
-            // 1.21.2+（包括 26.1）客户端只有配方展示数据，重复本地 clickMenuButton 不能生成真实产物。
+            // 1.21.2+（包括 26.x）客户端只有配方展示数据，重复本地 clickMenuButton 不能生成真实产物。
             boolean selectionChanged = handler.getSelectedRecipeIndex() != recipeIndex;
             if (selectionChanged) {
                 handler.clickMenuButton(client.player, recipeIndex);
@@ -895,7 +894,11 @@ public class QuickCraftStonecutter implements ClientModInitializer {
             return false;
         }
 
+        //#if MC<260200
         if (!(client.screen instanceof StonecutterScreen)) {
+        //#else
+        //$$ if (!(client.gui.screen() instanceof StonecutterScreen)) {
+        //#endif
             return false;
         }
 

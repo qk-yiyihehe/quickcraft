@@ -28,8 +28,6 @@ import org.spongepowered.asm.mixin.Unique;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
-import org.lwjgl.glfw.GLFW;
-
 /**
  * 给原版工作台添加合成、模式与产物装盒按钮；渲染时同步位置以跟随配方书对界面的偏移。
  * 两个标题栏按钮与产物槽旁的合成按钮分别受工作台功能和按钮显示配置控制。

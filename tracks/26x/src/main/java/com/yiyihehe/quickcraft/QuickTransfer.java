@@ -8,6 +8,7 @@ import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.minecraft.world.level.block.ShulkerBoxBlock;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.gui.components.events.GuiEventListener;
 import net.minecraft.client.gui.screens.inventory.CreativeModeInventoryScreen;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
@@ -54,7 +55,7 @@ public final class QuickTransfer implements ClientModInitializer {
 
     public static boolean handleQuickTransferHotkey() {
         Minecraft client = Minecraft.getInstance();
-        if (!(client.screen instanceof AbstractContainerScreen<?> screen) || !canUseQuickTransfer(client, screen)) {
+        if (!(getCurrentScreen(client) instanceof AbstractContainerScreen<?> screen) || !canUseQuickTransfer(client, screen)) {
             return false;
         }
 
@@ -77,7 +78,7 @@ public final class QuickTransfer implements ClientModInitializer {
 
     public static boolean handleSlotQuickTransferHotkey() {
         Minecraft client = Minecraft.getInstance();
-        if (!(client.screen instanceof AbstractContainerScreen<?> screen) || !canUseQuickTransfer(client, screen)) {
+        if (!(getCurrentScreen(client) instanceof AbstractContainerScreen<?> screen) || !canUseQuickTransfer(client, screen)) {
             return false;
         }
 
@@ -100,7 +101,7 @@ public final class QuickTransfer implements ClientModInitializer {
 
     public static boolean handleQuickTransferRetainOneHotkey() {
         Minecraft client = Minecraft.getInstance();
-        if (!(client.screen instanceof AbstractContainerScreen<?> screen) || !canUseQuickTransfer(client, screen)) {
+        if (!(getCurrentScreen(client) instanceof AbstractContainerScreen<?> screen) || !canUseQuickTransfer(client, screen)) {
             return false;
         }
 
@@ -154,7 +155,7 @@ public final class QuickTransfer implements ClientModInitializer {
             return;
         }
 
-        if (!(client.screen instanceof AbstractContainerScreen<?> screen) || !canUseQuickTransfer(client, screen)) {
+        if (!(getCurrentScreen(client) instanceof AbstractContainerScreen<?> screen) || !canUseQuickTransfer(client, screen)) {
             resetHoldGesture();
             return;
         }
@@ -178,6 +179,14 @@ public final class QuickTransfer implements ClientModInitializer {
         hasLastMousePosition = true;
         lastMouseX = mouseX;
         lastMouseY = mouseY;
+    }
+
+    private static Screen getCurrentScreen(Minecraft client) {
+        //#if MC<260200
+        return client.screen;
+        //#else
+        //$$ return client.gui.screen();
+        //#endif
     }
 
     private static boolean canUseQuickTransfer(Minecraft client, AbstractContainerScreen<?> screen) {

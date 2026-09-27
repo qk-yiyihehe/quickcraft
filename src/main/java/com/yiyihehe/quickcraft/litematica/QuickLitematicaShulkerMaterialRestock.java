@@ -21,7 +21,13 @@ import net.minecraft.item.Item;
 import net.minecraft.item.ItemPlacementContext;
 import net.minecraft.item.ItemStack;
 import net.minecraft.item.ItemUsageContext;
+//#if MC<12103
 import net.minecraft.item.ToolItem;
+//#elseif MC<12105
+//$$ import net.minecraft.item.MiningToolItem;
+//#else
+//$$ import fi.dy.masa.malilib.util.EquipmentUtils;
+//#endif
 import net.minecraft.network.packet.CustomPayload;
 import net.minecraft.screen.ScreenHandler;
 import net.minecraft.screen.ShulkerBoxScreenHandler;
@@ -115,9 +121,11 @@ public final class QuickLitematicaShulkerMaterialRestock implements ClientModIni
         );
         BlockPos position = placementContext.getBlockPos();
         World schematicWorld = SchematicWorldHandler.getSchematicWorld();
+        //#if MC<12105
         if (schematicWorld == null) {
             return false;
         }
+        //#endif
         BlockState schematicState = schematicWorld.getBlockState(position);
 
         if (schematicState.isAir()
@@ -820,7 +828,11 @@ public final class QuickLitematicaShulkerMaterialRestock implements ClientModIni
             return -1;
         }
 
+        //#if MC<12105
         int selectedSlot = inventory.selectedSlot;
+        //#else
+        //$$ int selectedSlot = inventory.getSelectedSlot();
+        //#endif
         if (configuredSlots.contains(selectedSlot) && isLitematicaPickBlockTarget(inventory, selectedSlot)) {
             return selectedSlot;
         }
@@ -852,7 +864,17 @@ public final class QuickLitematicaShulkerMaterialRestock implements ClientModIni
         ItemStack stack = inventory.getStack(slot);
         return !isShulkerBox(stack)
                 && (!Configs.Generic.PICK_BLOCK_AVOID_DAMAGEABLE.getBooleanValue() || !stack.isDamageable())
-                && (!Configs.Generic.PICK_BLOCK_AVOID_TOOLS.getBooleanValue() || !(stack.getItem() instanceof ToolItem));
+                && (!Configs.Generic.PICK_BLOCK_AVOID_TOOLS.getBooleanValue() || !isRegularTool(stack));
+    }
+
+    private static boolean isRegularTool(ItemStack stack) {
+        //#if MC<12103
+        return stack.getItem() instanceof ToolItem;
+        //#elseif MC<12105
+        //$$ return stack.getItem() instanceof MiningToolItem;
+        //#else
+        //$$ return EquipmentUtils.isRegularTool(stack);
+        //#endif
     }
 
     private static Slot findPlayerMaterialSlot(ShulkerBoxScreenHandler handler, Item item) {

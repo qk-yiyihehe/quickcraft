@@ -10,7 +10,11 @@ import net.minecraft.block.enums.ChestType;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.render.RenderLayer;
+//#if MC<12103
 import net.minecraft.client.render.WorldRenderer;
+//#else
+//$$ import net.minecraft.client.render.VertexRendering;
+//#endif
 import net.minecraft.client.world.ClientWorld;
 import net.minecraft.entity.Entity;
 import net.minecraft.text.Text;
@@ -143,7 +147,11 @@ public final class QuickContainerFillStatus {
                     box.minX - 0.01, box.minY + 0.0125, box.minZ - 0.01,
                     box.maxX + 0.01, box.maxY + 0.01, box.maxZ + 0.01
             );
+            //#if MC<12103
             WorldRenderer.drawBox(
+            //#else
+            //$$ VertexRendering.drawBox(
+            //#endif
                     context.matrixStack(),
                     context.consumers().getBuffer(RenderLayer.getLines()),
                     outline,
@@ -237,11 +245,19 @@ public final class QuickContainerFillStatus {
     }
 
     private enum Status {
+        //#if MC<12108
         FILLING(0.20F, 0.65F, 1.00F, 0x55B5FF),
         COMPLETE(0.30F, 0.95F, 0.35F, 0x76EE88),
         PARTIAL(1.00F, 0.75F, 0.15F, 0xFFD05E),
         STOPPED(0.65F, 0.70F, 0.75F, 0xB3BEC9),
         FAILED(1.00F, 0.30F, 0.30F, 0xFF7777);
+        //#else
+        //$$ FILLING(0.20F, 0.65F, 1.00F, 0xFF55B5FF),
+        //$$ COMPLETE(0.30F, 0.95F, 0.35F, 0xFF76EE88),
+        //$$ PARTIAL(1.00F, 0.75F, 0.15F, 0xFFFFD05E),
+        //$$ STOPPED(0.65F, 0.70F, 0.75F, 0xFFB3BEC9),
+        //$$ FAILED(1.00F, 0.30F, 0.30F, 0xFFFF7777);
+        //#endif
 
         private final float red;
         private final float green;

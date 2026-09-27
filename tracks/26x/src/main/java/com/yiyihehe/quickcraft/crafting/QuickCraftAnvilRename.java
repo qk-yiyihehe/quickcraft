@@ -6,6 +6,7 @@ import com.yiyihehe.quickcraft.config.QuickCraftConfigs;
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.gui.screens.inventory.AnvilScreen;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.network.protocol.game.ServerboundRenameItemPacket;
@@ -43,7 +44,7 @@ public final class QuickCraftAnvilRename implements ClientModInitializer {
         Minecraft client = Minecraft.getInstance();
         return QuickCraftConfigs.isAnvilRenameQuickCraftEnabled()
                 && client != null
-                && client.screen instanceof AnvilScreen
+                && getCurrentScreen(client) instanceof AnvilScreen
                 && (QuickCraftKeyBindings.isHotkeyDown(QuickCraftConfigs.getSingleCraftHotkey())
                 || QuickCraftKeyBindings.isHotkeyDown(QuickCraftConfigs.getRapidCraftHotkey()));
     }
@@ -78,7 +79,7 @@ public final class QuickCraftAnvilRename implements ClientModInitializer {
         Minecraft client = Minecraft.getInstance();
         return QuickCraftConfigs.isAnvilRenameQuickCraftEnabled()
                 && client != null
-                && client.screen instanceof AnvilScreen;
+                && getCurrentScreen(client) instanceof AnvilScreen;
     }
 
     private void onClientTick(Minecraft client) {
@@ -301,8 +302,16 @@ public final class QuickCraftAnvilRename implements ClientModInitializer {
     private boolean isAnvilContextValid(Minecraft client) {
         return client.player != null
                 && client.level != null
-                && client.screen instanceof AnvilScreen
+                && getCurrentScreen(client) instanceof AnvilScreen
                 && client.player.containerMenu instanceof AnvilMenu;
+    }
+
+    private static Screen getCurrentScreen(Minecraft client) {
+        //#if MC<260200
+        return client.screen;
+        //#else
+        //$$ return client.gui.screen();
+        //#endif
     }
 
     private boolean hasInput(AnvilMenu handler) {

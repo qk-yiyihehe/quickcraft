@@ -18,6 +18,9 @@ import fi.dy.masa.litematica.util.BlockInfoAlignment;
 import fi.dy.masa.litematica.util.SchematicUtils;
 import fi.dy.masa.malilib.gui.LeftRight;
 import fi.dy.masa.malilib.render.InventoryOverlay;
+//#if MC>=12110
+//$$ import fi.dy.masa.malilib.render.InventoryOverlayType;
+//#endif
 import fi.dy.masa.malilib.util.game.BlockUtils;
 import fi.dy.masa.malilib.util.nbt.NbtBlockUtils;
 import net.minecraft.block.AbstractFurnaceBlock;
@@ -1372,8 +1375,8 @@ public final class QuickLitematicaContainerVerifier {
             MinecraftClient mc,
             DrawContext drawContext
     ) {
-        InventoryOverlay.InventoryRenderType type = getInventoryType(inventory, state);
-        InventoryOverlay.InventoryProperties props = InventoryOverlay.getInventoryPropsTemp(type, inventory.size());
+        InventoryOverlayKind type = getInventoryType(inventory, state);
+        InventoryOverlay.InventoryProperties props = getInventoryProperties(type, inventory.size());
         int xInv = 0;
         int yInv = 0;
 
@@ -1394,9 +1397,10 @@ public final class QuickLitematicaContainerVerifier {
             xInv += props.width / 2 + 4;
         }
 
-        InventoryOverlay.renderInventoryBackground(drawContext, type, xInv, yInv, props.slotsPerRow, props.totalSlots, mc);
+        renderInventoryBackground(drawContext, type, xInv, yInv, props.slotsPerRow, props.totalSlots, mc);
         drawSlotHighlights(drawContext, type, xInv + props.slotOffsetX, yInv + props.slotOffsetY, props.slotsPerRow, slotMismatches);
-        InventoryOverlay.renderInventoryStacks(drawContext, type, inventory, xInv + props.slotOffsetX, yInv + props.slotOffsetY, props.slotsPerRow, 0, inventory.size(), disabledSlots, mc);
+        renderInventoryStacks(drawContext, type, inventory, xInv + props.slotOffsetX, yInv + props.slotOffsetY,
+                props.slotsPerRow, disabledSlots, mc);
 
         if (renderGhostStacks) {
             drawMissingGhostStacks(drawContext, mc, type, xInv + props.slotOffsetX, yInv + props.slotOffsetY, props.slotsPerRow, slotMismatches);
@@ -1405,7 +1409,7 @@ public final class QuickLitematicaContainerVerifier {
 
     private static void drawSlotHighlights(
             DrawContext drawContext,
-            InventoryOverlay.InventoryRenderType type,
+            InventoryOverlayKind type,
             int xSlots,
             int ySlots,
             int slotsPerRow,
@@ -1423,7 +1427,7 @@ public final class QuickLitematicaContainerVerifier {
     private static void drawMissingGhostStacks(
             DrawContext drawContext,
             MinecraftClient mc,
-            InventoryOverlay.InventoryRenderType type,
+            InventoryOverlayKind type,
             int xSlots,
             int ySlots,
             int slotsPerRow,
@@ -1453,14 +1457,14 @@ public final class QuickLitematicaContainerVerifier {
     }
 
     private static SlotPosition getInventoryOverlaySlotPosition(
-            InventoryOverlay.InventoryRenderType type,
+            InventoryOverlayKind type,
             int xSlots,
             int ySlots,
             int slotsPerRow,
             int slot
     ) {
         // 炉子类和酿造台在 malilib 的 InventoryOverlay 里不是普通网格槽位。
-        if (type == InventoryOverlay.InventoryRenderType.FURNACE) {
+        if (type == InventoryOverlayKind.FURNACE) {
             return switch (slot) {
                 case 0 -> new SlotPosition(xSlots + 8, ySlots + 8);
                 case 1 -> new SlotPosition(xSlots + 8, ySlots + 44);
@@ -1469,7 +1473,7 @@ public final class QuickLitematicaContainerVerifier {
             };
         }
 
-        if (type == InventoryOverlay.InventoryRenderType.BREWING_STAND) {
+        if (type == InventoryOverlayKind.BREWING_STAND) {
             return switch (slot) {
                 case 0 -> new SlotPosition(xSlots + 47, ySlots + 42);
                 case 1 -> new SlotPosition(xSlots + 70, ySlots + 49);
@@ -1497,33 +1501,89 @@ public final class QuickLitematicaContainerVerifier {
         drawContext.fill(x + width - 1, y + 1, x + width, y + height - 1, color);
     }
 
-    private static InventoryOverlay.InventoryRenderType getInventoryType(Inventory inventory, BlockState state) {
+    private static InventoryOverlayKind getInventoryType(Inventory inventory, BlockState state) {
         if (state != null) {
             if (state.getBlock() instanceof AbstractFurnaceBlock) {
-                return InventoryOverlay.InventoryRenderType.FURNACE;
+                return InventoryOverlayKind.FURNACE;
             }
             if (state.getBlock() instanceof BrewingStandBlock) {
-                return InventoryOverlay.InventoryRenderType.BREWING_STAND;
+                return InventoryOverlayKind.BREWING_STAND;
             }
             if (state.getBlock() instanceof CrafterBlock) {
-                return InventoryOverlay.InventoryRenderType.CRAFTER;
+                return InventoryOverlayKind.CRAFTER;
             }
             if (state.getBlock() instanceof DispenserBlock) {
-                return InventoryOverlay.InventoryRenderType.DISPENSER;
+                return InventoryOverlayKind.DISPENSER;
             }
             if (state.getBlock() instanceof HopperBlock) {
-                return InventoryOverlay.InventoryRenderType.HOPPER;
+                return InventoryOverlayKind.HOPPER;
             }
         }
 
         return switch (inventory.size()) {
-            case 3 -> InventoryOverlay.InventoryRenderType.FURNACE;
-            case 5 -> InventoryOverlay.InventoryRenderType.HOPPER;
-            case 9 -> InventoryOverlay.InventoryRenderType.DISPENSER;
-            case 27 -> InventoryOverlay.InventoryRenderType.FIXED_27;
-            case 54 -> InventoryOverlay.InventoryRenderType.FIXED_54;
-            default -> InventoryOverlay.InventoryRenderType.GENERIC;
+            case 3 -> InventoryOverlayKind.FURNACE;
+            case 5 -> InventoryOverlayKind.HOPPER;
+            case 9 -> InventoryOverlayKind.DISPENSER;
+            case 27 -> InventoryOverlayKind.FIXED_27;
+            case 54 -> InventoryOverlayKind.FIXED_54;
+            default -> InventoryOverlayKind.GENERIC;
         };
+    }
+
+    private static InventoryOverlay.InventoryProperties getInventoryProperties(InventoryOverlayKind type, int size) {
+        //#if MC<12110
+        return InventoryOverlay.getInventoryPropsTemp(InventoryOverlay.InventoryRenderType.valueOf(type.name()), size);
+        //#else
+        //$$ return InventoryOverlay.getInventoryPropsTempNew(InventoryOverlayType.valueOf(type.name()), size);
+        //#endif
+    }
+
+    private static void renderInventoryBackground(
+            DrawContext context,
+            InventoryOverlayKind type,
+            int x,
+            int y,
+            int slotsPerRow,
+            int totalSlots,
+            MinecraftClient client
+    ) {
+        //#if MC<12110
+        InventoryOverlay.renderInventoryBackground(context, InventoryOverlay.InventoryRenderType.valueOf(type.name()),
+                x, y, slotsPerRow, totalSlots, client);
+        //#else
+        //$$ InventoryOverlay.renderInventoryBackgroundNew(context, InventoryOverlayType.valueOf(type.name()),
+        //$$         x, y, slotsPerRow, totalSlots, client);
+        //#endif
+    }
+
+    private static void renderInventoryStacks(
+            DrawContext context,
+            InventoryOverlayKind type,
+            Inventory inventory,
+            int x,
+            int y,
+            int slotsPerRow,
+            Set<Integer> disabledSlots,
+            MinecraftClient client
+    ) {
+        //#if MC<12110
+        InventoryOverlay.renderInventoryStacks(context, InventoryOverlay.InventoryRenderType.valueOf(type.name()),
+                inventory, x, y, slotsPerRow, 0, inventory.size(), disabledSlots, client);
+        //#else
+        //$$ InventoryOverlay.renderInventoryStacksNew(context, InventoryOverlayType.valueOf(type.name()),
+        //$$         inventory, x, y, slotsPerRow, 0, inventory.size(), disabledSlots, client);
+        //#endif
+    }
+
+    private enum InventoryOverlayKind {
+        FURNACE,
+        BREWING_STAND,
+        CRAFTER,
+        DISPENSER,
+        HOPPER,
+        FIXED_27,
+        FIXED_54,
+        GENERIC
     }
 
     private static boolean isInventoryEmpty(Inventory inventory) {

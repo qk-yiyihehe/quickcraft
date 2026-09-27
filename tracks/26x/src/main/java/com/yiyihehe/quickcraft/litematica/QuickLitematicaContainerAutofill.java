@@ -9,6 +9,7 @@ import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
 import net.fabricmc.loader.api.FabricLoader;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 import net.minecraft.world.inventory.AbstractContainerMenu;
 import net.minecraft.network.chat.Component;
@@ -72,7 +73,7 @@ public final class QuickLitematicaContainerAutofill implements ClientModInitiali
         }
 
         boolean useDown = QuickCraftKeyBindings.isVanillaKeyDown(client, client.options.keyUse);
-        if (useDown && !lastUseDown && client.screen == null) {
+        if (useDown && !lastUseDown && currentScreen(client) == null) {
             BlockHitResult hitResult = getLookedAtBlock(client);
             if (hitResult != null && shouldHandleTarget(client, hitResult)) {
                 BlockPos pos = hitResult.getBlockPos();
@@ -91,7 +92,7 @@ public final class QuickLitematicaContainerAutofill implements ClientModInitiali
         }
 
         pendingTicks++;
-        if (!(client.screen instanceof AbstractContainerScreen<?> screen)) {
+        if (!(currentScreen(client) instanceof AbstractContainerScreen<?> screen)) {
             if (pendingTicks > OPEN_TIMEOUT_TICKS) {
                 QuickContainerFillStatus.stop(client, pendingFillTarget, true);
                 pendingContainerPos = null;
@@ -188,12 +189,20 @@ public final class QuickLitematicaContainerAutofill implements ClientModInitiali
                 || client == null
                 || client.player == null
                 || client.level == null
-                || client.screen != null) {
+                || currentScreen(client) != null) {
             return false;
         }
 
         QuickLitematicaContainerAutofill autofill = new QuickLitematicaContainerAutofill();
         BlockHitResult hitResult = autofill.getLookedAtBlock(client);
         return hitResult != null && autofill.shouldHandleTarget(client, hitResult);
+    }
+
+    private static Screen currentScreen(Minecraft client) {
+        //#if MC<260200
+        return client.screen;
+        //#else
+        //$$ return client.gui.screen();
+        //#endif
     }
 }

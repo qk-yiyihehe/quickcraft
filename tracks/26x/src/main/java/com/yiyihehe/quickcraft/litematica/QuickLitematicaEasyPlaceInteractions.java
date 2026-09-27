@@ -8,15 +8,23 @@ import fi.dy.masa.litematica.util.WorldUtils;
 import fi.dy.masa.litematica.util.RayTraceUtils.RayTraceWrapper;
 import fi.dy.masa.litematica.util.RayTraceUtils.RayTraceWrapper.HitType;
 import net.minecraft.client.Minecraft;
+//#if MC<260300
 import net.minecraft.world.item.AxeItem;
+//#endif
 import net.minecraft.world.item.BottleItem;
 import net.minecraft.world.item.BucketItem;
+//#if MC<260300
 import net.minecraft.world.item.HoeItem;
+//#endif
 import net.minecraft.world.item.HoneycombItem;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.item.ShearsItem;
+//#if MC<260300
 import net.minecraft.world.item.ShovelItem;
+//#else
+//$$ import net.minecraft.tags.ItemTags;
+//#endif
 import net.minecraft.world.level.block.*;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.block.state.properties.BlockStateProperties;
@@ -36,7 +44,11 @@ public final class QuickLitematicaEasyPlaceInteractions {
                 || client == null
                 || client.player == null
                 || client.level == null
+                //#if MC<260200
                 || client.screen != null) {
+                //#else
+                //$$ || client.gui.screen() != null) {
+                //#endif
             return false;
         }
 
@@ -145,11 +157,19 @@ public final class QuickLitematicaEasyPlaceInteractions {
             return false;
         }
 
+        //#if MC<260300
         if (heldStack.getItem() instanceof AxeItem) {
+        //#else
+        //$$ if (heldStack.is(ItemTags.AXES)) {
+        //#endif
             return isStrippableBlock(block) || block instanceof WeatheringCopper
                     || HoneycombItem.WAX_OFF_BY_BLOCK.get().containsKey(block);
         }
+        //#if MC<260300
         if (heldStack.getItem() instanceof ShovelItem) {
+        //#else
+        //$$ if (heldStack.is(ItemTags.SHOVELS)) {
+        //#endif
             return block == Blocks.GRASS_BLOCK
                     || block == Blocks.DIRT
                     || block == Blocks.PODZOL
@@ -158,7 +178,11 @@ public final class QuickLitematicaEasyPlaceInteractions {
                     || block == Blocks.ROOTED_DIRT
                     || block instanceof CampfireBlock;
         }
+        //#if MC<260300
         if (heldStack.getItem() instanceof HoeItem) {
+        //#else
+        //$$ if (heldStack.is(ItemTags.HOES)) {
+        //#endif
             return block == Blocks.GRASS_BLOCK
                     || block == Blocks.DIRT_PATH
                     || block == Blocks.DIRT

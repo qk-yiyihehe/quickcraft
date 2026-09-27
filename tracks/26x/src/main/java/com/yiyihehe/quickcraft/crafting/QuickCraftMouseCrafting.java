@@ -1892,7 +1892,11 @@ final class QuickCraftMouseCrafting {
 
     private boolean isCraftingContextValid(Minecraft client) {
         return client != null && client.player != null && client.level != null
+                //#if MC<260200
                 && QuickCraftMouseCraftLayout.fromScreen(client.screen) == layout
+                //#else
+                //$$ && QuickCraftMouseCraftLayout.fromScreen(client.gui.screen()) == layout
+                //#endif
                 && QuickCraftMouseCraftLayout.fromHandler(client.player.containerMenu) == layout;
     }
 

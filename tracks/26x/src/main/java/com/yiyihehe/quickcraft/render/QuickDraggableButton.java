@@ -60,7 +60,7 @@ public class QuickDraggableButton extends Button {
         Minecraft client = Minecraft.getInstance();
         if (!QuickCraftConfigs.isActionButtonDraggingEnabled()
                 || !QuickCraftKeyBindings.isShiftDown()
-                || !(client.screen instanceof AbstractContainerScreen<?> screen)) {
+                || !(currentScreen(client) instanceof AbstractContainerScreen<?> screen)) {
             return false;
         }
         double mouseX = client.mouseHandler.getScaledXPos(client.getWindow());
@@ -139,7 +139,7 @@ public class QuickDraggableButton extends Button {
     }
 
     private void setClampedPosition(int x, int y) {
-        Screen screen = Minecraft.getInstance().screen;
+        Screen screen = currentScreen(Minecraft.getInstance());
         if (screen == null) {
             this.setX(x);
             this.setY(y);
@@ -147,5 +147,13 @@ public class QuickDraggableButton extends Button {
         }
         this.setX(Mth.clamp(x, 0, Math.max(0, screen.width - this.getWidth())));
         this.setY(Mth.clamp(y, 0, Math.max(0, screen.height - this.getHeight())));
+    }
+
+    private static Screen currentScreen(Minecraft client) {
+        //#if MC<260200
+        return client.screen;
+        //#else
+        //$$ return client.gui.screen();
+        //#endif
     }
 }

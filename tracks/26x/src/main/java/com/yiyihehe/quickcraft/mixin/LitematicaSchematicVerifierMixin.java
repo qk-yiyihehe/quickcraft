@@ -26,7 +26,11 @@ import fi.dy.masa.litematica.world.ChunkManagerSchematic;
 import fi.dy.masa.litematica.world.WorldSchematic;
 import fi.dy.masa.malilib.gui.GuiBase;
 import fi.dy.masa.malilib.interfaces.ICompletionListener;
+//#if MC<260200
 import fi.dy.masa.malilib.util.IntBoundingBox;
+//#else
+//$$ import fi.dy.masa.malilib.util.position.IntBoundingBox;
+//#endif
 import fi.dy.masa.malilib.util.StringUtils;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.block.entity.BlockEntity;
@@ -356,7 +360,7 @@ public abstract class LitematicaSchematicVerifierMixin extends TaskBase implemen
         boolean renderLayers = this.schematicPlacement.getSchematicVerifierType() == BlockInfoListType.RENDER_LAYERS;
 
         for (BlockPos candidate : chunkSchematic.getBlockEntitiesPos()) {
-            if (!box.containsPos(candidate)
+            if (!quickcraft$contains(box, candidate)
                     || renderLayers && !DataManager.getRenderLayerRange().isPositionWithinRange(candidate)) {
                 continue;
             }
@@ -484,7 +488,7 @@ public abstract class LitematicaSchematicVerifierMixin extends TaskBase implemen
     @Inject(method = "toggleMismatchEntrySelected", at = @At("TAIL"))
     private void quickcraft$trackSelectedInventoryMismatch(BlockMismatch mismatch, CallbackInfo ci) {
         if (!QuickLitematicaContainerVerifier.isEnabled()
-                || !QuickLitematicaContainerVerifier.isContainerMismatchType(mismatch.mismatchType)) {
+                || !QuickLitematicaContainerVerifier.isContainerMismatchType(quickcraft$getMismatchType(mismatch))) {
             return;
         }
 
@@ -501,18 +505,18 @@ public abstract class LitematicaSchematicVerifierMixin extends TaskBase implemen
     private void quickcraft$removeSelectedInventoryMismatches(MismatchType type, CallbackInfo ci) {
         if (QuickLitematicaContainerVerifier.isEnabled()
                 && QuickLitematicaContainerVerifier.isContainerMismatchType(type)) {
-            this.quickcraft$selectedContainerMismatches.removeIf(mismatch -> mismatch.mismatchType == type);
+            this.quickcraft$selectedContainerMismatches.removeIf(mismatch -> quickcraft$getMismatchType(mismatch) == type);
         }
     }
 
     @Inject(method = "ignoreStateMismatch(Lfi/dy/masa/litematica/schematic/verifier/SchematicVerifier$BlockMismatch;Z)V", at = @At("HEAD"), cancellable = true)
     private void quickcraft$forgetIgnoredInventoryMismatch(BlockMismatch mismatch, boolean updateOverlay, CallbackInfo ci) {
         if (!QuickLitematicaContainerVerifier.isEnabled()
-                || !QuickLitematicaContainerVerifier.isContainerMismatchType(mismatch.mismatchType)) {
+                || !QuickLitematicaContainerVerifier.isContainerMismatchType(quickcraft$getMismatchType(mismatch))) {
             return;
         }
 
-        ContainerMismatchKey key = ((BlockMismatchExtension) mismatch).quickcraft$getContainerMismatchKey();
+        ContainerMismatchKey key = ((BlockMismatchExtension) (Object) mismatch).quickcraft$getContainerMismatchKey();
 
         if (key != null) {
             ContainerMismatch removed = this.quickcraft$containerMismatchesByKey.remove(key);
@@ -672,17 +676,17 @@ public abstract class LitematicaSchematicVerifierMixin extends TaskBase implemen
     @Inject(method = "updateMismatchPositionStringList", at = @At("TAIL"))
     private void quickcraft$splitInventoryHudLines(@Nullable MismatchType mismatchType, List<MismatchRenderPos> positionList, CallbackInfo ci) {
         if (!QuickLitematicaContainerVerifier.isEnabled()
-                || positionList.stream().noneMatch(pos -> QuickLitematicaContainerVerifier.isContainerMismatchType(pos.type))) {
+                || positionList.stream().noneMatch(pos -> QuickLitematicaContainerVerifier.isContainerMismatchType(quickcraft$getRenderType(pos)))) {
             return;
         }
 
         this.infoHudLines.clear();
         String rst = GuiBase.TXT_RST;
         List<MismatchRenderPos> vanilla = positionList.stream()
-                .filter(pos -> !QuickLitematicaContainerVerifier.isContainerMismatchType(pos.type))
+                .filter(pos -> !QuickLitematicaContainerVerifier.isContainerMismatchType(quickcraft$getRenderType(pos)))
                 .toList();
         List<MismatchRenderPos> containers = positionList.stream()
-                .filter(pos -> QuickLitematicaContainerVerifier.isContainerMismatchType(pos.type))
+                .filter(pos -> QuickLitematicaContainerVerifier.isContainerMismatchType(quickcraft$getRenderType(pos)))
                 .toList();
         int maxLines = Configs.InfoOverlays.INFO_HUD_MAX_LINES.getIntegerValue();
 
@@ -1055,7 +1059,7 @@ public abstract class LitematicaSchematicVerifierMixin extends TaskBase implemen
                 boolean insidePlacement = false;
 
                 for (IntBoundingBox box : boxes) {
-                    if (box.containsPos(pos)) {
+                    if (quickcraft$contains(box, pos)) {
                         insidePlacement = true;
                         break;
                     }
@@ -1187,7 +1191,7 @@ public abstract class LitematicaSchematicVerifierMixin extends TaskBase implemen
                 mismatch.foundState(),
                 1
         );
-        ((BlockMismatchExtension) blockMismatch).quickcraft$setContainerMismatch(mismatch);
+        ((BlockMismatchExtension) (Object) blockMismatch).quickcraft$setContainerMismatch(mismatch);
         return blockMismatch;
     }
 
@@ -1206,7 +1210,7 @@ public abstract class LitematicaSchematicVerifierMixin extends TaskBase implemen
         Collection<BlockMismatch> selected = this.selectedEntries.get(type);
 
         for (BlockMismatch mismatch : selected) {
-            ContainerMismatchKey key = ((BlockMismatchExtension) mismatch).quickcraft$getContainerMismatchKey();
+            ContainerMismatchKey key = ((BlockMismatchExtension) (Object) mismatch).quickcraft$getContainerMismatchKey();
             ContainerMismatch containerMismatch = key != null ? this.quickcraft$containerMismatchesByKey.get(key) : null;
 
             if (containerMismatch != null && !positions.contains(containerMismatch.pos())) {
@@ -1224,8 +1228,8 @@ public abstract class LitematicaSchematicVerifierMixin extends TaskBase implemen
 
         for (int i = 0; i < count; i++) {
             MismatchRenderPos entry = positions.get(i);
-            BlockPos pos = entry.pos;
-            String pre = quickcraft$getHudColorCode(entry.type);
+            BlockPos pos = quickcraft$getRenderPos(entry);
+            String pre = quickcraft$getHudColorCode(quickcraft$getRenderType(entry));
             this.infoHudLines.add(String.format("%sx: %5d, y: %3d, z: %5d%s", pre, pos.getX(), pos.getY(), pos.getZ(), rst));
         }
     }
@@ -1243,7 +1247,7 @@ public abstract class LitematicaSchematicVerifierMixin extends TaskBase implemen
     private boolean quickcraft$isContainerPosSelected(BlockPos pos) {
         for (BlockMismatch mismatch : this.quickcraft$selectedContainerMismatches) {
             ContainerMismatch containerMismatch =
-                    ((BlockMismatchExtension) mismatch).quickcraft$getContainerMismatch();
+                    ((BlockMismatchExtension) (Object) mismatch).quickcraft$getContainerMismatch();
 
             if (containerMismatch != null && containerMismatch.pos().equals(pos)) {
                 return true;
@@ -1257,12 +1261,12 @@ public abstract class LitematicaSchematicVerifierMixin extends TaskBase implemen
     private void quickcraft$restoreContainerSelection(BlockPos pos, boolean wasSelected) {
         this.quickcraft$selectedContainerMismatches.removeIf(mismatch -> {
             ContainerMismatch containerMismatch =
-                    ((BlockMismatchExtension) mismatch).quickcraft$getContainerMismatch();
+                    ((BlockMismatchExtension) (Object) mismatch).quickcraft$getContainerMismatch();
             return containerMismatch != null && containerMismatch.pos().equals(pos);
         });
         this.selectedEntries.values().removeIf(mismatch -> {
             ContainerMismatch containerMismatch =
-                    ((BlockMismatchExtension) mismatch).quickcraft$getContainerMismatch();
+                    ((BlockMismatchExtension) (Object) mismatch).quickcraft$getContainerMismatch();
             return containerMismatch != null && containerMismatch.pos().equals(pos);
         });
 
@@ -1274,10 +1278,48 @@ public abstract class LitematicaSchematicVerifierMixin extends TaskBase implemen
             if (mismatch.pos().equals(pos)) {
                 BlockMismatch blockMismatch = this.quickcraft$createBlockMismatch(mismatch);
                 this.quickcraft$selectedContainerMismatches.add(blockMismatch);
-                this.selectedEntries.put(blockMismatch.mismatchType, blockMismatch);
+                this.selectedEntries.put(quickcraft$getMismatchType(blockMismatch), blockMismatch);
                 return;
             }
         }
+    }
+
+    @Unique
+    private static boolean quickcraft$contains(IntBoundingBox box, BlockPos pos) {
+        //#if MC<260200
+        return box.containsPos(pos);
+        //#else
+        //$$ return pos.getX() >= box.minX() && pos.getX() <= box.maxX()
+        //$$         && pos.getY() >= box.minY() && pos.getY() <= box.maxY()
+        //$$         && pos.getZ() >= box.minZ() && pos.getZ() <= box.maxZ();
+        //#endif
+    }
+
+    @Unique
+    private static MismatchType quickcraft$getMismatchType(BlockMismatch mismatch) {
+        //#if MC<260200
+        return mismatch.mismatchType;
+        //#else
+        //$$ return mismatch.mismatchType();
+        //#endif
+    }
+
+    @Unique
+    private static MismatchType quickcraft$getRenderType(MismatchRenderPos position) {
+        //#if MC<260200
+        return position.type;
+        //#else
+        //$$ return position.type();
+        //#endif
+    }
+
+    @Unique
+    private static BlockPos quickcraft$getRenderPos(MismatchRenderPos position) {
+        //#if MC<260200
+        return position.pos;
+        //#else
+        //$$ return position.pos();
+        //#endif
     }
 
     @Unique

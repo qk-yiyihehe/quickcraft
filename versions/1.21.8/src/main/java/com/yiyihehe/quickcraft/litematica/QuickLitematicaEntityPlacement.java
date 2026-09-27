@@ -324,7 +324,7 @@ public final class QuickLitematicaEntityPlacement {
             List<Entity> nearby = new ArrayList<>(nearbyEntities.stream()
                     .filter(entity -> candidateBox.intersects(entity.getBoundingBox()))
                     .toList());
-            nearby.sort(Comparator.comparingDouble(entity -> entity.getPos().squaredDistanceTo(candidate.position)));
+            nearby.sort(Comparator.comparingDouble(entity -> entityPosition(entity).squaredDistanceTo(candidate.position)));
             nearbyByCandidate.put(candidate, nearby);
         }
 
@@ -387,9 +387,9 @@ public final class QuickLitematicaEntityPlacement {
         }
         Candidate representative = candidates.stream()
                 .filter(candidate -> Registries.ENTITY_TYPE.get(candidate.entityType) == entity.getType())
-                .min(Comparator.comparingDouble(candidate -> candidate.position.squaredDistanceTo(entity.getPos())))
+                .min(Comparator.comparingDouble(candidate -> candidate.position.squaredDistanceTo(entityPosition(entity))))
                 .orElseGet(() -> candidates.stream()
-                        .min(Comparator.comparingDouble(candidate -> candidate.position.squaredDistanceTo(entity.getPos())))
+                        .min(Comparator.comparingDouble(candidate -> candidate.position.squaredDistanceTo(entityPosition(entity))))
                         .orElse(null));
         return new ExcessDisplay(representative == null ? ItemStack.EMPTY : representative.material().copy());
     }
@@ -416,7 +416,11 @@ public final class QuickLitematicaEntityPlacement {
             int index,
             LitematicaSchematic.EntityInfo entity
     ) {
+        //#if MC<12111
         NbtCompound nbt = entity.nbt.copy();
+        //#else
+        //$$ NbtCompound nbt = QuickLitematicaDataCompat.entityNbt(entity).copy();
+        //#endif
         if (!normalizeEntityTreeIds(nbt, 0)) {
             return null;
         }
@@ -428,7 +432,12 @@ public final class QuickLitematicaEntityPlacement {
             return null;
         }
 
+        //#if MC<12111
         Vec3d position = PositionUtils.getTransformedPosition(entity.posVec, placement.getMirror(), placement.getRotation());
+        //#else
+        //$$ Vec3d position = PositionUtils.getTransformedPosition(
+        //$$         QuickLitematicaDataCompat.entityPos(entity), placement.getMirror(), placement.getRotation());
+        //#endif
         position = PositionUtils.getTransformedPosition(position, subRegion.getMirror(), subRegion.getRotation());
         BlockPos blockOffset = placement.getOrigin().add(
                 PositionUtils.getTransformedBlockPos(subRegion.getPos(), placement.getMirror(), placement.getRotation())
@@ -1007,6 +1016,14 @@ public final class QuickLitematicaEntityPlacement {
                 : Vec3d.ZERO;
     }
 
+    private static Vec3d entityPosition(Entity entity) {
+        //#if MC<12110
+        return entity.getPos();
+        //#else
+        //$$ return entity.getEntityPos();
+        //#endif
+    }
+
     static final class Candidate {
         static final double POSITION_TOLERANCE = 0.2D;
         static final double MINECART_POSITION_TOLERANCE = 1.0D;
@@ -1141,7 +1158,7 @@ public final class QuickLitematicaEntityPlacement {
         }
 
         private double squaredDistanceTo(Entity entity) {
-            return entity.getPos().squaredDistanceTo(position);
+            return entityPosition(entity).squaredDistanceTo(position);
         }
 
         private boolean matchesConfirmedUuid(Entity entity) {
@@ -1169,11 +1186,19 @@ public final class QuickLitematicaEntityPlacement {
         }
 
         private static BlockPos railPosition(Entity entity, BlockPos position) {
+            //#if MC<12110
             if (entity.getWorld().getBlockState(position).isIn(BlockTags.RAILS)) {
+            //#else
+            //$$ if (entity.getEntityWorld().getBlockState(position).isIn(BlockTags.RAILS)) {
+            //#endif
                 return position;
             }
             BlockPos below = position.down();
+            //#if MC<12110
             return entity.getWorld().getBlockState(below).isIn(BlockTags.RAILS) ? below : null;
+            //#else
+            //$$ return entity.getEntityWorld().getBlockState(below).isIn(BlockTags.RAILS) ? below : null;
+            //#endif
         }
 
         private boolean minecartContentsMatch(Entity entity) {

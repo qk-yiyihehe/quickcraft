@@ -20,7 +20,11 @@ import fi.dy.masa.malilib.hotkeys.IKeybind;
 import fi.dy.masa.malilib.hotkeys.KeyAction;
 import fi.dy.masa.malilib.hotkeys.KeybindSettings;
 import fi.dy.masa.malilib.util.FileUtils;
+//#if MC<12111
 import fi.dy.masa.malilib.util.JsonUtils;
+//#else
+//$$ import fi.dy.masa.malilib.util.data.json.JsonUtils;
+//#endif
 import fi.dy.masa.malilib.util.StringUtils;
 import net.fabricmc.loader.api.FabricLoader;
 
@@ -359,6 +363,12 @@ public final class QuickCraftConfigs implements IConfigHandler {
                 "quickSortShulkerBoxesAtEnd",
                 true
         ).apply(CONTAINER_TRANSLATION_PREFIX);
+        //#if MC>=12103
+        //$$ public static final ConfigBoolean QUICK_SORT_BUNDLES_AT_END = new ConfigBoolean(
+        //$$         "quickSortBundlesAtEnd",
+        //$$         true
+        //$$ ).apply(CONTAINER_TRANSLATION_PREFIX);
+        //#endif
         public static final ConfigBooleanHotkeyed SHOW_CONTAINER_LOCK_BUTTON = new ConfigBooleanHotkeyed(
                 "showContainerLockButton",
                 true,
@@ -453,6 +463,9 @@ public final class QuickCraftConfigs implements IConfigHandler {
                 QUICK_SORT_TOP_PRIORITY_ITEMS,
                 QUICK_SORT_BOTTOM_PRIORITY_ITEMS,
                 QUICK_SORT_SHULKER_BOXES_AT_END,
+                //#if MC>=12103
+                //$$ QUICK_SORT_BUNDLES_AT_END,
+                //#endif
                 SHOW_CONTAINER_LOCK_BUTTON,
                 SHOW_SLOT_LOCK_OVERLAY,
                 SHOW_CONTAINER_FILL_STATUS_OUTLINES,
@@ -916,6 +929,9 @@ public final class QuickCraftConfigs implements IConfigHandler {
                 Crafting.ENABLE_ANVIL_RENAME,
                 Crafting.SHOW_CRAFT_ACTION_BUTTON,
                 Crafting.DROP_RESULTS_ON_STOP,
+                //#if MC>=12103
+                //$$ Crafting.RETAIN_ONE_CRAFT_INGREDIENT,
+                //#endif
                 ContainerTools.ENABLE_QUICK_TRANSFER,
                 ContainerTools.SHOW_MATCHING_TRANSFER_HIGHLIGHT,
                 ContainerTools.ENABLE_SCROLL_TRANSFER,
@@ -979,6 +995,9 @@ public final class QuickCraftConfigs implements IConfigHandler {
                 Crafting.ENABLE_ANVIL_RENAME,
                 Crafting.SHOW_CRAFT_ACTION_BUTTON,
                 Crafting.DROP_RESULTS_ON_STOP,
+                //#if MC>=12103
+                //$$ Crafting.RETAIN_ONE_CRAFT_INGREDIENT,
+                //#endif
                 ContainerTools.ENABLE_QUICK_TRANSFER,
                 ContainerTools.ENABLE_SCROLL_TRANSFER,
                 ContainerTools.QUICK_TRANSFER_RETAIN_ONE,
@@ -1126,6 +1145,12 @@ public final class QuickCraftConfigs implements IConfigHandler {
     public static boolean areQuickSortShulkerBoxesAtEnd() {
         return ContainerTools.QUICK_SORT_SHULKER_BOXES_AT_END.getBooleanValue();
     }
+
+    //#if MC>=12103
+    //$$ public static boolean areQuickSortBundlesAtEnd() {
+    //$$     return ContainerTools.QUICK_SORT_BUNDLES_AT_END.getBooleanValue();
+    //$$ }
+    //#endif
 
     public static boolean isContainerToolModeEnabled() {
         return ContainerTools.ENABLE_CONTAINER_TOOL_MODE.getBooleanValue();
@@ -1471,7 +1496,11 @@ public final class QuickCraftConfigs implements IConfigHandler {
             return;
         }
 
+        //#if MC<12111
         JsonElement element = JsonUtils.parseJsonFileAsPath(configFile);
+        //#else
+        //$$ JsonElement element = JsonUtils.parseJsonFile(configFile);
+        //#endif
         if (element == null || !element.isJsonObject()) {
             return;
         }
@@ -1524,7 +1553,11 @@ public final class QuickCraftConfigs implements IConfigHandler {
     }
 
     public static void saveToFile() {
+        //#if MC<12111
         Path dir = FileUtils.getConfigDirectoryAsPath();
+        //#else
+        //$$ Path dir = FileUtils.getConfigDirectory();
+        //#endif
         if (!Files.exists(dir)) {
             FileUtils.createDirectoriesIfMissing(dir);
         }

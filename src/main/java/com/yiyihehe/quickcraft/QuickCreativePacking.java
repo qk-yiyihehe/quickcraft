@@ -24,6 +24,9 @@ import net.minecraft.util.DyeColor;
 import net.minecraft.util.Formatting;
 import net.minecraft.util.math.BlockPos;
 
+import java.util.ArrayList;
+import java.util.List;
+
 /**
  * 在创造模式中按主手和副手组合生成装满内容的物品容器。
  */
@@ -64,7 +67,18 @@ public final class QuickCreativePacking {
         }
 
         ItemStack result = createPackedStack(client, mainHand, player.getOffHandStack());
+        //#if MC<12103
         client.interactionManager.clickCreativeStack(result, 36 + player.getInventory().selectedSlot);
+        //#else
+        //#if MC<12105
+        //$$ int selectedSlot = player.getInventory().selectedSlot;
+        //#else
+        //$$ int selectedSlot = player.getInventory().getSelectedSlot();
+        //#endif
+        //$$ player.getInventory().setStack(selectedSlot, result.copy());
+        //$$ client.interactionManager.clickCreativeStack(result, 36 + selectedSlot);
+        //$$ player.playerScreenHandler.sendContentUpdates();
+        //#endif
         return true;
     }
 
@@ -125,12 +139,22 @@ public final class QuickCreativePacking {
             Item containerItem,
             LootableContainerBlockEntity container
     ) {
+        //#if MC<12104
         for (int slot = 0; slot < container.size(); slot++) {
             container.setStack(slot, contents.copy());
         }
 
         ItemStack result = containerItem.getDefaultStack();
         container.setStackNbt(result, client.world.getRegistryManager());
+        //#else
+        //$$ List<ItemStack> stacks = new ArrayList<>(container.size());
+        //$$ for (int slot = 0; slot < container.size(); slot++) {
+        //$$     stacks.add(contents.copy());
+        //$$ }
+
+        //$$ ItemStack result = containerItem.getDefaultStack();
+        //$$ result.set(DataComponentTypes.CONTAINER, ContainerComponent.fromStacks(stacks));
+        //#endif
         return result;
     }
 

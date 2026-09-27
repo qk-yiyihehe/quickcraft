@@ -9,9 +9,16 @@ import net.minecraft.item.BlockItem;
 import net.minecraft.item.ItemPlacementContext;
 import net.minecraft.item.ItemStack;
 import net.minecraft.item.Items;
+//#if MC<12108
 import net.minecraft.network.packet.c2s.play.ClientCommandC2SPacket;
+//#else
+//$$ import net.minecraft.network.packet.c2s.play.PlayerInputC2SPacket;
+//$$ import net.minecraft.util.PlayerInput;
+//#endif
 import net.minecraft.network.packet.c2s.play.PlayerMoveC2SPacket;
+//#if MC<12103
 import net.minecraft.state.property.DirectionProperty;
+//#endif
 import net.minecraft.state.property.Properties;
 import net.minecraft.state.property.Property;
 import net.minecraft.util.Hand;
@@ -59,6 +66,9 @@ public final class QuickFreeCameraInteractions {
             Properties.ROTATION
     );
     private static boolean sneakPlacementCommandSent;
+    //#if MC>=12108
+    //$$ private static PlayerInput restoredPlayerInput;
+    //#endif
     private static boolean entitySneakingReleasePending;
     private static boolean cameraFacingApplied;
     private static int cameraFacingDepth;
@@ -160,9 +170,15 @@ public final class QuickFreeCameraInteractions {
             return;
         }
 
+        //#if MC<12108
         client.player.networkHandler.sendPacket(
                 new ClientCommandC2SPacket(client.player, ClientCommandC2SPacket.Mode.RELEASE_SHIFT_KEY)
         );
+        //#else
+        //$$ if (client.player.input != null) {
+        //$$     client.player.networkHandler.sendPacket(new PlayerInputC2SPacket(client.player.input.playerInput));
+        //$$ }
+        //#endif
     }
 
     public static void beginBlockUseFromFreeCamera(MinecraftClient client, Hand hand, BlockHitResult hitResult) {
@@ -259,9 +275,19 @@ public final class QuickFreeCameraInteractions {
             return;
         }
 
-        client.player.networkHandler.sendPacket(
-                new PlayerMoveC2SPacket.LookAndOnGround(restoredYaw, restoredPitch, client.player.isOnGround())
+        sendLookPacket(client.player, restoredYaw, restoredPitch);
+    }
+
+    private static void sendLookPacket(ClientPlayerEntity player, float yaw, float pitch) {
+        //#if MC<12103
+        player.networkHandler.sendPacket(
+                new PlayerMoveC2SPacket.LookAndOnGround(yaw, pitch, player.isOnGround())
         );
+        //#else
+        //$$ player.networkHandler.sendPacket(
+        //$$         new PlayerMoveC2SPacket.LookAndOnGround(yaw, pitch, player.isOnGround(), player.horizontalCollision)
+        //$$ );
+        //#endif
     }
 
     public static void beginEasyPlaceAction() {
@@ -325,13 +351,31 @@ public final class QuickFreeCameraInteractions {
         if (sneakPlacementCommandSent
                 || !shouldSneakPlaceFromFreeCamera(client)
                 || client.player == null
-                || client.player.networkHandler == null) {
+                || client.player.networkHandler == null
+                //#if MC>=12108
+                //$$ || client.player.input == null
+                //#endif
+        ) {
             return;
         }
 
+        //#if MC<12108
         client.player.networkHandler.sendPacket(
                 new ClientCommandC2SPacket(client.player, ClientCommandC2SPacket.Mode.PRESS_SHIFT_KEY)
         );
+        //#else
+        //$$ restoredPlayerInput = client.player.input.playerInput;
+        //$$ PlayerInput sneaking = new PlayerInput(
+        //$$         restoredPlayerInput.forward(),
+        //$$         restoredPlayerInput.backward(),
+        //$$         restoredPlayerInput.left(),
+        //$$         restoredPlayerInput.right(),
+        //$$         restoredPlayerInput.jump(),
+        //$$         true,
+        //$$         restoredPlayerInput.sprint()
+        //$$ );
+        //$$ client.player.networkHandler.sendPacket(new PlayerInputC2SPacket(sneaking));
+        //#endif
         sneakPlacementCommandSent = true;
     }
 
@@ -341,6 +385,7 @@ public final class QuickFreeCameraInteractions {
         }
 
         sneakPlacementCommandSent = false;
+        //#if MC<12108
         if (client == null || client.player == null || client.player.networkHandler == null) {
             return;
         }
@@ -348,11 +393,20 @@ public final class QuickFreeCameraInteractions {
         client.player.networkHandler.sendPacket(
                 new ClientCommandC2SPacket(client.player, ClientCommandC2SPacket.Mode.RELEASE_SHIFT_KEY)
         );
+        //#else
+        //$$ PlayerInput restored = restoredPlayerInput;
+        //$$ restoredPlayerInput = null;
+        //$$ if (client == null || client.player == null || client.player.networkHandler == null || restored == null) {
+        //$$     return;
+        //$$ }
+        //$$ client.player.networkHandler.sendPacket(new PlayerInputC2SPacket(restored));
+        //#endif
     }
 
     /**
      * 原版放置上下文会从玩家姿态派生水平朝向、六向顺序和 16 段旋转。
      * 这里只同步姿态，不移动本体碰撞箱；方向状态由精准放置 V3 编码稳定传给服务端。
+     * 1.21.2+ 的 LookAndOnGround 必须带上 horizontalCollision。
      */
     private static void beginCameraFacing(MinecraftClient client, BlockHitResult hitResult) {
         if (!shouldOverrideCrosshair(client)
@@ -380,17 +434,20 @@ public final class QuickFreeCameraInteractions {
         ClientPlayerEntity player = client.player;
         restoredYaw = player.getYaw();
         restoredPitch = player.getPitch();
+        //#if MC<12105
         restoredPrevYaw = player.prevYaw;
         restoredPrevPitch = player.prevPitch;
+        //#else
+        //$$ restoredPrevYaw = player.lastYaw;
+        //$$ restoredPrevPitch = player.lastPitch;
+        //#endif
         restoredHeadYaw = player.getHeadYaw();
         restoredBodyYaw = player.getBodyYaw();
         serverFacingRestorePending = false;
         player.setAngles(yaw, pitch);
         player.setHeadYaw(yaw);
         player.setBodyYaw(yaw);
-        player.networkHandler.sendPacket(
-                new PlayerMoveC2SPacket.LookAndOnGround(yaw, pitch, player.isOnGround())
-        );
+        sendLookPacket(player, yaw, pitch);
         cameraFacingApplied = true;
         cameraFacingDepth = 1;
     }
@@ -414,8 +471,13 @@ public final class QuickFreeCameraInteractions {
         ClientPlayerEntity player = client.player;
         player.setYaw(restoredYaw);
         player.setPitch(restoredPitch);
+        //#if MC<12105
         player.prevYaw = restoredPrevYaw;
         player.prevPitch = restoredPrevPitch;
+        //#else
+        //$$ player.lastYaw = restoredPrevYaw;
+        //$$ player.lastPitch = restoredPrevPitch;
+        //#endif
         player.setHeadYaw(restoredHeadYaw);
         player.setBodyYaw(restoredBodyYaw);
         serverFacingRestorePending = true;
@@ -423,16 +485,30 @@ public final class QuickFreeCameraInteractions {
     }
 
     private static Integer encodeV3PlacementState(BlockState state) {
+        //#if MC<12103
         Optional<DirectionProperty> directionProperty = state.getProperties().stream()
                 .filter(DirectionProperty.class::isInstance)
                 .map(DirectionProperty.class::cast)
                 .findFirst();
+        //#else
+        //$$ Optional<Property<?>> directionProperty = state.getProperties().stream()
+        //$$         .filter(property -> property.getType() == Direction.class)
+        //$$         .findFirst();
+        //#endif
         int protocolValue = 0;
         int shift;
 
         if (directionProperty.isPresent()) {
+            //#if MC<12103
             Direction facing = state.get(directionProperty.get());
+            //#else
+            //$$ Direction facing = (Direction) state.get(directionProperty.get());
+            //#endif
+            //#if MC<12105
             protocolValue = facing.getId() << 1;
+            //#else
+            //$$ protocolValue = facing.getIndex() << 1;
+            //#endif
             shift = 4;
         } else {
             shift = 1;

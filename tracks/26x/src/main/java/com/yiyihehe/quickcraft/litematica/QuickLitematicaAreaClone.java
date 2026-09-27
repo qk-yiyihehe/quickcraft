@@ -41,7 +41,7 @@ public final class QuickLitematicaAreaClone {
         if (action != KeyAction.PRESS
                 || client.player == null
                 || client.level == null
-                || client.screen != null) {
+                || hasOpenScreen(client)) {
             return false;
         }
 
@@ -139,6 +139,14 @@ public final class QuickLitematicaAreaClone {
 
     private static synchronized void releaseTemporaryName(String name) {
         RESERVED_NAMES.remove(name);
+    }
+
+    private static boolean hasOpenScreen(Minecraft client) {
+        //#if MC<260200
+        return client.screen != null;
+        //#else
+        //$$ return client.gui.screen() != null;
+        //#endif
     }
 
     private static boolean hasCompleteSelection(AreaSelection selection) {

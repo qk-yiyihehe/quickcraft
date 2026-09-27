@@ -141,7 +141,11 @@ public final class QuickCreativePacking {
     }
 
     private static ItemStack fillBundle(ItemStack contents) {
+        //#if MC<260300
         BundleContents.Mutable builder = new BundleContents.Mutable(BundleContents.EMPTY);
+        //#else
+        //$$ BundleContents.Mutable builder = new BundleContents.Mutable();
+        //#endif
         for (int stack = 0; stack < QuickCraftConfigs.getCreativePackingBundleStacks(); stack++) {
             ItemStack remaining = contents.copy();
             if (builder.tryInsert(remaining) == 0) {
@@ -178,7 +182,11 @@ public final class QuickCreativePacking {
         BundleContents bundle = stack.get(DataComponents.BUNDLE_CONTENTS);
         if (bundle != null && bundle.size() > 0) {
             depth = Math.max(depth, 1);
+            //#if MC<260300
             for (ItemStack nested : bundle.itemCopyStream().toList()) {
+            //#else
+            //$$ for (ItemStack nested : bundle.itemCopies().toList()) {
+            //#endif
                 depth = Math.max(depth, 1 + getContentsNestingDepth(nested));
             }
         }

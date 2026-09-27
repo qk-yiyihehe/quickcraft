@@ -15,6 +15,9 @@ import net.minecraft.client.gui.screen.ingame.AnvilScreen;
 import net.minecraft.client.gui.screen.ingame.CreativeInventoryScreen;
 import net.minecraft.client.gui.screen.ingame.HandledScreen;
 import net.minecraft.client.gui.widget.TextFieldWidget;
+//#if MC>=12110
+//$$ import net.minecraft.client.input.KeyInput;
+//#endif
 import net.minecraft.entity.player.PlayerInventory;
 import net.minecraft.inventory.Inventory;
 import net.minecraft.item.ItemStack;
@@ -22,6 +25,9 @@ import net.minecraft.network.packet.c2s.play.ClickSlotC2SPacket;
 import net.minecraft.screen.ScreenHandler;
 import net.minecraft.screen.slot.Slot;
 import net.minecraft.screen.slot.SlotActionType;
+//#if MC>=12105
+//$$ import net.minecraft.screen.sync.ItemStackHash;
+//#endif
 import it.unimi.dsi.fastutil.ints.Int2ObjectMap;
 import it.unimi.dsi.fastutil.ints.Int2ObjectOpenHashMap;
 import java.util.ArrayList;
@@ -56,7 +62,12 @@ public final class QuickThrow implements ClientModInitializer, IKeyboardInputHan
     }
 
     @Override
+    //#if MC<12110
     public boolean onKeyInput(int keyCode, int scanCode, int modifiers, boolean eventKeyState) {
+    //#else
+    //$$ public boolean onKeyInput(KeyInput input, boolean eventKeyState) {
+    //$$     int keyCode = input.key();
+    //#endif
         if (keyCode < 0) {
             return false;
         }
@@ -317,6 +328,7 @@ public final class QuickThrow implements ClientModInitializer, IKeyboardInputHan
         // 这里直接给玩家真实背包发 THROW 包，只让服务端执行一次丢弃。
         target.visibleSlot().setStackNoCallbacks(ItemStack.EMPTY);
         target.effectiveSlot().setStackNoCallbacks(ItemStack.EMPTY);
+        //#if MC<12105
         Int2ObjectMap<ItemStack> modifiedStacks = new Int2ObjectOpenHashMap<>();
         modifiedStacks.put(target.clickSlotId(), ItemStack.EMPTY);
         client.getNetworkHandler().sendPacket(new ClickSlotC2SPacket(
@@ -328,6 +340,19 @@ public final class QuickThrow implements ClientModInitializer, IKeyboardInputHan
                 target.handler().getCursorStack().copy(),
                 modifiedStacks
         ));
+        //#else
+        //$$ Int2ObjectMap<ItemStackHash> modifiedStacks = new Int2ObjectOpenHashMap<>();
+        //$$ modifiedStacks.put(target.clickSlotId(), ItemStackHash.EMPTY);
+        //$$ client.getNetworkHandler().sendPacket(new ClickSlotC2SPacket(
+        //$$         target.handler().syncId,
+        //$$         target.handler().getRevision(),
+        //$$         (short) target.clickSlotId(),
+        //$$         (byte) 1,
+        //$$         SlotActionType.THROW,
+        //$$         modifiedStacks,
+        //$$         ItemStackHash.EMPTY
+        //$$ ));
+        //#endif
     }
 
     private static List<Slot> findHoveredSlotsAlongPath(HandledScreen<?> screen, int mouseX, int mouseY) {

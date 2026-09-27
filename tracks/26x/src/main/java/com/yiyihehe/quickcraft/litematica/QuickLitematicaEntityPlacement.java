@@ -12,11 +12,15 @@ import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.fabric.api.networking.v1.PayloadTypeRegistry;
 import net.fabricmc.loader.api.FabricLoader;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.server.IntegratedServer;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.entity.EntityType;
+//#if MC>=260200
+//$$ import net.minecraft.world.entity.EntityTypes;
+//#endif
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
@@ -114,15 +118,47 @@ public final class QuickLitematicaEntityPlacement {
     }
 
     public static boolean openSelector(Minecraft client) {
-        if (!canCollectCandidates(client) || client.screen != null) {
+        if (!canCollectCandidates(client) || currentScreen(client) != null) {
             return false;
         }
 
         if (!isIntegratedServerAvailable(client)) {
             sendHello();
         }
-        client.setScreen(new QuickLitematicaEntityPlacementScreen(collectRayCandidates(client)));
+        openScreen(client, new QuickLitematicaEntityPlacementScreen(collectRayCandidates(client)));
         return true;
+    }
+
+    private static Screen currentScreen(Minecraft client) {
+        //#if MC<260200
+        return client.screen;
+        //#else
+        //$$ return client.gui.screen();
+        //#endif
+    }
+
+    private static void openScreen(Minecraft client, Screen screen) {
+        //#if MC<260200
+        client.setScreen(screen);
+        //#else
+        //$$ client.gui.setScreen(screen);
+        //#endif
+    }
+
+    private static void showOverlay(Minecraft client, Component message) {
+        //#if MC<260200
+        client.gui.setOverlayMessage(message, false);
+        //#else
+        //$$ client.gui.hud.setOverlayMessage(message, false);
+        //#endif
+    }
+
+    private static boolean isItemEntityType(EntityType<?> type) {
+        //#if MC<260200
+        return type == EntityType.ITEM;
+        //#else
+        //$$ return type == EntityTypes.ITEM;
+        //#endif
     }
 
     public static boolean requestPlacement(
@@ -137,7 +173,7 @@ public final class QuickLitematicaEntityPlacement {
                 .getOrDefault(candidate, PlacementStatus.UNPLACED);
         if (status == PlacementStatus.MATCHED) {
             if (client.player != null) {
-                client.gui.setOverlayMessage(Component.translatable("quickcraft.entity_placement.already_placed"), false);
+                showOverlay(client, Component.translatable("quickcraft.entity_placement.already_placed"));
             }
             return true;
         }
@@ -231,7 +267,7 @@ public final class QuickLitematicaEntityPlacement {
                 String messageKey = payload.messageKey().isBlank()
                         ? "quickcraft.entity_placement.result.success"
                         : payload.messageKey();
-                client.gui.setOverlayMessage(Component.translatable(messageKey), false);
+                showOverlay(client, Component.translatable(messageKey));
             }
             return;
         }
@@ -241,7 +277,7 @@ public final class QuickLitematicaEntityPlacement {
         String messageKey = payload.messageKey().isBlank()
                 ? resultMessageKey(payload.status())
                 : payload.messageKey();
-        client.gui.setOverlayMessage(Component.translatable(messageKey), false);
+        showOverlay(client, Component.translatable(messageKey));
     }
 
     private static String resultMessageKey(String status) {
@@ -511,7 +547,7 @@ public final class QuickLitematicaEntityPlacement {
             materials.add(baseMaterial);
         }
 
-        if (type != EntityType.ITEM && !appendStoredItem(materials, nbt, "Item")) {
+        if (!isItemEntityType(type) && !appendStoredItem(materials, nbt, "Item")) {
             return false;
         }
         for (String key : List.of("SaddleItem", "ArmorItem", "DecorItem", "body_armor_item")) {
@@ -547,7 +583,7 @@ public final class QuickLitematicaEntityPlacement {
     }
 
     private static ItemStack getBaseMaterial(EntityType<?> type, CompoundTag nbt) {
-        if (type == EntityType.ITEM && nbt.contains("Item")) {
+        if (isItemEntityType(type) && nbt.contains("Item")) {
             return decodeItemStack(nbt.getCompoundOrEmpty("Item"))
                     .orElse(ItemStack.EMPTY);
         }

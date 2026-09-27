@@ -12,6 +12,7 @@ import fi.dy.masa.malilib.hotkeys.KeyAction;
 import fi.dy.masa.malilib.util.InfoUtils;
 import fi.dy.masa.malilib.util.StringUtils;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.level.ChunkPos;
@@ -40,7 +41,7 @@ public final class QuickLitematicaSelectionPreview {
         if (action != KeyAction.PRESS
                 || client.player == null
                 || client.level == null
-                || client.screen != null) {
+                || currentScreen(client) != null) {
             return false;
         }
         if (!QuickCraftConfigs.isLitematica3DPreviewEnabled()) {
@@ -73,10 +74,18 @@ public final class QuickLitematicaSelectionPreview {
         AreaSelection selectionSnapshot = selection.copy();
         String displayName = StringUtils.translate("quickcraft.litematica.preview_3d.area_title");
         String author = client.player.getName().getString();
-        QuickLitematicaPreview3D.openGenerated(client.screen, displayName, () ->
+        QuickLitematicaPreview3D.openGenerated(currentScreen(client), displayName, () ->
                 captureSelection(client.level, selectionSnapshot, author)
         );
         return true;
+    }
+
+    private static Screen currentScreen(Minecraft client) {
+        //#if MC<260200
+        return client.screen;
+        //#else
+        //$$ return client.gui.screen();
+        //#endif
     }
 
     private static LitematicaSchematic captureSelection(

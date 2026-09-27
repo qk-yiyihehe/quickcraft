@@ -24,6 +24,7 @@ import net.minecraft.world.level.block.ShulkerBoxBlock;
 import net.minecraft.world.level.block.SmokerBlock;
 import net.minecraft.world.level.block.state.properties.ChestType;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.world.item.component.ItemContainerContents;
@@ -103,7 +104,7 @@ public final class QuickContainerCopy implements ClientModInitializer {
                 || client.player == null
                 || client.level == null
                 || client.gameMode == null
-                || client.screen != null
+                || getCurrentScreen(client) != null
                 || !QuickCraftConfigs.isQuickContainerCopyEnabled()) {
             return false;
         }
@@ -248,7 +249,7 @@ public final class QuickContainerCopy implements ClientModInitializer {
                 || client.player == null
                 || client.level == null
                 || client.gameMode == null
-                || client.screen != null) {
+                || getCurrentScreen(client) != null) {
             return;
         }
 
@@ -288,7 +289,7 @@ public final class QuickContainerCopy implements ClientModInitializer {
                 || client.player == null
                 || client.level == null
                 || client.gameMode == null
-                || client.screen != null) {
+                || getCurrentScreen(client) != null) {
             return continuousTask != null;
         }
 
@@ -358,7 +359,8 @@ public final class QuickContainerCopy implements ClientModInitializer {
             stopContinuousTask(client, false, null);
             return;
         }
-        if (client.screen != null && !(client.screen instanceof AbstractContainerScreen<?>)) {
+        Screen currentScreen = getCurrentScreen(client);
+        if (currentScreen != null && !(currentScreen instanceof AbstractContainerScreen<?>)) {
             stopContinuousTask(client, false, Component.translatable("quickcraft.message.container_copy.background_screen_open"));
             return;
         }
@@ -383,7 +385,7 @@ public final class QuickContainerCopy implements ClientModInitializer {
             continuousTask.ticks = 0;
             return;
         }
-        if (client.screen != null) {
+        if (getCurrentScreen(client) != null) {
             stopContinuousTask(client, false, Component.translatable("quickcraft.message.container_copy.background_screen_open"));
             return;
         }
@@ -703,12 +705,20 @@ public final class QuickContainerCopy implements ClientModInitializer {
         }
     }
 
+    private static Screen getCurrentScreen(Minecraft client) {
+        //#if MC<260200
+        return client.screen;
+        //#else
+        //$$ return client.gui.screen();
+        //#endif
+    }
+
     private AbstractContainerMenu getOpenHandledContainer(Minecraft client) {
         if (client == null || client.player == null) {
             return null;
         }
 
-        if (client.screen instanceof AbstractContainerScreen<?> screen) {
+        if (getCurrentScreen(client) instanceof AbstractContainerScreen<?> screen) {
             return screen.getMenu();
         }
 
@@ -735,7 +745,7 @@ public final class QuickContainerCopy implements ClientModInitializer {
                 || recordedTemplate == null
                 || client.player == null
                 || client.level == null
-                || client.screen != null) {
+                || getCurrentScreen(client) != null) {
             lastUseDown = false;
             return;
         }
@@ -767,7 +777,7 @@ public final class QuickContainerCopy implements ClientModInitializer {
         }
 
         pendingTicks++;
-        if (!(client.screen instanceof AbstractContainerScreen<?> screen)) {
+        if (!(getCurrentScreen(client) instanceof AbstractContainerScreen<?> screen)) {
             if (pendingTicks > OPEN_TIMEOUT_TICKS) {
                 QuickContainerFillStatus.stop(client, pendingFillTarget, true);
                 pendingAction = PendingAction.NONE;

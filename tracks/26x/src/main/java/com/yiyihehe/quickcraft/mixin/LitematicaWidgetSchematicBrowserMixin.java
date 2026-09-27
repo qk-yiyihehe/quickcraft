@@ -12,7 +12,11 @@ import fi.dy.masa.malilib.gui.interfaces.ISelectionListener;
 import fi.dy.masa.malilib.gui.widgets.WidgetFileBrowserBase;
 import fi.dy.masa.malilib.render.RenderUtils;
 import fi.dy.masa.malilib.render.GuiContext;
+//#if MC<260300
 import com.mojang.blaze3d.pipeline.RenderPipeline;
+//#else
+//$$ import com.mojang.renderpearl.api.pipeline.RenderPipeline;
+//#endif
 import net.minecraft.resources.Identifier;
 import org.spongepowered.asm.mixin.Final;
 import org.spongepowered.asm.mixin.Mixin;
@@ -80,7 +84,11 @@ public abstract class LitematicaWidgetSchematicBrowserMixin extends WidgetFileBr
             method = "drawSelectedSchematicInfo",
             at = @At(
                     value = "INVOKE",
+                    //#if MC<260300
                     target = "Lfi/dy/masa/malilib/render/GuiContext;blit(Lcom/mojang/blaze3d/pipeline/RenderPipeline;Lnet/minecraft/resources/Identifier;IIFFIIII)V"
+                    //#else
+                    //$$ target = "Lfi/dy/masa/malilib/render/GuiContext;blit(Lcom/mojang/renderpearl/api/pipeline/RenderPipeline;Lnet/minecraft/resources/Identifier;IIFFIIII)V"
+                    //#endif
             )
     )
     private void quickcraft$skipVanillaPreviewWhen3DEnabled(
@@ -129,7 +137,7 @@ public abstract class LitematicaWidgetSchematicBrowserMixin extends WidgetFileBr
     }
 
     private boolean quickcraft$shouldReplaceNativePreview() {
-        // 0.27.10+ 同页也显示材料 JSON/TXT；只有可渲染的 .litematic 才能隐藏原生预览。
+        // 支持范围内的 Litematica 同页也显示材料 JSON/TXT；只有可渲染的 .litematic 才能隐藏原生预览。
         DirectoryEntry entry = this.getLastSelectedEntry();
         return entry != null
                 && Files.isRegularFile(entry.getFullPath())

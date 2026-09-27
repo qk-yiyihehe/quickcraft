@@ -75,7 +75,7 @@ public class QuickDraggableButton extends ButtonWidget {
     public boolean mouseClicked(double mouseX, double mouseY, int button) {
         if (!QuickCraftConfigs.isActionButtonDraggingEnabled()
                 || !QuickCraftKeyBindings.isShiftDown()
-                || !this.clicked(mouseX, mouseY)) {
+                || !isPointerOver(mouseX, mouseY)) {
             return super.mouseClicked(mouseX, mouseY, button);
         }
         if (button == 0) {
@@ -92,6 +92,14 @@ public class QuickDraggableButton extends ButtonWidget {
             return true;
         }
         return false;
+    }
+
+    private boolean isPointerOver(double mouseX, double mouseY) {
+        //#if MC<12103
+        return this.clicked(mouseX, mouseY);
+        //#else
+        //$$ return this.isMouseOver(mouseX, mouseY);
+        //#endif
     }
 
     @Override

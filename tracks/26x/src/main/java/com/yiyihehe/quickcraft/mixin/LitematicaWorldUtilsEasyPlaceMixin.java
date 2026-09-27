@@ -11,6 +11,9 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
+//#if MC>=260300
+//$$ import net.minecraft.world.item.component.SwingAnimation;
+//#endif
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.Level;
@@ -75,9 +78,15 @@ public class LitematicaWorldUtilsEasyPlaceMixin {
         }
 
         InteractionResult result = client.gameMode.useItemOn(client.player, hand, placementHit);
+        //#if MC<260300
         if (result instanceof InteractionResult.Success success
                 && success.swingSource() == InteractionResult.SwingSource.CLIENT) {
             client.player.swing(hand);
+        //#else
+        //$$ if (result instanceof InteractionResult.Success success
+        //$$         && success.swingSource() == InteractionResult.SwingSource.PREDICTED) {
+        //$$     client.player.swing(hand, SwingAnimation.DEFAULT, false);
+        //#endif
         }
         cir.setReturnValue(result == InteractionResult.FAIL ? InteractionResult.FAIL : InteractionResult.SUCCESS);
     }
@@ -96,6 +105,7 @@ public class LitematicaWorldUtilsEasyPlaceMixin {
         }
     }
 
+    //#if MC<260200
     @Inject(method = "handlePlacementRestriction", at = @At("HEAD"), cancellable = true, remap = false)
     private static void quickcraft$letVanillaUseBypassPlacementRestriction(
             Minecraft mc, CallbackInfoReturnable<Boolean> cir) {
@@ -103,4 +113,5 @@ public class LitematicaWorldUtilsEasyPlaceMixin {
             cir.setReturnValue(false);
         }
     }
+    //#endif
 }
