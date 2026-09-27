@@ -268,6 +268,11 @@ public final class QuickCraftConfigs implements IConfigHandler {
                 false,
                 ""
         ).apply(CRAFTING_TRANSLATION_PREFIX);
+        public static final ConfigBooleanHotkeyed RETAIN_ONE_CRAFT_INGREDIENT = new ConfigBooleanHotkeyed(
+                "retainOneCraftIngredient",
+                false,
+                ""
+        ).apply(CRAFTING_TRANSLATION_PREFIX);
 
         public static final List<IConfigBase> OPTIONS = List.of(
                 ENABLE_WORKBENCH,
@@ -279,6 +284,7 @@ public final class QuickCraftConfigs implements IConfigHandler {
                 ENABLE_ANVIL_RENAME,
                 SHOW_CRAFT_ACTION_BUTTON,
                 DROP_RESULTS_ON_STOP,
+                RETAIN_ONE_CRAFT_INGREDIENT,
                 CRAFT_LOOPS_PER_TICK
         );
 
@@ -1067,6 +1073,10 @@ public final class QuickCraftConfigs implements IConfigHandler {
 
     public static boolean isDropCraftResultsOnStopEnabled() {
         return Crafting.DROP_RESULTS_ON_STOP.getBooleanValue();
+    }
+
+    public static boolean isRetainOneCraftIngredientEnabled() {
+        return Crafting.RETAIN_ONE_CRAFT_INGREDIENT.getBooleanValue();
     }
 
     public static boolean isQuickTransferEnabled() {

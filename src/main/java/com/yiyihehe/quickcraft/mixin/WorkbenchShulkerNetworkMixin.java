@@ -1,5 +1,6 @@
 package com.yiyihehe.quickcraft.mixin;
 
+import com.yiyihehe.quickcraft.crafting.QuickCraftMouseCraftAckExecutor;
 import com.yiyihehe.quickcraft.crafting.QuickCraftWorkbenchShulkerCraft;
 import net.minecraft.client.network.ClientPlayNetworkHandler;
 import net.minecraft.network.packet.s2c.play.InventoryS2CPacket;
@@ -17,18 +18,24 @@ public abstract class WorkbenchShulkerNetworkMixin {
     private void quickcraft$onSlotUpdate(ScreenHandlerSlotUpdateS2CPacket packet, CallbackInfo ci) {
         QuickCraftWorkbenchShulkerCraft.onServerContainerUpdate(
                 packet.getSyncId(), packet.getRevision(), false);
+        QuickCraftMouseCraftAckExecutor.onServerSlotUpdate(
+                packet.getSyncId(), packet.getRevision(), packet.getSlot(), packet.getStack());
     }
 
     @Inject(method = "onInventory", at = @At("RETURN"))
     private void quickcraft$onInventoryUpdate(InventoryS2CPacket packet, CallbackInfo ci) {
         QuickCraftWorkbenchShulkerCraft.onServerContainerUpdate(
                 packet.getSyncId(), packet.getRevision(), true);
+        QuickCraftMouseCraftAckExecutor.onServerInventoryUpdate(
+                packet.getSyncId(), packet.getRevision(), packet.getContents(), packet.getCursorStack());
     }
 
     // RETURN 时客户端 StatHandler 已应用服务端绝对值，统计探针可确认没有槽位变化的批次。
     @Inject(method = "onStatistics", at = @At("RETURN"))
     private void quickcraft$onServerCraftStats(StatisticsS2CPacket packet, CallbackInfo ci) {
         QuickCraftWorkbenchShulkerCraft.onServerStatistics(
+                (ClientPlayNetworkHandler) (Object) this);
+        QuickCraftMouseCraftAckExecutor.onServerStatistics(
                 (ClientPlayNetworkHandler) (Object) this);
     }
 }
