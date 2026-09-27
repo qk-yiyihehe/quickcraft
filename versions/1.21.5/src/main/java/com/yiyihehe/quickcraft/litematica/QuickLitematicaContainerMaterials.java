@@ -32,8 +32,16 @@ import fi.dy.masa.malilib.gui.widgets.WidgetFileBrowserBase.DirectoryEntry;
 import fi.dy.masa.malilib.gui.widgets.WidgetListBase;
 import fi.dy.masa.malilib.gui.widgets.WidgetListEntryBase;
 import fi.dy.masa.malilib.interfaces.ICompletionListener;
+//#if MC>=12111
+//$$ import fi.dy.masa.malilib.render.GuiContext;
+//$$ import fi.dy.masa.malilib.render.InventoryOverlay;
+//#endif
 import fi.dy.masa.malilib.render.RenderUtils;
+//#if MC>=12111
+//$$ import fi.dy.masa.malilib.util.data.ItemType;
+//#else
 import fi.dy.masa.malilib.util.ItemType;
+//#endif
 import fi.dy.masa.malilib.util.InfoUtils;
 import fi.dy.masa.malilib.util.StringUtils;
 import it.unimi.dsi.fastutil.objects.Object2IntOpenHashMap;
@@ -43,7 +51,12 @@ import net.minecraft.block.ShulkerBoxBlock;
 import net.minecraft.block.entity.BlockEntity;
 import net.minecraft.block.enums.ChestType;
 import net.minecraft.client.MinecraftClient;
+//#if MC>=12110
+//$$ import net.minecraft.client.gui.Click;
+//#endif
+//#if MC<12111
 import net.minecraft.client.gui.DrawContext;
+//#endif
 import net.minecraft.client.gui.screen.Screen;
 import net.minecraft.inventory.Inventory;
 import net.minecraft.item.BlockItem;
@@ -52,7 +65,9 @@ import net.minecraft.item.ItemStack;
 import net.minecraft.item.Items;
 import net.minecraft.nbt.NbtCompound;
 import net.minecraft.nbt.NbtList;
-import net.minecraft.registry.Registries;
+//#if MC>=12108
+//$$ import net.minecraft.nbt.NbtOps;
+//#endif
 import net.minecraft.registry.RegistryWrapper;
 import net.minecraft.util.collection.DefaultedList;
 import net.minecraft.util.math.BlockPos;
@@ -262,7 +277,11 @@ public final class QuickLitematicaContainerMaterials {
             @Nullable SchematicPlacement placement,
             boolean renderLayers
     ) {
+        //#if MC>=12111
+        //$$ Map<BlockPos, ?> blockEntities = schematic.getBlockEntityMapForRegion(regionName);
+        //#else
         Map<BlockPos, NbtCompound> blockEntities = schematic.getBlockEntityMapForRegion(regionName);
+        //#endif
 
         if (blockEntities == null || blockEntities.isEmpty()) {
             return;
@@ -271,14 +290,22 @@ public final class QuickLitematicaContainerMaterials {
         LitematicaBlockStateContainer stateContainer = schematic.getSubRegionContainer(regionName);
         Set<BlockPos> consumed = new HashSet<>();
 
+        //#if MC>=12111
+        //$$ for (Map.Entry<BlockPos, ?> entry : blockEntities.entrySet()) {
+        //#else
         for (Map.Entry<BlockPos, NbtCompound> entry : blockEntities.entrySet()) {
+        //#endif
             BlockPos pos = entry.getKey();
 
             if (consumed.contains(pos)) {
                 continue;
             }
 
+            //#if MC>=12111
+            //$$ NbtCompound nbt = QuickLitematicaDataCompat.toVanillaNbt(entry.getValue());
+            //#else
             NbtCompound nbt = entry.getValue();
+            //#endif
             if (nbt == null) {
                 continue;
             }
@@ -304,7 +331,11 @@ public final class QuickLitematicaContainerMaterials {
             consumed.add(pos);
 
             if (pairedChestPos != null) {
+                //#if MC>=12111
+                //$$ NbtCompound pairedNbt = QuickLitematicaDataCompat.toVanillaNbt(blockEntities.get(pairedChestPos));
+                //#else
                 NbtCompound pairedNbt = blockEntities.get(pairedChestPos);
+                //#endif
                 BlockState pairedState = getState(stateContainer, pairedChestPos);
                 List<ItemStack> pairedStacks = readBlockEntityItems(
                         pairedChestPos,
@@ -338,14 +369,25 @@ public final class QuickLitematicaContainerMaterials {
         }
 
         for (EntityInfo info : entities) {
+            //#if MC>=12111
+            //$$ NbtCompound nbt = QuickLitematicaDataCompat.entityNbt(info);
+            //$$ if (nbt == null || !nbt.contains("Items")) {
+            //#else
             if (info.nbt == null || !info.nbt.contains("Items")) {
+            //#endif
                 continue;
             }
+            //#if MC>=12111
+            //$$ if (renderLayers && !isWithinRenderLayer(placement, schematic, regionName, QuickLitematicaDataCompat.entityPos(info))) {
+            //#else
             if (renderLayers && !isWithinRenderLayer(placement, schematic, regionName, info.posVec)) {
+            //#endif
                 continue;
             }
 
+            //#if MC<12111
             NbtCompound nbt = info.nbt;
+            //#endif
             List<ItemStack> stacks = readItems(nbt, registryLookup);
 
             if (stacks.isEmpty()) {
@@ -467,7 +509,7 @@ public final class QuickLitematicaContainerMaterials {
         NbtList items = nbt.getListOrEmpty("Items");
 
         for (int i = 0; i < items.size(); i++) {
-            ItemStack stack = ItemStack.fromNbt(registryLookup, items.getCompoundOrEmpty(i)).orElse(ItemStack.EMPTY);
+            ItemStack stack = itemStackFromNbt(registryLookup, items.getCompoundOrEmpty(i));
 
             if (!stack.isEmpty()) {
                 stacks.add(stack);
@@ -475,6 +517,17 @@ public final class QuickLitematicaContainerMaterials {
         }
 
         return stacks;
+    }
+
+    private static ItemStack itemStackFromNbt(RegistryWrapper.WrapperLookup registryLookup, NbtCompound nbt) {
+        //#if MC<12108
+        return ItemStack.fromNbt(registryLookup, nbt).orElse(ItemStack.EMPTY);
+        //#else
+        //$$ return ItemStack.OPTIONAL_CODEC
+        //$$         .parse(registryLookup.getOps(NbtOps.INSTANCE), nbt)
+        //$$         .result()
+        //$$         .orElse(ItemStack.EMPTY);
+        //#endif
     }
 
     @Nullable
@@ -594,7 +647,11 @@ public final class QuickLitematicaContainerMaterials {
             BlockPos pos,
             BlockState state,
             LitematicaBlockStateContainer stateContainer,
+            //#if MC>=12111
+            //$$ Map<BlockPos, ?> blockEntities,
+            //#else
             Map<BlockPos, NbtCompound> blockEntities,
+            //#endif
             Set<BlockPos> consumed
     ) {
         if (!(state != null && state.getBlock() instanceof ChestBlock)) {
@@ -1204,7 +1261,11 @@ public final class QuickLitematicaContainerMaterials {
         }
     }
 
+    //#if MC>=12111
+    //$$ private static class ContainerMaterialListScreen extends GuiMaterialList {
+    //#else
     private static final class ContainerMaterialListScreen extends GuiMaterialList {
+    //#endif
         private final ContainerMaterialList materialList;
 
         private ContainerMaterialListScreen(ContainerMaterialList materialList) {
@@ -1312,7 +1373,11 @@ public final class QuickLitematicaContainerMaterials {
         }
 
         @Override
+        //#if MC>=12111
+        //$$ public void drawContents(GuiContext drawContext, int mouseX, int mouseY, float partialTicks) {
+        //#else
         public void drawContents(DrawContext drawContext, int mouseX, int mouseY, float partialTicks) {
+        //#endif
             super.drawContents(drawContext, mouseX, mouseY, partialTicks);
 
             if (this.data.visibleGroups().isEmpty()) {
@@ -1430,23 +1495,33 @@ public final class QuickLitematicaContainerMaterials {
         }
 
         @Override
+        //#if MC<12110
         public boolean canSelectAt(int mouseX, int mouseY, int mouseButton) {
+        //#else
+        //$$ public boolean canSelectAt(Click click) {
+        //#endif
             return false;
         }
 
         @Override
+        //#if MC<12108
         public void render(int mouseX, int mouseY, boolean selected, DrawContext drawContext) {
+        //#elseif MC>=12111
+        //$$ public void render(GuiContext drawContext, int mouseX, int mouseY, boolean selected) {
+        //#else
+        //$$ public void render(DrawContext drawContext, int mouseX, int mouseY, boolean selected) {
+        //#endif
             if (this.entry == null) {
                 this.renderHeader(drawContext);
                 return;
             }
 
             if (this.isMouseOver(mouseX, mouseY)) {
-                RenderUtils.drawRect(this.x, this.y, this.width, this.height, 0xA0707070);
+                drawRect(drawContext, this.x, this.y, this.width, this.height, 0xA0707070);
             } else if (this.isOdd) {
-                RenderUtils.drawRect(this.x, this.y, this.width, this.height, 0xA0101010);
+                drawRect(drawContext, this.x, this.y, this.width, this.height, 0xA0101010);
             } else {
-                RenderUtils.drawRect(this.x, this.y, this.width, this.height, 0xA0303030);
+                drawRect(drawContext, this.x, this.y, this.width, this.height, 0xA0303030);
             }
 
             int containerX = this.x + 6;
@@ -1454,21 +1529,31 @@ public final class QuickLitematicaContainerMaterials {
             int contentsX = this.x + CONTAINER_COLUMN_WIDTH + COUNT_COLUMN_WIDTH + 8;
             int yText = this.y + 6;
 
-            RenderUtils.drawRect(containerX, this.y + 6, 16, 16, 0x20FFFFFF);
+            drawRect(drawContext, containerX, this.y + 6, 16, 16, 0x20FFFFFF);
             drawContext.drawItem(this.entry.containerStack(), containerX, this.y + 6);
-            this.drawString(containerX + 20, yText, 0xFFFFFFFF, fitText(this.entry.containerName(), CONTAINER_COLUMN_WIDTH - 28), drawContext);
+            this.drawText(drawContext, containerX + 20, yText, 0xFFFFFFFF, fitText(this.entry.containerName(), CONTAINER_COLUMN_WIDTH - 28));
 
             if (this.entry.sourceLabel() != null) {
-                this.drawString(containerX + 20, yText + 11, 0xFFAAAAAA, fitText(this.entry.sourceLabel(), CONTAINER_COLUMN_WIDTH - 28), drawContext);
+                this.drawText(drawContext, containerX + 20, yText + 11, 0xFFAAAAAA, fitText(this.entry.sourceLabel(), CONTAINER_COLUMN_WIDTH - 28));
             }
 
-            this.drawString(countX, this.y + 10, 0xFFFFFFFF, "x" + this.entry.containerCount(), drawContext);
+            this.drawText(drawContext, countX, this.y + 10, 0xFFFFFFFF, "x" + this.entry.containerCount());
             this.renderContents(drawContext, contentsX, mouseX, mouseY);
+            //#if MC<12108
             super.render(mouseX, mouseY, selected, drawContext);
+            //#else
+            //$$ super.render(drawContext, mouseX, mouseY, selected);
+            //#endif
         }
 
         @Override
+        //#if MC<12108
         public void postRenderHovered(int mouseX, int mouseY, boolean selected, DrawContext drawContext) {
+        //#elseif MC>=12111
+        //$$ public void postRenderHovered(GuiContext drawContext, int mouseX, int mouseY, boolean selected) {
+        //#else
+        //$$ public void postRenderHovered(DrawContext drawContext, int mouseX, int mouseY, boolean selected) {
+        //#endif
             if (this.entry == null) {
                 return;
             }
@@ -1477,22 +1562,38 @@ public final class QuickLitematicaContainerMaterials {
             int containerY = this.y + 6;
 
             if (mouseX >= containerX && mouseX < containerX + 16 && mouseY >= containerY && mouseY < containerY + 16) {
+                //#if MC>=12111
+                //$$ InventoryOverlay.renderStackToolTipStyled(drawContext, mouseX, mouseY, this.entry.containerStack());
+                //#else
                 drawContext.drawItemTooltip(this.textRenderer, this.entry.containerStack(), mouseX, mouseY);
+                //#endif
                 return;
             }
 
             ItemCount hovered = this.getHoveredItem(mouseX, mouseY);
 
             if (hovered != null) {
+                //#if MC>=12111
+                //$$ InventoryOverlay.renderStackToolTipStyled(drawContext, mouseX, mouseY, hovered.stack());
+                //#else
                 drawContext.drawItemTooltip(this.textRenderer, hovered.stack(), mouseX, mouseY);
+                //#endif
                 return;
             }
 
+            //#if MC<12108
             super.postRenderHovered(mouseX, mouseY, selected, drawContext);
+            //#else
+            //$$ super.postRenderHovered(drawContext, mouseX, mouseY, selected);
+            //#endif
         }
 
+        //#if MC>=12111
+        //$$ private void renderHeader(GuiContext drawContext) {
+        //#else
         private void renderHeader(DrawContext drawContext) {
-            RenderUtils.drawRect(this.x, this.y, this.width, this.height, 0xA0101010);
+        //#endif
+            drawRect(drawContext, this.x, this.y, this.width, this.height, 0xA0101010);
 
             int containerX = this.x + 6;
             int countX = this.x + CONTAINER_COLUMN_WIDTH + 4;
@@ -1501,23 +1602,31 @@ public final class QuickLitematicaContainerMaterials {
             int endX = this.x + this.width - 2;
             int y = this.y + 7;
 
-            this.drawHeaderCell(containerX, countX);
-            this.drawHeaderCell(countX, contentsX);
-            this.drawHeaderCell(contentsX, actionX);
-            this.drawHeaderCell(actionX, endX);
-            this.drawString(containerX, y, 0xFFFFFFFF, GuiBase.TXT_BOLD + StringUtils.translate("quickcraft.litematica.header.container") + GuiBase.TXT_RST, drawContext);
-            this.drawString(countX, y, 0xFFFFFFFF, GuiBase.TXT_BOLD + StringUtils.translate("quickcraft.litematica.header.count") + GuiBase.TXT_RST, drawContext);
-            this.drawString(contentsX, y, 0xFFFFFFFF, GuiBase.TXT_BOLD + StringUtils.translate("quickcraft.litematica.header.contents") + GuiBase.TXT_RST, drawContext);
-            this.drawString(actionX, y, 0xFFFFFFFF, GuiBase.TXT_BOLD + StringUtils.translate("quickcraft.litematica.header.action") + GuiBase.TXT_RST, drawContext);
+            this.drawHeaderCell(drawContext, containerX, countX);
+            this.drawHeaderCell(drawContext, countX, contentsX);
+            this.drawHeaderCell(drawContext, contentsX, actionX);
+            this.drawHeaderCell(drawContext, actionX, endX);
+            this.drawText(drawContext, containerX, y, 0xFFFFFFFF, GuiBase.TXT_BOLD + StringUtils.translate("quickcraft.litematica.header.container") + GuiBase.TXT_RST);
+            this.drawText(drawContext, countX, y, 0xFFFFFFFF, GuiBase.TXT_BOLD + StringUtils.translate("quickcraft.litematica.header.count") + GuiBase.TXT_RST);
+            this.drawText(drawContext, contentsX, y, 0xFFFFFFFF, GuiBase.TXT_BOLD + StringUtils.translate("quickcraft.litematica.header.contents") + GuiBase.TXT_RST);
+            this.drawText(drawContext, actionX, y, 0xFFFFFFFF, GuiBase.TXT_BOLD + StringUtils.translate("quickcraft.litematica.header.action") + GuiBase.TXT_RST);
         }
 
-        private void drawHeaderCell(int xStart, int xEnd) {
-            RenderUtils.drawOutline(xStart - 3, this.y + 1, xEnd - xStart - 2, this.height - 2, 0xC0707070);
+        //#if MC>=12111
+        //$$ private void drawHeaderCell(GuiContext drawContext, int xStart, int xEnd) {
+        //#else
+        private void drawHeaderCell(DrawContext drawContext, int xStart, int xEnd) {
+        //#endif
+            drawOutline(drawContext, xStart - 3, this.y + 1, xEnd - xStart - 2, this.height - 2, 0xC0707070);
         }
 
+        //#if MC>=12111
+        //$$ private void renderContents(GuiContext drawContext, int contentsX, int mouseX, int mouseY) {
+        //#else
         private void renderContents(DrawContext drawContext, int contentsX, int mouseX, int mouseY) {
+        //#endif
             if (this.entry.contents().isEmpty()) {
-                this.drawString(contentsX, this.y + 10, 0xFFAAAAAA, StringUtils.translate("quickcraft.litematica.label.empty_contents"), drawContext);
+                this.drawText(drawContext, contentsX, this.y + 10, 0xFFAAAAAA, StringUtils.translate("quickcraft.litematica.label.empty_contents"));
                 return;
             }
 
@@ -1529,7 +1638,7 @@ public final class QuickLitematicaContainerMaterials {
                 int itemY = this.y + 6 + (i / columns) * ITEM_CELL_HEIGHT;
                 ItemStack displayStack = item.stack();
 
-                RenderUtils.drawRect(itemX, itemY, 16, 16, 0x20FFFFFF);
+                drawRect(drawContext, itemX, itemY, 16, 16, 0x20FFFFFF);
                 drawContext.drawItem(displayStack, itemX, itemY);
                 drawContext.drawStackOverlay(
                         this.textRenderer,
@@ -1539,6 +1648,42 @@ public final class QuickLitematicaContainerMaterials {
                         formatCount(item.totalCount(this.entry.containerCount()))
                 );
             }
+        }
+
+        //#if MC>=12111
+        //$$ private void drawText(GuiContext drawContext, int x, int y, int color, String text) {
+        //#else
+        private void drawText(DrawContext drawContext, int x, int y, int color, String text) {
+        //#endif
+            //#if MC<12108
+            this.drawString(x, y, color, text, drawContext);
+            //#else
+            //$$ this.drawString(drawContext, x, y, color, text);
+            //#endif
+        }
+
+        //#if MC>=12111
+        //$$ private static void drawRect(GuiContext drawContext, int x, int y, int width, int height, int color) {
+        //#else
+        private static void drawRect(DrawContext drawContext, int x, int y, int width, int height, int color) {
+        //#endif
+            //#if MC<12108
+            RenderUtils.drawRect(x, y, width, height, color);
+            //#else
+            //$$ RenderUtils.drawRect(drawContext, x, y, width, height, color);
+            //#endif
+        }
+
+        //#if MC>=12111
+        //$$ private static void drawOutline(GuiContext drawContext, int x, int y, int width, int height, int color) {
+        //#else
+        private static void drawOutline(DrawContext drawContext, int x, int y, int width, int height, int color) {
+        //#endif
+            //#if MC<12108
+            RenderUtils.drawOutline(x, y, width, height, color);
+            //#else
+            //$$ RenderUtils.drawOutline(drawContext, x, y, width, height, color);
+            //#endif
         }
 
         private ItemCount getHoveredItem(int mouseX, int mouseY) {
