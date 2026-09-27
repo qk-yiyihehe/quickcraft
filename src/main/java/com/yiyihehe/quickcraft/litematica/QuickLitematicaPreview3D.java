@@ -32,7 +32,11 @@ import fi.dy.masa.malilib.gui.widgets.WidgetFileBrowserBase.DirectoryEntry;
 import fi.dy.masa.malilib.render.RenderUtils;
 import fi.dy.masa.malilib.util.InfoUtils;
 import fi.dy.masa.malilib.util.StringUtils;
+//#if MC<12104
 import net.fabricmc.fabric.api.renderer.v1.RendererAccess;
+//#else
+//$$ import net.fabricmc.fabric.api.renderer.v1.Renderer;
+//#endif
 import net.fabricmc.fabric.impl.client.indigo.renderer.IndigoRenderer;
 import net.fabricmc.fabric.impl.client.indigo.renderer.render.WorldMesherRenderContext;
 import net.fabricmc.loader.api.FabricLoader;
@@ -111,8 +115,14 @@ import org.joml.Vector4f;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+//#if MC>=12104
+//$$ import java.awt.image.BufferedImage;
+//#endif
 import java.io.BufferedInputStream;
 import java.io.BufferedOutputStream;
+//#if MC>=12104
+//$$ import java.io.ByteArrayOutputStream;
+//#endif
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
@@ -149,6 +159,10 @@ import java.util.function.Consumer;
 import java.util.function.Supplier;
 import java.util.zip.GZIPInputStream;
 import java.util.zip.GZIPOutputStream;
+
+//#if MC>=12104
+//$$ import javax.imageio.ImageIO;
+//#endif
 
 /**
  * Litematica 文件和游戏内选区的真实方块模型 3D 预览。
@@ -187,8 +201,10 @@ public final class QuickLitematicaPreview3D {
     private static final String CACHE_INDEX_FILE_NAME = "cache-index.properties";
     //#if MC<12103
     private static final String CACHE_RENDER_MARKER = "quickcraft-model-mesh-v16-api-audit-stable-path-content-resource-signature-mc1.21";
-    //#else
+    //#elseif MC<12104
     //$$ private static final String CACHE_RENDER_MARKER = "quickcraft-model-mesh-v16-api-audit-stable-path-content-resource-signature-mc1.21.3";
+    //#else
+    //$$ private static final String CACHE_RENDER_MARKER = "quickcraft-model-mesh-v16-api-audit-stable-path-content-resource-signature-mc1.21.4";
     //#endif
     private static final int EXPAND_BUTTON_SIZE = 16;
     private static final int COMPAT_CLIPBOARD_MAX_DIMENSION = 4096;
@@ -1663,7 +1679,11 @@ public final class QuickLitematicaPreview3D {
 
             Util.getIoWorkerExecutor().execute(() -> {
                 try {
+                    //#if MC<12104
                     copyToWindowsClipboard(image);
+                    //#else
+                    //$$ copyToWindowsClipboard(image, ((backgroundColor >>> 24) & 0xFF) != 0xFF);
+                    //#endif
                     MinecraftClient.getInstance().execute(() -> callback.accept(Text.translatable(
                             "quickcraft.litematica.preview_3d.copy_success"
                     )));
@@ -1761,12 +1781,24 @@ public final class QuickLitematicaPreview3D {
         }
 
         // Minecraft 客户端会启用 java.awt.headless，图片剪贴板必须绕过 AWT 直接写 Win32。
+        //#if MC<12104
         private static void copyToWindowsClipboard(NativeImage image) throws InterruptedException {
+        //#else
+        //$$ private static void copyToWindowsClipboard(NativeImage image, boolean preserveTransparency) throws InterruptedException {
+        //#endif
             int width = image.getWidth();
             int height = image.getHeight();
             double compatScale = Math.min(1.0, COMPAT_CLIPBOARD_MAX_DIMENSION / (double) Math.max(width, height));
             int compatWidth = Math.max(1, (int) Math.round(width * compatScale));
             int compatHeight = Math.max(1, (int) Math.round(height * compatScale));
+            //#if MC>=12104
+            //$$ byte[] pngBytes;
+            //$$ try {
+            //$$     pngBytes = preserveTransparency ? encodeClipboardPng(image, compatWidth, compatHeight) : null;
+            //$$ } catch (IOException e) {
+            //$$     throw new IllegalStateException("Could not encode transparent clipboard PNG", e);
+            //$$ }
+            //#endif
             long pixelBytes = (long) width * height * 4L;
             long compatPixelBytes = (long) compatWidth * compatHeight * 4L;
             Pointer dibV5Handle = WindowsMemory.INSTANCE.GlobalAlloc(
@@ -1789,7 +1821,13 @@ public final class QuickLitematicaPreview3D {
 
             boolean clipboardOwnsDibV5 = false;
             boolean clipboardOwnsDib = false;
+            //#if MC>=12104
+            //$$ boolean clipboardOwnsPng = false;
+            //#endif
             boolean clipboardOpen = false;
+            //#if MC>=12104
+            //$$ Pointer pngHandle = null;
+            //#endif
             try {
                 Pointer dibV5Memory = WindowsMemory.INSTANCE.GlobalLock(dibV5Handle);
                 Pointer dibMemory = WindowsMemory.INSTANCE.GlobalLock(dibHandle);
@@ -1848,11 +1886,44 @@ public final class QuickLitematicaPreview3D {
                     WindowsMemory.INSTANCE.GlobalUnlock(dibHandle);
                 }
 
+                //#if MC>=12104
+                //$$ if (pngBytes != null) {
+                //$$     pngHandle = WindowsMemory.INSTANCE.GlobalAlloc(
+                //$$             WindowsMemory.GHND,
+                //$$             new BaseTSD.SIZE_T(pngBytes.length)
+                //$$     );
+                //$$     if (pngHandle == null) {
+                //$$         throw new IllegalStateException("GlobalAlloc(PNG) failed");
+                //$$     }
+                //$$     Pointer pngMemory = WindowsMemory.INSTANCE.GlobalLock(pngHandle);
+                //$$     if (pngMemory == null) {
+                //$$         throw new IllegalStateException("GlobalLock(PNG) failed");
+                //$$     }
+                //$$     try {
+                //$$         pngMemory.write(0, pngBytes, 0, pngBytes.length);
+                //$$     } finally {
+                //$$         WindowsMemory.INSTANCE.GlobalUnlock(pngHandle);
+                //$$     }
+                //$$ }
+                //#endif
+
                 clipboardOpen = openWindowsClipboard();
                 if (!clipboardOpen || !WindowsClipboard.INSTANCE.EmptyClipboard()) {
                     throw new IllegalStateException("Windows clipboard is unavailable");
                 }
+                //#if MC>=12104
+                //$$ if (pngHandle != null) {
+                //$$     int pngFormat = WindowsClipboard.INSTANCE.RegisterClipboardFormat("PNG");
+                //$$     if (pngFormat == 0 || WindowsClipboard.INSTANCE.SetClipboardData(pngFormat, pngHandle) == null) {
+                //$$         throw new IllegalStateException("SetClipboardData(PNG) failed");
+                //$$     }
+                //$$     clipboardOwnsPng = true;
+                //$$ }
+                //$$
+                //$$ // QQ 跳过不认识的 PNG 格式后按枚举顺序取 DIB；支持 PNG 的程序则保留完整 Alpha。
+                //#else
                 // QQ 等旧客户端按枚举顺序取第一个可识别格式，兼容 DIB 必须放在完整 DIBV5 前面。
+                //#endif
                 if (WindowsClipboard.INSTANCE.SetClipboardData(WindowsClipboard.CF_DIB, dibHandle) == null) {
                     throw new IllegalStateException("SetClipboardData(CF_DIB) failed");
                 }
@@ -1871,8 +1942,35 @@ public final class QuickLitematicaPreview3D {
                 if (!clipboardOwnsDib) {
                     WindowsMemory.INSTANCE.GlobalFree(dibHandle);
                 }
+                //#if MC>=12104
+                //$$ if (!clipboardOwnsPng && pngHandle != null) {
+                //$$     WindowsMemory.INSTANCE.GlobalFree(pngHandle);
+                //$$ }
+                //#endif
             }
         }
+
+        //#if MC>=12104
+        //$$ private static byte[] encodeClipboardPng(NativeImage image, int width, int height) throws IOException {
+        //$$     BufferedImage bufferedImage = new BufferedImage(width, height, BufferedImage.TYPE_INT_ARGB);
+        //$$     int[] row = new int[width];
+        //$$     for (int y = 0; y < height; y++) {
+        //$$         int sourceY = Math.min(image.getHeight() - 1, (int) ((y + 0.5) * image.getHeight() / height));
+        //$$         for (int x = 0; x < width; x++) {
+        //$$             int sourceX = Math.min(image.getWidth() - 1, (int) ((x + 0.5) * image.getWidth() / width));
+        //$$             row[x] = image.getColorArgb(sourceX, sourceY);
+        //$$         }
+        //$$         bufferedImage.setRGB(0, y, width, 1, row, 0, width);
+        //$$     }
+        //$$
+        //$$     try (ByteArrayOutputStream output = new ByteArrayOutputStream()) {
+        //$$         if (!ImageIO.write(bufferedImage, "png", output)) {
+        //$$             throw new IOException("No PNG writer is available");
+        //$$         }
+        //$$         return output.toByteArray();
+        //$$     }
+        //$$ }
+        //#endif
 
         private static boolean openWindowsClipboard() throws InterruptedException {
             for (int attempt = 0; attempt < 5; attempt++) {
@@ -2603,6 +2701,10 @@ public final class QuickLitematicaPreview3D {
 
         boolean EmptyClipboard();
 
+        //#if MC>=12104
+        //$$ int RegisterClipboardFormat(String formatName);
+        //$$
+        //#endif
         Pointer SetClipboardData(int format, Pointer memoryHandle);
 
         boolean CloseClipboard();
@@ -2920,7 +3022,11 @@ public final class QuickLitematicaPreview3D {
         @Nullable
         private static WorldMesherRenderContext createFabricContext(MeshCollector collector, ClientWorld world) {
             try {
+                //#if MC<12104
                 if (RendererAccess.INSTANCE.getRenderer() instanceof IndigoRenderer) {
+                //#else
+                //$$ if (Renderer.get() instanceof IndigoRenderer) {
+                //#endif
                     DummyWorld dummyWorld = DummyWorld.fromWorld(world);
                     return new WorldMesherRenderContext(dummyWorld, layer -> collector.consumerFor(layer));
                 }
