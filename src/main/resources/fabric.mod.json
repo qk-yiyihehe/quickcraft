@@ -40,8 +40,7 @@
       "com.yiyihehe.quickcraft.gui.QuickCraftModMenuIntegration"
     ],
     "mm:early_risers": [
-      "com.yiyihehe.quickcraft.litematica.QuickLitematicaContainerVerifier$EarlyRiser",
-      "com.yiyihehe.quickcraft.litematica.QuickLitematicaPortalLink$EarlyRiser"
+      "com.yiyihehe.quickcraft.litematica.QuickLitematicaContainerVerifier$EarlyRiser"
     ]
   },
   "mixins": [

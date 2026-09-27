@@ -48,15 +48,19 @@ QuickCraft is a Fabric client-side utility mod that makes crafting, container ma
 
 ## Documentation
 
-Detailed feature documentation is being prepared. The entry point is reserved in [`doc/`](doc/README_en.md).
+Multi-version targets and dependency ranges are declared in [`version-matrix.json`](version-matrix.json).
 
 ## Development
 
-The project uses Java 21. On Windows, run:
+The project uses isolated Java 21 and Java 25 build tracks. On Windows, run:
 
 ```powershell
-.\gradlew.bat build
+.\scripts\verify-version-matrix.ps1
+.\gradlew.bat buildAllVersions
+.\gradlew.bat collectArtifacts
 ```
+
+Release Jars are collected in `build/distributions/`. Per-version build outputs use `build/targets/<version>/`, and client instances use `run/<version>/client/`. Run `.\gradlew.bat showWorkspaceLayout` to print all resolved paths.
 
 ## License
 

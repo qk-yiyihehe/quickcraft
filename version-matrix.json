@@ -1,0 +1,109 @@
+{
+  "schemaVersion": 1,
+  "tracks": {
+    "1.21x": {
+      "java": 21,
+      "loomPlugin": "net.fabricmc.fabric-loom-remap",
+      "core": "1.21",
+      "versions": [
+        {
+          "project": "1.21",
+          "sourceRef": "1.21-1.21.1",
+          "sourceCommit": "247fdcf1acdb659ac68be447dd53a5d71364ae28",
+          "minecraft": "1.21",
+          "supportedMinecraft": "1.21-1.21.1",
+          "minecraftDeclared": ">=1.21 <=1.21.1",
+          "malilib": { "compile": "0.21.10", "declared": ">=0.21.10 <0.22.0" },
+          "litematica": { "compile": "0.19.61", "declared": ">=0.19.61 <0.20.0" }
+        },
+        {
+          "project": "1.21.3",
+          "sourceRef": "1.21.2-1.21.3",
+          "sourceCommit": "3027563326557cf4b1c9cc832768707a362bd4a1",
+          "minecraft": "1.21.3",
+          "supportedMinecraft": "1.21.2-1.21.3",
+          "minecraftDeclared": ">=1.21.2 <=1.21.3",
+          "malilib": { "compile": "0.22.8", "declared": ">=0.22.8 <0.23.0" },
+          "litematica": { "compile": "0.20.9", "declared": ">=0.20.9 <0.21.0" }
+        },
+        {
+          "project": "1.21.4",
+          "sourceRef": "1.21.4",
+          "sourceCommit": "08abcff26189e1aa852e01c5a2b41a86e56836d9",
+          "minecraft": "1.21.4",
+          "supportedMinecraft": "1.21.4",
+          "minecraftDeclared": "1.21.4",
+          "malilib": { "compile": "0.23.5", "declared": ">=0.23.5 <0.24.0" },
+          "litematica": { "compile": "0.21.7", "declared": ">=0.21.7 <0.22.0" }
+        },
+        {
+          "project": "1.21.5",
+          "sourceRef": "1.21.5",
+          "sourceCommit": "767b941969d4422999cc3afa90051030eebf3a79",
+          "minecraft": "1.21.5",
+          "supportedMinecraft": "1.21.5",
+          "minecraftDeclared": "1.21.5",
+          "malilib": { "compile": "0.24.3", "declared": ">=0.24.3 <0.25.0" },
+          "litematica": { "compile": "0.22.5", "declared": ">=0.22.5 <0.23.0" }
+        },
+        {
+          "project": "1.21.8",
+          "sourceRef": "1.21.6-1.21.8",
+          "sourceCommit": "30fe69fa4cc0fb0071e4dfce840ba8a29a389bb0",
+          "minecraft": "1.21.8",
+          "supportedMinecraft": "1.21.6-1.21.8",
+          "minecraftDeclared": ">=1.21.6 <=1.21.8",
+          "malilib": { "compile": "0.25.7", "declared": ">=0.25.7 <0.26.0" },
+          "litematica": { "compile": "0.23.7", "declared": ">=0.23.7 <0.24.0" }
+        },
+        {
+          "project": "1.21.10",
+          "sourceRef": "1.21.9-1.21.10",
+          "sourceCommit": "5ca9deb1773304aa2338a1d709d4b90388254889",
+          "minecraft": "1.21.10",
+          "supportedMinecraft": "1.21.9-1.21.10",
+          "minecraftDeclared": ">=1.21.9 <=1.21.10",
+          "malilib": { "compile": "0.26.8", "declared": ">=0.26.7 <0.27.0" },
+          "litematica": { "compile": "0.24.9", "declared": ">=0.24.8 <0.25.0" }
+        },
+        {
+          "project": "1.21.11",
+          "sourceRef": "1.21.11",
+          "sourceCommit": "28343f2ff47a42e25196b542dba38eb6dd74b9df",
+          "minecraft": "1.21.11",
+          "supportedMinecraft": "1.21.11",
+          "minecraftDeclared": "1.21.11",
+          "malilib": { "compile": "0.27.19", "declared": ">=0.27.14 <0.28.0" },
+          "litematica": { "compile": "0.26.14", "declared": ">=0.26.11 <0.27.0" }
+        }
+      ]
+    },
+    "26x": {
+      "java": 25,
+      "loomPlugin": "net.fabricmc.fabric-loom",
+      "core": "26.1.2",
+      "versions": [
+        {
+          "project": "26.1.2",
+          "sourceRef": "26.1-26.1.2",
+          "sourceCommit": "d4cc730de42a2cf2caef812b5f5a63c9066e566a",
+          "minecraft": "26.1.2",
+          "supportedMinecraft": "26.1-26.1.2",
+          "minecraftDeclared": ">=26.1 <=26.1.2",
+          "malilib": { "compile": "0.28.11", "declared": ">=0.28.8 <0.29.0" },
+          "litematica": { "compile": "0.27.12", "declared": ">=0.27.9 <0.28.0" }
+        },
+        {
+          "project": "26.2",
+          "sourceRef": "26.2",
+          "sourceCommit": "bc443976170ce31fdb398abd0f7afee651e29578",
+          "minecraft": "26.2",
+          "supportedMinecraft": "26.2",
+          "minecraftDeclared": "26.2",
+          "malilib": { "compile": "0.29.5", "declared": ">=0.29.2 <0.30.0" },
+          "litematica": { "compile": "0.28.6", "declared": ">=0.28.3 <0.29.0" }
+        }
+      ]
+    }
+  }
+}

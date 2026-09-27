@@ -17,7 +17,8 @@ import static org.assertj.core.api.Assertions.assertThat;
  */
 class QuickCraftInputArchitectureTest {
 
-    private static final Path MAIN_JAVA = Path.of("src", "main", "java");
+    private static final Path MAIN_JAVA = Path.of(System.getProperty(
+            "quickcraft.sourceRoot", Path.of("src", "main", "java").toString()));
     private static final Path INPUT_HELPER = MAIN_JAVA.resolve(Path.of(
             "com", "yiyihehe", "quickcraft", "QuickCraftKeyBindings.java"));
     private static final Path HOTKEY_CALLBACKS = MAIN_JAVA.resolve(Path.of(

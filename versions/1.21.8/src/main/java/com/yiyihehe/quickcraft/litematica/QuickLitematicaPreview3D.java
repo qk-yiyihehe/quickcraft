@@ -1,0 +1,4547 @@
+package com.yiyihehe.quickcraft.litematica;
+
+import com.mojang.blaze3d.buffers.GpuBuffer;
+import com.mojang.blaze3d.buffers.Std140Builder;
+import com.mojang.blaze3d.pipeline.RenderPipeline;
+import com.mojang.blaze3d.systems.ProjectionType;
+import com.mojang.blaze3d.systems.RenderPass;
+import com.mojang.blaze3d.systems.RenderSystem;
+import com.mojang.blaze3d.systems.VertexSorter;
+import com.mojang.blaze3d.vertex.VertexFormat;
+import com.sun.jna.Native;
+import com.sun.jna.Platform;
+import com.sun.jna.Pointer;
+import com.sun.jna.platform.win32.BaseTSD;
+import com.sun.jna.platform.win32.User32;
+import com.sun.jna.platform.win32.WinDef.HWND;
+import com.sun.jna.platform.win32.WinUser;
+import com.sun.jna.win32.StdCallLibrary;
+import com.sun.jna.win32.W32APIOptions;
+import com.yiyihehe.quickcraft.config.QuickCraftConfigs;
+import com.yiyihehe.quickcraft.mixin.RenderLayerMultiPhaseAccessor;
+import net.fabricmc.fabric.api.renderer.v1.render.BlockVertexConsumerProvider;
+import net.fabricmc.fabric.impl.client.indigo.renderer.render.SimpleBlockRenderContext;
+import net.fabricmc.loader.api.FabricLoader;
+import fi.dy.masa.litematica.render.schematic.ChunkCacheSchematic;
+import fi.dy.masa.litematica.render.schematic.WorldRendererSchematic;
+import fi.dy.masa.litematica.schematic.LitematicaSchematic;
+import fi.dy.masa.litematica.schematic.container.LitematicaBlockStateContainer;
+import fi.dy.masa.litematica.selection.Box;
+import fi.dy.masa.litematica.util.EntityUtils;
+import fi.dy.masa.litematica.util.FileType;
+import fi.dy.masa.litematica.util.PositionUtils;
+import fi.dy.masa.litematica.world.FakeLightingProvider;
+import fi.dy.masa.litematica.world.WorldSchematic;
+import fi.dy.masa.malilib.gui.widgets.WidgetFileBrowserBase.DirectoryEntry;
+import fi.dy.masa.malilib.render.RenderUtils;
+import fi.dy.masa.malilib.util.InfoUtils;
+import fi.dy.masa.malilib.util.StringUtils;
+import net.fabricmc.fabric.api.client.rendering.v1.SpecialGuiElementRegistry;
+import net.minecraft.SharedConstants;
+import net.minecraft.block.Block;
+import net.minecraft.block.BlockEntityProvider;
+import net.minecraft.block.BlockRenderType;
+import net.minecraft.block.BlockState;
+import net.minecraft.block.Blocks;
+import net.minecraft.block.entity.BlockEntity;
+import net.minecraft.client.MinecraftClient;
+import net.minecraft.client.gl.Framebuffer;
+import net.minecraft.client.gl.RenderPipelines;
+import net.minecraft.client.gl.SimpleFramebuffer;
+import net.minecraft.client.gui.ScreenRect;
+import net.minecraft.client.gui.DrawContext;
+import net.minecraft.client.gui.render.SpecialGuiElementRenderer;
+import net.minecraft.client.gui.render.state.special.SpecialGuiElementRenderState;
+import net.minecraft.client.gui.screen.Screen;
+import net.minecraft.client.render.BufferBuilder;
+import net.minecraft.client.render.BuiltBuffer;
+import net.minecraft.client.render.LightmapTextureManager;
+import net.minecraft.client.render.OverlayTexture;
+import net.minecraft.client.render.BlockRenderLayer;
+import net.minecraft.client.render.DiffuseLighting;
+import net.minecraft.client.render.RawProjectionMatrix;
+import net.minecraft.client.render.RenderLayer;
+import net.minecraft.client.render.RenderLayers;
+import net.minecraft.client.render.VertexConsumer;
+import net.minecraft.client.render.VertexConsumerProvider;
+import net.minecraft.client.render.WorldRenderer;
+import net.minecraft.client.render.block.entity.BlockEntityRenderer;
+import net.minecraft.client.render.block.BlockRenderManager;
+import net.minecraft.client.texture.NativeImage;
+import net.minecraft.client.util.BufferAllocator;
+import net.minecraft.client.util.math.MatrixStack;
+import net.minecraft.client.world.ClientWorld;
+import net.minecraft.entity.Entity;
+import net.minecraft.fluid.FluidState;
+import net.minecraft.nbt.NbtCompound;
+import net.minecraft.nbt.NbtDouble;
+import net.minecraft.nbt.NbtHelper;
+import net.minecraft.nbt.NbtIo;
+import net.minecraft.nbt.NbtList;
+import net.minecraft.nbt.NbtSizeTracker;
+import net.minecraft.registry.DynamicRegistryManager;
+import net.minecraft.registry.RegistryEntryLookup;
+import net.minecraft.registry.RegistryKeys;
+import net.minecraft.registry.entry.RegistryEntry;
+import net.minecraft.storage.NbtReadView;
+import net.minecraft.util.ErrorReporter;
+import net.minecraft.text.Text;
+import net.minecraft.util.Util;
+import net.minecraft.util.math.BlockPos;
+import net.minecraft.util.math.Direction;
+import net.minecraft.util.math.RotationAxis;
+import net.minecraft.util.math.random.Random;
+import net.minecraft.world.BlockRenderView;
+import net.minecraft.world.MutableWorldProperties;
+import net.minecraft.world.biome.ColorResolver;
+import net.minecraft.world.chunk.light.LightingProvider;
+import net.minecraft.world.dimension.DimensionType;
+import org.jetbrains.annotations.Nullable;
+import org.lwjgl.glfw.GLFW;
+import org.lwjgl.glfw.GLFWNativeWin32;
+import org.joml.Matrix4f;
+import org.joml.Matrix4fStack;
+import org.joml.Vector3f;
+import org.joml.Vector4f;
+import org.lwjgl.system.MemoryStack;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import java.awt.image.BufferedImage;
+import java.io.BufferedInputStream;
+import java.io.BufferedOutputStream;
+import java.io.ByteArrayOutputStream;
+import java.io.DataInputStream;
+import java.io.DataOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
+import java.nio.file.AtomicMoveNotSupportedException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.EnumMap;
+import java.util.HashMap;
+import java.util.HexFormat;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.OptionalDouble;
+import java.util.OptionalInt;
+import java.util.Properties;
+import java.util.Set;
+import java.util.WeakHashMap;
+import java.util.concurrent.CancellationException;
+import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Consumer;
+import java.util.function.Supplier;
+import java.util.zip.GZIPInputStream;
+import java.util.zip.GZIPOutputStream;
+
+import javax.imageio.ImageIO;
+
+/**
+ * Litematica 文件和游戏内选区的真实方块模型 3D 预览。
+ * 构建阶段调用 Minecraft 自带方块渲染器，把材质、异形模型、透明层和流体都录成可缓存的 CPU 顶点。
+ */
+public final class QuickLitematicaPreview3D {
+    private static final Logger LOGGER = LoggerFactory.getLogger(QuickLitematicaPreview3D.class);
+    private static final AtomicBoolean SHADER_API_ERROR_LOGGED = new AtomicBoolean();
+    private static final AtomicBoolean SHADER_DISABLE_ERROR_LOGGED = new AtomicBoolean();
+    // Minecraft 1.21.x 的预览方块实体没有非弃用的公开状态更新 API。
+    @SuppressWarnings("deprecation")
+    private static void setPreviewBlockEntityState(BlockEntity blockEntity, BlockState state) {
+        blockEntity.setCachedState(state);
+    }
+
+    private static final Map<fi.dy.masa.litematica.gui.GuiSchematicBrowserBase, Manager> MANAGERS = new WeakHashMap<>();
+    // 预览构建专用单线程池：避免与 Util.getMainWorkerExecutor 共享导致排队等几秒。
+    // 单线程足够（预览一次只构建一个文件），且避免 BlockRenderManager 多线程竞争。
+    private static final ExecutorService PREVIEW_EXECUTOR = Executors.newSingleThreadExecutor(r -> {
+        Thread thread = new Thread(r, "QuickCraft-Preview3D");
+        thread.setDaemon(true);
+        return thread;
+    });
+    // v15：缓存文件固定绑定投影路径，内容哈希和材质包签名只决定是否原地重建。
+    // 1.21.8 同版缓存同时保留 float32 UV 与完整 light 坐标，避免方块图集坐标跨进相邻 sprite。
+    // v13：回退箱子静态化（entity atlas 纹理与方块 VBO 不兼容，紫色方块）；保留 GZIP+量化+视口剔除+邻居登记修复。
+    // v12：箱子顶点静态化到独立 VBO，缓存追加 chestVertices 字段。
+    // v11：保留 v10 的 GZIP + 顶点量化；箱子方块实体改回动态渲染，避免 chest atlas 被写进方块 VBO。
+    // 升版本会让旧缓存一次性失效；之后 mod 版本号变化不再清缓存（token 已不含 mod 版本）。
+    // 缓存协议 v17：透明网格分层后重建，避免旧缓存继续混合传送门、流体和玻璃。
+    private static final int CACHE_FORMAT_VERSION = 17;
+    private static final int CACHE_MAGIC = 0x51435033; // QCP3
+    private static final String CACHE_DIR_NAME = "litematica-preview-cache";
+    private static final String CACHE_VERSION_FILE_NAME = "cache-version.txt";
+    private static final String CACHE_INDEX_FILE_NAME = "cache-index.properties";
+    private static final String CACHE_RENDER_MARKER = "quickcraft-model-mesh-v16-api-audit-stable-path-content-resource-signature-mc1.21.8";
+    private static final int EXPAND_BUTTON_SIZE = 16;
+    private static final int COMPAT_CLIPBOARD_MAX_DIMENSION = 4096;
+    private static final int EMBEDDED_PREVIEW_DIMENSION = 1024;
+    // 预算必须卡在构建阶段前面：顶点 packed 后仍会占用 CPU/GPU 大块连续内存。
+    // 1600 万顶点约对应 704 MiB 静态 GPU 顶点数据；只放宽静态网格，动态内容上限仍保持原值。
+    private static final int MAX_UPLOAD_VERTICES = 16_000_000;
+    private static final int MAX_DYNAMIC_BLOCK_STATES = 300_000;
+    private static final int MAX_DYNAMIC_BLOCK_ENTITIES = 32_768;
+    private static final int MAX_DYNAMIC_ENTITIES = 8_192;
+    // 动态模型只驻留显存、不写入 qcp3d；限制一次录制的 CPU/GPU 顶点总量，失败时回退逐帧渲染。
+    private static final long MAX_DYNAMIC_BUFFER_BYTES = 128L * 1024L * 1024L;
+    private static final int MAX_DYNAMIC_RENDER_LAYERS = 1_024;
+    private static final int DYNAMIC_LAYER_INITIAL_BYTES = 64 * 1024;
+    private static final float DEFAULT_SLANT_RADIANS = (float) Math.toRadians(32.0);
+    private static final float MAX_PITCH_RADIANS = (float) Math.toRadians(85.0);
+    private static final float PREVIEW_FIT_PADDING = 0.95F;
+    private static final long NBT_READ_LIMIT_BYTES = 32L * 1024L * 1024L;
+    private static final int VERTEX_BYTES = 44;
+    // 静态顶点磁盘编码：12B 位置 + 4B 颜色 + 8B UV(float32×2) + 2B overlay + 4B lightmap + 2B 法线(octahedral) = 32B
+    private static final int QUANTIZED_VERTEX_BYTES = 32;
+    private static final int MAX_QUANTIZED_LAYER_BYTES = MAX_UPLOAD_VERTICES * QUANTIZED_VERTEX_BYTES;
+    private static final int CACHE_IO_CHUNK_BYTES = 1024 * 1024;
+    // 不透明层按约 7.5 MiB 的量化顶点切批，限制单帧解码和 GPU 上传耗时；透明层必须保持全图整体排序。
+    private static final int STATIC_BATCH_TARGET_VERTICES = 250_000;
+    private static final float PROGRESS_START = 0.02F;
+    private static final float PROGRESS_MESHING_START = 0.10F;
+    private static final float PROGRESS_MESHING_END = 0.80F;
+    private static final float PROGRESS_CACHE_WRITE = 0.82F;
+    private static final float PROGRESS_STATIC_CACHE_END = 0.93F;
+    private static final float PROGRESS_BLOCK_STATES_CACHE_END = 0.95F;
+    private static final float PROGRESS_BLOCK_ENTITIES_CACHE_END = 0.99F;
+    private static final AtomicBoolean SPECIAL_RENDERER_REGISTERED = new AtomicBoolean();
+    private static final AtomicBoolean CACHE_DIRECTORY_READY = new AtomicBoolean();
+    private static final Object CACHE_INDEX_LOCK = new Object();
+    private static final Properties CACHE_INDEX = new Properties();
+    // 当前页面只按此间隔检查文件大小/时间戳；完整 SHA-256 始终在后台且仅于重新核验时计算。
+    private static final long SOURCE_CHECK_INTERVAL_MILLIS = 1_000L;
+    @Nullable
+    private static volatile Path currentCacheDirectory;
+
+    private QuickLitematicaPreview3D() {
+    }
+
+    public static void registerSpecialRenderer() {
+        if (SPECIAL_RENDERER_REGISTERED.compareAndSet(false, true)) {
+            SpecialGuiElementRegistry.register(context -> new PreviewGuiElementRenderer(context.vertexConsumers()));
+        }
+    }
+
+    public static Manager init(fi.dy.masa.litematica.gui.GuiSchematicBrowserBase gui, Runnable previewMetadataRefresh) {
+        Manager old = MANAGERS.remove(gui);
+        if (old != null) {
+            old.close();
+        }
+
+        Manager manager = new Manager(gui, previewMetadataRefresh);
+        MANAGERS.put(gui, manager);
+        return manager;
+    }
+
+    public static void close(fi.dy.masa.litematica.gui.GuiSchematicBrowserBase gui) {
+        Manager manager = MANAGERS.remove(gui);
+        if (manager != null) {
+            manager.close();
+        }
+    }
+
+    static void openGenerated(Screen parent, String displayName, Supplier<LitematicaSchematic> schematicSupplier) {
+        Manager manager = new Manager(parent, () -> {});
+        manager.current = Preview.createGenerated(displayName, schematicSupplier);
+        MinecraftClient.getInstance().setScreen(new QuickLitematicaPreview3DScreen(
+                parent,
+                displayName,
+                manager,
+                true
+        ));
+    }
+
+    public static void render(
+            fi.dy.masa.litematica.gui.GuiSchematicBrowserBase gui,
+            @Nullable DirectoryEntry entry,
+            boolean hasEmbeddedPreview,
+            DrawContext drawContext,
+            int x,
+            int y,
+            int size
+    ) {
+        boolean previewEnabled = QuickCraftConfigs.isLitematica3DPreviewEnabled();
+        boolean shaderPackActive = isShaderPackActive();
+        if (previewEnabled
+                && shaderPackActive
+                && entry != null
+                && isSupportedLitematic(entry)) {
+            shaderPackActive = !prepare3DPreview();
+        }
+        if (!previewEnabled || shaderPackActive) {
+            for (Manager manager : MANAGERS.values()) {
+                manager.releasePreview();
+            }
+            if (previewEnabled
+                    && shaderPackActive
+                    && !hasEmbeddedPreview
+                    && entry != null
+                    && isSupportedLitematic(entry)) {
+                renderShaderDisabled(drawContext, x, y, size);
+            }
+            return;
+        }
+
+        Manager manager = MANAGERS.get(gui);
+        if (manager == null) {
+            return;
+        }
+
+        if (QuickCraftConfigs.shouldReplaceLitematicaPreviewWith3D() || !hasEmbeddedPreview) {
+            manager.render(entry, hasEmbeddedPreview, drawContext, x, y, size);
+        } else {
+            manager.renderLauncher(entry, hasEmbeddedPreview, drawContext, x, y, size);
+        }
+    }
+
+    private static void renderShaderDisabled(DrawContext context, int x, int y, int size) {
+        MinecraftClient client = MinecraftClient.getInstance();
+        RenderUtils.drawOutlinedBox(context, x, y, size, size, 0xB0101010, 0xFF707070);
+        Text message = Text.translatable("quickcraft.message.litematica.preview_3d.shader_disabled");
+        var lines = client.textRenderer.wrapLines(message, Math.max(1, size - 16));
+        int lineStep = client.textRenderer.fontHeight + 2;
+        int textY = y + (size - lines.size() * lineStep) / 2;
+        for (var line : lines) {
+            context.drawCenteredTextWithShadow(client.textRenderer, line, x + size / 2, textY, 0xFFFFCC55);
+            textY += lineStep;
+        }
+    }
+
+    public static boolean is3DPreviewAvailable() {
+        return QuickCraftConfigs.isLitematica3DPreviewEnabled() && !isShaderPackActive();
+    }
+
+    public static boolean isShaderPackActive() {
+        try {
+            Class<?> apiClass = Class.forName("net.irisshaders.iris.api.v0.IrisApi");
+            Object api = apiClass.getMethod("getInstance").invoke(null);
+            return (boolean) apiClass.getMethod("isShaderPackInUse").invoke(api);
+        } catch (ClassNotFoundException ignored) {
+            return false;
+        } catch (Throwable throwable) {
+            if (SHADER_API_ERROR_LOGGED.compareAndSet(false, true)) {
+                LOGGER.error("Iris shader state could not be queried; disabling QuickCraft 3D previews for this session", throwable);
+            }
+            return true;
+        }
+    }
+
+    public static boolean prepare3DPreview() {
+        if (!isShaderPackActive()) {
+            return true;
+        }
+        if (!QuickCraftConfigs.shouldAutoDisableShadersFor3DPreview()) {
+            return false;
+        }
+
+        try {
+            // Iris is optional; its stable v0 config API is accessed reflectively to avoid a hard dependency.
+            Class<?> apiClass = Class.forName("net.irisshaders.iris.api.v0.IrisApi");
+            Object api = apiClass.getMethod("getInstance").invoke(null);
+            Object config = apiClass.getMethod("getConfig").invoke(api);
+            Class<?> configClass = Class.forName("net.irisshaders.iris.api.v0.IrisApiConfig");
+            configClass.getMethod("setShadersEnabledAndApply", boolean.class).invoke(config, false);
+            boolean disabled = !isShaderPackActive();
+            if (disabled) {
+                InfoUtils.printActionbarMessage("quickcraft.message.litematica.preview_3d.shader_auto_disabled");
+            }
+            return disabled;
+        } catch (Throwable throwable) {
+            if (SHADER_DISABLE_ERROR_LOGGED.compareAndSet(false, true)) {
+                LOGGER.error("Iris shaders could not be disabled before opening a QuickCraft 3D preview", throwable);
+            }
+            return false;
+        }
+    }
+
+    public static final class Manager implements AutoCloseable {
+        @Nullable
+        private Preview current;
+        @Nullable
+        private Path currentPath;
+        @Nullable
+        private DirectoryEntry currentEntry;
+        private final DragState drag = new DragState();
+        private final Screen owner;
+        private final Runnable previewMetadataRefresh;
+        private final AtomicBoolean previewImageWriteInProgress = new AtomicBoolean();
+        @Nullable
+        private Consumer<Text> pendingPreviewImageCallback;
+        private boolean pendingPreviewImageRestoreFullscreen;
+        private boolean pendingPreviewImageKeepMaximized;
+        private int pendingPreviewImageWaitTicks;
+        private boolean hasEmbeddedPreviewImage;
+        private int viewX;
+        private int viewY;
+        private int viewSize;
+        private boolean showExpandButton;
+        private long nextSourceCheckMillis;
+
+        private Manager(Screen owner, Runnable previewMetadataRefresh) {
+            this.owner = owner;
+            this.previewMetadataRefresh = previewMetadataRefresh;
+        }
+
+        private void render(@Nullable DirectoryEntry entry, boolean hasEmbeddedPreview, DrawContext drawContext, int x, int y, int size) {
+            if (entry == null || !isSupportedLitematic(entry)) {
+                this.clearCurrent();
+                return;
+            }
+
+            Path path = entry.getFullPath().toAbsolutePath().normalize();
+            if (!path.equals(this.currentPath)) {
+                this.switchTo(path, entry);
+            } else if (this.current != null
+                    && System.currentTimeMillis() >= this.nextSourceCheckMillis
+                    && this.current.sourceStampChanged()) {
+                this.switchTo(path, entry);
+            }
+            this.nextSourceCheckMillis = System.currentTimeMillis() + SOURCE_CHECK_INTERVAL_MILLIS;
+            this.currentEntry = entry;
+            this.hasEmbeddedPreviewImage = hasEmbeddedPreview;
+            this.renderCurrent(drawContext, x, y, size, true);
+        }
+
+        private void renderLauncher(@Nullable DirectoryEntry entry, boolean hasEmbeddedPreview, DrawContext drawContext, int x, int y, int size) {
+            if (entry == null || !isSupportedLitematic(entry)) {
+                this.clearCurrent();
+                return;
+            }
+
+            Path path = entry.getFullPath().toAbsolutePath().normalize();
+            if (!path.equals(this.currentPath)) {
+                this.clearCurrent();
+            }
+            this.currentPath = path;
+            this.currentEntry = entry;
+            this.hasEmbeddedPreviewImage = hasEmbeddedPreview;
+            this.viewX = x;
+            this.viewY = y;
+            this.viewSize = Math.max(1, size);
+            this.showExpandButton = true;
+            this.drag.setViewport(this.viewX, this.viewY, this.viewSize);
+            this.drawExpandButton(drawContext);
+        }
+
+        void renderFullscreen(DrawContext drawContext, int x, int y, int size) {
+            this.renderCurrent(drawContext, x, y, size, false);
+        }
+
+        private void renderCurrent(DrawContext drawContext, int x, int y, int size, boolean showExpandButton) {
+            if (!is3DPreviewAvailable()) {
+                return;
+            }
+
+            this.viewX = x;
+            this.viewY = y;
+            this.viewSize = Math.max(1, size);
+            this.showExpandButton = showExpandButton;
+            this.drag.setViewport(this.viewX, this.viewY, this.viewSize);
+            RenderUtils.drawOutlinedBox(drawContext, this.viewX, this.viewY, this.viewSize, this.viewSize, 0xB0101010, 0xFF707070);
+            if (this.current != null) {
+                this.current.render(drawContext, this.viewX, this.viewY, this.viewSize, this.drag);
+            }
+            if (showExpandButton) {
+                this.drawExpandButton(drawContext);
+            }
+        }
+
+        public boolean mouseScrolled(double mouseX, double mouseY, double horizontalAmount, double verticalAmount) {
+            if (this.current == null || !this.canHandleMouse(mouseX, mouseY)) {
+                return false;
+            }
+
+            this.drag.scaleBy(verticalAmount);
+            return true;
+        }
+
+        public boolean mouseDragged(double mouseX, double mouseY, int button, double deltaX, double deltaY) {
+            if (this.current == null || !is3DPreviewAvailable()) {
+                return false;
+            }
+
+            return this.drag.drag(button, deltaX, deltaY);
+        }
+
+        public boolean mouseReleased(double mouseX, double mouseY, int mouseButton) {
+            if (this.current == null) {
+                return false;
+            }
+
+            return this.drag.release(mouseButton);
+        }
+
+        public boolean mouseClicked(double mouseX, double mouseY, int mouseButton) {
+            if (!this.canHandleMouse(mouseX, mouseY)) {
+                return false;
+            }
+
+            if (mouseButton == 0 && this.showExpandButton && this.isExpandButtonHovered(mouseX, mouseY) && this.currentEntry != null) {
+                DirectoryEntry entry = this.currentEntry;
+                if (this.current == null && this.currentPath != null) {
+                    boolean hasEmbeddedPreview = this.hasEmbeddedPreviewImage;
+                    this.switchTo(this.currentPath, entry);
+                    this.currentEntry = entry;
+                    this.hasEmbeddedPreviewImage = hasEmbeddedPreview;
+                }
+                MinecraftClient.getInstance().setScreen(new QuickLitematicaPreview3DScreen(this.owner, entry.getName(), this));
+                return true;
+            }
+
+            if (this.current == null) {
+                return false;
+            }
+
+            this.drag.click(mouseButton);
+            return true;
+        }
+
+        void setPreset(double yawDegrees, double pitchDegrees) {
+            this.drag.setPreset(yawDegrees, pitchDegrees);
+        }
+
+        Path outputDirectory() {
+            return MinecraftClient.getInstance().runDirectory.toPath().resolve("渲染图");
+        }
+
+        int recommendedExportResolution() {
+            Preview preview = this.current;
+            return preview == null ? 0 : preview.recommendedExportResolution();
+        }
+
+        void exportPng(int resolution, int backgroundColor, Consumer<Text> callback) {
+            Preview preview = this.current;
+            if (preview == null) {
+                callback.accept(Text.translatable("quickcraft.litematica.preview_3d.export_failed"));
+                return;
+            }
+            preview.exportPng(resolution, backgroundColor, this.drag, this.outputDirectory(), callback);
+        }
+
+        void copyImage(int resolution, int backgroundColor, Consumer<Text> callback) {
+            Preview preview = this.current;
+            if (preview == null) {
+                callback.accept(Text.translatable("quickcraft.litematica.preview_3d.copy_failed"));
+                return;
+            }
+            preview.copyImage(resolution, backgroundColor, this.drag, callback);
+        }
+
+        boolean canEditPreviewImage() {
+            return QuickCraftConfigs.canAddLitematicaPreviewImages()
+                    && this.current != null
+                    && this.currentPath != null
+                    && this.currentEntry != null
+                    && !this.previewImageWriteInProgress.get();
+        }
+
+        boolean hasFilePreviewTarget() {
+            return this.current != null && this.currentPath != null && this.currentEntry != null;
+        }
+
+        boolean canRemovePreviewImage() {
+            return this.canEditPreviewImage() && this.hasEmbeddedPreviewImage;
+        }
+
+        void saveCurrentViewAsPreview(int backgroundColor, Consumer<Text> callback) {
+            Preview preview = this.current;
+            Path target = this.currentPath;
+            if (!this.canEditPreviewImage() || preview == null || target == null) {
+                callback.accept(Text.translatable("quickcraft.litematica.preview_3d.preview_write_unavailable"));
+                return;
+            }
+            if (!this.previewImageWriteInProgress.compareAndSet(false, true)) {
+                callback.accept(Text.translatable("quickcraft.litematica.preview_3d.preview_writing"));
+                return;
+            }
+
+            preview.captureSnapshot(
+                    EMBEDDED_PREVIEW_DIMENSION,
+                    backgroundColor,
+                    this.drag,
+                    "quickcraft.litematica.preview_3d.preview_write_failed",
+                    message -> {
+                        this.previewImageWriteInProgress.set(false);
+                        callback.accept(message);
+                    },
+                    image -> {
+                        int[] pixels;
+                        try {
+                            pixels = makeArgbPixels(image);
+                        } catch (Throwable throwable) {
+                            LOGGER.error("Failed to convert the 3D view into Litematica preview pixels", throwable);
+                            this.previewImageWriteInProgress.set(false);
+                            callback.accept(Text.translatable("quickcraft.litematica.preview_3d.preview_write_failed"));
+                            return;
+                        } finally {
+                            image.close();
+                            preview.snapshotInProgress.set(false);
+                        }
+                        this.writePreviewAsync(preview, target, pixels, callback);
+                    }
+            );
+        }
+
+        void selectPreviewImage(Consumer<Text> callback) {
+            if (!this.canEditPreviewImage() || this.current == null || this.currentPath == null) {
+                callback.accept(Text.translatable("quickcraft.litematica.preview_3d.preview_write_unavailable"));
+                return;
+            }
+
+            MinecraftClient client = MinecraftClient.getInstance();
+            if (client.getWindow().isFullscreen()) {
+                // toggleFullscreen() 只改标记，真正退出独占全屏要等下一帧 swapBuffers。
+                client.getWindow().toggleFullscreen();
+                this.pendingPreviewImageCallback = callback;
+                this.pendingPreviewImageRestoreFullscreen = true;
+                this.pendingPreviewImageKeepMaximized = true;
+                this.pendingPreviewImageWaitTicks = 5;
+                return;
+            }
+            this.openPreviewImagePicker(callback, false, isMaximizedWindow());
+        }
+
+        void pollPendingPreviewImagePicker() {
+            Consumer<Text> callback = this.pendingPreviewImageCallback;
+            if (callback == null) {
+                return;
+            }
+            if (this.pendingPreviewImageRestoreFullscreen
+                    && this.pendingPreviewImageWaitTicks > 0
+                    && isExclusiveFullscreen()) {
+                this.pendingPreviewImageWaitTicks--;
+                return;
+            }
+            this.pendingPreviewImageCallback = null;
+            boolean restore = this.pendingPreviewImageRestoreFullscreen;
+            boolean keepMaximized = this.pendingPreviewImageKeepMaximized;
+            this.pendingPreviewImageRestoreFullscreen = false;
+            this.pendingPreviewImageKeepMaximized = false;
+            this.pendingPreviewImageWaitTicks = 0;
+            this.openPreviewImagePicker(callback, restore, keepMaximized);
+        }
+
+        void cancelPendingPreviewImagePicker() {
+            if (this.pendingPreviewImageCallback == null && !this.pendingPreviewImageRestoreFullscreen) {
+                return;
+            }
+            this.pendingPreviewImageCallback = null;
+            boolean restore = this.pendingPreviewImageRestoreFullscreen;
+            boolean keepMaximized = this.pendingPreviewImageKeepMaximized;
+            this.pendingPreviewImageRestoreFullscreen = false;
+            this.pendingPreviewImageKeepMaximized = false;
+            this.pendingPreviewImageWaitTicks = 0;
+            restoreGameWindow(restore, keepMaximized);
+        }
+
+        private void openPreviewImagePicker(Consumer<Text> callback, boolean restoreFullscreen, boolean keepMaximized) {
+            Preview preview = this.current;
+            Path target = this.currentPath;
+            if (preview == null || target == null) {
+                restoreGameWindow(restoreFullscreen, keepMaximized);
+                callback.accept(Text.translatable("quickcraft.litematica.preview_3d.preview_write_unavailable"));
+                return;
+            }
+
+            Path selected;
+            if (keepMaximized) {
+                maximizeGameWindow();
+            }
+            long handle = MinecraftClient.getInstance().getWindow().getHandle();
+            setAutoIconify(handle, false);
+            try {
+                selected = QuickLitematicaPreviewImageWriter.chooseImage(target);
+            } catch (Throwable throwable) {
+                LOGGER.error("Failed to open the preview image file picker", throwable);
+                callback.accept(Text.translatable("quickcraft.litematica.preview_3d.preview_write_failed"));
+                return;
+            } finally {
+                setAutoIconify(handle, true);
+                restoreGameWindow(restoreFullscreen, keepMaximized);
+            }
+            if (selected == null) {
+                callback.accept(Text.translatable("quickcraft.litematica.preview_3d.image_selection_cancelled"));
+                return;
+            }
+            if (!this.previewImageWriteInProgress.compareAndSet(false, true)) {
+                callback.accept(Text.translatable("quickcraft.litematica.preview_3d.preview_writing"));
+                return;
+            }
+
+            try {
+                Util.getIoWorkerExecutor().execute(() -> {
+                    try {
+                        int[] pixels = QuickLitematicaPreviewImageWriter.readImagePixels(selected);
+                        QuickLitematicaPreviewImageWriter.writePreview(target, pixels);
+                        preview.refreshCacheSourceHash();
+                        this.finishPreviewWrite(preview, true, callback, Text.translatable(
+                                "quickcraft.litematica.preview_3d.preview_write_success",
+                                target.getFileName().toString()
+                        ));
+                    } catch (Throwable throwable) {
+                        LOGGER.error("Failed to set the Litematica preview image from {}", selected, throwable);
+                        this.failPreviewWrite(callback, throwable);
+                    }
+                });
+            } catch (Throwable throwable) {
+                LOGGER.error("Failed to schedule the Litematica preview image write", throwable);
+                this.previewImageWriteInProgress.set(false);
+                callback.accept(Text.translatable("quickcraft.litematica.preview_3d.preview_write_failed"));
+            }
+        }
+
+        private static long gameWindowHandle() {
+            return MinecraftClient.getInstance().getWindow().getHandle();
+        }
+
+        private static boolean isExclusiveFullscreen() {
+            long handle = gameWindowHandle();
+            return handle != 0L && GLFW.glfwGetWindowMonitor(handle) != 0L;
+        }
+
+        private static boolean isMaximizedWindow() {
+            long handle = gameWindowHandle();
+            return handle != 0L && GLFW.glfwGetWindowAttrib(handle, GLFW.GLFW_MAXIMIZED) != GLFW.GLFW_FALSE;
+        }
+
+        private static void maximizeGameWindow() {
+            long handle = gameWindowHandle();
+            if (handle == 0L) {
+                return;
+            }
+            if (GLFW.glfwGetWindowAttrib(handle, GLFW.GLFW_ICONIFIED) != GLFW.GLFW_FALSE) {
+                GLFW.glfwRestoreWindow(handle);
+            }
+            if (GLFW.glfwGetWindowAttrib(handle, GLFW.GLFW_MAXIMIZED) == GLFW.GLFW_FALSE) {
+                GLFW.glfwMaximizeWindow(handle);
+            }
+        }
+
+        private static void setAutoIconify(long handle, boolean enabled) {
+            if (handle == 0L) {
+                return;
+            }
+            GLFW.glfwSetWindowAttrib(handle, GLFW.GLFW_AUTO_ICONIFY, enabled ? GLFW.GLFW_TRUE : GLFW.GLFW_FALSE);
+        }
+
+        private static void restoreGameWindow(boolean restoreFullscreen, boolean keepMaximized) {
+            MinecraftClient client = MinecraftClient.getInstance();
+            long handle = client.getWindow().getHandle();
+            if (handle != 0L) {
+                boolean iconified = GLFW.glfwGetWindowAttrib(handle, GLFW.GLFW_ICONIFIED) != GLFW.GLFW_FALSE;
+                if (keepMaximized) {
+                    maximizeGameWindow();
+                } else if (iconified) {
+                    GLFW.glfwRestoreWindow(handle);
+                }
+                GLFW.glfwShowWindow(handle);
+                GLFW.glfwFocusWindow(handle);
+                restoreWindowsGameWindow(handle, keepMaximized, iconified);
+            }
+            if (restoreFullscreen && !client.getWindow().isFullscreen()) {
+                client.getWindow().toggleFullscreen();
+            }
+        }
+
+        private static void restoreWindowsGameWindow(long glfwHandle, boolean keepMaximized, boolean iconified) {
+            if (!Platform.isWindows()) {
+                return;
+            }
+            try {
+                long hwndValue = GLFWNativeWin32.glfwGetWin32Window(glfwHandle);
+                if (hwndValue == 0L) {
+                    return;
+                }
+                HWND hwnd = new HWND();
+                hwnd.setPointer(new Pointer(hwndValue));
+                if (keepMaximized) {
+                    User32.INSTANCE.ShowWindow(hwnd, WinUser.SW_SHOWMAXIMIZED);
+                } else if (iconified) {
+                    User32.INSTANCE.ShowWindow(hwnd, WinUser.SW_RESTORE);
+                }
+                User32.INSTANCE.SetForegroundWindow(hwnd);
+            } catch (Throwable ignored) {
+            }
+        }
+
+        void removePreviewImage(Consumer<Text> callback) {
+            Preview preview = this.current;
+            Path target = this.currentPath;
+            if (!this.canRemovePreviewImage() || preview == null || target == null) {
+                callback.accept(Text.translatable("quickcraft.litematica.preview_3d.preview_remove_unavailable"));
+                return;
+            }
+            if (!this.previewImageWriteInProgress.compareAndSet(false, true)) {
+                callback.accept(Text.translatable("quickcraft.litematica.preview_3d.preview_writing"));
+                return;
+            }
+
+            try {
+                Util.getIoWorkerExecutor().execute(() -> {
+                    try {
+                        QuickLitematicaPreviewImageWriter.removePreview(target);
+                        preview.refreshCacheSourceHash();
+                        this.finishPreviewWrite(preview, false, callback, Text.translatable(
+                                "quickcraft.litematica.preview_3d.preview_remove_success",
+                                target.getFileName().toString()
+                        ));
+                    } catch (Throwable throwable) {
+                        LOGGER.error("Failed to remove the Litematica preview image from {}", target, throwable);
+                        this.failPreviewWrite(callback, throwable);
+                    }
+                });
+            } catch (Throwable throwable) {
+                LOGGER.error("Failed to schedule the Litematica preview image removal", throwable);
+                this.previewImageWriteInProgress.set(false);
+                callback.accept(Text.translatable("quickcraft.litematica.preview_3d.preview_write_failed"));
+            }
+        }
+
+        @SuppressWarnings("deprecation")
+        private static int[] makeArgbPixels(NativeImage image) {
+            return image.makePixelArray();
+        }
+
+        private void writePreviewAsync(Preview preview, Path target, int[] pixels, Consumer<Text> callback) {
+            try {
+                Util.getIoWorkerExecutor().execute(() -> {
+                    try {
+                        QuickLitematicaPreviewImageWriter.writePreview(target, pixels);
+                        preview.refreshCacheSourceHash();
+                        this.finishPreviewWrite(preview, true, callback, Text.translatable(
+                                "quickcraft.litematica.preview_3d.preview_write_success",
+                                target.getFileName().toString()
+                        ));
+                    } catch (Throwable throwable) {
+                        LOGGER.error("Failed to set the Litematica preview image for {}", target, throwable);
+                        this.failPreviewWrite(callback, throwable);
+                    }
+                });
+            } catch (Throwable throwable) {
+                LOGGER.error("Failed to schedule the Litematica preview image write", throwable);
+                this.previewImageWriteInProgress.set(false);
+                callback.accept(Text.translatable("quickcraft.litematica.preview_3d.preview_write_failed"));
+            }
+        }
+
+        private void finishPreviewWrite(Preview preview, boolean hasEmbeddedPreview, Consumer<Text> callback, Text message) {
+            MinecraftClient.getInstance().execute(() -> {
+                this.previewImageWriteInProgress.set(false);
+                if (this.current == preview) {
+                    this.hasEmbeddedPreviewImage = hasEmbeddedPreview;
+                }
+                try {
+                    this.previewMetadataRefresh.run();
+                } catch (Throwable throwable) {
+                    LOGGER.error("Failed to refresh the Litematica preview image cache", throwable);
+                }
+                callback.accept(message);
+            });
+        }
+
+        private void failPreviewWrite(Consumer<Text> callback, Throwable throwable) {
+            MinecraftClient.getInstance().execute(() -> {
+                this.previewImageWriteInProgress.set(false);
+                callback.accept(Text.translatable(
+                        QuickLitematicaPreviewImageWriter.failureTranslationKey(throwable)
+                ));
+            });
+        }
+
+        @Override
+        public void close() {
+            this.cancelPendingPreviewImagePicker();
+            this.clearCurrent();
+        }
+
+        private boolean canHandleMouse(double mouseX, double mouseY) {
+            return (this.current != null || this.currentEntry != null)
+                    && is3DPreviewAvailable()
+                    && this.drag.inViewport(mouseX, mouseY);
+        }
+
+        private void switchTo(Path path, DirectoryEntry entry) {
+            this.clearCurrent();
+            this.currentPath = path;
+            this.current = Preview.create(entry);
+            this.nextSourceCheckMillis = System.currentTimeMillis() + SOURCE_CHECK_INTERVAL_MILLIS;
+        }
+
+        private void clearCurrent() {
+            this.currentPath = null;
+            this.currentEntry = null;
+            this.hasEmbeddedPreviewImage = false;
+            if (this.current != null) {
+                this.current.close();
+                this.current = null;
+            }
+            this.drag.stop();
+        }
+
+        private void drawExpandButton(DrawContext context) {
+            int x = this.viewX + this.viewSize - EXPAND_BUTTON_SIZE - 3;
+            int y = this.viewY + 3;
+            MinecraftClient client = MinecraftClient.getInstance();
+            double mouseX = client.mouse.getX() * client.getWindow().getScaledWidth() / client.getWindow().getWidth();
+            double mouseY = client.mouse.getY() * client.getWindow().getScaledHeight() / client.getWindow().getHeight();
+            boolean hovered = this.isExpandButtonHovered(mouseX, mouseY);
+            int backgroundColor = hovered ? 0xA0505050 : 0x40101010;
+            context.fill(x + 2, y + 2, x + EXPAND_BUTTON_SIZE - 2, y + EXPAND_BUTTON_SIZE - 2, backgroundColor);
+            this.drawExpandIcon(context, x, y, hovered ? 0xFFFFFFFF : 0xFFE0E0E0);
+            if (hovered) {
+                context.drawTooltip(
+                        client.textRenderer,
+                        Text.translatable("quickcraft.litematica.preview_3d.expand"),
+                        (int) mouseX,
+                        (int) mouseY
+                );
+            }
+        }
+
+        private void drawExpandIcon(DrawContext context, int x, int y, int color) {
+            context.fill(x + 3, y + 3, x + 7, y + 4, color);
+            context.fill(x + 3, y + 3, x + 4, y + 7, color);
+            context.fill(x + 5, y + 5, x + 6, y + 6, color);
+            context.fill(x + 6, y + 6, x + 7, y + 7, color);
+
+            context.fill(x + 9, y + 3, x + 13, y + 4, color);
+            context.fill(x + 12, y + 3, x + 13, y + 7, color);
+            context.fill(x + 10, y + 5, x + 11, y + 6, color);
+            context.fill(x + 9, y + 6, x + 10, y + 7, color);
+
+            context.fill(x + 3, y + 12, x + 7, y + 13, color);
+            context.fill(x + 3, y + 9, x + 4, y + 13, color);
+            context.fill(x + 5, y + 10, x + 6, y + 11, color);
+            context.fill(x + 6, y + 9, x + 7, y + 10, color);
+
+            context.fill(x + 9, y + 12, x + 13, y + 13, color);
+            context.fill(x + 12, y + 9, x + 13, y + 13, color);
+            context.fill(x + 10, y + 10, x + 11, y + 11, color);
+            context.fill(x + 9, y + 9, x + 10, y + 10, color);
+        }
+
+        private boolean isExpandButtonHovered(double mouseX, double mouseY) {
+            int x = this.viewX + this.viewSize - EXPAND_BUTTON_SIZE - 3;
+            int y = this.viewY + 3;
+            return mouseX >= x && mouseX < x + EXPAND_BUTTON_SIZE && mouseY >= y && mouseY < y + EXPAND_BUTTON_SIZE;
+        }
+
+        private void releasePreview() {
+            this.clearCurrent();
+        }
+    }
+
+    private static boolean isSupportedLitematic(DirectoryEntry entry) {
+        return Files.isRegularFile(entry.getFullPath()) && FileType.fromFile(entry.getFullPath()) == FileType.LITEMATICA_SCHEMATIC;
+    }
+
+    private static final class Preview implements AutoCloseable {
+        private final Path sourcePath;
+        private final Path cachePath;
+        private final Path tmpPath;
+        private final String cacheSlot;
+        private final String resourcePackSignature;
+        private volatile long sourceSize;
+        private volatile long sourceModifiedMillis;
+        private final long startedAtNanos = System.nanoTime();
+        private final AtomicBoolean cancelled = new AtomicBoolean();
+        private final RawProjectionMatrix previewProjection = new RawProjectionMatrix("QuickCraft preview projection");
+        @Nullable
+        private GpuBuffer previewLightingBuffer;
+        private volatile MeshData meshData;
+        private volatile float progress;
+        private volatile State state = State.LOADING;
+        @Nullable
+        private volatile Future<?> future;
+        private final ConcurrentLinkedQueue<LayerMesh> pendingStaticLayers = new ConcurrentLinkedQueue<>();
+        private final Map<LayerKey, List<LayerBuffer>> layerBuffers = new EnumMap<>(LayerKey.class);
+        @Nullable
+        private volatile PreviewDimensions dimensions;
+        private List<DynamicLayerBuffer> dynamicBuffers = List.of();
+        private boolean dynamicBuffersReady;
+        private boolean dynamicBufferFallback;
+        private boolean uploadScheduled;
+        private boolean staticUploadComplete;
+        private boolean dynamicPreparationArmed;
+        private final AtomicBoolean snapshotInProgress = new AtomicBoolean();
+
+        private Preview(
+                Path sourcePath,
+                Path cachePath,
+                Path tmpPath,
+                String cacheSlot,
+                String resourcePackSignature
+        ) {
+            this.sourcePath = sourcePath;
+            this.cachePath = cachePath;
+            this.tmpPath = tmpPath;
+            this.cacheSlot = cacheSlot;
+            this.resourcePackSignature = resourcePackSignature;
+            this.captureSourceStamp();
+        }
+
+        private static Preview create(DirectoryEntry entry) {
+            Path sourcePath = entry.getFullPath().toAbsolutePath().normalize();
+            String cacheSlot = cacheKey(sourcePath);
+            Path cachePath = cacheDirectory().resolve(cacheSlot + ".qcp3d");
+            Preview preview = new Preview(
+                    sourcePath,
+                    cachePath,
+                    cachePath.resolveSibling(cachePath.getFileName() + ".tmp"),
+                    cacheSlot,
+                    currentResourcePackSignature()
+            );
+            preview.progress = PROGRESS_START;
+            preview.future = PREVIEW_EXECUTOR.submit(preview::loadOrBuild);
+            return preview;
+        }
+
+        private static Preview createGenerated(String displayName, Supplier<LitematicaSchematic> schematicSupplier) {
+            String safeName = displayName.replaceAll("[<>:\"/\\\\|?*\\x00-\\x1F]", "_").replaceAll("[. ]+$", "");
+            if (safeName.isBlank()) {
+                safeName = "selection";
+            }
+            Path transientPath = cacheDirectory().resolve("selection-" + Long.toUnsignedString(System.nanoTime()) + ".tmp");
+            Preview preview = new Preview(
+                    Path.of(safeName + ".litematic"),
+                    transientPath,
+                    transientPath,
+                    "",
+                    ""
+            );
+            preview.progress = PROGRESS_START;
+            preview.future = PREVIEW_EXECUTOR.submit(() -> preview.loadGenerated(schematicSupplier));
+            return preview;
+        }
+
+        private void loadGenerated(Supplier<LitematicaSchematic> schematicSupplier) {
+            try {
+                this.state = State.BUILDING;
+                LitematicaSchematic schematic = schematicSupplier.get();
+                this.throwIfCancelled();
+                if (schematic == null) {
+                    throw new IllegalStateException("Cannot capture Litematica selection");
+                }
+                MeshData built = MeshBuilder.build(
+                        schematic,
+                        this.cancelled,
+                        value -> this.progress = value,
+                        this::initializeDimensions,
+                        this::publishStaticLayers
+                );
+                this.throwIfCancelled();
+                if (!built.withinBudget()) {
+                    built.closeDynamic();
+                    this.state = State.TOO_LARGE;
+                    this.progress = 1.0F;
+                    return;
+                }
+
+                this.meshData = built;
+                this.progress = 1.0F;
+                this.state = State.READY;
+            } catch (CancellationException ignored) {
+                this.state = State.CANCELLED;
+                this.discardPartialStatic();
+            } catch (PreviewTooLargeException ignored) {
+                this.state = State.TOO_LARGE;
+                this.progress = 1.0F;
+                this.discardPartialStatic();
+            } catch (Exception e) {
+                if (this.isCancelled()) {
+                    this.state = State.CANCELLED;
+                    this.discardPartialStatic();
+                } else if (isPreviewTooLarge(e)) {
+                    this.state = State.TOO_LARGE;
+                    this.progress = 1.0F;
+                    this.discardPartialStatic();
+                } else {
+                    LOGGER.error("Failed to build a 3D preview from the Litematica selection", e);
+                    this.state = State.FAILED;
+                    this.discardPartialStatic();
+                }
+            }
+        }
+
+        private void loadOrBuild() {
+            try {
+                this.progress = PROGRESS_START;
+                String sourceHash = hashFileCancellable(this.sourcePath, this.cancelled);
+                Path cacheDirectory = this.cachePath.getParent();
+                if (cacheDirectory == null) {
+                    throw new IOException("3D preview cache path has no parent directory");
+                }
+                Files.createDirectories(cacheDirectory);
+                Path readCachePath = this.cachePath;
+                CacheIndexEntry indexEntry = readCacheIndexEntry(this.cacheSlot);
+                boolean sourceHashMatches = indexEntry != null && sourceHash.equals(indexEntry.sourceHash());
+                boolean cacheSignatureMatches = sourceHashMatches
+                        && this.resourcePackSignature.equals(indexEntry.resourcePackSignature());
+                MeshData cached = cacheSignatureMatches ? CacheFile.read(readCachePath, this.cancelled) : null;
+                if (cached != null) {
+                    this.throwIfCancelled();
+                    this.initializeDimensions(cached.sizeX(), cached.sizeY(), cached.sizeZ());
+                    this.publishStaticLayers(cached.layers());
+                    this.meshData = cached;
+                    this.progress = 1.0F;
+                    this.state = State.READY;
+                    return;
+                }
+
+                this.state = State.BUILDING;
+                Path convertedPath = this.convertedSchematicPath();
+                LitematicaSchematic schematic = sourceHashMatches
+                        ? MeshBuilder.readSchematic(convertedPath, this.cancelled, false)
+                        : null;
+                boolean convertedCacheHit = schematic != null;
+                if (!convertedCacheHit) {
+                    deleteQuietly(convertedPath);
+                    schematic = MeshBuilder.readSchematic(this.sourcePath, this.cancelled, true);
+                }
+                MeshData built = MeshBuilder.build(
+                        schematic,
+                        this.cancelled,
+                        value -> this.progress = value,
+                        this::initializeDimensions,
+                        this::publishStaticLayers
+                );
+                this.throwIfCancelled();
+                if (!built.withinBudget()) {
+                    built.closeDynamic();
+                    this.state = State.TOO_LARGE;
+                    this.progress = 1.0F;
+                    deleteTmpQuietly(this.tmpPath);
+                    deleteQuietly(this.cachePath);
+                    return;
+                }
+
+                List<LayerMesh> cacheLayers = List.copyOf(built.layers());
+                this.meshData = built;
+                this.progress = 1.0F;
+                this.state = State.READY;
+                Path writeCachePath = this.cachePath;
+                Path writeTmpPath = this.tmpPath;
+                try {
+                    CacheFile.writeAtomically(writeTmpPath, writeCachePath, built, cacheLayers, this.cancelled, ignored -> {});
+                    writeCacheIndexEntry(this.cacheSlot, this.sourcePath, sourceHash, this.resourcePackSignature);
+                    this.throwIfCancelled();
+                } catch (CancellationException e) {
+                    throw e;
+                } catch (Exception ignored) {
+                    deleteTmpQuietly(writeTmpPath);
+                    deleteQuietly(writeCachePath);
+                }
+
+                if (!convertedCacheHit
+                        && schematic.getMetadata().getMinecraftDataVersion() < LitematicaSchematic.MINECRAFT_DATA_VERSION_1_20_4) {
+                    this.writeConvertedSchematic(schematic, convertedPath);
+                }
+            } catch (CancellationException ignored) {
+                this.state = State.CANCELLED;
+                this.discardPartialStatic();
+                deleteTmpQuietly(this.tmpPath);
+            } catch (PreviewTooLargeException ignored) {
+                this.state = State.TOO_LARGE;
+                this.progress = 1.0F;
+                this.discardPartialStatic();
+                deleteTmpQuietly(this.tmpPath);
+                deleteQuietly(this.cachePath);
+            } catch (Exception e) {
+                if (this.isCancelled()) {
+                    this.state = State.CANCELLED;
+                    this.discardPartialStatic();
+                    deleteTmpQuietly(this.tmpPath);
+                    return;
+                }
+                if (isPreviewTooLarge(e)) {
+                    this.state = State.TOO_LARGE;
+                    this.progress = 1.0F;
+                    this.discardPartialStatic();
+                    deleteTmpQuietly(this.tmpPath);
+                    deleteQuietly(this.cachePath);
+                    return;
+                }
+                LOGGER.error("Failed to build 3D preview for {}", this.sourceName(), e);
+                this.state = State.FAILED;
+                this.discardPartialStatic();
+                deleteTmpQuietly(this.tmpPath);
+                deleteQuietly(this.cachePath);
+            }
+        }
+
+        private void captureSourceStamp() {
+            try {
+                this.sourceSize = Files.size(this.sourcePath);
+                this.sourceModifiedMillis = Files.getLastModifiedTime(this.sourcePath).toMillis();
+            } catch (IOException e) {
+                this.sourceSize = -1L;
+                this.sourceModifiedMillis = -1L;
+            }
+        }
+
+        private boolean sourceStampChanged() {
+            try {
+                return Files.size(this.sourcePath) != this.sourceSize
+                        || Files.getLastModifiedTime(this.sourcePath).toMillis() != this.sourceModifiedMillis
+                        || !currentResourcePackSignature().equals(this.resourcePackSignature);
+            } catch (IOException ignored) {
+                return true;
+            }
+        }
+
+        private String sourceName() {
+            Path fileName = this.sourcePath.getFileName();
+            return fileName == null ? this.sourcePath.toString() : fileName.toString();
+        }
+
+        private Path convertedSchematicPath() {
+            return this.cachePath.resolveSibling(this.cacheSlot + ".converted.litematic");
+        }
+
+        private void writeConvertedSchematic(LitematicaSchematic schematic, Path convertedPath) {
+            Path parent = convertedPath.getParent();
+            Path fileName = convertedPath.getFileName();
+            if (parent == null || fileName == null) {
+                return;
+            }
+
+            Path temporary = convertedPath.resolveSibling(this.cacheSlot + ".converted.tmp.litematic");
+            Path temporaryName = temporary.getFileName();
+            if (temporaryName == null) {
+                return;
+            }
+
+            try {
+                deleteQuietly(temporary);
+                if (!schematic.writeToFile(parent, temporaryName.toString(), true)) {
+                    throw new IOException("Litematica rejected the converted cache write");
+                }
+                moveCacheFile(temporary, convertedPath);
+            } catch (Exception ignored) {
+                deleteQuietly(temporary);
+                deleteQuietly(convertedPath);
+            }
+        }
+
+        private void initializeDimensions(int sizeX, int sizeY, int sizeZ) {
+            this.dimensions = new PreviewDimensions(sizeX, sizeY, sizeZ);
+        }
+
+        private void publishStaticLayers(List<LayerMesh> layers) {
+            if (!this.cancelled.get()) {
+                this.pendingStaticLayers.addAll(layers);
+            }
+        }
+
+        private void discardPartialStatic() {
+            this.pendingStaticLayers.clear();
+            this.dimensions = null;
+            this.closeBuffersOnRenderThread();
+        }
+
+        private void render(DrawContext context, int x, int y, int size, DragState drag) {
+            State currentState = this.state;
+            if ((currentState == State.BUILDING || currentState == State.READY) && this.dimensions != null) {
+                this.uploadIfNeeded();
+                MeshData data = this.meshData;
+                if (!this.layerBuffers.isEmpty()
+                        || currentState == State.READY && data != null && (data.hasDynamicContent() || this.staticUploadComplete)) {
+                    // 1.21.8 的 DrawContext 延迟提交 GUI；直接画主 framebuffer 会被稍后提交的模糊背景覆盖。
+                    context.state.addSpecialElement(new PreviewGuiElement(
+                            this,
+                            x,
+                            y,
+                            size,
+                            drag.dx,
+                            drag.dy,
+                            drag.angle,
+                            drag.pitch,
+                            drag.scale,
+                            context.scissorStack.peekLast()
+                    ));
+                    return;
+                }
+            }
+
+            this.renderProgress(context, x, y, size);
+        }
+
+        private void uploadIfNeeded() {
+            if (this.uploadScheduled || this.cancelled.get()) {
+                return;
+            }
+
+            LayerMesh layerMesh = this.pendingStaticLayers.poll();
+            if (layerMesh == null) {
+                this.completeStaticUploadIfReady();
+                return;
+            }
+
+            this.uploadScheduled = true;
+            Runnable upload = () -> {
+                LayerBuffer uploaded = null;
+                try {
+                    if (this.cancelled.get()) {
+                        return;
+                    }
+
+                    uploaded = uploadLayer(layerMesh);
+                    if (uploaded == null || this.cancelled.get()) {
+                        if (uploaded != null) {
+                            uploaded.close();
+                        }
+                        return;
+                    }
+
+                    this.layerBuffers.computeIfAbsent(layerMesh.layer(), ignored -> new ArrayList<>()).add(uploaded);
+                } catch (Throwable e) {
+                    if (uploaded != null) {
+                        uploaded.close();
+                    }
+                    LOGGER.error("Failed to upload a 3D preview batch for {}", this.sourceName(), e);
+                    this.markTooLarge(this.meshData);
+                } finally {
+                    this.uploadScheduled = false;
+                    this.completeStaticUploadIfReady();
+                }
+            };
+
+            if (RenderSystem.isOnRenderThread()) {
+                upload.run();
+            } else {
+                MinecraftClient.getInstance().execute(upload);
+            }
+        }
+
+        private void completeStaticUploadIfReady() {
+            if (this.staticUploadComplete || this.uploadScheduled || this.state != State.READY || !this.pendingStaticLayers.isEmpty()) {
+                return;
+            }
+
+            this.staticUploadComplete = true;
+            MeshData data = this.meshData;
+            if (data != null) {
+                data.releaseStaticVertices();
+            }
+        }
+
+        private void markTooLarge(@Nullable MeshData data) {
+            this.closeBuffers();
+            if (data != null) {
+                data.closeDynamic();
+            }
+            this.pendingStaticLayers.clear();
+            this.meshData = null;
+            this.dimensions = null;
+            this.state = State.TOO_LARGE;
+            this.progress = 1.0F;
+            deleteTmpQuietly(this.tmpPath);
+            deleteQuietly(this.cachePath);
+        }
+
+        private void releaseMeshData() {
+            this.closeBuffers();
+            MeshData data = this.meshData;
+            if (data != null) {
+                data.closeDynamic();
+            }
+            this.meshData = null;
+            this.dimensions = null;
+            this.pendingStaticLayers.clear();
+        }
+
+        private void refreshCacheSourceHash() {
+            try {
+                String sourceHash = hashFile(this.sourcePath);
+                writeCacheIndexEntry(this.cacheSlot, this.sourcePath, sourceHash, this.resourcePackSignature);
+                this.captureSourceStamp();
+            } catch (IOException ignored) {
+            }
+        }
+
+        @Nullable
+        private static LayerBuffer uploadLayer(LayerMesh layerMesh) {
+            int vertexCount = layerMesh.vertexCount();
+            int allocatorSize = allocatorSize(vertexCount);
+            BufferAllocator allocator = new BufferAllocator(allocatorSize);
+            try {
+                RenderLayer renderLayer = layerMesh.layer().renderLayer();
+                BufferBuilder builder = new BufferBuilder(allocator, renderLayer.getDrawMode(), renderLayer.getVertexFormat());
+                CacheFile.decodeQuantizedToBuilder(layerMesh.quantizedVertices(), builder);
+
+                BuiltBuffer built = builder.endNullable();
+                if (built == null) {
+                    return null;
+                }
+
+                try {
+                    if (layerMesh.layer().isTranslucent()) {
+                        built.sortQuads(allocator, VertexSorter.byDistance(0.0F, 0.0F, 1000.0F));
+                    }
+
+                    var drawParameters = built.getDrawParameters();
+                    GpuBuffer vertexBuffer = RenderSystem.getDevice().createBuffer(
+                            () -> "QuickCraft preview vertices",
+                            GpuBuffer.USAGE_VERTEX | GpuBuffer.USAGE_COPY_DST,
+                            built.getBuffer()
+                    );
+                    boolean customIndexBuffer = built.getSortedBuffer() != null;
+                    GpuBuffer indexBuffer = customIndexBuffer
+                            ? RenderSystem.getDevice().createBuffer(
+                                    () -> "QuickCraft preview indices",
+                                    GpuBuffer.USAGE_INDEX | GpuBuffer.USAGE_COPY_DST,
+                                    built.getSortedBuffer()
+                            )
+                            : RenderSystem.getSequentialBuffer(drawParameters.mode()).getIndexBuffer(drawParameters.indexCount());
+                    var indexType = customIndexBuffer
+                            ? drawParameters.indexType()
+                            : RenderSystem.getSequentialBuffer(drawParameters.mode()).getIndexType();
+                    return new LayerBuffer(vertexBuffer, indexBuffer, drawParameters.indexCount(), indexType, customIndexBuffer);
+                } finally {
+                    built.close();
+                }
+            } finally {
+                allocator.close();
+            }
+        }
+
+        private static int allocatorSize(int vertexCount) {
+            long bytes = Math.max(256L, (long) vertexCount * VERTEX_BYTES);
+            return (int) Math.min(Integer.MAX_VALUE - 8L, bytes);
+        }
+
+        private void drawSpecial(PreviewGuiElement element) {
+            MeshData data = this.meshData;
+            PreviewDimensions dimensions = this.dimensions;
+            if (dimensions == null || this.cancelled.get()) {
+                return;
+            }
+
+            var previousLights = RenderSystem.getShaderLights();
+            Matrix4f projection = new Matrix4f().setOrtho(-1.0F, 1.0F, -1.0F, 1.0F, -1000.0F, 3000.0F);
+            RenderSystem.backupProjectionMatrix();
+            RenderSystem.setProjectionMatrix(this.previewProjection.set(projection), ProjectionType.ORTHOGRAPHIC);
+
+            Matrix4fStack modelView = RenderSystem.getModelViewStack();
+            modelView.pushMatrix();
+            try {
+                modelView.identity();
+                modelView.translate(
+                        2.0F * element.dragX() / Math.max(1, element.size()),
+                        -2.0F * element.dragY() / Math.max(1, element.size()),
+                        0.0F
+                );
+                modelView.rotate(RotationAxis.POSITIVE_X.rotation(element.pitch()));
+                modelView.rotate(RotationAxis.POSITIVE_Y.rotation((float) element.angle()));
+                float scale = dimensions.scaleFactor(element.size(), element.size()) * element.dragScale();
+                modelView.scale(scale, scale, scale);
+                modelView.translate(-dimensions.sizeX() / 2.0F, -dimensions.sizeY() / 2.0F, -dimensions.sizeZ() / 2.0F);
+                this.applyLight(modelView);
+                Framebuffer framebuffer = MinecraftClient.getInstance().getFramebuffer();
+                this.drawSnapshotBuffers(framebuffer, false);
+                if (data != null && this.staticUploadComplete) {
+                    if (this.dynamicPreparationArmed) {
+                        this.prepareDynamicBuffers(data);
+                        if (this.dynamicBuffersReady) {
+                            this.drawSnapshotDynamicBuffers(framebuffer);
+                        } else if (this.dynamicBufferFallback) {
+                            this.drawDynamicUnculled(data);
+                        }
+                    } else {
+                        this.dynamicPreparationArmed = true;
+                    }
+                }
+                this.drawSnapshotBuffers(framebuffer, true);
+            } finally {
+                modelView.popMatrix();
+                RenderSystem.restoreProjectionMatrix();
+                RenderSystem.setShaderLights(previousLights);
+            }
+        }
+
+        private void drawDynamicUnculled(MeshData data) {
+            DynamicScene scene = data.dynamicScene();
+            if (scene.isEmpty()) {
+                return;
+            }
+
+            MinecraftClient client = MinecraftClient.getInstance();
+            MatrixStack matrices = new MatrixStack();
+            scene.blockEntities().forEach((pos, entity) -> {
+                matrices.push();
+                try {
+                    matrices.translate(pos.getX(), pos.getY(), pos.getZ());
+                    renderBlockEntity(client, entity, matrices, client.getBufferBuilders().getEntityVertexConsumers());
+                } catch (Throwable ignored) {
+                } finally {
+                    matrices.pop();
+                }
+            });
+
+            scene.entities().forEach(entity -> {
+                try {
+                    client.getEntityRenderDispatcher().render(
+                            entity.entity(),
+                            entity.x(),
+                            entity.y(),
+                            entity.z(),
+                            0.0F,
+                            matrices,
+                            client.getBufferBuilders().getEntityVertexConsumers(),
+                            entity.light()
+                    );
+                } catch (Throwable ignored) {
+                }
+            });
+            this.flushDynamic();
+        }
+
+        // 1.21.6+ 的地形明暗已烘焙进顶点颜色；独立 UBO 只修正动态方块实体和实体，且不污染原版全局光照。
+        private void applyLight(Matrix4f viewMatrix) {
+            Matrix4f lightTransform = new Matrix4f(viewMatrix);
+            Vector4f lightDirection = new Vector4f(0.0F, 0.35F, 0.25F, 0.0F);
+            lightTransform.invert();
+            lightDirection.mul(lightTransform);
+            Vector3f transformed = new Vector3f(lightDirection.x, lightDirection.y, lightDirection.z);
+
+            if (this.previewLightingBuffer == null) {
+                this.previewLightingBuffer = RenderSystem.getDevice().createBuffer(
+                        () -> "QuickCraft preview lighting",
+                        GpuBuffer.USAGE_UNIFORM | GpuBuffer.USAGE_COPY_DST,
+                        DiffuseLighting.UBO_SIZE
+                );
+            }
+
+            try (MemoryStack stack = MemoryStack.stackPush()) {
+                var data = Std140Builder.onStack(stack, DiffuseLighting.UBO_SIZE)
+                        .putVec3(transformed)
+                        .putVec3(transformed)
+                        .get();
+                RenderSystem.getDevice().createCommandEncoder().writeToBuffer(this.previewLightingBuffer.slice(), data);
+            }
+            RenderSystem.setShaderLights(this.previewLightingBuffer.slice());
+        }
+
+        private static void drawLayerBuffer(
+                RenderLayer renderLayer,
+                LayerBuffer buffer,
+                Framebuffer framebuffer
+        ) {
+            renderLayer.startDrawing();
+            try {
+                RenderLayerMultiPhaseAccessor layerAccessor = (RenderLayerMultiPhaseAccessor) (Object) renderLayer;
+                RenderPipeline pipeline = buffer.pipeline(renderLayer, layerAccessor.quickcraft$getPipeline());
+                var target = framebuffer;
+                var colorAttachment = RenderSystem.outputColorTextureOverride != null
+                        ? RenderSystem.outputColorTextureOverride
+                        : target.getColorAttachmentView();
+                var depthAttachment = target.useDepthAttachment
+                        ? RenderSystem.outputDepthTextureOverride != null
+                                ? RenderSystem.outputDepthTextureOverride
+                                : target.getDepthAttachmentView()
+                        : null;
+                var dynamicTransforms = RenderSystem.getDynamicUniforms().write(
+                        RenderSystem.getModelViewMatrix(),
+                        new Vector4f(1.0F, 1.0F, 1.0F, 1.0F),
+                        RenderSystem.getModelOffset(),
+                        RenderSystem.getTextureMatrix(),
+                        RenderSystem.getShaderLineWidth()
+                );
+                // ShapeIndexBuffer 扩容会关闭旧 GPU buffer，非自有索引不能跨帧缓存其引用。
+                var sequentialIndices = buffer.ownsIndexBuffer() ? null : RenderSystem.getSequentialBuffer(renderLayer.getDrawMode());
+                GpuBuffer indexBuffer = buffer.ownsIndexBuffer()
+                        ? buffer.indexBuffer()
+                        : sequentialIndices.getIndexBuffer(buffer.indexCount());
+                VertexFormat.IndexType indexType = buffer.ownsIndexBuffer()
+                        ? buffer.indexType()
+                        : sequentialIndices.getIndexType();
+                try (RenderPass pass = RenderSystem.getDevice().createCommandEncoder().createRenderPass(
+                        () -> "QuickCraft preview " + renderLayer,
+                        colorAttachment,
+                        OptionalInt.empty(),
+                        depthAttachment,
+                        OptionalDouble.empty()
+                )) {
+                    pass.setPipeline(pipeline);
+                    RenderSystem.bindDefaultUniforms(pass);
+                    pass.setUniform("DynamicTransforms", dynamicTransforms);
+                    pass.setVertexBuffer(0, buffer.vertexBuffer());
+                    for (int textureUnit = 0; textureUnit < 12; textureUnit++) {
+                        var texture = RenderSystem.getShaderTexture(textureUnit);
+                        if (texture != null) {
+                            pass.bindSampler("Sampler" + textureUnit, texture);
+                        }
+                    }
+                    pass.setIndexBuffer(indexBuffer, indexType);
+                    pass.drawIndexed(0, 0, buffer.indexCount(), 1);
+                }
+            } finally {
+                renderLayer.endDrawing();
+            }
+        }
+
+        private void prepareDynamicBuffers(MeshData data) {
+            if (this.dynamicBuffersReady || this.dynamicBufferFallback || !data.hasDynamicContent()) {
+                return;
+            }
+
+            DynamicScene scene = data.dynamicScene();
+            if (scene.isEmpty()) {
+                this.dynamicBuffersReady = true;
+                data.closeDynamic();
+                return;
+            }
+
+            DynamicMeshCollector collector = new DynamicMeshCollector();
+            try {
+                MinecraftClient client = MinecraftClient.getInstance();
+                MatrixStack matrices = new MatrixStack();
+                scene.blockEntities().forEach((pos, entity) -> {
+                    matrices.push();
+                    try {
+                        matrices.translate(pos.getX(), pos.getY(), pos.getZ());
+                        renderBlockEntity(client, entity, matrices, collector);
+                    } catch (DynamicBufferTooLargeException e) {
+                        throw e;
+                    } catch (Throwable ignored) {
+                    } finally {
+                        matrices.pop();
+                    }
+                });
+
+                scene.entities().forEach(entity -> {
+                    try {
+                        client.getEntityRenderDispatcher().render(
+                                entity.entity(),
+                                entity.x(),
+                                entity.y(),
+                                entity.z(),
+                                0.0F,
+                                matrices,
+                                collector,
+                                entity.light()
+                        );
+                    } catch (DynamicBufferTooLargeException e) {
+                        throw e;
+                    } catch (Throwable ignored) {
+                    }
+                });
+
+                this.dynamicBuffers = collector.upload();
+                this.dynamicBuffersReady = true;
+                data.closeDynamic();
+            } catch (Throwable ignored) {
+                this.closeDynamicBuffers();
+                this.dynamicBufferFallback = true;
+            } finally {
+                collector.close();
+            }
+        }
+
+        private void drawSnapshotBuffers(Framebuffer framebuffer, boolean afterEntities) {
+            for (LayerKey layer : LayerKey.DRAW_ORDER) {
+                if (layer.drawAfterEntities() != afterEntities) {
+                    continue;
+                }
+                if (layer.isTranslucent() && !this.staticUploadComplete) {
+                    continue;
+                }
+                List<LayerBuffer> buffers = this.layerBuffers.get(layer);
+                if (buffers == null || buffers.isEmpty()) {
+                    continue;
+                }
+                for (LayerBuffer buffer : buffers) {
+                    drawLayerBuffer(layer.renderLayer(), buffer, framebuffer);
+                }
+            }
+        }
+
+        private void drawSnapshotDynamicBuffers(Framebuffer framebuffer) {
+            for (DynamicLayerBuffer layerBuffer : this.dynamicBuffers) {
+                drawLayerBuffer(layerBuffer.layer(), layerBuffer.buffer(), framebuffer);
+            }
+        }
+
+        private int recommendedExportResolution() {
+            MeshData data = this.meshData;
+            if (data == null) {
+                return 0;
+            }
+
+            long target = 4L * Math.max(data.sizeX(), Math.max(data.sizeY(), data.sizeZ()));
+            if (target <= 512) {
+                return 512;
+            }
+            if (target <= 1024) {
+                return 1024;
+            }
+            if (target <= 2048) {
+                return 2048;
+            }
+            if (target <= 4096) {
+                return 4096;
+            }
+            return 8192;
+        }
+
+        private void exportPng(int resolution, int backgroundColor, DragState drag, Path outputDirectory, Consumer<Text> callback) {
+            if (isShaderPackActive()) {
+                callback.accept(Text.translatable("quickcraft.message.litematica.preview_3d.shader_disabled"));
+                return;
+            }
+
+            MeshData data = this.meshData;
+            if (this.state != State.READY || data == null) {
+                callback.accept(Text.translatable("quickcraft.litematica.preview_3d.export_not_ready"));
+                return;
+            }
+
+            this.uploadIfNeeded();
+            if (!this.staticUploadComplete) {
+                callback.accept(Text.translatable("quickcraft.litematica.preview_3d.export_not_ready"));
+                return;
+            }
+            this.prepareDynamicBuffers(data);
+            if (data.hasDynamicContent() && !this.dynamicBuffersReady) {
+                callback.accept(Text.translatable("quickcraft.litematica.preview_3d.export_dynamic_failed"));
+                return;
+            }
+            if (data.vertexCount() > 0 && this.layerBuffers.isEmpty()) {
+                callback.accept(Text.translatable("quickcraft.litematica.preview_3d.export_failed"));
+                return;
+            }
+            if (!this.snapshotInProgress.compareAndSet(false, true)) {
+                callback.accept(Text.translatable("quickcraft.litematica.preview_3d.exporting"));
+                return;
+            }
+
+            Path outputPath;
+            Framebuffer framebuffer;
+            try {
+                Files.createDirectories(outputDirectory);
+                outputPath = this.nextOutputPath(outputDirectory, resolution);
+                framebuffer = new SimpleFramebuffer("QuickCraft PNG export", resolution, resolution, true);
+                RenderSystem.getDevice().createCommandEncoder().clearColorAndDepthTextures(
+                        Objects.requireNonNull(framebuffer.getColorAttachment()),
+                        backgroundColor,
+                        Objects.requireNonNull(framebuffer.getDepthAttachment()),
+                        1.0D
+                );
+                this.renderSnapshot(framebuffer, data, drag);
+            } catch (Throwable ignored) {
+                this.snapshotInProgress.set(false);
+                callback.accept(Text.translatable("quickcraft.litematica.preview_3d.export_failed"));
+                return;
+            }
+
+            boolean keepBackgroundOpaque = ((backgroundColor >>> 24) & 0xFF) == 0xFF;
+            copySnapshot(framebuffer, keepBackgroundOpaque, image -> Util.getIoWorkerExecutor().execute(() -> {
+                try {
+                    image.writeTo(outputPath);
+                    MinecraftClient.getInstance().execute(() -> callback.accept(Text.translatable(
+                            "quickcraft.litematica.preview_3d.export_success",
+                            outputPath.getFileName().toString()
+                    )));
+                } catch (Exception ignored) {
+                    MinecraftClient.getInstance().execute(() -> callback.accept(Text.translatable(
+                            "quickcraft.litematica.preview_3d.export_failed"
+                    )));
+                } finally {
+                    image.close();
+                    this.snapshotInProgress.set(false);
+                }
+            }), throwable -> {
+                this.snapshotInProgress.set(false);
+                callback.accept(Text.translatable("quickcraft.litematica.preview_3d.export_failed"));
+            });
+        }
+
+        private void copyImage(int resolution, int backgroundColor, DragState drag, Consumer<Text> callback) {
+            if (!Platform.isWindows()) {
+                callback.accept(Text.translatable("quickcraft.litematica.preview_3d.copy_failed"));
+                return;
+            }
+
+            if (isShaderPackActive()) {
+                callback.accept(Text.translatable("quickcraft.message.litematica.preview_3d.shader_disabled"));
+                return;
+            }
+            MeshData data = this.meshData;
+            if (this.state != State.READY || data == null) {
+                callback.accept(Text.translatable("quickcraft.litematica.preview_3d.export_not_ready"));
+                return;
+            }
+
+            this.uploadIfNeeded();
+            if (!this.staticUploadComplete) {
+                callback.accept(Text.translatable("quickcraft.litematica.preview_3d.export_not_ready"));
+                return;
+            }
+            this.prepareDynamicBuffers(data);
+            if (data.hasDynamicContent() && !this.dynamicBuffersReady) {
+                callback.accept(Text.translatable("quickcraft.litematica.preview_3d.export_dynamic_failed"));
+                return;
+            }
+            if (data.vertexCount() > 0 && this.layerBuffers.isEmpty()) {
+                callback.accept(Text.translatable("quickcraft.litematica.preview_3d.copy_failed"));
+                return;
+            }
+            if (!this.snapshotInProgress.compareAndSet(false, true)) {
+                callback.accept(Text.translatable("quickcraft.litematica.preview_3d.exporting"));
+                return;
+            }
+
+            Framebuffer framebuffer;
+            try {
+                framebuffer = new SimpleFramebuffer("QuickCraft clipboard snapshot", resolution, resolution, true);
+                RenderSystem.getDevice().createCommandEncoder().clearColorAndDepthTextures(
+                        Objects.requireNonNull(framebuffer.getColorAttachment()),
+                        backgroundColor,
+                        Objects.requireNonNull(framebuffer.getDepthAttachment()),
+                        1.0D
+                );
+                this.renderSnapshot(framebuffer, data, drag);
+            } catch (Throwable ignored) {
+                this.snapshotInProgress.set(false);
+                callback.accept(Text.translatable("quickcraft.litematica.preview_3d.copy_failed"));
+                return;
+            }
+
+            boolean keepBackgroundOpaque = ((backgroundColor >>> 24) & 0xFF) == 0xFF;
+            copySnapshot(framebuffer, keepBackgroundOpaque, image -> {
+                Util.getIoWorkerExecutor().execute(() -> {
+                    try {
+                        copyToWindowsClipboard(image, ((backgroundColor >>> 24) & 0xFF) != 0xFF);
+                        MinecraftClient.getInstance().execute(() -> callback.accept(Text.translatable(
+                                "quickcraft.litematica.preview_3d.copy_success"
+                        )));
+                    } catch (Throwable throwable) {
+                        LOGGER.error("Failed to copy the 3D preview image to the Windows clipboard", throwable);
+                        MinecraftClient.getInstance().execute(() -> callback.accept(Text.translatable(
+                                "quickcraft.litematica.preview_3d.copy_failed"
+                        )));
+                    } finally {
+                        image.close();
+                        this.snapshotInProgress.set(false);
+                    }
+                });
+            }, throwable -> {
+                this.snapshotInProgress.set(false);
+                callback.accept(Text.translatable("quickcraft.litematica.preview_3d.copy_failed"));
+            });
+        }
+
+        private void captureSnapshot(
+                int resolution,
+                int backgroundColor,
+                DragState drag,
+                String failureTranslationKey,
+                Consumer<Text> messageCallback,
+                Consumer<NativeImage> imageCallback
+        ) {
+            if (isShaderPackActive()) {
+                messageCallback.accept(Text.translatable("quickcraft.message.litematica.preview_3d.shader_disabled"));
+                return;
+            }
+
+            MeshData data = this.meshData;
+            if (this.state != State.READY || data == null) {
+                messageCallback.accept(Text.translatable("quickcraft.litematica.preview_3d.export_not_ready"));
+                return;
+            }
+
+            this.uploadIfNeeded();
+            if (!this.staticUploadComplete) {
+                messageCallback.accept(Text.translatable("quickcraft.litematica.preview_3d.export_not_ready"));
+                return;
+            }
+            this.prepareDynamicBuffers(data);
+            if (data.hasDynamicContent() && !this.dynamicBuffersReady) {
+                messageCallback.accept(Text.translatable("quickcraft.litematica.preview_3d.export_dynamic_failed"));
+                return;
+            }
+            if (data.vertexCount() > 0 && this.layerBuffers.isEmpty()) {
+                messageCallback.accept(Text.translatable(failureTranslationKey));
+                return;
+            }
+            if (!this.snapshotInProgress.compareAndSet(false, true)) {
+                messageCallback.accept(Text.translatable("quickcraft.litematica.preview_3d.exporting"));
+                return;
+            }
+
+            Framebuffer framebuffer;
+            try {
+                framebuffer = new SimpleFramebuffer("QuickCraft preview snapshot", resolution, resolution, true);
+                RenderSystem.getDevice().createCommandEncoder().clearColorAndDepthTextures(
+                        Objects.requireNonNull(framebuffer.getColorAttachment()),
+                        backgroundColor,
+                        Objects.requireNonNull(framebuffer.getDepthAttachment()),
+                        1.0D
+                );
+                this.renderSnapshot(framebuffer, data, drag);
+            } catch (Throwable ignored) {
+                this.snapshotInProgress.set(false);
+                messageCallback.accept(Text.translatable(failureTranslationKey));
+                return;
+            }
+
+            boolean keepBackgroundOpaque = ((backgroundColor >>> 24) & 0xFF) == 0xFF;
+            copySnapshot(framebuffer, keepBackgroundOpaque, imageCallback, throwable -> {
+                this.snapshotInProgress.set(false);
+                messageCallback.accept(Text.translatable(failureTranslationKey));
+            });
+        }
+
+        private void renderSnapshot(Framebuffer framebuffer, MeshData data, DragState drag) {
+            var previousColorTarget = RenderSystem.outputColorTextureOverride;
+            var previousDepthTarget = RenderSystem.outputDepthTextureOverride;
+            var previousScissor = RenderSystem.getScissorStateForRenderTypeDraws();
+            boolean hadScissor = previousScissor.method_72091();
+            int previousScissorX = previousScissor.method_72092();
+            int previousScissorY = previousScissor.method_72093();
+            int previousScissorWidth = previousScissor.method_72094();
+            int previousScissorHeight = previousScissor.method_72095();
+            var previousLights = RenderSystem.getShaderLights();
+            RenderSystem.outputColorTextureOverride = framebuffer.getColorAttachmentView();
+            RenderSystem.outputDepthTextureOverride = framebuffer.getDepthAttachmentView();
+            RenderSystem.disableScissorForRenderTypeDraws();
+
+            RenderSystem.backupProjectionMatrix();
+            RenderSystem.setProjectionMatrix(
+                    this.previewProjection.set(new Matrix4f().setOrtho(-1.0F, 1.0F, -1.0F, 1.0F, -1000.0F, 3000.0F)),
+                    ProjectionType.ORTHOGRAPHIC
+            );
+
+            Matrix4fStack modelView = RenderSystem.getModelViewStack();
+            modelView.pushMatrix();
+            try {
+                modelView.identity();
+                float viewportSize = Math.max(1, drag.size);
+                modelView.translate(2.0F * drag.dx / viewportSize, -2.0F * drag.dy / viewportSize, 0.0F);
+                modelView.rotate(RotationAxis.POSITIVE_X.rotation(drag.pitch));
+                modelView.rotate(RotationAxis.POSITIVE_Y.rotation((float) drag.angle));
+                double diagonal = Math.sqrt(
+                        (double) data.sizeX() * data.sizeX()
+                                + (double) data.sizeY() * data.sizeY()
+                                + (double) data.sizeZ() * data.sizeZ()
+                );
+                float scale = (float) (2.0 * PREVIEW_FIT_PADDING / Math.max(1.0, diagonal)) * drag.scale;
+                modelView.scale(scale, scale, scale);
+                modelView.translate(-data.sizeX() / 2.0F, -data.sizeY() / 2.0F, -data.sizeZ() / 2.0F);
+
+                this.applyLight(modelView);
+                this.drawSnapshotBuffers(framebuffer, false);
+                if (this.dynamicBuffersReady) {
+                    this.drawSnapshotDynamicBuffers(framebuffer);
+                }
+                this.drawSnapshotBuffers(framebuffer, true);
+            } finally {
+                modelView.popMatrix();
+                RenderSystem.restoreProjectionMatrix();
+                RenderSystem.outputColorTextureOverride = previousColorTarget;
+                RenderSystem.outputDepthTextureOverride = previousDepthTarget;
+                RenderSystem.setShaderLights(previousLights);
+                if (hadScissor) {
+                    RenderSystem.enableScissorForRenderTypeDraws(previousScissorX, previousScissorY, previousScissorWidth, previousScissorHeight);
+                } else {
+                    RenderSystem.disableScissorForRenderTypeDraws();
+                }
+            }
+        }
+
+        private static void copySnapshot(
+                Framebuffer framebuffer,
+                boolean keepBackgroundOpaque,
+                Consumer<NativeImage> callback,
+                Consumer<Throwable> errorCallback
+        ) {
+            var texture = Objects.requireNonNull(framebuffer.getColorAttachment());
+            int width = framebuffer.textureWidth;
+            int height = framebuffer.textureHeight;
+            int pixelSize = texture.getFormat().pixelSize();
+            var device = RenderSystem.getDevice();
+            GpuBuffer buffer = device.createBuffer(
+                    () -> "QuickCraft PNG readback",
+                    GpuBuffer.USAGE_MAP_READ | GpuBuffer.USAGE_COPY_DST,
+                    width * height * pixelSize
+            );
+            var mapEncoder = device.createCommandEncoder();
+            device.createCommandEncoder().copyTextureToBuffer(texture, buffer, 0, () -> {
+                ByteBuffer pixelData;
+                try (var view = mapEncoder.mapBuffer(buffer, true, false)) {
+                    var pixels = view.data();
+                    pixelData = ByteBuffer.allocate(pixels.remaining()).order(pixels.order());
+                    pixelData.put(pixels).flip();
+                } catch (Throwable throwable) {
+                    errorCallback.accept(throwable);
+                    return;
+                } finally {
+                    try {
+                        buffer.close();
+                    } finally {
+                        framebuffer.delete();
+                    }
+                }
+
+                Util.getMainWorkerExecutor().execute(() -> {
+                    NativeImage image = null;
+                    try {
+                        image = new NativeImage(width, height, false);
+                        for (int y = 0; y < height; y++) {
+                            for (int x = 0; x < width; x++) {
+                                int color = pixelData.getInt((x + y * width) * pixelSize);
+                                image.setColor(x, height - y - 1, keepBackgroundOpaque ? color | 0xFF000000 : color);
+                            }
+                        }
+                        callback.accept(image);
+                    } catch (Throwable throwable) {
+                        if (image != null) {
+                            image.close();
+                        }
+                        errorCallback.accept(throwable);
+                    }
+                });
+            }, 0);
+        }
+
+        // Minecraft 客户端会启用 java.awt.headless，图片剪贴板必须绕过 AWT 直接写 Win32。
+        private static void copyToWindowsClipboard(NativeImage image, boolean preserveTransparency) throws InterruptedException {
+            int width = image.getWidth();
+            int height = image.getHeight();
+            double compatScale = Math.min(1.0, COMPAT_CLIPBOARD_MAX_DIMENSION / (double) Math.max(width, height));
+            int compatWidth = Math.max(1, (int) Math.round(width * compatScale));
+            int compatHeight = Math.max(1, (int) Math.round(height * compatScale));
+            byte[] pngBytes;
+            try {
+                pngBytes = preserveTransparency ? encodeClipboardPng(image, compatWidth, compatHeight) : null;
+            } catch (IOException e) {
+                throw new IllegalStateException("Could not encode transparent clipboard PNG", e);
+            }
+            long pixelBytes = (long) width * height * 4L;
+            long compatPixelBytes = (long) compatWidth * compatHeight * 4L;
+            Pointer dibV5Handle = WindowsMemory.INSTANCE.GlobalAlloc(
+                    WindowsMemory.GHND,
+                    new BaseTSD.SIZE_T(WindowsMemory.BITMAP_V5_HEADER_SIZE + pixelBytes)
+            );
+            Pointer dibHandle = WindowsMemory.INSTANCE.GlobalAlloc(
+                    WindowsMemory.GHND,
+                    new BaseTSD.SIZE_T(WindowsMemory.BITMAP_INFO_HEADER_SIZE + compatPixelBytes)
+            );
+            if (dibV5Handle == null || dibHandle == null) {
+                if (dibV5Handle != null) {
+                    WindowsMemory.INSTANCE.GlobalFree(dibV5Handle);
+                }
+                if (dibHandle != null) {
+                    WindowsMemory.INSTANCE.GlobalFree(dibHandle);
+                }
+                throw new IllegalStateException("GlobalAlloc failed");
+            }
+
+            boolean clipboardOwnsDibV5 = false;
+            boolean clipboardOwnsDib = false;
+            boolean clipboardOwnsPng = false;
+            boolean clipboardOpen = false;
+            Pointer pngHandle = null;
+            try {
+                Pointer dibV5Memory = WindowsMemory.INSTANCE.GlobalLock(dibV5Handle);
+                Pointer dibMemory = WindowsMemory.INSTANCE.GlobalLock(dibHandle);
+                if (dibV5Memory == null || dibMemory == null) {
+                    if (dibV5Memory != null) {
+                        WindowsMemory.INSTANCE.GlobalUnlock(dibV5Handle);
+                    }
+                    if (dibMemory != null) {
+                        WindowsMemory.INSTANCE.GlobalUnlock(dibHandle);
+                    }
+                    throw new IllegalStateException("GlobalLock failed");
+                }
+                try {
+                    dibV5Memory.write(0, createBitmapV5Header(width, height), 0, WindowsMemory.BITMAP_V5_HEADER_SIZE);
+                    dibMemory.write(
+                            0,
+                            createBitmapInfoHeader(compatWidth, compatHeight),
+                            0,
+                            WindowsMemory.BITMAP_INFO_HEADER_SIZE
+                    );
+                    int[] row = new int[width];
+                    boolean sameDimensions = width == compatWidth && height == compatHeight;
+                    for (int y = 0; y < height; y++) {
+                        for (int x = 0; x < width; x++) {
+                            row[x] = image.getColorArgb(x, y);
+                        }
+                        dibV5Memory.write(WindowsMemory.BITMAP_V5_HEADER_SIZE + (long) y * width * 4L, row, 0, width);
+                        if (sameDimensions) {
+                            dibMemory.write(
+                                    WindowsMemory.BITMAP_INFO_HEADER_SIZE + (long) (height - 1 - y) * width * 4L,
+                                    row,
+                                    0,
+                                    width
+                            );
+                        }
+                    }
+                    if (!sameDimensions) {
+                        int[] compatRow = new int[compatWidth];
+                        for (int y = 0; y < compatHeight; y++) {
+                            int sourceY = Math.min(height - 1, (int) ((y + 0.5) * height / compatHeight));
+                            for (int x = 0; x < compatWidth; x++) {
+                                int sourceX = Math.min(width - 1, (int) ((x + 0.5) * width / compatWidth));
+                                compatRow[x] = image.getColorArgb(sourceX, sourceY);
+                            }
+                            dibMemory.write(
+                                    WindowsMemory.BITMAP_INFO_HEADER_SIZE
+                                            + (long) (compatHeight - 1 - y) * compatWidth * 4L,
+                                    compatRow,
+                                    0,
+                                    compatWidth
+                            );
+                        }
+                    }
+                } finally {
+                    WindowsMemory.INSTANCE.GlobalUnlock(dibV5Handle);
+                    WindowsMemory.INSTANCE.GlobalUnlock(dibHandle);
+                }
+
+                if (pngBytes != null) {
+                    pngHandle = WindowsMemory.INSTANCE.GlobalAlloc(
+                            WindowsMemory.GHND,
+                            new BaseTSD.SIZE_T(pngBytes.length)
+                    );
+                    if (pngHandle == null) {
+                        throw new IllegalStateException("GlobalAlloc(PNG) failed");
+                    }
+                    Pointer pngMemory = WindowsMemory.INSTANCE.GlobalLock(pngHandle);
+                    if (pngMemory == null) {
+                        throw new IllegalStateException("GlobalLock(PNG) failed");
+                    }
+                    try {
+                        pngMemory.write(0, pngBytes, 0, pngBytes.length);
+                    } finally {
+                        WindowsMemory.INSTANCE.GlobalUnlock(pngHandle);
+                    }
+                }
+
+                clipboardOpen = openWindowsClipboard();
+                if (!clipboardOpen || !WindowsClipboard.INSTANCE.EmptyClipboard()) {
+                    throw new IllegalStateException("Windows clipboard is unavailable");
+                }
+                if (pngHandle != null) {
+                    int pngFormat = WindowsClipboard.INSTANCE.RegisterClipboardFormat("PNG");
+                    if (pngFormat == 0 || WindowsClipboard.INSTANCE.SetClipboardData(pngFormat, pngHandle) == null) {
+                        throw new IllegalStateException("SetClipboardData(PNG) failed");
+                    }
+                    clipboardOwnsPng = true;
+                }
+
+                // QQ 跳过不认识的 PNG 格式后按枚举顺序取 DIB；支持 PNG 的程序则保留完整 Alpha。
+                if (WindowsClipboard.INSTANCE.SetClipboardData(WindowsClipboard.CF_DIB, dibHandle) == null) {
+                    throw new IllegalStateException("SetClipboardData(CF_DIB) failed");
+                }
+                clipboardOwnsDib = true;
+                clipboardOwnsDibV5 = WindowsClipboard.INSTANCE.SetClipboardData(
+                        WindowsClipboard.CF_DIBV5,
+                        dibV5Handle
+                ) != null;
+            } finally {
+                if (clipboardOpen) {
+                    WindowsClipboard.INSTANCE.CloseClipboard();
+                }
+                if (!clipboardOwnsDibV5) {
+                    WindowsMemory.INSTANCE.GlobalFree(dibV5Handle);
+                }
+                if (!clipboardOwnsDib) {
+                    WindowsMemory.INSTANCE.GlobalFree(dibHandle);
+                }
+                if (!clipboardOwnsPng && pngHandle != null) {
+                    WindowsMemory.INSTANCE.GlobalFree(pngHandle);
+                }
+            }
+        }
+
+        private static byte[] encodeClipboardPng(NativeImage image, int width, int height) throws IOException {
+            BufferedImage bufferedImage = new BufferedImage(width, height, BufferedImage.TYPE_INT_ARGB);
+            int[] row = new int[width];
+            for (int y = 0; y < height; y++) {
+                int sourceY = Math.min(image.getHeight() - 1, (int) ((y + 0.5) * image.getHeight() / height));
+                for (int x = 0; x < width; x++) {
+                    int sourceX = Math.min(image.getWidth() - 1, (int) ((x + 0.5) * image.getWidth() / width));
+                    row[x] = image.getColorArgb(sourceX, sourceY);
+                }
+                bufferedImage.setRGB(0, y, width, 1, row, 0, width);
+            }
+
+            try (ByteArrayOutputStream output = new ByteArrayOutputStream()) {
+                if (!ImageIO.write(bufferedImage, "png", output)) {
+                    throw new IOException("No PNG writer is available");
+                }
+                return output.toByteArray();
+            }
+        }
+
+        private static boolean openWindowsClipboard() throws InterruptedException {
+            for (int attempt = 0; attempt < 5; attempt++) {
+                if (WindowsClipboard.INSTANCE.OpenClipboard(null)) {
+                    return true;
+                }
+                Thread.sleep(10L);
+            }
+            return false;
+        }
+
+        private static byte[] createBitmapV5Header(int width, int height) {
+            ByteBuffer header = ByteBuffer.allocate(WindowsMemory.BITMAP_V5_HEADER_SIZE).order(ByteOrder.LITTLE_ENDIAN);
+            header.putInt(WindowsMemory.BITMAP_V5_HEADER_SIZE);
+            header.putInt(width);
+            header.putInt(-height);
+            header.putShort((short) 1);
+            header.putShort((short) 32);
+            header.putInt(WindowsMemory.BI_BITFIELDS);
+            header.putInt(width * height * 4);
+            header.position(40);
+            header.putInt(0x00FF0000);
+            header.putInt(0x0000FF00);
+            header.putInt(0x000000FF);
+            header.putInt(0xFF000000);
+            header.putInt(WindowsMemory.LCS_SRGB);
+            header.position(108);
+            header.putInt(WindowsMemory.LCS_GM_IMAGES);
+            return header.array();
+        }
+
+        private static byte[] createBitmapInfoHeader(int width, int height) {
+            ByteBuffer header = ByteBuffer.allocate(WindowsMemory.BITMAP_INFO_HEADER_SIZE).order(ByteOrder.LITTLE_ENDIAN);
+            header.putInt(WindowsMemory.BITMAP_INFO_HEADER_SIZE);
+            header.putInt(width);
+            header.putInt(height);
+            header.putShort((short) 1);
+            header.putShort((short) 32);
+            header.putInt(WindowsMemory.BI_RGB);
+            header.putInt(width * height * 4);
+            return header.array();
+        }
+
+        private Path nextOutputPath(Path outputDirectory, int resolution) {
+            String fileName = this.sourcePath.getFileName().toString();
+            int extension = fileName.lastIndexOf('.');
+            String baseName = extension > 0 ? fileName.substring(0, extension) : fileName;
+            baseName = baseName.replaceAll("[<>:\"/\\\\|?*\\x00-\\x1F]", "_").replaceAll("[. ]+$", "");
+            if (baseName.isBlank()) {
+                baseName = "render";
+            }
+
+            String stem = baseName + "_" + Util.getFormattedCurrentTime() + "_" + resolution + "x" + resolution;
+            Path outputPath = outputDirectory.resolve(stem + ".png");
+            int suffix = 2;
+            while (Files.exists(outputPath)) {
+                outputPath = outputDirectory.resolve(stem + "_" + suffix++ + ".png");
+            }
+            return outputPath;
+        }
+
+        private void flushDynamic() {
+            MinecraftClient.getInstance().getBufferBuilders().getEntityVertexConsumers().draw();
+        }
+
+
+        private static <T extends BlockEntity> void renderBlockEntity(MinecraftClient client, T entity, MatrixStack matrices, VertexConsumerProvider consumers) {
+            BlockEntityRenderer<T> renderer = client.getBlockEntityRenderDispatcher().get(entity);
+            if (renderer == null) {
+                return;
+            }
+
+            renderer.render(
+                    entity,
+                    0.0F,
+                    matrices,
+                    consumers,
+                    LightmapTextureManager.MAX_LIGHT_COORDINATE,
+                    OverlayTexture.DEFAULT_UV,
+                    new net.minecraft.util.math.Vec3d(0.0D, 0.0D, 0.0D)
+            );
+        }
+
+        private void renderProgress(DrawContext context, int x, int y, int size) {
+            int barWidth = Math.max(24, size - 12);
+            int barX = x + (size - barWidth) / 2;
+            int barY = y + size / 2 - 5;
+            int fill = Math.max(0, Math.min(barWidth - 2, (int) ((barWidth - 2) * this.displayProgress())));
+            int textColor = this.state == State.FAILED || this.state == State.TOO_LARGE ? 0xFFFF7777 : 0xFFDDDDDD;
+            String text = switch (this.state) {
+                case FAILED -> StringUtils.translate("quickcraft.litematica.preview_3d.failed");
+                case TOO_LARGE -> StringUtils.translate("quickcraft.litematica.preview_3d.too_large");
+                default -> StringUtils.translate("quickcraft.litematica.preview_3d.rendering");
+            };
+
+            context.drawCenteredTextWithShadow(MinecraftClient.getInstance().textRenderer, text, x + size / 2, barY - 14, textColor);
+            RenderUtils.drawOutlinedBox(context, barX, barY, barWidth, 10, 0xB0000000, 0xFF707070);
+            if (fill > 0) {
+                context.fill(barX + 1, barY + 1, barX + 1 + fill, barY + 9,
+                        this.state == State.FAILED || this.state == State.TOO_LARGE ? 0xFFAA3333 : 0xFF4DB36A);
+            }
+        }
+
+        private float displayProgress() {
+            if (this.progress >= PROGRESS_MESHING_START || this.state == State.FAILED || this.state == State.TOO_LARGE) {
+                return this.progress;
+            }
+
+            // Litematica/DataFixer 读取和 GZIP 缓存解压没有可观测的完成量；只在这段等待里平滑补到扫描开始前。
+            float elapsedSeconds = (System.nanoTime() - this.startedAtNanos) / 1_000_000_000.0F;
+            float readingProgress = Math.min(PROGRESS_MESHING_START - 0.01F, PROGRESS_START + elapsedSeconds * 0.02F);
+            return Math.max(this.progress, readingProgress);
+        }
+
+        @Override
+        public void close() {
+            this.cancelled.set(true);
+            Future<?> task = this.future;
+            if (task != null) {
+                task.cancel(true);
+            }
+
+            deleteTmpQuietly(this.tmpPath);
+            this.pendingStaticLayers.clear();
+            MeshData data = this.meshData;
+            if (data != null) {
+                data.closeDynamic();
+            }
+            this.meshData = null;
+            this.dimensions = null;
+            Runnable close = () -> {
+                this.closeBuffers();
+                if (this.previewLightingBuffer != null && !this.previewLightingBuffer.isClosed()) {
+                    this.previewLightingBuffer.close();
+                }
+                this.previewProjection.close();
+            };
+            if (RenderSystem.isOnRenderThread()) {
+                close.run();
+            } else {
+                MinecraftClient.getInstance().execute(close);
+            }
+        }
+
+        private void closeBuffersOnRenderThread() {
+            Runnable close = this::closeBuffers;
+            if (RenderSystem.isOnRenderThread()) {
+                close.run();
+            } else {
+                MinecraftClient.getInstance().execute(close);
+            }
+        }
+
+        private void closeBuffers() {
+            this.layerBuffers.values().forEach(buffers -> buffers.forEach(LayerBuffer::close));
+            this.layerBuffers.clear();
+            this.staticUploadComplete = false;
+            this.dynamicPreparationArmed = false;
+            this.closeDynamicBuffers();
+        }
+
+        private void closeDynamicBuffers() {
+            this.dynamicBuffers.forEach(layerBuffer -> layerBuffer.buffer().close());
+            this.dynamicBuffers = List.of();
+            this.dynamicBuffersReady = false;
+        }
+
+        private void throwIfCancelled() {
+            if (this.isCancelled()) {
+                throw new CancellationException();
+            }
+        }
+
+        private boolean isCancelled() {
+            return this.cancelled.get() || Thread.currentThread().isInterrupted();
+        }
+    }
+
+    private record PreviewGuiElement(
+            Preview preview,
+            int x1,
+            int y1,
+            int size,
+            float dragX,
+            float dragY,
+            double angle,
+            float pitch,
+            float dragScale,
+            ScreenRect scissorArea,
+            ScreenRect bounds
+    ) implements SpecialGuiElementRenderState {
+        private PreviewGuiElement(
+                Preview preview,
+                int x,
+                int y,
+                int size,
+                float dragX,
+                float dragY,
+                double angle,
+                float pitch,
+                float dragScale,
+                @Nullable ScreenRect scissorArea
+        ) {
+            this(
+                    preview,
+                    x,
+                    y,
+                    size,
+                    dragX,
+                    dragY,
+                    angle,
+                    pitch,
+                    dragScale,
+                    scissorArea,
+                    SpecialGuiElementRenderState.createBounds(x, y, x + size, y + size, scissorArea)
+            );
+        }
+
+        @Override
+        public int x2() {
+            return this.x1 + this.size;
+        }
+
+        @Override
+        public int y2() {
+            return this.y1 + this.size;
+        }
+
+        @Override
+        public float scale() {
+            return 1.0F;
+        }
+    }
+
+    private static final class PreviewGuiElementRenderer extends SpecialGuiElementRenderer<PreviewGuiElement> {
+        private PreviewGuiElementRenderer(VertexConsumerProvider.Immediate vertexConsumers) {
+            super(vertexConsumers);
+        }
+
+        @Override
+        public Class<PreviewGuiElement> getElementClass() {
+            return PreviewGuiElement.class;
+        }
+
+        @Override
+        protected void render(PreviewGuiElement element, MatrixStack matrices) {
+            element.preview().drawSpecial(element);
+        }
+
+        @Override
+        protected String getName() {
+            return "quickcraft:schematic_preview";
+        }
+    }
+
+    private record DynamicLayerBuffer(RenderLayer layer, LayerBuffer buffer) {
+    }
+
+    private static final class DynamicMeshCollector implements VertexConsumerProvider, AutoCloseable {
+        private final Map<RenderLayer, DynamicMeshBuilder> sharedBuilders = new LinkedHashMap<>();
+        private final List<DynamicMeshBuilder> builders = new ArrayList<>();
+        private long allocatedBytes;
+
+        @Override
+        public VertexConsumer getBuffer(RenderLayer layer) {
+            DynamicMeshBuilder meshBuilder;
+            if (!layer.areVerticesNotShared()) {
+                meshBuilder = this.createBuilder(layer);
+            } else {
+                meshBuilder = this.sharedBuilders.computeIfAbsent(layer, this::createBuilder);
+            }
+
+            int vertexBytes = layer.getVertexFormat().getVertexSize();
+            if (layer.getDrawMode() == VertexFormat.DrawMode.LINES || layer.getDrawMode() == VertexFormat.DrawMode.LINE_STRIP) {
+                vertexBytes *= 2;
+            }
+            return new LimitedVertexConsumer(meshBuilder.builder(), this, vertexBytes);
+        }
+
+        private DynamicMeshBuilder createBuilder(RenderLayer layer) {
+            if (this.builders.size() >= MAX_DYNAMIC_RENDER_LAYERS) {
+                throw new DynamicBufferTooLargeException("动态渲染层超过 1024 个上限");
+            }
+            int initialBytes = !layer.areVerticesNotShared()
+                    ? 256
+                    : Math.max(256, Math.min(layer.getExpectedBufferSize(), DYNAMIC_LAYER_INITIAL_BYTES));
+            DynamicMeshBuilder meshBuilder = new DynamicMeshBuilder(
+                    layer,
+                    new BufferAllocator(initialBytes)
+            );
+            this.builders.add(meshBuilder);
+            return meshBuilder;
+        }
+
+        private void reserve(int bytes) {
+            this.allocatedBytes += bytes;
+            if (this.allocatedBytes > MAX_DYNAMIC_BUFFER_BYTES) {
+                throw new DynamicBufferTooLargeException("动态顶点超过 128 MiB 上限");
+            }
+        }
+
+        private List<DynamicLayerBuffer> upload() {
+            List<DynamicLayerBuffer> uploaded = new ArrayList<>();
+            try {
+                for (DynamicMeshBuilder meshBuilder : this.builders) {
+                    try {
+                        try (BuiltBuffer built = meshBuilder.builder().endNullable()) {
+                            if (built == null) {
+                                continue;
+                            }
+                            if (meshBuilder.layer().isTranslucent()) {
+                                built.sortQuads(meshBuilder.allocator(), VertexSorter.byDistance(0.0F, 0.0F, 1000.0F));
+                            }
+
+                            uploaded.add(new DynamicLayerBuffer(meshBuilder.layer(), uploadBuiltBuffer(built)));
+                        }
+                    } finally {
+                        meshBuilder.allocator().close();
+                    }
+                }
+                return List.copyOf(uploaded);
+            } catch (Throwable throwable) {
+                uploaded.forEach(layerBuffer -> layerBuffer.buffer().close());
+                throw throwable;
+            }
+        }
+
+        private static LayerBuffer uploadBuiltBuffer(BuiltBuffer built) {
+            var drawParameters = built.getDrawParameters();
+            GpuBuffer vertexBuffer = RenderSystem.getDevice().createBuffer(
+                    () -> "QuickCraft dynamic preview vertices",
+                    GpuBuffer.USAGE_VERTEX | GpuBuffer.USAGE_COPY_DST,
+                    built.getBuffer()
+            );
+            GpuBuffer indexBuffer = null;
+            boolean customIndexBuffer = built.getSortedBuffer() != null;
+            try {
+                indexBuffer = customIndexBuffer
+                        ? RenderSystem.getDevice().createBuffer(
+                                () -> "QuickCraft dynamic preview indices",
+                                GpuBuffer.USAGE_INDEX | GpuBuffer.USAGE_COPY_DST,
+                                built.getSortedBuffer()
+                        )
+                        : RenderSystem.getSequentialBuffer(drawParameters.mode()).getIndexBuffer(drawParameters.indexCount());
+                var indexType = customIndexBuffer
+                        ? drawParameters.indexType()
+                        : RenderSystem.getSequentialBuffer(drawParameters.mode()).getIndexType();
+                return new LayerBuffer(vertexBuffer, indexBuffer, drawParameters.indexCount(), indexType, customIndexBuffer);
+            } catch (Throwable throwable) {
+                vertexBuffer.close();
+                if (customIndexBuffer && indexBuffer != null) {
+                    indexBuffer.close();
+                }
+                throw throwable;
+            }
+        }
+
+        @Override
+        public void close() {
+            this.builders.forEach(meshBuilder -> meshBuilder.allocator().close());
+            this.builders.clear();
+            this.sharedBuilders.clear();
+        }
+    }
+
+    private record DynamicMeshBuilder(RenderLayer layer, BufferAllocator allocator, BufferBuilder builder) {
+        private DynamicMeshBuilder(RenderLayer layer, BufferAllocator allocator) {
+            this(layer, allocator, new BufferBuilder(allocator, layer.getDrawMode(), layer.getVertexFormat()));
+        }
+    }
+
+    private static final class LimitedVertexConsumer implements VertexConsumer {
+        private final VertexConsumer delegate;
+        private final DynamicMeshCollector collector;
+        private final int vertexBytes;
+
+        private LimitedVertexConsumer(VertexConsumer delegate, DynamicMeshCollector collector, int vertexBytes) {
+            this.delegate = delegate;
+            this.collector = collector;
+            this.vertexBytes = vertexBytes;
+        }
+
+        @Override
+        public VertexConsumer vertex(float x, float y, float z) {
+            this.collector.reserve(this.vertexBytes);
+            this.delegate.vertex(x, y, z);
+            return this;
+        }
+
+        @Override
+        public VertexConsumer color(int red, int green, int blue, int alpha) {
+            this.delegate.color(red, green, blue, alpha);
+            return this;
+        }
+
+        @Override
+        public VertexConsumer texture(float u, float v) {
+            this.delegate.texture(u, v);
+            return this;
+        }
+
+        @Override
+        public VertexConsumer overlay(int u, int v) {
+            this.delegate.overlay(u, v);
+            return this;
+        }
+
+        @Override
+        public VertexConsumer light(int u, int v) {
+            this.delegate.light(u, v);
+            return this;
+        }
+
+        @Override
+        public VertexConsumer normal(float x, float y, float z) {
+            this.delegate.normal(x, y, z);
+            return this;
+        }
+
+        @Override
+        public void vertex(float x, float y, float z, int color, float u, float v, int overlay, int light, float normalX, float normalY, float normalZ) {
+            this.collector.reserve(this.vertexBytes);
+            this.delegate.vertex(x, y, z, color, u, v, overlay, light, normalX, normalY, normalZ);
+        }
+    }
+
+    private static final class DynamicBufferTooLargeException extends RuntimeException {
+        private DynamicBufferTooLargeException(String message) {
+            super(message);
+        }
+    }
+
+    private static final class PreviewTooLargeException extends RuntimeException {
+    }
+
+    private record LayerBuffer(GpuBuffer vertexBuffer, GpuBuffer indexBuffer, int indexCount,
+                               com.mojang.blaze3d.vertex.VertexFormat.IndexType indexType,
+                               boolean ownsIndexBuffer) implements AutoCloseable {
+        private RenderPipeline pipeline(RenderLayer renderLayer, RenderPipeline defaultPipeline) {
+            return renderLayer == RenderLayer.getTranslucentMovingBlock()
+                    ? RenderPipelines.TRANSLUCENT
+                    : defaultPipeline;
+        }
+
+        @Override
+        public void close() {
+            if (!this.vertexBuffer.isClosed()) {
+                this.vertexBuffer.close();
+            }
+            if (this.ownsIndexBuffer && !this.indexBuffer.isClosed()) {
+                this.indexBuffer.close();
+            }
+        }
+    }
+
+    private static boolean isPreviewTooLarge(Throwable throwable) {
+        Throwable current = throwable;
+        while (current != null) {
+            if (current instanceof PreviewTooLargeException) {
+                return true;
+            }
+            current = current.getCause();
+        }
+        return false;
+    }
+
+    static String cacheKey(Path sourcePath) {
+        try {
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            updateDigest(digest, sourcePath.toAbsolutePath().normalize().toString());
+            return HexFormat.of().formatHex(digest.digest());
+        } catch (NoSuchAlgorithmException e) {
+            throw new IllegalStateException("SHA-256 is unavailable", e);
+        }
+    }
+
+    static String hashFile(Path path) throws IOException {
+        return hashFileCancellable(path, new AtomicBoolean());
+    }
+
+    private static String hashFileCancellable(Path path, AtomicBoolean cancelled) throws IOException {
+        MessageDigest digest;
+        try {
+            digest = MessageDigest.getInstance("SHA-256");
+        } catch (NoSuchAlgorithmException e) {
+            throw new IllegalStateException("SHA-256 is unavailable", e);
+        }
+
+        byte[] buffer = new byte[CACHE_IO_CHUNK_BYTES];
+        try (InputStream input = new BufferedInputStream(Files.newInputStream(path))) {
+            int length;
+            while ((length = input.read(buffer)) >= 0) {
+                if (cancelled.get() || Thread.currentThread().isInterrupted()) {
+                    throw new CancellationException();
+                }
+                digest.update(buffer, 0, length);
+            }
+        }
+        return HexFormat.of().formatHex(digest.digest());
+    }
+
+    private static String currentResourcePackSignature() {
+        try {
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            updateDigest(digest, SharedConstants.getGameVersion().name());
+            MinecraftClient.getInstance().getResourcePackManager().getEnabledProfiles()
+                    .forEach(profile -> updateDigest(digest, profile.getId()));
+            return HexFormat.of().formatHex(digest.digest());
+        } catch (NoSuchAlgorithmException e) {
+            throw new IllegalStateException("SHA-256 is unavailable", e);
+        }
+    }
+
+    private static void updateDigest(MessageDigest digest, String value) {
+        digest.update(value.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+        digest.update((byte) 0);
+    }
+
+    private static Path cacheDirectory() {
+        Path cacheDir = currentCacheDirectory;
+        if (cacheDir != null) {
+            return cacheDir;
+        }
+
+        synchronized (QuickLitematicaPreview3D.class) {
+            cacheDir = currentCacheDirectory;
+            if (cacheDir != null) {
+                return cacheDir;
+            }
+
+            MinecraftClient client = MinecraftClient.getInstance();
+            Path runDirectory = client.runDirectory.toPath();
+            cacheDir = runDirectory.resolve(CACHE_DIR_NAME);
+            currentCacheDirectory = cacheDir;
+            if (CACHE_DIRECTORY_READY.compareAndSet(false, true)) {
+                prepareCacheDirectory(cacheDir);
+            }
+            return cacheDir;
+        }
+    }
+
+    private static void prepareCacheDirectory(Path cacheDir) {
+        try {
+            Files.createDirectories(cacheDir);
+            Path versionFile = cacheDir.resolve(CACHE_VERSION_FILE_NAME);
+            String currentVersion = currentCacheVersionToken();
+            String storedVersion = readCacheVersion(versionFile);
+            if (!currentVersion.equals(storedVersion)) {
+                clearRenderCacheFiles(cacheDir);
+                Files.writeString(versionFile, currentVersion, java.nio.charset.StandardCharsets.UTF_8);
+            }
+            loadAndCleanCacheIndex(cacheDir);
+        } catch (IOException ignored) {
+        }
+    }
+
+    private static void loadAndCleanCacheIndex(Path cacheDir) throws IOException {
+        synchronized (CACHE_INDEX_LOCK) {
+            CACHE_INDEX.clear();
+            Path indexPath = cacheDir.resolve(CACHE_INDEX_FILE_NAME);
+            if (Files.isRegularFile(indexPath)) {
+                try (InputStream input = new BufferedInputStream(Files.newInputStream(indexPath))) {
+                    CACHE_INDEX.load(input);
+                }
+            }
+
+            Set<String> retainedCacheFiles = new java.util.HashSet<>();
+            List<String> staleSlots = new ArrayList<>();
+            for (String key : CACHE_INDEX.stringPropertyNames()) {
+                if (!key.endsWith(".path")) {
+                    continue;
+                }
+                String slot = key.substring(0, key.length() - ".path".length());
+                String source = CACHE_INDEX.getProperty(key, "");
+                Path cachePath = cacheDir.resolve(slot + ".qcp3d");
+                boolean sourceExists;
+                try {
+                    sourceExists = !source.isBlank() && Files.isRegularFile(Path.of(source));
+                } catch (RuntimeException e) {
+                    sourceExists = false;
+                }
+                if (!sourceExists) {
+                    staleSlots.add(slot);
+                } else {
+                    if (Files.isRegularFile(cachePath)) {
+                        retainedCacheFiles.add(cachePath.getFileName().toString());
+                    }
+                    retainedCacheFiles.add(slot + ".converted.litematic");
+                }
+            }
+
+            staleSlots.forEach(slot -> removeCacheIndexEntry(cacheDir, slot));
+            try (var files = Files.list(cacheDir)) {
+                files.filter(path -> {
+                            String name = path.getFileName().toString();
+                            return name.endsWith(".tmp")
+                                    || name.endsWith(".converted.tmp.litematic")
+                                    || (name.endsWith(".qcp3d") || name.endsWith(".converted.litematic"))
+                                    && !retainedCacheFiles.contains(name);
+                        })
+                        .forEach(QuickLitematicaPreview3D::deleteQuietly);
+            }
+            writeCacheIndex(cacheDir);
+        }
+    }
+
+    @Nullable
+    private static CacheIndexEntry readCacheIndexEntry(String slot) {
+        synchronized (CACHE_INDEX_LOCK) {
+            String sourceHash = CACHE_INDEX.getProperty(slot + ".sourceHash");
+            String resourceSignature = CACHE_INDEX.getProperty(slot + ".resourceSignature");
+            return sourceHash == null || resourceSignature == null
+                    ? null
+                    : new CacheIndexEntry(sourceHash, resourceSignature);
+        }
+    }
+
+    private static void writeCacheIndexEntry(String slot, Path sourcePath, String sourceHash, String resourceSignature) throws IOException {
+        synchronized (CACHE_INDEX_LOCK) {
+            CACHE_INDEX.setProperty(slot + ".path", sourcePath.toAbsolutePath().normalize().toString());
+            CACHE_INDEX.setProperty(slot + ".sourceHash", sourceHash);
+            CACHE_INDEX.setProperty(slot + ".resourceSignature", resourceSignature);
+            writeCacheIndex(cacheDirectory());
+        }
+    }
+
+    private static void removeCacheIndexEntry(Path cacheDir, String slot) {
+        CACHE_INDEX.remove(slot + ".path");
+        CACHE_INDEX.remove(slot + ".sourceHash");
+        CACHE_INDEX.remove(slot + ".resourceSignature");
+        deleteQuietly(cacheDir.resolve(slot + ".qcp3d"));
+        deleteQuietly(cacheDir.resolve(slot + ".qcp3d.tmp"));
+        deleteQuietly(cacheDir.resolve(slot + ".converted.litematic"));
+        deleteQuietly(cacheDir.resolve(slot + ".converted.tmp.litematic"));
+    }
+
+    private static void writeCacheIndex(Path cacheDir) throws IOException {
+        Path indexPath = cacheDir.resolve(CACHE_INDEX_FILE_NAME);
+        Path temporaryPath = cacheDir.resolve(CACHE_INDEX_FILE_NAME + ".tmp");
+        try (OutputStream output = new BufferedOutputStream(Files.newOutputStream(temporaryPath))) {
+            CACHE_INDEX.store(output, "QuickCraft Litematica 3D preview cache index");
+        }
+        moveCacheFile(temporaryPath, indexPath);
+    }
+
+    private record CacheIndexEntry(String sourceHash, String resourcePackSignature) {
+    }
+
+    private static String currentCacheVersionToken() {
+        // 不含 mod 版本号：只有磁盘格式真正改变时才应清缓存，mod 版本升级不应触发清理。
+        return CACHE_FORMAT_VERSION + "|" + CACHE_RENDER_MARKER
+                + "|ctm:" + MeshBuilder.PreviewCtm.runtimeToken();
+    }
+
+    @Nullable
+    private static String readCacheVersion(Path versionFile) {
+        if (!Files.isRegularFile(versionFile)) {
+            return null;
+        }
+
+        try {
+            return Files.readString(versionFile, java.nio.charset.StandardCharsets.UTF_8).trim();
+        } catch (IOException e) {
+            return null;
+        }
+    }
+
+    private static void clearRenderCacheFiles(Path cacheDir) {
+        try (var paths = Files.list(cacheDir)) {
+            paths.filter(path -> {
+                        String name = path.getFileName().toString();
+                        return !CACHE_INDEX_FILE_NAME.equals(name) && !name.endsWith(".converted.litematic");
+                    })
+                    .forEach(QuickLitematicaPreview3D::deleteRecursivelyQuietly);
+        } catch (IOException ignored) {
+        }
+    }
+
+    private static void deleteRecursivelyQuietly(Path path) {
+        if (Files.isDirectory(path)) {
+            try (var paths = Files.walk(path)) {
+                paths.sorted(java.util.Comparator.reverseOrder()).forEach(QuickLitematicaPreview3D::deleteQuietly);
+            } catch (IOException ignored) {
+            }
+            return;
+        }
+
+        deleteQuietly(path);
+    }
+
+    private static void deleteQuietly(Path path) {
+        try {
+            Files.deleteIfExists(path);
+        } catch (IOException ignored) {
+        }
+    }
+
+    private static void deleteTmpQuietly(Path path) {
+        if (path.getFileName() != null && path.getFileName().toString().endsWith(".tmp")) {
+            deleteQuietly(path);
+        }
+    }
+
+    private static void moveCacheFile(Path source, Path target) throws IOException {
+        try {
+            Files.move(source, target, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
+        } catch (AtomicMoveNotSupportedException e) {
+            Files.move(source, target, StandardCopyOption.REPLACE_EXISTING);
+        }
+    }
+
+    private interface WindowsClipboard extends StdCallLibrary {
+        WindowsClipboard INSTANCE = Native.load("user32", WindowsClipboard.class, W32APIOptions.DEFAULT_OPTIONS);
+        int CF_DIB = 8;
+        int CF_DIBV5 = 17;
+
+        boolean OpenClipboard(Pointer owner);
+
+        boolean EmptyClipboard();
+
+        int RegisterClipboardFormat(String formatName);
+
+        Pointer SetClipboardData(int format, Pointer memoryHandle);
+
+        boolean CloseClipboard();
+    }
+
+    private interface WindowsMemory extends StdCallLibrary {
+        WindowsMemory INSTANCE = Native.load("kernel32", WindowsMemory.class, W32APIOptions.DEFAULT_OPTIONS);
+        int GHND = 0x0042;
+        int BITMAP_INFO_HEADER_SIZE = 40;
+        int BITMAP_V5_HEADER_SIZE = 124;
+        int BI_RGB = 0;
+        int BI_BITFIELDS = 3;
+        int LCS_SRGB = 0x73524742;
+        int LCS_GM_IMAGES = 4;
+
+        Pointer GlobalAlloc(int flags, BaseTSD.SIZE_T bytes);
+
+        Pointer GlobalLock(Pointer memoryHandle);
+
+        boolean GlobalUnlock(Pointer memoryHandle);
+
+        Pointer GlobalFree(Pointer memoryHandle);
+    }
+
+    private enum State {
+        LOADING,
+        BUILDING,
+        READY,
+        FAILED,
+        TOO_LARGE,
+        CANCELLED
+    }
+
+    private static final class DragState {
+        private int x;
+        private int y;
+        private int size;
+        private int activeButton = -1;
+        private double angle = Math.PI / 4.0;
+        private float pitch = DEFAULT_SLANT_RADIANS;
+        private float scale = 1.0F;
+        private float dx;
+        private float dy;
+
+        private void setViewport(int x, int y, int size) {
+            if (this.size > 0 && this.size != size) {
+                float ratio = size / (float) this.size;
+                this.dx *= ratio;
+                this.dy *= ratio;
+            }
+            this.x = x;
+            this.y = y;
+            this.size = size;
+        }
+
+        private boolean inViewport(double mouseX, double mouseY) {
+            return mouseX >= this.x && mouseY >= this.y && mouseX < this.x + this.size && mouseY < this.y + this.size;
+        }
+
+        private void click(int button) {
+            this.activeButton = button;
+        }
+
+        private boolean drag(int button, double deltaX, double deltaY) {
+            if (this.activeButton != button) {
+                return false;
+            }
+
+            if (button == 0) {
+                this.angle += deltaX * 0.015;
+                this.pitch = Math.max(
+                        -MAX_PITCH_RADIANS,
+                        Math.min(MAX_PITCH_RADIANS, this.pitch + (float) deltaY * 0.015F)
+                );
+                return true;
+            }
+
+            if (button == 1) {
+                this.dx += (float) deltaX;
+                this.dy += (float) deltaY;
+                return true;
+            }
+
+            return false;
+        }
+
+        private boolean release(int button) {
+            boolean handled = this.activeButton == button;
+            if (handled) {
+                this.activeButton = -1;
+            }
+            return handled;
+        }
+
+        private void scaleBy(double amount) {
+            this.scale = Math.max(0.05F, Math.min(20.0F, (float) (this.scale * Math.exp(amount * 0.12))));
+        }
+
+        private void setPreset(double yawDegrees, double pitchDegrees) {
+            this.angle = Math.toRadians(yawDegrees);
+            this.pitch = Math.max(-MAX_PITCH_RADIANS, Math.min(MAX_PITCH_RADIANS, (float) Math.toRadians(pitchDegrees)));
+            this.scale = 1.0F;
+            this.dx = 0.0F;
+            this.dy = 0.0F;
+        }
+
+        private void stop() {
+            this.activeButton = -1;
+        }
+    }
+
+    private static final class MeshBuilder {
+        @Nullable
+        private static LitematicaSchematic readSchematic(
+                Path path,
+                AtomicBoolean cancelled,
+                boolean required
+        ) {
+            if (!Files.isRegularFile(path)) {
+                return null;
+            }
+
+            Path directory = path.getParent();
+            Path fileName = path.getFileName();
+            if (directory == null || fileName == null) {
+                return null;
+            }
+
+            LitematicaSchematic schematic = LitematicaSchematic.createFromFile(
+                    directory,
+                    fileName.toString(),
+                    FileType.LITEMATICA_SCHEMATIC
+            );
+            throwIfCancelled(cancelled);
+            if (schematic == null && required) {
+                throw new IllegalStateException("Cannot read litematic file");
+            }
+            return schematic;
+        }
+
+        private static MeshData build(
+                LitematicaSchematic schematic,
+                AtomicBoolean cancelled,
+                ProgressSink progressSink,
+                DimensionsSink dimensionsSink,
+                Consumer<List<LayerMesh>> batchSink
+        ) {
+            MinecraftClient client = MinecraftClient.getInstance();
+            if (client.world == null) {
+                throw new IllegalStateException("Litematica preview needs a loaded client world");
+            }
+            progressSink.set(PROGRESS_MESHING_START);
+
+            Bounds bounds = Bounds.from(schematic.getAreas().values());
+            dimensionsSink.set(bounds.sizeX(), bounds.sizeY(), bounds.sizeZ());
+            MeshCollector collector = new MeshCollector();
+            final List<LayerMesh> layers = new ArrayList<>();
+            Map<BlockPos, BlockStateData> blockStates = new HashMap<>();
+            List<BlockEntityData> blockEntities = new ArrayList<>();
+            List<EntityData> entities = new ArrayList<>();
+            Map<BlockState, Boolean> blockEntityRendererCache = new HashMap<>();
+            long total = Math.max(1L, totalVolume(schematic.getAreas().values()));
+
+            BlockRenderManager blockRenderManager = client.getBlockRenderManager();
+            MatrixStack matrices = new MatrixStack();
+            Random random = Random.createLocal();
+            long scannedVolume = 0L;
+
+            for (String regionName : schematic.getAreas().keySet()) {
+                throwIfCancelled(cancelled);
+                LitematicaBlockStateContainer container = schematic.getSubRegionContainer(regionName);
+                Box area = schematic.getAreas().get(regionName);
+                if (container == null || area == null) {
+                    continue;
+                }
+
+                RegionBlockView view = new RegionBlockView(container, area);
+                RegionBounds regionBounds = RegionBounds.from(area);
+                Map<BlockPos, NbtCompound> schematicBlockEntities = schematic.getBlockEntityMapForRegion(regionName);
+                recordEntities(blockStates, entities, view, schematic, regionName, area, bounds, cancelled);
+
+                long regionVolume = regionBounds.volume();
+                long regionStart = scannedVolume;
+                visitNonAirBlocks(container, regionBounds, cancelled, wordProgress -> progressSink.set(
+                        PROGRESS_MESHING_START + (PROGRESS_MESHING_END - PROGRESS_MESHING_START)
+                                * ((regionStart + wordProgress * regionVolume) / (float) Math.max(1L, total))
+                ), (pos, state) -> {
+                    BlockPos renderPos = pos.subtract(bounds.min());
+                    recordBlockEntity(blockStates, blockEntities, blockEntityRendererCache, view, state, schematicBlockEntities, pos, renderPos, bounds);
+                    renderFluidIfPresent(collector, blockRenderManager, matrices, view, state, pos, renderPos);
+                    renderBlockModel(collector, blockRenderManager, matrices, view, state, pos, renderPos, random);
+                    if (collector.shouldPublishOpaqueBatch()) {
+                        List<LayerMesh> batch = collector.drainOpaqueMeshes();
+                        layers.addAll(batch);
+                        batchSink.accept(batch);
+                    }
+                });
+                scannedVolume += regionVolume;
+            }
+
+            progressSink.set(PROGRESS_MESHING_END);
+            List<LayerMesh> finalBatch = collector.drainAllMeshes();
+            layers.addAll(finalBatch);
+            batchSink.accept(finalBatch);
+            List<LayerMesh> completeLayers = List.copyOf(layers);
+            int vertices = vertexCount(completeLayers);
+            if (vertices > MAX_UPLOAD_VERTICES
+                    || blockStates.size() > MAX_DYNAMIC_BLOCK_STATES
+                    || blockEntities.size() > MAX_DYNAMIC_BLOCK_ENTITIES
+                    || entities.size() > MAX_DYNAMIC_ENTITIES) {
+                throw new PreviewTooLargeException();
+            }
+            return new MeshData(completeLayers, new ArrayList<>(blockStates.values()), blockEntities, entities, bounds.sizeX(), bounds.sizeY(), bounds.sizeZ());
+        }
+
+        private static int vertexCount(List<LayerMesh> layers) {
+            int count = 0;
+            for (LayerMesh layer : layers) {
+                count += layer.vertexCount();
+            }
+            return count;
+        }
+
+        private static void visitNonAirBlocks(
+                LitematicaBlockStateContainer container,
+                RegionBounds bounds,
+                AtomicBoolean cancelled,
+                ProgressSink progressSink,
+                NonAirBlockConsumer consumer
+        ) {
+            var size = container.getSize();
+            int sizeX = size.getX();
+            int sizeY = size.getY();
+            int sizeZ = size.getZ();
+            if (sizeX != bounds.sizeX() || sizeY != bounds.sizeY() || sizeZ != bounds.sizeZ()) {
+                for (BlockPos pos : BlockPos.iterate(bounds.min(), bounds.max())) {
+                    throwIfCancelled(cancelled);
+                    int x = pos.getX() - bounds.min().getX();
+                    int y = pos.getY() - bounds.min().getY();
+                    int z = pos.getZ() - bounds.min().getZ();
+                    if (x < 0 || y < 0 || z < 0 || x >= sizeX || y >= sizeY || z >= sizeZ) {
+                        continue;
+                    }
+                    BlockState state = container.get(x, y, z);
+                    if (!state.isAir()) {
+                        consumer.accept(pos, state);
+                    }
+                }
+                progressSink.set(1.0F);
+                return;
+            }
+
+            long[] packed = container.getArray().getBackingLongArray();
+            int paletteSize = Math.max(1, container.getPalette().getPaletteSize());
+            int bits = Math.max(2, Integer.SIZE - Integer.numberOfLeadingZeros(Math.max(1, paletteSize - 1)));
+            BlockState zeroState = container.getPalette().getBlockState(0);
+            boolean zeroMeansAir = zeroState == null || zeroState.isAir();
+            long rows = (long) sizeY * sizeZ;
+            long rowNumber = 0L;
+            for (int z = 0; z < sizeZ; z++) {
+                for (int y = 0; y < sizeY; y++) {
+                    if ((rowNumber & 0x7F) == 0L) {
+                        throwIfCancelled(cancelled);
+                        progressSink.set(rowNumber / (float) Math.max(1L, rows));
+                    }
+
+                    long rowStart = ((long) y * sizeZ + z) * sizeX;
+                    long rowEnd = rowStart + sizeX;
+                    int firstWord = (int) ((rowStart * bits) >>> 6);
+                    int lastWord = (int) (((rowEnd - 1L) * bits) >>> 6);
+                    long lastProcessedIndex = rowStart - 1L;
+                    for (int wordIndex = firstWord; wordIndex <= lastWord; wordIndex++) {
+                        if (zeroMeansAir && packed[wordIndex] == 0L) {
+                            continue;
+                        }
+
+                        long firstIndex = Math.max(rowStart, (wordIndex * 64L) / bits);
+                        long finalIndex = Math.min(rowEnd - 1L, (((wordIndex + 1L) * 64L) - 1L) / bits);
+                        for (long index = firstIndex; index <= finalIndex; index++) {
+                            if (index <= lastProcessedIndex) {
+                                continue;
+                            }
+                            lastProcessedIndex = index;
+
+                            int stateId = container.getArray().getAt(index);
+                            BlockState state = container.getPalette().getBlockState(stateId);
+                            if (state == null || state.isAir()) {
+                                continue;
+                            }
+
+                            int x = (int) (index - rowStart);
+                            consumer.accept(new BlockPos(
+                                    bounds.min().getX() + x,
+                                    bounds.min().getY() + y,
+                                    bounds.min().getZ() + z
+                            ), state);
+                        }
+                    }
+                    rowNumber++;
+                }
+            }
+            progressSink.set(1.0F);
+        }
+
+        private static long totalVolume(Collection<Box> boxes) {
+            long total = 0L;
+            for (Box box : boxes) {
+                RegionBounds bounds = RegionBounds.from(box);
+                total += bounds.volume();
+            }
+            return total;
+        }
+
+        private static void recordBlockEntity(
+                Map<BlockPos, BlockStateData> blockStates,
+                List<BlockEntityData> blockEntities,
+                Map<BlockState, Boolean> blockEntityRendererCache,
+                RegionBlockView view,
+                BlockState state,
+                @Nullable Map<BlockPos, NbtCompound> schematicBlockEntities,
+                BlockPos schematicPos,
+                BlockPos renderPos,
+                Bounds bounds
+        ) {
+            if (!(state.getBlock() instanceof BlockEntityProvider provider)) {
+                return;
+            }
+
+            if (!blockEntityRendererCache.computeIfAbsent(state, key -> hasPreviewBlockEntityRenderer(provider, key, renderPos))) {
+                return;
+            }
+
+            recordDynamicBlockState(blockStates, state, renderPos);
+            for (Direction direction : Direction.values()) {
+                BlockPos neighborSchematicPos = schematicPos.offset(direction);
+                BlockState neighborState = view.getBlockState(neighborSchematicPos);
+                if (!neighborState.isAir()) {
+                    recordDynamicBlockState(blockStates, neighborState, neighborSchematicPos.subtract(bounds.min()));
+                }
+            }
+
+            NbtCompound nbt = schematicBlockEntities == null
+                    ? new NbtCompound()
+                    : schematicBlockEntities.getOrDefault(schematicPos.subtract(view.bounds.min()), new NbtCompound());
+            NbtCompound entityNbt = sanitizeBlockEntityNbt(nbt);
+            entityNbt.putInt("x", renderPos.getX());
+            entityNbt.putInt("y", renderPos.getY());
+            entityNbt.putInt("z", renderPos.getZ());
+            blockEntities.add(new BlockEntityData(renderPos.getX(), renderPos.getY(), renderPos.getZ(), NbtHelper.fromBlockState(state), entityNbt));
+            if (blockEntities.size() > MAX_DYNAMIC_BLOCK_ENTITIES) {
+                throw new PreviewTooLargeException();
+            }
+        }
+
+        private static boolean hasPreviewBlockEntityRenderer(BlockEntityProvider provider, BlockState state, BlockPos renderPos) {
+            BlockEntity blockEntity = provider.createBlockEntity(renderPos, state);
+            if (blockEntity == null) {
+                return false;
+            }
+
+            setPreviewBlockEntityState(blockEntity, state);
+            return MinecraftClient.getInstance().getBlockEntityRenderDispatcher().get(blockEntity) != null;
+        }
+
+        private static NbtCompound sanitizeBlockEntityNbt(NbtCompound nbt) {
+            NbtCompound sanitized = nbt.copy();
+            // 3D 预览只需要容器外观，不需要把箱子/潜影盒内部物品也带进缓存和动态渲染。
+            sanitized.remove("Items");
+            return sanitized;
+        }
+
+        private static void recordDynamicBlockState(Map<BlockPos, BlockStateData> blockStates, BlockState state, BlockPos renderPos) {
+            if (blockStates.size() >= MAX_DYNAMIC_BLOCK_STATES && !blockStates.containsKey(renderPos)) {
+                throw new PreviewTooLargeException();
+            }
+
+            blockStates.put(renderPos.toImmutable(), new BlockStateData(renderPos.getX(), renderPos.getY(), renderPos.getZ(), NbtHelper.fromBlockState(state)));
+        }
+
+        private static void recordEntities(
+                Map<BlockPos, BlockStateData> blockStates,
+                List<EntityData> entities,
+                RegionBlockView view,
+                LitematicaSchematic schematic,
+                String regionName,
+                Box area,
+                Bounds bounds,
+                AtomicBoolean cancelled
+        ) {
+            List<LitematicaSchematic.EntityInfo> regionEntities = schematic.getEntityListForRegion(regionName);
+            if (regionEntities == null || regionEntities.isEmpty()) {
+                return;
+            }
+
+            BlockPos regionOrigin = area.getPos1() == null ? BlockPos.ORIGIN : area.getPos1();
+            for (LitematicaSchematic.EntityInfo info : regionEntities) {
+                throwIfCancelled(cancelled);
+                double x = info.posVec.x + regionOrigin.getX() - bounds.min().getX();
+                double y = info.posVec.y + regionOrigin.getY() - bounds.min().getY();
+                double z = info.posVec.z + regionOrigin.getZ() - bounds.min().getZ();
+                entities.add(new EntityData(x, y, z, copyEntityNbtAt(info.nbt, x, y, z)));
+                recordEntityNearbyBlockStates(blockStates, view, bounds, x, y, z);
+                if (entities.size() > MAX_DYNAMIC_ENTITIES) {
+                    throw new PreviewTooLargeException();
+                }
+            }
+        }
+
+        private static void recordEntityNearbyBlockStates(Map<BlockPos, BlockStateData> blockStates, RegionBlockView view, Bounds bounds, double x, double y, double z) {
+            BlockPos center = BlockPos.ofFloored(x, y, z);
+            // 展示框/画等挂载实体会查询附着方块（facing 反方向）；假世界缺邻居会被原版判成 invalid position。
+            // 只登记 6 方向邻居（覆盖任意 facing），不登记 center 本身（实体位置通常是 air）。
+            // 原 3x3x3=27 个过多，导致 blockStates 暴涨、缓存膨胀、首次渲染变慢。
+            for (Direction direction : Direction.values()) {
+                BlockPos renderPos = center.offset(direction);
+                BlockPos schematicPos = renderPos.add(bounds.min());
+                BlockState state = view.getBlockState(schematicPos);
+                if (!state.isAir()) {
+                    recordDynamicBlockState(blockStates, state, renderPos);
+                }
+            }
+        }
+
+        private static NbtCompound copyEntityNbtAt(NbtCompound source, double x, double y, double z) {
+            NbtCompound copy = source.copy();
+            NbtList pos = new NbtList();
+            pos.add(NbtDouble.of(x));
+            pos.add(NbtDouble.of(y));
+            pos.add(NbtDouble.of(z));
+            copy.put("Pos", pos);
+            return copy;
+        }
+
+        private static void renderFluidIfPresent(
+                MeshCollector collector,
+                BlockRenderManager blockRenderManager,
+                MatrixStack matrices,
+                RegionBlockView view,
+                BlockState state,
+                BlockPos pos,
+                BlockPos renderPos
+        ) {
+            FluidState fluidState = state.getFluidState();
+            if (fluidState.isEmpty()) {
+                return;
+            }
+
+            BlockRenderLayer fluidLayer = RenderLayers.getFluidLayer(fluidState);
+            matrices.push();
+            matrices.translate(-(pos.getX() & 15), -(pos.getY() & 15), -(pos.getZ() & 15));
+            matrices.translate(renderPos.getX(), renderPos.getY(), renderPos.getZ());
+            blockRenderManager.renderFluid(pos, view, new FluidVertexConsumer(collector.consumerFor(LayerKey.fromFluid(fluidLayer)), matrices.peek().getPositionMatrix()), state, fluidState);
+            matrices.pop();
+        }
+
+        private static void renderBlockModel(
+                MeshCollector collector,
+                BlockRenderManager blockRenderManager,
+                MatrixStack matrices,
+                RegionBlockView view,
+                BlockState state,
+                BlockPos pos,
+                BlockPos renderPos,
+                Random random
+        ) {
+            if (state.getRenderType() != BlockRenderType.MODEL) {
+                return;
+            }
+
+            matrices.push();
+            matrices.translate(renderPos.getX(), renderPos.getY(), renderPos.getZ());
+
+            var model = blockRenderManager.getModel(state);
+            if (PreviewCtm.isContinuityModel(model) && PreviewCtm.emit(model, matrices, collector, view, state, pos)) {
+                matrices.pop();
+                return;
+            }
+            BlockRenderLayer blockLayer = RenderLayers.getBlockLayer(state);
+            blockRenderManager.renderBlock(
+                    state,
+                    pos,
+                    view,
+                    matrices,
+                    collector.consumerFor(state.isOf(Blocks.NETHER_PORTAL) ? LayerKey.PORTAL : LayerKey.from(blockLayer)),
+                    true,
+                    model.getParts(random)
+            );
+
+            matrices.pop();
+        }
+
+        private static final class PreviewCtm {
+            private static final boolean ACTIVE = FabricLoader.getInstance().isModLoaded("continuity");
+            @Nullable
+            private static String cachedRuntimeToken;
+
+            private static boolean isContinuityModel(Object model) {
+                return ACTIVE
+                        && model != null
+                        && model.getClass().getName().startsWith("me.pepperbell.continuity.");
+            }
+
+            private static boolean emit(
+                    Object model,
+                    MatrixStack matrices,
+                    MeshCollector collector,
+                    RegionBlockView view,
+                    BlockState state,
+                    BlockPos pos
+            ) {
+                try {
+                    SimpleBlockRenderContext.POOL.get().bufferModel(
+                            matrices.peek(),
+                            collector,
+                            (net.minecraft.client.render.model.BlockStateModel) model,
+                            1.0F,
+                            1.0F,
+                            1.0F,
+                            WorldRenderer.getLightmapCoordinates(view, pos),
+                            OverlayTexture.DEFAULT_UV,
+                            view,
+                            pos,
+                            state
+                    );
+                    return true;
+                } catch (Throwable ignored) {
+                    return false;
+                }
+            }
+
+            private static String runtimeToken() {
+                String token = cachedRuntimeToken;
+                if (token != null) {
+                    return token;
+                }
+
+                token = "none";
+                if (ACTIVE) {
+                    token = FabricLoader.getInstance().getModContainer("continuity")
+                            .map(container -> container.getMetadata().getVersion().getFriendlyString())
+                            .orElse("loaded-unknown");
+                }
+                cachedRuntimeToken = token;
+                return token;
+            }
+        }
+
+        private static void throwIfCancelled(AtomicBoolean cancelled) {
+            if (cancelled.get() || Thread.currentThread().isInterrupted()) {
+                throw new CancellationException();
+            }
+        }
+    }
+
+    private enum LayerKey {
+        SOLID(0) {
+            @Override
+            RenderLayer renderLayer() {
+                return RenderLayer.getSolid();
+            }
+        },
+        CUTOUT_MIPPED(1) {
+            @Override
+            RenderLayer renderLayer() {
+                return RenderLayer.getCutoutMipped();
+            }
+        },
+        CUTOUT(2) {
+            @Override
+            RenderLayer renderLayer() {
+                return RenderLayer.getCutout();
+            }
+        },
+        TRIPWIRE(3) {
+            @Override
+            RenderLayer renderLayer() {
+                return RenderLayer.getTripwire();
+            }
+        },
+        TRANSLUCENT(4) {
+            @Override
+            RenderLayer renderLayer() {
+                return RenderLayer.getTranslucentMovingBlock();
+            }
+        },
+        PORTAL(5) {
+            @Override
+            RenderLayer renderLayer() {
+                return RenderLayer.getTranslucentMovingBlock();
+            }
+        },
+        FLUID(6) {
+            @Override
+            RenderLayer renderLayer() {
+                return RenderLayer.getTranslucentMovingBlock();
+            }
+        };
+
+        private static final LayerKey[] DRAW_ORDER = {SOLID, CUTOUT_MIPPED, CUTOUT, TRIPWIRE, PORTAL, FLUID, TRANSLUCENT};
+        private final int id;
+
+        LayerKey(int id) {
+            this.id = id;
+        }
+
+        abstract RenderLayer renderLayer();
+
+        private boolean isTranslucent() {
+            return this == PORTAL || this == FLUID || this == TRANSLUCENT;
+        }
+
+        private boolean drawAfterEntities() {
+            return this == TRANSLUCENT;
+        }
+
+        private static LayerKey from(RenderLayer layer) {
+            if (layer == RenderLayer.getSolid()) {
+                return SOLID;
+            }
+            if (layer == RenderLayer.getCutoutMipped()) {
+                return CUTOUT_MIPPED;
+            }
+            if (layer == RenderLayer.getCutout()) {
+                return CUTOUT;
+            }
+            if (layer == RenderLayer.getTripwire()) {
+                return TRIPWIRE;
+            }
+            if (layer == RenderLayer.getTranslucentMovingBlock() || layer.isTranslucent()) {
+                return TRANSLUCENT;
+            }
+            return SOLID;
+        }
+
+        private static LayerKey from(BlockRenderLayer layer) {
+            return switch (layer) {
+                case SOLID -> SOLID;
+                case CUTOUT_MIPPED -> CUTOUT_MIPPED;
+                case CUTOUT -> CUTOUT;
+                case TRIPWIRE -> TRIPWIRE;
+                case TRANSLUCENT -> TRANSLUCENT;
+            };
+        }
+
+        private static LayerKey fromFluid(BlockRenderLayer layer) {
+            LayerKey key = from(layer);
+            return key == TRANSLUCENT ? FLUID : key;
+        }
+
+        @Nullable
+        private static LayerKey byId(int id) {
+            for (LayerKey value : values()) {
+                if (value.id == id) {
+                    return value;
+                }
+            }
+            return null;
+        }
+    }
+
+    private static final class MeshCollector implements BlockVertexConsumerProvider {
+        private final EnumMap<LayerKey, RecordingVertexConsumer> consumers = new EnumMap<>(LayerKey.class);
+        private int vertexCount;
+
+        private VertexConsumer consumerFor(BlockRenderLayer renderLayer) {
+            return this.consumerFor(LayerKey.from(renderLayer));
+        }
+
+        private VertexConsumer consumerFor(LayerKey layer) {
+            return this.consumers.computeIfAbsent(layer, ignored -> new RecordingVertexConsumer(this));
+        }
+
+        @Override
+        public VertexConsumer getBuffer(BlockRenderLayer renderLayer) {
+            return this.consumerFor(renderLayer);
+        }
+
+        private void addVertex(QuantizedVertexBuffer vertices, float x, float y, float z, int argb, float u, float v, int overlay, int light, float nx, float ny, float nz) {
+            if (this.vertexCount >= MAX_UPLOAD_VERTICES) {
+                throw new PreviewTooLargeException();
+            }
+
+            this.vertexCount++;
+            vertices.add(x, y, z, argb, u, v, overlay, light, nx, ny, nz);
+        }
+
+        private boolean shouldPublishOpaqueBatch() {
+            int vertices = 0;
+            for (Map.Entry<LayerKey, RecordingVertexConsumer> entry : this.consumers.entrySet()) {
+                if (!entry.getKey().isTranslucent()) {
+                    vertices += entry.getValue().vertices.vertexCount();
+                }
+            }
+            return vertices >= STATIC_BATCH_TARGET_VERTICES;
+        }
+
+        private List<LayerMesh> drainOpaqueMeshes() {
+            return this.drainMeshes(false);
+        }
+
+        private List<LayerMesh> drainAllMeshes() {
+            return this.drainMeshes(true);
+        }
+
+        private List<LayerMesh> drainMeshes(boolean includeTranslucent) {
+            List<LayerMesh> meshes = new ArrayList<>();
+            for (LayerKey layer : LayerKey.DRAW_ORDER) {
+                if (!includeTranslucent && layer.isTranslucent()) {
+                    continue;
+                }
+                RecordingVertexConsumer consumer = this.consumers.get(layer);
+                if (consumer != null && !consumer.vertices.isEmpty()) {
+                    meshes.add(new LayerMesh(layer, consumer.vertices.takeBytes()));
+                    this.consumers.remove(layer);
+                }
+            }
+            return List.copyOf(meshes);
+        }
+    }
+
+    private static final class RecordingVertexConsumer implements VertexConsumer {
+        private final MeshCollector collector;
+        private final QuantizedVertexBuffer vertices = new QuantizedVertexBuffer();
+        private float x;
+        private float y;
+        private float z;
+        private int argb = 0xFFFFFFFF;
+        private float u;
+        private float v;
+        private int overlay = OverlayTexture.DEFAULT_UV;
+        private int light = LightmapTextureManager.MAX_LIGHT_COORDINATE;
+
+        private RecordingVertexConsumer(MeshCollector collector) {
+            this.collector = collector;
+        }
+
+        @Override
+        public VertexConsumer vertex(float x, float y, float z) {
+            this.x = x;
+            this.y = y;
+            this.z = z;
+            return this;
+        }
+
+        @Override
+        public VertexConsumer color(int red, int green, int blue, int alpha) {
+            this.argb = ((alpha & 0xFF) << 24) | ((red & 0xFF) << 16) | ((green & 0xFF) << 8) | (blue & 0xFF);
+            return this;
+        }
+
+        @Override
+        public VertexConsumer color(int argb) {
+            this.argb = argb;
+            return this;
+        }
+
+        @Override
+        public VertexConsumer texture(float u, float v) {
+            this.u = u;
+            this.v = v;
+            return this;
+        }
+
+        @Override
+        public VertexConsumer overlay(int u, int v) {
+            this.overlay = OverlayTexture.packUv(u, v);
+            return this;
+        }
+
+        @Override
+        public VertexConsumer overlay(int uv) {
+            this.overlay = uv;
+            return this;
+        }
+
+        @Override
+        public VertexConsumer light(int u, int v) {
+            this.light = LightmapTextureManager.pack(u, v);
+            return this;
+        }
+
+        @Override
+        public VertexConsumer light(int uv) {
+            this.light = uv;
+            return this;
+        }
+
+        @Override
+        public VertexConsumer normal(float x, float y, float z) {
+            this.collector.addVertex(this.vertices, this.x, this.y, this.z, this.argb, this.u, this.v, this.overlay, this.light, x, y, z);
+            this.overlay = OverlayTexture.DEFAULT_UV;
+            this.light = LightmapTextureManager.MAX_LIGHT_COORDINATE;
+            return this;
+        }
+
+        @Override
+        public void vertex(float x, float y, float z, int color, float u, float v, int overlay, int light, float normalX, float normalY, float normalZ) {
+            this.collector.addVertex(this.vertices, x, y, z, color, u, v, overlay, light, normalX, normalY, normalZ);
+        }
+    }
+
+    private static final class FluidVertexConsumer implements VertexConsumer {
+        private final VertexConsumer delegate;
+        private final Matrix4f transform;
+
+        private FluidVertexConsumer(VertexConsumer delegate, Matrix4f transform) {
+            this.delegate = delegate;
+            this.transform = transform;
+        }
+
+        @Override
+        public VertexConsumer vertex(float x, float y, float z) {
+            this.delegate.vertex(this.transform, x, y, z);
+            return this;
+        }
+
+        @Override
+        public VertexConsumer color(int red, int green, int blue, int alpha) {
+            this.delegate.color(red, green, blue, alpha);
+            return this;
+        }
+
+        @Override
+        public VertexConsumer texture(float u, float v) {
+            this.delegate.texture(u, v);
+            return this;
+        }
+
+        @Override
+        public VertexConsumer overlay(int u, int v) {
+            this.delegate.overlay(u, v);
+            return this;
+        }
+
+        @Override
+        public VertexConsumer light(int u, int v) {
+            this.delegate.light(u, v);
+            return this;
+        }
+
+        @Override
+        public VertexConsumer normal(float x, float y, float z) {
+            this.delegate.normal(x, y, z);
+            return this;
+        }
+    }
+
+    private static final class QuantizedVertexBuffer {
+        private byte[] bytes = new byte[QUANTIZED_VERTEX_BYTES * 256];
+        private int position;
+
+        private boolean isEmpty() {
+            return this.position == 0;
+        }
+
+        private int vertexCount() {
+            return this.position / QUANTIZED_VERTEX_BYTES;
+        }
+
+        private void add(float x, float y, float z, int argb, float u, float v, int overlay, int light, float nx, float ny, float nz) {
+            this.ensureCapacity(this.position + QUANTIZED_VERTEX_BYTES);
+            this.writeInt(Float.floatToIntBits(x));
+            this.writeInt(Float.floatToIntBits(y));
+            this.writeInt(Float.floatToIntBits(z));
+            this.writeInt(argb);
+            this.writeInt(Float.floatToIntBits(u));
+            this.writeInt(Float.floatToIntBits(v));
+            this.writeShort((short) overlay);
+            this.writeInt(light);
+            this.writeShort(CacheFile.encodeNormal(nx, ny, nz));
+        }
+
+        private byte[] takeBytes() {
+            byte[] result = this.bytes.length == this.position ? this.bytes : Arrays.copyOf(this.bytes, this.position);
+            this.bytes = new byte[0];
+            this.position = 0;
+            return result;
+        }
+
+        private void ensureCapacity(int needed) {
+            if (needed <= this.bytes.length) {
+                return;
+            }
+            if (needed > MAX_QUANTIZED_LAYER_BYTES) {
+                throw new PreviewTooLargeException();
+            }
+
+            int newLength = this.bytes.length;
+            while (newLength < needed) {
+                newLength = Math.min(MAX_QUANTIZED_LAYER_BYTES, newLength << 1);
+            }
+            this.bytes = Arrays.copyOf(this.bytes, newLength);
+        }
+
+        private void writeInt(int value) {
+            this.bytes[this.position++] = (byte) (value >>> 24);
+            this.bytes[this.position++] = (byte) (value >>> 16);
+            this.bytes[this.position++] = (byte) (value >>> 8);
+            this.bytes[this.position++] = (byte) value;
+        }
+
+        private void writeShort(short value) {
+            this.bytes[this.position++] = (byte) (value >>> 8);
+            this.bytes[this.position++] = (byte) value;
+        }
+    }
+
+    private record LayerMesh(LayerKey layer, byte[] quantizedVertices) {
+        private int vertexCount() {
+            return this.quantizedVertices.length / QUANTIZED_VERTEX_BYTES;
+        }
+    }
+
+    private static RegistryEntryLookup<Block> blockLookup(DynamicRegistryManager registryManager) {
+        return registryManager.getOrThrow(RegistryKeys.BLOCK);
+    }
+
+    private record BlockStateData(int x, int y, int z, NbtCompound stateNbt) {
+        private BlockState state(DynamicRegistryManager registryManager) {
+            return NbtHelper.toBlockState(blockLookup(registryManager), this.stateNbt);
+        }
+    }
+
+    private record PreviewDimensions(int sizeX, int sizeY, int sizeZ) {
+        private float scaleFactor(int previewSize, int screenHeight) {
+            double rotationSafeSize = Math.sqrt(
+                    (double) this.sizeX * this.sizeX
+                            + (double) this.sizeY * this.sizeY
+                            + (double) this.sizeZ * this.sizeZ
+            );
+            return (float) ((previewSize * 2.0 * PREVIEW_FIT_PADDING) / (Math.max(1.0, rotationSafeSize) * Math.max(1, screenHeight)));
+        }
+    }
+
+    private static final class MeshData {
+        private List<LayerMesh> layers;
+        private final List<BlockStateData> blockStates;
+        private final List<BlockEntityData> blockEntities;
+        private final List<EntityData> entities;
+        private final int sizeX;
+        private final int sizeY;
+        private final int sizeZ;
+        @Nullable
+        private DynamicScene dynamicScene;
+
+        private MeshData(List<LayerMesh> layers, List<BlockStateData> blockStates, List<BlockEntityData> blockEntities, List<EntityData> entities, int sizeX, int sizeY, int sizeZ) {
+            this.layers = layers;
+            this.blockStates = List.copyOf(blockStates);
+            this.blockEntities = List.copyOf(blockEntities);
+            this.entities = List.copyOf(entities);
+            this.sizeX = sizeX;
+            this.sizeY = sizeY;
+            this.sizeZ = sizeZ;
+        }
+
+        private List<LayerMesh> layers() {
+            return this.layers;
+        }
+
+        private int sizeX() {
+            return this.sizeX;
+        }
+
+        private int sizeY() {
+            return this.sizeY;
+        }
+
+        private int sizeZ() {
+            return this.sizeZ;
+        }
+
+        private int vertexCount() {
+            int count = 0;
+            for (LayerMesh layer : this.layers) {
+                count += layer.vertexCount();
+            }
+            return count;
+        }
+
+        private boolean withinBudget() {
+            long vertices = 0L;
+            for (LayerMesh layer : this.layers) {
+                vertices += layer.vertexCount();
+                if (vertices > MAX_UPLOAD_VERTICES) {
+                    return false;
+                }
+            }
+            return this.blockStates.size() <= MAX_DYNAMIC_BLOCK_STATES
+                    && this.blockEntities.size() <= MAX_DYNAMIC_BLOCK_ENTITIES
+                    && this.entities.size() <= MAX_DYNAMIC_ENTITIES;
+        }
+
+        private void releaseStaticVertices() {
+            this.layers = List.of();
+        }
+
+        private boolean hasDynamicContent() {
+            return !this.blockEntities.isEmpty() || !this.entities.isEmpty();
+        }
+
+        private DynamicScene dynamicScene() {
+            DynamicScene scene = this.dynamicScene;
+            if (scene == null) {
+                scene = DynamicScene.create(this.blockStates, this.blockEntities, this.entities);
+                this.dynamicScene = scene;
+            }
+            return scene;
+        }
+
+        private void closeDynamic() {
+            this.dynamicScene = null;
+        }
+    }
+
+    private record EntityData(double x, double y, double z, NbtCompound entityNbt) {
+        @Nullable
+        private RenderedEntity instantiate(DummyWorld world) {
+            try {
+                Entity entity = EntityUtils.createEntityAndPassengersFromNBT(this.entityNbt.copy(), world);
+                if (entity == null) {
+                    return null;
+                }
+
+                entity.setPosition(this.x, this.y, this.z);
+                int light = MinecraftClient.getInstance().getEntityRenderDispatcher().getLight(entity, 0.0F);
+                return new RenderedEntity(entity, this.x, this.y, this.z, light);
+            } catch (Throwable ignored) {
+                return null;
+            }
+        }
+    }
+
+    private record RenderedEntity(Entity entity, double x, double y, double z, int light) {
+    }
+
+    private record BlockEntityData(int x, int y, int z, NbtCompound stateNbt, NbtCompound entityNbt) {
+        @Nullable
+        private BlockEntity instantiate(DummyWorld world) {
+            BlockState state = NbtHelper.toBlockState(blockLookup(world.getRegistryManager()), this.stateNbt);
+            if (!(state.getBlock() instanceof BlockEntityProvider provider)) {
+                return null;
+            }
+
+            BlockPos pos = new BlockPos(this.x, this.y, this.z);
+            try {
+                BlockEntity blockEntity = provider.createBlockEntity(pos, state);
+                if (blockEntity == null) {
+                    return null;
+                }
+
+                setPreviewBlockEntityState(blockEntity, state);
+                if (!this.entityNbt.isEmpty()) {
+                    blockEntity.read(NbtReadView.create(ErrorReporter.EMPTY, world.getRegistryManager(), this.entityNbt.copy()));
+                }
+                blockEntity.setWorld(world);
+                return blockEntity;
+            } catch (Throwable ignored) {
+                return null;
+            }
+        }
+    }
+
+    private record DynamicScene(DummyWorld world, Map<BlockPos, BlockEntity> blockEntities, List<RenderedEntity> entities) {
+        private static DynamicScene create(List<BlockStateData> blockStateData, List<BlockEntityData> blockEntityData, List<EntityData> entityData) {
+            if (blockStateData.isEmpty() && blockEntityData.isEmpty() && entityData.isEmpty()) {
+                return new DynamicScene(Map.of(), List.of());
+            }
+
+            MinecraftClient client = MinecraftClient.getInstance();
+            if (client.world == null) {
+                return new DynamicScene(Map.of(), List.of());
+            }
+
+            DummyWorld world = DummyWorld.fromWorld(client.world);
+            Map<BlockPos, BlockState> blockStates = new HashMap<>();
+            for (BlockStateData data : blockStateData) {
+                blockStates.put(new BlockPos(data.x(), data.y(), data.z()), data.state(world.getRegistryManager()));
+            }
+            world.setBlockStates(blockStates);
+
+            Map<BlockPos, BlockEntity> blockEntities = new HashMap<>();
+            for (BlockEntityData data : blockEntityData) {
+                BlockEntity blockEntity = data.instantiate(world);
+                if (blockEntity != null) {
+                    blockEntities.put(blockEntity.getPos(), blockEntity);
+                }
+            }
+            world.setBlockEntities(blockEntities);
+
+            List<RenderedEntity> entities = new ArrayList<>();
+            for (EntityData data : entityData) {
+                RenderedEntity entity = data.instantiate(world);
+                if (entity != null) {
+                    entities.add(entity);
+                }
+            }
+
+            return new DynamicScene(world, Map.copyOf(blockEntities), List.copyOf(entities));
+        }
+
+        private boolean isEmpty() {
+            return this.blockEntities.isEmpty() && this.entities.isEmpty();
+        }
+
+        private DynamicScene(Map<BlockPos, BlockEntity> blockEntities, List<RenderedEntity> entities) {
+            this(null, blockEntities, entities);
+        }
+    }
+
+    private record Bounds(BlockPos min, BlockPos max) {
+        private static Bounds from(Collection<Box> boxes) {
+            BlockPos min = BlockPos.ORIGIN;
+            BlockPos max = BlockPos.ORIGIN;
+            boolean seen = false;
+
+            for (Box box : boxes) {
+                RegionBounds bounds = RegionBounds.from(box);
+                if (!seen) {
+                    min = bounds.min();
+                    max = bounds.max();
+                    seen = true;
+                } else {
+                    min = BlockPos.min(min, bounds.min());
+                    max = BlockPos.max(max, bounds.max());
+                }
+            }
+
+            return new Bounds(min, max);
+        }
+
+        private int sizeX() {
+            return this.max.getX() - this.min.getX() + 1;
+        }
+
+        private int sizeY() {
+            return this.max.getY() - this.min.getY() + 1;
+        }
+
+        private int sizeZ() {
+            return this.max.getZ() - this.min.getZ() + 1;
+        }
+    }
+
+    private record RegionBounds(BlockPos min, BlockPos max) {
+        private static RegionBounds from(Box box) {
+            BlockPos pos1 = box.getPos1() == null ? BlockPos.ORIGIN : box.getPos1();
+            BlockPos pos2 = box.getPos2() == null ? pos1 : box.getPos2();
+            return new RegionBounds(BlockPos.min(pos1, pos2), BlockPos.max(pos1, pos2));
+        }
+
+        private long volume() {
+            return (long) (this.max.getX() - this.min.getX() + 1)
+                    * (this.max.getY() - this.min.getY() + 1)
+                    * (this.max.getZ() - this.min.getZ() + 1);
+        }
+
+        private int sizeX() {
+            return this.max.getX() - this.min.getX() + 1;
+        }
+
+        private int sizeY() {
+            return this.max.getY() - this.min.getY() + 1;
+        }
+
+        private int sizeZ() {
+            return this.max.getZ() - this.min.getZ() + 1;
+        }
+    }
+
+    private static final class RegionBlockView implements BlockRenderView {
+        private final RegionBounds bounds;
+        private final LitematicaBlockStateContainer blockStateContainer;
+        private final MinecraftClient client = MinecraftClient.getInstance();
+        private final LightingProvider lightingProvider;
+
+        private RegionBlockView(LitematicaBlockStateContainer container, Box area) {
+            this.blockStateContainer = container;
+            this.bounds = RegionBounds.from(area);
+            ClientWorld world = Objects.requireNonNull(this.client.world, "No loaded world for Litematica preview");
+            this.lightingProvider = new FakeLightingProvider(new ChunkCacheSchematic(world, world, BlockPos.ORIGIN, 0));
+        }
+
+        @Override
+        public float getBrightness(Direction direction, boolean shaded) {
+            return Objects.requireNonNull(this.client.world).getBrightness(direction, shaded);
+        }
+
+        @Override
+        public LightingProvider getLightingProvider() {
+            return this.lightingProvider;
+        }
+
+        @Override
+        public int getColor(BlockPos pos, ColorResolver colorResolver) {
+            return Objects.requireNonNull(this.client.world).getColor(pos, colorResolver);
+        }
+
+        @Nullable
+        @Override
+        public BlockEntity getBlockEntity(BlockPos pos) {
+            return null;
+        }
+
+        @Override
+        public BlockState getBlockState(BlockPos pos) {
+            if (!PositionUtils.isPositionInsideArea(pos, this.bounds.min(), this.bounds.max())) {
+                return LitematicaBlockStateContainer.AIR_BLOCK_STATE;
+            }
+
+            BlockPos local = pos.subtract(this.bounds.min());
+            return this.blockStateContainer.get(local.getX(), local.getY(), local.getZ());
+        }
+
+        @Override
+        public FluidState getFluidState(BlockPos pos) {
+            return this.getBlockState(pos).getFluidState();
+        }
+
+        @Override
+        public int getHeight() {
+            return this.bounds.max().getY() - this.bounds.min().getY() + 1;
+        }
+
+        @Override
+        public int getBottomY() {
+            return 0;
+        }
+    }
+
+    private static final class DummyWorld extends WorldSchematic {
+        private Map<BlockPos, BlockState> blockStates = Map.of();
+        private Map<BlockPos, BlockEntity> blockEntities = Map.of();
+
+        private DummyWorld(MutableWorldProperties properties, DynamicRegistryManager registryManager, RegistryEntry<DimensionType> dimensionEntry, WorldRendererSchematic renderer) {
+            super(properties, registryManager, dimensionEntry, renderer);
+        }
+
+        private static DummyWorld fromWorld(ClientWorld world) {
+            return new DummyWorld(world.getLevelProperties(), world.getRegistryManager(), world.getDimensionEntry(), new WorldRendererSchematic(MinecraftClient.getInstance()));
+        }
+
+        private void setBlockStates(Map<BlockPos, BlockState> blockStates) {
+            this.blockStates = Map.copyOf(blockStates);
+        }
+
+        private void setBlockEntities(Map<BlockPos, BlockEntity> blockEntities) {
+            this.blockEntities = Map.copyOf(blockEntities);
+        }
+
+        @Override
+        public BlockState getBlockState(BlockPos pos) {
+            return this.blockStates.getOrDefault(pos, LitematicaBlockStateContainer.AIR_BLOCK_STATE);
+        }
+
+        @Nullable
+        @Override
+        public BlockEntity getBlockEntity(BlockPos pos) {
+            return this.blockEntities.get(pos);
+        }
+    }
+
+    private interface ProgressSink {
+        void set(float value);
+    }
+
+    private interface NonAirBlockConsumer {
+        void accept(BlockPos position, BlockState state);
+    }
+
+    private interface DimensionsSink {
+        void set(int sizeX, int sizeY, int sizeZ);
+    }
+
+    private static final class CacheFile {
+        @Nullable
+        private static MeshData read(Path path, AtomicBoolean cancelled) {
+            if (!Files.isRegularFile(path)) {
+                return null;
+            }
+
+            try (DataInputStream input = new DataInputStream(new GZIPInputStream(new BufferedInputStream(Files.newInputStream(path))))) {
+                int magic = input.readInt();
+                int version = input.readInt();
+                String marker = input.readUTF();
+                if (magic != CACHE_MAGIC || version != CACHE_FORMAT_VERSION || !CACHE_RENDER_MARKER.equals(marker)) {
+                    deleteQuietly(path);
+                    return null;
+                }
+
+                int sizeX = input.readInt();
+                int sizeY = input.readInt();
+                int sizeZ = input.readInt();
+                int layerCount = input.readInt();
+                if (sizeX <= 0 || sizeY <= 0 || sizeZ <= 0 || layerCount < 0 || layerCount > LayerKey.values().length) {
+                    deleteQuietly(path);
+                    return null;
+                }
+
+                List<LayerMesh> layers = new ArrayList<>(layerCount);
+                long totalVertices = 0L;
+                for (int layerIndex = 0; layerIndex < layerCount; layerIndex++) {
+                    if (isCancelled(cancelled)) {
+                        throw new CancellationException();
+                    }
+
+                    LayerKey layer = LayerKey.byId(input.readInt());
+                    int vertexCount = input.readInt();
+                    totalVertices += Math.max(vertexCount, 0);
+                    // GZIP 压缩后无法用文件大小校验顶点数，仅用 MAX_UPLOAD_VERTICES 上界；
+                    // 损坏文件会在 readFully 抛 EOFException 被外层 catch 删除。
+                    if (layer == null || vertexCount < 0 || totalVertices > MAX_UPLOAD_VERTICES) {
+                        deleteQuietly(path);
+                        return null;
+                    }
+
+                    // 批量读取量化顶点字节，直接存进 LayerMesh，渲染线程再解码进 BufferBuilder。
+                    // 直接读取 packed 顶点字节，大文件读取避免逐顶点对象分配。
+                    long quantizedBytes = (long) vertexCount * QUANTIZED_VERTEX_BYTES;
+                    if (quantizedBytes > MAX_QUANTIZED_LAYER_BYTES || quantizedBytes > Integer.MAX_VALUE - 8L) {
+                        deleteQuietly(path);
+                        return null;
+                    }
+
+                    int remainingVertices = vertexCount;
+                    while (remainingVertices > 0) {
+                        int batchVertices = layer.isTranslucent()
+                                ? remainingVertices
+                                : Math.min(remainingVertices, STATIC_BATCH_TARGET_VERTICES);
+                        byte[] quantizedVertices = new byte[batchVertices * QUANTIZED_VERTEX_BYTES];
+                        readFullyCancellable(input, quantizedVertices, cancelled);
+                        layers.add(new LayerMesh(layer, quantizedVertices));
+                        remainingVertices -= batchVertices;
+                    }
+                }
+
+                int blockStateCount = input.readInt();
+                if (blockStateCount < 0 || blockStateCount > MAX_DYNAMIC_BLOCK_STATES) {
+                    deleteQuietly(path);
+                    return null;
+                }
+
+                List<BlockStateData> blockStates = new ArrayList<>(blockStateCount);
+                for (int i = 0; i < blockStateCount; i++) {
+                    if ((i & 0x7FF) == 0 && isCancelled(cancelled)) {
+                        throw new CancellationException();
+                    }
+
+                    blockStates.add(new BlockStateData(
+                            input.readInt(),
+                            input.readInt(),
+                            input.readInt(),
+                            NbtIo.readCompound(input, NbtSizeTracker.of(NBT_READ_LIMIT_BYTES))
+                    ));
+                }
+
+                int blockEntityCount = input.readInt();
+                if (blockEntityCount < 0 || blockEntityCount > MAX_DYNAMIC_BLOCK_ENTITIES) {
+                    deleteQuietly(path);
+                    return null;
+                }
+
+                List<BlockEntityData> blockEntities = new ArrayList<>(blockEntityCount);
+                for (int i = 0; i < blockEntityCount; i++) {
+                    if ((i & 0xFF) == 0 && isCancelled(cancelled)) {
+                        throw new CancellationException();
+                    }
+
+                    blockEntities.add(new BlockEntityData(
+                            input.readInt(),
+                            input.readInt(),
+                            input.readInt(),
+                            NbtIo.readCompound(input, NbtSizeTracker.of(NBT_READ_LIMIT_BYTES)),
+                            NbtIo.readCompound(input, NbtSizeTracker.of(NBT_READ_LIMIT_BYTES))
+                    ));
+                }
+
+                int entityCount = input.readInt();
+                if (entityCount < 0 || entityCount > MAX_DYNAMIC_ENTITIES) {
+                    deleteQuietly(path);
+                    return null;
+                }
+
+                List<EntityData> entities = new ArrayList<>(entityCount);
+                for (int i = 0; i < entityCount; i++) {
+                    if ((i & 0xFF) == 0 && isCancelled(cancelled)) {
+                        throw new CancellationException();
+                    }
+
+                    entities.add(new EntityData(
+                            input.readDouble(),
+                            input.readDouble(),
+                            input.readDouble(),
+                            NbtIo.readCompound(input, NbtSizeTracker.of(NBT_READ_LIMIT_BYTES))
+                    ));
+                }
+
+                return new MeshData(List.copyOf(layers), blockStates, blockEntities, entities, sizeX, sizeY, sizeZ);
+            } catch (CancellationException e) {
+                throw e;
+            } catch (IOException | RuntimeException e) {
+                deleteQuietly(path);
+                return null;
+            }
+        }
+
+        private static void readFullyCancellable(DataInputStream input, byte[] bytes, AtomicBoolean cancelled) throws IOException {
+            int offset = 0;
+            while (offset < bytes.length) {
+                if (isCancelled(cancelled)) {
+                    throw new CancellationException();
+                }
+
+                int length = Math.min(CACHE_IO_CHUNK_BYTES, bytes.length - offset);
+                input.readFully(bytes, offset, length);
+                offset += length;
+            }
+        }
+
+        private static void writeAtomically(
+                Path tmpPath,
+                Path finalPath,
+                MeshData data,
+                List<LayerMesh> layers,
+                AtomicBoolean cancelled,
+                ProgressSink progressSink
+        ) throws IOException {
+            deleteTmpQuietly(tmpPath);
+            try (DataOutputStream output = new DataOutputStream(new GZIPOutputStream(new BufferedOutputStream(Files.newOutputStream(tmpPath))))) {
+                progressSink.set(PROGRESS_CACHE_WRITE);
+                output.writeInt(CACHE_MAGIC);
+                output.writeInt(CACHE_FORMAT_VERSION);
+                output.writeUTF(CACHE_RENDER_MARKER);
+                output.writeInt(data.sizeX());
+                output.writeInt(data.sizeY());
+                output.writeInt(data.sizeZ());
+                List<LayerKey> storedLayers = new ArrayList<>();
+                for (LayerKey layer : LayerKey.DRAW_ORDER) {
+                    if (layers.stream().anyMatch(mesh -> mesh.layer() == layer && mesh.vertexCount() > 0)) {
+                        storedLayers.add(layer);
+                    }
+                }
+                output.writeInt(storedLayers.size());
+
+                long totalStaticBytes = 0L;
+                for (LayerMesh layer : layers) {
+                    totalStaticBytes += layer.quantizedVertices().length;
+                }
+
+                long staticBytesWritten = 0L;
+                for (LayerKey storedLayer : storedLayers) {
+                    int layerVertexCount = 0;
+                    for (LayerMesh mesh : layers) {
+                        if (mesh.layer() == storedLayer) {
+                            layerVertexCount += mesh.vertexCount();
+                        }
+                    }
+                    output.writeInt(storedLayer.id);
+                    output.writeInt(layerVertexCount);
+                    for (LayerMesh mesh : layers) {
+                        if (mesh.layer() != storedLayer) {
+                            continue;
+                        }
+                        byte[] quantized = mesh.quantizedVertices();
+                        for (int offset = 0; offset < quantized.length; offset += CACHE_IO_CHUNK_BYTES) {
+                            if (isCancelled(cancelled)) {
+                                throw new CancellationException();
+                            }
+
+                            int length = Math.min(CACHE_IO_CHUNK_BYTES, quantized.length - offset);
+                            output.write(quantized, offset, length);
+                            staticBytesWritten += length;
+                            progressSink.set(progress(PROGRESS_CACHE_WRITE, PROGRESS_STATIC_CACHE_END, staticBytesWritten, totalStaticBytes));
+                        }
+                    }
+                }
+                progressSink.set(PROGRESS_STATIC_CACHE_END);
+
+                output.writeInt(data.blockStates.size());
+                for (int index = 0; index < data.blockStates.size(); index++) {
+                    if (isCancelled(cancelled)) {
+                        throw new CancellationException();
+                    }
+
+                    BlockStateData blockState = data.blockStates.get(index);
+                    output.writeInt(blockState.x());
+                    output.writeInt(blockState.y());
+                    output.writeInt(blockState.z());
+                    NbtIo.writeCompound(blockState.stateNbt(), output);
+                    if ((index & 0x7F) == 0 || index + 1 == data.blockStates.size()) {
+                        progressSink.set(progress(PROGRESS_STATIC_CACHE_END, PROGRESS_BLOCK_STATES_CACHE_END, index + 1L, data.blockStates.size()));
+                    }
+                }
+                progressSink.set(PROGRESS_BLOCK_STATES_CACHE_END);
+
+                output.writeInt(data.blockEntities.size());
+                for (int index = 0; index < data.blockEntities.size(); index++) {
+                    if (isCancelled(cancelled)) {
+                        throw new CancellationException();
+                    }
+
+                    BlockEntityData blockEntity = data.blockEntities.get(index);
+                    output.writeInt(blockEntity.x());
+                    output.writeInt(blockEntity.y());
+                    output.writeInt(blockEntity.z());
+                    NbtIo.writeCompound(blockEntity.stateNbt(), output);
+                    NbtIo.writeCompound(blockEntity.entityNbt(), output);
+                    if ((index & 0x3F) == 0 || index + 1 == data.blockEntities.size()) {
+                        progressSink.set(progress(PROGRESS_BLOCK_STATES_CACHE_END, PROGRESS_BLOCK_ENTITIES_CACHE_END, index + 1L, data.blockEntities.size()));
+                    }
+                }
+                progressSink.set(PROGRESS_BLOCK_ENTITIES_CACHE_END);
+
+                output.writeInt(data.entities.size());
+                for (int index = 0; index < data.entities.size(); index++) {
+                    if (isCancelled(cancelled)) {
+                        throw new CancellationException();
+                    }
+
+                    EntityData entity = data.entities.get(index);
+                    output.writeDouble(entity.x());
+                    output.writeDouble(entity.y());
+                    output.writeDouble(entity.z());
+                    NbtIo.writeCompound(entity.entityNbt(), output);
+                }
+            }
+
+            if (isCancelled(cancelled)) {
+                throw new CancellationException();
+            }
+
+            try {
+                Files.move(tmpPath, finalPath, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
+            } catch (AtomicMoveNotSupportedException e) {
+                Files.move(tmpPath, finalPath, StandardCopyOption.REPLACE_EXISTING);
+            }
+        }
+
+        private static boolean isCancelled(AtomicBoolean cancelled) {
+            return cancelled.get() || Thread.currentThread().isInterrupted();
+        }
+
+        private static float progress(float start, float end, long completed, long total) {
+            if (total <= 0L) {
+                return end;
+            }
+            return start + (end - start) * Math.min(1.0F, completed / (float) total);
+        }
+
+        // ---- 静态顶点解码与 octahedral 8-bit 法线编码 ----
+
+        // 渲染线程调用：把量化字节数组直接解码进 BufferBuilder，跳过 PreviewVertex 对象。
+        private static void decodeQuantizedToBuilder(byte[] quantized, BufferBuilder builder) {
+            float[] normal = new float[3];
+            for (int offset = 0; offset < quantized.length; offset += QUANTIZED_VERTEX_BYTES) {
+                float x = Float.intBitsToFloat(readInt(quantized, offset));
+                float y = Float.intBitsToFloat(readInt(quantized, offset + 4));
+                float z = Float.intBitsToFloat(readInt(quantized, offset + 8));
+                int argb = readInt(quantized, offset + 12);
+                float u = Float.intBitsToFloat(readInt(quantized, offset + 16));
+                float v = Float.intBitsToFloat(readInt(quantized, offset + 20));
+                int overlay = readShort(quantized, offset + 24) & 0xFFFF;
+                int light = readInt(quantized, offset + 26);
+                decodeNormal(readShort(quantized, offset + 30), normal);
+                builder.vertex(x, y, z, argb, u, v, overlay, light, normal[0], normal[1], normal[2]);
+            }
+        }
+
+        private static int readInt(byte[] bytes, int offset) {
+            return (bytes[offset] & 0xFF) << 24
+                    | (bytes[offset + 1] & 0xFF) << 16
+                    | (bytes[offset + 2] & 0xFF) << 8
+                    | (bytes[offset + 3] & 0xFF);
+        }
+
+        private static short readShort(byte[] bytes, int offset) {
+            return (short) ((bytes[offset] & 0xFF) << 8 | (bytes[offset + 1] & 0xFF));
+        }
+
+        // 法线 (float x3) -> 2 字节，八面体编码 8-bit/分量。方向光照肉眼不可察觉差异。
+        private static short encodeNormal(float nx, float ny, float nz) {
+            float len = (float) Math.sqrt(nx * nx + ny * ny + nz * nz);
+            if (len < 1e-6F) {
+                return 0;
+            }
+            nx /= len;
+            ny /= len;
+            nz /= len;
+            float denom = Math.abs(nx) + Math.abs(ny) + Math.abs(nz);
+            float pu = nx / denom;
+            float pv = ny / denom;
+            if (nz < 0.0F) {
+                float newU = (1.0F - Math.abs(pv)) * (pu >= 0.0F ? 1.0F : -1.0F);
+                float newV = (1.0F - Math.abs(pu)) * (pv >= 0.0F ? 1.0F : -1.0F);
+                pu = newU;
+                pv = newV;
+            }
+            int iu = Math.round(pu * 127.0F);
+            int iv = Math.round(pv * 127.0F);
+            return (short) ((iu & 0xFF) << 8 | (iv & 0xFF));
+        }
+
+        // 2 字节八面体编码 -> 法线，填入复用数组避免分配。
+        private static void decodeNormal(short packed, float[] out) {
+            int iu = (packed >> 8) & 0xFF;
+            int iv = packed & 0xFF;
+            int su = iu > 127 ? iu - 256 : iu;
+            int sv = iv > 127 ? iv - 256 : iv;
+            float pu = su / 127.0F;
+            float pv = sv / 127.0F;
+            float pz = 1.0F - Math.abs(pu) - Math.abs(pv);
+            float nx;
+            float ny;
+            float nz;
+            if (pz < 0.0F) {
+                nx = (1.0F - Math.abs(pv)) * (pu >= 0.0F ? 1.0F : -1.0F);
+                ny = (1.0F - Math.abs(pu)) * (pv >= 0.0F ? 1.0F : -1.0F);
+                nz = pz;
+            } else {
+                nx = pu;
+                ny = pv;
+                nz = pz;
+            }
+            float len = (float) Math.sqrt(nx * nx + ny * ny + nz * nz);
+            if (len > 1e-6F) {
+                nx /= len;
+                ny /= len;
+                nz /= len;
+            }
+            out[0] = nx;
+            out[1] = ny;
+            out[2] = nz;
+        }
+    }
+}

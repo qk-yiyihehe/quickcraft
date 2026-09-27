@@ -1,13 +1,47 @@
+import groovy.json.JsonSlurper
+
 pluginManagement {
 	repositories {
 		maven {
 			name = 'Fabric'
 			url = 'https://maven.fabricmc.net/'
 		}
+		maven {
+			name = 'JitPack'
+			url = 'https://jitpack.io'
+		}
 		mavenCentral()
 		gradlePluginPortal()
 	}
+	resolutionStrategy {
+		eachPlugin {
+			if (requested.id.id == 'com.replaymod.preprocess' ||
+					requested.id.id == 'com.replaymod.preprocess-root') {
+				useModule "com.github.ReplayMod:preprocessor:${requested.version}"
+			}
+		}
+	}
 }
 
-// Should match your modid
 rootProject.name = 'quickcraft'
+
+def versionMatrix = new JsonSlurper().parse(file('version-matrix.json'))
+def minecraft121Versions = versionMatrix.tracks['1.21x'].versions.collect { it.project }
+def minecraft26Versions = versionMatrix.tracks['26x'].versions.collect { it.project }
+
+minecraft121Versions.each { versionName ->
+	include ":${versionName}"
+	def descriptor = project(":${versionName}")
+	descriptor.projectDir = file("versions/${versionName}")
+	descriptor.buildFileName = '../../common.gradle'
+}
+
+minecraft26Versions.each { versionName ->
+	include ":${versionName}"
+	def descriptor = project(":${versionName}")
+	descriptor.projectDir = file("gradle/ide-models/${versionName}")
+}
+
+includeBuild('tracks/26x') {
+	name = 'quickcraft-26x'
+}

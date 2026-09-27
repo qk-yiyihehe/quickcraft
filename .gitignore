@@ -4,6 +4,7 @@
 build/
 out/
 classes/
+/quickcraft.paths.properties
 
 # eclipse
 
@@ -41,7 +42,7 @@ replay_*.log
 *.jfr
 
 # internal testing notes
+/VERSIONING.md
 /测试记录模板.md
 /测试项目索引.md
 /项目深度测试清单.md
-/docs/

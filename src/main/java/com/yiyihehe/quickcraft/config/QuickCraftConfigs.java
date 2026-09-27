@@ -75,6 +75,9 @@ public final class QuickCraftConfigs implements IConfigHandler {
     public static final int DEFAULT_QUICK_SHULKER_ACTION_INTERVAL_TICKS = 5;
     public static final int MIN_QUICK_SHULKER_ACTION_INTERVAL_TICKS = 0;
     public static final int MAX_QUICK_SHULKER_ACTION_INTERVAL_TICKS = 20;
+    private static final ImmutableList<String> DEFAULT_QUICK_SORT_TOP_PRIORITY_ITEMS =
+            ImmutableList.copyOf(QuickCraftItemAliases.getDefaultPriorityAliases());
+    private static final ImmutableList<String> DEFAULT_QUICK_SORT_BOTTOM_PRIORITY_ITEMS = ImmutableList.of();
 
     private static final KeybindSettings GUI_PRESS = KeybindSettings.create(
             KeybindSettings.Context.GUI,
