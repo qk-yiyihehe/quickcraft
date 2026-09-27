@@ -12,7 +12,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 import net.minecraft.world.InteractionResult;
 
 /**
- * Litematica 0.27.9–0.27.11 的轻松放置固定从 mc.player 发起射线；灵魂出窍联动只替换射线实体，
+ * 受支持的 Litematica 轻松放置固定从 mc.player 发起射线；灵魂出窍联动只替换射线实体，
  * 背包取材、放置玩家和交互距离仍使用真实玩家。调用点失效时只会退回玩家视角选取投影。
  */
 @Mixin(value = WorldUtils.class, remap = false, priority = 1100)

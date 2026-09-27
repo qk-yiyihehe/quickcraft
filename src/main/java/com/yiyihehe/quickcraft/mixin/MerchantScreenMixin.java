@@ -1,6 +1,9 @@
 package com.yiyihehe.quickcraft.mixin;
 
 import com.yiyihehe.quickcraft.QuickTrade;
+//#if MC>=12110
+//$$ import net.minecraft.client.gui.Click;
+//#endif
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.gui.screen.ingame.MerchantScreen;
 import org.spongepowered.asm.mixin.Mixin;
@@ -20,7 +23,11 @@ public abstract class MerchantScreenMixin {
         QuickTrade.prepareTradeOrder((MerchantScreen) (Object) this);
     }
 
+    //#if MC>=12110
+    //$$ @Inject(method = "renderMain", at = @At("TAIL"))
+    //#else
     @Inject(method = "render", at = @At("TAIL"))
+    //#endif
     private void quickcraft$renderFavoriteStar(DrawContext context,
                                                int mouseX,
                                                int mouseY,
@@ -29,7 +36,11 @@ public abstract class MerchantScreenMixin {
         QuickTrade.renderFavoriteStar((MerchantScreen) (Object) this, context);
     }
 
+    //#if MC>=12110
+    //$$ @Inject(method = "renderMain", at = @At("HEAD"), cancellable = true)
+    //#else
     @Inject(method = "render", at = @At("HEAD"), cancellable = true)
+    //#endif
     private void quickcraft$hideContinuousTradeScreen(DrawContext context,
                                                       int mouseX,
                                                       int mouseY,
@@ -42,10 +53,19 @@ public abstract class MerchantScreenMixin {
     }
 
     @Inject(method = "mouseClicked", at = @At("HEAD"), cancellable = true)
+    //#if MC>=12110
+    //$$ private void quickcraft$handleTradeMouseClick(Click click, boolean doubled,
+    //#else
     private void quickcraft$handleTradeMouseClick(double mouseX,
                                                   double mouseY,
                                                   int button,
+    //#endif
                                                   CallbackInfoReturnable<Boolean> cir) {
+        //#if MC>=12110
+        //$$ double mouseX = click.x();
+        //$$ double mouseY = click.y();
+        //$$ int button = click.button();
+        //#endif
         if (QuickTrade.handleMerchantMouseClicked((MerchantScreen) (Object) this, mouseX, mouseY, button)) {
             cir.setReturnValue(true);
         }

@@ -23,6 +23,7 @@ public abstract class QuickFreeCameraGameRendererMixin {
     @Final
     private MinecraftClient client;
 
+    //#if MC<12111
     @Shadow
     private HitResult findCrosshairTarget(
             Entity camera,
@@ -32,6 +33,7 @@ public abstract class QuickFreeCameraGameRendererMixin {
     ) {
         throw new AssertionError();
     }
+    //#endif
 
     @Inject(method = "updateCrosshairTarget", at = @At("TAIL"))
     private void quickcraft$useFreeCameraCrosshair(float tickDelta, CallbackInfo ci) {
@@ -40,12 +42,16 @@ public abstract class QuickFreeCameraGameRendererMixin {
         }
 
         Entity camera = this.client.getCameraEntity();
+        //#if MC>=12111
+        //$$ HitResult target = this.client.player.getCrosshairTarget(tickDelta, camera);
+        //#else
         HitResult target = this.findCrosshairTarget(
                 camera,
                 this.client.player.getBlockInteractionRange(),
                 this.client.player.getEntityInteractionRange(),
                 tickDelta
         );
+        //#endif
         target = QuickFreeCameraInteractions.filterCrosshairTarget(this.client, camera, target);
         this.client.crosshairTarget = target;
         this.client.targetedEntity = target instanceof EntityHitResult entityHitResult

@@ -1,7 +1,9 @@
 package com.yiyihehe.quickcraft.litematica;
 
 import com.yiyihehe.quickcraft.config.QuickCraftConfigs;
+//#if MC<12108
 import com.mojang.blaze3d.buffers.BufferUsage;
+//#endif
 import fi.dy.masa.litematica.config.Configs;
 import fi.dy.masa.litematica.data.DataManager;
 import fi.dy.masa.litematica.schematic.LitematicaSchematic;
@@ -155,7 +157,12 @@ public final class QuickLitematicaContainerHighlight {
 
         // MaLiLib's no-depth pipeline preserves visibility through walls without changing global render state.
         try (RenderContext render = new RenderContext(
+                //#if MC>=12108
+                //$$ () -> "QuickCraft projected container highlight",
+                //$$ MaLiLibPipelines.POSITION_COLOR_TRANSLUCENT_NO_DEPTH
+                //#else
                 MaLiLibPipelines.POSITION_COLOR_TRANSLUCENT_NO_DEPTH, BufferUsage.STATIC_WRITE
+                //#endif
         )) {
             BufferBuilder buffer = render.getBuilder();
             for (ProjectedContainer container : positions) {

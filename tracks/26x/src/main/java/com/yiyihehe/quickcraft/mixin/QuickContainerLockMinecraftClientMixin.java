@@ -2,6 +2,9 @@ package com.yiyihehe.quickcraft.mixin;
 
 import com.yiyihehe.quickcraft.QuickContainerLock;
 import net.minecraft.client.Minecraft;
+//#if MC>=260300
+//$$ import net.minecraft.client.multiplayer.MultiPlayerGameMode;
+//#endif
 import net.minecraft.client.player.LocalPlayer;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
@@ -17,9 +20,22 @@ public abstract class QuickContainerLockMinecraftClientMixin {
             method = "handleKeybinds",
             at = @At(
                     value = "INVOKE",
+                    //#if MC>=260300
+                    //$$ target = "Lnet/minecraft/client/multiplayer/MultiPlayerGameMode;dropItem(Lnet/minecraft/client/player/LocalPlayer;Z)V"
+                    //#else
                     target = "Lnet/minecraft/client/player/LocalPlayer;drop(Z)Z"
+                    //#endif
             )
     )
+    //#if MC>=260300
+    //$$ private void quickcraft$blockLockedHotbarDrop(
+    //$$         MultiPlayerGameMode gameMode, LocalPlayer player, boolean entireStack) {
+    //$$     if (QuickContainerLock.isLockedPlayerHotbarSlot(player.getInventory().getSelectedSlot())) {
+    //$$         return;
+    //$$     }
+    //$$     gameMode.dropItem(player, entireStack);
+    //$$ }
+    //#else
     private boolean quickcraft$blockLockedHotbarDrop(LocalPlayer player, boolean entireStack) {
         if (QuickContainerLock.isLockedPlayerHotbarSlot(player.getInventory().getSelectedSlot())) {
             return false;
@@ -27,4 +43,5 @@ public abstract class QuickContainerLockMinecraftClientMixin {
 
         return player.drop(entireStack);
     }
+    //#endif
 }
