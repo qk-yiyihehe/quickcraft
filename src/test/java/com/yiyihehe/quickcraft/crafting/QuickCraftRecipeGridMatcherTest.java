@@ -6,7 +6,7 @@ import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-class QuickCraftClientRecipeMatcherTest {
+class QuickCraftRecipeGridMatcherTest {
     @Test
     void shapedGrid_matchesOffsetAndMirroredPatterns() {
         List<String> grid = List.of(
@@ -19,7 +19,7 @@ class QuickCraftClientRecipeMatcherTest {
                 List.of("stick")
         );
 
-        assertThat(QuickCraftClientRecipeMatcher.matchesShapedGrid(grid, 3, 3, ingredients, 2, 1, this::matchesSlot)).isTrue();
+        assertThat(QuickCraftRecipeGridMatcher.matchesShaped(grid, 3, 3, ingredients, 2, 1, this::matchesSlot)).isTrue();
     }
 
     @Test
@@ -30,7 +30,7 @@ class QuickCraftClientRecipeMatcherTest {
         );
         List<List<String>> ingredients = List.of(List.of("stick"));
 
-        assertThat(QuickCraftClientRecipeMatcher.matchesShapedGrid(grid, 2, 2, ingredients, 1, 1, this::matchesSlot)).isFalse();
+        assertThat(QuickCraftRecipeGridMatcher.matchesShaped(grid, 2, 2, ingredients, 1, 1, this::matchesSlot)).isFalse();
     }
 
     @Test
@@ -41,7 +41,7 @@ class QuickCraftClientRecipeMatcherTest {
                 List.of("plank")
         );
 
-        assertThat(QuickCraftClientRecipeMatcher.matchesShapelessGrid(inputs, ingredients, this::matchesSlot)).isTrue();
+        assertThat(QuickCraftRecipeGridMatcher.matchesShapeless(inputs, ingredients, this::matchesSlot)).isTrue();
     }
 
     @Test
@@ -49,7 +49,7 @@ class QuickCraftClientRecipeMatcherTest {
         List<String> inputs = List.of("plank", "stick");
         List<List<String>> ingredients = List.of(List.of("plank"));
 
-        assertThat(QuickCraftClientRecipeMatcher.matchesShapelessGrid(inputs, ingredients, this::matchesSlot)).isFalse();
+        assertThat(QuickCraftRecipeGridMatcher.matchesShapeless(inputs, ingredients, this::matchesSlot)).isFalse();
     }
 
     private boolean matchesSlot(String stack, List<String> candidates) {

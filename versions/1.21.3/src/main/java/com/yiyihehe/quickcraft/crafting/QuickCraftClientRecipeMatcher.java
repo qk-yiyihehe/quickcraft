@@ -19,7 +19,6 @@ import org.jetbrains.annotations.Nullable;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.function.BiPredicate;
 
 /**
  * 1.21.2+ 客户端只会收到配方展示和 NetworkRecipeId，不能再从 ClientRecipeManager 反查原始配方。
@@ -81,46 +80,6 @@ final class QuickCraftClientRecipeMatcher {
         return matchedId;
     }
 
-    static <T> boolean matchesShapedGrid(
-            List<T> grid,
-            int gridWidth,
-            int gridHeight,
-            List<List<T>> ingredients,
-            int recipeWidth,
-            int recipeHeight,
-            BiPredicate<T, List<T>> slotMatcher
-    ) {
-        if (grid.size() != gridWidth * gridHeight
-                || ingredients.size() != recipeWidth * recipeHeight
-                || recipeWidth > gridWidth
-                || recipeHeight > gridHeight) {
-            return false;
-        }
-
-        for (int offsetY = 0; offsetY <= gridHeight - recipeHeight; offsetY++) {
-            for (int offsetX = 0; offsetX <= gridWidth - recipeWidth; offsetX++) {
-                if (matchesShapedAt(grid, gridWidth, gridHeight, ingredients, recipeWidth, recipeHeight, offsetX, offsetY, false, slotMatcher)
-                        || matchesShapedAt(grid, gridWidth, gridHeight, ingredients, recipeWidth, recipeHeight, offsetX, offsetY, true, slotMatcher)) {
-                    return true;
-                }
-            }
-        }
-
-        return false;
-    }
-
-    static <T> boolean matchesShapelessGrid(
-            List<T> inputs,
-            List<List<T>> ingredients,
-            BiPredicate<T, List<T>> slotMatcher
-    ) {
-        if (inputs.size() != ingredients.size()) {
-            return false;
-        }
-
-        return matchesShapelessInputs(inputs, ingredients, 0, new boolean[ingredients.size()], slotMatcher);
-    }
-
     private static boolean matchesResult(
             RecipeDisplayEntry entry,
             ItemStack resultTemplate,
@@ -138,7 +97,7 @@ final class QuickCraftClientRecipeMatcher {
             ContextParameterMap context
     ) {
         if (display instanceof ShapedCraftingRecipeDisplay shaped) {
-            return matchesShapedGrid(
+            return QuickCraftRecipeGridMatcher.matchesShaped(
                     grid,
                     gridWidth,
                     gridHeight,
@@ -151,7 +110,11 @@ final class QuickCraftClientRecipeMatcher {
 
         if (display instanceof ShapelessCraftingRecipeDisplay shapeless) {
             List<ItemStack> inputs = grid.stream().filter(stack -> !stack.isEmpty()).toList();
-            return matchesShapelessGrid(inputs, getCandidateStacks(shapeless.ingredients(), context), QuickCraftClientRecipeMatcher::matchesSlot);
+            return QuickCraftRecipeGridMatcher.matchesShapeless(
+                    inputs,
+                    getCandidateStacks(shapeless.ingredients(), context),
+                    QuickCraftClientRecipeMatcher::matchesSlot
+            );
         }
 
         return false;
@@ -170,65 +133,6 @@ final class QuickCraftClientRecipeMatcher {
             ContextParameterMap context
     ) {
         return displays.stream().map(display -> display.getStacks(context)).toList();
-    }
-
-    private static <T> boolean matchesShapedAt(
-            List<T> grid,
-            int gridWidth,
-            int gridHeight,
-            List<List<T>> ingredients,
-            int recipeWidth,
-            int recipeHeight,
-            int offsetX,
-            int offsetY,
-            boolean mirrored,
-            BiPredicate<T, List<T>> slotMatcher
-    ) {
-        for (int gridY = 0; gridY < gridHeight; gridY++) {
-            for (int gridX = 0; gridX < gridWidth; gridX++) {
-                int recipeX = gridX - offsetX;
-                int recipeY = gridY - offsetY;
-                List<T> candidates = List.of();
-
-                if (recipeX >= 0 && recipeX < recipeWidth && recipeY >= 0 && recipeY < recipeHeight) {
-                    int ingredientX = mirrored ? recipeWidth - recipeX - 1 : recipeX;
-                    candidates = ingredients.get(recipeY * recipeWidth + ingredientX);
-                }
-
-                if (!slotMatcher.test(grid.get(gridY * gridWidth + gridX), candidates)) {
-                    return false;
-                }
-            }
-        }
-
-        return true;
-    }
-
-    private static <T> boolean matchesShapelessInputs(
-            List<T> inputs,
-            List<List<T>> ingredients,
-            int inputIndex,
-            boolean[] usedIngredients,
-            BiPredicate<T, List<T>> slotMatcher
-    ) {
-        if (inputIndex == inputs.size()) {
-            return true;
-        }
-
-        T input = inputs.get(inputIndex);
-        for (int ingredientIndex = 0; ingredientIndex < ingredients.size(); ingredientIndex++) {
-            if (usedIngredients[ingredientIndex] || !slotMatcher.test(input, ingredients.get(ingredientIndex))) {
-                continue;
-            }
-
-            usedIngredients[ingredientIndex] = true;
-            if (matchesShapelessInputs(inputs, ingredients, inputIndex + 1, usedIngredients, slotMatcher)) {
-                return true;
-            }
-            usedIngredients[ingredientIndex] = false;
-        }
-
-        return false;
     }
 
     private static boolean matchesSlot(ItemStack stack, List<ItemStack> candidates) {
