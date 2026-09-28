@@ -363,12 +363,10 @@ public final class QuickCraftConfigs implements IConfigHandler {
                 "quickSortShulkerBoxesAtEnd",
                 true
         ).apply(CONTAINER_TRANSLATION_PREFIX);
-        //#if MC>=12103
-        //$$ public static final ConfigBoolean QUICK_SORT_BUNDLES_AT_END = new ConfigBoolean(
-        //$$         "quickSortBundlesAtEnd",
-        //$$         true
-        //$$ ).apply(CONTAINER_TRANSLATION_PREFIX);
-        //#endif
+        public static final ConfigBoolean QUICK_SORT_BUNDLES_AT_END = new ConfigBoolean(
+                "quickSortBundlesAtEnd",
+                true
+        ).apply(CONTAINER_TRANSLATION_PREFIX);
         public static final ConfigBooleanHotkeyed SHOW_CONTAINER_LOCK_BUTTON = new ConfigBooleanHotkeyed(
                 "showContainerLockButton",
                 true,
@@ -463,9 +461,7 @@ public final class QuickCraftConfigs implements IConfigHandler {
                 QUICK_SORT_TOP_PRIORITY_ITEMS,
                 QUICK_SORT_BOTTOM_PRIORITY_ITEMS,
                 QUICK_SORT_SHULKER_BOXES_AT_END,
-                //#if MC>=12103
-                //$$ QUICK_SORT_BUNDLES_AT_END,
-                //#endif
+                QUICK_SORT_BUNDLES_AT_END,
                 SHOW_CONTAINER_LOCK_BUTTON,
                 SHOW_SLOT_LOCK_OVERLAY,
                 SHOW_CONTAINER_FILL_STATUS_OUTLINES,
@@ -1146,11 +1142,9 @@ public final class QuickCraftConfigs implements IConfigHandler {
         return ContainerTools.QUICK_SORT_SHULKER_BOXES_AT_END.getBooleanValue();
     }
 
-    //#if MC>=12103
-    //$$ public static boolean areQuickSortBundlesAtEnd() {
-    //$$     return ContainerTools.QUICK_SORT_BUNDLES_AT_END.getBooleanValue();
-    //$$ }
-    //#endif
+    public static boolean areQuickSortBundlesAtEnd() {
+        return ContainerTools.QUICK_SORT_BUNDLES_AT_END.getBooleanValue();
+    }
 
     public static boolean isContainerToolModeEnabled() {
         return ContainerTools.ENABLE_CONTAINER_TOOL_MODE.getBooleanValue();

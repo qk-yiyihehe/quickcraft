@@ -14,9 +14,7 @@ import net.minecraft.client.gui.screen.ingame.CreativeInventoryScreen;
 import net.minecraft.client.gui.screen.ingame.HandledScreen;
 import net.minecraft.client.gui.widget.TextFieldWidget;
 import net.minecraft.component.DataComponentTypes;
-//#if MC>=12103
-//$$ import net.minecraft.component.type.BundleContentsComponent;
-//#endif
+import net.minecraft.component.type.BundleContentsComponent;
 import net.minecraft.component.type.ContainerComponent;
 import net.minecraft.entity.player.PlayerInventory;
 import net.minecraft.inventory.Inventory;
@@ -174,41 +172,29 @@ public class QuickSort implements ClientModInitializer {
             .filter(QuickSort::isVisibleSlot)
             .toList();
 
-        Map<Integer, List<Slot>> rows = groupSlotsByY(playerSlots);
-        List<Integer> rowKeys = rows.keySet().stream().sorted().toList();
-        List<List<Slot>> nineWideRows = rowKeys.stream()
-            .map(rows::get)
-            .map(QuickSort::sortSlotsForLayout)
-            .filter(row -> row.size() == 9)
-            .toList();
-
         if (gui instanceof CreativeInventoryScreen creativeScreen) {
             addCreativeTargets(creativeScreen, targets, playerSlots, guiLeft, guiTop);
             return targets;
         }
 
-        if (nineWideRows.size() < 4) {
-            return targets;
+        List<Slot> mainSlots = exactPlayerSlots(playerSlots, 9, 36);
+        List<Slot> hotbarSlots = exactPlayerSlots(playerSlots, 0, 9);
+        if (!mainSlots.isEmpty()) {
+            targets.add(new SortTarget(
+                "player-main",
+                toUnlockedPlayerSortSlotIds(handler, mainSlots),
+                Bounds.fromSlots(mainSlots, guiLeft, guiTop),
+                handler
+            ));
         }
-
-        List<Slot> hotbarRow = nineWideRows.get(nineWideRows.size() - 1);
-        List<Slot> mainRows = new ArrayList<>();
-        for (int i = Math.max(0, nineWideRows.size() - 4); i < nineWideRows.size() - 1; i++) {
-            mainRows.addAll(nineWideRows.get(i));
+        if (!hotbarSlots.isEmpty()) {
+            targets.add(new SortTarget(
+                "player-hotbar",
+                toUnlockedPlayerSortSlotIds(handler, hotbarSlots),
+                Bounds.fromSlots(hotbarSlots, guiLeft, guiTop),
+                handler
+            ));
         }
-
-        targets.add(new SortTarget(
-            "player-main",
-            toUnlockedPlayerSortSlotIds(handler, mainRows),
-            Bounds.fromSlots(mainRows, guiLeft, guiTop),
-            handler
-        ));
-        targets.add(new SortTarget(
-            "player-hotbar",
-            toUnlockedPlayerSortSlotIds(handler, hotbarRow),
-            Bounds.fromSlots(hotbarRow, guiLeft, guiTop),
-            handler
-        ));
 
         return targets;
     }
@@ -218,16 +204,7 @@ public class QuickSort implements ClientModInitializer {
                                            List<Slot> playerSlots,
                                            int guiLeft,
                                            int guiTop) {
-        //#if MC<12103
-        MinecraftClient client = MinecraftClient.getInstance();
-        if (client.player == null) {
-            return;
-        }
-        ScreenHandler handler = client.player.playerScreenHandler;
-        //#else
-        //$$ // 高版本创造背包的底层玩家 handler 仍包含隐藏槽，必须使用当前可见界面的 handler。
-        //$$ ScreenHandler handler = gui.getScreenHandler();
-        //#endif
+        ScreenHandler handler = gui.getScreenHandler();
         if (gui.isInventoryTabSelected()) {
             addCreativeInventoryTabTargets(handler, targets, playerSlots, guiLeft, guiTop);
             return;
@@ -241,12 +218,8 @@ public class QuickSort implements ClientModInitializer {
                                                        List<Slot> playerSlots,
                                                        int guiLeft,
                                                        int guiTop) {
-        List<Slot> mainSlots = sortSlotsForLayout(playerSlots).stream()
-            .filter(QuickSort::isPlayerMainInventorySlot)
-            .toList();
-        List<Slot> hotbarSlots = sortSlotsForLayout(playerSlots).stream()
-            .filter(QuickSort::isPlayerHotbarSlot)
-            .toList();
+        List<Slot> mainSlots = exactPlayerSlots(playerSlots, 9, 36);
+        List<Slot> hotbarSlots = exactPlayerSlots(playerSlots, 0, 9);
 
         if (mainSlots.size() == 27) {
             targets.add(new SortTarget(
@@ -271,9 +244,7 @@ public class QuickSort implements ClientModInitializer {
                                                 List<Slot> playerSlots,
                                                 int guiLeft,
                                                 int guiTop) {
-        List<Slot> hotbarSlots = sortSlotsForLayout(playerSlots).stream()
-            .filter(QuickSort::isPlayerHotbarSlot)
-            .toList();
+        List<Slot> hotbarSlots = exactPlayerSlots(playerSlots, 0, 9);
         if (hotbarSlots.size() != 9) {
             return;
         }
@@ -298,7 +269,7 @@ public class QuickSort implements ClientModInitializer {
         }
 
         for (Slot slot : gui.getScreenHandler().slots) {
-            if (isPlayerAreaSlot(gui, slot)) {
+            if (playerInventoryIndex(slot) >= 0) {
                 continue;
             }
             if (!isContainerSortCandidateSlot(handler, slot, client)) {
@@ -376,24 +347,31 @@ public class QuickSort implements ClientModInitializer {
     }
 
     private static boolean isPlayerAreaSlot(HandledScreen<?> gui, Slot slot) {
-        Slot effectiveSlot = unwrapCreativeSlot(slot);
-        return effectiveSlot.inventory instanceof PlayerInventory
-            && effectiveSlot.getIndex() >= 0
-            && effectiveSlot.getIndex() < 36;
+        int index = playerInventoryIndex(slot);
+        return index >= 0 && index < 36;
     }
 
-    private static boolean isPlayerHotbarSlot(Slot slot) {
+    private static int playerInventoryIndex(Slot slot) {
         Slot effectiveSlot = unwrapCreativeSlot(slot);
-        return effectiveSlot.inventory instanceof PlayerInventory
-            && effectiveSlot.getIndex() >= 0
-            && effectiveSlot.getIndex() < 9;
+        return effectiveSlot.inventory instanceof PlayerInventory ? effectiveSlot.getIndex() : -1;
     }
 
-    private static boolean isPlayerMainInventorySlot(Slot slot) {
-        Slot effectiveSlot = unwrapCreativeSlot(slot);
-        return effectiveSlot.inventory instanceof PlayerInventory
-            && effectiveSlot.getIndex() >= 9
-            && effectiveSlot.getIndex() < 36;
+    private static List<Slot> exactPlayerSlots(List<Slot> slots, int first, int end) {
+        List<Slot> matching = slots.stream()
+            .filter(slot -> playerInventoryIndex(slot) >= first && playerInventoryIndex(slot) < end)
+            .toList();
+        if (matching.size() != end - first) {
+            return List.of();
+        }
+        boolean[] seen = new boolean[end - first];
+        for (Slot slot : matching) {
+            int index = playerInventoryIndex(slot) - first;
+            if (seen[index]) {
+                return List.of();
+            }
+            seen[index] = true;
+        }
+        return sortSlotsForLayout(matching);
     }
 
     private static Slot unwrapCreativeSlot(Slot slot) {
@@ -486,9 +464,7 @@ public class QuickSort implements ClientModInitializer {
     private static List<ItemStack> buildTargetOrder(ScreenHandler handler, List<Integer> slotIds) {
         List<ItemStack> priorityStacks = new ArrayList<>();
         List<ItemStack> normalStacks = new ArrayList<>();
-        //#if MC>=12103
-        //$$ List<ItemStack> bundleStacks = new ArrayList<>();
-        //#endif
+        List<ItemStack> bundleStacks = new ArrayList<>();
         List<ItemStack> bottomPriorityStacks = new ArrayList<>();
         List<ItemStack> shulkerStacks = new ArrayList<>();
 
@@ -503,10 +479,8 @@ public class QuickSort implements ClientModInitializer {
                 priorityStacks.add(copy);
             } else if (getBottomPriorityIndex(copy) >= 0) {
                 bottomPriorityStacks.add(copy);
-            //#if MC>=12103
-            //$$ } else if (isBundle(copy)) {
-            //$$     bundleStacks.add(copy);
-            //#endif
+            } else if (isBundle(copy)) {
+                bundleStacks.add(copy);
             } else if (isShulkerBox(copy)) {
                 shulkerStacks.add(copy);
             } else {
@@ -516,21 +490,17 @@ public class QuickSort implements ClientModInitializer {
 
         priorityStacks.sort(QuickSort::comparePriorityStacks);
         normalStacks.sort(QuickSort::compareStacks);
-        //#if MC>=12103
-        //$$ bundleStacks.sort(QuickSort::compareBundleStacks);
-        //#endif
+        bundleStacks.sort(QuickSort::compareBundleStacks);
         bottomPriorityStacks.sort(QuickSort::compareBottomPriorityStacks);
         shulkerStacks.sort(QuickSort::compareShulkerStacks);
 
         int totalSlots = slotIds.size();
         boolean sortStorageWithNormalStacks = false;
-        //#if MC>=12103
-        //$$ if (!QuickCraftConfigs.areQuickSortBundlesAtEnd()) {
-        //$$     normalStacks.addAll(bundleStacks);
-        //$$     bundleStacks.clear();
-        //$$     sortStorageWithNormalStacks = true;
-        //$$ }
-        //#endif
+        if (!QuickCraftConfigs.areQuickSortBundlesAtEnd()) {
+            normalStacks.addAll(bundleStacks);
+            bundleStacks.clear();
+            sortStorageWithNormalStacks = true;
+        }
         if (!QuickCraftConfigs.areQuickSortShulkerBoxesAtEnd()) {
             normalStacks.addAll(shulkerStacks);
             shulkerStacks.clear();
@@ -540,11 +510,7 @@ public class QuickSort implements ClientModInitializer {
             normalStacks.sort(QuickSort::compareStacksWithStorageContents);
         }
 
-        //#if MC<12103
-        int reservedBottomSlots = Math.min(shulkerStacks.size(), totalSlots);
-        //#else
-        //$$ int reservedBottomSlots = Math.min(bundleStacks.size() + shulkerStacks.size(), totalSlots);
-        //#endif
+        int reservedBottomSlots = Math.min(bundleStacks.size() + shulkerStacks.size(), totalSlots);
         int normalSlotCount = totalSlots - reservedBottomSlots;
         List<ItemStack> result = new ArrayList<>(totalSlots);
 
@@ -564,9 +530,7 @@ public class QuickSort implements ClientModInitializer {
             result.add(ItemStack.EMPTY);
         }
 
-        //#if MC>=12103
-        //$$ result.addAll(bundleStacks);
-        //#endif
+        result.addAll(bundleStacks);
         result.addAll(shulkerStacks);
 
         while (result.size() < totalSlots) {
@@ -831,11 +795,9 @@ public class QuickSort implements ClientModInitializer {
         if (isShulkerBox(a) && isShulkerBox(b)) {
             return compareShulkerStacks(a, b);
         }
-        //#if MC>=12103
-        //$$ if (isBundle(a) && isBundle(b)) {
-        //$$     return compareBundleStacks(a, b);
-        //$$ }
-        //#endif
+        if (isBundle(a) && isBundle(b)) {
+            return compareBundleStacks(a, b);
+        }
         return compareStacks(a, b);
     }
 
@@ -843,11 +805,9 @@ public class QuickSort implements ClientModInitializer {
         return compareStorageStacks(a, b, getShulkerContentsSortKey(a), getShulkerContentsSortKey(b));
     }
 
-    //#if MC>=12103
-    //$$ private static int compareBundleStacks(ItemStack a, ItemStack b) {
-    //$$     return compareStorageStacks(a, b, getBundleContentsSortKey(a), getBundleContentsSortKey(b));
-    //$$ }
-    //#endif
+    private static int compareBundleStacks(ItemStack a, ItemStack b) {
+        return compareStorageStacks(a, b, getBundleContentsSortKey(a), getBundleContentsSortKey(b));
+    }
 
     private static int compareStorageStacks(ItemStack a,
                                             ItemStack b,
@@ -993,23 +953,19 @@ public class QuickSort implements ClientModInitializer {
         return blockItem.getBlock() instanceof ShulkerBoxBlock;
     }
 
-    //#if MC>=12103
-    //$$ private static boolean isBundle(ItemStack stack) {
-    //$$     return stack.contains(DataComponentTypes.BUNDLE_CONTENTS);
-    //$$ }
-    //#endif
+    private static boolean isBundle(ItemStack stack) {
+        return stack.contains(DataComponentTypes.BUNDLE_CONTENTS);
+    }
 
     private static StorageContentsSortKey getShulkerContentsSortKey(ItemStack stack) {
         ContainerComponent container = stack.getOrDefault(DataComponentTypes.CONTAINER, ContainerComponent.DEFAULT);
         return buildStorageContentsSortKey(container.iterateNonEmpty());
     }
 
-    //#if MC>=12103
-    //$$ private static StorageContentsSortKey getBundleContentsSortKey(ItemStack stack) {
-    //$$     BundleContentsComponent bundleContents = stack.getOrDefault(DataComponentTypes.BUNDLE_CONTENTS, BundleContentsComponent.DEFAULT);
-    //$$     return buildStorageContentsSortKey(bundleContents.iterate());
-    //$$ }
-    //#endif
+    private static StorageContentsSortKey getBundleContentsSortKey(ItemStack stack) {
+        BundleContentsComponent bundleContents = stack.getOrDefault(DataComponentTypes.BUNDLE_CONTENTS, BundleContentsComponent.DEFAULT);
+        return buildStorageContentsSortKey(bundleContents.iterate());
+    }
 
     private static StorageContentsSortKey buildStorageContentsSortKey(Iterable<ItemStack> storedStacks) {
         Map<ItemKey, ItemStack> uniqueStacks = new HashMap<>();
@@ -1125,14 +1081,6 @@ public class QuickSort implements ClientModInitializer {
         }
     }
 
-    private static Map<Integer, List<Slot>> groupSlotsByY(List<Slot> slots) {
-        Map<Integer, List<Slot>> rows = new HashMap<>();
-        for (Slot slot : slots) {
-            rows.computeIfAbsent(slot.y, ignored -> new ArrayList<>()).add(slot);
-        }
-        return rows;
-    }
-
     private static List<Slot> sortSlotsForLayout(List<Slot> slots) {
         return slots.stream()
             .sorted(Comparator
@@ -1159,14 +1107,7 @@ public class QuickSort implements ClientModInitializer {
     }
 
     private static List<Integer> creativeSortSlotIds(ScreenHandler handler, List<Slot> slots) {
-        //#if MC<12103
-        return sortSlotsForLayout(slots).stream()
-            .map(QuickSort::unwrapCreativeSlot)
-            .map(slot -> getClickSlotId(handler, slot))
-            .toList();
-        //#else
-        //$$ return toUnlockedPlayerSortSlotIds(handler, slots);
-        //#endif
+        return toUnlockedPlayerSortSlotIds(handler, slots);
     }
 
     /**

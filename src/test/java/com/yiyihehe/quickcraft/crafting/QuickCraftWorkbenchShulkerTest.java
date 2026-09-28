@@ -309,6 +309,8 @@ class QuickCraftWorkbenchShulkerTest {
         assertThat(QuickCraftWorkbenchShulkerCraft.expandRemainderIndex(1, 2, 1, 0)).isEqualTo(2);
         assertThat(QuickCraftWorkbenchShulkerCraft.expandRemainderIndex(2, 2, 1, 0)).isEqualTo(4);
         assertThat(QuickCraftWorkbenchShulkerCraft.expandRemainderIndex(3, 2, 1, 0)).isEqualTo(5);
+        assertThat(QuickCraftWorkbenchShulkerCraft.expandRemainderIndex(0, 2, 1, 1)).isEqualTo(4);
+        assertThat(QuickCraftWorkbenchShulkerCraft.expandRemainderIndex(1, 2, 1, 1)).isEqualTo(5);
     }
 
     @Test
