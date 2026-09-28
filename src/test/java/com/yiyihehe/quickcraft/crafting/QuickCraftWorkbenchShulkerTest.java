@@ -8,11 +8,16 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 class QuickCraftWorkbenchShulkerTest {
     @Test
+//#if MC<12111
     @DisplayName("流水线模式使用稳定默认值并支持持久化解析")
     void pipelineMode_defaultsToResponseStableAndParsesValues() {
         assertThat(QuickCraftConfigs.Crafting.WORKBENCH_QUICK_SHULKER_PIPELINE_MODE
                 .getOptionListValue())
                 .isEqualTo(QuickCraftConfigs.WorkbenchShulkerPipelineMode.RESPONSE_STABLE);
+//#else
+    //$$ @DisplayName("流水线模式支持持久化解析与稳定回退")
+    //$$ void pipelineMode_parsesValuesAndFallsBackToResponseStable() {
+//#endif
         assertThat(QuickCraftConfigs.WorkbenchShulkerPipelineMode.RESPONSE_STABLE
                 .fromString("balanced"))
                 .isEqualTo(QuickCraftConfigs.WorkbenchShulkerPipelineMode.BALANCED);
@@ -189,6 +194,38 @@ class QuickCraftWorkbenchShulkerTest {
         assertThat(QuickCraftWorkbenchShulkerCraft.shouldProbeReconciledOutput(
                 QuickCraftWorkbenchShulkerCraft.AckBatchKind.REFILL_OUTPUT,
                 18, 15, 15, false, true, false, true, false)).isTrue();
+//#if MC<12103
+//#else
+    //$$ }
+//$$
+    //$$ @Test
+    //$$ @DisplayName("补料时仅输出槽由服务端重算，收到全量包后立即使用顺序探针")
+    //$$ void ackPipeline_reconcilesRefillOutputOnlyMismatch() {
+        //$$ assertThat(QuickCraftWorkbenchShulkerCraft.shouldProbeReconciledRefill(
+                //$$ QuickCraftWorkbenchShulkerCraft.AckBatchKind.REFILL,
+                //$$ 1, true, true, false, true, false)).isTrue();
+        //$$ assertThat(QuickCraftWorkbenchShulkerCraft.shouldProbeReconciledRefill(
+                //$$ QuickCraftWorkbenchShulkerCraft.AckBatchKind.OUTPUT,
+                //$$ 1, true, true, false, true, false)).isFalse();
+        //$$ assertThat(QuickCraftWorkbenchShulkerCraft.shouldProbeReconciledRefill(
+                //$$ QuickCraftWorkbenchShulkerCraft.AckBatchKind.REFILL,
+                //$$ 0, true, true, false, true, false)).isFalse();
+        //$$ assertThat(QuickCraftWorkbenchShulkerCraft.shouldProbeReconciledRefill(
+                //$$ QuickCraftWorkbenchShulkerCraft.AckBatchKind.REFILL,
+                //$$ 1, false, true, false, true, false)).isFalse();
+        //$$ assertThat(QuickCraftWorkbenchShulkerCraft.shouldProbeReconciledRefill(
+                //$$ QuickCraftWorkbenchShulkerCraft.AckBatchKind.REFILL,
+                //$$ 1, true, false, false, true, false)).isFalse();
+        //$$ assertThat(QuickCraftWorkbenchShulkerCraft.shouldProbeReconciledRefill(
+                //$$ QuickCraftWorkbenchShulkerCraft.AckBatchKind.REFILL,
+                //$$ 1, true, true, true, true, false)).isFalse();
+        //$$ assertThat(QuickCraftWorkbenchShulkerCraft.shouldProbeReconciledRefill(
+                //$$ QuickCraftWorkbenchShulkerCraft.AckBatchKind.REFILL,
+                //$$ 1, true, true, false, false, false)).isFalse();
+        //$$ assertThat(QuickCraftWorkbenchShulkerCraft.shouldProbeReconciledRefill(
+                //$$ QuickCraftWorkbenchShulkerCraft.AckBatchKind.REFILL,
+                //$$ 1, true, true, false, true, true)).isFalse();
+//#endif
     }
 
     @Test
@@ -401,6 +438,17 @@ class QuickCraftWorkbenchShulkerTest {
     }
 
     @Test
+//#if MC<12103
+//#else
+    //$$ @DisplayName("1.21.3 客户端只要产物槽已显示配方即可建立快照")
+    //$$ void recipeStart_acceptsVisibleOutputWithoutReusableSnapshot() {
+        //$$ assertThat(QuickCraftWorkbenchShulkerCraft.canStartWithRecipeState(true, false)).isTrue();
+        //$$ assertThat(QuickCraftWorkbenchShulkerCraft.canStartWithRecipeState(false, true)).isTrue();
+        //$$ assertThat(QuickCraftWorkbenchShulkerCraft.canStartWithRecipeState(false, false)).isFalse();
+    //$$ }
+//$$
+    //$$ @Test
+//#endif
     @DisplayName("背包散料不足以覆盖所有空配方格时留给潜影盒直填")
     void looseItemFill_requiresAtLeastOneCompletePatternRound() {
         assertThat(QuickCraftWorkbenchShulkerCraft.canLooseItemsCompleteEmptyPatternSlots(2, 3)).isFalse();

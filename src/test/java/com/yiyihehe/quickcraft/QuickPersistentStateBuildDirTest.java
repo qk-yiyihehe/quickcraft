@@ -8,6 +8,10 @@ import org.junit.jupiter.params.provider.ValueSource;
 
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
+//#if MC<12110 || MC>=12111
+//#else
+//$$ import java.util.Locale;
+//#endif
 
 import static org.assertj.core.api.Assertions.assertThat;
 
