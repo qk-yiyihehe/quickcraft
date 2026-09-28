@@ -220,12 +220,20 @@ class QuickContainerLockSerializationTest {
                 new Object[]{element, target});
     }
 
+//#if MC<12110 || MC>=12111
+//#else
+    //$$ @SuppressWarnings("unchecked")
+//#endif
     private static JsonArray invokeToStringArray(Set<String> values) {
         return (JsonArray) invokePrivateStatic("toStringArray",
                 new Class[]{Set.class},
                 new Object[]{values});
     }
 
+//#if MC<12110 || MC>=12111
+//#else
+    //$$ @SuppressWarnings("unchecked")
+//#endif
     private static JsonArray invokeToIntArray(Set<Integer> values) {
         return (JsonArray) invokePrivateStatic("toIntArray",
                 new Class[]{Set.class},

@@ -9,11 +9,23 @@ import org.junit.jupiter.params.provider.MethodSource;
 
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
+//#if MC<12110 || MC>=12111
+//#else
+//$$ import java.nio.charset.StandardCharsets;
+//#endif
 import java.util.HashSet;
 import java.util.Random;
 import java.util.Set;
+//#if MC<12110 || MC>=12111
+//#else
+//$$ import java.util.UUID;
+//#endif
 import java.util.concurrent.TimeUnit;
 import java.util.stream.IntStream;
+//#if MC<12110 || MC>=12111
+//#else
+//$$ import java.util.stream.Stream;
+//#endif
 
 import static org.assertj.core.api.Assertions.assertThat;
 

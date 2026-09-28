@@ -3,6 +3,10 @@ package com.yiyihehe.quickcraft.litematica;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
+//#if MC<12110 || MC>=12111
+//#else
+//$$ import org.junit.jupiter.params.provider.NullAndEmptySource;
+//#endif
 import org.junit.jupiter.params.provider.ValueSource;
 
 import static org.assertj.core.api.Assertions.assertThat;

@@ -1,6 +1,10 @@
 package com.yiyihehe.quickcraft;
 
 import com.tngtech.archunit.core.domain.JavaClasses;
+//#if MC<12103
+//#else
+//$$ import com.tngtech.archunit.core.domain.JavaClass;
+//#endif
 import com.tngtech.archunit.core.importer.ClassFileImporter;
 import com.tngtech.archunit.lang.ArchRule;
 import org.junit.jupiter.api.BeforeAll;
@@ -156,11 +160,19 @@ class QuickCraftArchitectureTest {
     @Test
     @DisplayName("不应有循环依赖（包级）")
     void noCyclicDependencies() {
+//#if MC<12103
+//#else
+        //$$ JavaClasses nonMixinClasses = classes.that(JavaClass.Predicates.resideOutsideOfPackage(ROOT + ".mixin.."));
+//#endif
         ArchRule rule = slices()
                 .matching(ROOT + ".(*)..")
                 .should().beFreeOfCycles();
 
+//#if MC<12103
         rule.check(classes);
+//#else
+        //$$ rule.check(nonMixinClasses);
+//#endif
     }
 
     @Test
