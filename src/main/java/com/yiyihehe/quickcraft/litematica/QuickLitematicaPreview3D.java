@@ -14,6 +14,10 @@ import com.mojang.blaze3d.systems.RenderSystem;
 //$$ import com.mojang.blaze3d.buffers.Std140Builder;
 //$$ import com.mojang.blaze3d.pipeline.RenderPipeline;
 //#endif
+//#if MC>=12111
+//$$ import com.mojang.blaze3d.textures.AddressMode;
+//$$ import com.mojang.blaze3d.textures.FilterMode;
+//#endif
 //#if MC>=12103
 //$$ import com.mojang.blaze3d.systems.ProjectionType;
 //#endif
@@ -31,6 +35,9 @@ import com.yiyihehe.quickcraft.config.QuickCraftConfigs;
 //#if MC>=12108 && MC<12110
 //$$ import com.yiyihehe.quickcraft.mixin.RenderLayerMultiPhaseAccessor;
 //#endif
+//#if MC>=12111
+//$$ import com.yiyihehe.quickcraft.mixin.RenderLayerAccessor;
+//#endif
 //#if MC<12105
 import fi.dy.masa.litematica.compat.iris.IrisCompat;
 //#endif
@@ -47,6 +54,9 @@ import fi.dy.masa.litematica.util.PositionUtils;
 import fi.dy.masa.litematica.world.FakeLightingProvider;
 import fi.dy.masa.litematica.world.WorldSchematic;
 import fi.dy.masa.malilib.gui.widgets.WidgetFileBrowserBase.DirectoryEntry;
+//#if MC>=12111
+//$$ import fi.dy.masa.malilib.render.GuiContext;
+//#endif
 import fi.dy.masa.malilib.render.RenderUtils;
 import fi.dy.masa.malilib.util.InfoUtils;
 import fi.dy.masa.malilib.util.StringUtils;
@@ -58,12 +68,15 @@ import net.fabricmc.fabric.api.renderer.v1.RendererAccess;
 //#if MC<12105
 import net.fabricmc.fabric.impl.client.indigo.renderer.IndigoRenderer;
 import net.fabricmc.fabric.impl.client.indigo.renderer.render.WorldMesherRenderContext;
-//#else
+//#elseif MC<12111
 //$$ import net.fabricmc.fabric.impl.client.indigo.renderer.render.SimpleBlockRenderContext;
 //#endif
 //#if MC>=12108
 //$$ import net.fabricmc.fabric.api.client.rendering.v1.SpecialGuiElementRegistry;
 //$$ import net.fabricmc.fabric.api.renderer.v1.render.BlockVertexConsumerProvider;
+//#endif
+//#if MC>=12111
+//$$ import net.fabricmc.fabric.api.renderer.v1.Renderer;
 //#endif
 import net.fabricmc.loader.api.FabricLoader;
 import net.minecraft.SharedConstants;
@@ -80,7 +93,7 @@ import net.minecraft.client.MinecraftClient;
 //$$ import net.minecraft.client.gl.GlUsage;
 //#endif
 import net.minecraft.client.gl.Framebuffer;
-//#if MC>=12108
+//#if MC>=12108 && MC<12111
 //$$ import net.minecraft.client.gl.RenderPipelines;
 //#endif
 import net.minecraft.client.gl.SimpleFramebuffer;
@@ -96,7 +109,7 @@ import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.gui.screen.Screen;
 import net.minecraft.client.render.BufferBuilder;
 import net.minecraft.client.render.BuiltBuffer;
-//#if MC>=12110
+//#if MC>=12110 && MC<12111
 //$$ import net.minecraft.client.render.GameRenderer;
 //#endif
 //#if MC>=12108
@@ -104,10 +117,18 @@ import net.minecraft.client.render.BuiltBuffer;
 //$$ import net.minecraft.client.render.DiffuseLighting;
 //$$ import net.minecraft.client.render.RawProjectionMatrix;
 //#endif
+//#if MC>=12111
+//$$ import net.minecraft.client.render.BlockRenderLayers;
+//$$ import net.minecraft.client.render.RenderSetup;
+//#endif
 import net.minecraft.client.render.LightmapTextureManager;
 import net.minecraft.client.render.OverlayTexture;
 import net.minecraft.client.render.RenderLayer;
+//#if MC<12111
 import net.minecraft.client.render.RenderLayers;
+//#else
+//$$ import net.minecraft.client.render.RenderLayers;
+//#endif
 import net.minecraft.client.render.VertexConsumer;
 import net.minecraft.client.render.VertexConsumerProvider;
 //#if MC<12105
@@ -117,8 +138,10 @@ import net.minecraft.client.render.VertexFormats;
 import net.minecraft.client.render.WorldRenderer;
 import net.minecraft.client.render.block.entity.BlockEntityRenderer;
 import net.minecraft.client.render.block.BlockRenderManager;
-//#if MC>=12110
+//#if MC>=12110 && MC<12111
 //$$ import net.minecraft.client.render.chunk.BlockBufferAllocatorStorage;
+//#endif
+//#if MC>=12110
 //$$ import net.minecraft.client.render.command.OrderedRenderCommandQueue;
 //$$ import net.minecraft.client.render.command.OrderedRenderCommandQueueImpl;
 //$$ import net.minecraft.client.render.command.RenderDispatcher;
@@ -265,7 +288,11 @@ public final class QuickLitematicaPreview3D {
     // v11：保留 v10 的 GZIP + 顶点量化；箱子方块实体改回动态渲染，避免 chest atlas 被写进方块 VBO。
     // v17：传送门、流体和普通半透明模型拆分缓存，避免玻璃遮挡传送门及流体断层。
     // 升版本会让旧缓存一次性失效；之后 mod 版本号变化不再清缓存（token 已不含 mod 版本）。
+    //#if MC<12111
     private static final int CACHE_FORMAT_VERSION = 17;
+    //#else
+    //$$ private static final int CACHE_FORMAT_VERSION = 18;
+    //#endif
     private static final int CACHE_MAGIC = 0x51435033; // QCP3
     private static final String CACHE_DIR_NAME = "litematica-preview-cache";
     private static final String CACHE_VERSION_FILE_NAME = "cache-version.txt";
@@ -280,8 +307,10 @@ public final class QuickLitematicaPreview3D {
     //$$ private static final String CACHE_RENDER_MARKER = "quickcraft-model-mesh-v16-api-audit-stable-path-content-resource-signature-mc1.21.5";
     //#elseif MC<12110
     //$$ private static final String CACHE_RENDER_MARKER = "quickcraft-model-mesh-v16-api-audit-stable-path-content-resource-signature-mc1.21.8";
-    //#else
+    //#elseif MC<12111
     //$$ private static final String CACHE_RENDER_MARKER = "quickcraft-model-mesh-v16-api-audit-stable-path-content-resource-signature-dynamic-render-state-mc1.21.10";
+    //#else
+    //$$ private static final String CACHE_RENDER_MARKER = "quickcraft-model-mesh-v18-api-audit-stable-path-content-resource-signature-dynamic-render-state-mc1.21.11";
     //#endif
     private static final int EXPAND_BUTTON_SIZE = 16;
     private static final int COMPAT_CLIPBOARD_MAX_DIMENSION = 4096;
@@ -420,8 +449,10 @@ public final class QuickLitematicaPreview3D {
         MinecraftClient client = MinecraftClient.getInstance();
         //#if MC<12108
         RenderUtils.drawOutlinedBox(x, y, size, size, 0xB0101010, 0xFF707070);
-        //#else
+        //#elseif MC<12111
         //$$ RenderUtils.drawOutlinedBox(context, x, y, size, size, 0xB0101010, 0xFF707070);
+        //#else
+        //$$ RenderUtils.drawOutlinedBox(GuiContext.fromGuiGraphics(context), x, y, size, size, 0xB0101010, 0xFF707070);
         //#endif
         Text message = Text.translatable("quickcraft.message.litematica.preview_3d.shader_disabled");
         var lines = client.textRenderer.wrapLines(message, Math.max(1, size - 16));
@@ -584,8 +615,10 @@ public final class QuickLitematicaPreview3D {
 
             //#if MC<12108
             RenderUtils.drawOutlinedBox(this.viewX, this.viewY, this.viewSize, this.viewSize, 0xB0101010, 0xFF707070);
-            //#else
+            //#elseif MC<12111
             //$$ RenderUtils.drawOutlinedBox(drawContext, this.viewX, this.viewY, this.viewSize, this.viewSize, 0xB0101010, 0xFF707070);
+            //#else
+            //$$ RenderUtils.drawOutlinedBox(GuiContext.fromGuiGraphics(drawContext), this.viewX, this.viewY, this.viewSize, this.viewSize, 0xB0101010, 0xFF707070);
             //#endif
             if (this.current != null) {
                 this.current.render(drawContext, this.viewX, this.viewY, this.viewSize, this.drag);
@@ -2050,7 +2083,7 @@ public final class QuickLitematicaPreview3D {
                 //$$ renderLayer.endDrawing();
             //$$ }
         //$$ }
-        //#else
+        //#elseif MC<12111
         //$$ private static void drawLayerBuffer(RenderLayer renderLayer, LayerBuffer buffer) {
             //$$ renderLayer.startDrawing();
             //$$ try {
@@ -2094,6 +2127,60 @@ public final class QuickLitematicaPreview3D {
                 //$$ }
             //$$ } finally {
                 //$$ renderLayer.endDrawing();
+            //$$ }
+        //$$ }
+        //#else
+        //$$ private static void drawLayerBuffer(LayerKey layer, LayerBuffer buffer) {
+        //$$     drawLayerBuffer(layer.renderLayer(), buffer, layer == LayerKey.CUTOUT);
+        //$$ }
+        //$$
+        //$$ private static void drawLayerBuffer(RenderLayer renderLayer, LayerBuffer buffer, boolean forceNearestSampler) {
+            //$$ RenderPipeline pipeline = buffer.pipeline(renderLayer, renderLayer.getRenderPipeline());
+            //$$ var colorAttachment = Objects.requireNonNull(RenderSystem.outputColorTextureOverride);
+            //$$ var depthAttachment = RenderSystem.outputDepthTextureOverride;
+            //$$ var dynamicTransforms = RenderSystem.getDynamicUniforms().write(
+                    //$$ RenderSystem.getModelViewMatrix(),
+                    //$$ new Vector4f(1.0F, 1.0F, 1.0F, 1.0F),
+                    //$$ ZERO_MODEL_OFFSET,
+                    //$$ new Matrix4f()
+            //$$ );
+            //$$ RenderSetup setup = ((RenderLayerAccessor) (Object) renderLayer).quickcraft$getRenderSetup();
+            //$$ // 纹理解析可能触发首次 GPU 上传，必须在 RenderPass 外完成。
+            //$$ var resolvedTextures = setup.resolveTextures();
+            //$$ // ShapeIndexBuffer 扩容时会关闭旧 GPU buffer，非自有索引不能跨帧缓存其引用。
+            //$$ var sequentialIndices = buffer.ownsIndexBuffer() ? null : RenderSystem.getSequentialBuffer(renderLayer.getDrawMode());
+            //$$ GpuBuffer indexBuffer = buffer.ownsIndexBuffer()
+                    //$$ ? buffer.indexBuffer()
+                    //$$ : sequentialIndices.getIndexBuffer(buffer.indexCount());
+            //$$ VertexFormat.IndexType indexType = buffer.ownsIndexBuffer()
+                    //$$ ? buffer.indexType()
+                    //$$ : sequentialIndices.getIndexType();
+            //$$ try (RenderPass pass = RenderSystem.getDevice().createCommandEncoder().createRenderPass(
+                    //$$ () -> "QuickCraft preview " + renderLayer,
+                    //$$ colorAttachment,
+                    //$$ OptionalInt.empty(),
+                    //$$ depthAttachment,
+                    //$$ OptionalDouble.empty()
+            //$$ )) {
+                //$$ pass.setPipeline(pipeline);
+                //$$ RenderSystem.bindDefaultUniforms(pass);
+                //$$ pass.setUniform("DynamicTransforms", dynamicTransforms);
+                //$$ pass.setVertexBuffer(0, buffer.vertexBuffer());
+                //$$ for (var entry : resolvedTextures.entrySet()) {
+                    //$$ var texture = entry.getValue();
+                    //$$ var sampler = forceNearestSampler && "Sampler0".equals(entry.getKey())
+                            //$$ ? RenderSystem.getSamplerCache().get(
+                                    //$$ AddressMode.CLAMP_TO_EDGE,
+                                    //$$ AddressMode.CLAMP_TO_EDGE,
+                                    //$$ FilterMode.NEAREST,
+                                    //$$ FilterMode.NEAREST,
+                                    //$$ false
+                            //$$ )
+                            //$$ : texture.sampler();
+                    //$$ pass.bindTexture(entry.getKey(), texture.textureView(), sampler);
+                //$$ }
+                //$$ pass.setIndexBuffer(indexBuffer, indexType);
+                //$$ pass.drawIndexed(0, 0, buffer.indexCount(), 1);
             //$$ }
         //$$ }
         //#endif
@@ -2315,14 +2402,22 @@ public final class QuickLitematicaPreview3D {
                     //$$ continue;
                 //$$ }
                 //$$ for (LayerBuffer buffer : buffers) {
+                    //#if MC<12111
                     //$$ drawLayerBuffer(layer.renderLayer(), buffer);
+                    //#else
+                    //$$ drawLayerBuffer(layer, buffer);
+                    //#endif
                 //$$ }
             //$$ }
         //$$ }
         //$$
         //$$ private void drawDynamicBuffers() {
             //$$ for (DynamicLayerBuffer layerBuffer : this.dynamicBuffers) {
+                //#if MC<12111
                 //$$ drawLayerBuffer(layerBuffer.layer(), layerBuffer.buffer());
+                //#else
+                //$$ drawLayerBuffer(layerBuffer.layer(), layerBuffer.buffer(), false);
+                //#endif
             //$$ }
         //$$ }
         //#endif
@@ -3610,8 +3705,12 @@ public final class QuickLitematicaPreview3D {
             //#if MC<12108
             RenderUtils.drawOutlinedBox(barX, barY, barWidth, 10, 0xB0000000, 0xFF707070);
             RenderUtils.drawRect(barX + 1, barY + 1, fill, 8, this.state == State.FAILED || this.state == State.TOO_LARGE ? 0xFFAA3333 : 0xFF4DB36A);
-            //#else
+            //#elseif MC<12111
             //$$ RenderUtils.drawOutlinedBox(context, barX, barY, barWidth, 10, 0xB0000000, 0xFF707070);
+            //#else
+            //$$ RenderUtils.drawOutlinedBox(GuiContext.fromGuiGraphics(context), barX, barY, barWidth, 10, 0xB0000000, 0xFF707070);
+            //#endif
+            //#if MC>=12108
             //$$ if (fill > 0) {
             //$$     context.fill(barX + 1, barY + 1, barX + 1 + fill, barY + 9,
             //$$             this.state == State.FAILED || this.state == State.TOO_LARGE ? 0xFFAA3333 : 0xFF4DB36A);
@@ -3847,7 +3946,11 @@ public final class QuickLitematicaPreview3D {
             //#else
             //$$ int vertexBytes = layer.getVertexFormat().getVertexSize();
             //#endif
+            //#if MC<12111
             if (layer.getDrawMode() == VertexFormat.DrawMode.LINES || layer.getDrawMode() == VertexFormat.DrawMode.LINE_STRIP) {
+            //#else
+            //$$ if (layer.getDrawMode() == VertexFormat.DrawMode.LINES) {
+            //#endif
                 vertexBytes *= 2;
             }
             return new LimitedVertexConsumer(meshBuilder.builder(), this, vertexBytes);
@@ -4036,6 +4139,14 @@ public final class QuickLitematicaPreview3D {
             return this;
         }
 
+        //#if MC>=12111
+        //$$ @Override
+        //$$ public VertexConsumer color(int argb) {
+        //$$     this.delegate.color(argb);
+        //$$     return this;
+        //$$ }
+        //#endif
+
         @Override
         public VertexConsumer texture(float u, float v) {
             this.delegate.texture(u, v);
@@ -4048,17 +4159,41 @@ public final class QuickLitematicaPreview3D {
             return this;
         }
 
+        //#if MC>=12111
+        //$$ @Override
+        //$$ public VertexConsumer overlay(int uv) {
+        //$$     this.delegate.overlay(uv);
+        //$$     return this;
+        //$$ }
+        //#endif
+
         @Override
         public VertexConsumer light(int u, int v) {
             this.delegate.light(u, v);
             return this;
         }
 
+        //#if MC>=12111
+        //$$ @Override
+        //$$ public VertexConsumer light(int uv) {
+        //$$     this.delegate.light(uv);
+        //$$     return this;
+        //$$ }
+        //#endif
+
         @Override
         public VertexConsumer normal(float x, float y, float z) {
             this.delegate.normal(x, y, z);
             return this;
         }
+
+        //#if MC>=12111
+        //$$ @Override
+        //$$ public VertexConsumer lineWidth(float width) {
+        //$$     this.delegate.lineWidth(width);
+        //$$     return this;
+        //$$ }
+        //#endif
 
         @Override
         public void vertex(float x, float y, float z, int color, float u, float v, int overlay, int light, float normalX, float normalY, float normalZ) {
@@ -4082,9 +4217,13 @@ public final class QuickLitematicaPreview3D {
     //$$                            boolean ownsIndexBuffer) implements AutoCloseable {
     //#if MC>=12108
     //$$     private RenderPipeline pipeline(RenderLayer renderLayer, RenderPipeline defaultPipeline) {
+    //#if MC<12111
     //$$         return renderLayer == RenderLayer.getTranslucentMovingBlock()
     //$$                 ? RenderPipelines.TRANSLUCENT
     //$$                 : defaultPipeline;
+    //#else
+    //$$         return defaultPipeline;
+    //#endif
     //$$     }
     //$$
     //#endif
@@ -4608,7 +4747,11 @@ public final class QuickLitematicaPreview3D {
 
                 RegionBlockView view = new RegionBlockView(container, area);
                 RegionBounds regionBounds = RegionBounds.from(area);
+                //#if MC<12111
                 Map<BlockPos, NbtCompound> schematicBlockEntities = schematic.getBlockEntityMapForRegion(regionName);
+                //#else
+                //$$ Map<BlockPos, ?> schematicBlockEntities = schematic.getBlockEntityMapForRegion(regionName);
+                //#endif
                 recordEntities(blockStates, entities, view, schematic, regionName, area, bounds, cancelled);
 
                 long regionVolume = regionBounds.volume();
@@ -4771,7 +4914,11 @@ public final class QuickLitematicaPreview3D {
                 Map<BlockState, Boolean> blockEntityRendererCache,
                 RegionBlockView view,
                 BlockState state,
+                //#if MC<12111
                 @Nullable Map<BlockPos, NbtCompound> schematicBlockEntities,
+                //#else
+                //$$ @Nullable Map<BlockPos, ?> schematicBlockEntities,
+                //#endif
                 BlockPos schematicPos,
                 BlockPos renderPos,
                 Bounds bounds
@@ -4793,9 +4940,18 @@ public final class QuickLitematicaPreview3D {
                 }
             }
 
+            //#if MC<12111
             NbtCompound nbt = schematicBlockEntities == null
                     ? new NbtCompound()
                     : schematicBlockEntities.getOrDefault(schematicPos.subtract(view.bounds.min()), new NbtCompound());
+            //#else
+            //$$ Object data = schematicBlockEntities == null
+            //$$         ? null
+            //$$         : schematicBlockEntities.get(schematicPos.subtract(view.bounds.min()));
+            //$$ NbtCompound nbt = data == null
+            //$$         ? new NbtCompound()
+            //$$         : QuickLitematicaDataCompat.toVanillaNbt(data);
+            //#endif
             NbtCompound entityNbt = sanitizeBlockEntityNbt(nbt);
             entityNbt.putInt("x", renderPos.getX());
             entityNbt.putInt("y", renderPos.getY());
@@ -4850,10 +5006,19 @@ public final class QuickLitematicaPreview3D {
             BlockPos regionOrigin = areaOrigin != null ? areaOrigin : BlockPos.ORIGIN;
             for (LitematicaSchematic.EntityInfo info : regionEntities) {
                 throwIfCancelled(cancelled);
+                //#if MC<12111
                 double x = info.posVec.x + regionOrigin.getX() - bounds.min().getX();
                 double y = info.posVec.y + regionOrigin.getY() - bounds.min().getY();
                 double z = info.posVec.z + regionOrigin.getZ() - bounds.min().getZ();
-                entities.add(new EntityData(x, y, z, copyEntityNbtAt(info.nbt, x, y, z)));
+                NbtCompound nbt = info.nbt;
+                //#else
+                //$$ Vec3d pos = QuickLitematicaDataCompat.entityPos(info);
+                //$$ double x = pos.x + regionOrigin.getX() - bounds.min().getX();
+                //$$ double y = pos.y + regionOrigin.getY() - bounds.min().getY();
+                //$$ double z = pos.z + regionOrigin.getZ() - bounds.min().getZ();
+                //$$ NbtCompound nbt = QuickLitematicaDataCompat.entityNbt(info);
+                //#endif
+                entities.add(new EntityData(x, y, z, copyEntityNbtAt(nbt, x, y, z)));
                 recordEntityNearbyBlockStates(blockStates, view, bounds, x, y, z);
                 if (entities.size() > MAX_DYNAMIC_ENTITIES) {
                     throw new PreviewTooLargeException();
@@ -4909,8 +5074,10 @@ public final class QuickLitematicaPreview3D {
 
             //#if MC<12108
             RenderLayer fluidLayer = RenderLayers.getFluidLayer(fluidState);
-            //#else
+            //#elseif MC<12111
             //$$ BlockRenderLayer fluidLayer = RenderLayers.getFluidLayer(fluidState);
+            //#else
+            //$$ BlockRenderLayer fluidLayer = BlockRenderLayers.getFluidLayer(fluidState);
             //#endif
             matrices.push();
             matrices.translate(-(pos.getX() & 15), -(pos.getY() & 15), -(pos.getZ() & 15));
@@ -4960,14 +5127,21 @@ public final class QuickLitematicaPreview3D {
                 );
             }
             //#else
+            //#if MC<12111
             //$$ if (PreviewCtm.isContinuityModel(model) && PreviewCtm.emit(model, matrices, collector, view, state, pos)) {
+            //#else
+            //$$ if (PreviewCtm.isContinuityModel(model) && PreviewCtmRenderer.emit(model, matrices, collector, view, state, pos)) {
+            //#endif
             //$$     matrices.pop();
             //$$     return;
             //$$ }
             //#if MC<12108
             //$$ RenderLayer blockLayer = RenderLayers.getBlockLayer(state);
-            //#else
+            //#elseif MC<12111
             //$$ BlockRenderLayer blockLayer = RenderLayers.getBlockLayer(state);
+            //#else
+            //$$ BlockRenderLayer blockLayer = BlockRenderLayers.getBlockLayer(state);
+            //$$ random.setSeed(state.getRenderingSeed(pos));
             //#endif
             //$$ blockRenderManager.renderBlock(
             //$$         state,
@@ -4998,7 +5172,7 @@ public final class QuickLitematicaPreview3D {
                         && model.getClass().getName().startsWith("me.pepperbell.continuity.");
             }
 
-            //#if MC>=12105
+            //#if MC>=12105 && MC<12111
             //$$ private static boolean emit(
             //$$         Object model,
             //$$         MatrixStack matrices,
@@ -5045,6 +5219,49 @@ public final class QuickLitematicaPreview3D {
             }
         }
 
+        //#if MC>=12111
+        //$$ private static final class PreviewCtmRenderer implements BlockVertexConsumerProvider {
+        //$$     private final MeshCollector collector;
+        //$$
+        //$$     private PreviewCtmRenderer(MeshCollector collector) {
+        //$$         this.collector = collector;
+        //$$     }
+        //$$
+        //$$     private static boolean emit(
+        //$$             net.minecraft.client.render.model.BlockStateModel model,
+        //$$             MatrixStack matrices,
+        //$$             MeshCollector collector,
+        //$$             RegionBlockView view,
+        //$$             BlockState state,
+        //$$             BlockPos pos
+        //$$     ) {
+        //$$         try {
+        //$$             Renderer.get().render(
+        //$$                     matrices.peek(),
+        //$$                     new PreviewCtmRenderer(collector),
+        //$$                     model,
+        //$$                     1.0F,
+        //$$                     1.0F,
+        //$$                     1.0F,
+        //$$                     WorldRenderer.getLightmapCoordinates(view, pos),
+        //$$                     OverlayTexture.DEFAULT_UV,
+        //$$                     view,
+        //$$                     pos,
+        //$$                     state
+        //$$             );
+        //$$             return true;
+        //$$         } catch (Throwable ignored) {
+        //$$             return false;
+        //$$         }
+        //$$     }
+        //$$
+        //$$     @Override
+        //$$     public VertexConsumer getBuffer(BlockRenderLayer layer) {
+        //$$         return this.collector.consumerFor(layer);
+        //$$     }
+        //$$ }
+        //#endif
+
         private static void throwIfCancelled(AtomicBoolean cancelled) {
             if (cancelled.get() || Thread.currentThread().isInterrupted()) {
                 throw new CancellationException();
@@ -5056,25 +5273,41 @@ public final class QuickLitematicaPreview3D {
         SOLID(0) {
             @Override
             RenderLayer renderLayer() {
+                //#if MC<12111
                 return RenderLayer.getSolid();
+                //#else
+                //$$ return RenderLayers.solid();
+                //#endif
             }
         },
         CUTOUT_MIPPED(1) {
             @Override
             RenderLayer renderLayer() {
+                //#if MC<12111
                 return RenderLayer.getCutoutMipped();
+                //#else
+                //$$ return RenderLayers.cutout();
+                //#endif
             }
         },
         CUTOUT(2) {
             @Override
             RenderLayer renderLayer() {
+                //#if MC<12111
                 return RenderLayer.getCutout();
+                //#else
+                //$$ return RenderLayers.cutout();
+                //#endif
             }
         },
         TRIPWIRE(3) {
             @Override
             RenderLayer renderLayer() {
+                //#if MC<12111
                 return RenderLayer.getTripwire();
+                //#else
+                //$$ return RenderLayers.tripwire();
+                //#endif
             }
         },
         TRANSLUCENT(4) {
@@ -5082,8 +5315,10 @@ public final class QuickLitematicaPreview3D {
             RenderLayer renderLayer() {
                 //#if MC<12108
                 return RenderLayer.getTranslucent();
-                //#else
+                //#elseif MC<12111
                 //$$ return RenderLayer.getTranslucentMovingBlock();
+                //#else
+                //$$ return RenderLayers.translucentMovingBlock();
                 //#endif
             }
         },
@@ -5092,8 +5327,10 @@ public final class QuickLitematicaPreview3D {
             RenderLayer renderLayer() {
                 //#if MC<12108
                 return RenderLayer.getTranslucent();
-                //#else
+                //#elseif MC<12111
                 //$$ return RenderLayer.getTranslucentMovingBlock();
+                //#else
+                //$$ return RenderLayers.translucentMovingBlock();
                 //#endif
             }
         },
@@ -5102,8 +5339,10 @@ public final class QuickLitematicaPreview3D {
             RenderLayer renderLayer() {
                 //#if MC<12108
                 return RenderLayer.getTranslucent();
-                //#else
+                //#elseif MC<12111
                 //$$ return RenderLayer.getTranslucentMovingBlock();
+                //#else
+                //$$ return RenderLayers.translucentMovingBlock();
                 //#endif
             }
         };
@@ -5125,6 +5364,7 @@ public final class QuickLitematicaPreview3D {
             return this == TRANSLUCENT;
         }
 
+        //#if MC<12111
         private static LayerKey from(RenderLayer layer) {
             if (layer == RenderLayer.getSolid()) {
                 return SOLID;
@@ -5147,12 +5387,15 @@ public final class QuickLitematicaPreview3D {
             }
             return SOLID;
         }
+        //#endif
 
         //#if MC>=12108
         //$$ private static LayerKey from(BlockRenderLayer layer) {
         //$$     return switch (layer) {
         //$$         case SOLID -> SOLID;
+        //#if MC<12111
         //$$         case CUTOUT_MIPPED -> CUTOUT_MIPPED;
+        //#endif
         //$$         case CUTOUT -> CUTOUT;
         //$$         case TRIPWIRE -> TRIPWIRE;
         //$$         case TRANSLUCENT -> TRANSLUCENT;
@@ -5184,8 +5427,10 @@ public final class QuickLitematicaPreview3D {
     private static final class MeshCollector {
     //#elseif MC<12108
     //$$ private static final class MeshCollector implements VertexConsumerProvider {
-    //#else
+    //#elseif MC<12111
     //$$ private static final class MeshCollector implements BlockVertexConsumerProvider {
+    //#else
+    //$$ private static final class MeshCollector {
     //#endif
         private final EnumMap<LayerKey, RecordingVertexConsumer> consumers = new EnumMap<>(LayerKey.class);
         private int vertexCount;
@@ -5207,7 +5452,7 @@ public final class QuickLitematicaPreview3D {
         //$$ public VertexConsumer getBuffer(RenderLayer renderLayer) {
         //$$     return this.consumerFor(renderLayer);
         //$$ }
-        //#elseif MC>=12108
+        //#elseif MC>=12108 && MC<12111
         //$$ @Override
         //$$ public VertexConsumer getBuffer(BlockRenderLayer renderLayer) {
         //$$     return this.consumerFor(renderLayer);
@@ -5350,6 +5595,13 @@ public final class QuickLitematicaPreview3D {
             return this;
         }
 
+        //#if MC>=12111
+        //$$ @Override
+        //$$ public VertexConsumer lineWidth(float width) {
+        //$$     return this;
+        //$$ }
+        //#endif
+
         @Override
         public void vertex(float x, float y, float z, int color, float u, float v, int overlay, int light, float normalX, float normalY, float normalZ) {
             //#if MC<12108
@@ -5381,6 +5633,14 @@ public final class QuickLitematicaPreview3D {
             return this;
         }
 
+        //#if MC>=12111
+        //$$ @Override
+        //$$ public VertexConsumer color(int argb) {
+        //$$     this.delegate.color(argb);
+        //$$     return this;
+        //$$ }
+        //#endif
+
         @Override
         public VertexConsumer texture(float u, float v) {
             this.delegate.texture(u, v);
@@ -5393,17 +5653,41 @@ public final class QuickLitematicaPreview3D {
             return this;
         }
 
+        //#if MC>=12111
+        //$$ @Override
+        //$$ public VertexConsumer overlay(int uv) {
+        //$$     this.delegate.overlay(uv);
+        //$$     return this;
+        //$$ }
+        //#endif
+
         @Override
         public VertexConsumer light(int u, int v) {
             this.delegate.light(u, v);
             return this;
         }
 
+        //#if MC>=12111
+        //$$ @Override
+        //$$ public VertexConsumer light(int uv) {
+        //$$     this.delegate.light(uv);
+        //$$     return this;
+        //$$ }
+        //#endif
+
         @Override
         public VertexConsumer normal(float x, float y, float z) {
             this.delegate.normal(x, y, z);
             return this;
         }
+
+        //#if MC>=12111
+        //$$ @Override
+        //$$ public VertexConsumer lineWidth(float width) {
+        //$$     this.delegate.lineWidth(width);
+        //$$     return this;
+        //$$ }
+        //#endif
     }
 
     private static final class QuantizedVertexBuffer {
@@ -5586,6 +5870,10 @@ public final class QuickLitematicaPreview3D {
     }
 
     private record EntityData(double x, double y, double z, NbtCompound entityNbt) {
+        //#if MC>=12111
+        //$$ // Litematica 0.26.11–0.26.12 没有 Data 入口；保留 NBT 桥接以兼容整个安全版本范围。
+        //$$ @SuppressWarnings({"deprecation", "removal"})
+        //#endif
         @Nullable
         private RenderedEntity instantiate(DummyWorld world) {
             try {
