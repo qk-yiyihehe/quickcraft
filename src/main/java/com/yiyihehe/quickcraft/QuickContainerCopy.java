@@ -72,14 +72,12 @@ public final class QuickContainerCopy implements ClientModInitializer {
     private static final int OPEN_TIMEOUT_TICKS = 20;
     private static final int BACKGROUND_ACTION_TIMEOUT_TICKS = 40;
     private static final int CONTINUOUS_REOPEN_DELAY_TICKS = 1;
-    private static final int CONTINUOUS_FILL_SHORT_PRESS_TICKS = 4;
     private static final int VANILLA_SHULKER_SLOTS = 27;
     private static final Identifier QUICK_SHULKER_BUNDLE_PACKET = Identifier.of("quickshulker", "quick_bundleheld_packet");
     private static final Identifier QUICK_SHULKER_OPEN_PACKET = Identifier.of("quickshulker", "open_shulker_packet");
 
     private static boolean lastUseDown;
     private static boolean lastContinuousFillDown;
-    private static int continuousFillHoldTicks;
     private static int pendingTicks;
     private static PendingAction pendingAction = PendingAction.NONE;
     private static SupportedContainerType pendingContainerType;
@@ -182,7 +180,6 @@ public final class QuickContainerCopy implements ClientModInitializer {
                 && !QuickCraftConfigs.isLitematicaContainerAutofillEnabled()) {
             lastUseDown = false;
             lastContinuousFillDown = false;
-            continuousFillHoldTicks = 0;
             pendingAction = PendingAction.NONE;
             pendingContainerType = null;
             QuickContainerFillStatus.stop(client, pendingFillTarget, true);
@@ -209,44 +206,21 @@ public final class QuickContainerCopy implements ClientModInitializer {
         );
         if (!fillDown) {
             if (lastContinuousFillDown) {
-                //#if MC<12108
-                if (continuousTask == null
-                        && suppressedContinuousTarget == null
-                        && continuousFillHoldTicks < CONTINUOUS_FILL_SHORT_PRESS_TICKS
-                        && canHandleContinuousContainerFillHotkey(client)) {
+                boolean showHoldHint = continuousTask != null;
+                stopContinuousTask(client, true, null);
+                if (showHoldHint) {
                     sendStatusMessage(
                             client,
                             Text.translatable("quickcraft.message.container_copy.hold_to_fill")
                                     .formatted(Formatting.RED)
                     );
                 }
-                stopContinuousTask(client, true, null);
-                //#else
-                //$$ boolean stoppedBeforeFill = continuousTask == null
-                //$$         || continuousTask.stage == ContinuousStage.OPEN_TARGET
-                //$$         || continuousTask.stage == ContinuousStage.WAIT_TARGET_SCREEN
-                //$$         || continuousTask.stage == ContinuousStage.FILL_TARGET;
-                //$$ boolean showShortPressHint = stoppedBeforeFill
-                //$$         && suppressedContinuousTarget == null
-                //$$         && continuousFillHoldTicks < CONTINUOUS_FILL_SHORT_PRESS_TICKS
-                //$$         && canHandleContinuousContainerFillHotkey(client);
-                //$$ stopContinuousTask(client, true, null);
-                //$$ if (showShortPressHint) {
-                //$$     sendStatusMessage(
-                //$$             client,
-                //$$             Text.translatable("quickcraft.message.container_copy.hold_to_fill")
-                //$$                     .formatted(Formatting.RED)
-                //$$     );
-                //$$ }
-                //#endif
             }
             suppressedContinuousTarget = null;
             lastContinuousFillDown = false;
-            continuousFillHoldTicks = 0;
             return;
         }
 
-        continuousFillHoldTicks++;
         if (continuousTask == null) {
             tryStartContinuousTask(client);
         }
@@ -280,13 +254,9 @@ public final class QuickContainerCopy implements ClientModInitializer {
 
         ContinuousTemplate template = resolveContinuousTemplate(client, hitResult, type);
         if (template == null) {
-            //#if MC<12110
             if (!lastContinuousFillDown) {
                 sendStatusMessage(client, Text.translatable("quickcraft.message.container_copy.no_fill_template"));
             }
-            //#else
-            //$$ // 默认热键与原版使用键同为右键；没有匹配模板时必须静默放行普通容器交互。
-            //#endif
             return;
         }
 

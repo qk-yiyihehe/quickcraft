@@ -179,41 +179,29 @@ public class QuickSort implements ClientModInitializer {
             .filter(QuickSort::isVisibleSlot)
             .toList();
 
-        Map<Integer, List<Slot>> rows = groupSlotsByY(playerSlots);
-        List<Integer> rowKeys = rows.keySet().stream().sorted().toList();
-        List<List<Slot>> nineWideRows = rowKeys.stream()
-            .map(rows::get)
-            .map(QuickSort::sortSlotsForLayout)
-            .filter(row -> row.size() == 9)
-            .toList();
-
         if (gui instanceof CreativeModeInventoryScreen creativeScreen) {
             addCreativeTargets(creativeScreen, targets, playerSlots, guiLeft, guiTop);
             return targets;
         }
 
-        if (nineWideRows.size() < 4) {
-            return targets;
+        List<Slot> mainSlots = exactPlayerSlots(playerSlots, 9, 36);
+        List<Slot> hotbarSlots = exactPlayerSlots(playerSlots, 0, 9);
+        if (!mainSlots.isEmpty()) {
+            targets.add(new SortTarget(
+                "player-main",
+                toUnlockedPlayerSortSlotIds(handler, mainSlots),
+                Bounds.fromSlots(mainSlots, guiLeft, guiTop),
+                handler
+            ));
         }
-
-        List<Slot> hotbarRow = nineWideRows.get(nineWideRows.size() - 1);
-        List<Slot> mainRows = new ArrayList<>();
-        for (int i = Math.max(0, nineWideRows.size() - 4); i < nineWideRows.size() - 1; i++) {
-            mainRows.addAll(nineWideRows.get(i));
+        if (!hotbarSlots.isEmpty()) {
+            targets.add(new SortTarget(
+                "player-hotbar",
+                toUnlockedPlayerSortSlotIds(handler, hotbarSlots),
+                Bounds.fromSlots(hotbarSlots, guiLeft, guiTop),
+                handler
+            ));
         }
-
-        targets.add(new SortTarget(
-            "player-main",
-            toUnlockedPlayerSortSlotIds(handler, mainRows),
-            Bounds.fromSlots(mainRows, guiLeft, guiTop),
-            handler
-        ));
-        targets.add(new SortTarget(
-            "player-hotbar",
-            toUnlockedPlayerSortSlotIds(handler, hotbarRow),
-            Bounds.fromSlots(hotbarRow, guiLeft, guiTop),
-            handler
-        ));
 
         return targets;
     }
@@ -239,12 +227,8 @@ public class QuickSort implements ClientModInitializer {
         // 创造背包背后的底层玩家 handler 还挂着隐藏槽；这里必须只用当前界面可见槽位所在的 handler，
         // 否则高版本整理时可能会借到隐藏槽位腾挪，表现成穿装备或复制一份。
         AbstractContainerMenu handler = gui.getMenu();
-        List<Slot> mainSlots = sortSlotsForLayout(playerSlots).stream()
-            .filter(QuickSort::isPlayerMainInventorySlot)
-            .toList();
-        List<Slot> hotbarSlots = sortSlotsForLayout(playerSlots).stream()
-            .filter(QuickSort::isPlayerHotbarSlot)
-            .toList();
+        List<Slot> mainSlots = exactPlayerSlots(playerSlots, 9, 36);
+        List<Slot> hotbarSlots = exactPlayerSlots(playerSlots, 0, 9);
 
         if (mainSlots.size() == 27) {
             targets.add(new SortTarget(
@@ -270,9 +254,7 @@ public class QuickSort implements ClientModInitializer {
                                                 int guiLeft,
                                                 int guiTop) {
         AbstractContainerMenu handler = gui.getMenu();
-        List<Slot> hotbarSlots = sortSlotsForLayout(playerSlots).stream()
-            .filter(QuickSort::isPlayerHotbarSlot)
-            .toList();
+        List<Slot> hotbarSlots = exactPlayerSlots(playerSlots, 0, 9);
         if (hotbarSlots.size() != 9) {
             return;
         }
@@ -297,7 +279,7 @@ public class QuickSort implements ClientModInitializer {
         }
 
         for (Slot slot : gui.getMenu().slots) {
-            if (isPlayerAreaSlot(gui, slot)) {
+            if (playerInventoryIndex(slot) >= 0) {
                 continue;
             }
             if (!isContainerSortCandidateSlot(handler, slot, client)) {
@@ -375,24 +357,31 @@ public class QuickSort implements ClientModInitializer {
     }
 
     private static boolean isPlayerAreaSlot(AbstractContainerScreen<?> gui, Slot slot) {
-        Slot effectiveSlot = unwrapCreativeSlot(slot);
-        return effectiveSlot.container instanceof Inventory
-            && effectiveSlot.getContainerSlot() >= 0
-            && effectiveSlot.getContainerSlot() < 36;
+        int index = playerInventoryIndex(slot);
+        return index >= 0 && index < 36;
     }
 
-    private static boolean isPlayerHotbarSlot(Slot slot) {
+    private static int playerInventoryIndex(Slot slot) {
         Slot effectiveSlot = unwrapCreativeSlot(slot);
-        return effectiveSlot.container instanceof Inventory
-            && effectiveSlot.getContainerSlot() >= 0
-            && effectiveSlot.getContainerSlot() < 9;
+        return effectiveSlot.container instanceof Inventory ? effectiveSlot.getContainerSlot() : -1;
     }
 
-    private static boolean isPlayerMainInventorySlot(Slot slot) {
-        Slot effectiveSlot = unwrapCreativeSlot(slot);
-        return effectiveSlot.container instanceof Inventory
-            && effectiveSlot.getContainerSlot() >= 9
-            && effectiveSlot.getContainerSlot() < 36;
+    private static List<Slot> exactPlayerSlots(List<Slot> slots, int first, int end) {
+        List<Slot> matching = slots.stream()
+            .filter(slot -> playerInventoryIndex(slot) >= first && playerInventoryIndex(slot) < end)
+            .toList();
+        if (matching.size() != end - first) {
+            return List.of();
+        }
+        boolean[] seen = new boolean[end - first];
+        for (Slot slot : matching) {
+            int index = playerInventoryIndex(slot) - first;
+            if (seen[index]) {
+                return List.of();
+            }
+            seen[index] = true;
+        }
+        return sortSlotsForLayout(matching);
     }
 
     private static Slot unwrapCreativeSlot(Slot slot) {
@@ -1096,14 +1085,6 @@ public class QuickSort implements ClientModInitializer {
             );
         } catch (Exception ignored) {
         }
-    }
-
-    private static Map<Integer, List<Slot>> groupSlotsByY(List<Slot> slots) {
-        Map<Integer, List<Slot>> rows = new HashMap<>();
-        for (Slot slot : slots) {
-            rows.computeIfAbsent(slot.y, ignored -> new ArrayList<>()).add(slot);
-        }
-        return rows;
     }
 
     private static List<Slot> sortSlotsForLayout(List<Slot> slots) {

@@ -1122,28 +1122,12 @@ public final class QuickCraftWorkbenchShulkerCraft implements ClientModInitializ
         if (capturedRecipe) {
             List<ItemStack> capturedRemainders;
             try {
-                //#if MC<12103
                 capturedRemainders = snapshotRemainderPattern(currentRecipe, handler);
-                //#elseif MC<12105
-                //$$ CraftingRecipeInput input = createInput(handler);
-                //$$ capturedRemainders = CraftingRecipe.collectRecipeRemainders(input);
-                //#else
-                //$$ CraftingRecipeInput input = createInput(handler);
-                //$$ capturedRemainders = currentRecipe != null
-                //$$         ? currentRecipe.value().getRecipeRemainders(input)
-                //$$         : CraftingRecipe.collectRecipeRemainders(input);
-                //#endif
             } catch (Throwable throwable) {
                 sendMessage(client, Text.translatable("quickcraft.message.crafting.shulker_grid_desync"));
                 return false;
             }
             boolean capturedHasRemainder = containsRemainder(capturedRemainders);
-            //#if MC>=12103
-            //$$ if (capturedHasRemainder) {
-            //$$     sendMessage(client, Text.translatable("quickcraft.message.crafting.shulker_recipe_remainder"));
-            //$$     return false;
-            //$$ }
-            //#endif
             //#if MC<12103
             recipe = currentRecipe;
             //#elseif MC<12105
@@ -1158,7 +1142,8 @@ public final class QuickCraftWorkbenchShulkerCraft implements ClientModInitializ
             snapshotSyncId = handler.syncId;
         }
         //#if MC>=12103
-        //$$ else if (recipeHasRemainder || hasRemainder(currentRecipe, handler)) {
+        //$$ else if ((recipeHasRemainder && !isPatternGridCompatible(handler))
+        //$$         || (!recipeHasRemainder && hasRemainder(currentRecipe, handler))) {
         //$$     sendMessage(client, Text.translatable("quickcraft.message.crafting.shulker_recipe_remainder"));
         //$$     return false;
         //$$ }
@@ -1425,17 +1410,23 @@ public final class QuickCraftWorkbenchShulkerCraft implements ClientModInitializ
         //#endif
     }
 
-    //#if MC<12103
     private List<ItemStack> snapshotRemainderPattern(RecipeEntry<CraftingRecipe> currentRecipe,
                                                      CraftingScreenHandler handler) {
         CraftingRecipeInput.Positioned positioned = CraftingRecipeInput.createPositioned(
                 3, 3, snapshotPattern(handler));
         CraftingRecipeInput input = positioned.input();
+        //#if MC<12103
         List<ItemStack> recipeRemainders = currentRecipe.value().getRemainder(input);
+        //#elseif MC<12105
+        //$$ List<ItemStack> recipeRemainders = CraftingRecipe.collectRecipeRemainders(input);
+        //#else
+        //$$ List<ItemStack> recipeRemainders = currentRecipe != null
+        //$$         ? currentRecipe.value().getRecipeRemainders(input)
+        //$$         : CraftingRecipe.collectRecipeRemainders(input);
+        //#endif
         return expandRemainderPattern(recipeRemainders, input.getWidth(), input.getHeight(),
                 positioned.left(), positioned.top());
     }
-    //#endif
 
     static List<ItemStack> expandRemainderPattern(List<ItemStack> compactRemainders,
                                                    int width,
