@@ -1,5 +1,6 @@
 package com.yiyihehe.quickcraft.mixin;
 
+import com.yiyihehe.quickcraft.QuickClientScreenAccess;
 import com.yiyihehe.quickcraft.render.QuickDraggableButton;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 import net.minecraft.client.input.MouseButtonEvent;
@@ -30,9 +31,7 @@ public abstract class QuickDraggableButtonScreenMixin {
         }
         if (event.button() == 0 && actionButton.isPositionDragging()) {
             boolean handled = actionButton.mouseReleased(event);
-            //#if MC<260200
-            screen.clearDraggingState();
-            //#endif
+            QuickClientScreenAccess.clearDraggingState(screen);
             cir.setReturnValue(handled);
         } else if (event.button() == 1 && actionButton.consumeRightRelease()) {
             cir.setReturnValue(true);

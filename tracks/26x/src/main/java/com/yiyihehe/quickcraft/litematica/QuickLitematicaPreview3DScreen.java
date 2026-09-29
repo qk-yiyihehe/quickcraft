@@ -3,6 +3,7 @@ package com.yiyihehe.quickcraft.litematica;
 //#if MC>=260300
 //$$ import com.mojang.blaze3d.Blaze3D;
 //#endif
+import com.yiyihehe.quickcraft.QuickClientScreenAccess;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.components.Button;
@@ -594,11 +595,7 @@ public final class QuickLitematicaPreview3DScreen extends Screen {
     }
 
     private static void setScreen(Minecraft client, Screen screen) {
-        //#if MC<260200
-        client.setScreen(screen);
-        //#else
-        //$$ client.gui.setScreen(screen);
-        //#endif
+        QuickClientScreenAccess.setScreen(client, screen);
     }
 
     private enum Background {

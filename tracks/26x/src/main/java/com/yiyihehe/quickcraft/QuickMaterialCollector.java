@@ -1597,11 +1597,7 @@ public final class QuickMaterialCollector implements ClientModInitializer {
     }
 
     private static void clearCurrentScreen(Minecraft client) {
-        //#if MC<260200
-        client.setScreen(null);
-        //#else
-        //$$ client.gui.setScreen(null);
-        //#endif
+        QuickClientScreenAccess.setScreen(client, null);
     }
 
     private enum CollectionStage {
