@@ -197,14 +197,15 @@ public final class QuickLitematicaContainerVerifier {
         EntityDataManager storage = EntityDataManager.getInstance();
         CompoundTag cachedNbt = storage.getCache().getBlockEntityNbtFromCache(pos);
 
-        if (cachedNbt != null && !cachedNbt.contains("Items") && expected != null && isInventoryEmpty(expected)) {
+        if (cachedNbt != null && !cachedNbt.contains("Items") && !cachedNbt.contains("RecordItem")
+                && expected != null && isInventoryEmpty(expected)) {
             // 服务器空容器 NBT 可能只带 x/y/z/id，没有 Items；这表示已读到空库存。
             trustedInventoryCache.put(pos.immutable(), new SimpleContainer(expected.getContainerSize()));
             lastActualInventoryReadStatus = ActualInventoryReadStatus.CACHE_INVENTORY;
             return new SimpleContainer(expected.getContainerSize());
         }
 
-        if (cachedNbt != null && (cachedNbt.contains("Items") || isInventoryEmpty(expected))) {
+        if (cachedNbt != null && (cachedNbt.contains("Items") || cachedNbt.contains("RecordItem") || isInventoryEmpty(expected))) {
             Container cachedInventory = getCachedInventory(world, pos, storage, expected != null ? expected.getContainerSize() : -1);
 
             if (cachedInventory != null && isTrustedCachedInventory(storage, pos, cachedNbt, cachedInventory, expected)) {
@@ -268,13 +269,14 @@ public final class QuickLitematicaContainerVerifier {
             return null;
         }
 
+        ItemStack recordStack = cachedNbt.getCompound("RecordItem")
+                .map(nbt -> itemStackFromNbt(world.registryAccess(), nbt))
+                .orElse(ItemStack.EMPTY);
+        if (recordStack.isEmpty()) {
+            return null;
+        }
         SimpleContainer inventory = new SimpleContainer(1);
-        inventory.setItem(
-                0,
-                cachedNbt.getCompound("RecordItem")
-                        .map(nbt -> itemStackFromNbt(world.registryAccess(), nbt))
-                        .orElse(ItemStack.EMPTY)
-        );
+        inventory.setItem(0, recordStack);
         return inventory;
     }
 
