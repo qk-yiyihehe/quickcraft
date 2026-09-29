@@ -9,11 +9,7 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
-//#if MC>=260300
-//$$ import com.mojang.blaze3d.platform.InputConstants;
-//#else
-import org.lwjgl.glfw.GLFW;
-//#endif
+import com.yiyihehe.quickcraft.QuickCraftKeyBindingsAccess;
 
 /**
  * 通用槽位锁覆盖层。
@@ -36,11 +32,7 @@ public abstract class QuickContainerLockScreenMixin {
         AbstractContainerScreen<?> screen = (AbstractContainerScreen<?>) (Object) this;
         HandledScreenAccessor accessor = (HandledScreenAccessor) this;
         QuickContainerLock.bindCurrentScreen(screen);
-        //#if MC>=260300
-        //$$ if (click.button() == InputConstants.MOUSE_BUTTON_RIGHT) {
-        //#else
-        if (click.button() == GLFW.GLFW_MOUSE_BUTTON_RIGHT) {
-        //#endif
+        if (click.button() == QuickCraftKeyBindingsAccess.rightMouseButton()) {
             QuickContainerLock.prepareQuickShulkerOpen(
                     screen,
                     click.x(),
