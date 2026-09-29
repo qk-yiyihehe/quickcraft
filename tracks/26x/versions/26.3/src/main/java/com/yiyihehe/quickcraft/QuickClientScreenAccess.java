@@ -27,4 +27,8 @@ public final class QuickClientScreenAccess {
     public static void openPath(Path path) {
         Blaze3D.openPath(path);
     }
+
+    public static boolean isHudHidden(Minecraft client) {
+        return client.gui.hud.isHidden();
+    }
 }

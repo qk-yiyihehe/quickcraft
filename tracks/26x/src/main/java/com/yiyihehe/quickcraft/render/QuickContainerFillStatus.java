@@ -10,13 +10,6 @@ import net.fabricmc.fabric.api.client.rendering.v1.level.LevelRenderEvents;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.multiplayer.ClientLevel;
-//#if MC<260200
-import net.minecraft.client.renderer.ShapeRenderer;
-import net.minecraft.client.renderer.rendertype.RenderTypes;
-//#else
-//$$ import net.minecraft.gizmos.GizmoStyle;
-//$$ import net.minecraft.gizmos.Gizmos;
-//#endif
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.Identifier;
@@ -29,9 +22,6 @@ import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.phys.EntityHitResult;
 import net.minecraft.world.phys.HitResult;
 import net.minecraft.world.phys.Vec3;
-//#if MC<260200
-import net.minecraft.world.phys.shapes.Shapes;
-//#endif
 
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -140,59 +130,16 @@ public final class QuickContainerFillStatus {
 
     private static void renderWorld(LevelRenderContext context) {
         Minecraft client = Minecraft.getInstance();
-        //#if MC<260200
-        if (!isAvailable(client) || context.poseStack() == null || MARKERS.isEmpty()) {
-        //#else
-        //$$ if (!isAvailable(client) || MARKERS.isEmpty()) {
-        //#endif
+        if (!isAvailable(client) || MARKERS.isEmpty()) {
             return;
         }
         Vec3 camera = context.levelState().cameraRenderState.pos;
-        //#if MC<260200
-        context.poseStack().pushPose();
-        context.poseStack().translate(-camera.x, -camera.y, -camera.z);
-        //#else
-        //$$ // 26.2 的 gizmo 收集发生在 BEFORE_GIZMOS 后，必须在此阶段提交世界坐标轮廓。
-        //$$ try (Gizmos.TemporaryCollection ignored = client.levelRenderer.collectPerFrameRenderThreadGizmos()) {
-        //#endif
-        for (Map.Entry<Target, Marker> entry : MARKERS.entrySet()) {
-            AABB box = entry.getKey().box(client.level);
-            if (box == null || box.getCenter().distanceToSqr(camera) > MAX_RENDER_DISTANCE_SQUARED) {
-                continue;
-            }
-            Status status = entry.getValue().status;
-            // 0.2 个方块像素等于 0.0125 格；仅微抬底边，其余边略微外移以避免贴面闪烁。
-            AABB outline = new AABB(
-                    box.minX - 0.01, box.minY + 0.0125, box.minZ - 0.01,
-                    box.maxX + 0.01, box.maxY + 0.01, box.maxZ + 0.01
-            );
-            int color = 0xF2000000
-                    | ((int) (status.red * 255) << 16)
-                    | ((int) (status.green * 255) << 8)
-                    | (int) (status.blue * 255);
-            //#if MC<260200
-            ShapeRenderer.renderShape(context.poseStack(),
-                    context.bufferSource().getBuffer(RenderTypes.linesTranslucent()),
-                    Shapes.create(outline), 0, 0, 0, color, client.getWindow().getAppropriateLineWidth());
-            //#else
-            //$$ Gizmos.cuboid(outline, GizmoStyle.stroke(color, client.getWindow().getAppropriateLineWidth()));
-            //#endif
-        }
-        //#if MC<260200
-        context.poseStack().popPose();
-        //#else
-        //$$ }
-        //#endif
+        QuickContainerFillStatusAccess.renderWorld(context, client, camera, MARKERS, MAX_RENDER_DISTANCE_SQUARED);
     }
-
     private static void renderHud(GuiGraphicsExtractor graphics) {
         Minecraft client = Minecraft.getInstance();
         if (!isAvailable(client) || QuickClientScreenAccess.currentScreen(client) != null
-                //#if MC<260200
-                || client.options.hideGui) {
-                //#else
-                //$$ || client.gui.hud.isHidden()) {
-                //#endif
+                || QuickClientScreenAccess.isHudHidden(client)) {
             return;
         }
         Marker marker = MARKERS.get(Target.from(client.level, client.hitResult));
@@ -213,7 +160,7 @@ public final class QuickContainerFillStatus {
         graphics.text(client.font, label, x, y, marker.status.textColor, true);
     }
 
-    private record Target(BlockPos blockPos, int entityId) {
+    record Target(BlockPos blockPos, int entityId) {
         private static Target from(ClientLevel world, HitResult hitResult) {
             if (hitResult instanceof BlockHitResult blockHitResult) {
                 BlockPos pos = blockHitResult.getBlockPos();
@@ -237,7 +184,7 @@ public final class QuickContainerFillStatus {
             return null;
         }
 
-        private AABB box(ClientLevel world) {
+        AABB box(ClientLevel world) {
             if (blockPos != null) {
                 BlockState state = world.getBlockState(blockPos);
                 if (state.isAir()) {
@@ -261,8 +208,8 @@ public final class QuickContainerFillStatus {
         }
     }
 
-    private static final class Marker {
-        private Status status;
+    static final class Marker {
+        Status status;
         private int pendingIssues;
         private long expiresAt;
 
@@ -273,16 +220,16 @@ public final class QuickContainerFillStatus {
         }
     }
 
-    private enum Status {
+    enum Status {
         FILLING(0.20F, 0.65F, 1.00F, 0xFF55B5FF),
         COMPLETE(0.30F, 0.95F, 0.35F, 0xFF76EE88),
         PARTIAL(1.00F, 0.75F, 0.15F, 0xFFFFD05E),
         STOPPED(0.65F, 0.70F, 0.75F, 0xFFB3BEC9),
         FAILED(1.00F, 0.30F, 0.30F, 0xFFFF7777);
 
-        private final float red;
-        private final float green;
-        private final float blue;
+        final float red;
+        final float green;
+        final float blue;
         private final int textColor;
 
         Status(float red, float green, float blue, int textColor) {
