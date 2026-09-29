@@ -3,7 +3,11 @@ package com.yiyihehe.quickcraft;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
+import net.minecraft.util.Util;
 
+import java.nio.file.Path;
+
+/** 26.2 客户端屏幕与系统交互适配。 */
 public final class QuickClientScreenAccess {
     private QuickClientScreenAccess() {
     }
@@ -18,5 +22,9 @@ public final class QuickClientScreenAccess {
 
     public static void clearDraggingState(AbstractContainerScreen<?> screen) {
         // 26.2+ 原版 AbstractContainerScreen 无 clearDraggingState()，拖拽状态由新版事件模型管理
+    }
+
+    public static void openPath(Path path) {
+        Util.getPlatform().openPath(path);
     }
 }
