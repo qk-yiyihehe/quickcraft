@@ -152,3 +152,12 @@ publishing {
 		}
 	}
 }
+
+def quickcraftSidebarTasks = ['build', 'clean', 'runClient', 'runServer'] as Set
+gradle.projectsEvaluated {
+	tasks.configureEach { task ->
+		if (!quickcraftSidebarTasks.contains(task.name)) {
+			task.group = null
+		}
+	}
+}

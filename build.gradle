@@ -34,6 +34,7 @@ preprocess {
 def minecraft121Projects = versionMatrix.tracks['1.21x'].versions.collect { ":${it.project}" }
 def minecraft26Projects = versionMatrix.tracks['26x'].versions.collect { project(":${it.project}") }
 def minecraft26Build = gradle.includedBuild('quickcraft-26x')
+def quickcraftSidebarTasks = ['build', 'clean', 'runClient', 'runServer'] as Set
 
 minecraft26Projects.each { proxyProject ->
 	[
@@ -47,6 +48,16 @@ minecraft26Projects.each { proxyProject ->
 			group = taskSpec.group
 			description = taskSpec.description
 			dependsOn minecraft26Build.task(":${proxyProject.name}:${taskName}")
+		}
+	}
+}
+
+gradle.projectsEvaluated {
+	minecraft26Projects.each { proxyProject ->
+		proxyProject.tasks.configureEach { task ->
+			if (!quickcraftSidebarTasks.contains(task.name)) {
+				task.group = null
+			}
 		}
 	}
 }
