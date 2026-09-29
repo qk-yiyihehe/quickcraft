@@ -962,11 +962,7 @@ public class QuickSort implements ClientModInitializer {
 
     private static StorageContentsSortKey getBundleContentsSortKey(ItemStack stack) {
         BundleContents bundleContents = stack.getOrDefault(DataComponents.BUNDLE_CONTENTS, BundleContents.EMPTY);
-        //#if MC<260300
-        return buildStorageContentsSortKey(bundleContents.itemCopyStream().toList());
-        //#else
-        //$$ return buildStorageContentsSortKey(bundleContents.itemCopies().toList());
-        //#endif
+        return buildStorageContentsSortKey(QuickSortBundleAccess.itemCopies(bundleContents));
     }
 
     private static StorageContentsSortKey buildStorageContentsSortKey(Iterable<ItemStack> storedStacks) {
