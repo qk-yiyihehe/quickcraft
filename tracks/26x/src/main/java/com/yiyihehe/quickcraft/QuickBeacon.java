@@ -331,17 +331,14 @@ public final class QuickBeacon implements ClientModInitializer {
 
     private List<BeaconEffectTarget> parseConfiguredTargets(Minecraft client) {
         List<BeaconEffectTarget> targets = new ArrayList<>();
+        boolean allowRegenerationTwo = QuickBeaconEffectAccess.allowRegenerationTwo(client);
 
         for (String raw : QuickCraftConfigs.getBeaconEffectOrderStrings()) {
             if (targets.size() >= MAX_EFFECT_ORDER_SIZE) {
                 break;
             }
 
-            //#if MC<260200
-            BeaconEffectTarget target = parseTarget(raw, true);
-            //#else
-            //$$ BeaconEffectTarget target = parseTarget(raw, !client.isMultiplayerServer());
-            //#endif
+            BeaconEffectTarget target = parseTarget(raw, allowRegenerationTwo);
             if (target != null) {
                 targets.add(target);
             }
@@ -360,11 +357,9 @@ public final class QuickBeacon implements ClientModInitializer {
             return null;
         }
 
-        //#if MC>=260200
-        //$$ if (isRegenerationOneName(normalized)) {
-        //$$     return BeaconEffectTarget.regeneration(allowRegenerationTwo);
-        //$$ }
-        //#endif
+        if (QuickBeaconEffectAccess.isRegenerationOneName(normalized)) {
+            return QuickBeaconEffectAccess.regenerationTarget(allowRegenerationTwo);
+        }
 
         if (normalized.endsWith("ii")) {
             normalized = normalized.substring(0, normalized.length() - 2);
@@ -375,11 +370,8 @@ public final class QuickBeacon implements ClientModInitializer {
         return switch (normalized) {
             case "haste", "急迫", "挖掘急迫" -> BeaconEffectTarget.levelTwo(MobEffects.HASTE);
             case "strength", "力量" -> BeaconEffectTarget.levelTwo(MobEffects.STRENGTH);
-            //#if MC<260200
-            case "regeneration", "regen", "生命恢复", "恢复" -> BeaconEffectTarget.levelTwo(MobEffects.REGENERATION);
-            //#else
-            //$$ case "regeneration", "regen", "生命恢复", "恢复" -> BeaconEffectTarget.regeneration(allowRegenerationTwo);
-            //#endif
+            case "regeneration", "regen", "生命恢复", "恢复" ->
+                    QuickBeaconEffectAccess.regenerationTarget(allowRegenerationTwo);
             case "jumpboost", "jump", "跳跃提升", "跳跃" -> BeaconEffectTarget.levelTwo(MobEffects.JUMP_BOOST);
             case "speed", "迅捷" -> BeaconEffectTarget.levelTwo(MobEffects.SPEED);
             case "resistance", "抗性", "抗性提升" -> BeaconEffectTarget.levelTwo(MobEffects.RESISTANCE);
@@ -397,13 +389,6 @@ public final class QuickBeacon implements ClientModInitializer {
                 .replace(" ", "")
                 .replace("_", "")
                 .replace("-", "");
-    }
-
-    private boolean isRegenerationOneName(String normalized) {
-        return switch (normalized) {
-            case "regeneration1", "regenerationi", "regen1", "regeni", "生命恢复1", "恢复1" -> true;
-            default -> false;
-        };
     }
 
     private boolean playerHasTargetEffect(Minecraft client, BeaconEffectTarget target) {
@@ -805,17 +790,17 @@ public final class QuickBeacon implements ClientModInitializer {
         WAIT_REOPEN
     }
 
-    private record BeaconEffectTarget(
+    record BeaconEffectTarget(
             Holder<MobEffect> primary,
             Holder<MobEffect> secondary,
             Holder<MobEffect> effect,
             int minimumAmplifier
     ) {
-        private static BeaconEffectTarget levelTwo(Holder<MobEffect> effect) {
+        static BeaconEffectTarget levelTwo(Holder<MobEffect> effect) {
             return new BeaconEffectTarget(effect, effect, effect, 1);
         }
 
-        private static BeaconEffectTarget regeneration(boolean levelTwo) {
+        static BeaconEffectTarget regeneration(boolean levelTwo) {
             return levelTwo
                     ? levelTwo(MobEffects.REGENERATION)
                     : new BeaconEffectTarget(MobEffects.HASTE, MobEffects.REGENERATION, MobEffects.REGENERATION, 0);
