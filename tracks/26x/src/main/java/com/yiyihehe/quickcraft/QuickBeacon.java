@@ -90,11 +90,7 @@ public final class QuickBeacon implements ClientModInitializer {
 
         boolean useDown = QuickCraftKeyBindings.isVanillaKeyDown(client, client.options.keyUse);
         BlockHitResult beaconHitResult = getLookedAtBeaconHitResult(client);
-        //#if MC<260200
-        boolean noScreenOpen = client.screen == null;
-        //#else
-        //$$ boolean noScreenOpen = client.gui.screen() == null;
-        //#endif
+        boolean noScreenOpen = QuickClientScreenAccess.currentScreen(client) == null;
         if (useDown && !lastUseDown && noScreenOpen && beaconHitResult != null) {
             pendingBeaconPos = beaconHitResult.getBlockPos().immutable();
             pendingBeaconHitResult = beaconHitResult;
@@ -124,11 +120,7 @@ public final class QuickBeacon implements ClientModInitializer {
     }
 
     private void processBeaconOpenState(Minecraft client) {
-        //#if MC<260200
-        Object currentScreen = client.screen;
-        //#else
-        //$$ Object currentScreen = client.gui.screen();
-        //#endif
+        Object currentScreen = QuickClientScreenAccess.currentScreen(client);
         if (!(currentScreen instanceof AbstractContainerScreen<?> screen)) {
             if (pendingTicks > OPEN_TIMEOUT_TICKS) {
                 clearPendingState();
@@ -303,11 +295,7 @@ public final class QuickBeacon implements ClientModInitializer {
     }
 
     private boolean isPlayerCraftingHandlerReady(Minecraft client) {
-        //#if MC<260200
-        boolean noScreenOpen = client.screen == null;
-        //#else
-        //$$ boolean noScreenOpen = client.gui.screen() == null;
-        //#endif
+        boolean noScreenOpen = QuickClientScreenAccess.currentScreen(client) == null;
         return client.player != null
                 && noScreenOpen
                 && client.player.containerMenu == client.player.inventoryMenu;

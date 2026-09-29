@@ -1,6 +1,7 @@
 package com.yiyihehe.quickcraft.gui;
 
 import com.yiyihehe.quickcraft.QuickCraft;
+import com.yiyihehe.quickcraft.QuickClientScreenAccess;
 import com.yiyihehe.quickcraft.config.QuickCraftConfigs;
 import fi.dy.masa.malilib.config.IConfigBase;
 import fi.dy.masa.malilib.gui.GuiConfigsBase;
@@ -42,11 +43,7 @@ public class QuickCraftConfigScreen extends GuiConfigsBase {
     }
 
     public static boolean isOpen(Minecraft client) {
-        //#if MC<260200
-        return client != null && client.screen instanceof QuickCraftConfigScreen;
-        //#else
-        //$$ return client != null && client.gui.screen() instanceof QuickCraftConfigScreen;
-        //#endif
+        return client != null && QuickClientScreenAccess.currentScreen(client) instanceof QuickCraftConfigScreen;
     }
 
     @Override

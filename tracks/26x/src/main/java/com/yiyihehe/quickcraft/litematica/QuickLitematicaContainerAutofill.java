@@ -1,6 +1,7 @@
 package com.yiyihehe.quickcraft.litematica;
 
 import com.yiyihehe.quickcraft.QuickContainerCopy;
+import com.yiyihehe.quickcraft.QuickClientScreenAccess;
 import com.yiyihehe.quickcraft.QuickCraftKeyBindings;
 import com.yiyihehe.quickcraft.config.QuickCraftConfigs;
 import com.yiyihehe.quickcraft.render.QuickContainerFillStatus;
@@ -199,10 +200,6 @@ public final class QuickLitematicaContainerAutofill implements ClientModInitiali
     }
 
     private static Screen currentScreen(Minecraft client) {
-        //#if MC<260200
-        return client.screen;
-        //#else
-        //$$ return client.gui.screen();
-        //#endif
+        return QuickClientScreenAccess.currentScreen(client);
     }
 }

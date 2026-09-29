@@ -1,5 +1,6 @@
 package com.yiyihehe.quickcraft.render;
 
+import com.yiyihehe.quickcraft.QuickClientScreenAccess;
 import com.yiyihehe.quickcraft.config.QuickCraftConfigs;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.fabric.api.client.rendering.v1.hud.HudElementRegistry;
@@ -186,11 +187,12 @@ public final class QuickContainerFillStatus {
 
     private static void renderHud(GuiGraphicsExtractor graphics) {
         Minecraft client = Minecraft.getInstance();
-        //#if MC<260200
-        if (!isAvailable(client) || client.screen != null || client.options.hideGui) {
-        //#else
-        //$$ if (!isAvailable(client) || client.gui.screen() != null || client.gui.hud.isHidden()) {
-        //#endif
+        if (!isAvailable(client) || QuickClientScreenAccess.currentScreen(client) != null
+                //#if MC<260200
+                || client.options.hideGui) {
+                //#else
+                //$$ || client.gui.hud.isHidden()) {
+                //#endif
             return;
         }
         Marker marker = MARKERS.get(Target.from(client.level, client.hitResult));

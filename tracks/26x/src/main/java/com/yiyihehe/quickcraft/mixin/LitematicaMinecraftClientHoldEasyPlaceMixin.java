@@ -1,5 +1,6 @@
 package com.yiyihehe.quickcraft.mixin;
 
+import com.yiyihehe.quickcraft.QuickClientScreenAccess;
 import com.yiyihehe.quickcraft.config.QuickCraftConfigs;
 import com.yiyihehe.quickcraft.litematica.QuickLitematicaEasyPlaceInteractions;
 import fi.dy.masa.litematica.config.Configs;
@@ -24,11 +25,7 @@ public abstract class LitematicaMinecraftClientHoldEasyPlaceMixin {
         Minecraft client = (Minecraft) (Object) this;
 
         if (!QuickCraftConfigs.isHoldEasyPlaceEnabled()
-                //#if MC<260200
-                || client.screen != null
-                //#else
-                //$$ || client.gui.screen() != null
-                //#endif
+                || QuickClientScreenAccess.currentScreen(client) != null
                 || client.player == null
                 || client.level == null
                 || !Configs.Generic.EASY_PLACE_MODE.getBooleanValue()

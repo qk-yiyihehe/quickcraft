@@ -1,5 +1,6 @@
 package com.yiyihehe.quickcraft.litematica;
 
+import com.yiyihehe.quickcraft.QuickClientScreenAccess;
 import com.yiyihehe.quickcraft.config.QuickCraftConfigs;
 import fi.dy.masa.litematica.config.Configs;
 import fi.dy.masa.litematica.data.DataManager;
@@ -209,11 +210,7 @@ public final class QuickLitematicaShulkerMaterialRestock implements ClientModIni
     }
 
     private static boolean hasOpenScreen(Minecraft client) {
-        //#if MC<260200
-        return client.screen != null;
-        //#else
-        //$$ return client.gui.screen() != null;
-        //#endif
+        return QuickClientScreenAccess.currentScreen(client) != null;
     }
 
     private static boolean startPendingRequest(Minecraft client) {

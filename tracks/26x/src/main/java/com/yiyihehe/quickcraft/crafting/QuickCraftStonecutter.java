@@ -1,6 +1,7 @@
 package com.yiyihehe.quickcraft.crafting;
 
 import com.yiyihehe.quickcraft.QuickCraftKeyBindings;
+import com.yiyihehe.quickcraft.QuickClientScreenAccess;
 import com.yiyihehe.quickcraft.QuickContainerLock;
 import com.yiyihehe.quickcraft.config.QuickCraftConfigs;
 import net.fabricmc.api.ClientModInitializer;
@@ -898,11 +899,7 @@ public class QuickCraftStonecutter implements ClientModInitializer {
             return false;
         }
 
-        //#if MC<260200
-        if (!(client.screen instanceof StonecutterScreen)) {
-        //#else
-        //$$ if (!(client.gui.screen() instanceof StonecutterScreen)) {
-        //#endif
+        if (!(QuickClientScreenAccess.currentScreen(client) instanceof StonecutterScreen)) {
             return false;
         }
 

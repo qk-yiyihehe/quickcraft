@@ -38,8 +38,14 @@ public final class QuickCraftMouseCraftAckExecutor {
     private static final int MAX_DRAIN_RETRIES = 3;
     private static final int MAX_AUTHORITATIVE_CURSOR_RECOVERIES = 1;
     private static final int MAX_PICKUP_WAIT_TICKS = 10;
+    private static final int MAX_OUTPUT_THROW_BURST = 64;
     private static QuickCraftMouseCraftAckExecutor activeExecutor;
     private static final List<CanceledBatchDrain> CANCELED_BATCH_DRAINS = new ArrayList<>();
+
+    static int plannedOutputBurst(int[] gridCounts, boolean[] requiredSlots) {
+        return Math.max(1, Math.min(MAX_OUTPUT_THROW_BURST,
+                maximumCraftsFromGridCounts(gridCounts, requiredSlots)));
+    }
 
     private final QuickCraftMouseCraftLayout.Layout layout;
     private final LegacyFallbackHandler fallbackHandler;

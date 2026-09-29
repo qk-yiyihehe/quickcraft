@@ -1,6 +1,7 @@
 package com.yiyihehe.quickcraft.litematica;
 
 import com.yiyihehe.quickcraft.QuickFreeCameraInteractions;
+import com.yiyihehe.quickcraft.QuickClientScreenAccess;
 import com.yiyihehe.quickcraft.config.QuickCraftConfigs;
 import fi.dy.masa.litematica.config.Configs;
 import fi.dy.masa.litematica.util.RayTraceUtils;
@@ -44,11 +45,7 @@ public final class QuickLitematicaEasyPlaceInteractions {
                 || client == null
                 || client.player == null
                 || client.level == null
-                //#if MC<260200
-                || client.screen != null) {
-                //#else
-                //$$ || client.gui.screen() != null) {
-                //#endif
+                || QuickClientScreenAccess.currentScreen(client) != null) {
             return false;
         }
 

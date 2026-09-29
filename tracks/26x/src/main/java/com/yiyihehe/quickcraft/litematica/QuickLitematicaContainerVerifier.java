@@ -2,6 +2,7 @@ package com.yiyihehe.quickcraft.litematica;
 
 import com.chocohead.mm.api.ClassTinkerers;
 import com.yiyihehe.quickcraft.QuickContainerCopy;
+import com.yiyihehe.quickcraft.QuickClientScreenAccess;
 import com.yiyihehe.quickcraft.config.QuickCraftConfigs;
 import net.fabricmc.loader.api.FabricLoader;
 import fi.dy.masa.litematica.config.Configs;
@@ -855,11 +856,7 @@ public final class QuickLitematicaContainerVerifier {
     private static void bindCurrentScreen(AbstractContainerScreen<?> screen) {
         Minecraft client = Minecraft.getInstance();
 
-        //#if MC<260200
-        if (client.screen != screen) {
-        //#else
-        //$$ if (client.gui.screen() != screen) {
-        //#endif
+        if (QuickClientScreenAccess.currentScreen(client) != screen) {
             return;
         }
         if (currentHandledScreen != screen) {

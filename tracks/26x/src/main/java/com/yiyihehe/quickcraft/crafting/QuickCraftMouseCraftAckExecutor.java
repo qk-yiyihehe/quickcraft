@@ -1,5 +1,6 @@
 package com.yiyihehe.quickcraft.crafting;
 
+import com.yiyihehe.quickcraft.QuickClientScreenAccess;
 import com.yiyihehe.quickcraft.config.QuickCraftConfigs;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.multiplayer.ClientPacketListener;
@@ -1121,11 +1122,7 @@ public final class QuickCraftMouseCraftAckExecutor {
                 && client.getConnection() != null
                 && client.player.containerMenu == current.handler
                 && current.handler.containerId == current.containerId
-                //#if MC<260200
-                && QuickCraftMouseCraftLayout.fromScreen(client.screen) == layout;
-                //#else
-                //$$ && QuickCraftMouseCraftLayout.fromScreen(client.gui.screen()) == layout;
-                //#endif
+                && QuickCraftMouseCraftLayout.fromScreen(QuickClientScreenAccess.currentScreen(client)) == layout;
     }
 
     private boolean parkCursor(Minecraft client, AbstractContainerMenu handler, String phase) {
