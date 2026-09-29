@@ -1,0 +1,139 @@
+package com.yiyihehe.quickcraft.mixin;
+
+import com.mojang.blaze3d.pipeline.RenderPipeline;
+import com.yiyihehe.quickcraft.config.QuickCraftConfigs;
+import com.yiyihehe.quickcraft.litematica.QuickLitematicaPreview3D;
+import fi.dy.masa.litematica.gui.GuiSchematicBrowserBase;
+import fi.dy.masa.litematica.gui.Icons;
+import fi.dy.masa.litematica.gui.widgets.WidgetSchematicBrowser;
+import fi.dy.masa.litematica.schematic.SchematicMetadata;
+import fi.dy.masa.litematica.util.FileType;
+import fi.dy.masa.malilib.gui.interfaces.IDirectoryCache;
+import fi.dy.masa.malilib.gui.interfaces.ISelectionListener;
+import fi.dy.masa.malilib.gui.widgets.WidgetFileBrowserBase;
+import fi.dy.masa.malilib.render.GuiContext;
+import fi.dy.masa.malilib.render.RenderUtils;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.Map;
+import net.minecraft.resources.Identifier;
+import org.jetbrains.annotations.Nullable;
+import org.spongepowered.asm.mixin.Final;
+import org.spongepowered.asm.mixin.Mixin;
+import org.spongepowered.asm.mixin.Shadow;
+import org.spongepowered.asm.mixin.injection.At;
+import org.spongepowered.asm.mixin.injection.Inject;
+import org.spongepowered.asm.mixin.injection.Redirect;
+import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
+
+@Mixin(value = WidgetSchematicBrowser.class, remap = false)
+public abstract class LitematicaWidgetSchematicBrowserMixin extends WidgetFileBrowserBase {
+    @Shadow
+    @Final
+    protected GuiSchematicBrowserBase parent;
+
+    @Shadow
+    @Final
+    protected int infoWidth;
+
+    @Shadow
+    @Final
+    protected int infoHeight;
+
+    @Shadow
+    @Final
+    protected Map<Path, SchematicMetadata> cachedMetadata;
+
+    protected LitematicaWidgetSchematicBrowserMixin(
+            int x,
+            int y,
+            int width,
+            int height,
+            IDirectoryCache cache,
+            String browserContext,
+            Path defaultDirectory,
+            @Nullable ISelectionListener<DirectoryEntry> selectionListener
+    ) {
+        super(x, y, width, height, cache, browserContext, defaultDirectory, selectionListener, Icons.FILE_ICON_LITEMATIC);
+    }
+
+    @Inject(method = "drawSelectedSchematicInfo", at = @At("TAIL"), remap = false)
+    private void quickcraft$draw3DPreview(GuiContext drawContext, @Nullable DirectoryEntry entry, CallbackInfo ci) {
+        int infoX = this.posX + this.totalWidth - this.infoWidth;
+        int infoY = this.posY;
+        int height = Math.min(this.infoHeight, this.parent.getMaxInfoHeight());
+        int size = Math.max(1, Math.min(this.infoWidth - 32, Math.max(48, height - 152)));
+        int x = infoX + (this.infoWidth - size) / 2;
+        int y = infoY + height - size - 8;
+
+        SchematicMetadata metadata = entry == null ? null : this.cachedMetadata.get(entry.getFullPath());
+        int[] previewPixels = metadata == null ? null : metadata.getPreviewImagePixelData();
+        int previewSize = previewPixels == null ? 0 : (int) Math.sqrt(previewPixels.length);
+        boolean hasEmbeddedPreview = previewPixels != null
+                && previewPixels.length > 0
+                && previewSize * previewSize == previewPixels.length;
+        QuickLitematicaPreview3D.render(this.parent, entry, hasEmbeddedPreview, drawContext, x, y, size);
+    }
+
+    @Redirect(
+            method = "drawSelectedSchematicInfo",
+            at = @At(
+                    value = "INVOKE",
+                    target = "Lfi/dy/masa/malilib/render/GuiContext;blit(Lcom/mojang/blaze3d/pipeline/RenderPipeline;Lnet/minecraft/resources/Identifier;IIFFIIII)V"
+            )
+    )
+    private void quickcraft$skipVanillaPreviewWhen3DEnabled(
+            GuiContext drawContext,
+            RenderPipeline renderPipeline,
+            Identifier texture,
+            int x,
+            int y,
+            float u,
+            float v,
+            int width,
+            int height,
+            int textureWidth,
+            int textureHeight
+    ) {
+        if (this.quickcraft$shouldReplaceNativePreview()) {
+            return;
+        }
+
+        drawContext.blit(renderPipeline, texture, x, y, u, v, width, height, textureWidth, textureHeight);
+    }
+
+    @Redirect(
+            method = "drawSelectedSchematicInfo",
+            at = @At(
+                    value = "INVOKE",
+                    target = "Lfi/dy/masa/malilib/render/RenderUtils;drawOutlinedBox(Lfi/dy/masa/malilib/render/GuiContext;IIIIII)V",
+                    ordinal = 1
+            ),
+            remap = false
+    )
+    private void quickcraft$skipVanillaPreviewBoxWhen3DEnabled(
+            GuiContext drawContext,
+            int x,
+            int y,
+            int width,
+            int height,
+            int fillColor,
+            int borderColor
+    ) {
+        if (this.quickcraft$shouldReplaceNativePreview()) {
+            return;
+        }
+
+        RenderUtils.drawOutlinedBox(drawContext, x, y, width, height, fillColor, borderColor);
+    }
+
+    private boolean quickcraft$shouldReplaceNativePreview() {
+        // 支持范围内的 Litematica 同页也显示材料 JSON/TXT；只有可渲染的 .litematic 才能隐藏原生预览。
+        DirectoryEntry entry = this.getLastSelectedEntry();
+        return entry != null
+                && Files.isRegularFile(entry.getFullPath())
+                && FileType.fromFile(entry.getFullPath()) == FileType.LITEMATICA_SCHEMATIC
+                && QuickLitematicaPreview3D.is3DPreviewAvailable()
+                && QuickCraftConfigs.shouldReplaceLitematicaPreviewWith3D();
+    }
+}

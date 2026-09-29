@@ -1,5 +1,6 @@
 package com.yiyihehe.quickcraft.mixin;
 
+import com.mojang.renderpearl.api.pipeline.RenderPipeline;
 import com.yiyihehe.quickcraft.config.QuickCraftConfigs;
 import com.yiyihehe.quickcraft.litematica.QuickLitematicaPreview3D;
 import fi.dy.masa.litematica.gui.GuiSchematicBrowserBase;
@@ -10,14 +11,13 @@ import fi.dy.masa.litematica.util.FileType;
 import fi.dy.masa.malilib.gui.interfaces.IDirectoryCache;
 import fi.dy.masa.malilib.gui.interfaces.ISelectionListener;
 import fi.dy.masa.malilib.gui.widgets.WidgetFileBrowserBase;
-import fi.dy.masa.malilib.render.RenderUtils;
 import fi.dy.masa.malilib.render.GuiContext;
-//#if MC<260300
-import com.mojang.blaze3d.pipeline.RenderPipeline;
-//#else
-//$$ import com.mojang.renderpearl.api.pipeline.RenderPipeline;
-//#endif
+import fi.dy.masa.malilib.render.RenderUtils;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.Map;
 import net.minecraft.resources.Identifier;
+import org.jetbrains.annotations.Nullable;
 import org.spongepowered.asm.mixin.Final;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
@@ -25,11 +25,6 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.Redirect;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
-import org.jetbrains.annotations.Nullable;
-
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.util.Map;
 
 @Mixin(value = WidgetSchematicBrowser.class, remap = false)
 public abstract class LitematicaWidgetSchematicBrowserMixin extends WidgetFileBrowserBase {
@@ -66,8 +61,8 @@ public abstract class LitematicaWidgetSchematicBrowserMixin extends WidgetFileBr
     private void quickcraft$draw3DPreview(GuiContext drawContext, @Nullable DirectoryEntry entry, CallbackInfo ci) {
         int infoX = this.posX + this.totalWidth - this.infoWidth;
         int infoY = this.posY;
-		int height = Math.min(this.infoHeight, this.parent.getMaxInfoHeight());
-		int size = Math.max(1, Math.min(this.infoWidth - 32, Math.max(48, height - 152)));
+        int height = Math.min(this.infoHeight, this.parent.getMaxInfoHeight());
+        int size = Math.max(1, Math.min(this.infoWidth - 32, Math.max(48, height - 152)));
         int x = infoX + (this.infoWidth - size) / 2;
         int y = infoY + height - size - 8;
 
@@ -84,11 +79,7 @@ public abstract class LitematicaWidgetSchematicBrowserMixin extends WidgetFileBr
             method = "drawSelectedSchematicInfo",
             at = @At(
                     value = "INVOKE",
-                    //#if MC<260300
-                    target = "Lfi/dy/masa/malilib/render/GuiContext;blit(Lcom/mojang/blaze3d/pipeline/RenderPipeline;Lnet/minecraft/resources/Identifier;IIFFIIII)V"
-                    //#else
-                    //$$ target = "Lfi/dy/masa/malilib/render/GuiContext;blit(Lcom/mojang/renderpearl/api/pipeline/RenderPipeline;Lnet/minecraft/resources/Identifier;IIFFIIII)V"
-                    //#endif
+                    target = "Lfi/dy/masa/malilib/render/GuiContext;blit(Lcom/mojang/renderpearl/api/pipeline/RenderPipeline;Lnet/minecraft/resources/Identifier;IIFFIIII)V"
             )
     )
     private void quickcraft$skipVanillaPreviewWhen3DEnabled(
