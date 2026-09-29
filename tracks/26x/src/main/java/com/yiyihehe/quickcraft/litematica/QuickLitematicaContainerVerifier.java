@@ -1247,11 +1247,7 @@ public final class QuickLitematicaContainerVerifier {
 
         for (SchematicPlacementManager.PlacementPart part : parts) {
             if ((placementFilter != null && part.getPlacement() != placementFilter)
-                    //#if MC<260200
-                    || !part.getBox().containsPos(worldPos)) {
-                    //#else
-                    //$$ || !part.getBox().contains(worldPos)) {
-                    //#endif
+                    || !QuickLitematicaPlacementAccess.contains(part, worldPos)) {
                 continue;
             }
 
