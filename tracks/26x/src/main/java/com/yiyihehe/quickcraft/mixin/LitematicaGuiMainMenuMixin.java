@@ -1,8 +1,6 @@
 package com.yiyihehe.quickcraft.mixin;
 
-//#if MC>=260300
-//$$ import com.mojang.blaze3d.Blaze3D;
-//#endif
+import com.yiyihehe.quickcraft.QuickClientScreenAccess;
 import com.yiyihehe.quickcraft.config.QuickCraftConfigs;
 import fi.dy.masa.litematica.data.DataManager;
 import fi.dy.masa.litematica.gui.GuiMainMenu;
@@ -11,9 +9,6 @@ import fi.dy.masa.litematica.selection.SelectionMode;
 import fi.dy.masa.malilib.gui.GuiBase;
 import fi.dy.masa.malilib.gui.button.ButtonGeneric;
 import fi.dy.masa.malilib.util.StringUtils;
-//#if MC<260300
-import net.minecraft.util.Util;
-//#endif
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
@@ -43,11 +38,7 @@ public abstract class LitematicaGuiMainMenuMixin extends GuiBase {
 
         ButtonGeneric button = new ButtonGeneric(x, RIGHT_COLUMN_Y, menuButtonWidth, 20, label);
         this.addButton(button, (clickedButton, mouseButton) ->
-                //#if MC<260300
-                Util.getPlatform().openPath(DataManager.getSchematicsBaseDirectory()));
-                //#else
-                //$$ Blaze3D.openPath(DataManager.getSchematicsBaseDirectory()));
-                //#endif
+                QuickClientScreenAccess.openPath(DataManager.getSchematicsBaseDirectory()));
     }
 
     private int quickcraft$getMenuButtonWidth() {

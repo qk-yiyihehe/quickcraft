@@ -1,8 +1,5 @@
 package com.yiyihehe.quickcraft.litematica;
 
-//#if MC>=260300
-//$$ import com.mojang.blaze3d.Blaze3D;
-//#endif
 import com.yiyihehe.quickcraft.QuickClientScreenAccess;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
@@ -12,9 +9,6 @@ import net.minecraft.client.input.MouseButtonEvent;
 import net.minecraft.network.chat.CommonComponents;
 import net.minecraft.network.chat.Component;
 import net.minecraft.util.FormattedCharSequence;
-//#if MC<260300
-import net.minecraft.util.Util;
-//#endif
 import net.minecraft.util.Mth;
 import org.jetbrains.annotations.Nullable;
 
@@ -345,11 +339,7 @@ public final class QuickLitematicaPreview3DScreen extends Screen {
     private void openOutputFolder() {
         try {
             Files.createDirectories(this.manager.outputDirectory());
-            //#if MC<260300
-            Util.getPlatform().openFile(this.manager.outputDirectory().toFile());
-            //#else
-            //$$ Blaze3D.openPath(this.manager.outputDirectory());
-            //#endif
+            QuickClientScreenAccess.openPath(this.manager.outputDirectory());
         } catch (IOException e) {
             this.status = Component.translatable("quickcraft.litematica.preview_3d.open_folder_failed");
         }

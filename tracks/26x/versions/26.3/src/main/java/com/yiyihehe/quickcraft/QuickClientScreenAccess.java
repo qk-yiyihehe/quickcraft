@@ -1,13 +1,13 @@
 package com.yiyihehe.quickcraft;
 
+import com.mojang.blaze3d.Blaze3D;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
-import net.minecraft.util.Util;
 
 import java.nio.file.Path;
 
-/** 26.2 客户端屏幕与系统交互适配。 */
+/** 26.3 客户端屏幕与系统交互适配（openPath 改用 Blaze3D）。 */
 public final class QuickClientScreenAccess {
     private QuickClientScreenAccess() {
     }
@@ -25,6 +25,6 @@ public final class QuickClientScreenAccess {
     }
 
     public static void openPath(Path path) {
-        Util.getPlatform().openPath(path);
+        Blaze3D.openPath(path);
     }
 }
