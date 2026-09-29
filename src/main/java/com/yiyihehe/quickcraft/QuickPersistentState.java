@@ -3,11 +3,6 @@ package com.yiyihehe.quickcraft;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import fi.dy.masa.malilib.util.FileUtils;
-//#if MC<12111
-import fi.dy.masa.malilib.util.JsonUtils;
-//#else
-//$$ import fi.dy.masa.malilib.util.data.json.JsonUtils;
-//#endif
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.network.ServerInfo;
 import net.minecraft.server.integrated.IntegratedServer;
@@ -75,11 +70,7 @@ public final class QuickPersistentState {
         root.addProperty("profileId", currentProfileId);
         QuickContainerLock.writePersistentState(root);
         QuickTrade.writePersistentState(root, client.world.getRegistryManager());
-        //#if MC<12111
-        JsonUtils.writeJsonToFileAsPath(root, currentStateFile);
-        //#else
-        //$$ JsonUtils.writeJsonToFile(root, currentStateFile);
-        //#endif
+        QuickPersistentStateAccess.writeJson(root, currentStateFile);
     }
 
     private static void loadCurrentProfileState(MinecraftClient client) {
@@ -93,11 +84,7 @@ public final class QuickPersistentState {
             return;
         }
 
-        //#if MC<12111
-        JsonElement element = JsonUtils.parseJsonFileAsPath(currentStateFile);
-        //#else
-        //$$ JsonElement element = JsonUtils.parseJsonFile(currentStateFile);
-        //#endif
+        JsonElement element = QuickPersistentStateAccess.parseJson(currentStateFile);
         if (element == null || !element.isJsonObject()) {
             return;
         }
@@ -141,11 +128,7 @@ public final class QuickPersistentState {
 
     private static ProfileContext createProfileContext(String scope, String rawKey, String displayName) {
         String profileId = scope + ":" + rawKey;
-        //#if MC<12111
-        Path stateFile = FileUtils.getConfigDirectoryAsPath()
-        //#else
-        //$$ Path stateFile = FileUtils.getConfigDirectory()
-        //#endif
+        Path stateFile = QuickPersistentStateAccess.configDirectory()
                 .resolve(QuickCraft.MOD_ID)
                 .resolve(STATE_DIR_NAME)
                 .resolve(scope)

@@ -1,11 +1,8 @@
 package com.yiyihehe.quickcraft.crafting;
 
 import com.yiyihehe.quickcraft.config.QuickCraftConfigs;
-import com.yiyihehe.quickcraft.mixin.RecipeBookScreenAccessor;
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
-import net.minecraft.client.Minecraft;
-import net.minecraft.client.gui.screens.inventory.CraftingScreen;
 
 /**
  * 原版工作台鼠标点击合成入口；潜影盒流水线由路由器选择另一执行器。
@@ -16,7 +13,7 @@ public class QuickCraftWorkbench implements ClientModInitializer {
     private final QuickCraftMouseCrafting crafting = new QuickCraftMouseCrafting(
             QuickCraftMouseCraftLayout.WORKBENCH,
             QuickCraftConfigs::isWorkbenchQuickCraftEnabled,
-            QuickCraftWorkbench::clearRecipeGhostSlots
+            QuickCraftWorkbenchAccess::clearRecipeGhostSlots
     );
 
     @Override
@@ -31,18 +28,5 @@ public class QuickCraftWorkbench implements ClientModInitializer {
 
     public static boolean shouldSuppressRecipeGhostSlots() {
         return instance != null && instance.crafting.isRapidCraftingActive();
-    }
-
-    private static void clearRecipeGhostSlots() {
-        Minecraft client = Minecraft.getInstance();
-        //#if MC>=260200
-        //$$ if (client.gui.screen() instanceof CraftingScreen screen) {
-        //#else
-        if (client.screen instanceof CraftingScreen screen) {
-        //#endif
-            ((RecipeBookScreenAccessor) (Object) screen)
-                    .quickcraft$getRecipeBook()
-                    .slotClicked(screen.getMenu().getSlot(QuickCraftMouseCraftLayout.OUTPUT_SLOT));
-        }
     }
 }

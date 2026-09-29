@@ -1,6 +1,7 @@
 package com.yiyihehe.quickcraft.malilib;
 
 import com.yiyihehe.quickcraft.QuickCraft;
+import com.yiyihehe.quickcraft.QuickClientScreenAccess;
 import com.yiyihehe.quickcraft.QuickContainerCopy;
 import com.yiyihehe.quickcraft.QuickContainerLock;
 import com.yiyihehe.quickcraft.QuickCreativePacking;
@@ -171,10 +172,6 @@ public final class QuickCraftHotkeyCallbacks {
     }
 
     private static Screen currentScreen(Minecraft client) {
-        //#if MC<260200
-        return client.screen;
-        //#else
-        //$$ return client.gui.screen();
-        //#endif
+        return QuickClientScreenAccess.currentScreen(client);
     }
 }

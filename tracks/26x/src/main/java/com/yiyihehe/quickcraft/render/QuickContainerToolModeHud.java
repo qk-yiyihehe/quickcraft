@@ -1,5 +1,6 @@
 package com.yiyihehe.quickcraft.render;
 
+import com.yiyihehe.quickcraft.QuickClientScreenAccess;
 import com.yiyihehe.quickcraft.config.QuickCraftConfigs;
 import net.fabricmc.fabric.api.client.rendering.v1.hud.HudElementRegistry;
 import net.fabricmc.fabric.api.client.rendering.v1.hud.VanillaHudElements;
@@ -22,11 +23,7 @@ public final class QuickContainerToolModeHud {
     private static void render(GuiGraphicsExtractor graphics) {
         Minecraft client = Minecraft.getInstance();
         // F1 also hides Minecraft's HUD, so the mode text must follow the tool switch itself.
-        //#if MC>=260200
-        //$$ if (client.player == null || client.level == null || client.gui.screen() != null
-        //#else
-        if (client.player == null || client.level == null || client.screen != null
-        //#endif
+        if (client.player == null || client.level == null || QuickClientScreenAccess.currentScreen(client) != null
                 || !QuickCraftConfigs.isContainerToolModeEnabled()) {
             return;
         }

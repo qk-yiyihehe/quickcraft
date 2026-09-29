@@ -1,5 +1,6 @@
 package com.yiyihehe.quickcraft.crafting;
 
+import com.yiyihehe.quickcraft.QuickClientScreenAccess;
 import com.yiyihehe.quickcraft.QuickContainerLock;
 import com.yiyihehe.quickcraft.QuickCraftKeyBindings;
 import com.yiyihehe.quickcraft.config.QuickCraftConfigs;
@@ -307,11 +308,7 @@ public final class QuickCraftAnvilRename implements ClientModInitializer {
     }
 
     private static Screen getCurrentScreen(Minecraft client) {
-        //#if MC<260200
-        return client.screen;
-        //#else
-        //$$ return client.gui.screen();
-        //#endif
+        return QuickClientScreenAccess.currentScreen(client);
     }
 
     private boolean hasInput(AnvilMenu handler) {

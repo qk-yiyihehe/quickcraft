@@ -1,5 +1,6 @@
 package com.yiyihehe.quickcraft.litematica;
 
+import com.yiyihehe.quickcraft.QuickClientScreenAccess;
 import com.yiyihehe.quickcraft.config.QuickCraftConfigs;
 import fi.dy.masa.litematica.data.DataManager;
 import fi.dy.masa.litematica.schematic.LitematicaSchematic;
@@ -130,11 +131,7 @@ public final class QuickLitematicaEntityPlacement {
     }
 
     private static Screen currentScreen(Minecraft client) {
-        //#if MC<260200
-        return client.screen;
-        //#else
-        //$$ return client.gui.screen();
-        //#endif
+        return QuickClientScreenAccess.currentScreen(client);
     }
 
     private static void openScreen(Minecraft client, Screen screen) {

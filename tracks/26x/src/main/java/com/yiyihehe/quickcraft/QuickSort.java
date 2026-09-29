@@ -92,11 +92,7 @@ public class QuickSort implements ClientModInitializer {
     }
 
     private static Screen getCurrentScreen(Minecraft client) {
-        //#if MC<260200
-        return client.screen;
-        //#else
-        //$$ return client.gui.screen();
-        //#endif
+        return QuickClientScreenAccess.currentScreen(client);
     }
 
     public static void sortInventory(AbstractContainerScreen<?> gui) {

@@ -42,6 +42,7 @@ import com.sun.jna.platform.win32.WinDef.HWND;
 import com.sun.jna.platform.win32.WinUser;
 import com.sun.jna.win32.StdCallLibrary;
 import com.sun.jna.win32.W32APIOptions;
+import com.yiyihehe.quickcraft.QuickClientScreenAccess;
 import com.yiyihehe.quickcraft.config.QuickCraftConfigs;
 //#if MC<260200
 import com.yiyihehe.quickcraft.mixin.RenderLayerAccessor;
@@ -3780,13 +3781,9 @@ public final class QuickLitematicaPreview3D {
     }
 
     private static void translateToScreen(Matrix4fStack matrixStack, Minecraft client, float x, float y) {
-//#if MC<260200
-        int screenWidth = client.screen == null ? client.getWindow().getGuiScaledWidth() : client.screen.width;
-        int screenHeight = client.screen == null ? client.getWindow().getGuiScaledHeight() : client.screen.height;
-//#else
-        //$$ int screenWidth = client.gui.screen() == null ? client.getWindow().getGuiScaledWidth() : client.gui.screen().width;
-        //$$ int screenHeight = client.gui.screen() == null ? client.getWindow().getGuiScaledHeight() : client.gui.screen().height;
-//#endif
+        Screen screen = QuickClientScreenAccess.currentScreen(client);
+        int screenWidth = screen == null ? client.getWindow().getGuiScaledWidth() : screen.width;
+        int screenHeight = screen == null ? client.getWindow().getGuiScaledHeight() : screen.height;
         matrixStack.translate((2.0F * x - screenWidth) / screenHeight, -(2.0F * y - screenHeight) / screenHeight, 0.0F);
     }
 

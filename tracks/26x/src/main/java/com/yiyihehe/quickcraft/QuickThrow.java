@@ -216,11 +216,7 @@ public final class QuickThrow implements ClientModInitializer, IKeyboardInputHan
     }
 
     private static Screen getCurrentScreen(Minecraft client) {
-        //#if MC<260200
-        return client.screen;
-        //#else
-        //$$ return client.gui.screen();
-        //#endif
+        return QuickClientScreenAccess.currentScreen(client);
     }
 
     private static boolean canUseQuickThrow(Minecraft client, AbstractContainerScreen<?> screen) {

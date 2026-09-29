@@ -20,11 +20,11 @@ class QuickCraftMouseCraftAckExecutorTest {
     @Test
     void legacyOutputBurstUsesPostRefillGridCountsAndCapsAtOneStack() {
         boolean[] required = {true, true, false};
-        assertThat(QuickCraftMouseCraftAckRules.plannedOutputBurst(
+        assertThat(QuickCraftMouseCraftAckExecutor.plannedOutputBurst(
                 new int[]{32, 17, 0}, required)).isEqualTo(17);
-        assertThat(QuickCraftMouseCraftAckRules.plannedOutputBurst(
+        assertThat(QuickCraftMouseCraftAckExecutor.plannedOutputBurst(
                 new int[]{64, 64, 0}, required)).isEqualTo(64);
-        assertThat(QuickCraftMouseCraftAckRules.plannedOutputBurst(
+        assertThat(QuickCraftMouseCraftAckExecutor.plannedOutputBurst(
                 new int[]{1, 0, 0}, required)).isEqualTo(1);
 //#else
 //#endif

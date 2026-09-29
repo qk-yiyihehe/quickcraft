@@ -3,6 +3,7 @@ apply plugin: 'net.fabricmc.fabric-loom-remap'
 apply plugin: 'maven-publish'
 apply plugin: 'com.github.spotbugs'
 apply plugin: 'com.replaymod.preprocess'
+apply from: rootProject.file('gradle/quickcraft-source-roots.gradle')
 
 layout.buildDirectory.set(new File(quickcraftBuildRoot, "targets/${project.name}"))
 

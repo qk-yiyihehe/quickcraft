@@ -1,6 +1,7 @@
 package com.yiyihehe.quickcraft.render;
 
 import com.yiyihehe.quickcraft.QuickCraftKeyBindings;
+import com.yiyihehe.quickcraft.QuickClientScreenAccess;
 import com.yiyihehe.quickcraft.config.QuickCraftConfigs;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
@@ -150,10 +151,6 @@ public class QuickDraggableButton extends Button {
     }
 
     private static Screen currentScreen(Minecraft client) {
-        //#if MC<260200
-        return client.screen;
-        //#else
-        //$$ return client.gui.screen();
-        //#endif
+        return QuickClientScreenAccess.currentScreen(client);
     }
 }

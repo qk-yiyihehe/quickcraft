@@ -1,6 +1,7 @@
 package com.yiyihehe.quickcraft.crafting;
 
 import com.yiyihehe.quickcraft.QuickCraftKeyBindings;
+import com.yiyihehe.quickcraft.QuickClientScreenAccess;
 import com.yiyihehe.quickcraft.QuickContainerLock;
 import com.yiyihehe.quickcraft.config.QuickCraftConfigs;
 import com.yiyihehe.quickcraft.config.QuickCraftConfigs.WorkbenchShulkerPipelineMode;
@@ -1964,11 +1965,7 @@ public final class QuickCraftWorkbenchShulkerCraft implements ClientModInitializ
 
     private boolean isWorkbenchOpen(Minecraft client) {
         return client != null && client.player != null && client.level != null
-                //#if MC<260200
-                && client.screen instanceof CraftingScreen
-                //#else
-                //$$ && client.gui.screen() instanceof CraftingScreen
-                //#endif
+                && QuickClientScreenAccess.currentScreen(client) instanceof CraftingScreen
                 && client.player.containerMenu instanceof CraftingMenu;
     }
 

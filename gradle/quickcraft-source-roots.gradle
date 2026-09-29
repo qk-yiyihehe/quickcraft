@@ -1,0 +1,9 @@
+def baseTarget = rootProject.file('versions/mainProject').getText('UTF-8').trim()
+
+if (project.name == baseTarget) {
+	afterEvaluate {
+		// 预处理器把基准项目的源码根改到轨道 src；补入版本 API 与跨轨纯 Java 源码根。
+		sourceSets.main.java.srcDir(project.file('src/main/java'))
+		sourceSets.main.java.srcDir(new File(quickcraftRepositoryRoot, 'shared/src/main/java'))
+	}
+}

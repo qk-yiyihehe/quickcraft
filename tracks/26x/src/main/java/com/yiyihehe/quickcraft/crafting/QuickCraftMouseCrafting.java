@@ -1,6 +1,7 @@
 package com.yiyihehe.quickcraft.crafting;
 
 import com.yiyihehe.quickcraft.QuickContainerLock;
+import com.yiyihehe.quickcraft.QuickClientScreenAccess;
 import com.yiyihehe.quickcraft.QuickCraftKeyBindings;
 import com.yiyihehe.quickcraft.config.QuickCraftConfigs;
 import net.minecraft.client.Minecraft;
@@ -1892,11 +1893,7 @@ final class QuickCraftMouseCrafting {
 
     private boolean isCraftingContextValid(Minecraft client) {
         return client != null && client.player != null && client.level != null
-                //#if MC<260200
-                && QuickCraftMouseCraftLayout.fromScreen(client.screen) == layout
-                //#else
-                //$$ && QuickCraftMouseCraftLayout.fromScreen(client.gui.screen()) == layout
-                //#endif
+                && QuickCraftMouseCraftLayout.fromScreen(QuickClientScreenAccess.currentScreen(client)) == layout
                 && QuickCraftMouseCraftLayout.fromHandler(client.player.containerMenu) == layout;
     }
 
