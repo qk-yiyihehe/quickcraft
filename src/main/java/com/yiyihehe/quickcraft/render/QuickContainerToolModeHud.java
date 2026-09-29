@@ -29,10 +29,6 @@ public final class QuickContainerToolModeHud {
         int x = (context.getScaledWindowWidth() - textWidth) / 2;
         // One text line below vanilla action bar messages.
         int y = context.getScaledWindowHeight() - 62;
-        //#if MC>=12108
-        //$$ context.drawTextWithShadow(client.textRenderer, label, x, y, 0xFFFFFFFF);
-        //#else
-        context.drawTextWithShadow(client.textRenderer, label, x, y, 0xFFFFFF);
-        //#endif
+        QuickContainerToolModeHudAccess.draw(client, context, label, x, y);
     }
 }
