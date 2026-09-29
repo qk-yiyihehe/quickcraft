@@ -368,11 +368,7 @@ public final class QuickLitematicaPreview3D {
     static void openGenerated(Screen parent, String displayName, Supplier<LitematicaSchematic> schematicSupplier) {
         Manager manager = new Manager(parent, () -> {});
         manager.current = Preview.createGenerated(displayName, schematicSupplier);
-//#if MC<260200
-        Minecraft.getInstance().setScreen(new QuickLitematicaPreview3DScreen(
-//#else
-        //$$ Minecraft.getInstance().gui.setScreen(new QuickLitematicaPreview3DScreen(
-//#endif
+        QuickClientScreenAccess.setScreen(Minecraft.getInstance(), new QuickLitematicaPreview3DScreen(
                 parent,
                 displayName,
                 manager,
@@ -619,11 +615,7 @@ public final class QuickLitematicaPreview3D {
                     this.currentEntry = entry;
                     this.hasEmbeddedPreviewImage = hasEmbeddedPreview;
                 }
-//#if MC<260200
-                Minecraft.getInstance().setScreen(new QuickLitematicaPreview3DScreen(this.owner, entry.getName(), this));
-//#else
-                //$$ Minecraft.getInstance().gui.setScreen(new QuickLitematicaPreview3DScreen(this.owner, entry.getName(), this));
-//#endif
+                QuickClientScreenAccess.setScreen(Minecraft.getInstance(), new QuickLitematicaPreview3DScreen(this.owner, entry.getName(), this));
                 return true;
             }
 

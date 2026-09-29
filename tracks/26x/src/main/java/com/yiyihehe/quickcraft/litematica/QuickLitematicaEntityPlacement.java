@@ -135,11 +135,7 @@ public final class QuickLitematicaEntityPlacement {
     }
 
     private static void openScreen(Minecraft client, Screen screen) {
-        //#if MC<260200
-        client.setScreen(screen);
-        //#else
-        //$$ client.gui.setScreen(screen);
-        //#endif
+        QuickClientScreenAccess.setScreen(client, screen);
     }
 
     private static void showOverlay(Minecraft client, Component message) {

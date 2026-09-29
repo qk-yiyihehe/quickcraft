@@ -1,5 +1,6 @@
 package com.yiyihehe.quickcraft.crafting;
 
+import com.yiyihehe.quickcraft.QuickClientScreenAccess;
 import com.yiyihehe.quickcraft.config.QuickCraftConfigs;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
 import net.fabricmc.loader.api.FabricLoader;
@@ -389,11 +390,7 @@ public final class QuickCraftWorkbenchShulker {
             }
         }
         client.player.closeContainer();
-        //#if MC<260200
-        client.setScreen(null);
-        //#else
-        //$$ client.gui.setScreen(null);
-        //#endif
+        QuickClientScreenAccess.setScreen(client, null);
     }
 
     private static Slot findPlayerSlot(AbstractContainerMenu handler, int playerIndex) {
