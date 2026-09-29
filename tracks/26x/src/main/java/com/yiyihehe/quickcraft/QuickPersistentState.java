@@ -128,11 +128,7 @@ public final class QuickPersistentState {
     }
 
     private static boolean hasSingleplayerServer(Minecraft client) {
-        //#if MC<260200
-        return client.isSingleplayer();
-        //#else
-        //$$ return client.hasSingleplayerServer();
-        //#endif
+        return QuickPersistentStateAccess.hasSingleplayerServer(client);
     }
 
     private static ProfileContext createProfileContext(String scope, String rawKey, String displayName) {
