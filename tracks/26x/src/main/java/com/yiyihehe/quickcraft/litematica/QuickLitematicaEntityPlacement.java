@@ -19,9 +19,6 @@ import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.entity.EntityType;
-//#if MC>=260200
-//$$ import net.minecraft.world.entity.EntityTypes;
-//#endif
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
@@ -139,19 +136,11 @@ public final class QuickLitematicaEntityPlacement {
     }
 
     private static void showOverlay(Minecraft client, Component message) {
-        //#if MC<260200
-        client.gui.setOverlayMessage(message, false);
-        //#else
-        //$$ client.gui.hud.setOverlayMessage(message, false);
-        //#endif
+        QuickLitematicaEntityPlacementAccess.showOverlay(client, message);
     }
 
     private static boolean isItemEntityType(EntityType<?> type) {
-        //#if MC<260200
-        return type == EntityType.ITEM;
-        //#else
-        //$$ return type == EntityTypes.ITEM;
-        //#endif
+        return QuickLitematicaEntityPlacementAccess.isItemEntityType(type);
     }
 
     public static boolean requestPlacement(
