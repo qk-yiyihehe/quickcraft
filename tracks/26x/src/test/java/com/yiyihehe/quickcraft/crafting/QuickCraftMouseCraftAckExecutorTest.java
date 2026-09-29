@@ -82,9 +82,11 @@ class QuickCraftMouseCraftAckExecutorTest {
     @Test
     void fullSourceStackCannotQuickMoveIntoPartiallyFilledGridSlot() {
         assertThat(QuickCraftMouseCraftInventory.canQuickMoveWholeStackToGridSlot(
-                64, 1, 64, 1, 1)).isFalse();
+                QuickCraftMouseCraftLayout.WORKBENCH, 64, 1, 64, 1, 1)).isFalse();
         assertThat(QuickCraftMouseCraftInventory.canQuickMoveWholeStackToGridSlot(
-                63, 1, 64, 1, 1)).isTrue();
+                QuickCraftMouseCraftLayout.WORKBENCH, 63, 1, 64, 1, 1)).isTrue();
+        assertThat(QuickCraftMouseCraftInventory.canQuickMoveWholeStackToGridSlot(
+                QuickCraftMouseCraftLayout.BACKPACK, 64, 0, 64, 1, 1)).isFalse();
     }
 
     @Test

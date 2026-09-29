@@ -903,32 +903,18 @@ public class QuickCraftStonecutter implements ClientModInitializer {
             return -1;
         }
 
-        //#if MC>=12103 && MC<12105
-        //$$ int matchedIndex = -1;
-        //#endif
+        int matchedIndex = -1;
         for (int i = 0; i < availableRecipeCount(handler); i++) {
             ItemStack displayedResult = getDisplayResultStack(client, handler, i);
             if (!displayedResult.isEmpty()
                     && ItemStack.areItemsAndComponentsEqual(displayedResult, resultTemplate)) {
-                //#if MC<12103
-                return i;
-                //#elseif MC<12105
-                //$$ if (matchedIndex >= 0) {
-                //$$     return -1;
-                //$$ }
-                //$$ matchedIndex = i;
-                //#else
-                //$$ return i;
-                //#endif
+                if (matchedIndex >= 0) {
+                    return -1;
+                }
+                matchedIndex = i;
             }
         }
-        //#if MC<12103
-        return -1;
-        //#elseif MC<12105
-        //$$ return matchedIndex;
-        //#else
-        //$$ return -1;
-        //#endif
+        return matchedIndex;
     }
 
     private ItemStack getDisplayResultStack(MinecraftClient client,

@@ -531,26 +531,12 @@ final class QuickCraftMouseCraftInventory {
                                                     int maxCount,
                                                     int firstAcceptingSlot,
                                                     int targetSlot) {
-        //#if MC<12103
-        // 1.21 PlayerScreenHandler.quickMove 只在主物品栏与快捷栏间搬运，不会补进 2x2 合成格。
+        // PlayerScreenHandler.quickMove 不会把背包物品补进 2x2 合成格。
         return layout == QuickCraftMouseCraftLayout.WORKBENCH
                 && targetSlot >= 0
-        //#else
-        //$$ return targetSlot >= 0
-        //#endif
                 && firstAcceptingSlot == targetSlot
                 && wholeStackFitsInSlot(sourceCount, existingCount, maxCount);
     }
-
-    //#if MC>=12103
-    //$$ static boolean canQuickMoveWholeStackToGridSlot(int sourceCount,
-    //$$                                                     int existingCount,
-    //$$                                                     int maxCount,
-    //$$                                                     int firstAcceptingSlot,
-    //$$                                                     int targetSlot) {
-    //$$     return canQuickMoveWholeStackToGridSlot(null, sourceCount, existingCount, maxCount, firstAcceptingSlot, targetSlot);
-    //$$ }
-    //#endif
 
     static int tailItemsPerSlot(int sourceCount,
                                 int targetSlots,
