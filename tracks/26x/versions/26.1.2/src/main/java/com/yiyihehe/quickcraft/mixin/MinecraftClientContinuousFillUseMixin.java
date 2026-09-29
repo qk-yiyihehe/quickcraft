@@ -3,21 +3,18 @@ package com.yiyihehe.quickcraft.mixin;
 import com.yiyihehe.quickcraft.QuickContainerCopy;
 import com.yiyihehe.quickcraft.QuickMaterialCollector;
 import net.minecraft.client.Minecraft;
-//#if MC<260200
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
-//#endif
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 /**
- * 连续填充期间压住前台容器界面和同一次长按触发的原版右键 use。
+ * 26.1.2 在 Minecraft 层面压住后台容器打开与同一次长按的物品使用。
  */
 @Mixin(Minecraft.class)
 public abstract class MinecraftClientContinuousFillUseMixin {
-    //#if MC<260200
     @Inject(method = "setScreen", at = @At("HEAD"), cancellable = true)
     private void quickcraft$suppressBackgroundHandledScreen(Screen screen, CallbackInfo ci) {
         if (screen instanceof AbstractContainerScreen<?>
@@ -26,7 +23,6 @@ public abstract class MinecraftClientContinuousFillUseMixin {
             ci.cancel();
         }
     }
-    //#endif
 
     @Inject(method = "startUseItem", at = @At("HEAD"), cancellable = true)
     private void quickcraft$suppressContinuousFillUse(CallbackInfo ci) {
