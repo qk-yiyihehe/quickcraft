@@ -837,7 +837,7 @@ final class QuickCraftMouseCrafting {
         int maxCount = handler.getSlot(targetSlot).getMaxStackSize(template);
         int firstAccepting = QuickCraftMouseCraftInventory.firstAcceptingGridSlot(handler, layout, template);
         if (!retainIngredientSamples() && QuickCraftMouseCraftInventory.canQuickMoveWholeStackToGridSlot(
-                sourceCount, beforeCount, maxCount, firstAccepting, targetSlot)) {
+                layout, sourceCount, beforeCount, maxCount, firstAccepting, targetSlot)) {
             client.gameMode.handleContainerInput(
                     handler.containerId,
                     sourceSlot,

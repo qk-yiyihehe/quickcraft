@@ -525,12 +525,14 @@ final class QuickCraftMouseCraftInventory {
         return sourceCount > 0 && existingCount >= 0 && existingCount + sourceCount <= maxCount;
     }
 
-    static boolean canQuickMoveWholeStackToGridSlot(int sourceCount,
+    static boolean canQuickMoveWholeStackToGridSlot(QuickCraftMouseCraftLayout.Layout layout,
+                                                    int sourceCount,
                                                     int existingCount,
                                                     int maxCount,
                                                     int firstAcceptingSlot,
                                                     int targetSlot) {
-        return targetSlot >= 0
+        return layout == QuickCraftMouseCraftLayout.WORKBENCH
+                && targetSlot >= 0
                 && firstAcceptingSlot == targetSlot
                 && wholeStackFitsInSlot(sourceCount, existingCount, maxCount);
     }
