@@ -292,17 +292,17 @@ public final class QuickLitematicaPreview3D {
     private static final String CACHE_VERSION_FILE_NAME = "cache-version.txt";
     private static final String CACHE_INDEX_FILE_NAME = "cache-index.properties";
     //#if MC<12103
-    private static final String CACHE_RENDER_MARKER = "quickcraft-model-mesh-v16-api-audit-stable-path-content-resource-signature-mc1.21";
+    private static final String CACHE_RENDER_MARKER = "quickcraft-model-mesh-v16-api-audit-stable-path-content-resource-signature-mc1.21-entity-center-block";
     //#elseif MC<12104
-    //$$ private static final String CACHE_RENDER_MARKER = "quickcraft-model-mesh-v16-api-audit-stable-path-content-resource-signature-mc1.21.3";
+    //$$ private static final String CACHE_RENDER_MARKER = "quickcraft-model-mesh-v16-api-audit-stable-path-content-resource-signature-mc1.21.3-entity-center-block";
     //#elseif MC<12105
-    //$$ private static final String CACHE_RENDER_MARKER = "quickcraft-model-mesh-v16-api-audit-stable-path-content-resource-signature-mc1.21.4";
+    //$$ private static final String CACHE_RENDER_MARKER = "quickcraft-model-mesh-v16-api-audit-stable-path-content-resource-signature-mc1.21.4-entity-center-block";
     //#elseif MC<12108
-    //$$ private static final String CACHE_RENDER_MARKER = "quickcraft-model-mesh-v16-api-audit-stable-path-content-resource-signature-mc1.21.5";
+    //$$ private static final String CACHE_RENDER_MARKER = "quickcraft-model-mesh-v16-api-audit-stable-path-content-resource-signature-mc1.21.5-entity-center-block-position-seed";
     //#elseif MC<12110
-    //$$ private static final String CACHE_RENDER_MARKER = "quickcraft-model-mesh-v16-api-audit-stable-path-content-resource-signature-mc1.21.8";
+    //$$ private static final String CACHE_RENDER_MARKER = "quickcraft-model-mesh-v16-api-audit-stable-path-content-resource-signature-mc1.21.8-entity-center-block-position-seed";
     //#elseif MC<12111
-    //$$ private static final String CACHE_RENDER_MARKER = "quickcraft-model-mesh-v16-api-audit-stable-path-content-resource-signature-dynamic-render-state-mc1.21.10";
+    //$$ private static final String CACHE_RENDER_MARKER = "quickcraft-model-mesh-v16-api-audit-stable-path-content-resource-signature-dynamic-render-state-mc1.21.10-position-seed";
     //#else
     //$$ private static final String CACHE_RENDER_MARKER = "quickcraft-model-mesh-v18-api-audit-stable-path-content-resource-signature-dynamic-render-state-mc1.21.11";
     //#endif
@@ -1151,9 +1151,7 @@ public final class QuickLitematicaPreview3D {
         private final String resourcePackSignature;
         private volatile long sourceSize;
         private volatile long sourceModifiedMillis;
-        //#if MC>=12108
-        //$$ private final long startedAtNanos = System.nanoTime();
-        //#endif
+        private final long startedAtNanos = System.nanoTime();
         private final AtomicBoolean cancelled = new AtomicBoolean();
         //#if MC>=12108
         //$$ private final RawProjectionMatrix previewProjection = new RawProjectionMatrix("QuickCraft preview projection");
@@ -2544,6 +2542,10 @@ public final class QuickLitematicaPreview3D {
                 callback.accept(Text.translatable("quickcraft.litematica.preview_3d.export_dynamic_failed"));
                 return null;
             }
+            if (data.vertexCount() > 0 && this.vertexBuffers.isEmpty()) {
+                callback.accept(Text.translatable(failureTranslationKey));
+                return null;
+            }
             if (!this.snapshotInProgress.compareAndSet(false, true)) {
                 callback.accept(Text.translatable("quickcraft.litematica.preview_3d.exporting"));
                 return null;
@@ -3659,11 +3661,7 @@ public final class QuickLitematicaPreview3D {
             int barWidth = Math.max(24, size - 12);
             int barX = x + (size - barWidth) / 2;
             int barY = y + size / 2 - 5;
-            //#if MC<12108
-            int fill = Math.max(0, Math.min(barWidth - 2, (int) ((barWidth - 2) * this.progress)));
-            //#else
-            //$$ int fill = Math.max(0, Math.min(barWidth - 2, (int) ((barWidth - 2) * this.displayProgress())));
-            //#endif
+            int fill = Math.max(0, Math.min(barWidth - 2, (int) ((barWidth - 2) * this.displayProgress())));
             int textColor = this.state == State.FAILED || this.state == State.TOO_LARGE ? 0xFFFF7777 : 0xFFDDDDDD;
             String text = switch (this.state) {
                 case FAILED -> StringUtils.translate("quickcraft.litematica.preview_3d.failed");
@@ -3688,18 +3686,16 @@ public final class QuickLitematicaPreview3D {
             //#endif
         }
 
-        //#if MC>=12108
-        //$$ private float displayProgress() {
-        //$$     if (this.progress >= PROGRESS_MESHING_START || this.state == State.FAILED || this.state == State.TOO_LARGE) {
-        //$$         return this.progress;
-        //$$     }
-        //$$
-        //$$     // Litematica/DataFixer 读取和 GZIP 缓存解压没有可观测的完成量；只在这段等待里平滑补到扫描开始前。
-        //$$     float elapsedSeconds = (System.nanoTime() - this.startedAtNanos) / 1_000_000_000.0F;
-        //$$     float readingProgress = Math.min(PROGRESS_MESHING_START - 0.01F, PROGRESS_START + elapsedSeconds * 0.02F);
-        //$$     return Math.max(this.progress, readingProgress);
-        //$$ }
-        //#endif
+        private float displayProgress() {
+            if (this.progress >= PROGRESS_MESHING_START || this.state == State.FAILED || this.state == State.TOO_LARGE) {
+                return this.progress;
+            }
+
+            // Litematica/DataFixer 读取和 GZIP 缓存解压没有可观测的完成量；只在这段等待里平滑补到扫描开始前。
+            float elapsedSeconds = (System.nanoTime() - this.startedAtNanos) / 1_000_000_000.0F;
+            float readingProgress = Math.min(PROGRESS_MESHING_START - 0.01F, PROGRESS_START + elapsedSeconds * 0.02F);
+            return Math.max(this.progress, readingProgress);
+        }
 
         @Override
         public void close() {
@@ -4996,15 +4992,12 @@ public final class QuickLitematicaPreview3D {
 
         private static void recordEntityNearbyBlockStates(Map<BlockPos, BlockStateData> blockStates, RegionBlockView view, Bounds bounds, double x, double y, double z) {
             BlockPos center = BlockPos.ofFloored(x, y, z);
-            //#if MC>=12110
-            //$$ // 矿车 controller 会读取实体所在的铁轨；高版本渲染状态提取必须把中心方块放入假世界。
-            //$$ BlockState centerState = view.getBlockState(center.add(bounds.min()));
-            //$$ if (!centerState.isAir()) {
-            //$$     recordDynamicBlockState(blockStates, centerState, center);
-            //$$ }
-            //#endif
+            // 矿车渲染会读取所在位置的铁轨，假世界需要保留中心方块。
+            BlockState centerState = view.getBlockState(center.add(bounds.min()));
+            if (!centerState.isAir()) {
+                recordDynamicBlockState(blockStates, centerState, center);
+            }
             // 展示框/画等挂载实体会查询附着方块（facing 反方向）；假世界缺邻居会被原版判成 invalid position。
-            // 低版本只登记 6 方向邻居；1.21.10+ 还登记中心方块，供矿车渲染状态读取铁轨。
             // 原 3x3x3=27 个过多，导致 blockStates 暴涨、缓存膨胀、首次渲染变慢。
             for (Direction direction : Direction.values()) {
                 BlockPos renderPos = center.offset(direction);
@@ -5109,8 +5102,8 @@ public final class QuickLitematicaPreview3D {
             //$$ BlockRenderLayer blockLayer = RenderLayers.getBlockLayer(state);
             //#else
             //$$ BlockRenderLayer blockLayer = BlockRenderLayers.getBlockLayer(state);
-            //$$ random.setSeed(state.getRenderingSeed(pos));
             //#endif
+            //$$ random.setSeed(state.getRenderingSeed(pos));
             //$$ blockRenderManager.renderBlock(
             //$$         state,
             //$$         pos,

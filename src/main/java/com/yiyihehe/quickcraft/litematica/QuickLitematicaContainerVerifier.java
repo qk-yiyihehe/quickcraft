@@ -268,7 +268,8 @@ public final class QuickLitematicaContainerVerifier {
         EntityDataAccess storage = ENTITY_DATA;
         NbtCompound cachedNbt = storage.getBlockEntityNbt(pos);
         //#if MC>=12111
-        //$$ if (cachedNbt != null && !cachedNbt.contains("Items") && expected != null && isInventoryEmpty(expected)) {
+        //$$ if (cachedNbt != null && !cachedNbt.contains("Items") && !cachedNbt.contains("RecordItem")
+        //$$         && expected != null && isInventoryEmpty(expected)) {
         //$$     // 服务器空容器 NBT 可能只带 x/y/z/id，没有 Items；这表示已读到空库存。
         //$$     trustedInventoryCache.put(pos.toImmutable(), new SimpleInventory(expected.size()));
         //$$     lastActualInventoryReadStatus = ActualInventoryReadStatus.CACHE_INVENTORY;
@@ -278,7 +279,7 @@ public final class QuickLitematicaContainerVerifier {
         //#if MC<12111
         if (cachedNbt != null) {
         //#else
-        //$$ if (cachedNbt != null && (cachedNbt.contains("Items") || isInventoryEmpty(expected))) {
+        //$$ if (cachedNbt != null && (cachedNbt.contains("Items") || cachedNbt.contains("RecordItem") || isInventoryEmpty(expected))) {
         //#endif
             Inventory cachedInventory = getCachedInventory(world, pos, storage, expected != null ? expected.size() : -1);
 
@@ -318,12 +319,10 @@ public final class QuickLitematicaContainerVerifier {
         }
 
         NbtCompound cachedNbt = storage.getBlockEntityNbt(pos);
-        //#if MC>=12105
-        //$$ Inventory special = getCachedSpecialInventory(world, cachedNbt, expectedSize);
-        //$$ if (special != null) {
-        //$$     return special;
-        //$$ }
-        //#endif
+        Inventory special = getCachedSpecialInventory(world, cachedNbt, expectedSize);
+        if (special != null) {
+            return special;
+        }
         BlockEntity cachedBlockEntity = storage.getBlockEntity(pos);
 
         if (cachedBlockEntity instanceof Inventory inventory
@@ -340,26 +339,30 @@ public final class QuickLitematicaContainerVerifier {
                 : null;
     }
 
-    //#if MC>=12105
-    //$$ private static Inventory getCachedSpecialInventory(World world, NbtCompound cachedNbt, int expectedSize) {
-    //$$     if (world == null || cachedNbt == null || expectedSize != 1 || !cachedNbt.contains("RecordItem")) {
-    //$$         return null;
-    //$$     }
-    //$$
-    //$$     SimpleInventory inventory = new SimpleInventory(1);
-    //$$     inventory.setStack(
-    //$$             0,
-    //$$             cachedNbt.getCompound("RecordItem")
-    //#if MC<12108
-    //$$                     .flatMap(nbt -> ItemStack.fromNbt(world.getRegistryManager(), nbt))
-    //#else
-    //$$                     .map(nbt -> itemStackFromNbt(world.getRegistryManager(), nbt))
-    //#endif
-    //$$                     .orElse(ItemStack.EMPTY)
-    //$$     );
-    //$$     return inventory;
-    //$$ }
-    //#endif
+    private static Inventory getCachedSpecialInventory(World world, NbtCompound cachedNbt, int expectedSize) {
+        if (world == null || cachedNbt == null || expectedSize != 1 || !cachedNbt.contains("RecordItem")) {
+            return null;
+        }
+
+        //#if MC<12105
+        ItemStack recordStack = ItemStack.fromNbt(world.getRegistryManager(), cachedNbt.getCompound("RecordItem"))
+                .orElse(ItemStack.EMPTY);
+        //#elseif MC<12108
+        //$$ ItemStack recordStack = cachedNbt.getCompound("RecordItem")
+        //$$         .flatMap(nbt -> ItemStack.fromNbt(world.getRegistryManager(), nbt))
+        //$$         .orElse(ItemStack.EMPTY);
+        //#else
+        //$$ ItemStack recordStack = cachedNbt.getCompound("RecordItem")
+        //$$         .map(nbt -> itemStackFromNbt(world.getRegistryManager(), nbt))
+        //$$         .orElse(ItemStack.EMPTY);
+        //#endif
+        if (recordStack.isEmpty()) {
+            return null;
+        }
+        SimpleInventory inventory = new SimpleInventory(1);
+        inventory.setStack(0, recordStack);
+        return inventory;
+    }
 
     private static boolean isTrustedCachedInventory(
             EntityDataAccess storage,
@@ -1160,18 +1163,11 @@ public final class QuickLitematicaContainerVerifier {
         }
 
         World world = fi.dy.masa.malilib.util.WorldUtils.getBestWorld(client);
-        //#if MC<12111
-        BlockEntity blockEntity = world != null
-                ? world.getBlockEntity(blockHitResult.getBlockPos())
-                : client.world.getBlockEntity(blockHitResult.getBlockPos());
-        //#else
-        //$$ World clientWorld = client.world;
-        //$$ World lookupWorld = world != null ? world : clientWorld;
-        //$$ if (lookupWorld == null) {
-        //$$     return null;
-        //$$ }
-        //$$ BlockEntity blockEntity = lookupWorld.getBlockEntity(blockHitResult.getBlockPos());
-        //#endif
+        World lookupWorld = world != null ? world : client.world;
+        if (lookupWorld == null) {
+            return null;
+        }
+        BlockEntity blockEntity = lookupWorld.getBlockEntity(blockHitResult.getBlockPos());
 
         return blockEntity instanceof Inventory ? blockHitResult.getBlockPos().toImmutable() : null;
     }
