@@ -5,8 +5,16 @@ import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
 import org.lwjgl.glfw.GLFW;
 
-final class QuickCraftKeyBindingsAccess {
+public final class QuickCraftKeyBindingsAccess {
     private QuickCraftKeyBindingsAccess() {
+    }
+
+    public static int rightMouseButton() {
+        return GLFW.GLFW_MOUSE_BUTTON_RIGHT;
+    }
+
+    public static int middleMouseButton() {
+        return GLFW.GLFW_MOUSE_BUTTON_MIDDLE;
     }
 
     static boolean isMouseButtonDown(Minecraft client, int button) {

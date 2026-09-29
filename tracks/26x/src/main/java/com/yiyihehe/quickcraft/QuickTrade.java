@@ -34,12 +34,6 @@ import net.minecraft.world.phys.HitResult;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.item.trading.MerchantOffer;
 import net.minecraft.world.item.trading.MerchantOffers;
-//#if MC<260300
-import org.lwjgl.glfw.GLFW;
-//#else
-//$$ import com.mojang.blaze3d.platform.InputConstants;
-//#endif
-
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -759,19 +753,11 @@ public final class QuickTrade implements ClientModInitializer {
     }
 
     private static int getMiddleMouseButton() {
-        //#if MC<260300
-        return GLFW.GLFW_MOUSE_BUTTON_MIDDLE;
-        //#else
-        //$$ return InputConstants.MOUSE_BUTTON_MIDDLE;
-        //#endif
+        return QuickCraftKeyBindingsAccess.middleMouseButton();
     }
 
     private static int getRightMouseButton() {
-        //#if MC<260300
-        return GLFW.GLFW_MOUSE_BUTTON_RIGHT;
-        //#else
-        //$$ return InputConstants.MOUSE_BUTTON_RIGHT;
-        //#endif
+        return QuickCraftKeyBindingsAccess.rightMouseButton();
     }
 
     private static int getGuiLeft(AbstractContainerScreen<?> screen) {
