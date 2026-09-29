@@ -2,6 +2,7 @@ package com.yiyihehe.quickcraft.mixin;
 
 import com.yiyihehe.quickcraft.litematica.QuickLitematicaContainerVerifier;
 import com.yiyihehe.quickcraft.litematica.QuickLitematicaContainerVerifier.BlockMismatchExtension;
+import com.yiyihehe.quickcraft.litematica.QuickLitematicaVerifierAccess;
 import fi.dy.masa.litematica.gui.GuiSchematicVerifier;
 import fi.dy.masa.litematica.gui.widgets.WidgetSchematicVerificationResult;
 import fi.dy.masa.malilib.gui.widgets.WidgetListEntrySortable;
@@ -47,35 +48,22 @@ public abstract class LitematicaWidgetSchematicVerificationResultMixin
     ) {
         if (this.mismatchEntry == null
                 || this.mismatchEntry.blockMismatch == null
-                //#if MC>=260200
-                //$$ || !QuickLitematicaContainerVerifier.isContainerMismatchType(this.mismatchEntry.blockMismatch.mismatchType())) {
-                //#else
-                || !QuickLitematicaContainerVerifier.isContainerMismatchType(this.mismatchEntry.blockMismatch.mismatchType)) {
-                //#endif
+                || !QuickLitematicaContainerVerifier.isContainerMismatchType(
+                        QuickLitematicaVerifierAccess.getMismatchType(this.mismatchEntry.blockMismatch))) {
             return;
         }
 
-        //#if MC>=260200
-        //$$ BlockMismatchExtension extension =
-        //$$         (BlockMismatchExtension) (Object) this.mismatchEntry.blockMismatch;
-        //#else
         BlockMismatchExtension extension =
-                (BlockMismatchExtension) this.mismatchEntry.blockMismatch;
-        //#endif
+                QuickLitematicaVerifierAccess.getMismatchExtension(this.mismatchEntry.blockMismatch);
 
-        if (extension.quickcraft$getContainerMismatch() == null) {
+        if (extension == null || extension.quickcraft$getContainerMismatch() == null) {
             return;
         }
 
         QuickLitematicaContainerVerifier.renderInventoryPair(
                 extension.quickcraft$getContainerMismatch(),
-                //#if MC>=260200
-                //$$ this.mismatchEntry.blockMismatch.stateExpected(),
-                //$$ this.mismatchEntry.blockMismatch.stateFound(),
-                //#else
-                this.mismatchEntry.blockMismatch.stateExpected,
-                this.mismatchEntry.blockMismatch.stateFound,
-                //#endif
+                QuickLitematicaVerifierAccess.getExpectedState(this.mismatchEntry.blockMismatch),
+                QuickLitematicaVerifierAccess.getFoundState(this.mismatchEntry.blockMismatch),
                 extension.quickcraft$getExpectedDisabledSlots(),
                 extension.quickcraft$getFoundDisabledSlots(),
                 mouseX,
