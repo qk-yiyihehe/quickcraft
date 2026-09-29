@@ -434,18 +434,7 @@ public final class QuickCraftConfigs implements IConfigHandler {
         ).apply(CONTAINER_TRANSLATION_PREFIX);
         public static final ConfigStringList BEACON_EFFECT_ORDER = new ConfigStringList(
                 "beaconEffectOrder",
-                ImmutableList.of(
-                        "急迫2",
-                        "力量2",
-                        //#if MC<260200
-                        "生命恢复2",
-                        //#else
-                        //$$ "生命恢复1",
-                        //#endif
-                        "跳跃提升2",
-                        "迅捷2",
-                        "抗性提升2"
-                )
+                QuickCraftConfigsAccess.defaultBeaconEffectOrder()
         ).apply(CONTAINER_TRANSLATION_PREFIX);
         public static final List<IConfigBase> OPTIONS = List.of(
                 ENABLE_QUICK_TRANSFER,
@@ -1494,9 +1483,7 @@ public final class QuickCraftConfigs implements IConfigHandler {
         ConfigUtils.readConfigBase(root, "ProjectionTools", ProjectionTools.OPTIONS);
         ConfigUtils.readConfigBase(root, "ModSupport", ModSupport.OPTIONS);
         ConfigUtils.readConfigBase(root, "Hotkeys", Hotkeys.OPTIONS);
-        //#if MC>=260200
-        //$$ migrateBeaconRegenerationLevelName();
-        //#endif
+        QuickCraftConfigsAccess.postLoadMigrations();
         readButtonPositions(root);
         readMigrations(root);
 
@@ -1538,7 +1525,7 @@ public final class QuickCraftConfigs implements IConfigHandler {
         return false;
     }
 
-    private static void migrateBeaconRegenerationLevelName() {
+    static void migrateBeaconRegenerationLevelName() {
         List<String> current = ContainerTools.BEACON_EFFECT_ORDER.getStrings();
         List<String> migrated = current.stream()
                 .map(QuickCraftConfigs::migrateBeaconRegenerationLevelName)
