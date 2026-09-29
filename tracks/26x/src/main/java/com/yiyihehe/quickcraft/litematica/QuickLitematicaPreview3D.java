@@ -766,47 +766,27 @@ public final class QuickLitematicaPreview3D {
                 return;
             }
 
-//#if MC<260300
-            Path selected;
-//#else
-//#endif
             if (keepMaximized) {
                 maximizeGameWindow();
             }
             long handle = Minecraft.getInstance().getWindow().handle();
             setAutoIconify(handle, false);
             try {
-//#if MC<260300
-                selected = QuickLitematicaPreviewImageWriter.chooseImage(target);
-//#else
-                //$$ QuickLitematicaPreviewImageWriter.chooseImage(target, selected -> {
-                    //$$ setAutoIconify(handle, true);
-                    //$$ restoreGameWindow(restoreFullscreen, keepMaximized);
-                    //$$ this.handleSelectedPreviewImage(preview, target, selected, callback);
-                //$$ });
-//#endif
+                QuickLitematicaPreviewImageWriter.chooseImage(target, selected -> {
+                    setAutoIconify(handle, true);
+                    restoreGameWindow(restoreFullscreen, keepMaximized);
+                    this.handleSelectedPreviewImage(preview, target, selected, callback);
+                });
             } catch (Throwable throwable) {
                 LOGGER.error("Failed to open the preview image file picker", throwable);
-//#if MC<260300
-                callback.accept(Component.translatable("quickcraft.litematica.preview_3d.preview_write_failed"));
-                return;
-            } finally {
-//#else
-//#endif
                 setAutoIconify(handle, true);
                 restoreGameWindow(restoreFullscreen, keepMaximized);
-//#if MC<260300
-//#else
-                //$$ callback.accept(Component.translatable("quickcraft.litematica.preview_3d.preview_write_failed"));
-//#endif
+                callback.accept(Component.translatable("quickcraft.litematica.preview_3d.preview_write_failed"));
             }
-//#if MC<260300
-//#else
-        //$$ }
-//$$
-        //$$ private void handleSelectedPreviewImage(Preview preview, Path target, @Nullable Path selected,
-                                                //$$ Consumer<Component> callback) {
-//#endif
+        }
+
+        private void handleSelectedPreviewImage(Preview preview, Path target, @Nullable Path selected,
+                                                Consumer<Component> callback) {
             if (selected == null) {
                 callback.accept(Component.translatable("quickcraft.litematica.preview_3d.image_selection_cancelled"));
                 return;

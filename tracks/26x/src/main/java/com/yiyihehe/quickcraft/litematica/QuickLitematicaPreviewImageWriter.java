@@ -1,20 +1,9 @@
 package com.yiyihehe.quickcraft.litematica;
 
 import fi.dy.masa.litematica.schematic.LitematicaSchematic;
-import net.minecraft.network.chat.Component;
 import org.jetbrains.annotations.Nullable;
-//#if MC<260300
-import org.lwjgl.PointerBuffer;
-import org.lwjgl.util.tinyfd.TinyFileDialogs;
-//#else
-//$$ import net.minecraft.client.Minecraft;
-//$$ import org.lwjgl.sdl.SDLDialog;
-//$$ import org.lwjgl.sdl.SDL_DialogFileCallback;
-//$$ import org.lwjgl.sdl.SDL_DialogFileFilter;
-//#endif
 import org.lwjgl.stb.STBImage;
 import org.lwjgl.stb.STBImageResize;
-import org.lwjgl.system.MemoryStack;
 import org.lwjgl.system.MemoryUtil;
 
 import java.io.IOException;
@@ -23,11 +12,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.util.Locale;
-//#if MC>=260300
-//$$ import java.util.Set;
-//$$ import java.util.concurrent.ConcurrentHashMap;
-//$$ import java.util.function.Consumer;
-//#endif
+import java.util.function.Consumer;
 
 /**
  * 将本地图片或 3D 快照转换为 Litematica 的正方形 ARGB 预览数据，并安全写回原理图文件。
@@ -39,80 +24,13 @@ final class QuickLitematicaPreviewImageWriter {
     private static final int MAX_SOURCE_DIMENSION = 8192;
     private static final long MAX_SOURCE_PIXELS = (long) MAX_SOURCE_DIMENSION * MAX_SOURCE_DIMENSION;
     private static final String[] SUPPORTED_EXTENSIONS = {"png", "jpg", "jpeg"};
-    //#if MC>=260300
-    //$$ private static final Set<SDL_DialogFileCallback> ACTIVE_DIALOG_CALLBACKS = ConcurrentHashMap.newKeySet();
-    //#endif
 
     private QuickLitematicaPreviewImageWriter() {
     }
 
-    //#if MC<260300
-    @Nullable
-    static Path chooseImage(Path schematicPath) {
-        Path initialDirectory = schematicPath.toAbsolutePath().normalize().getParent();
-        String defaultPath = initialDirectory == null ? "" : initialDirectory.toString();
-        try (MemoryStack stack = MemoryStack.stackPush()) {
-            PointerBuffer filters = stack.mallocPointer(SUPPORTED_EXTENSIONS.length);
-            for (String extension : SUPPORTED_EXTENSIONS) {
-                filters.put(stack.UTF8("*." + extension));
-            }
-            filters.flip();
-
-            String selected = TinyFileDialogs.tinyfd_openFileDialog(
-                    Component.translatable("quickcraft.litematica.preview_3d.select_image_title").getString(),
-                    defaultPath,
-                    filters,
-                    Component.translatable("quickcraft.litematica.preview_3d.image_files").getString(),
-                    false
-            );
-            return selected == null ? null : Path.of(selected).toAbsolutePath().normalize();
-        }
+    static void chooseImage(Path schematicPath, Consumer<@Nullable Path> resultConsumer) {
+        QuickLitematicaPreviewImageWriterAccess.chooseImage(schematicPath, SUPPORTED_EXTENSIONS, resultConsumer);
     }
-    //#else
-    //$$ static void chooseImage(Path schematicPath, Consumer<@Nullable Path> resultConsumer) {
-    //$$     Path initialDirectory = schematicPath.toAbsolutePath().normalize().getParent();
-    //$$     String defaultPath = initialDirectory == null ? "" : initialDirectory.toString();
-    //$$     SDL_DialogFileCallback[] holder = new SDL_DialogFileCallback[1];
-    //$$     SDL_DialogFileCallback callback = SDL_DialogFileCallback.create((userdata, fileList, filter) -> {
-    //$$         Path selected = null;
-    //$$         try {
-    //$$             long selectedAddress = fileList == 0L ? 0L : MemoryUtil.memGetAddress(fileList);
-    //$$             String selectedPath = MemoryUtil.memUTF8Safe(selectedAddress);
-    //$$             if (selectedPath != null && !selectedPath.isBlank()) {
-    //$$                 selected = Path.of(selectedPath).toAbsolutePath().normalize();
-    //$$             }
-    //$$             Path result = selected;
-    //$$             Minecraft.getInstance().execute(() -> resultConsumer.accept(result));
-    //$$         } finally {
-    //$$             SDL_DialogFileCallback retained = holder[0];
-    //$$             if (retained != null) {
-    //$$                 ACTIVE_DIALOG_CALLBACKS.remove(retained);
-    //$$                 retained.free();
-    //$$             }
-    //$$         }
-    //$$     });
-    //$$     holder[0] = callback;
-    //$$     ACTIVE_DIALOG_CALLBACKS.add(callback);
-    //$$     try (MemoryStack stack = MemoryStack.stackPush()) {
-    //$$         SDL_DialogFileFilter.Buffer filters = SDL_DialogFileFilter.calloc(1, stack);
-    //$$         filters.get(0).name(stack.UTF8(Component.translatable(
-    //$$                 "quickcraft.litematica.preview_3d.image_files").getString()))
-    //$$                 .pattern(stack.UTF8(String.join(";", SUPPORTED_EXTENSIONS)));
-    //$$         SDLDialog.SDL_ShowOpenFileDialog(
-    //$$                 callback,
-    //$$                 0L,
-    //$$                 Minecraft.getInstance().getWindow().handle(),
-    //$$                 filters,
-    //$$                 defaultPath,
-    //$$                 false
-    //$$         );
-    //$$     } catch (Throwable throwable) {
-    //$$         ACTIVE_DIALOG_CALLBACKS.remove(callback);
-    //$$         callback.free();
-    //$$         throw throwable;
-    //$$     }
-    //$$ }
-    //#endif
 
     static int[] readImagePixels(Path imagePath) throws IOException {
         validateSourceFile(imagePath);
