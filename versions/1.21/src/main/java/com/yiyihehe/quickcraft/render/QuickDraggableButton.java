@@ -3,20 +3,15 @@ package com.yiyihehe.quickcraft.render;
 import com.yiyihehe.quickcraft.QuickCraftKeyBindings;
 import com.yiyihehe.quickcraft.config.QuickCraftConfigs;
 import net.minecraft.client.MinecraftClient;
-//#if MC>=12110
-//$$ import net.minecraft.client.gui.Click;
-//#endif
-//#if MC>=12111
-//$$ import net.minecraft.client.gui.DrawContext;
-//#endif
+import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.gui.Element;
-import net.minecraft.client.gui.screen.Screen;
 import net.minecraft.client.gui.screen.ingame.HandledScreen;
 import net.minecraft.client.gui.widget.ButtonWidget;
 import net.minecraft.text.Text;
-import net.minecraft.util.math.MathHelper;
 
-/** Button that preserves normal clicks while reserving Shift + mouse gestures for layout editing. */
+/**
+ * 1.21 可拖拽按钮基础类（clicked、renderWidget 与 double 鼠标输入）。
+ */
 public class QuickDraggableButton extends ButtonWidget {
     public enum PositionKey {
         CONTAINER_LOCK("containerLock"),
@@ -44,11 +39,7 @@ public class QuickDraggableButton extends ButtonWidget {
     private boolean dragging;
     private boolean consumeRightRelease;
 
-    //#if MC>=12111
-    //$$ public QuickDraggableButton(int x, int y, int width, int height, net.minecraft.text.Text message,
-    //#else
-    public QuickDraggableButton(int x, int y, int width, int height, Text message,
-    //#endif
+    public QuickDraggableButton(int x, int y, int width, int height, net.minecraft.text.Text message,
                                 PressAction onPress, PositionKey positionKey) {
         super(x, y, width, height, message, onPress, DEFAULT_NARRATION_SUPPLIER);
         this.positionKey = positionKey;
@@ -82,22 +73,11 @@ public class QuickDraggableButton extends ButtonWidget {
     }
 
     @Override
-    //#if MC>=12110
-    //$$ public boolean mouseClicked(Click click, boolean doubled) {
-    //$$     double mouseX = click.x();
-    //$$     double mouseY = click.y();
-    //$$     int button = click.button();
-    //#else
     public boolean mouseClicked(double mouseX, double mouseY, int button) {
-    //#endif
         if (!QuickCraftConfigs.isActionButtonDraggingEnabled()
                 || !QuickCraftKeyBindings.isShiftDown()
-                || !isPointerOver(mouseX, mouseY)) {
-            //#if MC>=12110
-            //$$ return super.mouseClicked(click, doubled);
-            //#else
+                || !this.clicked(mouseX, mouseY)) {
             return super.mouseClicked(mouseX, mouseY, button);
-            //#endif
         }
         if (button == 0) {
             this.dragging = true;
@@ -115,41 +95,17 @@ public class QuickDraggableButton extends ButtonWidget {
         return false;
     }
 
-    private boolean isPointerOver(double mouseX, double mouseY) {
-        //#if MC<12103
-        return this.clicked(mouseX, mouseY);
-        //#else
-        //$$ return this.isMouseOver(mouseX, mouseY);
-        //#endif
-    }
-
     @Override
-    //#if MC>=12110
-    //$$ public boolean mouseDragged(Click click, double deltaX, double deltaY) {
-    //$$     double mouseX = click.x();
-    //$$     double mouseY = click.y();
-    //$$     int button = click.button();
-    //#else
     public boolean mouseDragged(double mouseX, double mouseY, int button, double deltaX, double deltaY) {
-    //#endif
         if (this.dragging && button == 0) {
-            this.setClampedPosition((int)Math.round(mouseX - this.grabOffsetX), (int)Math.round(mouseY - this.grabOffsetY));
+            this.setClampedPosition((int) Math.round(mouseX - this.grabOffsetX), (int) Math.round(mouseY - this.grabOffsetY));
             return true;
         }
-        //#if MC>=12110
-        //$$ return super.mouseDragged(click, deltaX, deltaY);
-        //#else
         return super.mouseDragged(mouseX, mouseY, button, deltaX, deltaY);
-        //#endif
     }
 
     @Override
-    //#if MC>=12110
-    //$$ public boolean mouseReleased(Click click) {
-    //$$     int button = click.button();
-    //#else
     public boolean mouseReleased(double mouseX, double mouseY, int button) {
-    //#endif
         if (this.dragging && button == 0) {
             this.dragging = false;
             QuickCraftConfigs.setActionButtonOffset(
@@ -160,39 +116,39 @@ public class QuickDraggableButton extends ButtonWidget {
             QuickCraftConfigs.saveToFile();
             return true;
         }
-        //#if MC>=12110
-        //$$ return super.mouseReleased(click);
-        //#else
         return super.mouseReleased(mouseX, mouseY, button);
-        //#endif
     }
 
-    //#if MC>=12111
-    //$$ @Override
-    //$$ protected void drawIcon(DrawContext context, int mouseX, int mouseY, float deltaTicks) {
-    //$$     this.drawButton(context);
-    //$$     this.drawLabel(context.getHoverListener(this, DrawContext.HoverType.NONE));
-    //$$ }
-    //#endif
+    @Override
+    protected void renderWidget(DrawContext context, int mouseX, int mouseY, float delta) {
+        this.renderButtonContent(context, mouseX, mouseY, delta);
+    }
+
+    protected void renderButtonContent(DrawContext context, int mouseX, int mouseY, float delta) {
+        super.renderWidget(context, mouseX, mouseY, delta);
+    }
 
     public boolean isPositionDragging() {
         return this.dragging;
     }
 
     public boolean consumeRightRelease() {
-        boolean consume = this.consumeRightRelease;
+        if (!this.consumeRightRelease) {
+            return false;
+        }
         this.consumeRightRelease = false;
-        return consume;
+        return true;
     }
 
     private void setClampedPosition(int x, int y) {
-        Screen screen = MinecraftClient.getInstance().currentScreen;
-        if (screen == null) {
-            this.setX(x);
-            this.setY(y);
-            return;
-        }
-        this.setX(MathHelper.clamp(x, 0, Math.max(0, screen.width - this.getWidth())));
-        this.setY(MathHelper.clamp(y, 0, Math.max(0, screen.height - this.getHeight())));
+        MinecraftClient client = MinecraftClient.getInstance();
+        int screenWidth = client.getWindow().getScaledWidth();
+        int screenHeight = client.getWindow().getScaledHeight();
+        int minX = 2;
+        int maxX = Math.max(minX, screenWidth - this.getWidth() - 2);
+        int minY = 2;
+        int maxY = Math.max(minY, screenHeight - this.getHeight() - 2);
+        this.setX(Math.max(minX, Math.min(x, maxX)));
+        this.setY(Math.max(minY, Math.min(y, maxY)));
     }
 }
