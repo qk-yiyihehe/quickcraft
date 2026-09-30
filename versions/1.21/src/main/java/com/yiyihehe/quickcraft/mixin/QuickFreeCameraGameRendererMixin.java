@@ -15,7 +15,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 /**
  * Tweakeroo 允许玩家输入时会把准星来源改回玩家；这里在其后恢复为灵魂相机射线。
- * 若目标方法失效，普通交互仍安全，但准星会重新落回玩家本体视角。
+ * 1.21–1.21.10 使用 GameRenderer.findCrosshairTarget 私有方法。
  */
 @Mixin(GameRenderer.class)
 public abstract class QuickFreeCameraGameRendererMixin {
@@ -23,7 +23,6 @@ public abstract class QuickFreeCameraGameRendererMixin {
     @Final
     private MinecraftClient client;
 
-    //#if MC<12111
     @Shadow
     private HitResult findCrosshairTarget(
             Entity camera,
@@ -33,7 +32,6 @@ public abstract class QuickFreeCameraGameRendererMixin {
     ) {
         throw new AssertionError();
     }
-    //#endif
 
     @Inject(method = "updateCrosshairTarget", at = @At("TAIL"))
     private void quickcraft$useFreeCameraCrosshair(float tickDelta, CallbackInfo ci) {
@@ -42,16 +40,12 @@ public abstract class QuickFreeCameraGameRendererMixin {
         }
 
         Entity camera = this.client.getCameraEntity();
-        //#if MC>=12111
-        //$$ HitResult target = this.client.player.getCrosshairTarget(tickDelta, camera);
-        //#else
         HitResult target = this.findCrosshairTarget(
                 camera,
                 this.client.player.getBlockInteractionRange(),
                 this.client.player.getEntityInteractionRange(),
                 tickDelta
         );
-        //#endif
         target = QuickFreeCameraInteractions.filterCrosshairTarget(this.client, camera, target);
         this.client.crosshairTarget = target;
         this.client.targetedEntity = target instanceof EntityHitResult entityHitResult
