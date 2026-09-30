@@ -9,16 +9,6 @@ import net.minecraft.item.BlockItem;
 import net.minecraft.item.ItemPlacementContext;
 import net.minecraft.item.ItemStack;
 import net.minecraft.item.Items;
-//#if MC<12108
-import net.minecraft.network.packet.c2s.play.ClientCommandC2SPacket;
-//#else
-//$$ import net.minecraft.network.packet.c2s.play.PlayerInputC2SPacket;
-//$$ import net.minecraft.util.PlayerInput;
-//#endif
-import net.minecraft.network.packet.c2s.play.PlayerMoveC2SPacket;
-//#if MC<12103
-import net.minecraft.state.property.DirectionProperty;
-//#endif
 import net.minecraft.state.property.Properties;
 import net.minecraft.state.property.Property;
 import net.minecraft.util.Hand;
@@ -34,7 +24,6 @@ import net.minecraft.world.RaycastContext;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
-import java.util.Optional;
 import java.util.Set;
 
 /**
@@ -66,9 +55,6 @@ public final class QuickFreeCameraInteractions {
             Properties.ROTATION
     );
     private static boolean sneakPlacementCommandSent;
-    //#if MC>=12108
-    //$$ private static PlayerInput restoredPlayerInput;
-    //#endif
     private static boolean entitySneakingReleasePending;
     private static boolean cameraFacingApplied;
     private static int cameraFacingDepth;
@@ -166,19 +152,7 @@ public final class QuickFreeCameraInteractions {
         }
 
         entitySneakingReleasePending = false;
-        if (client == null || client.player == null || client.player.networkHandler == null) {
-            return;
-        }
-
-        //#if MC<12108
-        client.player.networkHandler.sendPacket(
-                new ClientCommandC2SPacket(client.player, ClientCommandC2SPacket.Mode.RELEASE_SHIFT_KEY)
-        );
-        //#else
-        //$$ if (client.player.input != null) {
-        //$$     client.player.networkHandler.sendPacket(new PlayerInputC2SPacket(client.player.input.playerInput));
-        //$$ }
-        //#endif
+        QuickFreeCameraAccess.endEntitySneaking(client);
     }
 
     public static void beginBlockUseFromFreeCamera(MinecraftClient client, Hand hand, BlockHitResult hitResult) {
@@ -279,15 +253,7 @@ public final class QuickFreeCameraInteractions {
     }
 
     private static void sendLookPacket(ClientPlayerEntity player, float yaw, float pitch) {
-        //#if MC<12103
-        player.networkHandler.sendPacket(
-                new PlayerMoveC2SPacket.LookAndOnGround(yaw, pitch, player.isOnGround())
-        );
-        //#else
-        //$$ player.networkHandler.sendPacket(
-        //$$         new PlayerMoveC2SPacket.LookAndOnGround(yaw, pitch, player.isOnGround(), player.horizontalCollision)
-        //$$ );
-        //#endif
+        QuickFreeCameraAccess.sendLookPacket(player, yaw, pitch);
     }
 
     public static void beginEasyPlaceAction() {
@@ -350,32 +316,11 @@ public final class QuickFreeCameraInteractions {
     private static void beginSneakPlacement(MinecraftClient client) {
         if (sneakPlacementCommandSent
                 || !shouldSneakPlaceFromFreeCamera(client)
-                || client.player == null
-                || client.player.networkHandler == null
-                //#if MC>=12108
-                //$$ || client.player.input == null
-                //#endif
-        ) {
+                || !QuickFreeCameraAccess.canSneakPlace(client)) {
             return;
         }
 
-        //#if MC<12108
-        client.player.networkHandler.sendPacket(
-                new ClientCommandC2SPacket(client.player, ClientCommandC2SPacket.Mode.PRESS_SHIFT_KEY)
-        );
-        //#else
-        //$$ restoredPlayerInput = client.player.input.playerInput;
-        //$$ PlayerInput sneaking = new PlayerInput(
-        //$$         restoredPlayerInput.forward(),
-        //$$         restoredPlayerInput.backward(),
-        //$$         restoredPlayerInput.left(),
-        //$$         restoredPlayerInput.right(),
-        //$$         restoredPlayerInput.jump(),
-        //$$         true,
-        //$$         restoredPlayerInput.sprint()
-        //$$ );
-        //$$ client.player.networkHandler.sendPacket(new PlayerInputC2SPacket(sneaking));
-        //#endif
+        QuickFreeCameraAccess.beginSneakPlacement(client);
         sneakPlacementCommandSent = true;
     }
 
@@ -385,22 +330,7 @@ public final class QuickFreeCameraInteractions {
         }
 
         sneakPlacementCommandSent = false;
-        //#if MC<12108
-        if (client == null || client.player == null || client.player.networkHandler == null) {
-            return;
-        }
-
-        client.player.networkHandler.sendPacket(
-                new ClientCommandC2SPacket(client.player, ClientCommandC2SPacket.Mode.RELEASE_SHIFT_KEY)
-        );
-        //#else
-        //$$ PlayerInput restored = restoredPlayerInput;
-        //$$ restoredPlayerInput = null;
-        //$$ if (client == null || client.player == null || client.player.networkHandler == null || restored == null) {
-        //$$     return;
-        //$$ }
-        //$$ client.player.networkHandler.sendPacket(new PlayerInputC2SPacket(restored));
-        //#endif
+        QuickFreeCameraAccess.endSneakPlacement(client);
     }
 
     /**
@@ -434,13 +364,8 @@ public final class QuickFreeCameraInteractions {
         ClientPlayerEntity player = client.player;
         restoredYaw = player.getYaw();
         restoredPitch = player.getPitch();
-        //#if MC<12105
-        restoredPrevYaw = player.prevYaw;
-        restoredPrevPitch = player.prevPitch;
-        //#else
-        //$$ restoredPrevYaw = player.lastYaw;
-        //$$ restoredPrevPitch = player.lastPitch;
-        //#endif
+        restoredPrevYaw = QuickFreeCameraAccess.getPrevYaw(player);
+        restoredPrevPitch = QuickFreeCameraAccess.getPrevPitch(player);
         restoredHeadYaw = player.getHeadYaw();
         restoredBodyYaw = player.getBodyYaw();
         serverFacingRestorePending = false;
@@ -471,13 +396,7 @@ public final class QuickFreeCameraInteractions {
         ClientPlayerEntity player = client.player;
         player.setYaw(restoredYaw);
         player.setPitch(restoredPitch);
-        //#if MC<12105
-        player.prevYaw = restoredPrevYaw;
-        player.prevPitch = restoredPrevPitch;
-        //#else
-        //$$ player.lastYaw = restoredPrevYaw;
-        //$$ player.lastPitch = restoredPrevPitch;
-        //#endif
+        QuickFreeCameraAccess.setPrevRotation(player, restoredPrevYaw, restoredPrevPitch);
         player.setHeadYaw(restoredHeadYaw);
         player.setBodyYaw(restoredBodyYaw);
         serverFacingRestorePending = true;
@@ -485,30 +404,13 @@ public final class QuickFreeCameraInteractions {
     }
 
     private static Integer encodeV3PlacementState(BlockState state) {
-        //#if MC<12103
-        Optional<DirectionProperty> directionProperty = state.getProperties().stream()
-                .filter(DirectionProperty.class::isInstance)
-                .map(DirectionProperty.class::cast)
-                .findFirst();
-        //#else
-        //$$ Optional<Property<?>> directionProperty = state.getProperties().stream()
-        //$$         .filter(property -> property.getType() == Direction.class)
-        //$$         .findFirst();
-        //#endif
+        Property<Direction> directionProperty = QuickFreeCameraAccess.getDirectionProperty(state);
         int protocolValue = 0;
         int shift;
 
-        if (directionProperty.isPresent()) {
-            //#if MC<12103
-            Direction facing = state.get(directionProperty.get());
-            //#else
-            //$$ Direction facing = (Direction) state.get(directionProperty.get());
-            //#endif
-            //#if MC<12105
-            protocolValue = facing.getId() << 1;
-            //#else
-            //$$ protocolValue = facing.getIndex() << 1;
-            //#endif
+        if (directionProperty != null) {
+            Direction facing = state.get(directionProperty);
+            protocolValue = QuickFreeCameraAccess.getDirectionIndex(facing) << 1;
             shift = 4;
         } else {
             shift = 1;
@@ -516,10 +418,10 @@ public final class QuickFreeCameraInteractions {
 
         List<Property<?>> properties = new ArrayList<>(state.getProperties());
         properties.sort(Comparator.comparing(Property::getName));
-        boolean encodedProperty = directionProperty.isPresent();
+        boolean encodedProperty = directionProperty != null;
         for (Property<?> property : properties) {
-            if (directionProperty.isPresent()) {
-                if (property.equals(directionProperty.get())) {
+            if (directionProperty != null) {
+                if (property.equals(directionProperty)) {
                     continue;
                 }
             } else if (!V3_PROPERTIES_WITHOUT_DIRECTION.contains(property)) {
