@@ -42,6 +42,7 @@
 		"LitematicaInventoryUtilsShulkerRestockMixin",
 		"LitematicaSchematicLoadMixin",
 		"LitematicaSchematicVerifierMixin",
+		"LitematicaSchematicVerifierChunkMixin",
 		"LitematicaStagedVertexBufferAccessor",
 		"LitematicaWidgetSchematicBrowserMixin",
 		"LitematicaWidgetListSchematicVerificationResultsMixin",

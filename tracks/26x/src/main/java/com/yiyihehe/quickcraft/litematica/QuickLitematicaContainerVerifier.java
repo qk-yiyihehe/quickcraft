@@ -43,6 +43,7 @@ import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.Container;
 import net.minecraft.world.SimpleContainer;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.level.chunk.ChunkAccess;
 import net.minecraft.world.item.enchantment.Enchantment;
 import net.minecraft.world.item.enchantment.ItemEnchantments;
 import net.minecraft.nbt.CompoundTag;
@@ -1708,6 +1709,19 @@ public final class QuickLitematicaContainerVerifier {
         int quickcraft$getPendingContainerCount();
 
         void quickcraft$setContainerOnly(boolean containerOnly);
+
+        boolean quickcraft$isContainerOnly();
+
+        void quickcraft$collectContainerInventories(
+                ChunkAccess chunkClient,
+                ChunkAccess chunkSchematic,
+                int minX,
+                int minY,
+                int minZ,
+                int maxX,
+                int maxY,
+                int maxZ
+        );
 
         List<ContainerMismatch> quickcraft$refreshContainerMismatchAt(BlockPos pos, Container foundInventory, Set<Integer> foundDisabledSlots);
     }
