@@ -4,9 +4,7 @@ import com.yiyihehe.quickcraft.config.QuickCraftConfigs;
 import com.yiyihehe.quickcraft.gui.QuickCraftConfigScreen;
 import com.yiyihehe.quickcraft.mixin.HandledScreenAccessor;
 import com.yiyihehe.quickcraft.mixin.CreativeSlotAccessor;
-import fi.dy.masa.malilib.event.InputEventHandler;
 import fi.dy.masa.malilib.hotkeys.IKeybind;
-import fi.dy.masa.malilib.hotkeys.IKeyboardInputHandler;
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.minecraft.client.MinecraftClient;
@@ -15,23 +13,11 @@ import net.minecraft.client.gui.screen.ingame.AnvilScreen;
 import net.minecraft.client.gui.screen.ingame.CreativeInventoryScreen;
 import net.minecraft.client.gui.screen.ingame.HandledScreen;
 import net.minecraft.client.gui.widget.TextFieldWidget;
-//#if MC>=12110
-//$$ import net.minecraft.client.input.KeyInput;
-//#endif
 import net.minecraft.entity.player.PlayerInventory;
 import net.minecraft.inventory.Inventory;
 import net.minecraft.item.ItemStack;
-//#if MC>=12103
-//$$ import net.minecraft.network.packet.c2s.play.ClickSlotC2SPacket;
-//$$ import it.unimi.dsi.fastutil.ints.Int2ObjectMap;
-//$$ import it.unimi.dsi.fastutil.ints.Int2ObjectOpenHashMap;
-//#endif
-//#if MC>=12105
-//$$ import net.minecraft.screen.sync.ItemStackHash;
-//#endif
 import net.minecraft.screen.ScreenHandler;
 import net.minecraft.screen.slot.Slot;
-import net.minecraft.screen.slot.SlotActionType;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.LinkedHashSet;
@@ -45,7 +31,7 @@ import java.util.Set;
  * - 自定义组合键 B：丢弃鼠标当前所在容器区域内，与鼠标指向物品相同的全部可见物品
  * - 短按只执行一次；进入系统键盘重复后才持续处理当前槽位
  */
-public final class QuickThrow implements ClientModInitializer, IKeyboardInputHandler {
+public final class QuickThrow implements ClientModInitializer {
     private static final int SLOT_SIZE = 18;
     private static final int SLIDE_SAMPLE_STEP = SLOT_SIZE / 2;
     private static final Set<Integer> pressedKeyboardKeys = new HashSet<>();
@@ -60,16 +46,10 @@ public final class QuickThrow implements ClientModInitializer, IKeyboardInputHan
     @Override
     public void onInitializeClient() {
         ClientTickEvents.END_CLIENT_TICK.register(this::onClientTick);
-        InputEventHandler.getInputManager().registerKeyboardInputHandler(this);
+        QuickThrowAccess.registerInputHandler();
     }
 
-    @Override
-    //#if MC<12110
-    public boolean onKeyInput(int keyCode, int scanCode, int modifiers, boolean eventKeyState) {
-    //#else
-    //$$ public boolean onKeyInput(KeyInput input, boolean eventKeyState) {
-    //$$     int keyCode = input.key();
-    //#endif
+    public static boolean handleKeyInput(int keyCode, boolean eventKeyState) {
         if (keyCode < 0) {
             return false;
         }
@@ -307,77 +287,8 @@ public final class QuickThrow implements ClientModInitializer, IKeyboardInputHan
             return;
         }
 
-        //#if MC<12103
-        ScreenHandler previousHandler = client.player.currentScreenHandler;
-        boolean usingCreativePlayerInventory = target.screen() instanceof CreativeInventoryScreen;
-        try {
-            if (usingCreativePlayerInventory) {
-                // 创造界面原版 dropCreativeStack 有服务端限流，这里按真实玩家背包槽执行普通丢弃。
-                client.player.currentScreenHandler = target.handler();
-            }
-            client.interactionManager.clickSlot(
-                    target.handler().syncId,
-                    target.clickSlotId(),
-                    1,
-                    SlotActionType.THROW,
-                    client.player
-            );
-        } finally {
-            if (usingCreativePlayerInventory) {
-                client.player.currentScreenHandler = previousHandler;
-            }
-        }
-        //#else
-        //$$ if (target.screen() instanceof CreativeInventoryScreen) {
-        //$$     sendCreativePlayerThrowPacket(target, client);
-        //$$     return;
-        //$$ }
-        //$$ client.interactionManager.clickSlot(
-        //$$         target.handler().syncId,
-        //$$         target.clickSlotId(),
-        //$$         1,
-        //$$         SlotActionType.THROW,
-        //$$         client.player
-        //$$ );
-        //#endif
+        QuickThrowAccess.dropWholeStack(client, target);
     }
-
-    //#if MC>=12103
-    //$$ private static void sendCreativePlayerThrowPacket(ThrowTarget target, MinecraftClient client) {
-    //$$     if (client.getNetworkHandler() == null) {
-    //$$         return;
-    //$$     }
-    //$$     // 1.21.2+ 的创造丢弃包有服务端限流；原版 clickSlot 又会在创造客户端本地先生成掉落。
-    //$$     // 这里直接给玩家真实背包发 THROW 包，只让服务端执行一次丢弃。
-    //$$     target.visibleSlot().setStackNoCallbacks(ItemStack.EMPTY);
-    //$$     target.effectiveSlot().setStackNoCallbacks(ItemStack.EMPTY);
-    //$$     //#if MC<12105
-    //$$     Int2ObjectMap<ItemStack> modifiedStacks = new Int2ObjectOpenHashMap<>();
-    //$$     modifiedStacks.put(target.clickSlotId(), ItemStack.EMPTY);
-    //$$     client.getNetworkHandler().sendPacket(new ClickSlotC2SPacket(
-    //$$             target.handler().syncId,
-    //$$             target.handler().getRevision(),
-    //$$             target.clickSlotId(),
-    //$$             1,
-    //$$             SlotActionType.THROW,
-    //$$             target.handler().getCursorStack().copy(),
-    //$$             modifiedStacks
-    //$$     ));
-    //$$     //#else
-    //$$     //$$ Int2ObjectMap<ItemStackHash> modifiedStacks = new Int2ObjectOpenHashMap<>();
-    //$$     //$$ modifiedStacks.put(target.clickSlotId(), ItemStackHash.EMPTY);
-    //$$     //$$ client.getNetworkHandler().sendPacket(new ClickSlotC2SPacket(
-    //$$     //$$         target.handler().syncId,
-    //$$     //$$         target.handler().getRevision(),
-    //$$     //$$         (short) target.clickSlotId(),
-    //$$     //$$         (byte) 1,
-    //$$     //$$         SlotActionType.THROW,
-    //$$     //$$         modifiedStacks,
-    //$$     //$$         ItemStackHash.EMPTY
-    //$$     //$$ ));
-    //$$     //#endif
-    //$$ }
-    //#endif
 
     private static List<Slot> findHoveredSlotsAlongPath(HandledScreen<?> screen, int mouseX, int mouseY) {
         if (!hasLastMousePosition) {
@@ -520,7 +431,7 @@ public final class QuickThrow implements ClientModInitializer, IKeyboardInputHan
         WHOLE_STACK
     }
 
-    private record ThrowTarget(HandledScreen<?> screen,
+    public record ThrowTarget(HandledScreen<?> screen,
                                ScreenHandler handler,
                                Slot visibleSlot,
                                Slot effectiveSlot,
