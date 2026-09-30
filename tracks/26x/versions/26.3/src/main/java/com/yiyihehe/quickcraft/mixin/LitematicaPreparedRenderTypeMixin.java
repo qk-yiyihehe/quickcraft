@@ -1,7 +1,7 @@
 package com.yiyihehe.quickcraft.mixin;
 
-import com.mojang.blaze3d.buffers.GpuBufferSlice;
-import com.mojang.blaze3d.systems.RenderPass;
+import com.mojang.renderpearl.api.buffers.GpuBufferSlice;
+import com.mojang.renderpearl.api.commands.RenderPass;
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.yiyihehe.quickcraft.litematica.QuickLitematicaPreview3D;
 import net.minecraft.client.renderer.rendertype.PreparedRenderType;
@@ -11,16 +11,16 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Redirect;
 
 /**
- * 26.2 投影实体网格会缓存 PreparedFrame；其中的 DynamicTransforms 切片会在原版 endFrame 后失效。
+ * 26.3 投影实体网格会缓存 PreparedFrame；其中的 DynamicTransforms 切片会在原版 endFrame 后失效。
  * 只在预览回放缓存帧时换成当前帧的新切片，避免关掉网格缓存。
  */
 @Mixin(PreparedRenderType.class)
 public class LitematicaPreparedRenderTypeMixin {
     @Redirect(
-            method = "drawFromBuffer(Lcom/mojang/blaze3d/buffers/GpuBuffer;Lcom/mojang/blaze3d/buffers/GpuBuffer;Lcom/mojang/blaze3d/IndexType;III)V",
+            method = "draw",
             at = @At(
                     value = "INVOKE",
-                    target = "Lcom/mojang/blaze3d/systems/RenderPass;setUniform(Ljava/lang/String;Lcom/mojang/blaze3d/buffers/GpuBufferSlice;)V"
+                    target = "Lcom/mojang/renderpearl/api/commands/RenderPass;setUniform(Ljava/lang/String;Lcom/mojang/renderpearl/api/buffers/GpuBufferSlice;)V"
             )
     )
     private void quickcraft$refreshCachedDynamicTransforms(RenderPass pass, String name, GpuBufferSlice value) {
