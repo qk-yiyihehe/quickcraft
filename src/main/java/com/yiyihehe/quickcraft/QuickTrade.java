@@ -3,7 +3,6 @@ package com.yiyihehe.quickcraft;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
-import com.mojang.brigadier.exceptions.CommandSyntaxException;
 import com.yiyihehe.quickcraft.config.QuickCraftConfigs;
 import com.yiyihehe.quickcraft.mixin.HandledScreenAccessor;
 import com.yiyihehe.quickcraft.mixin.MerchantScreenAccessor;
@@ -18,11 +17,6 @@ import net.minecraft.entity.Entity;
 import net.minecraft.entity.passive.MerchantEntity;
 import net.minecraft.entity.player.PlayerInventory;
 import net.minecraft.item.ItemStack;
-//#if MC>=12108
-//$$ import net.minecraft.nbt.NbtElement;
-//$$ import net.minecraft.nbt.NbtOps;
-//#endif
-import net.minecraft.nbt.StringNbtReader;
 import net.minecraft.network.packet.c2s.play.SelectMerchantTradeC2SPacket;
 import net.minecraft.registry.RegistryWrapper;
 import net.minecraft.screen.MerchantScreenHandler;
@@ -182,11 +176,7 @@ public final class QuickTrade implements ClientModInitializer {
                     "★",
                     rowLeft + STAR_X_OFFSET,
                     rowTop + STAR_Y_OFFSET,
-                    //#if MC<12108
-                    0xFFE066
-                    //#else
-                    //$$ 0xFFFFE066
-                    //#endif
+                    QuickTradeAccess.getFavoriteStarColor()
             );
         }
     }
@@ -985,42 +975,11 @@ public final class QuickTrade implements ClientModInitializer {
         }
 
         private static String encodeStack(ItemStack stack, RegistryWrapper.WrapperLookup registryLookup) {
-            //#if MC<12103
-            return normalize(stack).encodeAllowEmpty(registryLookup).toString();
-            //#elseif MC<12105
-            //$$ return normalize(stack).toNbtAllowEmpty(registryLookup).toString();
-            //#elseif MC<12108
-            //$$ return normalize(stack).toNbt(registryLookup).toString();
-            //#else
-            //$$ return ItemStack.OPTIONAL_CODEC
-            //$$         .encodeStart(registryLookup.getOps(NbtOps.INSTANCE), normalize(stack))
-            //$$         .result()
-            //$$         .map(NbtElement::toString)
-            //$$         .orElse("{}");
-            //#endif
+            return QuickTradeAccess.encodeStack(normalize(stack), registryLookup);
         }
 
         private static ItemStack decodeStack(JsonElement element, RegistryWrapper.WrapperLookup registryLookup) {
-            if (element == null || !element.isJsonPrimitive()) {
-                return ItemStack.EMPTY;
-            }
-
-            try {
-                //#if MC<12105
-                return ItemStack.fromNbt(registryLookup, StringNbtReader.parse(element.getAsString()))
-                        .orElse(ItemStack.EMPTY);
-                //#elseif MC<12108
-                //$$ return ItemStack.fromNbt(registryLookup, StringNbtReader.readCompound(element.getAsString()))
-                //$$         .orElse(ItemStack.EMPTY);
-                //#else
-                //$$ return ItemStack.OPTIONAL_CODEC
-                //$$         .parse(registryLookup.getOps(NbtOps.INSTANCE), StringNbtReader.readCompound(element.getAsString()))
-                //$$         .result()
-                //$$         .orElse(ItemStack.EMPTY);
-                //#endif
-            } catch (CommandSyntaxException ignored) {
-                return ItemStack.EMPTY;
-            }
+            return QuickTradeAccess.decodeStack(element, registryLookup);
         }
     }
 }
