@@ -20,11 +20,7 @@ import fi.dy.masa.malilib.hotkeys.IKeybind;
 import fi.dy.masa.malilib.hotkeys.KeyAction;
 import fi.dy.masa.malilib.hotkeys.KeybindSettings;
 import fi.dy.masa.malilib.util.FileUtils;
-//#if MC<12111
-import fi.dy.masa.malilib.util.JsonUtils;
-//#else
-//$$ import fi.dy.masa.malilib.util.data.json.JsonUtils;
-//#endif
+
 import fi.dy.masa.malilib.util.StringUtils;
 import net.fabricmc.loader.api.FabricLoader;
 
@@ -925,9 +921,7 @@ public final class QuickCraftConfigs implements IConfigHandler {
                 Crafting.ENABLE_ANVIL_RENAME,
                 Crafting.SHOW_CRAFT_ACTION_BUTTON,
                 Crafting.DROP_RESULTS_ON_STOP,
-                //#if MC>=12103
-                //$$ Crafting.RETAIN_ONE_CRAFT_INGREDIENT,
-                //#endif
+                Crafting.RETAIN_ONE_CRAFT_INGREDIENT,
                 ContainerTools.ENABLE_QUICK_TRANSFER,
                 ContainerTools.SHOW_MATCHING_TRANSFER_HIGHLIGHT,
                 ContainerTools.ENABLE_SCROLL_TRANSFER,
@@ -991,9 +985,7 @@ public final class QuickCraftConfigs implements IConfigHandler {
                 Crafting.ENABLE_ANVIL_RENAME,
                 Crafting.SHOW_CRAFT_ACTION_BUTTON,
                 Crafting.DROP_RESULTS_ON_STOP,
-                //#if MC>=12103
-                //$$ Crafting.RETAIN_ONE_CRAFT_INGREDIENT,
-                //#endif
+                Crafting.RETAIN_ONE_CRAFT_INGREDIENT,
                 ContainerTools.ENABLE_QUICK_TRANSFER,
                 ContainerTools.ENABLE_SCROLL_TRANSFER,
                 ContainerTools.QUICK_TRANSFER_RETAIN_ONE,
@@ -1484,17 +1476,13 @@ public final class QuickCraftConfigs implements IConfigHandler {
     public static void loadFromFile() {
         BUTTON_OFFSETS.clear();
         ipnButtonDefaultsApplied = false;
-        Path configFile = FileUtils.getConfigDirectoryAsPath().resolve(CONFIG_FILE_NAME);
+        Path configFile = QuickCraftConfigsAccess.getConfigDirectory().resolve(CONFIG_FILE_NAME);
 
         if (!Files.exists(configFile) || !Files.isReadable(configFile)) {
             return;
         }
 
-        //#if MC<12111
-        JsonElement element = JsonUtils.parseJsonFileAsPath(configFile);
-        //#else
-        //$$ JsonElement element = JsonUtils.parseJsonFile(configFile);
-        //#endif
+        JsonElement element = QuickCraftConfigsAccess.parseJsonFile(configFile);
         if (element == null || !element.isJsonObject()) {
             return;
         }
@@ -1547,11 +1535,7 @@ public final class QuickCraftConfigs implements IConfigHandler {
     }
 
     public static void saveToFile() {
-        //#if MC<12111
-        Path dir = FileUtils.getConfigDirectoryAsPath();
-        //#else
-        //$$ Path dir = FileUtils.getConfigDirectory();
-        //#endif
+        Path dir = QuickCraftConfigsAccess.getConfigDirectory();
         if (!Files.exists(dir)) {
             FileUtils.createDirectoriesIfMissing(dir);
         }
@@ -1567,7 +1551,7 @@ public final class QuickCraftConfigs implements IConfigHandler {
         ConfigUtils.writeConfigBase(root, "Hotkeys", Hotkeys.OPTIONS);
         writeButtonPositions(root);
         writeMigrations(root);
-        JsonUtils.writeJsonToFileAsPath(root, dir.resolve(CONFIG_FILE_NAME));
+        QuickCraftConfigsAccess.writeJsonToFile(root, dir.resolve(CONFIG_FILE_NAME));
     }
 
     private static void readMigrations(JsonObject root) {
