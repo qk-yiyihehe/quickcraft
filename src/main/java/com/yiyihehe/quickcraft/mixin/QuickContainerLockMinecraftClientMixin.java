@@ -1,6 +1,7 @@
 package com.yiyihehe.quickcraft.mixin;
 
 import com.yiyihehe.quickcraft.QuickContainerLock;
+import com.yiyihehe.quickcraft.QuickContainerLockAccess;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.network.ClientPlayerEntity;
 import org.spongepowered.asm.mixin.Mixin;
@@ -21,11 +22,7 @@ public abstract class QuickContainerLockMinecraftClientMixin {
             )
     )
     private boolean quickcraft$blockLockedHotbarDrop(ClientPlayerEntity player, boolean entireStack) {
-        //#if MC>=12105
-        //$$ if (QuickContainerLock.isLockedPlayerHotbarSlot(player.getInventory().getSelectedSlot())) {
-        //#else
-        if (QuickContainerLock.isLockedPlayerHotbarSlot(player.getInventory().selectedSlot)) {
-        //#endif
+        if (QuickContainerLock.isLockedPlayerHotbarSlot(QuickContainerLockAccess.getSelectedSlot(player.getInventory()))) {
             return false;
         }
 

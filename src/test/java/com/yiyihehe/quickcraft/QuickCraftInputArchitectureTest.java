@@ -63,7 +63,11 @@ class QuickCraftInputArchitectureTest {
     @DisplayName("槽位锁只能由可配置热键回调触发")
     void slotLockUsesConfiguredHotkeyCallback() throws IOException {
         String callbacks = Files.readString(HOTKEY_CALLBACKS);
-        String screenMixin = Files.readString(SLOT_LOCK_SCREEN_MIXIN);
+        Path repoRoot = MAIN_JAVA.getParent().getParent().getParent();
+        Path screenMixinPath = Files.exists(SLOT_LOCK_SCREEN_MIXIN)
+                ? SLOT_LOCK_SCREEN_MIXIN
+                : repoRoot.resolve(Path.of("versions", "1.21", "src", "main", "java", "com", "yiyihehe", "quickcraft", "mixin", "QuickContainerLockScreenMixin.java"));
+        String screenMixin = Files.readString(screenMixinPath);
 
         assertThat(callbacks)
                 .contains("QuickContainerLock.handleSlotLockHotkey(MinecraftClient.getInstance())");
