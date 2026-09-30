@@ -24,17 +24,10 @@ public abstract class WorkbenchShulkerNetworkMixin {
 
     @Inject(method = "onInventory", at = @At("RETURN"))
     private void quickcraft$onInventoryUpdate(InventoryS2CPacket packet, CallbackInfo ci) {
-        //#if MC>=12105
-        //$$ QuickCraftWorkbenchShulkerCraft.onServerContainerUpdate(
-        //$$         packet.syncId(), packet.revision(), true);
-        //$$ QuickCraftMouseCraftAckExecutor.onServerInventoryUpdate(
-        //$$         packet.syncId(), packet.revision(), packet.contents(), packet.cursorStack());
-        //#else
         QuickCraftWorkbenchShulkerCraft.onServerContainerUpdate(
                 packet.getSyncId(), packet.getRevision(), true);
         QuickCraftMouseCraftAckExecutor.onServerInventoryUpdate(
                 packet.getSyncId(), packet.getRevision(), packet.getContents(), packet.getCursorStack());
-        //#endif
     }
 
     // RETURN 时客户端 StatHandler 已应用服务端绝对值，统计探针可确认没有槽位变化的批次。
