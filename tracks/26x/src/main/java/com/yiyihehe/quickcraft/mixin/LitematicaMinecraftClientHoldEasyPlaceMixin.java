@@ -2,13 +2,11 @@ package com.yiyihehe.quickcraft.mixin;
 
 import com.yiyihehe.quickcraft.QuickClientScreenAccess;
 import com.yiyihehe.quickcraft.config.QuickCraftConfigs;
+import com.yiyihehe.quickcraft.litematica.QuickLitematicaEasyPlaceAccess;
 import com.yiyihehe.quickcraft.litematica.QuickLitematicaEasyPlaceInteractions;
 import fi.dy.masa.litematica.config.Configs;
 import fi.dy.masa.litematica.data.DataManager;
 import fi.dy.masa.litematica.tool.ToolMode;
-//#if MC>=260200
-//$$ import fi.dy.masa.litematica.util.EasyPlaceUtils;
-//#endif
 import net.minecraft.client.Minecraft;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
@@ -34,23 +32,6 @@ public abstract class LitematicaMinecraftClientHoldEasyPlaceMixin {
             return;
         }
 
-        //#if MC<260200
-        LitematicaWorldUtilsInvoker.quickcraft$doEasyPlaceAction(client);
-        //#else
-        //$$ if (Configs.Generic.EASY_PLACE_POST_REWRITE.getBooleanValue()) {
-        //$$     if (EasyPlaceUtils.isHandling()) {
-        //$$         return;
-        //$$     }
-        //$$
-        //$$     EasyPlaceUtils.setHandling(true);
-        //$$     try {
-        //$$         LitematicaEasyPlaceUtilsInvoker.quickcraft$handleEasyPlace();
-        //$$     } finally {
-        //$$         EasyPlaceUtils.setHandling(false);
-        //$$     }
-        //$$ } else {
-        //$$     LitematicaWorldUtilsInvoker.quickcraft$doEasyPlaceAction(client);
-        //$$ }
-        //#endif
+        QuickLitematicaEasyPlaceAccess.triggerHoldEasyPlace(client);
     }
 }

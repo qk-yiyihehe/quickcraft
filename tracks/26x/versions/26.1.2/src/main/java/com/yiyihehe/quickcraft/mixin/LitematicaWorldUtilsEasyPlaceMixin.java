@@ -2,6 +2,7 @@ package com.yiyihehe.quickcraft.mixin;
 
 import com.yiyihehe.quickcraft.QuickFreeCameraInteractions;
 import com.yiyihehe.quickcraft.config.QuickCraftConfigs;
+import com.yiyihehe.quickcraft.litematica.QuickLitematicaEasyPlaceAccess;
 import com.yiyihehe.quickcraft.litematica.QuickLitematicaEasyPlaceInteractions;
 import fi.dy.masa.litematica.util.InventoryUtils;
 import fi.dy.masa.litematica.util.RayTraceUtils;
@@ -11,9 +12,6 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
-//#if MC>=260300
-//$$ import net.minecraft.world.item.component.SwingAnimation;
-//#endif
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.Level;
@@ -27,7 +25,7 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
-/** 扩展 Litematica 轻松放置的水源施工与原版交互退让。 */
+/** 26.1.2 扩展 Litematica 轻松放置的水源施工与原版交互退让。 */
 @Mixin(value = WorldUtils.class, remap = false)
 public class LitematicaWorldUtilsEasyPlaceMixin {
     @Inject(method = "doEasyPlaceAction", at = @At("HEAD"), cancellable = true, remap = false)
@@ -78,16 +76,7 @@ public class LitematicaWorldUtilsEasyPlaceMixin {
         }
 
         InteractionResult result = client.gameMode.useItemOn(client.player, hand, placementHit);
-        //#if MC<260300
-        if (result instanceof InteractionResult.Success success
-                && success.swingSource() == InteractionResult.SwingSource.CLIENT) {
-            client.player.swing(hand);
-        //#else
-        //$$ if (result instanceof InteractionResult.Success success
-        //$$         && success.swingSource() == InteractionResult.SwingSource.PREDICTED) {
-        //$$     client.player.swing(hand, SwingAnimation.DEFAULT, false);
-        //#endif
-        }
+        QuickLitematicaEasyPlaceAccess.swingHandIfSuccess(client, hand, result);
         cir.setReturnValue(result == InteractionResult.FAIL ? InteractionResult.FAIL : InteractionResult.SUCCESS);
     }
 
@@ -105,7 +94,6 @@ public class LitematicaWorldUtilsEasyPlaceMixin {
         }
     }
 
-    //#if MC<260200
     @Inject(method = "handlePlacementRestriction", at = @At("HEAD"), cancellable = true, remap = false)
     private static void quickcraft$letVanillaUseBypassPlacementRestriction(
             Minecraft mc, CallbackInfoReturnable<Boolean> cir) {
@@ -113,5 +101,4 @@ public class LitematicaWorldUtilsEasyPlaceMixin {
             cir.setReturnValue(false);
         }
     }
-    //#endif
 }
