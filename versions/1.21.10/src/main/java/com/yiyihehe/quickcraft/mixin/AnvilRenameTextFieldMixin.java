@@ -2,10 +2,8 @@ package com.yiyihehe.quickcraft.mixin;
 
 import com.yiyihehe.quickcraft.crafting.QuickCraftAnvilRename;
 import com.yiyihehe.quickcraft.QuickThrow;
-//#if MC>=12110
-//$$ import net.minecraft.client.input.CharInput;
-//#endif
 import net.minecraft.client.gui.widget.TextFieldWidget;
+import net.minecraft.client.input.CharInput;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
@@ -13,16 +11,12 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
 /**
  * 原版铁砧名字输入框会把 Alt+C 里的字符写进名字，这里只在铁砧命名快捷键时吞字符。
+ * 1.21.10+ 使用 CharInput 封装输入。
  */
 @Mixin(TextFieldWidget.class)
 public abstract class AnvilRenameTextFieldMixin {
     @Inject(method = "charTyped", at = @At("HEAD"), cancellable = true)
-    //#if MC>=12110
-    //$$ private void quickcraft$consumeRenameHotkeyChar(CharInput input,
-    //#else
-    private void quickcraft$consumeRenameHotkeyChar(char chr,
-                                                   int modifiers,
-    //#endif
+    private void quickcraft$consumeRenameHotkeyChar(CharInput input,
                                                    CallbackInfoReturnable<Boolean> cir) {
         if (QuickCraftAnvilRename.shouldConsumeRenameHotkeyInput()
                 || QuickCraftAnvilRename.consumePendingRenameHotkeyChar()
