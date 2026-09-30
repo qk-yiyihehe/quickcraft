@@ -14,7 +14,7 @@ public final class QuickThrowAccess {
     private QuickThrowAccess() {
     }
 
-    public static void registerKeyboardInputHandler() {
+    public static void registerInputHandler() {
         InputEventHandler.getInputManager().registerKeyboardInputHandler(new IKeyboardInputHandler() {
             @Override
             public boolean onKeyInput(int keyCode, int scanCode, int modifiers, boolean eventKeyState) {
@@ -23,7 +23,7 @@ public final class QuickThrowAccess {
         });
     }
 
-    public static void executeThrow(MinecraftClient client, QuickThrow.ThrowTarget target) {
+    public static void dropWholeStack(MinecraftClient client, QuickThrow.ThrowTarget target) {
         ScreenHandler previousHandler = client.player.currentScreenHandler;
         boolean usingCreativePlayerInventory = target.screen() instanceof CreativeInventoryScreen;
         try {
