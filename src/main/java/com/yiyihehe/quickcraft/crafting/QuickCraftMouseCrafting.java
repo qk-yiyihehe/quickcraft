@@ -8,9 +8,6 @@ import net.minecraft.entity.player.PlayerInventory;
 import net.minecraft.item.ItemStack;
 import net.minecraft.recipe.CraftingRecipe;
 import net.minecraft.recipe.Ingredient;
-//#if MC>=12103
-//$$ import net.minecraft.recipe.NetworkRecipeId;
-//#endif
 import net.minecraft.recipe.RecipeEntry;
 import net.minecraft.recipe.RecipeManager;
 import net.minecraft.recipe.RecipeType;
@@ -20,9 +17,6 @@ import net.minecraft.screen.ScreenHandler;
 import net.minecraft.screen.slot.Slot;
 import net.minecraft.screen.slot.SlotActionType;
 import net.minecraft.text.Text;
-//#if MC<12103
-import net.minecraft.util.Identifier;
-//#endif
 import net.minecraft.world.World;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -73,11 +67,7 @@ final class QuickCraftMouseCrafting {
 
     private RecipeEntry<CraftingRecipe> lockedRecipe = null;
 
-    //#if MC<12103
-    private Identifier lockedRecipeId = null;
-    //#else
-    //$$ private NetworkRecipeId lockedRecipeId = null;
-    //#endif
+    private Object lockedRecipeId = null;
 
     private List<ItemStack> lockedCraftingPattern = new ArrayList<>();
     private final List<ItemStack> knownRecipeRemainders = new ArrayList<>();
@@ -1470,13 +1460,9 @@ final class QuickCraftMouseCrafting {
         if (!retainIngredientSamples()) {
             int bestSlot = -1;
             int bestCount = -1;
-            //#if MC<12105
-            for (int inventoryIndex = 0; inventoryIndex < inventory.main.size(); inventoryIndex++) {
-                ItemStack stack = inventory.main.get(inventoryIndex);
-            //#else
-            //$$ for (int inventoryIndex = 0; inventoryIndex < inventory.getMainStacks().size(); inventoryIndex++) {
-            //$$     ItemStack stack = inventory.getMainStacks().get(inventoryIndex);
-            //#endif
+            List<ItemStack> mainStacks = QuickCraftMouseCraftAccess.getMainStacks(inventory);
+            for (int inventoryIndex = 0; inventoryIndex < mainStacks.size(); inventoryIndex++) {
+                ItemStack stack = mainStacks.get(inventoryIndex);
                 if (stack.isEmpty() || !ItemStack.areItemsAndComponentsEqual(stack, template)) {
                     continue;
                 }
@@ -1543,20 +1529,7 @@ final class QuickCraftMouseCrafting {
         if (handler == null || recipe == null) {
             return false;
         }
-        try {
-            //#if MC<12103
-            for (ItemStack remainder : recipe.value().getRemainder(getCraftingRecipeInput(handler))) {
-            //#else
-            //$$ for (ItemStack remainder : recipe.value().getRecipeRemainders(getCraftingRecipeInput(handler))) {
-            //#endif
-                if (!remainder.isEmpty()) {
-                    return true;
-                }
-            }
-        } catch (Throwable ignored) {
-            return true;
-        }
-        return false;
+        return QuickCraftMouseCraftAccess.hasRecipeRemainder(recipe, getCraftingRecipeInput(handler));
     }
 
     private boolean isLockedResult(ItemStack stack) {
@@ -1575,19 +1548,14 @@ final class QuickCraftMouseCrafting {
         lockedResultTemplate = handler.getSlot(OUTPUT_SLOT).hasStack()
                 ? handler.getSlot(OUTPUT_SLOT).getStack().copy()
                 : ItemStack.EMPTY;
-        //#if MC<12103
-        // 1.21 客户端仍持有完整 RecipeEntry，特殊配方同样由可见产物与合成格锁定。
-        lockedRecipeId = recipe == null ? null : recipe.id();
-        //#else
-        //$$ // 烟花等特殊配方不进入配方书；ACK 仍可凭服务端可见产物与合成格快照锁定。
-        //$$ lockedRecipeId = QuickCraftClientRecipeMatcher.findUniqueRecipeId(
-        //$$         client,
-        //$$         handler,
-        //$$         lockedResultTemplate,
-        //$$         layout.gridWidth(),
-        //$$         layout.gridHeight()
-        //$$ );
-        //#endif
+        lockedRecipeId = QuickCraftMouseCraftAccess.resolveLockedRecipeId(
+                client,
+                handler,
+                recipe,
+                lockedResultTemplate,
+                layout.gridWidth(),
+                layout.gridHeight()
+        );
     }
 
     private boolean hasLockedCraftingPlan() {
@@ -1906,11 +1874,7 @@ final class QuickCraftMouseCrafting {
         }
 
         int total = 0;
-        //#if MC<12105
-        for (ItemStack stack : inventory.main) {
-        //#else
-        //$$ for (ItemStack stack : inventory.getMainStacks()) {
-        //#endif
+        for (ItemStack stack : QuickCraftMouseCraftAccess.getMainStacks(inventory)) {
             if (stack.isEmpty()) continue;
             if (ItemStack.areItemsAndComponentsEqual(stack, template)) {
                 total += stack.getCount();
@@ -2018,11 +1982,7 @@ final class QuickCraftMouseCrafting {
 
     private void fallbackMouseCraftAck(MinecraftClient client,
                                        ScreenHandler screenHandler,
-                                       //#if MC<12103
-                                       Identifier recipeId) {
-                                       //#else
-                                       //$$ NetworkRecipeId recipeId) {
-                                       //#endif
+                                       Object recipeId) {
         mouseCraftAckLegacyFallback = true;
         mouseCraftAckManualRestockFallback = true;
         if (screenHandler == null

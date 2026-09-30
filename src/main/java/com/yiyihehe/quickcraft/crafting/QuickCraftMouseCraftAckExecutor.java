@@ -10,12 +10,6 @@ import net.minecraft.inventory.CraftingResultInventory;
 import net.minecraft.inventory.RecipeInputInventory;
 import net.minecraft.item.ItemStack;
 import net.minecraft.network.packet.c2s.play.ClientStatusC2SPacket;
-//#if MC<12103
-import net.minecraft.util.Identifier;
-//#else
-//$$ import net.minecraft.recipe.NetworkRecipeId;
-//$$ import net.minecraft.recipe.input.CraftingRecipeInput;
-//#endif
 import net.minecraft.screen.ScreenHandler;
 import net.minecraft.screen.slot.SlotActionType;
 import net.minecraft.text.Text;
@@ -114,31 +108,16 @@ public final class QuickCraftMouseCraftAckExecutor {
         if (craftingInventory == null) {
             return false;
         }
-        //#if MC<12103
         return refreshClientPrediction(handler, world, resultInventory);
-        //#else
-        //$$ return refreshClientPrediction(
-        //$$         handler, world, craftingInventory.createRecipeInput(), resultInventory);
-        //#endif
     }
 
     private static boolean refreshClientPrediction(ScreenHandler handler,
                                                    World world,
-                                                   //#if MC>=12103
-                                                   //$$ CraftingRecipeInput input,
-                                                   //#endif
                                                    CraftingResultInventory resultInventory) {
         QuickCraftMouseCraftAckExecutor active = activeExecutor;
         if (active == null || !active.isActive()
-                //#if MC<12110
-                || world == null || !world.isClient
-                //#else
-                //$$ || world == null || !world.isClient()
-                //#endif
+                || !QuickCraftMouseCraftAccess.isClientWorld(world)
                 || handler == null
-                //#if MC>=12103
-                //$$ || input == null
-                //#endif
                 || resultInventory == null) {
             return false;
         }
@@ -167,18 +146,7 @@ public final class QuickCraftMouseCraftAckExecutor {
                     instanceof CraftingResultInventory resultInventory)) {
                 return;
             }
-            //#if MC<12103
             refreshClientPrediction(handler, MinecraftClient.getInstance().world, resultInventory);
-            //#else
-            //$$ List<ItemStack> stacks = new ArrayList<>(active.layout.gridSize());
-            //$$ for (int i = 0; i < active.layout.gridSize(); i++) {
-            //$$     stacks.add(handler.getSlot(active.layout.gridSlotId(i)).getStack().copy());
-            //$$ }
-            //$$ CraftingRecipeInput input = CraftingRecipeInput.create(
-            //$$         active.layout.gridWidth(), active.layout.gridHeight(), stacks);
-            //$$ refreshClientPrediction(
-            //$$         handler, MinecraftClient.getInstance().world, input, resultInventory);
-            //#endif
         } catch (Throwable ignored) {
         }
     }
@@ -199,11 +167,7 @@ public final class QuickCraftMouseCraftAckExecutor {
 
     public boolean start(MinecraftClient client,
                          ScreenHandler handler,
-                         //#if MC<12103
-                         Identifier recipeId,
-                         //#else
-                         //$$ NetworkRecipeId recipeId,
-                         //#endif
+                         Object recipeId,
                          ItemStack resultTemplate,
                          java.util.List<ItemStack> pattern,
                          BooleanSupplier inputHeld,
@@ -421,22 +385,15 @@ public final class QuickCraftMouseCraftAckExecutor {
 
             int[] gridBeforeOutput = snapshotGridCounts(handler);
             boolean patternComplete = recipeMatches(current);
-            //#if MC<12103
+            int plannedThrows = plannedOutputThrows(expectedOutput, patternComplete);
             int outputOperations = 0;
-            if (plannedOutputThrows(expectedOutput, patternComplete) > 0) {
-                outputOperations = moveOrThrowOutput(
+            if (plannedThrows > 0) {
+                int actualOperations = moveOrThrowOutput(
                         client, current, handler, interactionManager, output, gridBeforeOutput);
+                outputOperations = QuickCraftMouseCraftAccess.resolveOutputOperations(plannedThrows, actualOperations);
                 current.outputExpectedAtDispatch = outputOperations > 0;
                 refreshClientPrediction(handler);
             }
-            //#else
-            //$$ int outputOperations = plannedOutputThrows(expectedOutput, patternComplete);
-            //$$ if (outputOperations > 0) {
-            //$$     moveOrThrowOutput(client, current, handler, interactionManager, output);
-            //$$     current.outputExpectedAtDispatch = true;
-            //$$     refreshClientPrediction(handler);
-            //$$ }
-            //#endif
 
             if (!parkCursor(client, handler, "批次发送前")) {
                 finishStopped("批次发送前光标无法放回");
@@ -473,13 +430,8 @@ public final class QuickCraftMouseCraftAckExecutor {
                                   Session current,
                                   ScreenHandler handler,
                                   ClientPlayerInteractionManager interactionManager,
-                                  ItemStack output
-                                  //#if MC<12103
-                                  ,
+                                  ItemStack output,
                                   int[] gridBeforeOutput) {
-                                  //#else
-                                  //$$ ) {
-                                  //#endif
         if (shouldEnterOutputSprayMode(
                 current.outputSprayMode,
                 current.outputFillSlotsRemaining,
@@ -510,44 +462,13 @@ public final class QuickCraftMouseCraftAckExecutor {
             }
         }
         if (movedToInventory) {
-            //#if MC<12103
-            return 1;
-            //#else
-            // 1.21.3+ 的调用方使用发送前计划数，移动进背包时不需要方法返回值。
-            //$$ return 0;
-            //#endif
+            return QuickCraftMouseCraftAccess.outputMovedToInventoryResult();
         }
 
         activateOutputSprayMode(client, current, "产物无法放入背包");
-        //#if MC<12103
-        boolean[] requiredSlots = new boolean[current.pattern.size()];
-        for (int i = 0; i < requiredSlots.length; i++) {
-            requiredSlots[i] = !current.pattern.get(i).isEmpty();
-        }
-        int attempts = plannedOutputBurst(gridBeforeOutput, requiredSlots);
-        // 1.21 的结果槽每次 THROW 只合成一组；本批一次发完，随后才建立 ACK 边界。
-        for (int i = 0; i < attempts; i++) {
-            interactionManager.clickSlot(
-                    handler.syncId,
-                    QuickCraftMouseCraftLayout.OUTPUT_SLOT,
-                    1,
-                    SlotActionType.THROW,
-                    client.player
-            );
-            refreshClientPrediction(handler);
-        }
-        return attempts;
-        //#else
-        //$$ // 1.21.3+ 的结果槽 THROW(button=1) 等同原版 Ctrl+丢弃，单次请求排空同类结果。
-        //$$ interactionManager.clickSlot(
-        //$$         handler.syncId,
-        //$$         QuickCraftMouseCraftLayout.OUTPUT_SLOT,
-        //$$         1,
-        //$$         SlotActionType.THROW,
-        //$$         client.player
-        //$$ );
-        //$$ return 1;
-        //#endif
+        return QuickCraftMouseCraftAccess.throwOutput(
+                interactionManager, client, handler, current.pattern, gridBeforeOutput,
+                () -> refreshClientPrediction(handler));
     }
 
     private void activateOutputSprayMode(MinecraftClient client,
@@ -605,23 +526,10 @@ public final class QuickCraftMouseCraftAckExecutor {
         if (current == null || networkHandler == null) {
             return;
         }
-        if (current.batchPath == BatchPath.OUTPUT_DRAIN
-                //#if MC<12103
-                && current.batchOutputSlotClicks == 1
-                //#endif
-                ) {
-            //#if MC<12103
-            // 只有单次点击能用输出槽全量终态快速确认；多次点击必须等待整批屏障。
-            //#else
-            //$$ // 1.21.3+ 纯取产物只发送一次排空请求，输出槽终态可作为快速确认。
-            //#endif
+        if (QuickCraftMouseCraftAccess.isFastOutputDrainAck(current.batchPath, current.batchOutputSlotClicks)) {
             current.statsProbeDeferred = true;
         } else {
-            //#if MC<12103
-            requestStatsProbe(current, networkHandler, "整批输出与补货边界");
-            //#else
-            //$$ requestStatsProbe(current, networkHandler, "纯补货批次边界");
-            //#endif
+            requestStatsProbe(current, networkHandler, QuickCraftMouseCraftAccess.getAckBoundaryReason());
         }
     }
 
@@ -949,10 +857,8 @@ public final class QuickCraftMouseCraftAckExecutor {
         boolean terminalGridCompatible = isPatternOrRemainderGridCompatible(
                 current, current.handler);
         boolean statsReceived = current.statsProbeSentForBatch && !current.statsProbePending;
-        boolean fastFullState = authoritativeFullState
-                //#if MC<12103
-                && current.batchOutputSlotClicks == 1
-                //#endif
+        boolean fastFullState = QuickCraftMouseCraftAccess.canFastConfirmAuthoritative(
+                authoritativeFullState, current.batchOutputSlotClicks)
                 && canUseAuthoritativeFullAck(
                 current.batchPath,
                 current.batchOutputOperations > 0,
@@ -1339,11 +1245,7 @@ public final class QuickCraftMouseCraftAckExecutor {
     public interface LegacyFallbackHandler {
         void fallback(MinecraftClient client,
                       ScreenHandler handler,
-                      //#if MC<12103
-                      Identifier recipeId);
-                      //#else
-                      //$$ NetworkRecipeId recipeId);
-                      //#endif
+                      Object recipeId);
     }
 
     @FunctionalInterface
@@ -1708,11 +1610,7 @@ public final class QuickCraftMouseCraftAckExecutor {
 
     private static final class CanceledBatchDrain {
         private final int syncId;
-        //#if MC<12103
-        private final Identifier recipeId;
-        //#else
-        //$$ private final NetworkRecipeId recipeId;
-        //#endif
+        private final Object recipeId;
         private final QuickCraftMouseCraftLayout.Layout layout;
         private final List<ItemStack> pattern;
         private final ItemStack resultTemplate;
@@ -1723,11 +1621,7 @@ public final class QuickCraftMouseCraftAckExecutor {
         private boolean failed;
 
         private CanceledBatchDrain(int syncId,
-                                   //#if MC<12103
-                                   Identifier recipeId,
-                                   //#else
-                                   //$$ NetworkRecipeId recipeId,
-                                   //#endif
+                                   Object recipeId,
                                    QuickCraftMouseCraftLayout.Layout layout,
                                    List<ItemStack> pattern,
                                    ItemStack resultTemplate,
@@ -1792,11 +1686,7 @@ public final class QuickCraftMouseCraftAckExecutor {
     private static final class Session {
         private final ScreenHandler handler;
         private final int syncId;
-        //#if MC<12103
-        private final Identifier recipeId;
-        //#else
-        //$$ private final NetworkRecipeId recipeId;
-        //#endif
+        private final Object recipeId;
         private final ItemStack resultTemplate;
         private final java.util.List<ItemStack> pattern;
         private final BooleanSupplier inputHeld;
@@ -1843,11 +1733,7 @@ public final class QuickCraftMouseCraftAckExecutor {
 
         private Session(ScreenHandler handler,
                         int syncId,
-                        //#if MC<12103
-                        Identifier recipeId,
-                        //#else
-                        //$$ NetworkRecipeId recipeId,
-                        //#endif
+                        Object recipeId,
                         ItemStack resultTemplate,
                         java.util.List<ItemStack> pattern,
                         BooleanSupplier inputHeld,
