@@ -836,7 +836,7 @@ public class QuickSort implements ClientModInitializer {
         ItemStack normalizedStack = normalizeForLookup(stack);
         String itemId = getItemId(normalizedStack);
         for (int i = 0; i < CATEGORY_ORDER.size(); i++) {
-            ItemGroup group = resolveItemGroup(CATEGORY_ORDER.get(i).getValue());
+            ItemGroup group = resolveItemGroup(CATEGORY_ORDER.get(i));
             if (group != null && group.contains(normalizedStack)) {
                 return i;
             }
@@ -883,7 +883,7 @@ public class QuickSort implements ClientModInitializer {
     }
 
     private static Map<ItemKey, Integer> buildExactOrderMap(RegistryKey<ItemGroup> groupKey) {
-        ItemGroup group = resolveItemGroup(groupKey.getValue());
+        ItemGroup group = resolveItemGroup(groupKey);
         Map<ItemKey, Integer> orderMap = new HashMap<>();
         if (group == null) {
             return orderMap;
@@ -898,7 +898,7 @@ public class QuickSort implements ClientModInitializer {
     }
 
     private static Map<String, Integer> buildItemOrderMap(RegistryKey<ItemGroup> groupKey) {
-        ItemGroup group = resolveItemGroup(groupKey.getValue());
+        ItemGroup group = resolveItemGroup(groupKey);
         Map<String, Integer> orderMap = new HashMap<>();
         if (group == null) {
             return orderMap;
@@ -918,12 +918,8 @@ public class QuickSort implements ClientModInitializer {
         return normalized;
     }
 
-    private static ItemGroup resolveItemGroup(Identifier id) {
-        //#if MC<12103
-        return Registries.ITEM_GROUP.get(id);
-        //#else
-        //$$ return Registries.ITEM_GROUP.get(id);
-        //#endif
+    private static ItemGroup resolveItemGroup(RegistryKey<ItemGroup> key) {
+        return Registries.ITEM_GROUP.get(key);
     }
 
     private static String getItemId(ItemStack stack) {
