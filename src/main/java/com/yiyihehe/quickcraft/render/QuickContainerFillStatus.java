@@ -3,29 +3,12 @@ package com.yiyihehe.quickcraft.render;
 import com.yiyihehe.quickcraft.config.QuickCraftConfigs;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.fabric.api.client.rendering.v1.HudRenderCallback;
-//#if MC<12110
-import net.fabricmc.fabric.api.client.rendering.v1.WorldRenderEvents;
-//#endif
 import net.minecraft.block.BlockState;
 import net.minecraft.block.ChestBlock;
 import net.minecraft.block.enums.ChestType;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.gui.DrawContext;
-//#if MC>=12110
-//$$ import net.minecraft.client.render.Camera;
-//$$ import net.minecraft.client.render.VertexConsumerProvider;
-//$$ import net.minecraft.client.util.math.MatrixStack;
-//#endif
-//#if MC<12111
-import net.minecraft.client.render.RenderLayer;
-//#else
-//$$ import net.minecraft.client.render.RenderLayers;
-//#endif
-//#if MC<12103
-import net.minecraft.client.render.WorldRenderer;
-//#else
-//$$ import net.minecraft.client.render.VertexRendering;
-//#endif
+import net.minecraft.client.render.Camera;
 import net.minecraft.client.world.ClientWorld;
 import net.minecraft.entity.Entity;
 import net.minecraft.text.Text;
@@ -34,11 +17,6 @@ import net.minecraft.util.hit.EntityHitResult;
 import net.minecraft.util.hit.HitResult;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.Box;
-import net.minecraft.util.math.Vec3d;
-//#if MC>=12111
-//$$ import net.minecraft.util.math.ColorHelper;
-//$$ import net.minecraft.util.shape.VoxelShapes;
-//#endif
 
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -47,8 +25,8 @@ import java.util.Map;
 public final class QuickContainerFillStatus {
     private static final int RESULT_LIFETIME_TICKS = 200;
     private static final int MAX_MARKERS = 24;
-    private static final double MAX_RENDER_DISTANCE_SQUARED = 32.0 * 32.0;
-    private static final Map<Target, Marker> MARKERS = new LinkedHashMap<>();
+    static final double MAX_RENDER_DISTANCE_SQUARED = 32.0 * 32.0;
+    static final Map<Target, Marker> MARKERS = new LinkedHashMap<>();
 
     private static ClientWorld markerWorld;
     private static long tick;
@@ -58,10 +36,12 @@ public final class QuickContainerFillStatus {
 
     public static void initialize() {
         ClientTickEvents.END_CLIENT_TICK.register(QuickContainerFillStatus::onClientTick);
-        //#if MC<12110
-        WorldRenderEvents.AFTER_ENTITIES.register(QuickContainerFillStatus::renderWorld);
-        //#endif
+        QuickContainerFillStatusAccess.registerWorldRenderer();
         HudRenderCallback.EVENT.register((context, tickCounter) -> renderHud(context));
+    }
+
+    public static void renderWorld(MinecraftClient client, Camera camera) {
+        QuickContainerFillStatusAccess.renderWorld(client, camera);
     }
 
     public static void begin(MinecraftClient client, HitResult hitResult) {
@@ -138,93 +118,12 @@ public final class QuickContainerFillStatus {
         MARKERS.entrySet().removeIf(entry -> entry.getValue().expiresAt <= tick);
     }
 
-    private static boolean isAvailable(MinecraftClient client) {
+    static boolean isAvailable(MinecraftClient client) {
         return client != null
                 && client.world != null
                 && client.player != null
                 && QuickCraftConfigs.areContainerFillStatusOutlinesVisible();
     }
-
-    //#if MC<12110
-    private static void renderWorld(net.fabricmc.fabric.api.client.rendering.v1.WorldRenderContext context) {
-        MinecraftClient client = MinecraftClient.getInstance();
-        if (!isAvailable(client) || context.consumers() == null || MARKERS.isEmpty()) {
-            return;
-        }
-        Vec3d camera = context.camera().getPos();
-        context.matrixStack().push();
-        context.matrixStack().translate(-camera.x, -camera.y, -camera.z);
-        for (Map.Entry<Target, Marker> entry : MARKERS.entrySet()) {
-            Box box = entry.getKey().box(client.world);
-            if (box == null || box.getCenter().squaredDistanceTo(camera) > MAX_RENDER_DISTANCE_SQUARED) {
-                continue;
-            }
-            Status status = entry.getValue().status;
-            // 0.2 个方块像素等于 0.0125 格；仅微抬底边，其余边略微外移以避免贴面闪烁。
-            Box outline = new Box(
-                    box.minX - 0.01, box.minY + 0.0125, box.minZ - 0.01,
-                    box.maxX + 0.01, box.maxY + 0.01, box.maxZ + 0.01
-            );
-            //#if MC<12103
-            WorldRenderer.drawBox(
-            //#else
-            //$$ VertexRendering.drawBox(
-            //#endif
-                    context.matrixStack(),
-                    context.consumers().getBuffer(RenderLayer.getLines()),
-                    outline,
-                    status.red, status.green, status.blue, 0.95F
-            );
-        }
-        context.matrixStack().pop();
-    }
-    //#else
-    //$$ public static void renderWorld(MinecraftClient client, Camera camera) {
-    //$$     if (!isAvailable(client) || MARKERS.isEmpty()) {
-    //$$         return;
-    //$$     }
-    //$$     //#if MC<12111
-    //$$     Vec3d cameraPos = camera.getPos();
-    //$$     //#else
-    //$$     //$$ Vec3d cameraPos = camera.getCameraPos();
-    //$$     //#endif
-    //$$     MatrixStack matrices = new MatrixStack();
-    //$$     VertexConsumerProvider.Immediate consumers = client.getBufferBuilders().getEntityVertexConsumers();
-    //$$     matrices.push();
-    //$$     matrices.translate(-cameraPos.x, -cameraPos.y, -cameraPos.z);
-    //$$     for (Map.Entry<Target, Marker> entry : MARKERS.entrySet()) {
-    //$$         Box box = entry.getKey().box(client.world);
-    //$$         if (box == null || box.getCenter().squaredDistanceTo(cameraPos) > MAX_RENDER_DISTANCE_SQUARED) {
-    //$$             continue;
-    //$$         }
-    //$$         Status status = entry.getValue().status;
-    //$$         // 0.2 个方块像素等于 0.0125 格；仅微抬底边，其余边略微外移以避免贴面闪烁。
-    //$$         Box outline = new Box(
-    //$$                 box.minX - 0.01, box.minY + 0.0125, box.minZ - 0.01,
-    //$$                 box.maxX + 0.01, box.maxY + 0.01, box.maxZ + 0.01
-    //$$         );
-    //$$         //#if MC<12111
-    //$$         VertexRendering.drawBox(
-    //$$                 matrices.peek(),
-    //$$                 consumers.getBuffer(RenderLayer.getLines()),
-    //$$                 outline,
-    //$$                 status.red, status.green, status.blue, 0.95F
-    //$$         );
-    //$$         //#else
-    //$$         //$$ VertexRendering.drawOutline(matrices, consumers.getBuffer(RenderLayers.lines()),
-    //$$         //$$         VoxelShapes.cuboid(outline), 0, 0, 0,
-    //$$         //$$         ColorHelper.fromFloats(0.95F, status.red, status.green, status.blue),
-    //$$         //$$         client.getWindow().getMinimumLineWidth());
-    //$$         //#endif
-    //$$     }
-    //$$     matrices.pop();
-    //$$     //#if MC<12111
-    //$$     consumers.draw(RenderLayer.getLines());
-    //$$     //#else
-    //$$     //$$ consumers.draw(RenderLayers.lines());
-    //$$     //#endif
-    //$$ }
-    //#endif
 
     private static void renderHud(DrawContext context) {
         MinecraftClient client = MinecraftClient.getInstance();
@@ -249,8 +148,8 @@ public final class QuickContainerFillStatus {
         context.drawTextWithShadow(client.textRenderer, label, x, y, marker.status.textColor);
     }
 
-    private record Target(BlockPos blockPos, int entityId) {
-        private static Target from(ClientWorld world, HitResult hitResult) {
+    record Target(BlockPos blockPos, int entityId) {
+        static Target from(ClientWorld world, HitResult hitResult) {
             if (hitResult instanceof BlockHitResult blockHitResult) {
                 BlockPos pos = blockHitResult.getBlockPos();
                 BlockState state = world.getBlockState(pos);
@@ -273,7 +172,7 @@ public final class QuickContainerFillStatus {
             return null;
         }
 
-        private Box box(ClientWorld world) {
+        Box box(ClientWorld world) {
             if (blockPos != null) {
                 BlockState state = world.getBlockState(blockPos);
                 if (state.isAir()) {
@@ -297,8 +196,8 @@ public final class QuickContainerFillStatus {
         }
     }
 
-    private static final class Marker {
-        private Status status;
+    static final class Marker {
+        Status status;
         private int pendingIssues;
         private long expiresAt;
 
@@ -309,25 +208,17 @@ public final class QuickContainerFillStatus {
         }
     }
 
-    private enum Status {
-        //#if MC<12108
-        FILLING(0.20F, 0.65F, 1.00F, 0x55B5FF),
-        COMPLETE(0.30F, 0.95F, 0.35F, 0x76EE88),
-        PARTIAL(1.00F, 0.75F, 0.15F, 0xFFD05E),
-        STOPPED(0.65F, 0.70F, 0.75F, 0xB3BEC9),
-        FAILED(1.00F, 0.30F, 0.30F, 0xFF7777);
-        //#else
-        //$$ FILLING(0.20F, 0.65F, 1.00F, 0xFF55B5FF),
-        //$$ COMPLETE(0.30F, 0.95F, 0.35F, 0xFF76EE88),
-        //$$ PARTIAL(1.00F, 0.75F, 0.15F, 0xFFFFD05E),
-        //$$ STOPPED(0.65F, 0.70F, 0.75F, 0xFFB3BEC9),
-        //$$ FAILED(1.00F, 0.30F, 0.30F, 0xFFFF7777);
-        //#endif
+    enum Status {
+        FILLING(0.20F, 0.65F, 1.00F, 0xFF55B5FF),
+        COMPLETE(0.30F, 0.95F, 0.35F, 0xFF76EE88),
+        PARTIAL(1.00F, 0.75F, 0.15F, 0xFFFFD05E),
+        STOPPED(0.65F, 0.70F, 0.75F, 0xFFB3BEC9),
+        FAILED(1.00F, 0.30F, 0.30F, 0xFFFF7777);
 
-        private final float red;
-        private final float green;
-        private final float blue;
-        private final int textColor;
+        final float red;
+        final float green;
+        final float blue;
+        final int textColor;
 
         Status(float red, float green, float blue, int textColor) {
             this.red = red;
