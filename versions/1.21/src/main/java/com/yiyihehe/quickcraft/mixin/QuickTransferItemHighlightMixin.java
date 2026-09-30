@@ -11,17 +11,12 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 /**
- * 在快速转移的同类物品槽位下方绘制轻量底色，帮助确认一次转移会影响哪些格子。
+ * 在快速转移的同类物品槽位下方绘制轻量底色（1.21–1.21.10）。
  */
 @Mixin(HandledScreen.class)
 public abstract class QuickTransferItemHighlightMixin<T extends ScreenHandler> {
     @Inject(method = "drawSlot", at = @At("HEAD"))
-    //#if MC>=12111
-    //$$ private void quickcraft$drawMatchingTransferHighlight(
-    //$$         DrawContext context, Slot slot, int mouseX, int mouseY, CallbackInfo ci) {
-    //#else
     private void quickcraft$drawMatchingTransferHighlight(DrawContext context, Slot slot, CallbackInfo ci) {
-    //#endif
         HandledScreen<?> screen = (HandledScreen<?>) (Object) this;
         if (QuickTransfer.shouldHighlightMatchingSlot(screen, slot)) {
             context.fill(slot.x, slot.y, slot.x + 16, slot.y + 16, 0x553F6FFF);
