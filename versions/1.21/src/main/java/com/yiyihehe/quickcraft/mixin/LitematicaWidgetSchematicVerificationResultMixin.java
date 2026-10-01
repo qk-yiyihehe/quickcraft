@@ -6,11 +6,7 @@ import fi.dy.masa.litematica.gui.GuiSchematicVerifier;
 import fi.dy.masa.litematica.gui.widgets.WidgetSchematicVerificationResult;
 import fi.dy.masa.malilib.gui.widgets.WidgetListEntrySortable;
 import net.minecraft.client.MinecraftClient;
-//#if MC>=12111
-//$$ import fi.dy.masa.malilib.render.GuiContext;
-//#else
 import net.minecraft.client.gui.DrawContext;
-//#endif
 import org.jetbrains.annotations.Nullable;
 import org.spongepowered.asm.mixin.Final;
 import org.spongepowered.asm.mixin.Mixin;
@@ -42,15 +38,7 @@ public abstract class LitematicaWidgetSchematicVerificationResultMixin
     }
 
     @Inject(method = "postRenderHovered", at = @At("HEAD"), cancellable = true)
-    //#if MC>=12111
-    //$$ private void quickcraft$renderInventoryOverlay(
-    //$$         GuiContext drawContext, int mouseX, int mouseY, boolean selected, CallbackInfo ci) {
-    //#elseif MC>=12108
-    //$$ private void quickcraft$renderInventoryOverlay(
-    //$$         DrawContext drawContext, int mouseX, int mouseY, boolean selected, CallbackInfo ci) {
-    //#else
     private void quickcraft$renderInventoryOverlay(int mouseX, int mouseY, boolean selected, DrawContext drawContext, CallbackInfo ci) {
-    //#endif
         GuiSchematicVerifier.BlockMismatchEntry mismatchEntry = this.mismatchEntry;
         if (mismatchEntry == null) {
             return;
