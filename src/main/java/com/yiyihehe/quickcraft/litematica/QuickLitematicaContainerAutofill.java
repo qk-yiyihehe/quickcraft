@@ -35,9 +35,7 @@ public final class QuickLitematicaContainerAutofill implements ClientModInitiali
 
     @Override
     public void onInitializeClient() {
-        //#if MC>=12108
-        //$$ QuickLitematicaPreview3D.registerSpecialRenderer();
-        //#endif
+        QuickLitematicaMaterialAccess.registerSpecialRenderer();
         ACTIVE.set(this);
         ClientTickEvents.END_CLIENT_TICK.register(this::onClientTick);
     }
