@@ -22,31 +22,12 @@ import fi.dy.masa.litematica.util.PositionUtils;
 import fi.dy.masa.litematica.util.WorldUtils;
 import fi.dy.masa.litematica.world.SchematicWorldHandler;
 import fi.dy.masa.litematica.world.WorldSchematic;
-import fi.dy.masa.malilib.gui.GuiBase;
-import fi.dy.masa.malilib.gui.GuiListBase;
 import fi.dy.masa.malilib.gui.Message.MessageType;
 import fi.dy.masa.malilib.gui.button.ButtonBase;
-import fi.dy.masa.malilib.gui.button.ButtonGeneric;
-import fi.dy.masa.malilib.gui.button.IButtonActionListener;
 import fi.dy.masa.malilib.gui.widgets.WidgetFileBrowserBase.DirectoryEntry;
-import fi.dy.masa.malilib.gui.widgets.WidgetListBase;
-import fi.dy.masa.malilib.gui.widgets.WidgetListEntryBase;
 import fi.dy.masa.malilib.interfaces.ICompletionListener;
-//#if MC>=12111
-//$$ import fi.dy.masa.malilib.render.GuiContext;
-//$$ import fi.dy.masa.malilib.render.InventoryOverlay;
-//#endif
-import fi.dy.masa.malilib.render.RenderUtils;
-//#if MC>=12111
-//$$ import fi.dy.masa.malilib.util.data.ItemType;
-//#else
-import fi.dy.masa.malilib.util.ItemType;
-//#endif
 import fi.dy.masa.malilib.util.InfoUtils;
 import fi.dy.masa.malilib.util.StringUtils;
-//#if MC<12105
-import fi.dy.masa.malilib.util.data.Constants;
-//#endif
 import it.unimi.dsi.fastutil.objects.Object2IntOpenHashMap;
 import net.minecraft.block.BlockState;
 import net.minecraft.block.ChestBlock;
@@ -54,12 +35,6 @@ import net.minecraft.block.ShulkerBoxBlock;
 import net.minecraft.block.entity.BlockEntity;
 import net.minecraft.block.enums.ChestType;
 import net.minecraft.client.MinecraftClient;
-//#if MC>=12110
-//$$ import net.minecraft.client.gui.Click;
-//#endif
-//#if MC<12111
-import net.minecraft.client.gui.DrawContext;
-//#endif
 import net.minecraft.client.gui.screen.Screen;
 import net.minecraft.inventory.Inventory;
 import net.minecraft.item.BlockItem;
@@ -68,9 +43,6 @@ import net.minecraft.item.ItemStack;
 import net.minecraft.item.Items;
 import net.minecraft.nbt.NbtCompound;
 import net.minecraft.nbt.NbtList;
-//#if MC>=12108
-//$$ import net.minecraft.nbt.NbtOps;
-//#endif
 import net.minecraft.registry.RegistryWrapper;
 import net.minecraft.util.collection.DefaultedList;
 import net.minecraft.util.math.BlockPos;
@@ -99,13 +71,13 @@ public final class QuickLitematicaContainerMaterials {
     public static final String BUTTON_KEY = "quickcraft.litematica.button.container_material_list";
     public static final String BUTTON_HOVER_KEY = "quickcraft.litematica.button.hover.container_material_list";
 
-    private static final int BUTTON_GAP = 4;
-    private static final int CONTAINER_COLUMN_WIDTH = 188;
-    private static final int COUNT_COLUMN_WIDTH = 58;
-    private static final int ACTION_COLUMN_WIDTH = 66;
-    private static final int ITEM_CELL_WIDTH = 34;
-    private static final int ITEM_CELL_HEIGHT = 20;
-    private static final int HEADER_HEIGHT = 22;
+    static final int BUTTON_GAP = 4;
+    static final int CONTAINER_COLUMN_WIDTH = 188;
+    static final int COUNT_COLUMN_WIDTH = 58;
+    static final int ACTION_COLUMN_WIDTH = 66;
+    static final int ITEM_CELL_WIDTH = 34;
+    static final int ITEM_CELL_HEIGHT = 20;
+    static final int HEADER_HEIGHT = 22;
     private static final Set<String> NON_INVENTORY_BLOCK_ENTITY_IDS = new HashSet<>();
     private static final Direction[] HORIZONTAL_DIRECTIONS = new Direction[] {
             Direction.NORTH, Direction.SOUTH, Direction.WEST, Direction.EAST
@@ -215,16 +187,13 @@ public final class QuickLitematicaContainerMaterials {
     }
 
     private static void openMaterialListScreen(ContainerMaterialList materialList) {
-        ContainerMaterialListScreen screen = new ContainerMaterialListScreen(materialList);
-        screen.setParent(materialList.parent);
-        GuiBase.openGui(screen);
+        QuickLitematicaContainerMaterialsScreens.openMaterialListScreen(materialList);
     }
 
     private static void openDetailScreen(ContainerMaterialList materialList) {
-        ContainerMaterialsScreen screen = new ContainerMaterialsScreen(materialList);
-        screen.setParent(materialList.parent);
-        GuiBase.openGui(screen);
+        QuickLitematicaContainerMaterialsScreens.openDetailScreen(materialList);
     }
+
     private static LitematicaSchematic readSchematic(GuiSchematicLoad gui, DirectoryEntry entry) {
         FileType fileType = FileType.fromFile(entryPath(entry));
 
@@ -246,19 +215,11 @@ public final class QuickLitematicaContainerMaterials {
     }
 
     private static Path entryPath(DirectoryEntry entry) {
-        //#if MC<12105
-        return entry.getFullPath().toPath();
-        //#else
-        //$$ return entry.getFullPath();
-        //#endif
+        return QuickLitematicaContainerMaterialsAccess.getEntryPath(entry);
     }
 
     private static Object entryFileName(DirectoryEntry entry) {
-        //#if MC<12105
-        return entry.getFullPath().getName();
-        //#else
-        //$$ return entry.getFullPath().getFileName();
-        //#endif
+        return QuickLitematicaContainerMaterialsAccess.getEntryFileName(entry);
     }
 
     private static RegistryWrapper.WrapperLookup getRegistryLookup() {
@@ -296,11 +257,7 @@ public final class QuickLitematicaContainerMaterials {
             @Nullable SchematicPlacement placement,
             boolean renderLayers
     ) {
-        //#if MC>=12111
-        //$$ Map<BlockPos, ?> blockEntities = schematic.getBlockEntityMapForRegion(regionName);
-        //#else
-        Map<BlockPos, NbtCompound> blockEntities = schematic.getBlockEntityMapForRegion(regionName);
-        //#endif
+        Map<BlockPos, NbtCompound> blockEntities = QuickLitematicaContainerMaterialsAccess.getBlockEntities(schematic, regionName);
 
         if (blockEntities == null || blockEntities.isEmpty()) {
             return;
@@ -309,22 +266,14 @@ public final class QuickLitematicaContainerMaterials {
         LitematicaBlockStateContainer stateContainer = schematic.getSubRegionContainer(regionName);
         Set<BlockPos> consumed = new HashSet<>();
 
-        //#if MC>=12111
-        //$$ for (Map.Entry<BlockPos, ?> entry : blockEntities.entrySet()) {
-        //#else
         for (Map.Entry<BlockPos, NbtCompound> entry : blockEntities.entrySet()) {
-        //#endif
             BlockPos pos = entry.getKey();
 
             if (consumed.contains(pos)) {
                 continue;
             }
 
-            //#if MC>=12111
-            //$$ NbtCompound nbt = QuickLitematicaDataCompat.toVanillaNbt(entry.getValue());
-            //#else
             NbtCompound nbt = entry.getValue();
-            //#endif
             if (nbt == null) {
                 continue;
             }
@@ -350,11 +299,7 @@ public final class QuickLitematicaContainerMaterials {
             consumed.add(pos);
 
             if (pairedChestPos != null) {
-                //#if MC>=12111
-                //$$ NbtCompound pairedNbt = QuickLitematicaDataCompat.toVanillaNbt(blockEntities.get(pairedChestPos));
-                //#else
                 NbtCompound pairedNbt = blockEntities.get(pairedChestPos);
-                //#endif
                 BlockState pairedState = getState(stateContainer, pairedChestPos);
                 List<ItemStack> pairedStacks = readBlockEntityItems(
                         pairedChestPos,
@@ -388,25 +333,14 @@ public final class QuickLitematicaContainerMaterials {
         }
 
         for (EntityInfo info : entities) {
-            //#if MC>=12111
-            //$$ NbtCompound nbt = QuickLitematicaDataCompat.entityNbt(info);
-            //$$ if (nbt == null || !containsItemsList(nbt)) {
-            //#else
-            if (info.nbt == null || !containsItemsList(info.nbt)) {
-            //#endif
+            NbtCompound nbt = QuickLitematicaContainerMaterialsAccess.getEntityNbt(info);
+            if (nbt == null || !containsItemsList(nbt)) {
                 continue;
             }
-            //#if MC>=12111
-            //$$ if (renderLayers && !isWithinRenderLayer(placement, schematic, regionName, QuickLitematicaDataCompat.entityPos(info))) {
-            //#else
-            if (renderLayers && !isWithinRenderLayer(placement, schematic, regionName, info.posVec)) {
-            //#endif
+            if (renderLayers && !isWithinRenderLayer(placement, schematic, regionName, QuickLitematicaContainerMaterialsAccess.getEntityPos(info))) {
                 continue;
             }
 
-            //#if MC<12111
-            NbtCompound nbt = info.nbt;
-            //#endif
             List<ItemStack> stacks = readItems(nbt, registryLookup);
 
             if (stacks.isEmpty()) {
@@ -539,46 +473,23 @@ public final class QuickLitematicaContainerMaterials {
     }
 
     private static ItemStack itemStackFromNbt(RegistryWrapper.WrapperLookup registryLookup, NbtCompound nbt) {
-        //#if MC<12108
-        return ItemStack.fromNbt(registryLookup, nbt).orElse(ItemStack.EMPTY);
-        //#else
-        //$$ return ItemStack.OPTIONAL_CODEC
-        //$$         .parse(registryLookup.getOps(NbtOps.INSTANCE), nbt)
-        //$$         .result()
-        //$$         .orElse(ItemStack.EMPTY);
-        //#endif
+        return QuickLitematicaContainerMaterialsAccess.itemStackFromNbt(registryLookup, nbt);
     }
 
     private static boolean containsItemsList(NbtCompound nbt) {
-        //#if MC<12105
-        return nbt.contains("Items", Constants.NBT.TAG_LIST);
-        //#else
-        //$$ return nbt.contains("Items");
-        //#endif
+        return QuickLitematicaContainerMaterialsAccess.containsItemsList(nbt);
     }
 
     private static String readString(NbtCompound nbt, String key) {
-        //#if MC<12105
-        return nbt.getString(key);
-        //#else
-        //$$ return nbt.getString(key, "");
-        //#endif
+        return QuickLitematicaContainerMaterialsAccess.readString(nbt, key);
     }
 
     private static NbtList readCompoundList(NbtCompound nbt, String key) {
-        //#if MC<12105
-        return nbt.getList(key, Constants.NBT.TAG_COMPOUND);
-        //#else
-        //$$ return nbt.getListOrEmpty(key);
-        //#endif
+        return QuickLitematicaContainerMaterialsAccess.readCompoundList(nbt, key);
     }
 
     private static NbtCompound readCompound(NbtList list, int index) {
-        //#if MC<12105
-        return list.getCompound(index);
-        //#else
-        //$$ return list.getCompoundOrEmpty(index);
-        //#endif
+        return QuickLitematicaContainerMaterialsAccess.readCompound(list, index);
     }
 
     @Nullable
@@ -616,8 +527,8 @@ public final class QuickLitematicaContainerMaterials {
     }
 
     private static List<ItemCount> countStacks(List<ItemStack> stacks) {
-        Object2IntOpenHashMap<ItemType> counts = new Object2IntOpenHashMap<>();
-        Map<ItemType, ItemStack> displayStacks = new HashMap<>();
+        Object2IntOpenHashMap<Object> counts = new Object2IntOpenHashMap<>();
+        Map<Object, ItemStack> displayStacks = new HashMap<>();
 
         for (ItemStack stack : stacks) {
             addStackCount(counts, displayStacks, stack, stack.getCount());
@@ -650,22 +561,22 @@ public final class QuickLitematicaContainerMaterials {
     }
 
     private static void addStackCount(
-            Object2IntOpenHashMap<ItemType> counts,
-            Map<ItemType, ItemStack> displayStacks,
+            Object2IntOpenHashMap<Object> counts,
+            Map<Object, ItemStack> displayStacks,
             ItemStack stack,
             int count
     ) {
         ItemStack displayStack = stack.copy();
         displayStack.setCount(1);
-        ItemType key = new ItemType(displayStack, true, true);
+        Object key = QuickLitematicaContainerMaterialsAccess.createItemKey(displayStack);
         counts.addTo(key, count);
         displayStacks.putIfAbsent(key, displayStack);
     }
 
-    private static List<ItemCount> toItemCounts(Object2IntOpenHashMap<ItemType> counts, Map<ItemType, ItemStack> displayStacks) {
+    private static List<ItemCount> toItemCounts(Object2IntOpenHashMap<Object> counts, Map<Object, ItemStack> displayStacks) {
         List<ItemCount> result = new ArrayList<>();
 
-        for (ItemType type : counts.keySet()) {
+        for (Object type : counts.keySet()) {
             ItemStack stack = displayStacks.get(type);
 
             if (stack != null && !stack.isEmpty()) {
@@ -698,11 +609,7 @@ public final class QuickLitematicaContainerMaterials {
             BlockPos pos,
             BlockState state,
             LitematicaBlockStateContainer stateContainer,
-            //#if MC>=12111
-            //$$ Map<BlockPos, ?> blockEntities,
-            //#else
             Map<BlockPos, NbtCompound> blockEntities,
-            //#endif
             Set<BlockPos> consumed
     ) {
         if (!(state != null && state.getBlock() instanceof ChestBlock)) {
@@ -802,7 +709,7 @@ public final class QuickLitematicaContainerMaterials {
     }
 
     private static String itemSignature(ItemStack stack) {
-        return new ItemType(stack, true, true).toString();
+        return QuickLitematicaContainerMaterialsAccess.createItemKey(stack).toString();
     }
 
     private static String contentSignature(List<ItemCount> contents) {
@@ -815,7 +722,7 @@ public final class QuickLitematicaContainerMaterials {
         return builder.toString();
     }
 
-    private static int getGroupHeight(ContainerGroup group, int rowWidth) {
+    static int getGroupHeight(ContainerGroup group, int rowWidth) {
         int contentWidth = Math.max(ITEM_CELL_WIDTH, rowWidth - CONTAINER_COLUMN_WIDTH - COUNT_COLUMN_WIDTH - ACTION_COLUMN_WIDTH - 18);
         int columns = Math.max(1, contentWidth / ITEM_CELL_WIDTH);
         int rows = Math.max(1, (group.contents().size() + columns - 1) / columns);
@@ -823,7 +730,7 @@ public final class QuickLitematicaContainerMaterials {
         return Math.max(group.sourceLabel() == null ? 30 : 40, contentHeight);
     }
 
-    private static String fitText(String text, int maxWidth) {
+    static String fitText(String text, int maxWidth) {
         MinecraftClient client = MinecraftClient.getInstance();
 
         if (client.textRenderer.getWidth(text) <= maxWidth) {
@@ -840,7 +747,7 @@ public final class QuickLitematicaContainerMaterials {
         return text + suffix;
     }
 
-    private static String formatCount(int count) {
+    static String formatCount(int count) {
         if (count >= 1_000_000) {
             return count / 1_000_000 + "m";
         }
@@ -857,13 +764,13 @@ public final class QuickLitematicaContainerMaterials {
     private record ContainerDescriptor(ItemStack stack, String displayName, String signatureKey) {
     }
 
-    private record ItemCount(ItemStack stack, int count, String signature) {
-        private int totalCount(int multiplier) {
+    record ItemCount(ItemStack stack, int count, String signature) {
+        int totalCount(int multiplier) {
             return this.count * multiplier;
         }
     }
 
-    private record ContainerGroup(
+    record ContainerGroup(
             ItemStack containerStack,
             String containerName,
             String sourceLabel,
@@ -961,10 +868,10 @@ public final class QuickLitematicaContainerMaterials {
         }
     }
 
-    private static final class ContainerMaterialsData {
-        private final LitematicaSchematic schematic;
+    static final class ContainerMaterialsData {
+        final LitematicaSchematic schematic;
         private final List<String> regions;
-        private final SchematicPlacement placement;
+        final SchematicPlacement placement;
         private final Set<String> ignoredGroupSignatures = new HashSet<>();
         private List<ContainerGroup> groups;
 
@@ -995,19 +902,19 @@ public final class QuickLitematicaContainerMaterials {
             );
         }
 
-        private void refresh(BlockInfoListType materialListType) {
+        void refresh(BlockInfoListType materialListType) {
             this.groups = createContainerGroups(this.schematic, this.regions, this.placement, materialListType);
         }
 
-        private List<ContainerGroup> visibleGroups() {
+        List<ContainerGroup> visibleGroups() {
             return this.groups.stream()
                     .filter(group -> !this.ignoredGroupSignatures.contains(group.signature()))
                     .toList();
         }
 
         private List<QuickMaterialCollector.MaterialRequest> createReplacementMaterialRequests(int multiplier) {
-            Object2IntOpenHashMap<ItemType> counts = new Object2IntOpenHashMap<>();
-            Map<ItemType, ItemStack> displayStacks = new HashMap<>();
+            Object2IntOpenHashMap<Object> counts = new Object2IntOpenHashMap<>();
+            Map<Object, ItemStack> displayStacks = new HashMap<>();
             int effectiveMultiplier = Math.max(1, multiplier);
 
             for (ContainerGroup group : this.visibleGroups()) {
@@ -1026,11 +933,11 @@ public final class QuickLitematicaContainerMaterials {
             return requests;
         }
 
-        private void ignoreGroup(ContainerGroup group) {
+        void ignoreGroup(ContainerGroup group) {
             this.ignoredGroupSignatures.add(group.signature());
         }
 
-        private void clearIgnoredGroups() {
+        void clearIgnoredGroups() {
             this.ignoredGroupSignatures.clear();
         }
 
@@ -1043,7 +950,7 @@ public final class QuickLitematicaContainerMaterials {
             );
         }
 
-        private String detailTitle() {
+        String detailTitle() {
             return StringUtils.translate(
                     "quickcraft.litematica.title.container_material_details",
                     this.schematic.getMetadata().getName(),
@@ -1052,7 +959,7 @@ public final class QuickLitematicaContainerMaterials {
             );
         }
 
-        private int totalVisibleContainerCount() {
+        int totalVisibleContainerCount() {
             int total = 0;
 
             for (ContainerGroup group : this.visibleGroups()) {
@@ -1062,8 +969,8 @@ public final class QuickLitematicaContainerMaterials {
             return total;
         }
 
-        private Object2IntOpenHashMap<ItemType> createWorldMissingCounts(
-                Object2IntOpenHashMap<ItemType> totalCounts,
+        private Object2IntOpenHashMap<Object> createWorldMissingCounts(
+                Object2IntOpenHashMap<Object> totalCounts,
                 @Nullable QuickLitematicaContainerVerifier.VerifierExtension verifier
         ) {
             if (this.placement == null
@@ -1073,7 +980,7 @@ public final class QuickLitematicaContainerMaterials {
                 return null;
             }
 
-            Object2IntOpenHashMap<ItemType> missing = new Object2IntOpenHashMap<>();
+            Object2IntOpenHashMap<Object> missing = new Object2IntOpenHashMap<>();
 
             for (QuickLitematicaContainerVerifier.ContainerMismatch mismatch : verifier.quickcraft$getContainerMismatches()) {
                 for (QuickLitematicaContainerVerifier.SlotMismatch slotMismatch : mismatch.slotMismatches()) {
@@ -1091,7 +998,7 @@ public final class QuickLitematicaContainerMaterials {
                 }
             }
 
-            for (ItemType type : missing.keySet()) {
+            for (Object type : missing.keySet()) {
                 missing.put(type, Math.min(missing.getInt(type), totalCounts.getInt(type)));
             }
 
@@ -1099,7 +1006,7 @@ public final class QuickLitematicaContainerMaterials {
         }
 
         private static void addMissingStackCounts(
-                Object2IntOpenHashMap<ItemType> missing,
+                Object2IntOpenHashMap<Object> missing,
                 ItemStack stack,
                 int count
         ) {
@@ -1107,7 +1014,7 @@ public final class QuickLitematicaContainerMaterials {
         }
 
         private static void addMissingStackCounts(
-                Object2IntOpenHashMap<ItemType> missing,
+                Object2IntOpenHashMap<Object> missing,
                 ItemStack stack,
                 int count,
                 int depth
@@ -1118,7 +1025,7 @@ public final class QuickLitematicaContainerMaterials {
 
             ItemStack displayStack = stack.copy();
             displayStack.setCount(1);
-            missing.addTo(new ItemType(displayStack, true, true), count);
+            missing.addTo(QuickLitematicaContainerMaterialsAccess.createItemKey(displayStack), count);
 
             if (depth >= 4 || !isShulkerBox(stack)) {
                 return;
@@ -1146,12 +1053,12 @@ public final class QuickLitematicaContainerMaterials {
         }
     }
 
-    private static final class ContainerMaterialList extends MaterialListBase
+    static final class ContainerMaterialList extends MaterialListBase
             implements ContainerMaterialRequestSource, ICompletionListener {
-        private final ContainerMaterialsData data;
-        private final Screen parent;
+        final ContainerMaterialsData data;
+        final Screen parent;
         private SchematicVerifier containerVerifier;
-        private Object2IntOpenHashMap<ItemType> worldMissingCounts;
+        private Object2IntOpenHashMap<Object> worldMissingCounts;
         private boolean materialEntriesInitialized;
 
         private ContainerMaterialList(ContainerMaterialsData data, Screen parent, boolean initializeMaterialEntries) {
@@ -1235,13 +1142,13 @@ public final class QuickLitematicaContainerMaterials {
             this.containerVerifier = null;
         }
 
-        private void ensureMaterialEntriesInitialized() {
+        void ensureMaterialEntriesInitialized() {
             if (!this.materialEntriesInitialized) {
                 this.initializeMaterialEntries();
             }
         }
 
-        private void invalidateMaterialEntries() {
+        void invalidateMaterialEntries() {
             this.materialEntriesInitialized = false;
             this.worldMissingCounts = null;
             this.setMaterialListEntries(List.of());
@@ -1255,14 +1162,14 @@ public final class QuickLitematicaContainerMaterials {
         }
 
         private List<MaterialListEntry> createMaterialEntries() {
-            Object2IntOpenHashMap<ItemType> counts = new Object2IntOpenHashMap<>();
-            Map<ItemType, ItemStack> displayStacks = new HashMap<>();
+            Object2IntOpenHashMap<Object> counts = new Object2IntOpenHashMap<>();
+            Map<Object, ItemStack> displayStacks = new HashMap<>();
 
             for (ContainerGroup group : this.data.visibleGroups()) {
                 for (ItemCount item : group.contents()) {
                     ItemStack displayStack = item.stack().copy();
                     displayStack.setCount(1);
-                    ItemType key = new ItemType(displayStack, true, true);
+                    Object key = QuickLitematicaContainerMaterialsAccess.createItemKey(displayStack);
                     counts.addTo(key, item.totalCount(group.containerCount()));
                     displayStacks.putIfAbsent(key, displayStack);
                 }
@@ -1272,12 +1179,12 @@ public final class QuickLitematicaContainerMaterials {
                     this.containerVerifier instanceof QuickLitematicaContainerVerifier.VerifierExtension extension
                             ? extension
                             : null;
-            Object2IntOpenHashMap<ItemType> worldMissing = this.data.createWorldMissingCounts(counts, verifier);
+            Object2IntOpenHashMap<Object> worldMissing = this.data.createWorldMissingCounts(counts, verifier);
             if (worldMissing != null) {
                 this.worldMissingCounts = new Object2IntOpenHashMap<>(worldMissing);
             } else if (this.worldMissingCounts != null) {
                 worldMissing = new Object2IntOpenHashMap<>(this.worldMissingCounts);
-                for (ItemType type : worldMissing.keySet()) {
+                for (Object type : worldMissing.keySet()) {
                     worldMissing.put(type, Math.min(worldMissing.getInt(type), counts.getInt(type)));
                 }
             }
@@ -1288,7 +1195,7 @@ public final class QuickLitematicaContainerMaterials {
 
             List<MaterialListEntry> entries = new ArrayList<>();
 
-            for (ItemType type : counts.keySet()) {
+            for (Object type : counts.keySet()) {
                 ItemStack stack = displayStacks.get(type);
 
                 if (stack != null && !stack.isEmpty()) {
@@ -1311,484 +1218,5 @@ public final class QuickLitematicaContainerMaterials {
             return this.data.createReplacementMaterialRequests(this.getMultiplier());
         }
     }
-
-    //#if MC>=12111
-    //$$ private static class ContainerMaterialListScreen extends GuiMaterialList {
-    //#else
-    private static final class ContainerMaterialListScreen extends GuiMaterialList {
-    //#endif
-        private final ContainerMaterialList materialList;
-
-        private ContainerMaterialListScreen(ContainerMaterialList materialList) {
-            super(materialList);
-            this.materialList = materialList;
-        }
-
-        @Override
-        public void initGui() {
-            super.initGui();
-
-            int gap = 1;
-            String detailsLabel = StringUtils.translate("quickcraft.litematica.button.container_material_details");
-            String materialLabel = StringUtils.translate(BUTTON_KEY);
-            List<ButtonBase> buttons = ((QuickCraftGuiButtonAccess) (Object) this).quickcraft$getButtons();
-            int bottomRow = this.height - 22;
-            boolean nativeButtonsWrapped = buttons.stream().anyMatch(button -> button.getY() == bottomRow);
-            int topRowLimit = this.width - 60;
-            int topX = buttons.stream()
-                    .filter(button -> button.getY() == 24)
-                    .mapToInt(button -> button.getX() + button.getWidth() + gap)
-                    .max()
-                    .orElse(12);
-            int detailsWidth = this.getStringWidth(detailsLabel) + 10;
-            int materialWidth = this.getStringWidth(materialLabel) + 10;
-            boolean fitsTopRow = !nativeButtonsWrapped
-                    && topX + detailsWidth + gap + materialWidth <= topRowLimit;
-            int y = fitsTopRow ? 24 : bottomRow;
-            int x = buttons.stream()
-                    .filter(button -> button.getY() == y)
-                    .mapToInt(button -> button.getX() + button.getWidth() + gap)
-                    .max()
-                    .orElse(12);
-
-            ButtonGeneric detailsButton = this.createNavButton(x, y, detailsLabel);
-            this.addButton(detailsButton, (button, mouseButton) -> openDetailScreen(this.materialList));
-            x += detailsButton.getWidth() + gap;
-
-            ButtonGeneric materialButton = this.createNavButton(x, y, materialLabel);
-            materialButton.setEnabled(false);
-            this.addButton(materialButton, (button, mouseButton) -> {
-            });
-        }
-
-        private ButtonGeneric createNavButton(int x, int y, String label) {
-            return new ButtonGeneric(x, y, this.getStringWidth(label) + 10, 20, label);
-        }
-
-    }
-
-    private static final class ContainerMaterialsScreen
-            extends GuiListBase<ContainerGroup, ContainerGroupEntryWidget, ContainerGroupListWidget> {
-        private final ContainerMaterialList materialList;
-        private final ContainerMaterialsData data;
-
-        private ContainerMaterialsScreen(ContainerMaterialList materialList) {
-            super(10, 44);
-            this.materialList = materialList;
-            this.data = materialList.data;
-            this.title = this.data.detailTitle();
-            this.useTitleHierarchy = false;
-        }
-
-        @Override
-        protected int getBrowserWidth() {
-            return this.width - 20;
-        }
-
-        @Override
-        protected int getBrowserHeight() {
-            return this.height - 82;
-        }
-
-        @Override
-        public void initGui() {
-            super.initGui();
-
-            int x = 12;
-            int y = 24;
-            x += this.createButton(x, y, ButtonType.REFRESH) + 2;
-            x += this.createButton(x, y, ButtonType.MATERIAL_LIST) + 2;
-            ButtonGeneric detailsButton = new ButtonGeneric(
-                    x,
-                    y,
-                    -1,
-                    20,
-                    StringUtils.translate("quickcraft.litematica.button.container_material_details")
-            );
-            detailsButton.setEnabled(false);
-            this.addButton(detailsButton, (button, mouseButton) -> {
-            });
-
-            String summary = StringUtils.translate(
-                    "quickcraft.litematica.label.summary",
-                    this.data.visibleGroups().size(),
-                    this.data.totalVisibleContainerCount()
-            );
-            this.addLabel(12, this.height - 36, -1, 12, 0xFFFFFFFF, summary);
-
-            ButtonListenerChangeMenu.ButtonType type = ButtonListenerChangeMenu.ButtonType.MAIN_MENU;
-            String label = StringUtils.translate(type.getLabelKey());
-            int buttonWidth = this.getStringWidth(label) + 20;
-            ButtonGeneric button = new ButtonGeneric(this.width - buttonWidth - 10, this.height - 36, buttonWidth, 20, label);
-            this.addButton(button, new ButtonListenerChangeMenu(type, this.getParent()));
-        }
-
-        @Override
-        //#if MC>=12111
-        //$$ public void drawContents(GuiContext drawContext, int mouseX, int mouseY, float partialTicks) {
-        //#else
-        public void drawContents(DrawContext drawContext, int mouseX, int mouseY, float partialTicks) {
-        //#endif
-            super.drawContents(drawContext, mouseX, mouseY, partialTicks);
-
-            if (this.data.visibleGroups().isEmpty()) {
-                String text = StringUtils.translate("quickcraft.litematica.label.no_container_contents");
-                drawContext.drawText(this.textRenderer, text, this.width / 2 - this.getStringWidth(text) / 2, this.height / 2, 0xFFFFFFFF, false);
-            }
-        }
-
-        @Override
-        protected ContainerGroupListWidget createListWidget(int listX, int listY) {
-            return new ContainerGroupListWidget(listX, listY, this.getBrowserWidth(), this.getBrowserHeight(), this);
-        }
-
-        private int createButton(int x, int y, ButtonType type) {
-            String label = StringUtils.translate(type.translationKey);
-            ButtonGeneric button = new ButtonGeneric(x, y, -1, 20, label);
-            this.addButton(button, new ContainerMaterialsButtonListener(this, type));
-            return button.getWidth();
-        }
-
-        private List<ContainerGroup> groups() {
-            return this.data.visibleGroups();
-        }
-
-        private void refreshData() {
-            this.data.refresh(this.materialList.getMaterialListType());
-            this.materialList.invalidateMaterialEntries();
-            this.reCreateListWidget();
-            this.initGui();
-        }
-
-        private void ignoreGroup(ContainerGroup group) {
-            this.data.ignoreGroup(group);
-            this.materialList.invalidateMaterialEntries();
-            this.reCreateListWidget();
-            this.initGui();
-        }
-
-        private void openMaterialList() {
-            this.materialList.ensureMaterialEntriesInitialized();
-            openMaterialListScreen(this.materialList);
-        }
-
-    }
-
-    private static final class ContainerGroupListWidget extends WidgetListBase<ContainerGroup, ContainerGroupEntryWidget> {
-        private final ContainerMaterialsScreen gui;
-
-        private ContainerGroupListWidget(int x, int y, int width, int height, ContainerMaterialsScreen gui) {
-            super(x, y, width, height, null);
-            this.gui = gui;
-            this.browserEntryHeight = HEADER_HEIGHT;
-        }
-
-        @Override
-        protected Collection<ContainerGroup> getAllEntries() {
-            return this.gui.groups();
-        }
-
-        @Override
-        protected int getBrowserEntryHeightFor(ContainerGroup group) {
-            return group == null ? HEADER_HEIGHT : getGroupHeight(group, this.browserEntryWidth);
-        }
-
-        @Override
-        protected ContainerGroupEntryWidget createHeaderWidget(int x, int y, int listIndexStart, int usableHeight, int usedHeight) {
-            if (usedHeight + HEADER_HEIGHT > usableHeight) {
-                return null;
-            }
-
-            return new ContainerGroupEntryWidget(x, y, this.browserEntryWidth, HEADER_HEIGHT, true, null, this.gui);
-        }
-
-        @Override
-        protected ContainerGroupEntryWidget createListEntryWidget(int x, int y, int listIndex, boolean isOdd, ContainerGroup entry) {
-            return new ContainerGroupEntryWidget(
-                    x,
-                    y,
-                    this.browserEntryWidth,
-                    getGroupHeight(entry, this.browserEntryWidth),
-                    isOdd,
-                    entry,
-                    this.gui
-            );
-        }
-    }
-
-    private static final class ContainerGroupEntryWidget extends WidgetListEntryBase<ContainerGroup> {
-        private final ContainerMaterialsScreen gui;
-        private final boolean isOdd;
-
-        private ContainerGroupEntryWidget(
-                int x,
-                int y,
-                int width,
-                int height,
-                boolean isOdd,
-                ContainerGroup entry,
-                ContainerMaterialsScreen gui
-        ) {
-            super(x, y, width, height, entry, entry == null ? -1 : 0);
-            this.gui = gui;
-            this.isOdd = isOdd;
-
-            if (entry != null) {
-                ButtonGeneric button = new ButtonGeneric(
-                        x + width - 4,
-                        y + 1,
-                        -1,
-                        true,
-                        "quickcraft.litematica.button.ignore_container"
-                );
-                this.addButton(button, (clickedButton, mouseButton) -> this.gui.ignoreGroup(entry));
-            }
-        }
-
-        @Override
-        //#if MC<12110
-        public boolean canSelectAt(int mouseX, int mouseY, int mouseButton) {
-        //#else
-        //$$ public boolean canSelectAt(Click click) {
-        //#endif
-            return false;
-        }
-
-        @Override
-        //#if MC<12108
-        public void render(int mouseX, int mouseY, boolean selected, DrawContext drawContext) {
-        //#elseif MC>=12111
-        //$$ public void render(GuiContext drawContext, int mouseX, int mouseY, boolean selected) {
-        //#else
-        //$$ public void render(DrawContext drawContext, int mouseX, int mouseY, boolean selected) {
-        //#endif
-            if (this.entry == null) {
-                this.renderHeader(drawContext);
-                return;
-            }
-
-            if (this.isMouseOver(mouseX, mouseY)) {
-                drawRect(drawContext, this.x, this.y, this.width, this.height, 0xA0707070);
-            } else if (this.isOdd) {
-                drawRect(drawContext, this.x, this.y, this.width, this.height, 0xA0101010);
-            } else {
-                drawRect(drawContext, this.x, this.y, this.width, this.height, 0xA0303030);
-            }
-
-            int containerX = this.x + 6;
-            int countX = this.x + CONTAINER_COLUMN_WIDTH + 4;
-            int contentsX = this.x + CONTAINER_COLUMN_WIDTH + COUNT_COLUMN_WIDTH + 8;
-            int yText = this.y + 6;
-
-            drawRect(drawContext, containerX, this.y + 6, 16, 16, 0x20FFFFFF);
-            drawContext.drawItem(this.entry.containerStack(), containerX, this.y + 6);
-            this.drawText(drawContext, containerX + 20, yText, 0xFFFFFFFF, fitText(this.entry.containerName(), CONTAINER_COLUMN_WIDTH - 28));
-
-            if (this.entry.sourceLabel() != null) {
-                this.drawText(drawContext, containerX + 20, yText + 11, 0xFFAAAAAA, fitText(this.entry.sourceLabel(), CONTAINER_COLUMN_WIDTH - 28));
-            }
-
-            this.drawText(drawContext, countX, this.y + 10, 0xFFFFFFFF, "x" + this.entry.containerCount());
-            this.renderContents(drawContext, contentsX, mouseX, mouseY);
-            //#if MC<12108
-            super.render(mouseX, mouseY, selected, drawContext);
-            //#else
-            //$$ super.render(drawContext, mouseX, mouseY, selected);
-            //#endif
-        }
-
-        @Override
-        //#if MC<12108
-        public void postRenderHovered(int mouseX, int mouseY, boolean selected, DrawContext drawContext) {
-        //#elseif MC>=12111
-        //$$ public void postRenderHovered(GuiContext drawContext, int mouseX, int mouseY, boolean selected) {
-        //#else
-        //$$ public void postRenderHovered(DrawContext drawContext, int mouseX, int mouseY, boolean selected) {
-        //#endif
-            if (this.entry == null) {
-                return;
-            }
-
-            int containerX = this.x + 6;
-            int containerY = this.y + 6;
-
-            if (mouseX >= containerX && mouseX < containerX + 16 && mouseY >= containerY && mouseY < containerY + 16) {
-                //#if MC>=12111
-                //$$ InventoryOverlay.renderStackToolTipStyled(drawContext, mouseX, mouseY, this.entry.containerStack());
-                //#else
-                drawContext.drawItemTooltip(this.textRenderer, this.entry.containerStack(), mouseX, mouseY);
-                //#endif
-                return;
-            }
-
-            ItemCount hovered = this.getHoveredItem(mouseX, mouseY);
-
-            if (hovered != null) {
-                //#if MC>=12111
-                //$$ InventoryOverlay.renderStackToolTipStyled(drawContext, mouseX, mouseY, hovered.stack());
-                //#else
-                drawContext.drawItemTooltip(this.textRenderer, hovered.stack(), mouseX, mouseY);
-                //#endif
-                return;
-            }
-
-            //#if MC<12108
-            super.postRenderHovered(mouseX, mouseY, selected, drawContext);
-            //#else
-            //$$ super.postRenderHovered(drawContext, mouseX, mouseY, selected);
-            //#endif
-        }
-
-        //#if MC>=12111
-        //$$ private void renderHeader(GuiContext drawContext) {
-        //#else
-        private void renderHeader(DrawContext drawContext) {
-        //#endif
-            drawRect(drawContext, this.x, this.y, this.width, this.height, 0xA0101010);
-
-            int containerX = this.x + 6;
-            int countX = this.x + CONTAINER_COLUMN_WIDTH + 4;
-            int contentsX = this.x + CONTAINER_COLUMN_WIDTH + COUNT_COLUMN_WIDTH + 8;
-            int actionX = this.x + this.width - ACTION_COLUMN_WIDTH + 4;
-            int endX = this.x + this.width - 2;
-            int y = this.y + 7;
-
-            this.drawHeaderCell(drawContext, containerX, countX);
-            this.drawHeaderCell(drawContext, countX, contentsX);
-            this.drawHeaderCell(drawContext, contentsX, actionX);
-            this.drawHeaderCell(drawContext, actionX, endX);
-            this.drawText(drawContext, containerX, y, 0xFFFFFFFF, GuiBase.TXT_BOLD + StringUtils.translate("quickcraft.litematica.header.container") + GuiBase.TXT_RST);
-            this.drawText(drawContext, countX, y, 0xFFFFFFFF, GuiBase.TXT_BOLD + StringUtils.translate("quickcraft.litematica.header.count") + GuiBase.TXT_RST);
-            this.drawText(drawContext, contentsX, y, 0xFFFFFFFF, GuiBase.TXT_BOLD + StringUtils.translate("quickcraft.litematica.header.contents") + GuiBase.TXT_RST);
-            this.drawText(drawContext, actionX, y, 0xFFFFFFFF, GuiBase.TXT_BOLD + StringUtils.translate("quickcraft.litematica.header.action") + GuiBase.TXT_RST);
-        }
-
-        //#if MC>=12111
-        //$$ private void drawHeaderCell(GuiContext drawContext, int xStart, int xEnd) {
-        //#else
-        private void drawHeaderCell(DrawContext drawContext, int xStart, int xEnd) {
-        //#endif
-            drawOutline(drawContext, xStart - 3, this.y + 1, xEnd - xStart - 2, this.height - 2, 0xC0707070);
-        }
-
-        //#if MC>=12111
-        //$$ private void renderContents(GuiContext drawContext, int contentsX, int mouseX, int mouseY) {
-        //#else
-        private void renderContents(DrawContext drawContext, int contentsX, int mouseX, int mouseY) {
-        //#endif
-            if (this.entry.contents().isEmpty()) {
-                this.drawText(drawContext, contentsX, this.y + 10, 0xFFAAAAAA, StringUtils.translate("quickcraft.litematica.label.empty_contents"));
-                return;
-            }
-
-            int columns = getContentColumns(contentsX);
-
-            for (int i = 0; i < this.entry.contents().size(); i++) {
-                ItemCount item = this.entry.contents().get(i);
-                int itemX = contentsX + (i % columns) * ITEM_CELL_WIDTH;
-                int itemY = this.y + 6 + (i / columns) * ITEM_CELL_HEIGHT;
-                ItemStack displayStack = item.stack();
-
-                drawRect(drawContext, itemX, itemY, 16, 16, 0x20FFFFFF);
-                drawContext.drawItem(displayStack, itemX, itemY);
-                //#if MC<12103
-                drawContext.drawItemInSlot(
-                //#else
-                //$$ drawContext.drawStackOverlay(
-                //#endif
-                        this.textRenderer,
-                        displayStack,
-                        itemX,
-                        itemY,
-                        formatCount(item.totalCount(this.entry.containerCount()))
-                );
-            }
-        }
-
-        //#if MC>=12111
-        //$$ private void drawText(GuiContext drawContext, int x, int y, int color, String text) {
-        //#else
-        private void drawText(DrawContext drawContext, int x, int y, int color, String text) {
-        //#endif
-            //#if MC<12108
-            this.drawString(x, y, color, text, drawContext);
-            //#else
-            //$$ this.drawString(drawContext, x, y, color, text);
-            //#endif
-        }
-
-        //#if MC>=12111
-        //$$ private static void drawRect(GuiContext drawContext, int x, int y, int width, int height, int color) {
-        //#else
-        private static void drawRect(DrawContext drawContext, int x, int y, int width, int height, int color) {
-        //#endif
-            //#if MC<12108
-            RenderUtils.drawRect(x, y, width, height, color);
-            //#else
-            //$$ RenderUtils.drawRect(drawContext, x, y, width, height, color);
-            //#endif
-        }
-
-        //#if MC>=12111
-        //$$ private static void drawOutline(GuiContext drawContext, int x, int y, int width, int height, int color) {
-        //#else
-        private static void drawOutline(DrawContext drawContext, int x, int y, int width, int height, int color) {
-        //#endif
-            //#if MC<12108
-            RenderUtils.drawOutline(x, y, width, height, color);
-            //#else
-            //$$ RenderUtils.drawOutline(drawContext, x, y, width, height, color);
-            //#endif
-        }
-
-        private ItemCount getHoveredItem(int mouseX, int mouseY) {
-            int contentsX = this.x + CONTAINER_COLUMN_WIDTH + COUNT_COLUMN_WIDTH + 8;
-            int columns = getContentColumns(contentsX);
-
-            for (int i = 0; i < this.entry.contents().size(); i++) {
-                int itemX = contentsX + (i % columns) * ITEM_CELL_WIDTH;
-                int itemY = this.y + 6 + (i / columns) * ITEM_CELL_HEIGHT;
-
-                if (mouseX >= itemX && mouseX < itemX + 16 && mouseY >= itemY && mouseY < itemY + 16) {
-                    return this.entry.contents().get(i);
-                }
-            }
-
-            return null;
-        }
-
-        private int getContentColumns(int contentsX) {
-            int contentWidth = Math.max(ITEM_CELL_WIDTH, this.x + this.width - contentsX - ACTION_COLUMN_WIDTH - 10);
-            return Math.max(1, contentWidth / ITEM_CELL_WIDTH);
-        }
-    }
-
-    private enum ButtonType {
-        REFRESH("quickcraft.litematica.button.refresh_container_material_list"),
-        MATERIAL_LIST(BUTTON_KEY);
-
-        private final String translationKey;
-
-        ButtonType(String translationKey) {
-            this.translationKey = translationKey;
-        }
-    }
-
-    private static final class ContainerMaterialsButtonListener implements IButtonActionListener {
-        private final ContainerMaterialsScreen screen;
-        private final ButtonType type;
-
-        private ContainerMaterialsButtonListener(ContainerMaterialsScreen screen, ButtonType type) {
-            this.screen = screen;
-            this.type = type;
-        }
-
-        @Override
-        public void actionPerformedWithButton(ButtonBase button, int mouseButton) {
-            switch (this.type) {
-                case REFRESH -> this.screen.refreshData();
-                case MATERIAL_LIST -> this.screen.openMaterialList();
-            }
-        }
-    }
 }
+
