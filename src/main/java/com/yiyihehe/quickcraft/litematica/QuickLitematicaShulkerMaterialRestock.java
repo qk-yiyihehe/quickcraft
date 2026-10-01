@@ -820,11 +820,7 @@ public final class QuickLitematicaShulkerMaterialRestock implements ClientModIni
             return -1;
         }
 
-        //#if MC<12105
-        int selectedSlot = inventory.selectedSlot;
-        //#else
-        //$$ int selectedSlot = inventory.getSelectedSlot();
-        //#endif
+        int selectedSlot = QuickLitematicaMaterialAccess.getSelectedSlot(inventory);
         if (configuredSlots.contains(selectedSlot) && isLitematicaPickBlockTarget(inventory, selectedSlot)) {
             return selectedSlot;
         }
