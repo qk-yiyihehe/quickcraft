@@ -25,7 +25,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
 /**
- * 扩展 Litematica 轻松放置的水源施工与原版交互退让。
+ * 扩展 Litematica 轻松放置的水源施工与原版交互退让（1.21.3+ 版本）。
  * Litematica 的 WorldUtils 会对带 onUse 的支撑方块伪装潜行后继续发送放置包；
  * 因此必须在 handleEasyPlace 与 easyPlaceOnUseTick 入口处取消，原版交互才不会被覆盖。
  */
@@ -86,12 +86,8 @@ public class LitematicaWorldUtilsEasyPlaceMixin {
         }
 
         ActionResult result = client.interactionManager.interactBlock(client.player, hand, placementHit);
-        //#if MC<12103
-        if (result.shouldSwingHand()) {
-        //#else
-        //$$ if (result instanceof ActionResult.Success success
-        //$$         && success.swingSource() == ActionResult.SwingSource.CLIENT) {
-        //#endif
+        if (result instanceof ActionResult.Success success
+                && success.swingSource() == ActionResult.SwingSource.CLIENT) {
             client.player.swingHand(hand);
         }
         cir.setReturnValue(result == ActionResult.FAIL ? ActionResult.FAIL : ActionResult.SUCCESS);
@@ -111,15 +107,13 @@ public class LitematicaWorldUtilsEasyPlaceMixin {
         }
     }
 
-    //#if MC>=12103
-    //$$ @Inject(method = "handlePlacementRestriction", at = @At("HEAD"), cancellable = true, remap = false)
-    //$$ private static void quickcraft$letVanillaUseBypassPlacementRestriction(
-    //$$         MinecraftClient mc,
-    //$$         CallbackInfoReturnable<Boolean> cir
-    //$$ ) {
-    //$$     if (QuickLitematicaEasyPlaceInteractions.shouldAllowVanillaUse(mc)) {
-    //$$         cir.setReturnValue(false);
-    //$$     }
-    //$$ }
-    //#endif
+    @Inject(method = "handlePlacementRestriction", at = @At("HEAD"), cancellable = true, remap = false)
+    private static void quickcraft$letVanillaUseBypassPlacementRestriction(
+            MinecraftClient mc,
+            CallbackInfoReturnable<Boolean> cir
+    ) {
+        if (QuickLitematicaEasyPlaceInteractions.shouldAllowVanillaUse(mc)) {
+            cir.setReturnValue(false);
+        }
+    }
 }

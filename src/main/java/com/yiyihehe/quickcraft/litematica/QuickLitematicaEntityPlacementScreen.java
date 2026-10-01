@@ -1,15 +1,6 @@
 package com.yiyihehe.quickcraft.litematica;
 
 import net.minecraft.client.gui.DrawContext;
-import net.minecraft.client.gui.screen.Screen;
-//#if MC>=12110
-//$$ import net.minecraft.client.gui.Click;
-//#endif
-//#if MC>=12108
-//$$ import net.minecraft.client.gl.RenderPipelines;
-//#elseif MC>=12103
-//$$ import net.minecraft.client.render.RenderLayer;
-//#endif
 import net.minecraft.item.ItemStack;
 import net.minecraft.text.Text;
 import net.minecraft.util.Identifier;
@@ -19,7 +10,7 @@ import java.util.Map;
 import java.util.IdentityHashMap;
 
 /** 原版 54 格箱子选择器；背包和容器预览均直接复用原版纹理与物品渲染。 */
-final class QuickLitematicaEntityPlacementScreen extends Screen {
+final class QuickLitematicaEntityPlacementScreen extends QuickLitematicaEntityPlacementScreenBase {
     private static final Identifier CHEST_TEXTURE = Identifier.ofVanilla("textures/gui/container/generic_54.png");
     private static final Identifier HOPPER_TEXTURE = Identifier.ofVanilla("textures/gui/container/hopper.png");
     private static final int COLUMNS = 9;
@@ -65,36 +56,18 @@ final class QuickLitematicaEntityPlacementScreen extends Screen {
 
     @Override
     public void render(DrawContext context, int mouseX, int mouseY, float delta) {
-        //#if MC<12108
-        this.renderBackground(context, mouseX, mouseY, delta);
-        //#endif
+        this.renderScreenBackground(context, mouseX, mouseY, delta);
         int left = (this.width - PANEL_WIDTH) / 2;
         int top = (this.height - PANEL_HEIGHT) / 2;
         boolean serverAvailable = QuickLitematicaEntityPlacement.isServerAvailable();
-        //#if MC>=12108
-        //$$ context.drawTexture(RenderPipelines.GUI_TEXTURED, CHEST_TEXTURE,
-        //$$         left, top, 0, 0, PANEL_WIDTH, PANEL_HEIGHT, 256, 256);
-        //#elseif MC>=12103
-        //$$ context.drawTexture(RenderLayer::getGuiTextured, CHEST_TEXTURE,
-        //$$         left, top, 0, 0, PANEL_WIDTH, PANEL_HEIGHT, 256, 256);
-        //#else
-        context.drawTexture(CHEST_TEXTURE, left, top, 0, 0, PANEL_WIDTH, PANEL_HEIGHT, 256, 256);
-        //#endif
-        //#if MC>=12108
-        //$$ context.drawCenteredTextWithShadow(this.textRenderer, this.title, this.width / 2, top + 6, 0xFFFFFFFF);
-        //#else
-        context.drawCenteredTextWithShadow(this.textRenderer, this.title, this.width / 2, top + 6, 0xFFFFFF);
-        //#endif
+        this.drawChestTexture(context, CHEST_TEXTURE, left, top, PANEL_WIDTH, PANEL_HEIGHT);
+        context.drawCenteredTextWithShadow(this.textRenderer, this.title, this.width / 2, top + 6, this.titleTextColor());
 
         int noticeY = top - 13;
         if (!serverAvailable) {
             context.drawCenteredTextWithShadow(this.textRenderer,
                     Text.translatable("quickcraft.entity_placement.server_unavailable"),
-                    //#if MC>=12108
-                    //$$ this.width / 2, noticeY, 0xFFFF5555);
-                    //#else
-                    this.width / 2, noticeY, 0xFF5555);
-                    //#endif
+                    this.width / 2, noticeY, this.errorTextColor());
             noticeY -= 13;
         }
 
@@ -146,11 +119,7 @@ final class QuickLitematicaEntityPlacementScreen extends Screen {
             context.fill(x, y, x + 16, y + 16, 0xB06A3D9A);
             if (!excess.stack().isEmpty()) {
                 context.drawItem(excess.stack(), x, y);
-                //#if MC>=12103
-                //$$ context.drawStackOverlay(this.textRenderer, excess.stack(), x, y);
-                //#else
-                context.drawItemInSlot(this.textRenderer, excess.stack(), x, y);
-                //#endif
+                this.drawStackOverlay(context, this.textRenderer, excess.stack(), x, y);
             }
             if (mouseX >= x && mouseX < x + 16 && mouseY >= y && mouseY < y + 16) {
                 hoveredExcess = excess;
@@ -170,11 +139,7 @@ final class QuickLitematicaEntityPlacementScreen extends Screen {
         if (candidates.isEmpty()) {
             Text message = Text.translatable("quickcraft.entity_placement.empty");
             context.drawText(this.textRenderer, message,
-                    //#if MC>=12108
-                    //$$ (this.width - this.textRenderer.getWidth(message)) / 2, top + 86, 0xFF404040, false);
-                    //#else
-                    (this.width - this.textRenderer.getWidth(message)) / 2, top + 86, 0x404040, false);
-                    //#endif
+                    (this.width - this.textRenderer.getWidth(message)) / 2, top + 86, this.emptyTextColor(), false);
         }
     }
 
@@ -183,22 +148,15 @@ final class QuickLitematicaEntityPlacementScreen extends Screen {
             return;
         }
         ItemStack hovered = ItemStack.EMPTY;
+        List<ItemStack> main = this.getPlayerMainStacks(this.client.player);
         for (int row = 0; row < 3; row++) {
             for (int column = 0; column < 9; column++) {
                 int slot = 9 + row * 9 + column;
                 int x = left + 8 + column * SLOT_SIZE;
                 int y = top + 139 + row * SLOT_SIZE;
-                //#if MC>=12105
-                //$$ ItemStack stack = this.client.player.getInventory().getMainStacks().get(slot);
-                //#else
-                ItemStack stack = this.client.player.getInventory().main.get(slot);
-                //#endif
+                ItemStack stack = slot < main.size() ? main.get(slot) : ItemStack.EMPTY;
                 context.drawItem(stack, x, y);
-                //#if MC>=12103
-                //$$ context.drawStackOverlay(this.textRenderer, stack, x, y);
-                //#else
-                context.drawItemInSlot(this.textRenderer, stack, x, y);
-                //#endif
+                this.drawStackOverlay(context, this.textRenderer, stack, x, y);
                 if (mouseX >= x && mouseX < x + 16 && mouseY >= y && mouseY < y + 16) {
                     hovered = stack;
                 }
@@ -207,17 +165,9 @@ final class QuickLitematicaEntityPlacementScreen extends Screen {
         for (int column = 0; column < 9; column++) {
             int x = left + 8 + column * SLOT_SIZE;
             int y = top + 197;
-            //#if MC>=12105
-            //$$ ItemStack stack = this.client.player.getInventory().getMainStacks().get(column);
-            //#else
-            ItemStack stack = this.client.player.getInventory().main.get(column);
-            //#endif
+            ItemStack stack = column < main.size() ? main.get(column) : ItemStack.EMPTY;
             context.drawItem(stack, x, y);
-            //#if MC>=12103
-            //$$ context.drawStackOverlay(this.textRenderer, stack, x, y);
-            //#else
-            context.drawItemInSlot(this.textRenderer, stack, x, y);
-            //#endif
+            this.drawStackOverlay(context, this.textRenderer, stack, x, y);
             if (mouseX >= x && mouseX < x + 16 && mouseY >= y && mouseY < y + 16) {
                 hovered = stack;
             }
@@ -250,29 +200,15 @@ final class QuickLitematicaEntityPlacementScreen extends Screen {
                 ? yBelow
                 : Math.max(4, mouseY - height - 16);
         if (preview.type() == QuickLitematicaEntityPlacement.ContainerPreviewType.HOPPER) {
-            //#if MC>=12108
-            //$$ context.drawTexture(RenderPipelines.GUI_TEXTURED, HOPPER_TEXTURE, x, y,
-            //#elseif MC>=12103
-            //$$ context.drawTexture(RenderLayer::getGuiTextured, HOPPER_TEXTURE, x, y,
-            //#else
-            context.drawTexture(HOPPER_TEXTURE, x, y,
-            //#endif
-                    HOPPER_CROP_X, HOPPER_CROP_Y, HOPPER_CROP_WIDTH, HOPPER_CROP_HEIGHT, 256, 256);
+            this.drawHopperTexture(context, HOPPER_TEXTURE, x, y,
+                    HOPPER_CROP_X, HOPPER_CROP_Y, HOPPER_CROP_WIDTH, HOPPER_CROP_HEIGHT);
             List<ItemStack> stacks = candidate.getStoredStacks(this.client, preview.size());
             for (int slot = 0; slot < stacks.size(); slot++) {
                 drawStack(context, stacks.get(slot), x + 6 + slot * SLOT_SIZE, y + 8);
             }
         } else {
             int rows = preview.size() / 9;
-            //#if MC>=12108
-            //$$ context.drawTexture(RenderPipelines.GUI_TEXTURED, CHEST_TEXTURE,
-            //$$         x, y, 0, 0, width, rows * 18 + 17, 256, 256);
-            //#elseif MC>=12103
-            //$$ context.drawTexture(RenderLayer::getGuiTextured, CHEST_TEXTURE,
-            //$$         x, y, 0, 0, width, rows * 18 + 17, 256, 256);
-            //#else
-            context.drawTexture(CHEST_TEXTURE, x, y, 0, 0, width, rows * 18 + 17, 256, 256);
-            //#endif
+            this.drawChestTexture(context, CHEST_TEXTURE, x, y, width, rows * 18 + 17);
             List<ItemStack> stacks = candidate.getStoredStacks(this.client, preview.size());
             for (int slot = 0; slot < stacks.size(); slot++) {
                 drawStack(context, stacks.get(slot), x + 8 + (slot % 9) * SLOT_SIZE,
@@ -283,39 +219,20 @@ final class QuickLitematicaEntityPlacementScreen extends Screen {
 
     private void drawStack(DrawContext context, ItemStack stack, int x, int y) {
         context.drawItem(stack, x, y);
-        //#if MC>=12103
-        //$$ context.drawStackOverlay(this.textRenderer, stack, x, y);
-        //#else
-        context.drawItemInSlot(this.textRenderer, stack, x, y);
-        //#endif
+        this.drawStackOverlay(context, this.textRenderer, stack, x, y);
     }
 
     @Override
-    //#if MC<12110
-    public boolean mouseClicked(double mouseX, double mouseY, int button) {
-    //#else
-    //$$ public boolean mouseClicked(Click click, boolean doubled) {
-    //$$     double mouseX = click.x();
-    //$$     double mouseY = click.y();
-    //$$     int button = click.button();
-    //#endif
-        if (button != 0 || !QuickLitematicaEntityPlacement.isServerAvailable()) {
-            //#if MC<12110
-            return super.mouseClicked(mouseX, mouseY, button);
-            //#else
-            //$$ return super.mouseClicked(click, doubled);
-            //#endif
+    protected boolean handleCellClick(double mouseX, double mouseY, int button) {
+        if (!QuickLitematicaEntityPlacement.isServerAvailable()) {
+            return false;
         }
         int left = (this.width - PANEL_WIDTH) / 2;
         int top = (this.height - PANEL_HEIGHT) / 2;
         int column = ((int) mouseX - left - 8) / SLOT_SIZE;
         int row = ((int) mouseY - top - 18) / SLOT_SIZE;
         if (column < 0 || column >= COLUMNS || row < 0 || row >= ROWS) {
-            //#if MC<12110
-            return super.mouseClicked(mouseX, mouseY, button);
-            //#else
-            //$$ return super.mouseClicked(click, doubled);
-            //#endif
+            return false;
         }
         int index = row * COLUMNS + column;
         if (index < candidates.size()
@@ -330,11 +247,7 @@ final class QuickLitematicaEntityPlacementScreen extends Screen {
             }
             return true;
         }
-        //#if MC<12110
-        return super.mouseClicked(mouseX, mouseY, button);
-        //#else
-        //$$ return super.mouseClicked(click, doubled);
-        //#endif
+        return false;
     }
 
     private int countUnplacedCandidates() {
