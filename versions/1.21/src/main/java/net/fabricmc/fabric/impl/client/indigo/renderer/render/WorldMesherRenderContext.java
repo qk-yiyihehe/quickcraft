@@ -19,8 +19,7 @@ import net.minecraft.world.BlockRenderView;
 import java.util.function.Function;
 
 /**
- * 给 Litematica 预览用的 Indigo 方块模型上下文。
- * Fabric API 当前没有公开这个离屏世界 mesh 入口，所以这里只保留 techutils 同款最小桥接。
+ * 1.21 离屏世界 mesh 的 Indigo 方块模型上下文。
  */
 @SuppressWarnings("UnstableApiUsage")
 public class WorldMesherRenderContext extends AbstractBlockRenderContext {
@@ -40,11 +39,7 @@ public class WorldMesherRenderContext extends AbstractBlockRenderContext {
             this.blockView = blockView;
             this.blockInfo.prepareForWorld(blockView, true);
 
-            //#if MC<12103
             Vec3d offset = blockState.getModelOffset(blockView, blockPos);
-            //#else
-            //$$ Vec3d offset = blockState.getModelOffset(blockPos);
-            //#endif
             matrixStack.translate(offset.x, offset.y, offset.z);
 
             this.matrix = matrixStack.peek().getPositionMatrix();
@@ -54,12 +49,7 @@ public class WorldMesherRenderContext extends AbstractBlockRenderContext {
 
             this.aoCalc.clear();
             this.blockInfo.prepareForBlock(blockState, blockPos, model.useAmbientOcclusion());
-            //#if MC>=12104
-            //$$ model.emitBlockQuads(this.getEmitter(), this.blockInfo.blockView, this.blockInfo.blockState,
-            //$$         this.blockInfo.blockPos, this.blockInfo.randomSupplier, this.blockInfo::shouldCullSide);
-            //#else
             model.emitBlockQuads(this.blockInfo.blockView, this.blockInfo.blockState, this.blockInfo.blockPos, this.blockInfo.randomSupplier, this);
-            //#endif
         } catch (Throwable throwable) {
             CrashReport report = CrashReport.create(throwable, "Tessellating block in QuickCraft Litematica preview mesh");
             CrashReportSection section = report.addElement("Block being tessellated");
