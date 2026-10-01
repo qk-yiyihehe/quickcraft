@@ -26,18 +26,9 @@ import net.minecraft.nbt.NbtCompound;
 import net.minecraft.nbt.NbtDouble;
 import net.minecraft.nbt.NbtFloat;
 import net.minecraft.nbt.NbtList;
-//#if MC>=12108
-//$$ import net.minecraft.nbt.NbtOps;
-//#endif
 import net.minecraft.registry.Registries;
-//#if MC>=12108
-//$$ import net.minecraft.storage.NbtWriteView;
-//#endif
 import net.minecraft.registry.tag.BlockTags;
 import net.minecraft.text.Text;
-//#if MC>=12108
-//$$ import net.minecraft.util.ErrorReporter;
-//#endif
 import net.minecraft.util.Identifier;
 import net.minecraft.util.math.Box;
 import net.minecraft.util.math.BlockPos;
@@ -422,12 +413,10 @@ public final class QuickLitematicaEntityPlacement {
             int index,
             LitematicaSchematic.EntityInfo entity
     ) {
-        //#if MC<12111
-        NbtCompound nbt = entity.nbt.copy();
-        //#else
-        //$$ NbtCompound nbt = QuickLitematicaDataCompat.entityNbt(entity).copy();
-        //#endif
-        //#if MC<12103
+        NbtCompound nbt = QuickLitematicaEntityPlacementAccess.getSchematicEntityNbt(entity);
+        if (!QuickLitematicaEntityPlacementAccess.normalizeEntityTreeIds(nbt, 0)) {
+            return null;
+        }
         Identifier entityId = Identifier.tryParse(readString(nbt, "id"));
         if (entityId == null) {
             return null;
@@ -436,25 +425,15 @@ public final class QuickLitematicaEntityPlacement {
         if (type == null) {
             return null;
         }
-        //#else
-        //$$ if (!normalizeEntityTreeIds(nbt, 0)) {
-        //$$     return null;
-        //$$ }
-        //$$ Identifier entityId = Identifier.tryParse(readString(nbt, "id"));
-        //$$ EntityType<?> type = resolveEntityType(entityId);
-        //#endif
         applyOptionalEntityMaterials(nbt);
         List<ItemStack> materials = getMaterials(type, nbt, client);
         if (materials.isEmpty()) {
             return null;
         }
 
-        //#if MC<12111
-        Vec3d position = PositionUtils.getTransformedPosition(entity.posVec, placement.getMirror(), placement.getRotation());
-        //#else
-        //$$ Vec3d position = PositionUtils.getTransformedPosition(
-        //$$         QuickLitematicaDataCompat.entityPos(entity), placement.getMirror(), placement.getRotation());
-        //#endif
+        Vec3d position = PositionUtils.getTransformedPosition(
+                QuickLitematicaEntityPlacementAccess.getSchematicEntityPos(entity),
+                placement.getMirror(), placement.getRotation());
         position = PositionUtils.getTransformedPosition(position, subRegion.getMirror(), subRegion.getRotation());
         BlockPos blockOffset = placement.getOrigin().add(
                 PositionUtils.getTransformedBlockPos(subRegion.getPos(), placement.getMirror(), placement.getRotation())
@@ -587,218 +566,86 @@ public final class QuickLitematicaEntityPlacement {
             case "furnace_minecart" -> Items.FURNACE_MINECART;
             case "tnt_minecart" -> Items.TNT_MINECART;
             case "hopper_minecart" -> Items.HOPPER_MINECART;
-            case "boat" -> getBoatItem(readString(nbt, "Type"), false);
-            case "chest_boat" -> getBoatItem(readString(nbt, "Type"), true);
-            //#if MC<12103
-            default -> null;
-            //#else
-            //$$ default -> getSplitBoatItem(entityId);
-            //#endif
+            case "boat" -> QuickLitematicaEntityPlacementAccess.getBoatItem(readString(nbt, "Type"), false);
+            case "chest_boat" -> QuickLitematicaEntityPlacementAccess.getBoatItem(readString(nbt, "Type"), true);
+            default -> QuickLitematicaEntityPlacementAccess.getSplitBoatItem(entityId);
         };
         return item == null ? ItemStack.EMPTY : new ItemStack(item);
     }
 
     private static NbtCompound writeEntityNbt(Entity entity) {
-        //#if MC<12108
-        return entity.writeNbt(new NbtCompound());
-        //#else
-        //$$ NbtWriteView view = NbtWriteView.create(ErrorReporter.EMPTY, entity.getRegistryManager());
-        //$$ entity.saveSelfData(view);
-        //$$ return view.getNbt();
-        //#endif
+        return QuickLitematicaEntityPlacementAccess.writeEntityNbt(entity);
     }
 
     private static java.util.Optional<ItemStack> decodeItemStack(NbtCompound nbt) {
-        //#if MC<12105
-        return ItemStack.fromNbt(MinecraftClient.getInstance().world.getRegistryManager(), nbt);
-        //#else
-        //$$ MinecraftClient client = MinecraftClient.getInstance();
-        //$$ if (client.world == null) {
-        //$$     return java.util.Optional.empty();
-        //$$ }
-        //$$ //#if MC<12108
-        //$$ return ItemStack.fromNbt(client.world.getRegistryManager(), nbt);
-        //$$ //#else
-        //$$ //$$ return ItemStack.CODEC.parse(client.world.getRegistryManager().getOps(NbtOps.INSTANCE), nbt).result();
-        //$$ //#endif
-        //#endif
+        return QuickLitematicaEntityPlacementAccess.decodeItemStack(MinecraftClient.getInstance(), nbt);
     }
 
     private static String readString(NbtCompound nbt, String key) {
-        //#if MC<12105
-        return nbt.getString(key);
-        //#else
-        //$$ return nbt.getString(key, "");
-        //#endif
+        return QuickLitematicaEntityPlacementAccess.stringValue(nbt, key);
     }
 
     private static NbtList readCompoundList(NbtCompound nbt, String key) {
-        //#if MC<12105
-        return nbt.getList(key, 10);
-        //#else
-        //$$ return nbt.getListOrEmpty(key);
-        //#endif
+        return QuickLitematicaEntityPlacementAccess.compoundListValue(nbt, key);
     }
 
     private static NbtList readFloatList(NbtCompound nbt, String key) {
-        //#if MC<12105
-        return nbt.getList(key, 5);
-        //#else
-        //$$ return nbt.getListOrEmpty(key);
-        //#endif
+        return QuickLitematicaEntityPlacementAccess.floatListValue(nbt, key);
     }
 
     private static NbtList readDoubleList(NbtCompound nbt, String key) {
-        //#if MC<12105
-        return nbt.getList(key, 6);
-        //#else
-        //$$ return nbt.getListOrEmpty(key);
-        //#endif
+        return QuickLitematicaEntityPlacementAccess.doubleListValue(nbt, key);
     }
 
     private static NbtCompound readCompound(NbtCompound nbt, String key) {
-        //#if MC<12105
-        return nbt.getCompound(key);
-        //#else
-        //$$ return nbt.getCompoundOrEmpty(key);
-        //#endif
+        return QuickLitematicaEntityPlacementAccess.compoundValue(nbt, key);
     }
 
     private static NbtCompound readCompound(NbtList list, int index) {
-        //#if MC<12105
-        return list.getCompound(index);
-        //#else
-        //$$ return list.getCompoundOrEmpty(index);
-        //#endif
+        return QuickLitematicaEntityPlacementAccess.compoundAt(list, index);
     }
 
     private static byte readByte(NbtCompound nbt, String key) {
-        //#if MC<12105
-        return nbt.getByte(key);
-        //#else
-        //$$ return nbt.getByte(key, (byte) 0);
-        //#endif
+        return QuickLitematicaEntityPlacementAccess.byteValue(nbt, key);
     }
 
     private static boolean readBoolean(NbtCompound nbt, String key) {
-        //#if MC<12105
-        return nbt.getBoolean(key);
-        //#else
-        //$$ return nbt.getBoolean(key, false);
-        //#endif
+        return QuickLitematicaEntityPlacementAccess.booleanValue(nbt, key);
     }
 
     private static int readInt(NbtCompound nbt, String key) {
-        //#if MC<12105
-        return nbt.getInt(key);
-        //#else
-        //$$ return nbt.getInt(key, 0);
-        //#endif
+        return QuickLitematicaEntityPlacementAccess.intValue(nbt, key);
     }
 
     private static float readFloat(NbtList list, int index) {
-        //#if MC<12105
-        return list.getFloat(index);
-        //#else
-        //$$ return list.getFloat(index, 0.0F);
-        //#endif
+        return QuickLitematicaEntityPlacementAccess.floatAt(list, index, 0.0F);
     }
 
     private static double readDouble(NbtList list, int index) {
-        //#if MC<12105
-        return list.getDouble(index);
-        //#else
-        //$$ return list.getDouble(index, 0.0D);
-        //#endif
+        return QuickLitematicaEntityPlacementAccess.doubleAt(list, index, 0.0D);
     }
 
     private static Direction readDirection(NbtCompound nbt, String key) {
-        //#if MC<12105
-        return Direction.byId(readByte(nbt, key));
-        //#else
-        //$$ return Direction.byIndex(readByte(nbt, key));
-        //#endif
+        return QuickLitematicaEntityPlacementAccess.directionValue(nbt, key);
     }
 
     private static byte writeDirection(Direction direction) {
-        //#if MC<12105
-        return (byte) direction.getId();
-        //#else
-        //$$ return (byte) direction.getIndex();
-        //#endif
+        return QuickLitematicaEntityPlacementAccess.directionIndex(direction);
     }
 
     private static List<ItemStack> mainStacks(PlayerInventory inventory) {
-        //#if MC<12105
-        return inventory.main;
-        //#else
-        //$$ return inventory.getMainStacks();
-        //#endif
+        return QuickLitematicaEntityPlacementAccess.getMainStacks(inventory);
     }
 
     private static EntityType<?> resolveEntityType(Identifier id) {
-        //#if MC<12103
-        return Registries.ENTITY_TYPE.get(id);
-        //#else
-        //$$ return Registries.ENTITY_TYPE.get(id);
-        //#endif
+        return QuickLitematicaEntityPlacementAccess.getEntityType(id);
     }
 
     private static Item item(Identifier id) {
-        //#if MC<12103
-        return Registries.ITEM.get(id);
-        //#else
-        //$$ return Registries.ITEM.get(id);
-        //#endif
+        return QuickLitematicaEntityPlacementAccess.getItem(id);
     }
 
-    private static boolean normalizeEntityTreeIds(NbtCompound nbt, int depth) {
-        if (depth > MAX_ENTITY_TREE_DEPTH) {
-            return false;
-        }
-        Identifier id = Identifier.tryParse(readString(nbt, "id"));
-        if (id == null) {
-            return false;
-        }
-        if (!Registries.ENTITY_TYPE.containsId(id)) {
-            id = getModernBoatId(id, nbt);
-            if (id == null || !Registries.ENTITY_TYPE.containsId(id)) {
-                return false;
-            }
-            nbt.putString("id", id.toString());
-        }
 
-        NbtList passengers = readCompoundList(nbt, "Passengers");
-        for (int index = 0; index < passengers.size(); index++) {
-            if (!normalizeEntityTreeIds(readCompound(passengers, index), depth + 1)) {
-                return false;
-            }
-        }
-        return true;
-    }
-
-    private static Identifier getModernBoatId(Identifier id, NbtCompound nbt) {
-        if (!id.getNamespace().equals(Identifier.DEFAULT_NAMESPACE)) {
-            return null;
-        }
-        boolean chestBoat = id.getPath().equals("chest_boat");
-        if (!chestBoat && !id.getPath().equals("boat")) {
-            return null;
-        }
-        String path = getSplitBoatPath(readString(nbt, "Type"), chestBoat);
-        return path == null ? null : Identifier.ofVanilla(path);
-    }
-
-    private static Item getSplitBoatItem(Identifier entityId) {
-        return isSplitBoatPath(entityId.getPath()) && Registries.ITEM.containsId(entityId)
-                ? item(entityId)
-                : null;
-    }
-
-    private static boolean isSplitBoatPath(String path) {
-        return path.endsWith("_boat") || path.endsWith("_chest_boat")
-                || path.endsWith("_raft") || path.endsWith("_chest_raft");
-    }
 
 
     private static boolean appendConstructedEntityMaterials(
@@ -863,40 +710,7 @@ public final class QuickLitematicaEntityPlacement {
         Identifier id = Identifier.of("minecraft", path);
         return Registries.ITEM.containsId(id) ? item(id) : null;
     }
-    private static Item getBoatItem(String type, boolean chestBoat) {
-        //#if MC<12103
-        return switch (type) {
-            case "spruce" -> chestBoat ? Items.SPRUCE_CHEST_BOAT : Items.SPRUCE_BOAT;
-            case "birch" -> chestBoat ? Items.BIRCH_CHEST_BOAT : Items.BIRCH_BOAT;
-            case "jungle" -> chestBoat ? Items.JUNGLE_CHEST_BOAT : Items.JUNGLE_BOAT;
-            case "acacia" -> chestBoat ? Items.ACACIA_CHEST_BOAT : Items.ACACIA_BOAT;
-            case "cherry" -> chestBoat ? Items.CHERRY_CHEST_BOAT : Items.CHERRY_BOAT;
-            case "dark_oak" -> chestBoat ? Items.DARK_OAK_CHEST_BOAT : Items.DARK_OAK_BOAT;
-            case "mangrove" -> chestBoat ? Items.MANGROVE_CHEST_BOAT : Items.MANGROVE_BOAT;
-            case "bamboo" -> chestBoat ? Items.BAMBOO_CHEST_RAFT : Items.BAMBOO_RAFT;
-            case "oak", "" -> chestBoat ? Items.OAK_CHEST_BOAT : Items.OAK_BOAT;
-            default -> null;
-        };
-        //#else
-        //$$ String path = getSplitBoatPath(type, chestBoat);
-        //$$ return path == null ? null : getSplitBoatItem(Identifier.ofVanilla(path));
-        //#endif
-    }
 
-    private static String getSplitBoatPath(String type, boolean chestBoat) {
-        String prefix = switch (type) {
-            case "spruce", "birch", "jungle", "acacia", "cherry", "dark_oak", "mangrove",
-                    "pale_oak", "bamboo", "oak" -> type;
-            case "" -> "oak";
-            default -> null;
-        };
-        if (prefix == null) {
-            return null;
-        }
-        return prefix.equals("bamboo")
-                ? (chestBoat ? "bamboo_chest_raft" : "bamboo_raft")
-                : prefix + (chestBoat ? "_chest_boat" : "_boat");
-    }
 
     private static boolean appendStoredItem(List<ItemStack> materials, NbtCompound entityNbt, String key) {
         if (!entityNbt.contains(key)) {
@@ -965,11 +779,9 @@ public final class QuickLitematicaEntityPlacement {
 
     private static int containerCapacity(EntityType<?> type, NbtCompound nbt) {
         String path = Registries.ENTITY_TYPE.getId(type).getPath();
-        //#if MC>=12103
-        //$$ if (path.endsWith("_chest_boat") || path.endsWith("_chest_raft")) {
-        //$$     return 27;
-        //$$ }
-        //#endif
+        if (QuickLitematicaEntityPlacementAccess.isSplitChestBoatOrRaft(path)) {
+            return 27;
+        }
         return switch (path) {
             case "hopper_minecart" -> 5;
             case "chest_minecart", "chest_boat" -> 27;
@@ -1195,11 +1007,7 @@ public final class QuickLitematicaEntityPlacement {
     }
 
     private static Vec3d entityPosition(Entity entity) {
-        //#if MC<12110
-        return entity.getPos();
-        //#else
-        //$$ return entity.getEntityPos();
-        //#endif
+        return QuickLitematicaEntityPlacementAccess.getEntityPos(entity);
     }
 
     static final class Candidate {
@@ -1320,12 +1128,8 @@ public final class QuickLitematicaEntityPlacement {
             if (path.equals("hopper_minecart")) {
                 return new ContainerPreview(ContainerPreviewType.HOPPER, 5);
             }
-            //#if MC<12103
-            if (path.equals("chest_minecart") || path.equals("chest_boat")) {
-            //#else
-            //$$ if (path.equals("chest_minecart") || path.equals("chest_boat")
-            //$$         || path.endsWith("_chest_boat") || path.endsWith("_chest_raft")) {
-            //#endif
+            if (path.equals("chest_minecart") || path.equals("chest_boat")
+                    || QuickLitematicaEntityPlacementAccess.isSplitChestBoatOrRaft(path)) {
                 return new ContainerPreview(ContainerPreviewType.GENERIC, 27);
             }
             return null;
@@ -1368,19 +1172,11 @@ public final class QuickLitematicaEntityPlacement {
         }
 
         private static BlockPos railPosition(Entity entity, BlockPos position) {
-            //#if MC<12110
-            if (entity.getWorld().getBlockState(position).isIn(BlockTags.RAILS)) {
-            //#else
-            //$$ if (entity.getEntityWorld().getBlockState(position).isIn(BlockTags.RAILS)) {
-            //#endif
+            if (QuickLitematicaEntityPlacementAccess.getEntityWorld(entity).getBlockState(position).isIn(BlockTags.RAILS)) {
                 return position;
             }
             BlockPos below = position.down();
-            //#if MC<12110
-            return entity.getWorld().getBlockState(below).isIn(BlockTags.RAILS) ? below : null;
-            //#else
-            //$$ return entity.getEntityWorld().getBlockState(below).isIn(BlockTags.RAILS) ? below : null;
-            //#endif
+            return QuickLitematicaEntityPlacementAccess.getEntityWorld(entity).getBlockState(below).isIn(BlockTags.RAILS) ? below : null;
         }
 
         private boolean minecartContentsMatch(Entity entity) {

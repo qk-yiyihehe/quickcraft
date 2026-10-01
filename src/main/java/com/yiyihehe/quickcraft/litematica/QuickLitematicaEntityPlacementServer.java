@@ -5,9 +5,6 @@ import net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.EntityType;
-//#if MC>=12103
-//$$ import net.minecraft.entity.SpawnReason;
-//#endif
 import net.minecraft.entity.decoration.BlockAttachedEntity;
 import net.minecraft.item.Item;
 import net.minecraft.item.ItemStack;
@@ -16,11 +13,6 @@ import net.minecraft.nbt.NbtCompound;
 import net.minecraft.nbt.NbtDouble;
 import net.minecraft.nbt.NbtElement;
 import net.minecraft.nbt.NbtList;
-//#if MC>=12108
-//$$ import net.minecraft.nbt.NbtOps;
-//$$ import net.minecraft.storage.NbtReadView;
-//$$ import net.minecraft.util.ErrorReporter;
-//#endif
 import net.minecraft.registry.Registries;
 import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.server.world.ServerWorld;
@@ -149,11 +141,7 @@ public final class QuickLitematicaEntityPlacementServer {
             sendResult(player, payload.nonce(), "WORLD_RULE_BLOCKED", "");
             return;
         }
-        //#if MC<12105
-        if (!world.canPlayerModifyAt(player, targetPos)) {
-        //#else
-        //$$ if (!world.canEntityModifyAt(player, targetPos)) {
-        //#endif
+        if (!QuickLitematicaEntityPlacementAccess.canModifyAt(world, player, targetPos)) {
             sendResult(player, payload.nonce(), "PERMISSION_DENIED", "");
             return;
         }
@@ -299,11 +287,7 @@ public final class QuickLitematicaEntityPlacementServer {
         if (type == null) {
             return null;
         }
-        //#if MC<12103
-        Entity entity = type.create(world);
-        //#else
-        //$$ Entity entity = type.create(world, SpawnReason.LOAD);
-        //#endif
+        Entity entity = QuickLitematicaEntityPlacementAccess.createEntity(type, world);
         if (entity == null) {
             return null;
         }
@@ -316,11 +300,7 @@ public final class QuickLitematicaEntityPlacementServer {
             position.add(NbtDouble.of(rootPosition.z));
             clean.put("Pos", position);
         }
-        //#if MC<12108
-        entity.readNbt(clean);
-        //#else
-        //$$ entity.readData(NbtReadView.create(ErrorReporter.EMPTY, world.getRegistryManager(), clean));
-        //#endif
+        QuickLitematicaEntityPlacementAccess.readEntityData(entity, world, clean);
         float yaw = root ? rootYaw : readRotation(nbt, 0);
         float pitch = root ? rootPitch : readRotation(nbt, 1);
         Vec3d velocity = root ? rootVelocity : readVector(nbt, "Motion");
@@ -333,11 +313,7 @@ public final class QuickLitematicaEntityPlacementServer {
         for (int i = 0; i < passengers.size(); i++) {
             Entity passenger = createEntityTree(world, compoundAt(passengers, i), rootPosition,
                     rootYaw, rootPitch, rootVelocity, false, depth + 1);
-            //#if MC<12110
-            if (passenger == null || !passenger.startRiding(entity, true)) {
-            //#else
-            //$$ if (passenger == null || !passenger.startRiding(entity, true, true)) {
-            //#endif
+            if (passenger == null || !QuickLitematicaEntityPlacementAccess.startRiding(passenger, entity)) {
                 return null;
             }
         }
@@ -386,11 +362,7 @@ public final class QuickLitematicaEntityPlacementServer {
     }
 
     private static boolean isTreeWithinReach(ServerPlayerEntity player, Entity root, double reach) {
-        //#if MC<12110
-        if (player.getEyePos().squaredDistanceTo(root.getPos()) > reach * reach) {
-        //#else
-        //$$ if (player.getEyePos().squaredDistanceTo(root.getEntityPos()) > reach * reach) {
-        //#endif
+        if (player.getEyePos().squaredDistanceTo(QuickLitematicaEntityPlacementAccess.getEntityPos(root)) > reach * reach) {
             return false;
         }
         for (Entity passenger : root.getPassengerList()) {
@@ -405,11 +377,7 @@ public final class QuickLitematicaEntityPlacementServer {
         BlockPos position = root instanceof BlockAttachedEntity attached
                 ? attached.getAttachedBlockPos()
                 : root.getBlockPos();
-        //#if MC<12105
-        if (!world.isChunkLoaded(position) || !world.canPlayerModifyAt(player, position)) {
-        //#else
-        //$$ if (!world.isChunkLoaded(position) || !world.canEntityModifyAt(player, position)) {
-        //#endif
+        if (!world.isChunkLoaded(position) || !QuickLitematicaEntityPlacementAccess.canModifyAt(world, player, position)) {
             return false;
         }
         for (Entity passenger : root.getPassengerList()) {
@@ -853,14 +821,7 @@ public final class QuickLitematicaEntityPlacementServer {
     }
 
     private static ItemStack parseItem(ServerWorld world, NbtCompound nbt) {
-        //#if MC<12108
-        return ItemStack.fromNbt(world.getRegistryManager(), nbt).orElse(ItemStack.EMPTY);
-        //#else
-        //$$ return ItemStack.OPTIONAL_CODEC
-        //$$         .parse(world.getRegistryManager().getOps(NbtOps.INSTANCE), nbt)
-        //$$         .result()
-        //$$         .orElse(ItemStack.EMPTY);
-        //#endif
+        return QuickLitematicaEntityPlacementAccess.parseServerItem(world, nbt);
     }
 
     private static boolean isTagOfType(NbtCompound nbt, String key, int type) {
@@ -879,59 +840,31 @@ public final class QuickLitematicaEntityPlacementServer {
     }
 
     private static NbtCompound compoundAt(NbtList list, int index) {
-        //#if MC<12105
-        return list.getCompound(index);
-        //#else
-        //$$ return list.getCompoundOrEmpty(index);
-        //#endif
+        return QuickLitematicaEntityPlacementAccess.compoundAt(list, index);
     }
 
     private static String stringValue(NbtCompound nbt, String key) {
-        //#if MC<12105
-        return nbt.getString(key);
-        //#else
-        //$$ return nbt.getString(key, "");
-        //#endif
+        return QuickLitematicaEntityPlacementAccess.stringValue(nbt, key);
     }
 
     private static boolean booleanValue(NbtCompound nbt, String key) {
-        //#if MC<12105
-        return nbt.getBoolean(key);
-        //#else
-        //$$ return nbt.getBoolean(key, false);
-        //#endif
+        return QuickLitematicaEntityPlacementAccess.booleanValue(nbt, key);
     }
 
     private static int intValue(NbtCompound nbt, String key) {
-        //#if MC<12105
-        return nbt.getInt(key);
-        //#else
-        //$$ return nbt.getInt(key, 0);
-        //#endif
+        return QuickLitematicaEntityPlacementAccess.intValue(nbt, key);
     }
 
     private static byte byteValue(NbtCompound nbt, String key) {
-        //#if MC<12105
-        return nbt.getByte(key);
-        //#else
-        //$$ return nbt.getByte(key, (byte) 0);
-        //#endif
+        return QuickLitematicaEntityPlacementAccess.byteValue(nbt, key);
     }
 
     private static double doubleAt(NbtList list, int index) {
-        //#if MC<12105
-        return list.getDouble(index);
-        //#else
-        //$$ return list.getDouble(index, Double.NaN);
-        //#endif
+        return QuickLitematicaEntityPlacementAccess.doubleAt(list, index, Double.NaN);
     }
 
     private static float floatAt(NbtList list, int index) {
-        //#if MC<12105
-        return list.getFloat(index);
-        //#else
-        //$$ return list.getFloat(index, Float.NaN);
-        //#endif
+        return QuickLitematicaEntityPlacementAccess.floatAt(list, index, Float.NaN);
     }
 
     private static boolean isListOf(NbtList list, int type) {
@@ -959,21 +892,11 @@ public final class QuickLitematicaEntityPlacementServer {
     }
 
     private static List<ItemStack> inventoryItems(ServerPlayerEntity player) {
-        //#if MC<12105
-        return player.getInventory().main;
-        //#else
-        //$$ return player.getInventory().getMainStacks();
-        //#endif
+        return QuickLitematicaEntityPlacementAccess.getMainStacks(player.getInventory());
     }
 
     private static ServerWorld getPlayerWorld(ServerPlayerEntity player) {
-        //#if MC<12108
-        return player.getServerWorld();
-        //#elseif MC<12110
-        //$$ return player.getWorld();
-        //#else
-        //$$ return player.getEntityWorld();
-        //#endif
+        return QuickLitematicaEntityPlacementAccess.getPlayerServerWorld(player);
     }
 
     private static final class Session {
