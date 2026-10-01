@@ -1,8 +1,5 @@
 package com.yiyihehe.quickcraft.litematica;
 
-//#if MC>=12110
-//$$ import net.minecraft.client.gui.Click;
-//#endif
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.gui.screen.Screen;
 import net.minecraft.client.gui.widget.ButtonWidget;
@@ -419,43 +416,22 @@ public final class QuickLitematicaPreview3DScreen extends Screen {
     }
 
     @Override
-    //#if MC<12110
     public boolean mouseDragged(double mouseX, double mouseY, int button, double deltaX, double deltaY) {
         return this.manager.mouseDragged(mouseX, mouseY, button, deltaX, deltaY)
                 || super.mouseDragged(mouseX, mouseY, button, deltaX, deltaY);
     }
-    //#else
-    //$$ public boolean mouseDragged(Click click, double deltaX, double deltaY) {
-    //$$     return this.manager.mouseDragged(click.x(), click.y(), click.button(), deltaX, deltaY)
-    //$$             || super.mouseDragged(click, deltaX, deltaY);
-    //$$ }
-    //#endif
 
     @Override
-    //#if MC<12110
     public boolean mouseReleased(double mouseX, double mouseY, int button) {
         return this.manager.mouseReleased(mouseX, mouseY, button)
                 || super.mouseReleased(mouseX, mouseY, button);
     }
-    //#else
-    //$$ public boolean mouseReleased(Click click) {
-    //$$     return this.manager.mouseReleased(click.x(), click.y(), click.button())
-    //$$             || super.mouseReleased(click);
-    //$$ }
-    //#endif
 
     @Override
-    //#if MC<12110
     public boolean mouseClicked(double mouseX, double mouseY, int button) {
         return this.manager.mouseClicked(mouseX, mouseY, button)
                 || super.mouseClicked(mouseX, mouseY, button);
     }
-    //#else
-    //$$ public boolean mouseClicked(Click click, boolean doubled) {
-    //$$     return this.manager.mouseClicked(click.x(), click.y(), click.button())
-    //$$             || super.mouseClicked(click, doubled);
-    //$$ }
-    //#endif
 
     @Override
     public void tick() {
@@ -485,11 +461,7 @@ public final class QuickLitematicaPreview3DScreen extends Screen {
         int swatchX = this.colorButton.getX() + 6;
         int swatchY = this.colorButton.getY() + 4;
         context.fill(swatchX, swatchY, swatchX + 12, swatchY + 12, this.customBackgroundColor);
-        //#if MC<12110
         context.drawBorder(swatchX, swatchY, 12, 12, 0xFFFFFFFF);
-        //#else
-        //$$ context.drawStrokedRectangle(swatchX, swatchY, 12, 12, 0xFFFFFFFF);
-        //#endif
     }
 
     private static final class ColorPickerScreen extends Screen {
@@ -547,38 +519,20 @@ public final class QuickLitematicaPreview3DScreen extends Screen {
 
             int markerX = colorX + Math.round(this.parent.customSaturation * (COLOR_AREA_SIZE - 1));
             int markerY = colorY + Math.round((1.0F - this.parent.customBrightness) * (COLOR_AREA_SIZE - 1));
-            //#if MC<12110
             context.drawBorder(markerX - 2, markerY - 2, 5, 5, this.parent.customBrightness > 0.5F ? 0xFF000000 : 0xFFFFFFFF);
-            //#else
-            //$$ context.drawStrokedRectangle(markerX - 2, markerY - 2, 5, 5, this.parent.customBrightness > 0.5F ? 0xFF000000 : 0xFFFFFFFF);
-            //#endif
             int hueMarkerY = colorY + Math.round(this.parent.customHue * (COLOR_AREA_SIZE - 1));
-            //#if MC<12110
             context.drawBorder(hueX - 1, hueMarkerY - 1, HUE_BAR_WIDTH + 2, 3, 0xFFFFFFFF);
-            //#else
-            //$$ context.drawStrokedRectangle(hueX - 1, hueMarkerY - 1, HUE_BAR_WIDTH + 2, 3, 0xFFFFFFFF);
-            //#endif
         }
 
         @Override
-        //#if MC<12110
         public boolean mouseClicked(double mouseX, double mouseY, int button) {
             if (button == 0 && this.startPicking(mouseX, mouseY)) {
                 return true;
             }
             return super.mouseClicked(mouseX, mouseY, button);
         }
-        //#else
-        //$$ public boolean mouseClicked(Click click, boolean doubled) {
-        //$$     if (click.button() == 0 && this.startPicking(click.x(), click.y())) {
-        //$$         return true;
-        //$$     }
-        //$$     return super.mouseClicked(click, doubled);
-        //$$ }
-        //#endif
 
         @Override
-        //#if MC<12110
         public boolean mouseDragged(double mouseX, double mouseY, int button, double deltaX, double deltaY) {
             if (button == 0 && this.dragArea >= 0) {
                 this.updatePickedColor(mouseX, mouseY, this.dragArea);
@@ -586,18 +540,8 @@ public final class QuickLitematicaPreview3DScreen extends Screen {
             }
             return super.mouseDragged(mouseX, mouseY, button, deltaX, deltaY);
         }
-        //#else
-        //$$ public boolean mouseDragged(Click click, double deltaX, double deltaY) {
-        //$$     if (click.button() == 0 && this.dragArea >= 0) {
-        //$$         this.updatePickedColor(click.x(), click.y(), this.dragArea);
-        //$$         return true;
-        //$$     }
-        //$$     return super.mouseDragged(click, deltaX, deltaY);
-        //$$ }
-        //#endif
 
         @Override
-        //#if MC<12110
         public boolean mouseReleased(double mouseX, double mouseY, int button) {
             if (button == 0 && this.dragArea >= 0) {
                 this.dragArea = -1;
@@ -605,15 +549,6 @@ public final class QuickLitematicaPreview3DScreen extends Screen {
             }
             return super.mouseReleased(mouseX, mouseY, button);
         }
-        //#else
-        //$$ public boolean mouseReleased(Click click) {
-        //$$     if (click.button() == 0 && this.dragArea >= 0) {
-        //$$         this.dragArea = -1;
-        //$$         return true;
-        //$$     }
-        //$$     return super.mouseReleased(click);
-        //$$ }
-        //#endif
 
         private boolean startPicking(double mouseX, double mouseY) {
             int colorX = this.pickerX() + COLOR_PICKER_PADDING;
