@@ -11,11 +11,7 @@ import com.yiyihehe.quickcraft.litematica.QuickLitematicaContainerVerifier.Expec
 import com.yiyihehe.quickcraft.litematica.QuickLitematicaContainerVerifier.VerifierExtension;
 import fi.dy.masa.litematica.config.Configs;
 import fi.dy.masa.litematica.data.DataManager;
-//#if MC<12111
-import fi.dy.masa.litematica.data.EntitiesDataStorage;
-//#else
-//$$ import fi.dy.masa.litematica.data.EntityDataManager;
-//#endif
+import com.yiyihehe.quickcraft.litematica.QuickLitematicaVerifierAccess;
 import fi.dy.masa.litematica.render.infohud.InfoHud;
 import fi.dy.masa.litematica.scheduler.tasks.TaskBase;
 import fi.dy.masa.litematica.schematic.placement.SchematicPlacement;
@@ -342,11 +338,7 @@ public abstract class LitematicaSchematicVerifierMixin extends TaskBase implemen
             return;
         }
 
-        //#if MC<12111
-        ChunkPos chunkPos = new ChunkPos(box.minX >> 4, box.minZ >> 4);
-        //#else
-        //$$ ChunkPos chunkPos = new ChunkPos(box.minX() >> 4, box.minZ() >> 4);
-        //#endif
+        ChunkPos chunkPos = QuickLitematicaVerifierAccess.getBoxChunkPos(box);
 
         if (!this.quickcraft$containerDataChunks.contains(chunkPos)) {
             return;
@@ -597,13 +589,8 @@ public abstract class LitematicaSchematicVerifierMixin extends TaskBase implemen
             return;
         }
 
-        //#if MC<12111
-        EntitiesDataStorage storage = EntitiesDataStorage.getInstance();
-        //#else
-        //$$ EntityDataManager storage = EntityDataManager.getInstance();
-        //#endif
-        QUICKCRAFT_LOGGER.warn(
-                "[ContainerVerifier] Container data was not fully comparable: expectedContainers={}, checked={}, pending={}, unsupportedExpected={}, missingActualBlockEntities={}, unsupportedActual={}, unavailableWorldBoxes={}, unavailableInventories={}, sizeMismatches={}, requestedChunks={}, integratedServer={}, servux={}, backupPackets={}, entityDataSync={}, samples={}",
+        QuickLitematicaVerifierAccess.logContainerVerificationProblems(
+                QUICKCRAFT_LOGGER,
                 this.quickcraft$expectedContainerPositions.size(),
                 this.quickcraft$checkedContainerPositions.size(),
                 this.quickcraft$pendingContainerPositions.size(),
@@ -615,8 +602,6 @@ public abstract class LitematicaSchematicVerifierMixin extends TaskBase implemen
                 this.quickcraft$inventorySizeMismatches,
                 this.quickcraft$requestedContainerDataChunks.size(),
                 DataManager.getInstance().hasIntegratedServer(),
-                storage.hasServuxServer(),
-                storage.getIfReceivedBackupPackets(),
                 Configs.Generic.ENTITY_DATA_SYNC.getBooleanValue(),
                 this.quickcraft$diagnosticSamples
         );
@@ -1036,26 +1021,16 @@ public abstract class LitematicaSchematicVerifierMixin extends TaskBase implemen
             return true;
         }
 
-        //#if MC<12111
-        EntitiesDataStorage storage = EntitiesDataStorage.getInstance();
-        //#else
-        //$$ EntityDataManager storage = EntityDataManager.getInstance();
-        //#endif
-
-        if (!storage.hasServuxServer() && !storage.getIfReceivedBackupPackets()) {
+        if (!QuickLitematicaVerifierAccess.hasServuxServer() && !QuickLitematicaVerifierAccess.getIfReceivedBackupPackets()) {
             return true;
         }
-        //#if MC<12111
-        if (!Objects.equals(storage.getWorld(), this.worldClient)) {
-        //#else
-        //$$ if (!Objects.equals(storage.getBestWorld(), this.worldClient)) {
-        //#endif
+        if (!QuickLitematicaVerifierAccess.isStorageWorldMatching(this.worldClient)) {
             return true;
         }
-        if (storage.hasCompletedChunk(chunkPos)) {
+        if (QuickLitematicaVerifierAccess.hasCompletedChunk(chunkPos)) {
             return true;
         }
-        if (storage.hasPendingChunk(chunkPos)) {
+        if (QuickLitematicaVerifierAccess.hasPendingChunk(chunkPos)) {
             return false;
         }
 
@@ -1135,33 +1110,11 @@ public abstract class LitematicaSchematicVerifierMixin extends TaskBase implemen
             return false;
         }
 
-        int minY = world.getBottomY();
-        //#if MC<12103
-        int maxY = world.getTopY();
-        //#else
-        //$$ int maxY = world.getBottomY() + world.getHeight();
-        //#endif
+        int defaultMinY = world.getBottomY();
+        int defaultMaxY = QuickLitematicaVerifierAccess.getWorldMaxY(world);
+        int[] yRange = QuickLitematicaVerifierAccess.getPlacementChunkYRange(this.schematicPlacement, chunkPos.x, chunkPos.z, defaultMinY, defaultMaxY);
 
-        if (this.schematicPlacement != null) {
-            Map<String, IntBoundingBox> boxes = this.schematicPlacement.getBoxesWithinChunk(chunkPos.x, chunkPos.z);
-
-            if (!boxes.isEmpty()) {
-                minY = Integer.MAX_VALUE;
-                maxY = Integer.MIN_VALUE;
-
-                for (IntBoundingBox box : boxes.values()) {
-                    //#if MC<12111
-                    minY = Math.min(minY, box.minY);
-                    maxY = Math.max(maxY, box.maxY);
-                    //#else
-                    //$$ minY = Math.min(minY, box.minY());
-                    //$$ maxY = Math.max(maxY, box.maxY());
-                    //#endif
-                }
-            }
-        }
-
-        return QuickLitematicaContainerVerifier.requestInventoryDataChunk(world, chunkPos, minY, maxY);
+        return QuickLitematicaContainerVerifier.requestInventoryDataChunk(world, chunkPos, yRange[0], yRange[1]);
     }
 
     @Unique
