@@ -96,12 +96,8 @@ final class QuickLitematicaPreviewImageWriter {
             throw new IOException("Schematic file is not writable");
         }
 
-        LitematicaSchematic schematic = LitematicaSchematic.createFromFile(
-                //#if MC<12105
-                directory.toFile(),
-                //#else
-                //$$ directory,
-                //#endif
+        LitematicaSchematic schematic = QuickLitematicaPreviewImageWriterAccess.readSchematic(
+                directory,
                 targetName.toString()
         );
         if (schematic == null) {
@@ -115,11 +111,7 @@ final class QuickLitematicaPreviewImageWriter {
         try {
             Path temporaryName = temporary.getFileName();
             if (temporaryName == null
-                    //#if MC<12105
-                    || !schematic.writeToFile(directory.toFile(), temporaryName.toString(), true)) {
-                    //#else
-                    //$$ || !schematic.writeToFile(directory, temporaryName.toString(), true)) {
-                    //#endif
+                    || !QuickLitematicaPreviewImageWriterAccess.writeSchematic(schematic, directory, temporaryName.toString(), true)) {
                 throw new IOException("Failed to write temporary litematic file");
             }
             replaceFile(temporary, target);
