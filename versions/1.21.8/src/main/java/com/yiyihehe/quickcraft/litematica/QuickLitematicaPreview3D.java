@@ -33,7 +33,7 @@ import fi.dy.masa.malilib.gui.widgets.WidgetFileBrowserBase.DirectoryEntry;
 import fi.dy.masa.malilib.render.RenderUtils;
 import fi.dy.masa.malilib.util.InfoUtils;
 import fi.dy.masa.malilib.util.StringUtils;
-import net.fabricmc.fabric.impl.client.indigo.renderer.render.SimpleBlockRenderContext;
+import net.fabricmc.fabric.api.renderer.v1.Renderer;
 import net.fabricmc.fabric.api.client.rendering.v1.SpecialGuiElementRegistry;
 import net.fabricmc.fabric.api.renderer.v1.render.BlockVertexConsumerProvider;
 import net.fabricmc.loader.api.FabricLoader;
@@ -46,7 +46,6 @@ import net.minecraft.block.Blocks;
 import net.minecraft.block.entity.BlockEntity;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.gl.Framebuffer;
-import net.minecraft.client.gl.RenderPipelines;
 import net.minecraft.client.gl.SimpleFramebuffer;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.gui.ScreenRect;
@@ -2626,9 +2625,7 @@ public final class QuickLitematicaPreview3D {
                                VertexFormat.IndexType indexType,
                                boolean ownsIndexBuffer) implements AutoCloseable {
         private RenderPipeline pipeline(RenderLayer renderLayer, RenderPipeline defaultPipeline) {
-            return renderLayer == RenderLayer.getTranslucentMovingBlock()
-                    ? RenderPipelines.TRANSLUCENT
-                    : defaultPipeline;
+            return defaultPipeline;
         }
     
         @Override
@@ -3451,23 +3448,26 @@ public final class QuickLitematicaPreview3D {
                     BlockPos pos
             ) {
                 try {
-                    SimpleBlockRenderContext.POOL.get().bufferModel(
-                            matrices.peek(),
-                            collector,
-                            (net.minecraft.client.render.model.BlockStateModel) model,
-                            1.0F,
-                            1.0F,
-                            1.0F,
-                            WorldRenderer.getLightmapCoordinates(view, pos),
-                            OverlayTexture.DEFAULT_UV,
-                            view,
-                            pos,
-                            state
-                    );
-                    return true;
-                } catch (Throwable ignored) {
-                    return false;
+                    Renderer renderer = Renderer.get();
+                    if (renderer != null) {
+                        renderer.render(
+                                MinecraftClient.getInstance().getBlockRenderManager().getModelRenderer(),
+                                view,
+                                (net.minecraft.client.render.model.BlockStateModel) model,
+                                state,
+                                pos,
+                                matrices,
+                                collector,
+                                true,
+                                state.getRenderingSeed(pos),
+                                OverlayTexture.DEFAULT_UV
+                        );
+                        return true;
+                    }
+                } catch (Throwable t) {
+                    LOGGER.warn("QuickCraft PreviewCtm failed to render model for {}", state, t);
                 }
+                return false;
             }
 
             private static String runtimeToken() {
@@ -3813,7 +3813,7 @@ public final class QuickLitematicaPreview3D {
             this.writeInt(argb);
             this.writeInt(Float.floatToIntBits(u));
             this.writeInt(Float.floatToIntBits(v));
-            this.writeShort((short) overlay);
+            this.writeShort(CacheFile.encodeOverlay(overlay));
             this.writeInt(light);
             this.writeShort(CacheFile.encodeNormal(nx, ny, nz));
         }
@@ -4499,6 +4499,14 @@ public final class QuickLitematicaPreview3D {
 
         // ---- 静态顶点解码与 octahedral 8-bit 法线编码 ----
 
+        private static short encodeOverlay(int overlay) {
+            return (short) ((overlay & 0xFF) | (((overlay >>> 16) & 0xFF) << 8));
+        }
+
+        private static int decodeOverlay(short packed) {
+            return (packed & 0xFF) | (((packed >>> 8) & 0xFF) << 16);
+        }
+
         // 渲染线程调用：把量化字节数组直接解码进 BufferBuilder，跳过 PreviewVertex 对象。
         private static void decodeQuantizedToBuilder(byte[] quantized, BufferBuilder builder) {
             float[] normal = new float[3];
@@ -4509,7 +4517,7 @@ public final class QuickLitematicaPreview3D {
                 int argb = readInt(quantized, offset + 12);
                 float u = Float.intBitsToFloat(readInt(quantized, offset + 16));
                 float v = Float.intBitsToFloat(readInt(quantized, offset + 20));
-                int overlay = readShort(quantized, offset + 24) & 0xFFFF;
+                int overlay = decodeOverlay(readShort(quantized, offset + 24));
                 int light = readInt(quantized, offset + 26);
                 decodeNormal(readShort(quantized, offset + 30), normal);
                 builder.vertex(x, y, z, argb, u, v, overlay, light, normal[0], normal[1], normal[2]);
