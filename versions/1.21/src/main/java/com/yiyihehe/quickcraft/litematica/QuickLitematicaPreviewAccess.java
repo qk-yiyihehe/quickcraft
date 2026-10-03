@@ -1,5 +1,8 @@
 package com.yiyihehe.quickcraft.litematica;
 
+import com.yiyihehe.quickcraft.litematica.QuickLitematicaPreviewCache.CacheFile;
+import static com.yiyihehe.quickcraft.litematica.QuickLitematicaPreviewCache.updateDigest;
+
 import net.minecraft.util.math.Vec3d;
 import net.minecraft.text.Text;
 import com.mojang.blaze3d.systems.RenderSystem;

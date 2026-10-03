@@ -148,7 +148,7 @@ public final class QuickLitematicaPreviewAccess {
             try {
                 RenderType renderLayer = layerMesh.layer().renderLayer();
                 BufferBuilder builder = new BufferBuilder(allocator, renderLayer.primitiveTopology(), renderLayer.format());
-                QuickLitematicaPreview3D.CacheFile.decodeQuantizedToBuilder(layerMesh.quantizedVertices(), builder);
+                QuickLitematicaPreviewCache.CacheFile.decodeQuantizedToBuilder(layerMesh.quantizedVertices(), builder);
 
                 com.mojang.blaze3d.vertex.MeshData built = builder.build();
                 if (built == null) {
