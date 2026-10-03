@@ -187,7 +187,7 @@ public final class QuickLitematicaPreview3D {
     private static final String CACHE_DIR_NAME = "litematica-preview-cache";
     private static final String CACHE_VERSION_FILE_NAME = "cache-version.txt";
     private static final String CACHE_INDEX_FILE_NAME = "cache-index.properties";
-    private static final String CACHE_RENDER_MARKER = "quickcraft-model-mesh-v16-api-audit-stable-path-content-resource-signature-mc1.21.8-entity-center-block-position-seed";
+    private static final String CACHE_RENDER_MARKER = "quickcraft-model-mesh-v16-api-audit-stable-path-content-resource-signature-mc1.21.8-entity-center-block-position-seed-ctm-overlay-equipment-v1";
     private static final int EXPAND_BUTTON_SIZE = 16;
     private static final int COMPAT_CLIPBOARD_MAX_DIMENSION = 4096;
     private static final int EMBEDDED_PREVIEW_DIMENSION = 1024;
@@ -2875,7 +2875,7 @@ public final class QuickLitematicaPreview3D {
         try (var paths = Files.list(cacheDir)) {
             paths.filter(path -> {
                         String name = path.getFileName().toString();
-                        return !CACHE_INDEX_FILE_NAME.equals(name) && !name.endsWith(".converted.litematic");
+                        return !CACHE_INDEX_FILE_NAME.equals(name);
                     })
                     .forEach(QuickLitematicaPreview3D::deleteRecursivelyQuietly);
         } catch (IOException ignored) {
@@ -3038,6 +3038,11 @@ public final class QuickLitematicaPreview3D {
     }
 
     private static final class MeshBuilder {
+        private static final Set<String> NON_VISUAL_INVENTORY_IDS = Set.of("minecraft:chest", "minecraft:trapped_chest", "minecraft:barrel",
+                "minecraft:shulker_box", "minecraft:hopper", "minecraft:dispenser",
+                "minecraft:dropper", "minecraft:crafter", "minecraft:furnace",
+                "minecraft:blast_furnace", "minecraft:smoker", "minecraft:brewing_stand");
+
         @Nullable
         private static LitematicaSchematic readSchematic(
                 Path path,
@@ -3062,6 +3067,7 @@ public final class QuickLitematicaPreview3D {
                     Path fastDir = fastPath.getParent();
                     Path fastFile = fastPath.getFileName();
                     if (fastDir != null && fastFile != null) {
+                        throwIfCancelled(cancelled);
                         schematic = LitematicaSchematic.createFromFile(
                                 fastDir,
                                 fastFile.toString(),
@@ -3069,6 +3075,8 @@ public final class QuickLitematicaPreview3D {
                         );
                     }
                 }
+            } catch (CancellationException cancellation) {
+                throw cancellation;
             } catch (Throwable t) {
                 LOGGER.debug("QuickCraft fast schematic preparation skipped: {}", t.getMessage());
             } finally {
@@ -3078,6 +3086,7 @@ public final class QuickLitematicaPreview3D {
             }
 
             if (schematic == null) {
+                throwIfCancelled(cancelled);
                 schematic = LitematicaSchematic.createFromFile(
                         directory,
                         fileName.toString(),
@@ -3104,6 +3113,7 @@ public final class QuickLitematicaPreview3D {
                 return null;
             }
 
+            Path fastPath = null;
             try (InputStream is = Files.newInputStream(sourcePath);
                  BufferedInputStream bis = new BufferedInputStream(is);
                  GZIPInputStream gis = new GZIPInputStream(bis);
@@ -3122,6 +3132,10 @@ public final class QuickLitematicaPreview3D {
                         NbtList teList = reg.getListOrEmpty("TileEntities");
                         for (int i = 0; i < teList.size(); i++) {
                             NbtCompound te = teList.getCompoundOrEmpty(i);
+                            // Campfire items and entity equipment affect the rendered model.
+                            if (!NON_VISUAL_INVENTORY_IDS.contains(te.getString("id", ""))) {
+                                continue;
+                            }
                             if (te.contains("Items")) {
                                 te.remove("Items");
                                 modified = true;
@@ -3132,24 +3146,7 @@ public final class QuickLitematicaPreview3D {
                             }
                         }
                     }
-                    if (reg.contains("Entities")) {
-                        NbtList entList = reg.getListOrEmpty("Entities");
-                        for (int i = 0; i < entList.size(); i++) {
-                            NbtCompound ent = entList.getCompoundOrEmpty(i);
-                            if (ent.contains("Items")) {
-                                ent.remove("Items");
-                                modified = true;
-                            }
-                            if (ent.contains("HandItems")) {
-                                ent.remove("HandItems");
-                                modified = true;
-                            }
-                            if (ent.contains("ArmorItems")) {
-                                ent.remove("ArmorItems");
-                                modified = true;
-                            }
-                        }
-                    }
+
                 }
 
                 if (!modified) {
@@ -3157,7 +3154,7 @@ public final class QuickLitematicaPreview3D {
                 }
 
                 throwIfCancelled(cancelled);
-                Path fastPath = cacheDir.resolve("fast-" + Long.toUnsignedString(System.nanoTime()) + ".fast.tmp.litematic");
+                fastPath = cacheDir.resolve("fast-" + Long.toUnsignedString(System.nanoTime()) + ".fast.tmp.litematic");
                 try (OutputStream os = Files.newOutputStream(fastPath);
                      BufferedOutputStream bos = new BufferedOutputStream(os);
                      GZIPOutputStream gos = new GZIPOutputStream(bos);
@@ -3165,7 +3162,15 @@ public final class QuickLitematicaPreview3D {
                     NbtIo.writeCompound(root, dos);
                 }
                 return fastPath;
+            } catch (CancellationException cancellation) {
+                if (fastPath != null) {
+                    deleteQuietly(fastPath);
+                }
+                throw cancellation;
             } catch (Throwable t) {
+                if (fastPath != null) {
+                    deleteQuietly(fastPath);
+                }
                 return null;
             }
         }
@@ -3397,8 +3402,10 @@ public final class QuickLitematicaPreview3D {
 
         private static NbtCompound sanitizeBlockEntityNbt(NbtCompound nbt) {
             NbtCompound sanitized = nbt.copy();
-            // 3D 预览只需要容器外观，不需要把箱子/潜影盒内部物品也带进缓存和动态渲染。
-            sanitized.remove("Items");
+            // 火堆物品参与动态渲染，只删减已知普通容器的库存。
+            if (NON_VISUAL_INVENTORY_IDS.contains(sanitized.getString("id", ""))) {
+                sanitized.remove("Items");
+            }
             return sanitized;
         }
 
