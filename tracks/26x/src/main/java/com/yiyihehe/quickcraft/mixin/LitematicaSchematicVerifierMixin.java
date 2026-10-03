@@ -1028,10 +1028,11 @@ public abstract class LitematicaSchematicVerifierMixin extends TaskBase implemen
 
         for (ChunkPos chunkPos : touchedChunks) {
             ChunkAccess chunkSchematic = worldSchematic.getChunk(chunkPos.x(), chunkPos.z());
+            var withinPlacement = QuickLitematicaVerifierAccess.placementChunkMatcher(placement, chunkPos.x(), chunkPos.z());
             boolean hasContainer = false;
 
             for (BlockPos pos : chunkSchematic.getBlockEntitiesPos()) {
-                if (!QuickLitematicaVerifierAccess.isPositionWithinPlacementChunk(placement, chunkPos.x(), chunkPos.z(), pos)) {
+                if (!withinPlacement.test(pos)) {
                     continue;
                 }
 
