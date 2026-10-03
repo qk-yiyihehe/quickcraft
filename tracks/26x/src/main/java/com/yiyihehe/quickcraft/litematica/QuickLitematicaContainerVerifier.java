@@ -2,12 +2,9 @@ package com.yiyihehe.quickcraft.litematica;
 
 import com.chocohead.mm.api.ClassTinkerers;
 import com.yiyihehe.quickcraft.QuickContainerCopy;
-import com.yiyihehe.quickcraft.QuickClientScreenAccess;
 import com.yiyihehe.quickcraft.config.QuickCraftConfigs;
 import net.fabricmc.loader.api.FabricLoader;
-import fi.dy.masa.litematica.config.Configs;
 import fi.dy.masa.litematica.data.DataManager;
-import fi.dy.masa.litematica.data.EntityDataManager;
 import fi.dy.masa.litematica.schematic.LitematicaSchematic;
 import fi.dy.masa.litematica.schematic.container.LitematicaBlockStateContainer;
 import fi.dy.masa.litematica.schematic.placement.SchematicPlacement;
@@ -21,8 +18,6 @@ import fi.dy.masa.malilib.gui.LeftRight;
 import fi.dy.masa.malilib.render.InventoryOverlay;
 import fi.dy.masa.malilib.render.InventoryOverlayType;
 import fi.dy.masa.malilib.render.GuiContext;
-import fi.dy.masa.malilib.util.game.BlockUtils;
-import fi.dy.masa.malilib.util.data.Constants;
 import net.minecraft.world.level.block.AbstractFurnaceBlock;
 import net.minecraft.world.level.block.BrewingStandBlock;
 import net.minecraft.world.level.block.ChestBlock;
@@ -31,39 +26,17 @@ import net.minecraft.world.level.block.DispenserBlock;
 import net.minecraft.world.level.block.HopperBlock;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.block.entity.BlockEntity;
-import net.minecraft.world.level.block.entity.CrafterBlockEntity;
 import net.minecraft.world.level.block.state.properties.ChestType;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
-import net.minecraft.core.Holder;
-import net.minecraft.core.component.DataComponentType;
-import net.minecraft.core.component.DataComponents;
-import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.Container;
-import net.minecraft.world.SimpleContainer;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.chunk.ChunkAccess;
-import net.minecraft.world.item.enchantment.Enchantment;
-import net.minecraft.world.item.enchantment.ItemEnchantments;
 import net.minecraft.nbt.CompoundTag;
-import net.minecraft.nbt.ListTag;
-import net.minecraft.nbt.NbtOps;
-import net.minecraft.core.HolderLookup;
-import net.minecraft.world.inventory.BlastFurnaceMenu;
-import net.minecraft.world.inventory.BrewingStandMenu;
-import net.minecraft.world.inventory.CrafterMenu;
-import net.minecraft.world.inventory.FurnaceMenu;
-import net.minecraft.world.inventory.DispenserMenu;
-import net.minecraft.world.inventory.ChestMenu;
-import net.minecraft.world.inventory.HopperMenu;
-import net.minecraft.world.inventory.AbstractContainerMenu;
-import net.minecraft.world.inventory.ShulkerBoxMenu;
-import net.minecraft.world.inventory.SmokerMenu;
 import net.minecraft.world.inventory.Slot;
 import net.minecraft.world.level.block.Mirror;
 import net.minecraft.world.level.block.Rotation;
-import net.minecraft.world.phys.HitResult;
 import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.level.ChunkPos;
@@ -72,8 +45,6 @@ import org.apache.commons.lang3.tuple.Pair;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -81,8 +52,8 @@ import java.util.Set;
 /**
  * QuickCraft 的 Litematica 容器验证主类。
  * 这里统一收口原理图容器校验相关能力，包括：
- * 1. 容器库存和禁用槽位的比对与错填分类；
- * 2. 验证结果刷新、当前界面联动和容器错填重算；
+ * 1. 对外功能契约、错填类型和原理图位置解析；
+ * 2. 委托库存读取、物品比较和当前屏幕绑定；
  * 3. 容器界面里的幽灵物品辅助渲染；
  * 4. 提供给 mixin 挂接的 verifier / mismatch 扩展接口；
  * 5. 需要尽早注册的验证类型注入逻辑。
@@ -106,17 +77,6 @@ public final class QuickLitematicaContainerVerifier {
             MismatchType.class,
             EarlyRiser.WRONG_FILL_STATE_ENUM
     );
-    private static boolean suppressInventorySlotHighlights;
-    private static BlockPos pendingContainerPos;
-    private static BlockPos currentScreenContainerPos;
-    private static AbstractContainerScreen<?> currentHandledScreen;
-    private static long lastCurrentScreenRefreshTick = Long.MIN_VALUE;
-    private static int lastCurrentScreenRevision = Integer.MIN_VALUE;
-    private static List<SlotOverlay> currentScreenSlotOverlays = List.of();
-    private static Container currentScreenContainerInventory;
-    private static ActualInventoryReadStatus lastActualInventoryReadStatus = ActualInventoryReadStatus.NOT_READ;
-    private static Level trustedCacheWorld;
-    private static final Map<BlockPos, SimpleContainer> trustedInventoryCache = new HashMap<>();
 
     private QuickLitematicaContainerVerifier() {
     }
@@ -141,315 +101,27 @@ public final class QuickLitematicaContainerVerifier {
     }
 
     public static Container getExpectedInventory(BlockEntity expectedBlockEntity, Container directInventory) {
-        if (expectedBlockEntity == null) {
-            return directInventory;
-        }
-
-        Level blockEntityWorld = expectedBlockEntity.getLevel();
-        if (blockEntityWorld == null) {
-            return directInventory;
-        }
-
-        CompoundTag nbt = expectedBlockEntity.saveWithFullMetadata(blockEntityWorld.registryAccess());
-
-        if (nbt.contains("Items")) {
-            Container nbtInventory = getNbtInventoryPreservingComponents(
-                    nbt,
-                    directInventory != null ? directInventory.getContainerSize() : -1,
-                    blockEntityWorld.registryAccess()
-            );
-
-            if (nbtInventory != null) {
-                return nbtInventory;
-            }
-        }
-
-        return directInventory;
+        return QuickLitematicaContainerInventory.getExpectedInventory(expectedBlockEntity, directInventory);
     }
 
     public static Container getActualInventory(Level world, BlockPos pos, Container directInventory, Container expected) {
-        lastActualInventoryReadStatus = ActualInventoryReadStatus.NOT_READ;
-
-        if (world == null) {
-            lastActualInventoryReadStatus = ActualInventoryReadStatus.NO_WORLD;
-            return null;
-        }
-
-        if (trustedCacheWorld != world) {
-            trustedCacheWorld = world;
-            trustedInventoryCache.clear();
-        }
-
-        if (directInventory != null
-                && expected != null
-                && directInventory.getContainerSize() == expected.getContainerSize()
-                && !isInventoryEmpty(directInventory)) {
-            lastActualInventoryReadStatus = ActualInventoryReadStatus.DIRECT_INVENTORY;
-            return directInventory;
-        }
-
-        if (DataManager.getInstance().hasIntegratedServer()) {
-            Container mergedOrDirect = getDirectInventory(world, pos, expected != null ? expected.getContainerSize() : -1);
-            lastActualInventoryReadStatus = mergedOrDirect != null || directInventory != null
-                    ? ActualInventoryReadStatus.INTEGRATED_DIRECT
-                    : ActualInventoryReadStatus.NO_DIRECT_INVENTORY;
-            return mergedOrDirect != null ? mergedOrDirect : directInventory;
-        }
-
-        EntityDataManager storage = EntityDataManager.getInstance();
-        CompoundTag cachedNbt = storage.getCache().getBlockEntityNbtFromCache(pos);
-
-        if (cachedNbt != null && !cachedNbt.contains("Items") && !cachedNbt.contains("RecordItem")
-                && expected != null && isInventoryEmpty(expected)) {
-            // 服务器空容器 NBT 可能只带 x/y/z/id，没有 Items；这表示已读到空库存。
-            trustedInventoryCache.put(pos.immutable(), new SimpleContainer(expected.getContainerSize()));
-            lastActualInventoryReadStatus = ActualInventoryReadStatus.CACHE_INVENTORY;
-            return new SimpleContainer(expected.getContainerSize());
-        }
-
-        if (cachedNbt != null && (cachedNbt.contains("Items") || cachedNbt.contains("RecordItem") || isInventoryEmpty(expected))) {
-            Container cachedInventory = getCachedInventory(world, pos, storage, expected != null ? expected.getContainerSize() : -1);
-
-            if (cachedInventory != null && isTrustedCachedInventory(storage, pos, cachedNbt, cachedInventory, expected)) {
-                trustedInventoryCache.put(pos.immutable(), copyInventory(cachedInventory));
-                lastActualInventoryReadStatus = ActualInventoryReadStatus.CACHE_INVENTORY;
-                return cachedInventory;
-            }
-
-            lastActualInventoryReadStatus = cachedInventory != null
-                    ? ActualInventoryReadStatus.CACHE_WITHOUT_ITEMS
-                    : ActualInventoryReadStatus.CACHE_PARSE_FAILED;
-        } else {
-            lastActualInventoryReadStatus = ActualInventoryReadStatus.NO_CACHE_NBT;
-        }
-
-        if (!storage.hasServuxServer()
-                && !storage.hasBackupStatus()
-                && expected != null) {
-            SimpleContainer trusted = trustedInventoryCache.get(pos);
-            if (trusted != null && trusted.getContainerSize() == expected.getContainerSize()) {
-                lastActualInventoryReadStatus = ActualInventoryReadStatus.CACHE_INVENTORY;
-                return copyInventory(trusted);
-            }
-        }
-
-        // 多人没有实体数据时不要拿客户端空壳库存硬比，避免把未知误报成错误填充。
-        storage.requestBlockEntityWrapped(world, pos);
-        return null;
-    }
-
-    private static Container getCachedInventory(Level world, BlockPos pos, EntityDataManager storage, int expectedSize) {
-        Container merged = getMergedCachedDoubleChestInventory(world, pos, storage, expectedSize);
-
-        if (merged != null) {
-            return merged;
-        }
-
-        CompoundTag cachedNbt = storage.getCache().getBlockEntityNbtFromCache(pos);
-        Container special = getCachedSpecialInventory(world, cachedNbt, expectedSize);
-        if (special != null) {
-            return special;
-        }
-        BlockEntity cachedBlockEntity = storage.getFromBlockEntityCache(pos);
-
-        if (cachedBlockEntity instanceof Container inventory
-                && (expectedSize <= 0 || inventory.getContainerSize() == expectedSize)) {
-            return copyInventory(inventory);
-        }
-
-        return cachedNbt != null
-                ? getNbtInventoryPreservingComponents(
-                        cachedNbt,
-                        expectedSize,
-                        world.registryAccess()
-                )
-                : null;
-    }
-
-    private static Container getCachedSpecialInventory(Level world, CompoundTag cachedNbt, int expectedSize) {
-        if (world == null || cachedNbt == null || expectedSize != 1 || !cachedNbt.contains("RecordItem")) {
-            return null;
-        }
-
-        ItemStack recordStack = cachedNbt.getCompound("RecordItem")
-                .map(nbt -> itemStackFromNbt(world.registryAccess(), nbt))
-                .orElse(ItemStack.EMPTY);
-        if (recordStack.isEmpty()) {
-            return null;
-        }
-        SimpleContainer inventory = new SimpleContainer(1);
-        inventory.setItem(0, recordStack);
-        return inventory;
-    }
-
-    private static boolean isTrustedCachedInventory(
-            EntityDataManager storage,
-            BlockPos pos,
-            CompoundTag cachedNbt,
-            Container cachedInventory,
-            Container expected
-    ) {
-        if (cachedNbt.contains("Items") || !isInventoryEmpty(cachedInventory)) {
-            return true;
-        }
-
-        if (expected != null && isInventoryEmpty(expected)) {
-            return true;
-        }
-
-        // 无物品字段既可能表示服务器确认的空容器，也可能只是客户端空壳；仅在整区块数据已回齐时信任为空。
-        return (storage.hasServuxServer() || storage.getIfReceivedBackupPackets())
-                && storage.hasCompletedChunk(ChunkPos.containing(pos));
-    }
-
-    private static Container getMergedCachedDoubleChestInventory(Level world, BlockPos pos, EntityDataManager storage, int expectedSize) {
-        if (expectedSize != 54) {
-            return null;
-        }
-
-        BlockState state = world.getBlockState(pos);
-        ChestType chestType = getChestType(state);
-
-        if (chestType == ChestType.SINGLE) {
-            return null;
-        }
-
-        BlockPos adjacentPos = ChestBlock.getConnectedBlockPos(pos, state);
-        CompoundTag currentNbt = storage.getCache().getBlockEntityNbtFromCache(pos);
-        CompoundTag adjacentNbt = storage.getCache().getBlockEntityNbtFromCache(adjacentPos);
-
-        if (currentNbt == null || adjacentNbt == null) {
-            return null;
-        }
-
-        Container currentInventory = getNbtInventoryPreservingComponents(
-                currentNbt,
-                27,
-                world.registryAccess()
-        );
-        Container adjacentInventory = getNbtInventoryPreservingComponents(
-                adjacentNbt,
-                27,
-                world.registryAccess()
-        );
-
-        if (currentInventory == null || adjacentInventory == null) {
-            return null;
-        }
-
-        return chestType == ChestType.RIGHT
-                ? mergeInventories(currentInventory, adjacentInventory)
-                : mergeInventories(adjacentInventory, currentInventory);
-    }
-
-    private static Container getNbtInventoryPreservingComponents(
-            CompoundTag nbt,
-            int expectedSize,
-            HolderLookup.Provider registryLookup
-    ) {
-        if (nbt == null || registryLookup == null || !nbt.contains("Items")) {
-            return null;
-        }
-
-        ListTag items = nbt.getList("Items").orElse(null);
-        if (items == null) {
-            return null;
-        }
-        int size = expectedSize > 0 ? expectedSize : inferInventorySize(items);
-        if (size <= 0) {
-            return null;
-        }
-
-        SimpleContainer inventory = new SimpleContainer(size);
-        for (int i = 0; i < items.size(); i++) {
-            CompoundTag itemNbt = items.getCompound(i).orElse(null);
-            if (itemNbt == null) {
-                continue;
-            }
-            int slot = itemNbt.getByte("Slot").orElse((byte) 0) & 255;
-            if (slot >= size) {
-                continue;
-            }
-
-            ItemStack stack = itemStackFromNbt(registryLookup, itemNbt);
-            if (!stack.isEmpty()) {
-                inventory.setItem(slot, stack);
-            }
-        }
-
-        return inventory;
-    }
-
-    private static ItemStack itemStackFromNbt(HolderLookup.Provider registryLookup, CompoundTag nbt) {
-        return ItemStack.OPTIONAL_CODEC
-                .parse(registryLookup.createSerializationContext(NbtOps.INSTANCE), nbt)
-                .result()
-                .orElse(ItemStack.EMPTY);
-    }
-
-    private static int inferInventorySize(ListTag items) {
-        int size = 0;
-        for (int i = 0; i < items.size(); i++) {
-            CompoundTag itemNbt = items.getCompound(i).orElse(null);
-            if (itemNbt != null) {
-                size = Math.max(size, (itemNbt.getByte("Slot").orElse((byte) 0) & 255) + 1);
-            }
-        }
-        return size;
+        return QuickLitematicaContainerInventory.getActualInventory(world, pos, directInventory, expected);
     }
 
     public static ActualInventoryReadStatus getLastActualInventoryReadStatus() {
-        return lastActualInventoryReadStatus;
+        return QuickLitematicaContainerInventory.getLastActualInventoryReadStatus();
     }
 
     public static String getItemStackSignature(ItemStack stack) {
-        if (stack.isEmpty()) {
-            return "empty";
-        }
-
-        Minecraft client = Minecraft.getInstance();
-        if (client.level != null) {
-            try {
-                return ItemStack.CODEC.encodeStart(
-                        client.level.registryAccess().createSerializationContext(NbtOps.INSTANCE),
-                        stack
-                ).getOrThrow().toString();
-            } catch (RuntimeException ignored) {
-                // 组件损坏时仍保留可比较的本地表示，不能让刷新验证结果的路径崩溃。
-            }
-        }
-
-        return stack.getItem() + "|" + stack.getComponents();
+        return QuickLitematicaContainerInventory.getItemStackSignature(stack);
     }
 
     public static void requestInventoryData(Level world, BlockPos pos) {
-        if (world != null) {
-            EntityDataManager.getInstance().requestBlockEntityWrapped(world, pos);
-        }
+        QuickLitematicaContainerInventory.requestInventoryData(world, pos);
     }
 
     public static boolean requestInventoryDataChunk(Level world, ChunkPos chunkPos, int minY, int maxY) {
-        if (world == null || DataManager.getInstance().hasIntegratedServer()) {
-            return false;
-        }
-
-        EntityDataManager storage = EntityDataManager.getInstance();
-        if (storage.hasServuxServer()) {
-            storage.requestServuxBulkEntityData(chunkPos, minY, maxY);
-            return true;
-        }
-        if (storage.getIfReceivedBackupPackets()) {
-            storage.requestBackupBulkEntityData(chunkPos, minY, maxY);
-            return true;
-        }
-
-        return false;
-    }
-
-    private static void ensureEntityDataSyncEnabled() {
-        // 容器验证依赖 Litematica 的实体数据缓存和备份查询；只在实际请求数据时开启，避免污染逐方块热路径。
-        Configs.Generic.ENTITY_DATA_SYNC.setBooleanValue(true);
-        Configs.Generic.ENTITY_DATA_SYNC_BACKUP.setBooleanValue(true);
+        return QuickLitematicaContainerInventory.requestInventoryDataChunk(world, chunkPos, minY, maxY);
     }
 
     public static List<ContainerMismatch> findMismatches(
@@ -461,17 +133,7 @@ public final class QuickLitematicaContainerVerifier {
             Container expected,
             Container found
     ) {
-        return findMismatches(
-                pos,
-                expectedState,
-                foundState,
-                expectedBlockEntity,
-                foundBlockEntity,
-                getDisabledSlots(expectedBlockEntity),
-                getDisabledSlots(foundBlockEntity),
-                expected,
-                found
-        );
+        return QuickLitematicaContainerComparison.findMismatches(pos, expectedState, foundState, expectedBlockEntity, foundBlockEntity, expected, found);
     }
 
     public static List<ContainerMismatch> findMismatches(
@@ -485,83 +147,7 @@ public final class QuickLitematicaContainerVerifier {
             Container expected,
             Container found
     ) {
-        Container expectedCopy = copyInventory(expected);
-        Container foundCopy = copyInventory(found);
-        List<SlotMismatch> slotMismatches = new ArrayList<>();
-        boolean hasWrongItem = false;
-        boolean hasMissing = false;
-        boolean hasStateMismatch = false;
-        boolean hasExpectedFilledSlot = false;
-        boolean allExpectedFilledSlotsMissing = true;
-
-        for (int slot = 0; slot < expected.getContainerSize(); slot++) {
-            ItemStack expectedStack = expected.getItem(slot);
-            ItemStack foundStack = found.getItem(slot);
-            SlotMismatchStatus status = getSlotMismatchStatus(expectedStack, foundStack);
-
-            if (!expectedStack.isEmpty()) {
-                hasExpectedFilledSlot = true;
-                if (!foundStack.isEmpty()) {
-                    allExpectedFilledSlotsMissing = false;
-                }
-            }
-
-            if (status != null) {
-                slotMismatches.add(new SlotMismatch(slot, status, expectedStack.copy(), foundStack.copy()));
-
-                if (status == SlotMismatchStatus.WRONG || status == SlotMismatchStatus.EXTRA) {
-                    hasWrongItem = true;
-                } else if (status == SlotMismatchStatus.MISSING) {
-                    hasMissing = true;
-                } else if (status == SlotMismatchStatus.COUNT) {
-                    hasStateMismatch = true;
-                }
-            }
-        }
-
-        if (!expectedDisabledSlots.equals(foundDisabledSlots)) {
-            for (int slot : unionSlots(expectedDisabledSlots, foundDisabledSlots)) {
-                if (expectedDisabledSlots.contains(slot) != foundDisabledSlots.contains(slot)) {
-                    addSlotStatusIfEmpty(slotMismatches, slot, SlotMismatchStatus.LOCK_STATE, expected.getItem(slot), found.getItem(slot));
-                }
-            }
-
-            hasStateMismatch = true;
-        }
-
-        if (slotMismatches.isEmpty()) {
-            return List.of();
-        }
-
-        SlotMismatch first = slotMismatches.getFirst();
-        MismatchType type;
-
-        if (hasWrongItem) {
-            type = WRONG_FILL;
-        } else if (hasExpectedFilledSlot && allExpectedFilledSlotsMissing) {
-            type = MISSING_FILL;
-        } else if (hasStateMismatch) {
-            type = WRONG_FILL_STATE;
-        } else if (hasMissing) {
-            type = MISSING_FILL;
-        } else {
-            type = WRONG_FILL;
-        }
-
-        return List.of(new ContainerMismatch(
-                pos,
-                expectedState,
-                foundState,
-                first.slot(),
-                type,
-                first.expectedStack(),
-                first.foundStack(),
-                expectedCopy,
-                foundCopy,
-                expectedDisabledSlots,
-                foundDisabledSlots,
-                List.copyOf(slotMismatches)
-        ));
+        return QuickLitematicaContainerComparison.findMismatches(pos, expectedState, foundState, expectedBlockEntity, foundBlockEntity, expectedDisabledSlots, foundDisabledSlots, expected, found);
     }
 
     public static void renderInventoryPair(
@@ -590,17 +176,15 @@ public final class QuickLitematicaContainerVerifier {
     }
 
     public static boolean shouldSuppressInventorySlotHighlights() {
-        return suppressInventorySlotHighlights && isEnabled();
+        return QuickLitematicaContainerScreenBinding.shouldSuppressInventorySlotHighlights();
     }
 
     public static void setSuppressInventorySlotHighlights(boolean suppress) {
-        suppressInventorySlotHighlights = suppress;
+        QuickLitematicaContainerScreenBinding.setSuppressInventorySlotHighlights(suppress);
     }
 
     public static void clearCurrentHandledScreenBinding() {
-        pendingContainerPos = null;
-        currentHandledScreen = null;
-        clearCurrentScreenContainerBinding();
+        QuickLitematicaContainerScreenBinding.clearCurrentHandledScreenBinding();
     }
 
     public static void drawGhostItem(
@@ -624,134 +208,11 @@ public final class QuickLitematicaContainerVerifier {
     }
 
     public static void rememberContainerUse(Minecraft client, BlockHitResult hitResult) {
-        Level clientWorld = client.level;
-        if (!isEnabled() || clientWorld == null) {
-            return;
-        }
-
-        Level world = fi.dy.masa.malilib.util.WorldUtils.getBestWorld(client);
-        BlockPos pos = hitResult.getBlockPos();
-        BlockEntity blockEntity = world != null ? world.getBlockEntity(pos) : clientWorld.getBlockEntity(pos);
-
-        if (blockEntity instanceof Container || getExpectedContainerAt(world, pos) != null) {
-            pendingContainerPos = pos.immutable();
-        }
+        QuickLitematicaContainerScreenBinding.rememberContainerUse(client, hitResult);
     }
 
     public static SlotOverlay getSlotOverlayForScreen(AbstractContainerScreen<?> screen, Slot slot) {
-        if (!isEnabled()
-                || QuickContainerCopy.shouldHideBackgroundHandledScreen()
-                || slot.container instanceof Inventory
-                // 只让真正的容器界面参与高亮，避免创造物品栏等界面误触发容器校验。
-                || !isSupportedContainerHandler(screen.getMenu())) {
-            return null;
-        }
-
-        bindCurrentScreen(screen);
-        refreshCurrentScreenVerifier(screen);
-
-        // 验证结果刷新不依赖槽位提示开关；这里才决定是否真的绘制提示。
-        if (!areSlotHintsVisible()) {
-            return null;
-        }
-
-        if (currentScreenContainerPos == null) {
-            return null;
-        }
-
-        if (slot.container != currentScreenContainerInventory) {
-            return null;
-        }
-
-        if (slot.getContainerSlot() < 0 || slot.getContainerSlot() >= currentScreenSlotOverlays.size()) {
-            return null;
-        }
-
-        return currentScreenSlotOverlays.get(slot.getContainerSlot());
-    }
-
-    private static SlotMismatchStatus getSlotMismatchStatus(ItemStack expectedStack, ItemStack foundStack) {
-        boolean expectedEmpty = expectedStack.isEmpty();
-        boolean foundEmpty = foundStack.isEmpty();
-
-        if (expectedEmpty && foundEmpty) {
-            return null;
-        }
-        if (!expectedEmpty && foundEmpty) {
-            return SlotMismatchStatus.MISSING;
-        }
-        if (expectedEmpty) {
-            return SlotMismatchStatus.EXTRA;
-        }
-        if (!areItemsAndComponentsEqual(expectedStack, foundStack)) {
-            return SlotMismatchStatus.WRONG;
-        }
-        if (expectedStack.getCount() != foundStack.getCount()) {
-            return SlotMismatchStatus.COUNT;
-        }
-
-        return null;
-    }
-
-    private static boolean areItemsAndComponentsEqual(ItemStack expectedStack, ItemStack foundStack) {
-        if (ItemStack.isSameItemSameComponents(expectedStack, foundStack)) {
-            return true;
-        }
-
-        if (!expectedStack.is(foundStack.getItem())
-                || !sameEnchantments(expectedStack, foundStack, DataComponents.ENCHANTMENTS)
-                || !sameEnchantments(expectedStack, foundStack, DataComponents.STORED_ENCHANTMENTS)) {
-            return false;
-        }
-
-        ItemStack expectedWithoutEnchantments = expectedStack.copy();
-        ItemStack foundWithoutEnchantments = foundStack.copy();
-        expectedWithoutEnchantments.remove(DataComponents.ENCHANTMENTS);
-        expectedWithoutEnchantments.remove(DataComponents.STORED_ENCHANTMENTS);
-        foundWithoutEnchantments.remove(DataComponents.ENCHANTMENTS);
-        foundWithoutEnchantments.remove(DataComponents.STORED_ENCHANTMENTS);
-        return ItemStack.isSameItemSameComponents(expectedWithoutEnchantments, foundWithoutEnchantments);
-    }
-
-    private static boolean sameEnchantments(
-            ItemStack expectedStack,
-            ItemStack foundStack,
-            DataComponentType<ItemEnchantments> type
-    ) {
-        ItemEnchantments expected = expectedStack.get(type);
-        ItemEnchantments found = foundStack.get(type);
-
-        if (expected == null || found == null) {
-            return expected == found;
-        }
-        if (expected.size() != found.size()) {
-            return false;
-        }
-
-        for (var entry : expected.entrySet()) {
-            Holder<Enchantment> expectedEnchantment = entry.getKey();
-            int expectedLevel = entry.getIntValue();
-            boolean matched = false;
-
-            for (var foundEntry : found.entrySet()) {
-                Holder<Enchantment> foundEnchantment = foundEntry.getKey();
-                if (expectedEnchantment.unwrapKey().equals(foundEnchantment.unwrapKey())
-                        && expectedLevel == foundEntry.getIntValue()) {
-                    matched = true;
-                    break;
-                }
-            }
-
-            if (!matched) {
-                return false;
-            }
-        }
-
-        return true;
-    }
-
-    private static boolean isSlotLockMismatch(Set<Integer> expectedDisabledSlots, Set<Integer> foundDisabledSlots, int slot) {
-        return expectedDisabledSlots.contains(slot) != foundDisabledSlots.contains(slot);
+        return QuickLitematicaContainerScreenBinding.getSlotOverlayForScreen(screen, slot);
     }
 
     public static ExpectedContainer getExpectedContainerAt(Level foundWorld, BlockPos pos) {
@@ -786,7 +247,7 @@ public final class QuickLitematicaContainerVerifier {
 
         QuickContainerCopy.PublicContainerType type = QuickContainerCopy.getPublicContainerType(
                 expected.state().getBlock(),
-                getChestType(expected.state())
+                QuickLitematicaContainerInventory.getChestType(expected.state())
         );
         if (type == null) {
             return null;
@@ -803,334 +264,8 @@ public final class QuickLitematicaContainerVerifier {
         return new QuickContainerCopy.TemplateSnapshot(type, templates, disabledStates);
     }
 
-    private static Container getDirectInventory(Level world, BlockPos pos, int expectedSize) {
-        Container merged = getMergedDoubleChestInventory(world, pos);
-
-        if (merged != null && (expectedSize < 0 || merged.getContainerSize() == expectedSize)) {
-            return merged;
-        }
-
-        BlockEntity blockEntity = world.getBlockEntity(pos);
-        return blockEntity instanceof Container inventory ? inventory : null;
-    }
-
     public static Set<Integer> getDisabledSlots(BlockEntity blockEntity) {
-        if (blockEntity == null) {
-            return Set.of();
-        }
-
-        Level blockEntityWorld = blockEntity.getLevel();
-        if (blockEntityWorld != null) {
-            CompoundTag nbt = blockEntity.saveWithFullMetadata(blockEntityWorld.registryAccess());
-            return getDisabledSlots(blockEntity, nbt);
-        }
-
-        if (blockEntity instanceof CrafterBlockEntity crafter) {
-            return Set.copyOf(BlockUtils.getDisabledSlots(crafter));
-        }
-
-        return Set.of();
-    }
-
-    private static void addSlotStatusIfEmpty(
-            List<SlotMismatch> slotMismatches,
-            int slot,
-            SlotMismatchStatus status,
-            ItemStack expectedStack,
-            ItemStack foundStack
-    ) {
-        for (SlotMismatch mismatch : slotMismatches) {
-            if (mismatch.slot() == slot) {
-                return;
-            }
-        }
-
-        slotMismatches.add(new SlotMismatch(slot, status, expectedStack.copy(), foundStack.copy()));
-    }
-
-    private static Set<Integer> unionSlots(Set<Integer> left, Set<Integer> right) {
-        java.util.HashSet<Integer> slots = new java.util.HashSet<>(left);
-        slots.addAll(right);
-        return slots;
-    }
-
-    private static void bindCurrentScreen(AbstractContainerScreen<?> screen) {
-        Minecraft client = Minecraft.getInstance();
-
-        if (QuickClientScreenAccess.currentScreen(client) != screen) {
-            return;
-        }
-        if (currentHandledScreen != screen) {
-            currentHandledScreen = screen;
-            currentScreenContainerPos = pendingContainerPos;
-            pendingContainerPos = null;
-            lastCurrentScreenRefreshTick = Long.MIN_VALUE;
-            lastCurrentScreenRevision = Integer.MIN_VALUE;
-            currentScreenSlotOverlays = List.of();
-            currentScreenContainerInventory = null;
-        }
-
-        if (currentScreenContainerPos == null) {
-            currentScreenContainerPos = isSupportedContainerHandler(screen.getMenu())
-                    ? getLookedAtInventoryPos(client)
-                    : null;
-        }
-    }
-
-    private static void refreshCurrentScreenVerifier(AbstractContainerScreen<?> screen) {
-        Minecraft client = Minecraft.getInstance();
-        Level clientWorld = client.level;
-        BlockPos containerPos = currentScreenContainerPos;
-
-        if (clientWorld == null || containerPos == null) {
-            return;
-        }
-
-        int currentRevision = screen.getMenu().getStateId();
-
-        long currentTick = clientWorld.getGameTime();
-
-        if (currentTick == lastCurrentScreenRefreshTick && currentRevision == lastCurrentScreenRevision) {
-            return;
-        }
-
-        lastCurrentScreenRefreshTick = currentTick;
-        lastCurrentScreenRevision = currentRevision;
-        currentScreenSlotOverlays = List.of();
-        currentScreenContainerInventory = null;
-        Level world = fi.dy.masa.malilib.util.WorldUtils.getBestWorld(client);
-        SchematicPlacement placement = DataManager.getSchematicPlacementManager().getSelectedSchematicPlacement();
-        ExpectedContainer expectedContainer = getExpectedContainerAt(world, containerPos, placement);
-
-        if (expectedContainer == null
-                || !isSupportedHandlerForExpectedContainer(screen.getMenu(), expectedContainer)) {
-            clearCurrentScreenContainerBinding();
-            return;
-        }
-
-        Container containerInventory = findContainerInventory(
-                screen.getMenu(), expectedContainer.inventory().getContainerSize());
-        Container foundInventory = copyContainerInventoryFromScreen(screen.getMenu(), containerInventory);
-
-        if (foundInventory == null) {
-            return;
-        }
-
-        currentScreenContainerInventory = containerInventory;
-        Set<Integer> foundDisabledSlots = copyCrafterDisabledSlotsFromScreen(screen.getMenu(), containerInventory);
-        List<ContainerMismatch> mismatches = null;
-
-        if (placement != null && placement.hasVerifier()) {
-            VerifierExtension verifier = (VerifierExtension) placement.getSchematicVerifier();
-            mismatches = verifier.quickcraft$refreshContainerMismatchAt(
-                    containerPos,
-                    foundInventory,
-                    foundDisabledSlots
-            );
-
-            BlockPos pairedPos = getExpectedDoubleChestAdjacentPos(containerPos, placement);
-            if (pairedPos != null) {
-                // 大箱子的错误可能记录在另一半坐标；打开任意半边都同步刷新两半。
-                verifier.quickcraft$refreshContainerMismatchAt(pairedPos, foundInventory, foundDisabledSlots);
-            }
-        }
-
-        if (foundInventory.getContainerSize() == expectedContainer.inventory().getContainerSize()) {
-            currentScreenSlotOverlays = mismatches != null
-                    ? buildSlotOverlays(expectedContainer, mismatches)
-                    : buildSlotOverlays(expectedContainer, foundInventory, foundDisabledSlots);
-        }
-    }
-
-    private static BlockPos getLookedAtInventoryPos(Minecraft client) {
-        if (!(client.hitResult instanceof BlockHitResult blockHitResult)
-                || blockHitResult.getType() != HitResult.Type.BLOCK) {
-            return null;
-        }
-
-        Level world = fi.dy.masa.malilib.util.WorldUtils.getBestWorld(client);
-        Level clientWorld = client.level;
-        Level lookupWorld = world != null ? world : clientWorld;
-        if (lookupWorld == null) {
-            return null;
-        }
-
-        BlockEntity blockEntity = lookupWorld.getBlockEntity(blockHitResult.getBlockPos());
-
-        return blockEntity instanceof Container ? blockHitResult.getBlockPos().immutable() : null;
-    }
-
-    private static void clearCurrentScreenContainerBinding() {
-        currentScreenContainerPos = null;
-        lastCurrentScreenRefreshTick = Long.MIN_VALUE;
-        lastCurrentScreenRevision = Integer.MIN_VALUE;
-        currentScreenSlotOverlays = List.of();
-        currentScreenContainerInventory = null;
-    }
-
-    private static boolean isSupportedContainerHandler(AbstractContainerMenu handler) {
-        return handler instanceof HopperMenu
-                || handler instanceof ChestMenu
-                || handler instanceof ShulkerBoxMenu
-                || handler instanceof DispenserMenu
-                || handler instanceof CrafterMenu
-                || handler instanceof FurnaceMenu
-                || handler instanceof BlastFurnaceMenu
-                || handler instanceof SmokerMenu
-                || handler instanceof BrewingStandMenu;
-    }
-
-    private static boolean isSupportedHandlerForExpectedContainer(AbstractContainerMenu handler, ExpectedContainer expectedContainer) {
-        QuickContainerCopy.PublicContainerType type = QuickContainerCopy.getPublicContainerType(
-                expectedContainer.state().getBlock(),
-                getChestType(expectedContainer.state())
-        );
-
-        if (type == null) {
-            return false;
-        }
-
-        return switch (type) {
-            case HOPPER -> handler instanceof HopperMenu;
-            case SMALL_CHEST, BARREL -> handler instanceof ChestMenu genericHandler
-                    && genericHandler.getRowCount() == 3;
-            case LARGE_CHEST -> handler instanceof ChestMenu genericHandler
-                    && genericHandler.getRowCount() == 6;
-            case SHULKER_BOX -> handler instanceof ShulkerBoxMenu;
-            case DISPENSER, DROPPER -> handler instanceof DispenserMenu;
-            case CRAFTER -> handler instanceof CrafterMenu;
-            case FURNACE -> handler instanceof FurnaceMenu;
-            case BLAST_FURNACE -> handler instanceof BlastFurnaceMenu;
-            case SMOKER -> handler instanceof SmokerMenu;
-            case BREWING_STAND -> handler instanceof BrewingStandMenu;
-        };
-    }
-
-    private static Container findContainerInventory(AbstractContainerMenu handler, int expectedSize) {
-        if (expectedSize <= 0) {
-            return null;
-        }
-
-        for (Slot candidate : handler.slots) {
-            Container inventory = candidate.container;
-            if (inventory instanceof Inventory || inventory.getContainerSize() != expectedSize) {
-                continue;
-            }
-
-            boolean[] visibleSlots = new boolean[expectedSize];
-            for (Slot slot : handler.slots) {
-                if (slot.container == inventory
-                        && slot.getContainerSlot() >= 0
-                        && slot.getContainerSlot() < expectedSize) {
-                    visibleSlots[slot.getContainerSlot()] = true;
-                }
-            }
-
-            boolean complete = true;
-            for (boolean visible : visibleSlots) {
-                if (!visible) {
-                    complete = false;
-                    break;
-                }
-            }
-            if (complete) {
-                return inventory;
-            }
-        }
-        return null;
-    }
-
-    private static Container copyContainerInventoryFromScreen(AbstractContainerMenu handler, Container containerInventory) {
-        if (containerInventory == null) {
-            return null;
-        }
-
-        SimpleContainer inventory = new SimpleContainer(containerInventory.getContainerSize());
-
-        for (Slot slot : handler.slots) {
-            if (slot.container == containerInventory
-                    && slot.getContainerSlot() >= 0
-                    && slot.getContainerSlot() < inventory.getContainerSize()) {
-                inventory.setItem(slot.getContainerSlot(), slot.getItem().copy());
-            }
-        }
-
-        return inventory;
-    }
-
-    private static Set<Integer> copyCrafterDisabledSlotsFromScreen(
-            AbstractContainerMenu handler, Container containerInventory) {
-        if (!(handler instanceof CrafterMenu crafterHandler)) {
-            return Set.of();
-        }
-
-        Set<Integer> disabledSlots = new HashSet<>();
-
-        for (Slot slot : handler.slots) {
-            if (slot.container != containerInventory || slot.getContainerSlot() < 0) {
-                continue;
-            }
-
-            if (crafterHandler.isSlotDisabled(slot.index)) {
-                disabledSlots.add(slot.getContainerSlot());
-            }
-        }
-
-        return disabledSlots;
-    }
-
-    private static List<SlotOverlay> buildSlotOverlays(
-            ExpectedContainer expectedContainer,
-            Container foundInventory,
-            Set<Integer> foundDisabledSlots
-    ) {
-        int size = expectedContainer.inventory().getContainerSize();
-        List<SlotOverlay> overlays = new ArrayList<>(size);
-
-        // 打开大箱子时每帧都会绘制很多槽位，这里先按 tick 预计算一次，
-        // 避免满潜影盒场景反复深比较内部组件导致高亮掉帧。
-        for (int slot = 0; slot < size; slot++) {
-            ItemStack expectedStack = expectedContainer.inventory().getItem(slot);
-            SlotMismatchStatus status = getSlotMismatchStatus(expectedStack, foundInventory.getItem(slot));
-
-            if (status == null && isSlotLockMismatch(
-                    expectedContainer.disabledSlots(),
-                    foundDisabledSlots,
-                    slot
-            )) {
-                status = SlotMismatchStatus.LOCK_STATE;
-            }
-
-            overlays.add(status != null ? new SlotOverlay(status, expectedStack.copy()) : null);
-        }
-
-        return overlays;
-    }
-
-    private static List<SlotOverlay> buildSlotOverlays(
-            ExpectedContainer expectedContainer,
-            List<ContainerMismatch> mismatches
-    ) {
-        int size = expectedContainer.inventory().getContainerSize();
-        List<SlotOverlay> overlays = new ArrayList<>(size);
-
-        for (int slot = 0; slot < size; slot++) {
-            overlays.add(null);
-        }
-
-        if (mismatches.isEmpty()) {
-            return overlays;
-        }
-
-        for (SlotMismatch mismatch : mismatches.getFirst().slotMismatches()) {
-            int slot = mismatch.slot();
-
-            if (slot >= 0 && slot < overlays.size()) {
-                overlays.set(slot, new SlotOverlay(mismatch.status(), mismatch.expectedStack().copy()));
-            }
-        }
-
-        return overlays;
+        return QuickLitematicaContainerInventory.getDisabledSlots(blockEntity);
     }
 
     private static ExpectedContainer getExpectedDoubleChestContainer(
@@ -1138,7 +273,7 @@ public final class QuickLitematicaContainerVerifier {
             ExpectedContainer current,
             @Nullable SchematicPlacement placementFilter
     ) {
-        ChestType chestType = getChestType(current.state());
+        ChestType chestType = QuickLitematicaContainerInventory.getChestType(current.state());
 
         if (chestType == ChestType.SINGLE) {
             return null;
@@ -1154,8 +289,8 @@ public final class QuickLitematicaContainerVerifier {
         Container currentInventory = current.inventory();
         Container adjacentInventory = adjacent.inventory();
         Container merged = chestType == ChestType.RIGHT
-                ? mergeInventories(currentInventory, adjacentInventory)
-                : mergeInventories(adjacentInventory, currentInventory);
+                ? QuickLitematicaContainerInventory.mergeInventories(currentInventory, adjacentInventory)
+                : QuickLitematicaContainerInventory.mergeInventories(adjacentInventory, currentInventory);
 
         return new ExpectedContainer(
                 pos,
@@ -1176,13 +311,13 @@ public final class QuickLitematicaContainerVerifier {
     ) {
         ExpectedContainer current = getExpectedContainerInternal(pos, placementFilter);
 
-        if (current == null || getChestType(current.state()) == ChestType.SINGLE) {
+        if (current == null || QuickLitematicaContainerInventory.getChestType(current.state()) == ChestType.SINGLE) {
             return null;
         }
 
         BlockPos adjacentPos = ChestBlock.getConnectedBlockPos(pos, current.state());
         ExpectedContainer adjacent = getExpectedContainerInternal(adjacentPos, placementFilter);
-        return adjacent != null && getChestType(adjacent.state()) != ChestType.SINGLE
+        return adjacent != null && QuickLitematicaContainerInventory.getChestType(adjacent.state()) != ChestType.SINGLE
                 ? adjacentPos
                 : null;
     }
@@ -1236,8 +371,8 @@ public final class QuickLitematicaContainerVerifier {
                 worldPos,
                 placementPos.worldState(),
                 blockEntity,
-                copyInventory(inventory),
-                getDisabledSlots(blockEntity, nbt)
+                QuickLitematicaContainerInventory.copyInventory(inventory),
+                QuickLitematicaContainerInventory.getDisabledSlots(blockEntity, nbt)
         );
     }
 
@@ -1312,78 +447,6 @@ public final class QuickLitematicaContainerVerifier {
         }
 
         return state;
-    }
-
-    private static Container getMergedDoubleChestInventory(Level world, BlockPos pos) {
-        BlockState state = world.getBlockState(pos);
-        ChestType chestType = getChestType(state);
-
-        if (chestType == ChestType.SINGLE) {
-            return null;
-        }
-
-        BlockPos adjacentPos = ChestBlock.getConnectedBlockPos(pos, state);
-        BlockEntity current = world.getBlockEntity(pos);
-        BlockEntity adjacent = world.getBlockEntity(adjacentPos);
-
-        if (!(current instanceof Container currentInventory)
-                || !(adjacent instanceof Container adjacentInventory)) {
-            return null;
-        }
-
-        return chestType == ChestType.RIGHT
-                ? mergeInventories(currentInventory, adjacentInventory)
-                : mergeInventories(adjacentInventory, currentInventory);
-    }
-
-    private static Container mergeInventories(Container first, Container second) {
-        SimpleContainer inventory = new SimpleContainer(first.getContainerSize() + second.getContainerSize());
-
-        for (int i = 0; i < first.getContainerSize(); i++) {
-            inventory.setItem(i, first.getItem(i).copy());
-        }
-
-        for (int i = 0; i < second.getContainerSize(); i++) {
-            inventory.setItem(first.getContainerSize() + i, second.getItem(i).copy());
-        }
-
-        return inventory;
-    }
-
-    private static ChestType getChestType(BlockState state) {
-        return state.getBlock() instanceof ChestBlock ? state.getValue(ChestBlock.TYPE) : ChestType.SINGLE;
-    }
-
-    private static Set<Integer> getDisabledSlots(BlockEntity blockEntity, CompoundTag nbt) {
-        // 投影和实际世界都优先按 NBT 里的 disabled_slots 比较，避免两边来源不同导致合成器锁槽误判。
-        if (nbt != null && nbt.contains("disabled_slots")) {
-            return readDisabledSlotsFromNbt(nbt);
-        }
-
-        if (blockEntity instanceof CrafterBlockEntity crafter) {
-            return Set.copyOf(BlockUtils.getDisabledSlots(crafter));
-        }
-
-        return Set.of();
-    }
-
-    private static Set<Integer> readDisabledSlotsFromNbt(CompoundTag nbt) {
-        Set<Integer> disabledSlots = new HashSet<>();
-        int[] slots = nbt.getIntArray("disabled_slots").orElse(new int[0]);
-        for (int slot : slots) {
-            disabledSlots.add(slot);
-        }
-        return Set.copyOf(disabledSlots);
-    }
-
-    private static SimpleContainer copyInventory(Container source) {
-        SimpleContainer copy = new SimpleContainer(source.getContainerSize());
-
-        for (int i = 0; i < source.getContainerSize(); i++) {
-            copy.setItem(i, source.getItem(i).copy());
-        }
-
-        return copy;
     }
 
     private static void renderInventoryOverlay(
@@ -1556,16 +619,6 @@ public final class QuickLitematicaContainerVerifier {
         };
     }
 
-    private static boolean isInventoryEmpty(Container inventory) {
-        for (int slot = 0; slot < inventory.getContainerSize(); slot++) {
-            if (!inventory.getItem(slot).isEmpty()) {
-                return false;
-            }
-        }
-
-        return true;
-    }
-
     public record ContainerMismatch(
             BlockPos pos,
             BlockState expectedState,
@@ -1611,9 +664,9 @@ public final class QuickLitematicaContainerVerifier {
                         .append(':')
                         .append(mismatch.foundStack().getCount())
                         .append(':')
-                        .append(getItemStackSignature(mismatch.expectedStack()))
+                        .append(QuickLitematicaContainerInventory.getItemStackSignature(mismatch.expectedStack()))
                         .append(':')
-                        .append(getItemStackSignature(mismatch.foundStack()))
+                        .append(QuickLitematicaContainerInventory.getItemStackSignature(mismatch.foundStack()))
                         .append(';');
             }
 
