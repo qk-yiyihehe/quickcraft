@@ -86,6 +86,18 @@ public final class QuickLitematicaContainerMaterials {
     private QuickLitematicaContainerMaterials() {
     }
 
+    /** 物品分组键沿用 malilib 的数量无关、组件敏感比较，版本后端负责原生键。 */
+    abstract static class ItemKey {
+        @Override
+        public abstract boolean equals(Object other);
+
+        @Override
+        public abstract int hashCode();
+
+        @Override
+        public abstract String toString();
+    }
+
     public interface ContainerMaterialRequestSource {
         List<QuickMaterialCollector.MaterialRequest> quickcraft$getReplacementMaterialRequests();
     }
@@ -218,7 +230,7 @@ public final class QuickLitematicaContainerMaterials {
         return QuickLitematicaContainerMaterialsAccess.getEntryPath(entry);
     }
 
-    private static Object entryFileName(DirectoryEntry entry) {
+    private static String entryFileName(DirectoryEntry entry) {
         return QuickLitematicaContainerMaterialsAccess.getEntryFileName(entry);
     }
 
@@ -527,8 +539,8 @@ public final class QuickLitematicaContainerMaterials {
     }
 
     private static List<ItemCount> countStacks(List<ItemStack> stacks) {
-        Object2IntOpenHashMap<Object> counts = new Object2IntOpenHashMap<>();
-        Map<Object, ItemStack> displayStacks = new HashMap<>();
+        Object2IntOpenHashMap<ItemKey> counts = new Object2IntOpenHashMap<>();
+        Map<ItemKey, ItemStack> displayStacks = new HashMap<>();
 
         for (ItemStack stack : stacks) {
             addStackCount(counts, displayStacks, stack, stack.getCount());
@@ -561,22 +573,22 @@ public final class QuickLitematicaContainerMaterials {
     }
 
     private static void addStackCount(
-            Object2IntOpenHashMap<Object> counts,
-            Map<Object, ItemStack> displayStacks,
+            Object2IntOpenHashMap<ItemKey> counts,
+            Map<ItemKey, ItemStack> displayStacks,
             ItemStack stack,
             int count
     ) {
         ItemStack displayStack = stack.copy();
         displayStack.setCount(1);
-        Object key = QuickLitematicaContainerMaterialsAccess.createItemKey(displayStack);
+        ItemKey key = QuickLitematicaContainerMaterialsAccess.createItemKey(displayStack);
         counts.addTo(key, count);
         displayStacks.putIfAbsent(key, displayStack);
     }
 
-    private static List<ItemCount> toItemCounts(Object2IntOpenHashMap<Object> counts, Map<Object, ItemStack> displayStacks) {
+    private static List<ItemCount> toItemCounts(Object2IntOpenHashMap<ItemKey> counts, Map<ItemKey, ItemStack> displayStacks) {
         List<ItemCount> result = new ArrayList<>();
 
-        for (Object type : counts.keySet()) {
+        for (ItemKey type : counts.keySet()) {
             ItemStack stack = displayStacks.get(type);
 
             if (stack != null && !stack.isEmpty()) {
@@ -913,8 +925,8 @@ public final class QuickLitematicaContainerMaterials {
         }
 
         private List<QuickMaterialCollector.MaterialRequest> createReplacementMaterialRequests(int multiplier) {
-            Object2IntOpenHashMap<Object> counts = new Object2IntOpenHashMap<>();
-            Map<Object, ItemStack> displayStacks = new HashMap<>();
+            Object2IntOpenHashMap<ItemKey> counts = new Object2IntOpenHashMap<>();
+            Map<ItemKey, ItemStack> displayStacks = new HashMap<>();
             int effectiveMultiplier = Math.max(1, multiplier);
 
             for (ContainerGroup group : this.visibleGroups()) {
@@ -969,8 +981,8 @@ public final class QuickLitematicaContainerMaterials {
             return total;
         }
 
-        private Object2IntOpenHashMap<Object> createWorldMissingCounts(
-                Object2IntOpenHashMap<Object> totalCounts,
+        private Object2IntOpenHashMap<ItemKey> createWorldMissingCounts(
+                Object2IntOpenHashMap<ItemKey> totalCounts,
                 @Nullable QuickLitematicaContainerVerifier.VerifierExtension verifier
         ) {
             if (this.placement == null
@@ -980,7 +992,7 @@ public final class QuickLitematicaContainerMaterials {
                 return null;
             }
 
-            Object2IntOpenHashMap<Object> missing = new Object2IntOpenHashMap<>();
+            Object2IntOpenHashMap<ItemKey> missing = new Object2IntOpenHashMap<>();
 
             for (QuickLitematicaContainerVerifier.ContainerMismatch mismatch : verifier.quickcraft$getContainerMismatches()) {
                 for (QuickLitematicaContainerVerifier.SlotMismatch slotMismatch : mismatch.slotMismatches()) {
@@ -998,7 +1010,7 @@ public final class QuickLitematicaContainerMaterials {
                 }
             }
 
-            for (Object type : missing.keySet()) {
+            for (ItemKey type : missing.keySet()) {
                 missing.put(type, Math.min(missing.getInt(type), totalCounts.getInt(type)));
             }
 
@@ -1006,7 +1018,7 @@ public final class QuickLitematicaContainerMaterials {
         }
 
         private static void addMissingStackCounts(
-                Object2IntOpenHashMap<Object> missing,
+                Object2IntOpenHashMap<ItemKey> missing,
                 ItemStack stack,
                 int count
         ) {
@@ -1014,7 +1026,7 @@ public final class QuickLitematicaContainerMaterials {
         }
 
         private static void addMissingStackCounts(
-                Object2IntOpenHashMap<Object> missing,
+                Object2IntOpenHashMap<ItemKey> missing,
                 ItemStack stack,
                 int count,
                 int depth
@@ -1058,7 +1070,7 @@ public final class QuickLitematicaContainerMaterials {
         final ContainerMaterialsData data;
         final Screen parent;
         private SchematicVerifier containerVerifier;
-        private Object2IntOpenHashMap<Object> worldMissingCounts;
+        private Object2IntOpenHashMap<ItemKey> worldMissingCounts;
         private boolean materialEntriesInitialized;
 
         private ContainerMaterialList(ContainerMaterialsData data, Screen parent, boolean initializeMaterialEntries) {
@@ -1162,14 +1174,14 @@ public final class QuickLitematicaContainerMaterials {
         }
 
         private List<MaterialListEntry> createMaterialEntries() {
-            Object2IntOpenHashMap<Object> counts = new Object2IntOpenHashMap<>();
-            Map<Object, ItemStack> displayStacks = new HashMap<>();
+            Object2IntOpenHashMap<ItemKey> counts = new Object2IntOpenHashMap<>();
+            Map<ItemKey, ItemStack> displayStacks = new HashMap<>();
 
             for (ContainerGroup group : this.data.visibleGroups()) {
                 for (ItemCount item : group.contents()) {
                     ItemStack displayStack = item.stack().copy();
                     displayStack.setCount(1);
-                    Object key = QuickLitematicaContainerMaterialsAccess.createItemKey(displayStack);
+                    ItemKey key = QuickLitematicaContainerMaterialsAccess.createItemKey(displayStack);
                     counts.addTo(key, item.totalCount(group.containerCount()));
                     displayStacks.putIfAbsent(key, displayStack);
                 }
@@ -1179,12 +1191,12 @@ public final class QuickLitematicaContainerMaterials {
                     this.containerVerifier instanceof QuickLitematicaContainerVerifier.VerifierExtension extension
                             ? extension
                             : null;
-            Object2IntOpenHashMap<Object> worldMissing = this.data.createWorldMissingCounts(counts, verifier);
+            Object2IntOpenHashMap<ItemKey> worldMissing = this.data.createWorldMissingCounts(counts, verifier);
             if (worldMissing != null) {
                 this.worldMissingCounts = new Object2IntOpenHashMap<>(worldMissing);
             } else if (this.worldMissingCounts != null) {
                 worldMissing = new Object2IntOpenHashMap<>(this.worldMissingCounts);
-                for (Object type : worldMissing.keySet()) {
+                for (ItemKey type : worldMissing.keySet()) {
                     worldMissing.put(type, Math.min(worldMissing.getInt(type), counts.getInt(type)));
                 }
             }
@@ -1195,7 +1207,7 @@ public final class QuickLitematicaContainerMaterials {
 
             List<MaterialListEntry> entries = new ArrayList<>();
 
-            for (Object type : counts.keySet()) {
+            for (ItemKey type : counts.keySet()) {
                 ItemStack stack = displayStacks.get(type);
 
                 if (stack != null && !stack.isEmpty()) {

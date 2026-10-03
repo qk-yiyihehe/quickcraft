@@ -67,7 +67,7 @@ final class QuickCraftMouseCrafting {
 
     private RecipeEntry<CraftingRecipe> lockedRecipe = null;
 
-    private Object lockedRecipeId = null;
+    private boolean hasLockedRecipe;
 
     private List<ItemStack> lockedCraftingPattern = new ArrayList<>();
     private final List<ItemStack> knownRecipeRemainders = new ArrayList<>();
@@ -1548,7 +1548,7 @@ final class QuickCraftMouseCrafting {
         lockedResultTemplate = handler.getSlot(OUTPUT_SLOT).hasStack()
                 ? handler.getSlot(OUTPUT_SLOT).getStack().copy()
                 : ItemStack.EMPTY;
-        lockedRecipeId = QuickCraftMouseCraftAccess.resolveLockedRecipeId(
+        hasLockedRecipe = QuickCraftMouseCraftAccess.hasMatchingLockedRecipe(
                 client,
                 handler,
                 recipe,
@@ -1919,7 +1919,7 @@ final class QuickCraftMouseCrafting {
 
     private void resetAll() {
         boolean hadCraftState = mouseCraftAckExecutor.isActive()
-                || rapidCraftingActive || lockedRecipe != null || lockedRecipeId != null
+                || rapidCraftingActive || lockedRecipe != null || hasLockedRecipe
                 || !lockedCraftingPattern.isEmpty() || !lockedResultTemplate.isEmpty();
         mouseCraftAckExecutor.cancel("配方书合成状态重置：" + layout.name());
         rapidCraftingActive = false;
@@ -1931,7 +1931,7 @@ final class QuickCraftMouseCrafting {
         mouseCraftAckLegacyFallback = false;
         mouseCraftAckManualRestockFallback = false;
         lockedRecipe = null;
-        lockedRecipeId = null;
+        hasLockedRecipe = false;
         lockedCraftingPattern.clear();
         lockedResultTemplate = ItemStack.EMPTY;
         knownRecipeRemainders.clear();
@@ -1957,7 +1957,6 @@ final class QuickCraftMouseCrafting {
         boolean started = mouseCraftAckExecutor.start(
                 client,
                 handler,
-                lockedRecipeId,
                 lockedResultTemplate,
                 lockedCraftingPattern,
                 () -> rapidCraftingActive && isRapidCraftInputHeld(client),
@@ -1981,8 +1980,7 @@ final class QuickCraftMouseCrafting {
     }
 
     private void fallbackMouseCraftAck(MinecraftClient client,
-                                       ScreenHandler screenHandler,
-                                       Object recipeId) {
+                                       ScreenHandler screenHandler) {
         mouseCraftAckLegacyFallback = true;
         mouseCraftAckManualRestockFallback = true;
         if (screenHandler == null

@@ -167,7 +167,6 @@ public final class QuickCraftMouseCraftAckExecutor {
 
     public boolean start(MinecraftClient client,
                          ScreenHandler handler,
-                         Object recipeId,
                          ItemStack resultTemplate,
                          java.util.List<ItemStack> pattern,
                          BooleanSupplier inputHeld,
@@ -190,7 +189,6 @@ public final class QuickCraftMouseCraftAckExecutor {
         session = new Session(
                 handler,
                 handler.syncId,
-                recipeId,
                 resultTemplate.copy(),
                 copyPattern(pattern),
                 inputHeld,
@@ -1098,7 +1096,7 @@ public final class QuickCraftMouseCraftAckExecutor {
         Session handedOff = session;
         clearSession();
         if (fallbackHandler != null && client != null && client.player != null) {
-            fallbackHandler.fallback(client, handedOff.handler, handedOff.recipeId);
+            fallbackHandler.fallback(client, handedOff.handler);
         }
     }
 
@@ -1244,8 +1242,7 @@ public final class QuickCraftMouseCraftAckExecutor {
     @FunctionalInterface
     public interface LegacyFallbackHandler {
         void fallback(MinecraftClient client,
-                      ScreenHandler handler,
-                      Object recipeId);
+                      ScreenHandler handler);
     }
 
     @FunctionalInterface
@@ -1404,7 +1401,6 @@ public final class QuickCraftMouseCraftAckExecutor {
         CANCELED_BATCH_DRAINS.removeIf(drain -> drain.syncId == canceled.syncId);
         CANCELED_BATCH_DRAINS.add(new CanceledBatchDrain(
                 canceled.syncId,
-                canceled.recipeId,
                 layout,
                 canceled.pattern,
                 canceled.resultTemplate.copy(),
@@ -1610,7 +1606,6 @@ public final class QuickCraftMouseCraftAckExecutor {
 
     private static final class CanceledBatchDrain {
         private final int syncId;
-        private final Object recipeId;
         private final QuickCraftMouseCraftLayout.Layout layout;
         private final List<ItemStack> pattern;
         private final ItemStack resultTemplate;
@@ -1621,7 +1616,6 @@ public final class QuickCraftMouseCraftAckExecutor {
         private boolean failed;
 
         private CanceledBatchDrain(int syncId,
-                                   Object recipeId,
                                    QuickCraftMouseCraftLayout.Layout layout,
                                    List<ItemStack> pattern,
                                    ItemStack resultTemplate,
@@ -1631,7 +1625,6 @@ public final class QuickCraftMouseCraftAckExecutor {
                                    ClientPlayerEntity player,
                                    long expiresAtNanos) {
             this.syncId = syncId;
-            this.recipeId = recipeId;
             this.layout = layout;
             this.pattern = copyPattern(pattern);
             this.resultTemplate = resultTemplate;
@@ -1686,7 +1679,6 @@ public final class QuickCraftMouseCraftAckExecutor {
     private static final class Session {
         private final ScreenHandler handler;
         private final int syncId;
-        private final Object recipeId;
         private final ItemStack resultTemplate;
         private final java.util.List<ItemStack> pattern;
         private final BooleanSupplier inputHeld;
@@ -1733,7 +1725,6 @@ public final class QuickCraftMouseCraftAckExecutor {
 
         private Session(ScreenHandler handler,
                         int syncId,
-                        Object recipeId,
                         ItemStack resultTemplate,
                         java.util.List<ItemStack> pattern,
                         BooleanSupplier inputHeld,
@@ -1743,7 +1734,6 @@ public final class QuickCraftMouseCraftAckExecutor {
                         boolean retainIngredientSamples) {
             this.handler = handler;
             this.syncId = syncId;
-            this.recipeId = recipeId;
             this.resultTemplate = resultTemplate;
             this.pattern = pattern;
             this.inputHeld = inputHeld;
