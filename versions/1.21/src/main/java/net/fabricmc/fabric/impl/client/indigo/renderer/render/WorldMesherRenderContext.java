@@ -3,6 +3,7 @@ package net.fabricmc.fabric.impl.client.indigo.renderer.render;
 import net.fabricmc.fabric.impl.client.indigo.renderer.aocalc.AoCalculator;
 import net.fabricmc.fabric.impl.client.indigo.renderer.aocalc.AoLuminanceFix;
 import net.minecraft.block.BlockState;
+import net.minecraft.client.render.OverlayTexture;
 import net.minecraft.client.render.RenderLayer;
 import net.minecraft.client.render.VertexConsumer;
 import net.minecraft.client.render.WorldRenderer;
@@ -29,6 +30,7 @@ public class WorldMesherRenderContext extends AbstractBlockRenderContext {
     public WorldMesherRenderContext(BlockRenderView blockView, Function<RenderLayer, VertexConsumer> bufferFunc) {
         this.blockView = blockView;
         this.bufferFunc = bufferFunc;
+        this.overlay = OverlayTexture.DEFAULT_UV;
 
         this.blockInfo.prepareForWorld(blockView, true);
         this.blockInfo.random = Random.create();
@@ -44,6 +46,7 @@ public class WorldMesherRenderContext extends AbstractBlockRenderContext {
 
             this.matrix = matrixStack.peek().getPositionMatrix();
             this.normalMatrix = matrixStack.peek().getNormalMatrix();
+            this.overlay = OverlayTexture.DEFAULT_UV;
 
             this.blockInfo.recomputeSeed = true;
 

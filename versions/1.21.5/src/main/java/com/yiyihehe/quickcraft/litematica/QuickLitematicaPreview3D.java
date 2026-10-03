@@ -32,7 +32,7 @@ import fi.dy.masa.malilib.gui.widgets.WidgetFileBrowserBase.DirectoryEntry;
 import fi.dy.masa.malilib.render.RenderUtils;
 import fi.dy.masa.malilib.util.InfoUtils;
 import fi.dy.masa.malilib.util.StringUtils;
-import net.fabricmc.fabric.impl.client.indigo.renderer.render.SimpleBlockRenderContext;
+import net.fabricmc.fabric.api.renderer.v1.Renderer;
 import net.fabricmc.loader.api.FabricLoader;
 import net.minecraft.SharedConstants;
 import net.minecraft.block.Block;
@@ -3274,23 +3274,26 @@ public final class QuickLitematicaPreview3D {
                     BlockPos pos
             ) {
                 try {
-                    SimpleBlockRenderContext.POOL.get().bufferModel(
-                            matrices.peek(),
-                            collector,
-                            (net.minecraft.client.render.model.BlockStateModel) model,
-                            1.0F,
-                            1.0F,
-                            1.0F,
-                            WorldRenderer.getLightmapCoordinates(view, pos),
-                            OverlayTexture.DEFAULT_UV,
-                            view,
-                            pos,
-                            state
-                    );
-                    return true;
-                } catch (Throwable ignored) {
-                    return false;
+                    Renderer renderer = Renderer.get();
+                    if (renderer != null) {
+                        renderer.render(
+                                MinecraftClient.getInstance().getBlockRenderManager().getModelRenderer(),
+                                view,
+                                (net.minecraft.client.render.model.BlockStateModel) model,
+                                state,
+                                pos,
+                                matrices,
+                                collector,
+                                true,
+                                state.getRenderingSeed(pos),
+                                OverlayTexture.DEFAULT_UV
+                        );
+                        return true;
+                    }
+                } catch (Throwable t) {
+                    LOGGER.warn("QuickCraft PreviewCtm failed to render model for {}", state, t);
                 }
+                return false;
             }
 
             private static String runtimeToken() {

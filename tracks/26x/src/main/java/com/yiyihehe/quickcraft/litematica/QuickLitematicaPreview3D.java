@@ -2913,7 +2913,7 @@ public final class QuickLitematicaPreview3D {
             this.writeInt(argb);
             this.writeInt(Float.floatToIntBits(u));
             this.writeInt(Float.floatToIntBits(v));
-            this.writeShort((short) overlay);
+            this.writeShort(CacheFile.encodeOverlay(overlay));
             this.writeInt(light);
             this.writeShort(CacheFile.encodeNormal(nx, ny, nz));
         }
@@ -3642,6 +3642,14 @@ public final class QuickLitematicaPreview3D {
 
         // ---- 顶点解编码工具：float32 (UV) / octahedral 8-bit (法线) ----
 
+        private static short encodeOverlay(int overlay) {
+            return (short) ((overlay & 0xFF) | (((overlay >>> 16) & 0xFF) << 8));
+        }
+
+        private static int decodeOverlay(short packed) {
+            return (packed & 0xFF) | (((packed >>> 8) & 0xFF) << 16);
+        }
+
         // 渲染线程调用：把量化字节数组直接解码进 BufferBuilder，跳过 PreviewVertex 对象。
         static void decodeQuantizedToBuilder(byte[] quantized, BufferBuilder builder) {
             float[] normal = new float[3];
@@ -3652,7 +3660,7 @@ public final class QuickLitematicaPreview3D {
                 int argb = readInt(quantized, offset + 12);
                 float u = Float.intBitsToFloat(readInt(quantized, offset + 16));
                 float v = Float.intBitsToFloat(readInt(quantized, offset + 20));
-                int overlay = readShort(quantized, offset + 24) & 0xFFFF;
+                int overlay = decodeOverlay(readShort(quantized, offset + 24));
                 int light = readInt(quantized, offset + 26);
                 decodeNormal(readShort(quantized, offset + 30), normal);
                 builder.addVertex(x, y, z, argb, u, v, overlay, light, normal[0], normal[1], normal[2]);

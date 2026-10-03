@@ -29,7 +29,6 @@ import fi.dy.masa.malilib.render.RenderUtils;
 import fi.dy.masa.malilib.util.InfoUtils;
 import fi.dy.masa.malilib.util.StringUtils;
 import net.fabricmc.fabric.api.renderer.v1.RendererAccess;
-import net.fabricmc.fabric.impl.client.indigo.renderer.IndigoRenderer;
 import net.fabricmc.fabric.impl.client.indigo.renderer.render.WorldMesherRenderContext;
 import net.fabricmc.loader.api.FabricLoader;
 import net.minecraft.SharedConstants;
@@ -2939,9 +2938,12 @@ public final class QuickLitematicaPreview3D {
         @Nullable
         private static WorldMesherRenderContext createFabricContext(MeshCollector collector, ClientWorld world) {
             try {
-                if (RendererAccess.INSTANCE.getRenderer() instanceof IndigoRenderer) {
-                    DummyWorld dummyWorld = DummyWorld.fromWorld(world);
-                    return new WorldMesherRenderContext(dummyWorld, layer -> collector.consumerFor(layer));
+                if (RendererAccess.INSTANCE.hasRenderer()) {
+                    var renderer = RendererAccess.INSTANCE.getRenderer();
+                    if (renderer != null && renderer.getClass().getName().contains("indigo")) {
+                        DummyWorld dummyWorld = DummyWorld.fromWorld(world);
+                        return new WorldMesherRenderContext(dummyWorld, layer -> collector.consumerFor(layer));
+                    }
                 }
             } catch (Throwable ignored) {
             }
@@ -3115,10 +3117,20 @@ public final class QuickLitematicaPreview3D {
             matrices.translate(renderPos.getX(), renderPos.getY(), renderPos.getZ());
 
             var model = blockRenderManager.getModel(state);
+            boolean rendered = false;
             if (fabricContext != null
                     && (!model.isVanillaAdapter() || PreviewCtm.isContinuityModel(model))) {
-                fabricContext.tessellateBlock(view, state, pos, model, matrices);
-            } else {
+                matrices.push();
+                try {
+                    fabricContext.tessellateBlock(view, state, pos, model, matrices);
+                    rendered = true;
+                } catch (Throwable t) {
+                    LOGGER.warn("QuickCraft fallback to modelRenderer for {}", state, t);
+                } finally {
+                    matrices.pop();
+                }
+            }
+            if (!rendered) {
                 RenderLayer blockLayer = RenderLayers.getBlockLayer(state);
                 blockRenderManager.getModelRenderer().render(
                         view,

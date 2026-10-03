@@ -3490,7 +3490,7 @@ public final class QuickLitematicaPreview3D {
             matrices.translate(renderPos.getX(), renderPos.getY(), renderPos.getZ());
 
             var model = blockRenderManager.getModel(state);
-            if (PreviewCtm.isContinuityModel(model) && PreviewCtmRenderer.emit(model, matrices, collector, view, state, pos)) {
+            if (PreviewCtm.isContinuityModel(model) && PreviewCtm.emit(model, matrices, collector, view, state, pos)) {
                 matrices.pop();
                 return;
             }
@@ -3525,6 +3525,37 @@ public final class QuickLitematicaPreview3D {
             }
 
 
+            private static boolean emit(
+                    Object model,
+                    MatrixStack matrices,
+                    MeshCollector collector,
+                    RegionBlockView view,
+                    BlockState state,
+                    BlockPos pos
+            ) {
+                try {
+                    Renderer renderer = Renderer.get();
+                    if (renderer != null) {
+                        renderer.render(
+                                MinecraftClient.getInstance().getBlockRenderManager().getModelRenderer(),
+                                view,
+                                (net.minecraft.client.render.model.BlockStateModel) model,
+                                state,
+                                pos,
+                                matrices,
+                                collector,
+                                true,
+                                state.getRenderingSeed(pos),
+                                OverlayTexture.DEFAULT_UV
+                        );
+                        return true;
+                    }
+                } catch (Throwable t) {
+                    LOGGER.warn("QuickCraft PreviewCtm failed to render model for {}", state, t);
+                }
+                return false;
+            }
+
             private static String runtimeToken() {
                 String token = cachedRuntimeToken;
                 if (token != null) {
@@ -3539,47 +3570,6 @@ public final class QuickLitematicaPreview3D {
                 }
                 cachedRuntimeToken = token;
                 return token;
-            }
-        }
-
-        private static final class PreviewCtmRenderer implements BlockVertexConsumerProvider {
-            private final MeshCollector collector;
-        
-            private PreviewCtmRenderer(MeshCollector collector) {
-                this.collector = collector;
-            }
-        
-            private static boolean emit(
-                    net.minecraft.client.render.model.BlockStateModel model,
-                    MatrixStack matrices,
-                    MeshCollector collector,
-                    RegionBlockView view,
-                    BlockState state,
-                    BlockPos pos
-            ) {
-                try {
-                    Renderer.get().render(
-                            matrices.peek(),
-                            new PreviewCtmRenderer(collector),
-                            model,
-                            1.0F,
-                            1.0F,
-                            1.0F,
-                            WorldRenderer.getLightmapCoordinates(view, pos),
-                            OverlayTexture.DEFAULT_UV,
-                            view,
-                            pos,
-                            state
-                    );
-                    return true;
-                } catch (Throwable ignored) {
-                    return false;
-                }
-            }
-        
-            @Override
-            public VertexConsumer getBuffer(BlockRenderLayer layer) {
-                return this.collector.consumerFor(layer);
             }
         }
 
@@ -3677,7 +3667,7 @@ public final class QuickLitematicaPreview3D {
         }
     }
 
-    private static final class MeshCollector {
+    private static final class MeshCollector implements BlockVertexConsumerProvider {
         private final EnumMap<LayerKey, RecordingVertexConsumer> consumers = new EnumMap<>(LayerKey.class);
         private int vertexCount;
 
@@ -3687,6 +3677,11 @@ public final class QuickLitematicaPreview3D {
 
         private VertexConsumer consumerFor(LayerKey layer) {
             return this.consumers.computeIfAbsent(layer, ignored -> new RecordingVertexConsumer(this));
+        }
+
+        @Override
+        public VertexConsumer getBuffer(BlockRenderLayer renderLayer) {
+            return this.consumerFor(renderLayer);
         }
 
 
@@ -3909,7 +3904,7 @@ public final class QuickLitematicaPreview3D {
             this.writeInt(argb);
             this.writeInt(Float.floatToIntBits(u));
             this.writeInt(Float.floatToIntBits(v));
-            this.writeShort((short) overlay);
+            this.writeShort(CacheFile.encodeOverlay(overlay));
             this.writeInt(light);
             this.writeShort(CacheFile.encodeNormal(nx, ny, nz));
         }
@@ -4633,6 +4628,14 @@ public final class QuickLitematicaPreview3D {
 
         // ---- 静态顶点解码与 octahedral 8-bit 法线编码 ----
 
+        private static short encodeOverlay(int overlay) {
+            return (short) ((overlay & 0xFF) | (((overlay >>> 16) & 0xFF) << 8));
+        }
+
+        private static int decodeOverlay(short packed) {
+            return (packed & 0xFF) | (((packed >>> 8) & 0xFF) << 16);
+        }
+
         // 渲染线程调用：把量化字节数组直接解码进 BufferBuilder，跳过 PreviewVertex 对象。
         private static void decodeQuantizedToBuilder(byte[] quantized, BufferBuilder builder) {
             float[] normal = new float[3];
@@ -4643,7 +4646,7 @@ public final class QuickLitematicaPreview3D {
                 int argb = readInt(quantized, offset + 12);
                 float u = Float.intBitsToFloat(readInt(quantized, offset + 16));
                 float v = Float.intBitsToFloat(readInt(quantized, offset + 20));
-                int overlay = readShort(quantized, offset + 24) & 0xFFFF;
+                int overlay = decodeOverlay(readShort(quantized, offset + 24));
                 int light = readInt(quantized, offset + 26);
                 decodeNormal(readShort(quantized, offset + 30), normal);
                 builder.vertex(x, y, z, argb, u, v, overlay, light, normal[0], normal[1], normal[2]);
