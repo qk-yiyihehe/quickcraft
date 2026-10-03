@@ -75,7 +75,7 @@ public final class QuickLitematicaPreviewAccess {
     }
 
     public static String getCacheRenderMarker() {
-        return "quickcraft-model-mesh-v20-api-audit-stable-path-content-resource-signature-dynamic-render-state-mc26.3";
+        return "quickcraft-model-mesh-v20-api-audit-stable-path-content-resource-signature-dynamic-render-state-mc26.3-ctm-overlay-equipment-v1";
     }
 
     public static VertexConsumer delegateSetUv3(VertexConsumer consumer, float u, float v) {
