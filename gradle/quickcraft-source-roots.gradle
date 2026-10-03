@@ -1,9 +1,22 @@
 def baseTarget = rootProject.file('versions/mainProject').getText('UTF-8').trim()
+def coreRoot = rootProject.file('src/main/java').canonicalFile
+def sharedRoot = new File(quickcraftRepositoryRoot, 'shared/src/main/java').canonicalFile
 
-if (project.name == baseTarget) {
-	afterEvaluate {
-		// 预处理器把基准项目的源码根改到轨道 src；补入版本 API 与跨轨纯 Java 源码根。
-		sourceSets.main.java.srcDir(project.file('src/main/java'))
-		sourceSets.main.java.srcDir(new File(quickcraftRepositoryRoot, 'shared/src/main/java'))
+afterEvaluate {
+	if (project.name == baseTarget) {
+		sourceSets.main.java.setSrcDirs([project.file('src/main/java'), coreRoot, sharedRoot])
+	} else {
+		sourceSets.main.java.srcDirs(coreRoot, sharedRoot)
+	}
+
+	// 插件默认继承前一项目的全部源码根；稳定核心直接编译，不参与适配器映射。
+	tasks.matching { it.name ==~ /^preprocess.*Code$/ }.configureEach { preprocessTask ->
+		preprocessTask.entries = preprocessTask.entries.collect { entry ->
+			def adapterRoots = entry.source.files.findAll { sourceRoot ->
+				def canonicalRoot = sourceRoot.canonicalFile
+				canonicalRoot != coreRoot && canonicalRoot != sharedRoot
+			}
+			entry.copy(project.files(adapterRoots), entry.generated, entry.overwrites)
+		}
 	}
 }
