@@ -7,6 +7,7 @@ import fi.dy.masa.litematica.schematic.verifier.SchematicVerifier.MismatchRender
 import fi.dy.masa.litematica.schematic.verifier.SchematicVerifier.MismatchType;
 import fi.dy.masa.malilib.util.position.IntBoundingBox;
 import java.util.Map;
+import java.util.function.Predicate;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.level.block.state.BlockState;
 
@@ -41,16 +42,19 @@ public final class QuickLitematicaVerifierAccess {
         return position.pos();
     }
 
-    public static boolean isPositionWithinPlacementChunk(SchematicPlacement placement, int chunkX, int chunkZ, BlockPos pos) {
+    public static Predicate<BlockPos> placementChunkMatcher(SchematicPlacement placement, int chunkX, int chunkZ) {
         if (placement == null) {
-            return false;
+            return pos -> false;
         }
-        for (IntBoundingBox box : placement.getBoxesWithinChunk(chunkX, chunkZ).values()) {
-            if (box.contains(pos)) {
-                return true;
+        var boxes = placement.getBoxesWithinChunk(chunkX, chunkZ).values();
+        return pos -> {
+            for (IntBoundingBox box : boxes) {
+                if (box.contains(pos)) {
+                    return true;
+                }
             }
-        }
-        return false;
+            return false;
+        };
     }
 
     public static int[] getPlacementChunkYRange(SchematicPlacement placement, int chunkX, int chunkZ, int defaultMinY, int defaultMaxY) {
