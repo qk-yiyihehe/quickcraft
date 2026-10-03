@@ -1,4 +1,5 @@
 package com.yiyihehe.quickcraft.litematica;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import com.mojang.blaze3d.buffers.Std140Builder;
 import com.mojang.blaze3d.pipeline.RenderTarget;
@@ -62,6 +63,8 @@ import java.util.function.Consumer;
  * 使用 RenderPearl 管线、RenderPass 命令回调以及 QuickLitematicaPictureInPictureRenderPass。
  */
 public final class QuickLitematicaPreviewAccess {
+    private static final AtomicBoolean SHADER_API_ERROR_LOGGED = new AtomicBoolean();
+    private static final AtomicBoolean SHADER_DISABLE_ERROR_LOGGED = new AtomicBoolean();
     private static final Logger LOGGER = LoggerFactory.getLogger(QuickLitematicaPreviewAccess.class);
     private static final int VERTEX_BYTES = 44;
     private static final long MAX_DYNAMIC_BUFFER_BYTES = 128L * 1024L * 1024L;
@@ -952,6 +955,38 @@ public final class QuickLitematicaPreviewAccess {
             if (this.ownsIndexBuffer) {
                 this.indexBuffer.close();
             }
+        }
+    }
+
+
+    public static boolean isShaderPackActive() {
+        try {
+            Class<?> apiClass = Class.forName("net.irisshaders.iris.api.v0.IrisApi");
+            Object api = apiClass.getMethod("getInstance").invoke(null);
+            return (boolean) apiClass.getMethod("isShaderPackInUse").invoke(api);
+        } catch (ClassNotFoundException ignored) {
+            return false;
+        } catch (Throwable throwable) {
+            if (SHADER_API_ERROR_LOGGED.compareAndSet(false, true)) {
+                LOGGER.error("Iris shader state could not be queried; disabling QuickCraft 3D previews for this session", throwable);
+            }
+            return true;
+        }
+    }
+    static boolean tryDisableShaders() {
+        try {
+            // Iris 是可选依赖，只在后端访问其公开 v0 API。
+            Class<?> apiClass = Class.forName("net.irisshaders.iris.api.v0.IrisApi");
+            Object api = apiClass.getMethod("getInstance").invoke(null);
+            Object config = apiClass.getMethod("getConfig").invoke(api);
+            Class<?> configClass = Class.forName("net.irisshaders.iris.api.v0.IrisApiConfig");
+            configClass.getMethod("setShadersEnabledAndApply", boolean.class).invoke(config, false);
+            return true;
+        } catch (Throwable failure) {
+            if (SHADER_DISABLE_ERROR_LOGGED.compareAndSet(false, true)) {
+                LOGGER.error("Iris shaders could not be disabled before opening a QuickCraft 3D preview", failure);
+            }
+            return false;
         }
     }
 }

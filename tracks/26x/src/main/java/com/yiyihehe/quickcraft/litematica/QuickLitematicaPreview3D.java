@@ -143,8 +143,6 @@ import javax.imageio.ImageIO;
  */
 public final class QuickLitematicaPreview3D {
     private static final Logger LOGGER = LoggerFactory.getLogger(QuickLitematicaPreview3D.class);
-    private static final AtomicBoolean SHADER_API_ERROR_LOGGED = new AtomicBoolean();
-    private static final AtomicBoolean SHADER_DISABLE_ERROR_LOGGED = new AtomicBoolean();
     private static final Map<fi.dy.masa.litematica.gui.GuiSchematicBrowserBase, Manager> MANAGERS = new WeakHashMap<>();
     // 预览构建专用单线程池：避免与 Util.getMainWorkerExecutor 共享导致排队等几秒。
     // 单线程足够（预览一次只构建一个文件），且避免 BlockRenderDispatcher 多线程竞争。
@@ -305,46 +303,16 @@ public final class QuickLitematicaPreview3D {
     }
 
     public static boolean isShaderPackActive() {
-        try {
-            Class<?> apiClass = Class.forName("net.irisshaders.iris.api.v0.IrisApi");
-            Object api = apiClass.getMethod("getInstance").invoke(null);
-            return (boolean) apiClass.getMethod("isShaderPackInUse").invoke(api);
-        } catch (ClassNotFoundException ignored) {
-            return false;
-        } catch (Throwable throwable) {
-            if (SHADER_API_ERROR_LOGGED.compareAndSet(false, true)) {
-                LOGGER.error("Iris shader state could not be queried; disabling QuickCraft 3D previews for this session", throwable);
-            }
-            return true;
-        }
+        return QuickLitematicaPreviewAccess.isShaderPackActive();
     }
 
     public static boolean prepare3DPreview() {
-        if (!isShaderPackActive()) {
-            return true;
-        }
-        if (!QuickCraftConfigs.shouldAutoDisableShadersFor3DPreview()) {
-            return false;
-        }
-
-        try {
-            // Iris 是可选依赖，反射稳定的 v0 API 可避免把它变成硬依赖。
-            Class<?> apiClass = Class.forName("net.irisshaders.iris.api.v0.IrisApi");
-            Object api = apiClass.getMethod("getInstance").invoke(null);
-            Object config = apiClass.getMethod("getConfig").invoke(api);
-            Class<?> configClass = Class.forName("net.irisshaders.iris.api.v0.IrisApiConfig");
-            configClass.getMethod("setShadersEnabledAndApply", boolean.class).invoke(config, false);
-            boolean disabled = !isShaderPackActive();
-            if (disabled) {
-                InfoUtils.printActionbarMessage("quickcraft.message.litematica.preview_3d.shader_auto_disabled");
-            }
-            return disabled;
-        } catch (Throwable throwable) {
-            if (SHADER_DISABLE_ERROR_LOGGED.compareAndSet(false, true)) {
-                LOGGER.error("Iris shaders could not be disabled before opening a QuickCraft 3D preview", throwable);
-            }
-            return false;
-        }
+        if (!isShaderPackActive()) return true;
+        if (!QuickCraftConfigs.shouldAutoDisableShadersFor3DPreview()
+                || !QuickLitematicaPreviewAccess.tryDisableShaders()) return false;
+        boolean disabled = !isShaderPackActive();
+        if (disabled) InfoUtils.printActionbarMessage("quickcraft.message.litematica.preview_3d.shader_auto_disabled");
+        return disabled;
     }
 
     public static final class Manager implements AutoCloseable {
@@ -2223,7 +2191,7 @@ public final class QuickLitematicaPreview3D {
                         ListTag teList = reg.getListOrEmpty("TileEntities");
                         for (int i = 0; i < teList.size(); i++) {
                             CompoundTag te = teList.getCompoundOrEmpty(i);
-                            // Campfire items and entity equipment affect the rendered model.
+                            // 火堆物品和实体装备参与渲染，不能作为普通库存删减。
                             if (!NON_VISUAL_INVENTORY_IDS.contains(te.getStringOr("id", ""))) {
                                 continue;
                             }
