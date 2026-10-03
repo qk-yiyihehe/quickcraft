@@ -20,8 +20,8 @@ class QuickLitematicaPreview3DCacheTest {
         Files.write(second, new byte[]{1, 2, 3, 5});
         Files.setLastModifiedTime(second, Files.getLastModifiedTime(first));
 
-        String firstHash = QuickLitematicaPreview3D.hashFile(first);
-        String secondHash = QuickLitematicaPreview3D.hashFile(second);
+        String firstHash = QuickLitematicaPreviewCache.hashFile(first);
+        String secondHash = QuickLitematicaPreviewCache.hashFile(second);
 
         assertThat(firstHash).hasSize(64);
         assertThat(secondHash).hasSize(64).isNotEqualTo(firstHash);
@@ -31,10 +31,10 @@ class QuickLitematicaPreview3DCacheTest {
     void keepsOneCacheSlotWhenTheSameProjectionChanges() throws Exception {
         Path schematic = this.temporaryDirectory.resolve("same-name.litematic");
         Files.write(schematic, new byte[]{1, 2, 3});
-        String initialSlot = QuickLitematicaPreview3D.cacheKey(schematic);
+        String initialSlot = QuickLitematicaPreviewCache.cacheKey(schematic);
 
         Files.write(schematic, new byte[]{4, 5, 6, 7});
 
-        assertThat(QuickLitematicaPreview3D.cacheKey(schematic)).isEqualTo(initialSlot);
+        assertThat(QuickLitematicaPreviewCache.cacheKey(schematic)).isEqualTo(initialSlot);
     }
 }
