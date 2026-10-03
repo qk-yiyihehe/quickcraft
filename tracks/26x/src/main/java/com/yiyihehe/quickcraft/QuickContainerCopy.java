@@ -1,5 +1,8 @@
 package com.yiyihehe.quickcraft;
 
+import static com.yiyihehe.quickcraft.QuickContainerCopySources.*;
+
+import com.yiyihehe.quickcraft.compat.QuickShulkerConnection;
 import com.yiyihehe.quickcraft.config.QuickCraftConfigs;
 import com.yiyihehe.quickcraft.litematica.QuickLitematicaContainerAutofill;
 import com.yiyihehe.quickcraft.litematica.QuickLitematicaContainerVerifier;
@@ -7,7 +10,6 @@ import com.yiyihehe.quickcraft.render.QuickContainerFillStatus;
 import com.yiyihehe.quickcraft.render.QuickContainerToolModeHud;
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
-import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
 import net.fabricmc.loader.api.FabricLoader;
 import net.minecraft.ChatFormatting;
 import net.minecraft.world.level.block.BarrelBlock;
@@ -26,17 +28,11 @@ import net.minecraft.world.level.block.state.properties.ChestType;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
-import net.minecraft.core.component.DataComponents;
-import net.minecraft.world.item.component.ItemContainerContents;
-import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.entity.vehicle.minecart.MinecartHopper;
-import net.minecraft.world.item.BlockItem;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
-import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
 import net.minecraft.core.registries.BuiltInRegistries;
-import net.minecraft.world.inventory.AbstractFurnaceMenu;
 import net.minecraft.world.inventory.BlastFurnaceMenu;
 import net.minecraft.world.inventory.BrewingStandMenu;
 import net.minecraft.world.inventory.CrafterMenu;
@@ -53,7 +49,6 @@ import net.minecraft.network.chat.MutableComponent;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.resources.Identifier;
-import net.minecraft.core.NonNullList;
 import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.phys.EntityHitResult;
 import net.minecraft.world.phys.HitResult;
@@ -73,9 +68,6 @@ public final class QuickContainerCopy implements ClientModInitializer {
     private static final int OPEN_TIMEOUT_TICKS = 20;
     private static final int BACKGROUND_ACTION_TIMEOUT_TICKS = 40;
     private static final int CONTINUOUS_REOPEN_DELAY_TICKS = 1;
-    private static final int VANILLA_SHULKER_SLOTS = 27;
-    private static final Identifier QUICK_SHULKER_BUNDLE_PACKET = Identifier.fromNamespaceAndPath("quickshulker", "quick_bundleheld_packet");
-    private static final Identifier QUICK_SHULKER_OPEN_PACKET = Identifier.fromNamespaceAndPath("quickshulker", "open_shulker_packet");
 
     private static boolean lastUseDown;
     private static boolean lastContinuousFillDown;
@@ -1709,98 +1701,6 @@ public final class QuickContainerCopy implements ClientModInitializer {
         return -1;
     }
 
-    private int findBestReplacementSourceSlotId(AbstractContainerMenu handler, ItemStack template) {
-        int neededCount = template.getCount();
-        int bestUnderSlotId = -1;
-        int bestUnderCount = 0;
-        int bestOverSlotId = -1;
-        int bestOverCount = Integer.MAX_VALUE;
-
-        for (int slotId : getPlayerStorageSlotIds(handler)) {
-            Slot slot = handler.getSlot(slotId);
-            if (!slot.hasItem() || !ItemStack.isSameItemSameComponents(slot.getItem(), template)) {
-                continue;
-            }
-
-            int count = slot.getItem().getCount();
-            if (count == neededCount) {
-                return slotId;
-            }
-            if (count < neededCount && count > bestUnderCount) {
-                bestUnderSlotId = slotId;
-                bestUnderCount = count;
-            }
-            if (count > neededCount && count < bestOverCount) {
-                bestOverSlotId = slotId;
-                bestOverCount = count;
-            }
-        }
-
-        return bestUnderSlotId != -1 ? bestUnderSlotId : bestOverSlotId;
-    }
-
-    private SourceShulker findSourceShulkerForDemandsExcept(AbstractContainerMenu handler,
-                                                            List<MissingDemand> demands,
-                                                            int excludedPlayerIndex) {
-        if (demands.isEmpty()) {
-            return null;
-        }
-
-        SourceShulker bestSource = null;
-        SourceShulkerScore bestScore = null;
-        for (int shulkerSlotId : getPlayerStorageSlotIds(handler)) {
-            Slot shulkerSlot = handler.getSlot(shulkerSlotId);
-            if (shulkerSlot.getContainerSlot() == excludedPlayerIndex) {
-                continue;
-            }
-
-            if (!shulkerSlot.hasItem()
-                    || shulkerSlot.getItem().getCount() != 1
-                    || !isShulkerBox(shulkerSlot.getItem())) {
-                continue;
-            }
-
-            SourceShulkerScore score = getSourceShulkerScore(shulkerSlot.getItem(), demands);
-            if (score.usefulItemCount() <= 0
-                    || bestScore != null && !score.isBetterThan(bestScore)) {
-                continue;
-            }
-
-            bestSource = new SourceShulker(shulkerSlotId, shulkerSlot.getContainerSlot());
-            bestScore = score;
-        }
-
-        return bestSource;
-    }
-
-    private SourceShulkerScore getSourceShulkerScore(ItemStack shulker, List<MissingDemand> demands) {
-        int usefulItemCount = 0;
-        int coveredDemandCount = 0;
-        long coverageScore = 0;
-        NonNullList<ItemStack> storedStacks = getStoredStacksBySlot(shulker);
-
-        for (MissingDemand demand : demands) {
-            int available = 0;
-            for (ItemStack stack : storedStacks) {
-                if (ItemStack.isSameItemSameComponents(stack, demand.template())) {
-                    available += stack.getCount();
-                }
-            }
-
-            int useful = Math.min(available, demand.count());
-            if (useful <= 0) {
-                continue;
-            }
-
-            usefulItemCount += useful;
-            coveredDemandCount++;
-            // 各物品按缺口比例等权计分，优先选择一次覆盖更多种需求的盒子。
-            coverageScore += (long) useful * 1_000L / demand.count();
-        }
-
-        return new SourceShulkerScore(coverageScore, usefulItemCount, coveredDemandCount);
-    }
-
     private ExtractResult moveMatchingItemsFromOpenShulker(ShulkerBoxMenu handler,
                                                            List<MissingDemand> demands,
                                                            Minecraft client) {
@@ -1861,106 +1761,6 @@ public final class QuickContainerCopy implements ClientModInitializer {
         return new ExtractResult(totalMoved, remainingDemands, attemptedMove);
     }
 
-    private int findBestSourceContainerSlotId(ShulkerBoxMenu handler,
-                                               List<Integer> sourceSlotIds,
-                                               List<MissingDemand> demands) {
-        int bestSlotId = -1;
-        SourceStackScore bestScore = null;
-
-        for (int slotId : sourceSlotIds) {
-            Slot slot = handler.getSlot(slotId);
-            MissingDemand demand = slot.hasItem() ? findDemandForStack(demands, slot.getItem()) : null;
-            if (demand == null
-                    || QuickContainerLock.isLockedSlot(handler, slot)
-                    || !slot.mayPickup(Minecraft.getInstance().player)
-                    || !canStoreAnyStackInPlayerStorage(handler, slot.getItem())) {
-                continue;
-            }
-
-            int usefulCount = Math.min(slot.getItem().getCount(), demand.count());
-            int excessCount = Math.max(0, slot.getItem().getCount() - demand.count());
-            SourceStackScore score = new SourceStackScore(
-                    hasMatchingPlayerStorageCapacity(handler, slot.getItem()),
-                    excessCount,
-                    usefulCount
-            );
-            if (bestScore == null || score.isBetterThan(bestScore)) {
-                bestSlotId = slotId;
-                bestScore = score;
-            }
-        }
-
-        return bestSlotId;
-    }
-
-    private boolean hasMatchingPlayerStorageCapacity(AbstractContainerMenu handler, ItemStack stack) {
-        for (int slotId : getPlayerStorageSlotIds(handler)) {
-            Slot slot = handler.getSlot(slotId);
-            if (!slot.hasItem() || !ItemStack.isSameItemSameComponents(slot.getItem(), stack)) {
-                continue;
-            }
-
-            int maxCount = Math.min(slot.getItem().getMaxStackSize(), slot.getMaxStackSize(stack));
-            if (slot.getItem().getCount() < maxCount) {
-                return true;
-            }
-        }
-
-        return false;
-    }
-
-    private MissingDemand findDemandForStack(List<MissingDemand> demands, ItemStack stack) {
-        for (MissingDemand demand : demands) {
-            if (demand.count() > 0 && ItemStack.isSameItemSameComponents(stack, demand.template())) {
-                return demand;
-            }
-        }
-
-        return null;
-    }
-
-    private int countMatchingPlayerStorage(AbstractContainerMenu handler, ItemStack template) {
-        int count = 0;
-        for (int slotId : getPlayerStorageSlotIds(handler)) {
-            Slot slot = handler.getSlot(slotId);
-            if (slot.hasItem() && ItemStack.isSameItemSameComponents(slot.getItem(), template)) {
-                count += slot.getItem().getCount();
-            }
-        }
-        return count;
-    }
-
-    private List<MissingDemand> subtractMissingDemand(List<MissingDemand> demands, ItemStack template, int moved) {
-        List<MissingDemand> remaining = new ArrayList<>(demands.size());
-        for (MissingDemand demand : demands) {
-            if (!ItemStack.isSameItemSameComponents(demand.template(), template)) {
-                remaining.add(demand);
-                continue;
-            }
-
-            int count = Math.max(0, demand.count() - moved);
-            if (count > 0) {
-                remaining.add(new MissingDemand(demand.template(), count));
-            }
-        }
-        return remaining;
-    }
-
-    private List<MissingDemand> copyMissingDemands(List<MissingDemand> demands) {
-        List<MissingDemand> copies = new ArrayList<>(demands.size());
-        for (MissingDemand demand : demands) {
-            copies.add(new MissingDemand(demand.template().copy(), demand.count()));
-        }
-        return copies;
-    }
-
-    private NonNullList<ItemStack> getStoredStacksBySlot(ItemStack shulker) {
-        NonNullList<ItemStack> stacks = NonNullList.withSize(VANILLA_SHULKER_SLOTS, ItemStack.EMPTY);
-        ItemContainerContents container = shulker.getOrDefault(DataComponents.CONTAINER, ItemContainerContents.EMPTY);
-        container.copyInto(stacks);
-        return stacks;
-    }
-
     private int findReturnSlotId(AbstractContainerMenu handler, ItemStack cursorStack) {
         for (int slotId : getPlayerStorageSlotIds(handler)) {
             if (canAcceptCursorStack(handler.getSlot(slotId), cursorStack)) {
@@ -2001,31 +1801,6 @@ public final class QuickContainerCopy implements ClientModInitializer {
             }
 
             if (remaining <= 0) {
-                return true;
-            }
-        }
-
-        return false;
-    }
-
-    private boolean canStoreAnyStackInPlayerStorage(AbstractContainerMenu handler, ItemStack stack) {
-        if (stack.isEmpty()) {
-            return false;
-        }
-
-        for (int slotId : getPlayerStorageSlotIds(handler)) {
-            Slot slot = handler.getSlot(slotId);
-            if (!slot.isActive() || !slot.mayPlace(stack)) {
-                continue;
-            }
-
-            if (!slot.hasItem()) {
-                return true;
-            }
-
-            ItemStack existing = slot.getItem();
-            if (ItemStack.isSameItemSameComponents(existing, stack)
-                    && existing.getCount() < Math.min(existing.getMaxStackSize(), slot.getMaxStackSize(stack))) {
                 return true;
             }
         }
@@ -2558,50 +2333,13 @@ public final class QuickContainerCopy implements ClientModInitializer {
         return Integer.MAX_VALUE;
     }
 
-    private int getShulkerCapacityFor(ItemStack shulker, ItemStack insertStack) {
-        if (!isShulkerBox(shulker) || insertStack.isEmpty() || isShulkerBox(insertStack)) {
-            return 0;
-        }
-
-        int usedSlots = 0;
-        int capacity = 0;
-        for (ItemStack stored : getStoredStacksBySlot(shulker)) {
-            if (stored.isEmpty()) {
-                continue;
-            }
-
-            usedSlots++;
-            if (ItemStack.isSameItemSameComponents(stored, insertStack)) {
-                capacity += Math.max(0, stored.getMaxStackSize() - stored.getCount());
-            }
-        }
-
-        return capacity + Math.max(0, VANILLA_SHULKER_SLOTS - usedSlots) * insertStack.getMaxStackSize();
-    }
-
     private boolean shouldUseQuickShulker() {
-        if (!QuickCraftConfigs.isLitematicaContainerAutofillWithQuickShulkerEnabled()
-                || !FabricLoader.getInstance().isModLoaded("quickshulker")) {
-            return false;
-        }
-
-        try {
-            return ClientPlayNetworking.canSend(QUICK_SHULKER_BUNDLE_PACKET);
-        } catch (IllegalArgumentException exception) {
-            return false;
-        }
+        return QuickCraftConfigs.isLitematicaContainerAutofillWithQuickShulkerEnabled()
+                && QuickShulkerConnection.canBundle();
     }
 
     private boolean canUseQuickShulkerOpenPacket() {
-        if (!FabricLoader.getInstance().isModLoaded("quickshulker")) {
-            return false;
-        }
-
-        try {
-            return ClientPlayNetworking.canSend(QUICK_SHULKER_OPEN_PACKET);
-        } catch (IllegalArgumentException exception) {
-            return false;
-        }
+        return QuickShulkerConnection.canOpen();
     }
 
     private boolean canRunQuickShulkerAction(ContinuousFillTask task) {
@@ -2623,14 +2361,7 @@ public final class QuickContainerCopy implements ClientModInitializer {
     }
 
     private boolean sendOpenQuickShulkerPacket(int slotId) {
-        try {
-            Class<?> packetClass = Class.forName("net.kyrptonaught.quickshulker.network.OpenShulkerPacket");
-            Object packet = packetClass.getConstructor(int.class).newInstance(slotId);
-            ClientPlayNetworking.send((CustomPacketPayload) packet);
-            return true;
-        } catch (ReflectiveOperationException | ClassCastException exception) {
-            return false;
-        }
+        return QuickShulkerConnection.sendOpen(slotId);
     }
 
     private static SupportedContainerType getSupportedContainerType(Minecraft client, BlockHitResult blockHitResult) {
@@ -2751,103 +2482,8 @@ public final class QuickContainerCopy implements ClientModInitializer {
         };
     }
 
-    private List<Integer> getContainerSlotIds(AbstractContainerMenu handler) {
-        if (handler instanceof AbstractFurnaceMenu
-                || handler instanceof BrewingStandMenu) {
-            return getContainerSlotIdsByInventoryIndex(handler);
-        }
-        if (handler instanceof CrafterMenu crafterHandler) {
-            List<Slot> crafterSlots = new ArrayList<>();
-            for (Slot slot : handler.slots) {
-                if (!isVisibleSlot(slot) || slot.container != crafterHandler.getContainer()) {
-                    continue;
-                }
-                crafterSlots.add(slot);
-            }
-
-            crafterSlots.sort(Comparator
-                    .comparingInt((Slot slot) -> slot.y)
-                    .thenComparingInt(slot -> slot.x)
-                    .thenComparingInt(slot -> slot.index));
-
-            return crafterSlots.stream()
-                    .map(slot -> slot.index)
-                    .toList();
-        }
-
-        List<Slot> containerSlots = new ArrayList<>();
-        for (Slot slot : handler.slots) {
-            if (!isVisibleSlot(slot) || isPlayerStorageSlot(slot)) {
-                continue;
-            }
-            containerSlots.add(slot);
-        }
-
-        containerSlots.sort(Comparator
-                .comparingInt((Slot slot) -> slot.y)
-                .thenComparingInt(slot -> slot.x)
-                .thenComparingInt(slot -> slot.index));
-
-        return containerSlots.stream()
-                .map(slot -> slot.index)
-                .toList();
-    }
-
-    private List<Integer> getContainerSlotIdsByInventoryIndex(AbstractContainerMenu handler) {
-        List<Slot> containerSlots = new ArrayList<>();
-        for (Slot slot : handler.slots) {
-            if (!isVisibleSlot(slot) || isPlayerStorageSlot(slot)) {
-                continue;
-            }
-            containerSlots.add(slot);
-        }
-
-        containerSlots.sort(Comparator
-                .comparingInt(Slot::getContainerSlot)
-                .thenComparingInt(slot -> slot.index));
-
-        return containerSlots.stream()
-                .map(slot -> slot.index)
-                .toList();
-    }
-
-    private List<Integer> getPlayerStorageSlotIds(AbstractContainerMenu handler) {
-        List<Slot> playerSlots = new ArrayList<>();
-        for (Slot slot : handler.slots) {
-            if (!isVisibleSlot(slot)
-                    || !isPlayerStorageSlot(slot)
-                    || QuickContainerLock.isLockedSlot(handler, slot)) {
-                continue;
-            }
-            playerSlots.add(slot);
-        }
-
-        playerSlots.sort(Comparator
-                .comparingInt((Slot slot) -> slot.getContainerSlot() >= 9 ? 0 : 1)
-                .thenComparingInt(Slot::getContainerSlot)
-                .thenComparingInt(slot -> slot.index));
-
-        return playerSlots.stream()
-                .map(slot -> slot.index)
-                .toList();
-    }
-
-    private boolean isPlayerStorageSlot(Slot slot) {
-        return slot.container instanceof Inventory
-                && slot.getContainerSlot() >= 0
-                && slot.getContainerSlot() < 36;
-    }
-
-    private boolean isVisibleSlot(Slot slot) {
-        return slot.isActive() && slot.x >= 0 && slot.y >= 0;
-    }
-
     private boolean isCrafterInputSlotDisabled(AbstractContainerMenu handler, int slotId) {
         return handler instanceof CrafterMenu crafterHandler && crafterHandler.isSlotDisabled(slotId);
-    }
-
-    private boolean isShulkerBox(ItemStack stack) {
-        return stack.getItem() instanceof BlockItem blockItem && blockItem.getBlock() instanceof ShulkerBoxBlock;
     }
 
     private static void clearRecordedTemplate(Minecraft client) {
@@ -2913,32 +2549,6 @@ public final class QuickContainerCopy implements ClientModInitializer {
     private record ContinuousTemplate(RecordedContainerTemplate recordedTemplate,
                                       boolean useQuickShulker,
                                       SuccessMessage successMessage) {
-    }
-
-    private record SourceShulker(int slotId, int playerIndex) {
-    }
-
-    private record SourceShulkerScore(long coverageScore, int usefulItemCount, int coveredDemandCount) {
-        private boolean isBetterThan(SourceShulkerScore other) {
-            return coverageScore > other.coverageScore
-                    || coverageScore == other.coverageScore && usefulItemCount > other.usefulItemCount
-                    || coverageScore == other.coverageScore
-                    && usefulItemCount == other.usefulItemCount
-                    && coveredDemandCount > other.coveredDemandCount;
-        }
-    }
-
-    private record SourceStackScore(boolean canMerge, int excessCount, int usefulCount) {
-        private boolean isBetterThan(SourceStackScore other) {
-            return canMerge && !other.canMerge
-                    || canMerge == other.canMerge && excessCount < other.excessCount
-                    || canMerge == other.canMerge
-                    && excessCount == other.excessCount
-                    && usefulCount > other.usefulCount;
-        }
-    }
-
-    private record MissingDemand(ItemStack template, int count) {
     }
 
     private record TemporaryContainerStash(int templateIndex, int slotId, ItemStack stack) {
@@ -3097,5 +2707,4 @@ public final class QuickContainerCopy implements ClientModInitializer {
             List<Boolean> disabledStates
     ) {
     }
-
 }
