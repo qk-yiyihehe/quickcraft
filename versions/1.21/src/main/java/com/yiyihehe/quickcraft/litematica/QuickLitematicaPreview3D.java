@@ -62,6 +62,7 @@ import net.minecraft.entity.Entity;
 import net.minecraft.fluid.FluidState;
 import net.minecraft.nbt.NbtCompound;
 import net.minecraft.nbt.NbtDouble;
+import net.minecraft.nbt.NbtElement;
 import net.minecraft.nbt.NbtHelper;
 import net.minecraft.nbt.NbtIo;
 import net.minecraft.nbt.NbtList;
@@ -2754,16 +2755,123 @@ public final class QuickLitematicaPreview3D {
                 return null;
             }
 
-            LitematicaSchematic schematic = LitematicaSchematic.createFromFile(
-                    directory,
-                    fileName.toString(),
-                    FileType.LITEMATICA_SCHEMATIC
-            );
+            LitematicaSchematic schematic = null;
+            Path fastPath = null;
+            try {
+                fastPath = prepareFastSchematic(path, cancelled);
+                if (fastPath != null) {
+                    Path fastDir = fastPath.getParent();
+                    Path fastFile = fastPath.getFileName();
+                    if (fastDir != null && fastFile != null) {
+                        schematic = LitematicaSchematic.createFromFile(
+                                fastDir,
+                                fastFile.toString(),
+                                FileType.LITEMATICA_SCHEMATIC
+                        );
+                    }
+                }
+            } catch (Throwable t) {
+                LOGGER.debug("QuickCraft fast schematic preparation skipped: {}", t.getMessage());
+            } finally {
+                if (fastPath != null) {
+                    deleteQuietly(fastPath);
+                }
+            }
+
+            if (schematic == null) {
+                schematic = LitematicaSchematic.createFromFile(
+                        directory,
+                        fileName.toString(),
+                        FileType.LITEMATICA_SCHEMATIC
+                );
+            }
+
             throwIfCancelled(cancelled);
             if (schematic == null && required) {
                 throw new IllegalStateException("Cannot read litematic file");
             }
             return schematic;
+        }
+
+        @Nullable
+        private static Path prepareFastSchematic(Path sourcePath, AtomicBoolean cancelled) {
+            throwIfCancelled(cancelled);
+            String name = sourcePath.getFileName() != null ? sourcePath.getFileName().toString() : "";
+            if (!name.endsWith(".litematic")) {
+                return null;
+            }
+            Path cacheDir = cacheDirectory();
+            if (cacheDir == null) {
+                return null;
+            }
+
+            try (InputStream is = Files.newInputStream(sourcePath);
+                 BufferedInputStream bis = new BufferedInputStream(is);
+                 GZIPInputStream gis = new GZIPInputStream(bis);
+                 DataInputStream dis = new DataInputStream(gis)) {
+                NbtCompound root = NbtIo.readCompound(dis, NbtSizeTracker.of(256L * 1024L * 1024L));
+                throwIfCancelled(cancelled);
+                if (root == null || !root.contains("Regions", NbtElement.COMPOUND_TYPE)) {
+                    return null;
+                }
+
+                boolean modified = false;
+                NbtCompound regions = root.getCompound("Regions");
+                for (String key : regions.getKeys()) {
+                    if (!regions.contains(key, NbtElement.COMPOUND_TYPE)) {
+                        continue;
+                    }
+                    NbtCompound reg = regions.getCompound(key);
+                    if (reg.contains("TileEntities", NbtElement.LIST_TYPE)) {
+                        NbtList teList = reg.getList("TileEntities", NbtElement.COMPOUND_TYPE);
+                        for (int i = 0; i < teList.size(); i++) {
+                            NbtCompound te = teList.getCompound(i);
+                            if (te.contains("Items")) {
+                                te.remove("Items");
+                                modified = true;
+                            }
+                            if (te.contains("Inventory")) {
+                                te.remove("Inventory");
+                                modified = true;
+                            }
+                        }
+                    }
+                    if (reg.contains("Entities", NbtElement.LIST_TYPE)) {
+                        NbtList entList = reg.getList("Entities", NbtElement.COMPOUND_TYPE);
+                        for (int i = 0; i < entList.size(); i++) {
+                            NbtCompound ent = entList.getCompound(i);
+                            if (ent.contains("Items")) {
+                                ent.remove("Items");
+                                modified = true;
+                            }
+                            if (ent.contains("HandItems")) {
+                                ent.remove("HandItems");
+                                modified = true;
+                            }
+                            if (ent.contains("ArmorItems")) {
+                                ent.remove("ArmorItems");
+                                modified = true;
+                            }
+                        }
+                    }
+                }
+
+                if (!modified) {
+                    return null;
+                }
+
+                throwIfCancelled(cancelled);
+                Path fastPath = cacheDir.resolve("fast-" + Long.toUnsignedString(System.nanoTime()) + ".fast.tmp.litematic");
+                try (OutputStream os = Files.newOutputStream(fastPath);
+                     BufferedOutputStream bos = new BufferedOutputStream(os);
+                     GZIPOutputStream gos = new GZIPOutputStream(bos);
+                     DataOutputStream dos = new DataOutputStream(gos)) {
+                    NbtIo.writeCompound(root, dos);
+                }
+                return fastPath;
+            } catch (Throwable t) {
+                return null;
+            }
         }
 
         private static MeshData build(
