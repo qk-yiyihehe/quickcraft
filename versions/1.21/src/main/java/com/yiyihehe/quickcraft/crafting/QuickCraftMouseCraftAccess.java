@@ -41,13 +41,13 @@ final class QuickCraftMouseCraftAccess {
         return false;
     }
 
-    public static Object resolveLockedRecipeId(MinecraftClient client,
+    public static boolean hasMatchingLockedRecipe(MinecraftClient client,
                                                ScreenHandler handler,
                                                RecipeEntry<CraftingRecipe> recipe,
                                                ItemStack lockedResultTemplate,
                                                int gridWidth,
                                                int gridHeight) {
-        return recipe == null ? null : recipe.id();
+        return recipe != null;
     }
 
     public static int throwOutput(ClientPlayerInteractionManager interactionManager,

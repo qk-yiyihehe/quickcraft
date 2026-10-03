@@ -19,16 +19,39 @@ final class QuickLitematicaContainerMaterialsAccess {
     private QuickLitematicaContainerMaterialsAccess() {
     }
 
-    static Object createItemKey(ItemStack stack) {
-        return new ItemType(stack, true, true);
+    static QuickLitematicaContainerMaterials.ItemKey createItemKey(ItemStack stack) {
+        return new NativeItemKey(stack);
+    }
+
+    private static final class NativeItemKey extends QuickLitematicaContainerMaterials.ItemKey {
+        private final ItemType type;
+
+        private NativeItemKey(ItemStack stack) {
+            this.type = new ItemType(stack, true, true);
+        }
+
+        @Override
+        public boolean equals(Object other) {
+            return other instanceof NativeItemKey key && this.type.equals(key.type);
+        }
+
+        @Override
+        public int hashCode() {
+            return this.type.hashCode();
+        }
+
+        @Override
+        public String toString() {
+            return this.type.toString();
+        }
     }
 
     static Path getEntryPath(DirectoryEntry entry) {
         return entry.getFullPath();
     }
 
-    static Object getEntryFileName(DirectoryEntry entry) {
-        return entry.getFullPath().getFileName();
+    static String getEntryFileName(DirectoryEntry entry) {
+        return entry.getFullPath().getFileName().toString();
     }
 
     static ItemStack itemStackFromNbt(RegistryWrapper.WrapperLookup registryLookup, NbtCompound nbt) {
