@@ -1,5 +1,6 @@
 package com.yiyihehe.quickcraft.litematica;
 
+import com.mojang.blaze3d.platform.InputConstants;
 import com.yiyihehe.quickcraft.QuickClientScreenAccess;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
@@ -508,7 +509,7 @@ public final class QuickLitematicaPreview3DScreen extends Screen {
 
         @Override
         public boolean mouseClicked(MouseButtonEvent click, boolean doubled) {
-            if (click.button() == 0 && this.startPicking(click.x(), click.y())) {
+            if (click.button() == InputConstants.MOUSE_BUTTON_LEFT && this.startPicking(click.x(), click.y())) {
                 return true;
             }
             return super.mouseClicked(click, doubled);
@@ -516,7 +517,7 @@ public final class QuickLitematicaPreview3DScreen extends Screen {
 
         @Override
         public boolean mouseDragged(MouseButtonEvent click, double deltaX, double deltaY) {
-            if (click.button() == 0 && this.dragArea >= 0) {
+            if (click.button() == InputConstants.MOUSE_BUTTON_LEFT && this.dragArea >= 0) {
                 this.updatePickedColor(click.x(), click.y(), this.dragArea);
                 return true;
             }
@@ -525,7 +526,7 @@ public final class QuickLitematicaPreview3DScreen extends Screen {
 
         @Override
         public boolean mouseReleased(MouseButtonEvent click) {
-            if (click.button() == 0 && this.dragArea >= 0) {
+            if (click.button() == InputConstants.MOUSE_BUTTON_LEFT && this.dragArea >= 0) {
                 this.dragArea = -1;
                 return true;
             }

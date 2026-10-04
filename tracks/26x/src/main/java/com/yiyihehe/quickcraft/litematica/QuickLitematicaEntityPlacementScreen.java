@@ -1,5 +1,6 @@
 package com.yiyihehe.quickcraft.litematica;
 
+import com.mojang.blaze3d.platform.InputConstants;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.input.MouseButtonEvent;
@@ -231,7 +232,7 @@ final class QuickLitematicaEntityPlacementScreen extends Screen {
         double mouseX = click.x();
         double mouseY = click.y();
         int button = click.button();
-        if (button != 0 || !QuickLitematicaEntityPlacement.isServerAvailable()) {
+        if (button != InputConstants.MOUSE_BUTTON_LEFT || !QuickLitematicaEntityPlacement.isServerAvailable()) {
             return super.mouseClicked(click, doubled);
         }
         int left = (this.width - PANEL_WIDTH) / 2;

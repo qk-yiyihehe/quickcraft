@@ -1,5 +1,6 @@
 package com.yiyihehe.quickcraft.render;
 
+import com.mojang.blaze3d.platform.InputConstants;
 import com.yiyihehe.quickcraft.QuickCraftKeyBindings;
 import com.yiyihehe.quickcraft.QuickClientScreenAccess;
 import com.yiyihehe.quickcraft.config.QuickCraftConfigs;
@@ -81,13 +82,13 @@ public class QuickDraggableButton extends Button {
                 || !this.isMouseOver(event.x(), event.y())) {
             return super.mouseClicked(event, doubleClick);
         }
-        if (event.button() == 0) {
+        if (event.button() == InputConstants.MOUSE_BUTTON_LEFT) {
             this.dragging = true;
             this.grabOffsetX = event.x() - this.getX();
             this.grabOffsetY = event.y() - this.getY();
             return true;
         }
-        if (event.button() == 1) {
+        if (event.button() == InputConstants.MOUSE_BUTTON_RIGHT) {
             QuickCraftConfigs.resetActionButtonOffset(this.positionKey.configKey);
             this.setClampedPosition(this.defaultX, this.defaultY);
             QuickCraftConfigs.saveToFile();
@@ -99,7 +100,7 @@ public class QuickDraggableButton extends Button {
 
     @Override
     public boolean mouseDragged(MouseButtonEvent event, double deltaX, double deltaY) {
-        if (this.dragging && event.button() == 0) {
+        if (this.dragging && event.button() == InputConstants.MOUSE_BUTTON_LEFT) {
             this.setClampedPosition((int)Math.round(event.x() - this.grabOffsetX),
                     (int)Math.round(event.y() - this.grabOffsetY));
             return true;
@@ -109,7 +110,7 @@ public class QuickDraggableButton extends Button {
 
     @Override
     public boolean mouseReleased(MouseButtonEvent event) {
-        if (this.dragging && event.button() == 0) {
+        if (this.dragging && event.button() == InputConstants.MOUSE_BUTTON_LEFT) {
             this.dragging = false;
             QuickCraftConfigs.setActionButtonOffset(
                     this.positionKey.configKey,
