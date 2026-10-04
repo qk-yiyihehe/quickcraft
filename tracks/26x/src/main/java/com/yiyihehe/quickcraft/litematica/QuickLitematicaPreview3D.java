@@ -1,5 +1,7 @@
 package com.yiyihehe.quickcraft.litematica;
 
+import com.mojang.blaze3d.platform.InputConstants;
+
 import static com.yiyihehe.quickcraft.litematica.QuickLitematicaPreviewCache.*;
 import static com.yiyihehe.quickcraft.litematica.QuickLitematicaPreviewSchematicFiles.*;
 
@@ -428,7 +430,7 @@ public final class QuickLitematicaPreview3D {
                 return false;
             }
 
-            if (mouseButton == 0 && this.showExpandButton && this.isExpandButtonHovered(mouseX, mouseY) && this.currentEntry != null) {
+            if (mouseButton == InputConstants.MOUSE_BUTTON_LEFT && this.showExpandButton && this.isExpandButtonHovered(mouseX, mouseY) && this.currentEntry != null) {
                 DirectoryEntry entry = this.currentEntry;
                 if (this.current == null && this.currentPath != null) {
                     boolean hasEmbeddedPreview = this.hasEmbeddedPreviewImage;
@@ -1771,7 +1773,7 @@ public final class QuickLitematicaPreview3D {
                 return false;
             }
 
-            if (button == 0) {
+            if (button == InputConstants.MOUSE_BUTTON_LEFT) {
                 this.angle += deltaX * 0.015;
                 this.pitch = Math.max(
                         -MAX_PITCH_RADIANS,
@@ -1780,7 +1782,7 @@ public final class QuickLitematicaPreview3D {
                 return true;
             }
 
-            if (button == 1) {
+            if (button == InputConstants.MOUSE_BUTTON_RIGHT) {
                 this.dx += (float) deltaX;
                 this.dy += (float) deltaY;
                 return true;

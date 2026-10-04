@@ -1,5 +1,6 @@
 package com.yiyihehe.quickcraft.mixin;
 
+import com.mojang.blaze3d.platform.InputConstants;
 import com.yiyihehe.quickcraft.QuickClientScreenAccess;
 import com.yiyihehe.quickcraft.render.QuickDraggableButton;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
@@ -29,11 +30,11 @@ public abstract class QuickDraggableButtonScreenMixin {
         if (!(screen.getFocused() instanceof QuickDraggableButton actionButton)) {
             return;
         }
-        if (event.button() == 0 && actionButton.isPositionDragging()) {
+        if (event.button() == InputConstants.MOUSE_BUTTON_LEFT && actionButton.isPositionDragging()) {
             boolean handled = actionButton.mouseReleased(event);
             QuickClientScreenAccess.clearDraggingState(screen);
             cir.setReturnValue(handled);
-        } else if (event.button() == 1 && actionButton.consumeRightRelease()) {
+        } else if (event.button() == InputConstants.MOUSE_BUTTON_RIGHT && actionButton.consumeRightRelease()) {
             cir.setReturnValue(true);
         }
     }
