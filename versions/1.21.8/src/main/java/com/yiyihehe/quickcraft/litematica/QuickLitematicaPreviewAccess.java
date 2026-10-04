@@ -25,7 +25,6 @@ import fi.dy.masa.malilib.render.RenderUtils;
 import net.fabricmc.fabric.api.renderer.v1.Renderer;
 import net.fabricmc.fabric.api.client.rendering.v1.SpecialGuiElementRegistry;
 import net.fabricmc.fabric.api.renderer.v1.render.BlockVertexConsumerProvider;
-import net.fabricmc.loader.api.FabricLoader;
 import net.minecraft.SharedConstants;
 import net.minecraft.block.Block;
 import net.minecraft.block.BlockEntityProvider;
@@ -122,20 +121,6 @@ final class QuickLitematicaPreviewAccess {
         }
     }
 
-    public static boolean isShaderPackActive() {
-        try {
-            Class<?> apiClass = Class.forName("net.irisshaders.iris.api.v0.IrisApi");
-            Object api = apiClass.getMethod("getInstance").invoke(null);
-            return (boolean) apiClass.getMethod("isShaderPackInUse").invoke(api);
-        } catch (ClassNotFoundException ignored) {
-            return false;
-        } catch (Throwable throwable) {
-            if (SHADER_API_ERROR_LOGGED.compareAndSet(false, true)) {
-                LOGGER.error("Iris shader state could not be queried; disabling QuickCraft 3D previews for this session", throwable);
-            }
-            return true;
-        }
-    }
 
     static boolean isSupportedLitematic(DirectoryEntry entry) {
         return Files.isRegularFile(entry.getFullPath()) && FileType.fromFile(entry.getFullPath()) == FileType.LITEMATICA_SCHEMATIC;
@@ -1018,7 +1003,7 @@ final class QuickLitematicaPreviewAccess {
             matrices.translate(renderPos.getX(), renderPos.getY(), renderPos.getZ());
 
             var model = blockRenderManager.getModel(state);
-            if (PreviewCtm.isContinuityModel(model) && PreviewCtm.emit(model, matrices, collector, view, state, pos)) {
+            if (QuickLitematicaPreviewCompat.isContinuityModel(model) && PreviewCtm.emit(model, matrices, collector, view, state, pos)) {
                 matrices.pop();
                 return;
             }
@@ -1042,15 +1027,7 @@ final class QuickLitematicaPreviewAccess {
          * 1.21 的原版 getParts 路径可能跳过连接纹理模型包装。
          */
         static final class PreviewCtm {
-            static final boolean ACTIVE = FabricLoader.getInstance().isModLoaded("continuity");
-            @Nullable
-            static String cachedRuntimeToken;
 
-            static boolean isContinuityModel(Object model) {
-                return ACTIVE
-                        && model != null
-                        && model.getClass().getName().startsWith("me.pepperbell.continuity.");
-            }
 
             static boolean emit(
                     Object model,
@@ -1083,21 +1060,6 @@ final class QuickLitematicaPreviewAccess {
                 return false;
             }
 
-            static String runtimeToken() {
-                String token = cachedRuntimeToken;
-                if (token != null) {
-                    return token;
-                }
-
-                token = "none";
-                if (ACTIVE) {
-                    token = FabricLoader.getInstance().getModContainer("continuity")
-                            .map(container -> container.getMetadata().getVersion().getFriendlyString())
-                            .orElse("loaded-unknown");
-                }
-                cachedRuntimeToken = token;
-                return token;
-            }
         }
     }
 
@@ -1576,7 +1538,6 @@ final class QuickLitematicaPreviewAccess {
     }
     static boolean writeSchematic(LitematicaSchematic schematic, Path parent, String name) { return schematic.writeToFile(parent, name, true); }
 
-    static String ctmRuntimeToken() { return MeshRenderer.PreviewCtm.runtimeToken(); }
     static boolean containsCompound(NbtCompound tag, String name) { return tag.contains(name); }
     static boolean containsList(NbtCompound tag, String name) { return tag.contains(name); }
     static NbtCompound readCompound(NbtCompound tag, String name) { return tag.getCompoundOrEmpty(name); }
@@ -1588,21 +1549,5 @@ final class QuickLitematicaPreviewAccess {
     static NbtCompound previewBlockEntityNbt(LitematicaSchematic schematic, String region, BlockPos pos) {
         Map<BlockPos, NbtCompound> source = schematic.getBlockEntityMapForRegion(region);
         return source == null ? new NbtCompound() : source.getOrDefault(pos, new NbtCompound());
-    }
-    static boolean tryDisableShaders() {
-        try {
-            // Iris 是可选依赖，只在后端访问其公开 v0 API。
-            Class<?> apiClass = Class.forName("net.irisshaders.iris.api.v0.IrisApi");
-            Object api = apiClass.getMethod("getInstance").invoke(null);
-            Object config = apiClass.getMethod("getConfig").invoke(api);
-            Class<?> configClass = Class.forName("net.irisshaders.iris.api.v0.IrisApiConfig");
-            configClass.getMethod("setShadersEnabledAndApply", boolean.class).invoke(config, false);
-            return true;
-        } catch (Throwable failure) {
-            if (SHADER_DISABLE_ERROR_LOGGED.compareAndSet(false, true)) {
-                LOGGER.error("Iris shaders could not be disabled before opening a QuickCraft 3D preview", failure);
-            }
-            return false;
-        }
     }
 }

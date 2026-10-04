@@ -28,6 +28,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.zip.GZIPInputStream;
 import java.util.zip.GZIPOutputStream;
 import static com.yiyihehe.quickcraft.litematica.QuickLitematicaPreviewAccess.*;
+import static com.yiyihehe.quickcraft.litematica.QuickLitematicaPreviewCompat.ctmRuntimeToken;
 import static com.yiyihehe.quickcraft.litematica.QuickLitematicaPreview3D.*;
 
 /** 预览磁盘缓存的索引、失效、原子写入和网格编码；任务与 GPU 生命周期由预览核心维护。 */

@@ -7,7 +7,6 @@ import net.minecraft.util.math.Vec3d;
 import net.minecraft.text.Text;
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.systems.VertexSorter;
-import fi.dy.masa.litematica.compat.iris.IrisCompat;
 import fi.dy.masa.litematica.schematic.LitematicaSchematic;
 import fi.dy.masa.litematica.schematic.container.LitematicaBlockStateContainer;
 import fi.dy.masa.litematica.util.EntityUtils;
@@ -17,7 +16,6 @@ import fi.dy.masa.malilib.gui.widgets.WidgetFileBrowserBase.DirectoryEntry;
 import fi.dy.masa.malilib.render.RenderUtils;
 import net.fabricmc.fabric.api.renderer.v1.RendererAccess;
 import net.fabricmc.fabric.impl.client.indigo.renderer.render.WorldMesherRenderContext;
-import net.fabricmc.loader.api.FabricLoader;
 import net.minecraft.SharedConstants;
 import net.minecraft.block.BlockEntityProvider;
 import net.minecraft.block.BlockRenderType;
@@ -96,16 +94,6 @@ final class QuickLitematicaPreviewAccess {
     // 静态顶点磁盘编码：12B 位置 + 4B 颜色 + 8B UV(float32×2) + 4B light + 2B 法线(octahedral) = 30B。
     static final int QUANTIZED_VERTEX_BYTES = 30;
 
-    public static boolean isShaderPackActive() {
-        try {
-            return IrisCompat.isShaderActive();
-        } catch (Throwable throwable) {
-            if (SHADER_API_ERROR_LOGGED.compareAndSet(false, true)) {
-                LOGGER.error("Iris shader state could not be queried; disabling QuickCraft 3D previews for this session", throwable);
-            }
-            return IrisCompat.isIrisActive;
-        }
-    }
 
     static boolean isSupportedLitematic(DirectoryEntry entry) {
         return entry.getFullPath().isFile() && FileType.fromFile(entry.getFullPath().toPath()) == FileType.LITEMATICA_SCHEMATIC;
@@ -808,7 +796,7 @@ final class QuickLitematicaPreviewAccess {
             var model = blockRenderManager.getModel(state);
             boolean rendered = false;
             if (fabricContext != null
-                    && (!model.isVanillaAdapter() || PreviewCtm.isContinuityModel(model))) {
+                    && (!model.isVanillaAdapter() || QuickLitematicaPreviewCompat.isContinuityModel(model))) {
                 matrices.push();
                 try {
                     fabricContext.tessellateBlock(view, state, pos, model, matrices);
@@ -838,37 +826,6 @@ final class QuickLitematicaPreviewAccess {
             matrices.pop();
         }
 
-        /**
-         * Continuity 的连接纹理模型需要经过 Fabric Renderer 的 emitQuads 路径；
-         * 1.21 的原版 getParts 路径可能跳过连接纹理模型包装。
-         */
-        static final class PreviewCtm {
-            static final boolean ACTIVE = FabricLoader.getInstance().isModLoaded("continuity");
-            @Nullable
-            static String cachedRuntimeToken;
-
-            static boolean isContinuityModel(Object model) {
-                return ACTIVE
-                        && model != null
-                        && model.getClass().getName().startsWith("me.pepperbell.continuity.");
-            }
-
-            static String runtimeToken() {
-                String token = cachedRuntimeToken;
-                if (token != null) {
-                    return token;
-                }
-
-                token = "none";
-                if (ACTIVE) {
-                    token = FabricLoader.getInstance().getModContainer("continuity")
-                            .map(container -> container.getMetadata().getVersion().getFriendlyString())
-                            .orElse("loaded-unknown");
-                }
-                cachedRuntimeToken = token;
-                return token;
-            }
-        }
     }
 
     enum LayerKey {
@@ -1378,7 +1335,6 @@ final class QuickLitematicaPreviewAccess {
     }
     static boolean writeSchematic(LitematicaSchematic schematic, Path parent, String name) { return schematic.writeToFile(parent.toFile(), name, true); }
 
-    static String ctmRuntimeToken() { return MeshRenderer.PreviewCtm.runtimeToken(); }
     static boolean containsCompound(NbtCompound tag, String name) { return tag.contains(name, NbtElement.COMPOUND_TYPE); }
     static boolean containsList(NbtCompound tag, String name) { return tag.contains(name, NbtElement.LIST_TYPE); }
     static NbtCompound readCompound(NbtCompound tag, String name) { return tag.getCompound(name); }
@@ -1390,21 +1346,5 @@ final class QuickLitematicaPreviewAccess {
     static NbtCompound previewBlockEntityNbt(LitematicaSchematic schematic, String region, BlockPos pos) {
         Map<BlockPos, NbtCompound> source = schematic.getBlockEntityMapForRegion(region);
         return source == null ? new NbtCompound() : source.getOrDefault(pos, new NbtCompound());
-    }
-    static boolean tryDisableShaders() {
-        try {
-            // Iris 是可选依赖，只在后端访问其公开 v0 API。
-            Class<?> apiClass = Class.forName("net.irisshaders.iris.api.v0.IrisApi");
-            Object api = apiClass.getMethod("getInstance").invoke(null);
-            Object config = apiClass.getMethod("getConfig").invoke(api);
-            Class<?> configClass = Class.forName("net.irisshaders.iris.api.v0.IrisApiConfig");
-            configClass.getMethod("setShadersEnabledAndApply", boolean.class).invoke(config, false);
-            return true;
-        } catch (Throwable failure) {
-            if (SHADER_DISABLE_ERROR_LOGGED.compareAndSet(false, true)) {
-                LOGGER.error("Iris shaders could not be disabled before opening a QuickCraft 3D preview", failure);
-            }
-            return false;
-        }
     }
 }
