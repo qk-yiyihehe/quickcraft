@@ -1,12 +1,11 @@
 def baseTarget = rootProject.file('versions/mainProject').getText('UTF-8').trim()
 def coreRoot = rootProject.file('src/main/java').canonicalFile
-def sharedRoot = new File(quickcraftRepositoryRoot, 'shared/src/main/java').canonicalFile
 
 afterEvaluate {
 	if (project.name == baseTarget) {
-		sourceSets.main.java.setSrcDirs([project.file('src/main/java'), coreRoot, sharedRoot])
+		sourceSets.main.java.setSrcDirs([project.file('src/main/java'), coreRoot])
 	} else {
-		sourceSets.main.java.srcDirs(coreRoot, sharedRoot)
+		sourceSets.main.java.srcDirs(coreRoot)
 	}
 
 	// 插件默认继承前一项目的全部源码根；稳定核心直接编译，不参与适配器映射。
@@ -14,7 +13,7 @@ afterEvaluate {
 		preprocessTask.entries = preprocessTask.entries.collect { entry ->
 			def adapterRoots = entry.source.files.findAll { sourceRoot ->
 				def canonicalRoot = sourceRoot.canonicalFile
-				canonicalRoot != coreRoot && canonicalRoot != sharedRoot
+				canonicalRoot != coreRoot
 			}
 			entry.copy(project.files(adapterRoots), entry.generated, entry.overwrites)
 		}
