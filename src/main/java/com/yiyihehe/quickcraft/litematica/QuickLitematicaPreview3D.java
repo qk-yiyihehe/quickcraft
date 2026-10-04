@@ -77,6 +77,7 @@ import java.util.function.Consumer;
 import java.util.function.Supplier;
 import javax.imageio.ImageIO;
 import static com.yiyihehe.quickcraft.litematica.QuickLitematicaPreviewAccess.*;
+import static com.yiyihehe.quickcraft.litematica.QuickLitematicaPreviewShaderAccess.isShaderPackActive;
 
 /** 预览任务、缓存、交互和导出编排；原生渲染由版本后端提供。 */
 public final class QuickLitematicaPreview3D {
@@ -208,7 +209,7 @@ public final class QuickLitematicaPreview3D {
     public static boolean prepare3DPreview() {
         if (!isShaderPackActive()) return true;
         if (!QuickCraftConfigs.shouldAutoDisableShadersFor3DPreview()
-                || !QuickLitematicaPreviewAccess.tryDisableShaders()) return false;
+                || !QuickLitematicaPreviewCompat.tryDisableShaders()) return false;
         boolean disabled = !isShaderPackActive();
         if (disabled) InfoUtils.printActionbarMessage("quickcraft.message.litematica.preview_3d.shader_auto_disabled");
         return disabled;
