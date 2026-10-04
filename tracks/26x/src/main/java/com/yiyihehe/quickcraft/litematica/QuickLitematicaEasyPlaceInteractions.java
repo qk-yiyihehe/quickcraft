@@ -1,5 +1,14 @@
 package com.yiyihehe.quickcraft.litematica;
 
+import fi.dy.masa.litematica.util.InventoryUtils;
+import fi.dy.masa.litematica.world.SchematicWorldHandler;
+import net.minecraft.core.BlockPos;
+import net.minecraft.world.InteractionHand;
+import net.minecraft.world.InteractionResult;
+import net.minecraft.world.entity.Entity;
+import net.minecraft.world.level.Level;
+import org.jetbrains.annotations.Nullable;
+
 import com.yiyihehe.quickcraft.QuickFreeCameraInteractions;
 import com.yiyihehe.quickcraft.QuickClientScreenAccess;
 import com.yiyihehe.quickcraft.config.QuickCraftConfigs;
@@ -22,11 +31,62 @@ import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.phys.HitResult;
 
 /**
- * 统一决定 Litematica 轻松放置何时应让出右键给原版。
- * 这里只控制是否绕过轻松放置；物品条件、方块状态和服务端结果仍完全由原版交互链处理。
+ * 处理 Litematica 轻松放置的水源施工与原版交互退让。
+ * 原版交互的物品条件、方块状态和服务端结果仍由原版交互链处理。
  */
 public final class QuickLitematicaEasyPlaceInteractions {
     private QuickLitematicaEasyPlaceInteractions() {
+    }
+
+    // null 表示未接管；非空结果由注入层取消原流程并返回。
+    @Nullable
+    public static InteractionResult placeIceOverProjectedSourceWater(Minecraft client) {
+        if (!QuickCraftConfigs.isEasyPlaceIceOverSourceWaterAllowed()
+                || client.player == null || client.level == null || client.gameMode == null) {
+            return null;
+        }
+
+        Entity traceEntity = QuickFreeCameraInteractions.getEasyPlaceTraceEntity(client, client.player);
+        double range = WorldUtils.getValidBlockRange(client);
+        RayTraceUtils.RayTraceWrapper trace = RayTraceUtils.getGenericTrace(
+                client.level, traceEntity, range, true, true, false);
+        if (trace == null || trace.getHitType() != RayTraceUtils.RayTraceWrapper.HitType.SCHEMATIC_BLOCK) {
+            return null;
+        }
+
+        BlockHitResult schematicHit = trace.getBlockHitResult();
+        Level schematicWorld = SchematicWorldHandler.getSchematicWorld();
+        if (schematicHit == null || schematicWorld == null) {
+            return null;
+        }
+
+        BlockPos targetPos = schematicHit.getBlockPos();
+        BlockState schematicState = schematicWorld.getBlockState(targetPos);
+        BlockState worldState = client.level.getBlockState(targetPos);
+        if (!schematicState.is(Blocks.WATER) || !schematicState.getFluidState().isSource()
+                || (!worldState.isAir()
+                && (!worldState.is(Blocks.WATER) || !worldState.getFluidState().isSource()))) {
+            return null;
+        }
+
+        ItemStack iceStack = new ItemStack(Blocks.ICE);
+        InventoryUtils.schematicWorldPickBlock(iceStack, targetPos, schematicWorld, client);
+        InteractionHand hand = fi.dy.masa.litematica.util.EntityUtils.getUsedHandForItem(client.player, iceStack);
+        if (hand == null) {
+            return InteractionResult.FAIL;
+        }
+
+        BlockHitResult placementHit = schematicHit;
+        HitResult vanillaTrace = RayTraceUtils.getRayTraceFromEntity(client.level, traceEntity, false, range);
+        if (vanillaTrace instanceof BlockHitResult blockHit
+                && blockHit.getType() == HitResult.Type.BLOCK
+                && blockHit.getBlockPos().relative(blockHit.getDirection()).equals(targetPos)) {
+            placementHit = blockHit;
+        }
+
+        InteractionResult result = client.gameMode.useItemOn(client.player, hand, placementHit);
+        QuickLitematicaEasyPlaceAccess.swingHandIfSuccess(client, hand, result);
+        return result == InteractionResult.FAIL ? InteractionResult.FAIL : InteractionResult.SUCCESS;
     }
 
     public static boolean shouldAllowVanillaUse(Minecraft client) {
