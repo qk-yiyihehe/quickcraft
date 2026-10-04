@@ -154,6 +154,9 @@ public final class QuickLitematicaPreviewAccess {
             int allocatorSize = allocatorSize(vertexCount);
             ByteBufferBuilder allocator = new ByteBufferBuilder(allocatorSize);
             LayerBuffer uploaded = null;
+            GpuBuffer vertexBuffer = null;
+            GpuBuffer indexBuffer = null;
+            boolean customIndexBuffer = false;
             try {
                 RenderType renderLayer = layerMesh.layer().renderLayer();
                 BufferBuilder builder = new BufferBuilder(allocator, renderLayer.primitiveTopology(), renderLayer.format());
@@ -170,13 +173,13 @@ public final class QuickLitematicaPreviewAccess {
                     }
 
                     var drawParameters = built.drawState();
-                    GpuBuffer vertexBuffer = RenderSystem.getDevice().createBuffer(
+                    vertexBuffer = RenderSystem.getDevice().createBuffer(
                             () -> "QuickCraft preview vertices",
                             GpuBuffer.USAGE_VERTEX | GpuBuffer.USAGE_COPY_DST,
                             built.vertexBuffer()
                     );
-                    boolean customIndexBuffer = built.indexBuffer() != null;
-                    GpuBuffer indexBuffer = customIndexBuffer
+                    customIndexBuffer = built.indexBuffer() != null;
+                    indexBuffer = customIndexBuffer
                             ? RenderSystem.getDevice().createBuffer(
                                     () -> "QuickCraft preview indices",
                                     GpuBuffer.USAGE_INDEX | GpuBuffer.USAGE_COPY_DST,
@@ -188,14 +191,22 @@ public final class QuickLitematicaPreviewAccess {
                             : RenderSystem.getSequentialBuffer(drawParameters.primitiveTopology()).type();
 
                     uploaded = new LayerBuffer(vertexBuffer, indexBuffer, drawParameters.indexCount(), indexType, customIndexBuffer);
-                    this.layerBuffers.computeIfAbsent(layerMesh.layer(), ignored -> new ArrayList<>()).add(uploaded);
-                    return true;
                 } finally {
                     built.close();
                 }
+                this.layerBuffers.computeIfAbsent(layerMesh.layer(), ignored -> new ArrayList<>()).add(uploaded);
+                return true;
             } catch (Throwable throwable) {
                 if (uploaded != null) {
                     uploaded.close();
+                } else {
+                    if (vertexBuffer != null) {
+                        vertexBuffer.close();
+                    }
+                    // 顺序索引缓冲由原版共享，只有自建索引缓冲随本次上传释放。
+                    if (customIndexBuffer && indexBuffer != null) {
+                        indexBuffer.close();
+                    }
                 }
                 LOGGER.error("Failed to upload layer mesh for {}", this.preview.sourceName(), throwable);
                 return false;
