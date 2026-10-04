@@ -5,6 +5,7 @@ import org.jetbrains.annotations.Nullable;
 import com.mojang.blaze3d.Blaze3D;
 import com.sun.jna.Platform;
 import com.sun.jna.Pointer;
+import com.sun.jna.platform.win32.Shell32;
 import com.sun.jna.platform.win32.User32;
 import com.sun.jna.platform.win32.WinDef.HWND;
 import com.sun.jna.platform.win32.WinUser;
@@ -13,11 +14,14 @@ import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 import org.lwjgl.sdl.SDLProperties;
 import org.lwjgl.sdl.SDLVideo;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.nio.file.Path;
 
-/** 26.3 客户端屏幕与系统交互适配（openPath 改用 Blaze3D，窗口管理使用 SDL3）。 */
+/** 26.3 客户端屏幕与系统交互适配，窗口管理使用 SDL3。 */
 public final class QuickClientScreenAccess {
+    private static final Logger LOGGER = LoggerFactory.getLogger(QuickClientScreenAccess.class);
     private QuickClientScreenAccess() {
     }
 
@@ -34,6 +38,15 @@ public final class QuickClientScreenAccess {
     }
 
     public static void openPath(Path path) {
+        if (Platform.isWindows()) {
+            // SDL_OpenURL 按 URL 打开 file URI；本地路径交给 Windows Shell，兼容游戏的 AWT headless 模式。
+            var result = Shell32.INSTANCE.ShellExecute(null, "open", path.toAbsolutePath().normalize().toString(),
+                    null, null, WinUser.SW_SHOWNORMAL);
+            if (result.longValue() <= 32L) {
+                LOGGER.warn("Could not open path {}: Windows Shell error {}", path, result.longValue());
+            }
+            return;
+        }
         Blaze3D.openPath(path);
     }
 
