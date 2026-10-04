@@ -735,8 +735,7 @@ public final class QuickLitematicaContainerMaterials {
     }
 
     static int getGroupHeight(ContainerGroup group, int rowWidth) {
-        int contentWidth = Math.max(ITEM_CELL_WIDTH, rowWidth - CONTAINER_COLUMN_WIDTH - COUNT_COLUMN_WIDTH - ACTION_COLUMN_WIDTH - 18);
-        int columns = Math.max(1, contentWidth / ITEM_CELL_WIDTH);
+        int columns = QuickLitematicaContainerMaterialsLayout.contentColumns(rowWidth);
         int rows = Math.max(1, (group.contents().size() + columns - 1) / columns);
         int contentHeight = rows * ITEM_CELL_HEIGHT + 8;
         return Math.max(group.sourceLabel() == null ? 30 : 40, contentHeight);
@@ -1158,6 +1157,16 @@ public final class QuickLitematicaContainerMaterials {
             if (!this.materialEntriesInitialized) {
                 this.initializeMaterialEntries();
             }
+        }
+
+        void refreshContainerData() {
+            this.data.refresh(this.getMaterialListType());
+            this.invalidateMaterialEntries();
+        }
+
+        void ignoreContainerGroup(ContainerGroup group) {
+            this.data.ignoreGroup(group);
+            this.invalidateMaterialEntries();
         }
 
         void invalidateMaterialEntries() {
