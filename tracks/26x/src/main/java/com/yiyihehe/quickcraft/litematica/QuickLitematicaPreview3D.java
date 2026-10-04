@@ -114,6 +114,8 @@ import javax.imageio.ImageIO;
  * 构建阶段调用 Minecraft 自带方块渲染器，把材质、异形模型、透明层和流体都录成可缓存的 CPU 顶点。
  */
 public final class QuickLitematicaPreview3D {
+    private static final AtomicBoolean SHADER_API_ERROR_LOGGED = new AtomicBoolean();
+    private static final AtomicBoolean SHADER_DISABLE_ERROR_LOGGED = new AtomicBoolean();
     static final Logger LOGGER = LoggerFactory.getLogger(QuickLitematicaPreview3D.class);
     private static final Map<fi.dy.masa.litematica.gui.GuiSchematicBrowserBase, Manager> MANAGERS = new WeakHashMap<>();
     // 预览构建专用单线程池：避免与 Util.getMainWorkerExecutor 共享导致排队等几秒。
@@ -262,13 +264,41 @@ public final class QuickLitematicaPreview3D {
     }
 
     public static boolean isShaderPackActive() {
-        return QuickLitematicaPreviewAccess.isShaderPackActive();
+        try {
+            Class<?> apiClass = Class.forName("net.irisshaders.iris.api.v0.IrisApi");
+            Object api = apiClass.getMethod("getInstance").invoke(null);
+            return (boolean) apiClass.getMethod("isShaderPackInUse").invoke(api);
+        } catch (ClassNotFoundException ignored) {
+            return false;
+        } catch (Throwable throwable) {
+            if (SHADER_API_ERROR_LOGGED.compareAndSet(false, true)) {
+                LOGGER.error("Iris shader state could not be queried; disabling QuickCraft 3D previews for this session", throwable);
+            }
+            return true;
+        }
+    }
+
+    static boolean tryDisableShaders() {
+        try {
+            // Iris 是可选依赖，通过其公开 v0 API 查询和修改光影状态。
+            Class<?> apiClass = Class.forName("net.irisshaders.iris.api.v0.IrisApi");
+            Object api = apiClass.getMethod("getInstance").invoke(null);
+            Object config = apiClass.getMethod("getConfig").invoke(api);
+            Class<?> configClass = Class.forName("net.irisshaders.iris.api.v0.IrisApiConfig");
+            configClass.getMethod("setShadersEnabledAndApply", boolean.class).invoke(config, false);
+            return true;
+        } catch (Throwable failure) {
+            if (SHADER_DISABLE_ERROR_LOGGED.compareAndSet(false, true)) {
+                LOGGER.error("Iris shaders could not be disabled before opening a QuickCraft 3D preview", failure);
+            }
+            return false;
+        }
     }
 
     public static boolean prepare3DPreview() {
         if (!isShaderPackActive()) return true;
         if (!QuickCraftConfigs.shouldAutoDisableShadersFor3DPreview()
-                || !QuickLitematicaPreviewAccess.tryDisableShaders()) return false;
+                || !tryDisableShaders()) return false;
         boolean disabled = !isShaderPackActive();
         if (disabled) InfoUtils.printActionbarMessage("quickcraft.message.litematica.preview_3d.shader_auto_disabled");
         return disabled;
