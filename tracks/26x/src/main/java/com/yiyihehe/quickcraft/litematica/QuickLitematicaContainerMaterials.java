@@ -86,11 +86,11 @@ public final class QuickLitematicaContainerMaterials {
     public static final String BUTTON_HOVER_KEY = "quickcraft.litematica.button.hover.container_material_list";
 
     private static final int BUTTON_GAP = 4;
-    private static final int CONTAINER_COLUMN_WIDTH = 188;
-    private static final int COUNT_COLUMN_WIDTH = 58;
-    private static final int ACTION_COLUMN_WIDTH = 66;
-    private static final int ITEM_CELL_WIDTH = 34;
-    private static final int ITEM_CELL_HEIGHT = 20;
+    static final int CONTAINER_COLUMN_WIDTH = 188;
+    static final int COUNT_COLUMN_WIDTH = 58;
+    static final int ACTION_COLUMN_WIDTH = 66;
+    static final int ITEM_CELL_WIDTH = 34;
+    static final int ITEM_CELL_HEIGHT = 20;
     private static final int HEADER_HEIGHT = 22;
     private static final Set<String> NON_INVENTORY_BLOCK_ENTITY_IDS = new HashSet<>();
     private static final Direction[] HORIZONTAL_DIRECTIONS = new Direction[] {
@@ -695,8 +695,7 @@ public final class QuickLitematicaContainerMaterials {
     }
 
     private static int getGroupHeight(ContainerGroup group, int rowWidth) {
-        int contentWidth = Math.max(ITEM_CELL_WIDTH, rowWidth - CONTAINER_COLUMN_WIDTH - COUNT_COLUMN_WIDTH - ACTION_COLUMN_WIDTH - 18);
-        int columns = Math.max(1, contentWidth / ITEM_CELL_WIDTH);
+        int columns = QuickLitematicaContainerMaterialsLayout.contentColumns(rowWidth);
         int rows = Math.max(1, (group.contents().size() + columns - 1) / columns);
         int contentHeight = rows * ITEM_CELL_HEIGHT + 8;
         return Math.max(group.sourceLabel() == null ? 30 : 40, contentHeight);
@@ -1120,6 +1119,16 @@ public final class QuickLitematicaContainerMaterials {
             }
         }
 
+        private void refreshContainerData() {
+            this.data.refresh(this.getMaterialListType());
+            this.invalidateMaterialEntries();
+        }
+
+        private void ignoreContainerGroup(ContainerGroup group) {
+            this.data.ignoreGroup(group);
+            this.invalidateMaterialEntries();
+        }
+
         private void invalidateMaterialEntries() {
             this.materialEntriesInitialized = false;
             this.worldMissingCounts = null;
@@ -1207,23 +1216,12 @@ public final class QuickLitematicaContainerMaterials {
             String detailsLabel = StringUtils.translate("quickcraft.litematica.button.container_material_details");
             String materialLabel = StringUtils.translate(BUTTON_KEY);
             List<ButtonBase> buttons = ((QuickCraftGuiButtonAccess) (Object) this).quickcraft$getButtons();
-            int bottomRow = this.height - 22;
-            int topRowLimit = this.width - 60;
-            int topX = buttons.stream()
-                    .filter(button -> button.getY() == 24)
-                    .mapToInt(button -> button.getX() + button.getWidth() + gap)
-                    .max()
-                    .orElse(12);
             int detailsWidth = this.getStringWidth(detailsLabel) + 10;
             int materialWidth = this.getStringWidth(materialLabel) + 10;
-            boolean fitsTopRow = !buttons.stream().anyMatch(button -> button.getY() == bottomRow)
-                    && topX + detailsWidth + gap + materialWidth <= topRowLimit;
-            int y = fitsTopRow ? 24 : bottomRow;
-            int x = buttons.stream()
-                    .filter(button -> button.getY() == y)
-                    .mapToInt(button -> button.getX() + button.getWidth() + gap)
-                    .max()
-                    .orElse(12);
+            QuickLitematicaContainerMaterials.ButtonPlacement placement = QuickLitematicaContainerMaterialsLayout.navigationPlacement(
+                    buttons, this.width, this.height, detailsWidth, materialWidth);
+            int x = placement.x();
+            int y = placement.y();
 
             ButtonGeneric detailsButton = this.createNavButton(x, y, detailsLabel);
             this.addButton(detailsButton, (button, mouseButton) -> openDetailScreen(this.materialList));
@@ -1324,15 +1322,13 @@ public final class QuickLitematicaContainerMaterials {
         }
 
         private void refreshData() {
-            this.data.refresh(this.materialList.getMaterialListType());
-            this.materialList.invalidateMaterialEntries();
+            this.materialList.refreshContainerData();
             this.reCreateListWidget();
             this.initGui();
         }
 
         private void ignoreGroup(ContainerGroup group) {
-            this.data.ignoreGroup(group);
-            this.materialList.invalidateMaterialEntries();
+            this.materialList.ignoreContainerGroup(group);
             this.reCreateListWidget();
             this.initGui();
         }
@@ -1507,12 +1503,12 @@ public final class QuickLitematicaContainerMaterials {
                 return;
             }
 
-            int columns = getContentColumns(contentsX);
+            int columns = QuickLitematicaContainerMaterialsLayout.contentColumns(this.width);
 
             for (int i = 0; i < this.entry.contents().size(); i++) {
                 ItemCount item = this.entry.contents().get(i);
-                int itemX = contentsX + (i % columns) * ITEM_CELL_WIDTH;
-                int itemY = this.y + 6 + (i / columns) * ITEM_CELL_HEIGHT;
+                int itemX = QuickLitematicaContainerMaterialsLayout.itemX(contentsX, columns, i);
+                int itemY = QuickLitematicaContainerMaterialsLayout.itemY(this.y, columns, i);
                 ItemStack displayStack = item.stack();
 
                 RenderUtils.drawRect(drawContext, itemX, itemY, 16, 16, 0x20FFFFFF);
@@ -1528,24 +1524,9 @@ public final class QuickLitematicaContainerMaterials {
         }
 
         private ItemCount getHoveredItem(int mouseX, int mouseY) {
-            int contentsX = this.x + CONTAINER_COLUMN_WIDTH + COUNT_COLUMN_WIDTH + 8;
-            int columns = getContentColumns(contentsX);
-
-            for (int i = 0; i < this.entry.contents().size(); i++) {
-                int itemX = contentsX + (i % columns) * ITEM_CELL_WIDTH;
-                int itemY = this.y + 6 + (i / columns) * ITEM_CELL_HEIGHT;
-
-                if (mouseX >= itemX && mouseX < itemX + 16 && mouseY >= itemY && mouseY < itemY + 16) {
-                    return this.entry.contents().get(i);
-                }
-            }
-
-            return null;
-        }
-
-        private int getContentColumns(int contentsX) {
-            int contentWidth = Math.max(ITEM_CELL_WIDTH, this.x + this.width - contentsX - ACTION_COLUMN_WIDTH - 10);
-            return Math.max(1, contentWidth / ITEM_CELL_WIDTH);
+            int index = QuickLitematicaContainerMaterialsLayout.hoveredItemIndex(
+                    this.x, this.y, this.width, this.entry.contents().size(), mouseX, mouseY);
+            return index < 0 ? null : this.entry.contents().get(index);
         }
     }
 
