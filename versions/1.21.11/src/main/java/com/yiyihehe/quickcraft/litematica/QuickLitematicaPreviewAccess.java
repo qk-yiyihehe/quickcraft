@@ -19,7 +19,6 @@ import com.yiyihehe.quickcraft.mixin.RenderLayerAccessor;
 import fi.dy.masa.litematica.render.schematic.WorldRendererSchematic;
 import fi.dy.masa.litematica.schematic.LitematicaSchematic;
 import fi.dy.masa.litematica.schematic.container.LitematicaBlockStateContainer;
-import fi.dy.masa.litematica.selection.Box;
 import fi.dy.masa.litematica.util.EntityUtils;
 import fi.dy.masa.litematica.util.FileType;
 import fi.dy.masa.litematica.world.WorldSchematic;
@@ -99,7 +98,6 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collection;
 import java.util.EnumMap;
 import java.util.HexFormat;
 import java.util.LinkedHashMap;
@@ -1642,40 +1640,6 @@ final class QuickLitematicaPreviewAccess {
             float ndcX = this.scratch.x / w;
             float ndcY = this.scratch.y / w;
             return ndcX < this.minX || ndcX > this.maxX || ndcY < this.minY || ndcY > this.maxY;
-        }
-    }
-
-    record Bounds(BlockPos min, BlockPos max) {
-        static Bounds from(Collection<Box> boxes) {
-            BlockPos min = BlockPos.ORIGIN;
-            BlockPos max = BlockPos.ORIGIN;
-            boolean seen = false;
-
-            for (Box box : boxes) {
-                RegionBounds bounds = RegionBounds.from(box);
-                if (!seen) {
-                    min = bounds.min();
-                    max = bounds.max();
-                    seen = true;
-                } else {
-                    min = BlockPos.min(min, bounds.min());
-                    max = BlockPos.max(max, bounds.max());
-                }
-            }
-
-            return new Bounds(min, max);
-        }
-
-        int sizeX() {
-            return this.max.getX() - this.min.getX() + 1;
-        }
-
-        int sizeY() {
-            return this.max.getY() - this.min.getY() + 1;
-        }
-
-        int sizeZ() {
-            return this.max.getZ() - this.min.getZ() + 1;
         }
     }
 

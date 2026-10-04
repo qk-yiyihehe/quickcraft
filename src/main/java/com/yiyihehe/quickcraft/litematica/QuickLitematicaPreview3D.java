@@ -1902,6 +1902,40 @@ public final class QuickLitematicaPreview3D {
         }
     }
 
+    record Bounds(BlockPos min, BlockPos max) {
+        static Bounds from(Collection<Box> boxes) {
+            BlockPos min = BlockPos.ORIGIN;
+            BlockPos max = BlockPos.ORIGIN;
+            boolean seen = false;
+
+            for (Box box : boxes) {
+                RegionBounds bounds = RegionBounds.from(box);
+                if (!seen) {
+                    min = bounds.min();
+                    max = bounds.max();
+                    seen = true;
+                } else {
+                    min = BlockPos.min(min, bounds.min());
+                    max = BlockPos.max(max, bounds.max());
+                }
+            }
+
+            return new Bounds(min, max);
+        }
+
+        int sizeX() {
+            return this.max.getX() - this.min.getX() + 1;
+        }
+
+        int sizeY() {
+            return this.max.getY() - this.min.getY() + 1;
+        }
+
+        int sizeZ() {
+            return this.max.getZ() - this.min.getZ() + 1;
+        }
+    }
+
     record RegionBounds(BlockPos min, BlockPos max) {
         static RegionBounds from(Box box) {
             BlockPos first = box.getPos1();
