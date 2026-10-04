@@ -1,5 +1,4 @@
 package com.yiyihehe.quickcraft.litematica;
-import java.util.concurrent.atomic.AtomicBoolean;
 
 import com.mojang.blaze3d.buffers.GpuBuffer;
 import com.mojang.blaze3d.buffers.Std140Builder;
@@ -13,7 +12,6 @@ import com.mojang.blaze3d.systems.RenderPass;
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.vertex.BufferBuilder;
 import com.mojang.blaze3d.vertex.ByteBufferBuilder;
-import com.mojang.blaze3d.vertex.DefaultVertexFormat;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.blaze3d.vertex.VertexConsumer;
 import com.mojang.blaze3d.vertex.VertexFormat;
@@ -26,7 +24,6 @@ import net.minecraft.client.gui.render.pip.PictureInPictureRenderer;
 import net.minecraft.client.renderer.MultiBufferSource;
 import net.minecraft.client.renderer.Projection;
 import net.minecraft.client.renderer.ProjectionMatrixBuffer;
-import net.minecraft.client.renderer.SectionBufferBuilderPack;
 import net.minecraft.client.renderer.SubmitNodeCollector;
 import net.minecraft.client.renderer.SubmitNodeStorage;
 import net.minecraft.client.renderer.blockentity.BlockEntityRenderer;
@@ -35,13 +32,9 @@ import net.minecraft.client.renderer.entity.state.EntityRenderState;
 import net.minecraft.client.renderer.feature.FeatureRenderDispatcher;
 import net.minecraft.client.renderer.rendertype.RenderSetup;
 import net.minecraft.client.renderer.rendertype.RenderType;
-import net.minecraft.client.renderer.rendertype.RenderTypes;
 import net.minecraft.client.renderer.state.level.CameraRenderState;
-import net.minecraft.core.BlockPos;
 import net.minecraft.util.Util;
-import net.minecraft.world.level.block.RenderShape;
 import net.minecraft.world.level.block.entity.BlockEntity;
-import net.minecraft.world.level.block.state.BlockState;
 import org.jetbrains.annotations.Nullable;
 import org.joml.Matrix4f;
 import org.joml.Matrix4fStack;
@@ -67,8 +60,6 @@ import java.util.function.Consumer;
  * 使用 Blaze3D 早期直接 VBO 管线、RenderSystem.outputColorTextureOverride 与 DynamicMeshCollector。
  */
 public final class QuickLitematicaPreviewAccess {
-    private static final AtomicBoolean SHADER_API_ERROR_LOGGED = new AtomicBoolean();
-    private static final AtomicBoolean SHADER_DISABLE_ERROR_LOGGED = new AtomicBoolean();
     private static final Logger LOGGER = LoggerFactory.getLogger(QuickLitematicaPreviewAccess.class);
     private static final Vector3f ZERO_MODEL_OFFSET = new Vector3f();
     private static final int VERTEX_BYTES = 44;
@@ -890,34 +881,4 @@ public final class QuickLitematicaPreviewAccess {
     }
 
 
-    public static boolean isShaderPackActive() {
-        try {
-            Class<?> apiClass = Class.forName("net.irisshaders.iris.api.v0.IrisApi");
-            Object api = apiClass.getMethod("getInstance").invoke(null);
-            return (boolean) apiClass.getMethod("isShaderPackInUse").invoke(api);
-        } catch (ClassNotFoundException ignored) {
-            return false;
-        } catch (Throwable throwable) {
-            if (SHADER_API_ERROR_LOGGED.compareAndSet(false, true)) {
-                LOGGER.error("Iris shader state could not be queried; disabling QuickCraft 3D previews for this session", throwable);
-            }
-            return true;
-        }
-    }
-    static boolean tryDisableShaders() {
-        try {
-            // Iris 是可选依赖，只在后端访问其公开 v0 API。
-            Class<?> apiClass = Class.forName("net.irisshaders.iris.api.v0.IrisApi");
-            Object api = apiClass.getMethod("getInstance").invoke(null);
-            Object config = apiClass.getMethod("getConfig").invoke(api);
-            Class<?> configClass = Class.forName("net.irisshaders.iris.api.v0.IrisApiConfig");
-            configClass.getMethod("setShadersEnabledAndApply", boolean.class).invoke(config, false);
-            return true;
-        } catch (Throwable failure) {
-            if (SHADER_DISABLE_ERROR_LOGGED.compareAndSet(false, true)) {
-                LOGGER.error("Iris shaders could not be disabled before opening a QuickCraft 3D preview", failure);
-            }
-            return false;
-        }
-    }
 }
