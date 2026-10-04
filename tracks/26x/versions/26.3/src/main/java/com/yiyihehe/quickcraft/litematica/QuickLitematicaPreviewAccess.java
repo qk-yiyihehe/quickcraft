@@ -15,9 +15,10 @@ import com.mojang.blaze3d.vertex.VertexSorting;
 import com.mojang.math.Axis;
 import com.mojang.renderpearl.api.GpuFormat;
 import com.mojang.renderpearl.api.buffers.GpuBuffer;
-import com.mojang.renderpearl.api.buffers.GpuBufferSlice;
 import com.mojang.renderpearl.api.commands.RenderPass;
 import com.mojang.renderpearl.api.pipeline.IndexType;
+import com.mojang.renderpearl.api.textures.GpuTextureView;
+import com.yiyihehe.quickcraft.mixin.QuickPictureInPictureRendererAccessor;
 import net.fabricmc.fabric.api.client.rendering.v1.PictureInPictureRendererRegistry;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.render.pip.PictureInPictureRenderer;
@@ -27,6 +28,7 @@ import net.minecraft.client.renderer.StagedVertexBuffer;
 import net.minecraft.client.renderer.SubmitNodeCollector;
 import net.minecraft.client.renderer.SubmitNodeStorage;
 import net.minecraft.client.renderer.feature.FeatureRenderDispatcher;
+import net.minecraft.client.renderer.rendertype.PreparedRenderType;
 import net.minecraft.client.renderer.rendertype.RenderType;
 import net.minecraft.util.Util;
 import org.jetbrains.annotations.Nullable;
@@ -50,7 +52,7 @@ import java.util.function.Consumer;
 
 /**
  * 26.3 3D 原理图预览渲染与 GPU 适配。
- * 使用 RenderPearl 管线、RenderPass 命令回调以及 QuickLitematicaPictureInPictureRenderPass。
+ * 使用 RenderPearl 管线、独立 RenderPass，静态网格与动态内容绘制到同一张 PIP 纹理。
  */
 public final class QuickLitematicaPreviewAccess {
     private static final Logger LOGGER = LoggerFactory.getLogger(QuickLitematicaPreviewAccess.class);
@@ -80,11 +82,7 @@ public final class QuickLitematicaPreviewAccess {
         return new Backend263(preview);
     }
 
-    private static final class PreviewGuiElementRenderer extends PictureInPictureRenderer<QuickLitematicaPreview3D.PreviewGuiElement>
-            implements QuickLitematicaPictureInPictureRenderPass {
-        @Nullable
-        private QuickLitematicaPreview3D.PreviewGuiElement pendingElement;
-
+    private static final class PreviewGuiElementRenderer extends PictureInPictureRenderer<QuickLitematicaPreview3D.PreviewGuiElement> {
         @Override
         public Class<QuickLitematicaPreview3D.PreviewGuiElement> getRenderStateClass() {
             return QuickLitematicaPreview3D.PreviewGuiElement.class;
@@ -92,24 +90,10 @@ public final class QuickLitematicaPreviewAccess {
 
         @Override
         protected void renderToTexture(QuickLitematicaPreview3D.PreviewGuiElement element, PoseStack matrices, SubmitNodeCollector submitNodes) {
-            this.pendingElement = element;
             QuickLitematicaPreviewBackend backend = element.preview().backend();
             if (backend instanceof Backend263 backend263) {
-                backend263.drawSpecial(element, matrices, submitNodes);
-            }
-        }
-
-        @Override
-        public void quickcraft$renderFeatures(RenderPass renderPass, FeatureRenderDispatcher.PreparedFrame frame) {
-            QuickLitematicaPreview3D.PreviewGuiElement element = this.pendingElement;
-            this.pendingElement = null;
-            if (element == null) {
-                FeatureRenderDispatcher.renderAllFeatures(renderPass, frame);
-                return;
-            }
-            QuickLitematicaPreviewBackend backend = element.preview().backend();
-            if (backend instanceof Backend263 backend263) {
-                backend263.renderPreparedPip(renderPass, frame);
+                QuickPictureInPictureRendererAccessor accessor = (QuickPictureInPictureRendererAccessor) (Object) this;
+                backend263.drawSpecial(element, matrices, accessor.quickcraft$getTextureView(), accessor.quickcraft$getDepthTextureView());
             }
         }
 
@@ -129,20 +113,10 @@ public final class QuickLitematicaPreviewAccess {
         private final Map<QuickLitematicaPreview3D.LayerKey, List<LayerBuffer>> layerBuffers = new EnumMap<>(QuickLitematicaPreview3D.LayerKey.class);
         private final Projection snapshotProjection = new Projection();
         private final ProjectionMatrixBuffer snapshotProjectionBuffer = new ProjectionMatrixBuffer("QuickCraft PNG projection");
-        private final ProjectionMatrixBuffer dynamicProjectionBuffer = new ProjectionMatrixBuffer("QuickCraft dynamic preview projection");
         @Nullable
         private GpuBuffer previewLightingBuffer;
         private boolean staticUploadComplete;
         private boolean dynamicPreparationArmed;
-
-        @Nullable
-        private Matrix4f pendingPipModelView;
-        @Nullable
-        private GpuBufferSlice pendingPipDynamicProjection;
-        @Nullable
-        private GpuBufferSlice pendingPipPreviousLights;
-        private boolean pendingPipProjectionBackup;
-        private boolean pendingPipUseCurrentFrame;
 
         private Backend263(QuickLitematicaPreview3D.Preview preview) {
             this.preview = preview;
@@ -254,23 +228,23 @@ public final class QuickLitematicaPreviewAccess {
             }
             this.preparedDynamicScene = null;
             this.snapshotProjectionBuffer.close();
-            this.dynamicProjectionBuffer.close();
         }
 
-        void drawSpecial(QuickLitematicaPreview3D.PreviewGuiElement element, PoseStack matrices, SubmitNodeCollector submitNodes) {
+        void drawSpecial(QuickLitematicaPreview3D.PreviewGuiElement element, PoseStack matrices,
+                         GpuTextureView colorView, GpuTextureView depthView) {
             QuickLitematicaPreview3D.MeshData data = this.preview.meshData();
             QuickLitematicaPreview3D.PreviewDimensions dimensions = this.preview.dimensions();
             if (dimensions == null || this.preview.isCancelled()) {
                 return;
             }
 
-            this.pendingPipPreviousLights = RenderSystem.getShaderLights();
+            var previousLights = RenderSystem.getShaderLights();
             RenderSystem.backupProjectionMatrix();
-            this.pendingPipProjectionBackup = true;
             try {
-                int targetSize = Math.max(1, element.size() * Minecraft.getInstance().getWindow().getGuiScale());
-                this.setupPreviewProjection(targetSize, targetSize, element.dragScale());
+                this.setupPreviewProjection(colorView.getWidth(0), colorView.getHeight(0), element.dragScale());
+                this.applyLight(element.pitch(), element.angle());
                 matrices.pushPose();
+                Matrix4f modelView;
                 try {
                     matrices.scale(1.0F, -1.0F, -1.0F);
                     matrices.translate(element.dragX(), -element.dragY(), 0.0F);
@@ -279,69 +253,48 @@ public final class QuickLitematicaPreviewAccess {
                     float scale = dimensions.scaleFactor(element.size(), element.size()) * element.size() * 0.5F * element.dragScale();
                     matrices.scale(scale, scale, scale);
                     matrices.translate(-dimensions.sizeX() / 2.0F, -dimensions.sizeY() / 2.0F, -dimensions.sizeZ() / 2.0F);
-                    Matrix4f dynamicModelView = new Matrix4f(matrices.last().pose());
-                    this.pendingPipModelView = dynamicModelView;
-                    this.pendingPipDynamicProjection = this.dynamicFrame == null
-                            ? null
-                            : this.prepareDynamicProjection(dynamicModelView);
-                    this.applyLight(element.pitch(), element.angle());
-                    if (data != null && this.staticUploadComplete) {
-                        if (this.dynamicPreparationArmed) {
-                            if (data.hasDynamicContent()) {
-                                if (this.dynamicFrame == null) {
-                                    this.prepareDynamicStates(data);
-                                    if (this.preparedDynamicScene != null) {
-                                        this.drawPreparedDynamic(this.preparedDynamicScene, dynamicModelView, element.size(), submitNodes);
-                                    } else {
-                                        this.drawDynamic(data, dynamicModelView, element.size(), submitNodes);
-                                    }
-                                    this.pendingPipUseCurrentFrame = true;
-                                    this.prepareDynamicFrame(data);
-                                }
-                            }
-                        } else {
-                            this.dynamicPreparationArmed = true;
-                        }
-                    }
+                    modelView = new Matrix4f(matrices.last().pose());
                 } finally {
                     matrices.popPose();
                 }
-            } catch (Throwable throwable) {
-                this.finishPipRenderState();
-                throw throwable;
-            }
-        }
 
-        void renderPreparedPip(RenderPass renderPass, FeatureRenderDispatcher.PreparedFrame currentFrame) {
-            Matrix4f modelView = this.pendingPipModelView;
-            if (modelView == null) {
-                FeatureRenderDispatcher.renderAllFeatures(renderPass, currentFrame);
-                return;
-            }
-
-            try {
-                this.drawBuffers(modelView, false, renderPass);
-                if (this.dynamicFrame != null && !this.pendingPipUseCurrentFrame) {
-                    this.drawDynamicFrame(renderPass, this.pendingPipDynamicProjection);
-                } else {
-                    FeatureRenderDispatcher.renderAllFeatures(renderPass, currentFrame);
+                // RenderPearl 的 pass 打开后不能上传纹理或缓冲；静态层和动态帧都在此之前准备。
+                List<LayerDraw> layers = this.prepareBuffers(modelView);
+                try (FeatureRenderDispatcher.PreparedFrame frame = this.prepareCurrentDynamicFrame(data, modelView, element.size(), this.dynamicPreparationArmed);
+                     RenderPass pass = RenderSystem.getDevice().createCommandEncoder().createRenderPass(
+                             () -> "QuickCraft preview", colorView, Optional.empty(), depthView, OptionalDouble.empty())) {
+                    RenderSystem.bindDefaultUniforms(pass);
+                    drawBuffers(layers, false, pass);
+                    if (frame != null) {
+                        FeatureRenderDispatcher.renderAllFeatures(pass, frame);
+                    }
+                    drawBuffers(layers, true, pass);
+                    this.dynamicPreparationArmed = true;
                 }
-                this.drawBuffers(modelView, true, renderPass);
             } finally {
-                this.finishPipRenderState();
+                RenderSystem.restoreProjectionMatrix();
+                RenderSystem.setShaderLights(previousLights);
             }
         }
 
-        private void finishPipRenderState() {
-            this.pendingPipModelView = null;
-            this.pendingPipDynamicProjection = null;
-            if (this.pendingPipProjectionBackup) {
-                RenderSystem.restoreProjectionMatrix();
-                this.pendingPipProjectionBackup = false;
+        @Nullable
+        private FeatureRenderDispatcher.PreparedFrame prepareCurrentDynamicFrame(
+                @Nullable QuickLitematicaPreview3D.MeshData data, Matrix4f modelView, int viewSize, boolean armed) {
+            if (data == null || !this.staticUploadComplete || !data.hasDynamicContent()) {
+                return null;
             }
-            RenderSystem.setShaderLights(this.pendingPipPreviousLights);
-            this.pendingPipPreviousLights = null;
-            this.pendingPipUseCurrentFrame = false;
+            this.prepareDynamicStates(data);
+            if (!armed) {
+                return null;
+            }
+            SubmitNodeStorage submitNodes = new SubmitNodeStorage();
+            if (this.preparedDynamicScene != null) {
+                this.drawPreparedDynamic(this.preparedDynamicScene, modelView, viewSize, submitNodes);
+            } else {
+                this.drawDynamic(data, modelView, viewSize, submitNodes);
+            }
+            // 借用游戏 dispatcher 的池化帧，用完必须 close；不持有或关闭游戏 dispatcher。
+            return Minecraft.getInstance().gameRenderer.featureRenderDispatcher().prepareFrame(submitNodes);
         }
 
         private void setupPreviewProjection(int width, int height, float zoom) {
@@ -375,86 +328,52 @@ public final class QuickLitematicaPreviewAccess {
             RenderSystem.setShaderLights(this.previewLightingBuffer.slice());
         }
 
-        private void drawBuffers(Matrix4f modelView, boolean afterEntities, RenderPass renderPass) {
-            for (QuickLitematicaPreview3D.LayerKey layer : QuickLitematicaPreview3D.LayerKey.DRAW_ORDER) {
-                if (layer.drawAfterEntities() != afterEntities) {
-                    continue;
-                }
-                if (layer.isTranslucent() && !this.staticUploadComplete) {
-                    continue;
-                }
-                List<LayerBuffer> buffers = this.layerBuffers.get(layer);
-                if (buffers == null || buffers.isEmpty()) {
-                    continue;
-                }
-                for (LayerBuffer buffer : buffers) {
-                    drawLayerBuffer(layer, buffer, modelView, renderPass);
-                }
-            }
-        }
-
-        private static void drawLayerBuffer(QuickLitematicaPreview3D.LayerKey layer, LayerBuffer buffer, Matrix4f modelView, RenderPass renderPass) {
-            RenderType renderLayer = layer.renderLayer();
+        private List<LayerDraw> prepareBuffers(Matrix4f modelView) {
+            List<LayerDraw> draws = new ArrayList<>();
             Matrix4fStack renderStack = RenderSystem.getModelViewStack();
             renderStack.pushMatrix();
             try {
                 renderStack.set(modelView);
-                var prepared = renderLayer.prepare();
-                var sequentialIndices = buffer.ownsIndexBuffer()
-                        ? null
-                        : RenderSystem.getSequentialBuffer(renderLayer.primitiveTopology());
-                GpuBuffer indexBuffer = buffer.ownsIndexBuffer()
-                        ? buffer.indexBuffer()
-                        : sequentialIndices.getBuffer(buffer.indexCount());
-                IndexType indexType = buffer.ownsIndexBuffer()
-                        ? buffer.indexType()
-                        : sequentialIndices.type();
-                StagedVertexBuffer.ExecuteInfo info = new StagedVertexBuffer.ExecuteInfo(
-                        buffer.vertexBuffer(),
-                        buffer.ownsIndexBuffer() ? indexBuffer : null,
-                        indexType,
-                        0,
-                        0,
-                        buffer.indexCount(),
-                        renderLayer.primitiveTopology()
-                );
-                prepared.drawFromBuffer(info, renderPass);
+                for (QuickLitematicaPreview3D.LayerKey layer : QuickLitematicaPreview3D.LayerKey.DRAW_ORDER) {
+                    if (layer.isTranslucent() && !this.staticUploadComplete) {
+                        continue;
+                    }
+                    List<LayerBuffer> buffers = this.layerBuffers.get(layer);
+                    if (buffers == null || buffers.isEmpty()) {
+                        continue;
+                    }
+                    RenderType renderLayer = layer.renderLayer();
+                    PreparedRenderType prepared = renderLayer.prepare();
+                    for (LayerBuffer buffer : buffers) {
+                        var sequentialIndices = buffer.ownsIndexBuffer()
+                                ? null : RenderSystem.getSequentialBuffer(renderLayer.primitiveTopology());
+                        if (sequentialIndices != null) {
+                            // 扩容会关闭旧索引缓冲；先确保容量，绘制时由原版读取当前共享缓冲。
+                            sequentialIndices.getBuffer(buffer.indexCount());
+                        }
+                        StagedVertexBuffer.ExecuteInfo info = new StagedVertexBuffer.ExecuteInfo(
+                                buffer.vertexBuffer(), buffer.ownsIndexBuffer() ? buffer.indexBuffer() : null,
+                                buffer.ownsIndexBuffer() ? buffer.indexType() : sequentialIndices.type(),
+                                0, 0, buffer.indexCount(), renderLayer.primitiveTopology());
+                        draws.add(new LayerDraw(prepared, info, layer.drawAfterEntities()));
+                    }
+                }
             } finally {
                 renderStack.popMatrix();
             }
+            return draws;
         }
 
-        private GpuBufferSlice prepareDynamicProjection(Matrix4f modelView) {
-            Matrix4f projection = this.snapshotProjection.getMatrix(new Matrix4f()).mul(modelView);
-            return this.dynamicProjectionBuffer.getBuffer(projection);
-        }
-
-        private void drawDynamicFrame(RenderPass renderPass, @Nullable GpuBufferSlice projectionBuffer) {
-            FeatureRenderDispatcher.PreparedFrame frame = this.dynamicFrame;
-            if (frame == null || projectionBuffer == null) {
-                return;
-            }
-
-            RenderSystem.backupProjectionMatrix();
-            RenderSystem.setProjectionMatrix(projectionBuffer, ProjectionType.ORTHOGRAPHIC);
-            QuickLitematicaPreview3D.refreshCachedPreviewDynamicTransforms = true;
-            try {
-                frame.executeSolid(renderPass);
-                frame.executeTranslucent(renderPass);
-                frame.executeTranslucentAfterTerrain(renderPass);
-                frame.executeAlwaysOnTop(renderPass);
-            } finally {
-                QuickLitematicaPreview3D.refreshCachedPreviewDynamicTransforms = false;
-                RenderSystem.restoreProjectionMatrix();
+        private static void drawBuffers(List<LayerDraw> layers, boolean afterEntities, RenderPass pass) {
+            for (LayerDraw layer : layers) {
+                if (layer.afterEntities() == afterEntities) {
+                    layer.renderType().drawFromBuffer(layer.info(), pass);
+                }
             }
         }
 
-
-
-
-
-
-
+        private record LayerDraw(PreparedRenderType renderType, StagedVertexBuffer.ExecuteInfo info, boolean afterEntities) {
+        }
 
         @Override
         public void captureSnapshot(
@@ -466,12 +385,9 @@ public final class QuickLitematicaPreviewAccess {
                 Consumer<NativeImage> callback,
                 Consumer<Throwable> errorCallback
         ) {
-            this.prepareDynamicFrame(data);
-            if (this.dynamicFrame == null) {
-                this.prepareDynamicStates(data);
-            }
+            this.prepareDynamicStates(data);
 
-            RenderTarget framebuffer;
+            RenderTarget framebuffer = null;
             try {
                 framebuffer = new TextureTarget("QuickCraft snapshot", resolution, resolution, GpuFormat.RGBA8_UNORM, GpuFormat.D32_FLOAT);
                 Vector4f clearColor = new Vector4f(
@@ -488,6 +404,9 @@ public final class QuickLitematicaPreviewAccess {
                 );
                 this.renderSnapshot(framebuffer, data, drag);
             } catch (Throwable throwable) {
+                if (framebuffer != null) {
+                    framebuffer.destroyBuffers();
+                }
                 errorCallback.accept(throwable);
                 return;
             }
@@ -498,10 +417,9 @@ public final class QuickLitematicaPreviewAccess {
         private void renderSnapshot(RenderTarget framebuffer, QuickLitematicaPreview3D.MeshData data, QuickLitematicaPreview3D.DragState drag) {
             var previousLights = RenderSystem.getShaderLights();
             RenderSystem.backupProjectionMatrix();
-            this.setupPreviewProjection(framebuffer.width, framebuffer.height, drag.scale);
-
             PoseStack matrices = new PoseStack();
             try {
+                this.setupPreviewProjection(framebuffer.width, framebuffer.height, drag.scale);
                 matrices.translate(framebuffer.width / 2.0F, framebuffer.height / 2.0F, 0.0F);
                 matrices.scale(1.0F, -1.0F, 1.0F);
                 float viewportSize = Math.max(1, drag.size);
@@ -519,37 +437,17 @@ public final class QuickLitematicaPreviewAccess {
                 Matrix4f modelView = new Matrix4f(matrices.last().pose());
                 this.applyLight(drag.pitch, drag.angle);
 
-                SubmitNodeStorage submitNodes = new SubmitNodeStorage();
-                if (data.hasDynamicContent() && this.dynamicFrame == null) {
-                    if (this.preparedDynamicScene != null) {
-                        this.drawPreparedDynamic(this.preparedDynamicScene, modelView, framebuffer.width, submitNodes);
-                    } else {
-                        this.drawDynamic(data, modelView, framebuffer.width, submitNodes);
+                List<LayerDraw> layers = this.prepareBuffers(modelView);
+                try (FeatureRenderDispatcher.PreparedFrame frame = this.prepareCurrentDynamicFrame(data, modelView, framebuffer.width, true);
+                     RenderPass pass = RenderSystem.getDevice().createCommandEncoder().createRenderPass(
+                             () -> "QuickCraft preview snapshot", framebuffer.getColorTextureView(), Optional.empty(),
+                             framebuffer.getDepthTextureView(), OptionalDouble.empty())) {
+                    RenderSystem.bindDefaultUniforms(pass);
+                    drawBuffers(layers, false, pass);
+                    if (frame != null) {
+                        FeatureRenderDispatcher.renderAllFeatures(pass, frame);
                     }
-                }
-                GpuBufferSlice dynamicProjection = this.dynamicFrame == null
-                        ? null
-                        : this.prepareDynamicProjection(modelView);
-
-                FeatureRenderDispatcher dispatcher = Minecraft.getInstance().gameRenderer.featureRenderDispatcher();
-                try (
-                        FeatureRenderDispatcher.PreparedFrame frame = dispatcher.prepareFrame(submitNodes);
-                        RenderPass renderPass = RenderSystem.getDevice().createCommandEncoder().createRenderPass(
-                                () -> "QuickCraft preview snapshot",
-                                framebuffer.getColorTextureView(),
-                                Optional.empty(),
-                                framebuffer.getDepthTextureView(),
-                                OptionalDouble.empty()
-                        )
-                ) {
-                    RenderSystem.bindDefaultUniforms(renderPass);
-                    this.drawBuffers(modelView, false, renderPass);
-                    if (this.dynamicFrame != null) {
-                        this.drawDynamicFrame(renderPass, dynamicProjection);
-                    } else {
-                        FeatureRenderDispatcher.renderAllFeatures(renderPass, frame);
-                    }
-                    this.drawBuffers(modelView, true, renderPass);
+                    drawBuffers(layers, true, pass);
                 }
             } finally {
                 RenderSystem.restoreProjectionMatrix();
