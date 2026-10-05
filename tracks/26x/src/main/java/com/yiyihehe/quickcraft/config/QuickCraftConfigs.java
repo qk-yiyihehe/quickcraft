@@ -765,6 +765,27 @@ public final class QuickCraftConfigs implements IConfigHandler {
         }
     }
 
+    // 调试入口不加入普通设置、热键分类和配置持久化，重启后所有日志恢复关闭。
+    public static final class Developer {
+        public static final ConfigHotkey OPEN_PANEL = new ConfigHotkey(
+                "openDeveloperPanel",
+                "LEFT_CONTROL,LEFT_SHIFT,LEFT_ALT,F12",
+                KeybindSettings.create(KeybindSettings.Context.ANY, KeyAction.PRESS,
+                        false, false, true, true)
+        );
+        public static final ConfigBoolean MOUSE_CRAFT_ACK_LOGS = new ConfigBoolean(
+                "mouseCraftAckLogs", false
+        ).apply(QuickCraft.MOD_ID + ".config.developer");
+        public static final List<IConfigBase> OPTIONS = List.of(MOUSE_CRAFT_ACK_LOGS);
+
+        private Developer() {
+        }
+    }
+
+    public static boolean isMouseCraftAckDebugEnabled() {
+        return Developer.MOUSE_CRAFT_ACK_LOGS.getBooleanValue();
+    }
+
     public static final class Hotkeys {
         public static final ConfigBoolean ENABLE_OPEN_CONFIG_HOTKEY = new ConfigBoolean(
                 "enableOpenConfigHotkey",

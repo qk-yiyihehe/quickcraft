@@ -20,6 +20,7 @@ public final class QuickCraftHotkeyProvider implements IKeybindProvider {
 
     @Override
     public void addKeysToMap(IKeybindManager manager) {
+        manager.addKeybindToMap(QuickCraftConfigs.Developer.OPEN_PANEL.getKeybind());
         for (IHotkey hotkey : QuickCraftConfigs.getAllHotkeys()) {
             manager.addKeybindToMap(hotkey.getKeybind());
         }

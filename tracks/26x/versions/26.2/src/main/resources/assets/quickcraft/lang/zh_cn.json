@@ -556,5 +556,11 @@
   "quickcraft.config.projection_tools.comment.enableLitematicaShulkerMaterialRestock": "§6功能：§r轻松放置缺少投影材料时，自动从背包或快捷栏的潜影盒取出材料并切到手上。\n§e要求：§r需要客户端和服务端均支持 §bQuick Shulker§r。\n§7保护：§r沿用 Litematica 的快捷选择栏位、避免替换工具和耐久物品设置；不会替换潜影盒。\n§7默认：§r关闭。",
   "quickcraft.config.projection_tools.prettyName.litematicaShulkerMaterialOrderlyStorage": "有序存放",
   "quickcraft.config.projection_tools.name.litematicaShulkerMaterialOrderlyStorage": "有序存放",
-  "quickcraft.config.projection_tools.comment.litematicaShulkerMaterialOrderlyStorage": "§6功能：§r背包满时，优先把此前从潜影盒取出的材料放回原潜影盒，再取新材料。\n§e关闭时：§r允许放回任意潜影盒。\n§7默认：§r关闭。"
+  "quickcraft.config.projection_tools.comment.litematicaShulkerMaterialOrderlyStorage": "§6功能：§r背包满时，优先把此前从潜影盒取出的材料放回原潜影盒，再取新材料。\n§e关闭时：§r允许放回任意潜影盒。\n§7默认：§r关闭。",
+  "screen.quickcraft.developer.title": "QuickCraft 开发者调试（仅本次游戏生效）",
+  "quickcraft.config.developer.name.mouseCraftAckLogs": "普通合成 ACK 详细日志",
+  "quickcraft.config.developer.prettyName.mouseCraftAckLogs": "普通合成 ACK 详细日志",
+  "quickcraft.config.developer.comment.mouseCraftAckLogs": "记录普通工作台与背包持续合成的点击、库存快照、服务端回包、材料消耗及耗时。开启后会产生大量日志，复现问题后请关闭并提供 logs/latest.log。默认关闭，重启游戏后恢复关闭。",
+  "quickcraft.message.developer.ack_logs_enabled": "普通合成 ACK 详细日志已开启，复现问题后请关闭并提供 latest.log",
+  "quickcraft.message.developer.ack_logs_disabled": "普通合成 ACK 详细日志已关闭"
 }
