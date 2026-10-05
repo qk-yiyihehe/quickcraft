@@ -87,6 +87,7 @@ def litematicaDependencyVersion = compatibilityOverride
 dependencies {
 	minecraft "com.mojang:minecraft:${project.minecraft_version}"
 	mappings "net.fabricmc:yarn:${project.yarn_mappings}:v2"
+	// 0.19.3 保持旧 Mixin 注解格式；升级编译依赖时需核对声明下限的读取兼容性。
 	modImplementation "net.fabricmc:fabric-loader:${project.loader_version}"
 	modImplementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_api_version}"
 	modImplementation include("com.github.Chocohead:Fabric-ASM:v${project.fabric_asm_version}")

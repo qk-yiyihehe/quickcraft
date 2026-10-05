@@ -51,12 +51,12 @@ public final class QuickLitematicaEntityPlacementServer {
     public static void initialize() {
         ServerPlayNetworking.registerGlobalReceiver(
                 QuickLitematicaEntityPlacementPayloads.HelloPayload.ID,
-                (payload, context) -> context.server().execute(
+                (payload, context) -> getPlayerWorld(context.player()).getServer().execute(
                         () -> handleHello(context.player(), payload))
         );
         ServerPlayNetworking.registerGlobalReceiver(
                 QuickLitematicaEntityPlacementPayloads.RequestPayload.ID,
-                (payload, context) -> context.server().execute(
+                (payload, context) -> getPlayerWorld(context.player()).getServer().execute(
                         () -> handleRequest(context.player(), payload))
         );
         ServerPlayConnectionEvents.DISCONNECT.register((handler, server) -> clear(handler.player));
