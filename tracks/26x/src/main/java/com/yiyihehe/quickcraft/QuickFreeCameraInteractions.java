@@ -151,8 +151,10 @@ public final class QuickFreeCameraInteractions {
     }
 
     public static boolean beginItemUseFromFreeCamera(Minecraft client, InteractionHand hand) {
-        if (shouldOverrideCrosshair(client) && client.player.getItemInHand(hand).is(Items.WATER_BUCKET)) {
-            if (!beginWaterBucketUseFromFreeCamera(client)) {
+        if (shouldOverrideCrosshair(client)
+                && (client.player.getItemInHand(hand).is(Items.WATER_BUCKET)
+                || client.player.getItemInHand(hand).is(Items.BUCKET))) {
+            if (!beginBucketUseFromFreeCamera(client, client.player.getItemInHand(hand).is(Items.BUCKET))) {
                 return false;
             }
         } else {
@@ -162,19 +164,39 @@ public final class QuickFreeCameraInteractions {
         return true;
     }
 
-    private static boolean beginWaterBucketUseFromFreeCamera(Minecraft client) {
+    private static boolean beginBucketUseFromFreeCamera(Minecraft client, boolean collectFluid) {
         if (!QuickCraftConfigs.areFreeCameraBlockInteractionsEnabled()
                 || easyPlaceActionDepth > 0
                 || cameraFacingApplied
                 || client.level == null
                 || client.player == null
-                || client.player.connection == null
-                || !(client.hitResult instanceof BlockHitResult target)
-                || target.getType() != HitResult.Type.BLOCK) {
+                || client.player.connection == null) {
             return false;
         }
 
         LocalPlayer player = client.player;
+        ClipContext.Fluid fluidHandling = collectFluid ? ClipContext.Fluid.SOURCE_ONLY : ClipContext.Fluid.NONE;
+        BlockHitResult target;
+        if (collectFluid) {
+            // 普通准星忽略液体，空桶必须从相机单独追踪水源，并与原版桶使用相同的液体规则。
+            Entity camera = client.getCameraEntity();
+            Vec3 cameraEye = camera.getEyePosition();
+            target = client.level.clip(new ClipContext(
+                    cameraEye,
+                    cameraEye.add(camera.getViewVector(1.0F).scale(player.blockInteractionRange())),
+                    ClipContext.Block.OUTLINE,
+                    fluidHandling,
+                    camera
+            ));
+        } else if (client.hitResult instanceof BlockHitResult hitResult) {
+            target = hitResult;
+        } else {
+            return false;
+        }
+        if (target.getType() != HitResult.Type.BLOCK) {
+            return false;
+        }
+
         Direction side = target.getDirection();
         Vec3 eye = player.getEyePosition();
         // 命中点向方块内偏移 0.01 格，避免射线停在方块面边界产生浮点误判。
@@ -191,17 +213,17 @@ public final class QuickFreeCameraInteractions {
         double horizontal = Math.sqrt(direction.x * direction.x + direction.z * direction.z);
         float yaw = (float) Math.toDegrees(Math.atan2(-direction.x, direction.z));
         float pitch = (float) -Math.toDegrees(Math.atan2(direction.y, horizontal));
-        // 使用物品包没有方块坐标；从本体视点无法命中相机所指的同一面时，不能让水落在别处。
+        // 使用物品包没有方块坐标；本体必须命中同一目标。倒水还需同一面，收水只取决于方块。
         BlockHitResult bodyHit = client.level.clip(new ClipContext(
                 eye,
                 eye.add(direction.normalize().scale(player.blockInteractionRange())),
                 ClipContext.Block.OUTLINE,
-                ClipContext.Fluid.NONE,
+                fluidHandling,
                 player
         ));
         if (bodyHit.getType() != HitResult.Type.BLOCK
                 || !bodyHit.getBlockPos().equals(target.getBlockPos())
-                || bodyHit.getDirection() != side) {
+                || (!collectFluid && bodyHit.getDirection() != side)) {
             return false;
         }
 
