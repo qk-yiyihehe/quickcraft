@@ -653,8 +653,7 @@ public final class QuickCraftMouseCraftAckExecutor {
         }
 
         if (!cursorEmpty) {
-            if (current.retainIngredientSamples
-                    && current.authoritativeCursorRecoveries < MAX_AUTHORITATIVE_CURSOR_RECOVERIES) {
+            if (current.authoritativeCursorRecoveries < MAX_AUTHORITATIVE_CURSOR_RECOVERIES) {
                 current.authoritativeCursorRecoveries++;
                 boolean parked = parkCursor(client, handler, "统计屏障权威光标回收");
                 if (parked) {
