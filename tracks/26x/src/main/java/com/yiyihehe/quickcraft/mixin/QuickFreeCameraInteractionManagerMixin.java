@@ -10,6 +10,7 @@ import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.item.Items;
 import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.phys.EntityHitResult;
 import org.spongepowered.asm.mixin.Mixin;
@@ -23,7 +24,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 /**
  * 在灵魂相机交互产生客户端预测前复用服务端的本体距离判定。
  * 潜行和方向同步必须包在 useItemOn 外：它返回前才发送使用包。
- * 水桶通过 useItem 发送不含目标位置的包，需在 HEAD 对准本体可命中的相机目标，否则阻止误倒水。
+ * 桶通过 useItem 发送不含目标位置的包，需在 HEAD 对准本体可命中的相机目标，否则阻止误收放液体。
  */
 @Mixin(MultiPlayerGameMode.class)
 public class QuickFreeCameraInteractionManagerMixin {
@@ -38,7 +39,8 @@ public class QuickFreeCameraInteractionManagerMixin {
             CallbackInfoReturnable<InteractionResult> cir) {
         Minecraft client = Minecraft.getInstance();
         if (QuickFreeCameraInteractions.isBlockOutsideServerInteractionRange(client, hitResult.getBlockPos())) {
-            cir.setReturnValue(InteractionResult.FAIL);
+            // 准星会穿过水源命中远处方块；空桶继续走物品使用，由桶射线校验真正的收水目标。
+            cir.setReturnValue(player.getItemInHand(hand).is(Items.BUCKET) ? InteractionResult.PASS : InteractionResult.FAIL);
             return;
         }
         QuickFreeCameraInteractions.beginBlockUseFromFreeCamera(client, hand, hitResult);

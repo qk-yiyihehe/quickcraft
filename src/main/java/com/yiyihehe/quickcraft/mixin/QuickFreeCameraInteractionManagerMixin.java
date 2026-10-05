@@ -6,6 +6,7 @@ import net.minecraft.client.network.ClientPlayerEntity;
 import net.minecraft.client.network.ClientPlayerInteractionManager;
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.player.PlayerEntity;
+import net.minecraft.item.Items;
 import net.minecraft.util.ActionResult;
 import net.minecraft.util.Hand;
 import net.minecraft.util.hit.BlockHitResult;
@@ -47,7 +48,8 @@ public class QuickFreeCameraInteractionManagerMixin {
     ) {
         MinecraftClient client = MinecraftClient.getInstance();
         if (QuickFreeCameraInteractions.isBlockOutsideServerInteractionRange(client, hitResult.getBlockPos())) {
-            cir.setReturnValue(ActionResult.FAIL);
+            // 准星会穿过水源命中远处方块；空桶继续走物品使用，由桶射线校验真正的收水目标。
+            cir.setReturnValue(player.getStackInHand(hand).isOf(Items.BUCKET) ? ActionResult.PASS : ActionResult.FAIL);
             return;
         }
         QuickFreeCameraInteractions.beginBlockUseFromFreeCamera(client);

@@ -173,8 +173,10 @@ public final class QuickFreeCameraInteractions {
     }
 
     public static boolean beginItemUseFromFreeCamera(MinecraftClient client, Hand hand) {
-        if (shouldOverrideCrosshair(client) && client.player.getStackInHand(hand).isOf(Items.WATER_BUCKET)) {
-            if (!beginWaterBucketUseFromFreeCamera(client)) {
+        if (shouldOverrideCrosshair(client)
+                && (client.player.getStackInHand(hand).isOf(Items.WATER_BUCKET)
+                || client.player.getStackInHand(hand).isOf(Items.BUCKET))) {
+            if (!beginBucketUseFromFreeCamera(client, client.player.getStackInHand(hand).isOf(Items.BUCKET))) {
                 return false;
             }
         } else {
@@ -184,19 +186,40 @@ public final class QuickFreeCameraInteractions {
         return true;
     }
 
-    private static boolean beginWaterBucketUseFromFreeCamera(MinecraftClient client) {
+    private static boolean beginBucketUseFromFreeCamera(MinecraftClient client, boolean collectFluid) {
         if (!QuickCraftConfigs.areFreeCameraBlockInteractionsEnabled()
                 || easyPlaceActionDepth > 0
                 || cameraFacingApplied
                 || client.world == null
                 || client.player == null
-                || client.player.networkHandler == null
-                || !(client.crosshairTarget instanceof BlockHitResult target)
-                || target.getType() != HitResult.Type.BLOCK) {
+                || client.player.networkHandler == null) {
             return false;
         }
 
         ClientPlayerEntity player = client.player;
+        RaycastContext.FluidHandling fluidHandling = collectFluid
+                ? RaycastContext.FluidHandling.SOURCE_ONLY : RaycastContext.FluidHandling.NONE;
+        BlockHitResult target;
+        if (collectFluid) {
+            // 普通准星忽略液体，空桶必须从相机单独追踪水源，并与原版桶使用相同的液体规则。
+            Entity camera = client.getCameraEntity();
+            Vec3d cameraEye = camera.getEyePos();
+            target = client.world.raycast(new RaycastContext(
+                    cameraEye,
+                    cameraEye.add(camera.getRotationVec(1.0F).multiply(player.getBlockInteractionRange())),
+                    RaycastContext.ShapeType.OUTLINE,
+                    fluidHandling,
+                    camera
+            ));
+        } else if (client.crosshairTarget instanceof BlockHitResult hitResult) {
+            target = hitResult;
+        } else {
+            return false;
+        }
+        if (target.getType() != HitResult.Type.BLOCK) {
+            return false;
+        }
+
         Direction side = target.getSide();
         Vec3d eye = player.getEyePos();
         // 命中点向方块内偏移 0.01 格，避免射线停在方块面边界产生浮点误判。
@@ -213,17 +236,17 @@ public final class QuickFreeCameraInteractions {
         double horizontal = Math.sqrt(direction.x * direction.x + direction.z * direction.z);
         float yaw = (float) Math.toDegrees(Math.atan2(-direction.x, direction.z));
         float pitch = (float) -Math.toDegrees(Math.atan2(direction.y, horizontal));
-        // 使用物品包没有方块坐标；从本体视点无法命中相机所指的同一面时，不能让水落在别处。
+        // 使用物品包没有方块坐标；本体必须命中同一目标。倒水还需同一面，收水只取决于方块。
         BlockHitResult bodyHit = client.world.raycast(new RaycastContext(
                 eye,
                 eye.add(direction.normalize().multiply(player.getBlockInteractionRange())),
                 RaycastContext.ShapeType.OUTLINE,
-                RaycastContext.FluidHandling.NONE,
+                fluidHandling,
                 player
         ));
         if (bodyHit.getType() != HitResult.Type.BLOCK
                 || !bodyHit.getBlockPos().equals(target.getBlockPos())
-                || bodyHit.getSide() != side) {
+                || (!collectFluid && bodyHit.getSide() != side)) {
             return false;
         }
 
