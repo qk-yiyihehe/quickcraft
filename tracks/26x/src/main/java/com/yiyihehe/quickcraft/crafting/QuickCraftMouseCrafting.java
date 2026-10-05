@@ -1142,10 +1142,14 @@ final class QuickCraftMouseCrafting {
     private boolean closeIngredientTransfer(Minecraft client,
                                             AbstractContainerMenu handler,
                                             int sourceSlot) {
-        // 来源槽可能在客户端快照后捡入地面物品。即使本地预测光标已空，也必须固定点回
-        // 原来源槽闭合序列，避免服务端按新数量取料后把差额留在权威光标上。
+        // 原来源槽可能被地面拾取重新填满；普通 PICKUP 在服务端光标已空时会再次取料。
+        // 单槽拖拽只放回余料，服务端光标为空时三步均为空操作，仍须发送以修正预测差额。
         client.gameMode.handleContainerInput(
-                handler.containerId, sourceSlot, 0, ContainerInput.PICKUP, client.player);
+                handler.containerId, -999, AbstractContainerMenu.getQuickcraftMask(0, 0), ContainerInput.QUICK_CRAFT, client.player);
+        client.gameMode.handleContainerInput(
+                handler.containerId, sourceSlot, AbstractContainerMenu.getQuickcraftMask(1, 0), ContainerInput.QUICK_CRAFT, client.player);
+        client.gameMode.handleContainerInput(
+                handler.containerId, -999, AbstractContainerMenu.getQuickcraftMask(2, 0), ContainerInput.QUICK_CRAFT, client.player);
         return handler.getCarried().isEmpty();
     }
 
