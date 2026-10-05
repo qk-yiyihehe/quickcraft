@@ -26,8 +26,8 @@ import fi.dy.masa.malilib.gui.widgets.WidgetFileBrowserBase.DirectoryEntry;
 import fi.dy.masa.malilib.render.GuiContext;
 import fi.dy.masa.malilib.render.RenderUtils;
 import net.fabricmc.fabric.api.client.rendering.v1.SpecialGuiElementRegistry;
-import net.fabricmc.fabric.api.renderer.v1.render.BlockVertexConsumerProvider;
 import net.fabricmc.fabric.api.renderer.v1.Renderer;
+import net.fabricmc.loader.api.FabricLoader;
 import net.minecraft.SharedConstants;
 import net.minecraft.block.Block;
 import net.minecraft.block.BlockEntityProvider;
@@ -1029,6 +1029,8 @@ final class QuickLitematicaPreviewAccess {
         }
     }
     static final class MeshRenderer {
+        // 1.21.11 的早期 Fabric API 尚未包含 Renderer 模块，基础网格必须能独立加载。
+        private static final boolean FABRIC_RENDERER_AVAILABLE = FabricLoader.getInstance().isModLoaded("fabric-renderer-api-v1");
         final MeshCollector collector;
         final BlockRenderManager blockRenderManager;
         final MatrixStack matrices;
@@ -1089,7 +1091,8 @@ final class QuickLitematicaPreviewAccess {
             matrices.translate(renderPos.getX(), renderPos.getY(), renderPos.getZ());
 
             var model = blockRenderManager.getModel(state);
-            if (QuickLitematicaPreviewCompat.isContinuityModel(model) && PreviewCtm.emit(model, matrices, collector, view, state, pos)) {
+            if (FABRIC_RENDERER_AVAILABLE && QuickLitematicaPreviewCompat.isContinuityModel(model)
+                    && PreviewCtm.emit(model, matrices, collector, view, state, pos)) {
                 matrices.pop();
                 return;
             }
@@ -1133,7 +1136,7 @@ final class QuickLitematicaPreviewAccess {
                                 state,
                                 pos,
                                 matrices,
-                                collector,
+                                collector::consumerFor,
                                 true,
                                 state.getRenderingSeed(pos),
                                 OverlayTexture.DEFAULT_UV
@@ -1235,7 +1238,7 @@ final class QuickLitematicaPreviewAccess {
         }
     }
 
-    static final class MeshCollector implements BlockVertexConsumerProvider {
+    static final class MeshCollector {
         final EnumMap<LayerKey, RecordingVertexConsumer> consumers = new EnumMap<>(LayerKey.class);
         int vertexCount;
 
@@ -1245,11 +1248,6 @@ final class QuickLitematicaPreviewAccess {
 
         VertexConsumer consumerFor(LayerKey layer) {
             return this.consumers.computeIfAbsent(layer, ignored -> new RecordingVertexConsumer(this));
-        }
-
-        @Override
-        public VertexConsumer getBuffer(BlockRenderLayer renderLayer) {
-            return this.consumerFor(renderLayer);
         }
 
         void addVertex(QuantizedVertexBuffer vertices, float x, float y, float z, int argb, float u, float v, int overlay, int light, float nx, float ny, float nz) {
