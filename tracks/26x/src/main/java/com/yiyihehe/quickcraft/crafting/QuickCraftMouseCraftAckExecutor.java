@@ -279,11 +279,16 @@ public final class QuickCraftMouseCraftAckExecutor {
 
     private void tickAwaitingBatch(Session current) {
         long now = System.nanoTime();
-        if (shouldSendDeferredStatsProbe(
-                current.awaiting, current.statsProbeDeferred, current.statsProbePending)) {
-            requestStatsProbe(current, current.connection, "一个客户端 tick 内未取得可确认全量终态");
-        }
         long elapsedMillis = nanosToMillis(now - current.batchSentAtNanos);
+        if (shouldSendDeferredStatsProbe(
+                current.awaiting, current.statsProbeDeferred, current.statsProbePending)
+                && (!canTryCombinedFullAck(current)
+                || elapsedMillis >= combinedFullAckGraceMillis(current))) {
+            if (current.batchPath == BatchPath.MANUAL_COMBINED) {
+                current.combinedFullAckEnabled = false;
+            }
+            requestStatsProbe(current, current.connection, "未取得可确认全量终态，使用统计屏障兜底");
+        }
         long stalledMillis = nanosToMillis(now - current.lastProgressAtNanos);
         long timeoutMillis = ackTimeoutMillis(current.maxAckLatencyNanos);
         if (stalledMillis < timeoutMillis && elapsedMillis < MAX_ACK_TIMEOUT_MILLIS) {
@@ -443,6 +448,7 @@ public final class QuickCraftMouseCraftAckExecutor {
         }
         dispatchingBatch = true;
         dispatchingBatchLogId = current.batchId + 1L;
+        current.lastDispatchClickWasOutputThrow = false;
         if (current.retainIngredientSamples) {
             current.retainedSourceTraces.clear();
         }
@@ -690,6 +696,8 @@ public final class QuickCraftMouseCraftAckExecutor {
         current.lastProgressRevision = current.batchStartRevision;
         current.batchFullUpdatesStart = current.fullUpdates;
         current.outputAck.reset(current.batchStartRevision);
+        current.batchAuthoritativeReadyRevision = Integer.MIN_VALUE;
+        current.batchAuthoritativeDrainMatched = false;
         current.batchGridCounts = gridBeforeClicks != null
                 ? gridBeforeClicks
                 : snapshotGridCounts(handler);
@@ -721,11 +729,13 @@ public final class QuickCraftMouseCraftAckExecutor {
         if (current == null || networkHandler == null) {
             return;
         }
-        if (current.batchPath == BatchPath.OUTPUT_DRAIN) {
+        if (current.batchPath == BatchPath.OUTPUT_DRAIN
+                || (current.combinedFullAckEnabled && canTryCombinedFullAck(current))) {
             current.statsProbeDeferred = true;
             if (QuickCraftConfigs.isMouseCraftAckDebugEnabled()) {
-                LOGGER.info(diagnosticContext() + "手动补货ACK延后统计探针：界面={}，批次=#{}，优先等待权威全量终态",
-                        layout.name(), current.batchId);
+                LOGGER.info(diagnosticContext() + "手动补货ACK延后统计探针：界面={}，批次=#{}，优先等待权威全量终态，合并批次宽限={} ms",
+                        layout.name(), current.batchId,
+                        canTryCombinedFullAck(current) ? combinedFullAckGraceMillis(current) : 0L);
             }
         } else {
             requestStatsProbe(current, networkHandler, "纯补货批次边界");
@@ -923,6 +933,8 @@ public final class QuickCraftMouseCraftAckExecutor {
         boolean currentBatchAuthoritativeFull = isRevisionAfter(
                 revision, current.batchStartRevision)
                 && current.lastAuthoritativeMaterialRevision == revision;
+        observeCombinedFullAck(current, revision, contents, cursorEmpty,
+                packetRecipeMatches, packetExpectedOutput, currentBatchAuthoritativeFull);
         tryConfirmCurrentBatch(revision, now, currentBatchAuthoritativeFull);
     }
 
@@ -1342,6 +1354,9 @@ public final class QuickCraftMouseCraftAckExecutor {
                 outputIngredientsDecreased,
                 current.outputAck.sawAuthoritativeEmpty(),
                 terminalGridCompatible);
+        fastFullState |= authoritativeFullState && canTryCombinedFullAck(current)
+                && current.batchAuthoritativeDrainMatched
+                && cursorEmpty && currentOutput.isEmpty() && terminalGridCompatible;
         boolean authoritativeStateReceived = fastFullState || statsReceived;
         boolean pathReady;
         if (current.batchPath == BatchPath.OUTPUT_DRAIN) {
@@ -2342,6 +2357,75 @@ public final class QuickCraftMouseCraftAckExecutor {
         return path == BatchPath.MANUAL_REFILL || path == BatchPath.MANUAL_COMBINED;
     }
 
+    private static boolean canTryCombinedFullAck(Session current) {
+        // 多次取产物、取完后再点击收尾，都不能用单次 THROW 的终态证明整个批次已结束。
+        return current.batchPath == BatchPath.MANUAL_COMBINED
+                && current.batchOutputSlotClicks == 1
+                && current.lastDispatchClickWasOutputThrow
+                && current.batchOutputOperations > 0
+                && current.outputExpectedAtDispatch
+                && !current.craftFailed && !current.invalidAuthoritativeOutput;
+    }
+
+    private static long combinedFullAckGraceMillis(Session current) {
+        // 初次留三个 tick，之后按已确认延迟加一个 tick 余量；时间只决定何时兜底，不证明完成。
+        return Math.min(500L, Math.max(150L, nanosToMillis(current.maxAckLatencyNanos) + 50L));
+    }
+
+    private void observeCombinedFullAck(Session current, int revision, List<ItemStack> contents,
+                                       boolean cursorEmpty, boolean recipeReady,
+                                       boolean expectedOutput, boolean freshFullState) {
+        current.batchAuthoritativeDrainMatched = false;
+        if (!freshFullState || !canTryCombinedFullAck(current) || !cursorEmpty) {
+            return;
+        }
+        int crafts = maximumCraftsFromBatchGrid(current);
+        if (crafts <= 0) {
+            return;
+        }
+        // 先要求服务端完整确认计划中的补料，不能把补料途中出现的空输出当成取产物完成。
+        if (recipeReady && expectedOutput && matchesCombinedGrid(current, contents, 0)) {
+            current.batchAuthoritativeReadyRevision = revision;
+            if (QuickCraftConfigs.isMouseCraftAckDebugEnabled()) {
+                LOGGER.info(diagnosticContext() + "手动补货ACK合并批次备齐确认：批次=#{}，revision={}，格子={}，轮数={}",
+                        current.batchId, revision, describeGridCounts(current.batchCraftGridCounts), crafts);
+            }
+        } else if (!contents.isEmpty() && contents.get(QuickCraftMouseCraftLayout.OUTPUT_SLOT).isEmpty()
+                && current.batchAuthoritativeReadyRevision != Integer.MIN_VALUE
+                && isRevisionAfter(revision, current.batchAuthoritativeReadyRevision)
+                && matchesCombinedGrid(current, contents, crafts)) {
+            current.batchAuthoritativeDrainMatched = true;
+            // 首批仍走统计屏障；实际观察到完整全量证据后，才允许后续批次省略探针。
+            current.combinedFullAckEnabled = true;
+            if (QuickCraftConfigs.isMouseCraftAckDebugEnabled()) {
+                LOGGER.info(diagnosticContext() + "手动补货ACK合并批次消耗确认：批次=#{}，revision={}->{}，轮数={}，无需新增统计请求={}",
+                        current.batchId, current.batchAuthoritativeReadyRevision, revision, crafts,
+                        !current.statsProbeSentForBatch);
+            }
+        }
+    }
+
+    private boolean matchesCombinedGrid(Session current, List<ItemStack> contents, int consumedCrafts) {
+        if (current.batchCraftGridCounts.length != layout.gridSize()) {
+            return false;
+        }
+        for (int i = 0; i < layout.gridSize(); i++) {
+            int slotId = layout.gridSlotId(i);
+            if (slotId < 0 || slotId >= contents.size()) {
+                return false;
+            }
+            ItemStack pattern = current.pattern.get(i);
+            ItemStack actual = contents.get(slotId);
+            int expectedCount = pattern.isEmpty() ? 0 : current.batchCraftGridCounts[i] - consumedCrafts;
+            if (expectedCount < 0 || actual == null
+                    || (expectedCount == 0 ? !actual.isEmpty()
+                    : actual.getCount() != expectedCount || !ItemStack.isSameItemSameComponents(pattern, actual))) {
+                return false;
+            }
+        }
+        return true;
+    }
+
     static boolean canUseAuthoritativeFullAck(BatchPath path,
                                               boolean outputActionSent,
                                               boolean expectedOutputAtDispatch,
@@ -2471,6 +2555,10 @@ public final class QuickCraftMouseCraftAckExecutor {
         }
         if (active.dispatchingBatch) {
             current.clientSlotClicks++;
+            current.lastDispatchClickWasOutputThrow = slotId == QuickCraftMouseCraftLayout.OUTPUT_SLOT
+                    && button == 1 && actionType == ContainerInput.THROW;
+        } else if (current.awaiting) {
+            current.lastDispatchClickWasOutputThrow = false;
         }
         if (actionType == ContainerInput.THROW && slotId == QuickCraftMouseCraftLayout.OUTPUT_SLOT) {
             current.outputThrows++;
@@ -3050,6 +3138,10 @@ public final class QuickCraftMouseCraftAckExecutor {
         private BatchPath batchPath = BatchPath.OUTPUT_DRAIN;
         private int[] batchGridCounts = new int[0];
         private int[] batchCraftGridCounts = new int[0];
+        private boolean lastDispatchClickWasOutputThrow;
+        private int batchAuthoritativeReadyRevision = Integer.MIN_VALUE;
+        private boolean batchAuthoritativeDrainMatched;
+        private boolean combinedFullAckEnabled;
         private int refillRetries;
         private int refillRetryBatches;
         private int drainRetries;
