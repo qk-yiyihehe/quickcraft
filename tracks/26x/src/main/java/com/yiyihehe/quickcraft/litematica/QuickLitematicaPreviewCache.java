@@ -25,6 +25,11 @@ import java.util.List;
 import java.util.Properties;
 import java.util.Set;
 import java.util.concurrent.CancellationException;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.zip.GZIPInputStream;
 import java.util.zip.GZIPOutputStream;
@@ -46,8 +51,45 @@ final class QuickLitematicaPreviewCache {
     private static final AtomicBoolean CACHE_DIRECTORY_READY = new AtomicBoolean();
     private static final Object CACHE_INDEX_LOCK = new Object();
     private static final Properties CACHE_INDEX = new Properties();
+    private static final ConcurrentHashMap<Path, CompletableFuture<Void>> CACHE_WRITES = new ConcurrentHashMap<>();
+    private static final ExecutorService CACHE_EXECUTOR = Executors.newSingleThreadExecutor(r -> {
+        Thread thread = new Thread(r, "QuickCraft-Preview3D-Cache");
+        thread.setDaemon(true);
+        return thread;
+    });
     @Nullable
     private static volatile Path currentCacheDirectory;
+
+    static CompletableFuture<Void> writeAsync(Path cachePath, Runnable write) {
+        CompletableFuture<Void> completion = new CompletableFuture<>();
+        CACHE_WRITES.put(cachePath, completion);
+        CACHE_EXECUTOR.execute(() -> {
+            try {
+                write.run();
+                completion.complete(null);
+            } catch (Throwable e) {
+                LOGGER.error("Failed to save 3D preview cache {}", cachePath, e);
+                completion.completeExceptionally(e);
+            } finally {
+                CACHE_WRITES.remove(cachePath, completion);
+            }
+        });
+        return completion;
+    }
+
+    static void awaitPendingWrite(Path cachePath) {
+        CompletableFuture<Void> pending = CACHE_WRITES.get(cachePath);
+        if (pending == null) return;
+        try {
+            // 只等待当前投影的保存；取消读取不会取消独立的写入任务。
+            pending.get();
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new CancellationException();
+        } catch (ExecutionException ignored) {
+            // 写入失败已记录，读取流程继续检查磁盘并按需重建。
+        }
+    }
 
     static String cacheKey(Path sourcePath) {
         try {
