@@ -173,9 +173,10 @@ public final class QuickLitematicaPreview3D {
     }
 
     public static Manager init(fi.dy.masa.litematica.gui.GuiSchematicBrowserBase gui, Runnable previewMetadataRefresh) {
-        Manager old = MANAGERS.remove(gui);
-        if (old != null) {
-            old.close();
+        Manager existing = MANAGERS.get(gui);
+        if (existing != null) {
+            // 全屏返回和窗口尺寸变化会重新 initGui，同一页面仍拥有原来的预览任务。
+            return existing;
         }
 
         Manager manager = new Manager(gui, previewMetadataRefresh);
@@ -914,6 +915,8 @@ public final class QuickLitematicaPreview3D {
                     throw new IOException("3D preview cache path has no parent directory");
                 }
                 Files.createDirectories(cacheDirectory);
+                awaitPendingWrite(this.cachePath);
+                this.throwIfCancelled();
                 Path readCachePath = this.cachePath;
                 CacheIndexEntry indexEntry = readCacheIndexEntry(this.cacheSlot);
                 boolean sourceHashMatches = indexEntry != null && sourceHash.equals(indexEntry.sourceHash());
@@ -952,63 +955,70 @@ public final class QuickLitematicaPreview3D {
                     built.closeDynamic();
                     this.state = State.TOO_LARGE;
                     this.progress = 1.0F;
-                    deleteTmpQuietly(this.tmpPath);
                     deleteQuietly(this.cachePath);
                     return;
                 }
 
-                List<LayerMesh> cacheLayers = List.copyOf(built.layers());
-                this.meshData = built;
-                this.progress = 1.0F;
-                this.state = State.READY;
-                Path writeCachePath = this.cachePath;
-                Path writeTmpPath = this.tmpPath;
-                try {
-                    CacheFile.writeAtomically(writeTmpPath, writeCachePath, built, cacheLayers, this.cancelled, ignored -> {});
-                    writeCacheIndexEntry(this.cacheSlot, this.sourcePath, sourceHash, this.resourcePackSignature);
+                LitematicaSchematic convertedSchematic = !convertedCacheHit
+                        && schematic.getMetadata().getMinecraftDataVersion() < LitematicaSchematic.MINECRAFT_DATA_VERSION_1_20_4
+                        ? schematic : null;
+                synchronized (this) {
                     this.throwIfCancelled();
-                } catch (CancellationException e) {
-                    throw e;
-                } catch (Exception ignored) {
-                    deleteTmpQuietly(writeTmpPath);
-                    deleteQuietly(writeCachePath);
-                }
-
-                if (!convertedCacheHit
-                        && schematic.getMetadata().getMinecraftDataVersion() < LitematicaSchematic.MINECRAFT_DATA_VERSION_1_20_4) {
-                    QuickLitematicaPreviewSchematicFiles.writeConvertedSchematic(schematic, convertedPath, this.cacheSlot);
+                    this.saveCacheAsync(built, sourceHash, convertedSchematic);
+                    this.meshData = built;
+                    this.progress = 1.0F;
+                    this.state = State.READY;
                 }
             } catch (CancellationException ignored) {
                 this.state = State.CANCELLED;
                 this.discardPartialStatic();
-                deleteTmpQuietly(this.tmpPath);
             } catch (PreviewTooLargeException ignored) {
                 this.state = State.TOO_LARGE;
                 this.progress = 1.0F;
                 this.discardPartialStatic();
-                deleteTmpQuietly(this.tmpPath);
                 deleteQuietly(this.cachePath);
             } catch (Exception e) {
                 if (this.isCancelled()) {
                     this.state = State.CANCELLED;
                     this.discardPartialStatic();
-                    deleteTmpQuietly(this.tmpPath);
                     return;
                 }
                 if (isPreviewTooLarge(e)) {
                     this.state = State.TOO_LARGE;
                     this.progress = 1.0F;
                     this.discardPartialStatic();
-                    deleteTmpQuietly(this.tmpPath);
                     deleteQuietly(this.cachePath);
                     return;
                 }
                 LOGGER.error("Failed to build 3D preview for {}", this.sourceName(), e);
                 this.state = State.FAILED;
                 this.discardPartialStatic();
-                deleteTmpQuietly(this.tmpPath);
                 deleteQuietly(this.cachePath);
             }
+        }
+
+        private void saveCacheAsync(MeshData built, String sourceHash, @Nullable LitematicaSchematic schematic) {
+            // 快照持有量化顶点和 NBT，GPU 上传释放顶点、关闭预览均不影响后台保存。
+            MeshData snapshot = new MeshData(List.copyOf(built.layers()), built.blockStates(), built.blockEntities(),
+                    built.entities(), built.sizeX(), built.sizeY(), built.sizeZ());
+            Path sourcePath = this.sourcePath;
+            Path cachePath = this.cachePath;
+            Path tmpPath = this.tmpPath;
+            Path convertedPath = this.convertedSchematicPath();
+            String cacheSlot = this.cacheSlot;
+            String resourcePackSignature = this.resourcePackSignature;
+            writeAsync(cachePath, () -> {
+                try {
+                    CacheFile.writeAtomically(tmpPath, cachePath, snapshot, snapshot.layers(), new AtomicBoolean(), ignored -> {});
+                    writeCacheIndexEntry(cacheSlot, sourcePath, sourceHash, resourcePackSignature);
+                    if (schematic != null) {
+                        QuickLitematicaPreviewSchematicFiles.writeConvertedSchematic(schematic, convertedPath, cacheSlot);
+                    }
+                } catch (Exception e) {
+                    deleteTmpQuietly(tmpPath);
+                    LOGGER.error("Failed to save 3D preview cache for {}", sourcePath, e);
+                }
+            });
         }
 
         private Path convertedSchematicPath() {
@@ -1122,7 +1132,6 @@ public final class QuickLitematicaPreview3D {
             this.dimensions = null;
             this.state = State.TOO_LARGE;
             this.progress = 1.0F;
-            deleteTmpQuietly(this.tmpPath);
             deleteQuietly(this.cachePath);
         }
 
@@ -1148,14 +1157,14 @@ public final class QuickLitematicaPreview3D {
         }
 
         @Override
-        public void close() {
+        public synchronized void close() {
+            // 缓存临时文件归独立写入任务所有，关闭预览只取消构建并释放显示资源。
             this.cancelled.set(true);
             Future<?> task = this.future;
             if (task != null) {
                 task.cancel(true);
             }
 
-            deleteTmpQuietly(this.tmpPath);
             this.pendingStaticLayers.clear();
             MeshData data = this.meshData;
             if (data != null) {
