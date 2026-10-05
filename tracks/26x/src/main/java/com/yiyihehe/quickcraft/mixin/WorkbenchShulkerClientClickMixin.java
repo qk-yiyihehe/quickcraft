@@ -32,6 +32,8 @@ public abstract class WorkbenchShulkerClientClickMixin {
                                                  ContainerInput actionType,
                                                  Player player,
                                                  CallbackInfo ci) {
+        QuickCraftMouseCraftAckExecutor.onClientClickEnd(
+                containerId, slotId, button, actionType, player);
         QuickCraftWorkbenchShulkerCraft.onWorkbenchClickSent(containerId);
     }
 }

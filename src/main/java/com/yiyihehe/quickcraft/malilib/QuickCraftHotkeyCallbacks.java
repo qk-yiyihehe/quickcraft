@@ -8,12 +8,14 @@ import com.yiyihehe.quickcraft.QuickThrow;
 import com.yiyihehe.quickcraft.QuickTransfer;
 import com.yiyihehe.quickcraft.config.QuickCraftConfigs;
 import com.yiyihehe.quickcraft.gui.QuickCraftConfigScreen;
+import com.yiyihehe.quickcraft.gui.QuickCraftDeveloperScreen;
 import com.yiyihehe.quickcraft.render.QuickDraggableButton;
 import fi.dy.masa.malilib.gui.GuiBase;
 import fi.dy.masa.malilib.hotkeys.IKeybind;
 import fi.dy.masa.malilib.hotkeys.KeyAction;
 import fi.dy.masa.malilib.hotkeys.KeybindMulti;
 import fi.dy.masa.malilib.util.InfoUtils;
+import org.slf4j.LoggerFactory;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.gui.screen.ingame.AnvilScreen;
 import net.minecraft.client.gui.screen.ingame.CraftingScreen;
@@ -28,6 +30,18 @@ public final class QuickCraftHotkeyCallbacks {
     }
 
     public static void bind() {
+        QuickCraftConfigs.Developer.OPEN_PANEL.getKeybind()
+                .setCallback(QuickCraftHotkeyCallbacks::handleOpenDeveloperPanel);
+        QuickCraftConfigs.Developer.MOUSE_CRAFT_ACK_LOGS.setValueChangeCallback(config -> {
+            boolean enabled = config.getBooleanValue();
+            InfoUtils.printActionbarMessage(enabled
+                    ? "quickcraft.message.developer.ack_logs_enabled"
+                    : "quickcraft.message.developer.ack_logs_disabled");
+            if (enabled) {
+                LoggerFactory.getLogger("QuickCraft/Developer")
+                        .info("开发者调试：普通工作台/背包合成 ACK 详细日志已开启");
+            }
+        });
         QuickCraftConfigs.getBooleanHotkeyConfigs().forEach(config ->
                 config.getKeybind().setCallback(new QuickCraftLocalizedToggleCallback(config))
         );
@@ -48,6 +62,17 @@ public final class QuickCraftHotkeyCallbacks {
         QuickCraftConfigs.Hotkeys.CREATIVE_PACKING.getKeybind().setCallback(QuickCraftHotkeyCallbacks::handleCreativePacking);
         QuickCraftConfigs.Hotkeys.OPEN_EASY_PLACE_ENTITY_SELECTOR.getKeybind().setCallback(QuickCraftHotkeyCallbacks::handleEntitySelector);
         QuickCraft.bindOptionalHotkeys();
+    }
+
+    private static boolean handleOpenDeveloperPanel(KeyAction action, IKeybind keybind) {
+        MinecraftClient client = MinecraftClient.getInstance();
+        if (action != KeyAction.PRESS || client == null
+                || !keybind.getKeys().stream().allMatch(KeybindMulti::isKeyDown)
+                || client.currentScreen instanceof QuickCraftDeveloperScreen) {
+            return false;
+        }
+        GuiBase.openGui(new QuickCraftDeveloperScreen(client.currentScreen));
+        return true;
     }
 
     private static boolean handleOpenConfig(KeyAction action, IKeybind keybind) {

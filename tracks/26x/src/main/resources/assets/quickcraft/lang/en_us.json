@@ -555,5 +555,11 @@
   "quickcraft.config.projection_tools.comment.enableLitematicaShulkerMaterialRestock": "§6Function: §rWhen Easy Place lacks a projection material, automatically takes it from a shulker box in the inventory or hotbar and switches it to the hand.\n§eRequirement: §rBoth client and server must support §bQuick Shulker§r.\n§7Protection: §rUses Litematica's pick block slots, avoid-tools, and avoid-damageable-item settings, and never replaces shulker boxes.\n§7Default: §rOff.",
   "quickcraft.config.projection_tools.prettyName.litematicaShulkerMaterialOrderlyStorage": "Orderly Storage",
   "quickcraft.config.projection_tools.name.litematicaShulkerMaterialOrderlyStorage": "Orderly Storage",
-  "quickcraft.config.projection_tools.comment.litematicaShulkerMaterialOrderlyStorage": "§6Function: §rWhen inventory is full, return materials previously taken from a shulker box to their source box before taking new materials.\n§eOff: §rAllows returning them to any shulker box.\n§7Default: §rOff."
+  "quickcraft.config.projection_tools.comment.litematicaShulkerMaterialOrderlyStorage": "§6Function: §rWhen inventory is full, return materials previously taken from a shulker box to their source box before taking new materials.\n§eOff: §rAllows returning them to any shulker box.\n§7Default: §rOff.",
+  "screen.quickcraft.developer.title": "QuickCraft Developer Diagnostics (current game session only)",
+  "quickcraft.config.developer.name.mouseCraftAckLogs": "Mouse Craft ACK Detailed Logs",
+  "quickcraft.config.developer.prettyName.mouseCraftAckLogs": "Mouse Craft ACK Detailed Logs",
+  "quickcraft.config.developer.comment.mouseCraftAckLogs": "Records clicks, inventory snapshots, server responses, ingredient consumption and timings for continuous workbench and inventory crafting. Generates large logs. Disable after reproducing the issue and share logs/latest.log. Off by default; resets on game restart.",
+  "quickcraft.message.developer.ack_logs_enabled": "Mouse craft ACK detailed logs enabled. Disable after reproducing and share latest.log.",
+  "quickcraft.message.developer.ack_logs_disabled": "Mouse craft ACK detailed logs disabled"
 }
