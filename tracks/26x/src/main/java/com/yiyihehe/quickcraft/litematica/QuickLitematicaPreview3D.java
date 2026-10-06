@@ -63,6 +63,8 @@ import net.minecraft.nbt.ListTag;
 import net.minecraft.core.RegistryAccess;
 import net.minecraft.core.HolderGetter;
 import net.minecraft.core.registries.Registries;
+import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.resources.Identifier;
 import net.minecraft.core.Holder;
 import net.minecraft.world.level.storage.TagValueInput;
 import net.minecraft.util.ProblemReporter;
@@ -117,6 +119,61 @@ public final class QuickLitematicaPreview3D {
     private static final AtomicBoolean SHADER_API_ERROR_LOGGED = new AtomicBoolean();
     private static final AtomicBoolean SHADER_DISABLE_ERROR_LOGGED = new AtomicBoolean();
     static final QuickLitematicaPreviewLog LOGGER = QuickLitematicaPreviewLog.LOGGER;
+    static String inferPreviewBlockEntityId(String blockId, int sourceDataVersion) {
+        // 704 之前使用旧式 TileEntity 名称；无法可靠恢复时保留原数据给上游处理。
+        if (sourceDataVersion < 704 || !blockId.startsWith("minecraft:")) return "";
+        try {
+            var block = BuiltInRegistries.BLOCK.getValue(Identifier.parse(blockId));
+            if (block == null || !block.getClass().getName().startsWith("net.minecraft.")) return "";
+            BlockState state = block.defaultBlockState();
+            if (!(state.getBlock() instanceof EntityBlock provider)) return "";
+            BlockEntity blockEntity = provider.newBlockEntity(BlockPos.ZERO, state);
+            if (blockEntity == null || !blockEntity.getClass().getName().startsWith("net.minecraft.")) return "";
+            var typeId = BuiltInRegistries.BLOCK_ENTITY_TYPE.getKey(blockEntity.getType());
+            if (typeId == null || !typeId.toString().startsWith("minecraft:")) return "";
+            String id = typeId.toString();
+            // trapped_chest 在 schema 1451 才独立，此前必须按 chest 进入 DFU。
+            return sourceDataVersion < 1451 && id.equals("minecraft:trapped_chest") ? "minecraft:chest" : id;
+        } catch (Throwable failure) {
+            LOGGER.warn("缺失方块实体 id 恢复失败：方块={}，源数据版本={}，保留原数据", blockId, sourceDataVersion, failure);
+            return "";
+        }
+    }
+
+    static boolean isPreviewInventoryHidden(String blockId) {
+        if (!QuickLitematicaPreviewSchematicFiles.isNonVisualInventory(blockId) && !blockId.equals("minecraft:ender_chest")) return false;
+        try {
+            var block = BuiltInRegistries.BLOCK.getValue(Identifier.parse(blockId));
+            if (block == null || !block.getClass().getName().startsWith("net.minecraft.")) return false;
+            BlockState state = block.defaultBlockState();
+            if (!(state.getBlock() instanceof EntityBlock provider)) return false;
+            BlockEntity blockEntity = provider.newBlockEntity(BlockPos.ZERO, state);
+            if (blockEntity == null) return false;
+            var renderer = Minecraft.getInstance().getBlockEntityRenderDispatcher().getRenderer(blockEntity);
+            return renderer == null || renderer.getClass().getName().startsWith("net.minecraft.");
+        } catch (Throwable failure) {
+            LOGGER.warn("预览库存可见性核验失败：方块={}，保留库存及 DFU", blockId, failure);
+            return false;
+        }
+    }
+
+    static boolean hasPreviewRendererForBlockEntity(String id) {
+        try {
+            var blockKey = Identifier.parse(id);
+            if (!BuiltInRegistries.BLOCK.containsKey(blockKey)) return true;
+            var block = BuiltInRegistries.BLOCK.getValue(blockKey);
+            // 模组替换原版方块类时，不假定其所有状态都使用同一种方块实体。
+            if (block == null || !block.getClass().getName().startsWith("net.minecraft.")) return true;
+            BlockState state = block.defaultBlockState();
+            if (!(state.getBlock() instanceof EntityBlock provider)) return false;
+            // 与网格构建使用相同的类型/渲染器检查，兼容为原版方块注册渲染器的模组。
+            return MeshBuilder.hasPreviewBlockEntityRenderer(provider, state, BlockPos.ZERO);
+        } catch (Throwable failure) {
+            LOGGER.warn("方块实体预览渲染器核验失败：类型={}，保留原数据及 DFU", id, failure);
+            return true;
+        }
+    }
+
     private static final Map<fi.dy.masa.litematica.gui.GuiSchematicBrowserBase, Manager> MANAGERS = new WeakHashMap<>();
     // 预览构建专用单线程池：避免与 Util.getMainWorkerExecutor 共享导致排队等几秒。
     // 单线程足够（预览一次只构建一个文件），且避免 BlockRenderDispatcher 多线程竞争。
@@ -973,11 +1030,11 @@ public final class QuickLitematicaPreview3D {
                 this.state = State.BUILDING;
                 this.trace.event("预览状态改变：BUILDING");
                 Path convertedPath = this.convertedSchematicPath();
-                LitematicaSchematic schematic = sourceHashMatches
+                LitematicaSchematic schematic = cacheSignatureMatches
                         ? QuickLitematicaPreviewSchematicFiles.readSchematic(convertedPath, this.cancelled, false)
                         : null;
                 boolean convertedCacheHit = schematic != null;
-                this.trace.event("转换原理图缓存判定：命中={}，路径={}，源哈希匹配={}", convertedCacheHit, convertedPath, sourceHashMatches);
+                this.trace.event("转换原理图缓存判定：命中={}，路径={}，源哈希匹配={}，资源签名匹配={}", convertedCacheHit, convertedPath, sourceHashMatches, cacheSignatureMatches);
                 if (!convertedCacheHit) {
                     deleteQuietly(convertedPath);
                     schematic = QuickLitematicaPreviewSchematicFiles.readSchematic(this.sourcePath, this.cancelled, true);
@@ -999,9 +1056,15 @@ public final class QuickLitematicaPreview3D {
                     return;
                 }
 
+                int effectiveSourceVersion = Math.max(schematic.getMetadata().getMinecraftDataVersion(),
+                        fi.dy.masa.litematica.config.Configs.Generic.DATAFIXER_DEFAULT_SCHEMA.getIntegerValue());
+                // 上游禁用 DFU 时不能把未转换的 NBT 写成当前版本缓存。
                 LitematicaSchematic convertedSchematic = !convertedCacheHit
-                        && schematic.getMetadata().getMinecraftDataVersion() < LitematicaSchematic.MINECRAFT_DATA_VERSION_1_20_4
+                        && effectiveSourceVersion < LitematicaSchematic.MINECRAFT_DATA_VERSION
+                        && fi.dy.masa.litematica.util.DataFixerMode.getEffectiveSchema(effectiveSourceVersion) != null
                         ? schematic : null;
+                this.trace.event("转换原理图缓存保存判定：需要保存={}，有效源版本={}，目标版本={}，已命中转换缓存={}",
+                        convertedSchematic != null, effectiveSourceVersion, LitematicaSchematic.MINECRAFT_DATA_VERSION, convertedCacheHit);
                 synchronized (this) {
                     this.throwIfCancelled();
                     this.saveCacheAsync(built, sourceHash, convertedSchematic);
@@ -2153,11 +2216,12 @@ public final class QuickLitematicaPreview3D {
             CompoundTag nbt = data == null
                     ? new CompoundTag()
                     : QuickLitematicaDataCompat.toVanillaNbt(data);
-            CompoundTag entityNbt = sanitizeBlockEntityNbt(nbt);
+            CompoundTag blockStateNbt = NbtUtils.writeBlockState(state);
+            CompoundTag entityNbt = sanitizeBlockEntityNbt(nbt, blockStateNbt.getStringOr("Name", ""));
             entityNbt.putInt("x", renderPos.getX());
             entityNbt.putInt("y", renderPos.getY());
             entityNbt.putInt("z", renderPos.getZ());
-            blockEntities.add(new BlockEntityData(renderPos.getX(), renderPos.getY(), renderPos.getZ(), NbtUtils.writeBlockState(state), entityNbt));
+            blockEntities.add(new BlockEntityData(renderPos.getX(), renderPos.getY(), renderPos.getZ(), blockStateNbt, entityNbt));
             if (blockEntities.size() > MAX_DYNAMIC_BLOCK_ENTITIES) {
                 throw new PreviewTooLargeException();
             }
@@ -2172,11 +2236,14 @@ public final class QuickLitematicaPreview3D {
             return Minecraft.getInstance().getBlockEntityRenderDispatcher().getRenderer(blockEntity) != null;
         }
 
-        private static CompoundTag sanitizeBlockEntityNbt(CompoundTag nbt) {
+        private static CompoundTag sanitizeBlockEntityNbt(CompoundTag nbt, String blockId) {
             CompoundTag sanitized = nbt.copy();
             // 火堆物品参与动态渲染，只删减已知普通容器的库存。
-            if (NON_VISUAL_INVENTORY_IDS.contains(sanitized.getStringOr("id", ""))) {
+            String id = sanitized.getStringOr("id", "");
+            if ((sanitized.contains("Items") || sanitized.contains("Inventory"))
+                    && isNonVisualInventory(id.isEmpty() ? blockId : id) && isPreviewInventoryHidden(blockId)) {
                 sanitized.remove("Items");
+                sanitized.remove("Inventory");
             }
             return sanitized;
         }

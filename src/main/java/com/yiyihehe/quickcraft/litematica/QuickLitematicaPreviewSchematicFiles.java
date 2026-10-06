@@ -4,23 +4,30 @@ import net.minecraft.nbt.NbtList;
 import net.minecraft.nbt.NbtCompound;
 import fi.dy.masa.litematica.util.FileType;
 import fi.dy.masa.litematica.schematic.LitematicaSchematic;
+import fi.dy.masa.litematica.schematic.container.LitematicaBitArray;
+import net.minecraft.nbt.NbtLongArray;
+import net.minecraft.nbt.AbstractNbtNumber;
 import net.minecraft.nbt.NbtIo;
 import net.minecraft.nbt.NbtSizeTracker;
 import org.jetbrains.annotations.Nullable;
-import java.io.BufferedInputStream;
 import java.io.BufferedOutputStream;
-import java.io.DataInputStream;
 import java.io.DataOutputStream;
+import java.io.OutputStream;
+import java.util.zip.GZIPOutputStream;
+import java.io.BufferedInputStream;
+import java.io.DataInputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.OutputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Set;
+import java.util.Map;
+import java.util.HashMap;
+import java.util.function.Predicate;
+import java.util.function.Function;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.zip.GZIPInputStream;
-import java.util.zip.GZIPOutputStream;
 import static com.yiyihehe.quickcraft.litematica.QuickLitematicaPreviewAccess.*;
 import static com.yiyihehe.quickcraft.litematica.QuickLitematicaPreview3D.*;
 import static com.yiyihehe.quickcraft.litematica.QuickLitematicaPreviewCache.*;
@@ -63,6 +70,177 @@ final class QuickLitematicaPreviewSchematicFiles {
             "minecraft:dropper", "minecraft:crafter", "minecraft:furnace",
             "minecraft:blast_furnace", "minecraft:smoker", "minecraft:brewing_stand");
 
+    static final Set<String> NON_RENDERED_DFU_CANDIDATES = Set.of("minecraft:hopper", "minecraft:dropper",
+            "minecraft:dispenser", "minecraft:furnace", "minecraft:blast_furnace", "minecraft:smoker",
+            "minecraft:barrel", "minecraft:crafter", "minecraft:brewing_stand", "minecraft:comparator",
+            "minecraft:daylight_detector", "minecraft:bed", "minecraft:beehive");
+
+    private static final Set<String> DEFAULT_RENDERED_CONTAINER_IDS = Set.of(
+            "minecraft:chest", "minecraft:trapped_chest", "minecraft:ender_chest", "minecraft:shulker_box");
+    private static final Set<String> BLOCK_ENTITY_IDENTITY_KEYS = Set.of("id", "x", "y", "z");
+    private static final Set<String> HIVE_NON_VISUAL_KEYS = Set.of("id", "x", "y", "z", "Bees", "bees", "FlowerPos", "flower_pos");
+
+    static String canonicalBlockEntityId(String id) {
+        // 原版 BlockEntityIdFix 的旧名称，以及旧调色板的熔炉/红石变体。
+        return switch (id) {
+            case "Furnace", "minecraft:lit_furnace" -> "minecraft:furnace";
+            case "Hopper" -> "minecraft:hopper";
+            case "Dropper" -> "minecraft:dropper";
+            case "Trap" -> "minecraft:dispenser";
+            case "Cauldron" -> "minecraft:brewing_stand";
+            case "Comparator", "minecraft:powered_comparator", "minecraft:unpowered_comparator" -> "minecraft:comparator";
+            case "DLDetector", "minecraft:daylight_detector_inverted" -> "minecraft:daylight_detector";
+            case "Chest" -> "minecraft:chest";
+            default -> id;
+        };
+    }
+
+    record PreparationStats(int blockEntities, int removedInventories, int missingInventoryIds,
+                            int inferredInventoryIds, int restoredBlockEntityIds, int defaultContainerNbt, Map<String, Integer> skippedByType) {
+        int skippedBlockEntities() { return skippedByType.values().stream().mapToInt(Integer::intValue).sum(); }
+        boolean modified() { return removedInventories > 0 || restoredBlockEntityIds > 0 || !skippedByType.isEmpty(); }
+    }
+
+    static PreparationStats preparePreviewNbt(NbtCompound root, AtomicBoolean cancelled, Predicate<String> hasRenderer,
+                                              Function<String, String> inferBlockEntityId, Predicate<String> inventoryHidden) {
+        int blockEntities = 0;
+        int removedInventories = 0;
+        int missingInventoryIds = 0;
+        int inferredInventoryIds = 0;
+        int restoredBlockEntityIds = 0;
+        int defaultContainerNbt = 0;
+        Map<String, String> inferredTypes = new HashMap<>();
+        Map<String, Integer> skippedByType = new HashMap<>();
+        Map<String, Boolean> skipType = new HashMap<>();
+        Map<String, Boolean> inventoryTrim = new HashMap<>();
+        int formatVersion = root.get("Version") instanceof AbstractNbtNumber version ? version.intValue() : -1;
+        // 未知格式交给上游读取，不能假定其坐标和方块实体布局。
+        if (formatVersion < 1 || formatVersion > LitematicaSchematic.SCHEMATIC_VERSION) {
+            return new PreparationStats(0, 0, 0, 0, 0, 0, Map.of());
+        }
+        boolean wrappedFormat = formatVersion == 1;
+        NbtCompound regions = readCompound(root, "Regions");
+        for (String key : regions.getKeys()) {
+            NbtCompound reg = readCompound(regions, key);
+            NbtList teList = readCompoundList(reg, "TileEntities");
+            InventoryPalette inventoryPalette = null;
+            boolean paletteRead = false;
+            // 倒序删记录，保留其余记录的顺序；只修改预览临时 NBT。
+            for (int i = teList.size() - 1; i >= 0; i--) {
+                throwIfCancelled(cancelled);
+                NbtCompound entry = readListCompound(teList, i);
+                NbtCompound te = wrappedFormat ? readCompound(entry, "TileNBT") : entry;
+                NbtCompound position = wrappedFormat ? entry : te;
+                blockEntities++;
+                String rawId = readString(te, "id");
+                String id = canonicalBlockEntityId(rawId);
+                boolean hasInventory = te.contains("Items") || te.contains("Inventory");
+                boolean needsBlockType = rawId.isEmpty() || id.equals("minecraft:bed")
+                        || isNonVisualInventory(id) || NON_RENDERED_DFU_CANDIDATES.contains(id)
+                        || DEFAULT_RENDERED_CONTAINER_IDS.contains(id);
+                if (needsBlockType && !paletteRead) {
+                    inventoryPalette = InventoryPalette.from(reg);
+                    paletteRead = true;
+                }
+                String blockId = needsBlockType && inventoryPalette != null ? inventoryPalette.idAt(position) : "";
+                if (rawId.isEmpty()) {
+                    if (hasInventory) missingInventoryIds++;
+                    id = blockId.isEmpty() ? "" : inferredTypes.computeIfAbsent(blockId, inferBlockEntityId);
+                    // 必须在删库存前写回真实类型，否则上游失去推断线索后会默认成活塞。
+                    if (!id.isEmpty()) {
+                        te.putString("id", id);
+                        restoredBlockEntityIds++;
+                    }
+                    if (hasInventory && isNonVisualInventory(id)) inferredInventoryIds++;
+                }
+                String actualType = blockId.isEmpty() ? "" : inferredTypes.computeIfAbsent(blockId, inferBlockEntityId);
+                boolean typeMatches = !id.isEmpty() && id.equals(actualType);
+                // 实际方块必须能确认类型；自定义渲染器可能显示库存，不能只信 NBT 中的原版 id。
+                if (typeMatches && isNonVisualInventory(id)
+                        && inventoryTrim.computeIfAbsent(blockId, inventoryHidden::test)) {
+                    if (te.contains("Items")) { te.remove("Items"); removedInventories++; }
+                    if (te.contains("Inventory")) { te.remove("Inventory"); removedInventories++; }
+                }
+                // 床在部分游戏版本已无方块实体；旧 minecraft:bed 仍可能需要 NBT 转换颜色。
+                boolean coloredBed = blockId.startsWith("minecraft:") && blockId.endsWith("_bed");
+                if (id.isEmpty() && coloredBed) id = "minecraft:bed";
+                String rendererBlockId = blockId;
+                // 蜂巢的朝向/蜜量在方块状态中；仅无渲染器且没有额外负载时跳过内部蜜蜂递归。
+                boolean withoutRenderer = NON_RENDERED_DFU_CANDIDATES.contains(id)
+                        && (!id.equals("minecraft:beehive") || hasOnlyKeysAndEmptyComponents(te, HIVE_NON_VISUAL_KEYS))
+                        && (typeMatches || (id.equals("minecraft:bed") && coloredBed)) && !rendererBlockId.isEmpty()
+                        && skipType.computeIfAbsent(rendererBlockId, type -> !hasRenderer.test(type));
+                // 原版空组件与缺省组件均为 EMPTY；非空组件、额外字段和自定义渲染器仍保留。
+                // 动态阶段仍由实际方块状态创建默认容器，包括颜色和双箱。
+                boolean defaultContainer = DEFAULT_RENDERED_CONTAINER_IDS.contains(id)
+                        && hasOnlyKeysAndEmptyComponents(te, BLOCK_ENTITY_IDENTITY_KEYS) && !blockId.isEmpty()
+                        && typeMatches && inventoryTrim.computeIfAbsent(blockId, inventoryHidden::test);
+                if (withoutRenderer || defaultContainer) {
+                    if (defaultContainer && !withoutRenderer) defaultContainerNbt++;
+                    teList.remove(i);
+                    skippedByType.merge(id, 1, Integer::sum);
+                }
+            }
+        }
+        return new PreparationStats(blockEntities, removedInventories, missingInventoryIds,
+                inferredInventoryIds, restoredBlockEntityIds, defaultContainerNbt, Map.copyOf(skippedByType));
+    }
+
+    static boolean isNonVisualInventory(String id) {
+        return NON_VISUAL_INVENTORY_IDS.contains(id)
+                || (id.startsWith("minecraft:") && id.endsWith("_shulker_box"));
+    }
+
+    private static boolean hasOnlyKeysAndEmptyComponents(NbtCompound tag, Set<String> allowedKeys) {
+        for (String key : tag.getKeys()) {
+            if (!allowedKeys.contains(key)
+                    && !(key.equals("components") && tag.get(key) instanceof NbtCompound components && components.isEmpty())) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    // 旧原理图可以省略方块实体 id；直接查原始调色板，不为删库存提前进行 DFU。
+    record InventoryPalette(NbtList palette, LitematicaBitArray blocks, int sizeX, int sizeY, int sizeZ) {
+        @Nullable
+        static InventoryPalette from(NbtCompound region) {
+            NbtList palette = readCompoundList(region, "BlockStatePalette");
+            NbtCompound size = readCompound(region, "Size");
+            if (!(region.get("BlockStates") instanceof NbtLongArray packedTag)
+                    || !(size.get("x") instanceof AbstractNbtNumber sx)
+                    || !(size.get("y") instanceof AbstractNbtNumber sy)
+                    || !(size.get("z") instanceof AbstractNbtNumber sz)) return null;
+            int x = Math.abs(sx.intValue());
+            int y = Math.abs(sy.intValue());
+            int z = Math.abs(sz.intValue());
+            long[] packed = packedTag.getLongArray();
+            if (palette.isEmpty() || x <= 0 || y <= 0 || z <= 0) return null;
+            int bits = Math.max(2, Integer.SIZE - Integer.numberOfLeadingZeros(palette.size() - 1));
+            long volume;
+            try {
+                volume = Math.multiplyExact(Math.multiplyExact((long) x, y), z);
+            } catch (ArithmeticException invalidSize) {
+                return null;
+            }
+            if (volume > packed.length * 64L / bits) return null;
+            return new InventoryPalette(palette, new LitematicaBitArray(bits, volume, packed), x, y, z);
+        }
+
+        String idAt(NbtCompound blockEntity) {
+            if (!(blockEntity.get("x") instanceof AbstractNbtNumber nx)
+                    || !(blockEntity.get("y") instanceof AbstractNbtNumber ny)
+                    || !(blockEntity.get("z") instanceof AbstractNbtNumber nz)) return "";
+            int x = nx.intValue();
+            int y = ny.intValue();
+            int z = nz.intValue();
+            if (x < 0 || y < 0 || z < 0 || x >= sizeX || y >= sizeY || z >= sizeZ) return "";
+            // TileEntities 坐标相对区域最小角；负 Size 仅表示选区方向。
+            int index = blocks.getAt(((long) y * sizeZ + z) * sizeX + x);
+            return index < palette.size() ? readString(readListCompound(palette, index), "Name") : "";
+        }
+    }
+
     @Nullable
     static LitematicaSchematic readSchematic(
             Path path,
@@ -85,32 +263,7 @@ final class QuickLitematicaPreviewSchematicFiles {
                 return null;
             }
 
-            LitematicaSchematic schematic = null;
-            Path fastPath = null;
-            try {
-                fastPath = prepareFastSchematic(path, cancelled);
-                LOGGER.info("预处理路径选择：原文件={}，临时预处理文件={}，无临时文件时读取原文件", path, fastPath);
-                if (fastPath != null) {
-                    Path fastDir = fastPath.getParent();
-                    Path fastFile = fastPath.getFileName();
-                    if (fastDir != null && fastFile != null) {
-                        throwIfCancelled(cancelled);
-                        schematic = LitematicaSchematic.createFromFile(
-                                fastDir,
-                                fastFile.toString(),
-                                FileType.LITEMATICA_SCHEMATIC
-                        );
-                    }
-                }
-            } catch (CancellationException cancellation) {
-                throw cancellation;
-            } catch (Throwable t) {
-                LOGGER.debug("QuickCraft fast schematic preparation skipped: {}", t.getMessage());
-            } finally {
-                if (fastPath != null) {
-                    deleteQuietly(fastPath);
-                }
-            }
+            LitematicaSchematic schematic = readPreprocessedSchematic(path, cancelled);
 
             if (schematic == null) {
                 throwIfCancelled(cancelled);
@@ -134,78 +287,62 @@ final class QuickLitematicaPreviewSchematicFiles {
     }
 
     @Nullable
-    static Path prepareFastSchematic(Path sourcePath, AtomicBoolean cancelled) {
+    static LitematicaSchematic readPreprocessedSchematic(Path sourcePath, AtomicBoolean cancelled) {
         throwIfCancelled(cancelled);
         String name = sourcePath.getFileName() != null ? sourcePath.getFileName().toString() : "";
-        if (!name.endsWith(".litematic")) {
-            return null;
-        }
-        Path cacheDir = cacheDirectory();
-        if (cacheDir == null) {
-            return null;
-        }
-
-        Path fastPath = null;
-        try (InputStream is = Files.newInputStream(sourcePath);
-             BufferedInputStream bis = new BufferedInputStream(is);
-             GZIPInputStream gis = new GZIPInputStream(bis);
-             DataInputStream dis = new DataInputStream(gis)) {
-            NbtCompound root = NbtIo.readCompound(dis, NbtSizeTracker.of(256L * 1024L * 1024L));
-            throwIfCancelled(cancelled);
-            if (root == null || !containsCompound(root, "Regions")) {
-                return null;
-            }
-
-            boolean modified = false;
-            NbtCompound regions = readCompound(root, "Regions");
-            for (String key : regions.getKeys()) {
-                if (!containsCompound(regions, key)) {
-                    continue;
+        if (!name.endsWith(".litematic")) return null;
+        try {
+            NbtCompound root;
+            PreparationStats stats;
+            try (var phase = QuickLitematicaPreviewLog.phase("原理图快速预处理")) {
+                try (InputStream is = Files.newInputStream(sourcePath);
+                     BufferedInputStream bis = new BufferedInputStream(is);
+                     GZIPInputStream gis = new GZIPInputStream(bis);
+                     DataInputStream dis = new DataInputStream(gis)) {
+                    root = NbtIo.readCompound(dis, NbtSizeTracker.of(256L * 1024L * 1024L));
                 }
-                NbtCompound reg = readCompound(regions, key);
-                if (containsList(reg, "TileEntities")) {
-                    NbtList teList = readCompoundList(reg, "TileEntities");
-                    for (int i = 0; i < teList.size(); i++) {
-                        NbtCompound te = readListCompound(teList, i);
-                        // 火堆物品和实体装备参与渲染，不能作为普通库存删减。
-                        if (!NON_VISUAL_INVENTORY_IDS.contains(readString(te, "id"))) {
-                            continue;
-                        }
-                        if (te.contains("Items")) {
-                            te.remove("Items");
-                            modified = true;
-                        }
-                        if (te.contains("Inventory")) {
-                            te.remove("Inventory");
-                            modified = true;
-                        }
-                    }
-                }
-
+                throwIfCancelled(cancelled);
+                if (root == null || !root.contains("Regions")) return null;
+                int formatVersion = root.get("Version") instanceof AbstractNbtNumber version ? version.intValue() : -1;
+                // 未知格式继续使用上游带验证的文件入口。
+                if (formatVersion < 1 || formatVersion > LitematicaSchematic.SCHEMATIC_VERSION) return null;
+                int declaredSourceVersion = root.get("MinecraftDataVersion") instanceof AbstractNbtNumber version ? version.intValue() : 0;
+                LOGGER.info("预处理 NBT 读取完成：源={}，数据版本={}，文件格式版本={}", sourcePath,
+                        declaredSourceVersion, formatVersion);
+                int effectiveSourceVersion = Math.max(declaredSourceVersion,
+                        fi.dy.masa.litematica.config.Configs.Generic.DATAFIXER_DEFAULT_SCHEMA.getIntegerValue());
+                stats = preparePreviewNbt(root, cancelled,
+                        QuickLitematicaPreview3D::hasPreviewRendererForBlockEntity,
+                        blockId -> QuickLitematicaPreview3D.inferPreviewBlockEntityId(blockId, effectiveSourceVersion),
+                        QuickLitematicaPreview3D::isPreviewInventoryHidden);
+                LOGGER.info("预处理删减结果：源={}，删减库存字段数={}，缺少 id 的库存记录={}，调色板识别普通容器={}，补全方块实体 id={}，方块实体原数={}，跳过无渲染器/无负载 NBT DFU={}，其中默认容器 NBT={}，保留={}，跳过类型统计={}，NBT 已修改={}",
+                        sourcePath, stats.removedInventories(), stats.missingInventoryIds(), stats.inferredInventoryIds(),
+                        stats.restoredBlockEntityIds(), stats.blockEntities(), stats.skippedBlockEntities(), stats.defaultContainerNbt(),
+                        stats.blockEntities() - stats.skippedBlockEntities(), stats.skippedByType(), stats.modified());
             }
-
-            if (!modified) {
-                return null;
-            }
-
             throwIfCancelled(cancelled);
-            fastPath = cacheDir.resolve("fast-" + Long.toUnsignedString(System.nanoTime()) + ".fast.tmp.litematic");
-            try (OutputStream os = Files.newOutputStream(fastPath);
-                 BufferedOutputStream bos = new BufferedOutputStream(os);
-                 GZIPOutputStream gos = new GZIPOutputStream(bos);
-                 DataOutputStream dos = new DataOutputStream(gos)) {
-                NbtIo.writeCompound(root, dos);
+            if (!stats.modified()) return null;
+            Path cacheDir = cacheDirectory();
+            if (cacheDir == null) return null;
+            Path temporary = cacheDir.resolve("fast-" + Long.toUnsignedString(System.nanoTime()) + ".fast.tmp.litematic");
+            // 上游 NBT 构造器先解析、后初始化 converter，旧数据后处理会抛异常；文件入口初始化顺序正确。
+            try (var phase = QuickLitematicaPreviewLog.phase("预处理临时文件写入/上游解析")) {
+                try (OutputStream os = Files.newOutputStream(temporary);
+                     BufferedOutputStream bos = new BufferedOutputStream(os);
+                     GZIPOutputStream gos = new GZIPOutputStream(bos);
+                     DataOutputStream dos = new DataOutputStream(gos)) {
+                    NbtIo.writeCompound(root, dos);
+                }
+                throwIfCancelled(cancelled);
+                LOGGER.info("预处理投影读取：源={}，临时={}，已裁剪数据交给上游文件入口", sourcePath, temporary);
+                return LitematicaSchematic.createFromFile(cacheDir, temporary.getFileName().toString(), FileType.LITEMATICA_SCHEMATIC);
+            } finally {
+                deleteQuietly(temporary);
             }
-            return fastPath;
         } catch (CancellationException cancellation) {
-            if (fastPath != null) {
-                deleteQuietly(fastPath);
-            }
             throw cancellation;
-        } catch (Throwable t) {
-            if (fastPath != null) {
-                deleteQuietly(fastPath);
-            }
+        } catch (Throwable failure) {
+            LOGGER.warn("预处理投影读取失败：源={}，回退上游文件读取", sourcePath, failure);
             return null;
         }
     }
