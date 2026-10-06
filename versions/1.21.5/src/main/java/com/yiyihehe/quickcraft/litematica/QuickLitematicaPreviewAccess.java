@@ -109,7 +109,8 @@ final class QuickLitematicaPreviewAccess {
         List<DynamicLayerBuffer> dynamicBuffers = List.of();
 
         void drawPreview(DrawContext context, int x, int y, int size, DragState drag) {
-            this.drawMesh(context, x, y, size, drag);
+            if (QuickLitematicaPreviewLog.enabled()) this.trace.frame(this.staticUploadComplete, () -> this.drawMesh(context, x, y, size, drag));
+            else this.drawMesh(context, x, y, size, drag);
         }
 
         @Nullable
@@ -290,6 +291,7 @@ final class QuickLitematicaPreviewAccess {
                     } catch (DynamicBufferTooLargeException e) {
                         throw e;
                     } catch (Throwable ignored) {
+                        LOGGER.warn("原生预览局部失败：入口=prepareDynamicBuffers，继续原有跳过/回退", ignored);
                     } finally {
                         matrices.pop();
                     }
@@ -310,6 +312,7 @@ final class QuickLitematicaPreviewAccess {
                     } catch (DynamicBufferTooLargeException e) {
                         throw e;
                     } catch (Throwable ignored) {
+                        LOGGER.warn("原生预览局部失败：入口=prepareDynamicBuffers，继续原有跳过/回退", ignored);
                     }
                 });
 
@@ -317,6 +320,7 @@ final class QuickLitematicaPreviewAccess {
                 this.dynamicBuffersReady = true;
                 data.closeDynamic();
             } catch (Throwable ignored) {
+                LOGGER.warn("原生预览局部失败：入口=prepareDynamicBuffers，继续原有跳过/回退", ignored);
                 this.closeDynamicBuffers();
                 this.dynamicBufferFallback = true;
             } finally {
@@ -433,6 +437,7 @@ final class QuickLitematicaPreviewAccess {
                     // 高层方块实体渲染会按真实相机做距离判断，预览里的离屏假世界不能走那条路径。
                     renderBlockEntity(client, entity, matrices, client.getBufferBuilders().getEntityVertexConsumers());
                 } catch (Throwable ignored) {
+                    LOGGER.warn("原生预览局部失败：入口=drawDynamic，继续原有跳过/回退", ignored);
                 } finally {
                     matrices.pop();
                 }
@@ -454,6 +459,7 @@ final class QuickLitematicaPreviewAccess {
                             entity.light()
                     );
                 } catch (Throwable ignored) {
+                    LOGGER.warn("原生预览局部失败：入口=drawDynamic，继续原有跳过/回退", ignored);
                 }
             });
             // BE 和实体共用同一个 EntityVertexConsumers，一次 flush 提交所有动态顶点。
@@ -527,6 +533,7 @@ final class QuickLitematicaPreviewAccess {
                 );
                 this.renderSnapshot(framebuffer, data, drag);
             } catch (Throwable ignored) {
+                LOGGER.warn("原生预览局部失败：入口=takeNativeSnapshot，继续原有跳过/回退", ignored);
 
                 failureCallback.accept(ignored);
                 return;
@@ -1236,6 +1243,7 @@ final class QuickLitematicaPreviewAccess {
             try {
                 Entity entity = EntityUtils.createEntityAndPassengersFromNBT(this.entityNbt.copy(), world);
                 if (entity == null) {
+                    LOGGER.warn("动态实体实例化返回空：位置={},{},{}", this.x, this.y, this.z);
                     return null;
                 }
 
@@ -1243,6 +1251,7 @@ final class QuickLitematicaPreviewAccess {
                 int light = MinecraftClient.getInstance().getEntityRenderDispatcher().getLight(entity, 0.0F);
                 return new RenderedEntity(entity, this.x, this.y, this.z, light);
             } catch (Throwable ignored) {
+                LOGGER.warn("动态实例化失败：类型=EntityData，位置={},{},{}", this.x, this.y, this.z, ignored);
                 return null;
             }
         }
@@ -1260,6 +1269,7 @@ final class QuickLitematicaPreviewAccess {
             try {
                 BlockEntity blockEntity = provider.createBlockEntity(pos, state);
                 if (blockEntity == null) {
+                    LOGGER.warn("方块实体工厂返回空：位置={},{},{}，状态={}", this.x, this.y, this.z, state);
                     return null;
                 }
 
@@ -1270,6 +1280,7 @@ final class QuickLitematicaPreviewAccess {
                 blockEntity.setWorld(world);
                 return blockEntity;
             } catch (Throwable ignored) {
+                LOGGER.warn("动态实例化失败：类型=BlockEntityData，位置={},{},{}", this.x, this.y, this.z, ignored);
                 return null;
             }
         }

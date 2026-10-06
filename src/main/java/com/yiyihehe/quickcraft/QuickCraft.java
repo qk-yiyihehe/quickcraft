@@ -1,10 +1,13 @@
 package com.yiyihehe.quickcraft;
 
+import com.yiyihehe.quickcraft.config.QuickCraftConfigs;
+import com.yiyihehe.quickcraft.litematica.QuickLitematicaPreviewLog;
 import com.yiyihehe.quickcraft.litematica.QuickLitematicaSelectionPreview;
 import com.yiyihehe.quickcraft.litematica.QuickLitematicaAreaClone;
 import com.yiyihehe.quickcraft.litematica.QuickLitematicaEntityPlacement;
 import com.yiyihehe.quickcraft.malilib.QuickCraftMalilibInit;
 import fi.dy.masa.malilib.event.InitializationHandler;
+import fi.dy.masa.malilib.util.InfoUtils;
 import net.fabricmc.api.ModInitializer;
 import net.fabricmc.loader.api.FabricLoader;
 import net.minecraft.client.MinecraftClient;
@@ -23,6 +26,15 @@ public class QuickCraft implements ModInitializer {
     }
 
     public static void bindOptionalHotkeys() {
+        QuickCraftConfigs.Developer.LITEMATICA_PREVIEW_3D_LOGS.setValueChangeCallback(config -> {
+            boolean enabled = config.getBooleanValue();
+            QuickLitematicaPreviewLog.setEnabled(enabled);
+            InfoUtils.printActionbarMessage(!enabled
+                    ? "quickcraft.message.developer.preview_logs_disabled"
+                    : QuickLitematicaPreviewLog.logPath() == null
+                            ? "quickcraft.message.developer.preview_logs_failed"
+                            : "quickcraft.message.developer.preview_logs_enabled", QuickLitematicaPreviewLog.logPath());
+        });
         if (FabricLoader.getInstance().isModLoaded("litematica")) {
             QuickLitematicaSelectionPreview.bindHotkey();
             QuickLitematicaAreaClone.bindHotkey();

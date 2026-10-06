@@ -136,9 +136,12 @@ public final class QuickLitematicaPreviewAccess {
 
                 try {
                     if (layerMesh.layer().isTranslucent()) {
-                        built.sortQuads(allocator, VertexSorting.byDistance(0.0F, 0.0F, 1000.0F));
+                        try (var phase = QuickLitematicaPreviewLog.phase("GPU层透明排序")) {
+                            built.sortQuads(allocator, VertexSorting.byDistance(0.0F, 0.0F, 1000.0F));
+                        }
                     }
 
+                    long bufferStart = QuickLitematicaPreviewLog.startTimer();
                     var drawParameters = built.drawState();
                     vertexBuffer = RenderSystem.getDevice().createBuffer(
                             () -> "QuickCraft preview vertices",
@@ -158,6 +161,8 @@ public final class QuickLitematicaPreviewAccess {
                             : RenderSystem.getSequentialBuffer(drawParameters.primitiveTopology()).type();
 
                     uploaded = new LayerBuffer(vertexBuffer, indexBuffer, drawParameters.indexCount(), indexType, customIndexBuffer);
+                    LOGGER.info("GPU 缓冲创建完成：层={}，顶点={}，索引={}，自建索引={}，耗时={} us", layerMesh.layer(), vertexCount,
+                            drawParameters.indexCount(), customIndexBuffer, QuickLitematicaPreviewLog.microsSince(bufferStart));
                 } finally {
                     built.close();
                 }
@@ -225,6 +230,12 @@ public final class QuickLitematicaPreviewAccess {
         }
 
         void drawSpecial(QuickLitematicaPreview3D.PreviewGuiElement element, PoseStack matrices) {
+            if (this.preview.dimensions() == null || this.preview.isCancelled()) return;
+            if (QuickLitematicaPreviewLog.enabled()) this.preview.trace.frame(this.staticUploadComplete, () -> this.drawSpecialContent(element, matrices));
+            else this.drawSpecialContent(element, matrices);
+        }
+
+        private void drawSpecialContent(QuickLitematicaPreview3D.PreviewGuiElement element, PoseStack matrices) {
             QuickLitematicaPreview3D.MeshData data = this.preview.meshData();
             QuickLitematicaPreview3D.PreviewDimensions dimensions = this.preview.dimensions();
             if (dimensions == null || this.preview.isCancelled()) {
@@ -397,33 +408,39 @@ public final class QuickLitematicaPreviewAccess {
                 Consumer<NativeImage> callback,
                 Consumer<Throwable> errorCallback
         ) {
-            this.prepareDynamicFrame(data);
-            if (this.dynamicFrame == null) {
-                this.prepareDynamicStates(data);
-            }
+            try (var scope = this.preview.trace.bind(); var phase = QuickLitematicaPreviewLog.phase("离屏渲染/像素读回提交")) {
+                this.prepareDynamicFrame(data);
+                if (this.dynamicFrame == null) {
+                    this.prepareDynamicStates(data);
+                }
 
-            RenderTarget framebuffer;
-            try {
-                framebuffer = new TextureTarget("QuickCraft snapshot", resolution, resolution, true, GpuFormat.RGBA8_UNORM);
-                Vector4f clearColor = new Vector4f(
-                        ((backgroundColor >> 16) & 0xFF) / 255.0F,
-                        ((backgroundColor >> 8) & 0xFF) / 255.0F,
-                        (backgroundColor & 0xFF) / 255.0F,
-                        ((backgroundColor >>> 24) & 0xFF) / 255.0F
-                );
-                RenderSystem.getDevice().createCommandEncoder().clearColorAndDepthTextures(
-                        Objects.requireNonNull(framebuffer.getColorTexture()),
-                        clearColor,
-                        Objects.requireNonNull(framebuffer.getDepthTexture()),
-                        0.0D
-                );
-                this.renderSnapshot(framebuffer, data, drag);
-            } catch (Throwable throwable) {
-                errorCallback.accept(throwable);
-                return;
-            }
+                RenderTarget framebuffer;
+                try {
+                    framebuffer = new TextureTarget("QuickCraft snapshot", resolution, resolution, true, GpuFormat.RGBA8_UNORM);
+                    Vector4f clearColor = new Vector4f(
+                            ((backgroundColor >> 16) & 0xFF) / 255.0F,
+                            ((backgroundColor >> 8) & 0xFF) / 255.0F,
+                            (backgroundColor & 0xFF) / 255.0F,
+                            ((backgroundColor >>> 24) & 0xFF) / 255.0F
+                    );
+                    RenderSystem.getDevice().createCommandEncoder().clearColorAndDepthTextures(
+                            Objects.requireNonNull(framebuffer.getColorTexture()),
+                            clearColor,
+                            Objects.requireNonNull(framebuffer.getDepthTexture()),
+                            0.0D
+                    );
+                    this.renderSnapshot(framebuffer, data, drag);
+                } catch (Throwable throwable) {
+                    LOGGER.error("离屏渲染失败：分辨率={}", resolution, throwable);
+                    errorCallback.accept(throwable);
+                    return;
+                }
 
-            copySnapshot(framebuffer, keepBackgroundOpaque, callback, errorCallback);
+                copySnapshot(framebuffer, keepBackgroundOpaque, this.preview.trace.wrapConsumer(image -> {
+                    this.preview.trace.milestone("快照像素读回完成：分辨率={}", resolution);
+                    callback.accept(image);
+                }), this.preview.trace.wrapConsumer(errorCallback));
+            }
         }
 
         private void renderSnapshot(RenderTarget framebuffer, QuickLitematicaPreview3D.MeshData data, QuickLitematicaPreview3D.DragState drag) {

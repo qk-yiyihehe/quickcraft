@@ -14,7 +14,7 @@ final class QuickLitematicaPreviewShaderAccess {
         try {
             return IrisCompat.isShaderActive();
         } catch (Throwable throwable) {
-            if (SHADER_API_ERROR_LOGGED.compareAndSet(false, true)) {
+            if (QuickLitematicaPreviewLog.enabled() && SHADER_API_ERROR_LOGGED.compareAndSet(false, true)) {
                 LOGGER.error("Iris shader state could not be queried; disabling QuickCraft 3D previews for this session", throwable);
             }
             return IrisCompat.isIrisActive;

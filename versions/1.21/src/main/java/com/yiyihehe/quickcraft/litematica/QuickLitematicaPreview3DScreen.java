@@ -441,6 +441,7 @@ public final class QuickLitematicaPreview3DScreen extends Screen {
 
     @Override
     public void close() {
+        this.manager.fullscreenClosed();
         this.manager.cancelPendingPreviewImagePicker();
         if (this.closeManagerOnExit) {
             this.manager.close();
