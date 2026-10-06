@@ -561,5 +561,11 @@
   "quickcraft.config.developer.prettyName.mouseCraftAckLogs": "普通合成 ACK 详细日志",
   "quickcraft.config.developer.comment.mouseCraftAckLogs": "记录普通工作台与背包持续合成的点击、库存快照、服务端回包、材料消耗及耗时。开启后会产生大量日志，复现问题后请关闭并提供 logs/latest.log。默认关闭，重启游戏后恢复关闭。",
   "quickcraft.message.developer.ack_logs_enabled": "普通合成 ACK 详细日志已开启，复现问题后请关闭并提供 latest.log",
-  "quickcraft.message.developer.ack_logs_disabled": "普通合成 ACK 详细日志已关闭"
+  "quickcraft.message.developer.ack_logs_disabled": "普通合成 ACK 详细日志已关闭",
+  "quickcraft.config.developer.name.litematicaPreview3DLogs": "3D 预览详细工作日志",
+  "quickcraft.config.developer.prettyName.litematicaPreview3DLogs": "3D 预览详细工作日志",
+  "quickcraft.config.developer.comment.litematicaPreview3DLogs": "记录 3D 预览的读取、真实 DFU 调用、模型构建、上传、缓存、导出及失败详情。每次开启保存到 logs/quickcraft-preview3d-时间戳.log，可产生大量日志。默认关闭，重启恢复关闭。",
+  "quickcraft.message.developer.preview_logs_enabled": "3D 详细日志已开启：%s",
+  "quickcraft.message.developer.preview_logs_disabled": "3D 详细日志已关闭，渲染和缓存保存继续正常运行",
+  "quickcraft.message.developer.preview_logs_failed": "无法创建 3D 日志文件，详情见 latest.log"
 }

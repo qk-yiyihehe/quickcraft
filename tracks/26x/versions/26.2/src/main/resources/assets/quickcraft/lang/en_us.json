@@ -562,5 +562,11 @@
   "quickcraft.config.developer.prettyName.mouseCraftAckLogs": "Mouse Craft ACK Detailed Logs",
   "quickcraft.config.developer.comment.mouseCraftAckLogs": "Records clicks, inventory snapshots, server responses, ingredient consumption and timings for continuous workbench and inventory crafting. Generates large logs. Disable after reproducing the issue and share logs/latest.log. Off by default; resets on game restart.",
   "quickcraft.message.developer.ack_logs_enabled": "Mouse craft ACK detailed logs enabled. Disable after reproducing and share latest.log.",
-  "quickcraft.message.developer.ack_logs_disabled": "Mouse craft ACK detailed logs disabled"
+  "quickcraft.message.developer.ack_logs_disabled": "Mouse craft ACK detailed logs disabled",
+  "quickcraft.config.developer.name.litematicaPreview3DLogs": "3D preview detailed work log",
+  "quickcraft.config.developer.prettyName.litematicaPreview3DLogs": "3D preview detailed work log",
+  "quickcraft.config.developer.comment.litematicaPreview3DLogs": "Records loading, actual DFU calls, meshing, uploads, caching, exports and failure details. Each activation creates logs/quickcraft-preview3d-TIMESTAMP.log. Can generate large logs. Off by default; resets on restart.",
+  "quickcraft.message.developer.preview_logs_enabled": "3D detailed log enabled: %s",
+  "quickcraft.message.developer.preview_logs_disabled": "3D detailed log disabled; rendering and caching continue normally",
+  "quickcraft.message.developer.preview_logs_failed": "Could not create the 3D log file; see latest.log for details"
 }

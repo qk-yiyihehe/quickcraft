@@ -776,10 +776,17 @@ public final class QuickCraftConfigs implements IConfigHandler {
         public static final ConfigBoolean MOUSE_CRAFT_ACK_LOGS = new ConfigBoolean(
                 "mouseCraftAckLogs", false
         ).apply(QuickCraft.MOD_ID + ".config.developer");
-        public static final List<IConfigBase> OPTIONS = List.of(MOUSE_CRAFT_ACK_LOGS);
+        public static final ConfigBoolean LITEMATICA_PREVIEW_3D_LOGS = new ConfigBoolean(
+                "litematicaPreview3DLogs", false
+        ).apply(QuickCraft.MOD_ID + ".config.developer");
+        public static final List<IConfigBase> OPTIONS = List.of(MOUSE_CRAFT_ACK_LOGS, LITEMATICA_PREVIEW_3D_LOGS);
 
         private Developer() {
         }
+    }
+
+    public static boolean isLitematicaPreview3DLogEnabled() {
+        return Developer.LITEMATICA_PREVIEW_3D_LOGS.getBooleanValue();
     }
 
     public static boolean isMouseCraftAckDebugEnabled() {

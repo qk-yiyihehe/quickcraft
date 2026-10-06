@@ -24,7 +24,7 @@ final class QuickLitematicaPreviewCompat {
             configClass.getMethod("setShadersEnabledAndApply", boolean.class).invoke(config, false);
             return true;
         } catch (Throwable failure) {
-            if (SHADER_DISABLE_ERROR_LOGGED.compareAndSet(false, true)) {
+            if (QuickLitematicaPreviewLog.enabled() && SHADER_DISABLE_ERROR_LOGGED.compareAndSet(false, true)) {
                 LOGGER.error("Iris shaders could not be disabled before opening a QuickCraft 3D preview", failure);
             }
             return false;

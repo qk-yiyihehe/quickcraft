@@ -79,12 +79,18 @@ final class QuickLitematicaPreviewCache {
 
     static void awaitPendingWrite(Path cachePath) {
         CompletableFuture<Void> pending = CACHE_WRITES.get(cachePath);
-        if (pending == null) return;
+        if (pending == null) {
+            LOGGER.info("没有同投影未提交写入：路径={}", cachePath);
+            return;
+        }
+        LOGGER.info("等待同投影保存：路径={}，已完成={}", cachePath, pending.isDone());
         try {
             // 只等待当前投影的保存；取消读取不会取消独立的写入任务。
             pending.get();
+            LOGGER.info("同投影保存等待结束：路径={}", cachePath);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
+            LOGGER.info("缓存读取等待取消：路径={}，独立写入继续={}", cachePath, !pending.isDone());
             throw new CancellationException();
         } catch (ExecutionException ignored) {
             // 写入失败已记录，读取流程继续检查磁盘并按需重建。
@@ -167,12 +173,15 @@ final class QuickLitematicaPreviewCache {
     }
 
     static void prepareCacheDirectory(Path cacheDir) {
+        QuickLitematicaPreviewLog.file("缓存目录初始化", cacheDir);
         try {
             Files.createDirectories(cacheDir);
             Path versionFile = cacheDir.resolve(CACHE_VERSION_FILE_NAME);
             String currentVersion = currentCacheVersionToken();
             String storedVersion = readCacheVersion(versionFile);
+            LOGGER.info("缓存目录版本核验：目录={}，保存版本={}，当前版本={}", cacheDir, storedVersion, currentVersion);
             if (!currentVersion.equals(storedVersion)) {
+                LOGGER.info("缓存目录整体失效：原因=cache_version_changed，旧={}，新={}", storedVersion, currentVersion);
                 clearRenderCacheFiles(cacheDir);
                 Files.writeString(versionFile, currentVersion, java.nio.charset.StandardCharsets.UTF_8);
             }
@@ -207,6 +216,7 @@ final class QuickLitematicaPreviewCache {
                     sourceExists = false;
                 }
                 if (!sourceExists) {
+                    LOGGER.info("缓存槽失效：原因=source_missing_or_invalid，槽={}，原路径={}", slot, source);
                     staleSlots.add(slot);
                 } else {
                     if (Files.isRegularFile(cachePath)) {
@@ -248,6 +258,7 @@ final class QuickLitematicaPreviewCache {
             CACHE_INDEX.setProperty(slot + ".path", sourcePath.toAbsolutePath().normalize().toString());
             CACHE_INDEX.setProperty(slot + ".sourceHash", sourceHash);
             CACHE_INDEX.setProperty(slot + ".resourceSignature", resourceSignature);
+            LOGGER.info("缓存索引提交：槽={}，源={}，源哈希={}，资源签名={}", slot, sourcePath, sourceHash, resourceSignature);
             writeCacheIndex(cacheDirectory());
         }
     }
@@ -318,8 +329,10 @@ final class QuickLitematicaPreviewCache {
 
     static void deleteQuietly(Path path) {
         try {
-            Files.deleteIfExists(path);
-        } catch (IOException ignored) {
+            boolean deleted = Files.deleteIfExists(path);
+            LOGGER.info("文件清理：路径={}，已删除={}", path, deleted);
+        } catch (IOException failure) {
+            LOGGER.warn("文件清理失败：路径={}，保留原有回退", path, failure);
         }
     }
 
@@ -340,132 +353,145 @@ final class QuickLitematicaPreviewCache {
     static final class CacheFile {
         @Nullable
         static MeshData read(Path path, AtomicBoolean cancelled) {
-            if (!Files.isRegularFile(path)) {
-                return null;
-            }
-
-            try (DataInputStream input = new DataInputStream(new GZIPInputStream(new BufferedInputStream(Files.newInputStream(path))))) {
-                int magic = input.readInt();
-                int version = input.readInt();
-                String marker = input.readUTF();
-                if (magic != CACHE_MAGIC || version != CACHE_FORMAT_VERSION || !CACHE_RENDER_MARKER.equals(marker)) {
-                    deleteQuietly(path);
+            try (var phase = QuickLitematicaPreviewLog.phase("网格缓存解压/解码")) {
+                if (!Files.isRegularFile(path)) {
+                    LOGGER.info("网格缓存未命中：原因=cache_file_missing，路径={}", path);
                     return null;
                 }
 
-                int sizeX = input.readInt();
-                int sizeY = input.readInt();
-                int sizeZ = input.readInt();
-                int layerCount = input.readInt();
-                if (sizeX <= 0 || sizeY <= 0 || sizeZ <= 0 || layerCount < 0 || layerCount > LayerKey.values().length) {
-                    deleteQuietly(path);
-                    return null;
-                }
-
-                List<LayerMesh> layers = new ArrayList<>(layerCount);
-                long totalVertices = 0L;
-                for (int layerIndex = 0; layerIndex < layerCount; layerIndex++) {
-                    if (isCancelled(cancelled)) {
-                        throw new CancellationException();
-                    }
-
-                    LayerKey layer = LayerKey.byId(input.readInt());
-                    int vertexCount = input.readInt();
-                    totalVertices += Math.max(vertexCount, 0);
-                    // GZIP 压缩后无法用文件大小校验顶点数，仅用 MAX_UPLOAD_VERTICES 上界；
-                    // 损坏文件会在 readFully 抛 EOFException 被外层 catch 删除。
-                    if (layer == null || vertexCount < 0 || totalVertices > MAX_UPLOAD_VERTICES) {
+                try (DataInputStream input = new DataInputStream(new GZIPInputStream(new BufferedInputStream(Files.newInputStream(path))))) {
+                    QuickLitematicaPreviewLog.file("网格缓存读取", path);
+                    int magic = input.readInt();
+                    int version = input.readInt();
+                    String marker = input.readUTF();
+                    if (magic != CACHE_MAGIC || version != CACHE_FORMAT_VERSION || !CACHE_RENDER_MARKER.equals(marker)) {
+                            LOGGER.warn("缓存读取失效：原因=cache_header_mismatch：magic={}/{}，format={}/{}，marker={}/{}，文件={}", magic, CACHE_MAGIC, version, CACHE_FORMAT_VERSION, marker, CACHE_RENDER_MARKER, path);
                         deleteQuietly(path);
                         return null;
                     }
 
-                    // 批量读取量化顶点字节，直接存进 LayerMesh，渲染线程再解码进 BufferBuilder。
-                    // 直接读取 packed 顶点字节，大文件读取避免逐顶点对象分配。
-                    long quantizedBytes = (long) vertexCount * QUANTIZED_VERTEX_BYTES;
-                    if (quantizedBytes > MAX_QUANTIZED_LAYER_BYTES || quantizedBytes > Integer.MAX_VALUE - 8L) {
+                    int sizeX = input.readInt();
+                    int sizeY = input.readInt();
+                    int sizeZ = input.readInt();
+                    int layerCount = input.readInt();
+                    if (sizeX <= 0 || sizeY <= 0 || sizeZ <= 0 || layerCount < 0 || layerCount > LayerKey.values().length) {
+                            LOGGER.warn("缓存读取失效：原因=cache_dimensions_or_layers_invalid：尺寸={}x{}x{}，层数={}，文件={}", sizeX, sizeY, sizeZ, layerCount, path);
                         deleteQuietly(path);
                         return null;
                     }
 
-                    int remainingVertices = vertexCount;
-                    while (remainingVertices > 0) {
-                        int batchVertices = layer.isTranslucent()
-                                ? remainingVertices
-                                : Math.min(remainingVertices, STATIC_BATCH_TARGET_VERTICES);
-                        byte[] quantizedVertices = new byte[batchVertices * QUANTIZED_VERTEX_BYTES];
-                        readFullyCancellable(input, quantizedVertices, cancelled);
-                        layers.add(new LayerMesh(layer, quantizedVertices));
-                        remainingVertices -= batchVertices;
-                    }
-                }
+                    List<LayerMesh> layers = new ArrayList<>(layerCount);
+                    long totalVertices = 0L;
+                    for (int layerIndex = 0; layerIndex < layerCount; layerIndex++) {
+                        if (isCancelled(cancelled)) {
+                            throw new CancellationException();
+                        }
 
-                int blockStateCount = input.readInt();
-                if (blockStateCount < 0 || blockStateCount > MAX_DYNAMIC_BLOCK_STATES) {
+                        LayerKey layer = LayerKey.byId(input.readInt());
+                        int vertexCount = input.readInt();
+                        LOGGER.info("缓存层读取：层={}，顶点={}，量化字节={}", layer, vertexCount, (long) vertexCount * QUANTIZED_VERTEX_BYTES);
+                        totalVertices += Math.max(vertexCount, 0);
+                        // GZIP 压缩后无法用文件大小校验顶点数，仅用 MAX_UPLOAD_VERTICES 上界；
+                        // 损坏文件会在 readFully 抛 EOFException 被外层 catch 删除。
+                        if (layer == null || vertexCount < 0 || totalVertices > MAX_UPLOAD_VERTICES) {
+                            LOGGER.warn("缓存读取失效：原因=cache_layer_or_vertex_invalid：层={}，顶点={}，累计={}/{}，文件={}", layer, vertexCount, totalVertices, MAX_UPLOAD_VERTICES, path);
+                            deleteQuietly(path);
+                            return null;
+                        }
+
+                        // 批量读取量化顶点字节，直接存进 LayerMesh，渲染线程再解码进 BufferBuilder。
+                        // 直接读取 packed 顶点字节，大文件读取避免逐顶点对象分配。
+                        long quantizedBytes = (long) vertexCount * QUANTIZED_VERTEX_BYTES;
+                        if (quantizedBytes > MAX_QUANTIZED_LAYER_BYTES || quantizedBytes > Integer.MAX_VALUE - 8L) {
+                            LOGGER.warn("缓存读取失效：原因=cache_quantized_budget_exceeded：字节={}/{}，文件={}", quantizedBytes, MAX_QUANTIZED_LAYER_BYTES, path);
+                            deleteQuietly(path);
+                            return null;
+                        }
+
+                        int remainingVertices = vertexCount;
+                        while (remainingVertices > 0) {
+                            int batchVertices = layer.isTranslucent()
+                                    ? remainingVertices
+                                    : Math.min(remainingVertices, STATIC_BATCH_TARGET_VERTICES);
+                            byte[] quantizedVertices = new byte[batchVertices * QUANTIZED_VERTEX_BYTES];
+                            readFullyCancellable(input, quantizedVertices, cancelled);
+                            layers.add(new LayerMesh(layer, quantizedVertices));
+                            remainingVertices -= batchVertices;
+                        }
+                    }
+
+                    int blockStateCount = input.readInt();
+                    if (blockStateCount < 0 || blockStateCount > MAX_DYNAMIC_BLOCK_STATES) {
+                            LOGGER.warn("缓存读取失效：原因=cache_block_state_count_invalid：数量={}/{}，文件={}", blockStateCount, MAX_DYNAMIC_BLOCK_STATES, path);
+                        deleteQuietly(path);
+                        return null;
+                    }
+
+                    List<BlockStateData> blockStates = new ArrayList<>(blockStateCount);
+                    for (int i = 0; i < blockStateCount; i++) {
+                        if ((i & 0x7FF) == 0 && isCancelled(cancelled)) {
+                            throw new CancellationException();
+                        }
+
+                        blockStates.add(new BlockStateData(
+                                input.readInt(),
+                                input.readInt(),
+                                input.readInt(),
+                                NbtIo.read(input, NbtAccounter.create(NBT_READ_LIMIT_BYTES))
+                        ));
+                    }
+
+                    int blockEntityCount = input.readInt();
+                    if (blockEntityCount < 0 || blockEntityCount > MAX_DYNAMIC_BLOCK_ENTITIES) {
+                            LOGGER.warn("缓存读取失效：原因=cache_block_entity_count_invalid：数量={}/{}，文件={}", blockEntityCount, MAX_DYNAMIC_BLOCK_ENTITIES, path);
+                        deleteQuietly(path);
+                        return null;
+                    }
+
+                    List<BlockEntityData> blockEntities = new ArrayList<>(blockEntityCount);
+                    for (int i = 0; i < blockEntityCount; i++) {
+                        if ((i & 0xFF) == 0 && isCancelled(cancelled)) {
+                            throw new CancellationException();
+                        }
+
+                        blockEntities.add(new BlockEntityData(
+                                input.readInt(),
+                                input.readInt(),
+                                input.readInt(),
+                                NbtIo.read(input, NbtAccounter.create(NBT_READ_LIMIT_BYTES)),
+                                NbtIo.read(input, NbtAccounter.create(NBT_READ_LIMIT_BYTES))
+                        ));
+                    }
+
+                    int entityCount = input.readInt();
+                    if (entityCount < 0 || entityCount > MAX_DYNAMIC_ENTITIES) {
+                            LOGGER.warn("缓存读取失效：原因=cache_entity_count_invalid：数量={}/{}，文件={}", entityCount, MAX_DYNAMIC_ENTITIES, path);
+                        deleteQuietly(path);
+                        return null;
+                    }
+
+                    List<EntityData> entities = new ArrayList<>(entityCount);
+                    for (int i = 0; i < entityCount; i++) {
+                        if ((i & 0xFF) == 0 && isCancelled(cancelled)) {
+                            throw new CancellationException();
+                        }
+
+                        entities.add(new EntityData(
+                                input.readDouble(),
+                                input.readDouble(),
+                                input.readDouble(),
+                                NbtIo.read(input, NbtAccounter.create(NBT_READ_LIMIT_BYTES))
+                        ));
+                    }
+
+                    return new MeshData(List.copyOf(layers), blockStates, blockEntities, entities, sizeX, sizeY, sizeZ);
+                } catch (CancellationException e) {
+                    throw e;
+                } catch (IOException | RuntimeException e) {
+                    LOGGER.warn("网格缓存读取失败：原因=cache_decode_or_io_failed，路径={}，删除后重建", path, e);
                     deleteQuietly(path);
                     return null;
                 }
-
-                List<BlockStateData> blockStates = new ArrayList<>(blockStateCount);
-                for (int i = 0; i < blockStateCount; i++) {
-                    if ((i & 0x7FF) == 0 && isCancelled(cancelled)) {
-                        throw new CancellationException();
-                    }
-
-                    blockStates.add(new BlockStateData(
-                            input.readInt(),
-                            input.readInt(),
-                            input.readInt(),
-                            NbtIo.read(input, NbtAccounter.create(NBT_READ_LIMIT_BYTES))
-                    ));
-                }
-
-                int blockEntityCount = input.readInt();
-                if (blockEntityCount < 0 || blockEntityCount > MAX_DYNAMIC_BLOCK_ENTITIES) {
-                    deleteQuietly(path);
-                    return null;
-                }
-
-                List<BlockEntityData> blockEntities = new ArrayList<>(blockEntityCount);
-                for (int i = 0; i < blockEntityCount; i++) {
-                    if ((i & 0xFF) == 0 && isCancelled(cancelled)) {
-                        throw new CancellationException();
-                    }
-
-                    blockEntities.add(new BlockEntityData(
-                            input.readInt(),
-                            input.readInt(),
-                            input.readInt(),
-                            NbtIo.read(input, NbtAccounter.create(NBT_READ_LIMIT_BYTES)),
-                            NbtIo.read(input, NbtAccounter.create(NBT_READ_LIMIT_BYTES))
-                    ));
-                }
-
-                int entityCount = input.readInt();
-                if (entityCount < 0 || entityCount > MAX_DYNAMIC_ENTITIES) {
-                    deleteQuietly(path);
-                    return null;
-                }
-
-                List<EntityData> entities = new ArrayList<>(entityCount);
-                for (int i = 0; i < entityCount; i++) {
-                    if ((i & 0xFF) == 0 && isCancelled(cancelled)) {
-                        throw new CancellationException();
-                    }
-
-                    entities.add(new EntityData(
-                            input.readDouble(),
-                            input.readDouble(),
-                            input.readDouble(),
-                            NbtIo.read(input, NbtAccounter.create(NBT_READ_LIMIT_BYTES))
-                    ));
-                }
-
-                return new MeshData(List.copyOf(layers), blockStates, blockEntities, entities, sizeX, sizeY, sizeZ);
-            } catch (CancellationException e) {
-                throw e;
-            } catch (IOException | RuntimeException e) {
-                deleteQuietly(path);
-                return null;
             }
         }
 
@@ -490,114 +516,122 @@ final class QuickLitematicaPreviewCache {
                 AtomicBoolean cancelled,
                 ProgressSink progressSink
         ) throws IOException {
-            deleteTmpQuietly(tmpPath);
-            try (DataOutputStream output = new DataOutputStream(new GZIPOutputStream(new BufferedOutputStream(Files.newOutputStream(tmpPath))))) {
-                progressSink.set(PROGRESS_CACHE_WRITE);
-                output.writeInt(CACHE_MAGIC);
-                output.writeInt(CACHE_FORMAT_VERSION);
-                output.writeUTF(CACHE_RENDER_MARKER);
-                output.writeInt(data.sizeX());
-                output.writeInt(data.sizeY());
-                output.writeInt(data.sizeZ());
-                List<LayerKey> storedLayers = new ArrayList<>();
-                for (LayerKey layer : LayerKey.DRAW_ORDER) {
-                    if (layers.stream().anyMatch(mesh -> mesh.layer() == layer && mesh.vertexCount() > 0)) {
-                        storedLayers.add(layer);
-                    }
-                }
-                output.writeInt(storedLayers.size());
-
-                long totalStaticBytes = 0L;
-                for (LayerMesh layer : layers) {
-                    totalStaticBytes += layer.quantizedVertices().length;
-                }
-
-                long staticBytesWritten = 0L;
-                for (LayerKey storedLayer : storedLayers) {
-                    int layerVertexCount = 0;
-                    for (LayerMesh mesh : layers) {
-                        if (mesh.layer() == storedLayer) {
-                            layerVertexCount += mesh.vertexCount();
+            try (var phase = QuickLitematicaPreviewLog.phase("网格缓存压缩/文件替换")) {
+                LOGGER.info("网格缓存压缩写入开始：临时={}，最终={}，层批次={}，尺寸={}x{}x{}", tmpPath, finalPath, layers.size(), data.sizeX(), data.sizeY(), data.sizeZ());
+                deleteTmpQuietly(tmpPath);
+                try (DataOutputStream output = new DataOutputStream(new GZIPOutputStream(new BufferedOutputStream(Files.newOutputStream(tmpPath))))) {
+                    progressSink.set(PROGRESS_CACHE_WRITE);
+                    output.writeInt(CACHE_MAGIC);
+                    output.writeInt(CACHE_FORMAT_VERSION);
+                    output.writeUTF(CACHE_RENDER_MARKER);
+                    output.writeInt(data.sizeX());
+                    output.writeInt(data.sizeY());
+                    output.writeInt(data.sizeZ());
+                    List<LayerKey> storedLayers = new ArrayList<>();
+                    for (LayerKey layer : LayerKey.DRAW_ORDER) {
+                        if (layers.stream().anyMatch(mesh -> mesh.layer() == layer && mesh.vertexCount() > 0)) {
+                            storedLayers.add(layer);
                         }
                     }
-                    output.writeInt(storedLayer.id());
-                    output.writeInt(layerVertexCount);
-                    for (LayerMesh mesh : layers) {
-                        if (mesh.layer() != storedLayer) {
-                            continue;
-                        }
-                        byte[] quantized = mesh.quantizedVertices();
-                        for (int offset = 0; offset < quantized.length; offset += CACHE_IO_CHUNK_BYTES) {
-                            if (isCancelled(cancelled)) {
-                                throw new CancellationException();
+                    output.writeInt(storedLayers.size());
+
+                    long totalStaticBytes = 0L;
+                    for (LayerMesh layer : layers) {
+                        totalStaticBytes += layer.quantizedVertices().length;
+                    }
+
+                    long staticBytesWritten = 0L;
+                    for (LayerKey storedLayer : storedLayers) {
+                        int layerVertexCount = 0;
+                        for (LayerMesh mesh : layers) {
+                            if (mesh.layer() == storedLayer) {
+                                layerVertexCount += mesh.vertexCount();
                             }
+                        }
+                        LOGGER.info("缓存层写入：层={}，顶点={}，量化字节={}", storedLayer, layerVertexCount, (long) layerVertexCount * QUANTIZED_VERTEX_BYTES);
+                        output.writeInt(storedLayer.id());
+                        output.writeInt(layerVertexCount);
+                        for (LayerMesh mesh : layers) {
+                            if (mesh.layer() != storedLayer) {
+                                continue;
+                            }
+                            byte[] quantized = mesh.quantizedVertices();
+                            for (int offset = 0; offset < quantized.length; offset += CACHE_IO_CHUNK_BYTES) {
+                                if (isCancelled(cancelled)) {
+                                    throw new CancellationException();
+                                }
 
-                            int length = Math.min(CACHE_IO_CHUNK_BYTES, quantized.length - offset);
-                            output.write(quantized, offset, length);
-                            staticBytesWritten += length;
-                            progressSink.set(progress(PROGRESS_CACHE_WRITE, PROGRESS_STATIC_CACHE_END, staticBytesWritten, totalStaticBytes));
+                                int length = Math.min(CACHE_IO_CHUNK_BYTES, quantized.length - offset);
+                                output.write(quantized, offset, length);
+                                staticBytesWritten += length;
+                                progressSink.set(progress(PROGRESS_CACHE_WRITE, PROGRESS_STATIC_CACHE_END, staticBytesWritten, totalStaticBytes));
+                            }
                         }
                     }
+                    progressSink.set(PROGRESS_STATIC_CACHE_END);
+
+                    LOGGER.info("缓存动态数据写入：方块状态={}，方块实体={}，实体={}", data.blockStates().size(), data.blockEntities().size(), data.entities().size());
+                    output.writeInt(data.blockStates().size());
+                    for (int index = 0; index < data.blockStates().size(); index++) {
+                        if (isCancelled(cancelled)) {
+                            throw new CancellationException();
+                        }
+
+                        BlockStateData blockState = data.blockStates().get(index);
+                        output.writeInt(blockState.x());
+                        output.writeInt(blockState.y());
+                        output.writeInt(blockState.z());
+                        NbtIo.write(blockState.stateNbt(), output);
+                        if ((index & 0x7F) == 0 || index + 1 == data.blockStates().size()) {
+                            progressSink.set(progress(PROGRESS_STATIC_CACHE_END, PROGRESS_BLOCK_STATES_CACHE_END, index + 1L, data.blockStates().size()));
+                        }
+                    }
+                    progressSink.set(PROGRESS_BLOCK_STATES_CACHE_END);
+
+                    output.writeInt(data.blockEntities().size());
+                    for (int index = 0; index < data.blockEntities().size(); index++) {
+                        if (isCancelled(cancelled)) {
+                            throw new CancellationException();
+                        }
+
+                        BlockEntityData blockEntity = data.blockEntities().get(index);
+                        output.writeInt(blockEntity.x());
+                        output.writeInt(blockEntity.y());
+                        output.writeInt(blockEntity.z());
+                        NbtIo.write(blockEntity.stateNbt(), output);
+                        NbtIo.write(blockEntity.entityNbt(), output);
+                        if ((index & 0x3F) == 0 || index + 1 == data.blockEntities().size()) {
+                            progressSink.set(progress(PROGRESS_BLOCK_STATES_CACHE_END, PROGRESS_BLOCK_ENTITIES_CACHE_END, index + 1L, data.blockEntities().size()));
+                        }
+                    }
+                    progressSink.set(PROGRESS_BLOCK_ENTITIES_CACHE_END);
+
+                    output.writeInt(data.entities().size());
+                    for (int index = 0; index < data.entities().size(); index++) {
+                        if (isCancelled(cancelled)) {
+                            throw new CancellationException();
+                        }
+
+                        EntityData entity = data.entities().get(index);
+                        output.writeDouble(entity.x());
+                        output.writeDouble(entity.y());
+                        output.writeDouble(entity.z());
+                        NbtIo.write(entity.entityNbt(), output);
+                    }
                 }
-                progressSink.set(PROGRESS_STATIC_CACHE_END);
 
-                output.writeInt(data.blockStates().size());
-                for (int index = 0; index < data.blockStates().size(); index++) {
-                    if (isCancelled(cancelled)) {
-                        throw new CancellationException();
-                    }
-
-                    BlockStateData blockState = data.blockStates().get(index);
-                    output.writeInt(blockState.x());
-                    output.writeInt(blockState.y());
-                    output.writeInt(blockState.z());
-                    NbtIo.write(blockState.stateNbt(), output);
-                    if ((index & 0x7F) == 0 || index + 1 == data.blockStates().size()) {
-                        progressSink.set(progress(PROGRESS_STATIC_CACHE_END, PROGRESS_BLOCK_STATES_CACHE_END, index + 1L, data.blockStates().size()));
-                    }
+                QuickLitematicaPreviewLog.file("压缩流关闭", tmpPath);
+                if (isCancelled(cancelled)) {
+                    throw new CancellationException();
                 }
-                progressSink.set(PROGRESS_BLOCK_STATES_CACHE_END);
 
-                output.writeInt(data.blockEntities().size());
-                for (int index = 0; index < data.blockEntities().size(); index++) {
-                    if (isCancelled(cancelled)) {
-                        throw new CancellationException();
-                    }
-
-                    BlockEntityData blockEntity = data.blockEntities().get(index);
-                    output.writeInt(blockEntity.x());
-                    output.writeInt(blockEntity.y());
-                    output.writeInt(blockEntity.z());
-                    NbtIo.write(blockEntity.stateNbt(), output);
-                    NbtIo.write(blockEntity.entityNbt(), output);
-                    if ((index & 0x3F) == 0 || index + 1 == data.blockEntities().size()) {
-                        progressSink.set(progress(PROGRESS_BLOCK_STATES_CACHE_END, PROGRESS_BLOCK_ENTITIES_CACHE_END, index + 1L, data.blockEntities().size()));
-                    }
+                LOGGER.info("缓存最终文件替换开始：临时={}，最终={}", tmpPath, finalPath);
+                try {
+                    Files.move(tmpPath, finalPath, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
+                } catch (AtomicMoveNotSupportedException e) {
+                    LOGGER.info("缓存文件替换回退：原因=atomic_move_unsupported，目标={}", finalPath);
+                    Files.move(tmpPath, finalPath, StandardCopyOption.REPLACE_EXISTING);
                 }
-                progressSink.set(PROGRESS_BLOCK_ENTITIES_CACHE_END);
-
-                output.writeInt(data.entities().size());
-                for (int index = 0; index < data.entities().size(); index++) {
-                    if (isCancelled(cancelled)) {
-                        throw new CancellationException();
-                    }
-
-                    EntityData entity = data.entities().get(index);
-                    output.writeDouble(entity.x());
-                    output.writeDouble(entity.y());
-                    output.writeDouble(entity.z());
-                    NbtIo.write(entity.entityNbt(), output);
-                }
-            }
-
-            if (isCancelled(cancelled)) {
-                throw new CancellationException();
-            }
-
-            try {
-                Files.move(tmpPath, finalPath, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
-            } catch (AtomicMoveNotSupportedException e) {
-                Files.move(tmpPath, finalPath, StandardCopyOption.REPLACE_EXISTING);
             }
         }
 

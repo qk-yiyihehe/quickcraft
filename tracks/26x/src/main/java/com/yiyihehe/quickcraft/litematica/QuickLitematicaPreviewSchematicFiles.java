@@ -30,27 +30,31 @@ final class QuickLitematicaPreviewSchematicFiles {
     }
 
     static void writeConvertedSchematic(LitematicaSchematic schematic, Path convertedPath, String cacheSlot) {
-        Path parent = convertedPath.getParent();
-        Path fileName = convertedPath.getFileName();
-        if (parent == null || fileName == null) {
-            return;
-        }
-
-        Path temporary = convertedPath.resolveSibling(cacheSlot + ".converted.tmp.litematic");
-        Path temporaryName = temporary.getFileName();
-        if (temporaryName == null) {
-            return;
-        }
-
-        try {
-            deleteQuietly(temporary);
-            if (!schematic.writeToFile(parent, temporaryName.toString(), true)) {
-                throw new IOException("Litematica rejected the converted cache write");
+        try (var phase = QuickLitematicaPreviewLog.phase("转换原理图缓存保存")) {
+            Path parent = convertedPath.getParent();
+            Path fileName = convertedPath.getFileName();
+            if (parent == null || fileName == null) {
+                return;
             }
-            moveCacheFile(temporary, convertedPath);
-        } catch (Exception ignored) {
-            deleteQuietly(temporary);
-            deleteQuietly(convertedPath);
+
+            Path temporary = convertedPath.resolveSibling(cacheSlot + ".converted.tmp.litematic");
+            Path temporaryName = temporary.getFileName();
+            if (temporaryName == null) {
+                return;
+            }
+
+            try {
+                deleteQuietly(temporary);
+                if (!schematic.writeToFile(parent, temporaryName.toString(), true)) {
+                    throw new IOException("Litematica rejected the converted cache write");
+                }
+                moveCacheFile(temporary, convertedPath);
+                QuickLitematicaPreviewLog.file("转换原理图缓存提交", convertedPath);
+            } catch (Exception failure) {
+                LOGGER.warn("转换原理图缓存保存失败：槽={}，临时={}，最终={}", cacheSlot, temporary, convertedPath, failure);
+                deleteQuietly(temporary);
+                deleteQuietly(convertedPath);
+            }
         }
     }
     static final Set<String> NON_VISUAL_INVENTORY_IDS = Set.of("minecraft:chest", "minecraft:trapped_chest", "minecraft:barrel",
@@ -64,56 +68,68 @@ final class QuickLitematicaPreviewSchematicFiles {
             AtomicBoolean cancelled,
             boolean required
     ) {
-        if (!Files.isRegularFile(path)) {
-            return null;
-        }
+        try (var phase = QuickLitematicaPreviewLog.phase("原理图预处理/读取/转换总入口")) {
+            QuickLitematicaPreviewLog.file("原理图读取入口", path);
+            if (QuickLitematicaPreviewLog.enabled()) LOGGER.info("DFU 配置快照：模式={}，缺省源数据版本={}，实际调用和版本另见 DFU 钩子",
+                    fi.dy.masa.litematica.config.Configs.Generic.DATAFIXER_MODE.getOptionListValue(),
+                    fi.dy.masa.litematica.config.Configs.Generic.DATAFIXER_DEFAULT_SCHEMA.getIntegerValue());
+            if (!Files.isRegularFile(path)) {
+                LOGGER.info("原理图读取返回空：原因=file_missing，路径={}，必需={}", path, required);
+                return null;
+            }
 
-        Path directory = path.getParent();
-        Path fileName = path.getFileName();
-        if (directory == null || fileName == null) {
-            return null;
-        }
+            Path directory = path.getParent();
+            Path fileName = path.getFileName();
+            if (directory == null || fileName == null) {
+                return null;
+            }
 
-        LitematicaSchematic schematic = null;
-        Path fastPath = null;
-        try {
-            fastPath = prepareFastSchematic(path, cancelled);
-            if (fastPath != null) {
-                Path fastDir = fastPath.getParent();
-                Path fastFile = fastPath.getFileName();
-                if (fastDir != null && fastFile != null) {
-                    throwIfCancelled(cancelled);
-                    schematic = LitematicaSchematic.createFromFile(
-                            fastDir,
-                            fastFile.toString(),
-                            FileType.LITEMATICA_SCHEMATIC
-                    );
+            LitematicaSchematic schematic = null;
+            Path fastPath = null;
+            try {
+                fastPath = prepareFastSchematic(path, cancelled);
+                LOGGER.info("预处理路径选择：原文件={}，临时预处理文件={}，无临时文件时读取原文件", path, fastPath);
+                if (fastPath != null) {
+                    Path fastDir = fastPath.getParent();
+                    Path fastFile = fastPath.getFileName();
+                    if (fastDir != null && fastFile != null) {
+                        throwIfCancelled(cancelled);
+                        schematic = LitematicaSchematic.createFromFile(
+                                fastDir,
+                                fastFile.toString(),
+                                FileType.LITEMATICA_SCHEMATIC
+                        );
+                    }
+                }
+            } catch (CancellationException cancellation) {
+                throw cancellation;
+            } catch (Throwable t) {
+                LOGGER.debug("QuickCraft fast schematic preparation skipped: {}", t.getMessage());
+            } finally {
+                if (fastPath != null) {
+                    deleteQuietly(fastPath);
                 }
             }
-        } catch (CancellationException cancellation) {
-            throw cancellation;
-        } catch (Throwable t) {
-            LOGGER.debug("QuickCraft fast schematic preparation skipped: {}", t.getMessage());
-        } finally {
-            if (fastPath != null) {
-                deleteQuietly(fastPath);
+
+            if (schematic == null) {
+                throwIfCancelled(cancelled);
+                LOGGER.info("原理图普通读取/回退：路径={}", path);
+                schematic = LitematicaSchematic.createFromFile(
+                        directory,
+                        fileName.toString(),
+                        FileType.LITEMATICA_SCHEMATIC
+                );
             }
-        }
 
-        if (schematic == null) {
             throwIfCancelled(cancelled);
-            schematic = LitematicaSchematic.createFromFile(
-                    directory,
-                    fileName.toString(),
-                    FileType.LITEMATICA_SCHEMATIC
-            );
+            if (schematic == null && required) {
+                throw new IllegalStateException("Cannot read litematic file");
+            }
+            if (schematic != null) LOGGER.info("原理图读取完成：路径={}，数据版本={}，区域数={}，metadata={}", path,
+                    schematic.getMetadata().getMinecraftDataVersion(), schematic.getAreas().size(), schematic.getMetadata().getName());
+            else LOGGER.warn("原理图读取返回空：原因=upstream_returned_null，路径={}，必需={}，具体异常需上游观测", path, required);
+            return schematic;
         }
-
-        throwIfCancelled(cancelled);
-        if (schematic == null && required) {
-            throw new IllegalStateException("Cannot read litematic file");
-        }
-        return schematic;
     }
 
     @Nullable

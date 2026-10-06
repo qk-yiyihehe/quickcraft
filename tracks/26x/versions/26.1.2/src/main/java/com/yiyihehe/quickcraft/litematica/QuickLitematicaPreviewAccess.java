@@ -155,9 +155,12 @@ public final class QuickLitematicaPreviewAccess {
 
                 try {
                     if (layerMesh.layer().isTranslucent()) {
-                        built.sortQuads(allocator, VertexSorting.byDistance(0.0F, 0.0F, 1000.0F));
+                        try (var phase = QuickLitematicaPreviewLog.phase("GPU层透明排序")) {
+                            built.sortQuads(allocator, VertexSorting.byDistance(0.0F, 0.0F, 1000.0F));
+                        }
                     }
 
+                    long bufferStart = QuickLitematicaPreviewLog.startTimer();
                     var drawParameters = built.drawState();
                     GpuBuffer vertexBuffer = RenderSystem.getDevice().createBuffer(
                             () -> "QuickCraft preview vertices",
@@ -177,6 +180,8 @@ public final class QuickLitematicaPreviewAccess {
                             : RenderSystem.getSequentialBuffer(drawParameters.mode()).type();
 
                     uploaded = new LayerBuffer(vertexBuffer, indexBuffer, drawParameters.indexCount(), indexType, customIndexBuffer);
+                    LOGGER.info("GPU 缓冲创建完成：层={}，顶点={}，索引={}，自建索引={}，耗时={} us", layerMesh.layer(), vertexCount,
+                            drawParameters.indexCount(), customIndexBuffer, QuickLitematicaPreviewLog.microsSince(bufferStart));
                     this.layerBuffers.computeIfAbsent(layerMesh.layer(), ignored -> new ArrayList<>()).add(uploaded);
                     return true;
                 } finally {
@@ -238,6 +243,12 @@ public final class QuickLitematicaPreviewAccess {
         }
 
         void drawSpecial(QuickLitematicaPreview3D.PreviewGuiElement element, PoseStack matrices) {
+            if (this.preview.dimensions() == null || this.preview.isCancelled()) return;
+            if (QuickLitematicaPreviewLog.enabled()) this.preview.trace.frame(this.staticUploadComplete, () -> this.drawSpecialContent(element, matrices));
+            else this.drawSpecialContent(element, matrices);
+        }
+
+        private void drawSpecialContent(QuickLitematicaPreview3D.PreviewGuiElement element, PoseStack matrices) {
             QuickLitematicaPreview3D.MeshData data = this.preview.meshData();
             QuickLitematicaPreview3D.PreviewDimensions dimensions = this.preview.dimensions();
             if (dimensions == null || this.preview.isCancelled()) {
@@ -399,6 +410,7 @@ public final class QuickLitematicaPreviewAccess {
                     matrices.translate(pos.getX(), pos.getY(), pos.getZ());
                     renderBlockEntity(client, entity, matrices, queue, cameraState);
                 } catch (Throwable ignored) {
+                    LOGGER.warn("原生预览局部失败：入口=drawDynamic，继续原有跳过/回退", ignored);
                 } finally {
                     matrices.popPose();
                 }
@@ -424,6 +436,7 @@ public final class QuickLitematicaPreviewAccess {
                             queue
                     );
                 } catch (Throwable ignored) {
+                    LOGGER.warn("原生预览局部失败：入口=drawDynamic，继续原有跳过/回退", ignored);
                 }
             });
 
@@ -483,6 +496,7 @@ public final class QuickLitematicaPreviewAccess {
                         } catch (DynamicBufferTooLargeException e) {
                             throw e;
                         } catch (Throwable ignored) {
+                            LOGGER.warn("原生预览局部失败：入口=prepareDynamicBuffers，继续原有跳过/回退", ignored);
                         } finally {
                             matrices.popPose();
                         }
@@ -506,6 +520,7 @@ public final class QuickLitematicaPreviewAccess {
                         } catch (DynamicBufferTooLargeException e) {
                             throw e;
                         } catch (Throwable ignored) {
+                            LOGGER.warn("原生预览局部失败：入口=prepareDynamicBuffers，继续原有跳过/回退", ignored);
                         }
                     });
                     Matrix4fStack bakeView = RenderSystem.getModelViewStack();
@@ -522,6 +537,7 @@ public final class QuickLitematicaPreviewAccess {
                 this.dynamicBuffersReady = true;
                 data.closeDynamic();
             } catch (Throwable ignored) {
+                LOGGER.warn("原生预览局部失败：入口=prepareDynamicBuffers，继续原有跳过/回退", ignored);
                 this.closeDynamicBuffers();
                 this.dynamicBufferFallback = true;
             } finally {
@@ -545,28 +561,34 @@ public final class QuickLitematicaPreviewAccess {
                 Consumer<NativeImage> callback,
                 Consumer<Throwable> errorCallback
         ) {
-            this.prepareDynamicBuffers(data);
-            if (data.hasDynamicContent() && !this.dynamicBuffersReady) {
-                errorCallback.accept(new IllegalStateException("Dynamic content not ready for snapshot"));
-                return;
-            }
+            try (var scope = this.preview.trace.bind(); var phase = QuickLitematicaPreviewLog.phase("离屏渲染/像素读回提交")) {
+                this.prepareDynamicBuffers(data);
+                if (data.hasDynamicContent() && !this.dynamicBuffersReady) {
+                    errorCallback.accept(new IllegalStateException("Dynamic content not ready for snapshot"));
+                    return;
+                }
 
-            RenderTarget framebuffer;
-            try {
-                framebuffer = new TextureTarget("QuickCraft snapshot", resolution, resolution, true);
-                RenderSystem.getDevice().createCommandEncoder().clearColorAndDepthTextures(
-                        Objects.requireNonNull(framebuffer.getColorTexture()),
-                        backgroundColor,
-                        Objects.requireNonNull(framebuffer.getDepthTexture()),
-                        1.0D
-                );
-                this.renderSnapshot(framebuffer, data, drag);
-            } catch (Throwable throwable) {
-                errorCallback.accept(throwable);
-                return;
-            }
+                RenderTarget framebuffer;
+                try {
+                    framebuffer = new TextureTarget("QuickCraft snapshot", resolution, resolution, true);
+                    RenderSystem.getDevice().createCommandEncoder().clearColorAndDepthTextures(
+                            Objects.requireNonNull(framebuffer.getColorTexture()),
+                            backgroundColor,
+                            Objects.requireNonNull(framebuffer.getDepthTexture()),
+                            1.0D
+                    );
+                    this.renderSnapshot(framebuffer, data, drag);
+                } catch (Throwable throwable) {
+                    LOGGER.error("离屏渲染失败：分辨率={}", resolution, throwable);
+                    errorCallback.accept(throwable);
+                    return;
+                }
 
-            copySnapshot(framebuffer, keepBackgroundOpaque, callback, errorCallback);
+                copySnapshot(framebuffer, keepBackgroundOpaque, this.preview.trace.wrapConsumer(image -> {
+                    this.preview.trace.milestone("快照像素读回完成：分辨率={}", resolution);
+                    callback.accept(image);
+                }), this.preview.trace.wrapConsumer(errorCallback));
+            }
         }
 
         private void renderSnapshot(RenderTarget framebuffer, QuickLitematicaPreview3D.MeshData data, QuickLitematicaPreview3D.DragState drag) {

@@ -387,6 +387,7 @@ final class QuickLitematicaPreviewAccess {
                         } catch (DynamicBufferTooLargeException e) {
                             throw e;
                         } catch (Throwable ignored) {
+                            LOGGER.warn("原生预览局部失败：入口=prepareDynamicBuffers，继续原有跳过/回退", ignored);
                         } finally {
                             matrices.pop();
                         }
@@ -410,6 +411,7 @@ final class QuickLitematicaPreviewAccess {
                         } catch (DynamicBufferTooLargeException e) {
                             throw e;
                         } catch (Throwable ignored) {
+                            LOGGER.warn("原生预览局部失败：入口=prepareDynamicBuffers，继续原有跳过/回退", ignored);
                         }
                     });
                     Matrix4fStack bakeView = RenderSystem.getModelViewStack();
@@ -426,6 +428,7 @@ final class QuickLitematicaPreviewAccess {
                 this.dynamicBuffersReady = true;
                 data.closeDynamic();
             } catch (Throwable ignored) {
+                LOGGER.warn("原生预览局部失败：入口=prepareDynamicBuffers，继续原有跳过/回退", ignored);
                 this.closeDynamicBuffers();
                 this.dynamicBufferFallback = true;
             } finally {
@@ -585,6 +588,7 @@ final class QuickLitematicaPreviewAccess {
                     matrices.translate(pos.getX(), pos.getY(), pos.getZ());
                     renderBlockEntity(client, entity, matrices, queue, cameraState);
                 } catch (Throwable ignored) {
+                    LOGGER.warn("原生预览局部失败：入口=drawDynamic，继续原有跳过/回退", ignored);
                 } finally {
                     matrices.pop();
                 }
@@ -610,6 +614,7 @@ final class QuickLitematicaPreviewAccess {
                             queue
                     );
                 } catch (Throwable ignored) {
+                    LOGGER.warn("原生预览局部失败：入口=drawDynamic，继续原有跳过/回退", ignored);
                 }
             });
 
@@ -676,6 +681,7 @@ final class QuickLitematicaPreviewAccess {
                 );
                 this.renderSnapshot(framebuffer, data, drag);
             } catch (Throwable ignored) {
+                LOGGER.warn("原生预览局部失败：入口=takeNativeSnapshot，继续原有跳过/回退", ignored);
 
                 failureCallback.accept(ignored);
                 return;
@@ -1527,6 +1533,7 @@ final class QuickLitematicaPreviewAccess {
             try {
                 Entity entity = EntityUtils.createEntityAndPassengersFromNBT(this.entityNbt.copy(), world);
                 if (entity == null) {
+                    LOGGER.warn("动态实体实例化返回空：位置={},{},{}", this.x, this.y, this.z);
                     return null;
                 }
 
@@ -1534,6 +1541,7 @@ final class QuickLitematicaPreviewAccess {
                 int light = MinecraftClient.getInstance().getEntityRenderDispatcher().getLight(entity, 0.0F);
                 return new RenderedEntity(entity, this.x, this.y, this.z, light);
             } catch (Throwable ignored) {
+                LOGGER.warn("动态实例化失败：类型=EntityData，位置={},{},{}", this.x, this.y, this.z, ignored);
                 return null;
             }
         }
@@ -1551,6 +1559,7 @@ final class QuickLitematicaPreviewAccess {
             try {
                 BlockEntity blockEntity = provider.createBlockEntity(pos, state);
                 if (blockEntity == null) {
+                    LOGGER.warn("方块实体工厂返回空：位置={},{},{}，状态={}", this.x, this.y, this.z, state);
                     return null;
                 }
 
@@ -1561,6 +1570,7 @@ final class QuickLitematicaPreviewAccess {
                 blockEntity.setWorld(world);
                 return blockEntity;
             } catch (Throwable ignored) {
+                LOGGER.warn("动态实例化失败：类型=BlockEntityData，位置={},{},{}", this.x, this.y, this.z, ignored);
                 return null;
             }
         }
