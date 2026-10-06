@@ -375,21 +375,25 @@ final class QuickLitematicaPreviewCache {
                         int vertexCount = input.readInt();
                         LOGGER.info("缓存层读取：层={}，顶点={}，量化字节={}", layer, vertexCount, (long) vertexCount * QUANTIZED_VERTEX_BYTES);
                         totalVertices += Math.max(vertexCount, 0);
-                        // GZIP 压缩后无法用文件大小校验顶点数，仅用 MAX_UPLOAD_VERTICES 上界；
+                        // GZIP 压缩后无法用文件大小校验顶点数，先检查类型，再核验当前任务预算；
                         // 损坏文件会在 readFully 抛 EOFException 被外层 catch 删除。
-                        if (layer == null || vertexCount < 0 || totalVertices > MAX_UPLOAD_VERTICES) {
+                        if (layer == null || vertexCount < 0) {
                             LOGGER.warn("缓存读取失效：原因=cache_layer_or_vertex_invalid：层={}，顶点={}，累计={}/{}，文件={}", layer, vertexCount, totalVertices, MAX_UPLOAD_VERTICES, path);
                             deleteQuietly(path);
                             return null;
                         }
 
+                        if (totalVertices > QuickLitematicaPreviewVertexBudget.vertexLimit()) {
+                            LOGGER.info("缓存顶点超过当前保护预算：累计={}，上限={}，强制={}，保留缓存等待用户选择",
+                                    totalVertices, QuickLitematicaPreviewVertexBudget.vertexLimit(), QuickLitematicaPreviewVertexBudget.isForced());
+                            throw new PreviewTooLargeException(!QuickLitematicaPreviewVertexBudget.isForced());
+                        }
+
                         // 批量读取量化顶点字节，直接存进 LayerMesh，渲染线程再解码进 BufferBuilder。
                         // 直接读取 packed 顶点字节，大文件读取避免逐顶点对象分配。
                         long quantizedBytes = (long) vertexCount * QUANTIZED_VERTEX_BYTES;
-                        if (quantizedBytes > MAX_QUANTIZED_LAYER_BYTES || quantizedBytes > Integer.MAX_VALUE - 8L) {
-                            LOGGER.warn("缓存读取失效：原因=cache_quantized_budget_exceeded：字节={}/{}，文件={}", quantizedBytes, MAX_QUANTIZED_LAYER_BYTES, path);
-                            deleteQuietly(path);
-                            return null;
+                        if (layer.isTranslucent() && quantizedBytes > QuickLitematicaPreviewVertexBudget.layerByteLimit()) {
+                            throw new PreviewTooLargeException(!QuickLitematicaPreviewVertexBudget.isForced());
                         }
 
                         int remainingVertices = vertexCount;
@@ -469,7 +473,7 @@ final class QuickLitematicaPreviewCache {
                     }
 
                     return new MeshData(List.copyOf(layers), blockStates, blockEntities, entities, sizeX, sizeY, sizeZ);
-                } catch (CancellationException e) {
+                } catch (CancellationException | PreviewTooLargeException e) {
                     throw e;
                 } catch (IOException | RuntimeException e) {
                     LOGGER.warn("网格缓存读取失败：原因=cache_decode_or_io_failed，路径={}，删除后重建", path, e);

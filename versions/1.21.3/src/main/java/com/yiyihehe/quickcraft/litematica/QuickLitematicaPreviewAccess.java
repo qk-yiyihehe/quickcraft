@@ -928,6 +928,7 @@ final class QuickLitematicaPreviewAccess {
 
     static final class MeshCollector {
         final EnumMap<LayerKey, RecordingVertexConsumer> consumers = new EnumMap<>(LayerKey.class);
+        final int vertexLimit = QuickLitematicaPreviewVertexBudget.vertexLimit();
         int vertexCount;
 
         VertexConsumer consumerFor(RenderLayer renderLayer) {
@@ -939,9 +940,7 @@ final class QuickLitematicaPreviewAccess {
         }
 
         void addVertex(QuantizedVertexBuffer vertices, float x, float y, float z, int argb, float u, float v, int light, float nx, float ny, float nz) {
-            if (this.vertexCount >= MAX_UPLOAD_VERTICES) {
-                throw new PreviewTooLargeException();
-            }
+            QuickLitematicaPreviewVertexBudget.checkVertexCount(this.vertexCount, this.vertexLimit);
 
             this.vertexCount++;
             vertices.add(x, y, z, argb, u, v, light, nx, ny, nz);
@@ -1140,15 +1139,8 @@ final class QuickLitematicaPreviewAccess {
             if (needed <= this.bytes.length) {
                 return;
             }
-            if (needed > MAX_QUANTIZED_LAYER_BYTES) {
-                throw new PreviewTooLargeException();
-            }
-
-            int newLength = this.bytes.length;
-            while (newLength < needed) {
-                newLength = Math.min(MAX_QUANTIZED_LAYER_BYTES, newLength << 1);
-            }
-            this.bytes = Arrays.copyOf(this.bytes, newLength);
+            this.bytes = Arrays.copyOf(this.bytes,
+                    QuickLitematicaPreviewVertexBudget.growCapacity(this.bytes.length, needed));
         }
 
         void writeInt(int value) {

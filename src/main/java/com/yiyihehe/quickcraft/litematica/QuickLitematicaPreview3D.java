@@ -158,8 +158,8 @@ public final class QuickLitematicaPreview3D {
     static final int COMPAT_CLIPBOARD_MAX_DIMENSION = 4096;
     static final int EMBEDDED_PREVIEW_DIMENSION = 1024;
     // 预算必须卡在构建阶段前面：顶点 packed 后仍会占用 CPU/GPU 大块连续内存。
-    // 1600 万顶点约对应 704 MiB 静态 GPU 顶点数据；只放宽静态网格，动态内容上限仍保持原值。
-    static final int MAX_UPLOAD_VERTICES = 16_000_000;
+    // 1600 万顶点约对应 671 MiB 静态 GPU 顶点数据；只放宽静态网格，动态内容上限仍保持原值。
+    static final int MAX_UPLOAD_VERTICES = QuickLitematicaPreviewVertexBudget.DEFAULT_VERTEX_LIMIT;
     static final int MAX_DYNAMIC_BLOCK_STATES = 300_000;
     static final int MAX_DYNAMIC_BLOCK_ENTITIES = 32_768;
     static final int MAX_DYNAMIC_ENTITIES = 8_192;
@@ -172,7 +172,6 @@ public final class QuickLitematicaPreview3D {
     static final float PREVIEW_FIT_PADDING = 0.95F;
     static final long NBT_READ_LIMIT_BYTES = 32L * 1024L * 1024L;
     static final int VERTEX_BYTES = 44;
-    static final int MAX_QUANTIZED_LAYER_BYTES = MAX_UPLOAD_VERTICES * QUANTIZED_VERTEX_BYTES;
     // 不透明层按约 7.5 MiB 的量化顶点切批，限制单帧解码和 GPU 上传耗时；透明层必须保持全图整体排序。
     static final int STATIC_BATCH_TARGET_VERTICES = 250_000;
     static final float PROGRESS_START = 0.02F;
@@ -363,6 +362,7 @@ public final class QuickLitematicaPreview3D {
             drawOutlinedBox(drawContext, this.viewX, this.viewY, this.viewSize, this.viewSize, 0xB0101010, 0xFF707070);
             if (this.current != null) {
                 this.current.render(drawContext, this.viewX, this.viewY, this.viewSize, this.drag);
+                if (this.canForceRender()) this.drawForceRenderButton(drawContext);
             }
             if (showExpandButton) {
                 this.drawExpandButton(drawContext);
@@ -409,6 +409,14 @@ public final class QuickLitematicaPreview3D {
                 }
                 if (this.current != null) this.current.trace.event("进入全屏：复用任务，当前状态={}", this.current.state);
                 MinecraftClient.getInstance().setScreen(new QuickLitematicaPreview3DScreen(this.owner, entry.getName(), this));
+                return true;
+            }
+
+            if (mouseButton == 0 && this.canForceRender() && this.isForceRenderButtonHovered(mouseX, mouseY)) {
+                this.current.trace.event("用户强制渲染：解除当前投影静态顶点保护，可能耗尽内存/显存");
+                this.current.close();
+                this.current = Preview.create(this.currentEntry, true);
+                this.drag.stop();
                 return true;
             }
 
@@ -807,6 +815,39 @@ public final class QuickLitematicaPreview3D {
             this.drag.stop();
         }
 
+        private boolean canForceRender() {
+            return this.currentEntry != null && this.current != null && !this.current.forceRender
+                    && this.current.vertexLimitExceeded && this.current.state == State.TOO_LARGE;
+        }
+
+        private int forceRenderButtonWidth() {
+            return Math.min(this.viewSize - 12, MinecraftClient.getInstance().textRenderer.getWidth(
+                    StringUtils.translate("quickcraft.litematica.preview_3d.force_render")) + 16);
+        }
+
+        private boolean isForceRenderButtonHovered(double mouseX, double mouseY) {
+            int width = this.forceRenderButtonWidth();
+            int x = this.viewX + (this.viewSize - width) / 2;
+            int y = this.viewY + this.viewSize / 2 + 14;
+            return mouseX >= x && mouseX < x + width && mouseY >= y && mouseY < y + 18;
+        }
+
+        private void drawForceRenderButton(DrawContext context) {
+            MinecraftClient client = MinecraftClient.getInstance();
+            double mouseX = client.mouse.getX() * client.getWindow().getScaledWidth() / client.getWindow().getWidth();
+            double mouseY = client.mouse.getY() * client.getWindow().getScaledHeight() / client.getWindow().getHeight();
+            int width = this.forceRenderButtonWidth();
+            int x = this.viewX + (this.viewSize - width) / 2;
+            int y = this.viewY + this.viewSize / 2 + 14;
+            boolean hovered = this.isForceRenderButtonHovered(mouseX, mouseY);
+            drawOutlinedBox(context, x, y, width, 18, hovered ? 0xE0603020 : 0xD0302010, 0xFFCC8855);
+            String label = StringUtils.translate("quickcraft.litematica.preview_3d.force_render");
+            context.drawCenteredTextWithShadow(client.textRenderer, label, this.viewX + this.viewSize / 2, y + 5, 0xFFFFCC77);
+            if (hovered) {
+                context.drawTooltip(client.textRenderer, Text.translatable("quickcraft.litematica.preview_3d.force_render_warning"), (int) mouseX, (int) mouseY);
+            }
+        }
+
         void drawExpandButton(DrawContext context) {
             int x = this.viewX + this.viewSize - EXPAND_BUTTON_SIZE - 3;
             int y = this.viewY + 3;
@@ -877,6 +918,8 @@ public final class QuickLitematicaPreview3D {
         final long startedAtNanos = System.nanoTime();
         final QuickLitematicaPreviewLog.Trace trace;
 
+        boolean forceRender;
+        volatile boolean vertexLimitExceeded;
         final AtomicBoolean cancelled = new AtomicBoolean();
 
         volatile MeshData meshData;
@@ -927,6 +970,10 @@ public final class QuickLitematicaPreview3D {
         }
 
         static Preview create(DirectoryEntry entry) {
+            return create(entry, false);
+        }
+
+        static Preview create(DirectoryEntry entry, boolean forceRender) {
             Path sourcePath = entryPath(entry).toAbsolutePath().normalize();
             String cacheSlot = cacheKey(sourcePath);
             Path cachePath = cacheDirectory().resolve(cacheSlot + ".qcp3d");
@@ -937,9 +984,12 @@ public final class QuickLitematicaPreview3D {
                     cacheSlot,
                     currentResourcePackSignature()
             );
+            preview.forceRender = forceRender;
+            preview.trace.event("预览预算：强制渲染={}，静态顶点上限={}，默认上限={}，仅当前任务生效",
+                    forceRender, forceRender ? Integer.MAX_VALUE : MAX_UPLOAD_VERTICES, MAX_UPLOAD_VERTICES);
             preview.progress = PROGRESS_START;
             preview.future = PREVIEW_EXECUTOR.submit(preview.trace.wrap("预览后台读取/构建", () -> {
-                try { preview.loadOrBuild(); }
+                try { QuickLitematicaPreviewVertexBudget.run(forceRender, preview::loadOrBuild); }
                 finally { preview.trace.summary("后台读取/构建任务结束：" + preview.state); }
             }));
             return preview;
@@ -981,9 +1031,10 @@ public final class QuickLitematicaPreview3D {
                 );
                 this.throwIfCancelled();
                 if (!built.withinBudget()) {
+                    this.vertexLimitExceeded = built.vertexCount() > QuickLitematicaPreviewVertexBudget.vertexLimit();
                     built.closeDynamic();
                     this.state = State.TOO_LARGE;
-                    this.trace.event("预览状态改变：TOO_LARGE");
+                    this.trace.event("预览状态改变：TOO_LARGE，顶点保护触发={}，强制渲染={}", this.vertexLimitExceeded, this.forceRender);
                     this.progress = 1.0F;
                     return;
                 }
@@ -997,9 +1048,10 @@ public final class QuickLitematicaPreview3D {
                 this.state = State.CANCELLED;
                 this.trace.event("预览状态改变：CANCELLED");
                 this.discardPartialStatic();
-            } catch (PreviewTooLargeException ignored) {
+            } catch (PreviewTooLargeException failure) {
+                this.vertexLimitExceeded = failure.vertexLimit;
                 this.state = State.TOO_LARGE;
-                this.trace.event("预览状态改变：TOO_LARGE");
+                this.trace.event("预览状态改变：TOO_LARGE，顶点保护触发={}，强制渲染={}", this.vertexLimitExceeded, this.forceRender);
                 this.progress = 1.0F;
                 this.discardPartialStatic();
             } catch (Exception e) {
@@ -1008,8 +1060,9 @@ public final class QuickLitematicaPreview3D {
                     this.trace.event("预览状态改变：CANCELLED");
                     this.discardPartialStatic();
                 } else if (isPreviewTooLarge(e)) {
+                    this.vertexLimitExceeded = isPreviewVertexLimit(e);
                     this.state = State.TOO_LARGE;
-                    this.trace.event("预览状态改变：TOO_LARGE");
+                    this.trace.event("预览状态改变：TOO_LARGE，顶点保护触发={}，强制渲染={}", this.vertexLimitExceeded, this.forceRender);
                     this.progress = 1.0F;
                     this.discardPartialStatic();
                 } else {
@@ -1080,11 +1133,12 @@ public final class QuickLitematicaPreview3D {
                 );
                 this.throwIfCancelled();
                 if (!built.withinBudget()) {
+                    this.vertexLimitExceeded = built.vertexCount() > QuickLitematicaPreviewVertexBudget.vertexLimit();
                     built.closeDynamic();
                     this.state = State.TOO_LARGE;
-                    this.trace.event("预览状态改变：TOO_LARGE");
+                    this.trace.event("预览状态改变：TOO_LARGE，顶点保护触发={}，强制渲染={}", this.vertexLimitExceeded, this.forceRender);
                     this.progress = 1.0F;
-                    deleteQuietly(this.cachePath);
+                    if (!this.vertexLimitExceeded) deleteQuietly(this.cachePath);
                     return;
                 }
 
@@ -1110,12 +1164,13 @@ public final class QuickLitematicaPreview3D {
                 this.state = State.CANCELLED;
                 this.trace.event("预览状态改变：CANCELLED");
                 this.discardPartialStatic();
-            } catch (PreviewTooLargeException ignored) {
+            } catch (PreviewTooLargeException failure) {
+                this.vertexLimitExceeded = failure.vertexLimit;
                 this.state = State.TOO_LARGE;
-                this.trace.event("预览状态改变：TOO_LARGE");
+                this.trace.event("预览状态改变：TOO_LARGE，顶点保护触发={}，强制渲染={}", this.vertexLimitExceeded, this.forceRender);
                 this.progress = 1.0F;
                 this.discardPartialStatic();
-                deleteQuietly(this.cachePath);
+                if (!failure.vertexLimit) deleteQuietly(this.cachePath);
             } catch (Exception e) {
                 if (this.isCancelled()) {
                     this.state = State.CANCELLED;
@@ -1124,11 +1179,12 @@ public final class QuickLitematicaPreview3D {
                     return;
                 }
                 if (isPreviewTooLarge(e)) {
+                    this.vertexLimitExceeded = isPreviewVertexLimit(e);
                     this.state = State.TOO_LARGE;
-                    this.trace.event("预览状态改变：TOO_LARGE");
+                    this.trace.event("预览状态改变：TOO_LARGE，顶点保护触发={}，强制渲染={}", this.vertexLimitExceeded, this.forceRender);
                     this.progress = 1.0F;
                     this.discardPartialStatic();
-                    deleteQuietly(this.cachePath);
+                    if (!this.vertexLimitExceeded) deleteQuietly(this.cachePath);
                     return;
                 }
                 LOGGER.error("Failed to build 3D preview for {}", this.sourceName(), e);
@@ -1254,7 +1310,7 @@ public final class QuickLitematicaPreview3D {
             this.meshData = null;
             this.dimensions = null;
             this.state = State.TOO_LARGE;
-            this.trace.event("预览状态改变：TOO_LARGE");
+            this.trace.event("预览状态改变：TOO_LARGE，顶点保护触发={}，强制渲染={}", this.vertexLimitExceeded, this.forceRender);
             this.progress = 1.0F;
             this.trace.event("GPU/动态资源预算失败：状态={}，缓存文件失效，容量判定明细见前序事件", this.state);
             deleteQuietly(this.cachePath);
@@ -1769,7 +1825,8 @@ public final class QuickLitematicaPreview3D {
             boolean failed = this.state == State.FAILED || this.state == State.TOO_LARGE;
             String text = switch (this.state) {
                 case FAILED -> StringUtils.translate("quickcraft.litematica.preview_3d.failed");
-                case TOO_LARGE -> StringUtils.translate("quickcraft.litematica.preview_3d.too_large");
+                case TOO_LARGE -> StringUtils.translate(this.vertexLimitExceeded
+                        ? "quickcraft.litematica.preview_3d.vertex_limit" : "quickcraft.litematica.preview_3d.too_large");
                 default -> StringUtils.translate("quickcraft.litematica.preview_3d.rendering");
             };
             context.drawCenteredTextWithShadow(MinecraftClient.getInstance().textRenderer, text, x + size / 2, barY - 14,
@@ -1796,6 +1853,18 @@ public final class QuickLitematicaPreview3D {
     }
 
     static final class PreviewTooLargeException extends RuntimeException {
+        final boolean vertexLimit;
+
+        PreviewTooLargeException() { this(false); }
+
+        PreviewTooLargeException(boolean vertexLimit) { this.vertexLimit = vertexLimit; }
+    }
+
+    static boolean isPreviewVertexLimit(Throwable failure) {
+        for (Throwable cause = failure; cause != null; cause = cause.getCause()) {
+            if (cause instanceof PreviewTooLargeException tooLarge) return tooLarge.vertexLimit;
+        }
+        return false;
     }
 
     static boolean isPreviewTooLarge(Throwable throwable) {
@@ -1997,7 +2066,7 @@ public final class QuickLitematicaPreview3D {
             long vertices = 0L;
             for (LayerMesh layer : this.layers) {
                 vertices += layer.vertexCount();
-                if (vertices > MAX_UPLOAD_VERTICES) {
+                if (vertices > QuickLitematicaPreviewVertexBudget.vertexLimit()) {
                     return false;
                 }
             }
@@ -2301,13 +2370,13 @@ public final class QuickLitematicaPreview3D {
                 List<LayerMesh> completeLayers = List.copyOf(layers);
                 int vertices = vertexCount(completeLayers);
                 if (QuickLitematicaPreviewLog.enabled()) LOGGER.info("模型构建统计：顶点={}/{}，层批次={}，动态状态={}/{}，方块实体={}/{}，实体={}/{}，扫描体积={}",
-                        vertices, MAX_UPLOAD_VERTICES, completeLayers.size(), blockStates.size(), MAX_DYNAMIC_BLOCK_STATES,
+                        vertices, QuickLitematicaPreviewVertexBudget.vertexLimit(), completeLayers.size(), blockStates.size(), MAX_DYNAMIC_BLOCK_STATES,
                         blockEntities.size(), MAX_DYNAMIC_BLOCK_ENTITIES, entities.size(), MAX_DYNAMIC_ENTITIES, scannedVolume);
-                if (vertices > MAX_UPLOAD_VERTICES
+                if (vertices > QuickLitematicaPreviewVertexBudget.vertexLimit()
                         || blockStates.size() > MAX_DYNAMIC_BLOCK_STATES
                         || blockEntities.size() > MAX_DYNAMIC_BLOCK_ENTITIES
                         || entities.size() > MAX_DYNAMIC_ENTITIES) {
-                    throw new PreviewTooLargeException();
+                    throw new PreviewTooLargeException(vertices > QuickLitematicaPreviewVertexBudget.vertexLimit());
                 }
                 return new MeshData(completeLayers, new ArrayList<>(blockStates.values()), blockEntities, entities, bounds.sizeX(), bounds.sizeY(), bounds.sizeZ());
             }
