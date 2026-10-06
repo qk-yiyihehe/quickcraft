@@ -271,8 +271,8 @@ final class QuickLitematicaPreviewCache {
     }
 
     static String currentCacheVersionToken() {
-        // 格式和渲染语义共同决定失效；发行版本号不影响缓存复用。
-        return CACHE_FORMAT_VERSION + "|" + CACHE_RENDER_MARKER
+        // 格式、渲染和预处理语义共同决定失效；发行版本号不影响缓存复用。
+        return CACHE_FORMAT_VERSION + "|" + CACHE_RENDER_MARKER + "|nbt-verified-inventory-v5"
                 + "|ctm:" + ctmRuntimeToken();
     }
 

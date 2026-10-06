@@ -286,8 +286,8 @@ final class QuickLitematicaPreviewCache {
     }
 
     static String currentCacheVersionToken() {
-        // 不含 mod 版本号：只有磁盘格式真正改变时才应清缓存，mod 版本升级不应触发清理。
-        return CACHE_FORMAT_VERSION + "|" + CACHE_RENDER_MARKER
+        // 格式、渲染和预处理语义共同决定失效；发行版本号不影响缓存复用。
+        return CACHE_FORMAT_VERSION + "|" + CACHE_RENDER_MARKER + "|nbt-verified-inventory-v5"
                 + "|ctm:" + QuickLitematicaPreview3D.ctmRuntimeToken();
     }
 
