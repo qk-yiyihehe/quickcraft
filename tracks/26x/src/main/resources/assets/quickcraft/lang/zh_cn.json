@@ -1,4 +1,10 @@
 {
+  "quickcraft.config.mod_support.prettyName.checkUpdateNotices": "检查更新与公告",
+  "quickcraft.config.mod_support.name.checkUpdateNotices": "检查更新与公告",
+  "quickcraft.config.mod_support.comment.checkUpdateNotices": "启动后从 Modrinth 检查作者启用的短通知，进入世界后仅在本地聊天栏显示一次。关闭后不发起检查；网络失败时静默跳过。",
+  "quickcraft.message.update_notice.update": "发现新版本 %s：",
+  "quickcraft.message.update_notice.announcement": "公告：",
+  "quickcraft.message.update_notice.open": "[查看详情]",
   "key.categories.quickcraft": "QuickCraft",
   "screen.quickcraft.title": "QuickCraft 配置 §c提示：点击 [+] 展开更多设置",
   "screen.quickcraft.tab.crafting": "合成辅助工具",

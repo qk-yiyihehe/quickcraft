@@ -23,6 +23,7 @@ public class QuickCraft implements ModInitializer {
     public void onInitialize() {
         InitializationHandler.getInstance().registerInitializationHandler(new QuickCraftMalilibInit());
         QuickLitematicaEntityPlacement.initializeCommon();
+        QuickCraftUpdateNotice.initialize();
     }
 
     public static void bindOptionalHotkeys() {
