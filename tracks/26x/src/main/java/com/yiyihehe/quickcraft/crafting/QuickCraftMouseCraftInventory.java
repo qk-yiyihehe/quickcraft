@@ -197,44 +197,38 @@ final class QuickCraftMouseCraftInventory {
     static boolean moveOutputToUnlockedInventory(Minecraft client,
                                                  AbstractContainerMenu handler,
                                                  QuickCraftMouseCraftLayout.Layout layout) {
-        return moveOutputToUnlockedInventory(client, handler, layout, false);
+        return moveOutputToUnlockedInventory(client, handler, layout, 1, () -> {});
     }
 
-    private static boolean moveOutputToUnlockedInventory(Minecraft client,
-                                                         AbstractContainerMenu handler,
-                                                         QuickCraftMouseCraftLayout.Layout layout,
-                                                         boolean preferQuickMove) {
+    static boolean moveOutputToUnlockedInventory(Minecraft client,
+                                                 AbstractContainerMenu handler,
+                                                 QuickCraftMouseCraftLayout.Layout layout,
+                                                 int maximumOutputs,
+                                                 Runnable onEachPickup) {
         if (client == null || client.player == null || client.gameMode == null
                 || handler == null || !handler.getCarried().isEmpty()
                 || !handler.getSlot(QuickCraftMouseCraftLayout.OUTPUT_SLOT).hasItem()) {
             return false;
         }
 
-        ItemStack output = handler.getSlot(QuickCraftMouseCraftLayout.OUTPUT_SLOT).getItem().copy();
-        // The ACK path follows ItemScroller's shift-click fast path. The legacy
-        // path retains its direct pickup behavior when locked slots are present.
-        if (preferQuickMove && moveOutputWithQuickMove(client, handler, layout)) {
-            return true;
-        }
-
-        if (!preferQuickMove && !hasLockedPlayerSlot(handler, layout)) {
+        if (!hasLockedPlayerSlot(handler, layout)) {
             return moveOutputWithQuickMove(client, handler, layout);
         }
 
-        return moveOutputWithPickup(client, handler, layout, output);
-    }
-
-    private static boolean moveOutputWithPickup(Minecraft client,
-                                                AbstractContainerMenu handler,
-                                                QuickCraftMouseCraftLayout.Layout layout) {
-        if (client == null || client.player == null || client.gameMode == null
-                || handler == null || !handler.getCarried().isEmpty()
-                || !handler.getSlot(QuickCraftMouseCraftLayout.OUTPUT_SLOT).hasItem()) {
-            return false;
-        }
-
+        // 服务端不知道客户端锁格，必须显式指定未锁定的落点；ACK 路径在同批内连续领取。
         ItemStack output = handler.getSlot(QuickCraftMouseCraftLayout.OUTPUT_SLOT).getItem().copy();
-        return moveOutputWithPickup(client, handler, layout, output);
+        boolean moved = false;
+        for (int i = 0; i < maximumOutputs; i++) {
+            ItemStack next = handler.getSlot(QuickCraftMouseCraftLayout.OUTPUT_SLOT).getItem();
+            if (next.isEmpty() || !ItemStack.isSameItemSameComponents(output, next)
+                    || next.getCount() != output.getCount()
+                    || !moveOutputWithPickup(client, handler, layout, output)) {
+                break;
+            }
+            moved = true;
+            onEachPickup.run();
+        }
+        return moved;
     }
 
     private static boolean moveOutputWithPickup(Minecraft client,
