@@ -621,7 +621,7 @@ public final class QuickCraftMouseCraftAckExecutor {
             int matchingSlotsBefore = QuickCraftMouseCraftInventory.countMatchingUnlockedSlots(
                     handler, layout, current.resultTemplate);
             movedToInventory = QuickCraftMouseCraftInventory.moveOutputToUnlockedInventory(
-                    client, handler, layout);
+                    client, handler, layout, FULL_GRID_CRAFTS, () -> refreshClientPrediction(handler));
             if (movedToInventory) {
                 int matchingSlotsAfter = QuickCraftMouseCraftInventory.countMatchingUnlockedSlots(
                         handler, layout, current.resultTemplate);
@@ -729,8 +729,9 @@ public final class QuickCraftMouseCraftAckExecutor {
         if (current == null || networkHandler == null) {
             return;
         }
-        if (current.batchPath == BatchPath.OUTPUT_DRAIN
-                || (current.combinedFullAckEnabled && canTryCombinedFullAck(current))) {
+        if (current.batchOutputSlotClicks <= 1
+                && (current.batchPath == BatchPath.OUTPUT_DRAIN
+                || (current.combinedFullAckEnabled && canTryCombinedFullAck(current)))) {
             current.statsProbeDeferred = true;
             if (QuickCraftConfigs.isMouseCraftAckDebugEnabled()) {
                 LOGGER.info(diagnosticContext() + "手动补货ACK延后统计探针：界面={}，批次=#{}，优先等待权威全量终态，合并批次宽限={} ms",
@@ -1345,7 +1346,9 @@ public final class QuickCraftMouseCraftAckExecutor {
         boolean terminalGridCompatible = isPatternOrRemainderGridCompatible(
                 current, current.handler);
         boolean statsReceived = current.statsProbeSentForBatch && !current.statsProbePending;
-        boolean fastFullState = authoritativeFullState && canUseAuthoritativeFullAck(
+        // 连续 PICKUP 会收到多个中间快照，必须等统计屏障证明整批点击处理完毕。
+        boolean fastFullState = current.batchOutputSlotClicks <= 1
+                && authoritativeFullState && canUseAuthoritativeFullAck(
                 current.batchPath,
                 current.batchOutputOperations > 0,
                 current.outputExpectedAtDispatch,
