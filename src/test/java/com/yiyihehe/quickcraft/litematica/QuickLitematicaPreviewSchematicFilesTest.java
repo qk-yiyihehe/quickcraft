@@ -2,6 +2,7 @@ package com.yiyihehe.quickcraft.litematica;
 
 import net.minecraft.nbt.NbtCompound;
 import net.minecraft.nbt.NbtList;
+import net.minecraft.nbt.NbtString;
 import org.junit.jupiter.api.Test;
 import java.util.concurrent.atomic.AtomicBoolean;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -221,7 +222,7 @@ class QuickLitematicaPreviewSchematicFilesTest {
         assertThat(entries).containsExactly(named, components, malformedComponents, unknown);
         assertThat(named.contains("CustomName")).isTrue();
         assertThat(components.get("components")).isEqualTo(payload);
-        assertThat(malformedComponents.getString("components")).isEmpty();
+        assertThat(malformedComponents.get("components")).isEqualTo(NbtString.of(""));
         assertThat(unknown).isEqualTo(unknownBefore);
         assertThat(regionOf(root).get("BlockStates")).isEqualTo(statesBefore);
     }
