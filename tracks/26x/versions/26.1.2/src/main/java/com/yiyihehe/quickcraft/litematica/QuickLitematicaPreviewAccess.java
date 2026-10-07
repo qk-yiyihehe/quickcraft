@@ -129,7 +129,10 @@ public final class QuickLitematicaPreviewAccess {
         private final ProjectionMatrixBuffer snapshotProjectionBuffer = new ProjectionMatrixBuffer("QuickCraft PNG projection");
         @Nullable
         private GpuBuffer previewLightingBuffer;
-        private List<DynamicLayerBuffer> dynamicBuffers = List.of();
+        private final List<DynamicLayerBuffer> dynamicBuffers = new ArrayList<>();
+        private QuickLitematicaPreviewDynamicBatch<RenderType> dynamicBuild;
+        private boolean dynamicBatchingDisabled;
+        private float dynamicProgress;
         private boolean dynamicBuffersReady;
         private boolean dynamicBufferFallback;
         private boolean staticUploadComplete;
@@ -206,6 +209,11 @@ public final class QuickLitematicaPreviewAccess {
         }
 
         @Override
+        public float dynamicPreparationProgress() {
+            return this.dynamicBuffersReady || this.dynamicBufferFallback ? 1.0F : this.dynamicProgress;
+        }
+
+        @Override
         public boolean hasBuffers() {
             return !this.layerBuffers.isEmpty();
         }
@@ -231,7 +239,10 @@ public final class QuickLitematicaPreviewAccess {
 
         private void closeDynamicBuffers() {
             this.dynamicBuffers.forEach(layerBuffer -> layerBuffer.buffer().close());
-            this.dynamicBuffers = List.of();
+            this.dynamicBuffers.clear();
+            this.dynamicBuild = null;
+            this.dynamicBatchingDisabled = false;
+            this.dynamicProgress = 0.0F;
             this.dynamicBuffersReady = false;
         }
 
@@ -469,7 +480,16 @@ public final class QuickLitematicaPreviewAccess {
                 return;
             }
 
-            QuickLitematicaPreview3D.DynamicScene scene = data.dynamicScene();
+            QuickLitematicaPreview3D.DynamicScene fullScene = data.dynamicScene();
+            if (!this.dynamicBatchingDisabled && !fullScene.entities().isEmpty()) this.dynamicBatchingDisabled = true;
+            if (!this.dynamicBatchingDisabled && this.dynamicBuild == null && !fullScene.isEmpty()) {
+                this.dynamicBuild = new QuickLitematicaPreviewDynamicBatch<>(fullScene);
+                LOGGER.info("动态分批准备开始：方块实体={}，实体={}，目标单批={} us，强制渲染={}",
+                        fullScene.blockEntities().size(), fullScene.entities().size(), QuickLitematicaPreviewBatchBudget.TARGET_NANOS / 1_000L, data.forceRender);
+            }
+            var batch = this.dynamicBuild;
+            QuickLitematicaPreview3D.DynamicScene scene = batch == null ? fullScene : batch.nextScene();
+            long batchStart = System.nanoTime();
             if (scene.isEmpty()) {
                 this.dynamicBuffersReady = true;
                 data.closeDynamic();
@@ -477,7 +497,10 @@ public final class QuickLitematicaPreviewAccess {
             }
 
             DynamicMeshCollector collector = new DynamicMeshCollector(data.forceRender);
-            try {
+            collector.batch = batch;
+            if (batch != null) collector.allocatedBytes = batch.allocatedBytes;
+            try (var phase = QuickLitematicaPreviewLog.phase(batch == null
+                    ? "动态完整缓存帧几何构建/上传" : "动态单批提交/几何构建/上传")) {
                 Minecraft client = Minecraft.getInstance();
                 SubmitNodeStorage queue = new SubmitNodeStorage();
                 CameraRenderState cameraState = new CameraRenderState();
@@ -497,7 +520,7 @@ public final class QuickLitematicaPreviewAccess {
                         try {
                             matrices.translate(pos.getX(), pos.getY(), pos.getZ());
                             renderBlockEntity(client, entity, matrices, queue, cameraState);
-                        } catch (DynamicBufferTooLargeException e) {
+                        } catch (DynamicBufferTooLargeException | QuickLitematicaPreviewDynamicBatch.IncompatibleException e) {
                             throw e;
                         } catch (RuntimeException ignored) {
                             LOGGER.warn("原生预览局部失败：入口=prepareDynamicBuffers，继续原有跳过/回退", ignored);
@@ -521,7 +544,7 @@ public final class QuickLitematicaPreviewAccess {
                                     matrices,
                                     queue
                             );
-                        } catch (DynamicBufferTooLargeException e) {
+                        } catch (DynamicBufferTooLargeException | QuickLitematicaPreviewDynamicBatch.IncompatibleException e) {
                             throw e;
                         } catch (RuntimeException ignored) {
                             LOGGER.warn("原生预览局部失败：入口=prepareDynamicBuffers，继续原有跳过/回退", ignored);
@@ -537,13 +560,30 @@ public final class QuickLitematicaPreviewAccess {
                     }
                 }
 
-                this.dynamicBuffers = collector.upload();
-                this.dynamicBuffersReady = true;
-                data.closeDynamic();
+                var uploaded = collector.upload();
+                try {
+                    this.dynamicBuffers.addAll(uploaded);
+                } catch (RuntimeException | Error failure) {
+                    uploaded.forEach(layerBuffer -> layerBuffer.buffer().close());
+                    throw failure;
+                }
+                if (batch == null || batch.finish(collector.allocatedBytes, System.nanoTime() - batchStart)) {
+                    this.dynamicBuffersReady = true;
+                    this.dynamicBuild = null;
+                    this.dynamicProgress = 1.0F;
+                    data.closeDynamic();
+                    LOGGER.info("动态缓存准备全部完成：分批={}，批次数={}，缓冲数={}",
+                            batch != null, batch == null ? 1 : batch.batches, this.dynamicBuffers.size());
+                } else this.dynamicProgress = batch.progress();
+            } catch (QuickLitematicaPreviewDynamicBatch.IncompatibleException incompatible) {
+                this.closeDynamicBuffers();
+                this.dynamicBatchingDisabled = true;
+                LOGGER.info("动态分批回退：包含其他材质/透明或特殊内容，撤销未发布批次，保留完整帧原顺序");
             } catch (RuntimeException ignored) {
                 LOGGER.warn("原生预览局部失败：入口=prepareDynamicBuffers，继续原有跳过/回退", ignored);
                 this.closeDynamicBuffers();
-                this.dynamicBufferFallback = true;
+                if (batch != null) this.dynamicBatchingDisabled = true;
+                else this.dynamicBufferFallback = true;
             } finally {
                 collector.close();
             }
@@ -703,6 +743,7 @@ public final class QuickLitematicaPreviewAccess {
         private final List<DynamicMeshBuilder> builders = new ArrayList<>();
         private final boolean forceRender;
         private long allocatedBytes;
+        private QuickLitematicaPreviewDynamicBatch<RenderType> batch;
 
         private DynamicMeshCollector(boolean forceRender) {
             this(new ByteBufferBuilder(256), forceRender);
@@ -716,6 +757,9 @@ public final class QuickLitematicaPreviewAccess {
 
         @Override
         public VertexConsumer getBuffer(RenderType layer) {
+            if (this.batch != null) this.batch.checkLayer(layer,
+                    layer == net.minecraft.client.renderer.rendertype.RenderTypes.entityCutoutCull(net.minecraft.client.renderer.Sheets.CHEST_SHEET)
+                            && !layer.sortOnUpload());
             DynamicMeshBuilder meshBuilder = !layer.canConsolidateConsecutiveGeometry()
                     ? this.createBuilder(layer)
                     : this.sharedBuilders.computeIfAbsent(layer, this::createBuilder);

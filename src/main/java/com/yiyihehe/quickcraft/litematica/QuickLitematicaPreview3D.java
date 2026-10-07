@@ -950,6 +950,8 @@ public final class QuickLitematicaPreview3D {
 
         boolean dynamicBuffersReady;
 
+        float dynamicProgress;
+
         boolean dynamicBufferFallback;
 
         boolean uploadScheduled;
@@ -1703,7 +1705,9 @@ public final class QuickLitematicaPreview3D {
                 }
                 this.prepareDynamicBuffers(data);
                 if (data.hasDynamicContent() && !this.dynamicBuffersReady) {
-                    messageCallback.accept(Text.translatable("quickcraft.litematica.preview_3d.export_dynamic_failed"));
+                    messageCallback.accept(Text.translatable(this.dynamicBufferFallback
+                            ? "quickcraft.litematica.preview_3d.export_dynamic_failed"
+                            : "quickcraft.litematica.preview_3d.export_not_ready"));
                     return;
                 }
                 if (data.vertexCount() > 0 && !this.hasUploadedBuffers()) {
@@ -1850,6 +1854,11 @@ public final class QuickLitematicaPreview3D {
                     } catch (RuntimeException | Error failure) {
                         this.failBuild(failure);
                         return;
+                    }
+                    if (data != null && data.hasDynamicContent() && !this.dynamicBuffersReady && !this.dynamicBufferFallback) {
+                        context.drawCenteredTextWithShadow(MinecraftClient.getInstance().textRenderer,
+                                Text.translatable("quickcraft.litematica.preview_3d.dynamic_preparing", (int) (this.dynamicProgress * 100)),
+                                x + size / 2, y + size - 12, 0xFFDDDDDD);
                     }
                     return;
                 }

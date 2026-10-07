@@ -41,6 +41,7 @@
 		"LitematicaInventoryUtilsShulkerRestockMixin",
 		"LitematicaPreviewDataFixerMixin",
 		"LitematicaPreviewConversionMixin",
+		"LitematicaPreparedRenderTypeMixin",
 		"LitematicaSchematicLoadMixin",
 		"LitematicaSchematicVerifierMixin",
 		"LitematicaSchematicVerifierChunkMixin",

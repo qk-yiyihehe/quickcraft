@@ -205,6 +205,11 @@ public final class QuickLitematicaPreviewAccess {
         }
 
         @Override
+        public float dynamicPreparationProgress() {
+            return this.dynamicFrameProgress();
+        }
+
+        @Override
         public void setStaticUploadComplete(boolean complete) {
             this.staticUploadComplete = complete;
         }
@@ -265,9 +270,10 @@ public final class QuickLitematicaPreviewAccess {
                     if (data != null && this.staticUploadComplete) {
                         if (this.dynamicPreparationArmed) {
                             if (data.hasDynamicContent()) {
+                                this.prepareDynamicFrame(data);
                                 if (this.dynamicFrame != null) {
                                     this.drawDynamicFrame(dynamicModelView);
-                                } else {
+                                } else if (this.dynamicFrameProgress() >= 1.0F) {
                                     this.prepareDynamicStates(data);
                                     SubmitNodeStorage fallbackNodes = new SubmitNodeStorage();
                                     if (this.preparedDynamicScene != null) {
@@ -276,7 +282,6 @@ public final class QuickLitematicaPreviewAccess {
                                         this.drawDynamic(data, dynamicModelView, element.size(), fallbackNodes);
                                     }
                                     Minecraft.getInstance().gameRenderer.featureRenderDispatcher().renderAllFeatures(fallbackNodes);
-                                    this.prepareDynamicFrame(data);
                                 }
                             }
                         } else {
@@ -391,10 +396,11 @@ public final class QuickLitematicaPreviewAccess {
             // 原版每帧 endFrame 后旧 UBO 被关掉，复用缓存帧就会偶发崩溃。
             QuickLitematicaPreview3D.refreshCachedPreviewDynamicTransforms = true;
             try {
-                frame.executeSolid();
-                frame.executeTranslucent();
-                frame.executeTranslucentAfterTerrain();
-                frame.executeAlwaysOnTop();
+                // 只对同材质不透明模型分批；跨批仍按原阶段顺序执行。
+                this.forEachDynamicFrame(FeatureRenderDispatcher.PreparedFrame::executeSolid);
+                this.forEachDynamicFrame(FeatureRenderDispatcher.PreparedFrame::executeTranslucent);
+                this.forEachDynamicFrame(FeatureRenderDispatcher.PreparedFrame::executeTranslucentAfterTerrain);
+                this.forEachDynamicFrame(FeatureRenderDispatcher.PreparedFrame::executeAlwaysOnTop);
             } finally {
                 QuickLitematicaPreview3D.refreshCachedPreviewDynamicTransforms = false;
                 RenderSystem.restoreProjectionMatrix();

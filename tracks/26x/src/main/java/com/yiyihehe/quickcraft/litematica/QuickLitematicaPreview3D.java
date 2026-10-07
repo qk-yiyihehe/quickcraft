@@ -1279,6 +1279,13 @@ public final class QuickLitematicaPreview3D {
                             drag.scale,
                             guiContext.peekLastScissor()
                     ));
+                    float dynamicProgress = this.backend.dynamicPreparationProgress();
+                    if (data != null && data.hasDynamicContent() && this.backend.isStaticUploadComplete() && dynamicProgress < 1.0F) {
+                        context.fill(x + 2, y + size - 20, x + size - 2, y + size - 2, 0xB0000000);
+                        context.centeredText(Minecraft.getInstance().font,
+                                StringUtils.translate("quickcraft.litematica.preview_3d.dynamic_preparing", Math.round(dynamicProgress * 100.0F)),
+                                x + size / 2, y + size - 15, 0xFFDDDDDD);
+                    }
                     return;
                 }
             }
@@ -1475,7 +1482,8 @@ public final class QuickLitematicaPreview3D {
                 }
 
                 this.uploadIfNeeded();
-                if (!this.backend.isStaticUploadComplete()) {
+                if (!this.backend.isStaticUploadComplete()
+                        || (data.hasDynamicContent() && this.backend.dynamicPreparationProgress() < 1.0F)) {
                     callback.accept(Component.translatable("quickcraft.litematica.preview_3d.export_not_ready"));
                     return;
                 }
@@ -1539,7 +1547,8 @@ public final class QuickLitematicaPreview3D {
                 }
 
                 this.uploadIfNeeded();
-                if (!this.backend.isStaticUploadComplete()) {
+                if (!this.backend.isStaticUploadComplete()
+                        || (data.hasDynamicContent() && this.backend.dynamicPreparationProgress() < 1.0F)) {
                     callback.accept(Component.translatable("quickcraft.litematica.preview_3d.export_not_ready"));
                     return;
                 }
@@ -1592,7 +1601,8 @@ public final class QuickLitematicaPreview3D {
                 }
 
                 this.uploadIfNeeded();
-                if (!this.backend.isStaticUploadComplete()) {
+                if (!this.backend.isStaticUploadComplete()
+                        || (data.hasDynamicContent() && this.backend.dynamicPreparationProgress() < 1.0F)) {
                     this.trace.event("快照请求被拒绝：操作=captureSnapshot，状态={}，上传中={}，取消={}", this.state, this.uploadScheduled, this.cancelled.get());
                     callback.accept(Component.translatable("quickcraft.litematica.preview_3d.export_not_ready"));
                     return;

@@ -15,6 +15,7 @@ import com.mojang.blaze3d.vertex.VertexSorting;
 import com.mojang.math.Axis;
 import com.mojang.renderpearl.api.GpuFormat;
 import com.mojang.renderpearl.api.buffers.GpuBuffer;
+import com.mojang.renderpearl.api.buffers.GpuBufferSlice;
 import com.mojang.renderpearl.api.commands.RenderPass;
 import com.mojang.renderpearl.api.pipeline.IndexType;
 import com.mojang.renderpearl.api.textures.GpuTextureView;
@@ -56,6 +57,8 @@ public final class QuickLitematicaPreviewAccess {
     private static final QuickLitematicaPreviewLog LOGGER = QuickLitematicaPreviewLog.LOGGER;
     private static final int VERTEX_BYTES = 44;
     private static final float PREVIEW_FIT_PADDING = 0.95F;
+    // 在 RenderPass 开始前分配；缓存帧回放期间由 Mixin 替换已跨帧失效的变换切片。
+    @Nullable public static GpuBufferSlice cachedDynamicTransforms;
 
     private QuickLitematicaPreviewAccess() {
     }
@@ -122,6 +125,12 @@ public final class QuickLitematicaPreviewAccess {
 
         private Backend263(QuickLitematicaPreview3D.Preview preview) {
             this.preview = preview;
+        }
+
+        @Override
+        protected boolean cacheIncompatibleDynamicFrame() {
+            // 26.3 的透明/OIT 和特殊阶段保留原每帧准备，不能把视角相关排序锁进缓存。
+            return false;
         }
 
         @Override
@@ -217,6 +226,11 @@ public final class QuickLitematicaPreviewAccess {
         }
 
         @Override
+        public float dynamicPreparationProgress() {
+            return this.dynamicFrameProgress();
+        }
+
+        @Override
         public void clearBuffers() {
             this.layerBuffers.values().forEach(buffers -> buffers.forEach(LayerBuffer::close));
             this.layerBuffers.clear();
@@ -273,13 +287,16 @@ public final class QuickLitematicaPreviewAccess {
                              () -> "QuickCraft preview", colorView, Optional.empty(), depthView, OptionalDouble.empty())) {
                     RenderSystem.bindDefaultUniforms(pass);
                     drawBuffers(layers, false, pass);
-                    if (frame != null) {
+                    if (this.dynamicFrame != null) {
+                        this.drawCachedFrames(pass);
+                    } else if (frame != null) {
                         FeatureRenderDispatcher.renderAllFeatures(pass, frame);
                     }
                     drawBuffers(layers, true, pass);
                     this.dynamicPreparationArmed = true;
                 }
             } finally {
+                cachedDynamicTransforms = null;
                 RenderSystem.restoreProjectionMatrix();
                 RenderSystem.setShaderLights(previousLights);
             }
@@ -291,10 +308,16 @@ public final class QuickLitematicaPreviewAccess {
             if (data == null || !this.staticUploadComplete || !data.hasDynamicContent()) {
                 return null;
             }
-            this.prepareDynamicStates(data);
             if (!armed) {
                 return null;
             }
+            this.prepareDynamicFrame(data);
+            if (this.dynamicFrame != null) {
+                cachedDynamicTransforms = RenderSystem.getDynamicUniforms().writeTransform(modelView);
+                return null;
+            }
+            if (this.dynamicFrameProgress() < 1.0F) return null;
+            this.prepareDynamicStates(data);
             SubmitNodeStorage submitNodes = new SubmitNodeStorage();
             if (this.preparedDynamicScene != null) {
                 this.drawPreparedDynamic(this.preparedDynamicScene, modelView, viewSize, submitNodes);
@@ -303,6 +326,16 @@ public final class QuickLitematicaPreviewAccess {
             }
             // 借用游戏 dispatcher 的池化帧，用完必须 close；不持有或关闭游戏 dispatcher。
             return Minecraft.getInstance().gameRenderer.featureRenderDispatcher().prepareFrame(submitNodes);
+        }
+
+        private void drawCachedFrames(RenderPass pass) {
+            QuickLitematicaPreview3D.refreshCachedPreviewDynamicTransforms = true;
+            try {
+                // 分批仅允许同材质不透明阶段；特殊内容仍是一个完整帧，保留原生阶段次序。
+                this.forEachDynamicFrame(frame -> FeatureRenderDispatcher.renderAllFeatures(pass, frame));
+            } finally {
+                QuickLitematicaPreview3D.refreshCachedPreviewDynamicTransforms = false;
+            }
         }
 
         private void setupPreviewProjection(int width, int height, float zoom) {
@@ -458,12 +491,15 @@ public final class QuickLitematicaPreviewAccess {
                              framebuffer.getDepthTextureView(), OptionalDouble.empty())) {
                     RenderSystem.bindDefaultUniforms(pass);
                     drawBuffers(layers, false, pass);
-                    if (frame != null) {
+                    if (this.dynamicFrame != null) {
+                        this.drawCachedFrames(pass);
+                    } else if (frame != null) {
                         FeatureRenderDispatcher.renderAllFeatures(pass, frame);
                     }
                     drawBuffers(layers, true, pass);
                 }
             } finally {
+                cachedDynamicTransforms = null;
                 RenderSystem.restoreProjectionMatrix();
                 RenderSystem.setShaderLights(previousLights);
             }

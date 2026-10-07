@@ -214,6 +214,7 @@
   "quickcraft.config.projection_tools.name.showLitematicaContainerMaterialButton": "Show Projection Container Material Button",
   "quickcraft.config.projection_tools.comment.showLitematicaContainerMaterialButton": "§6Function: §rShows a container material list button on §bLitematica§r's load schematic screen.\n§eNote: §rUses the vanilla material list screen to count saved container contents in the schematic.",
   "quickcraft.litematica.preview_3d.rendering": "Rendering 3D Preview",
+  "quickcraft.litematica.preview_3d.dynamic_preparing": "Preparing dynamic render: %s%%",
   "quickcraft.entity_placement.title": "Select Entity to Place",
   "quickcraft.entity_placement.empty": "No placeable schematic entities along the crosshair",
   "quickcraft.entity_placement.server_unavailable": "Easy entity placement is not installed or enabled on the server",

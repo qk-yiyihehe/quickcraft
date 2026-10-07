@@ -26,6 +26,11 @@ public interface QuickLitematicaPreviewBackend extends AutoCloseable {
      */
     boolean isStaticUploadComplete();
 
+    /** 动态内容准备完成前不能导出完整预览；无需分批的后端沿用原有同步准备。 */
+    default float dynamicPreparationProgress() {
+        return 1.0F;
+    }
+
     /**
      * 设置静态网格上传完成状态。
      */
