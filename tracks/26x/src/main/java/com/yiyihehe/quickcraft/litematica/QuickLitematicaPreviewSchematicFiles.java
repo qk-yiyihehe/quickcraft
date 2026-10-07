@@ -253,6 +253,18 @@ final class QuickLitematicaPreviewSchematicFiles {
     }
 
     private static final long PREVIEW_NBT_BYTES = 256L * 1024L * 1024L;
+    // NBT 对象计量通常远大于原始字节；大文件直接逐条读取，避免先分配到配额再重读。
+    private static final long STREAMING_RAW_BYTES = 16L * 1024L * 1024L;
+
+    static long gzipExpandedSizeHint(Path source) throws IOException {
+        try (java.io.RandomAccessFile input = new java.io.RandomAccessFile(source.toFile(), "r")) {
+            if (input.length() < 18 || input.readUnsignedShort() != 0x1f8b) return 0L;
+            input.seek(input.length() - 4);
+            // ISIZE 仅用于选择读取路径（多成员/超过 4 GiB 时不可靠），不替代解压、校验或预算。
+            return Integer.toUnsignedLong(Integer.reverseBytes(input.readInt()));
+        }
+    }
+
     record StreamingPreparation(CompoundTag root, PreparationStats stats) {}
 
     @Nullable
@@ -430,11 +442,21 @@ final class QuickLitematicaPreviewSchematicFiles {
         String name = sourcePath.getFileName() != null ? sourcePath.getFileName().toString() : "";
         if (!name.endsWith(".litematic")) return null;
         try {
-            CompoundTag root;
+            CompoundTag root = null;
             PreparationStats stats;
             try (var phase = QuickLitematicaPreviewLog.phase("原理图快速预处理")) {
                 StreamingPreparation streaming = null;
-                try (DataInputStream dis = previewInput(sourcePath, cancelled)) {
+                long expandedHint = gzipExpandedSizeHint(sourcePath);
+                if (expandedHint >= STREAMING_RAW_BYTES) {
+                    LOGGER.info("预处理直接逐条读取：源={}，GZIP 解压体积提示={} B，避免完整读取触限后重读", sourcePath, expandedHint);
+                    streaming = readStreamingPreviewNbt(sourcePath, cancelled,
+                            fi.dy.masa.litematica.config.Configs.Generic.DATAFIXER_DEFAULT_SCHEMA.getIntegerValue(),
+                            QuickLitematicaPreview3D::hasPreviewRendererForBlockEntity,
+                            QuickLitematicaPreview3D::inferPreviewBlockEntityId,
+                            QuickLitematicaPreview3D::isPreviewInventoryHidden);
+                    if (streaming == null) return null;
+                    root = streaming.root();
+                } else try (DataInputStream dis = previewInput(sourcePath, cancelled)) {
                     root = NbtIo.read(dis, NbtAccounter.create(PREVIEW_NBT_BYTES));
                 } catch (NbtAccounterException limit) {
                     LOGGER.info("预处理完整 NBT 达到安全限制，尝试逐条读取：源={}，预算={} B，原因={}", sourcePath, PREVIEW_NBT_BYTES, limit.getMessage());

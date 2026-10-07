@@ -17,6 +17,19 @@ import static com.yiyihehe.quickcraft.litematica.QuickLitematicaPreviewSchematic
 
 class QuickLitematicaPreviewSchematicFilesTest {
     @Test
+    void gzipSizeHintOnlySelectsTheReaderAndLeavesPlainFilesAlone(@TempDir Path temporary) throws Exception {
+        Path gzip = temporary.resolve("size.litematic");
+        byte[] payload = new byte[65_537];
+        try (var output = new GZIPOutputStream(Files.newOutputStream(gzip))) { output.write(payload); }
+        assertThat(gzipExpandedSizeHint(gzip)).isEqualTo(payload.length);
+        Path plain = temporary.resolve("plain.litematic");
+        Files.write(plain, payload);
+        assertThat(gzipExpandedSizeHint(plain)).isZero();
+        Files.write(plain, new byte[] { 0x1f, (byte) 0x8b });
+        assertThat(gzipExpandedSizeHint(plain)).isZero();
+    }
+
+    @Test
     void resolvesMissingIdsAcrossPackedWordsAndSignedRegionDimensions() {
         CompoundTag region = region();
         InventoryPalette lookup = InventoryPalette.from(region);
