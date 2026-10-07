@@ -364,7 +364,7 @@ final class QuickLitematicaPreviewAccess {
                 return;
             }
 
-            DynamicMeshCollector collector = new DynamicMeshCollector();
+            DynamicMeshCollector collector = new DynamicMeshCollector(data.forceRender);
             try {
                 MinecraftClient client = MinecraftClient.getInstance();
                 OrderedRenderCommandQueueImpl queue = new OrderedRenderCommandQueueImpl();
@@ -386,7 +386,7 @@ final class QuickLitematicaPreviewAccess {
                             renderBlockEntity(client, entity, matrices, queue, cameraState);
                         } catch (DynamicBufferTooLargeException e) {
                             throw e;
-                        } catch (Throwable ignored) {
+                        } catch (RuntimeException ignored) {
                             LOGGER.warn("原生预览局部失败：入口=prepareDynamicBuffers，继续原有跳过/回退", ignored);
                         } finally {
                             matrices.pop();
@@ -410,7 +410,7 @@ final class QuickLitematicaPreviewAccess {
                             );
                         } catch (DynamicBufferTooLargeException e) {
                             throw e;
-                        } catch (Throwable ignored) {
+                        } catch (RuntimeException ignored) {
                             LOGGER.warn("原生预览局部失败：入口=prepareDynamicBuffers，继续原有跳过/回退", ignored);
                         }
                     });
@@ -427,7 +427,7 @@ final class QuickLitematicaPreviewAccess {
                 this.dynamicBuffers = collector.upload();
                 this.dynamicBuffersReady = true;
                 data.closeDynamic();
-            } catch (Throwable ignored) {
+            } catch (RuntimeException ignored) {
                 LOGGER.warn("原生预览局部失败：入口=prepareDynamicBuffers，继续原有跳过/回退", ignored);
                 this.closeDynamicBuffers();
                 this.dynamicBufferFallback = true;
@@ -763,7 +763,11 @@ final class QuickLitematicaPreviewAccess {
 
         @Override
         protected void render(PreviewGuiElement element, MatrixStack matrices) {
-            element.preview().drawSpecial(element, this.vertexConsumers);
+            try {
+                element.preview().drawSpecial(element, this.vertexConsumers);
+            } catch (RuntimeException | Error failure) {
+                element.preview().failBuild(failure);
+            }
         }
 
         @Override
@@ -779,15 +783,17 @@ final class QuickLitematicaPreviewAccess {
         final BufferAllocator fallbackAllocator;
         final Map<RenderLayer, DynamicMeshBuilder> sharedBuilders = new LinkedHashMap<>();
         final List<DynamicMeshBuilder> builders = new ArrayList<>();
+        final boolean forceRender;
         long allocatedBytes;
 
-        DynamicMeshCollector() {
-            this(new BufferAllocator(256));
+        DynamicMeshCollector(boolean forceRender) {
+            this(new BufferAllocator(256), forceRender);
         }
 
-        DynamicMeshCollector(BufferAllocator fallbackAllocator) {
+        DynamicMeshCollector(BufferAllocator fallbackAllocator, boolean forceRender) {
             super(fallbackAllocator, new LinkedHashMap<>());
             this.fallbackAllocator = fallbackAllocator;
+            this.forceRender = forceRender;
         }
 
         @Override
@@ -807,7 +813,7 @@ final class QuickLitematicaPreviewAccess {
         }
 
         DynamicMeshBuilder createBuilder(RenderLayer layer) {
-            if (this.builders.size() >= MAX_DYNAMIC_RENDER_LAYERS) {
+            if (!this.forceRender && this.builders.size() >= MAX_DYNAMIC_RENDER_LAYERS) {
                 throw new DynamicBufferTooLargeException("动态渲染层超过 1024 个上限");
             }
             int initialBytes = !layer.areVerticesNotShared()
@@ -823,7 +829,7 @@ final class QuickLitematicaPreviewAccess {
 
         void reserve(int bytes) {
             this.allocatedBytes += bytes;
-            if (this.allocatedBytes > MAX_DYNAMIC_BUFFER_BYTES) {
+            if (!this.forceRender && this.allocatedBytes > MAX_DYNAMIC_BUFFER_BYTES) {
                 throw new DynamicBufferTooLargeException("动态顶点超过 128 MiB 上限");
             }
         }
@@ -1618,11 +1624,11 @@ final class QuickLitematicaPreviewAccess {
         }
 
         void setBlockStates(Map<BlockPos, BlockState> blockStates) {
-            this.blockStates = Map.copyOf(blockStates);
+            this.blockStates = copyPreviewPositions(blockStates);
         }
 
         void setBlockEntities(Map<BlockPos, BlockEntity> blockEntities) {
-            this.blockEntities = Map.copyOf(blockEntities);
+            this.blockEntities = copyPreviewPositions(blockEntities);
         }
 
         @Override

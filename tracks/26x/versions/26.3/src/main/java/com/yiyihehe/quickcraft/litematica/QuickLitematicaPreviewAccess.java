@@ -37,8 +37,6 @@ import org.joml.Matrix4fStack;
 import org.joml.Vector3f;
 import org.joml.Vector4f;
 import org.lwjgl.system.MemoryStack;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
@@ -55,7 +53,7 @@ import java.util.function.Consumer;
  * 使用 RenderPearl 管线、独立 RenderPass，静态网格与动态内容绘制到同一张 PIP 纹理。
  */
 public final class QuickLitematicaPreviewAccess {
-    private static final Logger LOGGER = LoggerFactory.getLogger(QuickLitematicaPreviewAccess.class);
+    private static final QuickLitematicaPreviewLog LOGGER = QuickLitematicaPreviewLog.LOGGER;
     private static final int VERTEX_BYTES = 44;
     private static final float PREVIEW_FIT_PADDING = 0.95F;
 
@@ -93,7 +91,11 @@ public final class QuickLitematicaPreviewAccess {
             QuickLitematicaPreviewBackend backend = element.preview().backend();
             if (backend instanceof Backend263 backend263) {
                 QuickPictureInPictureRendererAccessor accessor = (QuickPictureInPictureRendererAccessor) (Object) this;
-                backend263.drawSpecial(element, matrices, accessor.quickcraft$getTextureView(), accessor.quickcraft$getDepthTextureView());
+                try {
+                    backend263.drawSpecial(element, matrices, accessor.quickcraft$getTextureView(), accessor.quickcraft$getDepthTextureView());
+                } catch (RuntimeException | Error failure) {
+                    element.preview().failBuild(failure);
+                }
             }
         }
 
@@ -220,6 +222,7 @@ public final class QuickLitematicaPreviewAccess {
             this.layerBuffers.clear();
             this.staticUploadComplete = false;
             this.dynamicPreparationArmed = false;
+            this.preparedDynamicScene = null;
             this.closeDynamicFrame();
         }
 

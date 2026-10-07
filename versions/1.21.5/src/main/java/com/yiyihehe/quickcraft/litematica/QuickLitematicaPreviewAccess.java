@@ -279,7 +279,7 @@ final class QuickLitematicaPreviewAccess {
                 return;
             }
 
-            DynamicMeshCollector collector = new DynamicMeshCollector();
+            DynamicMeshCollector collector = new DynamicMeshCollector(data.forceRender);
             try {
                 MinecraftClient client = MinecraftClient.getInstance();
                 MatrixStack matrices = new MatrixStack();
@@ -290,7 +290,7 @@ final class QuickLitematicaPreviewAccess {
                         renderBlockEntity(client, entity, matrices, collector);
                     } catch (DynamicBufferTooLargeException e) {
                         throw e;
-                    } catch (Throwable ignored) {
+                    } catch (RuntimeException ignored) {
                         LOGGER.warn("原生预览局部失败：入口=prepareDynamicBuffers，继续原有跳过/回退", ignored);
                     } finally {
                         matrices.pop();
@@ -311,7 +311,7 @@ final class QuickLitematicaPreviewAccess {
                         );
                     } catch (DynamicBufferTooLargeException e) {
                         throw e;
-                    } catch (Throwable ignored) {
+                    } catch (RuntimeException ignored) {
                         LOGGER.warn("原生预览局部失败：入口=prepareDynamicBuffers，继续原有跳过/回退", ignored);
                     }
                 });
@@ -319,7 +319,7 @@ final class QuickLitematicaPreviewAccess {
                 this.dynamicBuffers = collector.upload();
                 this.dynamicBuffersReady = true;
                 data.closeDynamic();
-            } catch (Throwable ignored) {
+            } catch (RuntimeException ignored) {
                 LOGGER.warn("原生预览局部失败：入口=prepareDynamicBuffers，继续原有跳过/回退", ignored);
                 this.closeDynamicBuffers();
                 this.dynamicBufferFallback = true;
@@ -557,7 +557,12 @@ final class QuickLitematicaPreviewAccess {
     static final class DynamicMeshCollector implements VertexConsumerProvider, AutoCloseable {
         final Map<RenderLayer, DynamicMeshBuilder> sharedBuilders = new LinkedHashMap<>();
         final List<DynamicMeshBuilder> builders = new ArrayList<>();
+        final boolean forceRender;
         long allocatedBytes;
+
+        DynamicMeshCollector(boolean forceRender) {
+            this.forceRender = forceRender;
+        }
 
         @Override
         public VertexConsumer getBuffer(RenderLayer layer) {
@@ -576,7 +581,7 @@ final class QuickLitematicaPreviewAccess {
         }
 
         DynamicMeshBuilder createBuilder(RenderLayer layer) {
-            if (this.builders.size() >= MAX_DYNAMIC_RENDER_LAYERS) {
+            if (!this.forceRender && this.builders.size() >= MAX_DYNAMIC_RENDER_LAYERS) {
                 throw new DynamicBufferTooLargeException("动态渲染层超过 1024 个上限");
             }
             int initialBytes = !layer.areVerticesNotShared()
@@ -592,7 +597,7 @@ final class QuickLitematicaPreviewAccess {
 
         void reserve(int bytes) {
             this.allocatedBytes += bytes;
-            if (this.allocatedBytes > MAX_DYNAMIC_BUFFER_BYTES) {
+            if (!this.forceRender && this.allocatedBytes > MAX_DYNAMIC_BUFFER_BYTES) {
                 throw new DynamicBufferTooLargeException("动态顶点超过 128 MiB 上限");
             }
         }
@@ -1338,11 +1343,11 @@ final class QuickLitematicaPreviewAccess {
         }
 
         void setBlockStates(Map<BlockPos, BlockState> blockStates) {
-            this.blockStates = Map.copyOf(blockStates);
+            this.blockStates = copyPreviewPositions(blockStates);
         }
 
         void setBlockEntities(Map<BlockPos, BlockEntity> blockEntities) {
-            this.blockEntities = Map.copyOf(blockEntities);
+            this.blockEntities = copyPreviewPositions(blockEntities);
         }
 
         @Override

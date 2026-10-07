@@ -8,12 +8,20 @@ final class QuickLitematicaPreviewVertexBudget {
     }
 
     static int vertexLimit() {
-        return isForced() ? Integer.MAX_VALUE : DEFAULT_VERTEX_LIMIT;
+        return countLimit(DEFAULT_VERTEX_LIMIT);
+    }
+
+    static int countLimit(int defaultLimit) {
+        return isForced() ? Integer.MAX_VALUE : defaultLimit;
+    }
+
+    static long nbtByteLimit(long defaultLimit) {
+        return isForced() ? Long.MAX_VALUE : defaultLimit;
     }
 
     static int layerByteLimit() {
         // 透明层整体解码成 44 字节顶点；强制模式也不能溢出 Java 数组/ByteBuffer 的 int 长度。
-        return isForced() ? ((Integer.MAX_VALUE - 8) / 44) * 32 : DEFAULT_VERTEX_LIMIT * 32;
+        return isForced() ? ((Integer.MAX_VALUE - 8) / 44) * QuickLitematicaPreviewAccess.QUANTIZED_VERTEX_BYTES : DEFAULT_VERTEX_LIMIT * 32;
     }
 
     static boolean isForced() {

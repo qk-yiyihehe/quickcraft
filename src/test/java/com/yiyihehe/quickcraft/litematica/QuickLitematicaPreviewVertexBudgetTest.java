@@ -8,14 +8,18 @@ class QuickLitematicaPreviewVertexBudgetTest {
     @Test
     void forcedBudgetIsScopedAndArrayGrowthDoesNotOverflow() {
         assertThat(QuickLitematicaPreviewVertexBudget.vertexLimit()).isEqualTo(16_000_000);
+        assertThat(QuickLitematicaPreviewVertexBudget.countLimit(32_768)).isEqualTo(32_768);
+        assertThat(QuickLitematicaPreviewVertexBudget.nbtByteLimit(256L << 20)).isEqualTo(256L << 20);
         assertThatThrownBy(() -> QuickLitematicaPreviewVertexBudget.checkVertexCount(16_000_000))
                 .isInstanceOf(QuickLitematicaPreview3D.PreviewTooLargeException.class);
         assertThatThrownBy(() -> QuickLitematicaPreviewVertexBudget.run(true, () -> {
             QuickLitematicaPreviewVertexBudget.checkVertexCount(32_000_000);
+            assertThat(QuickLitematicaPreviewVertexBudget.countLimit(32_768)).isEqualTo(Integer.MAX_VALUE);
+            assertThat(QuickLitematicaPreviewVertexBudget.nbtByteLimit(256L << 20)).isEqualTo(Long.MAX_VALUE);
             assertThat(QuickLitematicaPreviewVertexBudget.vertexLimit()).isEqualTo(Integer.MAX_VALUE);
             int grown = QuickLitematicaPreviewVertexBudget.growCapacity(1 << 30, (1 << 30) + 32);
             assertThat(grown).isEqualTo(QuickLitematicaPreviewVertexBudget.layerByteLimit()).isPositive();
-            assertThat((long) grown / 32 * 44).isLessThan(Integer.MAX_VALUE);
+            assertThat((long) grown / QuickLitematicaPreviewAccess.QUANTIZED_VERTEX_BYTES * 44).isLessThan(Integer.MAX_VALUE);
             QuickLitematicaPreviewVertexBudget.run(false, () ->
                     assertThat(QuickLitematicaPreviewVertexBudget.vertexLimit()).isEqualTo(16_000_000));
             assertThat(QuickLitematicaPreviewVertexBudget.vertexLimit()).isEqualTo(Integer.MAX_VALUE);

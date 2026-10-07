@@ -4,6 +4,14 @@ import net.minecraft.nbt.NbtCompound;
 import net.minecraft.nbt.NbtList;
 import net.minecraft.nbt.NbtString;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
+import java.io.DataOutputStream;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.zip.GZIPOutputStream;
+import java.util.concurrent.CancellationException;
+import net.minecraft.nbt.NbtElement;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import java.util.concurrent.atomic.AtomicBoolean;
 import static org.assertj.core.api.Assertions.assertThat;
 import static com.yiyihehe.quickcraft.litematica.QuickLitematicaPreviewSchematicFiles.*;
@@ -354,6 +362,112 @@ class QuickLitematicaPreviewSchematicFilesTest {
         assertThat(entities).isEqualTo(entitiesBefore);
         assertThat(region.get("BlockStates")).isEqualTo(statesBefore);
         assertThat(region.get("BlockStatePalette")).isEqualTo(paletteBefore);
+    }
+
+    @Test
+    void streamingMatchesWholePreparationWithEntitiesBeforePalette(@TempDir Path temporary) throws Exception {
+        NbtCompound source = root(7);
+        source.putInt("MinecraftDataVersion", 3700);
+        source.putString("UnknownRoot", "keep root data");
+        NbtCompound region = regionOf(source);
+        region.putString("UnknownRegion", "keep region data");
+        NbtList entries = new NbtList();
+        NbtCompound hopper = position(1, 0, 1);
+        hopper.put("Items", entity("", true).get("Items").copy());
+        NbtCompound skull = position(4, 0, 1);
+        skull.putString("SkullOwner", "profile data");
+        NbtCompound named = position(2, 0, 1);
+        named.putString("id", "minecraft:chest");
+        named.putString("CustomName", "visible name");
+        named.put("Items", entity("", true).get("Items").copy());
+        NbtCompound unknown = position(2, 0, 1);
+        unknown.putString("id", "other:chest");
+        unknown.put("Items", entity("", true).get("Items").copy());
+        for (NbtCompound entry : new NbtCompound[]{hopper, skull, named, unknown}) entries.add(entry);
+        region.put("TileEntities", entries);
+        NbtList entities = new NbtList();
+        entities.add(entity("other:visible_entity", true));
+        region.put("Entities", entities);
+        var expected = source.copy();
+        var expectedStats = preparePreviewNbt(expected, new AtomicBoolean(), id -> true,
+                QuickLitematicaPreviewSchematicFilesTest::inferredType, id -> true);
+        Path file = temporary.resolve("streaming.litematic");
+        writeWithEntitiesFirst(source, file);
+        byte[] original = Files.readAllBytes(file);
+
+        var actual = readStreamingPreviewNbt(file, new AtomicBoolean(), 0, id -> true, (block, version) -> {
+            assertThat(version).isEqualTo(3700);
+            return inferredType(block);
+        }, id -> true);
+
+        assertThat(actual).isNotNull();
+        assertThat(actual.root()).isEqualTo(expected);
+        assertThat(actual.stats()).isEqualTo(expectedStats);
+        assertThat(Files.readAllBytes(file)).isEqualTo(original);
+    }
+
+    @Test
+    void streamingPreservesWrappedLegacyRecordsAndTheirOuterCoordinates(@TempDir Path temporary) throws Exception {
+        NbtCompound source = root(1);
+        NbtList entries = new NbtList();
+        NbtCompound wrapped = position(4, 0, 1);
+        NbtCompound payload = entity("", false);
+        payload.putString("SkullOwner", "legacy profile");
+        wrapped.put("TileNBT", payload);
+        entries.add(wrapped);
+        regionOf(source).put("TileEntities", entries);
+        var expected = source.copy();
+        preparePreviewNbt(expected, new AtomicBoolean(), id -> true,
+                QuickLitematicaPreviewSchematicFilesTest::inferredType, id -> true);
+        Path file = temporary.resolve("wrapped.litematic");
+        writeWithEntitiesFirst(source, file);
+        var actual = readStreamingPreviewNbt(file, new AtomicBoolean(), 0, id -> true,
+                (block, version) -> inferredType(block), id -> true);
+        assertThat(actual.root()).isEqualTo(expected);
+        assertThat(actual.stats().restoredBlockEntityIds()).isEqualTo(1);
+    }
+
+    @Test
+    void streamingStopsCancelledReadsAndLeavesFutureFormatsToUpstream(@TempDir Path temporary) throws Exception {
+        NbtCompound source = root(999);
+        regionOf(source).put("TileEntities", new NbtList());
+        Path file = temporary.resolve("future.litematic");
+        writeWithEntitiesFirst(source, file);
+        assertThat(readStreamingPreviewNbt(file, new AtomicBoolean(), 0, id -> false,
+                (block, version) -> inferredType(block), id -> true)).isNull();
+        assertThatThrownBy(() -> readStreamingPreviewNbt(file, new AtomicBoolean(true), 0, id -> false,
+                (block, version) -> inferredType(block), id -> true)).isInstanceOf(CancellationException.class);
+    }
+
+    private static void writeWithEntitiesFirst(NbtCompound root, Path file) throws Exception {
+        try (var output = new DataOutputStream(new GZIPOutputStream(Files.newOutputStream(file)))) {
+            output.writeByte(10);
+            output.writeUTF("");
+            output.writeByte(10);
+            output.writeUTF("Regions");
+            NbtCompound regions = QuickLitematicaPreviewAccess.readCompound(root, "Regions");
+            for (String key : regions.getKeys()) {
+                NbtCompound region = QuickLitematicaPreviewAccess.readCompound(regions, key);
+                output.writeByte(10);
+                output.writeUTF(key);
+                writeField(output, "TileEntities", region.get("TileEntities"));
+                for (String field : region.getKeys()) {
+                    if (!field.equals("TileEntities")) writeField(output, field, region.get(field));
+                }
+                output.writeByte(0);
+            }
+            output.writeByte(0);
+            for (String key : root.getKeys()) {
+                if (!key.equals("Regions")) writeField(output, key, root.get(key));
+            }
+            output.writeByte(0);
+        }
+    }
+
+    private static void writeField(DataOutputStream output, String name, NbtElement value) throws Exception {
+        output.writeByte(value.getType());
+        output.writeUTF(name);
+        value.write(output);
     }
 
     private static String inferredType(String blockId) {

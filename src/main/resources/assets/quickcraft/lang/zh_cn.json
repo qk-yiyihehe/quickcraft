@@ -243,7 +243,7 @@
   "quickcraft.litematica.preview_3d.too_large": "投影过大，无法安全预览",
   "quickcraft.litematica.preview_3d.vertex_limit": "超过静态顶点上限",
   "quickcraft.litematica.preview_3d.force_render": "强制渲染",
-  "quickcraft.litematica.preview_3d.force_render_warning": "忽略当前投影的静态顶点上限，可能耗尽内存/显存并导致崩溃。仅当前任务生效。",
+  "quickcraft.litematica.preview_3d.force_render_warning": "忽略当前投影的顶点、动态方块/实体数量及动态缓冲预算，持续尝试直至完成或内存/显存不足。可能卡死或崩溃，仅当前任务生效。",
   "quickcraft.litematica.preview_3d.area_title": "当前选区",
   "quickcraft.message.litematica.preview_3d.disabled": "请先启用 QuickCraft 的显示 3D 预览功能",
   "quickcraft.message.litematica.preview_3d.shader_disabled": "检测到光影已开启，已暂停 3D 预览",

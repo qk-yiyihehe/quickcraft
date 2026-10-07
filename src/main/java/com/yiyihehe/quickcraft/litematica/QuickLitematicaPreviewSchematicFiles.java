@@ -17,6 +17,12 @@ import java.util.zip.GZIPOutputStream;
 import java.io.BufferedInputStream;
 import java.io.DataInputStream;
 import java.io.IOException;
+import java.io.FilterInputStream;
+import java.util.HashSet;
+import java.util.function.BiFunction;
+import net.minecraft.nbt.NbtElement;
+import net.minecraft.nbt.NbtTypes;
+import net.minecraft.nbt.NbtSizeValidationException;
 import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -103,87 +109,102 @@ final class QuickLitematicaPreviewSchematicFiles {
 
     static PreparationStats preparePreviewNbt(NbtCompound root, AtomicBoolean cancelled, Predicate<String> hasRenderer,
                                               Function<String, String> inferBlockEntityId, Predicate<String> inventoryHidden) {
-        int blockEntities = 0;
-        int removedInventories = 0;
-        int missingInventoryIds = 0;
-        int inferredInventoryIds = 0;
-        int restoredBlockEntityIds = 0;
-        int defaultContainerNbt = 0;
-        Map<String, String> inferredTypes = new HashMap<>();
-        Map<String, Integer> skippedByType = new HashMap<>();
-        Map<String, Boolean> skipType = new HashMap<>();
-        Map<String, Boolean> inventoryTrim = new HashMap<>();
-        int formatVersion = root.get("Version") instanceof AbstractNbtNumber version ? version.intValue() : -1;
-        // 未知格式交给上游读取，不能假定其坐标和方块实体布局。
+        int formatVersion = (root.get("Version") instanceof AbstractNbtNumber version ? version.intValue() : -1);
         if (formatVersion < 1 || formatVersion > LitematicaSchematic.SCHEMATIC_VERSION) {
             return new PreparationStats(0, 0, 0, 0, 0, 0, Map.of());
         }
-        boolean wrappedFormat = formatVersion == 1;
+        Preparation preparation = new Preparation(formatVersion, cancelled, hasRenderer, inferBlockEntityId, inventoryHidden);
         NbtCompound regions = readCompound(root, "Regions");
         for (String key : regions.getKeys()) {
             NbtCompound reg = readCompound(regions, key);
             NbtList teList = readCompoundList(reg, "TileEntities");
-            InventoryPalette inventoryPalette = null;
-            boolean paletteRead = false;
-            // 倒序删记录，保留其余记录的顺序；只修改预览临时 NBT。
+            InventoryPalette palette = teList.isEmpty() ? null : InventoryPalette.from(reg);
+            // 倒序删除仅用于已装入内存的小文件；流式入口逐条复用同一套核验规则。
             for (int i = teList.size() - 1; i >= 0; i--) {
-                throwIfCancelled(cancelled);
-                NbtCompound entry = readListCompound(teList, i);
-                NbtCompound te = wrappedFormat ? readCompound(entry, "TileNBT") : entry;
-                NbtCompound position = wrappedFormat ? entry : te;
-                blockEntities++;
-                String rawId = readString(te, "id");
-                String id = canonicalBlockEntityId(rawId);
-                boolean hasInventory = te.contains("Items") || te.contains("Inventory");
-                boolean needsBlockType = rawId.isEmpty() || id.equals("minecraft:bed")
-                        || isNonVisualInventory(id) || NON_RENDERED_DFU_CANDIDATES.contains(id)
-                        || DEFAULT_RENDERED_CONTAINER_IDS.contains(id);
-                if (needsBlockType && !paletteRead) {
-                    inventoryPalette = InventoryPalette.from(reg);
-                    paletteRead = true;
-                }
-                String blockId = needsBlockType && inventoryPalette != null ? inventoryPalette.idAt(position) : "";
-                if (rawId.isEmpty()) {
-                    if (hasInventory) missingInventoryIds++;
-                    id = blockId.isEmpty() ? "" : inferredTypes.computeIfAbsent(blockId, inferBlockEntityId);
-                    // 必须在删库存前写回真实类型，否则上游失去推断线索后会默认成活塞。
-                    if (!id.isEmpty()) {
-                        te.putString("id", id);
-                        restoredBlockEntityIds++;
-                    }
-                    if (hasInventory && isNonVisualInventory(id)) inferredInventoryIds++;
-                }
-                String actualType = blockId.isEmpty() ? "" : inferredTypes.computeIfAbsent(blockId, inferBlockEntityId);
-                boolean typeMatches = !id.isEmpty() && id.equals(actualType);
-                // 实际方块必须能确认类型；自定义渲染器可能显示库存，不能只信 NBT 中的原版 id。
-                if (typeMatches && isNonVisualInventory(id)
-                        && inventoryTrim.computeIfAbsent(blockId, inventoryHidden::test)) {
-                    if (te.contains("Items")) { te.remove("Items"); removedInventories++; }
-                    if (te.contains("Inventory")) { te.remove("Inventory"); removedInventories++; }
-                }
-                // 床在部分游戏版本已无方块实体；旧 minecraft:bed 仍可能需要 NBT 转换颜色。
-                boolean coloredBed = blockId.startsWith("minecraft:") && blockId.endsWith("_bed");
-                if (id.isEmpty() && coloredBed) id = "minecraft:bed";
-                String rendererBlockId = blockId;
-                // 蜂巢的朝向/蜜量在方块状态中；仅无渲染器且没有额外负载时跳过内部蜜蜂递归。
-                boolean withoutRenderer = NON_RENDERED_DFU_CANDIDATES.contains(id)
-                        && (!id.equals("minecraft:beehive") || hasOnlyKeysAndEmptyComponents(te, HIVE_NON_VISUAL_KEYS))
-                        && (typeMatches || (id.equals("minecraft:bed") && coloredBed)) && !rendererBlockId.isEmpty()
-                        && skipType.computeIfAbsent(rendererBlockId, type -> !hasRenderer.test(type));
-                // 原版空组件与缺省组件均为 EMPTY；非空组件、额外字段和自定义渲染器仍保留。
-                // 动态阶段仍由实际方块状态创建默认容器，包括颜色和双箱。
-                boolean defaultContainer = DEFAULT_RENDERED_CONTAINER_IDS.contains(id)
-                        && hasOnlyKeysAndEmptyComponents(te, BLOCK_ENTITY_IDENTITY_KEYS) && !blockId.isEmpty()
-                        && typeMatches && inventoryTrim.computeIfAbsent(blockId, inventoryHidden::test);
-                if (withoutRenderer || defaultContainer) {
-                    if (defaultContainer && !withoutRenderer) defaultContainerNbt++;
-                    teList.remove(i);
-                    skippedByType.merge(id, 1, Integer::sum);
-                }
+                if (preparation.remove(readListCompound(teList, i), palette)) teList.remove(i);
             }
         }
-        return new PreparationStats(blockEntities, removedInventories, missingInventoryIds,
-                inferredInventoryIds, restoredBlockEntityIds, defaultContainerNbt, Map.copyOf(skippedByType));
+        return preparation.stats();
+    }
+
+    private static final class Preparation {
+        private final boolean wrappedFormat;
+        private final AtomicBoolean cancelled;
+        private final Predicate<String> hasRenderer;
+        private final Function<String, String> inferBlockEntityId;
+        private final Predicate<String> inventoryHidden;
+        private int blockEntities, removedInventories, missingInventoryIds, inferredInventoryIds;
+        private int restoredBlockEntityIds, defaultContainerNbt;
+        private final Map<String, String> inferredTypes = new HashMap<>();
+        private final Map<String, Integer> skippedByType = new HashMap<>();
+        private final Map<String, Boolean> skipType = new HashMap<>();
+        private final Map<String, Boolean> inventoryTrim = new HashMap<>();
+
+        private Preparation(int formatVersion, AtomicBoolean cancelled, Predicate<String> hasRenderer,
+                            Function<String, String> inferBlockEntityId, Predicate<String> inventoryHidden) {
+            this.wrappedFormat = formatVersion == 1;
+            this.cancelled = cancelled;
+            this.hasRenderer = hasRenderer;
+            this.inferBlockEntityId = inferBlockEntityId;
+            this.inventoryHidden = inventoryHidden;
+        }
+
+        private boolean remove(NbtCompound entry, InventoryPalette inventoryPalette) {
+            throwIfCancelled(cancelled);
+            NbtCompound te = wrappedFormat ? readCompound(entry, "TileNBT") : entry;
+            NbtCompound position = wrappedFormat ? entry : te;
+            blockEntities++;
+            String rawId = readString(te, "id");
+            String id = canonicalBlockEntityId(rawId);
+            boolean hasInventory = te.contains("Items") || te.contains("Inventory");
+            boolean needsBlockType = rawId.isEmpty() || id.equals("minecraft:bed")
+                    || isNonVisualInventory(id) || NON_RENDERED_DFU_CANDIDATES.contains(id)
+                    || DEFAULT_RENDERED_CONTAINER_IDS.contains(id);
+            String blockId = needsBlockType && inventoryPalette != null ? inventoryPalette.idAt(position) : "";
+            if (rawId.isEmpty()) {
+                if (hasInventory) missingInventoryIds++;
+                id = blockId.isEmpty() ? "" : inferredTypes.computeIfAbsent(blockId, inferBlockEntityId);
+                // 必须在删库存前写回真实类型，否则上游失去推断线索后会默认成活塞。
+                if (!id.isEmpty()) {
+                    te.putString("id", id);
+                    restoredBlockEntityIds++;
+                }
+                if (hasInventory && isNonVisualInventory(id)) inferredInventoryIds++;
+            }
+            String actualType = blockId.isEmpty() ? "" : inferredTypes.computeIfAbsent(blockId, inferBlockEntityId);
+            boolean typeMatches = !id.isEmpty() && id.equals(actualType);
+            // 实际方块必须能确认类型；自定义渲染器可能显示库存，不能只信 NBT 中的原版 id。
+            if (typeMatches && isNonVisualInventory(id)
+                    && inventoryTrim.computeIfAbsent(blockId, inventoryHidden::test)) {
+                if (te.contains("Items")) { te.remove("Items"); removedInventories++; }
+                if (te.contains("Inventory")) { te.remove("Inventory"); removedInventories++; }
+            }
+            // 床在部分游戏版本已无方块实体；旧 minecraft:bed 仍可能需要 NBT 转换颜色。
+            boolean coloredBed = blockId.startsWith("minecraft:") && blockId.endsWith("_bed");
+            if (id.isEmpty() && coloredBed) id = "minecraft:bed";
+            String rendererBlockId = blockId;
+            // 蜂巢的朝向/蜜量在方块状态中；仅无渲染器且没有额外负载时跳过内部蜜蜂递归。
+            boolean withoutRenderer = NON_RENDERED_DFU_CANDIDATES.contains(id)
+                    && (!id.equals("minecraft:beehive") || hasOnlyKeysAndEmptyComponents(te, HIVE_NON_VISUAL_KEYS))
+                    && (typeMatches || (id.equals("minecraft:bed") && coloredBed)) && !rendererBlockId.isEmpty()
+                    && skipType.computeIfAbsent(rendererBlockId, type -> !hasRenderer.test(type));
+            // 原版空组件与缺省组件均为 EMPTY；非空组件、额外字段和自定义渲染器仍保留。
+            // 动态阶段仍由实际方块状态创建默认容器，包括颜色和双箱。
+            boolean defaultContainer = DEFAULT_RENDERED_CONTAINER_IDS.contains(id)
+                    && hasOnlyKeysAndEmptyComponents(te, BLOCK_ENTITY_IDENTITY_KEYS) && !blockId.isEmpty()
+                    && typeMatches && inventoryTrim.computeIfAbsent(blockId, inventoryHidden::test);
+            if (withoutRenderer || defaultContainer) {
+                if (defaultContainer && !withoutRenderer) defaultContainerNbt++;
+                skippedByType.merge(id, 1, Integer::sum);
+                return true;
+            }
+            return false;
+        }
+
+        private PreparationStats stats() {
+            return new PreparationStats(blockEntities, removedInventories, missingInventoryIds,
+                    inferredInventoryIds, restoredBlockEntityIds, defaultContainerNbt, Map.copyOf(skippedByType));
+        }
     }
 
     static boolean isNonVisualInventory(String id) {
@@ -241,6 +262,133 @@ final class QuickLitematicaPreviewSchematicFiles {
         }
     }
 
+    private static final long PREVIEW_NBT_BYTES = 256L * 1024L * 1024L;
+    record StreamingPreparation(NbtCompound root, PreparationStats stats) {}
+
+    @Nullable
+    static StreamingPreparation readStreamingPreviewNbt(Path source, AtomicBoolean cancelled, int defaultDataVersion,
+                                                        Predicate<String> hasRenderer,
+                                                        BiFunction<String, Integer, String> inferBlockEntityId,
+                                                        Predicate<String> inventoryHidden) throws IOException {
+        throwIfCancelled(cancelled);
+        long sourceSize = Files.size(source);
+        var sourceTime = Files.getLastModifiedTime(source);
+        NbtSizeTracker retained = NbtSizeTracker.of(QuickLitematicaPreviewVertexBudget.nbtByteLimit(PREVIEW_NBT_BYTES));
+        NbtCompound root;
+        // 调色板、尺寸、数据版本可能排在 TileEntities 后面，先独立读取这些信息。
+        try (DataInputStream input = previewInput(source, cancelled)) {
+            readRootHeader(input);
+            root = readStreamingMetadata(input, 0, retained, cancelled);
+        }
+        retained = NbtSizeTracker.of(QuickLitematicaPreviewVertexBudget.nbtByteLimit(PREVIEW_NBT_BYTES));
+        retained.add(root.getSizeInBytes());
+        int formatVersion = (root.get("Version") instanceof AbstractNbtNumber version ? version.intValue() : -1);
+        if (formatVersion < 1 || formatVersion > LitematicaSchematic.SCHEMATIC_VERSION) return null;
+        int sourceVersion = Math.max((root.get("MinecraftDataVersion") instanceof AbstractNbtNumber version ? version.intValue() : 0), defaultDataVersion);
+        Preparation preparation = new Preparation(formatVersion, cancelled, hasRenderer,
+                blockId -> inferBlockEntityId.apply(blockId, sourceVersion), inventoryHidden);
+        // 逐条核验后才保留记录；单条负载和最终保留的数据仍各受原内存预算约束。
+        try (DataInputStream input = previewInput(source, cancelled)) {
+            readRootHeader(input);
+            readStreamingEntries(input, root, 0, preparation, retained, cancelled);
+        }
+        if (sourceSize != Files.size(source) || !sourceTime.equals(Files.getLastModifiedTime(source))) {
+            throw new IOException("Schematic changed between streaming passes");
+        }
+        return new StreamingPreparation(root, preparation.stats());
+    }
+
+    private static DataInputStream previewInput(Path source, AtomicBoolean cancelled) throws IOException {
+        InputStream buffered = new BufferedInputStream(Files.newInputStream(source));
+        InputStream compressed;
+        try { compressed = new GZIPInputStream(buffered); }
+        catch (IOException | RuntimeException | Error failure) { buffered.close(); throw failure; }
+        return new DataInputStream(new FilterInputStream(compressed) {
+            @Override public int read() throws IOException {
+                throwIfCancelled(cancelled);
+                return in.read();
+            }
+            @Override public int read(byte[] bytes, int offset, int length) throws IOException {
+                throwIfCancelled(cancelled);
+                return in.read(bytes, offset, length);
+            }
+            @Override public long skip(long length) throws IOException {
+                throwIfCancelled(cancelled);
+                return in.skip(length);
+            }
+        });
+    }
+
+    private static void readRootHeader(DataInputStream input) throws IOException {
+        if (input.readUnsignedByte() != 10) throw new IOException("Schematic root is not a compound");
+        input.readUTF();
+    }
+
+    private static NbtCompound readStreamingMetadata(DataInputStream input, int level, NbtSizeTracker retained,
+                                                     AtomicBoolean cancelled) throws IOException {
+        NbtCompound result = new NbtCompound();
+        Set<String> seen = new HashSet<>();
+        retained.pushStack();
+        try {
+            retained.add(48);
+            int type;
+            while ((type = input.readUnsignedByte()) != 0) {
+                throwIfCancelled(cancelled);
+                String name = input.readUTF();
+                if (!seen.add(name)) throw new IOException("Duplicate schematic field: " + name);
+                retained.add(36L + 2L * name.length());
+                if (type == 10 && ((level == 0 && name.equals("Regions")) || level == 1)) {
+                    result.put(name, readStreamingMetadata(input, level + 1, retained, cancelled));
+                } else if (level == 2 && name.equals("TileEntities") && type == 9) {
+                    NbtTypes.byId(type).skip(input, retained);
+                } else {
+                    result.put(name, NbtTypes.byId(type).read(input, retained));
+                }
+            }
+            return result;
+        } finally {
+            retained.popStack();
+        }
+    }
+
+    private static void readStreamingEntries(DataInputStream input, NbtCompound target, int level,
+                                             Preparation preparation, NbtSizeTracker retained,
+                                             AtomicBoolean cancelled) throws IOException {
+        InventoryPalette palette = level == 2 ? InventoryPalette.from(target) : null;
+        retained.pushStack();
+        try {
+            int type;
+            while ((type = input.readUnsignedByte()) != 0) {
+                throwIfCancelled(cancelled);
+                String name = input.readUTF();
+                if (type == 10 && ((level == 0 && name.equals("Regions")) || level == 1)
+                        && target.get(name) instanceof NbtCompound child) {
+                    readStreamingEntries(input, child, level + 1, preparation, retained, cancelled);
+                } else if (level == 2 && name.equals("TileEntities") && type == 9) {
+                    int elementType = input.readUnsignedByte();
+                    int count = input.readInt();
+                    if (count < 0 || (elementType == 0 && count != 0)) throw new IOException("Invalid block entity list");
+                    NbtList entries = new NbtList();
+                    retained.add(36);
+                    for (int i = 0; i < count; i++) {
+                        throwIfCancelled(cancelled);
+                        NbtSizeTracker entryBudget = NbtSizeTracker.of(QuickLitematicaPreviewVertexBudget.nbtByteLimit(PREVIEW_NBT_BYTES));
+                        for (int depth = 0; depth <= retained.getDepth(); depth++) entryBudget.pushStack();
+                        NbtElement entry = NbtTypes.byId(elementType).read(input, entryBudget);
+                        if (entry instanceof NbtCompound compound && preparation.remove(compound, palette)) continue;
+                        retained.add(4L + entry.getSizeInBytes());
+                        entries.add(entry);
+                    }
+                    target.put(name, entries);
+                } else {
+                    NbtTypes.byId(type).skip(input, retained);
+                }
+            }
+        } finally {
+            retained.popStack();
+        }
+    }
+
     @Nullable
     static LitematicaSchematic readSchematic(
             Path path,
@@ -295,11 +443,18 @@ final class QuickLitematicaPreviewSchematicFiles {
             NbtCompound root;
             PreparationStats stats;
             try (var phase = QuickLitematicaPreviewLog.phase("原理图快速预处理")) {
-                try (InputStream is = Files.newInputStream(sourcePath);
-                     BufferedInputStream bis = new BufferedInputStream(is);
-                     GZIPInputStream gis = new GZIPInputStream(bis);
-                     DataInputStream dis = new DataInputStream(gis)) {
-                    root = NbtIo.readCompound(dis, NbtSizeTracker.of(256L * 1024L * 1024L));
+                StreamingPreparation streaming = null;
+                try (DataInputStream dis = previewInput(sourcePath, cancelled)) {
+                    root = NbtIo.readCompound(dis, NbtSizeTracker.of(PREVIEW_NBT_BYTES));
+                } catch (NbtSizeValidationException limit) {
+                    LOGGER.info("预处理完整 NBT 达到安全限制，尝试逐条读取：源={}，预算={} B，原因={}", sourcePath, PREVIEW_NBT_BYTES, limit.getMessage());
+                    streaming = readStreamingPreviewNbt(sourcePath, cancelled,
+                            fi.dy.masa.litematica.config.Configs.Generic.DATAFIXER_DEFAULT_SCHEMA.getIntegerValue(),
+                            QuickLitematicaPreview3D::hasPreviewRendererForBlockEntity,
+                            QuickLitematicaPreview3D::inferPreviewBlockEntityId,
+                            QuickLitematicaPreview3D::isPreviewInventoryHidden);
+                    if (streaming == null) return null;
+                    root = streaming.root();
                 }
                 throwIfCancelled(cancelled);
                 if (root == null || !root.contains("Regions")) return null;
@@ -311,7 +466,7 @@ final class QuickLitematicaPreviewSchematicFiles {
                         declaredSourceVersion, formatVersion);
                 int effectiveSourceVersion = Math.max(declaredSourceVersion,
                         fi.dy.masa.litematica.config.Configs.Generic.DATAFIXER_DEFAULT_SCHEMA.getIntegerValue());
-                stats = preparePreviewNbt(root, cancelled,
+                stats = streaming != null ? streaming.stats() : preparePreviewNbt(root, cancelled,
                         QuickLitematicaPreview3D::hasPreviewRendererForBlockEntity,
                         blockId -> QuickLitematicaPreview3D.inferPreviewBlockEntityId(blockId, effectiveSourceVersion),
                         QuickLitematicaPreview3D::isPreviewInventoryHidden);

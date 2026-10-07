@@ -86,7 +86,7 @@ abstract class QuickLitematicaPreviewDynamicBackend {
                     if (prepared != null) {
                         blockEntities.add(prepared);
                     }
-                } catch (Throwable ignored) {
+                } catch (RuntimeException ignored) {
                     QuickLitematicaPreviewLog.LOGGER.warn("原生预览局部失败：入口=prepareDynamicStates，继续原有跳过/回退", ignored);
                 }
             });
@@ -98,7 +98,7 @@ abstract class QuickLitematicaPreviewDynamicBackend {
                     renderState.lightCoords = renderedEntity.light();
                     renderState.distanceToCameraSq = 0.0D;
                     entities.add(new PreparedEntity(renderState, renderedEntity.x(), renderedEntity.y(), renderedEntity.z()));
-                } catch (Throwable ignored) {
+                } catch (RuntimeException ignored) {
                     QuickLitematicaPreviewLog.LOGGER.warn("原生预览局部失败：入口=prepareDynamicStates，继续原有跳过/回退", ignored);
                 }
             });
@@ -106,7 +106,7 @@ abstract class QuickLitematicaPreviewDynamicBackend {
             this.preparedDynamicScene = new PreparedDynamicScene(List.copyOf(blockEntities), List.copyOf(entities));
             QuickLitematicaPreviewLog.LOGGER.info("动态渲染状态准备完成：方块实体={}/{}，实体={}/{}", blockEntities.size(), data.blockEntities().size(), entities.size(), data.entities().size());
             data.closeDynamic();
-        } catch (Throwable ignored) {
+        } catch (RuntimeException ignored) {
             QuickLitematicaPreviewLog.LOGGER.warn("原生预览局部失败：入口=prepareDynamicStates，继续原有跳过/回退", ignored);
             this.preparedDynamicScene = null;
             this.dynamicStateFallback = true;
@@ -153,7 +153,7 @@ abstract class QuickLitematicaPreviewDynamicBackend {
             try {
                 matrices.translate(pos.getX(), pos.getY(), pos.getZ());
                 submitPreparedBlockEntity(prepared, matrices, submitNodes, cameraState);
-            } catch (Throwable ignored) {
+            } catch (RuntimeException ignored) {
                 QuickLitematicaPreviewLog.LOGGER.warn("原生预览局部失败：入口=drawPreparedDynamic，继续原有跳过/回退", ignored);
             } finally {
                 matrices.popPose();
@@ -174,7 +174,7 @@ abstract class QuickLitematicaPreviewDynamicBackend {
                         matrices,
                         submitNodes
                 );
-            } catch (Throwable ignored) {
+            } catch (RuntimeException ignored) {
                 QuickLitematicaPreviewLog.LOGGER.warn("原生预览局部失败：入口=drawPreparedDynamic，继续原有跳过/回退", ignored);
             }
         });
@@ -214,7 +214,7 @@ abstract class QuickLitematicaPreviewDynamicBackend {
             try {
                 matrices.translate(pos.getX(), pos.getY(), pos.getZ());
                 renderBlockEntity(client, entity, matrices, submitNodes, cameraState);
-            } catch (Throwable ignored) {
+            } catch (RuntimeException ignored) {
                 QuickLitematicaPreviewLog.LOGGER.warn("原生预览局部失败：入口=drawDynamic，继续原有跳过/回退", ignored);
             } finally {
                 matrices.popPose();
@@ -240,7 +240,7 @@ abstract class QuickLitematicaPreviewDynamicBackend {
                         matrices,
                         submitNodes
                 );
-            } catch (Throwable ignored) {
+            } catch (RuntimeException ignored) {
                 QuickLitematicaPreviewLog.LOGGER.warn("原生预览局部失败：入口=drawDynamic，继续原有跳过/回退", ignored);
             }
         });
@@ -290,7 +290,7 @@ abstract class QuickLitematicaPreviewDynamicBackend {
                 try {
                     matrices.translate(pos.getX(), pos.getY(), pos.getZ());
                     renderBlockEntity(client, entity, matrices, submitNodes, cameraState);
-                } catch (Throwable ignored) {
+                } catch (RuntimeException ignored) {
                     QuickLitematicaPreviewLog.LOGGER.warn("原生预览局部失败：入口=prepareDynamicFrame，继续原有跳过/回退", ignored);
                 } finally {
                     matrices.popPose();
@@ -311,7 +311,7 @@ abstract class QuickLitematicaPreviewDynamicBackend {
                             matrices,
                             submitNodes
                     );
-                } catch (Throwable ignored) {
+                } catch (RuntimeException ignored) {
                     QuickLitematicaPreviewLog.LOGGER.warn("原生预览局部失败：入口=prepareDynamicFrame，继续原有跳过/回退", ignored);
                 }
             });
@@ -344,7 +344,7 @@ abstract class QuickLitematicaPreviewDynamicBackend {
             long indexBytes = stagedAccessor.quickcraft$getCurrentIndexBuffer() == null
                     ? 0L
                     : stagedAccessor.quickcraft$getCurrentIndexBuffer().size();
-            if (vertexBytes + indexBytes > MAX_DYNAMIC_BUFFER_BYTES) {
+            if (!data.forceRender && vertexBytes + indexBytes > MAX_DYNAMIC_BUFFER_BYTES) {
                 throw new IllegalStateException("Dynamic preview buffer exceeds limit");
             }
 
@@ -354,7 +354,7 @@ abstract class QuickLitematicaPreviewDynamicBackend {
             this.dynamicDispatcher = dispatcher;
             this.dynamicFrame = frame;
             data.closeDynamic();
-        } catch (Throwable e) {
+        } catch (RuntimeException e) {
             this.dynamicBufferFallback = true;
             closeQuietly(frame);
             closeQuietly(dispatcher);

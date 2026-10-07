@@ -35,6 +35,7 @@
 		"LitematicaMinecraftClientShulkerRestockMixin",
 		"LitematicaInventoryUtilsShulkerRestockMixin",
 		"LitematicaPreviewDataFixerMixin",
+		"LitematicaPreviewConversionMixin",
 		"LitematicaSchematicLoadMixin",
 		"LitematicaSchematicVerifierMixin",
 		"LitematicaSchematicVerifierChunkMixin",

@@ -1,21 +1,55 @@
 package com.yiyihehe.quickcraft.litematica;
 
+import net.minecraft.nbt.NbtCompound;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Timeout;
 import org.junit.jupiter.api.io.TempDir;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Collections;
+import java.util.List;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.FutureTask;
 import java.util.concurrent.TimeUnit;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class QuickLitematicaPreview3DCacheTest {
     @TempDir
     Path temporaryDirectory;
+
+    @Test
+    void preservesOversizedDynamicCacheAndReadsItWhenForced() throws Exception {
+        Path cache = this.temporaryDirectory.resolve("forced.qcp3d");
+        int count = QuickLitematicaPreview3D.MAX_DYNAMIC_ENTITIES + 1;
+        var entity = new QuickLitematicaPreviewAccess.EntityData(0, 0, 0, new NbtCompound());
+        var mesh = new QuickLitematicaPreview3D.MeshData(List.of(), List.of(), List.of(),
+                Collections.nCopies(count, entity), 1, 1, 1);
+        QuickLitematicaPreviewCache.CacheFile.writeAtomically(
+                this.temporaryDirectory.resolve("forced.tmp"), cache, mesh, mesh.layers(),
+                new AtomicBoolean(), progress -> {});
+        byte[] original = Files.readAllBytes(cache);
+
+        assertThatThrownBy(() -> QuickLitematicaPreviewCache.CacheFile.read(cache, new AtomicBoolean()))
+                .isInstanceOf(QuickLitematicaPreview3D.PreviewTooLargeException.class);
+        assertThat(Files.readAllBytes(cache)).containsExactly(original);
+
+        AtomicReference<QuickLitematicaPreview3D.MeshData> restored = new AtomicReference<>();
+        QuickLitematicaPreviewVertexBudget.run(true, () -> {
+            var loaded = QuickLitematicaPreviewCache.CacheFile.read(cache, new AtomicBoolean());
+            assertThat(loaded).isNotNull();
+            assertThat(loaded.withinBudget()).isTrue();
+            restored.set(loaded);
+        });
+        assertThat(restored.get().forceRender).isTrue();
+        assertThat(restored.get().entities).hasSize(count);
+        assertThat(QuickLitematicaPreviewVertexBudget.isForced()).isFalse();
+    }
 
     @Test
     void hashesFileContentsInsteadOfFileMetadata() throws Exception {

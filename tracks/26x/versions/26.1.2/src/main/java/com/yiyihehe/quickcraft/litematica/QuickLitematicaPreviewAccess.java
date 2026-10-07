@@ -41,8 +41,6 @@ import org.joml.Matrix4fStack;
 import org.joml.Vector3f;
 import org.joml.Vector4f;
 import org.lwjgl.system.MemoryStack;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
@@ -60,7 +58,7 @@ import java.util.function.Consumer;
  * 使用 Blaze3D 早期直接 VBO 管线、RenderSystem.outputColorTextureOverride 与 DynamicMeshCollector。
  */
 public final class QuickLitematicaPreviewAccess {
-    private static final Logger LOGGER = LoggerFactory.getLogger(QuickLitematicaPreviewAccess.class);
+    private static final QuickLitematicaPreviewLog LOGGER = QuickLitematicaPreviewLog.LOGGER;
     private static final Vector3f ZERO_MODEL_OFFSET = new Vector3f();
     private static final int VERTEX_BYTES = 44;
     private static final long MAX_DYNAMIC_BUFFER_BYTES = 128L * 1024L * 1024L;
@@ -105,7 +103,11 @@ public final class QuickLitematicaPreviewAccess {
         protected void renderToTexture(QuickLitematicaPreview3D.PreviewGuiElement element, PoseStack matrices) {
             QuickLitematicaPreviewBackend backend = element.preview().backend();
             if (backend instanceof Backend2612 backend2612) {
-                backend2612.drawSpecial(element, matrices);
+                try {
+                    backend2612.drawSpecial(element, matrices);
+                } catch (RuntimeException | Error failure) {
+                    element.preview().failBuild(failure);
+                }
             }
         }
 
@@ -274,9 +276,11 @@ public final class QuickLitematicaPreviewAccess {
                     this.drawBuffers(dynamicModelView, false);
                     if (data != null && this.staticUploadComplete) {
                         if (this.dynamicPreparationArmed) {
+                            if (!this.dynamicBuffersReady && !this.dynamicBufferFallback && !this.dynamicBatchingDisabled
+                                && data.hasDynamicContent() && data.entities().isEmpty()) this.prepareDynamicBuffers(data);
                             if (this.dynamicBuffersReady) {
                                 this.drawDynamicBuffers(dynamicModelView);
-                            } else if (data.hasDynamicContent()) {
+                            } else if (data.hasDynamicContent() && (this.dynamicBatchingDisabled || this.dynamicBufferFallback || !data.entities().isEmpty())) {
                                 this.drawDynamic(data, dynamicModelView, element.size());
                                 this.prepareDynamicBuffers(data);
                             }
@@ -472,7 +476,7 @@ public final class QuickLitematicaPreviewAccess {
                 return;
             }
 
-            DynamicMeshCollector collector = new DynamicMeshCollector();
+            DynamicMeshCollector collector = new DynamicMeshCollector(data.forceRender);
             try {
                 Minecraft client = Minecraft.getInstance();
                 SubmitNodeStorage queue = new SubmitNodeStorage();
@@ -495,7 +499,7 @@ public final class QuickLitematicaPreviewAccess {
                             renderBlockEntity(client, entity, matrices, queue, cameraState);
                         } catch (DynamicBufferTooLargeException e) {
                             throw e;
-                        } catch (Throwable ignored) {
+                        } catch (RuntimeException ignored) {
                             LOGGER.warn("原生预览局部失败：入口=prepareDynamicBuffers，继续原有跳过/回退", ignored);
                         } finally {
                             matrices.popPose();
@@ -519,7 +523,7 @@ public final class QuickLitematicaPreviewAccess {
                             );
                         } catch (DynamicBufferTooLargeException e) {
                             throw e;
-                        } catch (Throwable ignored) {
+                        } catch (RuntimeException ignored) {
                             LOGGER.warn("原生预览局部失败：入口=prepareDynamicBuffers，继续原有跳过/回退", ignored);
                         }
                     });
@@ -536,7 +540,7 @@ public final class QuickLitematicaPreviewAccess {
                 this.dynamicBuffers = collector.upload();
                 this.dynamicBuffersReady = true;
                 data.closeDynamic();
-            } catch (Throwable ignored) {
+            } catch (RuntimeException ignored) {
                 LOGGER.warn("原生预览局部失败：入口=prepareDynamicBuffers，继续原有跳过/回退", ignored);
                 this.closeDynamicBuffers();
                 this.dynamicBufferFallback = true;
@@ -697,15 +701,17 @@ public final class QuickLitematicaPreviewAccess {
         private final ByteBufferBuilder fallbackAllocator;
         private final Map<RenderType, DynamicMeshBuilder> sharedBuilders = new LinkedHashMap<>();
         private final List<DynamicMeshBuilder> builders = new ArrayList<>();
+        private final boolean forceRender;
         private long allocatedBytes;
 
-        private DynamicMeshCollector() {
-            this(new ByteBufferBuilder(256));
+        private DynamicMeshCollector(boolean forceRender) {
+            this(new ByteBufferBuilder(256), forceRender);
         }
 
-        private DynamicMeshCollector(ByteBufferBuilder fallbackAllocator) {
+        private DynamicMeshCollector(ByteBufferBuilder fallbackAllocator, boolean forceRender) {
             super(fallbackAllocator, new LinkedHashMap<>());
             this.fallbackAllocator = fallbackAllocator;
+            this.forceRender = forceRender;
         }
 
         @Override
@@ -721,7 +727,7 @@ public final class QuickLitematicaPreviewAccess {
         }
 
         private DynamicMeshBuilder createBuilder(RenderType layer) {
-            if (this.builders.size() >= MAX_DYNAMIC_RENDER_LAYERS) {
+            if (!this.forceRender && this.builders.size() >= MAX_DYNAMIC_RENDER_LAYERS) {
                 throw new DynamicBufferTooLargeException();
             }
             int initialBytes = !layer.canConsolidateConsecutiveGeometry()
@@ -734,7 +740,7 @@ public final class QuickLitematicaPreviewAccess {
 
         private void reserve(int bytes) {
             this.allocatedBytes += bytes;
-            if (this.allocatedBytes > MAX_DYNAMIC_BUFFER_BYTES) {
+            if (!this.forceRender && this.allocatedBytes > MAX_DYNAMIC_BUFFER_BYTES) {
                 throw new DynamicBufferTooLargeException();
             }
         }

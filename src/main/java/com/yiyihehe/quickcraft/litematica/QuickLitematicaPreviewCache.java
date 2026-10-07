@@ -409,10 +409,15 @@ final class QuickLitematicaPreviewCache {
                     }
 
                     int blockStateCount = input.readInt();
-                    if (blockStateCount < 0 || blockStateCount > MAX_DYNAMIC_BLOCK_STATES) {
+                    if (blockStateCount < 0) {
                             LOGGER.warn("缓存读取失效：原因=cache_block_state_count_invalid：数量={}/{}，文件={}", blockStateCount, MAX_DYNAMIC_BLOCK_STATES, path);
                         deleteQuietly(path);
                         return null;
+                    }
+
+                    if (blockStateCount > QuickLitematicaPreviewVertexBudget.countLimit(MAX_DYNAMIC_BLOCK_STATES)) {
+                        LOGGER.info("缓存动态数量超过当前保护预算：数量={}，默认上限={}，保留缓存等待强制读取", blockStateCount, MAX_DYNAMIC_BLOCK_STATES);
+                        throw new PreviewTooLargeException();
                     }
 
                     List<BlockStateData> blockStates = new ArrayList<>(blockStateCount);
@@ -425,15 +430,20 @@ final class QuickLitematicaPreviewCache {
                                 input.readInt(),
                                 input.readInt(),
                                 input.readInt(),
-                                NbtIo.readCompound(input, NbtSizeTracker.of(NBT_READ_LIMIT_BYTES))
+                                NbtIo.readCompound(input, NbtSizeTracker.of(QuickLitematicaPreviewVertexBudget.nbtByteLimit(NBT_READ_LIMIT_BYTES)))
                         ));
                     }
 
                     int blockEntityCount = input.readInt();
-                    if (blockEntityCount < 0 || blockEntityCount > MAX_DYNAMIC_BLOCK_ENTITIES) {
+                    if (blockEntityCount < 0) {
                             LOGGER.warn("缓存读取失效：原因=cache_block_entity_count_invalid：数量={}/{}，文件={}", blockEntityCount, MAX_DYNAMIC_BLOCK_ENTITIES, path);
                         deleteQuietly(path);
                         return null;
+                    }
+
+                    if (blockEntityCount > QuickLitematicaPreviewVertexBudget.countLimit(MAX_DYNAMIC_BLOCK_ENTITIES)) {
+                        LOGGER.info("缓存动态数量超过当前保护预算：数量={}，默认上限={}，保留缓存等待强制读取", blockEntityCount, MAX_DYNAMIC_BLOCK_ENTITIES);
+                        throw new PreviewTooLargeException();
                     }
 
                     List<BlockEntityData> blockEntities = new ArrayList<>(blockEntityCount);
@@ -446,16 +456,21 @@ final class QuickLitematicaPreviewCache {
                                 input.readInt(),
                                 input.readInt(),
                                 input.readInt(),
-                                NbtIo.readCompound(input, NbtSizeTracker.of(NBT_READ_LIMIT_BYTES)),
-                                NbtIo.readCompound(input, NbtSizeTracker.of(NBT_READ_LIMIT_BYTES))
+                                NbtIo.readCompound(input, NbtSizeTracker.of(QuickLitematicaPreviewVertexBudget.nbtByteLimit(NBT_READ_LIMIT_BYTES))),
+                                NbtIo.readCompound(input, NbtSizeTracker.of(QuickLitematicaPreviewVertexBudget.nbtByteLimit(NBT_READ_LIMIT_BYTES)))
                         ));
                     }
 
                     int entityCount = input.readInt();
-                    if (entityCount < 0 || entityCount > MAX_DYNAMIC_ENTITIES) {
+                    if (entityCount < 0) {
                             LOGGER.warn("缓存读取失效：原因=cache_entity_count_invalid：数量={}/{}，文件={}", entityCount, MAX_DYNAMIC_ENTITIES, path);
                         deleteQuietly(path);
                         return null;
+                    }
+
+                    if (entityCount > QuickLitematicaPreviewVertexBudget.countLimit(MAX_DYNAMIC_ENTITIES)) {
+                        LOGGER.info("缓存动态数量超过当前保护预算：数量={}，默认上限={}，保留缓存等待强制读取", entityCount, MAX_DYNAMIC_ENTITIES);
+                        throw new PreviewTooLargeException();
                     }
 
                     List<EntityData> entities = new ArrayList<>(entityCount);
@@ -468,13 +483,16 @@ final class QuickLitematicaPreviewCache {
                                 input.readDouble(),
                                 input.readDouble(),
                                 input.readDouble(),
-                                NbtIo.readCompound(input, NbtSizeTracker.of(NBT_READ_LIMIT_BYTES))
+                                NbtIo.readCompound(input, NbtSizeTracker.of(QuickLitematicaPreviewVertexBudget.nbtByteLimit(NBT_READ_LIMIT_BYTES)))
                         ));
                     }
 
                     return new MeshData(List.copyOf(layers), blockStates, blockEntities, entities, sizeX, sizeY, sizeZ);
                 } catch (CancellationException | PreviewTooLargeException e) {
                     throw e;
+                } catch (net.minecraft.nbt.NbtSizeValidationException e) {
+                    LOGGER.info("缓存 NBT 超过当前分配预算，保留缓存等待强制读取：路径={}，原因={}", path, e.getMessage());
+                    throw new PreviewTooLargeException();
                 } catch (IOException | RuntimeException e) {
                     LOGGER.warn("网格缓存读取失败：原因=cache_decode_or_io_failed，路径={}，删除后重建", path, e);
                     deleteQuietly(path);
