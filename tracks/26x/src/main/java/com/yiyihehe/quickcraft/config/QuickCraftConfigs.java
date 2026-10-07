@@ -1,6 +1,7 @@
 package com.yiyihehe.quickcraft.config;
 
 import com.google.common.collect.ImmutableList;
+import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.yiyihehe.quickcraft.QuickCraft;
@@ -27,9 +28,11 @@ import net.fabricmc.loader.api.FabricLoader;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * QuickCraft 的 malilib 配置定义与持久化。
@@ -50,6 +53,7 @@ public final class QuickCraftConfigs implements IConfigHandler {
     private static final String IPN_MOD_ID = "inventoryprofilesnext";
     private static final Map<String, ButtonOffset> BUTTON_OFFSETS = new HashMap<>();
     private static boolean ipnButtonDefaultsApplied;
+    private static final Set<String> SHOWN_NOTICE_IDS = new HashSet<>();
 
     public static final int DEFAULT_CRAFT_LOOPS_PER_TICK = 20;
     public static final int MIN_CRAFT_LOOPS_PER_TICK = 1;
@@ -744,6 +748,9 @@ public final class QuickCraftConfigs implements IConfigHandler {
     }
 
     public static final class ModSupport {
+        public static final ConfigBoolean CHECK_UPDATE_NOTICES = new ConfigBoolean(
+                "checkUpdateNotices", true
+        ).apply(MOD_SUPPORT_TRANSLATION_PREFIX);
         public static final ConfigBooleanHotkeyed ENABLE_QUICK_SHULKER = new ConfigBooleanHotkeyed(
                 "enableQuickShulker",
                 true,
@@ -758,7 +765,8 @@ public final class QuickCraftConfigs implements IConfigHandler {
         ).apply(MOD_SUPPORT_TRANSLATION_PREFIX);
         public static final List<IConfigBase> OPTIONS = List.of(
                 ENABLE_QUICK_SHULKER,
-                QUICK_SHULKER_ACTION_INTERVAL_TICKS
+                QUICK_SHULKER_ACTION_INTERVAL_TICKS,
+                CHECK_UPDATE_NOTICES
         );
 
         private ModSupport() {
@@ -1494,6 +1502,7 @@ public final class QuickCraftConfigs implements IConfigHandler {
     public static void loadFromFile() {
         BUTTON_OFFSETS.clear();
         ipnButtonDefaultsApplied = false;
+        SHOWN_NOTICE_IDS.clear();
         Path configFile = FileUtils.getConfigDirectory().resolve(CONFIG_FILE_NAME);
 
         if (!Files.exists(configFile) || !Files.isReadable(configFile)) {
@@ -1506,6 +1515,14 @@ public final class QuickCraftConfigs implements IConfigHandler {
         }
 
         JsonObject root = element.getAsJsonObject();
+        JsonElement shownNotices = root.get("ShownNoticeIds");
+        if (shownNotices != null && shownNotices.isJsonArray()) {
+            for (JsonElement id : shownNotices.getAsJsonArray()) {
+                if (id.isJsonPrimitive() && id.getAsJsonPrimitive().isString()) {
+                    SHOWN_NOTICE_IDS.add(id.getAsString());
+                }
+            }
+        }
         ConfigUtils.readConfigBase(root, "Crafting", Crafting.OPTIONS);
         ConfigUtils.readConfigBase(root, "ContainerTools", ContainerTools.OPTIONS);
         ConfigUtils.readConfigBase(root, "ProjectionTools", ProjectionTools.OPTIONS);
@@ -1587,6 +1604,9 @@ public final class QuickCraftConfigs implements IConfigHandler {
         }
 
         JsonObject root = new JsonObject();
+        JsonArray shownNotices = new JsonArray();
+        SHOWN_NOTICE_IDS.stream().sorted().forEach(shownNotices::add);
+        root.add("ShownNoticeIds", shownNotices);
         ConfigUtils.writeConfigBase(root, "Crafting", Crafting.OPTIONS);
         ConfigUtils.writeConfigBase(root, "ContainerTools", ContainerTools.OPTIONS);
         ConfigUtils.writeConfigBase(root, "ProjectionTools", ProjectionTools.OPTIONS);
@@ -1595,6 +1615,16 @@ public final class QuickCraftConfigs implements IConfigHandler {
         writeButtonPositions(root);
         writeMigrations(root);
         JsonUtils.writeJsonToFile(root, dir.resolve(CONFIG_FILE_NAME));
+    }
+
+    public static boolean hasSeenNotice(String id) {
+        return SHOWN_NOTICE_IDS.contains(id);
+    }
+
+    public static void markNoticeSeen(String id) {
+        if (SHOWN_NOTICE_IDS.add(id)) {
+            saveToFile();
+        }
     }
 
     private static void readMigrations(JsonObject root) {

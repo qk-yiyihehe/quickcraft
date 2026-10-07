@@ -1,4 +1,10 @@
 {
+  "quickcraft.config.mod_support.prettyName.checkUpdateNotices": "Check Updates and Announcements",
+  "quickcraft.config.mod_support.name.checkUpdateNotices": "Check Updates and Announcements",
+  "quickcraft.config.mod_support.comment.checkUpdateNotices": "Check Modrinth once per launch for short notices enabled by the author. Display each notice once in local chat after joining a world. Disable to prevent checks; network failures are silently skipped.",
+  "quickcraft.message.update_notice.update": "Version %s available: ",
+  "quickcraft.message.update_notice.announcement": "Announcement: ",
+  "quickcraft.message.update_notice.open": "[View on Modrinth]",
   "key.categories.quickcraft": "QuickCraft",
   "screen.quickcraft.title": "QuickCraft Config §cHint: click [+] to expand more settings",
   "screen.quickcraft.tab.crafting": "Crafting Assistant",
