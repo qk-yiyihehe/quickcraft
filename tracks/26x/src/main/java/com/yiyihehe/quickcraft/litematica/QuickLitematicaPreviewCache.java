@@ -63,17 +63,23 @@ final class QuickLitematicaPreviewCache {
     static CompletableFuture<Void> writeAsync(Path cachePath, Runnable write) {
         CompletableFuture<Void> completion = new CompletableFuture<>();
         CACHE_WRITES.put(cachePath, completion);
-        CACHE_EXECUTOR.execute(() -> {
-            try {
-                write.run();
-                completion.complete(null);
-            } catch (Throwable e) {
-                LOGGER.error("Failed to save 3D preview cache {}", cachePath, e);
-                completion.completeExceptionally(e);
-            } finally {
-                CACHE_WRITES.remove(cachePath, completion);
-            }
-        });
+        try {
+            CACHE_EXECUTOR.execute(() -> {
+                try {
+                    write.run();
+                    completion.complete(null);
+                } catch (Throwable e) {
+                    LOGGER.error("Failed to save 3D preview cache {}", cachePath, e);
+                    completion.completeExceptionally(e);
+                } finally {
+                    CACHE_WRITES.remove(cachePath, completion);
+                }
+            });
+        } catch (RuntimeException | Error failure) {
+            CACHE_WRITES.remove(cachePath, completion);
+            completion.completeExceptionally(failure);
+            throw failure;
+        }
         return completion;
     }
 
@@ -94,6 +100,25 @@ final class QuickLitematicaPreviewCache {
             throw new CancellationException();
         } catch (ExecutionException ignored) {
             // 写入失败已记录，读取流程继续检查磁盘并按需重建。
+        }
+    }
+
+    static String currentCacheSignature() {
+        return cacheSignature(currentResourcePackSignature() + ":" + QuickLitematicaPreviewResources.signature(),
+                fi.dy.masa.litematica.config.Configs.Generic.DATAFIXER_MODE.getOptionListValue().getStringValue(),
+                fi.dy.masa.litematica.config.Configs.Generic.DATAFIXER_DEFAULT_SCHEMA.getIntegerValue());
+    }
+
+    static String cacheSignature(String resourcePackSignature, String dataFixerMode, int defaultDataVersion) {
+        try {
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            updateDigest(digest, resourcePackSignature);
+            // 同一投影仍保留一个缓存槽；DFU 设置变化使其中的转换文件和网格失效。
+            updateDigest(digest, dataFixerMode);
+            updateDigest(digest, Integer.toString(defaultDataVersion));
+            return HexFormat.of().formatHex(digest.digest());
+        } catch (NoSuchAlgorithmException e) {
+            throw new IllegalStateException("SHA-256 is unavailable", e);
         }
     }
 
@@ -287,7 +312,7 @@ final class QuickLitematicaPreviewCache {
 
     static String currentCacheVersionToken() {
         // 格式、渲染和预处理语义共同决定失效；发行版本号不影响缓存复用。
-        return CACHE_FORMAT_VERSION + "|" + CACHE_RENDER_MARKER + "|nbt-verified-inventory-v5"
+        return CACHE_FORMAT_VERSION + "|" + CACHE_RENDER_MARKER + "|nbt-verified-inventory-v7-beacon-transparent"
                 + "|ctm:" + QuickLitematicaPreview3D.ctmRuntimeToken();
     }
 
@@ -353,6 +378,10 @@ final class QuickLitematicaPreviewCache {
     static final class CacheFile {
         @Nullable
         static MeshData read(Path path, AtomicBoolean cancelled) {
+            return read(path, cancelled, null);
+        }
+
+        static MeshData read(Path path, AtomicBoolean cancelled, @Nullable QuickLitematicaPreviewMeshStore meshStore) {
             try (var phase = QuickLitematicaPreviewLog.phase("网格缓存解压/解码")) {
                 if (!Files.isRegularFile(path)) {
                     LOGGER.info("网格缓存未命中：原因=cache_file_missing，路径={}", path);
@@ -419,7 +448,9 @@ final class QuickLitematicaPreviewCache {
                                     : Math.min(remainingVertices, STATIC_BATCH_TARGET_VERTICES);
                             byte[] quantizedVertices = new byte[batchVertices * QUANTIZED_VERTEX_BYTES];
                             readFullyCancellable(input, quantizedVertices, cancelled);
-                            layers.add(new LayerMesh(layer, quantizedVertices));
+                            List<LayerMesh> batch = QuickLitematicaPreviewMeshBatches.split(new LayerMesh(layer, quantizedVertices), cancelled);
+                            if (meshStore == null) layers.addAll(batch);
+                            else meshStore.addBatch(layers, batch, totalVertices * QUANTIZED_VERTEX_BYTES, cancelled);
                             remainingVertices -= batchVertices;
                         }
                     }
@@ -559,7 +590,7 @@ final class QuickLitematicaPreviewCache {
 
                     long totalStaticBytes = 0L;
                     for (LayerMesh layer : layers) {
-                        totalStaticBytes += layer.quantizedVertices().length;
+                        totalStaticBytes += layer.quantizedByteCount();
                     }
 
                     long staticBytesWritten = 0L;

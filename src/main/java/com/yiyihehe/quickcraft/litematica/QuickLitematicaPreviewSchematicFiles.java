@@ -275,6 +275,11 @@ final class QuickLitematicaPreviewSchematicFiles {
         }
     }
 
+    static int sourceDataVersion(NbtCompound root, int defaultDataVersion) {
+        // 上游仅在缺少有效版本字段时使用缺省值；明确声明的旧版本仍需按旧格式解释。
+        return root.get("MinecraftDataVersion") instanceof AbstractNbtNumber version ? version.intValue() : defaultDataVersion;
+    }
+
     record StreamingPreparation(NbtCompound root, PreparationStats stats) {}
 
     @Nullable
@@ -296,7 +301,7 @@ final class QuickLitematicaPreviewSchematicFiles {
         retained.add(root.getSizeInBytes());
         int formatVersion = (root.get("Version") instanceof AbstractNbtNumber version ? version.intValue() : -1);
         if (formatVersion < 1 || formatVersion > LitematicaSchematic.SCHEMATIC_VERSION) return null;
-        int sourceVersion = Math.max((root.get("MinecraftDataVersion") instanceof AbstractNbtNumber version ? version.intValue() : 0), defaultDataVersion);
+        int sourceVersion = sourceDataVersion(root, defaultDataVersion);
         Preparation preparation = new Preparation(formatVersion, cancelled, hasRenderer,
                 blockId -> inferBlockEntityId.apply(blockId, sourceVersion), inventoryHidden);
         // 逐条核验后才保留记录；单条负载和最终保留的数据仍各受原内存预算约束。
@@ -486,7 +491,7 @@ final class QuickLitematicaPreviewSchematicFiles {
                 int declaredSourceVersion = root.get("MinecraftDataVersion") instanceof AbstractNbtNumber version ? version.intValue() : 0;
                 LOGGER.info("预处理 NBT 读取完成：源={}，数据版本={}，文件格式版本={}", sourcePath,
                         declaredSourceVersion, formatVersion);
-                int effectiveSourceVersion = Math.max(declaredSourceVersion,
+                int effectiveSourceVersion = sourceDataVersion(root,
                         fi.dy.masa.litematica.config.Configs.Generic.DATAFIXER_DEFAULT_SCHEMA.getIntegerValue());
                 stats = streaming != null ? streaming.stats() : preparePreviewNbt(root, cancelled,
                         QuickLitematicaPreview3D::hasPreviewRendererForBlockEntity,

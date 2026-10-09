@@ -132,6 +132,11 @@ final class QuickLitematicaPreviewAccess {
         GpuBuffer previewLightingBuffer;
 
         final Map<LayerKey, List<LayerBuffer>> layerBuffers = new EnumMap<>(LayerKey.class);
+        private final QuickLitematicaPreviewTransparentOrder transparentOrder = new QuickLitematicaPreviewTransparentOrder();
+        private final QuickLitematicaPreviewQuadDepth sortDepth = new QuickLitematicaPreviewQuadDepth();
+        private int[] sortOrder = new int[0], sortKeys = new int[0];
+        @Nullable
+        private BufferAllocator transparentIndexAllocator;
 
         final List<DynamicLayerBuffer> dynamicBuffers = new ArrayList<>();
         private QuickLitematicaPreviewDynamicBatch<RenderLayer> dynamicBuild;
@@ -153,10 +158,13 @@ final class QuickLitematicaPreviewAccess {
         }
 
         @Nullable
-        static LayerBuffer uploadLayer(LayerMesh layerMesh) {
+        LayerBuffer uploadLayer(LayerMesh layerMesh) {
             int vertexCount = layerMesh.vertexCount();
             int allocatorSize = allocatorSize(vertexCount);
             BufferAllocator allocator = new BufferAllocator(allocatorSize);
+            GpuBuffer vertexBuffer = null;
+            GpuBuffer indexBuffer = null;
+            boolean customIndexBuffer = false;
             try {
                 RenderLayer renderLayer = layerMesh.layer().renderLayer();
                 BufferBuilder builder = new BufferBuilder(allocator, renderLayer.getDrawMode(), renderLayer.getVertexFormat());
@@ -168,18 +176,22 @@ final class QuickLitematicaPreviewAccess {
                 }
 
                 try {
-                    if (layerMesh.layer().isTranslucent()) {
-                        built.sortQuads(allocator, VertexSorter.byDistance(0.0F, 0.0F, 1000.0F));
+                    net.minecraft.client.render.BuiltBuffer.SortState translucentSort = null;
+                    if (layerMesh.needsTranslucentSorting()) {
+                        translucentSort = built.sortQuads(allocator, points -> QuickLitematicaPreviewIndices.initialOrder(points.length));
                     }
 
+                    if (translucentSort != null && this.uploadTransparentBatch(built, translucentSort, vertexCount)) return null;
+
                     var drawParameters = built.getDrawParameters();
-                    GpuBuffer vertexBuffer = RenderSystem.getDevice().createBuffer(
+                    vertexBuffer = RenderSystem.getDevice().createBuffer(
                             () -> "QuickCraft preview vertices",
-                            GpuBuffer.USAGE_VERTEX | GpuBuffer.USAGE_COPY_DST,
+                            GpuBuffer.USAGE_VERTEX | GpuBuffer.USAGE_COPY_DST
+                                    | (layerMesh.needsTranslucentSorting() ? GpuBuffer.USAGE_COPY_SRC : 0),
                             built.getBuffer()
                     );
-                    boolean customIndexBuffer = built.getSortedBuffer() != null;
-                    GpuBuffer indexBuffer = customIndexBuffer
+                    customIndexBuffer = built.getSortedBuffer() != null;
+                    indexBuffer = customIndexBuffer
                             ? RenderSystem.getDevice().createBuffer(
                                     () -> "QuickCraft preview indices",
                                     GpuBuffer.USAGE_INDEX | GpuBuffer.USAGE_COPY_DST,
@@ -189,10 +201,16 @@ final class QuickLitematicaPreviewAccess {
                     var indexType = customIndexBuffer
                             ? drawParameters.indexType()
                             : RenderSystem.getSequentialBuffer(drawParameters.mode()).getIndexType();
-                    return new LayerBuffer(vertexBuffer, indexBuffer, drawParameters.indexCount(), indexType, customIndexBuffer);
+                    return new LayerBuffer(vertexBuffer, indexBuffer, drawParameters.indexCount(), indexType, customIndexBuffer,
+                            translucentSort, translucentSort == null ? null : new QuickLitematicaPreviewQuadDepth());
                 } finally {
                     built.close();
                 }
+            } catch (RuntimeException | Error failure) {
+                // 索引创建失败时顶点缓冲已分配；共享顺序索引不归预览所有。
+                if (customIndexBuffer && indexBuffer != null) indexBuffer.close();
+                if (vertexBuffer != null) vertexBuffer.close();
+                throw failure;
             } finally {
                 allocator.close();
             }
@@ -317,11 +335,38 @@ final class QuickLitematicaPreviewAccess {
             RenderSystem.setShaderLights(this.previewLightingBuffer.slice());
         }
 
-        static void drawLayerBuffer(
-                RenderLayer renderLayer,
-                LayerBuffer buffer,
-                Framebuffer framebuffer
-        ) {
+        private void resort(LayerBuffer buffer, Matrix4f modelView) {
+            if (buffer.translucentSort() == null || !buffer.depth().update(modelView)) return;
+            this.sortDepth.update(modelView);
+            var points = buffer.translucentSort().centroids();
+            if (this.sortOrder.length != points.length) {
+                this.sortOrder = new int[points.length];
+                this.sortKeys = new int[points.length];
+            }
+            if (this.transparentIndexAllocator == null) this.transparentIndexAllocator = new BufferAllocator(256);
+            try (var phase = QuickLitematicaPreviewLog.phase("静态透明层按视角重排")) {
+                int[] order;
+                try (var sorting = QuickLitematicaPreviewLog.phase("透明面中心排序")) {
+                    order = this.sortDepth.sort(points, this.sortOrder, this.sortKeys);
+                }
+                BufferAllocator.CloseableBuffer indices;
+                try (var generation = QuickLitematicaPreviewLog.phase("透明三角形索引生成")) {
+                    indices = QuickLitematicaPreviewIndices.build(this.transparentIndexAllocator, order, buffer.indexType().size);
+                }
+                try (indices; var upload = QuickLitematicaPreviewLog.phase("透明索引上传")) {
+                    if (buffer.indexBuffers() != null) buffer.indexBuffers().advance();
+                    RenderSystem.getDevice().createCommandEncoder().writeToBuffer(buffer.indexBuffer().slice(), indices.getBuffer());
+                }
+            } finally {
+                this.transparentIndexAllocator.clear();
+            }
+        }
+
+        static void drawLayerBuffer(RenderLayer renderLayer, LayerBuffer buffer, Framebuffer framebuffer) {
+            drawLayerBuffer(renderLayer, buffer, framebuffer, 0, buffer.indexCount());
+        }
+
+        static void drawLayerBuffer(RenderLayer renderLayer, LayerBuffer buffer, Framebuffer framebuffer, int firstIndex, int indexCount) {
             renderLayer.startDrawing();
             try {
                 RenderLayerMultiPhaseAccessor layerAccessor = (RenderLayerMultiPhaseAccessor) (Object) renderLayer;
@@ -368,7 +413,7 @@ final class QuickLitematicaPreviewAccess {
                         }
                     }
                     pass.setIndexBuffer(indexBuffer, indexType);
-                    pass.drawIndexed(0, 0, buffer.indexCount(), 1);
+                    pass.drawIndexed(0, firstIndex, indexCount, 1);
                 }
             } finally {
                 renderLayer.endDrawing();
@@ -477,7 +522,15 @@ final class QuickLitematicaPreviewAccess {
                 if (buffers == null || buffers.isEmpty()) {
                     continue;
                 }
+                if (layer.isTranslucent() && buffers.size() > 1) {
+                    for (var run : this.transparentOrder.runs(RenderSystem.getModelViewMatrix())) {
+                        this.resort(buffers.get(run.buffer()), RenderSystem.getModelViewMatrix());
+                        drawLayerBuffer(layer.renderLayer(), buffers.get(run.buffer()), framebuffer, run.firstIndex(), run.indexCount());
+                    }
+                    continue;
+                }
                 for (LayerBuffer buffer : buffers) {
+                    this.resort(buffer, RenderSystem.getModelViewMatrix());
                     drawLayerBuffer(layer.renderLayer(), buffer, framebuffer);
                 }
             }
@@ -614,6 +667,14 @@ final class QuickLitematicaPreviewAccess {
         void closeBuffers() {
             this.layerBuffers.values().forEach(buffers -> buffers.forEach(LayerBuffer::close));
             this.layerBuffers.clear();
+            this.transparentUpload = null;
+            this.transparentOrder.clear();
+            this.sortOrder = new int[0];
+            this.sortKeys = new int[0];
+            if (this.transparentIndexAllocator != null) {
+                this.transparentIndexAllocator.close();
+                this.transparentIndexAllocator = null;
+            }
             this.staticUploadComplete = false;
             this.dynamicPreparationArmed = false;
             this.closeDynamicBuffers();
@@ -644,9 +705,107 @@ final class QuickLitematicaPreviewAccess {
             try {
                 if (this.cancelled.get()) { uploaded.close(); return; }
                 this.layerBuffers.computeIfAbsent(mesh.layer(), ignored -> new ArrayList<>()).add(uploaded);
+                if (mesh.layer().isTranslucent()) this.transparentOrder.add(uploaded.translucentSort().centroids());
             } catch (Throwable failure) {
                 uploaded.close();
                 throw failure;
+            }
+        }
+
+        private QuickLitematicaPreviewTransparentMerge.Stream transparentUpload;
+
+        private boolean uploadTransparentBatch(BuiltBuffer built, net.minecraft.client.render.BuiltBuffer.SortState batchSort, int vertexCount) {
+            var data = built.getBuffer();
+            var plan = this.transparentUpload;
+            if (plan == null) plan = QuickLitematicaPreviewTransparentMerge.stream(this.meshData.layers(), data.remaining() / vertexCount);
+            if (plan == null) return false;
+            int batchBytes = data.remaining();
+            plan.checkBatch(vertexCount, batchBytes);
+            if (this.transparentUpload == null) {
+                GpuBuffer vertices = null, indices = null;
+                boolean published = false;
+                try {
+                    var centers = new org.joml.Vector3f[plan.vertices / 4];
+                    var sort = new net.minecraft.client.render.BuiltBuffer.SortState(centers, VertexFormat.IndexType.INT);
+                    vertices = RenderSystem.getDevice().createBuffer(() -> "QuickCraft transparent arena vertices",
+                            GpuBuffer.USAGE_VERTEX | GpuBuffer.USAGE_COPY_DST, plan.vertexBytes);
+                    indices = RenderSystem.getDevice().createBuffer(() -> "QuickCraft transparent arena indices",
+                            GpuBuffer.USAGE_INDEX | GpuBuffer.USAGE_COPY_DST, Math.multiplyExact(plan.indexCount, 4));
+                    var rotation = QuickLitematicaPreviewTransparentMerge.canRotateIndices(plan.vertexBytes, plan.indexCount)
+                            ? new QuickLitematicaPreviewIndexBuffers(indices) : null;
+                    var combined = new LayerBuffer(vertices, indices, plan.indexCount, VertexFormat.IndexType.INT, true, sort,
+                            new QuickLitematicaPreviewQuadDepth(), rotation);
+                    this.layerBuffers.put(LayerKey.TRANSLUCENT, List.of(combined));
+                    this.transparentUpload = plan;
+                    published = true;
+                } finally {
+                    if (!published) {
+                        if (indices != null) indices.close();
+                        if (vertices != null) vertices.close();
+                    }
+                }
+            }
+            var buffer = this.layerBuffers.get(LayerKey.TRANSLUCENT).getFirst();
+            RenderSystem.getDevice().createCommandEncoder().writeToBuffer(buffer.vertexBuffer().slice(plan.byteOffset(), data.remaining()), data);
+            var source = batchSort.centroids();
+            var target = buffer.translucentSort().centroids();
+            System.arraycopy(source, 0, target, plan.quadOffset(), source.length);
+            plan.advance(vertexCount, batchBytes);
+            return true;
+        }
+
+        void mergeTransparentBuffers() {
+            if (this.transparentUpload != null) this.transparentUpload.requireComplete();
+            List<LayerBuffer> buffers = this.layerBuffers.get(LayerKey.TRANSLUCENT);
+            if (buffers == null || buffers.size() < 2) return;
+            long vertexBytes = 0, quads = 0;
+            for (var buffer : buffers) {
+                if (buffer.translucentSort() == null) return;
+                vertexBytes += buffer.vertexBuffer().size();
+                quads += buffer.translucentSort().centroids().length;
+            }
+            int indexCount = QuickLitematicaPreviewTransparentMerge.indexCountWithinBudget(vertexBytes, quads);
+            if (indexCount == 0) {
+                LOGGER.info("透明合并保留分批：批次={}，顶点字节={}，四边形={}，新增 GPU 预算=256 MiB", buffers.size(), vertexBytes, quads);
+                return;
+            }
+            GpuBuffer vertices = null, indices = null;
+            boolean published = false;
+            try (var phase = QuickLitematicaPreviewLog.phase("透明 GPU 批次合并")) {
+                var centers = QuickLitematicaPreviewTransparentMerge.centers(
+                        buffers.stream().map(buffer -> buffer.translucentSort().centroids()).toList());
+                var sort = new net.minecraft.client.render.BuiltBuffer.SortState(centers, VertexFormat.IndexType.INT);
+                vertices = RenderSystem.getDevice().createBuffer(() -> "QuickCraft merged transparent vertices",
+                        GpuBuffer.USAGE_VERTEX | GpuBuffer.USAGE_COPY_DST, Math.toIntExact(vertexBytes));
+                indices = RenderSystem.getDevice().createBuffer(() -> "QuickCraft merged transparent indices",
+                        GpuBuffer.USAGE_INDEX | GpuBuffer.USAGE_COPY_DST, Math.multiplyExact(indexCount, 4));
+                var encoder = RenderSystem.getDevice().createCommandEncoder();
+                long offset = 0;
+                for (var buffer : buffers) {
+                    long bytes = buffer.vertexBuffer().size();
+                    encoder.copyToBuffer(buffer.vertexBuffer().slice(), vertices.slice(Math.toIntExact(offset), Math.toIntExact(bytes)));
+                    offset += bytes;
+                }
+                // 索引尚未填充，首次 draw 的 resort 必须运行；中心顺序与拼接后的顶点顺序相同。
+                var indexBuffers = QuickLitematicaPreviewTransparentMerge.canRotateIndices(vertexBytes, indexCount)
+                        ? new QuickLitematicaPreviewIndexBuffers(indices) : null;
+                var combined = new LayerBuffer(vertices, indices, indexCount, VertexFormat.IndexType.INT, true, sort,
+                        new QuickLitematicaPreviewQuadDepth(), indexBuffers);
+                this.layerBuffers.put(LayerKey.TRANSLUCENT, List.of(combined));
+                this.transparentOrder.clear();
+                published = true;
+                LOGGER.info("transparent-merge-v1：透明 GPU 批次 {} -> 1，顶点字节={}，索引字节={}，旋转使用单次绘制",
+                        buffers.size(), vertexBytes, Math.multiplyExact(indexCount, 4));
+                LOGGER.info("transparent-stream-v1：索引缓冲槽数={}，索引暂存与排序工作数组按预览复用，含轮换索引的新增 GPU 总预算=256 MiB",
+                        indexBuffers == null ? 1 : 3);
+            } catch (RuntimeException | OutOfMemoryError failure) {
+                LOGGER.warn("透明 GPU 合并失败，保留原分批渲染", failure);
+            } finally {
+                if (published) buffers.forEach(LayerBuffer::close);
+                else {
+                    if (vertices != null) vertices.close();
+                    if (indices != null) indices.close();
+                }
             }
         }
 
@@ -744,6 +903,7 @@ final class QuickLitematicaPreviewAccess {
     }
 
     static final class PreviewGuiElementRenderer extends SpecialGuiElementRenderer<PreviewGuiElement> {
+        private final QuickLitematicaPreviewLoadingTexture loadingTexture = new QuickLitematicaPreviewLoadingTexture();
         PreviewGuiElementRenderer(VertexConsumerProvider.Immediate vertexConsumers) {
             super(vertexConsumers);
         }
@@ -753,9 +913,32 @@ final class QuickLitematicaPreviewAccess {
             return PreviewGuiElement.class;
         }
 
+        private static QuickLitematicaPreviewLoadingTexture.View loadingView(PreviewGuiElement element) {
+            return new QuickLitematicaPreviewLoadingTexture.View(element.preview(), element.x1(), element.y1(), element.size(),
+                    element.dragX(), element.dragY(), element.angle(), element.pitch(), element.dragScale());
+        }
+
+        @Override
+        protected boolean shouldBypassScaling(PreviewGuiElement element) {
+            boolean reuse = this.loadingTexture.canReuse(loadingView(element),
+                    !element.preview().staticUploadComplete && !element.preview().cancelled.get(), System.nanoTime());
+            if (reuse) element.preview().trace.milestone("加载期首次复用预览贴图，静态上传继续，视角改变或上传完成立即重画");
+            return reuse;
+        }
+
+        @Override public void close() {
+            this.loadingTexture.clear();
+            super.close();
+        }
+
         @Override
         protected void render(PreviewGuiElement element, MatrixStack matrices) {
-            element.preview().drawSpecial(element);
+            try {
+                element.preview().drawSpecial(element);
+                this.loadingTexture.rendered(loadingView(element));
+            } catch (RuntimeException | Error failure) {
+                element.preview().failBuild(failure);
+            }
         }
 
         @Override
@@ -943,10 +1126,27 @@ final class QuickLitematicaPreviewAccess {
     }
 
     record LayerBuffer(GpuBuffer vertexBuffer, GpuBuffer indexBuffer, int indexCount,
-                               VertexFormat.IndexType indexType,
-                               boolean ownsIndexBuffer) implements AutoCloseable {
+                               VertexFormat.IndexType indexType, boolean ownsIndexBuffer,
+                               net.minecraft.client.render.BuiltBuffer.SortState translucentSort,
+                               QuickLitematicaPreviewQuadDepth depth, @Nullable QuickLitematicaPreviewIndexBuffers indexBuffers) implements AutoCloseable {
+        LayerBuffer(GpuBuffer vertexBuffer, GpuBuffer indexBuffer, int indexCount, VertexFormat.IndexType indexType, boolean ownsIndexBuffer,
+                    net.minecraft.client.render.BuiltBuffer.SortState translucentSort, QuickLitematicaPreviewQuadDepth depth) {
+            this(vertexBuffer, indexBuffer, indexCount, indexType, ownsIndexBuffer, translucentSort, depth, null);
+        }
+
+        LayerBuffer(GpuBuffer vertexBuffer, GpuBuffer indexBuffer, int indexCount, VertexFormat.IndexType indexType, boolean ownsIndexBuffer) {
+            this(vertexBuffer, indexBuffer, indexCount, indexType, ownsIndexBuffer, null, null);
+        }
+
+
+
         RenderPipeline pipeline(RenderLayer renderLayer, RenderPipeline defaultPipeline) {
             return defaultPipeline;
+        }
+
+        @Override
+        public GpuBuffer indexBuffer() {
+            return this.indexBuffers == null ? this.indexBuffer : this.indexBuffers.current();
         }
 
         @Override
@@ -954,9 +1154,8 @@ final class QuickLitematicaPreviewAccess {
             if (!this.vertexBuffer.isClosed()) {
                 this.vertexBuffer.close();
             }
-            if (this.ownsIndexBuffer && !this.indexBuffer.isClosed()) {
-                this.indexBuffer.close();
-            }
+            if (this.indexBuffers != null) this.indexBuffers.close();
+            else if (this.ownsIndexBuffer && !this.indexBuffer.isClosed()) this.indexBuffer.close();
         }
     }
 
@@ -1020,7 +1219,7 @@ final class QuickLitematicaPreviewAccess {
                 BlockPos renderPos
         ) {
             FluidState fluidState = state.getFluidState();
-            if (fluidState.isEmpty()) {
+            if (fluidState.isEmpty() || view.fluidVisibility.skipEnclosed(view, pos, fluidState)) {
                 return;
             }
 
@@ -1028,8 +1227,11 @@ final class QuickLitematicaPreviewAccess {
             matrices.push();
             matrices.translate(-(pos.getX() & 15), -(pos.getY() & 15), -(pos.getZ() & 15));
             matrices.translate(renderPos.getX(), renderPos.getY(), renderPos.getZ());
-            blockRenderManager.renderFluid(pos, view, new FluidVertexConsumer(collector.consumerFor(LayerKey.fromFluid(fluidLayer)), matrices.peek().getPositionMatrix()), state, fluidState);
-            matrices.pop();
+            try {
+                blockRenderManager.renderFluid(pos, view, new FluidVertexConsumer(collector.consumerFor(LayerKey.fromFluid(fluidLayer)), matrices.peek().getPositionMatrix()), state, fluidState);
+            } finally {
+                matrices.pop();
+            }
         }
 
         static void renderBlockModel(
@@ -1226,6 +1428,8 @@ final class QuickLitematicaPreviewAccess {
         }
 
         VertexConsumer consumerFor(LayerKey layer) {
+            // 这些材质共用透明管线，必须一起排序，避免水先写深度后遮掉玻璃。
+            layer = layer.isTranslucent() ? LayerKey.TRANSLUCENT : layer;
             return this.consumers.computeIfAbsent(layer, ignored -> new RecordingVertexConsumer(this));
         }
 
@@ -1241,17 +1445,11 @@ final class QuickLitematicaPreviewAccess {
             vertices.add(x, y, z, argb, u, v, overlay, light, nx, ny, nz);
         }
 
-        boolean shouldPublishOpaqueBatch() {
-            int vertices = 0;
-            for (Map.Entry<LayerKey, RecordingVertexConsumer> entry : this.consumers.entrySet()) {
-                if (!entry.getKey().isTranslucent()) {
-                    vertices += entry.getValue().vertices.vertexCount();
-                }
-            }
-            return vertices >= STATIC_BATCH_TARGET_VERTICES;
+        boolean shouldPublishBatch() {
+            return QuickLitematicaPreviewMeshBatches.shouldPublish(this.consumers);
         }
 
-        List<LayerMesh> drainOpaqueMeshes() {
+        List<LayerMesh> drainReadyMeshes() {
             return this.drainMeshes(false);
         }
 
@@ -1259,19 +1457,8 @@ final class QuickLitematicaPreviewAccess {
             return this.drainMeshes(true);
         }
 
-        List<LayerMesh> drainMeshes(boolean includeTranslucent) {
-            List<LayerMesh> meshes = new ArrayList<>();
-            for (LayerKey layer : LayerKey.DRAW_ORDER) {
-                if (!includeTranslucent && layer.isTranslucent()) {
-                    continue;
-                }
-                RecordingVertexConsumer consumer = this.consumers.get(layer);
-                if (consumer != null && !consumer.vertices.isEmpty()) {
-                    meshes.add(new LayerMesh(layer, consumer.vertices.takeBytes()));
-                    this.consumers.remove(layer);
-                }
-            }
-            return List.copyOf(meshes);
+        List<LayerMesh> drainMeshes(boolean finalBatch) {
+            return QuickLitematicaPreviewMeshBatches.drain(this.consumers, finalBatch);
         }
     }
 
@@ -1533,6 +1720,17 @@ final class QuickLitematicaPreviewAccess {
 
         void setBlockEntities(Map<BlockPos, BlockEntity> blockEntities) {
             this.blockEntities = copyPreviewPositions(blockEntities);
+        }
+
+        @Override
+        public long getTime() {
+            return QuickLitematicaPreviewBeacons.isInitializing() ? 0L : super.getTime();
+        }
+
+        @Override
+        public int getTopY(net.minecraft.world.Heightmap.Type type, int x, int z) {
+            return QuickLitematicaPreviewBeacons.isInitializing()
+                    ? QuickLitematicaPreviewBeacons.initializationTop() : super.getTopY(type, x, z);
         }
 
         @Override

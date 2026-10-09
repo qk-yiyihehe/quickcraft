@@ -143,6 +143,10 @@ abstract class QuickLitematicaPreviewDynamicBackend {
         }
         S renderState = renderer.createRenderState();
         renderer.extractRenderState(entity, renderState, 0.0F, Vec3.ZERO, null);
+            if (renderState instanceof net.minecraft.client.renderer.blockentity.state.BeaconRenderState beam) {
+                // 正交预览的宽度随整个模型缩放，不应按真实世界到相机原点的距离加粗。
+                beam.beamRadiusScale = 1.0F;
+            }
         return new PreparedBlockEntity(pos, renderer, renderState);
     }
 
@@ -163,7 +167,8 @@ abstract class QuickLitematicaPreviewDynamicBackend {
 
         scene.blockEntities().forEach(prepared -> {
             BlockPos pos = prepared.pos();
-            if (culler.isOutside(pos.getX() + 0.5F, pos.getY() + 0.5F, pos.getZ() + 0.5F)) {
+            if (!(prepared.renderState() instanceof net.minecraft.client.renderer.blockentity.state.BeaconRenderState)
+                    && culler.isOutside(pos.getX() + 0.5F, pos.getY() + 0.5F, pos.getZ() + 0.5F)) {
                 return;
             }
             matrices.pushPose();
@@ -223,7 +228,8 @@ abstract class QuickLitematicaPreviewDynamicBackend {
         CameraRenderState cameraState = new CameraRenderState();
 
         scene.blockEntities().forEach((pos, entity) -> {
-            if (culler.isOutside(pos.getX() + 0.5F, pos.getY() + 0.5F, pos.getZ() + 0.5F)) {
+            if (!(entity instanceof net.minecraft.world.level.block.entity.BeaconBlockEntity)
+                    && culler.isOutside(pos.getX() + 0.5F, pos.getY() + 0.5F, pos.getZ() + 0.5F)) {
                 return;
             }
 
@@ -277,6 +283,9 @@ abstract class QuickLitematicaPreviewDynamicBackend {
         }
         S renderState = renderer.createRenderState();
         renderer.extractRenderState(entity, renderState, 0.0F, Vec3.ZERO, null);
+        if (renderState instanceof net.minecraft.client.renderer.blockentity.state.BeaconRenderState beam) {
+            beam.beamRadiusScale = 1.0F;
+        }
         renderer.submit(renderState, matrices, submitNodes, cameraState);
     }
 

@@ -34,6 +34,7 @@
 		"LitematicaMinecraftClientHoldEasyPlaceMixin",
 		"LitematicaMinecraftClientShulkerRestockMixin",
 		"LitematicaInventoryUtilsShulkerRestockMixin",
+		"LitematicaPreviewVertexBufferAccessor",
 		"LitematicaPreviewDataFixerMixin",
 		"LitematicaPreviewConversionMixin",
 		"LitematicaSchematicLoadMixin",

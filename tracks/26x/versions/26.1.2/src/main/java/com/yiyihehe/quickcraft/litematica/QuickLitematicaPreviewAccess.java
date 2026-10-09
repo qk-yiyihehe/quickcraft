@@ -90,6 +90,8 @@ public final class QuickLitematicaPreviewAccess {
     }
 
     private static final class PreviewGuiElementRenderer extends PictureInPictureRenderer<QuickLitematicaPreview3D.PreviewGuiElement> {
+        private final QuickLitematicaPreview3D.LoadingTexture loadingTexture = new QuickLitematicaPreview3D.LoadingTexture();
+
         private PreviewGuiElementRenderer(MultiBufferSource.BufferSource vertexConsumers) {
             super(vertexConsumers);
         }
@@ -105,10 +107,16 @@ public final class QuickLitematicaPreviewAccess {
             if (backend instanceof Backend2612 backend2612) {
                 try {
                     backend2612.drawSpecial(element, matrices);
+                    this.loadingTexture.rendered(element);
                 } catch (RuntimeException | Error failure) {
                     element.preview().failBuild(failure);
                 }
             }
+        }
+
+        @Override
+        protected boolean textureIsReadyToBlit(QuickLitematicaPreview3D.PreviewGuiElement element) {
+            return element.preview().reuseLoadingTexture(this.loadingTexture, element);
         }
 
         @Override
@@ -125,6 +133,11 @@ public final class QuickLitematicaPreviewAccess {
     private static final class Backend2612 implements QuickLitematicaPreviewBackend {
         private final QuickLitematicaPreview3D.Preview preview;
         private final Map<QuickLitematicaPreview3D.LayerKey, List<LayerBuffer>> layerBuffers = new EnumMap<>(QuickLitematicaPreview3D.LayerKey.class);
+        private final QuickLitematicaPreviewTransparentOrder transparentOrder = new QuickLitematicaPreviewTransparentOrder();
+        private final QuickLitematicaPreviewQuadDepth sortDepth = new QuickLitematicaPreviewQuadDepth();
+        private int[] sortOrder = new int[0], sortKeys = new int[0];
+        @Nullable
+        private ByteBufferBuilder transparentIndexAllocator;
         private final Projection snapshotProjection = new Projection();
         private final ProjectionMatrixBuffer snapshotProjectionBuffer = new ProjectionMatrixBuffer("QuickCraft PNG projection");
         @Nullable
@@ -148,6 +161,9 @@ public final class QuickLitematicaPreviewAccess {
             int allocatorSize = allocatorSize(vertexCount);
             ByteBufferBuilder allocator = new ByteBufferBuilder(allocatorSize);
             LayerBuffer uploaded = null;
+            GpuBuffer vertexBuffer = null;
+            GpuBuffer indexBuffer = null;
+            boolean customIndexBuffer = false;
             try {
                 RenderType renderLayer = layerMesh.layer().renderLayer();
                 BufferBuilder builder = new BufferBuilder(allocator, renderLayer.mode(), renderLayer.format());
@@ -159,21 +175,25 @@ public final class QuickLitematicaPreviewAccess {
                 }
 
                 try {
-                    if (layerMesh.layer().isTranslucent()) {
+                    com.mojang.blaze3d.vertex.MeshData.SortState translucentSort = null;
+                    if (layerMesh.needsTranslucentSorting()) {
                         try (var phase = QuickLitematicaPreviewLog.phase("GPU层透明排序")) {
-                            built.sortQuads(allocator, VertexSorting.byDistance(0.0F, 0.0F, 1000.0F));
+                            translucentSort = built.sortQuads(allocator, points -> QuickLitematicaPreviewIndices.initialOrder(points.size()));
                         }
                     }
 
+                    if (translucentSort != null && this.uploadTransparentBatch(built, translucentSort, vertexCount)) return true;
+
                     long bufferStart = QuickLitematicaPreviewLog.startTimer();
                     var drawParameters = built.drawState();
-                    GpuBuffer vertexBuffer = RenderSystem.getDevice().createBuffer(
+                    vertexBuffer = RenderSystem.getDevice().createBuffer(
                             () -> "QuickCraft preview vertices",
-                            GpuBuffer.USAGE_VERTEX | GpuBuffer.USAGE_COPY_DST,
+                            GpuBuffer.USAGE_VERTEX | GpuBuffer.USAGE_COPY_DST
+                                    | (layerMesh.needsTranslucentSorting() ? GpuBuffer.USAGE_COPY_SRC : 0),
                             built.vertexBuffer()
                     );
-                    boolean customIndexBuffer = built.indexBuffer() != null;
-                    GpuBuffer indexBuffer = customIndexBuffer
+                    customIndexBuffer = built.indexBuffer() != null;
+                    indexBuffer = customIndexBuffer
                             ? RenderSystem.getDevice().createBuffer(
                                     () -> "QuickCraft preview indices",
                                     GpuBuffer.USAGE_INDEX | GpuBuffer.USAGE_COPY_DST,
@@ -184,10 +204,12 @@ public final class QuickLitematicaPreviewAccess {
                             ? drawParameters.indexType()
                             : RenderSystem.getSequentialBuffer(drawParameters.mode()).type();
 
-                    uploaded = new LayerBuffer(vertexBuffer, indexBuffer, drawParameters.indexCount(), indexType, customIndexBuffer);
+                    uploaded = new LayerBuffer(vertexBuffer, indexBuffer, drawParameters.indexCount(), indexType, customIndexBuffer,
+                            translucentSort, translucentSort == null ? null : new QuickLitematicaPreviewQuadDepth());
                     LOGGER.info("GPU 缓冲创建完成：层={}，顶点={}，索引={}，自建索引={}，耗时={} us", layerMesh.layer(), vertexCount,
                             drawParameters.indexCount(), customIndexBuffer, QuickLitematicaPreviewLog.microsSince(bufferStart));
                     this.layerBuffers.computeIfAbsent(layerMesh.layer(), ignored -> new ArrayList<>()).add(uploaded);
+                if (layerMesh.layer().isTranslucent()) this.transparentOrder.add(uploaded.translucentSort().centroids());
                     return true;
                 } finally {
                     built.close();
@@ -195,6 +217,10 @@ public final class QuickLitematicaPreviewAccess {
             } catch (Throwable throwable) {
                 if (uploaded != null) {
                     uploaded.close();
+                } else {
+                    // 仅关闭已创建的自有缓冲，不关闭 RenderSystem 的共享索引。
+                    if (customIndexBuffer && indexBuffer != null) indexBuffer.close();
+                    if (vertexBuffer != null) vertexBuffer.close();
                 }
                 LOGGER.error("Failed to upload layer mesh for {}", this.preview.sourceName(), throwable);
                 return false;
@@ -225,13 +251,120 @@ public final class QuickLitematicaPreviewAccess {
 
         @Override
         public void setStaticUploadComplete(boolean complete) {
+            if (complete && !this.staticUploadComplete) this.mergeTransparentBuffers();
             this.staticUploadComplete = complete;
+        }
+
+        private QuickLitematicaPreviewTransparentMerge.Stream transparentUpload;
+
+        private boolean uploadTransparentBatch(com.mojang.blaze3d.vertex.MeshData built, com.mojang.blaze3d.vertex.MeshData.SortState batchSort, int vertexCount) {
+            var data = built.vertexBuffer();
+            var plan = this.transparentUpload;
+            if (plan == null) plan = QuickLitematicaPreviewTransparentMerge.stream(this.preview.meshData().layers(), data.remaining() / vertexCount);
+            if (plan == null) return false;
+            int batchBytes = data.remaining();
+            plan.checkBatch(vertexCount, batchBytes);
+            if (this.transparentUpload == null) {
+                GpuBuffer vertices = null, indices = null;
+                boolean published = false;
+                try {
+                    var centers = new com.mojang.blaze3d.vertex.CompactVectorArray(plan.vertices / 4);
+                    var sort = new com.mojang.blaze3d.vertex.MeshData.SortState(centers, VertexFormat.IndexType.INT);
+                    vertices = RenderSystem.getDevice().createBuffer(() -> "QuickCraft transparent arena vertices",
+                            GpuBuffer.USAGE_VERTEX | GpuBuffer.USAGE_COPY_DST, plan.vertexBytes);
+                    indices = RenderSystem.getDevice().createBuffer(() -> "QuickCraft transparent arena indices",
+                            GpuBuffer.USAGE_INDEX | GpuBuffer.USAGE_COPY_DST, Math.multiplyExact(plan.indexCount, 4));
+                    var rotation = QuickLitematicaPreviewTransparentMerge.canRotateIndices(plan.vertexBytes, plan.indexCount)
+                            ? new QuickLitematicaPreviewIndexBuffers(indices) : null;
+                    var combined = new LayerBuffer(vertices, indices, plan.indexCount, VertexFormat.IndexType.INT, true, sort,
+                            new QuickLitematicaPreviewQuadDepth(), rotation);
+                    this.layerBuffers.put(QuickLitematicaPreview3D.LayerKey.TRANSLUCENT, List.of(combined));
+                    this.transparentUpload = plan;
+                    published = true;
+                } finally {
+                    if (!published) {
+                        if (indices != null) indices.close();
+                        if (vertices != null) vertices.close();
+                    }
+                }
+            }
+            var buffer = this.layerBuffers.get(QuickLitematicaPreview3D.LayerKey.TRANSLUCENT).getFirst();
+            RenderSystem.getDevice().createCommandEncoder().writeToBuffer(buffer.vertexBuffer().slice(plan.byteOffset(), data.remaining()), data);
+            var source = batchSort.centroids();
+            var target = buffer.translucentSort().centroids();
+            for (int i = 0; i < source.size(); i++)
+                target.set(plan.quadOffset() + i, source.getX(i), source.getY(i), source.getZ(i));
+            plan.advance(vertexCount, batchBytes);
+            return true;
+        }
+
+        private void mergeTransparentBuffers() {
+            if (this.transparentUpload != null) this.transparentUpload.requireComplete();
+            List<LayerBuffer> buffers = this.layerBuffers.get(QuickLitematicaPreview3D.LayerKey.TRANSLUCENT);
+            if (buffers == null || buffers.size() < 2) return;
+            long vertexBytes = 0, quads = 0;
+            for (var buffer : buffers) {
+                if (buffer.translucentSort() == null) return;
+                vertexBytes += buffer.vertexBuffer().size();
+                quads += buffer.translucentSort().centroids().size();
+            }
+            int indexCount = QuickLitematicaPreviewTransparentMerge.indexCountWithinBudget(vertexBytes, quads);
+            if (indexCount == 0) {
+                LOGGER.info("透明合并保留分批：批次={}，顶点字节={}，四边形={}，新增 GPU 预算=256 MiB", buffers.size(), vertexBytes, quads);
+                return;
+            }
+            GpuBuffer vertices = null, indices = null;
+            boolean published = false;
+            try (var phase = QuickLitematicaPreviewLog.phase("透明 GPU 批次合并")) {
+                var centers = QuickLitematicaPreviewTransparentMerge.centers(
+                        buffers.stream().map(buffer -> buffer.translucentSort().centroids()).toList());
+                var sort = new com.mojang.blaze3d.vertex.MeshData.SortState(centers, VertexFormat.IndexType.INT);
+                vertices = RenderSystem.getDevice().createBuffer(() -> "QuickCraft merged transparent vertices",
+                        GpuBuffer.USAGE_VERTEX | GpuBuffer.USAGE_COPY_DST, vertexBytes);
+                indices = RenderSystem.getDevice().createBuffer(() -> "QuickCraft merged transparent indices",
+                        GpuBuffer.USAGE_INDEX | GpuBuffer.USAGE_COPY_DST, (long) indexCount * 4);
+                var encoder = RenderSystem.getDevice().createCommandEncoder();
+                long offset = 0;
+                for (var buffer : buffers) {
+                    long bytes = buffer.vertexBuffer().size();
+                    encoder.copyToBuffer(buffer.vertexBuffer().slice(), vertices.slice(offset, bytes));
+                    offset += bytes;
+                }
+                // 索引尚未填充，首次 draw 的 resort 必须运行；中心顺序与拼接后的顶点顺序相同。
+                var indexBuffers = QuickLitematicaPreviewTransparentMerge.canRotateIndices(vertexBytes, indexCount)
+                        ? new QuickLitematicaPreviewIndexBuffers(indices) : null;
+                var combined = new LayerBuffer(vertices, indices, indexCount, VertexFormat.IndexType.INT, true, sort,
+                        new QuickLitematicaPreviewQuadDepth(), indexBuffers);
+                this.layerBuffers.put(QuickLitematicaPreview3D.LayerKey.TRANSLUCENT, List.of(combined));
+                this.transparentOrder.clear();
+                published = true;
+                LOGGER.info("transparent-merge-v1：透明 GPU 批次 {} -> 1，顶点字节={}，索引字节={}，旋转使用单次绘制",
+                        buffers.size(), vertexBytes, (long) indexCount * 4);
+                LOGGER.info("transparent-stream-v1：索引缓冲槽数={}，索引暂存与排序工作数组按预览复用，含轮换索引的新增 GPU 总预算=256 MiB",
+                        indexBuffers == null ? 1 : 3);
+            } catch (RuntimeException | OutOfMemoryError failure) {
+                LOGGER.warn("透明 GPU 合并失败，保留原分批渲染", failure);
+            } finally {
+                if (published) buffers.forEach(LayerBuffer::close);
+                else {
+                    if (vertices != null) vertices.close();
+                    if (indices != null) indices.close();
+                }
+            }
         }
 
         @Override
         public void clearBuffers() {
             this.layerBuffers.values().forEach(buffers -> buffers.forEach(LayerBuffer::close));
             this.layerBuffers.clear();
+            this.transparentUpload = null;
+            this.transparentOrder.clear();
+            this.sortOrder = new int[0];
+            this.sortKeys = new int[0];
+            if (this.transparentIndexAllocator != null) {
+                this.transparentIndexAllocator.close();
+                this.transparentIndexAllocator = null;
+            }
             this.staticUploadComplete = false;
             this.dynamicPreparationArmed = false;
             this.closeDynamicBuffers();
@@ -341,6 +474,7 @@ public final class QuickLitematicaPreviewAccess {
         }
 
         private void drawBuffers(Matrix4f modelView, boolean afterEntities) {
+            this.sortDepth.update(modelView);
             for (QuickLitematicaPreview3D.LayerKey layer : QuickLitematicaPreview3D.LayerKey.DRAW_ORDER) {
                 if (layer.drawAfterEntities() != afterEntities) {
                     continue;
@@ -352,17 +486,63 @@ public final class QuickLitematicaPreviewAccess {
                 if (buffers == null || buffers.isEmpty()) {
                     continue;
                 }
+                if (layer.isTranslucent() && buffers.size() > 1) {
+                    for (var run : this.transparentOrder.runs(modelView)) {
+                        LayerBuffer buffer = buffers.get(run.buffer());
+                        this.resort(buffer, modelView);
+                        drawLayerBuffer(layer, buffer, modelView, run.firstIndex(), run.indexCount());
+                    }
+                    continue;
+                }
                 for (LayerBuffer buffer : buffers) {
+                    this.resort(buffer, modelView);
                     drawLayerBuffer(layer, buffer, modelView);
                 }
             }
         }
 
+        private int[] sortTransparentQuads(com.mojang.blaze3d.vertex.CompactVectorArray points) {
+            if (this.sortOrder.length != points.size()) {
+                this.sortOrder = new int[points.size()];
+                this.sortKeys = new int[points.size()];
+            }
+            try (var phase = QuickLitematicaPreviewLog.phase("透明面中心排序")) {
+                return this.sortDepth.sort(points, this.sortOrder, this.sortKeys);
+            }
+        }
+
+        private void resort(LayerBuffer buffer, Matrix4f modelView) {
+            if (buffer.translucentSort() == null || !buffer.depth().update(modelView)) return;
+            // 所有批次在渲染线程串行消费索引，共用一个暂存区，避免强制渲染时按批次累积 CPU 内存。
+            if (this.transparentIndexAllocator == null) this.transparentIndexAllocator = new ByteBufferBuilder(256);
+            try (var phase = QuickLitematicaPreviewLog.phase("静态透明层按视角重排")) {
+                int[] order = this.sortTransparentQuads(buffer.translucentSort().centroids());
+                ByteBufferBuilder.Result indices;
+                try (var generation = QuickLitematicaPreviewLog.phase("透明三角形索引生成")) {
+                    indices = QuickLitematicaPreviewIndices.build(this.transparentIndexAllocator, order, buffer.indexType().bytes);
+                }
+                try (indices; var upload = QuickLitematicaPreviewLog.phase("透明索引上传")) {
+                    if (buffer.indexBuffers() != null) buffer.indexBuffers().advance();
+                    RenderSystem.getDevice().createCommandEncoder().writeToBuffer(buffer.indexBuffer().slice(), indices.byteBuffer());
+                }
+            } finally {
+                this.transparentIndexAllocator.clear();
+            }
+        }
+
         private static void drawLayerBuffer(QuickLitematicaPreview3D.LayerKey layer, LayerBuffer buffer, Matrix4f modelView) {
-            drawLayerBuffer(layer.renderLayer(), buffer, modelView);
+            drawLayerBuffer(layer, buffer, modelView, 0, buffer.indexCount());
+        }
+
+        private static void drawLayerBuffer(QuickLitematicaPreview3D.LayerKey layer, LayerBuffer buffer, Matrix4f modelView, int firstIndex, int indexCount) {
+            drawLayerBuffer(layer.renderLayer(), buffer, modelView, firstIndex, indexCount);
         }
 
         private static void drawLayerBuffer(RenderType renderLayer, LayerBuffer buffer, Matrix4f modelView) {
+            drawLayerBuffer(renderLayer, buffer, modelView, 0, buffer.indexCount());
+        }
+
+        private static void drawLayerBuffer(RenderType renderLayer, LayerBuffer buffer, Matrix4f modelView, int firstIndex, int indexCount) {
             RenderPipeline pipeline = buffer.pipeline(renderLayer, renderLayer.pipeline());
             var colorAttachment = Objects.requireNonNull(RenderSystem.outputColorTextureOverride);
             var depthAttachment = RenderSystem.outputDepthTextureOverride;
@@ -397,7 +577,7 @@ public final class QuickLitematicaPreviewAccess {
                     pass.bindTexture(entry.getKey(), texture.textureView(), texture.sampler());
                 }
                 pass.setIndexBuffer(indexBuffer, indexType);
-                pass.drawIndexed(0, 0, buffer.indexCount(), 1);
+                pass.drawIndexed(0, firstIndex, indexCount, 1);
             }
         }
 
@@ -416,7 +596,8 @@ public final class QuickLitematicaPreviewAccess {
             SubmitNodeCollector queue = dispatcher.getSubmitNodeStorage();
 
             scene.blockEntities().forEach((pos, entity) -> {
-                if (culler.isOutside(pos.getX() + 0.5F, pos.getY() + 0.5F, pos.getZ() + 0.5F)) {
+                if (!(entity instanceof net.minecraft.world.level.block.entity.BeaconBlockEntity)
+                        && culler.isOutside(pos.getX() + 0.5F, pos.getY() + 0.5F, pos.getZ() + 0.5F)) {
                     return;
                 }
 
@@ -472,6 +653,10 @@ public final class QuickLitematicaPreviewAccess {
             }
             S renderState = renderer.createRenderState();
             renderer.extractRenderState(entity, renderState, 0.0F, net.minecraft.world.phys.Vec3.ZERO, null);
+            if (renderState instanceof net.minecraft.client.renderer.blockentity.state.BeaconRenderState beam) {
+                // 正交预览的宽度随整个模型缩放，不应按真实世界到相机原点的距离加粗。
+                beam.beamRadiusScale = 1.0F;
+            }
             renderer.submit(renderState, matrices, queue, cameraState);
         }
 
@@ -938,19 +1123,38 @@ public final class QuickLitematicaPreviewAccess {
     }
 
     private record LayerBuffer(GpuBuffer vertexBuffer, GpuBuffer indexBuffer, int indexCount,
-                               VertexFormat.IndexType indexType, boolean ownsIndexBuffer) implements AutoCloseable {
+                               VertexFormat.IndexType indexType, boolean ownsIndexBuffer,
+                               com.mojang.blaze3d.vertex.MeshData.SortState translucentSort,
+                               QuickLitematicaPreviewQuadDepth depth, @Nullable QuickLitematicaPreviewIndexBuffers indexBuffers) implements AutoCloseable {
+        LayerBuffer(GpuBuffer vertexBuffer, GpuBuffer indexBuffer, int indexCount, VertexFormat.IndexType indexType, boolean ownsIndexBuffer,
+                    com.mojang.blaze3d.vertex.MeshData.SortState translucentSort, QuickLitematicaPreviewQuadDepth depth) {
+            this(vertexBuffer, indexBuffer, indexCount, indexType, ownsIndexBuffer, translucentSort, depth, null);
+        }
+
+        LayerBuffer(GpuBuffer vertexBuffer, GpuBuffer indexBuffer, int indexCount, VertexFormat.IndexType indexType, boolean ownsIndexBuffer) {
+            this(vertexBuffer, indexBuffer, indexCount, indexType, ownsIndexBuffer, null, null, null);
+        }
+
         private RenderPipeline pipeline(RenderType renderLayer, RenderPipeline defaultPipeline) {
             return defaultPipeline;
         }
 
         @Override
+        public GpuBuffer indexBuffer() {
+            return this.indexBuffers == null ? this.indexBuffer : this.indexBuffers.current();
+        }
+
+        @Override
         public void close() {
             this.vertexBuffer.close();
-            if (this.ownsIndexBuffer) {
+            if (this.indexBuffers != null) {
+                this.indexBuffers.close();
+            } else if (this.ownsIndexBuffer) {
                 this.indexBuffer.close();
             }
         }
     }
+
 
 
 }

@@ -149,6 +149,8 @@ public final class QuickLitematicaPreview3D {
     }
 
     static final Map<fi.dy.masa.litematica.gui.GuiSchematicBrowserBase, Manager> MANAGERS = new WeakHashMap<>();
+    // 客户端线程访问；也覆盖不进浏览器映射的选区预览，不延长屏幕的生命周期。
+    private static final java.util.Set<Manager> LIVE_MANAGERS = java.util.Collections.newSetFromMap(new WeakHashMap<>());
     // 预览构建专用单线程池：避免与 Util.getMainWorkerExecutor 共享导致排队等几秒。
     // 单线程足够（预览一次只构建一个文件），且避免 BlockRenderManager 多线程竞争。
     private static final AtomicReference<Preview> PENDING_PREVIEW_BUILD = new AtomicReference<>();
@@ -175,7 +177,7 @@ public final class QuickLitematicaPreview3D {
     static final float PREVIEW_FIT_PADDING = 0.95F;
     static final long NBT_READ_LIMIT_BYTES = 32L * 1024L * 1024L;
     static final int VERTEX_BYTES = 44;
-    // 不透明层按约 7.5 MiB 的量化顶点切批，限制单帧解码和 GPU 上传耗时；透明层必须保持全图整体排序。
+    // 静态层按完整方块切批，限制构建暂存和单帧上传；透明层在首次显示前统一排序。
     static final int STATIC_BATCH_TARGET_VERTICES = 250_000;
     static final float PROGRESS_START = 0.02F;
     static final float PROGRESS_MESHING_START = 0.10F;
@@ -209,6 +211,8 @@ public final class QuickLitematicaPreview3D {
 
     static void openGenerated(Screen parent, String displayName, Supplier<LitematicaSchematic> schematicSupplier) {
         Manager manager = new Manager(parent, () -> {});
+        manager.generatedName = displayName;
+        manager.generatedSupplier = schematicSupplier;
         manager.current = Preview.createGenerated(displayName, schematicSupplier);
         MinecraftClient.getInstance().setScreen(new QuickLitematicaPreview3DScreen(
                 parent,
@@ -265,6 +269,12 @@ public final class QuickLitematicaPreview3D {
         return QuickCraftConfigs.isLitematica3DPreviewEnabled() && !isShaderPackActive();
     }
 
+    static void resourcesReloaded() {
+        for (Manager manager : LIVE_MANAGERS) {
+            if (manager.current != null) manager.current.close();
+        }
+    }
+
     public static boolean prepare3DPreview() {
         if (!isShaderPackActive()) return true;
         if (!QuickCraftConfigs.shouldAutoDisableShadersFor3DPreview()
@@ -277,6 +287,8 @@ public final class QuickLitematicaPreview3D {
     public static final class Manager implements AutoCloseable {
         @Nullable
         Preview current;
+        private String generatedName;
+        private Supplier<LitematicaSchematic> generatedSupplier;
         @Nullable
         Path currentPath;
         @Nullable
@@ -300,6 +312,7 @@ public final class QuickLitematicaPreview3D {
         Manager(Screen owner, Runnable previewMetadataRefresh) {
             this.owner = owner;
             this.previewMetadataRefresh = previewMetadataRefresh;
+            LIVE_MANAGERS.add(this);
         }
 
         void render(@Nullable DirectoryEntry entry, boolean hasEmbeddedPreview, DrawContext drawContext, int x, int y, int size) {
@@ -311,12 +324,7 @@ public final class QuickLitematicaPreview3D {
             Path path = entryPath(entry).toAbsolutePath().normalize();
             if (!path.equals(this.currentPath)) {
                 this.switchTo(path, entry);
-            } else if (this.current != null
-                    && (this.current.isCancelled() || (System.currentTimeMillis() >= this.nextSourceCheckMillis
-                    && this.current.sourceStampChanged()))) {
-                this.switchTo(path, entry);
             }
-            this.nextSourceCheckMillis = System.currentTimeMillis() + SOURCE_CHECK_INTERVAL_MILLIS;
             this.currentEntry = entry;
             this.hasEmbeddedPreviewImage = hasEmbeddedPreview;
             this.renderCurrent(drawContext, x, y, size, true);
@@ -356,6 +364,7 @@ public final class QuickLitematicaPreview3D {
                 return;
             }
 
+            this.checkCurrentSource();
             this.viewX = x;
             this.viewY = y;
             this.viewSize = Math.max(1, size);
@@ -790,6 +799,9 @@ public final class QuickLitematicaPreview3D {
 
         @Override
         public void close() {
+            LIVE_MANAGERS.remove(this);
+            this.generatedSupplier = null;
+            this.generatedName = null;
             this.cancelPendingPreviewImagePicker();
             this.clearCurrent();
         }
@@ -800,9 +812,30 @@ public final class QuickLitematicaPreview3D {
                     && this.drag.inViewport(mouseX, mouseY);
         }
 
+        private void checkCurrentSource() {
+            if (QuickLitematicaPreviewResources.reloading()) return;
+            if (this.generatedSupplier != null) {
+                if (this.current != null && this.current.isCancelled()) {
+                    this.current = Preview.createGenerated(this.generatedName, this.generatedSupplier);
+                }
+                return;
+            }
+            if (this.current == null || this.currentPath == null || this.currentEntry == null) return;
+            long now = System.currentTimeMillis();
+            boolean checkDue = now >= this.nextSourceCheckMillis;
+            // 只有执行核验才推进截止时间，避免连续渲染把检查永久推迟。
+            if (checkDue) this.nextSourceCheckMillis = now + SOURCE_CHECK_INTERVAL_MILLIS;
+            if (this.current.isCancelled() || (checkDue && this.current.sourceStampChanged())) {
+                boolean hasEmbeddedPreview = this.hasEmbeddedPreviewImage;
+                this.switchTo(this.currentPath, this.currentEntry);
+                this.hasEmbeddedPreviewImage = hasEmbeddedPreview;
+            }
+        }
+
         void switchTo(Path path, DirectoryEntry entry) {
             this.clearCurrent();
             this.currentPath = path;
+            this.currentEntry = entry;
             this.current = Preview.create(entry);
             this.nextSourceCheckMillis = System.currentTimeMillis() + SOURCE_CHECK_INTERVAL_MILLIS;
         }
@@ -944,6 +977,10 @@ public final class QuickLitematicaPreview3D {
         volatile Future<?> future;
 
         final ConcurrentLinkedQueue<LayerMesh> pendingStaticLayers = new ConcurrentLinkedQueue<>();
+        private final QuickLitematicaPreviewMeshStore staticMeshStore = new QuickLitematicaPreviewMeshStore();
+        // 64 KiB 计账单位，队列正常批次最多保留 64 MiB 原始顶点；消费后返还容量。
+        private final java.util.concurrent.Semaphore staticUploadBytes = new java.util.concurrent.Semaphore(1024);
+
 
         @Nullable
         volatile PreviewDimensions dimensions;
@@ -975,6 +1012,8 @@ public final class QuickLitematicaPreview3D {
             this.cacheSlot = cacheSlot;
             this.resourcePackSignature = resourcePackSignature;
             this.trace = new QuickLitematicaPreviewLog.Trace(sourcePath, this.startedAtNanos);
+            this.trace.event("CPU 顶点策略：cpu-spill-v2，小网格驻留阈值={} B，待上传队列预算=64 MiB，大网格缓存副本暂存磁盘，进程退出自动删除；加载预览重画上限=4 Hz", QuickLitematicaPreviewMeshStore.MEMORY_BYTES);
+            this.trace.event("预览正确性策略：resource-content-v1 / translucent-view-v3 / beacon-v1，透明材质合并，批内索引与跨批绘制顺序按视角重排");
             if (QuickLitematicaPreviewLog.enabled()) this.trace.event("渲染环境：后端={}，资源包={}，源类型={}",
                     this.getClass().getName(), MinecraftClient.getInstance().getResourcePackManager().getEnabledProfiles().stream().map(profile -> profile.getId()).toList(), cacheSlot.isBlank() ? "游戏内选区" : "文件");
             this.captureSourceStamp();
@@ -996,7 +1035,7 @@ public final class QuickLitematicaPreview3D {
                     cachePath,
                     cachePath.resolveSibling(cachePath.getFileName() + ".tmp"),
                     cacheSlot,
-                    currentResourcePackSignature()
+                    currentCacheSignature()
             );
             preview.forceRender = forceRender;
             preview.trace.event("预览预算：强制渲染={}，静态顶点上限={}，默认上限={}，强制时忽略动态数量/缓冲/NBT分配预算，仅当前任务生效",
@@ -1097,7 +1136,8 @@ public final class QuickLitematicaPreview3D {
                         this.cancelled,
                         value -> this.progress = value,
                         this::initializeDimensions,
-                        this::publishStaticLayers
+                        this::publishStaticLayers,
+                        this.staticMeshStore
                 );
                 this.throwIfCancelled();
                 if (!built.withinBudget()) {
@@ -1105,6 +1145,12 @@ public final class QuickLitematicaPreview3D {
                     this.rejectBuild(built.vertexCount() > QuickLitematicaPreviewVertexBudget.vertexLimit());
                     return;
                 }
+
+                synchronized (this) {
+                    this.throwIfCancelled();
+                    this.meshData = built;
+                }
+                this.publishStaticLayers(built.layers().stream().filter(LayerMesh::needsTranslucentSorting).toList());
 
                 synchronized (this) {
                     this.throwIfCancelled();
@@ -1153,7 +1199,7 @@ public final class QuickLitematicaPreview3D {
                         && this.resourcePackSignature.equals(indexEntry.resourcePackSignature());
                 this.trace.event("缓存判定：索引={}，源哈希匹配={}，资源签名匹配={}，读取路径={}，缓存版本/标记由文件头校验",
                         indexEntry, sourceHashMatches, cacheSignatureMatches, readCachePath);
-                MeshData cached = cacheSignatureMatches ? CacheFile.read(readCachePath, this.cancelled) : null;
+                MeshData cached = cacheSignatureMatches ? CacheFile.read(readCachePath, this.cancelled, this.staticMeshStore) : null;
                 if (cached != null) {
                     this.trace.event("静态网格缓存命中：层批次={}，顶点={}，动态状态/方块实体/实体={}/{}/{}，跳过原理图读取和模型构建",
                             cached.layers().size(), cached.vertexCount(), cached.blockStates.size(), cached.blockEntities.size(), cached.entities.size());
@@ -1161,8 +1207,13 @@ public final class QuickLitematicaPreview3D {
                     synchronized (this) {
                         this.throwIfCancelled();
                         this.initializeDimensions(cached.sizeX(), cached.sizeY(), cached.sizeZ());
-                        this.publishStaticLayers(cached.layers());
                         this.meshData = cached;
+                        this.state = State.BUILDING;
+                    }
+                    // 有界发布可能等待渲染线程消费，不能持有预览锁或提前标记上传完成。
+                    this.publishStaticLayers(cached.layers());
+                    synchronized (this) {
+                        this.throwIfCancelled();
                         this.progress = 1.0F;
                         this.state = State.READY;
                         this.trace.event("预览状态改变：READY");
@@ -1187,7 +1238,8 @@ public final class QuickLitematicaPreview3D {
                         this.cancelled,
                         value -> this.progress = value,
                         this::initializeDimensions,
-                        this::publishStaticLayers
+                        this::publishStaticLayers,
+                        this.staticMeshStore
                 );
                 this.throwIfCancelled();
                 if (!built.withinBudget()) {
@@ -1196,8 +1248,7 @@ public final class QuickLitematicaPreview3D {
                     return;
                 }
 
-                int effectiveSourceVersion = Math.max(schematic.getMetadata().getMinecraftDataVersion(),
-                        fi.dy.masa.litematica.config.Configs.Generic.DATAFIXER_DEFAULT_SCHEMA.getIntegerValue());
+                int effectiveSourceVersion = schematic.getMetadata().getMinecraftDataVersion();
                 // 上游禁用 DFU 时不能把未转换的 NBT 写成当前版本缓存。
                 LitematicaSchematic convertedSchematic = !convertedCacheHit
                         && effectiveSourceVersion < LitematicaSchematic.MINECRAFT_DATA_VERSION
@@ -1205,6 +1256,12 @@ public final class QuickLitematicaPreview3D {
                         ? schematic : null;
                 this.trace.event("转换原理图缓存保存判定：需要保存={}，有效源版本={}，目标版本={}，已命中转换缓存={}",
                         convertedSchematic != null, effectiveSourceVersion, LitematicaSchematic.MINECRAFT_DATA_VERSION, convertedCacheHit);
+                synchronized (this) {
+                    this.throwIfCancelled();
+                    this.meshData = built;
+                }
+                this.publishStaticLayers(built.layers().stream().filter(LayerMesh::needsTranslucentSorting).toList());
+
                 synchronized (this) {
                     this.throwIfCancelled();
                     this.saveCacheAsync(built, sourceHash, convertedSchematic);
@@ -1253,7 +1310,7 @@ public final class QuickLitematicaPreview3D {
                     this.trace.event("当前预览失效：原因=source_time_changed，源={}，时间={}->{}", this.sourcePath, this.sourceModifiedMillis, actualModified);
                     return true;
                 }
-                String actualSignature = currentResourcePackSignature();
+                String actualSignature = currentCacheSignature();
                 boolean changed = !actualSignature.equals(this.resourcePackSignature);
                 if (changed) this.trace.event("当前预览失效：原因=resource_signature_changed，签名={}->{}", this.resourcePackSignature, actualSignature);
                 return changed;
@@ -1269,7 +1326,7 @@ public final class QuickLitematicaPreview3D {
         }
 
         private void saveCacheAsync(MeshData built, String sourceHash, @Nullable LitematicaSchematic schematic) {
-            // 快照持有量化顶点和 NBT，GPU 上传释放顶点、关闭预览均不影响后台保存。
+            // 快照保留小网格顶点或大网格暂存引用；关闭预览不会打断独立的缓存保存。
             MeshData snapshot = new MeshData(List.copyOf(built.layers()), built.blockStates, built.blockEntities,
                     built.entities, built.sizeX(), built.sizeY(), built.sizeZ());
             Path sourcePath = this.sourcePath;
@@ -1280,7 +1337,7 @@ public final class QuickLitematicaPreview3D {
             String resourcePackSignature = this.resourcePackSignature;
             this.trace.event("后台缓存保存排队：路径={}，快照层批次={}，顶点={}", cachePath, snapshot.layers().size(), snapshot.vertexCount());
             long cacheQueued = QuickLitematicaPreviewLog.startTimer();
-            writeAsync(cachePath, this.trace.wrap(() -> {
+            Runnable cacheWrite = this.trace.wrap(() -> {
                 LOGGER.info("后台缓存保存开始：路径={}，排队={} us", cachePath, QuickLitematicaPreviewLog.microsSince(cacheQueued));
                 try {
                     CacheFile.writeAtomically(tmpPath, cachePath, snapshot, snapshot.layers(), new AtomicBoolean(), QuickLitematicaPreviewLog.progressSink("缓存压缩写入"));
@@ -1296,9 +1353,18 @@ public final class QuickLitematicaPreview3D {
                     deleteTmpQuietly(tmpPath);
                     LOGGER.error("后台缓存保存失败：源={}，临时={}，最终={}，显示结果保留，临时文件清理", sourcePath, tmpPath, cachePath, e);
                 } finally {
+                    snapshot.releaseStaticVertices();
+                    this.staticMeshStore.releaseCache();
                     this.trace.summary("后台缓存保存任务结束");
                 }
-            }));
+            });
+            this.staticMeshStore.retainForCache();
+            try {
+                writeAsync(cachePath, cacheWrite);
+            } catch (RuntimeException | Error failure) {
+                this.staticMeshStore.releaseCache();
+                throw failure;
+            }
         }
 
         Path convertedSchematicPath() {
@@ -1309,28 +1375,63 @@ public final class QuickLitematicaPreview3D {
             this.dimensions = new PreviewDimensions(sizeX, sizeY, sizeZ);
         }
 
+        private static int uploadPermits(LayerMesh layer) {
+            return (int) Math.min(1024L, (layer.quantizedByteCount() + 65_535L) / 65_536L);
+        }
+
+        private void discardPendingStaticLayers() {
+            LayerMesh layer;
+            while ((layer = this.pendingStaticLayers.poll()) != null) {
+                this.staticUploadBytes.release(uploadPermits(layer));
+            }
+        }
+
         void publishStaticLayers(List<LayerMesh> layers) {
-            if (!this.cancelled.get() && this.state != State.FAILED) {
-                if (QuickLitematicaPreviewLog.enabled()) {
-                    for (LayerMesh layer : layers) this.trace.event("网格批次发布：层={}，顶点={}，量化={} B", layer.layer(), layer.vertexCount(), layer.quantizedVertices().length);
+            for (LayerMesh layer : layers) {
+                this.throwIfCancelled();
+                // 透明层加载期间本就不绘制；等整层数量确定后再按批上传，避免合并时复制整层显存。
+                if (layer.needsTranslucentSorting() && this.meshData == null) continue;
+                int permits = uploadPermits(layer);
+                try (var phase = QuickLitematicaPreviewLog.phase("等待静态上传队列容量")) {
+                    this.staticUploadBytes.acquire(permits);
+                } catch (InterruptedException interrupted) {
+                    Thread.currentThread().interrupt();
+                    throw new CancellationException();
                 }
-                this.pendingStaticLayers.addAll(layers);
+                boolean queued = false;
+                try {
+                    this.throwIfCancelled();
+                    // 暂存读取在构建线程进行；渲染线程只接收有界的原始顶点批次。
+                    byte[] bytes = layer.quantizedVertices();
+                    synchronized (this) {
+                        this.throwIfCancelled();
+                        this.pendingStaticLayers.add(new LayerMesh(layer.layer(), bytes));
+                        queued = true;
+                    }
+                    this.trace.event("网格批次发布：层={}，顶点={}，量化={} B，上传队列剩余预算={} KiB",
+                            layer.layer(), layer.vertexCount(), layer.quantizedByteCount(), this.staticUploadBytes.availablePermits() * 64);
+                } finally {
+                    if (!queued) this.staticUploadBytes.release(permits);
+                }
             }
         }
 
         void discardPartialStatic() {
-            this.pendingStaticLayers.clear();
+            this.discardPendingStaticLayers();
+            this.staticMeshStore.close();
             this.dimensions = null;
             this.closeRendererOnRenderThread();
         }
 
         void completeStaticUploadIfReady() {
-            if (this.staticUploadComplete || this.uploadScheduled || this.state != State.READY || !this.pendingStaticLayers.isEmpty()) {
+            if (this.cancelled.get() || this.staticUploadComplete || this.uploadScheduled || this.state != State.READY || !this.pendingStaticLayers.isEmpty()) {
                 return;
             }
 
+            this.mergeTransparentBuffers();
             this.staticUploadComplete = true;
             this.trace.milestone("静态 GPU 上传调用全部完成，CPU 顶点可释放");
+            this.staticMeshStore.close();
             MeshData data = this.meshData;
             if (data != null) {
                 data.releaseStaticVertices();
@@ -1342,7 +1443,8 @@ public final class QuickLitematicaPreview3D {
             if (data != null) {
                 data.closeDynamic();
             }
-            this.pendingStaticLayers.clear();
+            this.discardPendingStaticLayers();
+            this.staticMeshStore.close();
             this.meshData = null;
             this.dimensions = null;
             this.state = State.TOO_LARGE;
@@ -1360,7 +1462,7 @@ public final class QuickLitematicaPreview3D {
             }
             this.meshData = null;
             this.dimensions = null;
-            this.pendingStaticLayers.clear();
+            this.discardPendingStaticLayers();
         }
 
         void refreshCacheSourceHash() {
@@ -1655,7 +1757,7 @@ public final class QuickLitematicaPreview3D {
                 this.completeStaticUploadIfReady();
                 return;
             }
-            this.trace.event("静态上传排队：层={}，顶点={}，量化大小={} B，剩余批次={}", layer.layer(), layer.vertexCount(), layer.quantizedVertices().length, this.pendingStaticLayers.size());
+            this.trace.event("静态上传排队：层={}，顶点={}，量化大小={} B，剩余批次={}", layer.layer(), layer.vertexCount(), layer.quantizedByteCount(), this.pendingStaticLayers.size());
             long uploadQueued = QuickLitematicaPreviewLog.startTimer();
             this.uploadScheduled = true;
             Runnable upload = this.trace.wrap(() -> {
@@ -1667,6 +1769,7 @@ public final class QuickLitematicaPreview3D {
                     LOGGER.error("Failed to upload a 3D preview batch for {}", this.sourceName(), failure);
                     this.failBuild(failure);
                 } finally {
+                    this.staticUploadBytes.release(uploadPermits(layer));
                     this.uploadScheduled = false;
                     this.completeStaticUploadIfReady();
                 }
@@ -1821,7 +1924,8 @@ public final class QuickLitematicaPreview3D {
                 task.cancel(true);
             }
 
-            this.pendingStaticLayers.clear();
+            this.discardPendingStaticLayers();
+            this.staticMeshStore.close();
             MeshData data = this.meshData;
             if (data != null) {
                 data.closeDynamic();
@@ -1888,6 +1992,7 @@ public final class QuickLitematicaPreview3D {
 
         abstract void uploadMesh(LayerMesh mesh);
         abstract boolean hasUploadedBuffers();
+        abstract void mergeTransparentBuffers();
         abstract void prepareDynamicBuffers(MeshData data);
         abstract void closeBuffers();
         abstract void closeRenderer();
@@ -2049,9 +2154,22 @@ public final class QuickLitematicaPreview3D {
         }
     }
 
-    record LayerMesh(LayerKey layer, byte[] quantizedVertices) {
+    record LayerMesh(LayerKey layer, byte[] vertices,
+                     QuickLitematicaPreviewMeshStore store, long offset, int quantizedByteCount) {
+        LayerMesh(LayerKey layer, byte[] quantizedVertices) {
+            this(layer, quantizedVertices, null, 0, quantizedVertices.length);
+        }
+
+        byte[] quantizedVertices() {
+            return this.vertices != null ? this.vertices : this.store.read(this.offset, this.quantizedByteCount);
+        }
+
+        boolean needsTranslucentSorting() {
+            return this.layer.isTranslucent();
+        }
+
         int vertexCount() {
-            return this.quantizedVertices.length / QUANTIZED_VERTEX_BYTES;
+            return this.quantizedByteCount / QUANTIZED_VERTEX_BYTES;
         }
     }
 
@@ -2205,6 +2323,7 @@ public final class QuickLitematicaPreview3D {
                     progress.set(1.0F);
                 }
                 world.setBlockEntities(blockEntities);
+                QuickLitematicaPreviewBeacons.initialize(world, world.blockStates, world.blockEntities);
 
                 List<RenderedEntity> entities = new ArrayList<>();
                 try (var phase = QuickLitematicaPreviewLog.phase("动态实体实例化")) {
@@ -2306,6 +2425,7 @@ public final class QuickLitematicaPreview3D {
     static final class RegionBlockView implements BlockRenderView {
         final RegionBounds bounds;
         final LitematicaBlockStateContainer blockStateContainer;
+        final QuickLitematicaPreviewFluids fluidVisibility = new QuickLitematicaPreviewFluids();
         final MinecraftClient client = MinecraftClient.getInstance();
         final LightingProvider lightingProvider;
 
@@ -2343,8 +2463,8 @@ public final class QuickLitematicaPreview3D {
                 return LitematicaBlockStateContainer.AIR_BLOCK_STATE;
             }
 
-            BlockPos local = pos.subtract(this.bounds.min());
-            return this.blockStateContainer.get(local.getX(), local.getY(), local.getZ());
+            return this.blockStateContainer.get(pos.getX() - this.bounds.min().getX(),
+                    pos.getY() - this.bounds.min().getY(), pos.getZ() - this.bounds.min().getZ());
         }
 
         @Override
@@ -2374,7 +2494,10 @@ public final class QuickLitematicaPreview3D {
     interface DimensionsSink {
         void set(int sizeX, int sizeY, int sizeZ);
     }
-    public static void registerSpecialRenderer() { QuickLitematicaPreviewAccess.registerSpecialRenderer(); }
+    public static void registerSpecialRenderer() {
+        QuickLitematicaPreviewResources.initialize();
+        QuickLitematicaPreviewAccess.registerSpecialRenderer();
+    }
 
     static final class MeshBuilder {
 
@@ -2383,7 +2506,8 @@ public final class QuickLitematicaPreview3D {
                 AtomicBoolean cancelled,
                 ProgressSink progressSink,
                 DimensionsSink dimensionsSink,
-                Consumer<List<LayerMesh>> batchSink
+                Consumer<List<LayerMesh>> batchSink,
+                QuickLitematicaPreviewMeshStore meshStore
         ) {
             try (var phase = QuickLitematicaPreviewLog.phase("模型扫描/记录/网格构建")) {
                 MinecraftClient client = MinecraftClient.getInstance();
@@ -2395,11 +2519,13 @@ public final class QuickLitematicaPreview3D {
                 Bounds bounds = Bounds.from(schematic.getAreas().values());
                 dimensionsSink.set(bounds.sizeX(), bounds.sizeY(), bounds.sizeZ());
                 MeshCollector collector = new MeshCollector();
+                if (QuickLitematicaPreviewLog.enabled()) LOGGER.info("transparent-build-stream-v1：静态网格在完整方块后分批发布，目标单批={} 顶点，透明记录器引用保留", STATIC_BATCH_TARGET_VERTICES);
                 final List<LayerMesh> layers = new ArrayList<>();
                 Map<BlockPos, BlockStateData> blockStates = new HashMap<>();
                 List<BlockEntityData> blockEntities = new ArrayList<>();
                 List<EntityData> entities = new ArrayList<>();
                 Map<BlockState, Boolean> blockEntityRendererCache = new HashMap<>();
+                List<RegionBlockView> regionViews = new ArrayList<>();
                 long total = Math.max(1L, totalVolume(schematic.getAreas().values()));
 
                 BlockRenderManager blockRenderManager = client.getBlockRenderManager();
@@ -2418,6 +2544,7 @@ public final class QuickLitematicaPreview3D {
                     }
 
                     RegionBlockView view = new RegionBlockView(container, area);
+                    regionViews.add(view);
                     RegionBounds regionBounds = RegionBounds.from(area);
                     recordEntities(blockStates, entities, view, schematic, regionName, area, bounds, cancelled);
 
@@ -2438,29 +2565,47 @@ public final class QuickLitematicaPreview3D {
                                 renderer.renderFluid(view, state, pos, renderPos);
                                 long modelStart = regionStats == null ? 0L : System.nanoTime();
                                 renderer.renderBlock(view, state, pos, renderPos);
-                                if (regionStats != null) regionStats.record(state.toString(), fluidStart - entityStart,
+                                if (regionStats != null) regionStats.record(state, fluidStart - entityStart,
                                         modelStart - fluidStart, System.nanoTime() - modelStart);
 
                             } catch (RuntimeException | Error failure) {
                                 LOGGER.error("方块模型记录失败：区域={}，位置={}，状态={}", regionName, pos, state, failure);
                                 throw failure;
                             }
-                            if (collector.shouldPublishOpaqueBatch()) {
-                                List<LayerMesh> batch = collector.drainOpaqueMeshes();
-                                layers.addAll(batch);
-                                batchSink.accept(batch);
+                            if (collector.shouldPublishBatch()) {
+                                for (LayerMesh mesh : collector.drainReadyMeshes()) {
+                                    for (LayerMesh split : QuickLitematicaPreviewMeshBatches.split(mesh, cancelled)) {
+                                        List<LayerMesh> batch = List.of(split);
+                                        meshStore.addBatch(layers, batch,
+                                                (long) collector.vertexCount * QUANTIZED_VERTEX_BYTES, cancelled);
+                                        batchSink.accept(batch);
+                                    }
+                                }
                             }
                         });
                     } finally {
-                        if (regionStats != null) regionStats.close();
+                        if (regionStats != null) {
+                            LOGGER.info("fluid-enclosed-cull-v1：区域={}，流体={}，内部跳过={}，自定义处理器保留={}",
+                                    regionName, view.fluidVisibility.examined, view.fluidVisibility.skipped, view.fluidVisibility.custom);
+                            regionStats.close();
+                        }
                     }
                     scannedVolume += regionVolume;
                 }
 
+                recordBeaconBlockStates(blockStates, blockEntities, regionViews, bounds, cancelled);
                 progressSink.set(PROGRESS_MESHING_END);
-                List<LayerMesh> finalBatch = collector.drainAllMeshes();
-                layers.addAll(finalBatch);
-                batchSink.accept(finalBatch);
+                List<LayerMesh> finalBatch = new ArrayList<>();
+                for (LayerMesh mesh : collector.drainAllMeshes()) {
+                    finalBatch.addAll(QuickLitematicaPreviewMeshBatches.split(mesh, cancelled));
+                }
+                for (int index = 0; index < finalBatch.size(); index++) {
+                    LayerMesh mesh = finalBatch.set(index, null);
+                    List<LayerMesh> batch = List.of(mesh);
+                    meshStore.addBatch(layers, batch,
+                            (long) collector.vertexCount * QUANTIZED_VERTEX_BYTES, cancelled);
+                    batchSink.accept(batch);
+                }
                 List<LayerMesh> completeLayers = List.copyOf(layers);
                 int vertices = vertexCount(completeLayers);
                 if (QuickLitematicaPreviewLog.enabled()) LOGGER.info("模型构建统计：顶点={}/{}，层批次={}，动态状态={}/{}，方块实体={}/{}，实体={}/{}，扫描体积={}",
@@ -2572,6 +2717,37 @@ public final class QuickLitematicaPreview3D {
                 total += bounds.volume();
             }
             return total;
+        }
+
+        private static void recordBeaconBlockStates(Map<BlockPos, BlockStateData> states,
+                List<BlockEntityData> entities, List<RegionBlockView> views, Bounds bounds, AtomicBoolean cancelled) {
+            for (BlockEntityData data : entities) {
+                throwIfCancelled(cancelled);
+                if (!"minecraft:beacon".equals(readString(data.stateNbt(), "Name"))) continue;
+                BlockPos beacon = new BlockPos(data.x(), data.y(), data.z()).add(bounds.min());
+                for (int depth = 1; depth <= 4; depth++) {
+                    for (int x = -depth; x <= depth; x++) {
+                        for (int z = -depth; z <= depth; z++) {
+                            recordBeaconState(states, views, beacon.add(x, -depth, z), bounds);
+                        }
+                    }
+                }
+                for (int y = beacon.getY() + 1; y <= bounds.max().getY(); y++) {
+                    if ((y & 0xFF) == 0) throwIfCancelled(cancelled);
+                    recordBeaconState(states, views, new BlockPos(beacon.getX(), y, beacon.getZ()), bounds);
+                }
+            }
+        }
+
+        private static void recordBeaconState(Map<BlockPos, BlockStateData> states,
+                List<RegionBlockView> views, BlockPos pos, Bounds bounds) {
+            for (int i = views.size() - 1; i >= 0; i--) {
+                BlockState state = views.get(i).getBlockState(pos);
+                if (!state.isAir()) {
+                    recordDynamicBlockState(states, state, pos.subtract(bounds.min()));
+                    return;
+                }
+            }
         }
 
         static void recordBlockEntity(

@@ -2,6 +2,7 @@ package com.yiyihehe.quickcraft.litematica;
 
 import com.yiyihehe.quickcraft.config.QuickCraftConfigs;
 import net.fabricmc.loader.api.FabricLoader;
+import net.minecraft.block.BlockState;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.core.LoggerContext;
@@ -322,9 +323,9 @@ public final class QuickLitematicaPreviewLog {
     static final class RegionStats implements AutoCloseable {
         final String region;
         final long started = System.nanoTime();
-        final Map<String, long[]> models = new LinkedHashMap<>();
+        final Map<BlockState, long[]> models = new LinkedHashMap<>();
         RegionStats(String region, long volume) { this.region = region; LOGGER.info("区域开始：名称={}，体积={}", region, volume); }
-        void record(String state, long entity, long fluid, long model) {
+        void record(BlockState state, long entity, long fluid, long model) {
             long[] totals = models.computeIfAbsent(state, ignored -> new long[5]);
             totals[0]++; totals[1] += entity; totals[2] += fluid; totals[3] += model; totals[4] = Math.max(totals[4], model);
         }

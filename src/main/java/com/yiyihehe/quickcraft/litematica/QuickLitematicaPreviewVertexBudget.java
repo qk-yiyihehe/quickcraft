@@ -20,7 +20,7 @@ final class QuickLitematicaPreviewVertexBudget {
     }
 
     static int layerByteLimit() {
-        // 透明层整体解码成 44 字节顶点；强制模式也不能溢出 Java 数组/ByteBuffer 的 int 长度。
+        // 静态层在完整方块之后分批；保留单块模型与动态缓冲的安全容量上限，强制也不能突破 int 长度。
         return isForced() ? ((Integer.MAX_VALUE - 8) / 44) * QuickLitematicaPreviewAccess.QUANTIZED_VERTEX_BYTES : DEFAULT_VERTEX_LIMIT * 32;
     }
 

@@ -17,6 +17,20 @@ import static com.yiyihehe.quickcraft.litematica.QuickLitematicaPreviewSchematic
 
 class QuickLitematicaPreviewSchematicFilesTest {
     @Test
+    void usesDefaultDataVersionOnlyWhenTheDeclaredVersionIsMissingOrInvalid() {
+        CompoundTag root = new CompoundTag();
+        assertThat(sourceDataVersion(root, 4000)).isEqualTo(4000);
+        root.putInt("MinecraftDataVersion", 3700);
+        assertThat(sourceDataVersion(root, 4000)).isEqualTo(3700);
+        root.putInt("MinecraftDataVersion", 0);
+        assertThat(sourceDataVersion(root, 4000)).isZero();
+        root.putInt("MinecraftDataVersion", 5000);
+        assertThat(sourceDataVersion(root, 4000)).isEqualTo(5000);
+        root.putString("MinecraftDataVersion", "invalid");
+        assertThat(sourceDataVersion(root, 4000)).isEqualTo(4000);
+    }
+
+    @Test
     void gzipSizeHintOnlySelectsTheReaderAndLeavesPlainFilesAlone(@TempDir Path temporary) throws Exception {
         Path gzip = temporary.resolve("size.litematic");
         byte[] payload = new byte[65_537];
@@ -407,7 +421,7 @@ class QuickLitematicaPreviewSchematicFilesTest {
         writeWithEntitiesFirst(source, file);
         byte[] original = Files.readAllBytes(file);
 
-        var actual = readStreamingPreviewNbt(file, new AtomicBoolean(), 0, id -> true, (block, version) -> {
+        var actual = readStreamingPreviewNbt(file, new AtomicBoolean(), 4000, id -> true, (block, version) -> {
             assertThat(version).isEqualTo(3700);
             return inferredType(block);
         }, id -> true);

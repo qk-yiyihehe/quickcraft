@@ -24,6 +24,15 @@ class QuickLitematicaPreview3DCacheTest {
     Path temporaryDirectory;
 
     @Test
+    void invalidatesBothCacheKindsWhenDfuSettingsChange() {
+        String signature = QuickLitematicaPreviewCache.cacheSignature("pack", "always", 3700);
+        assertThat(QuickLitematicaPreviewCache.cacheSignature("pack", "always", 3700)).isEqualTo(signature);
+        assertThat(QuickLitematicaPreviewCache.cacheSignature("pack", "never", 3700)).isNotEqualTo(signature);
+        assertThat(QuickLitematicaPreviewCache.cacheSignature("pack", "always", 4000)).isNotEqualTo(signature);
+        assertThat(QuickLitematicaPreviewCache.cacheSignature("changed-pack", "always", 3700)).isNotEqualTo(signature);
+    }
+
+    @Test
     void preservesOversizedDynamicCacheAndReadsItWhenForced() throws Exception {
         Path cache = this.temporaryDirectory.resolve("forced.qcp3d");
         int count = QuickLitematicaPreview3D.MAX_DYNAMIC_ENTITIES + 1;
