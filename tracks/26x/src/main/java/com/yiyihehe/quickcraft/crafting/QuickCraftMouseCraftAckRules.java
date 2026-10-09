@@ -161,6 +161,26 @@ final class QuickCraftMouseCraftAckRules {
                 && authoritativeExpectedOutput && patternCompatible;
     }
 
+    static boolean canBulkCraftGrid(int[] counts) {
+        if (counts == null || counts.length == 0) {
+            return false;
+        }
+        int ingredientCount = 0;
+        for (int count : counts) {
+            if (count < 0) {
+                return false;
+            }
+            if (count == 0) {
+                continue;
+            }
+            if (ingredientCount != 0 && ingredientCount != count) {
+                return false;
+            }
+            ingredientCount = count;
+        }
+        return ingredientCount > 0;
+    }
+
     static int plannedOutputThrows(boolean expectedOutput, boolean patternComplete) {
         return expectedOutput && patternComplete ? 1 : 0;
     }

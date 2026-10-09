@@ -608,6 +608,12 @@ public final class QuickCraftMouseCraftAckExecutor {
                                   ClientPlayerInteractionManager interactionManager,
                                   ItemStack output,
                                   int[] gridBeforeOutput) {
+        boolean bulkCraft = canBulkCraftGrid(gridBeforeOutput);
+        boolean[] requiredSlots = new boolean[current.pattern.size()];
+        for (int i = 0; i < requiredSlots.length; i++) {
+            requiredSlots[i] = !current.pattern.get(i).isEmpty();
+        }
+        int safeCrafts = maximumCraftsFromGridCounts(gridBeforeOutput, requiredSlots);
         if (shouldEnterOutputSprayMode(
                 current.outputSprayMode,
                 current.outputFillSlotsRemaining,
@@ -621,7 +627,8 @@ public final class QuickCraftMouseCraftAckExecutor {
             int matchingSlotsBefore = QuickCraftMouseCraftInventory.countMatchingUnlockedSlots(
                     handler, layout, current.resultTemplate);
             movedToInventory = QuickCraftMouseCraftInventory.moveOutputToUnlockedInventory(
-                    client, handler, layout, FULL_GRID_CRAFTS, () -> refreshClientPrediction(handler));
+                    client, handler, layout, Math.min(FULL_GRID_CRAFTS, safeCrafts),
+                    () -> refreshClientPrediction(handler), bulkCraft);
             if (movedToInventory) {
                 int matchingSlotsAfter = QuickCraftMouseCraftInventory.countMatchingUnlockedSlots(
                         handler, layout, current.resultTemplate);
@@ -642,6 +649,19 @@ public final class QuickCraftMouseCraftAckExecutor {
         }
 
         activateOutputSprayMode(client, current, "产物无法放入背包");
+        // 原版 Shift/Ctrl 批量取出只比较物品类型；材料先耗尽时可能继续合成不同组件的产物。
+        if (!bulkCraft) {
+            int operations = 0;
+            for (int i = 0; i < safeCrafts && isExpectedOutput(
+                    handler.getSlot(QuickCraftMouseCraftLayout.OUTPUT_SLOT).getStack(),
+                    current.resultTemplate); i++) {
+                interactionManager.clickSlot(handler.syncId, QuickCraftMouseCraftLayout.OUTPUT_SLOT,
+                        0, SlotActionType.THROW, client.player);
+                operations++;
+                refreshClientPrediction(handler);
+            }
+            return operations;
+        }
         return QuickCraftMouseCraftAccess.throwOutput(
                 interactionManager, client, handler, current.pattern, gridBeforeOutput,
                 () -> refreshClientPrediction(handler));

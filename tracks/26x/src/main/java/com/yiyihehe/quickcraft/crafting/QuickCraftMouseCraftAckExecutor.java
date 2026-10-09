@@ -505,7 +505,7 @@ public final class QuickCraftMouseCraftAckExecutor {
             int outputOperations = plannedOutputThrows(expectedOutput, patternComplete);
             if (outputOperations > 0) {
                 outputThrown = moveOrThrowOutput(
-                        client, current, handler, gameMode, output);
+                        client, current, handler, gameMode, output, gridBeforeOutput);
                 current.outputExpectedAtDispatch = true;
                 refreshClientPrediction(handler);
             } else if (!refilled && output.isEmpty() && !patternComplete) {
@@ -607,7 +607,14 @@ public final class QuickCraftMouseCraftAckExecutor {
                                       Session current,
                                       AbstractContainerMenu handler,
                                       MultiPlayerGameMode gameMode,
-                                      ItemStack output) {
+                                      ItemStack output,
+                                      int[] gridBeforeOutput) {
+        boolean bulkCraft = canBulkCraftGrid(gridBeforeOutput);
+        boolean[] requiredSlots = new boolean[current.pattern.size()];
+        for (int i = 0; i < requiredSlots.length; i++) {
+            requiredSlots[i] = !current.pattern.get(i).isEmpty();
+        }
+        int safeCrafts = maximumCraftsFromGridCounts(gridBeforeOutput, requiredSlots);
         if (shouldEnterOutputSprayMode(
                 current.outputSprayMode,
                 current.outputFillSlotsRemaining,
@@ -621,7 +628,8 @@ public final class QuickCraftMouseCraftAckExecutor {
             int matchingSlotsBefore = QuickCraftMouseCraftInventory.countMatchingUnlockedSlots(
                     handler, layout, current.resultTemplate);
             movedToInventory = QuickCraftMouseCraftInventory.moveOutputToUnlockedInventory(
-                    client, handler, layout, FULL_GRID_CRAFTS, () -> refreshClientPrediction(handler));
+                    client, handler, layout, Math.min(FULL_GRID_CRAFTS, safeCrafts),
+                    () -> refreshClientPrediction(handler), bulkCraft);
             if (movedToInventory) {
                 int matchingSlotsAfter = QuickCraftMouseCraftInventory.countMatchingUnlockedSlots(
                         handler, layout, current.resultTemplate);
@@ -642,6 +650,17 @@ public final class QuickCraftMouseCraftAckExecutor {
         }
 
         activateOutputSprayMode(client, current, "产物无法放入背包");
+        // 原版 Shift/Ctrl 批量取出只比较物品类型；材料先耗尽时可能继续合成不同组件的产物。
+        if (!bulkCraft) {
+            for (int i = 0; i < safeCrafts && isExpectedOutput(
+                    handler.getSlot(QuickCraftMouseCraftLayout.OUTPUT_SLOT).getItem(),
+                    current.resultTemplate); i++) {
+                gameMode.handleContainerInput(handler.containerId, QuickCraftMouseCraftLayout.OUTPUT_SLOT,
+                        0, ContainerInput.THROW, client.player);
+                refreshClientPrediction(handler);
+            }
+            return true;
+        }
         // 1.21.3 的结果槽 THROW(button=1) 等同原版 Ctrl+丢弃：
         // 服务端会连续合成并丢出全部同类结果，因此每个 ACK 批次只能发送一次。
         gameMode.handleContainerInput(

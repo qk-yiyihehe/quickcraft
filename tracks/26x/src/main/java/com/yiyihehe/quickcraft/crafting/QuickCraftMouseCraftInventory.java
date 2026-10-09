@@ -205,17 +205,26 @@ final class QuickCraftMouseCraftInventory {
                                                  QuickCraftMouseCraftLayout.Layout layout,
                                                  int maximumOutputs,
                                                  Runnable onEachPickup) {
+        return moveOutputToUnlockedInventory(client, handler, layout, maximumOutputs, onEachPickup, true);
+    }
+
+    static boolean moveOutputToUnlockedInventory(Minecraft client,
+                                                 AbstractContainerMenu handler,
+                                                 QuickCraftMouseCraftLayout.Layout layout,
+                                                 int maximumOutputs,
+                                                 Runnable onEachPickup,
+                                                 boolean allowQuickMove) {
         if (client == null || client.player == null || client.gameMode == null
                 || handler == null || !handler.getCarried().isEmpty()
                 || !handler.getSlot(QuickCraftMouseCraftLayout.OUTPUT_SLOT).hasItem()) {
             return false;
         }
 
-        if (!hasLockedPlayerSlot(handler, layout)) {
+        if (allowQuickMove && !hasLockedPlayerSlot(handler, layout)) {
             return moveOutputWithQuickMove(client, handler, layout);
         }
 
-        // 服务端不知道客户端锁格，必须显式指定未锁定的落点；ACK 路径在同批内连续领取。
+        // 锁格或限制合成轮数时显式拾取，避免原版一次点击跨配方连续合成。
         ItemStack output = handler.getSlot(QuickCraftMouseCraftLayout.OUTPUT_SLOT).getItem().copy();
         boolean moved = false;
         for (int i = 0; i < maximumOutputs; i++) {

@@ -6,6 +6,25 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 class QuickCraftMouseCraftAckExecutorTest {
     @Test
+    void unevenFireworkGridCannotUseVanillaBulkOutput() {
+        int[] counts = {0, 0, 0, 31, 32, 0, 32, 1, 0};
+        boolean[] required = {false, false, false, true, true, false, true, true, false};
+        assertThat(QuickCraftMouseCraftAckRules.canBulkCraftGrid(counts)).isFalse();
+        assertThat(QuickCraftMouseCraftAckRules.maximumCraftsFromGridCounts(counts, required)).isEqualTo(1);
+        assertThat(QuickCraftMouseCraftAckRules.canBulkCraftGrid(
+                new int[]{0, 0, 0, 21, 21, 0, 64, 22, 0})).isFalse();
+        assertThat(QuickCraftMouseCraftAckRules.canBulkCraftGrid(
+                new int[]{0, 0, 0, 64, 64, 0, 64, 64, 0})).isTrue();
+    }
+
+    @Test
+    void optionalIngredientsMustExpireTogetherForBulkOutput() {
+        assertThat(QuickCraftMouseCraftAckRules.canBulkCraftGrid(new int[]{64, 32, 0})).isFalse();
+        assertThat(QuickCraftMouseCraftAckRules.canBulkCraftGrid(new int[]{16, 16, 0})).isTrue();
+        assertThat(QuickCraftMouseCraftAckRules.canBulkCraftGrid(new int[]{0, 0})).isFalse();
+    }
+
+    @Test
 //#if MC<12103
     void outputBatchStartsOnlyWithExpectedCompleteRecipe() {
 //#else

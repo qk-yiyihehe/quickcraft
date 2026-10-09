@@ -2242,12 +2242,6 @@ final class QuickCraftMouseCrafting {
         if (mouseCraftAckExecutor.isActive()) {
             return mouseCraftAckExecutor.owns(handler);
         }
-        if (lockedRecipeId == null) {
-            if (QuickCraftConfigs.isMouseCraftAckDebugEnabled()) {
-                LOGGER.warn("手动补货ACK无法启动：界面={}，配方为空", layout.name());
-            }
-            return false;
-        }
         if (QuickCraftConfigs.isMouseCraftAckDebugEnabled()) {
             LOGGER.info(QuickCraftMouseCraftAckExecutor.diagnosticContext() + "手动补货ACK尝试启动：界面={}，配方={}，产物={}，containerId={}，revision={}，格子={}",
                     layout.name(), lockedRecipeId, lockedResultTemplate,
