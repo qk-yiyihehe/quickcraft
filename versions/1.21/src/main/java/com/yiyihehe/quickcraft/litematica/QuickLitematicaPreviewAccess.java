@@ -106,6 +106,8 @@ final class QuickLitematicaPreviewAccess {
         final List<DynamicLayerBuffer> dynamicBuffers = new ArrayList<>();
         private QuickLitematicaPreviewDynamicBatch<RenderLayer> dynamicBuild;
         private boolean dynamicBatchingDisabled;
+        @Nullable private QuickLitematicaPreviewDynamicBatch<RenderLayer> dynamicFullBuild;
+        @Nullable private DynamicMeshCollector dynamicFullCollector;
 
         void drawPreview(DrawContext context, int x, int y, int size, DragState drag) {
             if (QuickLitematicaPreviewLog.enabled()) this.trace.frame(this.staticUploadComplete, () -> this.drawFrame(context, x, y, size, drag));
@@ -290,7 +292,15 @@ final class QuickLitematicaPreviewAccess {
                 return;
             }
 
-            DynamicScene fullScene = data.dynamicScene();
+            DynamicScene fullScene = data.dynamicSceneIfReady();
+
+            if (fullScene == null) return;
+            if (fullScene.isEmpty()) {
+                this.dynamicBuffersReady = true;
+                this.dynamicProgress = 1.0F;
+                data.closeDynamic();
+                return;
+            }
             if (!this.dynamicBatchingDisabled && !fullScene.entities().isEmpty()) this.dynamicBatchingDisabled = true;
             if (!this.dynamicBatchingDisabled && this.dynamicBuild == null && !fullScene.isEmpty()) {
                 this.dynamicBuild = new QuickLitematicaPreviewDynamicBatch<>(fullScene);
@@ -298,15 +308,16 @@ final class QuickLitematicaPreviewAccess {
                         fullScene.blockEntities().size(), fullScene.entities().size(), QuickLitematicaPreviewBatchBudget.TARGET_NANOS / 1_000L, data.forceRender);
             }
             var batch = this.dynamicBuild;
-            DynamicScene scene = batch == null ? fullScene : batch.nextScene();
-            long batchStart = System.nanoTime();
-            if (scene.isEmpty()) {
-                this.dynamicBuffersReady = true;
-                data.closeDynamic();
-                return;
+            if (batch == null && this.dynamicFullBuild == null) {
+                // 特殊内容尚无耗时基线，首批从最小记录预算开始。
+                this.dynamicFullBuild = new QuickLitematicaPreviewDynamicBatch<>(fullScene, QuickLitematicaPreviewBatchBudget.MIN_SIZE);
+                this.dynamicFullCollector = new DynamicMeshCollector(data.forceRender);
             }
-
-            DynamicMeshCollector collector = new DynamicMeshCollector(data.forceRender);
+            var fullBuild = this.dynamicFullBuild;
+            DynamicScene scene = batch == null ? fullBuild.nextScene() : batch.nextScene();
+            long batchStart = System.nanoTime();
+            DynamicMeshCollector collector = batch == null ? this.dynamicFullCollector : new DynamicMeshCollector(data.forceRender);
+            boolean retainCollector = false;
             collector.batch = batch;
             if (batch != null) collector.allocatedBytes = batch.allocatedBytes;
             try (var phase = QuickLitematicaPreviewLog.phase(batch == null
@@ -347,6 +358,11 @@ final class QuickLitematicaPreviewAccess {
                     }
                 });
 
+                if (batch == null && !fullBuild.finishCollected(System.nanoTime() - batchStart)) {
+                    this.dynamicProgress = fullBuild.progress();
+                    retainCollector = true;
+                    return;
+                }
                 var uploaded = collector.upload();
                 try {
                     this.dynamicBuffers.addAll(uploaded);
@@ -372,7 +388,13 @@ final class QuickLitematicaPreviewAccess {
                 if (batch != null) this.dynamicBatchingDisabled = true;
                 else this.dynamicBufferFallback = true;
             } finally {
-                collector.close();
+                if (!retainCollector) {
+                    if (this.dynamicFullCollector == collector) {
+                        this.dynamicFullCollector = null;
+                        this.dynamicFullBuild = null;
+                    }
+                    collector.close();
+                }
             }
         }
 
@@ -423,6 +445,8 @@ final class QuickLitematicaPreviewAccess {
 
             Matrix4fStack modelView = RenderSystem.getModelViewStack();
             modelView.pushMatrix();
+            boolean previousSnapshotMode = this.transparentRenderer.snapshotRendering;
+            this.transparentRenderer.snapshotRendering = true;
             try {
                 modelView.identity();
                 float viewportSize = Math.max(1, drag.size);
@@ -447,6 +471,7 @@ final class QuickLitematicaPreviewAccess {
                 }
                 this.drawBuffers(modelView, framebuffer, keepBackgroundOpaque, true);
             } finally {
+                this.transparentRenderer.snapshotRendering = previousSnapshotMode;
                 VertexBuffer.unbind();
                 RenderSystem.colorMask(true, true, true, true);
                 modelView.popMatrix();
@@ -472,7 +497,8 @@ final class QuickLitematicaPreviewAccess {
         }
 
         void drawDynamic(MeshData data, Matrix4f modelView, int viewX, int viewY, int viewSize) {
-            DynamicScene scene = data.dynamicScene();
+            DynamicScene scene = data.dynamicSceneIfReady();
+            if (scene == null) return;
             if (scene.isEmpty()) {
                 return;
             }
@@ -553,6 +579,10 @@ final class QuickLitematicaPreviewAccess {
         }
 
         void closeDynamicBuffers() {
+            var fullCollector = this.dynamicFullCollector;
+            this.dynamicFullCollector = null;
+            this.dynamicFullBuild = null;
+            if (fullCollector != null) fullCollector.close();
             this.dynamicBuffers.forEach(layerBuffer -> {
                 if (!layerBuffer.buffer().isClosed()) {
                     layerBuffer.buffer().close();
@@ -612,7 +642,13 @@ final class QuickLitematicaPreviewAccess {
                 );
                 framebuffer.clear(MinecraftClient.IS_SYSTEM_MAC);
                 this.renderSnapshot(framebuffer, data, drag, ((backgroundColor >>> 24) & 0xFF) == 0xFF);
-                imageCallback.accept(takeSnapshot(framebuffer));
+                NativeImage image = takeSnapshot(framebuffer);
+                try {
+                    imageCallback.accept(image);
+                } catch (Throwable failure) {
+                    image.close();
+                    throw failure;
+                }
             } catch (Throwable ignored) {
                 LOGGER.warn("原生预览局部失败：入口=takeNativeSnapshot，继续原有跳过/回退", ignored);
 
@@ -1262,7 +1298,7 @@ final class QuickLitematicaPreviewAccess {
                     return null;
                 }
 
-                entity.setPosition(this.x, this.y, this.z);
+                QuickLitematicaPreviewDynamicSceneBuilder.positionEntity(entity, this.x, this.y, this.z);
                 int light = MinecraftClient.getInstance().getEntityRenderDispatcher().getLight(entity, 0.0F);
                 return new RenderedEntity(entity, this.x, this.y, this.z, light);
             } catch (Throwable ignored) {

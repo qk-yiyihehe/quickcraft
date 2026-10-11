@@ -3,8 +3,7 @@
 	"package": "com.yiyihehe.quickcraft.mixin",
 	"plugin": "com.yiyihehe.quickcraft.mixin.QuickCraftMixinPlugin",
 	"compatibilityLevel": "JAVA_25",
-	"mixins": [
-	],
+	"mixins": [],
 	"client": [
 		"AnvilRenameTextFieldMixin",
 		"AnvilScreenMixin",
@@ -39,6 +38,12 @@
 		"LitematicaMaterialListHudRendererMixin",
 		"LitematicaMinecraftClientHoldEasyPlaceMixin",
 		"LitematicaPreparedRenderTypeMixin",
+		"LitematicaPreviewRenderTypeMixin",
+		"LitematicaPreviewPreparedGroupMixin",
+		"LitematicaPreviewGeometryGroupMixin",
+		"LitematicaPreviewGeometryRendererMixin",
+		"LitematicaPreviewItemFeatureInvoker",
+		"LitematicaPreviewFrameDispatcherMixin",
 		"LitematicaInventoryUtilsShulkerRestockMixin",
 		"LitematicaPreviewDataFixerMixin",
 		"LitematicaPreviewConversionMixin",

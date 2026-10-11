@@ -6,12 +6,16 @@ import net.minecraft.client.renderer.StagedVertexBuffer;
 import org.jetbrains.annotations.Nullable;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.gen.Accessor;
+import java.util.List;
 
 /**
  * 管理 26.3 投影实体缓存的 CPU 暂存内存和 GPU 容量上限。
  */
 @Mixin(StagedVertexBuffer.class)
 public interface LitematicaStagedVertexBufferAccessor {
+    @Accessor("draws")
+    List<StagedVertexBuffer.Draw> quickcraft$getDraws();
+
     @Accessor("stagingBuffer")
     ByteBufferBuilder quickcraft$getStagingBuffer();
 

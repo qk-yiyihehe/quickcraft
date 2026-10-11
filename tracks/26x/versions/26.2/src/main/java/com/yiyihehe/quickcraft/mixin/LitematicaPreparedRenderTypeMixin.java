@@ -4,6 +4,8 @@ import com.mojang.blaze3d.buffers.GpuBufferSlice;
 import com.mojang.blaze3d.systems.RenderPass;
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.yiyihehe.quickcraft.litematica.QuickLitematicaPreview3D;
+import com.yiyihehe.quickcraft.litematica.QuickLitematicaPreviewAccess;
+import com.yiyihehe.quickcraft.litematica.QuickLitematicaPreviewRenderTypes;
 import net.minecraft.client.renderer.rendertype.PreparedRenderType;
 import org.joml.Matrix4f;
 import org.spongepowered.asm.mixin.Mixin;
@@ -25,7 +27,11 @@ public class LitematicaPreparedRenderTypeMixin {
     )
     private void quickcraft$refreshCachedDynamicTransforms(RenderPass pass, String name, GpuBufferSlice value) {
         if ("DynamicTransforms".equals(name) && QuickLitematicaPreview3D.shouldRefreshCachedPreviewDynamicTransforms()) {
-            value = RenderSystem.getDynamicUniforms().writeTransform(new Matrix4f());
+            var material = QuickLitematicaPreviewRenderTypes.refreshed((PreparedRenderType) (Object) this);
+            value = material != null ? material.dynamicTransforms()
+                    : QuickLitematicaPreviewAccess.cachedDynamicTransforms != null
+                    ? QuickLitematicaPreviewAccess.cachedDynamicTransforms
+                    : RenderSystem.getDynamicUniforms().writeTransform(new Matrix4f());
         }
         pass.setUniform(name, value);
     }

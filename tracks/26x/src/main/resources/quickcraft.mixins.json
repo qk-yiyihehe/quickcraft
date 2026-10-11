@@ -3,8 +3,7 @@
 	"package": "com.yiyihehe.quickcraft.mixin",
 	"plugin": "com.yiyihehe.quickcraft.mixin.QuickCraftMixinPlugin",
 	"compatibilityLevel": "JAVA_25",
-	"mixins": [
-	],
+	"mixins": [],
 	"client": [
 		"AnvilRenameTextFieldMixin",
 		"AnvilScreenMixin",
@@ -73,7 +72,11 @@
 		"QuickTransferItemHighlightMixin",
 		"QuickTransferScreenMixin",
 		"RenderLayerAccessor",
-		"ShulkerBoxScreenMixin"
+		"ShulkerBoxScreenMixin",
+		"LitematicaPreviewQueuedDispatcherMixin",
+		"LitematicaPreviewQueuedModelMixin",
+		"LitematicaPreviewQueuedItemMixin",
+		"LitematicaPreviewQueuedPartMixin"
 	],
 	"injectors": {
 		"defaultRequire": 1

@@ -7,7 +7,7 @@ import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
-/** 相同材质的不透明动态几何分批；未确认全局兼容前不发布任何批次。 */
+/** 按原顺序遍历动态记录；完整帧收集与兼容的不透明批次均在全部完成后发布。 */
 final class QuickLitematicaPreviewDynamicBatch<L> {
     private final QuickLitematicaPreview3D.DynamicScene scene;
     private final Iterator<Map.Entry<BlockPos, BlockEntity>> blocks;
@@ -21,7 +21,12 @@ final class QuickLitematicaPreviewDynamicBatch<L> {
     int batches;
 
     QuickLitematicaPreviewDynamicBatch(QuickLitematicaPreview3D.DynamicScene scene) {
+        this(scene, QuickLitematicaPreviewBatchBudget.INITIAL_SIZE);
+    }
+
+    QuickLitematicaPreviewDynamicBatch(QuickLitematicaPreview3D.DynamicScene scene, int initialSize) {
         this.scene = scene;
+        this.size = initialSize;
         this.blocks = scene.blockEntities().entrySet().iterator();
         this.entities = scene.entities().iterator();
         this.total = (long) scene.blockEntities().size() + scene.entities().size();
@@ -48,11 +53,23 @@ final class QuickLitematicaPreviewDynamicBatch<L> {
 
     boolean finish(long bytes, long elapsed) {
         this.allocatedBytes = bytes;
+        boolean complete = this.finishStep(elapsed);
+        QuickLitematicaPreviewLog.LOGGER.info("动态分批上传完成：批次={}，本批记录={}，完成={}/{}，单批={} us，CPU 暂存已释放，累计顶点={} B，下批记录预算={}",
+                this.batches, this.records, this.completed, this.total, elapsed / 1_000L, bytes, this.size);
+        return complete;
+    }
+
+    boolean finishCollected(long elapsed) {
+        boolean complete = this.finishStep(elapsed);
+        QuickLitematicaPreviewLog.LOGGER.info("dynamic-full-collect-v1：CPU 切片={}，记录={}/{}，本次={} us，尚未上传，保留完整帧顺序",
+                this.batches, this.completed, this.total, elapsed / 1_000L);
+        return complete;
+    }
+
+    private boolean finishStep(long elapsed) {
         this.completed += this.records;
         this.batches++;
         this.size = QuickLitematicaPreviewBatchBudget.nextSize(this.size, elapsed);
-        QuickLitematicaPreviewLog.LOGGER.info("动态分批上传完成：批次={}，本批记录={}，完成={}/{}，单批={} us，CPU 暂存已释放，累计顶点={} B，下批记录预算={}",
-                this.batches, this.records, this.completed, this.total, elapsed / 1_000L, bytes, this.size);
         return !this.blocks.hasNext() && !this.entities.hasNext();
     }
 

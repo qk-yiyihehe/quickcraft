@@ -88,6 +88,29 @@ class QuickLitematicaPreview3DCacheTest {
 
     @Test
     @Timeout(10)
+    void rejectsMatchingOversizedPendingMeshWithoutWaitingOrCancellingWrite() throws Exception {
+        Path cache = this.temporaryDirectory.resolve("oversized-pending.qcp3d");
+        CountDownLatch allowWrite = new CountDownLatch(1);
+        var write = QuickLitematicaPreviewCache.writeAsync(cache, () -> {
+            try {
+                if (!allowWrite.await(5, TimeUnit.SECONDS)) throw new IllegalStateException("Write timed out");
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                throw new IllegalStateException(e);
+            }
+        }, "source", "pack", (long) QuickLitematicaPreviewVertexBudget.DEFAULT_VERTEX_LIMIT + 1);
+        try {
+            assertThatThrownBy(() -> QuickLitematicaPreviewCache.awaitPendingWrite(cache, "source", "pack"))
+                    .isInstanceOf(QuickLitematicaPreview3D.PreviewTooLargeException.class);
+            assertThat(write).isNotDone();
+        } finally {
+            allowWrite.countDown();
+        }
+        write.get(5, TimeUnit.SECONDS);
+    }
+
+    @Test
+    @Timeout(10)
     void cancellingACacheReaderKeepsThePendingWriteRunning() throws Exception {
         Path cache = this.temporaryDirectory.resolve("projection.qcp3d");
         CountDownLatch writeStarted = new CountDownLatch(1);

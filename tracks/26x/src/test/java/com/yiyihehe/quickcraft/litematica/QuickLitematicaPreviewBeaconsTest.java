@@ -61,6 +61,41 @@ class QuickLitematicaPreviewBeaconsTest {
         assertThat(initialize(world, pos, states).getBeamSections()).isEmpty();
     }
 
+    @Test
+    void resumesColumnScanningAndTicksWithoutLeakingTheInitializationScope() {
+        BlockPos pos = new BlockPos(0, 8, 0);
+        Map<BlockPos, BlockState> states = new HashMap<>();
+        states.put(pos, Blocks.BEACON.defaultBlockState());
+        for (int x = -1; x <= 1; x++) {
+            for (int z = -1; z <= 1; z++) states.put(new BlockPos(x, 7, z), Blocks.IRON_BLOCK.defaultBlockState());
+        }
+        states.put(new BlockPos(0, 35, 0), Blocks.GLASS.defaultBlockState());
+        Level world = mock(Level.class);
+        when(world.isClientSide()).thenReturn(true);
+        when(world.getMinY()).thenReturn(-64);
+        when(world.getHeight(any(Heightmap.Types.class), anyInt(), anyInt()))
+                .thenAnswer(call -> QuickLitematicaPreviewBeacons.initializationTop());
+        when(world.getBlockState(any(BlockPos.class)))
+                .thenAnswer(call -> states.getOrDefault(call.getArgument(0), Blocks.AIR.defaultBlockState()));
+        BeaconBlockEntity expected = initialize(world, pos, states);
+        assertThat(expected.getBeamSections()).isNotEmpty();
+        BeaconBlockEntity actual = new BeaconBlockEntity(pos, states.get(pos));
+        actual.setLevel(world);
+        var clock = new java.util.concurrent.atomic.AtomicLong();
+        var sliced = new QuickLitematicaPreviewBeacons.Initializer(world, states, Map.of(pos, actual), clock::getAndIncrement);
+        assertThat(sliced.advance(clock.get(), 0L)).isFalse();
+        int slices = 0;
+        while (!sliced.advance(clock.get(), 1L)) {
+            assertThat(QuickLitematicaPreviewBeacons.isInitializing()).isFalse();
+            assertThat(++slices).isLessThan(100);
+        }
+        assertThat(slices).isGreaterThan(states.size());
+        assertThat(QuickLitematicaPreviewBeacons.isInitializing()).isFalse();
+        assertThat(actual.getBeamSections()).extracting(section -> java.util.List.of(section.getHeight(), section.getColor()))
+                .containsExactlyElementsOf(expected.getBeamSections().stream()
+                        .map(section -> java.util.List.of(section.getHeight(), section.getColor())).toList());
+    }
+
     private static BeaconBlockEntity initialize(Level world, BlockPos pos, Map<BlockPos, BlockState> states) {
         BeaconBlockEntity beacon = new BeaconBlockEntity(pos, states.get(pos));
         beacon.setLevel(world);

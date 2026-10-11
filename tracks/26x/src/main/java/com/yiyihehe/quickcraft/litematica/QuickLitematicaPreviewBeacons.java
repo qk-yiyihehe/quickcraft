@@ -23,33 +23,87 @@ final class QuickLitematicaPreviewBeacons {
     }
 
     static void initialize(Level world, Map<BlockPos, BlockState> states, Map<BlockPos, BlockEntity> entities) {
-        if (entities.values().stream().noneMatch(BeaconBlockEntity.class::isInstance)) return;
-        var tops = new it.unimi.dsi.fastutil.longs.Long2IntOpenHashMap();
-        tops.defaultReturnValue(Integer.MIN_VALUE);
-        states.forEach((pos, state) -> {
-            long column = column(pos);
-            tops.put(column, Math.max(tops.get(column), pos.getY()));
-        });
-        try (var phase = QuickLitematicaPreviewLog.phase("预览信标光柱初始化")) {
-            int count = 0, visible = 0;
-            for (BlockEntity entity : entities.values()) {
-                if (!(entity instanceof BeaconBlockEntity beacon)) continue;
-                count++;
-                BlockPos pos = beacon.getBlockPos();
-                int top = Math.max(pos.getY(), tops.get(column(pos))) + 1;
-                INITIALIZATION_TOP.set(top);
-                try {
-                    // 完成扫描后额外 tick 一次：原版先提交光柱分段，再据分段计算基座等级。
-                    int ticks = (top - pos.getY()) / 10 + 2;
-                    for (int i = 0; i < ticks; i++) {
-                        BeaconBlockEntity.tick(world, pos, beacon.getBlockState(), beacon);
+        new Initializer(world, states, entities).advance(System.nanoTime(), Long.MAX_VALUE);
+    }
+
+    /** 列表、列高和每十层的原生 tick 都可在同一预算下续跑；不在暂停期间保留 ThreadLocal。 */
+    static final class Initializer {
+        private final Level world;
+        private final java.util.function.LongSupplier clock;
+        private final java.util.Iterator<BlockEntity> candidates;
+        private final java.util.Iterator<BlockPos> positions;
+        private final java.util.List<BeaconBlockEntity> beacons = new java.util.ArrayList<>();
+        private final it.unimi.dsi.fastutil.longs.Long2IntOpenHashMap tops = new it.unimi.dsi.fastutil.longs.Long2IntOpenHashMap();
+        private int stage;
+        private int index;
+        private int ticksRemaining;
+        private int top;
+        private int visible;
+        private boolean done;
+
+        Initializer(Level world, Map<BlockPos, BlockState> states, Map<BlockPos, BlockEntity> entities) {
+            this(world, states, entities, System::nanoTime);
+        }
+
+        Initializer(Level world, Map<BlockPos, BlockState> states, Map<BlockPos, BlockEntity> entities,
+                    java.util.function.LongSupplier clock) {
+            this.world = world;
+            this.clock = clock;
+            this.candidates = entities.values().iterator();
+            this.positions = states.keySet().iterator();
+            this.tops.defaultReturnValue(Integer.MIN_VALUE);
+        }
+
+        boolean advance(long start, long budgetNanos) {
+            if (this.done) return true;
+            try (var phase = QuickLitematicaPreviewLog.phase("预览信标光柱初始化")) {
+                while (this.clock.getAsLong() - start < budgetNanos) {
+                    if (this.stage == 0) {
+                        if (this.candidates.hasNext()) {
+                            if (this.candidates.next() instanceof BeaconBlockEntity beacon) this.beacons.add(beacon);
+                            continue;
+                        }
+                        if (this.beacons.isEmpty()) {
+                            this.done = true;
+                            return true;
+                        }
+                        this.stage++;
+                    } else if (this.stage == 1) {
+                        if (this.positions.hasNext()) {
+                            BlockPos pos = this.positions.next();
+                            long column = column(pos);
+                            this.tops.put(column, Math.max(this.tops.get(column), pos.getY()));
+                            continue;
+                        }
+                        this.stage++;
+                    } else {
+                        if (this.index == this.beacons.size()) {
+                            this.done = true;
+                            QuickLitematicaPreviewLog.LOGGER.info("预览信标光柱统计：信标={}，原版判定有光柱={}，无光柱={}（缺少有效基座或上方遮挡）",
+                                    this.beacons.size(), this.visible, this.beacons.size() - this.visible);
+                            return true;
+                        }
+                        BeaconBlockEntity beacon = this.beacons.get(this.index);
+                        BlockPos pos = beacon.getBlockPos();
+                        if (this.ticksRemaining == 0) {
+                            this.top = Math.max(pos.getY(), this.tops.get(column(pos))) + 1;
+                            // 额外 tick 先提交光柱分段，再计算基座等级，与同步初始化的次数一致。
+                            this.ticksRemaining = (this.top - pos.getY()) / 10 + 2;
+                        }
+                        INITIALIZATION_TOP.set(this.top);
+                        try {
+                            BeaconBlockEntity.tick(this.world, pos, beacon.getBlockState(), beacon);
+                        } finally {
+                            INITIALIZATION_TOP.remove();
+                        }
+                        if (--this.ticksRemaining == 0) {
+                            if (!beacon.getBeamSections().isEmpty()) this.visible++;
+                            this.index++;
+                        }
                     }
-                    if (!beacon.getBeamSections().isEmpty()) visible++;
-                } finally {
-                    INITIALIZATION_TOP.remove();
                 }
+                return false;
             }
-            QuickLitematicaPreviewLog.LOGGER.info("预览信标光柱统计：信标={}，原版判定有光柱={}，无光柱={}（缺少有效基座或上方遮挡）", count, visible, count - visible);
         }
     }
 

@@ -24,6 +24,8 @@ final class QuickLitematicaPreviewTransparentRenderer implements AutoCloseable {
     @Nullable
     private BufferAllocator transparentIndexAllocator;
     private boolean rotateTransparentIndices;
+    boolean snapshotRendering;
+    private QuickLitematicaPreviewAsyncSort transparentAsyncSort;
 
     private record TranslucentBuffer(net.minecraft.client.render.BuiltBuffer.SortState state, QuickLitematicaPreviewQuadDepth depth) {}
     void register(VertexBuffer buffer, BuiltBuffer.SortState state) {
@@ -42,8 +44,36 @@ final class QuickLitematicaPreviewTransparentRenderer implements AutoCloseable {
         return this.translucentBuffers.get(buffer).state().indexType();
     }
 
+    private boolean resortAsync(VertexBuffer buffer, TranslucentBuffer translucent, Matrix4f modelView) {
+        if (this.snapshotRendering) {
+            if (this.transparentAsyncSort != null) { this.transparentAsyncSort.close(); this.transparentAsyncSort = null; }
+            return false;
+        }
+        if (translucent == null || !translucent.depth().initialized()) return false;
+        var points = translucent.state().centroids();
+        if (points.length < QuickLitematicaPreviewAsyncSort.MIN_QUADS || this.translucentBuffers.size() != 1) return false;
+        if (this.transparentAsyncSort == null) {
+            this.transparentAsyncSort = new QuickLitematicaPreviewAsyncSort(points.length, translucent.state().indexType().size,
+                    translucent.depth(), (depth, order, keys) -> depth.sort(points, order, keys), this.sortOrder, this.sortKeys);
+            this.sortOrder = new int[0];
+            this.sortKeys = new int[0];
+            if (this.transparentIndexAllocator != null) { this.transparentIndexAllocator.close(); this.transparentIndexAllocator = null; }
+        }
+        var result = this.transparentAsyncSort.poll();
+        if (result != null) {
+            try (result; var phase = QuickLitematicaPreviewLog.phase("后台透明结果索引上传")) {
+                this.transparentIndexBuffers.computeIfAbsent(buffer,
+                        ignored -> new QuickLitematicaPreviewLegacyBuffers(buffer, this.rotateTransparentIndices)).write(result.indices());
+                translucent.depth().update(result.view);
+            }
+        }
+        this.transparentAsyncSort.request(modelView);
+        return true;
+    }
+
     void resort(VertexBuffer buffer, Matrix4f modelView) {
         TranslucentBuffer translucent = this.translucentBuffers.get(buffer);
+        if (this.resortAsync(buffer, translucent, modelView)) return;
         if (translucent == null || !translucent.depth().update(modelView)) return;
         this.sortDepth.update(modelView);
         var points = translucent.state().centroids();
@@ -99,7 +129,7 @@ final class QuickLitematicaPreviewTransparentRenderer implements AutoCloseable {
                             new BuiltBuffer.SortState(centers, VertexFormat.IndexType.INT), new QuickLitematicaPreviewQuadDepth()));
                     vertexBuffers.put(LayerKey.TRANSLUCENT, List.of(combined));
                     this.transparentUpload = plan;
-                    this.rotateTransparentIndices = QuickLitematicaPreviewTransparentMerge.canRotateIndices(plan.vertexBytes, plan.indexCount);
+                    this.rotateTransparentIndices = QuickLitematicaPreviewTransparentMerge.canRotateStreamedIndices(plan.indexCount);
                     published = true;
                 } finally {
                     this.initializingArena = false;
@@ -180,6 +210,7 @@ final class QuickLitematicaPreviewTransparentRenderer implements AutoCloseable {
     public void close() {
         this.transparentIndexBuffers.values().forEach(QuickLitematicaPreviewLegacyBuffers::close);
         this.transparentIndexBuffers.clear();
+        if (this.transparentAsyncSort != null) { this.transparentAsyncSort.close(); this.transparentAsyncSort = null; }
         this.sortOrder = new int[0];
         this.sortKeys = new int[0];
         if (this.transparentIndexAllocator != null) {

@@ -47,11 +47,12 @@ final class QuickLitematicaPreviewCache {
     static final String CACHE_VERSION_FILE_NAME = "cache-version.txt";
     static final String CACHE_INDEX_FILE_NAME = "cache-index.properties";
     static final String CACHE_RENDER_MARKER = QuickLitematicaPreviewAccess.getCacheRenderMarker();
+    static final String MESH_CACHE_MARKER = CACHE_RENDER_MARKER + "/entity-anchor-v1";
     static final int CACHE_IO_CHUNK_BYTES = 64 * 1024;
     private static final AtomicBoolean CACHE_DIRECTORY_READY = new AtomicBoolean();
     private static final Object CACHE_INDEX_LOCK = new Object();
     private static final Properties CACHE_INDEX = new Properties();
-    private static final ConcurrentHashMap<Path, CompletableFuture<Void>> CACHE_WRITES = new ConcurrentHashMap<>();
+    private static final ConcurrentHashMap<Path, PendingWrite> CACHE_WRITES = new ConcurrentHashMap<>();
     private static final ExecutorService CACHE_EXECUTOR = Executors.newSingleThreadExecutor(r -> {
         Thread thread = new Thread(r, "QuickCraft-Preview3D-Cache");
         thread.setDaemon(true);
@@ -61,8 +62,14 @@ final class QuickLitematicaPreviewCache {
     private static volatile Path currentCacheDirectory;
 
     static CompletableFuture<Void> writeAsync(Path cachePath, Runnable write) {
+        return writeAsync(cachePath, write, null, null, 0L);
+    }
+
+    static CompletableFuture<Void> writeAsync(Path cachePath, Runnable write,
+            @Nullable String sourceHash, @Nullable String resourceSignature, long vertices) {
         CompletableFuture<Void> completion = new CompletableFuture<>();
-        CACHE_WRITES.put(cachePath, completion);
+        PendingWrite pending = new PendingWrite(completion, sourceHash, resourceSignature, vertices);
+        CACHE_WRITES.put(cachePath, pending);
         try {
             CACHE_EXECUTOR.execute(() -> {
                 try {
@@ -72,11 +79,11 @@ final class QuickLitematicaPreviewCache {
                     LOGGER.error("Failed to save 3D preview cache {}", cachePath, e);
                     completion.completeExceptionally(e);
                 } finally {
-                    CACHE_WRITES.remove(cachePath, completion);
+                    CACHE_WRITES.remove(cachePath, pending);
                 }
             });
         } catch (RuntimeException | Error failure) {
-            CACHE_WRITES.remove(cachePath, completion);
+            CACHE_WRITES.remove(cachePath, pending);
             completion.completeExceptionally(failure);
             throw failure;
         }
@@ -84,10 +91,22 @@ final class QuickLitematicaPreviewCache {
     }
 
     static void awaitPendingWrite(Path cachePath) {
-        CompletableFuture<Void> pending = CACHE_WRITES.get(cachePath);
+        awaitPendingWrite(cachePath, null, null);
+    }
+
+    static void awaitPendingWrite(Path cachePath, @Nullable String sourceHash, @Nullable String resourceSignature) {
+        PendingWrite write = CACHE_WRITES.get(cachePath);
+        CompletableFuture<Void> pending = write == null ? null : write.completion();
         if (pending == null) {
             LOGGER.info("没有同投影未提交写入：路径={}", cachePath);
             return;
+        }
+        if (sourceHash != null && sourceHash.equals(write.sourceHash())
+                && resourceSignature != null && resourceSignature.equals(write.resourceSignature())
+                && write.vertices() > QuickLitematicaPreviewVertexBudget.vertexLimit()) {
+            LOGGER.info("待保存网格已超过当前顶点预算：顶点={}，上限={}，不等待压缩保存，路径={}",
+                    write.vertices(), QuickLitematicaPreviewVertexBudget.vertexLimit(), cachePath);
+            throw new PreviewTooLargeException(!QuickLitematicaPreviewVertexBudget.isForced());
         }
         LOGGER.info("等待同投影保存：路径={}，已完成={}", cachePath, pending.isDone());
         try {
@@ -102,6 +121,9 @@ final class QuickLitematicaPreviewCache {
             // 写入失败已记录，读取流程继续检查磁盘并按需重建。
         }
     }
+
+    private record PendingWrite(CompletableFuture<Void> completion, @Nullable String sourceHash,
+            @Nullable String resourceSignature, long vertices) {}
 
     static String currentCacheSignature() {
         return cacheSignature(currentResourcePackSignature() + ":" + QuickLitematicaPreviewResources.signature(),
@@ -313,7 +335,7 @@ final class QuickLitematicaPreviewCache {
     static String currentCacheVersionToken() {
         // 格式、渲染和预处理语义共同决定失效；发行版本号不影响缓存复用。
         return CACHE_FORMAT_VERSION + "|" + CACHE_RENDER_MARKER + "|nbt-verified-inventory-v7-beacon-transparent"
-                + "|ctm:" + QuickLitematicaPreview3D.ctmRuntimeToken();
+                + "|ctm:" + QuickLitematicaPreviewMeshBuilder.ctmRuntimeToken();
     }
 
     @Nullable
@@ -393,8 +415,8 @@ final class QuickLitematicaPreviewCache {
                     int magic = input.readInt();
                     int version = input.readInt();
                     String marker = input.readUTF();
-                    if (magic != CACHE_MAGIC || version != CACHE_FORMAT_VERSION || !CACHE_RENDER_MARKER.equals(marker)) {
-                            LOGGER.warn("缓存读取失效：原因=cache_header_mismatch：magic={}/{}，format={}/{}，marker={}/{}，文件={}", magic, CACHE_MAGIC, version, CACHE_FORMAT_VERSION, marker, CACHE_RENDER_MARKER, path);
+                    if (magic != CACHE_MAGIC || version != CACHE_FORMAT_VERSION || !MESH_CACHE_MARKER.equals(marker)) {
+                            LOGGER.warn("缓存读取失效：原因=cache_header_mismatch：magic={}/{}，format={}/{}，marker={}/{}，文件={}", magic, CACHE_MAGIC, version, CACHE_FORMAT_VERSION, marker, MESH_CACHE_MARKER, path);
                         deleteQuietly(path);
                         return null;
                     }
@@ -576,7 +598,7 @@ final class QuickLitematicaPreviewCache {
                     progressSink.set(PROGRESS_CACHE_WRITE);
                     output.writeInt(CACHE_MAGIC);
                     output.writeInt(CACHE_FORMAT_VERSION);
-                    output.writeUTF(CACHE_RENDER_MARKER);
+                    output.writeUTF(MESH_CACHE_MARKER);
                     output.writeInt(data.sizeX());
                     output.writeInt(data.sizeY());
                     output.writeInt(data.sizeZ());

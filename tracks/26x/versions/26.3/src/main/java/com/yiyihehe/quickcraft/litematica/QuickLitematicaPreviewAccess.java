@@ -247,10 +247,12 @@ public final class QuickLitematicaPreviewAccess {
 
         @Override
         public float dynamicPreparationProgress() {
-            return this.dynamicFrameProgress();
+            return this.dynamicContentProgress();
         }
 
         private QuickLitematicaPreviewTransparentMerge.Stream transparentUpload;
+        private QuickLitematicaPreviewAsyncSort transparentAsyncSort;
+        private boolean snapshotRendering;
 
         private boolean uploadTransparentBatch(com.mojang.blaze3d.vertex.MeshData built, com.mojang.blaze3d.vertex.MeshData.SortState batchSort, int vertexCount) {
             var data = built.vertexBuffer();
@@ -269,7 +271,7 @@ public final class QuickLitematicaPreviewAccess {
                             GpuBuffer.USAGE_VERTEX | GpuBuffer.USAGE_COPY_DST, plan.vertexBytes);
                     indices = RenderSystem.getDevice().createBuffer(() -> "QuickCraft transparent arena indices",
                             GpuBuffer.USAGE_INDEX | GpuBuffer.USAGE_COPY_DST, Math.multiplyExact(plan.indexCount, 4));
-                    var rotation = QuickLitematicaPreviewTransparentMerge.canRotateIndices(plan.vertexBytes, plan.indexCount)
+                    var rotation = QuickLitematicaPreviewTransparentMerge.canRotateStreamedIndices(plan.indexCount)
                             ? new QuickLitematicaPreviewIndexBuffers(indices) : null;
                     var combined = new LayerBuffer(vertices, indices, plan.indexCount, IndexType.INT, true, sort,
                             new QuickLitematicaPreviewQuadDepth(), rotation);
@@ -353,6 +355,7 @@ public final class QuickLitematicaPreviewAccess {
             this.layerBuffers.values().forEach(buffers -> buffers.forEach(LayerBuffer::close));
             this.layerBuffers.clear();
             this.transparentUpload = null;
+            if (this.transparentAsyncSort != null) { this.transparentAsyncSort.close(); this.transparentAsyncSort = null; }
             this.transparentOrder.clear();
             this.sortOrder = new int[0];
             this.sortKeys = new int[0];
@@ -439,11 +442,12 @@ public final class QuickLitematicaPreviewAccess {
             }
             this.prepareDynamicFrame(data);
             if (this.dynamicFrame != null) {
+                this.refreshDynamicFrameTransforms(modelView);
                 cachedDynamicTransforms = RenderSystem.getDynamicUniforms().writeTransform(modelView);
                 return null;
             }
             if (this.dynamicFrameProgress() < 1.0F) return null;
-            this.prepareDynamicStates(data);
+            if (!this.prepareDynamicStates(data)) return null;
             SubmitNodeStorage submitNodes = new SubmitNodeStorage();
             if (this.preparedDynamicScene != null) {
                 this.drawPreparedDynamic(this.preparedDynamicScene, modelView, viewSize, submitNodes);
@@ -451,7 +455,12 @@ public final class QuickLitematicaPreviewAccess {
                 this.drawDynamic(data, modelView, viewSize, submitNodes);
             }
             // 借用游戏 dispatcher 的池化帧，用完必须 close；不持有或关闭游戏 dispatcher。
-            return Minecraft.getInstance().gameRenderer.featureRenderDispatcher().prepareFrame(submitNodes);
+            try (var materials = QuickLitematicaPreviewRenderTypes.beginCapture();
+                 var phase = QuickLitematicaPreviewLog.phase("动态即时帧几何构建/上传 CPU 调用")) {
+                var frame = Minecraft.getInstance().gameRenderer.featureRenderDispatcher().prepareFrame(submitNodes);
+                this.preview.trace.milestone("dynamic-current-material-v1：即时帧复用相同材质状态，保留原生阶段与严格顺序");
+                return frame;
+            }
         }
 
         private void drawCachedFrames(RenderPass pass) {
@@ -554,7 +563,37 @@ public final class QuickLitematicaPreviewAccess {
             }
         }
 
+        private boolean resortAsync(LayerBuffer buffer, Matrix4f modelView) {
+            if (this.snapshotRendering) {
+                if (this.transparentAsyncSort != null) { this.transparentAsyncSort.close(); this.transparentAsyncSort = null; }
+                return false;
+            }
+            if (buffer.translucentSort() == null || !buffer.depth().initialized()) return false;
+            var points = buffer.translucentSort().centroids();
+            var buffers = this.layerBuffers.get(QuickLitematicaPreview3D.LayerKey.TRANSLUCENT);
+            if (points.size() < QuickLitematicaPreviewAsyncSort.MIN_QUADS || buffers == null || buffers.size() != 1 || buffers.getFirst() != buffer) return false;
+            if (this.transparentAsyncSort == null) {
+                this.transparentAsyncSort = new QuickLitematicaPreviewAsyncSort(points.size(), buffer.indexType().bytes, buffer.depth(),
+                        (depth, order, keys) -> depth.sort(points, order, keys), this.sortOrder, this.sortKeys);
+                // 首次同步排序的工作区交给后台独占；索引暂存也改由后台池持有。
+                this.sortOrder = new int[0];
+                this.sortKeys = new int[0];
+                if (this.transparentIndexAllocator != null) { this.transparentIndexAllocator.close(); this.transparentIndexAllocator = null; }
+            }
+            var result = this.transparentAsyncSort.poll();
+            if (result != null) {
+                try (result; var phase = QuickLitematicaPreviewLog.phase("后台透明结果索引上传")) {
+                    if (buffer.indexBuffers() != null) buffer.indexBuffers().advance();
+                    RenderSystem.getDevice().createCommandEncoder().writeToBuffer(buffer.indexBuffer().slice(), result.indices());
+                    buffer.depth().update(result.view);
+                }
+            }
+            this.transparentAsyncSort.request(modelView);
+            return true;
+        }
+
         private void resort(LayerBuffer buffer, Matrix4f modelView) {
+            if (this.resortAsync(buffer, modelView)) return;
             if (buffer.translucentSort() == null || !buffer.depth().update(modelView)) return;
             // 所有批次在渲染线程串行消费索引，共用一个暂存区，避免强制渲染时按批次累积 CPU 内存。
             if (this.transparentIndexAllocator == null) this.transparentIndexAllocator = new ByteBufferBuilder(256);
@@ -595,24 +634,32 @@ public final class QuickLitematicaPreviewAccess {
                 Consumer<Throwable> errorCallback
         ) {
             try (var scope = this.preview.trace.bind(); var phase = QuickLitematicaPreviewLog.phase("离屏渲染/像素读回提交")) {
-                this.prepareDynamicStates(data);
+                if (this.dynamicFrame == null && !this.prepareDynamicStates(data)) {
+                    throw new IllegalStateException("Dynamic preview is still preparing");
+                }
 
                 RenderTarget framebuffer = null;
                 try {
                     framebuffer = new TextureTarget("QuickCraft snapshot", resolution, resolution, GpuFormat.RGBA8_UNORM, GpuFormat.D32_FLOAT);
-                    Vector4f clearColor = new Vector4f(
-                            ((backgroundColor >> 16) & 0xFF) / 255.0F,
-                            ((backgroundColor >> 8) & 0xFF) / 255.0F,
-                            (backgroundColor & 0xFF) / 255.0F,
-                            ((backgroundColor >>> 24) & 0xFF) / 255.0F
-                    );
-                    RenderSystem.getDevice().createCommandEncoder().clearColorAndDepthTextures(
-                            Objects.requireNonNull(framebuffer.getColorTexture()),
-                            clearColor,
-                            Objects.requireNonNull(framebuffer.getDepthTexture()),
-                            0.0D
-                    );
-                    this.renderSnapshot(framebuffer, data, drag);
+                    boolean rendered = false;
+                    try {
+                        Vector4f clearColor = new Vector4f(
+                                ((backgroundColor >> 16) & 0xFF) / 255.0F,
+                                ((backgroundColor >> 8) & 0xFF) / 255.0F,
+                                (backgroundColor & 0xFF) / 255.0F,
+                                ((backgroundColor >>> 24) & 0xFF) / 255.0F
+                        );
+                        RenderSystem.getDevice().createCommandEncoder().clearColorAndDepthTextures(
+                                Objects.requireNonNull(framebuffer.getColorTexture()),
+                                clearColor,
+                                Objects.requireNonNull(framebuffer.getDepthTexture()),
+                                0.0D
+                        );
+                        this.renderSnapshot(framebuffer, data, drag);
+                        rendered = true;
+                    } finally {
+                        if (!rendered) framebuffer.destroyBuffers();
+                    }
                 } catch (Throwable throwable) {
                     if (framebuffer != null) {
                         framebuffer.destroyBuffers();
@@ -626,14 +673,18 @@ public final class QuickLitematicaPreviewAccess {
                     this.preview.trace.milestone("快照像素读回完成：分辨率={}", resolution);
                     callback.accept(image);
                 }), this.preview.trace.wrapConsumer(errorCallback));
+            } catch (Throwable failure) {
+                errorCallback.accept(failure);
             }
         }
 
         private void renderSnapshot(RenderTarget framebuffer, QuickLitematicaPreview3D.MeshData data, QuickLitematicaPreview3D.DragState drag) {
             var previousLights = RenderSystem.getShaderLights();
+            boolean previousSnapshotMode = this.snapshotRendering;
             RenderSystem.backupProjectionMatrix();
-            PoseStack matrices = new PoseStack();
             try {
+                PoseStack matrices = new PoseStack();
+                this.snapshotRendering = true;
                 this.setupPreviewProjection(framebuffer.width, framebuffer.height, drag.scale);
                 matrices.translate(framebuffer.width / 2.0F, framebuffer.height / 2.0F, 0.0F);
                 matrices.scale(1.0F, -1.0F, 1.0F);
@@ -667,6 +718,7 @@ public final class QuickLitematicaPreviewAccess {
                     drawBuffers(layers, true, pass);
                 }
             } finally {
+                this.snapshotRendering = previousSnapshotMode;
                 cachedDynamicTransforms = null;
                 RenderSystem.restoreProjectionMatrix();
                 RenderSystem.setShaderLights(previousLights);
@@ -679,52 +731,57 @@ public final class QuickLitematicaPreviewAccess {
                 Consumer<NativeImage> callback,
                 Consumer<Throwable> errorCallback
         ) {
-            var texture = Objects.requireNonNull(framebuffer.getColorTexture());
-            int width = framebuffer.width;
-            int height = framebuffer.height;
-            int pixelSize = texture.getFormat().blockSize();
-            var device = RenderSystem.getDevice();
-            GpuBuffer buffer = device.createBuffer(
-                    () -> "QuickCraft PNG readback",
-                    GpuBuffer.USAGE_MAP_READ | GpuBuffer.USAGE_COPY_DST,
-                    width * height * pixelSize
-            );
-            device.createCommandEncoder().copyTextureToBuffer(texture, buffer, 0L, () -> {
-                ByteBuffer pixelData;
-                try (var view = buffer.map(true, false)) {
-                    var pixels = view.data();
-                    pixelData = ByteBuffer.allocate(pixels.remaining()).order(pixels.order());
-                    pixelData.put(pixels).flip();
-                } catch (Throwable throwable) {
-                    errorCallback.accept(throwable);
-                    return;
-                } finally {
-                    try {
-                        buffer.close();
-                    } finally {
-                        framebuffer.destroyBuffers();
-                    }
-                }
-
-                Util.backgroundExecutor().execute(() -> {
-                    NativeImage image = null;
-                    try {
-                        image = new NativeImage(width, height, false);
-                        for (int y = 0; y < height; y++) {
-                            for (int x = 0; x < width; x++) {
-                                int color = pixelData.getInt((x + y * width) * pixelSize);
-                                image.setPixelABGR(x, height - y - 1, keepBackgroundOpaque ? color | 0xFF000000 : color);
-                            }
-                        }
-                        callback.accept(image);
+            var resources = new QuickLitematicaPreviewReadback(framebuffer::destroyBuffers);
+            try {
+                var texture = Objects.requireNonNull(framebuffer.getColorTexture());
+                int width = framebuffer.width;
+                int height = framebuffer.height;
+                int pixelSize = texture.getFormat().blockSize();
+                var device = RenderSystem.getDevice();
+                GpuBuffer buffer = device.createBuffer(
+                        () -> "QuickCraft PNG readback",
+                        GpuBuffer.USAGE_MAP_READ | GpuBuffer.USAGE_COPY_DST,
+                        width * height * pixelSize
+                );
+                resources.buffer(buffer::close);
+                device.createCommandEncoder().copyTextureToBuffer(texture, buffer, 0L, () -> {
+                    ByteBuffer pixelData;
+                    try (resources; var view = buffer.map(true, false)) {
+                        var pixels = view.data();
+                        pixelData = ByteBuffer.allocate(pixels.remaining()).order(pixels.order());
+                        pixelData.put(pixels).flip();
                     } catch (Throwable throwable) {
-                        if (image != null) {
-                            image.close();
-                        }
                         errorCallback.accept(throwable);
+                        return;
                     }
-                });
-            }, 0);
+
+                    try {
+                        Util.backgroundExecutor().execute(() -> {
+                            NativeImage image = null;
+                            try {
+                                image = new NativeImage(width, height, false);
+                                for (int y = 0; y < height; y++) {
+                                    for (int x = 0; x < width; x++) {
+                                        int color = pixelData.getInt((x + y * width) * pixelSize);
+                                        image.setPixelABGR(x, height - y - 1, keepBackgroundOpaque ? color | 0xFF000000 : color);
+                                    }
+                                }
+                                callback.accept(image);
+                            } catch (Throwable throwable) {
+                                if (image != null) {
+                                    image.close();
+                                }
+                                errorCallback.accept(throwable);
+                            }
+                        });
+                    } catch (Throwable failure) {
+                        errorCallback.accept(failure);
+                    }
+                }, 0);
+
+            } catch (Throwable failure) {
+                resources.failed(failure, errorCallback);
+            }
         }
     }
 

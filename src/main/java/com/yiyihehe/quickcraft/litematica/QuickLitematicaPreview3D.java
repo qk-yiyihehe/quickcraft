@@ -7,24 +7,14 @@ import fi.dy.masa.malilib.util.InfoUtils;
 import fi.dy.masa.malilib.util.StringUtils;
 
 import java.util.Collection;
-import net.minecraft.util.math.random.Random;
-import net.minecraft.nbt.NbtList;
-import net.minecraft.nbt.NbtHelper;
-import net.minecraft.nbt.NbtDouble;
-import net.minecraft.nbt.NbtCompound;
-import net.minecraft.client.util.math.MatrixStack;
 import net.minecraft.client.render.block.BlockRenderManager;
 import net.minecraft.block.BlockEntityProvider;
 import com.mojang.blaze3d.systems.RenderSystem;
-import com.sun.jna.Native;
 import com.sun.jna.Platform;
 import com.sun.jna.Pointer;
-import com.sun.jna.platform.win32.BaseTSD;
 import com.sun.jna.platform.win32.User32;
 import com.sun.jna.platform.win32.WinDef.HWND;
 import com.sun.jna.platform.win32.WinUser;
-import com.sun.jna.win32.StdCallLibrary;
-import com.sun.jna.win32.W32APIOptions;
 import com.yiyihehe.quickcraft.config.QuickCraftConfigs;
 import fi.dy.masa.litematica.render.schematic.ChunkCacheSchematic;
 import fi.dy.masa.litematica.schematic.LitematicaSchematic;
@@ -54,14 +44,10 @@ import net.minecraft.world.chunk.light.LightingProvider;
 import org.jetbrains.annotations.Nullable;
 import org.lwjgl.glfw.GLFW;
 import org.lwjgl.glfw.GLFWNativeWin32;
-import java.awt.image.BufferedImage;
-import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.nio.ByteOrder;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Collections;
 import java.util.List;
@@ -69,7 +55,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.WeakHashMap;
 import java.util.concurrent.CancellationException;
-import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
@@ -77,7 +62,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
-import javax.imageio.ImageIO;
 import static com.yiyihehe.quickcraft.litematica.QuickLitematicaPreviewAccess.*;
 import static com.yiyihehe.quickcraft.litematica.QuickLitematicaPreviewShaderAccess.isShaderPackActive;
 
@@ -141,7 +125,7 @@ public final class QuickLitematicaPreview3D {
             BlockState state = block.getDefaultState();
             if (!(state.getBlock() instanceof BlockEntityProvider provider)) return false;
             // 与网格构建使用相同的类型/渲染器检查，兼容为原版方块注册渲染器的模组。
-            return MeshBuilder.hasPreviewBlockEntityRenderer(provider, state, BlockPos.ORIGIN);
+            return QuickLitematicaPreviewMeshBuilder.hasPreviewBlockEntityRenderer(provider, state, BlockPos.ORIGIN);
         } catch (Throwable failure) {
             LOGGER.warn("方块实体预览渲染器核验失败：类型={}，保留原数据及 DFU", id, failure);
             return true;
@@ -160,7 +144,6 @@ public final class QuickLitematicaPreview3D {
         return thread;
     });
     static final int EXPAND_BUTTON_SIZE = 16;
-    static final int COMPAT_CLIPBOARD_MAX_DIMENSION = 4096;
     static final int EMBEDDED_PREVIEW_DIMENSION = 1024;
     // 预算必须卡在构建阶段前面：顶点 packed 后仍会占用 CPU/GPU 大块连续内存。
     // 1600 万顶点约对应 671 MiB 静态 GPU 顶点数据；只放宽静态网格，动态内容上限仍保持原值。
@@ -976,11 +959,8 @@ public final class QuickLitematicaPreview3D {
         @Nullable
         volatile Future<?> future;
 
-        final ConcurrentLinkedQueue<LayerMesh> pendingStaticLayers = new ConcurrentLinkedQueue<>();
+        private final QuickLitematicaPreviewUploadQueue staticUploads = new QuickLitematicaPreviewUploadQueue();
         private final QuickLitematicaPreviewMeshStore staticMeshStore = new QuickLitematicaPreviewMeshStore();
-        // 64 KiB 计账单位，队列正常批次最多保留 64 MiB 原始顶点；消费后返还容量。
-        private final java.util.concurrent.Semaphore staticUploadBytes = new java.util.concurrent.Semaphore(1024);
-
 
         @Nullable
         volatile PreviewDimensions dimensions;
@@ -1131,7 +1111,7 @@ public final class QuickLitematicaPreview3D {
                 if (schematic == null) {
                     throw new IllegalStateException("Cannot capture Litematica selection");
                 }
-                MeshData built = MeshBuilder.build(
+                MeshData built = QuickLitematicaPreviewMeshBuilder.build(
                         schematic,
                         this.cancelled,
                         value -> this.progress = value,
@@ -1189,7 +1169,7 @@ public final class QuickLitematicaPreview3D {
                 }
                 Files.createDirectories(cacheDirectory);
                 try (var phase = QuickLitematicaPreviewLog.phase("等待同投影后台缓存提交")) {
-                    awaitPendingWrite(this.cachePath);
+                    awaitPendingWrite(this.cachePath, sourceHash, this.resourcePackSignature);
                 }
                 this.throwIfCancelled();
                 Path readCachePath = this.cachePath;
@@ -1233,7 +1213,7 @@ public final class QuickLitematicaPreview3D {
                     deleteQuietly(convertedPath);
                     schematic = QuickLitematicaPreviewSchematicFiles.readSchematic(this.sourcePath, this.cancelled, true);
                 }
-                MeshData built = MeshBuilder.build(
+                MeshData built = QuickLitematicaPreviewMeshBuilder.build(
                         schematic,
                         this.cancelled,
                         value -> this.progress = value,
@@ -1360,7 +1340,7 @@ public final class QuickLitematicaPreview3D {
             });
             this.staticMeshStore.retainForCache();
             try {
-                writeAsync(cachePath, cacheWrite);
+                writeAsync(cachePath, cacheWrite, sourceHash, resourcePackSignature, snapshot.vertexCount());
             } catch (RuntimeException | Error failure) {
                 this.staticMeshStore.releaseCache();
                 throw failure;
@@ -1375,56 +1355,26 @@ public final class QuickLitematicaPreview3D {
             this.dimensions = new PreviewDimensions(sizeX, sizeY, sizeZ);
         }
 
-        private static int uploadPermits(LayerMesh layer) {
-            return (int) Math.min(1024L, (layer.quantizedByteCount() + 65_535L) / 65_536L);
-        }
-
-        private void discardPendingStaticLayers() {
-            LayerMesh layer;
-            while ((layer = this.pendingStaticLayers.poll()) != null) {
-                this.staticUploadBytes.release(uploadPermits(layer));
-            }
-        }
-
         void publishStaticLayers(List<LayerMesh> layers) {
             for (LayerMesh layer : layers) {
                 this.throwIfCancelled();
                 // 透明层加载期间本就不绘制；等整层数量确定后再按批上传，避免合并时复制整层显存。
                 if (layer.needsTranslucentSorting() && this.meshData == null) continue;
-                int permits = uploadPermits(layer);
-                try (var phase = QuickLitematicaPreviewLog.phase("等待静态上传队列容量")) {
-                    this.staticUploadBytes.acquire(permits);
-                } catch (InterruptedException interrupted) {
-                    Thread.currentThread().interrupt();
-                    throw new CancellationException();
-                }
-                boolean queued = false;
-                try {
-                    this.throwIfCancelled();
-                    // 暂存读取在构建线程进行；渲染线程只接收有界的原始顶点批次。
-                    byte[] bytes = layer.quantizedVertices();
-                    synchronized (this) {
-                        this.throwIfCancelled();
-                        this.pendingStaticLayers.add(new LayerMesh(layer.layer(), bytes));
-                        queued = true;
-                    }
-                    this.trace.event("网格批次发布：层={}，顶点={}，量化={} B，上传队列剩余预算={} KiB",
-                            layer.layer(), layer.vertexCount(), layer.quantizedByteCount(), this.staticUploadBytes.availablePermits() * 64);
-                } finally {
-                    if (!queued) this.staticUploadBytes.release(permits);
-                }
+                this.staticUploads.publish(layer, this::throwIfCancelled);
+                this.trace.event("网格批次发布：层={}，顶点={}，量化={} B，上传队列剩余预算={} KiB",
+                        layer.layer(), layer.vertexCount(), layer.quantizedByteCount(), this.staticUploads.availableKiB());
             }
         }
 
         void discardPartialStatic() {
-            this.discardPendingStaticLayers();
+            this.staticUploads.discard();
             this.staticMeshStore.close();
             this.dimensions = null;
             this.closeRendererOnRenderThread();
         }
 
         void completeStaticUploadIfReady() {
-            if (this.cancelled.get() || this.staticUploadComplete || this.uploadScheduled || this.state != State.READY || !this.pendingStaticLayers.isEmpty()) {
+            if (this.cancelled.get() || this.staticUploadComplete || this.uploadScheduled || this.state != State.READY || !this.staticUploads.isEmpty()) {
                 return;
             }
 
@@ -1443,7 +1393,7 @@ public final class QuickLitematicaPreview3D {
             if (data != null) {
                 data.closeDynamic();
             }
-            this.discardPendingStaticLayers();
+            this.staticUploads.discard();
             this.staticMeshStore.close();
             this.meshData = null;
             this.dimensions = null;
@@ -1462,7 +1412,7 @@ public final class QuickLitematicaPreview3D {
             }
             this.meshData = null;
             this.dimensions = null;
-            this.discardPendingStaticLayers();
+            this.staticUploads.discard();
         }
 
         void refreshCacheSourceHash() {
@@ -1495,220 +1445,6 @@ public final class QuickLitematicaPreview3D {
                 return 4096;
             }
             return 8192;
-        }
-
-        // Minecraft 客户端会启用 java.awt.headless，图片剪贴板必须绕过 AWT 直接写 Win32。
-        static void copyToWindowsClipboard(NativeImage image, boolean preserveTransparency) throws InterruptedException {
-            int width = image.getWidth();
-            int height = image.getHeight();
-            double compatScale = Math.min(1.0, COMPAT_CLIPBOARD_MAX_DIMENSION / (double) Math.max(width, height));
-            int compatWidth = Math.max(1, (int) Math.round(width * compatScale));
-            int compatHeight = Math.max(1, (int) Math.round(height * compatScale));
-            byte[] pngBytes;
-            try {
-                pngBytes = preserveTransparency ? encodeClipboardPng(image, compatWidth, compatHeight) : null;
-            } catch (IOException e) {
-                throw new IllegalStateException("Could not encode transparent clipboard PNG", e);
-            }
-            long pixelBytes = (long) width * height * 4L;
-            long compatPixelBytes = (long) compatWidth * compatHeight * 4L;
-            Pointer dibV5Handle = WindowsMemory.INSTANCE.GlobalAlloc(
-                    WindowsMemory.GHND,
-                    new BaseTSD.SIZE_T(WindowsMemory.BITMAP_V5_HEADER_SIZE + pixelBytes)
-            );
-            Pointer dibHandle = WindowsMemory.INSTANCE.GlobalAlloc(
-                    WindowsMemory.GHND,
-                    new BaseTSD.SIZE_T(WindowsMemory.BITMAP_INFO_HEADER_SIZE + compatPixelBytes)
-            );
-            if (dibV5Handle == null || dibHandle == null) {
-                if (dibV5Handle != null) {
-                    WindowsMemory.INSTANCE.GlobalFree(dibV5Handle);
-                }
-                if (dibHandle != null) {
-                    WindowsMemory.INSTANCE.GlobalFree(dibHandle);
-                }
-                throw new IllegalStateException("GlobalAlloc failed");
-            }
-
-            boolean clipboardOwnsDibV5 = false;
-            boolean clipboardOwnsDib = false;
-            boolean clipboardOwnsPng = false;
-            boolean clipboardOpen = false;
-            Pointer pngHandle = null;
-            try {
-                Pointer dibV5Memory = WindowsMemory.INSTANCE.GlobalLock(dibV5Handle);
-                Pointer dibMemory = WindowsMemory.INSTANCE.GlobalLock(dibHandle);
-                if (dibV5Memory == null || dibMemory == null) {
-                    if (dibV5Memory != null) {
-                        WindowsMemory.INSTANCE.GlobalUnlock(dibV5Handle);
-                    }
-                    if (dibMemory != null) {
-                        WindowsMemory.INSTANCE.GlobalUnlock(dibHandle);
-                    }
-                    throw new IllegalStateException("GlobalLock failed");
-                }
-                try {
-                    dibV5Memory.write(0, createBitmapV5Header(width, height), 0, WindowsMemory.BITMAP_V5_HEADER_SIZE);
-                    dibMemory.write(
-                            0,
-                            createBitmapInfoHeader(compatWidth, compatHeight),
-                            0,
-                            WindowsMemory.BITMAP_INFO_HEADER_SIZE
-                    );
-                    int[] row = new int[width];
-                    boolean sameDimensions = width == compatWidth && height == compatHeight;
-                    for (int y = 0; y < height; y++) {
-                        for (int x = 0; x < width; x++) {
-                            row[x] = readImageArgb(image, x, y);
-                        }
-                        dibV5Memory.write(WindowsMemory.BITMAP_V5_HEADER_SIZE + (long) y * width * 4L, row, 0, width);
-                        if (sameDimensions) {
-                            dibMemory.write(
-                                    WindowsMemory.BITMAP_INFO_HEADER_SIZE + (long) (height - 1 - y) * width * 4L,
-                                    row,
-                                    0,
-                                    width
-                            );
-                        }
-                    }
-                    if (!sameDimensions) {
-                        int[] compatRow = new int[compatWidth];
-                        for (int y = 0; y < compatHeight; y++) {
-                            int sourceY = Math.min(height - 1, (int) ((y + 0.5) * height / compatHeight));
-                            for (int x = 0; x < compatWidth; x++) {
-                                int sourceX = Math.min(width - 1, (int) ((x + 0.5) * width / compatWidth));
-                                compatRow[x] = readImageArgb(image, sourceX, sourceY);
-                            }
-                            dibMemory.write(
-                                    WindowsMemory.BITMAP_INFO_HEADER_SIZE
-                                            + (long) (compatHeight - 1 - y) * compatWidth * 4L,
-                                    compatRow,
-                                    0,
-                                    compatWidth
-                            );
-                        }
-                    }
-                } finally {
-                    WindowsMemory.INSTANCE.GlobalUnlock(dibV5Handle);
-                    WindowsMemory.INSTANCE.GlobalUnlock(dibHandle);
-                }
-
-                if (pngBytes != null) {
-                    pngHandle = WindowsMemory.INSTANCE.GlobalAlloc(
-                            WindowsMemory.GHND,
-                            new BaseTSD.SIZE_T(pngBytes.length)
-                    );
-                    if (pngHandle == null) {
-                        throw new IllegalStateException("GlobalAlloc(PNG) failed");
-                    }
-                    Pointer pngMemory = WindowsMemory.INSTANCE.GlobalLock(pngHandle);
-                    if (pngMemory == null) {
-                        throw new IllegalStateException("GlobalLock(PNG) failed");
-                    }
-                    try {
-                        pngMemory.write(0, pngBytes, 0, pngBytes.length);
-                    } finally {
-                        WindowsMemory.INSTANCE.GlobalUnlock(pngHandle);
-                    }
-                }
-
-                clipboardOpen = openWindowsClipboard();
-                if (!clipboardOpen || !WindowsClipboard.INSTANCE.EmptyClipboard()) {
-                    throw new IllegalStateException("Windows clipboard is unavailable");
-                }
-                if (pngHandle != null) {
-                    int pngFormat = WindowsClipboard.INSTANCE.RegisterClipboardFormat("PNG");
-                    if (pngFormat == 0 || WindowsClipboard.INSTANCE.SetClipboardData(pngFormat, pngHandle) == null) {
-                        throw new IllegalStateException("SetClipboardData(PNG) failed");
-                    }
-                    clipboardOwnsPng = true;
-                }
-
-                // 不认识 PNG 的程序按枚举顺序使用 DIB；支持 PNG 的程序可保留完整 Alpha。
-                if (WindowsClipboard.INSTANCE.SetClipboardData(WindowsClipboard.CF_DIB, dibHandle) == null) {
-                    throw new IllegalStateException("SetClipboardData(CF_DIB) failed");
-                }
-                clipboardOwnsDib = true;
-                clipboardOwnsDibV5 = WindowsClipboard.INSTANCE.SetClipboardData(
-                        WindowsClipboard.CF_DIBV5,
-                        dibV5Handle
-                ) != null;
-            } finally {
-                if (clipboardOpen) {
-                    WindowsClipboard.INSTANCE.CloseClipboard();
-                }
-                if (!clipboardOwnsDibV5) {
-                    WindowsMemory.INSTANCE.GlobalFree(dibV5Handle);
-                }
-                if (!clipboardOwnsDib) {
-                    WindowsMemory.INSTANCE.GlobalFree(dibHandle);
-                }
-                if (!clipboardOwnsPng && pngHandle != null) {
-                    WindowsMemory.INSTANCE.GlobalFree(pngHandle);
-                }
-            }
-        }
-
-        static byte[] encodeClipboardPng(NativeImage image, int width, int height) throws IOException {
-            BufferedImage bufferedImage = new BufferedImage(width, height, BufferedImage.TYPE_INT_ARGB);
-            int[] row = new int[width];
-            for (int y = 0; y < height; y++) {
-                int sourceY = Math.min(image.getHeight() - 1, (int) ((y + 0.5) * image.getHeight() / height));
-                for (int x = 0; x < width; x++) {
-                    int sourceX = Math.min(image.getWidth() - 1, (int) ((x + 0.5) * image.getWidth() / width));
-                    row[x] = readImageArgb(image, sourceX, sourceY);
-                }
-                bufferedImage.setRGB(0, y, width, 1, row, 0, width);
-            }
-
-            try (ByteArrayOutputStream output = new ByteArrayOutputStream()) {
-                if (!ImageIO.write(bufferedImage, "png", output)) {
-                    throw new IOException("No PNG writer is available");
-                }
-                return output.toByteArray();
-            }
-        }
-
-        static boolean openWindowsClipboard() throws InterruptedException {
-            for (int attempt = 0; attempt < 5; attempt++) {
-                if (WindowsClipboard.INSTANCE.OpenClipboard(null)) {
-                    return true;
-                }
-                Thread.sleep(10L);
-            }
-            return false;
-        }
-
-        static byte[] createBitmapV5Header(int width, int height) {
-            ByteBuffer header = ByteBuffer.allocate(WindowsMemory.BITMAP_V5_HEADER_SIZE).order(ByteOrder.LITTLE_ENDIAN);
-            header.putInt(WindowsMemory.BITMAP_V5_HEADER_SIZE);
-            header.putInt(width);
-            header.putInt(-height);
-            header.putShort((short) 1);
-            header.putShort((short) 32);
-            header.putInt(WindowsMemory.BI_BITFIELDS);
-            header.putInt(width * height * 4);
-            header.position(40);
-            header.putInt(0x00FF0000);
-            header.putInt(0x0000FF00);
-            header.putInt(0x000000FF);
-            header.putInt(0xFF000000);
-            header.putInt(WindowsMemory.LCS_SRGB);
-            header.position(108);
-            header.putInt(WindowsMemory.LCS_GM_IMAGES);
-            return header.array();
-        }
-
-        static byte[] createBitmapInfoHeader(int width, int height) {
-            ByteBuffer header = ByteBuffer.allocate(WindowsMemory.BITMAP_INFO_HEADER_SIZE).order(ByteOrder.LITTLE_ENDIAN);
-            header.putInt(WindowsMemory.BITMAP_INFO_HEADER_SIZE);
-            header.putInt(width);
-            header.putInt(height);
-            header.putShort((short) 1);
-            header.putShort((short) 32);
-            header.putInt(WindowsMemory.BI_RGB);
-            header.putInt(width * height * 4);
-            return header.array();
         }
 
         Path nextOutputPath(Path outputDirectory, int resolution) {
@@ -1752,12 +1488,13 @@ public final class QuickLitematicaPreview3D {
 
         void uploadIfNeeded() {
             if (this.uploadScheduled || this.cancelled.get() || (this.state != State.BUILDING && this.state != State.READY)) return;
-            LayerMesh layer = this.pendingStaticLayers.poll();
-            if (layer == null) {
+            var uploadTicket = this.staticUploads.poll();
+            if (uploadTicket == null) {
                 this.completeStaticUploadIfReady();
                 return;
             }
-            this.trace.event("静态上传排队：层={}，顶点={}，量化大小={} B，剩余批次={}", layer.layer(), layer.vertexCount(), layer.quantizedByteCount(), this.pendingStaticLayers.size());
+            LayerMesh layer = uploadTicket.layer;
+            this.trace.event("静态上传排队：层={}，顶点={}，量化大小={} B，剩余批次={}", layer.layer(), layer.vertexCount(), layer.quantizedByteCount(), this.staticUploads.size());
             long uploadQueued = QuickLitematicaPreviewLog.startTimer();
             this.uploadScheduled = true;
             Runnable upload = this.trace.wrap(() -> {
@@ -1769,13 +1506,24 @@ public final class QuickLitematicaPreview3D {
                     LOGGER.error("Failed to upload a 3D preview batch for {}", this.sourceName(), failure);
                     this.failBuild(failure);
                 } finally {
-                    this.staticUploadBytes.release(uploadPermits(layer));
+                    uploadTicket.close();
                     this.uploadScheduled = false;
                     this.completeStaticUploadIfReady();
                 }
             });
-            if (RenderSystem.isOnRenderThread()) upload.run();
-            else MinecraftClient.getInstance().execute(upload);
+            boolean dispatched = false;
+            try {
+                if (RenderSystem.isOnRenderThread()) upload.run();
+                else MinecraftClient.getInstance().execute(upload);
+                dispatched = true;
+            } catch (RuntimeException | Error failure) {
+                this.failBuild(failure);
+            } finally {
+                if (!dispatched) {
+                    uploadTicket.close();
+                    this.uploadScheduled = false;
+                }
+            }
         }
 
         void captureSnapshot(
@@ -1794,14 +1542,14 @@ public final class QuickLitematicaPreview3D {
                 }
 
                 MeshData data = this.meshData;
-                if (this.state != State.READY || data == null) {
+                if (this.state != State.READY || data == null || this.cancelled.get() || QuickLitematicaPreviewResources.reloading()) {
                     this.trace.event("快照请求被拒绝：操作=captureSnapshot，状态={}，上传中={}，取消={}", this.state, this.uploadScheduled, this.cancelled.get());
                     messageCallback.accept(Text.translatable("quickcraft.litematica.preview_3d.export_not_ready"));
                     return;
                 }
 
                 this.uploadIfNeeded();
-                if (!this.staticUploadComplete) {
+                if (!this.staticUploadComplete || data.hasDynamicContent() && data.dynamicSceneProgress() < 1.0F) {
                     this.trace.event("快照请求被拒绝：操作=captureSnapshot，状态={}，上传中={}，取消={}", this.state, this.uploadScheduled, this.cancelled.get());
                     messageCallback.accept(Text.translatable("quickcraft.litematica.preview_3d.export_not_ready"));
                     return;
@@ -1894,7 +1642,7 @@ public final class QuickLitematicaPreview3D {
 
                 Util.getIoWorkerExecutor().execute(this.trace.wrap("剪贴板编码/写入", () -> {
                     try {
-                        copyToWindowsClipboard(image, ((backgroundColor >>> 24) & 0xFF) != 0xFF);
+                        QuickLitematicaPreviewClipboard.copyImage(image, ((backgroundColor >>> 24) & 0xFF) != 0xFF);
                         MinecraftClient.getInstance().execute(() -> callback.accept(Text.translatable(
                                 "quickcraft.litematica.preview_3d.copy_success"
                         )));
@@ -1915,7 +1663,7 @@ public final class QuickLitematicaPreview3D {
         @Override
         public synchronized void close() {
             // 缓存临时文件归独立写入任务所有，关闭预览只取消构建并释放显示资源。
-            this.trace.event("关闭预览：当前状态={}，待上传批次={}，仅取消构建/读取，已交接缓存写入独立继续", this.state, this.pendingStaticLayers.size());
+            this.trace.event("关闭预览：当前状态={}，待上传批次={}，仅取消构建/读取，已交接缓存写入独立继续", this.state, this.staticUploads.size());
             this.trace.summary("显示资源释放前");
             this.cancelled.set(true);
             PENDING_PREVIEW_BUILD.compareAndSet(this, null);
@@ -1924,7 +1672,7 @@ public final class QuickLitematicaPreview3D {
                 task.cancel(true);
             }
 
-            this.discardPendingStaticLayers();
+            this.staticUploads.discard();
             this.staticMeshStore.close();
             MeshData data = this.meshData;
             if (data != null) {
@@ -1946,11 +1694,19 @@ public final class QuickLitematicaPreview3D {
 
         final void render(DrawContext context, int x, int y, int size, DragState drag) {
             if (QuickLitematicaPreviewLog.enabled()) this.trace.milestone("预览任务状态快照：状态={}，缓存={}，源大小={} B，尺寸={}，待上传批次={}，上传调度中={}",
-                    this.state, this.cachePath, this.sourceSize, this.dimensions, this.pendingStaticLayers.size(), this.uploadScheduled);
+                    this.state, this.cachePath, this.sourceSize, this.dimensions, this.staticUploads.size(), this.uploadScheduled);
             State currentState = this.state;
             if ((currentState == State.BUILDING || currentState == State.READY) && this.dimensions != null) {
                 this.uploadIfNeeded();
                 MeshData data = this.meshData;
+                if (data != null && this.staticUploadComplete) {
+                    try (var scope = this.trace.bind(); var phase = QuickLitematicaPreviewLog.phase("动态场景分帧准备")) {
+                        data.prepareDynamicScene();
+                    } catch (RuntimeException | Error failure) {
+                        this.failBuild(failure);
+                        return;
+                    }
+                }
                 if (this.hasUploadedBuffers()
                         || currentState == State.READY && data != null && (data.hasDynamicContent() || this.staticUploadComplete)) {
                     try {
@@ -2030,41 +1786,6 @@ public final class QuickLitematicaPreview3D {
             current = current.getCause();
         }
         return false;
-    }
-
-    interface WindowsClipboard extends StdCallLibrary {
-        WindowsClipboard INSTANCE = Native.load("user32", WindowsClipboard.class, W32APIOptions.DEFAULT_OPTIONS);
-        int CF_DIB = 8;
-        int CF_DIBV5 = 17;
-
-        boolean OpenClipboard(Pointer owner);
-
-        boolean EmptyClipboard();
-
-        int RegisterClipboardFormat(String formatName);
-
-        Pointer SetClipboardData(int format, Pointer memoryHandle);
-
-        boolean CloseClipboard();
-    }
-
-    interface WindowsMemory extends StdCallLibrary {
-        WindowsMemory INSTANCE = Native.load("kernel32", WindowsMemory.class, W32APIOptions.DEFAULT_OPTIONS);
-        int GHND = 0x0042;
-        int BITMAP_INFO_HEADER_SIZE = 40;
-        int BITMAP_V5_HEADER_SIZE = 124;
-        int BI_RGB = 0;
-        int BI_BITFIELDS = 3;
-        int LCS_SRGB = 0x73524742;
-        int LCS_GM_IMAGES = 4;
-
-        Pointer GlobalAlloc(int flags, BaseTSD.SIZE_T bytes);
-
-        Pointer GlobalLock(Pointer memoryHandle);
-
-        boolean GlobalUnlock(Pointer memoryHandle);
-
-        Pointer GlobalFree(Pointer memoryHandle);
     }
 
     enum State {
@@ -2196,6 +1917,8 @@ public final class QuickLitematicaPreview3D {
         final int sizeZ;
         @Nullable
         DynamicScene dynamicScene;
+        private boolean dynamicSceneInitialized;
+        @Nullable private QuickLitematicaPreviewDynamicSceneBuilder dynamicSceneBuilder;
 
         MeshData(List<LayerMesh> layers, List<BlockStateData> blockStates, List<BlockEntityData> blockEntities, List<EntityData> entities, int sizeX, int sizeY, int sizeZ) {
             this.layers = layers;
@@ -2252,17 +1975,32 @@ public final class QuickLitematicaPreview3D {
             return !this.blockEntities.isEmpty() || !this.entities.isEmpty();
         }
 
-        DynamicScene dynamicScene() {
-            DynamicScene scene = this.dynamicScene;
-            if (scene == null) {
-                scene = DynamicScene.create(this.blockStates, this.blockEntities, this.entities);
-                this.dynamicScene = scene;
-            }
-            return scene;
+        @Nullable
+        synchronized DynamicScene dynamicSceneIfReady() {
+            if (this.dynamicScene == null) this.dynamicSceneInitialized = false;
+            return this.dynamicScene;
         }
 
-        void closeDynamic() {
+        synchronized void prepareDynamicScene() {
+            if (this.dynamicSceneInitialized || !this.hasDynamicContent()) return;
+            if (this.dynamicSceneBuilder == null) {
+                this.dynamicSceneBuilder = new QuickLitematicaPreviewDynamicSceneBuilder(this.blockStates, this.blockEntities, this.entities);
+            }
+            if (this.dynamicSceneBuilder.advance(QuickLitematicaPreviewBatchBudget.TARGET_NANOS)) {
+                this.dynamicScene = this.dynamicSceneBuilder.scene();
+                this.dynamicSceneInitialized = true;
+                this.dynamicSceneBuilder = null;
+            }
+        }
+
+        float dynamicSceneProgress() {
+            return this.dynamicSceneInitialized || !this.hasDynamicContent() ? 1.0F
+                    : this.dynamicSceneBuilder == null ? 0.0F : this.dynamicSceneBuilder.progress();
+        }
+
+        synchronized void closeDynamic() {
             this.dynamicScene = null;
+            this.dynamicSceneBuilder = null;
         }
     }
 
@@ -2278,79 +2016,6 @@ public final class QuickLitematicaPreview3D {
     }
 
     record DynamicScene(DummyWorld world, Map<BlockPos, BlockEntity> blockEntities, List<RenderedEntity> entities) {
-        static DynamicScene create(List<BlockStateData> blockStateData, List<BlockEntityData> blockEntityData, List<EntityData> entityData) {
-            if (blockStateData.isEmpty() && blockEntityData.isEmpty() && entityData.isEmpty()) {
-                return new DynamicScene(Map.of(), List.of());
-            }
-
-            MinecraftClient client = MinecraftClient.getInstance();
-            if (client.world == null) {
-                return new DynamicScene(Map.of(), List.of());
-            }
-
-            Runtime runtime = Runtime.getRuntime();
-            LOGGER.info("动态场景创建开始：方块状态={}，方块实体={}，实体={}，已用堆={} B，最大堆={} B",
-                    blockStateData.size(), blockEntityData.size(), entityData.size(),
-                    runtime.totalMemory() - runtime.freeMemory(), runtime.maxMemory());
-            try (var creation = QuickLitematicaPreviewLog.phase("动态场景创建")) {
-                DummyWorld world;
-                try (var phase = QuickLitematicaPreviewLog.phase("动态假世界创建")) {
-                    world = DummyWorld.fromWorld(client.world);
-                }
-                Map<BlockPos, BlockState> blockStates = new HashMap<>();
-                try (var phase = QuickLitematicaPreviewLog.phase("动态方块状态载入")) {
-                    ProgressSink progress = QuickLitematicaPreviewLog.progressSink("动态方块状态载入");
-                    int completed = 0;
-                    for (BlockStateData data : blockStateData) {
-                        blockStates.put(new BlockPos(data.x(), data.y(), data.z()), data.state(world.getRegistryManager()));
-                        if ((++completed & 0x1FFF) == 0) progress.set(completed / (float) blockStateData.size());
-                    }
-                    progress.set(1.0F);
-                }
-                world.setBlockStates(blockStates);
-
-                Map<BlockPos, BlockEntity> blockEntities = new HashMap<>();
-                try (var phase = QuickLitematicaPreviewLog.phase("动态方块实体实例化")) {
-                    ProgressSink progress = QuickLitematicaPreviewLog.progressSink("动态方块实体实例化");
-                    int completed = 0;
-                    for (BlockEntityData data : blockEntityData) {
-                        BlockEntity blockEntity = data.instantiate(world);
-                        if (blockEntity != null) {
-                            blockEntities.put(blockEntity.getPos(), blockEntity);
-                        }
-                        if ((++completed & 0x1FFF) == 0) progress.set(completed / (float) blockEntityData.size());
-                    }
-                    progress.set(1.0F);
-                }
-                world.setBlockEntities(blockEntities);
-                QuickLitematicaPreviewBeacons.initialize(world, world.blockStates, world.blockEntities);
-
-                List<RenderedEntity> entities = new ArrayList<>();
-                try (var phase = QuickLitematicaPreviewLog.phase("动态实体实例化")) {
-                    ProgressSink progress = QuickLitematicaPreviewLog.progressSink("动态实体实例化");
-                    int completed = 0;
-                    for (EntityData data : entityData) {
-                        RenderedEntity entity = data.instantiate(world);
-                        if (entity != null) {
-                            entities.add(entity);
-                        }
-                        if ((++completed & 0x1FFF) == 0) progress.set(completed / (float) entityData.size());
-                    }
-                    progress.set(1.0F);
-                }
-
-                LOGGER.info("动态场景创建完成：方块状态={}，方块实体={}/{}，实体={}/{}，已用堆={} B，最大堆={} B",
-                        blockStates.size(), blockEntities.size(), blockEntityData.size(), entities.size(), entityData.size(),
-                        runtime.totalMemory() - runtime.freeMemory(), runtime.maxMemory());
-                return new DynamicScene(world, world.blockEntities, List.copyOf(entities));
-            } catch (RuntimeException | OutOfMemoryError failure) {
-                LOGGER.error("动态场景创建失败：方块状态={}，方块实体={}，实体={}，已用堆={} B，最大堆={} B",
-                        blockStateData.size(), blockEntityData.size(), entityData.size(),
-                        runtime.totalMemory() - runtime.freeMemory(), runtime.maxMemory(), failure);
-                throw failure;
-            }
-        }
-
         boolean isEmpty() {
             return this.blockEntities.isEmpty() && this.entities.isEmpty();
         }
@@ -2499,386 +2164,4 @@ public final class QuickLitematicaPreview3D {
         QuickLitematicaPreviewAccess.registerSpecialRenderer();
     }
 
-    static final class MeshBuilder {
-
-        static MeshData build(
-                LitematicaSchematic schematic,
-                AtomicBoolean cancelled,
-                ProgressSink progressSink,
-                DimensionsSink dimensionsSink,
-                Consumer<List<LayerMesh>> batchSink,
-                QuickLitematicaPreviewMeshStore meshStore
-        ) {
-            try (var phase = QuickLitematicaPreviewLog.phase("模型扫描/记录/网格构建")) {
-                MinecraftClient client = MinecraftClient.getInstance();
-                if (client.world == null) {
-                    throw new IllegalStateException("Litematica preview needs a loaded client world");
-                }
-                progressSink.set(PROGRESS_MESHING_START);
-
-                Bounds bounds = Bounds.from(schematic.getAreas().values());
-                dimensionsSink.set(bounds.sizeX(), bounds.sizeY(), bounds.sizeZ());
-                MeshCollector collector = new MeshCollector();
-                if (QuickLitematicaPreviewLog.enabled()) LOGGER.info("transparent-build-stream-v1：静态网格在完整方块后分批发布，目标单批={} 顶点，透明记录器引用保留", STATIC_BATCH_TARGET_VERTICES);
-                final List<LayerMesh> layers = new ArrayList<>();
-                Map<BlockPos, BlockStateData> blockStates = new HashMap<>();
-                List<BlockEntityData> blockEntities = new ArrayList<>();
-                List<EntityData> entities = new ArrayList<>();
-                Map<BlockState, Boolean> blockEntityRendererCache = new HashMap<>();
-                List<RegionBlockView> regionViews = new ArrayList<>();
-                long total = Math.max(1L, totalVolume(schematic.getAreas().values()));
-
-                BlockRenderManager blockRenderManager = client.getBlockRenderManager();
-                MatrixStack matrices = new MatrixStack();
-                Random random = Random.createLocal();
-                MeshRenderer renderer = new MeshRenderer(collector, blockRenderManager, matrices, random, client.world);
-                long scannedVolume = 0L;
-
-                for (String regionName : schematic.getAreas().keySet()) {
-                    throwIfCancelled(cancelled);
-                    LitematicaBlockStateContainer container = schematic.getSubRegionContainer(regionName);
-                    Box area = schematic.getAreas().get(regionName);
-                    if (container == null || area == null) {
-                        LOGGER.warn("跳过区域：名称={}，原因=missing_container_or_area，容器存在={}，区域存在={}", regionName, container != null, area != null);
-                        continue;
-                    }
-
-                    RegionBlockView view = new RegionBlockView(container, area);
-                    regionViews.add(view);
-                    RegionBounds regionBounds = RegionBounds.from(area);
-                    recordEntities(blockStates, entities, view, schematic, regionName, area, bounds, cancelled);
-
-                    long regionVolume = regionBounds.volume();
-                    long regionStart = scannedVolume;
-                    QuickLitematicaPreviewLog.RegionStats regionStats = QuickLitematicaPreviewLog.enabled()
-                            ? new QuickLitematicaPreviewLog.RegionStats(regionName, regionVolume) : null;
-                    try {
-                        visitNonAirBlocks(container, regionBounds, cancelled, wordProgress -> progressSink.set(
-                                PROGRESS_MESHING_START + (PROGRESS_MESHING_END - PROGRESS_MESHING_START)
-                                        * ((regionStart + wordProgress * regionVolume) / (float) Math.max(1L, total))
-                        ), (pos, state) -> {
-                            try {
-                                BlockPos renderPos = pos.subtract(bounds.min());
-                                long entityStart = regionStats == null ? 0L : System.nanoTime();
-                                recordBlockEntity(blockStates, blockEntities, blockEntityRendererCache, view, state, schematic, regionName, pos, renderPos, bounds);
-                                long fluidStart = regionStats == null ? 0L : System.nanoTime();
-                                renderer.renderFluid(view, state, pos, renderPos);
-                                long modelStart = regionStats == null ? 0L : System.nanoTime();
-                                renderer.renderBlock(view, state, pos, renderPos);
-                                if (regionStats != null) regionStats.record(state, fluidStart - entityStart,
-                                        modelStart - fluidStart, System.nanoTime() - modelStart);
-
-                            } catch (RuntimeException | Error failure) {
-                                LOGGER.error("方块模型记录失败：区域={}，位置={}，状态={}", regionName, pos, state, failure);
-                                throw failure;
-                            }
-                            if (collector.shouldPublishBatch()) {
-                                for (LayerMesh mesh : collector.drainReadyMeshes()) {
-                                    for (LayerMesh split : QuickLitematicaPreviewMeshBatches.split(mesh, cancelled)) {
-                                        List<LayerMesh> batch = List.of(split);
-                                        meshStore.addBatch(layers, batch,
-                                                (long) collector.vertexCount * QUANTIZED_VERTEX_BYTES, cancelled);
-                                        batchSink.accept(batch);
-                                    }
-                                }
-                            }
-                        });
-                    } finally {
-                        if (regionStats != null) {
-                            LOGGER.info("fluid-enclosed-cull-v1：区域={}，流体={}，内部跳过={}，自定义处理器保留={}",
-                                    regionName, view.fluidVisibility.examined, view.fluidVisibility.skipped, view.fluidVisibility.custom);
-                            regionStats.close();
-                        }
-                    }
-                    scannedVolume += regionVolume;
-                }
-
-                recordBeaconBlockStates(blockStates, blockEntities, regionViews, bounds, cancelled);
-                progressSink.set(PROGRESS_MESHING_END);
-                List<LayerMesh> finalBatch = new ArrayList<>();
-                for (LayerMesh mesh : collector.drainAllMeshes()) {
-                    finalBatch.addAll(QuickLitematicaPreviewMeshBatches.split(mesh, cancelled));
-                }
-                for (int index = 0; index < finalBatch.size(); index++) {
-                    LayerMesh mesh = finalBatch.set(index, null);
-                    List<LayerMesh> batch = List.of(mesh);
-                    meshStore.addBatch(layers, batch,
-                            (long) collector.vertexCount * QUANTIZED_VERTEX_BYTES, cancelled);
-                    batchSink.accept(batch);
-                }
-                List<LayerMesh> completeLayers = List.copyOf(layers);
-                int vertices = vertexCount(completeLayers);
-                if (QuickLitematicaPreviewLog.enabled()) LOGGER.info("模型构建统计：顶点={}/{}，层批次={}，动态状态={}/{}，方块实体={}/{}，实体={}/{}，扫描体积={}",
-                        vertices, QuickLitematicaPreviewVertexBudget.vertexLimit(), completeLayers.size(), blockStates.size(), QuickLitematicaPreviewVertexBudget.countLimit(MAX_DYNAMIC_BLOCK_STATES),
-                        blockEntities.size(), QuickLitematicaPreviewVertexBudget.countLimit(MAX_DYNAMIC_BLOCK_ENTITIES), entities.size(), QuickLitematicaPreviewVertexBudget.countLimit(MAX_DYNAMIC_ENTITIES), scannedVolume);
-                if (vertices > QuickLitematicaPreviewVertexBudget.vertexLimit()
-                        || blockStates.size() > QuickLitematicaPreviewVertexBudget.countLimit(MAX_DYNAMIC_BLOCK_STATES)
-                        || blockEntities.size() > QuickLitematicaPreviewVertexBudget.countLimit(MAX_DYNAMIC_BLOCK_ENTITIES)
-                        || entities.size() > QuickLitematicaPreviewVertexBudget.countLimit(MAX_DYNAMIC_ENTITIES)) {
-                    throw new PreviewTooLargeException(vertices > QuickLitematicaPreviewVertexBudget.vertexLimit());
-                }
-                return new MeshData(completeLayers, new ArrayList<>(blockStates.values()), blockEntities, entities, bounds.sizeX(), bounds.sizeY(), bounds.sizeZ());
-            }
-        }
-
-        static int vertexCount(List<LayerMesh> layers) {
-            int count = 0;
-            for (LayerMesh layer : layers) {
-                count += layer.vertexCount();
-            }
-            return count;
-        }
-
-        static void visitNonAirBlocks(
-                LitematicaBlockStateContainer container,
-                RegionBounds bounds,
-                AtomicBoolean cancelled,
-                ProgressSink progressSink,
-                NonAirBlockConsumer consumer
-        ) {
-            var size = container.getSize();
-            int sizeX = size.getX();
-            int sizeY = size.getY();
-            int sizeZ = size.getZ();
-            if (sizeX != bounds.sizeX() || sizeY != bounds.sizeY() || sizeZ != bounds.sizeZ()) {
-                for (BlockPos pos : BlockPos.iterate(bounds.min(), bounds.max())) {
-                    throwIfCancelled(cancelled);
-                    int x = pos.getX() - bounds.min().getX();
-                    int y = pos.getY() - bounds.min().getY();
-                    int z = pos.getZ() - bounds.min().getZ();
-                    if (x < 0 || y < 0 || z < 0 || x >= sizeX || y >= sizeY || z >= sizeZ) {
-                        continue;
-                    }
-                    BlockState state = container.get(x, y, z);
-                    if (!state.isAir()) {
-                        consumer.accept(pos, state);
-                    }
-                }
-                progressSink.set(1.0F);
-                return;
-            }
-
-            long[] packed = container.getArray().getBackingLongArray();
-            int paletteSize = Math.max(1, container.getPalette().getPaletteSize());
-            int bits = Math.max(2, Integer.SIZE - Integer.numberOfLeadingZeros(Math.max(1, paletteSize - 1)));
-            BlockState zeroState = container.getPalette().getBlockState(0);
-            boolean zeroMeansAir = zeroState == null || zeroState.isAir();
-            long rows = (long) sizeY * sizeZ;
-            long rowNumber = 0L;
-            for (int z = 0; z < sizeZ; z++) {
-                for (int y = 0; y < sizeY; y++) {
-                    if ((rowNumber & 0x7F) == 0L) {
-                        throwIfCancelled(cancelled);
-                        progressSink.set(rowNumber / (float) Math.max(1L, rows));
-                    }
-
-                    long rowStart = ((long) y * sizeZ + z) * sizeX;
-                    long rowEnd = rowStart + sizeX;
-                    int firstWord = (int) ((rowStart * bits) >>> 6);
-                    int lastWord = (int) (((rowEnd - 1L) * bits) >>> 6);
-                    long lastProcessedIndex = rowStart - 1L;
-                    for (int wordIndex = firstWord; wordIndex <= lastWord; wordIndex++) {
-                        if (zeroMeansAir && packed[wordIndex] == 0L) {
-                            continue;
-                        }
-
-                        long firstIndex = Math.max(rowStart, (wordIndex * 64L) / bits);
-                        long finalIndex = Math.min(rowEnd - 1L, (((wordIndex + 1L) * 64L) - 1L) / bits);
-                        for (long index = firstIndex; index <= finalIndex; index++) {
-                            if (index <= lastProcessedIndex) {
-                                continue;
-                            }
-                            lastProcessedIndex = index;
-
-                            int stateId = container.getArray().getAt(index);
-                            BlockState state = container.getPalette().getBlockState(stateId);
-                            if (state == null || state.isAir()) {
-                                continue;
-                            }
-
-                            int x = (int) (index - rowStart);
-                            consumer.accept(new BlockPos(
-                                    bounds.min().getX() + x,
-                                    bounds.min().getY() + y,
-                                    bounds.min().getZ() + z
-                            ), state);
-                        }
-                    }
-                    rowNumber++;
-                }
-            }
-            progressSink.set(1.0F);
-        }
-
-        static long totalVolume(Collection<Box> boxes) {
-            long total = 0L;
-            for (Box box : boxes) {
-                RegionBounds bounds = RegionBounds.from(box);
-                total += bounds.volume();
-            }
-            return total;
-        }
-
-        private static void recordBeaconBlockStates(Map<BlockPos, BlockStateData> states,
-                List<BlockEntityData> entities, List<RegionBlockView> views, Bounds bounds, AtomicBoolean cancelled) {
-            for (BlockEntityData data : entities) {
-                throwIfCancelled(cancelled);
-                if (!"minecraft:beacon".equals(readString(data.stateNbt(), "Name"))) continue;
-                BlockPos beacon = new BlockPos(data.x(), data.y(), data.z()).add(bounds.min());
-                for (int depth = 1; depth <= 4; depth++) {
-                    for (int x = -depth; x <= depth; x++) {
-                        for (int z = -depth; z <= depth; z++) {
-                            recordBeaconState(states, views, beacon.add(x, -depth, z), bounds);
-                        }
-                    }
-                }
-                for (int y = beacon.getY() + 1; y <= bounds.max().getY(); y++) {
-                    if ((y & 0xFF) == 0) throwIfCancelled(cancelled);
-                    recordBeaconState(states, views, new BlockPos(beacon.getX(), y, beacon.getZ()), bounds);
-                }
-            }
-        }
-
-        private static void recordBeaconState(Map<BlockPos, BlockStateData> states,
-                List<RegionBlockView> views, BlockPos pos, Bounds bounds) {
-            for (int i = views.size() - 1; i >= 0; i--) {
-                BlockState state = views.get(i).getBlockState(pos);
-                if (!state.isAir()) {
-                    recordDynamicBlockState(states, state, pos.subtract(bounds.min()));
-                    return;
-                }
-            }
-        }
-
-        static void recordBlockEntity(
-                Map<BlockPos, BlockStateData> blockStates,
-                List<BlockEntityData> blockEntities,
-                Map<BlockState, Boolean> blockEntityRendererCache,
-                RegionBlockView view,
-                BlockState state,
-                LitematicaSchematic schematic,
-                String regionName,
-                BlockPos schematicPos,
-                BlockPos renderPos,
-                Bounds bounds
-        ) {
-            if (!(state.getBlock() instanceof BlockEntityProvider provider)) {
-                return;
-            }
-
-            if (!blockEntityRendererCache.computeIfAbsent(state, key -> hasPreviewBlockEntityRenderer(provider, key, renderPos))) {
-                return;
-            }
-
-            recordDynamicBlockState(blockStates, state, renderPos);
-            for (Direction direction : Direction.values()) {
-                BlockPos neighborSchematicPos = schematicPos.offset(direction);
-                BlockState neighborState = view.getBlockState(neighborSchematicPos);
-                if (!neighborState.isAir()) {
-                    recordDynamicBlockState(blockStates, neighborState, neighborSchematicPos.subtract(bounds.min()));
-                }
-            }
-
-            NbtCompound nbt = previewBlockEntityNbt(schematic, regionName, schematicPos.subtract(view.bounds.min()));
-            NbtCompound blockStateNbt = NbtHelper.fromBlockState(state);
-            NbtCompound entityNbt = sanitizeBlockEntityNbt(nbt, readString(blockStateNbt, "Name"));
-            entityNbt.putInt("x", renderPos.getX());
-            entityNbt.putInt("y", renderPos.getY());
-            entityNbt.putInt("z", renderPos.getZ());
-            blockEntities.add(new BlockEntityData(renderPos.getX(), renderPos.getY(), renderPos.getZ(), blockStateNbt, entityNbt));
-            if (blockEntities.size() > QuickLitematicaPreviewVertexBudget.countLimit(MAX_DYNAMIC_BLOCK_ENTITIES)) {
-                throw new PreviewTooLargeException();
-            }
-        }
-
-        static boolean hasPreviewBlockEntityRenderer(BlockEntityProvider provider, BlockState state, BlockPos renderPos) {
-            BlockEntity blockEntity = provider.createBlockEntity(renderPos, state);
-            if (blockEntity == null) {
-                return false;
-            }
-
-            setPreviewBlockEntityState(blockEntity, state);
-            return MinecraftClient.getInstance().getBlockEntityRenderDispatcher().get(blockEntity) != null;
-        }
-
-        static NbtCompound sanitizeBlockEntityNbt(NbtCompound nbt, String blockId) {
-            NbtCompound sanitized = nbt.copy();
-            // 火堆食物等可见物品必须保留，只有已知普通容器可以删减库存。
-            String id = readString(sanitized, "id");
-            if ((sanitized.contains("Items") || sanitized.contains("Inventory"))
-                    && isNonVisualInventory(id.isEmpty() ? blockId : id) && isPreviewInventoryHidden(blockId)) {
-                sanitized.remove("Items");
-                sanitized.remove("Inventory");
-            }
-            return sanitized;
-        }
-
-        static void recordDynamicBlockState(Map<BlockPos, BlockStateData> blockStates, BlockState state, BlockPos renderPos) {
-            if (blockStates.size() >= QuickLitematicaPreviewVertexBudget.countLimit(MAX_DYNAMIC_BLOCK_STATES) && !blockStates.containsKey(renderPos)) {
-                throw new PreviewTooLargeException();
-            }
-
-            blockStates.put(renderPos.toImmutable(), new BlockStateData(renderPos.getX(), renderPos.getY(), renderPos.getZ(), NbtHelper.fromBlockState(state)));
-        }
-
-        static void recordEntities(
-                Map<BlockPos, BlockStateData> blockStates,
-                List<EntityData> entities,
-                RegionBlockView view,
-                LitematicaSchematic schematic,
-                String regionName,
-                Box area,
-                Bounds bounds,
-                AtomicBoolean cancelled
-        ) {
-            List<LitematicaSchematic.EntityInfo> regionEntities = schematic.getEntityListForRegion(regionName);
-            if (regionEntities == null || regionEntities.isEmpty()) {
-                return;
-            }
-
-            BlockPos areaOrigin = area.getPos1();
-            BlockPos regionOrigin = areaOrigin != null ? areaOrigin : BlockPos.ORIGIN;
-            for (LitematicaSchematic.EntityInfo info : regionEntities) {
-                throwIfCancelled(cancelled);
-                double x = entityPos(info).x + regionOrigin.getX() - bounds.min().getX();
-                double y = entityPos(info).y + regionOrigin.getY() - bounds.min().getY();
-                double z = entityPos(info).z + regionOrigin.getZ() - bounds.min().getZ();
-                NbtCompound nbt = entityNbt(info);
-                entities.add(new EntityData(x, y, z, copyEntityNbtAt(nbt, x, y, z)));
-                recordEntityNearbyBlockStates(blockStates, view, bounds, x, y, z);
-                if (entities.size() > QuickLitematicaPreviewVertexBudget.countLimit(MAX_DYNAMIC_ENTITIES)) {
-                    throw new PreviewTooLargeException();
-                }
-            }
-        }
-
-        static void recordEntityNearbyBlockStates(Map<BlockPos, BlockStateData> blockStates, RegionBlockView view, Bounds bounds, double x, double y, double z) {
-            BlockPos center = BlockPos.ofFloored(x, y, z);
-            // 矿车渲染会读取所在位置的铁轨，假世界需要保留中心方块。
-            BlockState centerState = view.getBlockState(center.add(bounds.min()));
-            if (!centerState.isAir()) {
-                recordDynamicBlockState(blockStates, centerState, center);
-            }
-            // 展示框/画等挂载实体会查询附着方块（facing 反方向）；假世界缺邻居会被原版判成 invalid position。
-            // 原 3x3x3=27 个过多，导致 blockStates 暴涨、缓存膨胀、首次渲染变慢。
-            for (Direction direction : Direction.values()) {
-                BlockPos renderPos = center.offset(direction);
-                BlockPos schematicPos = renderPos.add(bounds.min());
-                BlockState state = view.getBlockState(schematicPos);
-                if (!state.isAir()) {
-                    recordDynamicBlockState(blockStates, state, renderPos);
-                }
-            }
-        }
-
-        static NbtCompound copyEntityNbtAt(NbtCompound source, double x, double y, double z) {
-            NbtCompound copy = source.copy();
-            NbtList pos = new NbtList();
-            pos.add(NbtDouble.of(x));
-            pos.add(NbtDouble.of(y));
-            pos.add(NbtDouble.of(z));
-            copy.put("Pos", pos);
-            return copy;
-        }
-    }
 }

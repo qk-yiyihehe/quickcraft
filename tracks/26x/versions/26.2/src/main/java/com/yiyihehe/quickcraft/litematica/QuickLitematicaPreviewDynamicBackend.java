@@ -46,9 +46,18 @@ abstract class QuickLitematicaPreviewDynamicBackend {
     private long dynamicBufferBytes;
     private boolean dynamicBufferFallback;
     private boolean dynamicStateFallback;
+    @Nullable private DynamicStateBuild dynamicStateBuild;
+    @Nullable private FullDynamicBuild fullDynamicBuild;
 
     protected float dynamicFrameProgress() {
         return this.dynamicBufferFallback ? 1.0F : this.dynamicProgress;
+    }
+
+    protected float dynamicContentProgress() {
+        if (this.dynamicFrame != null) return 1.0F;
+        if (!this.dynamicBufferFallback) return this.dynamicFrameProgress();
+        if (this.preparedDynamicScene != null || this.dynamicStateFallback) return 1.0F;
+        return this.dynamicStateBuild == null ? 0.0F : this.dynamicStateBuild.records.progress();
     }
 
     protected boolean cacheIncompatibleDynamicFrame() {
@@ -56,6 +65,9 @@ abstract class QuickLitematicaPreviewDynamicBackend {
     }
 
     protected void closeDynamicFrame() {
+        var fullBuild = this.fullDynamicBuild;
+        this.fullDynamicBuild = null;
+        if (fullBuild != null) fullBuild.close();
         this.dynamicFrame = null;
         this.dynamicBuild = null;
         this.dynamicBatches.forEach(DynamicFrameBatch::close);
@@ -65,10 +77,16 @@ abstract class QuickLitematicaPreviewDynamicBackend {
         this.dynamicBatchingDisabled = false;
         this.dynamicBufferFallback = false;
         this.dynamicStateFallback = false;
+        this.dynamicStateBuild = null;
+        this.preparedDynamicScene = null;
     }
 
     protected void forEachDynamicFrame(Consumer<FeatureRenderDispatcher.PreparedFrame> draw) {
-        this.dynamicBatches.forEach(batch -> draw.accept(batch.frame()));
+        this.dynamicBatches.forEach(batch -> batch.renderTypes().execute(() -> draw.accept(batch.frame())));
+    }
+
+    protected void refreshDynamicFrameTransforms(Matrix4f modelView) {
+        this.dynamicBatches.forEach(batch -> batch.renderTypes().refresh(modelView));
     }
 
     private static void closeQuietly(@Nullable AutoCloseable resource) {
@@ -81,52 +99,60 @@ abstract class QuickLitematicaPreviewDynamicBackend {
         }
     }
 
-    protected void prepareDynamicStates(QuickLitematicaPreview3D.MeshData data) {
+    // false 表示预算耗尽；调用方必须等待，不能回到整层即时提取。
+    protected boolean prepareDynamicStates(QuickLitematicaPreview3D.MeshData data) {
         if (this.preparedDynamicScene != null || this.dynamicStateFallback || !data.hasDynamicContent()) {
-            return;
+            return true;
         }
 
-        QuickLitematicaPreview3D.DynamicScene scene = data.dynamicScene();
-        if (scene.isEmpty()) {
-            this.preparedDynamicScene = PreparedDynamicScene.EMPTY;
-            data.closeDynamic();
-            return;
+        if (this.dynamicStateBuild == null) {
+            var scene = data.dynamicSceneIfReady();
+            if (scene == null) return false;
+            if (scene.isEmpty()) {
+                this.preparedDynamicScene = PreparedDynamicScene.EMPTY;
+                data.closeDynamic();
+                return true;
+            }
+            this.dynamicStateBuild = new DynamicStateBuild(scene);
+            QuickLitematicaPreviewLog.LOGGER.info("动态渲染状态准备开始：方块实体={}，实体={}", data.blockEntities().size(), data.entities().size());
         }
 
-        QuickLitematicaPreviewLog.LOGGER.info("动态渲染状态准备开始：方块实体={}，实体={}", data.blockEntities().size(), data.entities().size());
+        var build = this.dynamicStateBuild;
+        var scene = build.records.nextScene();
+        long start = System.nanoTime();
         try (var phase = QuickLitematicaPreviewLog.phase("动态渲染状态准备")) {
             Minecraft client = Minecraft.getInstance();
-            List<PreparedBlockEntity> blockEntities = new ArrayList<>();
             scene.blockEntities().forEach((pos, entity) -> {
                 try {
                     PreparedBlockEntity prepared = prepareBlockEntity(client, pos, entity);
-                    if (prepared != null) {
-                        blockEntities.add(prepared);
-                    }
+                    if (prepared != null) build.blockEntities.add(prepared);
                 } catch (RuntimeException ignored) {
                     QuickLitematicaPreviewLog.LOGGER.warn("原生预览局部失败：入口=prepareDynamicStates，继续原有跳过/回退", ignored);
                 }
             });
-
-            List<PreparedEntity> entities = new ArrayList<>();
             scene.entities().forEach(renderedEntity -> {
                 try {
                     EntityRenderState renderState = client.getEntityRenderDispatcher().extractEntity(renderedEntity.entity(), 0.0F);
                     renderState.lightCoords = renderedEntity.light();
                     renderState.distanceToCameraSq = 0.0D;
-                    entities.add(new PreparedEntity(renderState, renderedEntity.x(), renderedEntity.y(), renderedEntity.z()));
+                    build.entities.add(new PreparedEntity(renderState, renderedEntity.x(), renderedEntity.y(), renderedEntity.z()));
                 } catch (RuntimeException ignored) {
                     QuickLitematicaPreviewLog.LOGGER.warn("原生预览局部失败：入口=prepareDynamicStates，继续原有跳过/回退", ignored);
                 }
             });
-
-            this.preparedDynamicScene = new PreparedDynamicScene(List.copyOf(blockEntities), List.copyOf(entities));
-            QuickLitematicaPreviewLog.LOGGER.info("动态渲染状态准备完成：方块实体={}/{}，实体={}/{}", blockEntities.size(), data.blockEntities().size(), entities.size(), data.entities().size());
+            if (!build.records.finishCollected(System.nanoTime() - start)) return false;
+            this.preparedDynamicScene = new PreparedDynamicScene(List.copyOf(build.blockEntities), List.copyOf(build.entities));
+            this.dynamicStateBuild = null;
+            QuickLitematicaPreviewLog.LOGGER.info("dynamic-states-sliced-v1：动态渲染状态准备完成，方块实体={}/{}，实体={}/{}",
+                    build.blockEntities.size(), data.blockEntities().size(), build.entities.size(), data.entities().size());
             data.closeDynamic();
+            return true;
         } catch (RuntimeException ignored) {
             QuickLitematicaPreviewLog.LOGGER.warn("原生预览局部失败：入口=prepareDynamicStates，继续原有跳过/回退", ignored);
+            this.dynamicStateBuild = null;
             this.preparedDynamicScene = null;
             this.dynamicStateFallback = true;
+            return true;
         }
     }
 
@@ -216,7 +242,8 @@ abstract class QuickLitematicaPreviewDynamicBackend {
     }
 
     protected void drawDynamic(QuickLitematicaPreview3D.MeshData data, Matrix4f modelView, int viewSize, SubmitNodeCollector submitNodes) {
-        QuickLitematicaPreview3D.DynamicScene scene = data.dynamicScene();
+        QuickLitematicaPreview3D.DynamicScene scene = data.dynamicSceneIfReady();
+        if (scene == null) return;
         if (scene.isEmpty()) {
             return;
         }
@@ -297,7 +324,8 @@ abstract class QuickLitematicaPreviewDynamicBackend {
             return;
         }
         if (this.dynamicBuild == null) {
-            QuickLitematicaPreview3D.DynamicScene scene = data.dynamicScene();
+            QuickLitematicaPreview3D.DynamicScene scene = data.dynamicSceneIfReady();
+            if (scene == null) return;
             if (scene.isEmpty()) {
                 this.dynamicProgress = 1.0F;
                 this.dynamicBufferFallback = true;
@@ -383,53 +411,153 @@ abstract class QuickLitematicaPreviewDynamicBackend {
     }
 
     private void prepareSingleDynamicFrame(QuickLitematicaPreview3D.MeshData data) {
-        QuickLitematicaPreview3D.DynamicScene scene = data.dynamicScene();
+        if (this.fullDynamicBuild == null) {
+            var scene = data.dynamicSceneIfReady();
+            if (scene == null) return;
+            this.fullDynamicBuild = new FullDynamicBuild(scene);
+        }
+        var build = this.fullDynamicBuild;
         try (var phase = QuickLitematicaPreviewLog.phase("动态完整缓存帧几何构建/上传")) {
-            Minecraft client = Minecraft.getInstance();
-            SubmitNodeStorage submitNodes = new SubmitNodeStorage();
-            PoseStack matrices = new PoseStack();
-            CameraRenderState cameraState = new CameraRenderState();
-            scene.blockEntities().forEach((pos, entity) -> {
-                matrices.pushPose();
-                try {
-                    matrices.translate(pos.getX(), pos.getY(), pos.getZ());
-                    renderBlockEntity(client, entity, matrices, submitNodes, cameraState);
-                } catch (RuntimeException failure) {
-                    QuickLitematicaPreviewLog.LOGGER.warn("原生预览局部失败：入口=prepareDynamicFrame，继续原有跳过/回退", failure);
-                } finally {
-                    matrices.popPose();
-                }
-            });
-            scene.entities().forEach(entity -> {
-                try {
-                    EntityRenderState state = client.getEntityRenderDispatcher().extractEntity(entity.entity(), 0.0F);
-                    state.lightCoords = entity.light();
-                    state.distanceToCameraSq = 0.0D;
-                    client.getEntityRenderDispatcher().submit(state, cameraState, entity.x(), entity.y(), entity.z(), matrices, submitNodes);
-                } catch (RuntimeException failure) {
-                    QuickLitematicaPreviewLog.LOGGER.warn("原生预览局部失败：入口=prepareDynamicFrame，继续原有跳过/回退", failure);
-                }
-            });
-            DynamicFrameBatch batch = createDynamicFrame(submitNodes, 4 * 1024 * 1024);
+            if (!build.submitted) {
+                var scene = build.records.nextScene();
+                long start = System.nanoTime();
+                Minecraft client = Minecraft.getInstance();
+                PoseStack matrices = new PoseStack();
+                CameraRenderState cameraState = new CameraRenderState();
+                scene.blockEntities().forEach((pos, entity) -> {
+                    matrices.pushPose();
+                    try {
+                        matrices.translate(pos.getX(), pos.getY(), pos.getZ());
+                        renderBlockEntity(client, entity, matrices, build.nodes, cameraState);
+                    } catch (RuntimeException failure) {
+                        QuickLitematicaPreviewLog.LOGGER.warn("原生预览局部失败：入口=prepareDynamicFrame，继续原有跳过/回退", failure);
+                    } finally { matrices.popPose(); }
+                });
+                scene.entities().forEach(entity -> {
+                    try {
+                        EntityRenderState state = client.getEntityRenderDispatcher().extractEntity(entity.entity(), 0.0F);
+                        state.lightCoords = entity.light();
+                        state.distanceToCameraSq = 0.0D;
+                        client.getEntityRenderDispatcher().submit(state, cameraState, entity.x(), entity.y(), entity.z(), matrices, build.nodes);
+                    } catch (RuntimeException failure) {
+                        QuickLitematicaPreviewLog.LOGGER.warn("原生预览局部失败：入口=prepareDynamicFrame，继续原有跳过/回退", failure);
+                    }
+                });
+                build.submitted = build.records.finishCollected(System.nanoTime() - start);
+                this.dynamicProgress = build.records.progress() * 0.4F;
+                // 阶段切换也留给下一帧，避免最后一批提交叠加原生全局分组。
+                return;
+            }
+            if (build.geometry == null) {
+                build.geometry = new FullGeometryBuild(build.nodes);
+                this.dynamicProgress = 0.4F;
+                return;
+            }
+            if (!build.geometry.advance()) {
+                this.dynamicProgress = 0.4F + build.geometry.work.progress() * 0.59F;
+                return;
+            }
+            DynamicFrameBatch batch = build.geometry.takeBatch();
+            build.close();
+            this.fullDynamicBuild = null;
             if (!data.forceRender && batch.bytes() > MAX_DYNAMIC_BUFFER_BYTES) {
                 batch.close();
                 throw new IllegalStateException("Dynamic preview buffer exceeds limit");
             }
-            try {
-                this.dynamicBatches.add(batch);
-            } catch (Error failure) {
-                batch.close();
-                throw failure;
-            }
+            try { this.dynamicBatches.add(batch); }
+            catch (RuntimeException | Error failure) { batch.close(); throw failure; }
             this.dynamicBufferBytes = batch.bytes();
             this.dynamicFrame = batch.frame();
             this.dynamicProgress = 1.0F;
             this.preparedDynamicScene = null;
             data.closeDynamic();
-            QuickLitematicaPreviewLog.LOGGER.info("动态完整缓存帧准备完成：GPU 缓冲={} B", batch.bytes());
+            QuickLitematicaPreviewLog.LOGGER.info("dynamic-frame-sliced-v1：完整动态帧分步准备完成，GPU={} B，原生阶段与组顺序保留", batch.bytes());
         } catch (RuntimeException failure) {
+            build.close();
+            this.fullDynamicBuild = null;
             this.dynamicBufferFallback = true;
             QuickLitematicaPreviewLog.LOGGER.warn("动态完整缓存帧准备失败：回退即时绘制，方块实体={}，实体={}", data.blockEntities().size(), data.entities().size(), failure);
+        } catch (Error failure) {
+            build.close();
+            this.fullDynamicBuild = null;
+            throw failure;
+        }
+    }
+
+    private static final class FullDynamicBuild implements AutoCloseable {
+        final QuickLitematicaPreviewDynamicBatch<Void> records;
+        final SubmitNodeStorage nodes = new SubmitNodeStorage();
+        boolean submitted;
+        @Nullable FullGeometryBuild geometry;
+
+        FullDynamicBuild(QuickLitematicaPreview3D.DynamicScene scene) {
+            this.records = new QuickLitematicaPreviewDynamicBatch<>(scene, QuickLitematicaPreviewBatchBudget.MIN_SIZE);
+        }
+
+        @Override public void close() { if (this.geometry != null) this.geometry.close(); }
+    }
+
+    private static final class FullGeometryBuild implements AutoCloseable {
+        final StagedVertexBuffer buffer = new StagedVertexBuffer(() -> "QuickCraft preview complete dynamic frame", 4 * 1024 * 1024);
+        final QuickLitematicaPreviewFrameBuild work = new QuickLitematicaPreviewFrameBuild(this.buffer);
+        final QuickLitematicaPreviewRenderTypes materials = QuickLitematicaPreviewRenderTypes.beginCapture();
+        @Nullable FeatureRenderDispatcher dispatcher;
+        @Nullable FeatureRenderDispatcher.PreparedFrame frame;
+        private boolean transferred;
+
+        FullGeometryBuild(SubmitNodeStorage nodes) {
+            try (var phase = QuickLitematicaPreviewLog.phase("动态完整帧原生全局分组")) {
+                Minecraft client = Minecraft.getInstance();
+                this.dispatcher = new FeatureRenderDispatcher(client.gameRenderer.renderBuffers(), client.getModelManager(),
+                        client.getAtlasManager(), client.font, client.gameRenderer.gameRenderState());
+                ((LitematicaFeatureRenderDispatcherAccessor) (Object) this.dispatcher).quickcraft$setStagedVertexBuffer(this.buffer);
+                Matrix4fStack stack = RenderSystem.getModelViewStack();
+                stack.pushMatrix();
+                try {
+                    stack.identity();
+                    this.work.capture(() -> this.frame = this.dispatcher.prepareFrame(nodes));
+                    this.work.seal();
+                } finally { stack.popMatrix(); }
+            } catch (RuntimeException | Error failure) {
+                this.close();
+                throw failure;
+            } finally { this.materials.close(); }
+        }
+
+        boolean advance() {
+            boolean[] done = {false};
+            Matrix4fStack stack = RenderSystem.getModelViewStack();
+            stack.pushMatrix();
+            try (var phase = QuickLitematicaPreviewLog.phase("动态完整帧几何切片/最终上传")) {
+                stack.identity();
+                this.materials.record(() -> done[0] = this.work.advance(QuickLitematicaPreviewBatchBudget.TARGET_NANOS));
+                return done[0];
+            } finally { stack.popMatrix(); }
+        }
+
+        DynamicFrameBatch takeBatch() {
+            var accessor = (LitematicaStagedVertexBufferAccessor) (Object) this.buffer;
+            long vertices = accessor.quickcraft$getCurrentVertexBuffer() == null ? 0L : accessor.quickcraft$getCurrentVertexBuffer().size();
+            long indices = accessor.quickcraft$getCurrentIndexBuffer() == null ? 0L : accessor.quickcraft$getCurrentIndexBuffer().size();
+            accessor.quickcraft$getStagingBuffer().close();
+            QuickLitematicaPreviewLog.LOGGER.info("dynamic-material-cache-v1：材质状态={}，复用={} 次，原生绘制段={}，GPU={} B",
+                    this.materials.size(), this.materials.reused(), accessor.quickcraft$getDraws().size(), vertices + indices);
+            var batch = new DynamicFrameBatch(java.util.Objects.requireNonNull(this.frame), java.util.Objects.requireNonNull(this.dispatcher),
+                    this.buffer, this.materials, vertices + indices);
+            this.transferred = true;
+            return batch;
+        }
+
+        @Override public void close() {
+            this.work.close();
+            if (!this.transferred) {
+                this.materials.release();
+                closeQuietly(this.frame);
+                closeQuietly(this.dispatcher);
+                closeQuietly(this.buffer);
+                this.frame = null;
+                this.dispatcher = null;
+            }
         }
     }
 
@@ -437,7 +565,8 @@ abstract class QuickLitematicaPreviewDynamicBackend {
         StagedVertexBuffer stagedBuffer = new StagedVertexBuffer(() -> "QuickCraft preview dynamic batch", initialBytes);
         FeatureRenderDispatcher dispatcher = null;
         FeatureRenderDispatcher.PreparedFrame frame = null;
-        try {
+        QuickLitematicaPreviewRenderTypes renderTypes = QuickLitematicaPreviewRenderTypes.beginCapture();
+        try (renderTypes) {
             Minecraft client = Minecraft.getInstance();
             dispatcher = new FeatureRenderDispatcher(client.gameRenderer.renderBuffers(), client.getModelManager(),
                     client.getAtlasManager(), client.font, client.gameRenderer.gameRenderState());
@@ -454,8 +583,11 @@ abstract class QuickLitematicaPreviewDynamicBackend {
             long vertexBytes = accessor.quickcraft$getCurrentVertexBuffer() == null ? 0L : accessor.quickcraft$getCurrentVertexBuffer().size();
             long indexBytes = accessor.quickcraft$getCurrentIndexBuffer() == null ? 0L : accessor.quickcraft$getCurrentIndexBuffer().size();
             accessor.quickcraft$getStagingBuffer().close();
-            return new DynamicFrameBatch(frame, dispatcher, stagedBuffer, vertexBytes + indexBytes);
+            QuickLitematicaPreviewLog.LOGGER.info("dynamic-material-cache-v1：材质状态={}，复用={} 次，原生绘制段={}，GPU={} B",
+                    renderTypes.size(), renderTypes.reused(), accessor.quickcraft$getDraws().size(), vertexBytes + indexBytes);
+            return new DynamicFrameBatch(frame, dispatcher, stagedBuffer, renderTypes, vertexBytes + indexBytes);
         } catch (RuntimeException | Error failure) {
+            renderTypes.release();
             closeQuietly(frame);
             closeQuietly(dispatcher);
             closeQuietly(stagedBuffer);
@@ -495,6 +627,16 @@ abstract class QuickLitematicaPreviewDynamicBackend {
         }
     }
 
+    private static final class DynamicStateBuild {
+        final QuickLitematicaPreviewDynamicBatch<Void> records;
+        final List<PreparedBlockEntity> blockEntities = new ArrayList<>();
+        final List<PreparedEntity> entities = new ArrayList<>();
+
+        DynamicStateBuild(QuickLitematicaPreview3D.DynamicScene scene) {
+            this.records = new QuickLitematicaPreviewDynamicBatch<>(scene, QuickLitematicaPreviewBatchBudget.MIN_SIZE);
+        }
+    }
+
     private static final class DynamicFrameBuild {
         final Iterator<Map.Entry<BlockPos, BlockEntity>> blocks;
         final Iterator<QuickLitematicaPreview3D.RenderedEntity> entities;
@@ -511,8 +653,10 @@ abstract class QuickLitematicaPreviewDynamicBackend {
     }
 
     private record DynamicFrameBatch(FeatureRenderDispatcher.PreparedFrame frame, FeatureRenderDispatcher dispatcher,
-                                     StagedVertexBuffer stagedBuffer, long bytes) implements AutoCloseable {
+                                     StagedVertexBuffer stagedBuffer, QuickLitematicaPreviewRenderTypes renderTypes,
+                                     long bytes) implements AutoCloseable {
         @Override public void close() {
+            this.renderTypes.release();
             closeQuietly(this.frame);
             closeQuietly(this.dispatcher);
             closeQuietly(this.stagedBuffer);

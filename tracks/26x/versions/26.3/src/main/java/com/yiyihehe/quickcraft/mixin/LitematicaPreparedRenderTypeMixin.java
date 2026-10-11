@@ -4,6 +4,7 @@ import com.mojang.renderpearl.api.buffers.GpuBufferSlice;
 import com.mojang.renderpearl.api.commands.RenderPass;
 import com.yiyihehe.quickcraft.litematica.QuickLitematicaPreview3D;
 import com.yiyihehe.quickcraft.litematica.QuickLitematicaPreviewAccess;
+import com.yiyihehe.quickcraft.litematica.QuickLitematicaPreviewRenderTypes;
 import net.minecraft.client.renderer.rendertype.PreparedRenderType;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
@@ -17,7 +18,8 @@ public class LitematicaPreparedRenderTypeMixin {
     private void quickcraft$refreshCachedDynamicTransforms(RenderPass pass, String name, GpuBufferSlice value) {
         if ("DynamicTransforms".equals(name) && QuickLitematicaPreview3D.shouldRefreshCachedPreviewDynamicTransforms()
                 && QuickLitematicaPreviewAccess.cachedDynamicTransforms != null) {
-            value = QuickLitematicaPreviewAccess.cachedDynamicTransforms;
+            var material = QuickLitematicaPreviewRenderTypes.refreshed((PreparedRenderType) (Object) this);
+            value = material != null ? material.dynamicTransforms() : QuickLitematicaPreviewAccess.cachedDynamicTransforms;
         }
         pass.setUniform(name, value);
     }
