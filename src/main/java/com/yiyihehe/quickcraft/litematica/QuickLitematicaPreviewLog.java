@@ -125,6 +125,8 @@ public final class QuickLitematicaPreviewLog {
         if (previous != null) LoggerFactory.getLogger("QuickCraft/Developer").info("3D 预览详细日志已关闭：{}", previous);
     }
 
+    static Trace currentTrace() { return CURRENT.get(); }
+
     public void info(String message, Object... arguments) { record(Level.INFO, message, arguments); }
     public void debug(String message, Object... arguments) { record(Level.DEBUG, message, arguments); }
     public void warn(String message, Object... arguments) { record(Level.WARN, message, arguments); }

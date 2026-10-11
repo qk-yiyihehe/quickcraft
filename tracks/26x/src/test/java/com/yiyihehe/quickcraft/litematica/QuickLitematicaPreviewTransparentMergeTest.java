@@ -76,4 +76,13 @@ class QuickLitematicaPreviewTransparentMergeTest {
         assertThat(QuickLitematicaPreviewTransparentMerge.stream(100_000_000, 28)).isNull();
         assertThat(QuickLitematicaPreviewTransparentMerge.stream(Long.MAX_VALUE - 3, 28)).isNull();
     }
+
+    @Test void streamedIndexRotationBudgetsOnlyTheTwoAdditionalSlots() {
+        assertThat(QuickLitematicaPreviewTransparentMerge.canRotateStreamedIndices(32_881_152)).isTrue();
+        assertThat(QuickLitematicaPreviewTransparentMerge.canRotateStreamedIndices(33_554_432)).isTrue();
+        assertThat(QuickLitematicaPreviewTransparentMerge.canRotateStreamedIndices(33_554_433)).isFalse();
+        assertThat(QuickLitematicaPreviewTransparentMerge.canRotateStreamedIndices(Integer.MAX_VALUE)).isFalse();
+        assertThat(QuickLitematicaPreviewTransparentMerge.canRotateStreamedIndices(0)).isFalse();
+        assertThat(QuickLitematicaPreviewTransparentMerge.canRotateIndices(613_781_504, 32_881_152)).isFalse();
+    }
 }

@@ -9,6 +9,17 @@ final class QuickLitematicaPreviewQuadDepth {
     private boolean initialized;
     private float x, y, z;
 
+    boolean initialized() { return this.initialized; }
+
+    QuickLitematicaPreviewQuadDepth copy() {
+        var copy = new QuickLitematicaPreviewQuadDepth();
+        copy.initialized = this.initialized;
+        copy.x = this.x;
+        copy.y = this.y;
+        copy.z = this.z;
+        return copy;
+    }
+
     boolean update(Matrix4fc view) {
         float nextX = view.m02(), nextY = view.m12(), nextZ = view.m22();
         if (this.initialized && this.x == nextX && this.y == nextY && this.z == nextZ) return false;

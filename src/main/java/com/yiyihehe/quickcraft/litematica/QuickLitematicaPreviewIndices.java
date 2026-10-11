@@ -19,7 +19,16 @@ final class QuickLitematicaPreviewIndices {
     static BufferAllocator.CloseableBuffer build(BufferAllocator allocator, int[] order, int indexBytes) {
         if (indexBytes != 2 && indexBytes != 4) throw new IllegalArgumentException("Unsupported index width: " + indexBytes);
         long address = allocator.allocate(Math.multiplyExact(order.length, 6 * indexBytes));
+        write(address, order, indexBytes, null);
+        return allocator.getAllocated();
+    }
+
+    static void write(long address, int[] order, int indexBytes, java.util.function.BooleanSupplier cancelled) {
+        if (indexBytes != 2 && indexBytes != 4) throw new IllegalArgumentException("Unsupported index width: " + indexBytes);
+        int written = 0;
         for (int quad : order) {
+            if (cancelled != null && (written++ & 4095) == 0 && cancelled.getAsBoolean())
+                throw new java.util.concurrent.CancellationException();
             int vertex = quad * 4;
             if (indexBytes == 2) {
                 MemoryUtil.memPutShort(address, (short) vertex);
@@ -37,7 +46,6 @@ final class QuickLitematicaPreviewIndices {
                 address += 24;
             }
         }
-        return allocator.getAllocated();
     }
 
     private static long pair(int first, int second) {

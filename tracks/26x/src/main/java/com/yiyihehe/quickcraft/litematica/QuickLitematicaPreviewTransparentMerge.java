@@ -63,6 +63,11 @@ final class QuickLitematicaPreviewTransparentMerge {
         }
     }
 
+    static boolean canRotateStreamedIndices(int indexCount) {
+        // 直接上传的 VBO 和首个索引槽已计入常驻显存；这里仅预算另外两个索引槽。
+        return indexCount > 0 && indexCount * 8L <= EXTRA_GPU_BYTES;
+    }
+
     static boolean canRotateIndices(long vertexBytes, int indexCount) {
         return vertexBytes >= 0 && indexCount > 0 && vertexBytes <= EXTRA_GPU_BYTES - indexCount * 12L;
     }
