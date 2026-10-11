@@ -95,6 +95,13 @@ final class QuickLitematicaPreviewMeshStore implements AutoCloseable {
         this.references++;
     }
 
+    synchronized boolean retainForRead() {
+        // 预览已关闭时，正在保存的缓存仍可向新读取者交接暂存文件。
+        if (this.references == 0) return false;
+        this.references++;
+        return true;
+    }
+
     synchronized void releaseCache() {
         this.release();
     }

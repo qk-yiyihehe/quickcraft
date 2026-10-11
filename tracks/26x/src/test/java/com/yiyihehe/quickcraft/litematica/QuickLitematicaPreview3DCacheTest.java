@@ -152,4 +152,99 @@ class QuickLitematicaPreview3DCacheTest {
         QuickLitematicaPreviewCache.awaitPendingWrite(cache);
         assertThat(Files.readAllBytes(cache)).containsExactly(1, 2, 3);
     }
+    @Test
+    void conversionSignatureIsIndependentAndLegacyFallbackDoesNotOverrideIt() {
+        var current = new QuickLitematicaPreviewCache.CacheIndexEntry("source", "pack");
+        var stale = new QuickLitematicaPreviewCache.CacheIndexEntry("source", "old-pack");
+        assertThat(QuickLitematicaPreviewCache.convertedCacheMatches(current, null, "source", "pack")).isTrue();
+        assertThat(QuickLitematicaPreviewCache.convertedCacheMatches(null, current, "source", "pack")).isTrue();
+        assertThat(QuickLitematicaPreviewCache.convertedCacheMatches(stale, current, "source", "pack")).isFalse();
+        assertThat(QuickLitematicaPreviewCache.convertedCacheMatches(current, current, "changed-source", "pack")).isFalse();
+    }
+
+    @Test
+    @Timeout(10)
+    void pendingMeshLoanSurvivesOwnerCloseAndWriterCompletion() throws Exception {
+        Path cache = this.temporaryDirectory.resolve("borrowed.qcp3d");
+        var store = new QuickLitematicaPreviewMeshStore(this.temporaryDirectory);
+        byte[] vertices = new byte[QuickLitematicaPreview3D.QUANTIZED_VERTEX_BYTES * 4];
+        vertices[0] = 42;
+        var layer = store.store(new QuickLitematicaPreview3D.LayerMesh(QuickLitematicaPreview3D.LayerKey.SOLID, vertices));
+        var snapshot = new QuickLitematicaPreview3D.MeshData(List.of(layer), List.of(), List.of(), List.of(), 1, 1, 1);
+        CountDownLatch allowWrite = new CountDownLatch(1);
+        store.retainForCache();
+        var write = QuickLitematicaPreviewCache.writeAsync(cache, () -> {
+            try {
+                if (!allowWrite.await(5, TimeUnit.SECONDS)) throw new IllegalStateException("Write timed out");
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                throw new IllegalStateException(e);
+            } finally {
+                snapshot.releaseStaticVertices();
+                store.releaseCache();
+            }
+        }, "source", "pack", snapshot.vertexCount(), snapshot, store);
+        try {
+            store.close();
+            assertThat(QuickLitematicaPreviewCache.borrowPendingMesh(cache, "other-source", "pack")).isNull();
+            assertThat(QuickLitematicaPreviewCache.borrowPendingMesh(cache, "source", "other-pack")).isNull();
+            var loan = QuickLitematicaPreviewCache.borrowPendingMesh(cache, "source", "pack");
+            assertThat(loan).isNotNull();
+            try (loan) {
+                assertThat(write).isNotDone();
+                allowWrite.countDown();
+                write.get(5, TimeUnit.SECONDS);
+                assertThat(snapshot.layers()).isEmpty();
+                assertThat(loan.mesh.layers().getFirst().quantizedVertices()).containsExactly(vertices);
+                loan.close();
+            }
+            assertThat(store.retainForRead()).isFalse();
+        } finally {
+            allowWrite.countDown();
+            store.close();
+        }
+        write.get(5, TimeUnit.SECONDS);
+    }
+
+    @Test
+    @Timeout(10)
+    void pendingMeshLoanUsesReadersDynamicBudgetAndReleasesRejectedLease() throws Exception {
+        Path cache = this.temporaryDirectory.resolve("borrowed-budget.qcp3d");
+        var store = new QuickLitematicaPreviewMeshStore(this.temporaryDirectory);
+        var entity = new QuickLitematicaPreview3D.EntityData(0, 0, 0, new CompoundTag());
+        var snapshot = new QuickLitematicaPreview3D.MeshData(List.of(), List.of(), List.of(),
+                Collections.nCopies(QuickLitematicaPreview3D.MAX_DYNAMIC_ENTITIES + 1, entity), 1, 1, 1);
+        CountDownLatch allowWrite = new CountDownLatch(1);
+        store.retainForCache();
+        var write = QuickLitematicaPreviewCache.writeAsync(cache, () -> {
+            try {
+                if (!allowWrite.await(5, TimeUnit.SECONDS)) throw new IllegalStateException("Write timed out");
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                throw new IllegalStateException(e);
+            } finally {
+                store.releaseCache();
+            }
+        }, "source", "pack", snapshot.vertexCount(), snapshot, store);
+        try {
+            store.close();
+            assertThatThrownBy(() -> QuickLitematicaPreviewCache.borrowPendingMesh(cache, "source", "pack"))
+                    .isInstanceOf(QuickLitematicaPreview3D.PreviewTooLargeException.class)
+                    .hasFieldOrPropertyWithValue("vertexLimit", false);
+            QuickLitematicaPreviewVertexBudget.run(true, () -> {
+                try (var loan = QuickLitematicaPreviewCache.borrowPendingMesh(cache, "source", "pack")) {
+                    assertThat(loan).isNotNull();
+                    assertThat(loan.mesh.forceRender).isTrue();
+                    assertThat(loan.mesh.entities()).hasSize(QuickLitematicaPreview3D.MAX_DYNAMIC_ENTITIES + 1);
+                }
+            });
+            assertThat(write).isNotDone();
+        } finally {
+            allowWrite.countDown();
+            store.close();
+        }
+        write.get(5, TimeUnit.SECONDS);
+        assertThat(store.retainForRead()).isFalse();
+    }
+
 }

@@ -40,18 +40,18 @@ final class QuickLitematicaPreviewSchematicFiles {
     private QuickLitematicaPreviewSchematicFiles() {
     }
 
-    static void writeConvertedSchematic(LitematicaSchematic schematic, Path convertedPath, String cacheSlot) {
+    static boolean writeConvertedSchematic(LitematicaSchematic schematic, Path convertedPath, String cacheSlot) {
         try (var phase = QuickLitematicaPreviewLog.phase("转换原理图缓存保存")) {
             Path parent = convertedPath.getParent();
             Path fileName = convertedPath.getFileName();
             if (parent == null || fileName == null) {
-                return;
+                return false;
             }
 
             Path temporary = convertedPath.resolveSibling(cacheSlot + ".converted.tmp.litematic");
             Path temporaryName = temporary.getFileName();
             if (temporaryName == null) {
-                return;
+                return false;
             }
 
             try {
@@ -61,10 +61,12 @@ final class QuickLitematicaPreviewSchematicFiles {
                 }
                 moveCacheFile(temporary, convertedPath);
                 QuickLitematicaPreviewLog.file("转换原理图缓存提交", convertedPath);
+                return true;
             } catch (Exception failure) {
                 LOGGER.warn("转换原理图缓存保存失败：槽={}，临时={}，最终={}", cacheSlot, temporary, convertedPath, failure);
                 deleteQuietly(temporary);
                 deleteQuietly(convertedPath);
+                return false;
             }
         }
     }

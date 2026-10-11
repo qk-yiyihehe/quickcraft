@@ -904,6 +904,7 @@ public final class QuickLitematicaPreview3D {
         private volatile Future<?> future;
         private final QuickLitematicaPreviewUploadQueue staticUploads = new QuickLitematicaPreviewUploadQueue();
         private final QuickLitematicaPreviewMeshStore staticMeshStore = new QuickLitematicaPreviewMeshStore();
+        @Nullable private volatile QuickLitematicaPreviewCache.MeshLease borrowedMesh;
 
         @Nullable
         private volatile PreviewDimensions dimensions;
@@ -1121,8 +1122,23 @@ public final class QuickLitematicaPreview3D {
                     throw new IOException("3D preview cache path has no parent directory");
                 }
                 Files.createDirectories(cacheDirectory);
+                MeshData pendingMesh = null;
                 try (var phase = QuickLitematicaPreviewLog.phase("等待同投影后台缓存提交")) {
-                    awaitPendingWrite(this.cachePath, sourceHash, this.resourcePackSignature);
+                    var lease = borrowPendingMesh(this.cachePath, sourceHash, this.resourcePackSignature);
+                    if (lease == null) {
+                        awaitPendingWrite(this.cachePath, sourceHash, this.resourcePackSignature);
+                    } else {
+                        try {
+                            synchronized (this) {
+                                this.throwIfCancelled();
+                                this.borrowedMesh = lease;
+                                pendingMesh = lease.mesh;
+                            }
+                        } catch (RuntimeException | Error failure) {
+                            lease.close();
+                            throw failure;
+                        }
+                    }
                 }
                 this.throwIfCancelled();
                 Path readCachePath = this.cachePath;
@@ -1132,7 +1148,8 @@ public final class QuickLitematicaPreview3D {
                         && this.resourcePackSignature.equals(indexEntry.resourcePackSignature());
                 this.trace.event("缓存判定：索引={}，源哈希匹配={}，资源签名匹配={}，读取路径={}，缓存版本/标记由文件头校验",
                         indexEntry, sourceHashMatches, cacheSignatureMatches, readCachePath);
-                MeshData cached = cacheSignatureMatches ? CacheFile.read(readCachePath, this.cancelled, this.staticMeshStore) : null;
+                MeshData cached = pendingMesh != null ? pendingMesh
+                        : cacheSignatureMatches ? CacheFile.read(readCachePath, this.cancelled, this.staticMeshStore) : null;
                 if (cached != null) {
                     this.trace.event("静态网格缓存命中：层批次={}，顶点={}，动态状态/方块实体/实体={}/{}/{}，跳过原理图读取和模型构建",
                             cached.layers().size(), cached.vertexCount(), cached.blockStates().size(), cached.blockEntities().size(), cached.entities().size());
@@ -1157,30 +1174,17 @@ public final class QuickLitematicaPreview3D {
                 this.state = State.BUILDING;
                 this.trace.event("预览状态改变：BUILDING");
                 Path convertedPath = this.convertedSchematicPath();
-                LitematicaSchematic schematic = cacheSignatureMatches
+                boolean convertedSignatureMatches = convertedCacheMatches(readConvertedCacheIndexEntry(this.cacheSlot),
+                        indexEntry, sourceHash, this.resourcePackSignature);
+                LitematicaSchematic schematic = convertedSignatureMatches
                         ? QuickLitematicaPreviewSchematicFiles.readSchematic(convertedPath, this.cancelled, false)
                         : null;
                 boolean convertedCacheHit = schematic != null;
-                this.trace.event("转换原理图缓存判定：命中={}，路径={}，源哈希匹配={}，资源签名匹配={}", convertedCacheHit, convertedPath, sourceHashMatches, cacheSignatureMatches);
+                this.trace.event("转换原理图缓存判定：命中={}，路径={}，源哈希匹配={}，资源签名匹配={}", convertedCacheHit, convertedPath, sourceHashMatches, convertedSignatureMatches);
                 if (!convertedCacheHit) {
                     deleteQuietly(convertedPath);
                     schematic = QuickLitematicaPreviewSchematicFiles.readSchematic(this.sourcePath, this.cancelled, true);
                 }
-                MeshData built = QuickLitematicaPreviewMeshBuilder.build(
-                        schematic,
-                        this.cancelled,
-                        value -> this.progress = value,
-                        this::initializeDimensions,
-                        this::publishStaticLayers,
-                        this.staticMeshStore
-                );
-                this.throwIfCancelled();
-                if (!built.withinBudget()) {
-                    built.closeDynamic();
-                    this.rejectBuild(built.vertexCount() > QuickLitematicaPreviewVertexBudget.vertexLimit());
-                    return;
-                }
-
                 int effectiveSourceVersion = schematic.getMetadata().getMinecraftDataVersion();
                 // 上游禁用 DFU 时不能把未转换的 NBT 写成当前版本缓存。
                 LitematicaSchematic convertedSchematic = !convertedCacheHit
@@ -1189,6 +1193,30 @@ public final class QuickLitematicaPreview3D {
                         ? schematic : null;
                 this.trace.event("转换原理图缓存保存判定：需要保存={}，有效源版本={}，目标版本={}，已命中转换缓存={}",
                         convertedSchematic != null, effectiveSourceVersion, LitematicaSchematic.MINECRAFT_DATA_VERSION, convertedCacheHit);
+                MeshData built;
+                try {
+                    built = QuickLitematicaPreviewMeshBuilder.build(
+                            schematic,
+                            this.cancelled,
+                            value -> this.progress = value,
+                            this::initializeDimensions,
+                            this::publishStaticLayers,
+                            this.staticMeshStore
+                    );
+                } catch (RuntimeException | Error failure) {
+                    if (convertedSchematic != null && isPreviewTooLarge(failure) && !this.isCancelled()) {
+                        this.saveConvertedCache(convertedSchematic, sourceHash);
+                    }
+                    throw failure;
+                }
+                this.throwIfCancelled();
+                if (!built.withinBudget()) {
+                    if (convertedSchematic != null) this.saveConvertedCache(convertedSchematic, sourceHash);
+                    built.closeDynamic();
+                    this.rejectBuild(built.vertexCount() > QuickLitematicaPreviewVertexBudget.vertexLimit());
+                    return;
+                }
+
                 synchronized (this) {
                     this.throwIfCancelled();
                     this.meshData = built;
@@ -1221,6 +1249,17 @@ public final class QuickLitematicaPreview3D {
             }
         }
 
+        private void saveConvertedCache(LitematicaSchematic schematic, String sourceHash) {
+            try {
+                if (QuickLitematicaPreviewSchematicFiles.writeConvertedSchematic(schematic, this.convertedSchematicPath(), this.cacheSlot)) {
+                    writeConvertedCacheIndexEntry(this.cacheSlot, this.sourcePath, sourceHash, this.resourcePackSignature);
+                    this.trace.milestone("converted-cache-independent-v1：转换原理图及独立签名已提交，网格超限或压缩不影响复用");
+                }
+            } catch (IOException failure) {
+                LOGGER.warn("转换原理图缓存索引保存失败：源={}，继续原读取回退", this.sourcePath, failure);
+            }
+        }
+
         private void saveCacheAsync(MeshData built, String sourceHash, @Nullable LitematicaSchematic schematic) {
             // 快照保留小网格顶点或大网格暂存引用；关闭预览不会打断独立的缓存保存。
             MeshData snapshot = new MeshData(List.copyOf(built.layers()), built.blockStates(), built.blockEntities(),
@@ -1228,7 +1267,6 @@ public final class QuickLitematicaPreview3D {
             Path sourcePath = this.sourcePath;
             Path cachePath = this.cachePath;
             Path tmpPath = this.tmpPath;
-            Path convertedPath = this.convertedSchematicPath();
             String cacheSlot = this.cacheSlot;
             String resourcePackSignature = this.resourcePackSignature;
             this.trace.event("后台缓存保存排队：路径={}，快照层批次={}，顶点={}", cachePath, snapshot.layers().size(), snapshot.vertexCount());
@@ -1236,15 +1274,13 @@ public final class QuickLitematicaPreview3D {
             Runnable cacheWrite = this.trace.wrap(() -> {
                 LOGGER.info("后台缓存保存开始：路径={}，排队={} us", cachePath, QuickLitematicaPreviewLog.microsSince(cacheQueued));
                 try {
+                    if (schematic != null) this.saveConvertedCache(schematic, sourceHash);
                     CacheFile.writeAtomically(tmpPath, cachePath, snapshot, snapshot.layers(), new AtomicBoolean(), QuickLitematicaPreviewLog.progressSink("缓存压缩写入"));
                     try (var phase = QuickLitematicaPreviewLog.phase("提交缓存索引")) {
                         writeCacheIndexEntry(cacheSlot, sourcePath, sourceHash, resourcePackSignature);
                     }
                     this.trace.milestone("缓存文件及索引提交成功：路径={}，源哈希={}", cachePath, sourceHash);
                     QuickLitematicaPreviewLog.file("缓存保存完成", cachePath);
-                    if (schematic != null) {
-                        QuickLitematicaPreviewSchematicFiles.writeConvertedSchematic(schematic, convertedPath, cacheSlot);
-                    }
                 } catch (Exception e) {
                     deleteTmpQuietly(tmpPath);
                     LOGGER.error("后台缓存保存失败：源={}，临时={}，最终={}，显示结果保留，临时文件清理", sourcePath, tmpPath, cachePath, e);
@@ -1256,7 +1292,7 @@ public final class QuickLitematicaPreview3D {
             });
             this.staticMeshStore.retainForCache();
             try {
-                writeAsync(cachePath, cacheWrite, sourceHash, resourcePackSignature, snapshot.vertexCount());
+                writeAsync(cachePath, cacheWrite, sourceHash, resourcePackSignature, snapshot.vertexCount(), snapshot, this.staticMeshStore);
             } catch (RuntimeException | Error failure) {
                 this.staticMeshStore.releaseCache();
                 throw failure;
@@ -1282,8 +1318,15 @@ public final class QuickLitematicaPreview3D {
             }
         }
 
+        private void releaseBorrowedMesh() {
+            var lease = this.borrowedMesh;
+            this.borrowedMesh = null;
+            if (lease != null) lease.close();
+        }
+
         private void discardPartialStatic() {
             this.staticUploads.discard();
+            this.releaseBorrowedMesh();
             this.staticMeshStore.close();
             this.dimensions = null;
             if (RenderSystem.isOnRenderThread()) {
@@ -1401,6 +1444,7 @@ public final class QuickLitematicaPreview3D {
             this.backend.setStaticUploadComplete(true);
             this.trace.milestone("静态 GPU 上传调用全部完成，CPU 顶点可释放");
             this.staticMeshStore.close();
+            this.releaseBorrowedMesh();
             MeshData data = this.meshData;
             if (data != null) {
                 data.releaseStaticVertices();
@@ -1413,6 +1457,7 @@ public final class QuickLitematicaPreview3D {
                 data.closeDynamic();
             }
             this.staticUploads.discard();
+            this.releaseBorrowedMesh();
             this.staticMeshStore.close();
             this.meshData = null;
             this.dimensions = null;
@@ -1432,6 +1477,7 @@ public final class QuickLitematicaPreview3D {
             this.meshData = null;
             this.dimensions = null;
             this.staticUploads.discard();
+            this.releaseBorrowedMesh();
         }
 
         private float displayProgress() {
@@ -1457,6 +1503,7 @@ public final class QuickLitematicaPreview3D {
             }
 
             this.staticUploads.discard();
+            this.releaseBorrowedMesh();
             this.staticMeshStore.close();
             MeshData data = this.meshData;
             if (data != null) {

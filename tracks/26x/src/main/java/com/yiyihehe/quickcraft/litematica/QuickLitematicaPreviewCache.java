@@ -67,8 +67,15 @@ final class QuickLitematicaPreviewCache {
 
     static CompletableFuture<Void> writeAsync(Path cachePath, Runnable write,
             @Nullable String sourceHash, @Nullable String resourceSignature, long vertices) {
+        return writeAsync(cachePath, write, sourceHash, resourceSignature, vertices, null, null);
+    }
+
+    static CompletableFuture<Void> writeAsync(Path cachePath, Runnable write,
+            @Nullable String sourceHash, @Nullable String resourceSignature, long vertices,
+            @Nullable MeshData mesh, @Nullable QuickLitematicaPreviewMeshStore store) {
         CompletableFuture<Void> completion = new CompletableFuture<>();
-        PendingWrite pending = new PendingWrite(completion, sourceHash, resourceSignature, vertices);
+        MeshData reusable = mesh == null ? null : copyMesh(mesh);
+        PendingWrite pending = new PendingWrite(completion, sourceHash, resourceSignature, vertices, reusable, store);
         CACHE_WRITES.put(cachePath, pending);
         try {
             CACHE_EXECUTOR.execute(() -> {
@@ -122,8 +129,54 @@ final class QuickLitematicaPreviewCache {
         }
     }
 
+    @Nullable
+    static MeshLease borrowPendingMesh(Path cachePath, String sourceHash, String resourceSignature) {
+        PendingWrite pending = CACHE_WRITES.get(cachePath);
+        if (pending == null || !sourceHash.equals(pending.sourceHash())
+                || !resourceSignature.equals(pending.resourceSignature())
+                || pending.mesh() == null || pending.store() == null) return null;
+        if (pending.vertices() > QuickLitematicaPreviewVertexBudget.vertexLimit()) {
+            throw new PreviewTooLargeException(!QuickLitematicaPreviewVertexBudget.isForced());
+        }
+        if (!pending.store().retainForRead()) return null;
+        try {
+            // 独立列表归新预览所有；共享只读记录，不复制完整顶点，也不复用旧预览的强制预算。
+            MeshData mesh = copyMesh(pending.mesh());
+            if (!mesh.withinBudget()) throw new PreviewTooLargeException(false);
+            LOGGER.info("pending-mesh-reuse-v1：复用待保存网格，跳过等待压缩及缓存解压，顶点={}，路径={}", mesh.vertexCount(), cachePath);
+            return new MeshLease(mesh, pending.store());
+        } catch (RuntimeException | Error failure) {
+            pending.store().releaseCache();
+            throw failure;
+        }
+    }
+
+    private static MeshData copyMesh(MeshData mesh) {
+        return new MeshData(List.copyOf(mesh.layers()), mesh.blockStates(), mesh.blockEntities(), mesh.entities(),
+                mesh.sizeX(), mesh.sizeY(), mesh.sizeZ());
+    }
+
+    static final class MeshLease implements AutoCloseable {
+        final MeshData mesh;
+        private final QuickLitematicaPreviewMeshStore store;
+        private final AtomicBoolean closed = new AtomicBoolean();
+
+        private MeshLease(MeshData mesh, QuickLitematicaPreviewMeshStore store) {
+            this.mesh = mesh;
+            this.store = store;
+        }
+
+        @Override public void close() {
+            if (this.closed.compareAndSet(false, true)) {
+                this.mesh.releaseStaticVertices();
+                this.store.releaseCache();
+            }
+        }
+    }
+
     private record PendingWrite(CompletableFuture<Void> completion, @Nullable String sourceHash,
-            @Nullable String resourceSignature, long vertices) {}
+            @Nullable String resourceSignature, long vertices, @Nullable MeshData mesh,
+            @Nullable QuickLitematicaPreviewMeshStore store) {}
 
     static String currentCacheSignature() {
         return cacheSignature(currentResourcePackSignature() + ":" + QuickLitematicaPreviewResources.signature(),
@@ -299,6 +352,31 @@ final class QuickLitematicaPreviewCache {
         }
     }
 
+    @Nullable
+    static CacheIndexEntry readConvertedCacheIndexEntry(String slot) {
+        synchronized (CACHE_INDEX_LOCK) {
+            String sourceHash = CACHE_INDEX.getProperty(slot + ".convertedSourceHash");
+            String resourceSignature = CACHE_INDEX.getProperty(slot + ".convertedResourceSignature");
+            return sourceHash == null || resourceSignature == null ? null : new CacheIndexEntry(sourceHash, resourceSignature);
+        }
+    }
+
+    static boolean convertedCacheMatches(@Nullable CacheIndexEntry converted, @Nullable CacheIndexEntry legacy,
+            String sourceHash, String resourceSignature) {
+        CacheIndexEntry entry = converted != null ? converted : legacy;
+        return entry != null && sourceHash.equals(entry.sourceHash()) && resourceSignature.equals(entry.resourcePackSignature());
+    }
+
+    static void writeConvertedCacheIndexEntry(String slot, Path sourcePath, String sourceHash, String resourceSignature) throws IOException {
+        synchronized (CACHE_INDEX_LOCK) {
+            // 转换结果独立提交；网格超限或仍在压缩时也能复用已经完成的 DFU。
+            CACHE_INDEX.setProperty(slot + ".path", sourcePath.toAbsolutePath().normalize().toString());
+            CACHE_INDEX.setProperty(slot + ".convertedSourceHash", sourceHash);
+            CACHE_INDEX.setProperty(slot + ".convertedResourceSignature", resourceSignature);
+            writeCacheIndex(cacheDirectory());
+        }
+    }
+
     static void writeCacheIndexEntry(String slot, Path sourcePath, String sourceHash,
                                              String resourceSignature) throws IOException {
         synchronized (CACHE_INDEX_LOCK) {
@@ -314,6 +392,8 @@ final class QuickLitematicaPreviewCache {
         CACHE_INDEX.remove(slot + ".path");
         CACHE_INDEX.remove(slot + ".sourceHash");
         CACHE_INDEX.remove(slot + ".resourceSignature");
+        CACHE_INDEX.remove(slot + ".convertedSourceHash");
+        CACHE_INDEX.remove(slot + ".convertedResourceSignature");
         deleteQuietly(cacheDir.resolve(slot + ".qcp3d"));
         deleteQuietly(cacheDir.resolve(slot + ".qcp3d.tmp"));
         deleteQuietly(cacheDir.resolve(slot + ".converted.litematic"));
