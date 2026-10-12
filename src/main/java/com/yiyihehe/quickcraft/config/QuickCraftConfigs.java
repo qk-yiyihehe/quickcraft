@@ -604,6 +604,18 @@ public final class QuickCraftConfigs implements IConfigHandler {
                 true,
                 ""
         ).apply(PROJECTION_TRANSLATION_PREFIX);
+        public static final ConfigBooleanHotkeyed SHOW_LITEMATICA_MATERIAL_REPLACEMENTS = new ConfigBooleanHotkeyed(
+                "showLitematicaMaterialReplacements", true, ""
+        ).apply(PROJECTION_TRANSLATION_PREFIX);
+        public static final ConfigBoolean ALLOW_PERSISTENT_MATERIAL_IGNORES = new ConfigBoolean(
+                "allowPersistentMaterialIgnores", true
+        ).apply(PROJECTION_TRANSLATION_PREFIX);
+        public static final ConfigStringList GLOBAL_CONTAINER_REPLACEMENTS = new ConfigStringList(
+                "globalContainerReplacements", ImmutableList.of()
+        ).apply(PROJECTION_TRANSLATION_PREFIX);
+        public static final ConfigStringList GLOBAL_PROJECTION_MATERIAL_REPLACEMENTS = new ConfigStringList(
+                "globalProjectionMaterialReplacements", ImmutableList.of()
+).apply(PROJECTION_TRANSLATION_PREFIX);
         public static final ConfigBooleanHotkeyed HIGHLIGHT_NONEMPTY_PROJECTION_CONTAINERS = new ConfigBooleanHotkeyed(
                 "highlightNonemptyProjectionContainers",
                 false,
@@ -693,6 +705,13 @@ public final class QuickCraftConfigs implements IConfigHandler {
                 "containerFillReplacements",
                 ImmutableList.of()
         ).apply(PROJECTION_TRANSLATION_PREFIX);
+        public static final ConfigStringList MATERIAL_LIST_IGNORES = new ConfigStringList(
+                "materialListIgnores", ImmutableList.of()
+        ).apply(PROJECTION_TRANSLATION_PREFIX);
+        public static final ConfigStringList PROJECTION_MATERIAL_REPLACEMENTS = new ConfigStringList(
+                "projectionMaterialReplacements",
+                ImmutableList.of()
+        ).apply(PROJECTION_TRANSLATION_PREFIX);
         public static final ConfigBooleanHotkeyed ENABLE_LITEMATICA_SHULKER_MATERIAL_RESTOCK = new ConfigBooleanHotkeyed(
                 "enableLitematicaShulkerMaterialRestock",
                 false,
@@ -732,6 +751,10 @@ public final class QuickCraftConfigs implements IConfigHandler {
                 SHOW_LITEMATICA_CONTAINER_VERIFIER,
                 HIGHLIGHT_NONEMPTY_PROJECTION_CONTAINERS,
                 PROJECTION_CONTAINER_HIGHLIGHT_COLOR,
+                SHOW_LITEMATICA_MATERIAL_REPLACEMENTS,
+                GLOBAL_CONTAINER_REPLACEMENTS,
+                GLOBAL_PROJECTION_MATERIAL_REPLACEMENTS,
+                ALLOW_PERSISTENT_MATERIAL_IGNORES,
                 ENABLE_AUTO_COLLECT_MATERIALS,
                 MATERIAL_COLLECT_EXTRA_0_TO_10,
                 MATERIAL_COLLECT_EXTRA_10_TO_20,
@@ -745,6 +768,8 @@ public final class QuickCraftConfigs implements IConfigHandler {
                 CONTAINER_FILL_FREE_SLOTS_LIMIT,
                 CONTAINER_FILL_PROTECTED_ITEMS,
                 CONTAINER_FILL_REPLACEMENTS,
+                MATERIAL_LIST_IGNORES,
+                PROJECTION_MATERIAL_REPLACEMENTS,
                 ENABLE_LITEMATICA_SHULKER_MATERIAL_RESTOCK,
                 LITEMATICA_SHULKER_MATERIAL_ORDERLY_STORAGE
         );
@@ -985,6 +1010,7 @@ public final class QuickCraftConfigs implements IConfigHandler {
                 ProjectionTools.SHOW_LITEMATICA_CONTAINER_SLOT_HINTS,
                 ProjectionTools.SHOW_LITEMATICA_CONTAINER_VERIFIER,
                 ProjectionTools.HIGHLIGHT_NONEMPTY_PROJECTION_CONTAINERS,
+                ProjectionTools.SHOW_LITEMATICA_MATERIAL_REPLACEMENTS,
                 ProjectionTools.ENABLE_AUTO_COLLECT_MATERIALS,
                 ProjectionTools.ENABLE_LITEMATICA_CONTAINER_AUTOFILL,
                 ProjectionTools.ENABLE_CREATIVE_CONTAINER_FILL,
@@ -1048,6 +1074,7 @@ public final class QuickCraftConfigs implements IConfigHandler {
                 ProjectionTools.SHOW_LITEMATICA_CONTAINER_SLOT_HINTS,
                 ProjectionTools.SHOW_LITEMATICA_CONTAINER_VERIFIER,
                 ProjectionTools.HIGHLIGHT_NONEMPTY_PROJECTION_CONTAINERS,
+                ProjectionTools.SHOW_LITEMATICA_MATERIAL_REPLACEMENTS,
                 ProjectionTools.ENABLE_AUTO_COLLECT_MATERIALS,
                 ProjectionTools.ENABLE_LITEMATICA_CONTAINER_AUTOFILL,
                 ProjectionTools.ENABLE_CREATIVE_CONTAINER_FILL,
@@ -1239,6 +1266,10 @@ public final class QuickCraftConfigs implements IConfigHandler {
 
     public static List<String> getContainerFillReplacements() {
         return ProjectionTools.CONTAINER_FILL_REPLACEMENTS.getStrings();
+    }
+
+    public static List<String> getProjectionMaterialReplacements() {
+        return ProjectionTools.PROJECTION_MATERIAL_REPLACEMENTS.getStrings();
     }
 
     public static int getMaterialCollectExtra0To10() {
@@ -1562,6 +1593,37 @@ public final class QuickCraftConfigs implements IConfigHandler {
             }
 
             applyLegacyContainerToolMappings(containerTools);
+        }
+        migrateGlobalContainerReplacements();
+        if (net.fabricmc.loader.api.FabricLoader.getInstance().isModLoaded("litematica")) {
+            com.yiyihehe.quickcraft.litematica.QuickLitematicaGlobalReplacements.changed();
+        }
+    }
+
+    static boolean isUnscopedReplacement(String entry) {
+        if (entry.trim().startsWith("{")) {
+            try {
+                JsonObject json = com.google.gson.JsonParser.parseString(entry).getAsJsonObject();
+                return json.get("version").getAsInt() == 2 && json.get("context").getAsString().isEmpty()
+                        && json.get("group").getAsString().isEmpty() && json.get("slot").getAsInt() < 0;
+            } catch (RuntimeException ignored) { return false; }
+        }
+        return !entry.contains("||") && entry.contains("->");
+    }
+
+    private static void migrateGlobalContainerReplacements() {
+        // 旧配置与按投影保存的手动规则共用一项，只迁移未带上下文的全局规则。
+        List<String> legacy = new java.util.ArrayList<>(ProjectionTools.CONTAINER_FILL_REPLACEMENTS.getStrings());
+        List<String> globals = new java.util.ArrayList<>(ProjectionTools.GLOBAL_CONTAINER_REPLACEMENTS.getStrings());
+        boolean changed = legacy.removeIf(entry -> {
+            boolean global = isUnscopedReplacement(entry);
+            if (global && !globals.contains(entry)) { globals.add(entry); }
+            return global;
+        });
+        if (changed) {
+            ProjectionTools.CONTAINER_FILL_REPLACEMENTS.setStrings(legacy);
+            ProjectionTools.GLOBAL_CONTAINER_REPLACEMENTS.setStrings(globals);
+            saveToFile();
         }
     }
 

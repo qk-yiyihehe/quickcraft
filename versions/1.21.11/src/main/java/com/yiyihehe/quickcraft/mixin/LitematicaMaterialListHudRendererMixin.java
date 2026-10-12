@@ -1,5 +1,11 @@
 package com.yiyihehe.quickcraft.mixin;
 
+import com.google.common.collect.ImmutableList;
+import com.yiyihehe.quickcraft.litematica.QuickLitematicaContainerMaterials;
+import fi.dy.masa.litematica.materials.MaterialListBase;
+import fi.dy.masa.litematica.materials.MaterialListEntry;
+import java.util.List;
+import org.spongepowered.asm.mixin.injection.Redirect;
 import com.yiyihehe.quickcraft.litematica.QuickLitematicaContainerVerifier;
 import fi.dy.masa.litematica.materials.MaterialListHudRenderer;
 import fi.dy.masa.malilib.render.GuiContext;
@@ -16,6 +22,20 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
  */
 @Mixin(value = MaterialListHudRenderer.class, remap = false)
 public class LitematicaMaterialListHudRendererMixin {
+    @Redirect(method = "render", at = @At(value = "INVOKE",
+            target = "Lfi/dy/masa/litematica/materials/MaterialListBase;getMaterialsAll()Lcom/google/common/collect/ImmutableList;"))
+    private ImmutableList<MaterialListEntry> quickcraft$targetHudMaterials(MaterialListBase list) {
+        return list instanceof QuickLitematicaContainerMaterials.ContainerMaterialRequestSource source
+                ? ImmutableList.copyOf(source.quickcraft$getHudMaterialsAll(true)) : ImmutableList.copyOf(com.yiyihehe.quickcraft.litematica.QuickLitematicaProjectionMaterials.hud(list, false));
+    }
+
+    @Redirect(method = "render", at = @At(value = "INVOKE",
+            target = "Lfi/dy/masa/litematica/materials/MaterialListBase;getMaterialsMissingOnly(Z)Ljava/util/List;"))
+    private List<MaterialListEntry> quickcraft$targetHudMissing(MaterialListBase list, boolean refresh) {
+        return list instanceof QuickLitematicaContainerMaterials.ContainerMaterialRequestSource source
+                ? source.quickcraft$getHudMaterialsMissing() : com.yiyihehe.quickcraft.litematica.QuickLitematicaProjectionMaterials.hud(list, true);
+    }
+
     @Inject(method = "renderLookedAtBlockInInventory", at = @At("HEAD"), cancellable = true)
     private static void quickcraft$skipContainerMaterialSlotHighlights(
             GuiContext drawContext, HandledScreen<?> gui, MinecraftClient mc, CallbackInfo ci) {

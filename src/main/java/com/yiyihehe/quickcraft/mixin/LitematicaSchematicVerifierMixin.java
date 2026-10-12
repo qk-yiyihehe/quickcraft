@@ -96,6 +96,11 @@ public abstract class LitematicaSchematicVerifierMixin extends TaskBase implemen
     }
 
     @Override
+    public List<ItemStack> quickcraft$getMaterialMissingStacks() {
+        return this.quickcraft$containerVerification.quickcraft$getMaterialMissingStacks();
+    }
+
+    @Override
     public List<ItemStack> quickcraft$getMissingContainerStacks() {
         return this.quickcraft$containerVerification.quickcraft$getMissingContainerStacks();
     }

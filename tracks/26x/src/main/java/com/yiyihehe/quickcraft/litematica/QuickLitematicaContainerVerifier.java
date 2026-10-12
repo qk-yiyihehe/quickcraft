@@ -239,6 +239,28 @@ public final class QuickLitematicaContainerVerifier {
         return merged != null ? merged : current;
     }
 
+
+    public static Container getExpectedInventoryWithReplacements(Level world, BlockPos pos, Container fallback) {
+        ExpectedContainer expected = getExpectedContainerAt(world, pos);
+        return expected != null && expected.inventory().getContainerSize() == fallback.getContainerSize() ? expected.inventory() : fallback;
+    }
+
+    public static Container getMaterialInventoryAt(Level world, BlockPos pos, int size) {
+        var entity = QuickLitematicaGlobalReplacements.baselineWorldEntity(pos, world);
+        if (!(entity instanceof Container inventory)) { return null; }
+        var state = QuickLitematicaGlobalReplacements.baselineWorldState(pos);
+        if (inventory.getContainerSize() == size) { return QuickLitematicaContainerInventory.copyInventory(inventory); }
+        if (QuickLitematicaContainerInventory.getChestType(state) != ChestType.SINGLE) {
+            var adjacent = QuickLitematicaGlobalReplacements.baselineWorldEntity(pos.relative(ChestBlock.getConnectedDirection(state)), world);
+            if (adjacent instanceof Container other && inventory.getContainerSize() + other.getContainerSize() == size) {
+                return QuickLitematicaContainerInventory.getChestType(state) == ChestType.RIGHT
+                        ? QuickLitematicaContainerInventory.mergeInventories(inventory, other)
+                        : QuickLitematicaContainerInventory.mergeInventories(other, inventory);
+            }
+        }
+        return null;
+    }
+
     public static QuickContainerCopy.TemplateSnapshot getTemplateSnapshotAt(Level foundWorld, BlockPos pos) {
         ExpectedContainer expected = getExpectedContainerAt(foundWorld, pos);
         if (expected == null) {
@@ -334,7 +356,7 @@ public final class QuickLitematicaContainerVerifier {
             return null;
         }
 
-        Map<BlockPos, ?> blockEntities = placementPos.placement().getSchematic()
+        Map<BlockPos, ?> blockEntities = QuickLitematicaGlobalReplacements.runtime(placementPos.placement())
                 .getBlockEntityMapForRegion(placementPos.region());
 
         if (blockEntities == null) {
@@ -389,7 +411,7 @@ public final class QuickLitematicaContainerVerifier {
 
             SchematicPlacement placement = part.getPlacement();
             String region = part.getSubRegionName();
-            LitematicaSchematic schematic = placement.getSchematic();
+            LitematicaSchematic schematic = QuickLitematicaGlobalReplacements.runtime(placement);
             LitematicaBlockStateContainer container = schematic.getSubRegionContainer(region);
             SubRegionPlacement subRegionPlacement = placement.getRelativeSubRegionPlacement(region);
 
@@ -419,7 +441,7 @@ public final class QuickLitematicaContainerVerifier {
         return null;
     }
 
-    private static BlockState getTransformedWorldState(BlockState state, SchematicPlacement schematicPlacement, String region) {
+    public static BlockState getTransformedWorldState(BlockState state, SchematicPlacement schematicPlacement, String region) {
         SubRegionPlacement placement = schematicPlacement.getRelativeSubRegionPlacement(region);
 
         if (placement == null) {
@@ -750,6 +772,8 @@ public final class QuickLitematicaContainerVerifier {
         List<ContainerMismatch> quickcraft$getContainerMismatches();
 
         List<ItemStack> quickcraft$getMissingContainerStacks();
+
+        List<ItemStack> quickcraft$getMaterialMissingStacks();
 
         int quickcraft$getWrongInventoryCount();
 

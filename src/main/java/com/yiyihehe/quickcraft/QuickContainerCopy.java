@@ -2698,7 +2698,16 @@ public final class QuickContainerCopy implements ClientModInitializer {
     public record TemplateSnapshot(
             PublicContainerType type,
             List<ItemStack> slotTemplates,
-            List<Boolean> disabledStates
+            List<Boolean> disabledStates,
+            String replacementContextKey,
+            String containerGroupKey
     ) {
+        public TemplateSnapshot(
+                PublicContainerType type,
+                List<ItemStack> slotTemplates,
+                List<Boolean> disabledStates
+        ) {
+            this(type, slotTemplates, disabledStates, "", "");
+        }
     }
 }

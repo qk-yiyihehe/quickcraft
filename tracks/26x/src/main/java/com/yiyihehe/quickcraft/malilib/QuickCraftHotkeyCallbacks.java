@@ -44,6 +44,14 @@ public final class QuickCraftHotkeyCallbacks {
                         .info("开发者调试：普通工作台/背包合成 ACK 详细日志已开启");
             }
         });
+        if (net.fabricmc.loader.api.FabricLoader.getInstance().isModLoaded("litematica")) {
+            QuickCraftConfigs.ProjectionTools.SHOW_LITEMATICA_MATERIAL_REPLACEMENTS.setValueChangeCallback(config ->
+                    com.yiyihehe.quickcraft.litematica.QuickLitematicaGlobalReplacements.changed());
+            QuickCraftConfigs.ProjectionTools.GLOBAL_CONTAINER_REPLACEMENTS.setValueChangeCallback(config ->
+                    com.yiyihehe.quickcraft.litematica.QuickLitematicaGlobalReplacements.changed());
+            QuickCraftConfigs.ProjectionTools.GLOBAL_PROJECTION_MATERIAL_REPLACEMENTS.setValueChangeCallback(config ->
+                    com.yiyihehe.quickcraft.litematica.QuickLitematicaGlobalReplacements.changed());
+        }
         QuickCraftConfigs.getBooleanHotkeyConfigs().forEach(config ->
                 config.getKeybind().setCallback(new QuickCraftLocalizedToggleCallback(config))
         );

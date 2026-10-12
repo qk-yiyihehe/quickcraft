@@ -1,69 +1,46 @@
 package com.yiyihehe.quickcraft.litematica;
 
 import com.yiyihehe.quickcraft.QuickMaterialCollector;
-import com.yiyihehe.quickcraft.config.QuickCraftConfigs;
 import com.yiyihehe.quickcraft.malilib.QuickCraftGuiButtonAccess;
+import com.yiyihehe.quickcraft.config.QuickCraftConfigs;
 import fi.dy.masa.litematica.data.DataManager;
-import fi.dy.masa.litematica.gui.GuiMaterialList;
-import fi.dy.masa.litematica.gui.GuiMainMenu.ButtonListenerChangeMenu;
 import fi.dy.masa.litematica.gui.GuiSchematicLoad;
 import fi.dy.masa.litematica.materials.MaterialListBase;
 import fi.dy.masa.litematica.materials.MaterialListEntry;
-import fi.dy.masa.litematica.materials.MaterialListUtils;
 import fi.dy.masa.litematica.schematic.LitematicaSchematic;
 import fi.dy.masa.litematica.schematic.LitematicaSchematic.EntityInfo;
 import fi.dy.masa.litematica.schematic.container.LitematicaBlockStateContainer;
 import fi.dy.masa.litematica.schematic.placement.SchematicPlacement;
-import fi.dy.masa.litematica.schematic.placement.SubRegionPlacement;
 import fi.dy.masa.litematica.schematic.verifier.SchematicVerifier;
-import fi.dy.masa.litematica.util.BlockInfoListType;
 import fi.dy.masa.litematica.util.FileType;
-import fi.dy.masa.litematica.util.PositionUtils;
 import fi.dy.masa.litematica.util.WorldUtils;
 import fi.dy.masa.litematica.world.SchematicWorldHandler;
 import fi.dy.masa.litematica.world.WorldSchematic;
-import fi.dy.masa.malilib.gui.GuiBase;
-import fi.dy.masa.malilib.gui.GuiListBase;
 import fi.dy.masa.malilib.gui.Message.MessageType;
 import fi.dy.masa.malilib.gui.button.ButtonBase;
-import fi.dy.masa.malilib.gui.button.ButtonGeneric;
-import fi.dy.masa.malilib.gui.button.IButtonActionListener;
 import fi.dy.masa.malilib.gui.widgets.WidgetFileBrowserBase.DirectoryEntry;
-import fi.dy.masa.malilib.gui.widgets.WidgetListBase;
-import fi.dy.masa.malilib.gui.widgets.WidgetListEntryBase;
 import fi.dy.masa.malilib.interfaces.ICompletionListener;
-import fi.dy.masa.malilib.render.GuiContext;
-import fi.dy.masa.malilib.render.InventoryOverlay;
-import fi.dy.masa.malilib.render.RenderUtils;
-import fi.dy.masa.malilib.util.data.ItemType;
+
 import fi.dy.masa.malilib.util.InfoUtils;
 import fi.dy.masa.malilib.util.StringUtils;
 import it.unimi.dsi.fastutil.objects.Object2IntOpenHashMap;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.block.ChestBlock;
 import net.minecraft.world.level.block.ShulkerBoxBlock;
-import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.properties.ChestType;
 import net.minecraft.client.Minecraft;
-import net.minecraft.client.input.MouseButtonEvent;
 import net.minecraft.client.gui.screens.Screen;
-import net.minecraft.world.Container;
 import net.minecraft.world.item.BlockItem;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.ListTag;
-import net.minecraft.nbt.NbtOps;
-import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.core.HolderLookup;
-import net.minecraft.resources.Identifier;
 import net.minecraft.core.NonNullList;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.core.Vec3i;
-import net.minecraft.world.phys.Vec3;
-import org.jetbrains.annotations.Nullable;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -76,6 +53,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.Optional;
 
 /**
  * 给 Litematica 的加载原理图页面补一个“容器材料列表”。
@@ -85,14 +63,13 @@ public final class QuickLitematicaContainerMaterials {
     public static final String BUTTON_KEY = "quickcraft.litematica.button.container_material_list";
     public static final String BUTTON_HOVER_KEY = "quickcraft.litematica.button.hover.container_material_list";
 
-    private static final int BUTTON_GAP = 4;
-    static final int CONTAINER_COLUMN_WIDTH = 188;
+    static final int BUTTON_GAP = 4;
+    static final int CONTAINER_COLUMN_WIDTH = 144;
     static final int COUNT_COLUMN_WIDTH = 58;
     static final int ACTION_COLUMN_WIDTH = 66;
-    static final int ITEM_CELL_WIDTH = 34;
-    static final int ITEM_CELL_HEIGHT = 20;
-    private static final int HEADER_HEIGHT = 22;
-    private static final Set<String> NON_INVENTORY_BLOCK_ENTITY_IDS = new HashSet<>();
+    static final int ITEM_CELL_WIDTH = 20;
+    static final int ITEM_CELL_HEIGHT = 28;
+    static final int HEADER_HEIGHT = 22;
     private static final Direction[] HORIZONTAL_DIRECTIONS = new Direction[] {
             Direction.NORTH, Direction.SOUTH, Direction.WEST, Direction.EAST
     };
@@ -100,8 +77,33 @@ public final class QuickLitematicaContainerMaterials {
     private QuickLitematicaContainerMaterials() {
     }
 
+    abstract static class ItemKey {
+        @Override public abstract boolean equals(Object other);
+        @Override public abstract int hashCode();
+        @Override public abstract String toString();
+    }
+
     public interface ContainerMaterialRequestSource {
         List<QuickMaterialCollector.MaterialRequest> quickcraft$getReplacementMaterialRequests();
+        List<MaterialListEntry> quickcraft$getHudMaterialsAll(boolean refresh);
+        List<MaterialListEntry> quickcraft$getHudMaterialsMissing();
+    }
+
+    public interface ContainerReplacementBindingSource {
+        String quickcraft$getPersistentContextKey();
+        void quickcraft$toggleSelectedMaterial(ItemStack source);
+        boolean quickcraft$isMaterialSelected(ItemStack source);
+        QuickLitematicaMaterialReplacementScreen.ReplacementBinding quickcraft$createSummaryReplacementBinding(ItemStack source);
+
+        Optional<ItemStack> quickcraft$getSummaryReplacementTarget(ItemStack source);
+
+        String quickcraft$getSummaryReplacementLabel(ItemStack source);
+
+        boolean quickcraft$hasSummaryReplacement(ItemStack source);
+
+        void quickcraft$clearSummaryReplacement(ItemStack source);
+
+        void quickcraft$clearAllContainerRulesForContext();
     }
 
     public static boolean shouldShowButton() {
@@ -113,7 +115,7 @@ public final class QuickLitematicaContainerMaterials {
         List<ButtonBase> buttons = ((QuickCraftGuiButtonAccess) (Object) gui).quickcraft$getButtons();
         ButtonBase mainMenuButton = buttons.stream()
                 .filter(button -> button.getY() == y)
-                // 支持范围内的 Litematica 把主菜单按钮固定在距右边缘 10 px 的位置。
+                // 原版主菜单按钮固定在距右边缘 10 px 的位置。
                 .filter(button -> button.getX() + button.getWidth() == gui.getScreenWidth() - 10)
                 .reduce((first, second) -> second)
                 .orElse(null);
@@ -128,7 +130,7 @@ public final class QuickLitematicaContainerMaterials {
             return new ButtonPlacement(x, y);
         }
 
-        // 文件浏览区结束于 height - 46，备用位置从这里开始且不移动原生按钮。
+        // 文件浏览区结束于 height - 46；空间不足时换到预览区下方，不移动原生按钮。
         return new ButtonPlacement(
                 Math.max(12, gui.getScreenWidth() - buttonWidth - 10),
                 gui.getScreenHeight() - 46
@@ -141,7 +143,7 @@ public final class QuickLitematicaContainerMaterials {
             return;
         }
 
-        Path file = entry.getFullPath();
+        Path file = QuickLitematicaContainerMaterialsAccess.getEntryPath(entry);
         if (!Files.exists(file) || !Files.isReadable(file)) {
             gui.addMessage(MessageType.ERROR, "litematica.error.schematic_load.cant_read_file", file.getFileName());
             return;
@@ -154,17 +156,23 @@ public final class QuickLitematicaContainerMaterials {
             return;
         }
 
-        ContainerMaterialsData data = ContainerMaterialsData.create(schematic);
-        ContainerMaterialList materialList = new ContainerMaterialList(data, gui, true);
+        ContainerMaterialsData data = ContainerMaterialsData.create(
+                schematic,
+                List.copyOf(schematic.getAreas().keySet()),
+                QuickLitematicaMaterialLists.getContainerReplacementContextKey(schematic)
+        );
+        ContainerMaterialList materialList = new ContainerMaterialList(data, gui);
         DataManager.setMaterialList(materialList);
         openMaterialListScreen(materialList);
     }
 
     public static void openForPlacement(SchematicPlacement placement, Screen parent) {
         ContainerMaterialList materialList = new ContainerMaterialList(
-                ContainerMaterialsData.create(placement),
-                parent,
-                true
+                ContainerMaterialsData.create(
+                        placement,
+                        QuickLitematicaMaterialLists.getContainerReplacementContextKey(placement)
+                ),
+                parent
         );
         DataManager.setMaterialList(materialList);
         openMaterialListScreen(materialList);
@@ -172,9 +180,11 @@ public final class QuickLitematicaContainerMaterials {
 
     public static void openDetailsForPlacement(SchematicPlacement placement, Screen parent) {
         ContainerMaterialList materialList = new ContainerMaterialList(
-                ContainerMaterialsData.create(placement),
-                parent,
-                false
+                ContainerMaterialsData.create(
+                        placement,
+                        QuickLitematicaMaterialLists.getContainerReplacementContextKey(placement)
+                ),
+                parent
         );
         DataManager.setMaterialList(materialList);
         openDetailScreen(materialList);
@@ -182,9 +192,12 @@ public final class QuickLitematicaContainerMaterials {
 
     public static void openForSchematic(LitematicaSchematic schematic, Collection<String> regions, Screen parent) {
         ContainerMaterialList materialList = new ContainerMaterialList(
-                ContainerMaterialsData.create(schematic, regions),
-                parent,
-                true
+                ContainerMaterialsData.create(
+                        schematic,
+                        regions,
+                        QuickLitematicaMaterialLists.getContainerReplacementContextKey(schematic)
+                ),
+                parent
         );
         DataManager.setMaterialList(materialList);
         openMaterialListScreen(materialList);
@@ -192,28 +205,177 @@ public final class QuickLitematicaContainerMaterials {
 
     public static void openDetailsForSchematic(LitematicaSchematic schematic, Collection<String> regions, Screen parent) {
         ContainerMaterialList materialList = new ContainerMaterialList(
-                ContainerMaterialsData.create(schematic, regions),
-                parent,
-                false
+                ContainerMaterialsData.create(
+                        schematic,
+                        regions,
+                        QuickLitematicaMaterialLists.getContainerReplacementContextKey(schematic)
+                ),
+                parent
         );
         DataManager.setMaterialList(materialList);
         openDetailScreen(materialList);
     }
 
+    public static void saveCopy(MaterialListBase materialList) {
+        ContainerMaterialsData data;
+        if (materialList instanceof ContainerMaterialList containers) {
+            data = containers.data;
+        } else if (materialList instanceof com.yiyihehe.quickcraft.mixin.LitematicaMaterialListPlacementAccessor accessor) {
+            var placement = accessor.quickcraft$getPlacement();
+            data = ContainerMaterialsData.create(placement, QuickLitematicaMaterialLists.getContainerReplacementContextKey(placement));
+        } else if (materialList instanceof com.yiyihehe.quickcraft.mixin.LitematicaMaterialListSchematicAccessor accessor) {
+            data = ContainerMaterialsData.create(accessor.quickcraft$getSchematic(), accessor.quickcraft$getRegions(),
+                    QuickLitematicaMaterialLists.getContainerReplacementContextKey(accessor.quickcraft$getSchematic()));
+        } else { return; }
+        saveCopy(data);
+    }
+
+    private static void saveCopy(ContainerMaterialsData data) {
+        var sourceFile = QuickLitematicaContainerMaterialsAccess.schematicPath(data.liveSchematic);
+        if (sourceFile == null) {
+            InfoUtils.showGuiOrInGameMessage(MessageType.ERROR, "quickcraft.litematica.error.copy_no_source");
+            return;
+        }
+        try {
+            Path source = sourceFile.toAbsolutePath();
+            var copy = createContainerReplacementCopy(data.schematic, data.schematic.getAreas().keySet(), data.replacementContextKey);
+            QuickLitematicaProjectionMaterials.replaceBlocks(copy, data.replacementContextKey);
+            var output = QuickLitematicaDataCompat.schematicNbt(copy);
+            Path destination = writeNumberedCopy(source, output);
+            InfoUtils.showGuiOrInGameMessage(MessageType.INFO, "quickcraft.litematica.message.copy_saved", destination.toString());
+        } catch (Exception exception) {
+            InfoUtils.showGuiOrInGameMessage(MessageType.ERROR, "quickcraft.litematica.error.copy_failed", exception.getMessage());
+        }
+    }
+
+    static LitematicaSchematic createContainerReplacementCopy(LitematicaSchematic schematic,
+                                                              Collection<String> regions, String context) {
+        return createContainerReplacementCopy(schematic, regions, context, false);
+    }
+
+    static LitematicaSchematic createContainerReplacementCopy(LitematicaSchematic schematic,
+                                                              Collection<String> regions, String context, boolean globals) {
+        var copy = QuickLitematicaContainerMaterialsAccess.copySchematic(schematic);
+        if (!globals && context.isBlank()) { return copy; }
+        HolderLookup.Provider lookup = getRegistryLookup();
+        if (lookup == null) { throw new IllegalStateException("Registry lookup unavailable"); }
+        for (String region : regions) {
+            var entities = QuickLitematicaContainerMaterialsAccess.getBlockEntities(copy, region);
+            var states = copy.getSubRegionContainer(region);
+            Set<BlockPos> consumed = new HashSet<>();
+            if (entities != null) {
+                for (var entry : entities.entrySet()) {
+                    BlockPos pos = entry.getKey();
+                    if (consumed.contains(pos)) { continue; }
+                    var slots = readItems(entry.getValue(), lookup);
+                    if (slots.isEmpty()) { continue; }
+                    int firstSize = slots.size();
+                    BlockState state = getState(states, pos);
+                    BlockPos paired = findPairedChest(pos, state, states, entities, consumed);
+                    consumed.add(pos);
+                    if (paired != null) {
+                        slots.addAll(readItems(entities.get(paired), lookup));
+                        consumed.add(paired);
+                    }
+                    var descriptor = describeBlockContainer(state, entry.getValue(), paired != null);
+                    var replaced = exportSlotStacks(descriptor.stack(), slots, context, lookup, 0, globals);
+                    writeSlotStacks(entry.getValue(), replaced.subList(0, firstSize), lookup);
+                    if (paired != null) { writeSlotStacks(entities.get(paired), replaced.subList(firstSize, replaced.size()), lookup); }
+                }
+            }
+            if (entities != null) { QuickLitematicaContainerMaterialsAccess.setBlockEntities(copy, region, entities); }
+            var entityList = copy.getEntityListForRegion(region);
+            if (entityList != null) {
+                for (int entityIndex = 0; entityIndex < entityList.size(); entityIndex++) {
+                    var entity = entityList.get(entityIndex);
+                    var entityNbt = QuickLitematicaContainerMaterialsAccess.getEntityNbt(entity);
+                    var slots = readItems(entityNbt, lookup);
+                    if (!slots.isEmpty()) {
+                        writeSlotStacks(entityNbt, exportSlotStacks(describeEntityContainer(QuickLitematicaContainerMaterialsAccess.readString(entityNbt, "id")).stack(),
+                                slots, context, lookup, 0, globals), lookup);
+                        QuickLitematicaContainerMaterialsAccess.setEntityNbt(entityList, entityIndex, entityNbt);
+                    }
+                }
+            }
+        }
+        return copy;
+    }
+
+    static Path writeNumberedCopy(Path source, CompoundTag output) throws java.io.IOException {
+        String fileName = source.getFileName().toString();
+        int dot = fileName.lastIndexOf('.');
+        String stem = dot > 0 ? fileName.substring(0, dot) : fileName;
+        for (int number = 1; ; number++) {
+            Path destination = source.getParent().resolve(stem + "_副本_" + number + ".litematic");
+            java.io.OutputStream stream;
+            try {
+                stream = Files.newOutputStream(destination, java.nio.file.StandardOpenOption.CREATE_NEW,
+                        java.nio.file.StandardOpenOption.WRITE);
+            } catch (java.nio.file.FileAlreadyExistsException ignored) { continue; }
+            try (stream) {
+                net.minecraft.nbt.NbtIo.writeCompressed(output, stream);
+                return destination;
+            } catch (java.io.IOException exception) {
+                try { Files.deleteIfExists(destination); }
+                catch (java.io.IOException cleanupFailure) { exception.addSuppressed(cleanupFailure); }
+                throw exception;
+            }
+        }
+    }
+
+    private static List<ItemStack> exportSlotStacks(ItemStack container, List<ItemStack> slots, String context,
+                                                    HolderLookup.Provider lookup, int depth, boolean globals) {
+        String group = QuickLitematicaContainerReplacements.containerGroupSignature(container, slots);
+        var replaced = globals ? QuickLitematicaGlobalReplacements.containerSlots(slots, context, group)
+                : getReplacedSlotStacks(slots, context, group);
+        if (depth < 4) {
+            for (ItemStack stack : replaced) {
+                if (isShulkerBox(stack)) {
+                    var nested = readStoredShulkerStacks(stack);
+                    if (!nested.isEmpty()) {
+                        var contents = exportSlotStacks(stack, nested, context, lookup, depth + 1, globals);
+                        for (int slot = 0; slot < nested.size(); slot++) {
+                            if (hasStackChange(nested.get(slot), contents.get(slot))) {
+                                stack.set(net.minecraft.core.component.DataComponents.CONTAINER,
+                                        net.minecraft.world.item.component.ItemContainerContents.fromItems(contents));
+                                break;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        return replaced;
+    }
+
+    private static void writeSlotStacks(CompoundTag container, List<ItemStack> slots, HolderLookup.Provider lookup) {
+        ListTag items = new ListTag();
+        for (int slot = 0; slot < slots.size(); slot++) {
+            if (!slots.get(slot).isEmpty()) {
+                CompoundTag item = (CompoundTag) ItemStack.OPTIONAL_CODEC.encodeStart(lookup.createSerializationContext(net.minecraft.nbt.NbtOps.INSTANCE), slots.get(slot)).getOrThrow();
+                item.putByte("Slot", (byte) slot);
+                items.add(item);
+            }
+        }
+        container.put("Items", items);
+    }
+
     private static void openMaterialListScreen(ContainerMaterialList materialList) {
-        ContainerMaterialListScreen screen = new ContainerMaterialListScreen(materialList);
-        screen.setParent(materialList.parent);
-        GuiBase.openGui(screen);
+        materialList.reCreateMaterialList();
+        QuickLitematicaContainerMaterialsScreens.openMaterialListScreen(materialList);
     }
 
     private static void openDetailScreen(ContainerMaterialList materialList) {
-        ContainerMaterialsScreen screen = new ContainerMaterialsScreen(materialList);
-        screen.setParent(materialList.parent);
-        GuiBase.openGui(screen);
+        materialList.reCreateMaterialList();
+        QuickLitematicaContainerMaterialsScreens.openDetailScreen(materialList);
+    }
+
+    static int getDefaultButtonWidth(GuiSchematicLoad gui, String translationKey) {
+        return gui.getStringWidth(StringUtils.translate(translationKey)) + 10;
     }
 
     private static LitematicaSchematic readSchematic(GuiSchematicLoad gui, DirectoryEntry entry) {
-        FileType fileType = FileType.fromFile(entry.getFullPath());
+        FileType fileType = FileType.fromFile(QuickLitematicaContainerMaterialsAccess.getEntryPath(entry));
 
         return switch (fileType) {
             case LITEMATICA_SCHEMATIC -> LitematicaSchematic.createFromFile(entry.getDirectory(), entry.getName());
@@ -226,7 +388,7 @@ public final class QuickLitematicaContainerMaterials {
             case VANILLA_STRUCTURE -> WorldUtils.convertStructureToLitematicaSchematic(entry.getDirectory(), entry.getName());
             case SPONGE_SCHEMATIC -> WorldUtils.convertSpongeSchematicToLitematicaSchematic(entry.getDirectory(), entry.getName());
             default -> {
-                gui.addMessage(MessageType.ERROR, "litematica.error.schematic_load.unsupported_type", entry.getFullPath().getFileName());
+                gui.addMessage(MessageType.ERROR, "litematica.error.schematic_load.unsupported_type", QuickLitematicaContainerMaterialsAccess.getEntryFileName(entry));
                 yield null;
             }
         };
@@ -237,23 +399,17 @@ public final class QuickLitematicaContainerMaterials {
         return client.level != null ? client.level.registryAccess() : null;
     }
 
-    private static List<ContainerGroup> createContainerGroups(
-            LitematicaSchematic schematic,
-            Collection<String> regions,
-            @Nullable SchematicPlacement placement,
-            BlockInfoListType materialListType
-    ) {
+    private static List<ContainerGroup> createContainerGroups(LitematicaSchematic schematic, Collection<String> regions) {
         HolderLookup.Provider registryLookup = getRegistryLookup();
         GroupAccumulator accumulator = new GroupAccumulator();
-        boolean renderLayers = placement != null && materialListType == BlockInfoListType.RENDER_LAYERS;
 
         if (registryLookup == null) {
             return List.of();
         }
 
         for (String regionName : regions) {
-            addBlockEntityContainers(schematic, regionName, registryLookup, accumulator, placement, renderLayers);
-            addEntityContainers(schematic, regionName, registryLookup, accumulator, placement, renderLayers);
+            addBlockEntityContainers(schematic, regionName, registryLookup, accumulator);
+            addEntityContainers(schematic, regionName, registryLookup, accumulator);
         }
 
         return accumulator.toGroups();
@@ -263,11 +419,9 @@ public final class QuickLitematicaContainerMaterials {
             LitematicaSchematic schematic,
             String regionName,
             HolderLookup.Provider registryLookup,
-            GroupAccumulator accumulator,
-            @Nullable SchematicPlacement placement,
-            boolean renderLayers
+            GroupAccumulator accumulator
     ) {
-        Map<BlockPos, ?> blockEntities = schematic.getBlockEntityMapForRegion(regionName);
+        Map<BlockPos, CompoundTag> blockEntities = QuickLitematicaContainerMaterialsAccess.getBlockEntities(schematic, regionName);
 
         if (blockEntities == null || blockEntities.isEmpty()) {
             return;
@@ -276,53 +430,32 @@ public final class QuickLitematicaContainerMaterials {
         LitematicaBlockStateContainer stateContainer = schematic.getSubRegionContainer(regionName);
         Set<BlockPos> consumed = new HashSet<>();
 
-        for (Map.Entry<BlockPos, ?> entry : blockEntities.entrySet()) {
+        for (Map.Entry<BlockPos, CompoundTag> entry : blockEntities.entrySet()) {
             BlockPos pos = entry.getKey();
 
             if (consumed.contains(pos)) {
                 continue;
             }
 
-            CompoundTag nbt = QuickLitematicaDataCompat.toVanillaNbt(entry.getValue());
-            if (nbt == null) {
+            CompoundTag nbt = entry.getValue();
+            List<ItemStack> stacks = readItems(nbt, registryLookup);
+
+            if (stacks.isEmpty()) {
                 continue;
             }
+
             BlockState state = getState(stateContainer, pos);
-            List<ItemStack> stacks = readBlockEntityItems(pos, state, nbt, registryLookup);
-            if (stacks == null) {
-                continue;
-            }
-
             BlockPos pairedChestPos = findPairedChest(pos, state, stateContainer, blockEntities, consumed);
-
-            if (renderLayers
-                    && !isWithinRenderLayer(placement, schematic, regionName, pos)
-                    && (pairedChestPos == null || !isWithinRenderLayer(placement, schematic, regionName, pairedChestPos))) {
-                continue;
-            }
-
-            if (stacks.isEmpty() && pairedChestPos == null) {
-                continue;
-            }
+            ContainerDescriptor descriptor = describeBlockContainer(state, nbt, pairedChestPos != null);
 
             consumed.add(pos);
 
             if (pairedChestPos != null) {
-                CompoundTag pairedNbt = QuickLitematicaDataCompat.toVanillaNbt(blockEntities.get(pairedChestPos));
-                BlockState pairedState = getState(stateContainer, pairedChestPos);
-                List<ItemStack> pairedStacks = readBlockEntityItems(
-                        pairedChestPos,
-                        pairedState,
-                        pairedNbt,
-                        registryLookup
-                );
-                if (pairedStacks != null) {
-                    stacks.addAll(pairedStacks);
-                }
+                CompoundTag pairedNbt = blockEntities.get(pairedChestPos);
+                stacks.addAll(readItems(pairedNbt, registryLookup));
                 consumed.add(pairedChestPos);
             }
 
-            ContainerDescriptor descriptor = describeBlockContainer(state, nbt, pairedChestPos != null);
             addContainer(accumulator, descriptor, stacks);
         }
     }
@@ -331,9 +464,7 @@ public final class QuickLitematicaContainerMaterials {
             LitematicaSchematic schematic,
             String regionName,
             HolderLookup.Provider registryLookup,
-            GroupAccumulator accumulator,
-            @Nullable SchematicPlacement placement,
-            boolean renderLayers
+            GroupAccumulator accumulator
     ) {
         List<EntityInfo> entities = schematic.getEntityListForRegion(regionName);
 
@@ -342,60 +473,27 @@ public final class QuickLitematicaContainerMaterials {
         }
 
         for (EntityInfo info : entities) {
-            CompoundTag nbt = QuickLitematicaDataCompat.entityNbt(info);
-            if (nbt == null || !nbt.contains("Items")) {
-                continue;
-            }
-            if (renderLayers && !isWithinRenderLayer(placement, schematic, regionName, QuickLitematicaDataCompat.entityPos(info))) {
-                continue;
-            }
-
+            CompoundTag nbt = QuickLitematicaContainerMaterialsAccess.getEntityNbt(info);
             List<ItemStack> stacks = readItems(nbt, registryLookup);
 
             if (stacks.isEmpty()) {
                 continue;
             }
 
-            ContainerDescriptor descriptor = describeEntityContainer(nbt.getString("id").orElse(""));
+            ContainerDescriptor descriptor = describeEntityContainer(QuickLitematicaContainerMaterialsAccess.readString(nbt, "id"));
             addContainer(accumulator, descriptor, stacks);
         }
     }
 
-    private static boolean isWithinRenderLayer(SchematicPlacement placement, LitematicaSchematic schematic, String regionName, BlockPos localPos) {
-        BlockPos regionSize = schematic.getAreaSize(regionName);
-        SubRegionPlacement regionPlacement = placement.getRelativeSubRegionPlacement(regionName);
-        if (regionSize == null || regionPlacement == null) return false;
-        BlockPos regionPos = regionPlacement.getPos();
-        BlockPos posEndRel = PositionUtils.getRelativeEndPositionFromAreaSize(regionSize).offset(regionPos);
-        BlockPos posMinRel = PositionUtils.getMinCorner(regionPos, posEndRel);
-        BlockPos relative = posMinRel.subtract(regionPos).offset(localPos);
-        relative = PositionUtils.getTransformedBlockPos(relative, placement.getMirror(), placement.getRotation());
-        relative = PositionUtils.getTransformedBlockPos(relative, regionPlacement.getMirror(), regionPlacement.getRotation());
-        BlockPos worldPos = placement.getOrigin().offset(PositionUtils.getTransformedBlockPos(regionPos, placement.getMirror(), placement.getRotation())).offset(relative);
-        return DataManager.getRenderLayerRange().isPositionWithinRange(worldPos);
-    }
-
-    private static boolean isWithinRenderLayer(SchematicPlacement placement, LitematicaSchematic schematic, String regionName, Vec3 localPos) {
-        BlockPos regionSize = schematic.getAreaSize(regionName);
-        SubRegionPlacement regionPlacement = placement.getRelativeSubRegionPlacement(regionName);
-        if (regionSize == null || regionPlacement == null) return false;
-        BlockPos regionPos = regionPlacement.getPos();
-        Vec3 transformed = PositionUtils.getTransformedPosition(localPos, placement.getMirror(), placement.getRotation());
-        transformed = PositionUtils.getTransformedPosition(transformed, regionPlacement.getMirror(), regionPlacement.getRotation());
-        BlockPos transformedRegionPos = PositionUtils.getTransformedBlockPos(regionPos, placement.getMirror(), placement.getRotation());
-        Vec3 worldPos = transformed.add(Vec3.atLowerCornerOf(placement.getOrigin().offset(transformedRegionPos)));
-        return DataManager.getRenderLayerRange().isPositionWithinRange(new BlockPos((int) Math.floor(worldPos.x()), (int) Math.floor(worldPos.y()), (int) Math.floor(worldPos.z())));
-    }
-
     private static void addContainer(GroupAccumulator accumulator, ContainerDescriptor descriptor, List<ItemStack> stacks) {
-        List<ItemStack> slotStacks = copyStacks(stacks);
+        List<ItemStack> slotStacks = copySlotStacks(stacks);
         List<ItemCount> contents = countStacks(slotStacks);
 
         if (contents.isEmpty()) {
             return;
         }
 
-        accumulator.add(descriptor.stack(), descriptor.displayName(), null, descriptor.signatureKey(), contents, slotStacks, 1, false);
+        accumulator.add(descriptor.stack(), descriptor.displayName(), null, contents, slotStacks, 1, false);
         addStoredShulkerGroups(accumulator, descriptor.displayName(), descriptor.signatureKey(), contents, 0);
     }
 
@@ -429,74 +527,40 @@ public final class QuickLitematicaContainerMaterials {
             String nestedSourceName = sourceName + " / " + shulkerName;
             String nestedSourceKey = sourceKey + "/" + itemSignature(shulkerStack);
 
-            accumulator.add(shulkerStack, shulkerName, shulkerSource, nestedSourceKey, shulkerContents, shulkerSlotStacks, item.count(), true);
+            accumulator.add(shulkerStack, shulkerName, shulkerSource, shulkerContents, shulkerSlotStacks, item.count(), true);
             addStoredShulkerGroups(accumulator, nestedSourceName, nestedSourceKey, shulkerContents, depth + 1);
         }
     }
 
     private static List<ItemStack> readItems(CompoundTag nbt, HolderLookup.Provider registryLookup) {
-        if (nbt == null || !nbt.contains("Items")) {
+        if (nbt == null || !QuickLitematicaContainerMaterialsAccess.containsItemsList(nbt)) {
             return List.of();
         }
 
         List<ItemStack> stacks = new ArrayList<>();
-        ListTag items = nbt.getListOrEmpty("Items");
+        ListTag items = QuickLitematicaContainerMaterialsAccess.readCompoundList(nbt, "Items");
+        int size = inferInventorySize(items);
+
+        for (int i = 0; i < size; i++) {
+            stacks.add(ItemStack.EMPTY);
+        }
 
         for (int i = 0; i < items.size(); i++) {
-            ItemStack stack = itemStackFromNbt(registryLookup, items.getCompoundOrEmpty(i));
+            CompoundTag itemNbt = QuickLitematicaContainerMaterialsAccess.readCompound(items, i);
+            ItemStack stack = QuickLitematicaContainerMaterialsAccess.itemStackFromNbt(registryLookup, itemNbt);
+            int slot = QuickLitematicaContainerMaterialsAccess.readByte(itemNbt, "Slot") & 255;
 
-            if (!stack.isEmpty()) {
-                stacks.add(stack);
+            if (!stack.isEmpty() && slot >= 0 && slot < stacks.size()) {
+                stacks.set(slot, stack);
             }
         }
 
-        return stacks;
-    }
-
-    private static ItemStack itemStackFromNbt(HolderLookup.Provider registryLookup, CompoundTag nbt) {
-        return ItemStack.OPTIONAL_CODEC
-                .parse(registryLookup.createSerializationContext(NbtOps.INSTANCE), nbt)
-                .result()
-                .orElse(ItemStack.EMPTY);
-    }
-
-    @Nullable
-    private static List<ItemStack> readBlockEntityItems(
-            BlockPos pos,
-            BlockState state,
-            CompoundTag nbt,
-            HolderLookup.Provider registryLookup
-    ) {
-        if (nbt == null || registryLookup == null) {
-            return null;
-        }
-
-        String blockEntityId = nbt.getString("id").orElse("");
-        if (NON_INVENTORY_BLOCK_ENTITY_IDS.contains(blockEntityId)) {
-            return null;
-        }
-
-        BlockEntity blockEntity = BlockEntity.loadStatic(pos, state, nbt, registryLookup);
-        if (!(blockEntity instanceof Container inventory)) {
-            if (!blockEntityId.isEmpty()) {
-                NON_INVENTORY_BLOCK_ENTITY_IDS.add(blockEntityId);
-            }
-            return null;
-        }
-
-        List<ItemStack> stacks = new ArrayList<>(inventory.getContainerSize());
-        for (int slot = 0; slot < inventory.getContainerSize(); slot++) {
-            ItemStack stack = inventory.getItem(slot);
-            if (!stack.isEmpty()) {
-                stacks.add(stack.copy());
-            }
-        }
         return stacks;
     }
 
     private static List<ItemCount> countStacks(List<ItemStack> stacks) {
-        Object2IntOpenHashMap<ItemType> counts = new Object2IntOpenHashMap<>();
-        Map<ItemType, ItemStack> displayStacks = new HashMap<>();
+        Object2IntOpenHashMap<ItemKey> counts = new Object2IntOpenHashMap<>();
+        Map<ItemKey, ItemStack> displayStacks = new HashMap<>();
 
         for (ItemStack stack : stacks) {
             addStackCount(counts, displayStacks, stack, stack.getCount());
@@ -505,12 +569,10 @@ public final class QuickLitematicaContainerMaterials {
         return toItemCounts(counts, displayStacks);
     }
 
-    private static List<ItemStack> copyStacks(List<ItemStack> stacks) {
+    private static List<ItemStack> copySlotStacks(List<ItemStack> stacks) {
         List<ItemStack> copies = new ArrayList<>(stacks.size());
         for (ItemStack stack : stacks) {
-            if (!stack.isEmpty()) {
-                copies.add(stack.copy());
-            }
+            copies.add(stack.isEmpty() ? ItemStack.EMPTY : stack.copy());
         }
         return copies;
     }
@@ -520,31 +582,29 @@ public final class QuickLitematicaContainerMaterials {
         NonNullList<ItemStack> storedItems = fi.dy.masa.malilib.util.InventoryUtils.getStoredItems(shulkerStack);
 
         for (ItemStack storedStack : storedItems) {
-            if (!storedStack.isEmpty()) {
-                stacks.add(storedStack.copy());
-            }
+            stacks.add(storedStack.isEmpty() ? ItemStack.EMPTY : storedStack.copy());
         }
 
         return stacks;
     }
 
     private static void addStackCount(
-            Object2IntOpenHashMap<ItemType> counts,
-            Map<ItemType, ItemStack> displayStacks,
+            Object2IntOpenHashMap<ItemKey> counts,
+            Map<ItemKey, ItemStack> displayStacks,
             ItemStack stack,
             int count
     ) {
         ItemStack displayStack = stack.copy();
         displayStack.setCount(1);
-        ItemType key = new ItemType(displayStack, true, true);
+        ItemKey key = QuickLitematicaContainerMaterialsAccess.createItemKey(displayStack);
         counts.addTo(key, count);
         displayStacks.putIfAbsent(key, displayStack);
     }
 
-    private static List<ItemCount> toItemCounts(Object2IntOpenHashMap<ItemType> counts, Map<ItemType, ItemStack> displayStacks) {
+    private static List<ItemCount> toItemCounts(Object2IntOpenHashMap<ItemKey> counts, Map<ItemKey, ItemStack> displayStacks) {
         List<ItemCount> result = new ArrayList<>();
 
-        for (ItemType type : counts.keySet()) {
+        for (ItemKey type : counts.keySet()) {
             ItemStack stack = displayStacks.get(type);
 
             if (stack != null && !stack.isEmpty()) {
@@ -554,6 +614,37 @@ public final class QuickLitematicaContainerMaterials {
 
         result.sort(Comparator.comparing(ItemCount::signature));
         return result;
+    }
+
+    private static List<ItemStack> getReplacedSlotStacks(
+            List<ItemStack> slotStacks,
+            String contextKey,
+            String groupKey
+    ) {
+        List<ItemStack> replaced = new ArrayList<>(slotStacks.size());
+
+        for (int slotIndex = 0; slotIndex < slotStacks.size(); slotIndex++) {
+            ItemStack stack = slotStacks.get(slotIndex);
+            replaced.add(QuickLitematicaContainerReplacements.applyToStack(
+                    stack,
+                    QuickLitematicaContainerReplacements.Scope.CONTAINER,
+                    contextKey,
+                    groupKey,
+                    slotIndex
+            ));
+        }
+
+        return replaced;
+    }
+
+    static int inferInventorySize(ListTag items) {
+        int size = 0;
+
+        for (int i = 0; i < items.size(); i++) {
+            size = Math.max(size, (QuickLitematicaContainerMaterialsAccess.readByte(QuickLitematicaContainerMaterialsAccess.readCompound(items, i), "Slot") & 255) + 1);
+        }
+
+        return size;
     }
 
     private static BlockState getState(LitematicaBlockStateContainer container, BlockPos pos) {
@@ -577,7 +668,7 @@ public final class QuickLitematicaContainerMaterials {
             BlockPos pos,
             BlockState state,
             LitematicaBlockStateContainer stateContainer,
-            Map<BlockPos, ?> blockEntities,
+            Map<BlockPos, CompoundTag> blockEntities,
             Set<BlockPos> consumed
     ) {
         if (!(state != null && state.getBlock() instanceof ChestBlock)) {
@@ -618,7 +709,7 @@ public final class QuickLitematicaContainerMaterials {
         ItemStack stack = stackFromState(state);
 
         if (stack.isEmpty()) {
-            stack = stackFromBlockEntityId(nbt.getString("id").orElse(""));
+            stack = stackFromBlockEntityId(QuickLitematicaContainerMaterialsAccess.readString(nbt, "id"));
         }
 
         String displayName = stack.getHoverName().getString();
@@ -677,31 +768,22 @@ public final class QuickLitematicaContainerMaterials {
     }
 
     private static String itemSignature(ItemStack stack) {
-        return new ItemType(stack, true, true).toString();
+        return QuickLitematicaContainerMaterialsAccess.createItemKey(stack).toString();
     }
 
-    private static String itemId(ItemStack stack) {
-        return BuiltInRegistries.ITEM.getKey(stack.getItem()).toString();
+    static boolean hasStackChange(ItemStack original, ItemStack result) {
+        return original.getCount() != result.getCount() || !ItemStack.isSameItemSameComponents(original, result);
     }
 
-    private static String contentSignature(List<ItemCount> contents) {
-        StringBuilder builder = new StringBuilder();
-
-        for (ItemCount item : contents) {
-            builder.append(item.signature()).append('#').append(item.count()).append(';');
-        }
-
-        return builder.toString();
+    static int getGroupHeight(QuickLitematicaContainerMaterialsScreens.ContainerRow row, int rowWidth) {
+        int contentWidth = Math.max(ITEM_CELL_WIDTH, rowWidth - CONTAINER_COLUMN_WIDTH - COUNT_COLUMN_WIDTH - ACTION_COLUMN_WIDTH - 18);
+        int columns = Math.max(1, Math.min(9, (contentWidth - 12) / (2 * ITEM_CELL_WIDTH)));
+        int rows = Math.max(1, (row.endSlot() - row.startSlot() + columns - 1) / columns);
+        int contentHeight = rows * ITEM_CELL_HEIGHT + 6;
+        return Math.max(row.startSlot() == 0 && row.group().sourceLabel() != null ? 40 : 30, contentHeight);
     }
 
-    private static int getGroupHeight(ContainerGroup group, int rowWidth) {
-        int columns = QuickLitematicaContainerMaterialsLayout.contentColumns(rowWidth);
-        int rows = Math.max(1, (group.contents().size() + columns - 1) / columns);
-        int contentHeight = rows * ITEM_CELL_HEIGHT + 8;
-        return Math.max(group.sourceLabel() == null ? 30 : 40, contentHeight);
-    }
-
-    private static String fitText(String text, int maxWidth) {
+    static String fitText(String text, int maxWidth) {
         Minecraft client = Minecraft.getInstance();
 
         if (client.font.width(text) <= maxWidth) {
@@ -718,36 +800,25 @@ public final class QuickLitematicaContainerMaterials {
         return text + suffix;
     }
 
-    private static String formatCount(int count) {
-        if (count >= 1_000_000) {
-            return count / 1_000_000 + "m";
-        }
-        if (count >= 10_000) {
-            return count / 1_000 + "k";
-        }
-
-        return String.valueOf(count);
-    }
-
     public record ButtonPlacement(int x, int y) {
     }
 
     private record ContainerDescriptor(ItemStack stack, String displayName, String signatureKey) {
     }
 
-    private record ItemCount(ItemStack stack, int count, String signature) {
+    record ItemCount(ItemStack stack, int count, String signature) {
         private int totalCount(int multiplier) {
             return this.count * multiplier;
         }
     }
 
-    private record ContainerGroup(
+    record ContainerGroup(
             ItemStack containerStack,
             String containerName,
             String sourceLabel,
             int containerCount,
+            List<ItemStack> slotStacks,
             List<ItemCount> contents,
-            List<ItemStack> materialRequestStacks,
             boolean nestedShulker,
             String signature
     ) {
@@ -760,20 +831,17 @@ public final class QuickLitematicaContainerMaterials {
                 ItemStack stack,
                 String displayName,
                 String sourceLabel,
-                String sourceKey,
                 List<ItemCount> contents,
                 List<ItemStack> slotStacks,
                 int count,
                 boolean nestedShulker
         ) {
-            String signature = (nestedShulker ? "shulker:" : "container:")
-                    + sourceKey + "|" + itemSignature(stack) + "|" + contentSignature(contents);
+            String signature = QuickLitematicaContainerReplacements.containerGroupSignature(stack, slotStacks);
             GroupBuilder builder = this.groups.computeIfAbsent(
                     signature,
-                    key -> new GroupBuilder(stack.copy(), displayName, sourceLabel, contents, nestedShulker, signature)
+                    key -> new GroupBuilder(stack.copy(), displayName, sourceLabel, contents, slotStacks, nestedShulker, signature)
             );
             builder.containerCount += count;
-            builder.addMaterialRequestStacks(slotStacks, count);
         }
 
         private List<ContainerGroup> toGroups() {
@@ -796,7 +864,7 @@ public final class QuickLitematicaContainerMaterials {
         private final String displayName;
         private final String sourceLabel;
         private final List<ItemCount> contents;
-        private final List<ItemStack> materialRequestStacks = new ArrayList<>();
+        private final List<ItemStack> slotStacks;
         private final boolean nestedShulker;
         private final String signature;
         private int containerCount;
@@ -806,6 +874,7 @@ public final class QuickLitematicaContainerMaterials {
                 String displayName,
                 String sourceLabel,
                 List<ItemCount> contents,
+                List<ItemStack> slotStacks,
                 boolean nestedShulker,
                 String signature
         ) {
@@ -813,14 +882,9 @@ public final class QuickLitematicaContainerMaterials {
             this.displayName = displayName;
             this.sourceLabel = sourceLabel;
             this.contents = List.copyOf(contents);
+            this.slotStacks = copySlotStacks(slotStacks);
             this.nestedShulker = nestedShulker;
             this.signature = signature;
-        }
-
-        private void addMaterialRequestStacks(List<ItemStack> slotStacks, int count) {
-            for (int i = 0; i < count; i++) {
-                this.materialRequestStacks.addAll(copyStacks(slotStacks));
-            }
         }
 
         private ContainerGroup toGroup() {
@@ -831,88 +895,381 @@ public final class QuickLitematicaContainerMaterials {
                     this.displayName,
                     this.sourceLabel,
                     this.containerCount,
+                    copySlotStacks(this.slotStacks),
                     this.contents,
-                    copyStacks(this.materialRequestStacks),
                     this.nestedShulker,
                     this.signature
             );
         }
     }
 
-    private static final class ContainerMaterialsData {
-        private final LitematicaSchematic schematic;
-        private final List<String> regions;
-        private final SchematicPlacement placement;
-        private final Set<String> ignoredGroupSignatures = new HashSet<>();
-        private List<ContainerGroup> groups;
+    static final class ContainerMaterialsData {
+        final LitematicaSchematic schematic;
+        final LitematicaSchematic liveSchematic;
+        final List<String> regions;
+        final SchematicPlacement placement;
+        final String replacementContextKey;
+        final Set<String> ignoredGroupSignatures = new HashSet<>();
+        List<ContainerGroup> groups;
 
-        private ContainerMaterialsData(
+        ContainerMaterialsData(
                 LitematicaSchematic schematic,
                 List<String> regions,
-                SchematicPlacement placement
+                SchematicPlacement placement,
+                String replacementContextKey
         ) {
-            this.schematic = schematic;
+            QuickLitematicaContainerReplacements.migrateContainerContext(placement == null ? ""
+                    : QuickLitematicaMaterialLists.getReplacementContextKey(placement), replacementContextKey);
+            this.liveSchematic = schematic;
+            this.schematic = QuickLitematicaContainerMemory.original(schematic);
             this.regions = regions;
             this.placement = placement;
-            this.groups = List.of();
+            this.replacementContextKey = QuickLitematicaContainerMemory.effectiveContext(schematic,
+                    replacementContextKey == null ? "" : replacementContextKey);
+            this.ignoredGroupSignatures.addAll(QuickLitematicaMaterialIgnores.get(this.persistentContextKey() + "#groups"));
+            this.refresh();
         }
 
-        private static ContainerMaterialsData create(LitematicaSchematic schematic) {
-            return new ContainerMaterialsData(schematic, List.copyOf(schematic.getAreas().keySet()), null);
+        String persistentContextKey() {
+            return QuickLitematicaMaterialLists.getReplacementContextKey(this.schematic, this.regions) + "#container";
         }
 
-        private static ContainerMaterialsData create(LitematicaSchematic schematic, Collection<String> regions) {
-            return new ContainerMaterialsData(schematic, List.copyOf(regions), null);
+        static ContainerMaterialsData create(LitematicaSchematic schematic, Collection<String> regions, String replacementContextKey) {
+            return new ContainerMaterialsData(schematic, List.copyOf(regions), null, replacementContextKey);
         }
 
-        private static ContainerMaterialsData create(SchematicPlacement placement) {
+        static ContainerMaterialsData create(SchematicPlacement placement, String replacementContextKey) {
             return new ContainerMaterialsData(
                     placement.getSchematic(),
                     List.copyOf(placement.getEnabledRelativeSubRegionPlacements().keySet()),
-                    placement
+                    placement,
+                    replacementContextKey
             );
         }
 
-        private void refresh(BlockInfoListType materialListType) {
-            this.groups = createContainerGroups(this.schematic, this.regions, this.placement, materialListType);
+        void refresh() {
+            QuickLitematicaContainerMemory.update(this.liveSchematic, this.regions, this.replacementContextKey);
+            this.groups = createContainerGroups(this.schematic, this.regions);
         }
 
-        private List<ContainerGroup> visibleGroups() {
+        List<ContainerGroup> visibleGroups() {
             return this.groups.stream()
                     .filter(group -> !this.ignoredGroupSignatures.contains(group.signature()))
                     .toList();
         }
 
-        private List<QuickMaterialCollector.MaterialRequest> createReplacementMaterialRequests(int multiplier) {
-            Object2IntOpenHashMap<ItemType> counts = new Object2IntOpenHashMap<>();
-            Map<ItemType, ItemStack> displayStacks = new HashMap<>();
-            int effectiveMultiplier = Math.max(1, multiplier);
+        QuickLitematicaMaterialReplacementScreen.ReplacementBinding createSummaryReplacementBinding(ItemStack source) {
+            ItemStack sourceCopy = source == null ? ItemStack.EMPTY : source.copy();
+            sourceCopy.setCount(1);
+            return this.createSummaryReplacementBinding(List.of(sourceCopy));
+        }
+
+        QuickLitematicaMaterialReplacementScreen.ReplacementBinding createSummaryReplacementBinding(List<ItemStack> sources) {
+            ItemStack sourceCopy = sources.getFirst();
+            List<SummarySlot> slots = sources.stream().flatMap(stack -> this.matchingSummarySlots(stack).stream()).toList();
+
+            return new QuickLitematicaMaterialReplacementScreen.ReplacementBinding() {
+                @Override
+                public boolean supportsCount() { return true; }
+
+                @Override
+                public boolean preserveCountByDefault() { return true; }
+
+                @Override
+                public String scopeDescription() {
+                    return StringUtils.translate("quickcraft.litematica.label.batch_material_scope", sources.size());
+                }
+
+                @Override
+                public String validateTarget(ItemStack ignoredSource, ItemStack target, boolean preserveCount) {
+                    boolean editable = false;
+                    for (SummarySlot slot : slots) {
+                        if (!hasSlotOverride(slot)) {
+                            editable = true;
+                            int count = preserveCount ? slot.source().getCount() : target.getCount();
+                            if (!target.isEmpty() && count > target.getMaxStackSize()) {
+                                return StringUtils.translate("quickcraft.litematica.label.material_replace_count_error", target.getMaxStackSize());
+                            }
+                        }
+                    }
+                    return editable ? "" : StringUtils.translate("quickcraft.litematica.label.material_replace_all_overridden");
+                }
+
+                @Override
+                public Optional<ItemStack> getCurrentTarget(ItemStack ignoredSource) {
+                    return getFirstMatchingSummaryTarget(sourceCopy);
+                }
+
+                @Override
+                public void apply(ItemStack ignoredSource, ItemStack target) {
+                    this.apply(ignoredSource, target, true);
+                }
+
+                @Override
+                public void apply(ItemStack ignoredSource, ItemStack target, boolean preserveCount) {
+                    List<QuickLitematicaContainerReplacements.ContainerReplacement> rules = new ArrayList<>();
+                    for (SummarySlot slot : slots) {
+                        if (!hasSlotOverride(slot)) {
+                            rules.add(new QuickLitematicaContainerReplacements.ContainerReplacement(
+                                    slot.source(), target, replacementContextKey, slot.group().signature(), -1, preserveCount));
+                        }
+                    }
+                    QuickLitematicaContainerReplacements.setContainerReplacementRules(rules);
+                }
+
+                @Override
+                public void clear(ItemStack ignoredSource) {
+                    sources.forEach(ContainerMaterialsData.this::clearSummaryReplacement);
+                }
+            };
+        }
+
+        boolean hasSummaryReplacement(ItemStack source) {
+            for (SummarySlot slot : this.matchingSummarySlots(source == null ? ItemStack.EMPTY : source)) {
+                if (QuickLitematicaContainerReplacements.getReplacementTarget(slot.source(),
+                        QuickLitematicaContainerReplacements.Scope.CONTAINER, this.replacementContextKey,
+                        slot.group().signature(), -1).isPresent()) { return true; }
+            }
+            return false;
+        }
+
+        void clearAllContainerRulesForContext() {
+            QuickLitematicaContainerReplacements.removeReplacementRulesForContext(
+                    QuickLitematicaContainerReplacements.Scope.CONTAINER,
+                    this.replacementContextKey
+            );
+        }
+
+        QuickLitematicaMaterialReplacementScreen.ReplacementBinding createSlotReplacementBinding(
+                ContainerGroup group,
+                int slotIndex
+        ) {
+            ItemStack sourceStack = slotIndex >= 0 && slotIndex < group.slotStacks().size()
+                    ? group.slotStacks().get(slotIndex)
+                    : ItemStack.EMPTY;
+            ItemStack sourceCopy = sourceStack.isEmpty() ? ItemStack.EMPTY : sourceStack.copy();
+
+            return new QuickLitematicaMaterialReplacementScreen.ReplacementBinding() {
+                @Override
+                public boolean supportsCount() { return true; }
+
+                @Override
+                public boolean canKeepOriginal() { return true; }
+
+                @Override
+                public String scopeDescription() {
+                    return StringUtils.translate("quickcraft.litematica.label.material_replace_group_scope", group.containerCount());
+                }
+
+                @Override
+                public void keepOriginal(ItemStack ignoredSource) {
+                    Optional<ItemStack> bulk = QuickLitematicaContainerReplacements.getReplacementTarget(sourceCopy,
+                            QuickLitematicaContainerReplacements.Scope.CONTAINER, replacementContextKey, group.signature(), -1);
+                    if (bulk.isPresent() && hasStackChange(sourceCopy, bulk.get())) {
+                        this.apply(ignoredSource, sourceCopy.copy());
+                    } else {
+                        this.clear(ignoredSource);
+                    }
+                }
+
+                @Override
+                public Optional<ItemStack> getCurrentTarget(ItemStack ignoredSource) {
+                    return QuickLitematicaContainerReplacements.getReplacementTarget(
+                            sourceCopy,
+                            QuickLitematicaContainerReplacements.Scope.CONTAINER,
+                            ContainerMaterialsData.this.replacementContextKey,
+                            group.signature(),
+                            slotIndex
+                    );
+                }
+
+                @Override
+                public void apply(ItemStack ignoredSource, ItemStack target) {
+                    if (target == null) {
+                        return;
+                    }
+
+                    QuickLitematicaContainerReplacements.setContainerReplacementRules(List.of(
+                            new QuickLitematicaContainerReplacements.ContainerReplacement(sourceCopy, target,
+                                    replacementContextKey, group.signature(), slotIndex, false)));
+                }
+
+                @Override
+                public void clear(ItemStack ignoredSource) {
+                    QuickLitematicaContainerReplacements.removeReplacementRule(
+                            sourceCopy,
+                            QuickLitematicaContainerReplacements.Scope.CONTAINER,
+                            ContainerMaterialsData.this.replacementContextKey,
+                            group.signature(),
+                            slotIndex
+                    );
+                }
+            };
+        }
+
+        QuickLitematicaMaterialReplacementScreen.ReplacementBinding createBatchSlotBinding(List<SummarySlot> slots) {
+            return new QuickLitematicaMaterialReplacementScreen.ReplacementBinding() {
+                @Override
+                public boolean supportsCount() { return true; }
+
+                @Override
+                public boolean preserveCountByDefault() { return true; }
+
+                @Override
+                public boolean canKeepOriginal() { return true; }
+
+                @Override
+                public String scopeDescription() {
+                    int containers = slots.stream().map(SummarySlot::group).distinct().mapToInt(ContainerGroup::containerCount).sum();
+                    return StringUtils.translate("quickcraft.litematica.label.batch_slot_scope", slots.size(), containers);
+                }
+
+                @Override
+                public Optional<ItemStack> getCurrentTarget(ItemStack source) { return Optional.empty(); }
+
+                @Override
+                public String validateTarget(ItemStack source, ItemStack target, boolean preserveCount) {
+                    for (SummarySlot slot : slots) {
+                        if (!target.isEmpty() && preserveCount && slot.source().getCount() > target.getMaxStackSize()) {
+                            return StringUtils.translate("quickcraft.litematica.label.material_replace_count_error", target.getMaxStackSize());
+                        }
+                    }
+                    return "";
+                }
+
+                @Override
+                public void apply(ItemStack source, ItemStack target) { this.apply(source, target, true); }
+
+                @Override
+                public void apply(ItemStack source, ItemStack target, boolean preserveCount) {
+                    QuickLitematicaContainerReplacements.setContainerReplacementRules(slots.stream().map(slot ->
+                            new QuickLitematicaContainerReplacements.ContainerReplacement(slot.source(), target,
+                                    replacementContextKey, slot.group().signature(), slot.slotIndex(), preserveCount && !slot.source().isEmpty())).toList());
+                }
+
+                @Override
+                public void clear(ItemStack source) {
+                    slots.forEach(slot -> createSlotReplacementBinding(slot.group(), slot.slotIndex()).clear(slot.source()));
+                }
+
+                @Override
+                public void keepOriginal(ItemStack source) {
+                    slots.forEach(slot -> createSlotReplacementBinding(slot.group(), slot.slotIndex()).keepOriginal(slot.source()));
+                }
+            };
+        }
+
+        Optional<ItemStack> getFirstMatchingSummaryTarget(ItemStack source) {
+            if (source == null || source.isEmpty()) {
+                return Optional.empty();
+            }
 
             for (ContainerGroup group : this.visibleGroups()) {
-                for (ItemStack stack : group.materialRequestStacks()) {
-                    ItemStack replacement = QuickLitematicaContainerReplacements.applyToStack(stack);
-                    if (!replacement.isEmpty()) {
-                        addStackCount(counts, displayStacks, replacement, replacement.getCount() * effectiveMultiplier);
+                for (int slotIndex = 0; slotIndex < group.slotStacks().size(); slotIndex++) {
+                    ItemStack slotStack = group.slotStacks().get(slotIndex);
+                    if (!matchesSummarySource(group, slotIndex, slotStack, source)) {
+                        continue;
+                    }
+
+                    Optional<ItemStack> target = QuickLitematicaContainerReplacements.getReplacementTarget(
+                            slotStack,
+                            QuickLitematicaContainerReplacements.Scope.CONTAINER,
+                            this.replacementContextKey,
+                            group.signature(),
+                            slotIndex
+                    );
+                    if (target.isPresent() && hasStackChange(slotStack, target.get())) {
+                        return target;
                     }
                 }
             }
 
-            List<QuickMaterialCollector.MaterialRequest> requests = new ArrayList<>();
-            for (ItemCount item : toItemCounts(counts, displayStacks)) {
-                requests.add(new QuickMaterialCollector.MaterialRequest(item.stack().copy(), item.count()));
+            return Optional.empty();
+        }
+
+        List<SummarySlot> matchingSummarySlots(ItemStack source) {
+            List<SummarySlot> result = new ArrayList<>();
+            for (ContainerGroup group : this.visibleGroups()) {
+                for (int slotIndex = 0; slotIndex < group.slotStacks().size(); slotIndex++) {
+                    ItemStack slotStack = group.slotStacks().get(slotIndex);
+                    if (matchesSummarySource(group, slotIndex, slotStack, source)) {
+                        result.add(new SummarySlot(group, slotIndex, slotStack.copy()));
+                    }
+                }
             }
-            return requests;
+            return result;
         }
 
-        private void ignoreGroup(ContainerGroup group) {
+        boolean matchesSummarySource(ContainerGroup group, int slotIndex, ItemStack original, ItemStack source) {
+            if (ItemStack.isSameItemSameComponents(original, source)) { return true; }
+            return original.isEmpty() && ItemStack.isSameItemSameComponents(source,
+                    QuickLitematicaContainerReplacements.applyToStack(original,
+                            QuickLitematicaContainerReplacements.Scope.CONTAINER, this.replacementContextKey,
+                            group.signature(), slotIndex));
+        }
+
+        boolean hasSlotOverride(SummarySlot slot) {
+            return QuickLitematicaContainerReplacements.hasSlotOverride(slot.source(), this.replacementContextKey,
+                    slot.group().signature(), slot.slotIndex());
+        }
+
+        record SummarySlot(ContainerGroup group, int slotIndex, ItemStack source) {
+        }
+
+        void clearSummaryReplacement(ItemStack source) {
+            if (source == null || source.isEmpty()) {
+                return;
+            }
+
+            for (SummarySlot slot : this.matchingSummarySlots(source)) {
+                QuickLitematicaContainerReplacements.removeReplacementRule(
+                        slot.source(),
+                        QuickLitematicaContainerReplacements.Scope.CONTAINER,
+                        this.replacementContextKey,
+                        slot.group().signature(),
+                        -1
+                );
+            }
+        }
+
+        ReplacementMaterialCounts collectReplacementMaterialCounts(int multiplier) {
+            Object2IntOpenHashMap<ItemKey> counts = new Object2IntOpenHashMap<>();
+            Map<ItemKey, ItemStack> displayStacks = new HashMap<>();
+            int effectiveMultiplier = Math.max(1, multiplier);
+
+            for (ContainerGroup group : this.visibleGroups()) {
+                List<ItemStack> replacedSlotStacks = getReplacedSlotStacks(
+                        group.slotStacks(),
+                        this.replacementContextKey,
+                        group.signature()
+                );
+
+                for (ItemStack stack : replacedSlotStacks) {
+                    if (!stack.isEmpty()) {
+                        addStackCount(
+                                counts,
+                                displayStacks,
+                                stack,
+                                stack.getCount() * group.containerCount() * effectiveMultiplier
+                        );
+                    }
+                }
+            }
+
+            return new ReplacementMaterialCounts(counts, displayStacks);
+        }
+
+        void ignoreGroup(ContainerGroup group) {
             this.ignoredGroupSignatures.add(group.signature());
+            QuickLitematicaMaterialIgnores.add(this.persistentContextKey() + "#groups", group.signature());
         }
 
-        private void clearIgnoredGroups() {
+        void clearIgnoredGroups() {
             this.ignoredGroupSignatures.clear();
+            QuickLitematicaMaterialIgnores.clear(this.persistentContextKey() + "#groups");
         }
 
-        private String materialTitle() {
+        String materialTitle() {
             return StringUtils.translate(
                     "quickcraft.litematica.title.container_material_list",
                     this.schematic.getMetadata().getName(),
@@ -921,7 +1278,7 @@ public final class QuickLitematicaContainerMaterials {
             );
         }
 
-        private String detailTitle() {
+        String detailTitle() {
             return StringUtils.translate(
                     "quickcraft.litematica.title.container_material_details",
                     this.schematic.getMetadata().getName(),
@@ -930,7 +1287,7 @@ public final class QuickLitematicaContainerMaterials {
             );
         }
 
-        private int totalVisibleContainerCount() {
+        int totalVisibleContainerCount() {
             int total = 0;
 
             for (ContainerGroup group : this.visibleGroups()) {
@@ -940,18 +1297,26 @@ public final class QuickLitematicaContainerMaterials {
             return total;
         }
 
-        private Object2IntOpenHashMap<ItemType> createWorldMissingCounts(
-                Object2IntOpenHashMap<ItemType> totalCounts,
-                @Nullable QuickLitematicaContainerVerifier.VerifierExtension verifier
+        Object2IntOpenHashMap<ItemKey> createWorldMissingCounts(
+                Object2IntOpenHashMap<ItemKey> totalCounts
         ) {
             if (this.placement == null
-                    || verifier == null
+                    || !this.placement.hasVerifier()
+                    || !(this.placement.getSchematicVerifier() instanceof QuickLitematicaContainerVerifier.VerifierExtension verifier)
                     || verifier.quickcraft$getExpectedContainerCount() <= 0
                     || verifier.quickcraft$getCheckedContainerCount() < verifier.quickcraft$getExpectedContainerCount()) {
                 return null;
             }
 
-            Object2IntOpenHashMap<ItemType> missing = new Object2IntOpenHashMap<>();
+            Object2IntOpenHashMap<ItemKey> missing = new Object2IntOpenHashMap<>();
+
+            if (QuickLitematicaGlobalReplacements.hasRuntimeRules()) {
+                for (ItemStack stack : verifier.quickcraft$getMaterialMissingStacks()) {
+                    addMissingStackCounts(missing, stack, stack.getCount());
+                }
+                for (ItemKey type : missing.keySet()) { missing.put(type, Math.min(missing.getInt(type), totalCounts.getInt(type))); }
+                return missing;
+            }
 
             for (QuickLitematicaContainerVerifier.ContainerMismatch mismatch : verifier.quickcraft$getContainerMismatches()) {
                 for (QuickLitematicaContainerVerifier.SlotMismatch slotMismatch : mismatch.slotMismatches()) {
@@ -969,23 +1334,23 @@ public final class QuickLitematicaContainerMaterials {
                 }
             }
 
-            for (ItemType type : missing.keySet()) {
+            for (ItemKey type : missing.keySet()) {
                 missing.put(type, Math.min(missing.getInt(type), totalCounts.getInt(type)));
             }
 
             return missing;
         }
 
-        private static void addMissingStackCounts(
-                Object2IntOpenHashMap<ItemType> missing,
+        static void addMissingStackCounts(
+                Object2IntOpenHashMap<ItemKey> missing,
                 ItemStack stack,
                 int count
         ) {
             addMissingStackCounts(missing, stack, count, 0);
         }
 
-        private static void addMissingStackCounts(
-                Object2IntOpenHashMap<ItemType> missing,
+        static void addMissingStackCounts(
+                Object2IntOpenHashMap<ItemKey> missing,
                 ItemStack stack,
                 int count,
                 int depth
@@ -996,7 +1361,7 @@ public final class QuickLitematicaContainerMaterials {
 
             ItemStack displayStack = stack.copy();
             displayStack.setCount(1);
-            missing.addTo(new ItemType(displayStack, true, true), count);
+            missing.addTo(QuickLitematicaContainerMaterialsAccess.createItemKey(displayStack), count);
 
             if (depth >= 4 || !isShulkerBox(stack)) {
                 return;
@@ -1012,7 +1377,7 @@ public final class QuickLitematicaContainerMaterials {
             }
         }
 
-        private static int getMissingCount(QuickLitematicaContainerVerifier.SlotMismatch mismatch) {
+        static int getMissingCount(QuickLitematicaContainerVerifier.SlotMismatch mismatch) {
             ItemStack expected = mismatch.expectedStack();
             ItemStack found = mismatch.foundStack();
 
@@ -1022,24 +1387,51 @@ public final class QuickLitematicaContainerMaterials {
                 case EXTRA, LOCK_STATE -> 0;
             };
         }
+
+        record ReplacementMaterialCounts(
+                Object2IntOpenHashMap<ItemKey> counts,
+                Map<ItemKey, ItemStack> displayStacks
+        ) {
+        }
     }
 
-    private static final class ContainerMaterialList extends MaterialListBase
-            implements ContainerMaterialRequestSource, ICompletionListener {
-        private final ContainerMaterialsData data;
-        private final Screen parent;
-        private SchematicVerifier containerVerifier;
-        private Object2IntOpenHashMap<ItemType> worldMissingCounts;
-        private boolean materialEntriesInitialized;
+    private static final class ContainerSummaryEntry extends MaterialListEntry {
+        private final List<ItemStack> targets;
 
-        private ContainerMaterialList(ContainerMaterialsData data, Screen parent, boolean initializeMaterialEntries) {
+        private ContainerSummaryEntry(ItemStack original, int total, int missing, List<ItemStack> targets) {
+            super(original, total, missing, 0, 0);
+            this.targets = targets;
+        }
+
+        @Override
+        public int getCountAvailable() {
+            var player = Minecraft.getInstance().player;
+            if (player == null) { return 0; }
+            int count = 0;
+            // 左侧显示原材料；可用数量必须比较实际目标，不能让原版按左侧图标统计。
+            for (int slot = 0; slot < player.getInventory().getContainerSize(); slot++) {
+                ItemStack stack = player.getInventory().getItem(slot);
+                if (this.targets.stream().anyMatch(target -> ItemStack.isSameItemSameComponents(target, stack))) {
+                    count += stack.getCount();
+                }
+            }
+            return count;
+        }
+    }
+
+    static final class ContainerMaterialList extends MaterialListBase
+            implements ContainerMaterialRequestSource, ContainerReplacementBindingSource, ICompletionListener {
+        final ContainerMaterialsData data;
+        final Screen parent;
+        final Map<ItemKey, ItemStack> selectedMaterials = new LinkedHashMap<>();
+        List<MaterialListEntry> hudEntries;
+        long hudRevision = -1;
+        int hudIgnoredHash;
+
+        ContainerMaterialList(ContainerMaterialsData data, Screen parent) {
             this.data = data;
             this.parent = parent;
-            if (initializeMaterialEntries) {
-                this.reCreateMaterialList();
-            } else {
-                this.data.refresh(BlockInfoListType.ALL);
-            }
+            this.reCreateMaterialList();
         }
 
         @Override
@@ -1053,30 +1445,12 @@ public final class QuickLitematicaContainerMaterials {
         }
 
         @Override
-        public boolean supportsRenderLayers() {
-            return this.data.placement != null;
-        }
-
-        @Override
-        public void setMaterialListType(BlockInfoListType type) {
-            super.setMaterialListType(this.supportsRenderLayers() ? type : BlockInfoListType.ALL);
-        }
-
-        @Override
         public void reCreateMaterialList() {
-            this.data.refresh(this.getMaterialListType());
-            this.initializeMaterialEntries();
-        }
+            this.hudEntries = null;
+            this.data.refresh();
 
-        private void initializeMaterialEntries() {
-            this.materialEntriesInitialized = true;
-
-            if (this.data.placement == null) {
-                this.containerVerifier = null;
-                this.worldMissingCounts = null;
-                this.setMaterialListEntries(this.createMaterialEntries());
-                return;
-            }
+            this.setMaterialListEntries(this.createMaterialEntries());
+            if (this.data.placement == null) { return; }
 
             Minecraft client = Minecraft.getInstance();
             WorldSchematic schematicWorld = SchematicWorldHandler.getSchematicWorld();
@@ -1086,476 +1460,186 @@ public final class QuickLitematicaContainerMaterials {
                 return;
             }
 
-            if (this.containerVerifier != null) {
-                return;
+            SchematicVerifier verifier = this.data.placement.getSchematicVerifier();
+            verifier.setCompletionListener(this);
+
+            if (verifier.isPaused()) {
+                verifier.resume();
+            } else if (!verifier.isActive()) {
+                verifier.startVerification(client.level, schematicWorld, this.data.placement, this);
             }
 
-            this.worldMissingCounts = null;
-            this.containerVerifier = new SchematicVerifier();
-            this.containerVerifier.toggleShouldRenderInfoHUD();
-            ((QuickLitematicaContainerVerifier.VerifierExtension) this.containerVerifier)
-                    .quickcraft$setContainerOnly(true);
-            this.containerVerifier.startVerification(client.level, schematicWorld, this.data.placement, this);
             InfoUtils.showGuiOrInGameMessage(MessageType.INFO, "litematica.message.scheduled_task_added");
         }
 
         @Override
         public void onTaskCompleted() {
-            if (this.containerVerifier == null) {
-                return;
-            }
+            this.hudEntries = null;
+            this.data.refresh();
             this.setMaterialListEntries(this.createMaterialEntries());
-            this.containerVerifier = null;
-        }
-
-        @Override
-        public void onTaskAborted() {
-            this.containerVerifier = null;
-        }
-
-        private void ensureMaterialEntriesInitialized() {
-            if (!this.materialEntriesInitialized) {
-                this.initializeMaterialEntries();
-            }
-        }
-
-        private void refreshContainerData() {
-            this.data.refresh(this.getMaterialListType());
-            this.invalidateMaterialEntries();
-        }
-
-        private void ignoreContainerGroup(ContainerGroup group) {
-            this.data.ignoreGroup(group);
-            this.invalidateMaterialEntries();
-        }
-
-        private void invalidateMaterialEntries() {
-            this.materialEntriesInitialized = false;
-            this.worldMissingCounts = null;
-            this.setMaterialListEntries(List.of());
         }
 
         @Override
         public void clearIgnored() {
             this.data.clearIgnoredGroups();
             super.clearIgnored();
-            this.setMaterialListEntries(this.createMaterialEntries());
+            this.reCreateMaterialList();
         }
 
-        private List<MaterialListEntry> createMaterialEntries() {
-            Object2IntOpenHashMap<ItemType> counts = new Object2IntOpenHashMap<>();
-            Map<ItemType, ItemStack> displayStacks = new HashMap<>();
-
+        List<MaterialListEntry> createMaterialEntries() {
+            var finalCounts = this.data.collectReplacementMaterialCounts(1).counts();
+            var worldMissing = this.data.createWorldMissingCounts(finalCounts);
+            var remainingMissing = worldMissing == null ? new Object2IntOpenHashMap<>(finalCounts)
+                    : new Object2IntOpenHashMap<>(worldMissing);
+            Map<ItemKey, ItemStack> sources = new LinkedHashMap<>();
+            Map<ItemKey, Map<ItemKey, Integer>> contributions = new LinkedHashMap<>();
+            Map<ItemKey, ItemStack> targets = new HashMap<>();
             for (ContainerGroup group : this.data.visibleGroups()) {
-                for (ItemCount item : group.contents()) {
-                    ItemStack displayStack = item.stack().copy();
-                    displayStack.setCount(1);
-                    ItemType key = new ItemType(displayStack, true, true);
-                    counts.addTo(key, item.totalCount(group.containerCount()));
-                    displayStacks.putIfAbsent(key, displayStack);
+                for (int slot = 0; slot < group.slotStacks().size(); slot++) {
+                    ItemStack original = group.slotStacks().get(slot);
+                    ItemStack target = QuickLitematicaContainerReplacements.applyToStack(original,
+                            QuickLitematicaContainerReplacements.Scope.CONTAINER, this.data.replacementContextKey,
+                            group.signature(), slot);
+                    ItemStack display = original.isEmpty() ? target : original;
+                    if (display.isEmpty()) { continue; }
+                    ItemStack sourceDisplay = display.copyWithCount(1);
+                    ItemKey sourceType = QuickLitematicaContainerMaterialsAccess.createItemKey(sourceDisplay);
+                    sources.putIfAbsent(sourceType, sourceDisplay);
+                    var row = contributions.computeIfAbsent(sourceType, ignored -> new LinkedHashMap<>());
+                    if (!target.isEmpty()) {
+                        ItemStack targetDisplay = target.copyWithCount(1);
+                        ItemKey targetType = QuickLitematicaContainerMaterialsAccess.createItemKey(targetDisplay);
+                        targets.putIfAbsent(targetType, targetDisplay);
+                        row.merge(targetType, target.getCount() * group.containerCount(), Integer::sum);
+                    }
                 }
             }
-
-            QuickLitematicaContainerVerifier.VerifierExtension verifier =
-                    this.containerVerifier instanceof QuickLitematicaContainerVerifier.VerifierExtension extension
-                            ? extension
-                            : null;
-            Object2IntOpenHashMap<ItemType> worldMissing = this.data.createWorldMissingCounts(counts, verifier);
-            if (worldMissing != null) {
-                this.worldMissingCounts = new Object2IntOpenHashMap<>(worldMissing);
-            } else if (this.worldMissingCounts != null) {
-                worldMissing = new Object2IntOpenHashMap<>(this.worldMissingCounts);
-                for (ItemType type : worldMissing.keySet()) {
-                    worldMissing.put(type, Math.min(worldMissing.getInt(type), counts.getInt(type)));
-                }
-            }
-
-            if (this.data.placement != null && worldMissing == null) {
-                return List.of();
-            }
-
             List<MaterialListEntry> entries = new ArrayList<>();
-
-            for (ItemType type : counts.keySet()) {
-                ItemStack stack = displayStacks.get(type);
-
-                if (stack != null && !stack.isEmpty()) {
-                    int count = counts.getInt(type);
-                    int missing = worldMissing != null ? worldMissing.getInt(type) : count;
-                    entries.add(new MaterialListEntry(stack, count, missing, 0, 0));
+            for (var source : sources.entrySet()) {
+                int total = 0;
+                int missing = 0;
+                for (var contribution : contributions.get(source.getKey()).entrySet()) {
+                    total += contribution.getValue();
+                    int allocated = Math.min(contribution.getValue(), remainingMissing.getInt(contribution.getKey()));
+                    missing += allocated;
+                    remainingMissing.addTo(contribution.getKey(), -allocated);
                 }
-            }
-
-            entries.sort(Comparator.comparing(entry -> itemSignature(entry.getStack())));
-            Minecraft client = Minecraft.getInstance();
-            if (client.player != null) {
-                MaterialListUtils.updateAvailableCounts(entries, client.player);
+                List<ItemStack> rowTargets = contributions.get(source.getKey()).keySet().stream().map(targets::get).toList();
+                entries.add(new ContainerSummaryEntry(source.getValue(), total, missing, rowTargets));
             }
             return entries;
         }
 
         @Override
         public List<QuickMaterialCollector.MaterialRequest> quickcraft$getReplacementMaterialRequests() {
-            return this.data.createReplacementMaterialRequests(this.getMultiplier());
+            List<QuickMaterialCollector.MaterialRequest> requests = new ArrayList<>();
+            for (MaterialListEntry entry : this.quickcraft$getHudMaterialsAll(false)) {
+                requests.add(new QuickMaterialCollector.MaterialRequest(entry.getStack().copy(), entry.getCountTotal() * this.getMultiplier()));
+            }
+            return requests;
+        }
+
+        @Override
+        public List<MaterialListEntry> quickcraft$getHudMaterialsAll(boolean refresh) {
+            long revision = QuickLitematicaContainerMemory.revision();
+            int ignoredHash = this.ignored.hashCode() + this.data.ignoredGroupSignatures.hashCode();
+            if (refresh || this.hudEntries == null || this.hudRevision != revision || this.hudIgnoredHash != ignoredHash) {
+                Object2IntOpenHashMap<ItemKey> counts = new Object2IntOpenHashMap<>();
+                Map<ItemKey, ItemStack> stacks = new HashMap<>();
+                Set<ItemKey> ignoredSources = new HashSet<>();
+                for (var entry : this.ignored) { ignoredSources.add(QuickLitematicaContainerMaterialsAccess.createItemKey(entry.getStack())); }
+                String context = QuickLitematicaContainerMemory.appliedContext(this.data.liveSchematic, this.data.replacementContextKey);
+                for (ContainerGroup group : this.data.visibleGroups()) {
+                    var targets = exportSlotStacks(group.containerStack(), group.slotStacks(), context, getRegistryLookup(), 0, false);
+                    for (int slot = 0; slot < targets.size(); slot++) {
+                        ItemStack original = group.slotStacks().get(slot);
+                        ItemStack target = targets.get(slot);
+                        ItemStack display = original.isEmpty() ? target : original;
+                        if (!display.isEmpty() && ignoredSources.contains(QuickLitematicaContainerMaterialsAccess.createItemKey(display.copyWithCount(1)))) { continue; }
+                        addStackCount(counts, stacks, target, target.getCount() * group.containerCount());
+                    }
+                }
+                var missing = this.data.createWorldMissingCounts(counts);
+                List<MaterialListEntry> entries = new ArrayList<>();
+                for (ItemKey type : counts.keySet()) {
+                    ItemStack stack = stacks.get(type);
+                    int total = counts.getInt(type);
+                    entries.add(new ContainerSummaryEntry(stack, total, missing == null ? total : missing.getInt(type), List.of(stack)));
+                }
+                this.hudEntries = entries;
+                this.hudRevision = revision;
+                this.hudIgnoredHash = ignoredHash;
+            }
+            return this.hudEntries;
+        }
+
+        @Override
+        public List<MaterialListEntry> quickcraft$getHudMaterialsMissing() {
+            List<MaterialListEntry> missing = new ArrayList<>();
+            for (MaterialListEntry entry : this.quickcraft$getHudMaterialsAll(false)) {
+                int needed = this.getMultiplier() == 1 ? entry.getCountMissing() : entry.getCountTotal() * this.getMultiplier();
+                if (needed > entry.getCountAvailable()) { missing.add(entry); }
+            }
+            missing.sort(new fi.dy.masa.litematica.materials.MaterialListSorter(this));
+            return missing;
+        }
+
+        @Override
+        public QuickLitematicaMaterialReplacementScreen.ReplacementBinding quickcraft$createSummaryReplacementBinding(ItemStack source) {
+            return !this.quickcraft$isMaterialSelected(source) ? this.data.createSummaryReplacementBinding(source)
+                    : this.data.createSummaryReplacementBinding(List.copyOf(this.selectedMaterials.values()));
+        }
+
+        @Override
+        public String quickcraft$getPersistentContextKey() { return this.data.persistentContextKey(); }
+
+        @Override
+        public void quickcraft$toggleSelectedMaterial(ItemStack source) {
+            ItemKey key = QuickLitematicaContainerMaterialsAccess.createItemKey(source);
+            if (this.selectedMaterials.remove(key) == null) { this.selectedMaterials.put(key, source.copy()); }
+        }
+
+        @Override
+        public boolean quickcraft$isMaterialSelected(ItemStack source) {
+            return this.selectedMaterials.containsKey(QuickLitematicaContainerMaterialsAccess.createItemKey(source));
+        }
+
+        @Override
+        public Optional<ItemStack> quickcraft$getSummaryReplacementTarget(ItemStack source) {
+            return this.data.getFirstMatchingSummaryTarget(source);
+        }
+
+        @Override
+        public String quickcraft$getSummaryReplacementLabel(ItemStack source) {
+            Map<ItemKey, ItemStack> targets = new LinkedHashMap<>();
+            for (var slot : this.data.matchingSummarySlots(source)) {
+                ItemStack target = QuickLitematicaContainerReplacements.applyToStack(slot.source(),
+                        QuickLitematicaContainerReplacements.Scope.CONTAINER, this.data.replacementContextKey,
+                        slot.group().signature(), slot.slotIndex());
+                targets.putIfAbsent(QuickLitematicaContainerMaterialsAccess.createItemKey(target), target);
+            }
+            if (targets.size() > 1) {
+                return StringUtils.translate("quickcraft.litematica.label.material_replace_multiple_targets", targets.size());
+            }
+            ItemStack target = targets.values().stream().findFirst().orElse(ItemStack.EMPTY);
+            return target.isEmpty() ? StringUtils.translate("quickcraft.litematica.label.material_replace_empty_slot")
+                    : target.getHoverName().getString();
+        }
+
+        @Override
+        public boolean quickcraft$hasSummaryReplacement(ItemStack source) {
+            return this.data.hasSummaryReplacement(source);
+        }
+
+        @Override
+        public void quickcraft$clearSummaryReplacement(ItemStack source) {
+            this.data.clearSummaryReplacement(source);
+        }
+
+        @Override
+        public void quickcraft$clearAllContainerRulesForContext() {
+            this.data.clearAllContainerRulesForContext();
         }
     }
 
-    private static class ContainerMaterialListScreen extends GuiMaterialList {
-        private final ContainerMaterialList materialList;
-
-        private ContainerMaterialListScreen(ContainerMaterialList materialList) {
-            super(materialList);
-            this.materialList = materialList;
-        }
-
-        @Override
-        public void initGui() {
-            super.initGui();
-
-            int gap = 1;
-            String detailsLabel = StringUtils.translate("quickcraft.litematica.button.container_material_details");
-            String materialLabel = StringUtils.translate(BUTTON_KEY);
-            List<ButtonBase> buttons = ((QuickCraftGuiButtonAccess) (Object) this).quickcraft$getButtons();
-            int detailsWidth = this.getStringWidth(detailsLabel) + 10;
-            int materialWidth = this.getStringWidth(materialLabel) + 10;
-            QuickLitematicaContainerMaterials.ButtonPlacement placement = QuickLitematicaContainerMaterialsLayout.navigationPlacement(
-                    buttons, this.width, this.height, detailsWidth, materialWidth);
-            int x = placement.x();
-            int y = placement.y();
-
-            ButtonGeneric detailsButton = this.createNavButton(x, y, detailsLabel);
-            this.addButton(detailsButton, (button, mouseButton) -> openDetailScreen(this.materialList));
-            x += detailsButton.getWidth() + gap;
-
-            ButtonGeneric materialButton = this.createNavButton(x, y, materialLabel);
-            materialButton.setEnabled(false);
-            this.addButton(materialButton, (button, mouseButton) -> {
-            });
-        }
-
-        private ButtonGeneric createNavButton(int x, int y, String label) {
-            return new ButtonGeneric(x, y, this.getStringWidth(label) + 10, 20, label);
-        }
-
-    }
-
-    private static final class ContainerMaterialsScreen
-            extends GuiListBase<ContainerGroup, ContainerGroupEntryWidget, ContainerGroupListWidget> {
-        private final ContainerMaterialList materialList;
-        private final ContainerMaterialsData data;
-
-        private ContainerMaterialsScreen(ContainerMaterialList materialList) {
-            super(10, 44);
-            this.materialList = materialList;
-            this.data = materialList.data;
-            this.title = this.data.detailTitle();
-            this.useTitleHierarchy = false;
-        }
-
-        @Override
-        protected int getBrowserWidth() {
-            return this.width - 20;
-        }
-
-        @Override
-        protected int getBrowserHeight() {
-            return this.height - 82;
-        }
-
-        @Override
-        public void initGui() {
-            super.initGui();
-
-            int x = 12;
-            int y = 24;
-            x += this.createButton(x, y, ButtonType.REFRESH) + 2;
-            x += this.createButton(x, y, ButtonType.MATERIAL_LIST) + 2;
-            ButtonGeneric detailsButton = new ButtonGeneric(
-                    x,
-                    y,
-                    -1,
-                    20,
-                    StringUtils.translate("quickcraft.litematica.button.container_material_details")
-            );
-            detailsButton.setEnabled(false);
-            this.addButton(detailsButton, (button, mouseButton) -> {
-            });
-
-            String summary = StringUtils.translate(
-                    "quickcraft.litematica.label.summary",
-                    this.data.visibleGroups().size(),
-                    this.data.totalVisibleContainerCount()
-            );
-            this.addLabel(12, this.height - 36, -1, 12, 0xFFFFFFFF, summary);
-
-            ButtonListenerChangeMenu.ButtonType type = ButtonListenerChangeMenu.ButtonType.MAIN_MENU;
-            String label = StringUtils.translate(type.getLabelKey());
-            int buttonWidth = this.getStringWidth(label) + 20;
-            ButtonGeneric button = new ButtonGeneric(this.width - buttonWidth - 10, this.height - 36, buttonWidth, 20, label);
-            this.addButton(button, new ButtonListenerChangeMenu(type, this.getParent()));
-        }
-
-        @Override
-        public void drawContents(GuiContext drawContext, int mouseX, int mouseY, float partialTicks) {
-            super.drawContents(drawContext, mouseX, mouseY, partialTicks);
-
-            if (this.data.visibleGroups().isEmpty()) {
-                String text = StringUtils.translate("quickcraft.litematica.label.no_container_contents");
-                drawContext.drawString(this.font, text, this.width / 2 - this.getStringWidth(text) / 2, this.height / 2, 0xFFFFFFFF, false);
-            }
-        }
-
-        @Override
-        protected ContainerGroupListWidget createListWidget(int listX, int listY) {
-            return new ContainerGroupListWidget(listX, listY, this.getBrowserWidth(), this.getBrowserHeight(), this);
-        }
-
-        private int createButton(int x, int y, ButtonType type) {
-            String label = StringUtils.translate(type.translationKey);
-            ButtonGeneric button = new ButtonGeneric(x, y, -1, 20, label);
-            this.addButton(button, new ContainerMaterialsButtonListener(this, type));
-            return button.getWidth();
-        }
-
-        private List<ContainerGroup> groups() {
-            return this.data.visibleGroups();
-        }
-
-        private void refreshData() {
-            this.materialList.refreshContainerData();
-            this.reCreateListWidget();
-            this.initGui();
-        }
-
-        private void ignoreGroup(ContainerGroup group) {
-            this.materialList.ignoreContainerGroup(group);
-            this.reCreateListWidget();
-            this.initGui();
-        }
-
-        private void openMaterialList() {
-            this.materialList.ensureMaterialEntriesInitialized();
-            openMaterialListScreen(this.materialList);
-        }
-
-    }
-
-    private static final class ContainerGroupListWidget extends WidgetListBase<ContainerGroup, ContainerGroupEntryWidget> {
-        private final ContainerMaterialsScreen gui;
-
-        private ContainerGroupListWidget(int x, int y, int width, int height, ContainerMaterialsScreen gui) {
-            super(x, y, width, height, null);
-            this.gui = gui;
-            this.browserEntryHeight = HEADER_HEIGHT;
-        }
-
-        @Override
-        protected Collection<ContainerGroup> getAllEntries() {
-            return this.gui.groups();
-        }
-
-        @Override
-        protected int getBrowserEntryHeightFor(ContainerGroup group) {
-            return group == null ? HEADER_HEIGHT : getGroupHeight(group, this.browserEntryWidth);
-        }
-
-        @Override
-        protected ContainerGroupEntryWidget createHeaderWidget(int x, int y, int listIndexStart, int usableHeight, int usedHeight) {
-            if (usedHeight + HEADER_HEIGHT > usableHeight) {
-                return null;
-            }
-
-            return new ContainerGroupEntryWidget(x, y, this.browserEntryWidth, HEADER_HEIGHT, true, null, this.gui);
-        }
-
-        @Override
-        protected ContainerGroupEntryWidget createListEntryWidget(int x, int y, int listIndex, boolean isOdd, ContainerGroup entry) {
-            return new ContainerGroupEntryWidget(
-                    x,
-                    y,
-                    this.browserEntryWidth,
-                    getGroupHeight(entry, this.browserEntryWidth),
-                    isOdd,
-                    entry,
-                    this.gui
-            );
-        }
-    }
-
-    private static final class ContainerGroupEntryWidget extends WidgetListEntryBase<ContainerGroup> {
-        private final ContainerMaterialsScreen gui;
-        private final boolean isOdd;
-
-        private ContainerGroupEntryWidget(
-                int x,
-                int y,
-                int width,
-                int height,
-                boolean isOdd,
-                ContainerGroup entry,
-                ContainerMaterialsScreen gui
-        ) {
-            super(x, y, width, height, entry, entry == null ? -1 : 0);
-            this.gui = gui;
-            this.isOdd = isOdd;
-
-            if (entry != null) {
-                ButtonGeneric button = new ButtonGeneric(
-                        x + width - 4,
-                        y + 1,
-                        -1,
-                        true,
-                        "quickcraft.litematica.button.ignore_container"
-                );
-                this.addButton(button, (clickedButton, mouseButton) -> this.gui.ignoreGroup(entry));
-            }
-        }
-
-        @Override
-        public boolean canSelectAt(MouseButtonEvent event) {
-            return false;
-        }
-
-        @Override
-        public void render(GuiContext drawContext, int mouseX, int mouseY, boolean selected) {
-            if (this.entry == null) {
-                this.renderHeader(drawContext);
-                return;
-            }
-
-            if (this.isMouseOver(mouseX, mouseY)) {
-                RenderUtils.drawRect(drawContext, this.x, this.y, this.width, this.height, 0xA0707070);
-            } else if (this.isOdd) {
-                RenderUtils.drawRect(drawContext, this.x, this.y, this.width, this.height, 0xA0101010);
-            } else {
-                RenderUtils.drawRect(drawContext, this.x, this.y, this.width, this.height, 0xA0303030);
-            }
-
-            int containerX = this.x + 6;
-            int countX = this.x + CONTAINER_COLUMN_WIDTH + 4;
-            int contentsX = this.x + CONTAINER_COLUMN_WIDTH + COUNT_COLUMN_WIDTH + 8;
-            int yText = this.y + 6;
-
-            RenderUtils.drawRect(drawContext, containerX, this.y + 6, 16, 16, 0x20FFFFFF);
-            drawContext.renderItem(this.entry.containerStack(), containerX, this.y + 6);
-            this.drawString(drawContext, containerX + 20, yText, 0xFFFFFFFF, fitText(this.entry.containerName(), CONTAINER_COLUMN_WIDTH - 28));
-
-            if (this.entry.sourceLabel() != null) {
-                this.drawString(drawContext, containerX + 20, yText + 11, 0xFFAAAAAA, fitText(this.entry.sourceLabel(), CONTAINER_COLUMN_WIDTH - 28));
-            }
-
-            this.drawString(drawContext, countX, this.y + 10, 0xFFFFFFFF, "x" + this.entry.containerCount());
-            this.renderContents(drawContext, contentsX, mouseX, mouseY);
-            super.render(drawContext, mouseX, mouseY, selected);
-        }
-
-        @Override
-        public void postRenderHovered(GuiContext drawContext, int mouseX, int mouseY, boolean selected) {
-            if (this.entry == null) {
-                return;
-            }
-
-            int containerX = this.x + 6;
-            int containerY = this.y + 6;
-
-            if (mouseX >= containerX && mouseX < containerX + 16 && mouseY >= containerY && mouseY < containerY + 16) {
-                InventoryOverlay.renderStackToolTipStyled(drawContext, mouseX, mouseY, this.entry.containerStack());
-                return;
-            }
-
-            ItemCount hovered = this.getHoveredItem(mouseX, mouseY);
-
-            if (hovered != null) {
-                InventoryOverlay.renderStackToolTipStyled(drawContext, mouseX, mouseY, hovered.stack());
-                return;
-            }
-
-            super.postRenderHovered(drawContext, mouseX, mouseY, selected);
-        }
-
-        private void renderHeader(GuiContext drawContext) {
-            RenderUtils.drawRect(drawContext, this.x, this.y, this.width, this.height, 0xA0101010);
-
-            int containerX = this.x + 6;
-            int countX = this.x + CONTAINER_COLUMN_WIDTH + 4;
-            int contentsX = this.x + CONTAINER_COLUMN_WIDTH + COUNT_COLUMN_WIDTH + 8;
-            int actionX = this.x + this.width - ACTION_COLUMN_WIDTH + 4;
-            int endX = this.x + this.width - 2;
-            int y = this.y + 7;
-
-            this.drawHeaderCell(drawContext, containerX, countX);
-            this.drawHeaderCell(drawContext, countX, contentsX);
-            this.drawHeaderCell(drawContext, contentsX, actionX);
-            this.drawHeaderCell(drawContext, actionX, endX);
-            this.drawString(drawContext, containerX, y, 0xFFFFFFFF, GuiBase.TXT_BOLD + StringUtils.translate("quickcraft.litematica.header.container") + GuiBase.TXT_RST);
-            this.drawString(drawContext, countX, y, 0xFFFFFFFF, GuiBase.TXT_BOLD + StringUtils.translate("quickcraft.litematica.header.count") + GuiBase.TXT_RST);
-            this.drawString(drawContext, contentsX, y, 0xFFFFFFFF, GuiBase.TXT_BOLD + StringUtils.translate("quickcraft.litematica.header.contents") + GuiBase.TXT_RST);
-            this.drawString(drawContext, actionX, y, 0xFFFFFFFF, GuiBase.TXT_BOLD + StringUtils.translate("quickcraft.litematica.header.action") + GuiBase.TXT_RST);
-        }
-
-        private void drawHeaderCell(GuiContext drawContext, int xStart, int xEnd) {
-            RenderUtils.drawOutline(drawContext, xStart - 3, this.y + 1, xEnd - xStart - 2, this.height - 2, 0xC0707070);
-        }
-
-        private void renderContents(GuiContext drawContext, int contentsX, int mouseX, int mouseY) {
-            if (this.entry.contents().isEmpty()) {
-                this.drawString(drawContext, contentsX, this.y + 10, 0xFFAAAAAA, StringUtils.translate("quickcraft.litematica.label.empty_contents"));
-                return;
-            }
-
-            int columns = QuickLitematicaContainerMaterialsLayout.contentColumns(this.width);
-
-            for (int i = 0; i < this.entry.contents().size(); i++) {
-                ItemCount item = this.entry.contents().get(i);
-                int itemX = QuickLitematicaContainerMaterialsLayout.itemX(contentsX, columns, i);
-                int itemY = QuickLitematicaContainerMaterialsLayout.itemY(this.y, columns, i);
-                ItemStack displayStack = item.stack();
-
-                RenderUtils.drawRect(drawContext, itemX, itemY, 16, 16, 0x20FFFFFF);
-                drawContext.renderItem(displayStack, itemX, itemY);
-                drawContext.itemDecorations(
-                        drawContext.fontRenderer(),
-                        displayStack,
-                        itemX,
-                        itemY,
-                        formatCount(item.totalCount(this.entry.containerCount()))
-                );
-            }
-        }
-
-        private ItemCount getHoveredItem(int mouseX, int mouseY) {
-            int index = QuickLitematicaContainerMaterialsLayout.hoveredItemIndex(
-                    this.x, this.y, this.width, this.entry.contents().size(), mouseX, mouseY);
-            return index < 0 ? null : this.entry.contents().get(index);
-        }
-    }
-
-    private enum ButtonType {
-        REFRESH("quickcraft.litematica.button.refresh_container_material_list"),
-        MATERIAL_LIST(BUTTON_KEY);
-
-        private final String translationKey;
-
-        ButtonType(String translationKey) {
-            this.translationKey = translationKey;
-        }
-    }
-
-    private static final class ContainerMaterialsButtonListener implements IButtonActionListener {
-        private final ContainerMaterialsScreen screen;
-        private final ButtonType type;
-
-        private ContainerMaterialsButtonListener(ContainerMaterialsScreen screen, ButtonType type) {
-            this.screen = screen;
-            this.type = type;
-        }
-
-        @Override
-        public void actionPerformedWithButton(ButtonBase button, int mouseButton) {
-            switch (this.type) {
-                case REFRESH -> this.screen.refreshData();
-                case MATERIAL_LIST -> this.screen.openMaterialList();
-            }
-        }
-    }
 }

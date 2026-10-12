@@ -134,6 +134,10 @@ processResources {
 	}
 }
 
+// 材料替换测试直接使用可选 Litematica 的数据结构，与主源码使用相同解析依赖。
+sourceSets.test.compileClasspath += sourceSets.main.compileClasspath
+sourceSets.test.runtimeClasspath += sourceSets.main.runtimeClasspath
+
 tasks.withType(JavaCompile).configureEach {
 	options.release = 25
 	options.encoding = 'UTF-8'

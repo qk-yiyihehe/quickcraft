@@ -242,6 +242,27 @@ public final class QuickLitematicaContainerVerifier {
         return placement != null ? getExpectedContainerInternal(pos, placement) : null;
     }
 
+    public static Inventory getExpectedInventoryWithReplacements(World world, BlockPos pos, Inventory fallback) {
+        ExpectedContainer expected = getExpectedContainerAt(world, pos);
+        return expected != null && expected.inventory().size() == fallback.size() ? expected.inventory() : fallback;
+    }
+
+    public static Inventory getMaterialInventoryAt(World world, BlockPos pos, int size) {
+        var entity = QuickLitematicaGlobalReplacements.baselineWorldEntity(pos, world);
+        if (!(entity instanceof Inventory inventory)) { return null; }
+        var state = QuickLitematicaGlobalReplacements.baselineWorldState(pos);
+        if (inventory.size() == size) { return QuickLitematicaContainerInventory.copyInventory(inventory); }
+        if (QuickLitematicaContainerInventory.getChestType(state) != ChestType.SINGLE) {
+            var adjacent = QuickLitematicaGlobalReplacements.baselineWorldEntity(pos.add(ChestBlock.getFacing(state).getVector()), world);
+            if (adjacent instanceof Inventory other && inventory.size() + other.size() == size) {
+                return QuickLitematicaContainerInventory.getChestType(state) == ChestType.RIGHT
+                        ? QuickLitematicaContainerInventory.mergeInventories(inventory, other)
+                        : QuickLitematicaContainerInventory.mergeInventories(other, inventory);
+            }
+        }
+        return null;
+    }
+
     public static QuickContainerCopy.TemplateSnapshot getTemplateSnapshotAt(World foundWorld, BlockPos pos) {
         ExpectedContainer expected = getExpectedContainerAt(foundWorld, pos);
         if (expected == null) {
@@ -336,7 +357,7 @@ public final class QuickLitematicaContainerVerifier {
         }
 
         NbtCompound nbt = QuickLitematicaVerifierAccess.getSchematicBlockEntityNbt(
-                placementPos.placement().getSchematic(),
+                QuickLitematicaGlobalReplacements.runtime(placementPos.placement()),
                 placementPos.region(),
                 placementPos.pos()
         );
@@ -387,7 +408,7 @@ public final class QuickLitematicaContainerVerifier {
 
             SchematicPlacement placement = part.getPlacement();
             String region = part.getSubRegionName();
-            LitematicaSchematic schematic = placement.getSchematic();
+            LitematicaSchematic schematic = QuickLitematicaGlobalReplacements.runtime(placement);
             LitematicaBlockStateContainer container = schematic.getSubRegionContainer(region);
             SubRegionPlacement subRegionPlacement = placement.getRelativeSubRegionPlacement(region);
 
@@ -417,7 +438,7 @@ public final class QuickLitematicaContainerVerifier {
         return null;
     }
 
-    private static BlockState getTransformedWorldState(BlockState state, SchematicPlacement schematicPlacement, String region) {
+    public static BlockState getTransformedWorldState(BlockState state, SchematicPlacement schematicPlacement, String region) {
         SubRegionPlacement placement = schematicPlacement.getRelativeSubRegionPlacement(region);
 
         if (placement == null) {
@@ -562,6 +583,8 @@ public final class QuickLitematicaContainerVerifier {
         List<ContainerMismatch> quickcraft$getContainerMismatches();
 
         List<ItemStack> quickcraft$getMissingContainerStacks();
+
+        List<ItemStack> quickcraft$getMaterialMissingStacks();
 
         int quickcraft$getWrongInventoryCount();
 

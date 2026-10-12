@@ -73,6 +73,8 @@ public final class QuickLitematicaContainerVerification implements VerifierExten
         List<SchematicVerifier> quickcraft$activeVerifiers();
     }
 
+    private final Map<BlockPos, List<ItemStack>> materialMissing = new HashMap<>();
+
     private final Host host;
 
     public QuickLitematicaContainerVerification(Host host) {
@@ -136,6 +138,26 @@ public final class QuickLitematicaContainerVerification implements VerifierExten
             return List.of();
         }
         return Collections.unmodifiableList(new ArrayList<>(this.quickcraft$containerMismatchesByKey.values()));
+    }
+
+    @Override
+    public List<ItemStack> quickcraft$getMaterialMissingStacks() {
+        return this.materialMissing.values().stream().flatMap(List::stream).map(ItemStack::copy).toList();
+    }
+
+    private void recordMaterialMissing(Level world, BlockPos pos, Container found, int size) {
+        if (!QuickLitematicaGlobalReplacements.hasRuntimeRules()) { return; }
+        Container expected = QuickLitematicaContainerVerifier.getMaterialInventoryAt(world, pos, size);
+        if (expected == null) { return; }
+        List<ItemStack> missing = new ArrayList<>();
+        for (int slot = 0; slot < expected.getContainerSize(); slot++) {
+            ItemStack target = expected.getItem(slot);
+            ItemStack actual = found == null ? ItemStack.EMPTY : found.getItem(slot);
+            int count = ItemStack.isSameItemSameComponents(target, actual)
+                    ? Math.max(0, target.getCount() - actual.getCount()) : target.getCount();
+            if (!target.isEmpty() && count > 0) { missing.add(target.copyWithCount(count)); }
+        }
+        this.materialMissing.put(pos.immutable(), missing);
     }
 
     @Override
@@ -676,6 +698,7 @@ public final class QuickLitematicaContainerVerification implements VerifierExten
             return null;
         }
 
+        this.recordMaterialMissing(foundWorld, pos, found, found.getContainerSize());
         return QuickLitematicaContainerVerifier.findMismatches(
                 pos,
                 expectedState,
@@ -750,6 +773,7 @@ public final class QuickLitematicaContainerVerification implements VerifierExten
             return null;
         }
 
+        this.recordMaterialMissing(foundWorld, pos, found, found.getContainerSize());
         return QuickLitematicaContainerVerifier.findMismatches(
                 pos,
                 expected.state(),
@@ -786,6 +810,7 @@ public final class QuickLitematicaContainerVerification implements VerifierExten
             return null;
         }
 
+        this.recordMaterialMissing(foundWorld, pos, found, found.getContainerSize());
         return QuickLitematicaContainerVerifier.findMismatches(
                 pos,
                 expected.state(),
@@ -844,6 +869,7 @@ public final class QuickLitematicaContainerVerification implements VerifierExten
     }
 
     private void quickcraft$clearContainerData() {
+        this.materialMissing.clear();
         this.quickcraft$containerMismatches.clear();
         this.quickcraft$containerPositionsClosest.clear();
         this.quickcraft$containerMismatchesByKey.clear();
@@ -1019,6 +1045,8 @@ public final class QuickLitematicaContainerVerification implements VerifierExten
     }
 
     private void quickcraft$rememberMissingContainer(BlockPos pos, Container expected) {
+        Level materialWorld = fi.dy.masa.malilib.util.WorldUtils.getBestWorld(Minecraft.getInstance());
+        if (materialWorld != null) { this.recordMaterialMissing(materialWorld, pos, null, expected.getContainerSize()); }
         List<ItemStack> stacks = new ArrayList<>();
         for (int slot = 0; slot < expected.getContainerSize(); slot++) {
             ItemStack stack = expected.getItem(slot);

@@ -85,4 +85,31 @@ final class QuickLitematicaContainerMaterialsAccess {
     static Vec3d getEntityPos(EntityInfo info) {
         return info.posVec;
     }
+
+    static Path schematicPath(LitematicaSchematic schematic) {
+        return schematic.getFile() == null ? null : schematic.getFile().toPath();
+    }
+    static LitematicaSchematic copySchematic(LitematicaSchematic schematic) {
+        Path path = schematicPath(schematic);
+        return new LitematicaSchematic(path == null ? Path.of("memory.litematic") : path,
+                schematic.writeToNBT().copy(), fi.dy.masa.litematica.util.FileType.LITEMATICA_SCHEMATIC);
+    }
+    static byte readByte(NbtCompound nbt, String key) { return nbt.getByte(key); }
+    static NbtCompound parseNbt(String value) throws com.mojang.brigadier.exceptions.CommandSyntaxException {
+        return net.minecraft.nbt.StringNbtReader.parse(value);
+    }
+    static void setBlockEntities(LitematicaSchematic schematic, String region, Map<BlockPos, NbtCompound> values) {
+        var map = schematic.getBlockEntityMapForRegion(region);
+        if (map != null && map != values) { map.clear(); map.putAll(values); }
+    }
+    static void setEntityNbt(java.util.List<EntityInfo> entities, int index, NbtCompound nbt) {
+        entities.set(index, new EntityInfo(entities.get(index).posVec, nbt));
+    }
+    static NbtCompound blockEntityNbt(net.minecraft.block.entity.BlockEntity entity, RegistryWrapper.WrapperLookup lookup) {
+        return entity.createNbtWithIdentifyingData(lookup);
+    }
+    static void readBlockEntity(net.minecraft.block.entity.BlockEntity entity, NbtCompound nbt, RegistryWrapper.WrapperLookup lookup) {
+        entity.read(nbt, lookup);
+    }
+    static Vec3d entityPosition(net.minecraft.entity.Entity entity) { return entity.getPos(); }
 }

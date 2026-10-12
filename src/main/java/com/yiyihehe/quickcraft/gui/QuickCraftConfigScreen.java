@@ -68,6 +68,8 @@ public class QuickCraftConfigScreen extends GuiConfigsBase {
         List<ConfigOptionWrapper> wrappers = new ArrayList<>();
 
         for (IConfigBase config : currentTab.getOptions()) {
+            if (config == QuickCraftConfigs.ProjectionTools.PROJECTION_MATERIAL_REPLACEMENTS
+                    || config == QuickCraftConfigs.ProjectionTools.CONTAINER_FILL_REPLACEMENTS) { continue; }
             ConfigGroup parentGroup = ConfigGroup.findByParent(config);
 
             if (parentGroup != null) {
@@ -208,13 +210,21 @@ public class QuickCraftConfigScreen extends GuiConfigsBase {
                 QuickCraftConfigs.ProjectionTools.MATERIAL_COLLECT_EXTRA_100_TO_500,
                 QuickCraftConfigs.ProjectionTools.MATERIAL_COLLECT_EXTRA_OVER_500
         ),
+        MATERIAL_REPLACEMENTS(
+                QuickCraftConfigs.ProjectionTools.SHOW_LITEMATICA_MATERIAL_REPLACEMENTS,
+                QuickCraftConfigs.ProjectionTools.GLOBAL_CONTAINER_REPLACEMENTS,
+                QuickCraftConfigs.ProjectionTools.GLOBAL_PROJECTION_MATERIAL_REPLACEMENTS
+        ),
+        MATERIAL_IGNORES(
+                QuickCraftConfigs.ProjectionTools.ALLOW_PERSISTENT_MATERIAL_IGNORES,
+                QuickCraftConfigs.ProjectionTools.MATERIAL_LIST_IGNORES
+        ),
         CONTAINER_AUTOFILL(
                 QuickCraftConfigs.ProjectionTools.ENABLE_LITEMATICA_CONTAINER_AUTOFILL,
                 QuickCraftConfigs.ProjectionTools.ENABLE_CREATIVE_CONTAINER_FILL,
                 QuickCraftConfigs.ProjectionTools.ENABLE_CONTAINER_FILL_OVERFLOW_DROP,
                 QuickCraftConfigs.ProjectionTools.CONTAINER_FILL_FREE_SLOTS_LIMIT,
-                QuickCraftConfigs.ProjectionTools.CONTAINER_FILL_PROTECTED_ITEMS,
-                QuickCraftConfigs.ProjectionTools.CONTAINER_FILL_REPLACEMENTS
+                QuickCraftConfigs.ProjectionTools.CONTAINER_FILL_PROTECTED_ITEMS
         ),
         LITEMATICA_SHULKER_MATERIAL_RESTOCK(
                 QuickCraftConfigs.ProjectionTools.ENABLE_LITEMATICA_SHULKER_MATERIAL_RESTOCK,
@@ -332,7 +342,7 @@ public class QuickCraftConfigScreen extends GuiConfigsBase {
         }
     }
 
-    private static final class ExpandableConfigOption extends WidgetConfigOption {
+    private static final class ExpandableConfigOption extends QuickCraftConfigOptionAccess {
         private ExpandableConfigOption(
                 int x,
                 int y,
@@ -366,6 +376,25 @@ public class QuickCraftConfigScreen extends GuiConfigsBase {
                     });
                 }
             }
+        }
+
+        @Override
+        protected void configureMaterialOption(int x, int y, int labelWidth, int configWidth, IConfigBase config) {
+            boolean container = config == QuickCraftConfigs.ProjectionTools.GLOBAL_CONTAINER_REPLACEMENTS;
+            boolean block = config == QuickCraftConfigs.ProjectionTools.GLOBAL_PROJECTION_MATERIAL_REPLACEMENTS;
+            if (!container && !block) {
+                super.configureMaterialOption(x, y, labelWidth, configWidth, config);
+                return;
+            }
+            this.addLabel(x, y + 8, labelWidth, 8, 0xFFFFFFFF, config.getConfigGuiDisplayName());
+            this.addConfigComment(x, y + 5, labelWidth, 12, config.getComment());
+            var edit = new ButtonGeneric(x + labelWidth + 10, y + 1, configWidth, 20,
+                    StringUtils.translate("quickcraft.litematica.global.edit_rules"));
+            edit.setEnabled(net.fabricmc.loader.api.FabricLoader.getInstance().isModLoaded("litematica"));
+            this.addButton(edit, (button, mouse) -> fi.dy.masa.malilib.gui.GuiBase.openGui(
+                    new com.yiyihehe.quickcraft.litematica.QuickLitematicaGlobalReplacementScreen((Screen) this.host,
+                            container ? com.yiyihehe.quickcraft.litematica.QuickLitematicaContainerReplacements.Scope.CONTAINER
+                                    : com.yiyihehe.quickcraft.litematica.QuickLitematicaContainerReplacements.Scope.PROJECTION)));
         }
 
         private void indentLabelArea(int indent) {

@@ -76,7 +76,19 @@
 		"LitematicaPreviewQueuedDispatcherMixin",
 		"LitematicaPreviewQueuedModelMixin",
 		"LitematicaPreviewQueuedItemMixin",
-		"LitematicaPreviewQueuedPartMixin"
+		"LitematicaPreviewQueuedPartMixin",
+		"MalilibWidgetContainerInvoker",
+		"LitematicaMaterialListIgnoresMixin",
+		"LitematicaContainerMemoryPlacementMixin",
+		"LitematicaSchematicBlocksAccessor",
+		"LitematicaProjectionFileMaterialsMixin",
+		"LitematicaProjectionCountPlacementMixin",
+		"LitematicaProjectionCountFinishMixin",
+		"LitematicaGlobalPlacementMixin",
+		"LitematicaGlobalSaveMixin",
+		"LitematicaWidgetMaterialListEntryMixin",
+		"MalilibGuiListAccessor",
+		"LitematicaGlobalProtoPlacementMixin"
 	],
 	"injectors": {
 		"defaultRequire": 1
