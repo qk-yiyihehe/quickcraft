@@ -66,7 +66,8 @@ public abstract class LitematicaProjectionCountPlacementMixin extends TaskCountB
     public void quickcraft$prepareOriginalRows() {
         if (this.finished && this.isInWorld() && this.materialList instanceof MaterialListBase list) {
             QuickLitematicaProjectionMaterials.prepareEditor(list,
-                    this.quickcraft$originalTotal, this.quickcraft$originalMissing, this.quickcraft$originalMismatch);
+                    this.quickcraft$originalTotal, this.quickcraft$originalMissing, this.quickcraft$originalMismatch,
+                    this.countsTotal, this.countsMissing, this.countsMismatch);
         }
     }
 }

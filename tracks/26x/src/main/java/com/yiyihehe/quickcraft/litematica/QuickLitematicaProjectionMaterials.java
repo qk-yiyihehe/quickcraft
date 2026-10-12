@@ -6,7 +6,6 @@ import com.yiyihehe.quickcraft.mixin.LitematicaSchematicBlocksAccessor;
 import fi.dy.masa.litematica.materials.MaterialCache;
 import fi.dy.masa.litematica.materials.MaterialListBase;
 import fi.dy.masa.litematica.materials.MaterialListEntry;
-import fi.dy.masa.litematica.materials.MaterialListUtils;
 import fi.dy.masa.litematica.schematic.LitematicaSchematic;
 import fi.dy.masa.litematica.schematic.container.LitematicaBlockStateContainer;
 import fi.dy.masa.litematica.schematic.placement.SchematicPlacement;
@@ -33,8 +32,9 @@ public final class QuickLitematicaProjectionMaterials {
     private static final Map<MaterialListBase, Map<ItemType, ItemStack>> SELECTIONS = new WeakHashMap<>();
     private static final Map<MaterialListBase, Counts> COUNTS = new WeakHashMap<>();
     private record Counts(Object2IntOpenHashMap<BlockState> total, Object2IntOpenHashMap<BlockState> missing,
-                          Object2IntOpenHashMap<BlockState> mismatch) { }
-    private static final Map<MaterialListBase, List<MaterialListEntry>> PENDING = new WeakHashMap<>();
+                          Object2IntOpenHashMap<BlockState> mismatch, List<MaterialListEntry> entities) { }
+    private record PendingRows(Counts counts, List<MaterialListEntry> originalBlocks, List<MaterialListEntry> actualBlocks) { }
+    private static final Map<MaterialListBase, PendingRows> PENDING = new WeakHashMap<>();
     private static final Map<MaterialListBase, HudCache> HUD_CACHE = new WeakHashMap<>();
     private record HudCache(Counts counts, long revision, java.util.Set<String> ignored, List<MaterialListEntry> entries) { }
     private static boolean restoringEditor;
@@ -229,37 +229,75 @@ public final class QuickLitematicaProjectionMaterials {
     public static void refreshFileList(MaterialListBase list) {
         LitematicaSchematic live = schematic(list);
         if (live == null || restoringEditor) { return; }
-        Object2IntOpenHashMap<BlockState> totals = new Object2IntOpenHashMap<>();
-        var original = QuickLitematicaContainerMemory.original(live);
-        for (String region : regions(list)) {
-            var container = original.getSubRegionContainer(region);
-            if (container == null) { continue; }
-            long[] counts = countPaletteStates(container);
-            for (int index = 0; index < counts.length; index++) {
-                if (counts[index] > 0) { totals.addTo(container.getPalette().getBlockState(index), Math.toIntExact(counts[index])); }
-            }
-        }
-        COUNTS.put(list, new Counts(totals, totals, new Object2IntOpenHashMap<>()));
+        var totals = blockTotals(QuickLitematicaContainerMemory.original(live), regions(list));
+        var actualTotals = blockTotals(live, regions(list));
+        var entities = combineEntries(list.getMaterialsAll(), QuickLitematicaMaterialCountAccess.blocks(
+                actualTotals, actualTotals, new Object2IntOpenHashMap<>(), Minecraft.getInstance().player), -1);
+        COUNTS.put(list, new Counts(totals, totals, new Object2IntOpenHashMap<>(), entities));
         restoringEditor = true;
         try {
-            var entries = MaterialListUtils.getMaterialList(totals, totals, new Object2IntOpenHashMap<>(), Minecraft.getInstance().player);
+            var entries = combineEntries(QuickLitematicaMaterialCountAccess.blocks(totals, totals,
+                    new Object2IntOpenHashMap<>(), Minecraft.getInstance().player), entities, 1);
             updateEditorAvailability(list, entries);
             list.setMaterialListEntries(entries);
         }
         finally { restoringEditor = false; }
     }
 
+    private static Object2IntOpenHashMap<BlockState> blockTotals(LitematicaSchematic schematic, Collection<String> regions) {
+        Object2IntOpenHashMap<BlockState> totals = new Object2IntOpenHashMap<>();
+        for (String region : regions) {
+            var container = schematic.getSubRegionContainer(region);
+            if (container == null) { continue; }
+            long[] counts = countPaletteStates(container);
+            for (int index = 0; index < counts.length; index++) {
+                if (counts[index] > 0) { totals.addTo(container.getPalette().getBlockState(index), Math.toIntExact(counts[index])); }
+            }
+        }
+        return totals;
+    }
+
     public static void prepareEditor(MaterialListBase list, Object2IntOpenHashMap<BlockState> total,
-                                     Object2IntOpenHashMap<BlockState> missing, Object2IntOpenHashMap<BlockState> mismatch) {
-        COUNTS.put(list, new Counts(total.clone(), missing.clone(), mismatch.clone()));
-        var entries = MaterialListUtils.getMaterialList(total, missing, mismatch, Minecraft.getInstance().player);
-        updateEditorAvailability(list, entries);
-        PENDING.put(list, entries);
+                                     Object2IntOpenHashMap<BlockState> missing, Object2IntOpenHashMap<BlockState> mismatch,
+                                     Object2IntOpenHashMap<BlockState> actualTotal, Object2IntOpenHashMap<BlockState> actualMissing,
+                                     Object2IntOpenHashMap<BlockState> actualMismatch) {
+        var player = Minecraft.getInstance().player;
+        PENDING.put(list, new PendingRows(new Counts(total.clone(), missing.clone(), mismatch.clone(), List.of()),
+                QuickLitematicaMaterialCountAccess.blocks(total, missing, mismatch, player),
+                QuickLitematicaMaterialCountAccess.blocks(actualTotal, actualMissing, actualMismatch, player)));
     }
 
     public static List<MaterialListEntry> editorEntries(MaterialListBase list, List<MaterialListEntry> actual) {
-        var originals = PENDING.remove(list);
-        return originals == null || restoringEditor ? actual : originals;
+        var pending = PENDING.remove(list);
+        if (pending == null || restoringEditor) { return actual; }
+        // 原生结果包含实体及其内容；只扣除实际方块贡献，实体与方块需要同一物品时也不能漏掉。
+        var entities = combineEntries(actual, pending.actualBlocks(), -1);
+        var counts = pending.counts();
+        COUNTS.put(list, new Counts(counts.total(), counts.missing(), counts.mismatch(), entities));
+        var entries = combineEntries(pending.originalBlocks(), entities, 1);
+        updateEditorAvailability(list, entries);
+        return entries;
+    }
+
+    static List<MaterialListEntry> combineEntries(List<MaterialListEntry> first, List<MaterialListEntry> second, int sign) {
+        Map<ItemType, int[]> counts = new LinkedHashMap<>();
+        var lists = List.of(first, second);
+        for (int index = 0; index < lists.size(); index++) {
+            var entries = lists.get(index);
+            int factor = index == 0 ? 1 : sign;
+            for (var entry : entries) {
+                // 与原生统计采用同一物品键，数量相加，背包可用量在合并后重新读取。
+                var value = counts.computeIfAbsent(new ItemType(entry.getStack(), true, false), ignored -> new int[3]);
+                value[0] += factor * entry.getCountTotal();
+                value[1] += factor * entry.getCountMissing();
+                value[2] += factor * entry.getCountMismatched();
+            }
+        }
+        List<MaterialListEntry> result = new ArrayList<>();
+        counts.forEach((type, value) -> {
+            if (value[0] > 0) { result.add(new MaterialListEntry(type.getStack().copyWithCount(1), value[0], value[1], value[2], 0)); }
+        });
+        return result;
     }
 
     private static Object2IntOpenHashMap<ItemType> finalItems(Object2IntOpenHashMap<BlockState> original, String context,
@@ -273,7 +311,7 @@ public final class QuickLitematicaProjectionMaterials {
                     QuickLitematicaContainerReplacements.Scope.PROJECTION, context);
             Object2IntOpenHashMap<BlockState> singleton = new Object2IntOpenHashMap<>();
             singleton.put(finalState, (int) count);
-            for (var entry : MaterialListUtils.getMaterialList(singleton, singleton,
+            for (var entry : QuickLitematicaMaterialCountAccess.blocks(singleton, singleton,
                     new Object2IntOpenHashMap<>(), Minecraft.getInstance().player)) {
                 ItemStack template = entry.getStack();
                 if (replacement.isPresent() && template.getItem() == replacement.get().getItem()) {
@@ -323,6 +361,13 @@ public final class QuickLitematicaProjectionMaterials {
             var totalItems = finalItems(counts.total(), context, ignored);
             var missingItems = finalItems(counts.missing(), context, ignored);
             var mismatchItems = finalItems(counts.mismatch(), context, ignored);
+            for (var entity : counts.entities()) {
+                ItemType type = new ItemType(entity.getStack(), true, true);
+                if (ignored.contains(type.toString())) { continue; }
+                totalItems.addTo(type, entity.getCountTotal());
+                missingItems.addTo(type, entity.getCountMissing());
+                mismatchItems.addTo(type, entity.getCountMismatched());
+            }
             List<MaterialListEntry> entries = new ArrayList<>();
             for (ItemType type : totalItems.keySet()) {
                 entries.add(new MaterialListEntry(type.getStack().copyWithCount(1), totalItems.getInt(type),
