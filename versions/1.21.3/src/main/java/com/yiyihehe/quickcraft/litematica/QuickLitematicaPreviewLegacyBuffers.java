@@ -61,7 +61,7 @@ final class QuickLitematicaPreviewLegacyBuffers implements AutoCloseable {
             vertices.resize(Math.toIntExact(bytes));
             // 原生 resize 对可写缓冲延迟分配，空写触发分配并保留原版的显存追踪。
             vertices.copyFrom(java.nio.ByteBuffer.allocateDirect(0), 0);
-            org.lwjgl.opengl.GL15.glBindBuffer(org.lwjgl.opengl.GL31.GL_COPY_WRITE_BUFFER, access.quickcraft$getVertexBufferId());
+            org.lwjgl.opengl.GL15.glBindBuffer(org.lwjgl.opengl.GL31.GL_COPY_WRITE_BUFFER, access.quickcraft$getVertexBuffer().handle);
             if (org.lwjgl.opengl.GL15.glGetBufferParameteri(org.lwjgl.opengl.GL31.GL_COPY_WRITE_BUFFER, org.lwjgl.opengl.GL15.GL_BUFFER_SIZE) != bytes) {
                 throw new IllegalStateException("Transparent vertex buffer allocation failed");
             }
@@ -70,7 +70,7 @@ final class QuickLitematicaPreviewLegacyBuffers implements AutoCloseable {
                 VertexBuffer source = sources.get(i);
                 long length = (long) vertexCounts[i] * source.getVertexFormat().getVertexSizeByte();
                 org.lwjgl.opengl.GL15.glBindBuffer(org.lwjgl.opengl.GL31.GL_COPY_READ_BUFFER,
-                        ((LitematicaPreviewVertexBufferAccessor) source).quickcraft$getVertexBufferId());
+                        ((LitematicaPreviewVertexBufferAccessor) source).quickcraft$getVertexBuffer().handle);
                 org.lwjgl.opengl.GL31.glCopyBufferSubData(org.lwjgl.opengl.GL31.GL_COPY_READ_BUFFER,
                         org.lwjgl.opengl.GL31.GL_COPY_WRITE_BUFFER, 0, offset, length);
                 offset += length;

@@ -10,7 +10,6 @@ public interface LitematicaPreviewVertexBufferAccessor {
     @Accessor("vertexBuffer") net.minecraft.client.gl.GpuBuffer quickcraft$getVertexBuffer();
     @Accessor("indexBuffer") net.minecraft.client.gl.GpuBuffer quickcraft$getIndexBuffer();
     @Accessor("indexBuffer") void quickcraft$setIndexBuffer(net.minecraft.client.gl.GpuBuffer buffer);
-    default int quickcraft$getVertexBufferId() { return this.quickcraft$getVertexBuffer().handle; }
     @Accessor("indexType") void quickcraft$setIndexType(VertexFormat.IndexType type);
     @Accessor("indexCount") void quickcraft$setIndexCount(int count);
 }

@@ -77,9 +77,10 @@ final class QuickLitematicaPreviewTransparentMerge {
         for (var batch : batches) count = Math.addExact(count, batch.size());
         var combined = new CompactVectorArray(count);
         int offset = 0;
+        var point = new org.joml.Vector3f();
         for (var batch : batches) {
             for (int i = 0; i < batch.size(); i++) {
-                combined.set(offset++, batch.getX(i), batch.getY(i), batch.getZ(i));
+                combined.set(offset++, batch.get(i, point));
             }
         }
         return combined;

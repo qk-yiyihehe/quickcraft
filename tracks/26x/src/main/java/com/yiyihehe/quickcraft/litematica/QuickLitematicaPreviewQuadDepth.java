@@ -41,8 +41,10 @@ final class QuickLitematicaPreviewQuadDepth {
         if (order.length != points.size() || keys.length != points.size()) {
             throw new IllegalArgumentException("Sort workspace must match the centroid count");
         }
+        // 26.1.2 的 getZ 错读 Y；get(index, scratch) 在所有目标中返回正确坐标。
+        var point = new org.joml.Vector3f();
         for (int i = 0; i < order.length; i++) {
-            float distance = -(this.x * points.getX(i) + this.y * points.getY(i) + this.z * points.getZ(i));
+            float distance = -this.depth(points.get(i, point));
             int bits = Float.floatToIntBits(distance);
             // 与原生 Float.compare 距离降序一致，包括 NaN 和有符号零；稳定排序保留等深面的原顺序。
             keys[i] = ~(bits ^ ((bits >> 31) & 0x7FFFFFFF));

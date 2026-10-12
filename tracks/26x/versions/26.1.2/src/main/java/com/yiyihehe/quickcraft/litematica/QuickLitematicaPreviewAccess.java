@@ -302,8 +302,9 @@ public final class QuickLitematicaPreviewAccess {
             RenderSystem.getDevice().createCommandEncoder().writeToBuffer(buffer.vertexBuffer().slice(plan.byteOffset(), data.remaining()), data);
             var source = batchSort.centroids();
             var target = buffer.translucentSort().centroids();
+            var point = new org.joml.Vector3f();
             for (int i = 0; i < source.size(); i++)
-                target.set(plan.quadOffset() + i, source.getX(i), source.getY(i), source.getZ(i));
+                target.set(plan.quadOffset() + i, source.get(i, point));
             plan.advance(vertexCount, batchBytes);
             return true;
         }
