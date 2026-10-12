@@ -392,10 +392,8 @@ public class QuickCraftConfigScreen extends GuiConfigsBase {
             var edit = new ButtonGeneric(x + labelWidth + 10, y + 1, configWidth, 20,
                     StringUtils.translate("quickcraft.litematica.global.edit_rules"));
             edit.setEnabled(net.fabricmc.loader.api.FabricLoader.getInstance().isModLoaded("litematica"));
-            this.addButton(edit, (button, mouse) -> fi.dy.masa.malilib.gui.GuiBase.openGui(
-                    new com.yiyihehe.quickcraft.litematica.QuickLitematicaGlobalReplacementScreen((Screen) this.host,
-                            container ? com.yiyihehe.quickcraft.litematica.QuickLitematicaContainerReplacements.Scope.CONTAINER
-                                    : com.yiyihehe.quickcraft.litematica.QuickLitematicaContainerReplacements.Scope.PROJECTION)));
+            this.addButton(edit, (button, mouse) ->
+                    com.yiyihehe.quickcraft.QuickCraft.openGlobalProjectionReplacements((Screen) this.host, container));
         }
 
         private void indentLabelArea(int indent) {

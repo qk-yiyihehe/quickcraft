@@ -13,12 +13,12 @@ class QuickLitematicaPreviewTransparentMergeTest {
         var b = centers(5, 15);
         var merged = QuickLitematicaPreviewTransparentMerge.centers(List.of(a, b));
         assertThat(merged.size()).isEqualTo(4);
-        assertThat(merged.getZ(0)).isEqualTo(0);
-        assertThat(merged.getZ(2)).isEqualTo(5);
+        assertThat(merged.get(0, new org.joml.Vector3f()).z).isEqualTo(0);
+        assertThat(merged.get(2, new org.joml.Vector3f()).z).isEqualTo(5);
         assertThat(VertexSorting.byDistance(point -> -point.z()).sort(merged)).containsExactly(0, 2, 1, 3);
         assertThat(VertexSorting.byDistance(point -> point.z()).sort(merged)).containsExactly(3, 1, 2, 0);
-        assertThat(a.getZ(1)).isEqualTo(10);
-        assertThat(b.getZ(1)).isEqualTo(15);
+        assertThat(a.get(1, new org.joml.Vector3f()).z).isEqualTo(10);
+        assertThat(b.get(1, new org.joml.Vector3f()).z).isEqualTo(15);
     }
 
     @Test void additionalGpuBudgetIncludesNewIndicesAndRejectsOverflow() {

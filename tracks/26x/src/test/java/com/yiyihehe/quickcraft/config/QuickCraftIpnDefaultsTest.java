@@ -14,6 +14,7 @@ import java.nio.file.Path;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+@org.junit.jupiter.api.extension.ExtendWith(com.yiyihehe.quickcraft.QuickCraftMinecraftTestBootstrap.class)
 class QuickCraftIpnDefaultsTest {
     @BeforeAll
     static void initializeGameVersion() throws ReflectiveOperationException {

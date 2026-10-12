@@ -13,9 +13,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 
+@org.junit.jupiter.api.extension.ExtendWith(com.yiyihehe.quickcraft.QuickCraftMinecraftTestBootstrap.class)
 class QuickLitematicaPreviewFluidsTest {
     @BeforeAll static void bootstrap() {
-        System.setProperty("net.bytebuddy.experimental", "true");
         SharedConstants.createGameVersion();
         Bootstrap.initialize();
     }

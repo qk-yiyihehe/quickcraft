@@ -12,6 +12,7 @@ import java.util.List;
 import java.util.concurrent.atomic.AtomicLong;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
 import static org.mockito.Mockito.doAnswer;
 
@@ -26,7 +27,10 @@ class QuickLitematicaPreviewFrameBuildTest {
         var events = new ArrayList<String>();
         var a = mock(ItemFeatureRenderer.Submit.class);
         var b = mock(ItemFeatureRenderer.Submit.class);
-        var item = new ItemRenderer(build, buffer, events, List.of(a, b));
+        var item = spy(new ItemRenderer(build, buffer, events, List.of(a, b)));
+        // 用显式夹具交接替代原生 final 方法上的 Mixin，避免真实注入绕过夹具。
+        doAnswer(call -> { item.buildGroup(context, List.of(a, b)); return null; })
+                .when(item).prepareGroup(context, List.of(a, b), true);
         doAnswer(call -> { events.add("upload"); return null; }).when(buffer).upload();
         build.capture(() -> {
             assertThat(build.deferGroup(item, context, List.of(a, b), true)).isTrue();

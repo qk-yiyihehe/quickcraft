@@ -11,6 +11,7 @@ import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+@org.junit.jupiter.api.extension.ExtendWith(com.yiyihehe.quickcraft.QuickCraftMinecraftTestBootstrap.class)
 class QuickLitematicaProjectionReplacementCompatibilityTest {
     @BeforeAll
     static void initializeMinecraft() {
@@ -224,11 +225,11 @@ class QuickLitematicaProjectionReplacementCompatibilityTest {
 
     @Test
     void groupsConfirmedStructuralSubclassesWithoutGroupingSpecialPlants() {
-        var settings = net.minecraft.world.level.block.state.BlockBehaviour.Properties.ofFullCopy(block("minecraft:lantern"));
+        var settings = net.minecraft.world.level.block.state.BlockBehaviour.Properties.ofFullCopy(block("minecraft:lantern")).setId(net.minecraft.resources.ResourceKey.create(net.minecraft.core.registries.Registries.BLOCK, net.minecraft.resources.Identifier.fromNamespaceAndPath("quickcraft_test", "lantern")));
         var lanternVariant = new net.minecraft.world.level.block.LanternBlock(settings) { };
-        var chainVariant = new net.minecraft.world.level.block.ChainBlock(net.minecraft.world.level.block.state.BlockBehaviour.Properties.ofFullCopy(block("minecraft:iron_chain"))) { };
-        var paneVariant = new net.minecraft.world.level.block.IronBarsBlock(net.minecraft.world.level.block.state.BlockBehaviour.Properties.ofFullCopy(block("minecraft:iron_bars"))) { };
-        var rodVariant = new net.minecraft.world.level.block.LightningRodBlock(net.minecraft.world.level.block.state.BlockBehaviour.Properties.ofFullCopy(block("minecraft:lightning_rod"))) { };
+        var chainVariant = new net.minecraft.world.level.block.ChainBlock(net.minecraft.world.level.block.state.BlockBehaviour.Properties.ofFullCopy(block("minecraft:iron_chain")).setId(net.minecraft.resources.ResourceKey.create(net.minecraft.core.registries.Registries.BLOCK, net.minecraft.resources.Identifier.fromNamespaceAndPath("quickcraft_test", "iron_chain")))) { };
+        var paneVariant = new net.minecraft.world.level.block.IronBarsBlock(net.minecraft.world.level.block.state.BlockBehaviour.Properties.ofFullCopy(block("minecraft:iron_bars")).setId(net.minecraft.resources.ResourceKey.create(net.minecraft.core.registries.Registries.BLOCK, net.minecraft.resources.Identifier.fromNamespaceAndPath("quickcraft_test", "iron_bars")))) { };
+        var rodVariant = new net.minecraft.world.level.block.LightningRodBlock(net.minecraft.world.level.block.state.BlockBehaviour.Properties.ofFullCopy(block("minecraft:lightning_rod")).setId(net.minecraft.resources.ResourceKey.create(net.minecraft.core.registries.Registries.BLOCK, net.minecraft.resources.Identifier.fromNamespaceAndPath("quickcraft_test", "lightning_rod")))) { };
         assertThat(QuickLitematicaProjectionReplacementCompatibility.nonFullFamily(lanternVariant)).isEqualTo(net.minecraft.world.level.block.LanternBlock.class);
         assertThat(QuickLitematicaProjectionReplacementCompatibility.nonFullFamily(chainVariant)).isEqualTo(net.minecraft.world.level.block.ChainBlock.class);
         assertThat(QuickLitematicaProjectionReplacementCompatibility.nonFullFamily(paneVariant)).isEqualTo(net.minecraft.world.level.block.IronBarsBlock.class);

@@ -23,7 +23,10 @@ class QuickCraftArchitectureTest {
 
     @BeforeAll
     static void setUp() {
-        classes = new ClassFileImporter().importPackages(ROOT);
+        // Fabric ASM 的 magic-at URL 无法作为归档扫描，直接读取编译目录。
+        var paths = java.util.Arrays.stream(System.getProperty("quickcraft.testClasses").split(java.io.File.pathSeparator))
+                .map(path -> java.nio.file.Path.of(path).resolve(ROOT.replace('.', '/'))).toArray(java.nio.file.Path[]::new);
+        classes = new ClassFileImporter().importPaths(paths);
     }
 
     // ---- 包依赖规则 ----

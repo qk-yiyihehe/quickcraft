@@ -1,10 +1,7 @@
 package com.yiyihehe.quickcraft;
 
 import com.tngtech.archunit.core.domain.JavaClasses;
-//#if MC<12103
-//#else
-//$$ import com.tngtech.archunit.core.domain.JavaClass;
-//#endif
+import com.tngtech.archunit.core.domain.JavaClass;
 import com.tngtech.archunit.core.importer.ClassFileImporter;
 import com.tngtech.archunit.lang.ArchRule;
 import org.junit.jupiter.api.BeforeAll;
@@ -26,7 +23,10 @@ class QuickCraftArchitectureTest {
 
     @BeforeAll
     static void setUp() {
-        classes = new ClassFileImporter().importPackages(ROOT);
+        // 使用实际编译目录；Fabric ASM 的 magic-at 资源 URL 不是可扫描的归档。
+        var paths = java.util.Arrays.stream(System.getProperty("quickcraft.testClasses").split(java.io.File.pathSeparator))
+                .map(path -> java.nio.file.Path.of(path).resolve(ROOT.replace('.', '/'))).toArray(java.nio.file.Path[]::new);
+        classes = new ClassFileImporter().importPaths(paths);
     }
 
     // ---- 包依赖规则 ----
@@ -160,19 +160,13 @@ class QuickCraftArchitectureTest {
     @Test
     @DisplayName("不应有循环依赖（包级）")
     void noCyclicDependencies() {
-//#if MC<12103
-//#else
-        //$$ JavaClasses nonMixinClasses = classes.that(JavaClass.Predicates.resideOutsideOfPackage(ROOT + ".mixin.."));
-//#endif
+        // Mixin 是游戏与业务的双向桥接，按其余版本的边界检查业务包。
+        JavaClasses nonMixinClasses = classes.that(JavaClass.Predicates.resideOutsideOfPackage(ROOT + ".mixin.."));
         ArchRule rule = slices()
                 .matching(ROOT + ".(*)..")
                 .should().beFreeOfCycles();
 
-//#if MC<12103
-        rule.check(classes);
-//#else
-        //$$ rule.check(nonMixinClasses);
-//#endif
+        rule.check(nonMixinClasses);
     }
 
     @Test

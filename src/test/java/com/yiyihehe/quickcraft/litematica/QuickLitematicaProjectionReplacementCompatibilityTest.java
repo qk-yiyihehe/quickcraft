@@ -11,6 +11,7 @@ import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+@org.junit.jupiter.api.extension.ExtendWith(com.yiyihehe.quickcraft.QuickCraftMinecraftTestBootstrap.class)
 class QuickLitematicaProjectionReplacementCompatibilityTest {
     @BeforeAll
     static void initializeMinecraft() {
@@ -226,11 +227,11 @@ class QuickLitematicaProjectionReplacementCompatibilityTest {
 
     @Test
     void groupsConfirmedStructuralSubclassesWithoutGroupingSpecialPlants() {
-        var settings = net.minecraft.block.AbstractBlock.Settings.copy(net.minecraft.block.Blocks.LANTERN);
+        var settings = com.yiyihehe.quickcraft.QuickCraftTestBlocks.settings(net.minecraft.block.Blocks.LANTERN);
         var lanternVariant = new net.minecraft.block.LanternBlock(settings) { };
-        var chainVariant = new net.minecraft.block.ChainBlock(net.minecraft.block.AbstractBlock.Settings.copy(net.minecraft.block.Blocks.CHAIN)) { };
-        var paneVariant = new net.minecraft.block.PaneBlock(net.minecraft.block.AbstractBlock.Settings.copy(net.minecraft.block.Blocks.IRON_BARS)) { };
-        var rodVariant = new net.minecraft.block.LightningRodBlock(net.minecraft.block.AbstractBlock.Settings.copy(net.minecraft.block.Blocks.LIGHTNING_ROD)) { };
+        var chainVariant = new net.minecraft.block.ChainBlock(com.yiyihehe.quickcraft.QuickCraftTestBlocks.settings(net.minecraft.block.Blocks.CHAIN)) { };
+        var paneVariant = new net.minecraft.block.PaneBlock(com.yiyihehe.quickcraft.QuickCraftTestBlocks.settings(net.minecraft.block.Blocks.IRON_BARS)) { };
+        var rodVariant = new net.minecraft.block.LightningRodBlock(com.yiyihehe.quickcraft.QuickCraftTestBlocks.settings(net.minecraft.block.Blocks.LIGHTNING_ROD)) { };
         assertThat(QuickLitematicaProjectionReplacementCompatibility.nonFullFamily(lanternVariant)).isEqualTo(net.minecraft.block.LanternBlock.class);
         assertThat(QuickLitematicaProjectionReplacementCompatibility.nonFullFamily(chainVariant)).isEqualTo(net.minecraft.block.ChainBlock.class);
         assertThat(QuickLitematicaProjectionReplacementCompatibility.nonFullFamily(paneVariant)).isEqualTo(net.minecraft.block.PaneBlock.class);

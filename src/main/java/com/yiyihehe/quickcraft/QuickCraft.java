@@ -37,8 +37,28 @@ public class QuickCraft implements ModInitializer {
                             : "quickcraft.message.developer.preview_logs_enabled", QuickLitematicaPreviewLog.logPath());
         });
         if (FabricLoader.getInstance().isModLoaded("litematica")) {
+            QuickCraftConfigs.ProjectionTools.SHOW_LITEMATICA_MATERIAL_REPLACEMENTS.setValueChangeCallback(config ->
+                    com.yiyihehe.quickcraft.litematica.QuickLitematicaGlobalReplacements.changed());
+            QuickCraftConfigs.ProjectionTools.GLOBAL_CONTAINER_REPLACEMENTS.setValueChangeCallback(config ->
+                    com.yiyihehe.quickcraft.litematica.QuickLitematicaGlobalReplacements.changed());
+            QuickCraftConfigs.ProjectionTools.GLOBAL_PROJECTION_MATERIAL_REPLACEMENTS.setValueChangeCallback(config ->
+                    com.yiyihehe.quickcraft.litematica.QuickLitematicaGlobalReplacements.changed());
             QuickLitematicaSelectionPreview.bindHotkey();
             QuickLitematicaAreaClone.bindHotkey();
+        }
+    }
+
+    public static void refreshProjectionReplacements() {
+        if (FabricLoader.getInstance().isModLoaded("litematica")) {
+            com.yiyihehe.quickcraft.litematica.QuickLitematicaGlobalReplacements.changed();
+        }
+    }
+
+    public static void openGlobalProjectionReplacements(net.minecraft.client.gui.screen.Screen parent, boolean container) {
+        if (FabricLoader.getInstance().isModLoaded("litematica")) {
+            fi.dy.masa.malilib.gui.GuiBase.openGui(new com.yiyihehe.quickcraft.litematica.QuickLitematicaGlobalReplacementScreen(parent,
+                    container ? com.yiyihehe.quickcraft.litematica.QuickLitematicaContainerReplacements.Scope.CONTAINER
+                            : com.yiyihehe.quickcraft.litematica.QuickLitematicaContainerReplacements.Scope.PROJECTION));
         }
     }
 

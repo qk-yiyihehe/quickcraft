@@ -18,13 +18,13 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
+@org.junit.jupiter.api.extension.ExtendWith(com.yiyihehe.quickcraft.QuickCraftMinecraftTestBootstrap.class)
 class QuickLitematicaPreviewBeaconsTest {
     @BeforeAll
     static void bootstrap() {
-        // 仓库的 Mockito/Byte Buddy 尚未声明 Java 25，测试只模拟世界读取接口。
-        System.setProperty("net.bytebuddy.experimental", "true");
         SharedConstants.tryDetectVersion();
         Bootstrap.bootStrap();
+
     }
 
     @Test
@@ -39,13 +39,16 @@ class QuickLitematicaPreviewBeaconsTest {
         }
         states.put(new BlockPos(0, 32, 0), net.minecraft.core.registries.BuiltInRegistries.BLOCK.getValue(net.minecraft.resources.Identifier.fromNamespaceAndPath("minecraft", "red_stained_glass")).defaultBlockState());
         states.put(new BlockPos(0, 40, 0), net.minecraft.core.registries.BuiltInRegistries.BLOCK.getValue(net.minecraft.resources.Identifier.fromNamespaceAndPath("minecraft", "blue_stained_glass")).defaultBlockState());
+        // 测试不加载数据包，缺失底座的空气状态必须显式标记为非底座。
+        BlockState air = spy(Blocks.AIR.defaultBlockState());
+        doReturn(false).when(air).is(BlockTags.BEACON_BASE_BLOCKS);
         Level world = mock(Level.class);
         when(world.isClientSide()).thenReturn(true);
         when(world.getMinY()).thenReturn(-64);
         when(world.getHeight(any(Heightmap.Types.class), anyInt(), anyInt()))
                 .thenAnswer(call -> QuickLitematicaPreviewBeacons.initializationTop());
         when(world.getBlockState(any(BlockPos.class)))
-                .thenAnswer(call -> states.getOrDefault(call.getArgument(0), Blocks.AIR.defaultBlockState()));
+                .thenAnswer(call -> states.getOrDefault(call.getArgument(0), air));
 
         BeaconBlockEntity active = initialize(world, pos, states);
         assertThat(active.getBeamSections()).hasSize(3);
@@ -66,17 +69,22 @@ class QuickLitematicaPreviewBeaconsTest {
         BlockPos pos = new BlockPos(0, 8, 0);
         Map<BlockPos, BlockState> states = new HashMap<>();
         states.put(pos, Blocks.BEACON.defaultBlockState());
+        BlockState base = mock(BlockState.class);
+        when(base.is(BlockTags.BEACON_BASE_BLOCKS)).thenReturn(true);
         for (int x = -1; x <= 1; x++) {
-            for (int z = -1; z <= 1; z++) states.put(new BlockPos(x, 7, z), Blocks.IRON_BLOCK.defaultBlockState());
+            for (int z = -1; z <= 1; z++) states.put(new BlockPos(x, 7, z), base);
         }
         states.put(new BlockPos(0, 35, 0), Blocks.GLASS.defaultBlockState());
+        // 测试不加载数据包，缺失底座的空气状态必须显式标记为非底座。
+        BlockState air = spy(Blocks.AIR.defaultBlockState());
+        doReturn(false).when(air).is(BlockTags.BEACON_BASE_BLOCKS);
         Level world = mock(Level.class);
         when(world.isClientSide()).thenReturn(true);
         when(world.getMinY()).thenReturn(-64);
         when(world.getHeight(any(Heightmap.Types.class), anyInt(), anyInt()))
                 .thenAnswer(call -> QuickLitematicaPreviewBeacons.initializationTop());
         when(world.getBlockState(any(BlockPos.class)))
-                .thenAnswer(call -> states.getOrDefault(call.getArgument(0), Blocks.AIR.defaultBlockState()));
+                .thenAnswer(call -> states.getOrDefault(call.getArgument(0), air));
         BeaconBlockEntity expected = initialize(world, pos, states);
         assertThat(expected.getBeamSections()).isNotEmpty();
         BeaconBlockEntity actual = new BeaconBlockEntity(pos, states.get(pos));

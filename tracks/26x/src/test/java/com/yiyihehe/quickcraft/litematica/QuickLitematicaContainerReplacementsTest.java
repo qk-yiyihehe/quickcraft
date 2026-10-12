@@ -17,6 +17,7 @@ import java.util.List;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+@org.junit.jupiter.api.extension.ExtendWith(com.yiyihehe.quickcraft.QuickCraftMinecraftTestBootstrap.class)
 class QuickLitematicaContainerReplacementsTest {
     private static HolderLookup.Provider lookup;
 
@@ -91,60 +92,71 @@ class QuickLitematicaContainerReplacementsTest {
 
     @Test
     void writingContainerMemoryPreservesBlocksOtherTagsAndIndependentSnapshot() throws ReflectiveOperationException {
-        var root = new net.minecraft.nbt.CompoundTag();
-        root.putInt("Version", 6);
-        // 1.21 文件格式夹具：同时检查后续版本读取旧原理图时的数据隔离。
-        root.putInt("MinecraftDataVersion", 3953);
-        var region = new net.minecraft.nbt.CompoundTag();
-        var position = new net.minecraft.nbt.CompoundTag();
-        position.putInt("x", 0);
-        position.putInt("y", 0);
-        position.putInt("z", 0);
-        region.put("Position", position);
-        var size = new net.minecraft.nbt.CompoundTag();
-        size.putInt("x", 1);
-        size.putInt("y", 1);
-        size.putInt("z", 1);
-        region.put("Size", size);
-        var states = new fi.dy.masa.litematica.schematic.container.LitematicaBlockStateContainer(1, 1, 1);
-        states.set(0, 0, 0, block("minecraft:chest").defaultBlockState());
-        var palette = new net.minecraft.nbt.ListTag();
-        for (int index = 0; index < states.getPalette().getPaletteSize(); index++) {
-            palette.add(net.minecraft.nbt.NbtUtils.writeBlockState(states.getPalette().getBlockState(index)));
+        try (var files = org.mockito.Mockito.mockStatic(fi.dy.masa.malilib.util.FileUtils.class, org.mockito.Mockito.CALLS_REAL_METHODS)) {
+            files.when(fi.dy.masa.malilib.util.FileUtils::getMinecraftDirectory).thenReturn(java.nio.file.Path.of(System.getProperty("user.dir")));
+            var root = new net.minecraft.nbt.CompoundTag();
+            root.putInt("Version", 6);
+            // 1.21 文件格式夹具：同时检查后续版本读取旧原理图时的数据隔离。
+            root.putInt("MinecraftDataVersion", 3953);
+            var region = new net.minecraft.nbt.CompoundTag();
+            var position = new net.minecraft.nbt.CompoundTag();
+            position.putInt("x", 0);
+            position.putInt("y", 0);
+            position.putInt("z", 0);
+            region.put("Position", position);
+            var size = new net.minecraft.nbt.CompoundTag();
+            size.putInt("x", 1);
+            size.putInt("y", 1);
+            size.putInt("z", 1);
+            region.put("Size", size);
+            var states = new fi.dy.masa.litematica.schematic.container.LitematicaBlockStateContainer(1, 1, 1);
+            states.set(0, 0, 0, block("minecraft:chest").defaultBlockState());
+            var palette = new net.minecraft.nbt.ListTag();
+            for (int index = 0; index < states.getPalette().getPaletteSize(); index++) {
+                var stateTag = net.minecraft.nbt.NbtUtils.writeBlockState(states.getPalette().getBlockState(index));
+                // 夹具声明 1.21 数据版本，26.3 写出的 id/properties 必须还原成旧字段名。
+                for (var key : java.util.Map.of("id", "Name", "properties", "Properties").entrySet()) {
+                    if (stateTag.contains(key.getKey())) {
+                        stateTag.put(key.getValue(), stateTag.get(key.getKey()));
+                        stateTag.remove(key.getKey());
+                    }
+                }
+                palette.add(stateTag);
+            }
+            region.put("BlockStatePalette", palette);
+            region.putLongArray("BlockStates", states.getBackingLongArray());
+            var chest = position.copy();
+            chest.putString("id", "minecraft:chest");
+            chest.putString("CustomName", "untouched");
+            var items = new net.minecraft.nbt.ListTag();
+            var stack = (net.minecraft.nbt.CompoundTag) ItemStack.OPTIONAL_CODEC.encodeStart(lookup.createSerializationContext(net.minecraft.nbt.NbtOps.INSTANCE), new ItemStack(item("minecraft:stone"), 64)).getOrThrow();
+            stack.putByte("Slot", (byte) 0);
+            items.add(stack);
+            chest.put("Items", items);
+            var tiles = new net.minecraft.nbt.ListTag();
+            tiles.add(chest);
+            region.put("TileEntities", tiles);
+            var regions = new net.minecraft.nbt.CompoundTag();
+            regions.put("test", region);
+            root.put("Regions", regions);
+            var file = java.nio.file.Path.of("memory-test.litematic");
+            var original = schematicFixture(file, root.copy());
+            var replaced = schematicFixture(file, root.copy());
+            var replacementItems = new net.minecraft.nbt.ListTag();
+            replacementItems.add(ItemStack.OPTIONAL_CODEC.encodeStart(lookup.createSerializationContext(net.minecraft.nbt.NbtOps.INSTANCE), new ItemStack(item("minecraft:glass"), 7)).getOrThrow());
+            var replacementEntities = QuickLitematicaContainerMaterialsAccess.getBlockEntities(replaced, "test");
+            replacementEntities.get(net.minecraft.core.BlockPos.ZERO).put("Items", replacementItems);
+            QuickLitematicaContainerMaterialsAccess.setBlockEntities(replaced, "test", replacementEntities);
+            QuickLitematicaContainerMemory.copyContainerItems(replaced, original);
+            var actual = QuickLitematicaContainerMaterialsAccess.getBlockEntities(original, "test").get(net.minecraft.core.BlockPos.ZERO);
+            assertThat(QuickLitematicaContainerMaterialsAccess.itemStackFromNbt(lookup, QuickLitematicaContainerMaterialsAccess.readCompound(QuickLitematicaContainerMaterialsAccess.readCompoundList(actual, "Items"), 0)).getCount()).isEqualTo(7);
+            assertThat(QuickLitematicaContainerMaterialsAccess.readString(actual, "CustomName")).isEqualTo("untouched");
+            assertThat(original.getSubRegionContainer("test").get(0, 0, 0)).isEqualTo(block("minecraft:chest").defaultBlockState());
+            QuickLitematicaContainerMaterialsAccess.readCompoundList(actual, "Items").clear();
+            assertThat(replacementItems.size()).isEqualTo(1);
+            assertThat(QuickLitematicaContainerMaterialsAccess.itemStackFromNbt(lookup,
+                    QuickLitematicaContainerMaterialsAccess.readCompound(QuickLitematicaContainerMaterialsAccess.readCompoundList(chest, "Items"), 0)).getCount()).isEqualTo(64);
         }
-        region.put("BlockStatePalette", palette);
-        region.putLongArray("BlockStates", states.getBackingLongArray());
-        var chest = position.copy();
-        chest.putString("id", "minecraft:chest");
-        chest.putString("CustomName", "untouched");
-        var items = new net.minecraft.nbt.ListTag();
-        var stack = (net.minecraft.nbt.CompoundTag) ItemStack.OPTIONAL_CODEC.encodeStart(lookup.createSerializationContext(net.minecraft.nbt.NbtOps.INSTANCE), new ItemStack(item("minecraft:stone"), 64)).getOrThrow();
-        stack.putByte("Slot", (byte) 0);
-        items.add(stack);
-        chest.put("Items", items);
-        var tiles = new net.minecraft.nbt.ListTag();
-        tiles.add(chest);
-        region.put("TileEntities", tiles);
-        var regions = new net.minecraft.nbt.CompoundTag();
-        regions.put("test", region);
-        root.put("Regions", regions);
-        var file = java.nio.file.Path.of("memory-test.litematic");
-        var original = schematicFixture(file, root.copy());
-        var replaced = schematicFixture(file, root.copy());
-        var replacementItems = new net.minecraft.nbt.ListTag();
-        replacementItems.add(ItemStack.OPTIONAL_CODEC.encodeStart(lookup.createSerializationContext(net.minecraft.nbt.NbtOps.INSTANCE), new ItemStack(item("minecraft:glass"), 7)).getOrThrow());
-        var replacementEntities = QuickLitematicaContainerMaterialsAccess.getBlockEntities(replaced, "test");
-        replacementEntities.get(net.minecraft.core.BlockPos.ZERO).put("Items", replacementItems);
-        QuickLitematicaContainerMaterialsAccess.setBlockEntities(replaced, "test", replacementEntities);
-        QuickLitematicaContainerMemory.copyContainerItems(replaced, original);
-        var actual = QuickLitematicaContainerMaterialsAccess.getBlockEntities(original, "test").get(net.minecraft.core.BlockPos.ZERO);
-        assertThat(QuickLitematicaContainerMaterialsAccess.itemStackFromNbt(lookup, QuickLitematicaContainerMaterialsAccess.readCompound(QuickLitematicaContainerMaterialsAccess.readCompoundList(actual, "Items"), 0)).getCount()).isEqualTo(7);
-        assertThat(QuickLitematicaContainerMaterialsAccess.readString(actual, "CustomName")).isEqualTo("untouched");
-        assertThat(original.getSubRegionContainer("test").get(0, 0, 0)).isEqualTo(block("minecraft:chest").defaultBlockState());
-        QuickLitematicaContainerMaterialsAccess.readCompoundList(actual, "Items").clear();
-        assertThat(replacementItems.size()).isEqualTo(1);
-        assertThat(QuickLitematicaContainerMaterialsAccess.itemStackFromNbt(lookup,
-                QuickLitematicaContainerMaterialsAccess.readCompound(QuickLitematicaContainerMaterialsAccess.readCompoundList(chest, "Items"), 0)).getCount()).isEqualTo(64);
     }
 
     @Test
@@ -231,10 +243,19 @@ class QuickLitematicaContainerReplacementsTest {
             var types = constructor.getParameterTypes();
             if (types.length == 3 && types[0] == java.nio.file.Path.class
                     && types[2] == fi.dy.masa.litematica.util.FileType.class) {
-                return (fi.dy.masa.litematica.schematic.LitematicaSchematic) constructor.newInstance(file,
-                        types[1] == net.minecraft.nbt.CompoundTag.class ? nbt
-                                : fi.dy.masa.malilib.util.data.tag.converter.DataConverterNbt.fromVanillaCompound(nbt),
+                // 原生三参构造器在 converter 初始化前读取旧数据；分开构造与读取。
+                var empty = fi.dy.masa.litematica.schematic.LitematicaSchematic.class.getDeclaredConstructor(
+                        java.nio.file.Path.class, fi.dy.masa.litematica.util.FileType.class);
+                empty.setAccessible(true);
+                var schematic = (fi.dy.masa.litematica.schematic.LitematicaSchematic) empty.newInstance(file,
                         fi.dy.masa.litematica.util.FileType.LITEMATICA_SCHEMATIC);
+                boolean nativeNbt = types[1] == net.minecraft.nbt.CompoundTag.class;
+                var read = fi.dy.masa.litematica.schematic.LitematicaSchematic.class.getDeclaredMethod(
+                        nativeNbt ? "readFromNBT" : "readFromData", types[1]);
+                read.setAccessible(true);
+                assertThat((boolean) read.invoke(schematic, nativeNbt ? nbt
+                        : fi.dy.masa.malilib.util.data.tag.converter.DataConverterNbt.fromVanillaCompound(nbt))).isTrue();
+                return schematic;
             }
         }
         throw new NoSuchMethodException("Litematica schematic data constructor");

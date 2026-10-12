@@ -1586,9 +1586,7 @@ public final class QuickCraftConfigs implements IConfigHandler {
             applyLegacyContainerToolMappings(containerTools);
         }
         migrateGlobalContainerReplacements();
-        if (net.fabricmc.loader.api.FabricLoader.getInstance().isModLoaded("litematica")) {
-            com.yiyihehe.quickcraft.litematica.QuickLitematicaGlobalReplacements.changed();
-        }
+        com.yiyihehe.quickcraft.QuickCraft.refreshProjectionReplacements();
     }
 
     static boolean isUnscopedReplacement(String entry) {

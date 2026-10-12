@@ -113,7 +113,8 @@ dependencies {
 	testImplementation 'org.junit.jupiter:junit-jupiter'
 	testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
 	testImplementation 'org.assertj:assertj-core:3.27.3'
-	testImplementation 'org.mockito:mockito-core:5.15.2'
+	testImplementation 'org.mockito:mockito-core:5.18.0'
+	testImplementation "net.fabricmc:fabric-loader-junit:${project.loader_version}"
 	testImplementation 'com.tngtech.archunit:archunit-junit5:1.4.0'
 }
 
@@ -132,6 +133,12 @@ tasks.test {
 	workingDir = layout.buildDirectory.dir('test-runtime').get().asFile
 	doFirst {
 		workingDir.mkdirs()
+		systemProperty 'quickcraft.testClasses', (sourceSets.main.output.classesDirs.files + sourceSets.test.output.classesDirs.files).collect { it.absolutePath }.join(File.pathSeparator)
+		// Gradle 测试工作进程通过独立类加载器提供依赖，Knot 不能只读取 java.class.path。
+		def gameLibraries = new File(workingDir, 'fabric-game-libraries.txt')
+		gameLibraries.setText(classpath.files.collect { it.absolutePath }.join('\n'), 'UTF-8')
+		systemProperty 'fabric.gameLibraries', '@' + gameLibraries.absolutePath
+		systemProperty 'fabric.classPathGroups', sourceSets.main.output.asPath + File.pathSeparator + File.pathSeparator + sourceSets.test.output.asPath
 	}
 }
 
