@@ -601,6 +601,15 @@ public final class QuickTrade implements ClientModInitializer {
                                                            ItemStack firstBuyItem,
                                                            ItemStack secondBuyItem,
                                                            int tradeIndex) {
+        return getValidOfferForCurrentOrder(offers, firstBuyItem, secondBuyItem, tradeIndex,
+                () -> offers.getValidOffer(firstBuyItem, secondBuyItem, tradeIndex));
+    }
+
+    public static TradeOffer getValidOfferForCurrentOrder(TradeOfferList offers,
+                                                           ItemStack firstBuyItem,
+                                                           ItemStack secondBuyItem,
+                                                           int tradeIndex,
+                                                           java.util.function.Supplier<TradeOffer> original) {
         if (tradeIndex == 0
                 && !offers.isEmpty()
                 && currentOrderState != null
@@ -610,7 +619,7 @@ public final class QuickTrade implements ClientModInitializer {
             return firstOffer.matchesBuyItems(firstBuyItem, secondBuyItem) ? firstOffer : null;
         }
 
-        return offers.getValidOffer(firstBuyItem, secondBuyItem, tradeIndex);
+        return original.get();
     }
 
     private static int countMatchingItems(PlayerInventory inventory, ItemStack template) {

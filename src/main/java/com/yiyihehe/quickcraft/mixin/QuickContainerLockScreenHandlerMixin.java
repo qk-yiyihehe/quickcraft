@@ -1,5 +1,7 @@
 package com.yiyihehe.quickcraft.mixin;
 
+import com.llamalad7.mixinextras.injector.wrapoperation.Operation;
+import com.llamalad7.mixinextras.injector.wrapoperation.WrapOperation;
 import com.yiyihehe.quickcraft.QuickContainerLock;
 import net.minecraft.item.ItemStack;
 import net.minecraft.item.Items;
@@ -8,7 +10,6 @@ import net.minecraft.screen.slot.Slot;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Unique;
 import org.spongepowered.asm.mixin.injection.At;
-import org.spongepowered.asm.mixin.injection.Redirect;
 
 /**
  * 在原版 insertItem 分发链里跳过锁格。
@@ -19,7 +20,7 @@ public abstract class QuickContainerLockScreenHandlerMixin {
     @Unique
     private static final ItemStack QUICKCRAFT_LOCKED_SLOT_PLACEHOLDER = new ItemStack(Items.BARRIER);
 
-    @Redirect(
+    @WrapOperation(
             method = "insertItem",
             at = @At(
                     value = "INVOKE",
@@ -27,15 +28,15 @@ public abstract class QuickContainerLockScreenHandlerMixin {
                     ordinal = 0
             )
     )
-    private ItemStack quickcraft$skipLockedSlotMerge(Slot slot) {
+    private ItemStack quickcraft$skipLockedSlotMerge(Slot slot, Operation<ItemStack> original) {
         if (QuickContainerLock.isLockedSlot((ScreenHandler) (Object) this, slot)) {
             return ItemStack.EMPTY;
         }
 
-        return slot.getStack();
+        return original.call(slot);
     }
 
-    @Redirect(
+    @WrapOperation(
             method = "insertItem",
             at = @At(
                     value = "INVOKE",
@@ -43,11 +44,11 @@ public abstract class QuickContainerLockScreenHandlerMixin {
                     ordinal = 1
             )
     )
-    private ItemStack quickcraft$skipLockedSlotFill(Slot slot) {
+    private ItemStack quickcraft$skipLockedSlotFill(Slot slot, Operation<ItemStack> original) {
         if (QuickContainerLock.isLockedSlot((ScreenHandler) (Object) this, slot)) {
             return QUICKCRAFT_LOCKED_SLOT_PLACEHOLDER;
         }
 
-        return slot.getStack();
+        return original.call(slot);
     }
 }

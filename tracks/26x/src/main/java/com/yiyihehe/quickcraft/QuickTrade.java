@@ -604,6 +604,15 @@ public final class QuickTrade implements ClientModInitializer {
                                                               ItemStack firstBuyItem,
                                                               ItemStack secondBuyItem,
                                                               int tradeIndex) {
+        return getValidOfferForCurrentOrder(offers, firstBuyItem, secondBuyItem, tradeIndex,
+                () -> offers.getRecipeFor(firstBuyItem, secondBuyItem, tradeIndex));
+    }
+
+    public static MerchantOffer getValidOfferForCurrentOrder(MerchantOffers offers,
+                                                           ItemStack firstBuyItem,
+                                                           ItemStack secondBuyItem,
+                                                           int tradeIndex,
+                                                           java.util.function.Supplier<MerchantOffer> original) {
         if (tradeIndex == 0
                 && !offers.isEmpty()
                 && currentOrderState != null
@@ -613,7 +622,7 @@ public final class QuickTrade implements ClientModInitializer {
             return firstOffer.satisfiedBy(firstBuyItem, secondBuyItem) ? firstOffer : null;
         }
 
-        return offers.getRecipeFor(firstBuyItem, secondBuyItem, tradeIndex);
+        return original.get();
     }
 
     private static int countMatchingItems(Inventory inventory, ItemStack template) {

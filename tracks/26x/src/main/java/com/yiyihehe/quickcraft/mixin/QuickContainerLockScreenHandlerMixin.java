@@ -1,5 +1,7 @@
 package com.yiyihehe.quickcraft.mixin;
 
+import com.llamalad7.mixinextras.injector.wrapoperation.Operation;
+import com.llamalad7.mixinextras.injector.wrapoperation.WrapOperation;
 import com.yiyihehe.quickcraft.QuickContainerLock;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
@@ -7,7 +9,6 @@ import net.minecraft.world.inventory.AbstractContainerMenu;
 import net.minecraft.world.inventory.Slot;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
-import org.spongepowered.asm.mixin.injection.Redirect;
 
 /**
  * 在原版 moveItemStackTo 分发链里跳过锁格。
@@ -15,7 +16,7 @@ import org.spongepowered.asm.mixin.injection.Redirect;
  */
 @Mixin(AbstractContainerMenu.class)
 public abstract class QuickContainerLockScreenHandlerMixin {
-    @Redirect(
+    @WrapOperation(
             method = "moveItemStackTo",
             at = @At(
                     value = "INVOKE",
@@ -23,15 +24,15 @@ public abstract class QuickContainerLockScreenHandlerMixin {
                     ordinal = 0
             )
     )
-    private ItemStack quickcraft$skipLockedSlotMerge(Slot slot) {
+    private ItemStack quickcraft$skipLockedSlotMerge(Slot slot, Operation<ItemStack> original) {
         if (QuickContainerLock.isLockedSlot((AbstractContainerMenu) (Object) this, slot)) {
             return ItemStack.EMPTY;
         }
 
-        return slot.getItem();
+        return original.call(slot);
     }
 
-    @Redirect(
+    @WrapOperation(
             method = "moveItemStackTo",
             at = @At(
                     value = "INVOKE",
@@ -39,11 +40,11 @@ public abstract class QuickContainerLockScreenHandlerMixin {
                     ordinal = 1
             )
     )
-    private ItemStack quickcraft$skipLockedSlotFill(Slot slot) {
+    private ItemStack quickcraft$skipLockedSlotFill(Slot slot, Operation<ItemStack> original) {
         if (QuickContainerLock.isLockedSlot((AbstractContainerMenu) (Object) this, slot)) {
             return Items.BARRIER.getDefaultInstance();
         }
 
-        return slot.getItem();
+        return original.call(slot);
     }
 }

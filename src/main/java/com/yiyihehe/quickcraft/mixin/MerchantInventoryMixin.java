@@ -1,5 +1,7 @@
 package com.yiyihehe.quickcraft.mixin;
 
+import com.llamalad7.mixinextras.injector.wrapoperation.Operation;
+import com.llamalad7.mixinextras.injector.wrapoperation.WrapOperation;
 import com.yiyihehe.quickcraft.QuickTrade;
 import net.minecraft.item.ItemStack;
 import net.minecraft.village.MerchantInventory;
@@ -7,7 +9,6 @@ import net.minecraft.village.TradeOffer;
 import net.minecraft.village.TradeOfferList;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
-import org.spongepowered.asm.mixin.injection.Redirect;
 
 /**
  * 收藏交易置顶后，显示索引 0 不能继续沿用原版“自动匹配任意交易”的特殊语义。
@@ -15,7 +16,7 @@ import org.spongepowered.asm.mixin.injection.Redirect;
  */
 @Mixin(MerchantInventory.class)
 public abstract class MerchantInventoryMixin {
-    @Redirect(
+    @WrapOperation(
             method = "updateOffers",
             at = @At(
                     value = "INVOKE",
@@ -25,7 +26,8 @@ public abstract class MerchantInventoryMixin {
     private TradeOffer quickcraft$keepPinnedTradeSelected(TradeOfferList offers,
                                                            ItemStack firstBuyItem,
                                                            ItemStack secondBuyItem,
-                                                           int tradeIndex) {
-        return QuickTrade.getValidOfferForCurrentOrder(offers, firstBuyItem, secondBuyItem, tradeIndex);
+                                                           int tradeIndex, Operation<TradeOffer> original) {
+        return QuickTrade.getValidOfferForCurrentOrder(offers, firstBuyItem, secondBuyItem, tradeIndex,
+                () -> original.call(offers, firstBuyItem, secondBuyItem, tradeIndex));
     }
 }
