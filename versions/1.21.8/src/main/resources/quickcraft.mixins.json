@@ -81,6 +81,7 @@
 		"LitematicaProjectionCountFinishMixin",
 		"LitematicaGlobalPlacementMixin",
 		"LitematicaGlobalSaveMixin",
+		"LitematicaGlobalSaveWorldMixin",
 		"LitematicaWidgetMaterialListEntryMixin",
 		"MalilibGuiListAccessor"
 	],
