@@ -1,5 +1,7 @@
 package com.yiyihehe.quickcraft.mixin;
 
+import com.llamalad7.mixinextras.injector.wrapoperation.Operation;
+import com.llamalad7.mixinextras.injector.wrapoperation.WrapOperation;
 import com.yiyihehe.quickcraft.litematica.QuickLitematicaContainerVerifier;
 import com.yiyihehe.quickcraft.litematica.QuickLitematicaContainerVerifier.SlotMismatchStatus;
 import com.yiyihehe.quickcraft.litematica.QuickLitematicaContainerVerifier.SlotOverlay;
@@ -14,7 +16,6 @@ import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.Unique;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
-import org.spongepowered.asm.mixin.injection.Redirect;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 /**
@@ -58,7 +59,7 @@ public abstract class LitematicaHandledScreenSlotOverlayMixin<T extends ScreenHa
         }
     }
 
-    @Redirect(
+    @WrapOperation(
             method = "drawSlot",
             at = @At(
                     value = "INVOKE",
@@ -66,14 +67,14 @@ public abstract class LitematicaHandledScreenSlotOverlayMixin<T extends ScreenHa
                     ordinal = 0
             )
     )
-    private net.minecraft.item.ItemStack quickcraft$replaceRenderedSlotStack(Slot slot) {
+    private net.minecraft.item.ItemStack quickcraft$replaceRenderedSlotStack(Slot slot, Operation<net.minecraft.item.ItemStack> original) {
         if (this.quickcraft$ghostSlotRendering
                 && this.quickcraft$currentSlotOverlay != null
                 && this.quickcraft$currentSlotOverlay.status() == SlotMismatchStatus.MISSING) {
             return net.minecraft.item.ItemStack.EMPTY;
         }
 
-        return slot.getStack();
+        return original.call(slot);
     }
 
     @Inject(method = "drawSlot", at = @At("RETURN"))

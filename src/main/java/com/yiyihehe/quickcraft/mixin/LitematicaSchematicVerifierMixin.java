@@ -1,5 +1,7 @@
 package com.yiyihehe.quickcraft.mixin;
 
+import com.llamalad7.mixinextras.injector.wrapoperation.Operation;
+import com.llamalad7.mixinextras.injector.wrapoperation.WrapOperation;
 import com.google.common.collect.ArrayListMultimap;
 import com.google.common.collect.HashMultimap;
 import com.yiyihehe.quickcraft.litematica.QuickLitematicaContainerVerification;
@@ -31,7 +33,6 @@ import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.Unique;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
-import org.spongepowered.asm.mixin.injection.Redirect;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
@@ -140,7 +141,7 @@ public abstract class LitematicaSchematicVerifierMixin extends TaskBase implemen
         return this.quickcraft$containerVerification.quickcraft$refreshContainerMismatchAt(pos, foundInventory, foundDisabledSlots);
     }
 
-    @Redirect(
+    @WrapOperation(
             method = "verifyChunks",
             at = @At(
                     value = "INVOKE",
@@ -148,19 +149,20 @@ public abstract class LitematicaSchematicVerifierMixin extends TaskBase implemen
                     remap = true
             )
     )
-    private WorldChunk quickcraft$useBestWorldForSinglePlayer(ClientWorld clientWorld, int chunkX, int chunkZ) {
-        return this.quickcraft$containerVerification.quickcraft$useBestWorldForSinglePlayer(clientWorld, chunkX, chunkZ);
+    private WorldChunk quickcraft$useBestWorldForSinglePlayer(ClientWorld clientWorld, int chunkX, int chunkZ, Operation<WorldChunk> original) {
+        return this.quickcraft$containerVerification.quickcraft$useBestWorldForSinglePlayer(clientWorld, chunkX, chunkZ,
+                () -> original.call(clientWorld, chunkX, chunkZ));
     }
 
-    @Redirect(
+    @WrapOperation(
             method = "verifyChunks",
             at = @At(
                     value = "INVOKE",
                     target = "Lfi/dy/masa/litematica/world/ChunkManagerSchematic;isChunkLoaded(II)Z"
             )
     )
-    private boolean quickcraft$waitForContainerData(ChunkManagerSchematic chunkManager, int chunkX, int chunkZ) {
-        return this.quickcraft$containerVerification.quickcraft$waitForContainerData(chunkManager, chunkX, chunkZ);
+    private boolean quickcraft$waitForContainerData(ChunkManagerSchematic chunkManager, int chunkX, int chunkZ, Operation<Boolean> original) {
+        return this.quickcraft$containerVerification.quickcraft$waitForContainerData(original.call(chunkManager, chunkX, chunkZ), chunkX, chunkZ);
     }
 
     // 独立的容器材料验证器在 HEAD 直接收集方块实体，再结束原版的逐坐标体积扫描。

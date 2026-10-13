@@ -1,5 +1,7 @@
 package com.yiyihehe.quickcraft.mixin;
 
+import com.llamalad7.mixinextras.injector.wrapoperation.Operation;
+import com.llamalad7.mixinextras.injector.wrapoperation.WrapOperation;
 import com.yiyihehe.quickcraft.config.QuickCraftConfigs;
 import com.yiyihehe.quickcraft.litematica.QuickLitematicaPreview3D;
 import fi.dy.masa.litematica.gui.GuiSchematicBrowserBase;
@@ -9,7 +11,6 @@ import fi.dy.masa.litematica.schematic.SchematicMetadata;
 import fi.dy.masa.malilib.gui.interfaces.IDirectoryCache;
 import fi.dy.masa.malilib.gui.interfaces.ISelectionListener;
 import fi.dy.masa.malilib.gui.widgets.WidgetFileBrowserBase;
-import fi.dy.masa.malilib.render.RenderUtils;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.render.RenderLayer;
 import net.minecraft.util.Identifier;
@@ -19,7 +20,6 @@ import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
-import org.spongepowered.asm.mixin.injection.Redirect;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 import java.nio.file.Path;
@@ -75,7 +75,7 @@ public abstract class LitematicaWidgetSchematicBrowserMixin extends WidgetFileBr
         QuickLitematicaPreview3D.render(this.parent, entry, hasEmbeddedPreview, drawContext, x, y, size);
     }
 
-    @Redirect(
+    @WrapOperation(
             method = "drawSelectedSchematicInfo",
             at = @At(
                     value = "INVOKE",
@@ -93,17 +93,18 @@ public abstract class LitematicaWidgetSchematicBrowserMixin extends WidgetFileBr
             int width,
             int height,
             int textureWidth,
-            int textureHeight
+            int textureHeight,
+            Operation<Void> original
     ) {
         if (QuickLitematicaPreview3D.is3DPreviewAvailable()
                 && QuickCraftConfigs.shouldReplaceLitematicaPreviewWith3D()) {
             return;
         }
 
-        drawContext.drawTexture(renderLayers, texture, x, y, u, v, width, height, textureWidth, textureHeight);
+        original.call(drawContext, renderLayers, texture, x, y, u, v, width, height, textureWidth, textureHeight);
     }
 
-    @Redirect(
+    @WrapOperation(
             method = "drawSelectedSchematicInfo",
             at = @At(
                     value = "INVOKE",
@@ -118,13 +119,14 @@ public abstract class LitematicaWidgetSchematicBrowserMixin extends WidgetFileBr
             int width,
             int height,
             int fillColor,
-            int borderColor
+            int borderColor,
+            Operation<Void> original
     ) {
         if (QuickLitematicaPreview3D.is3DPreviewAvailable()
                 && QuickCraftConfigs.shouldReplaceLitematicaPreviewWith3D()) {
             return;
         }
 
-        RenderUtils.drawOutlinedBox(x, y, width, height, fillColor, borderColor);
+        original.call(x, y, width, height, fillColor, borderColor);
     }
 }

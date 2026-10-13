@@ -311,10 +311,15 @@ public final class QuickLitematicaProjectionMaterials {
     }
 
     public static List<MaterialListEntry> hud(MaterialListBase list, boolean missing) {
+        return hud(list, missing, () -> missing ? list.getMaterialsMissingOnly(true) : list.getMaterialsAll());
+    }
+
+    public static List<MaterialListEntry> hud(MaterialListBase list, boolean missing,
+                                             java.util.function.Supplier<? extends List<MaterialListEntry>> original) {
         Counts counts = COUNTS.get(list);
         var ignored = QuickLitematicaMaterialIgnores.effective(list);
         if (counts == null) {
-            var entries = missing ? list.getMaterialsMissingOnly(true) : list.getMaterialsAll();
+            var entries = original.get();
             return entries.stream().filter(entry -> !ignored.contains(new ItemType(entry.getStack(), true, true).toString())).toList();
         }
         String context = QuickLitematicaMaterialLists.getReplacementContextKey(list);

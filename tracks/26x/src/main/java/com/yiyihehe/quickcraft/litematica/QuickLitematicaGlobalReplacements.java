@@ -115,7 +115,10 @@ public final class QuickLitematicaGlobalReplacements {
     }
 
     public static synchronized LitematicaSchematic runtime(SchematicPlacement placement) {
-        LitematicaSchematic baseline = placement.getSchematic();
+        return runtime(placement, placement.getSchematic());
+    }
+
+    public static synchronized LitematicaSchematic runtime(SchematicPlacement placement, LitematicaSchematic baseline) {
         if (!hasRuntimeRules()) { return baseline; }
         var context = QuickLitematicaMaterialLists.getContainerReplacementContextKey(placement);
         var containerRules = List.copyOf(config(Scope.CONTAINER).getStrings());

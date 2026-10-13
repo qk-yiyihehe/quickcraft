@@ -20,7 +20,6 @@ import fi.dy.masa.litematica.schematic.verifier.SchematicVerifier.MismatchRender
 import fi.dy.masa.litematica.schematic.verifier.SchematicVerifier.MismatchType;
 import fi.dy.masa.litematica.util.BlockInfoListType;
 import fi.dy.masa.litematica.util.PositionUtils;
-import fi.dy.masa.litematica.world.ChunkManagerSchematic;
 import fi.dy.masa.litematica.world.WorldSchematic;
 import fi.dy.masa.malilib.gui.GuiBase;
 import fi.dy.masa.malilib.interfaces.ICompletionListener;
@@ -245,13 +244,14 @@ public final class QuickLitematicaContainerVerification implements VerifierExten
         return mismatches;
     }
 
-    public LevelChunk quickcraft$useBestWorldForSinglePlayer(ClientLevel clientWorld, int chunkX, int chunkZ){
+    public LevelChunk quickcraft$useBestWorldForSinglePlayer(ClientLevel clientWorld, int chunkX, int chunkZ,
+                                                          java.util.function.Supplier<LevelChunk> original) {
         Level bestWorld = fi.dy.masa.malilib.util.WorldUtils.getBestWorld(Minecraft.getInstance());
-        return bestWorld != null ? bestWorld.getChunk(chunkX, chunkZ) : clientWorld.getChunk(chunkX, chunkZ);
+        return bestWorld != null && bestWorld != clientWorld ? bestWorld.getChunk(chunkX, chunkZ) : original.get();
     }
 
-    public boolean quickcraft$waitForContainerData(ChunkManagerSchematic chunkManager, int chunkX, int chunkZ){
-        return chunkManager.hasChunk(chunkX, chunkZ)
+    public boolean quickcraft$waitForContainerData(boolean chunkLoaded, int chunkX, int chunkZ) {
+        return chunkLoaded
                 && this.quickcraft$canProcessContainerDataChunk(new ChunkPos(chunkX, chunkZ));
     }
 

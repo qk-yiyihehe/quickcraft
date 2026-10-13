@@ -1,5 +1,7 @@
 package com.yiyihehe.quickcraft.mixin;
 
+import com.llamalad7.mixinextras.injector.wrapoperation.Operation;
+import com.llamalad7.mixinextras.injector.wrapoperation.WrapOperation;
 import com.mojang.blaze3d.buffers.GpuBufferSlice;
 import com.mojang.blaze3d.systems.RenderPass;
 import com.mojang.blaze3d.systems.RenderSystem;
@@ -10,7 +12,6 @@ import net.minecraft.client.renderer.rendertype.PreparedRenderType;
 import org.joml.Matrix4f;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
-import org.spongepowered.asm.mixin.injection.Redirect;
 
 /**
  * 26.2 投影实体网格会缓存 PreparedFrame；其中的 DynamicTransforms 切片会在原版 endFrame 后失效。
@@ -18,14 +19,14 @@ import org.spongepowered.asm.mixin.injection.Redirect;
  */
 @Mixin(PreparedRenderType.class)
 public class LitematicaPreparedRenderTypeMixin {
-    @Redirect(
+    @WrapOperation(
             method = "drawFromBuffer(Lcom/mojang/blaze3d/buffers/GpuBuffer;Lcom/mojang/blaze3d/buffers/GpuBuffer;Lcom/mojang/blaze3d/IndexType;III)V",
             at = @At(
                     value = "INVOKE",
                     target = "Lcom/mojang/blaze3d/systems/RenderPass;setUniform(Ljava/lang/String;Lcom/mojang/blaze3d/buffers/GpuBufferSlice;)V"
             )
     )
-    private void quickcraft$refreshCachedDynamicTransforms(RenderPass pass, String name, GpuBufferSlice value) {
+    private void quickcraft$refreshCachedDynamicTransforms(RenderPass pass, String name, GpuBufferSlice value, Operation<Void> original) {
         if ("DynamicTransforms".equals(name) && QuickLitematicaPreview3D.shouldRefreshCachedPreviewDynamicTransforms()) {
             var material = QuickLitematicaPreviewRenderTypes.refreshed((PreparedRenderType) (Object) this);
             value = material != null ? material.dynamicTransforms()
@@ -33,6 +34,6 @@ public class LitematicaPreparedRenderTypeMixin {
                     ? QuickLitematicaPreviewAccess.cachedDynamicTransforms
                     : RenderSystem.getDynamicUniforms().writeTransform(new Matrix4f());
         }
-        pass.setUniform(name, value);
+        original.call(pass, name, value);
     }
 }
