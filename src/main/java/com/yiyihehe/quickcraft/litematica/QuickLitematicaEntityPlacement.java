@@ -578,7 +578,10 @@ public final class QuickLitematicaEntityPlacement {
     }
 
     private static java.util.Optional<ItemStack> decodeItemStack(NbtCompound nbt) {
-        return QuickLitematicaEntityPlacementAccess.decodeItemStack(MinecraftClient.getInstance(), nbt);
+        MinecraftClient client = MinecraftClient.getInstance();
+        if (client.world == null) { return java.util.Optional.empty(); }
+        ItemStack stack = QuickLitematicaSchematicData.decodeItem(nbt, client.world.getRegistryManager());
+        return stack.isEmpty() ? java.util.Optional.empty() : java.util.Optional.of(stack);
     }
 
     private static String readString(NbtCompound nbt, String key) {

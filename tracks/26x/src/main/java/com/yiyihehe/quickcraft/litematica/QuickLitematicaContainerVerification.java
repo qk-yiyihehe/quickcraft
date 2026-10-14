@@ -626,6 +626,12 @@ public final class QuickLitematicaContainerVerification implements VerifierExten
             BlockEntity expectedBlockEntity,
             ExpectedContainer expectedContainer
     ) {
+        if (QuickLitematicaContainerVerifier.hasUnreadableExpectedInventory(pos, this.host.quickcraft$verificationSchematicPlacement())) {
+            this.quickcraft$unsupportedExpectedContainers++;
+            this.quickcraft$recordDiagnostic("unreadable_expected_inventory", pos, schematicState, schematicState);
+            return List.of();
+        }
+
         BlockEntity foundBlockEntity = chunkClient.getBlockEntity(pos);
         Container directExpectedInventory = expectedBlockEntity instanceof Container inventory ? inventory : null;
 

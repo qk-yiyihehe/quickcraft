@@ -646,5 +646,6 @@
   "quickcraft.litematica.global.choose_target": "选择替换材料",
   "quickcraft.litematica.global.source_heading": "被替换材料",
   "quickcraft.litematica.global.target_heading": "替换材料",
-  "quickcraft.litematica.global.choose_both": "分别选择两侧材料，选齐后自动保存规则。"
+  "quickcraft.litematica.global.choose_both": "分别选择两侧材料，选齐后自动保存规则。",
+  "quickcraft.litematica.error.container_data_incomplete": "容器物品 %s 无法完整读取，材料统计可能不完整；替换与写入保留该容器的原始内容。"
 }

@@ -83,7 +83,8 @@
 		"LitematicaGlobalSaveMixin",
 		"LitematicaGlobalSaveWorldMixin",
 		"LitematicaWidgetMaterialListEntryMixin",
-		"MalilibGuiListAccessor"
+		"MalilibGuiListAccessor",
+		"LitematicaSchematicDataMixin"
 	],
 	"injectors": {
 		"defaultRequire": 1

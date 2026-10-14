@@ -14,7 +14,6 @@ import net.minecraft.world.Container;
 import net.minecraft.world.SimpleContainer;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.nbt.CompoundTag;
-import net.minecraft.nbt.ListTag;
 import net.minecraft.nbt.NbtOps;
 import net.minecraft.core.HolderLookup;
 import net.minecraft.core.BlockPos;
@@ -141,6 +140,10 @@ final class QuickLitematicaContainerInventory {
         }
 
         CompoundTag cachedNbt = storage.getCache().getBlockEntityNbtFromCache(pos);
+        if (cachedNbt != null && cachedNbt.contains("Items")
+                && QuickLitematicaContainerMaterials.readItems(cachedNbt, world.registryAccess()) == null) {
+            return null;
+        }
         Container special = getCachedSpecialInventory(world, cachedNbt, expectedSize);
         if (special != null) {
             return special;
@@ -245,52 +248,22 @@ final class QuickLitematicaContainerInventory {
         if (nbt == null || registryLookup == null || !nbt.contains("Items")) {
             return null;
         }
-
-        ListTag items = nbt.getList("Items").orElse(null);
-        if (items == null) {
+        var stacks = QuickLitematicaContainerMaterials.readItems(nbt, registryLookup);
+        if (stacks == null) { return null; }
+        int size = expectedSize > 0 ? expectedSize : stacks.size();
+        if (size <= 0 || stacks.size() > size) {
+            if (stacks.size() > size) { QuickLitematicaSchematicData.unreadableInventory(nbt); }
             return null;
         }
-        int size = expectedSize > 0 ? expectedSize : inferInventorySize(items);
-        if (size <= 0) {
-            return null;
-        }
-
         SimpleContainer inventory = new SimpleContainer(size);
-        for (int i = 0; i < items.size(); i++) {
-            CompoundTag itemNbt = items.getCompound(i).orElse(null);
-            if (itemNbt == null) {
-                continue;
-            }
-            int slot = itemNbt.getByte("Slot").orElse((byte) 0) & 255;
-            if (slot >= size) {
-                continue;
-            }
-
-            ItemStack stack = itemStackFromNbt(registryLookup, itemNbt);
-            if (!stack.isEmpty()) {
-                inventory.setItem(slot, stack);
-            }
+        for (int slot = 0; slot < stacks.size(); slot++) {
+            inventory.setItem(slot, stacks.get(slot));
         }
-
         return inventory;
     }
 
     static ItemStack itemStackFromNbt(HolderLookup.Provider registryLookup, CompoundTag nbt) {
-        return ItemStack.OPTIONAL_CODEC
-                .parse(registryLookup.createSerializationContext(NbtOps.INSTANCE), nbt)
-                .result()
-                .orElse(ItemStack.EMPTY);
-    }
-
-    static int inferInventorySize(ListTag items) {
-        int size = 0;
-        for (int i = 0; i < items.size(); i++) {
-            CompoundTag itemNbt = items.getCompound(i).orElse(null);
-            if (itemNbt != null) {
-                size = Math.max(size, (itemNbt.getByte("Slot").orElse((byte) 0) & 255) + 1);
-            }
-        }
-        return size;
+        return QuickLitematicaSchematicData.decodeItem(nbt, registryLookup);
     }
 
     static ActualInventoryReadStatus getLastActualInventoryReadStatus() {

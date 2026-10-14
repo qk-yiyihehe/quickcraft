@@ -92,13 +92,17 @@ public final class QuickLitematicaContainerHighlight {
                     if (nbt == null) {
                         continue;
                     }
+                    BlockPos localPos = entry.getKey();
+                    BlockState state = blocks.get(localPos.getX(), localPos.getY(), localPos.getZ());
+                    nbt = QuickLitematicaSchematicData.prepareBlockEntity(nbt, state, localPos);
+                    if (nbt.contains("Items") && QuickLitematicaContainerMaterials.readItems(nbt, world.getRegistryManager()) == null) {
+                        continue;
+                    }
                     String blockEntityId = QuickLitematicaContainerHighlightAccess.getBlockEntityId(nbt);
                     if (NON_INVENTORY_BLOCK_ENTITY_IDS.contains(blockEntityId)) {
                         continue;
                     }
 
-                    BlockPos localPos = entry.getKey();
-                    BlockState state = blocks.get(localPos.getX(), localPos.getY(), localPos.getZ());
                     BlockEntity blockEntity = BlockEntity.createFromNbt(
                             localPos, state, nbt, world.getRegistryManager()
                     );

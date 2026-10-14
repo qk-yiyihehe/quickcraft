@@ -268,13 +268,15 @@ public final class QuickLitematicaContainerMaterials {
                     BlockPos pos = entry.getKey();
                     if (consumed.contains(pos)) { continue; }
                     var slots = readItems(entry.getValue(), lookup);
-                    if (slots.isEmpty()) { continue; }
+                    if (slots == null || slots.isEmpty()) { continue; }
                     int firstSize = slots.size();
                     BlockState state = getState(states, pos);
                     BlockPos paired = findPairedChest(pos, state, states, entities, consumed);
                     consumed.add(pos);
                     if (paired != null) {
-                        slots.addAll(readItems(entities.get(paired), lookup));
+                        var pairedSlots = readItems(entities.get(paired), lookup);
+                        if (pairedSlots == null) { continue; }
+                        slots.addAll(pairedSlots);
                         consumed.add(paired);
                     }
                     var descriptor = describeBlockContainer(state, entry.getValue(), paired != null);
@@ -290,7 +292,7 @@ public final class QuickLitematicaContainerMaterials {
                     var entity = entityList.get(entityIndex);
                     var entityNbt = QuickLitematicaContainerMaterialsAccess.getEntityNbt(entity);
                     var slots = readItems(entityNbt, lookup);
-                    if (!slots.isEmpty()) {
+                    if (slots != null && !slots.isEmpty()) {
                         writeSlotStacks(entityNbt, exportSlotStacks(describeEntityContainer(QuickLitematicaContainerMaterialsAccess.readString(entityNbt, "id")).stack(),
                                 slots, context, lookup, 0, globals), lookup);
                         QuickLitematicaContainerMaterialsAccess.setEntityNbt(entityList, entityIndex, entityNbt);
@@ -438,9 +440,9 @@ public final class QuickLitematicaContainerMaterials {
             }
 
             NbtCompound nbt = entry.getValue();
-            List<ItemStack> stacks = readItems(nbt, registryLookup);
+            List<ItemStack> stacks = readItemsForStatistics(nbt, registryLookup);
 
-            if (stacks.isEmpty()) {
+            if (stacks == null || stacks.isEmpty()) {
                 continue;
             }
 
@@ -452,7 +454,9 @@ public final class QuickLitematicaContainerMaterials {
 
             if (pairedChestPos != null) {
                 NbtCompound pairedNbt = blockEntities.get(pairedChestPos);
-                stacks.addAll(readItems(pairedNbt, registryLookup));
+                var pairedStacks = readItemsForStatistics(pairedNbt, registryLookup);
+                if (pairedStacks == null) { continue; }
+                stacks.addAll(pairedStacks);
                 consumed.add(pairedChestPos);
             }
 
@@ -474,9 +478,9 @@ public final class QuickLitematicaContainerMaterials {
 
         for (EntityInfo info : entities) {
             NbtCompound nbt = QuickLitematicaContainerMaterialsAccess.getEntityNbt(info);
-            List<ItemStack> stacks = readItems(nbt, registryLookup);
+            List<ItemStack> stacks = readItemsForStatistics(nbt, registryLookup);
 
-            if (stacks.isEmpty()) {
+            if (stacks == null || stacks.isEmpty()) {
                 continue;
             }
 
@@ -532,23 +536,50 @@ public final class QuickLitematicaContainerMaterials {
         }
     }
 
-    private static List<ItemStack> readItems(NbtCompound nbt, RegistryWrapper.WrapperLookup registryLookup) {
-        if (nbt == null || !QuickLitematicaContainerMaterialsAccess.containsItemsList(nbt)) {
+    static List<ItemStack> readItems(NbtCompound nbt, RegistryWrapper.WrapperLookup registryLookup) {
+        return readItems(nbt, registryLookup, false);
+    }
+
+    static List<ItemStack> readItemsForStatistics(NbtCompound nbt, RegistryWrapper.WrapperLookup registryLookup) {
+        return readItems(nbt, registryLookup, true);
+    }
+
+    // 统计允许保留已读到的槽位；替换、保存和验证必须拒绝不完整库存。
+    private static List<ItemStack> readItems(NbtCompound nbt, RegistryWrapper.WrapperLookup registryLookup, boolean allowPartial) {
+        if (nbt == null || !nbt.contains("Items")) {
             return List.of();
         }
 
         List<ItemStack> stacks = new ArrayList<>();
-        NbtList items = QuickLitematicaContainerMaterialsAccess.readCompoundList(nbt, "Items");
+        if (!(nbt.get("Items") instanceof NbtList items)) {
+            QuickLitematicaSchematicData.unreadableInventory(nbt);
+            return allowPartial ? stacks : null;
+        }
         int size = inferInventorySize(items);
 
         for (int i = 0; i < size; i++) {
             stacks.add(ItemStack.EMPTY);
         }
 
+        Set<Integer> seenSlots = new HashSet<>();
         for (int i = 0; i < items.size(); i++) {
             NbtCompound itemNbt = QuickLitematicaContainerMaterialsAccess.readCompound(items, i);
+            if (!(itemNbt.get("Slot") instanceof net.minecraft.nbt.NbtByte)) {
+                QuickLitematicaSchematicData.unreadableInventory(itemNbt);
+                if (allowPartial) { continue; }
+                return null;
+            }
             ItemStack stack = QuickLitematicaContainerMaterialsAccess.itemStackFromNbt(registryLookup, itemNbt);
+            if (stack.isEmpty() && !QuickLitematicaSchematicData.isEmptyItem(itemNbt)) {
+                if (allowPartial) { continue; }
+                return null;
+            }
             int slot = QuickLitematicaContainerMaterialsAccess.readByte(itemNbt, "Slot") & 255;
+            if (!seenSlots.add(slot)) {
+                QuickLitematicaSchematicData.unreadableInventory(itemNbt);
+                if (allowPartial) { continue; }
+                return null;
+            }
 
             if (!stack.isEmpty() && slot >= 0 && slot < stacks.size()) {
                 stacks.set(slot, stack);

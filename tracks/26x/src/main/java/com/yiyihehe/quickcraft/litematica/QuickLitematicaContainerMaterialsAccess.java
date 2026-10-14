@@ -56,6 +56,10 @@ final class QuickLitematicaContainerMaterialsAccess {
     }
 
     static ItemStack itemStackFromNbt(HolderLookup.Provider registryLookup, CompoundTag nbt) {
+        return QuickLitematicaSchematicData.decodeItem(nbt, registryLookup);
+    }
+
+    static ItemStack decodeCurrentItem(HolderLookup.Provider registryLookup, CompoundTag nbt) {
         return ItemStack.OPTIONAL_CODEC
                 .parse(registryLookup.createSerializationContext(NbtOps.INSTANCE), nbt)
                 .result()

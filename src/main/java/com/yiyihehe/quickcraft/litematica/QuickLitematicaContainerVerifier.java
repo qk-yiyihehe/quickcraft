@@ -233,6 +233,11 @@ public final class QuickLitematicaContainerVerifier {
             return null;
         }
 
+        if (QuickLitematicaContainerInventory.getChestType(current.state()) != ChestType.SINGLE
+                && hasUnreadableExpectedInventory(pos.add(ChestBlock.getFacing(current.state()).getVector()), placementFilter)) {
+            return null;
+        }
+
         ExpectedContainer merged = getExpectedDoubleChestContainer(pos, current, placementFilter);
 
         return merged != null ? merged : current;
@@ -346,6 +351,16 @@ public final class QuickLitematicaContainerVerifier {
                 : null;
     }
 
+    public static boolean hasUnreadableExpectedInventory(BlockPos worldPos, @Nullable SchematicPlacement placement) {
+        LocalPlacementPos local = getLocalPlacementPos(worldPos, placement);
+        var client = MinecraftClient.getInstance();
+        if (local == null || client.world == null) { return false; }
+        NbtCompound nbt = QuickLitematicaVerifierAccess.getSchematicBlockEntityNbt(
+                QuickLitematicaGlobalReplacements.runtime(local.placement()), local.region(), local.pos());
+        return nbt != null && nbt.contains("Items")
+                && QuickLitematicaContainerMaterials.readItems(nbt, client.world.getRegistryManager()) == null;
+    }
+
     private static ExpectedContainer getExpectedContainerInternal(
             BlockPos worldPos,
             @Nullable SchematicPlacement placementFilter
@@ -373,6 +388,12 @@ public final class QuickLitematicaContainerVerifier {
             return null;
         }
 
+        nbt = QuickLitematicaSchematicData.prepareBlockEntity(nbt, placementPos.rawState(), placementPos.pos());
+
+        if (nbt.contains("Items") && QuickLitematicaContainerMaterials.readItems(nbt, clientWorld.getRegistryManager()) == null) {
+            return null;
+        }
+
         BlockEntity blockEntity = BlockEntity.createFromNbt(
                 placementPos.pos(),
                 placementPos.rawState(),
@@ -384,11 +405,16 @@ public final class QuickLitematicaContainerVerifier {
             return null;
         }
 
+        Inventory contents = nbt.contains("Items")
+                ? QuickLitematicaContainerInventory.getNbtInventoryPreservingComponents(nbt, inventory.size(), clientWorld.getRegistryManager())
+                : QuickLitematicaContainerInventory.copyInventory(inventory);
+        if (contents == null) { return null; }
+
         return new ExpectedContainer(
                 worldPos,
                 placementPos.worldState(),
                 blockEntity,
-                QuickLitematicaContainerInventory.copyInventory(inventory),
+                contents,
                 QuickLitematicaContainerInventory.getDisabledSlots(blockEntity, nbt)
         );
     }

@@ -234,6 +234,11 @@ public final class QuickLitematicaContainerVerifier {
             return null;
         }
 
+        if (QuickLitematicaContainerInventory.getChestType(current.state()) != ChestType.SINGLE
+                && hasUnreadableExpectedInventory(ChestBlock.getConnectedBlockPos(pos, current.state()), placementFilter)) {
+            return null;
+        }
+
         ExpectedContainer merged = getExpectedDoubleChestContainer(pos, current, placementFilter);
 
         return merged != null ? merged : current;
@@ -348,6 +353,17 @@ public final class QuickLitematicaContainerVerifier {
         return placement != null ? getExpectedContainerInternal(pos, placement) : null;
     }
 
+    public static boolean hasUnreadableExpectedInventory(BlockPos worldPos, @Nullable SchematicPlacement placement) {
+        LocalPlacementPos local = getLocalPlacementPos(worldPos, placement);
+        var client = Minecraft.getInstance();
+        if (local == null || client.level == null) { return false; }
+        var values = QuickLitematicaGlobalReplacements.runtime(local.placement()).getBlockEntityMapForRegion(local.region());
+        Object data = values == null ? null : values.get(local.pos());
+        if (data == null) { return false; }
+        CompoundTag nbt = QuickLitematicaDataCompat.toVanillaNbt(data);
+        return nbt.contains("Items") && QuickLitematicaContainerMaterials.readItems(nbt, client.level.registryAccess()) == null;
+    }
+
     private static ExpectedContainer getExpectedContainerInternal(
             BlockPos worldPos, @Nullable SchematicPlacement placementFilter) {
         LocalPlacementPos placementPos = getLocalPlacementPos(worldPos, placementFilter);
@@ -378,6 +394,12 @@ public final class QuickLitematicaContainerVerifier {
             return null;
         }
 
+        nbt = QuickLitematicaSchematicData.prepareBlockEntity(nbt, placementPos.rawState(), placementPos.pos());
+
+        if (nbt.contains("Items") && QuickLitematicaContainerMaterials.readItems(nbt, clientWorld.registryAccess()) == null) {
+            return null;
+        }
+
         BlockEntity blockEntity = BlockEntity.loadStatic(
                 placementPos.pos(),
                 placementPos.rawState(),
@@ -389,11 +411,16 @@ public final class QuickLitematicaContainerVerifier {
             return null;
         }
 
+        Container contents = nbt.contains("Items")
+                ? QuickLitematicaContainerInventory.getNbtInventoryPreservingComponents(nbt, inventory.getContainerSize(), client.level.registryAccess())
+                : QuickLitematicaContainerInventory.copyInventory(inventory);
+        if (contents == null) { return null; }
+
         return new ExpectedContainer(
                 worldPos,
                 placementPos.worldState(),
                 blockEntity,
-                QuickLitematicaContainerInventory.copyInventory(inventory),
+                contents,
                 QuickLitematicaContainerInventory.getDisabledSlots(blockEntity, nbt)
         );
     }

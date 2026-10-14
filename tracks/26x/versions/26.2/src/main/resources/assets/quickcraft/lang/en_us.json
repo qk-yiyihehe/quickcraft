@@ -648,5 +648,6 @@
   "quickcraft.litematica.global.choose_target": "Choose replacement material",
   "quickcraft.litematica.global.source_heading": "Source material",
   "quickcraft.litematica.global.target_heading": "Replacement material",
-  "quickcraft.litematica.global.choose_both": "Choose each side independently. Complete rules are saved automatically."
+  "quickcraft.litematica.global.choose_both": "Choose each side independently. Complete rules are saved automatically.",
+  "quickcraft.litematica.error.container_data_incomplete": "Cannot fully read schematic item %s. Material counts may be incomplete; replacement and writing preserve this container's original contents."
 }

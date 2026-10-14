@@ -13,7 +13,6 @@ import net.minecraft.inventory.Inventory;
 import net.minecraft.inventory.SimpleInventory;
 import net.minecraft.item.ItemStack;
 import net.minecraft.nbt.NbtCompound;
-import net.minecraft.nbt.NbtList;
 import net.minecraft.registry.RegistryWrapper;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.ChunkPos;
@@ -133,6 +132,10 @@ final class QuickLitematicaContainerInventory {
         }
 
         NbtCompound cachedNbt = QuickLitematicaVerifierAccess.getBlockEntityNbtFromStorage(pos);
+        if (cachedNbt != null && cachedNbt.contains("Items")
+                && QuickLitematicaContainerMaterials.readItems(cachedNbt, world.getRegistryManager()) == null) {
+            return null;
+        }
         Inventory special = getCachedSpecialInventory(world, cachedNbt, expectedSize);
         if (special != null) {
             return special;
@@ -231,45 +234,21 @@ final class QuickLitematicaContainerInventory {
             int expectedSize,
             RegistryWrapper.WrapperLookup registryLookup
     ) {
-        NbtList items = QuickLitematicaVerifierAccess.getItemsList(nbt);
-        if (items == null || registryLookup == null) {
+        if (nbt == null || registryLookup == null || !nbt.contains("Items")) {
             return null;
         }
-
-        int size = expectedSize > 0 ? expectedSize : inferInventorySize(items);
-        if (size <= 0) {
+        var stacks = QuickLitematicaContainerMaterials.readItems(nbt, registryLookup);
+        if (stacks == null) { return null; }
+        int size = expectedSize > 0 ? expectedSize : stacks.size();
+        if (size <= 0 || stacks.size() > size) {
+            if (stacks.size() > size) { QuickLitematicaSchematicData.unreadableInventory(nbt); }
             return null;
         }
-
         SimpleInventory inventory = new SimpleInventory(size);
-        for (int i = 0; i < items.size(); i++) {
-            NbtCompound itemNbt = QuickLitematicaVerifierAccess.getCompound(items, i);
-            if (itemNbt == null) {
-                continue;
-            }
-            int slot = QuickLitematicaVerifierAccess.getSlotByte(itemNbt);
-            if (slot < 0 || slot >= size) {
-                continue;
-            }
-
-            ItemStack stack = QuickLitematicaVerifierAccess.parseItemStack(registryLookup, itemNbt);
-            if (!stack.isEmpty()) {
-                inventory.setStack(slot, stack);
-            }
+        for (int slot = 0; slot < stacks.size(); slot++) {
+            inventory.setStack(slot, stacks.get(slot));
         }
-
         return inventory;
-    }
-
-    static int inferInventorySize(NbtList items) {
-        int size = 0;
-        for (int i = 0; i < items.size(); i++) {
-            NbtCompound itemNbt = QuickLitematicaVerifierAccess.getCompound(items, i);
-            if (itemNbt != null) {
-                size = Math.max(size, QuickLitematicaVerifierAccess.getSlotByte(itemNbt) + 1);
-            }
-        }
-        return size;
     }
 
     static ActualInventoryReadStatus getLastActualInventoryReadStatus() {

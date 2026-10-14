@@ -674,7 +674,8 @@ public final class QuickLitematicaEntityPlacement {
         if (client.level == null) {
             return Optional.empty();
         }
-        return ItemStack.CODEC.parse(client.level.registryAccess().createSerializationContext(NbtOps.INSTANCE), nbt).result();
+        ItemStack stack = QuickLitematicaSchematicData.decodeItem(nbt, client.level.registryAccess());
+        return stack.isEmpty() ? Optional.empty() : Optional.of(stack);
     }
 
     private static boolean normalizeEntityTreeIds(CompoundTag nbt, int depth) {

@@ -95,7 +95,8 @@
 		"LitematicaGlobalSaveWorldMixin",
 		"LitematicaWidgetMaterialListEntryMixin",
 		"MalilibGuiListAccessor",
-		"LitematicaGlobalProtoPlacementMixin"
+		"LitematicaGlobalProtoPlacementMixin",
+		"LitematicaSchematicDataMixin"
 	],
 	"injectors": {
 		"defaultRequire": 1

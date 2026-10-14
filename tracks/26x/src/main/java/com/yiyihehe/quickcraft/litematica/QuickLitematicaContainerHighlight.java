@@ -94,12 +94,16 @@ public final class QuickLitematicaContainerHighlight {
                         continue;
                     }
                     CompoundTag nbt = QuickLitematicaDataCompat.toVanillaNbt(entry.getValue());
+                    BlockPos localPos = entry.getKey();
+                    BlockState state = blocks.get(localPos.getX(), localPos.getY(), localPos.getZ());
+                    nbt = QuickLitematicaSchematicData.prepareBlockEntity(nbt, state, localPos);
+                    if (nbt.contains("Items") && QuickLitematicaContainerMaterials.readItems(nbt, world.registryAccess()) == null) {
+                        continue;
+                    }
                     if (NON_INVENTORY_BLOCK_ENTITY_IDS.contains(nbt.getString("id").orElse(""))) {
                         continue;
                     }
 
-                    BlockPos localPos = entry.getKey();
-                    BlockState state = blocks.get(localPos.getX(), localPos.getY(), localPos.getZ());
                     BlockEntity blockEntity = BlockEntity.loadStatic(
                             localPos, state, nbt, world.registryAccess()
                     );
