@@ -35,6 +35,8 @@ loom {
 	runs {
 		client {
 			runDir new File(quickcraftRunRoot, "${project.name}/client").absolutePath
+			// 给 IDE 和构建进程保留内存，避免开发端按整机内存自动扩张堆。
+			vmArgs '-Xms512m', '-Xmx3G'
 		}
 		server {
 			runDir new File(quickcraftRunRoot, "${project.name}/server").absolutePath
@@ -178,11 +180,9 @@ publishing {
 	}
 }
 
-def quickcraftSidebarTasks = ['build', 'clean', 'runClient', 'runServer'] as Set
+def quickcraftSidebarTasks = ['compileJava', 'build', 'clean', 'runClient'] as Set
 gradle.projectsEvaluated {
 	tasks.configureEach { task ->
-		if (!quickcraftSidebarTasks.contains(task.name)) {
-			task.group = null
-		}
+		task.group = quickcraftSidebarTasks.contains(task.name) ? '开发' : null
 	}
 }

@@ -34,10 +34,12 @@ preprocess {
 def minecraft121Projects = versionMatrix.tracks['1.21x'].versions.collect { ":${it.project}" }
 def minecraft26Projects = versionMatrix.tracks['26x'].versions.collect { project(":${it.project}") }
 def minecraft26Build = gradle.includedBuild('quickcraft-26x')
-def quickcraftSidebarTasks = ['build', 'clean', 'runClient', 'runServer'] as Set
+def quickcraftSidebarTasks = ['compileJava', 'build', 'clean', 'runClient'] as Set
+def quickcraftRootSidebarTasks = ['compileAllVersions', 'buildAllVersions', 'collectArtifacts'] as Set
 
 minecraft26Projects.each { proxyProject ->
 	[
+		'compileJava': [group: 'build', description: "Compile Minecraft ${proxyProject.name} without packaging or verification."],
 		'build': [group: 'build', description: "Build Minecraft ${proxyProject.name}."],
 		'test': [group: 'verification', description: "Test Minecraft ${proxyProject.name}."],
 		'runClient': [group: 'fabric', description: "Run the Minecraft ${proxyProject.name} client."],
@@ -53,11 +55,12 @@ minecraft26Projects.each { proxyProject ->
 }
 
 gradle.projectsEvaluated {
+	tasks.configureEach { task ->
+		task.group = quickcraftRootSidebarTasks.contains(task.name) ? '全版本' : null
+	}
 	minecraft26Projects.each { proxyProject ->
 		proxyProject.tasks.configureEach { task ->
-			if (!quickcraftSidebarTasks.contains(task.name)) {
-				task.group = null
-			}
+			task.group = quickcraftSidebarTasks.contains(task.name) ? '开发' : null
 		}
 	}
 }
@@ -121,6 +124,13 @@ tasks.register('test26x') {
 		description = target.description
 		dependsOn minecraft26Build.task(target.task)
 	}
+}
+
+tasks.register('compileAllVersions') {
+	group = '全版本'
+	description = 'Compile every declared Minecraft version without packaging or verification.'
+	dependsOn minecraft121Projects.collect { "${it}:compileJava" }
+	dependsOn minecraft26Projects.collect { "${it.path}:compileJava" }
 }
 
 tasks.register('buildAllVersions') {
