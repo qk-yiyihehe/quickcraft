@@ -44,6 +44,15 @@ loom {
 	}
 }
 
+if (System.getProperty('os.name').startsWith('Windows')) {
+	tasks.withType(JavaExec).configureEach {
+		doFirst {
+			// VS Code 的 RUNASADMIN 标记会被普通权限 daemon 继承，导致创建 Java 进程时返回 740。
+			environment.remove('__COMPAT_LAYER')
+		}
+	}
+}
+
 repositories {
 	exclusiveContent {
 		forRepository {
