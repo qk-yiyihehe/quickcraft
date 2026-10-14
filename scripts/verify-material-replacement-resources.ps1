@@ -11,7 +11,7 @@ foreach ($trackProperty in $matrix.tracks.PSObject.Properties) {
     $resources = Join-Path $trackRoot 'src\main\resources'
     $coreMixins = Get-Content -LiteralPath (Join-Path $resources 'quickcraft.mixins.json') -Raw -Encoding UTF8 | ConvertFrom-Json
     $requiredMixins = @($coreMixins.client | Where-Object {
-        $_ -match '^Litematica(Global|Projection|ContainerMemory|MaterialList|WidgetMaterialList|SchematicBlocks|GuiMaterialList)' -or
+        $_ -match '^Litematica(Global|Projection|ContainerMemory|MaterialList|WidgetMaterialList|SchematicBlocks|SchematicData|GuiMaterialList)' -or
         $_ -in @('MalilibWidgetContainerInvoker', 'MalilibGuiListAccessor', 'GuiBaseAccessor')
     })
     foreach ($version in $trackProperty.Value.versions) {
