@@ -29,6 +29,7 @@ public final class QuickCraftAnvilRename implements ClientModInitializer {
     private static final int OUTPUT_SLOT = AnvilMenu.RESULT_SLOT;
     private static boolean consumeNextRenameHotkeyChar = false;
 
+    private final QuickCraftRateLimiter rateLimiter = new QuickCraftRateLimiter();
     private boolean lastVDown = false;
     private boolean lastAltCDown = false;
     private boolean rapidRenameActive = false;
@@ -112,19 +113,32 @@ public final class QuickCraftAnvilRename implements ClientModInitializer {
                                         AnvilMenu handler,
                                         RenameSnapshot snapshot) {
         boolean anyProgress = false;
-        int loopsPerTick = QuickCraftConfigs.getCraftLoopsPerTick();
+        int rate = QuickCraftConfigs.getCraftsPerSecond();
+        if (!rateLimiter.isReady(rate, System.nanoTime())) {
+            return;
+        }
 
-        for (int loop = 0; loop < loopsPerTick; loop++) {
-            if (runOneRenameSubLoop(client, handler, snapshot)) {
+        while (rateLimiter.isReady(rate, System.nanoTime())) {
+            rateLimiter.recordDispatch(rate, System.nanoTime());
+            boolean progressed = runOneRenameSubLoop(client, handler, snapshot);
+            if (progressed) {
                 anyProgress = true;
             }
-            if (!rapidRenameActive) {
+            if (!rapidRenameActive || !progressed) {
                 break;
             }
         }
 
         if (anyProgress) {
             consecutiveFailures = 0;
+            rateLimiter.resumeWhenReady(rate, client, () -> {
+                if (rapidRenameActive && lockedSnapshot == snapshot
+                        && QuickCraftConfigs.isAnvilRenameQuickCraftEnabled() && isAnvilContextValid(client)
+                        && client.player.containerMenu == handler
+                        && QuickCraftKeyBindings.isHotkeyDown(QuickCraftConfigs.getRapidCraftHotkey())) {
+                    processRapidRenameTick(client, handler, snapshot);
+                }
+            });
             return;
         }
 

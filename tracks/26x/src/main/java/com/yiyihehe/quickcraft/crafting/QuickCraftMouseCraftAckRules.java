@@ -200,10 +200,6 @@ final class QuickCraftMouseCraftAckRules {
         return Math.min(MAX_ACK_TIMEOUT_MILLIS, adaptive);
     }
 
-    static boolean canDispatchWithinTick(int dispatched, int configuredLimit) {
-        return dispatched < Math.max(1, configuredLimit);
-    }
-
     static boolean canDropTail(boolean awaiting, boolean cursorEmpty) {
         return !awaiting && cursorEmpty;
     }

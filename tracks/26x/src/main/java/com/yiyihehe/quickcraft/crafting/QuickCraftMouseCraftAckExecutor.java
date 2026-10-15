@@ -51,7 +51,7 @@ public final class QuickCraftMouseCraftAckExecutor {
     private final SnapshotRefillHandler snapshotRefillHandler;
     private final IngredientAvailabilityHandler ingredientAvailabilityHandler;
     private Session session;
-    private int dispatchedThisTick;
+    private final QuickCraftRateLimiter rateLimiter = new QuickCraftRateLimiter();
     private boolean pumping;
     private boolean pumpAgain;
     private boolean dispatchingBatch;
@@ -235,13 +235,12 @@ public final class QuickCraftMouseCraftAckExecutor {
         session.lastAuthoritativeMaterialCounts = initialMaterials.counts();
         session.lastAuthoritativeMaterialRevision = handler.getStateId();
         activeExecutor = this;
-        dispatchedThisTick = 0;
         if (QuickCraftConfigs.isMouseCraftAckDebugEnabled()) {
             LOGGER.info(diagnosticContext() + "手动补货ACK会话开始：界面={}，配方={}，产物={}，containerId={}，revision={}，"
-                            + "每Tick批次上限={}，初始空格={}，喷射模式={}，每格原料留样={}，"
+                            + "每秒批次上限={}，初始空格={}，喷射模式={}，每格原料留样={}，"
                             + "停止尾货丢弃={}，按住={}",
                     layout.name(), recipeId, describeStack(resultTemplate), handler.containerId,
-                    handler.getStateId(), QuickCraftConfigs.getCraftLoopsPerTick(),
+                    handler.getStateId(), QuickCraftConfigs.getCraftsPerSecond(),
                     initialEmptySlots, session.outputSprayMode,
                     session.retainIngredientSamples,
                     QuickCraftConfigs.isDropCraftResultsOnStopEnabled(),
@@ -254,7 +253,6 @@ public final class QuickCraftMouseCraftAckExecutor {
         if (!isActive()) {
             return;
         }
-        dispatchedThisTick = 0;
         Session current = session;
         logEnvironment(client, current, System.nanoTime());
         if (!isContextValid(client, current)) {
@@ -407,9 +405,7 @@ public final class QuickCraftMouseCraftAckExecutor {
                     return;
                 }
                 while (isActive() && !session.awaiting
-                        && canDispatchWithinTick(
-                        dispatchedThisTick,
-                        QuickCraftConfigs.getCraftLoopsPerTick())) {
+                        && rateLimiter.isReady(QuickCraftConfigs.getCraftsPerSecond(), System.nanoTime())) {
                     if (session.stopRequested || !session.inputHeld.getAsBoolean()) {
                         finishAfterInputRelease(session, "输入释放");
                         return;
@@ -419,6 +415,18 @@ public final class QuickCraftMouseCraftAckExecutor {
                     }
                 }
             } while (pumpAgain && isActive() && !session.awaiting);
+            if (isActive() && !session.awaiting && session.pickupWaitTicks <= 0) {
+                Session waiting = session;
+                rateLimiter.resumeWhenReady(QuickCraftConfigs.getCraftsPerSecond(), client, () -> {
+                    if (session == waiting && isContextValid(client, waiting)
+                            && (layout == QuickCraftMouseCraftLayout.WORKBENCH
+                            ? QuickCraftConfigs.isWorkbenchQuickCraftEnabled()
+                            : QuickCraftConfigs.isBackpackQuickCraftEnabled())
+                            && !waiting.awaiting && waiting.pickupWaitTicks <= 0) {
+                        pump(client);
+                    }
+                });
+            }
         } finally {
             pumping = false;
             pumpAgain = false;
@@ -436,6 +444,7 @@ public final class QuickCraftMouseCraftAckExecutor {
         }
 
         long dispatchEntryNanos = System.nanoTime();
+        rateLimiter.recordDispatch(QuickCraftConfigs.getCraftsPerSecond(), dispatchEntryNanos);
         if (current.lastBatchEndedAtNanos != 0L) {
             long gap = Math.max(0L, dispatchEntryNanos - current.lastBatchEndedAtNanos);
             current.betweenBatchesNanos += gap;
@@ -489,7 +498,7 @@ public final class QuickCraftMouseCraftAckExecutor {
 
             if (!expectedOutput) {
                 refilled = snapshotRefillHandler != null && snapshotRefillHandler.refill(
-                        client, handler, QuickCraftConfigs.getCraftLoopsPerTick());
+                        client, handler, FULL_GRID_CRAFTS);
                 refreshClientPrediction(handler);
                 if (!parkCursor(client, handler, "手动补货后")) {
                     finishStopped("手动补货后光标无法放回");
@@ -729,7 +738,6 @@ public final class QuickCraftMouseCraftAckExecutor {
         current.awaiting = true;
         current.batchSentAtNanos = System.nanoTime();
         current.lastProgressAtNanos = current.batchSentAtNanos;
-        dispatchedThisTick++;
     }
 
     private void sendAckBoundary(ClientPacketListener networkHandler,
@@ -1508,13 +1516,13 @@ public final class QuickCraftMouseCraftAckExecutor {
         if (QuickCraftConfigs.isMouseCraftAckDebugEnabled()) {
             LOGGER.info(diagnosticContext() + "手动补货ACK批次确认：界面={}，批次=#{}，路径={}，配方={}，"
                             + "耗时={} us，客户端收到全量={} us，客户端收到统计={} us，"
-                            + "回包后处理(含诊断)={} us，槽位点击={}，全量回包={}，revision={}->{}, Tick预算={}/{}, 结果={}",
+                            + "回包后处理(含诊断)={} us，槽位点击={}，全量回包={}，revision={}->{}, 每秒批次上限={}, 结果={}",
                     layout.name(), current.batchId, current.batchPath.description,
                     current.recipeId, latencyNanos / 1_000L, fullUpdateMicros,
                     statsResponseMicros, validationMicros, current.batchClientSlotClicks,
                     batchFullUpdates, current.batchStartRevision,
-                    acknowledgementRevision, dispatchedThisTick,
-                    QuickCraftConfigs.getCraftLoopsPerTick(), outcome);
+                    acknowledgementRevision,
+                    QuickCraftConfigs.getCraftsPerSecond(), outcome);
         }
         if (QuickCraftConfigs.isMouseCraftAckDebugEnabled()) {
             LOGGER.info(diagnosticContext() + "手动补货ACK完整批次观测：批次=#{}，结束记录入口总耗时={} us，接收参考耗时={} us，类型={}",
@@ -1987,7 +1995,6 @@ public final class QuickCraftMouseCraftAckExecutor {
             activeExecutor = null;
         }
         session = null;
-        dispatchedThisTick = 0;
     }
 
     private boolean isContextValid(Minecraft client, Session current) {

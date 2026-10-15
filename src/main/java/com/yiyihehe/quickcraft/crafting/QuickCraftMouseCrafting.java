@@ -34,6 +34,7 @@ import java.util.function.BooleanSupplier;
 final class QuickCraftMouseCrafting {
     private static final Logger LOGGER = LoggerFactory.getLogger("QuickCraft/RecipeBookCraft");
 
+    private final QuickCraftRateLimiter rateLimiter = new QuickCraftRateLimiter();
     private final QuickCraftMouseCraftLayout.Layout layout;
     private final BooleanSupplier enabled;
     private final Runnable clearRecipeGhosts;
@@ -168,9 +169,13 @@ final class QuickCraftMouseCrafting {
         }
 
         boolean anyProgress = false;
-        int craftLoopsPerTick = QuickCraftConfigs.getCraftLoopsPerTick();
+        int rate = QuickCraftConfigs.getCraftsPerSecond();
+        if (!rateLimiter.isReady(rate, System.nanoTime())) {
+            return;
+        }
 
-        for (int loop = 0; loop < craftLoopsPerTick; loop++) {
+        while (rateLimiter.isReady(rate, System.nanoTime())) {
+            rateLimiter.recordDispatch(rate, System.nanoTime());
             boolean progressed = runOneCraftSubLoop(client, handler, recipe);
             if (progressed) {
                 anyProgress = true;
@@ -185,6 +190,16 @@ final class QuickCraftMouseCrafting {
 
         if (anyProgress) {
             consecutiveFailures = 0;
+            if (craftingResultWaitTicks <= 0 && manualGridSyncWaitTicks <= 0) {
+                rateLimiter.resumeWhenReady(rate, client, () -> {
+                    if (rapidCraftingActive && enabled.getAsBoolean() && isCraftingContextValid(client)
+                            && client.player.currentScreenHandler == handler && lockedRecipe == recipe
+                            && craftingResultWaitTicks <= 0 && manualGridSyncWaitTicks <= 0
+                            && !mouseCraftAckExecutor.isActive() && isRapidCraftInputHeld(client)) {
+                        processRapidCraftTick(client, handler, recipe);
+                    }
+                });
+            }
         } else {
             consecutiveFailures++;
 

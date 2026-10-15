@@ -55,9 +55,9 @@ public final class QuickCraftConfigs implements IConfigHandler {
     private static boolean ipnButtonDefaultsApplied;
     private static final Set<String> SHOWN_NOTICE_IDS = new HashSet<>();
 
-    public static final int DEFAULT_CRAFT_LOOPS_PER_TICK = 20;
-    public static final int MIN_CRAFT_LOOPS_PER_TICK = 1;
-    public static final int MAX_CRAFT_LOOPS_PER_TICK = 60;
+    public static final int DEFAULT_CRAFTS_PER_SECOND = 50;
+    public static final int MIN_CRAFTS_PER_SECOND = 0;
+    public static final int MAX_CRAFTS_PER_SECOND = 100;
     public static final int DEFAULT_CONTAINER_FILL_FREE_SLOTS_LIMIT = 5;
     public static final int MIN_CONTAINER_FILL_FREE_SLOTS_LIMIT = 0;
     public static final int MAX_CONTAINER_FILL_FREE_SLOTS_LIMIT = 36;
@@ -256,11 +256,11 @@ public final class QuickCraftConfigs implements IConfigHandler {
                 true,
                 ""
         ).apply(CRAFTING_TRANSLATION_PREFIX);
-        public static final ConfigInteger CRAFT_LOOPS_PER_TICK = new ConfigInteger(
-                "craftLoopsPerTick",
-                DEFAULT_CRAFT_LOOPS_PER_TICK,
-                MIN_CRAFT_LOOPS_PER_TICK,
-                MAX_CRAFT_LOOPS_PER_TICK,
+        public static final ConfigInteger CRAFTS_PER_SECOND = new ConfigInteger(
+                "craftsPerSecond",
+                DEFAULT_CRAFTS_PER_SECOND,
+                MIN_CRAFTS_PER_SECOND,
+                MAX_CRAFTS_PER_SECOND,
                 true
         ).apply(CRAFTING_TRANSLATION_PREFIX);
         public static final ConfigBooleanHotkeyed SHOW_CRAFT_ACTION_BUTTON = new ConfigBooleanHotkeyed(
@@ -290,7 +290,7 @@ public final class QuickCraftConfigs implements IConfigHandler {
                 SHOW_CRAFT_ACTION_BUTTON,
                 DROP_RESULTS_ON_STOP,
                 RETAIN_ONE_CRAFT_INGREDIENT,
-                CRAFT_LOOPS_PER_TICK
+                CRAFTS_PER_SECOND
         );
 
         private Crafting() {
@@ -1082,11 +1082,11 @@ public final class QuickCraftConfigs implements IConfigHandler {
         return StringUtils.getTranslatedOrFallback(HOTKEY_CATEGORY_KEY, "Hotkeys");
     }
 
-    public static int getCraftLoopsPerTick() {
-        int loops = Crafting.CRAFT_LOOPS_PER_TICK.getIntegerValue();
-        int clamped = Math.max(MIN_CRAFT_LOOPS_PER_TICK, Math.min(MAX_CRAFT_LOOPS_PER_TICK, loops));
-        if (clamped != loops) {
-            Crafting.CRAFT_LOOPS_PER_TICK.setIntegerValue(clamped);
+    public static int getCraftsPerSecond() {
+        int rate = Crafting.CRAFTS_PER_SECOND.getIntegerValue();
+        int clamped = Math.max(MIN_CRAFTS_PER_SECOND, Math.min(MAX_CRAFTS_PER_SECOND, rate));
+        if (clamped != rate) {
+            Crafting.CRAFTS_PER_SECOND.setIntegerValue(clamped);
         }
         return clamped;
     }

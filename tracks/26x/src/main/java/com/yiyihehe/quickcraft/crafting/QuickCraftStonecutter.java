@@ -48,7 +48,7 @@ public class QuickCraftStonecutter implements ClientModInitializer {
     private boolean outputSprayMode;
     private boolean sprayInventoryCleared;
     private boolean noIngredientRescueAttempted;
-    private int dispatchedThisTick;
+    private final QuickCraftRateLimiter rateLimiter = new QuickCraftRateLimiter();
     private int pickupWaitTicks;
 
     enum Phase { REFILL, SELECT, OUTPUT }
@@ -80,7 +80,6 @@ public class QuickCraftStonecutter implements ClientModInitializer {
     }
 
     private void onClientTick(Minecraft client) {
-        dispatchedThisTick = 0;
         if (sessionNetwork != null && sessionNetwork != client.getConnection()) {
             resetAll("连接切换");
         }
@@ -177,10 +176,20 @@ public class QuickCraftStonecutter implements ClientModInitializer {
         }
         predicting = true;
         try {
-            while ((rapidCraftingActive || singleCraftPending)
-                    && canDispatchWithinTick(dispatchedThisTick, QuickCraftConfigs.getCraftLoopsPerTick())) {
+            while (rapidCraftingActive || singleCraftPending) {
                 if (rapidCraftingActive && !isRapidInputHeld(client)) {
                     finish(client, Component.translatable("quickcraft.message.crafting.stopped"));
+                    return;
+                }
+                if (!singleCraftPending
+                        && !rateLimiter.isReady(QuickCraftConfigs.getCraftsPerSecond(), System.nanoTime())) {
+                    long waitingSessionId = sessionId;
+                    rateLimiter.resumeWhenReady(QuickCraftConfigs.getCraftsPerSecond(), client, () -> {
+                        if (sessionId == waitingSessionId && rapidCraftingActive
+                                && QuickCraftConfigs.isStonecutterQuickCraftEnabled() && isSessionValid(client)) {
+                            pump(client);
+                        }
+                    });
                     return;
                 }
                 StonecutterMenu handler = sessionHandler;
@@ -412,7 +421,9 @@ public class QuickCraftStonecutter implements ClientModInitializer {
         batchSourceSlot = -1;
         batchSourceCount = 0;
         batchSentAtNanos = System.nanoTime();
-        dispatchedThisTick++;
+        if (rapidCraftingActive) {
+            rateLimiter.recordDispatch(QuickCraftConfigs.getCraftsPerSecond(), batchSentAtNanos);
+        }
         logCraft("批次开始");
     }
 
