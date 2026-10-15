@@ -185,18 +185,11 @@ final class QuickCraftMouseCraftAckRules {
         return expectedOutput && patternComplete ? 1 : 0;
     }
 
-    static int remainingOutputFillSlots(int remaining, int newlyOccupiedResultSlots) {
-        return Math.max(0, remaining - Math.max(0, newlyOccupiedResultSlots));
-    }
-
     static boolean shouldEnterOutputSprayMode(boolean alreadySpraying,
-                                              int remainingInitialFillSlots,
                                               int currentEmptySlots,
                                               boolean canAcceptOutput) {
-        return alreadySpraying
-                || remainingInitialFillSlots <= 0
-                || currentEmptySlots <= 0
-                || !canAcceptOutput;
+        // 原料消耗会腾出背包格，不能按启动时的空格数限制填包。
+        return alreadySpraying || currentEmptySlots <= 0 || !canAcceptOutput;
     }
 
     static long ackTimeoutMillis(long observedMaxAckNanos) {

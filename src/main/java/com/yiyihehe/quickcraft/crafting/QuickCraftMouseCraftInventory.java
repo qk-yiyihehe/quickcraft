@@ -341,28 +341,6 @@ final class QuickCraftMouseCraftInventory {
         return -1;
     }
 
-    static int countMatchingUnlockedSlots(ScreenHandler handler,
-                                          QuickCraftMouseCraftLayout.Layout layout,
-                                          ItemStack template) {
-        if (handler == null || layout == null || template == null || template.isEmpty()) {
-            return 0;
-        }
-        int matchingSlots = 0;
-        for (int inventoryIndex = 0;
-             inventoryIndex < QuickCraftMouseCraftLayout.PLAYER_INVENTORY_SIZE;
-             inventoryIndex++) {
-            int handlerSlot = layout.handlerSlotForInventoryIndex(inventoryIndex);
-            if (handlerSlot < 0 || QuickContainerLock.isLockedSlot(handler, handlerSlot)) {
-                continue;
-            }
-            ItemStack stack = handler.getSlot(handlerSlot).getStack();
-            if (!stack.isEmpty() && ItemStack.areItemsAndComponentsEqual(stack, template)) {
-                matchingSlots++;
-            }
-        }
-        return matchingSlots;
-    }
-
     static int dropMatchingUnlockedInventory(MinecraftClient client,
                                              ScreenHandler handler,
                                              QuickCraftMouseCraftLayout.Layout layout,

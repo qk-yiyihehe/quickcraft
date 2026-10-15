@@ -223,9 +223,8 @@ public final class QuickCraftMouseCraftAckExecutor {
                 QuickCraftConfigs.isRetainOneCraftIngredientEnabled(),
                 System.nanoTime()
         );
-        session.outputFillSlotsRemaining = QuickCraftMouseCraftInventory.unlockedEmptySlots(
-                handler, layout);
-        session.outputSprayMode = session.outputFillSlotsRemaining == 0;
+        int initialEmptySlots = QuickCraftMouseCraftInventory.unlockedEmptySlots(handler, layout);
+        session.outputSprayMode = initialEmptySlots == 0;
         MaterialSnapshot initialMaterials = materialSnapshotFromHandler(session, handler);
         session.lastAuthoritativeMaterialLedger = initialMaterials.ledger();
         session.lastAuthoritativeMaterialCounts = initialMaterials.counts();
@@ -238,7 +237,7 @@ public final class QuickCraftMouseCraftAckExecutor {
                             + "停止尾货丢弃={}，按住={}",
                     layout.name(), describeStack(resultTemplate), describeStack(resultTemplate), handler.syncId,
                     handler.getRevision(), QuickCraftConfigs.getCraftLoopsPerTick(),
-                    session.outputFillSlotsRemaining, session.outputSprayMode,
+                    initialEmptySlots, session.outputSprayMode,
                     session.retainIngredientSamples,
                     QuickCraftConfigs.isDropCraftResultsOnStopEnabled(),
                     session.inputHeld.getAsBoolean());
@@ -574,14 +573,14 @@ public final class QuickCraftMouseCraftAckExecutor {
             current.localDispatchNanos += System.nanoTime() - dispatchStartedAtNanos;
             if (QuickCraftConfigs.isMouseCraftAckDebugEnabled()) {
                 LOGGER.info(diagnosticContext() + "手动补货ACK批次发送：界面={}，批次=#{}，路径={}，配方={}，"
-                                + "槽位点击={}，输出槽点击={}，输出槽丢出={}，模式={}，填包剩余={}，补料={}，"
+                                + "槽位点击={}，输出槽点击={}，输出槽丢出={}，模式={}，当前空格={}，补料={}，"
                                 + "revision={}，耗时={} us，"
                                 + "计划轮数={}，点击前格子={}，当前格子={}，上一权威材料={}，点击前实际材料={}，"
                                 + "跨批变化={}，本地点击后材料={}，本地点击变化={}，按住={}",
                         layout.name(), current.batchId, path.description, describeStack(current.resultTemplate),
                         current.batchClientSlotClicks, current.batchOutputSlotClicks, outputThrown,
                         current.outputSprayMode ? "喷射" : "填包",
-                        current.outputFillSlotsRemaining, refilled,
+                        QuickCraftMouseCraftInventory.unlockedEmptySlots(handler, layout), refilled,
                         current.batchStartRevision, dispatchMicros,
                         current.batchPlannedCrafts,
                         describeGridCounts(gridBeforeClicks), describeGrid(handler),
@@ -616,7 +615,6 @@ public final class QuickCraftMouseCraftAckExecutor {
         int safeCrafts = maximumCraftsFromGridCounts(gridBeforeOutput, requiredSlots);
         if (shouldEnterOutputSprayMode(
                 current.outputSprayMode,
-                current.outputFillSlotsRemaining,
                 QuickCraftMouseCraftInventory.unlockedEmptySlots(handler, layout),
                 QuickCraftMouseCraftInventory.canAcceptUnlocked(handler, layout, output))) {
             activateOutputSprayMode(client, current, "背包首次占满");
@@ -624,23 +622,15 @@ public final class QuickCraftMouseCraftAckExecutor {
 
         boolean movedToInventory = false;
         if (!current.outputSprayMode) {
-            int matchingSlotsBefore = QuickCraftMouseCraftInventory.countMatchingUnlockedSlots(
-                    handler, layout, current.resultTemplate);
             movedToInventory = QuickCraftMouseCraftInventory.moveOutputToUnlockedInventory(
                     client, handler, layout, Math.min(FULL_GRID_CRAFTS, safeCrafts),
                     () -> refreshClientPrediction(handler), bulkCraft);
             if (movedToInventory) {
-                int matchingSlotsAfter = QuickCraftMouseCraftInventory.countMatchingUnlockedSlots(
-                        handler, layout, current.resultTemplate);
-                current.outputFillSlotsRemaining = remainingOutputFillSlots(
-                        current.outputFillSlotsRemaining,
-                        Math.max(0, matchingSlotsAfter - matchingSlotsBefore));
                 if (shouldEnterOutputSprayMode(
                         false,
-                        current.outputFillSlotsRemaining,
                         QuickCraftMouseCraftInventory.unlockedEmptySlots(handler, layout),
                         true)) {
-                    activateOutputSprayMode(client, current, "填包阶段完成");
+                    activateOutputSprayMode(client, current, "背包实际占满");
                 }
             }
         }
@@ -672,7 +662,6 @@ public final class QuickCraftMouseCraftAckExecutor {
                                          String reason) {
         if (!current.outputSprayMode) {
             current.outputSprayMode = true;
-            current.outputFillSlotsRemaining = 0;
             if (QuickCraftConfigs.isMouseCraftAckDebugEnabled()) {
                 LOGGER.info(diagnosticContext() + "手动补货ACK切换永久喷射模式：界面={}，批次=#{}，原因={}",
                         layout.name(), current.batchId + 1, reason);
@@ -1254,7 +1243,6 @@ public final class QuickCraftMouseCraftAckExecutor {
         }
         current.noIngredientRescueAttempted = true;
         current.outputSprayMode = true;
-        current.outputFillSlotsRemaining = 0;
         int dropped = dropInventoryCraftResults(
                 client, current, "首次缺料时释放满包产物");
         current.sprayInventoryCleared = true;
@@ -3118,7 +3106,6 @@ public final class QuickCraftMouseCraftAckExecutor {
         private boolean noIngredientRescueAttempted;
         private boolean pickupWaitAttempted;
         private boolean pickupWaitForFullInventory;
-        private int outputFillSlotsRemaining;
         private int inventoryResultDrops;
         private int intermediateOutputPackets;
         private int authoritativeWrongOutputPackets;

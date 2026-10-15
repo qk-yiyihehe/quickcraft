@@ -50,25 +50,26 @@ class QuickCraftMouseCraftAckExecutorTest {
     }
 
     @Test
-    void outputSprayModeLatchesAfterInitialFillPhase() {
+    void ingredientConsumptionCanFreeSlotsWithoutStartingOutputSpray() {
+        // 初始 15 个空格填入 15 组后，原料消耗腾出的 14 个空格仍可继续使用。
         assertThat(QuickCraftMouseCraftAckRules.shouldEnterOutputSprayMode(
-                false, 2, 2, true)).isFalse();
-        assertThat(QuickCraftMouseCraftAckRules.remainingOutputFillSlots(2, 1)).isEqualTo(1);
-        assertThat(QuickCraftMouseCraftAckRules.remainingOutputFillSlots(1, 1)).isZero();
+                false, 14, true)).isFalse();
         assertThat(QuickCraftMouseCraftAckRules.shouldEnterOutputSprayMode(
-                false, 0, 3, true)).isTrue();
-        assertThat(QuickCraftMouseCraftAckRules.shouldEnterOutputSprayMode(
-                true, 0, 9, true)).isTrue();
+                false, 1, true)).isFalse();
     }
 
     @Test
-    void fullInventoryStartsOutputSprayEvenWhenOutputCouldStack() {
+    void outputSprayModeStaysLatchedAfterInventoryWasActuallyFull() {
         assertThat(QuickCraftMouseCraftAckRules.shouldEnterOutputSprayMode(
-                false, 0, 0, true)).isTrue();
+                false, 0, true)).isTrue();
         assertThat(QuickCraftMouseCraftAckRules.shouldEnterOutputSprayMode(
-                false, 2, 0, true)).isTrue();
+                true, 14, true)).isTrue();
+    }
+
+    @Test
+    void outputThatCannotFitStartsSprayDespiteEmptySlots() {
         assertThat(QuickCraftMouseCraftAckRules.shouldEnterOutputSprayMode(
-                false, 2, 2, false)).isTrue();
+                false, 2, false)).isTrue();
     }
 
     @Test

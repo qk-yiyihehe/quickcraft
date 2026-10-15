@@ -48,7 +48,6 @@ public class QuickCraftStonecutter implements ClientModInitializer {
     private boolean outputSprayMode;
     private boolean sprayInventoryCleared;
     private boolean noIngredientRescueAttempted;
-    private int outputFillSlotsRemaining;
     private int dispatchedThisTick;
     private int pickupWaitTicks;
 
@@ -144,8 +143,7 @@ public class QuickCraftStonecutter implements ClientModInitializer {
         rapidCraftingActive = rapid;
         rapidCraftStartedByButton = fromButton;
         singleCraftPending = !rapid;
-        outputFillSlotsRemaining = unlockedEmptySlots(handler);
-        outputSprayMode = outputFillSlotsRemaining == 0;
+        outputSprayMode = unlockedEmptySlots(handler) == 0;
         sprayInventoryCleared = false;
         noIngredientRescueAttempted = false;
         pickupWaitTicks = MAX_PICKUP_WAIT_TICKS;
@@ -203,7 +201,6 @@ public class QuickCraftStonecutter implements ClientModInitializer {
                         if (rapidCraftingActive && !noIngredientRescueAttempted && unlockedEmptySlots(handler) == 0) {
                             noIngredientRescueAttempted = true;
                             outputSprayMode = true;
-                            outputFillSlotsRemaining = 0;
                             sprayInventoryCleared = true;
                             logCraft("首次缺料时释放满包产物");
                             if (dropInventoryCraftResults(client, handler) > 0) pickupWaitTicks = MAX_PICKUP_WAIT_TICKS;
@@ -274,12 +271,11 @@ public class QuickCraftStonecutter implements ClientModInitializer {
 
     private void moveOrThrowOutput(Minecraft client, StonecutterMenu handler,
                                    ItemStack output, int inputBefore) {
-        if (!outputSprayMode && shouldEnterOutputSprayMode(false, outputFillSlotsRemaining,
+        if (!outputSprayMode && shouldEnterOutputSprayMode(false,
                 unlockedEmptySlots(handler), findAcceptingSlot(handler, output) >= 0)) {
             activateOutputSprayMode(client, handler, "背包首次占满");
         }
         if (!outputSprayMode) {
-            int resultSlotsBefore = matchingResultSlots(handler);
             if (!hasLockedPlayerSlots(handler)) {
                 click(client, OUTPUT_SLOT, 0, ContainerInput.QUICK_MOVE);
             } else {
@@ -297,11 +293,9 @@ public class QuickCraftStonecutter implements ClientModInitializer {
                     if (!handler.getCarried().isEmpty()) break;
                 }
             }
-            outputFillSlotsRemaining = remainingOutputFillSlots(outputFillSlotsRemaining,
-                    matchingResultSlots(handler) - resultSlotsBefore);
-            // 和普通 ACK 合成一致：填包完成当批就释放产物，不等下一次补料。
-            if (shouldEnterOutputSprayMode(false, outputFillSlotsRemaining, unlockedEmptySlots(handler), true)) {
-                activateOutputSprayMode(client, handler, "填包阶段完成");
+            // 和普通 ACK 合成一致：当前背包实际占满时才释放产物。
+            if (shouldEnterOutputSprayMode(false, unlockedEmptySlots(handler), true)) {
+                activateOutputSprayMode(client, handler, "背包实际占满");
             }
             return;
         }
@@ -314,7 +308,6 @@ public class QuickCraftStonecutter implements ClientModInitializer {
     private void activateOutputSprayMode(Minecraft client, StonecutterMenu handler, String reason) {
         if (!outputSprayMode) {
             outputSprayMode = true;
-            outputFillSlotsRemaining = 0;
             logCraft("切换永久喷射模式：" + reason);
         }
         if (!sprayInventoryCleared) {
@@ -461,14 +454,14 @@ public class QuickCraftStonecutter implements ClientModInitializer {
             }
         }
         LOGGER.info("切石机合成：会话=#{}，批次=#{}，事件={}，阶段={}，syncId={}，revision={}->{}，"
-                        + "目标={}，批前原料={}，补料来源={}x{}，光标={}，喷射={}，填包剩余={}，"
+                        + "目标={}，批前原料={}，补料来源={}x{}，光标={}，喷射={}，当前空格={}，"
                         + "在途配方包={}，耗时={}ms，槽位=[{}]",
                 sessionId, batchId, event, batchId == 0 ? "未发批次" : batchPhase,
                 sessionHandler == null ? -1 : sessionHandler.containerId, batchStartRevision,
                 sessionHandler == null ? -1 : sessionHandler.getStateId(), lockedResultTemplate,
                 batchId == 0 ? ItemStack.EMPTY : batchInput, batchSourceSlot, batchSourceCount,
                 sessionHandler == null ? ItemStack.EMPTY : sessionHandler.getCarried(),
-                outputSprayMode, outputFillSlotsRemaining, predictedSelections.size(),
+                outputSprayMode, sessionHandler == null ? -1 : unlockedEmptySlots(sessionHandler), predictedSelections.size(),
                 batchSentAtNanos == 0L ? 0L : (System.nanoTime() - batchSentAtNanos) / 1_000_000L, slots);
     }
 
@@ -483,17 +476,6 @@ public class QuickCraftStonecutter implements ClientModInitializer {
         int count = 0;
         for (int i = 2; i < handler.slots.size(); i++) {
             if (!QuickContainerLock.isLockedSlot(handler, i) && !handler.getSlot(i).hasItem()) {
-                count++;
-            }
-        }
-        return count;
-    }
-
-    private int matchingResultSlots(StonecutterMenu handler) {
-        int count = 0;
-        for (int i = 2; i < handler.slots.size(); i++) {
-            if (!QuickContainerLock.isLockedSlot(handler, i)
-                    && ItemStack.isSameItemSameComponents(handler.getSlot(i).getItem(), lockedResultTemplate)) {
                 count++;
             }
         }
