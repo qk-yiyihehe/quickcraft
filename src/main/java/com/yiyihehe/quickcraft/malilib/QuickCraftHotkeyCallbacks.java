@@ -61,6 +61,9 @@ public final class QuickCraftHotkeyCallbacks {
         QuickCraftConfigs.Hotkeys.TOGGLE_CONTAINER_TOOL_MODE.getKeybind().setCallback(QuickCraftHotkeyCallbacks::handleToggleContainerToolMode);
         QuickCraftConfigs.Hotkeys.CREATIVE_PACKING.getKeybind().setCallback(QuickCraftHotkeyCallbacks::handleCreativePacking);
         QuickCraftConfigs.Hotkeys.OPEN_EASY_PLACE_ENTITY_SELECTOR.getKeybind().setCallback(QuickCraftHotkeyCallbacks::handleEntitySelector);
+        QuickCraftConfigs.Hotkeys.ANVIL_BUILD.getKeybind().setCallback((action, key) ->
+                MinecraftClient.getInstance().currentScreen instanceof AnvilScreen
+                        && QuickCraftConfigs.Crafting.ENABLE_ANVIL_ASSISTANT.getBooleanValue());
         QuickCraft.bindOptionalHotkeys();
     }
 

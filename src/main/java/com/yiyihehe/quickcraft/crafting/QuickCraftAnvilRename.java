@@ -42,12 +42,17 @@ public final class QuickCraftAnvilRename implements ClientModInitializer {
     @Override
     public void onInitializeClient() {
         instance = this;
+        QuickCraftAnvilAssistant.initialize();
         ClientTickEvents.END_CLIENT_TICK.register(this::onClientTick);
+    }
+
+    public static boolean isRapidRenameActive() {
+        return instance != null && instance.rapidRenameActive;
     }
 
     public static boolean shouldConsumeRenameHotkeyInput() {
         MinecraftClient client = MinecraftClient.getInstance();
-        return QuickCraftConfigs.isAnvilRenameQuickCraftEnabled()
+        return QuickCraftAnvilAssistant.consumesHotkey(-1) || QuickCraftConfigs.isAnvilRenameQuickCraftEnabled()
                 && client != null
                 && client.currentScreen instanceof AnvilScreen
                 && (QuickCraftKeyBindings.isHotkeyDown(QuickCraftConfigs.getSingleCraftHotkey())
@@ -55,6 +60,10 @@ public final class QuickCraftAnvilRename implements ClientModInitializer {
     }
 
     public static boolean shouldConsumeRenameHotkeyKeyPress(int keyCode) {
+        if (QuickCraftAnvilAssistant.consumesHotkey(keyCode)) {
+            consumeNextRenameHotkeyChar = true;
+            return true;
+        }
         if (!isAnvilRenameScreenActive()) {
             consumeNextRenameHotkeyChar = false;
             return false;
@@ -71,7 +80,7 @@ public final class QuickCraftAnvilRename implements ClientModInitializer {
     }
 
     public static boolean consumePendingRenameHotkeyChar() {
-        if (!consumeNextRenameHotkeyChar || !isAnvilRenameScreenActive()) {
+        if (!consumeNextRenameHotkeyChar || !(MinecraftClient.getInstance().currentScreen instanceof AnvilScreen)) {
             consumeNextRenameHotkeyChar = false;
             return false;
         }
@@ -114,6 +123,10 @@ public final class QuickCraftAnvilRename implements ClientModInitializer {
             sessionHandler = handler;
         }
         consumeNextRenameHotkeyChar = false;
+        if (QuickCraftAnvilAssistant.ownsAnvil()) {
+            lastVDown = lastAltCDown = false;
+            return;
+        }
         handleHotkeys(client, handler);
         if (rapidRenameActive) processRapidRename(client, handler, lockedSnapshot);
     }

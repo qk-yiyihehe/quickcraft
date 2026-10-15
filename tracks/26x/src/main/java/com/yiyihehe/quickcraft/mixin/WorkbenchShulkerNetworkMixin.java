@@ -41,6 +41,8 @@ public abstract class WorkbenchShulkerNetworkMixin {
     // RETURN 时客户端 StatHandler 已应用服务端绝对值，统计探针可确认没有槽位变化的批次。
     @Inject(method = "handleAwardStats", at = @At("RETURN"))
     private void quickcraft$onServerCraftStats(ClientboundAwardStatsPacket packet, CallbackInfo ci) {
+        com.yiyihehe.quickcraft.crafting.QuickCraftAnvilAssistant.onStatistics(
+                (ClientPacketListener) (Object) this);
         QuickCraftWorkbenchShulkerCraft.onServerStatistics(
                 (ClientPacketListener) (Object) this);
         QuickCraftMouseCraftAckExecutor.onServerStatistics(

@@ -69,13 +69,17 @@ public class QuickCraftConfigScreen extends GuiConfigsBase {
         List<ConfigOptionWrapper> wrappers = new ArrayList<>();
 
         for (IConfigBase config : currentTab.getOptions()) {
+            if (config == com.yiyihehe.quickcraft.config.QuickCraftAnvilPresets.SPEAR
+                    && !com.yiyihehe.quickcraft.crafting.QuickCraftAnvilPlanner.supportsSpear()) continue;
             if (config == QuickCraftConfigs.ProjectionTools.PROJECTION_MATERIAL_REPLACEMENTS
                     || config == QuickCraftConfigs.ProjectionTools.CONTAINER_FILL_REPLACEMENTS) { continue; }
             ConfigGroup parentGroup = ConfigGroup.findByParent(config);
 
             if (parentGroup != null) {
                 wrappers.add(new GroupedConfigOptionWrapper(config, parentGroup, false));
-                parentGroup.children.forEach(child ->
+                parentGroup.children.stream().filter(child ->
+                        child != com.yiyihehe.quickcraft.config.QuickCraftAnvilPresets.SPEAR
+                                || com.yiyihehe.quickcraft.crafting.QuickCraftAnvilPlanner.supportsSpear()).forEach(child ->
                         wrappers.add(new GroupedConfigOptionWrapper(child, parentGroup, true))
                 );
             } else if (ConfigGroup.findByChild(config) == null) {
@@ -139,6 +143,12 @@ public class QuickCraftConfigScreen extends GuiConfigsBase {
                 QuickCraftConfigs.Crafting.WORKBENCH_QUICK_SHULKER_PIPELINE_MODE,
                 QuickCraftConfigs.Crafting.ENABLE_WORKBENCH_QUICK_SHULKER_OUTPUT
         ),
+        ANVIL_ASSISTANT(QuickCraftConfigs.Crafting.ENABLE_ANVIL_ASSISTANT,
+                java.util.stream.Stream.concat(
+                        java.util.stream.Stream.of(QuickCraftConfigs.Crafting.ENABLE_ANVIL_RENAME,
+                                QuickCraftConfigs.Crafting.ANVIL_PICKAXE_PLAN),
+                        com.yiyihehe.quickcraft.config.QuickCraftAnvilPresets.OPTIONS.stream())
+                        .toArray(IConfigBase[]::new)),
         QUICK_TRANSFER(
                 QuickCraftConfigs.ContainerTools.ENABLE_QUICK_TRANSFER,
                 QuickCraftConfigs.ContainerTools.SHOW_MATCHING_TRANSFER_HIGHLIGHT,
@@ -387,6 +397,16 @@ public class QuickCraftConfigScreen extends GuiConfigsBase {
 
         @Override
         protected void configureMaterialOption(int x, int y, int labelWidth, int configWidth, IConfigBase config) {
+            if (com.yiyihehe.quickcraft.config.QuickCraftAnvilPresets.OPTIONS.contains(config)) {
+                this.addLabel(x, y + 8, labelWidth, 8, 0xFFFFFFFF, config.getConfigGuiDisplayName());
+                this.addConfigComment(x, y + 5, labelWidth, 12, config.getComment());
+                var edit = new QuickCraftAnvilConfigButton(x + labelWidth + 10, y + 1, configWidth,
+                        (fi.dy.masa.malilib.config.options.ConfigStringList) config, this.host);
+                this.addConfigButtonEntry(x + labelWidth + configWidth + 12, y + 1,
+                        (fi.dy.masa.malilib.config.IConfigResettable) config, edit);
+                edit.setActionListener((button, mouse) -> edit.openEditor());
+                return;
+            }
             boolean container = config == QuickCraftConfigs.ProjectionTools.GLOBAL_CONTAINER_REPLACEMENTS;
             boolean block = config == QuickCraftConfigs.ProjectionTools.GLOBAL_PROJECTION_MATERIAL_REPLACEMENTS;
             if (!container && !block) {

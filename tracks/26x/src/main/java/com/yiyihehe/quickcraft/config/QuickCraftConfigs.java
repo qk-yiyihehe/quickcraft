@@ -53,6 +53,7 @@ public final class QuickCraftConfigs implements IConfigHandler {
     private static final String IPN_MOD_ID = "inventoryprofilesnext";
     private static final Map<String, ButtonOffset> BUTTON_OFFSETS = new HashMap<>();
     private static boolean ipnButtonDefaultsApplied;
+    private static boolean anvilPresetDefaultsV2Applied = true;
     private static final Set<String> SHOWN_NOTICE_IDS = new HashSet<>();
 
     public static final int DEFAULT_CRAFTS_PER_SECOND = 50;
@@ -221,6 +222,18 @@ public final class QuickCraftConfigs implements IConfigHandler {
         }
     }
 
+    public enum AnvilPickaxePlan implements IConfigOptionListEntry {
+        SILK("silk"), FORTUNE("fortune");
+        private final String value;
+        AnvilPickaxePlan(String value) { this.value = value; }
+        @Override public String getStringValue() { return value; }
+        @Override public String getDisplayName() { return StringUtils.translate("quickcraft.anvil.plan_" + value); }
+        @Override public IConfigOptionListEntry cycle(boolean forward) { return this == SILK ? FORTUNE : SILK; }
+        @Override public IConfigOptionListEntry fromString(String value) {
+            return "fortune".equalsIgnoreCase(value) ? FORTUNE : SILK;
+        }
+    }
+
     public static final class Crafting {
         public static final ConfigBooleanHotkeyed ENABLE_WORKBENCH = new ConfigBooleanHotkeyed(
                 "enableWorkbenchQuickCraft",
@@ -256,6 +269,10 @@ public final class QuickCraftConfigs implements IConfigHandler {
                 true,
                 ""
         ).apply(CRAFTING_TRANSLATION_PREFIX);
+        public static final ConfigBooleanHotkeyed ENABLE_ANVIL_ASSISTANT = new ConfigBooleanHotkeyed(
+                "enableAnvilAssistant", true, "").apply(CRAFTING_TRANSLATION_PREFIX);
+        public static final ConfigOptionList ANVIL_PICKAXE_PLAN = new ConfigOptionList(
+                "anvilPickaxePlan", AnvilPickaxePlan.SILK).apply(CRAFTING_TRANSLATION_PREFIX);
         public static final ConfigInteger CRAFTS_PER_SECOND = new ConfigInteger(
                 "craftsPerSecond",
                 DEFAULT_CRAFTS_PER_SECOND,
@@ -279,7 +296,7 @@ public final class QuickCraftConfigs implements IConfigHandler {
                 ""
         ).apply(CRAFTING_TRANSLATION_PREFIX);
 
-        public static final List<IConfigBase> OPTIONS = List.of(
+        public static final List<IConfigBase> OPTIONS = java.util.stream.Stream.concat(List.<IConfigBase>of(
                 ENABLE_WORKBENCH,
                 ENABLE_WORKBENCH_QUICK_SHULKER,
                 WORKBENCH_QUICK_SHULKER_PIPELINE_MODE,
@@ -287,11 +304,13 @@ public final class QuickCraftConfigs implements IConfigHandler {
                 ENABLE_BACKPACK,
                 ENABLE_STONECUTTER,
                 ENABLE_ANVIL_RENAME,
+                ENABLE_ANVIL_ASSISTANT,
+                ANVIL_PICKAXE_PLAN,
                 SHOW_CRAFT_ACTION_BUTTON,
                 DROP_RESULTS_ON_STOP,
                 RETAIN_ONE_CRAFT_INGREDIENT,
                 CRAFTS_PER_SECOND
-        );
+        ).stream(), QuickCraftAnvilPresets.OPTIONS.stream()).toList();
 
         private Crafting() {
         }
@@ -860,6 +879,8 @@ public final class QuickCraftConfigs implements IConfigHandler {
                 "V",
                 GUI_PRESS
         ).apply(HOTKEY_TRANSLATION_PREFIX);
+        public static final ConfigHotkey ANVIL_BUILD = new ConfigHotkey(
+                "anvilBuildHotkey", "", ANY_PRESS).apply(HOTKEY_TRANSLATION_PREFIX);
         public static final ConfigHotkey RAPID_CRAFT = new ConfigHotkey(
                 "rapidCraftHotkey",
                 "LEFT_ALT,C",
@@ -928,6 +949,7 @@ public final class QuickCraftConfigs implements IConfigHandler {
                 CLONE_LITEMATICA_AREA,
                 OPEN_EASY_PLACE_ENTITY_SELECTOR,
                 SINGLE_CRAFT,
+                ANVIL_BUILD,
                 RAPID_CRAFT,
                 QUICK_SORT,
                 DROP_MATCHING,
@@ -948,6 +970,7 @@ public final class QuickCraftConfigs implements IConfigHandler {
                 CLONE_LITEMATICA_AREA,
                 OPEN_EASY_PLACE_ENTITY_SELECTOR,
                 SINGLE_CRAFT,
+                ANVIL_BUILD,
                 RAPID_CRAFT,
                 QUICK_SORT,
                 DROP_MATCHING,
@@ -974,6 +997,7 @@ public final class QuickCraftConfigs implements IConfigHandler {
                 Crafting.ENABLE_BACKPACK,
                 Crafting.ENABLE_STONECUTTER,
                 Crafting.ENABLE_ANVIL_RENAME,
+                Crafting.ENABLE_ANVIL_ASSISTANT,
                 Crafting.SHOW_CRAFT_ACTION_BUTTON,
                 Crafting.DROP_RESULTS_ON_STOP,
                 Crafting.RETAIN_ONE_CRAFT_INGREDIENT,
@@ -1016,6 +1040,7 @@ public final class QuickCraftConfigs implements IConfigHandler {
                 Hotkeys.CLONE_LITEMATICA_AREA,
                 Hotkeys.OPEN_EASY_PLACE_ENTITY_SELECTOR,
                 Hotkeys.SINGLE_CRAFT,
+                Hotkeys.ANVIL_BUILD,
                 Hotkeys.RAPID_CRAFT,
                 Hotkeys.QUICK_SORT,
                 Hotkeys.DROP_MATCHING,
@@ -1039,6 +1064,7 @@ public final class QuickCraftConfigs implements IConfigHandler {
                 Crafting.ENABLE_BACKPACK,
                 Crafting.ENABLE_STONECUTTER,
                 Crafting.ENABLE_ANVIL_RENAME,
+                Crafting.ENABLE_ANVIL_ASSISTANT,
                 Crafting.SHOW_CRAFT_ACTION_BUTTON,
                 Crafting.DROP_RESULTS_ON_STOP,
                 Crafting.RETAIN_ONE_CRAFT_INGREDIENT,
@@ -1561,9 +1587,18 @@ public final class QuickCraftConfigs implements IConfigHandler {
         ConfigUtils.readConfigBase(root, "Hotkeys", Hotkeys.OPTIONS);
         QuickCraftConfigsAccess.postLoadMigrations();
         readButtonPositions(root);
+        anvilPresetDefaultsV2Applied = false;
         readMigrations(root);
+        if (!anvilPresetDefaultsV2Applied) {
+            QuickCraftAnvilPresets.migrateLegacyDefaults();
+            anvilPresetDefaultsV2Applied = true;
+        }
 
         JsonObject crafting = root.getAsJsonObject("Crafting");
+        if (crafting != null && !crafting.has("anvilPickaxePlan")
+                && getLegacyEnabledValue(crafting.get("anvilFortunePickaxe"))) {
+            Crafting.ANVIL_PICKAXE_PLAN.setOptionListValue(AnvilPickaxePlan.FORTUNE);
+        }
         if (crafting != null
                 && !crafting.has("workbenchQuickShulkerPipelineMode")
                 && getLegacyEnabledValue(crafting.get("enableWorkbenchQuickShulkerUltraFast"))) {
@@ -1693,6 +1728,7 @@ public final class QuickCraftConfigs implements IConfigHandler {
             return;
         }
 
+        anvilPresetDefaultsV2Applied = getLegacyEnabledValue(migrations.get("anvilPresetDefaultsV2"));
         JsonElement ipnDefaults = migrations.get(IPN_BUTTON_DEFAULTS_MIGRATION_KEY);
         ipnButtonDefaultsApplied = ipnDefaults != null
                 && ipnDefaults.isJsonPrimitive()
@@ -1703,6 +1739,7 @@ public final class QuickCraftConfigs implements IConfigHandler {
     private static void writeMigrations(JsonObject root) {
         JsonObject migrations = new JsonObject();
         migrations.addProperty(IPN_BUTTON_DEFAULTS_MIGRATION_KEY, ipnButtonDefaultsApplied);
+        migrations.addProperty("anvilPresetDefaultsV2", anvilPresetDefaultsV2Applied);
         root.add(MIGRATIONS_KEY, migrations);
     }
 

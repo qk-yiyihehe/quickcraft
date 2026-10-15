@@ -2,6 +2,14 @@ package com.yiyihehe.quickcraft.mixin;
 
 import com.llamalad7.mixinextras.injector.wrapoperation.Operation;
 import com.llamalad7.mixinextras.injector.wrapoperation.WrapOperation;
+import com.yiyihehe.quickcraft.crafting.QuickCraftAnvilAssistant;
+import com.yiyihehe.quickcraft.config.QuickCraftConfigs;
+import net.minecraft.client.gui.screen.ingame.HandledScreen;
+import net.minecraft.client.gui.widget.ButtonWidget;
+import net.minecraft.entity.player.PlayerInventory;
+import net.minecraft.screen.AnvilScreenHandler;
+import net.minecraft.text.Text;
+import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import com.yiyihehe.quickcraft.QuickThrow;
 import com.yiyihehe.quickcraft.crafting.QuickCraftAnvilRename;
 import net.minecraft.client.gui.screen.ingame.AnvilScreen;
@@ -19,7 +27,21 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
  * 1.21.10+ 使用 KeyInput 封装输入。
  */
 @Mixin(AnvilScreen.class)
-public abstract class AnvilScreenMixin {
+public abstract class AnvilScreenMixin extends HandledScreen<AnvilScreenHandler> {
+    protected AnvilScreenMixin(AnvilScreenHandler handler, PlayerInventory inventory, Text title) {
+        super(handler, inventory, title);
+    }
+
+    // init 由 ForgingScreen 实现；铁砧实际在 setup 创建命名框，随后追加按钮。
+    @Inject(method = "setup", at = @At("TAIL"))
+    private void quickcraft$addAnvilAssistant(CallbackInfo ci) {
+        if (!QuickCraftConfigs.Crafting.ENABLE_ANVIL_ASSISTANT.getBooleanValue()) return;
+        int buttonY = Math.max(2, this.y - 23);
+        var action = this.addDrawableChild(ButtonWidget.builder(Text.empty(),
+                button -> QuickCraftAnvilAssistant.action(false)).dimensions(this.x, buttonY, 176, 20).build());
+        QuickCraftAnvilAssistant.attach(action);
+    }
+
     @Inject(method = "keyPressed", at = @At("HEAD"), cancellable = true)
     private void quickcraft$consumeRenameHotkey(KeyInput input,
                                                 CallbackInfoReturnable<Boolean> cir) {

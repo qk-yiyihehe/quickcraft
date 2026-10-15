@@ -8,6 +8,7 @@ import com.yiyihehe.quickcraft.QuickCreativePacking;
 import com.yiyihehe.quickcraft.QuickThrow;
 import com.yiyihehe.quickcraft.QuickTransfer;
 import com.yiyihehe.quickcraft.config.QuickCraftConfigs;
+import com.yiyihehe.quickcraft.QuickClientScreenAccess;
 import com.yiyihehe.quickcraft.gui.QuickCraftConfigScreen;
 import com.yiyihehe.quickcraft.gui.QuickCraftDeveloperScreen;
 import com.yiyihehe.quickcraft.render.QuickDraggableButton;
@@ -63,6 +64,9 @@ public final class QuickCraftHotkeyCallbacks {
         QuickCraftConfigs.Hotkeys.TOGGLE_CONTAINER_TOOL_MODE.getKeybind().setCallback(QuickCraftHotkeyCallbacks::handleToggleContainerToolMode);
         QuickCraftConfigs.Hotkeys.CREATIVE_PACKING.getKeybind().setCallback(QuickCraftHotkeyCallbacks::handleCreativePacking);
         QuickCraftConfigs.Hotkeys.OPEN_EASY_PLACE_ENTITY_SELECTOR.getKeybind().setCallback(QuickCraftHotkeyCallbacks::handleEntitySelector);
+        QuickCraftConfigs.Hotkeys.ANVIL_BUILD.getKeybind().setCallback((action, key) ->
+                QuickClientScreenAccess.currentScreen(Minecraft.getInstance()) instanceof AnvilScreen
+                        && QuickCraftConfigs.Crafting.ENABLE_ANVIL_ASSISTANT.getBooleanValue());
         QuickCraft.bindOptionalHotkeys();
     }
 
