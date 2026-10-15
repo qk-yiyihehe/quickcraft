@@ -7,98 +7,14 @@ import net.minecraft.recipe.Ingredient;
 import net.minecraft.recipe.RecipeEntry;
 import net.minecraft.recipe.StonecuttingRecipe;
 import net.minecraft.screen.StonecutterScreenHandler;
-import net.minecraft.text.Text;
 
 import java.util.List;
 
 final class QuickCraftStonecutterAccess {
-    private static final int RECIPE_RESULT_WAIT_TICKS = 3;
-    private int recipeResultWaitTicks = 0;
-
-    QuickCraftStonecutterAccess() {
-    }
-
-    void onTick(QuickCraftStonecutter stonecutter, MinecraftClient client, StonecutterScreenHandler handler) {
-    }
-
-    boolean onRapidCraftTickStart(QuickCraftStonecutter stonecutter, MinecraftClient client, StonecutterScreenHandler handler) {
-        if (recipeResultWaitTicks <= 0) {
-            return false;
-        }
-
-        if (handler.getSlot(1).hasStack()) {
-            recipeResultWaitTicks = 0;
-            return false;
-        }
-
-        recipeResultWaitTicks--;
-        if (recipeResultWaitTicks <= 0) {
-            stonecutter.stopRapidCraft(client, Text.translatable("quickcraft.message.crafting.no_ingredients"));
-        }
-        return true;
-    }
-
-    boolean shouldBreakRapidLoop(QuickCraftStonecutter stonecutter) {
-        return !stonecutter.isRapidCraftingActive() || recipeResultWaitTicks > 0;
-    }
-
-    boolean isOutputSlotReady(QuickCraftStonecutter stonecutter, StonecutterScreenHandler handler) {
-        if (recipeResultWaitTicks > 0) {
-            return true;
-        }
-        return handler.getSlot(1).hasStack();
-    }
-
-    boolean onOutputSlotEmptyDuringRapid(StonecutterScreenHandler handler) {
-        return false;
-    }
-
-    boolean isSingleCraftPending() {
-        return false;
-    }
-
-    boolean selectRecipeForCraft(MinecraftClient client, StonecutterScreenHandler handler, int recipeIndex) {
-        if (handler.getSelectedRecipe() == recipeIndex && handler.getSlot(1).hasStack()) {
-            return true;
-        }
+    void selectRecipeForCraft(MinecraftClient client, StonecutterScreenHandler handler, int recipeIndex) {
         if (handler.onButtonClick(client.player, recipeIndex)) {
             client.interactionManager.clickButton(handler.syncId, recipeIndex);
-            return true;
         }
-        return false;
-    }
-
-    void handleSingleCraftFailure(QuickCraftStonecutter stonecutter, MinecraftClient client, StonecutterScreenHandler handler, RecipeEntry<StonecuttingRecipe> recipe) {
-        stonecutter.sendStatusMessage(client, Text.translatable("quickcraft.message.crafting.no_ingredients"));
-    }
-
-    int resolveRecipeIndex(QuickCraftStonecutter stonecutter, MinecraftClient client, StonecutterScreenHandler handler, RecipeEntry<StonecuttingRecipe> recipe, int lockedRecipeIndex, ItemStack lockedResultTemplate) {
-        int recipeIndex = findAvailableRecipeIndex(handler, recipe);
-        if (recipeIndex < 0) {
-            recipeIndex = stonecutter.findAvailableRecipeIndexByResult(client, handler, lockedResultTemplate);
-        }
-        if (recipeIndex < 0) {
-            recipeIndex = lockedRecipeIndex;
-        }
-        return recipeIndex;
-    }
-
-    void onRecipeSelectedForOutput(QuickCraftStonecutter stonecutter, MinecraftClient client, StonecutterScreenHandler handler, int recipeIndex) {
-        if (handler.getSelectedRecipe() != recipeIndex || !handler.getSlot(1).hasStack()) {
-            handler.onButtonClick(client.player, recipeIndex);
-            client.interactionManager.clickButton(handler.syncId, recipeIndex);
-        }
-        if (stonecutter.isRapidCraftingActive() && !handler.getSlot(1).hasStack()) {
-            recipeResultWaitTicks = RECIPE_RESULT_WAIT_TICKS;
-        }
-    }
-
-    boolean canAcceptOutput(PlayerInventory inventory, ItemStack output) {
-        return false;
-    }
-
-    void clearPendingSingleCraft() {
-        recipeResultWaitTicks = 0;
     }
 
     List<Ingredient> getIngredients(RecipeEntry<StonecuttingRecipe> recipe) {
@@ -149,5 +65,17 @@ final class QuickCraftStonecutterAccess {
 
     List<ItemStack> getMainStacks(PlayerInventory inventory) {
         return inventory.main;
+    }
+
+    void throwOutput(MinecraftClient client, StonecutterScreenHandler handler, ItemStack template) {
+        // 1.21/1.21.1 的 Ctrl+Q 只取当前结果；按输入数量发送有界批次。
+        int attempts = Math.min(64, handler.getSlot(0).getStack().getCount());
+        for (int i = 0; i < attempts; i++) {
+            ItemStack output = handler.getSlot(1).getStack();
+            if (output.isEmpty() || !ItemStack.areItemsAndComponentsEqual(output, template)) {
+                break;
+            }
+            client.interactionManager.clickSlot(handler.syncId, 1, 1, net.minecraft.screen.slot.SlotActionType.THROW, client.player);
+        }
     }
 }

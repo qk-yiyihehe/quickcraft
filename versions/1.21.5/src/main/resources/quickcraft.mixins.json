@@ -83,7 +83,8 @@
 		"LitematicaGlobalSaveWorldMixin",
 		"LitematicaWidgetMaterialListEntryMixin",
 		"MalilibGuiListAccessor",
-		"LitematicaSchematicDataMixin"
+		"LitematicaSchematicDataMixin",
+		"StonecutterPredictionMixin"
 	],
 	"injectors": {
 		"defaultRequire": 1

@@ -417,7 +417,6 @@
   "quickcraft.message.crafting.shulker_output_unsupported": "QuickCraft: 潜影盒产物不能嵌套装盒，已停止并保留产物",
   "quickcraft.message.crafting.shulker_output_failed": "QuickCraft: 产物装盒失败，已停止并保留产物",
   "quickcraft.message.stonecutter.no_selection": "QuickCraft: 未选择切石产物",
-  "quickcraft.message.stonecutter.sync_timeout": "QuickCraft: 等待切石机同步超时",
   "quickcraft.message.litematica_autofill.no_container_content": "QuickCraft: 当前位置没有可用的投影容器内容",
   "quickcraft.message.material_collector.hold_to_collect": "QuickCraft: 请长按右键收集投影材料",
   "quickcraft.message.material_collector.result": "QuickCraft: %s",
@@ -569,7 +568,7 @@
   "screen.quickcraft.developer.title": "QuickCraft 开发者调试（仅本次游戏生效）",
   "quickcraft.config.developer.name.mouseCraftAckLogs": "普通合成 ACK 详细日志",
   "quickcraft.config.developer.prettyName.mouseCraftAckLogs": "普通合成 ACK 详细日志",
-  "quickcraft.config.developer.comment.mouseCraftAckLogs": "记录普通工作台与背包持续合成的点击、库存快照、服务端回包、材料消耗及耗时。开启后会产生大量日志，复现问题后请关闭并提供 logs/latest.log。默认关闭，重启游戏后恢复关闭。",
+  "quickcraft.config.developer.comment.mouseCraftAckLogs": "记录普通工作台、背包及切石机合成的点击、库存快照、服务端回包、材料消耗及耗时。切石机日志包含会话与批次编号、补料、配方选择、填包与喷射、本地预测耗时、服务端同步和停止原因（切石机不发送统计探针）。开启后会产生大量日志，复现问题后请关闭并提供 logs/latest.log。默认关闭，重启游戏后恢复关闭。",
   "quickcraft.message.developer.ack_logs_enabled": "普通合成 ACK 详细日志已开启，复现问题后请关闭并提供 latest.log",
   "quickcraft.message.developer.ack_logs_disabled": "普通合成 ACK 详细日志已关闭",
   "quickcraft.config.developer.name.litematicaPreview3DLogs": "3D 预览详细工作日志",
@@ -648,5 +647,8 @@
   "quickcraft.litematica.global.source_heading": "被替换材料",
   "quickcraft.litematica.global.target_heading": "替换材料",
   "quickcraft.litematica.global.choose_both": "分别选择两侧材料，选齐后自动保存规则。",
-  "quickcraft.litematica.error.container_data_incomplete": "容器物品 %s 无法完整读取，材料统计可能不完整；替换与写入保留该容器的原始内容。"
+  "quickcraft.litematica.error.container_data_incomplete": "容器物品 %s 无法完整读取，材料统计可能不完整；替换与写入保留该容器的原始内容。",
+  "quickcraft.message.stonecutter.input_changed": "QuickCraft: 输入原料与锁定的切石机配方不符，已停止",
+  "quickcraft.message.stonecutter.blocked_input": "QuickCraft: 无法返还误入输入槽的产物，请腾出或解锁一个背包格",
+  "quickcraft.message.stonecutter.sync_changed": "服务端纠正了切石机库存，已停止"
 }

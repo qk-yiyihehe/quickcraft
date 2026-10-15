@@ -417,7 +417,6 @@
   "quickcraft.message.crafting.shulker_output_unsupported": "QuickCraft: Shulker output cannot be nested; stopped and kept the result",
   "quickcraft.message.crafting.shulker_output_failed": "QuickCraft: Failed to store output in shulker; stopped and kept the result",
   "quickcraft.message.stonecutter.no_selection": "QuickCraft: No stonecutter result selected",
-  "quickcraft.message.stonecutter.sync_timeout": "QuickCraft: Timed out waiting for stonecutter synchronization",
   "quickcraft.message.litematica_autofill.no_container_content": "QuickCraft: No usable projection container contents at the current position",
   "quickcraft.message.material_collector.hold_to_collect": "QuickCraft: Hold use to collect schematic materials",
   "quickcraft.message.material_collector.result": "QuickCraft: %s",
@@ -570,7 +569,7 @@
   "screen.quickcraft.developer.title": "QuickCraft Developer Diagnostics (current game session only)",
   "quickcraft.config.developer.name.mouseCraftAckLogs": "Mouse Craft ACK Detailed Logs",
   "quickcraft.config.developer.prettyName.mouseCraftAckLogs": "Mouse Craft ACK Detailed Logs",
-  "quickcraft.config.developer.comment.mouseCraftAckLogs": "Records clicks, inventory snapshots, server responses, ingredient consumption and timings for continuous workbench and inventory crafting. Generates large logs. Disable after reproducing the issue and share logs/latest.log. Off by default; resets on game restart.",
+  "quickcraft.config.developer.comment.mouseCraftAckLogs": "Records clicks, inventory snapshots, server responses, ingredient consumption and timings for workbench, inventory and stonecutter crafting. Stonecutter logs include session and batch IDs, refill, recipe selection, inventory fill and output spray, local prediction timings, server synchronization and stop reasons (stonecutter crafting sends no statistics probes). Generates large logs. Disable after reproducing the issue and share logs/latest.log. Off by default; resets on game restart.",
   "quickcraft.message.developer.ack_logs_enabled": "Mouse craft ACK detailed logs enabled. Disable after reproducing and share latest.log.",
   "quickcraft.message.developer.ack_logs_disabled": "Mouse craft ACK detailed logs disabled",
   "quickcraft.config.developer.name.litematicaPreview3DLogs": "3D preview detailed work log",
@@ -649,5 +648,8 @@
   "quickcraft.litematica.global.source_heading": "Source material",
   "quickcraft.litematica.global.target_heading": "Replacement material",
   "quickcraft.litematica.global.choose_both": "Choose each side independently. Complete rules are saved automatically.",
-  "quickcraft.litematica.error.container_data_incomplete": "Cannot fully read schematic item %s. Material counts may be incomplete; replacement and writing preserve this container's original contents."
+  "quickcraft.litematica.error.container_data_incomplete": "Cannot fully read schematic item %s. Material counts may be incomplete; replacement and writing preserve this container's original contents.",
+  "quickcraft.message.stonecutter.input_changed": "QuickCraft: Stonecutter input does not match the locked recipe; stopped",
+  "quickcraft.message.stonecutter.blocked_input": "QuickCraft: Cannot return the result from the input slot; free or unlock an inventory slot",
+  "quickcraft.message.stonecutter.sync_changed": "The server corrected the stonecutter inventory; crafting stopped"
 }

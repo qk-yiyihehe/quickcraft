@@ -96,7 +96,8 @@
 		"LitematicaWidgetMaterialListEntryMixin",
 		"MalilibGuiListAccessor",
 		"LitematicaGlobalProtoPlacementMixin",
-		"LitematicaSchematicDataMixin"
+		"LitematicaSchematicDataMixin",
+		"StonecutterPredictionMixin"
 	],
 	"injectors": {
 		"defaultRequire": 1
