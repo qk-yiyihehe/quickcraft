@@ -71,6 +71,7 @@ This project is licensed under the [MIT License](LICENSE).
 
 - [Tech Utils](https://github.com/Kikugie/techutils): reference for schematic and utility features.
 - [Item Scroller](https://github.com/maruohon/itemscroller): reference for inventory interaction design.
+- [Litematica Container Filler](https://modrinth.com/mod/litematica-container-filler): design inspiration for schematic container filling.
 - [MaLiLib](https://github.com/maruohon/malilib) and [Litematica](https://github.com/maruohon/litematica): core dependencies and schematic ecosystem support.
 
 ## GitHub Star Growth

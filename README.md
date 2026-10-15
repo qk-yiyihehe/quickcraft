@@ -71,7 +71,9 @@ QuickCraft 是面向 Fabric 的客户端实用模组，让合成、容器和 Lit
 
 - [Tech Utils](https://github.com/Kikugie/techutils)：投影与实用功能的实现参考。
 - [Item Scroller](https://github.com/maruohon/itemscroller)：物品栏操作设计参考。
+- [Litematica Container Filler](https://modrinth.com/mod/litematica-container-filler)：容器投影填充功能的设计思路参考。
 - [MaLiLib](https://github.com/maruohon/malilib) 与 [Litematica](https://github.com/maruohon/litematica)：提供核心依赖和投影生态支持。
+- 感谢 ACMAX生电服 提供的服务端测试环境。
 
 ## GitHub Star 增长趋势
 
