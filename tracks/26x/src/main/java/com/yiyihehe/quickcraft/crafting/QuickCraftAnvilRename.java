@@ -7,38 +7,42 @@ import com.yiyihehe.quickcraft.config.QuickCraftConfigs;
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.minecraft.client.Minecraft;
-import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.gui.screens.inventory.AnvilScreen;
 import net.minecraft.core.component.DataComponents;
-import net.minecraft.network.protocol.game.ServerboundRenameItemPacket;
-import net.minecraft.world.inventory.AbstractContainerMenu;
-import net.minecraft.world.inventory.ContainerInput;
-import net.minecraft.network.chat.Component;
-import net.minecraft.world.inventory.AnvilMenu;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.network.protocol.game.ServerboundRenameItemPacket;
+import net.minecraft.world.inventory.AnvilMenu;
+import net.minecraft.world.inventory.AbstractContainerMenu;
+import net.minecraft.world.inventory.Slot;
+import net.minecraft.world.inventory.ContainerInput;
+import net.minecraft.network.chat.Component;
+
+import static com.yiyihehe.quickcraft.crafting.QuickCraftMouseCraftAckRules.shouldEnterOutputSprayMode;
 
 /**
  * 铁砧快速命名：按左槽物品和输出名批量重命名。
  */
 public final class QuickCraftAnvilRename implements ClientModInitializer {
-    private static final int RAPID_INTERVAL = 1;
-    private static final int MAX_CONSECUTIVE_FAILURES = 3;
     private static final int INPUT_SLOT = AnvilMenu.INPUT_SLOT;
     private static final int ADDITION_SLOT = AnvilMenu.ADDITIONAL_SLOT;
     private static final int OUTPUT_SLOT = AnvilMenu.RESULT_SLOT;
     private static boolean consumeNextRenameHotkeyChar = false;
+    private static QuickCraftAnvilRename instance;
+    private static AnvilMenu renamingHandler;
 
     private final QuickCraftRateLimiter rateLimiter = new QuickCraftRateLimiter();
     private boolean lastVDown = false;
     private boolean lastAltCDown = false;
     private boolean rapidRenameActive = false;
-    private int rapidCooldown = 0;
-    private int consecutiveFailures = 0;
+    private boolean outputSprayMode;
+    private boolean sprayInventoryCleared;
+    private AnvilMenu sessionHandler;
     private RenameSnapshot lockedSnapshot = null;
 
     @Override
     public void onInitializeClient() {
+        instance = this;
         ClientTickEvents.END_CLIENT_TICK.register(this::onClientTick);
     }
 
@@ -46,7 +50,7 @@ public final class QuickCraftAnvilRename implements ClientModInitializer {
         Minecraft client = Minecraft.getInstance();
         return QuickCraftConfigs.isAnvilRenameQuickCraftEnabled()
                 && client != null
-                && getCurrentScreen(client) instanceof AnvilScreen
+                && QuickClientScreenAccess.currentScreen(client) instanceof AnvilScreen
                 && (QuickCraftKeyBindings.isHotkeyDown(QuickCraftConfigs.getSingleCraftHotkey())
                 || QuickCraftKeyBindings.isHotkeyDown(QuickCraftConfigs.getRapidCraftHotkey()));
     }
@@ -81,111 +85,170 @@ public final class QuickCraftAnvilRename implements ClientModInitializer {
         Minecraft client = Minecraft.getInstance();
         return QuickCraftConfigs.isAnvilRenameQuickCraftEnabled()
                 && client != null
-                && getCurrentScreen(client) instanceof AnvilScreen;
+                && QuickClientScreenAccess.currentScreen(client) instanceof AnvilScreen;
+    }
+
+    public static boolean isRenamingBatch(AbstractContainerMenu handler) {
+        return renamingHandler == handler;
+    }
+
+    public static void onServerContainerUpdate(int syncId, int slotId) {
+        QuickCraftAnvilRename active = instance;
+        if (active == null || !active.rapidRenameActive || active.sessionHandler == null
+                || active.sessionHandler.containerId != syncId) return;
+        // 预期的改名结果包不阻塞发送；输入纠正或全量同步后不再按旧库存继续。
+        if (slotId < 0 || slotId == INPUT_SLOT || slotId == ADDITION_SLOT) {
+            // 纠正后只停止，不按旧快照执行结束丢弃。
+            active.rapidRenameActive = false;
+            active.stopRapidRename(Minecraft.getInstance(), Component.translatable("quickcraft.message.crafting.stopped"));
+        }
     }
 
     private void onClientTick(Minecraft client) {
-        if (!QuickCraftConfigs.isAnvilRenameQuickCraftEnabled()) {
+        if (!QuickCraftConfigs.isAnvilRenameQuickCraftEnabled() || !isAnvilContextValid(client)) {
             resetAll();
             return;
         }
-
-        if (!isAnvilContextValid(client)) {
-            resetAll();
-            return;
-        }
-
-        consumeNextRenameHotkeyChar = false;
-
         AnvilMenu handler = (AnvilMenu) client.player.containerMenu;
+        if (sessionHandler != handler) {
+            resetAll();
+            sessionHandler = handler;
+        }
+        consumeNextRenameHotkeyChar = false;
         handleHotkeys(client, handler);
-
-        if (rapidRenameActive && lockedSnapshot != null) {
-            rapidCooldown++;
-            if (rapidCooldown >= RAPID_INTERVAL) {
-                rapidCooldown = 0;
-                processRapidRenameTick(client, handler, lockedSnapshot);
-            }
-        }
+        if (rapidRenameActive) processRapidRename(client, handler, lockedSnapshot);
     }
 
-    private void processRapidRenameTick(Minecraft client,
-                                        AnvilMenu handler,
-                                        RenameSnapshot snapshot) {
-        boolean anyProgress = false;
+    private void processRapidRename(Minecraft client, AnvilMenu handler, RenameSnapshot snapshot) {
         int rate = QuickCraftConfigs.getCraftsPerSecond();
-        if (!rateLimiter.isReady(rate, System.nanoTime())) {
-            return;
-        }
-
-        while (rateLimiter.isReady(rate, System.nanoTime())) {
-            rateLimiter.recordDispatch(rate, System.nanoTime());
-            boolean progressed = runOneRenameSubLoop(client, handler, snapshot);
-            if (progressed) {
-                anyProgress = true;
+        while (rapidRenameActive && rateLimiter.isReady(rate, System.nanoTime())) {
+            if (!QuickCraftKeyBindings.isHotkeyDown(QuickCraftConfigs.getRapidCraftHotkey())) {
+                stopRapidRename(client, Component.translatable("quickcraft.message.crafting.stopped"));
+                return;
             }
-            if (!rapidRenameActive || !progressed) {
-                break;
+            long dispatchNanos = System.nanoTime();
+            if (!renameBatch(client, handler, snapshot)) {
+                stopRapidRename(client, Component.translatable("quickcraft.message.crafting.no_ingredients"));
+                return;
             }
+            rateLimiter.recordDispatch(rate, dispatchNanos);
         }
-
-        if (anyProgress) {
-            consecutiveFailures = 0;
-            rateLimiter.resumeWhenReady(rate, client, () -> {
-                if (rapidRenameActive && lockedSnapshot == snapshot
-                        && QuickCraftConfigs.isAnvilRenameQuickCraftEnabled() && isAnvilContextValid(client)
-                        && client.player.containerMenu == handler
-                        && QuickCraftKeyBindings.isHotkeyDown(QuickCraftConfigs.getRapidCraftHotkey())) {
-                    processRapidRenameTick(client, handler, snapshot);
-                }
-            });
-            return;
-        }
-
-        consecutiveFailures++;
-        if (consecutiveFailures >= MAX_CONSECUTIVE_FAILURES) {
-            stopRapidRename(client, Component.translatable("quickcraft.message.crafting.no_ingredients"));
-        }
+        rateLimiter.resumeWhenReady(rate, client, () -> {
+            if (rapidRenameActive && lockedSnapshot == snapshot && sessionHandler == handler
+                    && QuickCraftConfigs.isAnvilRenameQuickCraftEnabled() && isAnvilContextValid(client)
+                    && client.player.containerMenu == handler) {
+                processRapidRename(client, handler, snapshot);
+            }
+        });
     }
 
-    private boolean runOneRenameSubLoop(Minecraft client,
-                                        AnvilMenu handler,
-                                        RenameSnapshot snapshot) {
-        if (client.player == null || client.gameMode == null || client.getConnection() == null) {
-            return false;
-        }
+    private boolean renameBatch(Minecraft client, AnvilMenu handler, RenameSnapshot snapshot) {
+        if (!handler.getCarried().isEmpty() || hasUnexpectedAddition(handler)
+                || QuickContainerLock.isLockedSlot(handler, INPUT_SLOT)
+                || QuickContainerLock.isLockedSlot(handler, OUTPUT_SLOT)) return false;
 
-        if (hasTargetOutput(handler, snapshot)) {
-            return tryQuickMoveOutput(client, handler);
-        }
+        renamingHandler = handler;
+        try {
+            if (!hasInput(handler)) {
+                int source = findNextTargetHandlerSlot(handler, snapshot);
+                if (source < 0) return false;
+                clickSlot(client, handler, source, 0, ContainerInput.QUICK_MOVE);
+            }
+            if (!snapshot.matchesTarget(handler.getSlot(INPUT_SLOT).getItem())) return false;
 
-        if (hasUnexpectedAddition(handler)) {
-            return false;
-        }
-
-        if (!hasInput(handler)) {
-            if (!quickMoveNextTargetToInput(client, handler, snapshot)) {
-                if (rapidRenameActive) {
-                    stopRapidRename(client, Component.translatable("quickcraft.message.crafting.no_ingredients"));
-                }
+            if (handler.setItemName(snapshot.targetName())) {
+                client.getConnection().send(new ServerboundRenameItemPacket(snapshot.targetName()));
+            }
+            // 同名时 setter 不重算；显式重算也排除迟到的结果/费用包影响本批判断。
+            handler.createResult();
+            if (!hasTargetOutput(handler, snapshot) || !handler.getSlot(OUTPUT_SLOT).mayPickup(client.player)) {
                 return false;
             }
+            moveOrThrowOutput(client, handler, snapshot);
+            return !hasInput(handler) && !hasOutput(handler) && handler.getCarried().isEmpty();
+        } finally {
+            renamingHandler = null;
         }
+    }
 
-        ItemStack input = handler.getSlot(INPUT_SLOT).getItem();
-        if (!snapshot.matchesTarget(input)) {
-            return false;
+    private void resetOutputPolicy(AnvilMenu handler) {
+        // 初始满包锁定喷射，其余批次按补料后的实际空格判断。
+        outputSprayMode = unlockedEmptySlots(handler) == 0;
+        sprayInventoryCleared = false;
+    }
+
+    private void moveOrThrowOutput(Minecraft client, AnvilMenu handler, RenameSnapshot snapshot) {
+        ItemStack output = handler.getSlot(OUTPUT_SLOT).getItem();
+        int target = findAcceptingSlot(handler, output);
+        if (shouldEnterOutputSprayMode(outputSprayMode, unlockedEmptySlots(handler), target >= 0)) {
+            activateOutputSprayMode(client, handler, snapshot);
+            clickSlot(client, handler, OUTPUT_SLOT, 1, ContainerInput.THROW);
+            return;
         }
-
-        if (!syncRenameText(client, handler, snapshot.targetName())) {
-            return false;
+        if (!hasLockedPlayerSlots(handler)) {
+            clickSlot(client, handler, OUTPUT_SLOT, 0, ContainerInput.QUICK_MOVE);
+        } else {
+            // 显式放入未锁定槽位，避免原版 Shift 转移合并进锁格。
+            ItemStack expected = output.copy();
+            clickSlot(client, handler, OUTPUT_SLOT, 0, ContainerInput.PICKUP);
+            ItemStack carried = handler.getCarried();
+            if (!ItemStack.isSameItemSameComponents(carried, expected) || carried.getCount() != expected.getCount()) return;
+            clickSlot(client, handler, target, 0, ContainerInput.PICKUP);
         }
-
-        if (!hasTargetOutput(handler, snapshot)) {
-            return false;
+        if (!hasInput(handler) && !hasOutput(handler) && handler.getCarried().isEmpty()
+                && shouldEnterOutputSprayMode(false, unlockedEmptySlots(handler), true)) {
+            activateOutputSprayMode(client, handler, snapshot);
         }
+    }
 
-        return tryQuickMoveOutput(client, handler);
+    private void activateOutputSprayMode(Minecraft client, AnvilMenu handler, RenameSnapshot snapshot) {
+        outputSprayMode = true;
+        if (!sprayInventoryCleared) {
+            sprayInventoryCleared = true;
+            dropInventoryResults(client, handler, snapshot);
+        }
+    }
+
+    private int unlockedEmptySlots(AnvilMenu handler) {
+        int count = 0;
+        for (int i = OUTPUT_SLOT + 1; i < handler.slots.size(); i++) {
+            if (!QuickContainerLock.isLockedSlot(handler, i) && !handler.getSlot(i).hasItem()) count++;
+        }
+        return count;
+    }
+
+    private boolean hasLockedPlayerSlots(AnvilMenu handler) {
+        for (int i = OUTPUT_SLOT + 1; i < handler.slots.size(); i++) {
+            if (QuickContainerLock.isLockedSlot(handler, i)) return true;
+        }
+        return false;
+    }
+
+    private int findAcceptingSlot(AnvilMenu handler, ItemStack output) {
+        int empty = -1;
+        for (int i = OUTPUT_SLOT + 1; i < handler.slots.size(); i++) {
+            Slot slot = handler.getSlot(i);
+            if (QuickContainerLock.isLockedSlot(handler, slot) || !slot.mayPlace(output)) continue;
+            ItemStack stack = slot.getItem();
+            if (stack.isEmpty()) {
+                if (empty < 0 && output.getCount() <= slot.getMaxStackSize(output)) empty = i;
+            } else if (ItemStack.isSameItemSameComponents(stack, output)
+                    && stack.getCount() + output.getCount() <= slot.getMaxStackSize(output)) {
+                return i;
+            }
+        }
+        return empty;
+    }
+
+    private void dropInventoryResults(Minecraft client, AnvilMenu handler, RenameSnapshot snapshot) {
+        if (!handler.getCarried().isEmpty()) return;
+        for (int i = OUTPUT_SLOT + 1; i < handler.slots.size(); i++) {
+            ItemStack stack = handler.getSlot(i).getItem();
+            if (!stack.isEmpty() && !QuickContainerLock.isLockedSlot(handler, i)
+                    && ItemStack.isSameItemSameComponents(stack, snapshot.resultTemplate())) {
+                clickSlot(client, handler, i, 1, ContainerInput.THROW);
+            }
+        }
     }
 
     private void handleSingleRename(Minecraft client, AnvilMenu handler) {
@@ -198,7 +261,8 @@ public final class QuickCraftAnvilRename implements ClientModInitializer {
             return;
         }
 
-        runOneRenameSubLoop(client, handler, lockedSnapshot);
+        resetOutputPolicy(handler);
+        renameBatch(client, handler, lockedSnapshot);
     }
 
     private void handleHotkeys(Minecraft client, AnvilMenu handler) {
@@ -232,9 +296,8 @@ public final class QuickCraftAnvilRename implements ClientModInitializer {
             return;
         }
 
+        resetOutputPolicy(handler);
         rapidRenameActive = true;
-        rapidCooldown = 0;
-        consecutiveFailures = 0;
         sendStatusMessage(client, Component.translatable("quickcraft.message.crafting.started"));
     }
 
@@ -255,31 +318,12 @@ public final class QuickCraftAnvilRename implements ClientModInitializer {
             return null;
         }
 
-        return new RenameSnapshot(input.getItem(), originalName, targetName);
-    }
-
-    private boolean quickMoveNextTargetToInput(Minecraft client,
-                                               AnvilMenu handler,
-                                               RenameSnapshot snapshot) {
-        int handlerSlot = findNextTargetHandlerSlot(handler, snapshot);
-        if (handlerSlot == -1) {
-            return false;
-        }
-
-        ItemStack beforeInput = handler.getSlot(INPUT_SLOT).getItem().copy();
-        ItemStack beforeSource = handler.getSlot(handlerSlot).getItem().copy();
-        clickSlot(client, handler, handlerSlot, 0, ContainerInput.QUICK_MOVE);
-
-        ItemStack afterInput = handler.getSlot(INPUT_SLOT).getItem();
-        ItemStack afterSource = handler.getSlot(handlerSlot).getItem();
-        return !afterInput.isEmpty()
-                || !ItemStack.isSameItemSameComponents(beforeInput, afterInput)
-                || afterSource.getCount() != beforeSource.getCount();
+        return new RenameSnapshot(input.getItem(), originalName, targetName, output.copy());
     }
 
     private int findNextTargetHandlerSlot(AnvilMenu handler, RenameSnapshot snapshot) {
         for (int slotId = 3; slotId < handler.slots.size(); slotId++) {
-            var slot = handler.getSlot(slotId);
+            Slot slot = handler.getSlot(slotId);
             if (QuickContainerLock.isLockedSlot(handler, slot)) {
                 continue;
             }
@@ -291,38 +335,13 @@ public final class QuickCraftAnvilRename implements ClientModInitializer {
         return -1;
     }
 
-    private boolean syncRenameText(Minecraft client,
-                                   AnvilMenu handler,
-                                   String targetName) {
-        if (handler.setItemName(targetName)) {
-            client.getConnection().send(new ServerboundRenameItemPacket(targetName));
-        }
-        return true;
-    }
-
-    private boolean tryQuickMoveOutput(Minecraft client, AnvilMenu handler) {
-        if (!hasOutput(handler)) {
-            return false;
-        }
-
-        ItemStack before = handler.getSlot(OUTPUT_SLOT).getItem().copy();
-        clickSlot(client, handler, OUTPUT_SLOT, 0, ContainerInput.QUICK_MOVE);
-
-        ItemStack after = handler.getSlot(OUTPUT_SLOT).getItem();
-        return after.isEmpty()
-                || !ItemStack.isSameItemSameComponents(before, after)
-                || after.getCount() != before.getCount();
-    }
-
     private boolean isAnvilContextValid(Minecraft client) {
         return client.player != null
                 && client.level != null
-                && getCurrentScreen(client) instanceof AnvilScreen
+                && client.gameMode != null
+                && client.getConnection() != null
+                && QuickClientScreenAccess.currentScreen(client) instanceof AnvilScreen
                 && client.player.containerMenu instanceof AnvilMenu;
-    }
-
-    private static Screen getCurrentScreen(Minecraft client) {
-        return QuickClientScreenAccess.currentScreen(client);
     }
 
     private boolean hasInput(AnvilMenu handler) {
@@ -344,7 +363,7 @@ public final class QuickCraftAnvilRename implements ClientModInitializer {
         return handler.getSlot(ADDITION_SLOT).hasItem();
     }
 
-    private String getStackRenameName(ItemStack stack) {
+    private static String getStackRenameName(ItemStack stack) {
         Component customName = stack.get(DataComponents.CUSTOM_NAME);
         if (customName != null) {
             return customName.getString();
@@ -357,10 +376,6 @@ public final class QuickCraftAnvilRename implements ClientModInitializer {
                            int slotId,
                            int button,
                            ContainerInput actionType) {
-        if (client.player == null || client.gameMode == null) {
-            return;
-        }
-
         client.gameMode.handleContainerInput(
                 handler.containerId,
                 slotId,
@@ -371,9 +386,12 @@ public final class QuickCraftAnvilRename implements ClientModInitializer {
     }
 
     private void stopRapidRename(Minecraft client, Component message) {
+        if (rapidRenameActive && lockedSnapshot != null && QuickCraftConfigs.isAnvilRenameQuickCraftEnabled()
+                && isAnvilContextValid(client) && client.player.containerMenu == sessionHandler
+                && QuickCraftConfigs.isDropCraftResultsOnStopEnabled()) {
+            dropInventoryResults(client, sessionHandler, lockedSnapshot);
+        }
         rapidRenameActive = false;
-        rapidCooldown = 0;
-        consecutiveFailures = 0;
         sendStatusMessage(client, message);
     }
 
@@ -381,9 +399,10 @@ public final class QuickCraftAnvilRename implements ClientModInitializer {
         lastVDown = false;
         lastAltCDown = false;
         rapidRenameActive = false;
-        rapidCooldown = 0;
-        consecutiveFailures = 0;
         lockedSnapshot = null;
+        sessionHandler = null;
+        outputSprayMode = false;
+        sprayInventoryCleared = false;
         consumeNextRenameHotkeyChar = false;
     }
 
@@ -393,20 +412,11 @@ public final class QuickCraftAnvilRename implements ClientModInitializer {
         }
     }
 
-    private record RenameSnapshot(Item item, String originalName, String targetName) {
+    private record RenameSnapshot(Item item, String originalName, String targetName, ItemStack resultTemplate) {
         private boolean matchesTarget(ItemStack stack) {
             return !stack.isEmpty()
                     && stack.is(item)
-                    && getPlainRenameName(stack).equals(originalName)
-                    && !originalName.equals(targetName);
-        }
-
-        private static String getPlainRenameName(ItemStack stack) {
-            Component customName = stack.get(DataComponents.CUSTOM_NAME);
-            if (customName != null) {
-                return customName.getString();
-            }
-            return stack.getHoverName().getString();
+                    && getStackRenameName(stack).equals(originalName);
         }
     }
 }

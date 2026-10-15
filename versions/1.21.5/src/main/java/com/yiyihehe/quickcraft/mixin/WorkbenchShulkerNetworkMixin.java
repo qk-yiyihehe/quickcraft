@@ -1,5 +1,6 @@
 package com.yiyihehe.quickcraft.mixin;
 
+import com.yiyihehe.quickcraft.crafting.QuickCraftAnvilRename;
 import com.yiyihehe.quickcraft.crafting.QuickCraftMouseCraftAckExecutor;
 import com.yiyihehe.quickcraft.crafting.QuickCraftStonecutter;
 import com.yiyihehe.quickcraft.crafting.QuickCraftWorkbenchShulkerCraft;
@@ -17,6 +18,7 @@ public abstract class WorkbenchShulkerNetworkMixin {
     // 原版方法入口可能仍在 Netty 线程；RETURN 时已通过 forceMainThread 切回客户端线程。
     @Inject(method = "onScreenHandlerSlotUpdate", at = @At("RETURN"))
     private void quickcraft$onSlotUpdate(ScreenHandlerSlotUpdateS2CPacket packet, CallbackInfo ci) {
+        QuickCraftAnvilRename.onServerContainerUpdate(packet.getSyncId(), packet.getSlot());
         QuickCraftWorkbenchShulkerCraft.onServerContainerUpdate(
                 packet.getSyncId(), packet.getRevision(), false);
         QuickCraftMouseCraftAckExecutor.onServerSlotUpdate(
@@ -27,6 +29,7 @@ public abstract class WorkbenchShulkerNetworkMixin {
 
     @Inject(method = "onInventory", at = @At("RETURN"))
     private void quickcraft$onInventoryUpdate(InventoryS2CPacket packet, CallbackInfo ci) {
+        QuickCraftAnvilRename.onServerContainerUpdate(packet.syncId(), -1);
         QuickCraftWorkbenchShulkerCraft.onServerContainerUpdate(
                 packet.syncId(), packet.revision(), true);
         QuickCraftMouseCraftAckExecutor.onServerInventoryUpdate(
