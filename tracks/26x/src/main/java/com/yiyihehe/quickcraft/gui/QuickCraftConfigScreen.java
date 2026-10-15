@@ -133,6 +133,12 @@ public class QuickCraftConfigScreen extends GuiConfigsBase {
     }
 
     private enum ConfigGroup {
+        WORKBENCH_CRAFTING(
+                QuickCraftConfigs.Crafting.ENABLE_WORKBENCH,
+                QuickCraftConfigs.Crafting.ENABLE_WORKBENCH_QUICK_SHULKER,
+                QuickCraftConfigs.Crafting.WORKBENCH_QUICK_SHULKER_PIPELINE_MODE,
+                QuickCraftConfigs.Crafting.ENABLE_WORKBENCH_QUICK_SHULKER_OUTPUT
+        ),
         QUICK_TRANSFER(
                 QuickCraftConfigs.ContainerTools.ENABLE_QUICK_TRANSFER,
                 QuickCraftConfigs.ContainerTools.SHOW_MATCHING_TRANSFER_HIGHLIGHT,
