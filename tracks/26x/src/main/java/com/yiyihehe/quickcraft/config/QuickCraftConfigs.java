@@ -633,6 +633,9 @@ public final class QuickCraftConfigs implements IConfigHandler {
         public static final ConfigBooleanHotkeyed SHOW_LITEMATICA_MATERIAL_REPLACEMENTS = new ConfigBooleanHotkeyed(
                 "showLitematicaMaterialReplacements", true, ""
         ).apply(PROJECTION_TRANSLATION_PREFIX);
+        public static final ConfigBooleanHotkeyed INCLUDE_ENDER_CHEST_IN_MATERIAL_HUD = new ConfigBooleanHotkeyed(
+                "includeEnderChestInMaterialHud", true, ""
+        ).apply(PROJECTION_TRANSLATION_PREFIX);
         public static final ConfigBoolean ALLOW_PERSISTENT_MATERIAL_IGNORES = new ConfigBoolean(
                 "allowPersistentMaterialIgnores", true
         ).apply(PROJECTION_TRANSLATION_PREFIX);
@@ -779,6 +782,7 @@ public final class QuickCraftConfigs implements IConfigHandler {
                 HIGHLIGHT_NONEMPTY_PROJECTION_CONTAINERS,
                 PROJECTION_CONTAINER_HIGHLIGHT_COLOR,
                 SHOW_LITEMATICA_MATERIAL_REPLACEMENTS,
+                INCLUDE_ENDER_CHEST_IN_MATERIAL_HUD,
                 GLOBAL_CONTAINER_REPLACEMENTS,
                 GLOBAL_PROJECTION_MATERIAL_REPLACEMENTS,
                 ALLOW_PERSISTENT_MATERIAL_IGNORES,
@@ -1044,6 +1048,7 @@ public final class QuickCraftConfigs implements IConfigHandler {
                 ProjectionTools.SHOW_LITEMATICA_CONTAINER_VERIFIER,
                 ProjectionTools.HIGHLIGHT_NONEMPTY_PROJECTION_CONTAINERS,
                 ProjectionTools.SHOW_LITEMATICA_MATERIAL_REPLACEMENTS,
+                ProjectionTools.INCLUDE_ENDER_CHEST_IN_MATERIAL_HUD,
                 ProjectionTools.ENABLE_AUTO_COLLECT_MATERIALS,
                 ProjectionTools.ENABLE_LITEMATICA_CONTAINER_AUTOFILL,
                 ProjectionTools.ENABLE_CREATIVE_CONTAINER_FILL,
@@ -1111,6 +1116,7 @@ public final class QuickCraftConfigs implements IConfigHandler {
                 ProjectionTools.SHOW_LITEMATICA_CONTAINER_VERIFIER,
                 ProjectionTools.HIGHLIGHT_NONEMPTY_PROJECTION_CONTAINERS,
                 ProjectionTools.SHOW_LITEMATICA_MATERIAL_REPLACEMENTS,
+                ProjectionTools.INCLUDE_ENDER_CHEST_IN_MATERIAL_HUD,
                 ProjectionTools.ENABLE_AUTO_COLLECT_MATERIALS,
                 ProjectionTools.ENABLE_LITEMATICA_CONTAINER_AUTOFILL,
                 ProjectionTools.ENABLE_CREATIVE_CONTAINER_FILL,

@@ -32,8 +32,9 @@ public class LitematicaMaterialListHudRendererMixin {
     @WrapOperation(method = "render", at = @At(value = "INVOKE",
             target = "Lfi/dy/masa/litematica/materials/MaterialListBase;getMaterialsMissingOnly(Z)Ljava/util/List;"))
     private List<MaterialListEntry> quickcraft$targetHudMissing(MaterialListBase list, boolean refresh, Operation<List<MaterialListEntry>> original) {
-        return list instanceof QuickLitematicaContainerMaterials.ContainerMaterialRequestSource source
+        var entries = list instanceof QuickLitematicaContainerMaterials.ContainerMaterialRequestSource source
                 ? source.quickcraft$getHudMaterialsMissing() : com.yiyihehe.quickcraft.litematica.QuickLitematicaProjectionMaterials.hud(list, true, () -> original.call(list, true));
+        return com.yiyihehe.quickcraft.litematica.QuickLitematicaEnderChestMaterials.hud(list, entries);
     }
 
     @Inject(method = "renderLookedAtBlockInInventory", at = @At("HEAD"), cancellable = true)

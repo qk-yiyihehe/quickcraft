@@ -764,5 +764,8 @@
   "quickcraft.litematica.nav.file_blocks": "原理图材料",
   "quickcraft.litematica.nav.containers": "容器材料",
   "quickcraft.litematica.nav.details": "容器详情",
-  "quickcraft.litematica.nav.entities": "实体材料"
+  "quickcraft.litematica.nav.entities": "实体材料",
+  "quickcraft.config.projection_tools.name.includeEnderChestInMaterialHud": "材料 HUD 统计末影箱物品",
+  "quickcraft.config.projection_tools.prettyName.includeEnderChestInMaterialHud": "材料 HUD 统计末影箱物品",
+  "quickcraft.config.projection_tools.comment.includeEnderChestInMaterialHud": "§6功能：§r将末影箱及其中潜影盒内的物品计入材料列表 HUD 的可用数量，支持 QuickShulker 快捷开启。\n§e说明：§r优先使用 QuickShulker 已同步的末影箱数据；服务器未提供同步时，进入世界后需先打开一次末影箱。退出世界后忘记记录，不影响实际物品。仅影响 HUD，不影响自动备货和补料。"
 }

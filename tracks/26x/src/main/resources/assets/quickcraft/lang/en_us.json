@@ -763,5 +763,8 @@
   "quickcraft.litematica.nav.file_blocks": "Schematic Materials",
   "quickcraft.litematica.nav.containers": "Containers",
   "quickcraft.litematica.nav.details": "Details",
-  "quickcraft.litematica.nav.entities": "Entities"
+  "quickcraft.litematica.nav.entities": "Entities",
+  "quickcraft.config.projection_tools.name.includeEnderChestInMaterialHud": "Include Ender Chest in Material HUD",
+  "quickcraft.config.projection_tools.prettyName.includeEnderChestInMaterialHud": "Include Ender Chest in Material HUD",
+  "quickcraft.config.projection_tools.comment.includeEnderChestInMaterialHud": "Include ender chest items and their shulker box contents in material list HUD availability, including QuickShulker access.\nUses ender chest data already synced by QuickShulker when available. Otherwise, open an ender chest once after joining. Forgets recorded contents when leaving; actual items are unaffected. Only affects the HUD, not material collection or restocking."
 }

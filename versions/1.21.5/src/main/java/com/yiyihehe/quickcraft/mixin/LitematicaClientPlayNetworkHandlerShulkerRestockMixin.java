@@ -16,6 +16,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 public abstract class LitematicaClientPlayNetworkHandlerShulkerRestockMixin {
     @Inject(method = "onInventory", at = @At("RETURN"))
     private void quickcraft$moveRestockMaterialAfterContents(InventoryS2CPacket packet, CallbackInfo ci) {
+        com.yiyihehe.quickcraft.litematica.QuickLitematicaEnderChestMaterials.onContentsReceived(packet.syncId());
         QuickLitematicaShulkerMaterialRestock.onShulkerContentsReceived(packet.syncId());
     }
 }
