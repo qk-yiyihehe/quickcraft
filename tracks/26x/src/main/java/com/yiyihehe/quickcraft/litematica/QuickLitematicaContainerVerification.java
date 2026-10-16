@@ -47,6 +47,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -440,16 +441,12 @@ public final class QuickLitematicaContainerVerification implements VerifierExten
         }
 
         ContainerMismatchKey key = ((BlockMismatchExtension) (Object) mismatch).quickcraft$getContainerMismatchKey();
-
-        if (key != null) {
-            ContainerMismatch removed = this.quickcraft$containerMismatchesByKey.remove(key);
-
-            if (removed != null) {
-                this.quickcraft$containerMismatches.getOrDefault(removed.type(), List.of()).remove(removed);
-            }
+        this.quickcraft$containerMismatchesByKey.values().removeIf(entry -> quickcraft$groupKey(entry).equals(key));
+        for (List<ContainerMismatch> entries : this.quickcraft$containerMismatches.values()) {
+            entries.removeIf(entry -> quickcraft$groupKey(entry).equals(key));
         }
-
         this.quickcraft$selectedContainerMismatches.remove(mismatch);
+        this.host.quickcraft$verificationSelectedEntries().remove(QuickLitematicaVerifierAccess.getMismatchType(mismatch), mismatch);
 
         if (updateOverlay) {
             this.host.quickcraft$updateVerificationOverlays();
@@ -847,10 +844,10 @@ public final class QuickLitematicaContainerVerification implements VerifierExten
 
         List<String> oldSignatures = this.quickcraft$containerMismatchesByKey.values().stream()
                 .filter(mismatch -> mismatch.pos().equals(pos))
-                .map(this::quickcraft$getContainerMismatchSignature)
+                .map(QuickLitematicaContainerVerification::quickcraft$getContainerMismatchSignature)
                 .toList();
         List<String> newSignatures = mismatches.stream()
-                .map(this::quickcraft$getContainerMismatchSignature)
+                .map(QuickLitematicaContainerVerification::quickcraft$getContainerMismatchSignature)
                 .toList();
 
         if (oldKeys.equals(newKeys) && oldSignatures.equals(newSignatures)) {
@@ -1063,24 +1060,39 @@ public final class QuickLitematicaContainerVerification implements VerifierExten
         this.quickcraft$missingContainerStacks.put(pos.immutable(), List.copyOf(stacks));
     }
 
+    static Map<ContainerMismatchKey, List<ContainerMismatch>> quickcraft$groupContainerMismatches(List<ContainerMismatch> mismatches) {
+        Map<ContainerMismatchKey, List<ContainerMismatch>> groups = new LinkedHashMap<>();
+        for (ContainerMismatch mismatch : mismatches) {
+            groups.computeIfAbsent(quickcraft$groupKey(mismatch), key -> new ArrayList<>()).add(mismatch);
+        }
+        return groups;
+    }
+
+    private static ContainerMismatchKey quickcraft$groupKey(ContainerMismatch mismatch) {
+        // 列表身份不含坐标；底层校验仍按原有位置 key 保存每个容器。
+        return new ContainerMismatchKey(mismatch.type(), null, quickcraft$getContainerMismatchSignature(mismatch));
+    }
+
     private List<BlockMismatch> quickcraft$createBlockMismatchesFor(MismatchType type) {
         List<BlockMismatch> list = new ArrayList<>();
-
-        for (ContainerMismatch mismatch : this.quickcraft$containerMismatches.getOrDefault(type, List.of())) {
-            list.add(this.quickcraft$createBlockMismatch(mismatch));
+        for (List<ContainerMismatch> group : quickcraft$groupContainerMismatches(
+                this.quickcraft$containerMismatches.getOrDefault(type, List.of())).values()) {
+            list.add(this.quickcraft$createBlockMismatch(group));
         }
-
         return list;
     }
 
-    private BlockMismatch quickcraft$createBlockMismatch(ContainerMismatch mismatch) {
+    private BlockMismatch quickcraft$createBlockMismatch(List<ContainerMismatch> group) {
+        ContainerMismatch mismatch = group.getFirst();
         BlockMismatch blockMismatch = new BlockMismatch(
                 mismatch.type(),
                 mismatch.expectedState(),
                 mismatch.foundState(),
-                1
+                group.size()
         );
-        ((BlockMismatchExtension) (Object) blockMismatch).quickcraft$setContainerMismatch(mismatch);
+        BlockMismatchExtension extension = (BlockMismatchExtension) (Object) blockMismatch;
+        extension.quickcraft$setContainerMismatch(mismatch);
+        extension.quickcraft$setContainerMismatchKey(quickcraft$groupKey(mismatch));
         return blockMismatch;
     }
 
@@ -1095,16 +1107,15 @@ public final class QuickLitematicaContainerVerification implements VerifierExten
             return positions;
         }
 
-        Collection<BlockMismatch> selected = this.host.quickcraft$verificationSelectedEntries().get(type);
-
-        for (BlockMismatch mismatch : selected) {
-            ContainerMismatchKey key = ((BlockMismatchExtension) (Object) mismatch).quickcraft$getContainerMismatchKey();
-            ContainerMismatch containerMismatch = key != null ? this.quickcraft$containerMismatchesByKey.get(key) : null;
-
-            if (containerMismatch != null && !positions.contains(containerMismatch.pos())) {
-                positions.add(containerMismatch.pos());
-            }
+        Set<ContainerMismatchKey> selectedKeys = new HashSet<>();
+        for (BlockMismatch mismatch : this.host.quickcraft$verificationSelectedEntries().get(type)) {
+            selectedKeys.add(((BlockMismatchExtension) (Object) mismatch).quickcraft$getContainerMismatchKey());
         }
+        this.quickcraft$containerMismatches.getOrDefault(type, List.of()).stream()
+                .filter(mismatch -> selectedKeys.contains(quickcraft$groupKey(mismatch)))
+                .map(ContainerMismatch::pos)
+                .distinct()
+                .forEach(positions::add);
 
         return positions;
     }
@@ -1130,45 +1141,38 @@ public final class QuickLitematicaContainerVerification implements VerifierExten
     }
 
     private boolean quickcraft$isContainerPosSelected(BlockPos pos) {
-        for (BlockMismatch mismatch : this.quickcraft$selectedContainerMismatches) {
-            ContainerMismatch containerMismatch =
-                    ((BlockMismatchExtension) (Object) mismatch).quickcraft$getContainerMismatch();
-
-            if (containerMismatch != null && containerMismatch.pos().equals(pos)) {
-                return true;
-            }
-        }
-
-        return false;
+        return this.quickcraft$containerMismatchesByKey.values().stream()
+                .filter(mismatch -> mismatch.pos().equals(pos))
+                .anyMatch(mismatch -> this.quickcraft$selectedContainerMismatches.stream().anyMatch(selected ->
+                        quickcraft$groupKey(mismatch).equals(((BlockMismatchExtension) (Object) selected).quickcraft$getContainerMismatchKey())));
     }
 
     private void quickcraft$restoreContainerSelection(BlockPos pos, boolean wasSelected) {
-        this.quickcraft$selectedContainerMismatches.removeIf(mismatch -> {
-            ContainerMismatch containerMismatch =
-                    ((BlockMismatchExtension) (Object) mismatch).quickcraft$getContainerMismatch();
-            return containerMismatch != null && containerMismatch.pos().equals(pos);
-        });
-        this.host.quickcraft$verificationSelectedEntries().values().removeIf(mismatch -> {
-            ContainerMismatch containerMismatch =
-                    ((BlockMismatchExtension) (Object) mismatch).quickcraft$getContainerMismatch();
-            return containerMismatch != null && containerMismatch.pos().equals(pos);
-        });
-
-        if (!wasSelected) {
+        Set<ContainerMismatchKey> selectedKeys = new HashSet<>();
+        for (BlockMismatch mismatch : this.quickcraft$selectedContainerMismatches) {
+            selectedKeys.add(((BlockMismatchExtension) (Object) mismatch).quickcraft$getContainerMismatchKey());
+        }
+        if (wasSelected) {
+            this.quickcraft$containerMismatchesByKey.values().stream()
+                    .filter(mismatch -> mismatch.pos().equals(pos))
+                    .map(QuickLitematicaContainerVerification::quickcraft$groupKey)
+                    .forEach(selectedKeys::add);
+        }
+        if (selectedKeys.isEmpty()) {
             return;
         }
-
-        for (ContainerMismatch mismatch : this.quickcraft$containerMismatchesByKey.values()) {
-            if (mismatch.pos().equals(pos)) {
-                BlockMismatch blockMismatch = this.quickcraft$createBlockMismatch(mismatch);
+        this.quickcraft$selectedContainerMismatches.clear();
+        this.host.quickcraft$verificationSelectedEntries().keySet().removeIf(QuickLitematicaContainerVerifier::isContainerMismatchType);
+        for (var entry : quickcraft$groupContainerMismatches(new ArrayList<>(this.quickcraft$containerMismatchesByKey.values())).entrySet()) {
+            if (selectedKeys.contains(entry.getKey())) {
+                BlockMismatch blockMismatch = this.quickcraft$createBlockMismatch(entry.getValue());
                 this.quickcraft$selectedContainerMismatches.add(blockMismatch);
                 this.host.quickcraft$verificationSelectedEntries().put(QuickLitematicaVerifierAccess.getMismatchType(blockMismatch), blockMismatch);
-                return;
             }
         }
     }
 
-    private String quickcraft$getContainerMismatchSignature(ContainerMismatch mismatch) {
+    private static String quickcraft$getContainerMismatchSignature(ContainerMismatch mismatch) {
         StringBuilder builder = new StringBuilder();
 
         builder.append(mismatch.type().ordinal())
@@ -1182,19 +1186,14 @@ public final class QuickLitematicaContainerVerification implements VerifierExten
                 .append(mismatch.foundDisabledSlots().stream().sorted().toList())
                 .append('|');
 
-        for (QuickLitematicaContainerVerifier.SlotMismatch slotMismatch : mismatch.slotMismatches()) {
-            builder.append(slotMismatch.slot())
-                    .append(':')
-                    .append(slotMismatch.status().name())
-                    .append(':')
-                    .append(slotMismatch.expectedStack().getCount())
-                    .append(':')
-                    .append(slotMismatch.foundStack().getCount())
-                    .append(':')
-                    .append(QuickLitematicaContainerVerifier.getItemStackSignature(slotMismatch.expectedStack()))
-                    .append(':')
-                    .append(QuickLitematicaContainerVerifier.getItemStackSignature(slotMismatch.foundStack()))
-                    .append(';');
+        for (Container inventory : List.of(mismatch.expectedInventory(), mismatch.foundInventory())) {
+            builder.append(inventory.getContainerSize()).append('|');
+            for (int slot = 0; slot < inventory.getContainerSize(); slot++) {
+                ItemStack stack = inventory.getItem(slot);
+                String signature = QuickLitematicaContainerVerifier.getItemStackSignature(stack);
+                builder.append(stack.getCount()).append(':')
+                        .append(signature.length()).append(':').append(signature).append(';');
+            }
         }
 
         return builder.toString();
