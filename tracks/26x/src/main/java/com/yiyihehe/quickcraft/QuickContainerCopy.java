@@ -1739,15 +1739,29 @@ public final class QuickContainerCopy implements ClientModInitializer {
             }
 
             int before = countMatchingPlayerStorage(handler, template);
-            // 整组优先取货；多出来的材料留在背包，后续腾格子时会作为普通无关物品处理。
-            client.gameMode.handleContainerInput(
-                    handler.containerId,
-                    slotId,
-                    0,
-                    ContainerInput.QUICK_MOVE,
-                    client.player
-            );
-            attemptedMove = true;
+            List<Integer> playerSlotIds = new ArrayList<>(getPlayerStorageSlotIds(handler));
+            playerSlotIds.sort(Comparator.comparing(playerSlotId -> !handler.getSlot(playerSlotId).hasItem()));
+            for (int playerSlotId : playerSlotIds) {
+                int remaining = demand.count() - (countMatchingPlayerStorage(handler, template) - before);
+                if (remaining <= 0 || !slot.hasItem() || !handler.getCarried().isEmpty()) {
+                    break;
+                }
+
+                Slot playerSlot = handler.getSlot(playerSlotId);
+                if (!playerSlot.mayPlace(template)
+                        || playerSlot.hasItem() && !ItemStack.isSameItemSameComponents(playerSlot.getItem(), template)) {
+                    continue;
+                }
+                int capacity = Math.min(template.getMaxStackSize(), playerSlot.getMaxStackSize(template))
+                        - (playerSlot.hasItem() ? playerSlot.getItem().getCount() : 0);
+                if (capacity <= 0) {
+                    continue;
+                }
+
+                // 限制为缺口和目标容量，拆分后的余量由现有转移逻辑放回原盒槽位。
+                moveItemsToTargetSlot(handler, slotId, playerSlotId, Math.min(remaining, capacity), client);
+                attemptedMove = true;
+            }
 
             int moved = Math.max(0, countMatchingPlayerStorage(handler, template) - before);
             if (moved <= 0) {
@@ -1756,6 +1770,9 @@ public final class QuickContainerCopy implements ClientModInitializer {
 
             totalMoved += moved;
             remainingDemands = subtractMissingDemand(remainingDemands, template, moved);
+            if (!handler.getCarried().isEmpty()) {
+                break;
+            }
         }
 
         return new ExtractResult(totalMoved, remainingDemands, attemptedMove);
