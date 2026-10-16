@@ -17,6 +17,7 @@ public abstract class LitematicaClientPlayNetworkHandlerShulkerRestockMixin {
     @Inject(method = "onInventory", at = @At("RETURN"))
     private void quickcraft$moveRestockMaterialAfterContents(InventoryS2CPacket packet, CallbackInfo ci) {
         com.yiyihehe.quickcraft.litematica.QuickLitematicaEnderChestMaterials.onContentsReceived(packet.getSyncId());
+        com.yiyihehe.quickcraft.litematica.QuickLitematicaContainerFillState.onContentsReceived(packet.getSyncId());
         QuickLitematicaShulkerMaterialRestock.onShulkerContentsReceived(packet.getSyncId());
     }
 }

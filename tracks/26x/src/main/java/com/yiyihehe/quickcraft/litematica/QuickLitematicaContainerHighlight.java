@@ -54,6 +54,7 @@ public final class QuickLitematicaContainerHighlight {
             positions = List.of();
             cachedWorld = client.level;
             ticksUntilRefresh = 0;
+            QuickLitematicaContainerFillState.clear();
             return;
         }
 
@@ -62,6 +63,7 @@ public final class QuickLitematicaContainerHighlight {
             ticksUntilRefresh = REFRESH_INTERVAL_TICKS;
             positions = collectContainerPositions(client);
         }
+        QuickLitematicaContainerFillState.tick(client, positions);
     }
 
     private static List<ProjectedContainer> collectContainerPositions(Minecraft client) {

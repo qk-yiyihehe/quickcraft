@@ -238,6 +238,10 @@ public class QuickCraftConfigScreen extends GuiConfigsBase {
                 QuickCraftConfigs.ProjectionTools.ALLOW_PERSISTENT_MATERIAL_IGNORES,
                 QuickCraftConfigs.ProjectionTools.MATERIAL_LIST_IGNORES
         ),
+        NONEMPTY_PROJECTION_CONTAINERS(
+                QuickCraftConfigs.ProjectionTools.HIGHLIGHT_NONEMPTY_PROJECTION_CONTAINERS,
+                QuickCraftConfigs.ProjectionTools.PROJECTION_CONTAINER_HIGHLIGHT_COLOR
+        ),
         CONTAINER_AUTOFILL(
                 QuickCraftConfigs.ProjectionTools.ENABLE_LITEMATICA_CONTAINER_AUTOFILL,
                 QuickCraftConfigs.ProjectionTools.ENABLE_CREATIVE_CONTAINER_FILL,

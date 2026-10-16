@@ -31,7 +31,8 @@ final class QuickLitematicaContainerHighlightAccess {
                         || !DataManager.getRenderLayerRange().isPositionWithinRange(pos)
                         || !client.level.hasChunkAt(pos)
                         || client.level.getBlockState(pos).getBlock() != container.block()
-                        || !(client.level.getBlockEntity(pos) instanceof Container)) {
+                        || !(client.level.getBlockEntity(pos) instanceof Container)
+                        || QuickLitematicaContainerFillState.isFilled(pos)) {
                     continue;
                 }
                 Gizmos.cuboid(new AABB(pos).inflate(0.002), GizmoStyle.fill(color)).setAlwaysOnTop();

@@ -29,6 +29,7 @@ public class LitematicaClientPlayerInteractionManagerMixin {
         ActionResult result = cir.getReturnValue();
 
         if (result != null && result.isAccepted()) {
+            com.yiyihehe.quickcraft.litematica.QuickLitematicaContainerFillState.rememberContainerUse(MinecraftClient.getInstance(), hitResult);
             com.yiyihehe.quickcraft.litematica.QuickLitematicaEnderChestMaterials.rememberContainerUse(MinecraftClient.getInstance(), hitResult);
         }
 

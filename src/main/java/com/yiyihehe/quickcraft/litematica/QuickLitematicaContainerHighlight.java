@@ -52,6 +52,7 @@ public final class QuickLitematicaContainerHighlight {
             positions = List.of();
             cachedWorld = client.world;
             ticksUntilRefresh = 0;
+            QuickLitematicaContainerFillState.clear();
             return;
         }
 
@@ -60,6 +61,7 @@ public final class QuickLitematicaContainerHighlight {
             ticksUntilRefresh = REFRESH_INTERVAL_TICKS;
             positions = collectContainerPositions(client);
         }
+        QuickLitematicaContainerFillState.tick(client, positions);
     }
 
     private static List<ProjectedContainer> collectContainerPositions(MinecraftClient client) {
@@ -167,7 +169,8 @@ public final class QuickLitematicaContainerHighlight {
                 && DataManager.getRenderLayerRange().isPositionWithinRange(pos)
                 && client.world.isChunkLoaded(pos)
                 && client.world.getBlockState(pos).getBlock() == container.block()
-                && client.world.getBlockEntity(pos) instanceof Inventory;
+                && client.world.getBlockEntity(pos) instanceof Inventory
+                && !QuickLitematicaContainerFillState.isFilled(pos);
     }
 
     record ProjectedContainer(BlockPos pos, Block block) {

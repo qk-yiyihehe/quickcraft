@@ -36,7 +36,8 @@ final class QuickLitematicaContainerHighlightAccess {
                         || !DataManager.getRenderLayerRange().isPositionWithinRange(pos)
                         || !client.level.hasChunkAt(pos)
                         || client.level.getBlockState(pos).getBlock() != container.block()
-                        || !(client.level.getBlockEntity(pos) instanceof Container)) {
+                        || !(client.level.getBlockEntity(pos) instanceof Container)
+                        || QuickLitematicaContainerFillState.isFilled(pos)) {
                     continue;
                 }
                 RenderUtils.renderAreaSidesBatched(pos, pos, color, 0.002, buffer);
