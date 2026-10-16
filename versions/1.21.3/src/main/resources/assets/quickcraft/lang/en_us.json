@@ -367,7 +367,7 @@
   "quickcraft.config.hotkeys.comment.slotQuickTransferHotkey": "§6Function: §rSimulates Shift-transfer by slot.\n§eNote: §rHold the combo and slide over slots; each touched slot is handled once.",
   "quickcraft.config.hotkeys.prettyName.slotLockHotkey": "Slot Lock",
   "quickcraft.config.hotkeys.name.slotLockHotkey": "Slot Lock",
-  "quickcraft.config.hotkeys.comment.slotLockHotkey": "§6Function: §rToggles the lock icon display on the hovered slot.\n§eNote: §rDefault §bAlt + Right Click§r.\n§7Limit: §rCurrently only changes display state and does not block §bQuickCraft§r automation.",
+  "quickcraft.config.hotkeys.comment.slotLockHotkey": "§6Function: §rToggles the lock state of the hovered slot.\n§eNote: §rDefault §bAlt + Right Click§r; hold the hotkey and move the mouse to toggle multiple slots.\n§7Usage: §rEach slot toggles only once per gesture. Release the hotkey or close the screen to stop.",
   "quickcraft.config.hotkeys.prettyName.copyContainerTemplateHotkey": "Record Container Content",
   "quickcraft.config.hotkeys.name.copyContainerTemplateHotkey": "Record Container Content",
   "quickcraft.config.hotkeys.comment.copyContainerTemplateHotkey": "§6Function: §rRecords the contents of a supported container as a template.\n§eNote: §rPress while aiming at a supported container to record; aim at air to clear the cache.",

@@ -5,6 +5,7 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.yiyihehe.quickcraft.config.QuickCraftConfigs;
 import com.yiyihehe.quickcraft.mixin.CreativeSlotAccessor;
+import fi.dy.masa.malilib.event.InputEventHandler;
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.loader.api.FabricLoader;
@@ -76,6 +77,8 @@ public final class QuickContainerLock implements ClientModInitializer {
     private static final Set<Integer> LOCKED_PLAYER_SLOTS = new HashSet<>();
     private static final Map<String, Set<Integer>> LOCKED_CONTAINER_SLOTS = new HashMap<>();
     private static final Map<Integer, String> SYNC_ID_TO_CONTAINER_KEY = new HashMap<>();
+    private static HandledScreen<?> slotLockDragScreen;
+    private static final Set<Slot> DRAGGED_LOCK_SLOTS = new HashSet<>();
     private static boolean lastUseDown;
     private static int pendingTicks;
     private static String pendingContainerKey;
@@ -98,11 +101,13 @@ public final class QuickContainerLock implements ClientModInitializer {
     @Override
     public void onInitializeClient() {
         ClientTickEvents.END_CLIENT_TICK.register(this::onClientTick);
+        InputEventHandler.getInputManager().registerMouseInputHandler(new QuickContainerLockInput());
     }
 
     private void onClientTick(MinecraftClient client) {
         tickLingeringAutoElytraSession();
         QuickPersistentState.onClientTick(client);
+        validateSlotLockDrag(client);
         handleUseAttempt(client);
         processPendingOpen(client);
         clearCurrentScreenKeyIfNeeded(client);
@@ -241,20 +246,51 @@ public final class QuickContainerLock implements ClientModInitializer {
     }
 
     public static boolean handleSlotLockHotkey(HandledScreen<?> screen, double mouseX, double mouseY, int guiLeft, int guiTop) {
+        clearSlotLockDrag();
         if (!shouldShowSlotLocks(screen)) {
             return false;
         }
 
-        for (Slot slot : screen.getScreenHandler().slots) {
-            if (!isLockableSlot(screen, slot) || !isMouseOverSlot(slot, guiLeft, guiTop, mouseX, mouseY)) {
-                continue;
-            }
+        slotLockDragScreen = screen;
+        toggleHoveredSlotLock(screen, mouseX, mouseY, guiLeft, guiTop);
+        return true;
+    }
 
-            toggleSlotLock(screen, slot);
-            return true;
+    public static void handleSlotLockDrag(MinecraftClient client, double mouseX, double mouseY) {
+        if (validateSlotLockDrag(client)) {
+            toggleHoveredSlotLock(slotLockDragScreen, mouseX, mouseY,
+                    getGuiLeft(slotLockDragScreen), getGuiTop(slotLockDragScreen));
         }
+    }
 
-        return false;
+    private static boolean validateSlotLockDrag(MinecraftClient client) {
+        if (slotLockDragScreen == null) {
+            return false;
+        }
+        if (client.currentScreen != slotLockDragScreen
+                || !QuickCraftKeyBindings.isHotkeyDown(QuickCraftConfigs.Hotkeys.SLOT_LOCK.getKeybind())
+                || !shouldShowSlotLocks(slotLockDragScreen)) {
+            clearSlotLockDrag();
+            return false;
+        }
+        return true;
+    }
+
+    private static void clearSlotLockDrag() {
+        slotLockDragScreen = null;
+        DRAGGED_LOCK_SLOTS.clear();
+    }
+
+    private static void toggleHoveredSlotLock(HandledScreen<?> screen, double mouseX, double mouseY, int guiLeft, int guiTop) {
+        for (Slot slot : screen.getScreenHandler().slots) {
+            if (isLockableSlot(screen, slot) && isMouseOverSlot(slot, guiLeft, guiTop, mouseX, mouseY)) {
+                // 创造背包的包装槽位也按真实槽位去重，避免同次滑动反复切换。
+                if (DRAGGED_LOCK_SLOTS.add(unwrapCreativeSlot(slot))) {
+                    toggleSlotLock(screen, slot);
+                }
+                return;
+            }
+        }
     }
 
     public static void renderSlotLocks(HandledScreen<?> screen, DrawContext context, int guiLeft, int guiTop) {
@@ -932,6 +968,7 @@ public final class QuickContainerLock implements ClientModInitializer {
     }
 
     static void clearPersistentState() {
+        clearSlotLockDrag();
         LOCKED_CONTAINERS.clear();
         LOCKED_PLAYER_SLOTS.clear();
         LOCKED_CONTAINER_SLOTS.clear();

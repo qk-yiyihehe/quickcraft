@@ -367,7 +367,7 @@
   "quickcraft.config.hotkeys.comment.slotQuickTransferHotkey": "§6功能：§r按格子模拟 Shift 转移。\n§e说明：§r按住组合并滑过格子时，每个滑过的格子生效一次。",
   "quickcraft.config.hotkeys.prettyName.slotLockHotkey": "槽位锁",
   "quickcraft.config.hotkeys.name.slotLockHotkey": "槽位锁",
-  "quickcraft.config.hotkeys.comment.slotLockHotkey": "§6功能：§r切换鼠标指向格子的锁图标显示。\n§e说明：§r默认 §bAlt + 右键§r。\n§7限制：§r当前只改变显示状态，不拦截 §bQuickCraft§r 自动化操作。",
+  "quickcraft.config.hotkeys.comment.slotLockHotkey": "§6功能：§r切换鼠标指向槽位的锁定状态。\n§e说明：§r默认 §bAlt + 右键§r；按住快捷键并滑动鼠标，可批量切换经过槽位的锁定状态。\n§7操作：§r同次滑动每格只切换一次，松开快捷键或关闭界面后结束。",
   "quickcraft.config.hotkeys.prettyName.copyContainerTemplateHotkey": "记录容器内容",
   "quickcraft.config.hotkeys.name.copyContainerTemplateHotkey": "记录容器内容",
   "quickcraft.config.hotkeys.comment.copyContainerTemplateHotkey": "§6功能：§r记录支持容器的内容模板。\n§e说明：§r对着支持的容器按下会记录内容；对着空气按下会清空记录缓存。",
