@@ -263,20 +263,24 @@ public final class QuickLitematicaVerifierRenderer {
                 return;
             }
 
-            for (GhostItemDraw item : items) {
-                if (item.stack().isEmpty()) {
-                    continue;
-                }
+            try {
+                for (GhostItemDraw item : items) {
+                    if (item.stack().isEmpty()) {
+                        continue;
+                    }
 
-                context.drawItem(item.stack(), item.x(), item.y());
-                context.drawItemInSlot(client.textRenderer, item.stack(), item.x(), item.y());
+                    context.drawItem(item.stack(), item.x(), item.y());
+                    context.drawItemInSlot(client.textRenderer, item.stack(), item.x(), item.y());
+                }
+            } finally {
+                endHandledScreenGhostRender(context, guiLeft, guiTop, alpha);
             }
-            endHandledScreenGhostRender(context, guiLeft, guiTop, alpha);
         }
 
         private static boolean beginHandledScreenGhostRender(DrawContext context, MinecraftClient client) {
-            framebuffer = getFramebuffer();
+            context.draw();
             previousFramebuffer = GlStateManager.getBoundFramebuffer();
+            framebuffer = getFramebuffer();
             framebuffer.clear(MinecraftClient.IS_SYSTEM_MAC);
             framebuffer.beginWrite(false);
             return true;
@@ -288,12 +292,20 @@ public final class QuickLitematicaVerifierRenderer {
                 int guiTop,
                 float alpha
         ) {
+            context.draw();
             GlStateManager._glBindFramebuffer(GL30.GL_FRAMEBUFFER, previousFramebuffer);
             RenderSystem.enableBlend();
             RenderSystem.defaultBlendFunc();
-            RenderSystem.setShaderColor(1.0F, 1.0F, 1.0F, alpha);
-            drawFramebuffer(context, framebuffer);
-            RenderSystem.setShaderColor(1.0F, 1.0F, 1.0F, 1.0F);
+            RenderSystem.setShaderColor(1.0F, 1.0F, 1.0F, Math.max(0.0F, Math.min(1.0F, alpha)));
+            context.getMatrices().push();
+            try {
+                // 离屏纹理已经包含容器位置，合成时抵消当前界面的平移。
+                context.getMatrices().translate(-guiLeft, -guiTop, 0.0F);
+                drawFramebuffer(context, framebuffer);
+            } finally {
+                context.getMatrices().pop();
+                RenderSystem.setShaderColor(1.0F, 1.0F, 1.0F, 1.0F);
+            }
         }
 
         private static Framebuffer getFramebuffer() {

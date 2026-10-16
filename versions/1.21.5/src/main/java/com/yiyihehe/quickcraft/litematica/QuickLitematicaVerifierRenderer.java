@@ -310,11 +310,19 @@ public final class QuickLitematicaVerifierRenderer {
 
             MinecraftClient client = MinecraftClient.getInstance();
             if (client != null) {
+                context.draw();
                 ((MinecraftClientAccessor) (Object) client).quickcraft$setFramebuffer(previousFramebuffer);
             }
 
-            drawFramebuffer(context, framebuffer, alpha);
-            previousFramebuffer = null;
+            context.getMatrices().push();
+            try {
+                // 离屏纹理已经包含容器位置，合成时抵消当前界面的平移。
+                context.getMatrices().translate(-guiLeft, -guiTop, 0.0F);
+                drawFramebuffer(context, framebuffer, alpha);
+            } finally {
+                context.getMatrices().pop();
+                previousFramebuffer = null;
+            }
         }
 
         private static SimpleFramebuffer getFramebuffer(MinecraftClient client) {
