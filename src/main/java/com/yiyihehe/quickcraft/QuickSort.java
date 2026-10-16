@@ -16,6 +16,7 @@ import net.minecraft.client.gui.widget.TextFieldWidget;
 import net.minecraft.component.DataComponentTypes;
 import net.minecraft.component.type.BundleContentsComponent;
 import net.minecraft.component.type.ContainerComponent;
+import net.minecraft.component.type.NbtComponent;
 import net.minecraft.entity.player.PlayerInventory;
 import net.minecraft.inventory.Inventory;
 import net.minecraft.item.BlockItem;
@@ -27,6 +28,7 @@ import net.minecraft.registry.Registries;
 import net.minecraft.registry.RegistryKey;
 import net.minecraft.util.Identifier;
 import net.minecraft.screen.ScreenHandler;
+import net.minecraft.screen.GenericContainerScreenHandler;
 import net.minecraft.screen.slot.Slot;
 import net.minecraft.screen.slot.SlotActionType;
 
@@ -268,6 +270,18 @@ public class QuickSort implements ClientModInitializer {
             return targets;
         }
 
+        if (isGcaPlayerInventory(handler)) {
+            // GCA 六行菜单的 0..17 是装备、副手和控制区，18..53 作为一个完整背包整理。
+            List<Slot> area = handler.slots.subList(18, 54);
+            targets.add(new SortTarget(
+                "container",
+                toUnlockedContainerSortSlotIds(handler, area),
+                Bounds.fromSlots(area, guiLeft, guiTop),
+                handler
+            ));
+            return targets;
+        }
+
         for (Slot slot : gui.getScreenHandler().slots) {
             if (playerInventoryIndex(slot) >= 0) {
                 continue;
@@ -293,6 +307,18 @@ public class QuickSort implements ClientModInitializer {
         }
 
         return targets;
+    }
+
+    private static boolean isGcaPlayerInventory(ScreenHandler handler) {
+        if (!(handler instanceof GenericContainerScreenHandler chest) || chest.getRows() != 6
+            || handler.slots.size() != 90) {
+            return false;
+        }
+        // 标记随服务端物品同步，不依赖客户端安装 GCA，也不依赖菜单标题的语言。
+        ItemStack marker = handler.getSlot(0).getStack();
+        NbtComponent data = marker.get(DataComponentTypes.CUSTOM_DATA);
+        return marker.isOf(Items.STRUCTURE_VOID) && data != null
+            && data.copyNbt().contains("GcaClear") && data.copyNbt().contains("GcaButton");
     }
 
     private static boolean shouldShowPlayerSortTargets(HandledScreen<?> gui) {
@@ -674,6 +700,9 @@ public class QuickSort implements ClientModInitializer {
     }
 
     private static boolean isSafeVisibleStorageSlot(ScreenHandler handler, Slot slot, MinecraftClient client) {
+        if (isGcaPlayerInventory(handler) && getClickSlotId(handler, slot) < 18) {
+            return false;
+        }
         if (client.currentScreen instanceof CreativeInventoryScreen creativeScreen
             && handler == creativeScreen.getScreenHandler()) {
             return isPlayerAreaSlot(creativeScreen, slot);

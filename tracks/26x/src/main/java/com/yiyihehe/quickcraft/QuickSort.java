@@ -17,6 +17,7 @@ import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.world.item.component.BundleContents;
 import net.minecraft.world.item.component.ItemContainerContents;
+import net.minecraft.world.item.component.CustomData;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.Container;
 import net.minecraft.world.item.BlockItem;
@@ -27,6 +28,7 @@ import net.minecraft.world.item.Items;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.world.inventory.AbstractContainerMenu;
+import net.minecraft.world.inventory.ChestMenu;
 import net.minecraft.world.inventory.Slot;
 import net.minecraft.world.inventory.ContainerInput;
 
@@ -274,6 +276,18 @@ public class QuickSort implements ClientModInitializer {
             return targets;
         }
 
+        if (isGcaPlayerInventory(handler)) {
+            // GCA 六行菜单的 0..17 是装备、副手和控制区，18..53 作为一个完整背包整理。
+            List<Slot> area = handler.slots.subList(18, 54);
+            targets.add(new SortTarget(
+                "container",
+                toUnlockedContainerSortSlotIds(handler, area),
+                Bounds.fromSlots(area, guiLeft, guiTop),
+                handler
+            ));
+            return targets;
+        }
+
         for (Slot slot : gui.getMenu().slots) {
             if (playerInventoryIndex(slot) >= 0) {
                 continue;
@@ -299,6 +313,18 @@ public class QuickSort implements ClientModInitializer {
         }
 
         return targets;
+    }
+
+    private static boolean isGcaPlayerInventory(AbstractContainerMenu handler) {
+        if (!(handler instanceof ChestMenu chest) || chest.getRowCount() != 6
+            || handler.slots.size() != 90) {
+            return false;
+        }
+        // 标记随服务端物品同步，不依赖客户端安装 GCA，也不依赖菜单标题的语言。
+        ItemStack marker = handler.getSlot(0).getItem();
+        CustomData data = marker.get(DataComponents.CUSTOM_DATA);
+        return marker.is(Items.STRUCTURE_VOID) && data != null
+            && data.copyTag().contains("GcaClear") && data.copyTag().contains("GcaButton");
     }
 
     private static boolean shouldShowPlayerSortTargets(AbstractContainerScreen<?> gui) {
@@ -680,6 +706,9 @@ public class QuickSort implements ClientModInitializer {
     }
 
     private static boolean isSafeVisibleStorageSlot(AbstractContainerMenu handler, Slot slot, Minecraft client) {
+        if (isGcaPlayerInventory(handler) && getClickSlotId(handler, slot) < 18) {
+            return false;
+        }
         if (getCurrentScreen(client) instanceof CreativeModeInventoryScreen creativeScreen
             && handler == creativeScreen.getMenu()) {
             return isPlayerAreaSlot(creativeScreen, slot);
