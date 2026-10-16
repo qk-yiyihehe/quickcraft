@@ -213,6 +213,10 @@
   "quickcraft.config.projection_tools.prettyName.showLitematicaContainerMaterialButton": "显示投影容器材料按钮",
   "quickcraft.config.projection_tools.name.showLitematicaContainerMaterialButton": "显示投影容器材料按钮",
   "quickcraft.config.projection_tools.comment.showLitematicaContainerMaterialButton": "§6功能：§r在 §bLitematica§r 的加载原理图页面显示容器材料列表按钮。\n§e说明：§r使用原版材料列表界面统计原理图内容器填充物品。",
+  "quickcraft.config.projection_tools.prettyName.showLitematicaEntityMaterialButton": "显示实体材料列表按钮",
+  "quickcraft.config.projection_tools.name.showLitematicaEntityMaterialButton": "显示实体材料列表按钮",
+  "quickcraft.config.projection_tools.comment.showLitematicaEntityMaterialButton": "在投影文件材料列表及其容器材料列表、详情页显示实体材料列表按钮。统计生存可放置的实体、展示框内物品和盔甲架装备；铁傀儡、雪傀儡、铜傀儡与凋零换算为生成材料。不统计其他生物、实体库存或掉落物。",
+  "quickcraft.litematica.title.entity_materials": "实体材料列表：%s",
   "quickcraft.litematica.preview_3d.rendering": "渲染 3D 预览",
   "quickcraft.litematica.preview_3d.dynamic_preparing": "动态渲染准备中：%s%%",
   "quickcraft.entity_placement.title": "选择要放置的实体",
@@ -490,8 +494,6 @@
   "quickcraft.litematica.button.container_material_list": "容器材料列表",
   "quickcraft.litematica.button.open_schematic_folder": "打开原理图文件夹",
   "quickcraft.litematica.button.hover.container_material_list": "按容器分组统计选中原理图内所有容器已保存的填充物品。",
-  "quickcraft.litematica.button.container_material_details": "容器详细情况",
-  "quickcraft.litematica.button.refresh_container_material_list": "刷新列表",
   "quickcraft.litematica.button.ignore_container": "忽略",
   "quickcraft.litematica.error.no_schematic_selected": "未选择原理图文件！",
   "quickcraft.litematica.title.container_material_list": "原理图'%s'容器材料列表（%d/%d区域）",
@@ -503,7 +505,6 @@
   "quickcraft.litematica.label.source": "来源：%s",
   "quickcraft.litematica.label.empty_contents": "空",
   "quickcraft.litematica.label.no_container_contents": "这个原理图里没有可统计的容器内容。",
-  "quickcraft.litematica.label.summary": "容器分组：%d / 容器数量：%d",
   "quickcraft.litematica.container.large_chest": "大箱子",
   "quickcraft.litematica.container.large_trapped_chest": "大型陷阱箱",
   "litematica.gui.label.schematic_verifier_display_type.quickcraft_wrong_fill": "填充错误",
@@ -756,5 +757,9 @@
   "quickcraft.config.crafting.prettyName.anvilCreativeNoBooks": "创造模式无需附魔书",
   "quickcraft.config.crafting.comment.anvilCreativeNoBooks": "默认开启。创造模式下直接为左槽装备补上目标附魔，无需附魔书，不消耗经验；保留名称、损耗和已有附魔，跳过冲突项。需有一个未锁定的背包空格。关闭后按背包附魔书规划。",
   "quickcraft.anvil.creative_ready": "创造方案：%s 步，无需附魔书，不消耗经验。",
-  "quickcraft.anvil.creative_step": "直接补齐目标附魔，并将装备放回背包。"
+  "quickcraft.anvil.creative_step": "直接补齐目标附魔，并将装备放回背包。",
+  "quickcraft.litematica.nav.file_blocks": "原理图材料",
+  "quickcraft.litematica.nav.containers": "容器材料",
+  "quickcraft.litematica.nav.details": "容器详情",
+  "quickcraft.litematica.nav.entities": "实体材料"
 }

@@ -213,6 +213,10 @@
   "quickcraft.config.projection_tools.prettyName.showLitematicaContainerMaterialButton": "Show Projection Container Material Button",
   "quickcraft.config.projection_tools.name.showLitematicaContainerMaterialButton": "Show Projection Container Material Button",
   "quickcraft.config.projection_tools.comment.showLitematicaContainerMaterialButton": "§6Function: §rShows a container material list button on §bLitematica§r's load schematic screen.\n§eNote: §rUses the vanilla material list screen to count saved container contents in the schematic.",
+  "quickcraft.config.projection_tools.prettyName.showLitematicaEntityMaterialButton": "Show Entity Material List Button",
+  "quickcraft.config.projection_tools.name.showLitematicaEntityMaterialButton": "Show Entity Material List Button",
+  "quickcraft.config.projection_tools.comment.showLitematicaEntityMaterialButton": "Shows an entity material list button on schematic-file material lists and their container lists/details. Counts survival-placeable entities, displayed items in frames and armor stand equipment. Golems and withers use construction materials. Excludes other mobs, entity inventories and dropped items.",
+  "quickcraft.litematica.title.entity_materials": "Entity Materials: %s",
   "quickcraft.litematica.preview_3d.dynamic_preparing": "Preparing dynamic content: %s%%",
   "quickcraft.litematica.preview_3d.rendering": "Rendering 3D Preview",
   "quickcraft.entity_placement.title": "Select Entity to Place",
@@ -489,8 +493,6 @@
   "quickcraft.litematica.button.container_material_list": "Container Material List",
   "quickcraft.litematica.button.open_schematic_folder": "Open Schematic Folder",
   "quickcraft.litematica.button.hover.container_material_list": "Counts saved container contents in the selected schematic, grouped by container.",
-  "quickcraft.litematica.button.container_material_details": "Container Details",
-  "quickcraft.litematica.button.refresh_container_material_list": "Refresh List",
   "quickcraft.litematica.button.ignore_container": "Ignore",
   "quickcraft.litematica.error.no_schematic_selected": "No schematic file selected!",
   "quickcraft.litematica.title.container_material_list": "Schematic '%s' Container Material List (%d/%d regions)",
@@ -502,7 +504,6 @@
   "quickcraft.litematica.label.source": "Source: %s",
   "quickcraft.litematica.label.empty_contents": "Empty",
   "quickcraft.litematica.label.no_container_contents": "No countable container contents were found in this schematic.",
-  "quickcraft.litematica.label.summary": "Container groups: %d / Containers: %d",
   "quickcraft.litematica.container.large_chest": "Large Chest",
   "quickcraft.litematica.container.large_trapped_chest": "Large Trapped Chest",
   "litematica.gui.label.schematic_verifier_display_type.quickcraft_wrong_fill": "Wrong Fill",
@@ -755,5 +756,9 @@
   "quickcraft.config.crafting.prettyName.anvilCreativeNoBooks": "Creative: no enchantment books",
   "quickcraft.config.crafting.comment.anvilCreativeNoBooks": "Enabled by default. In Creative, apply target enchantments to the left-slot equipment without books or XP. Keeps its name, damage and existing enchantments; skips conflicts. Requires one unlocked empty inventory slot. Disable to plan with inventory books.",
   "quickcraft.anvil.creative_ready": "Creative plan: %s step(s), no books or XP required.",
-  "quickcraft.anvil.creative_step": "Apply target enchantments directly and return the equipment to inventory."
+  "quickcraft.anvil.creative_step": "Apply target enchantments directly and return the equipment to inventory.",
+  "quickcraft.litematica.nav.file_blocks": "Schematic Materials",
+  "quickcraft.litematica.nav.containers": "Containers",
+  "quickcraft.litematica.nav.details": "Details",
+  "quickcraft.litematica.nav.entities": "Entities"
 }

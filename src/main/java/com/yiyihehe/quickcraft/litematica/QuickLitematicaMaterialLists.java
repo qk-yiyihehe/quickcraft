@@ -62,6 +62,9 @@ public final class QuickLitematicaMaterialLists {
     }
 
     public static String getPersistentContextKey(MaterialListBase materialList) {
+        if (materialList instanceof QuickLitematicaEntityMaterials.EntityMaterialList entities) {
+            return getReplacementContextKey(entities.schematic, entities.regions) + "#entity";
+        }
         if (materialList instanceof QuickLitematicaContainerMaterials.ContainerReplacementBindingSource source) {
             return source.quickcraft$getPersistentContextKey();
         }

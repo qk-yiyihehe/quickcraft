@@ -320,7 +320,8 @@ public final class QuickLitematicaProjectionMaterials {
         var ignored = QuickLitematicaMaterialIgnores.effective(list);
         if (counts == null) {
             var entries = original.get();
-            return entries.stream().filter(entry -> !ignored.contains(new ItemType(entry.getStack(), true, true).toString())).toList();
+            // Litematica 的 HUD 会原地排序，不能返回 Stream.toList() 的只读列表。
+            return new ArrayList<>(entries.stream().filter(entry -> !ignored.contains(new ItemType(entry.getStack(), true, true).toString())).toList());
         }
         String context = QuickLitematicaMaterialLists.getReplacementContextKey(list);
         HudCache cached = HUD_CACHE.get(list);

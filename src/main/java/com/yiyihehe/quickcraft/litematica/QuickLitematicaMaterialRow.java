@@ -108,15 +108,20 @@ public final class QuickLitematicaMaterialRow {
         if (this.entry != null && mouseButton == 0 && QuickLitematicaMaterialGui.controlDown()
                 && this.quickcraft$materialList instanceof QuickLitematicaContainerMaterials.ContainerReplacementBindingSource source) {
             source.quickcraft$toggleSelectedMaterial(this.entry.getStack());
-            this.quickcraft$listWidget.refreshEntries();
+            this.quickcraft$refreshSelection();
             return true;
         } else if (this.entry != null && mouseButton == 0 && QuickLitematicaMaterialGui.controlDown()
                 && this.quickcraft$replacementSupported && this.quickcraft$scope == QuickLitematicaContainerReplacements.Scope.PROJECTION) {
             com.yiyihehe.quickcraft.litematica.QuickLitematicaProjectionMaterials.toggle(this.quickcraft$materialList, this.entry.getStack());
-            this.quickcraft$listWidget.refreshEntries();
+            this.quickcraft$refreshSelection();
             return true;
         }
         return false;
+    }
+
+    private void quickcraft$refreshSelection() {
+        if (MinecraftClient.getInstance().currentScreen instanceof GuiMaterialList gui) { gui.initGui(); }
+        else { this.quickcraft$listWidget.refreshEntries(); }
     }
 
     public void draw(

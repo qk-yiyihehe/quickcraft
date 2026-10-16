@@ -8,6 +8,8 @@ import org.spongepowered.asm.mixin.gen.Invoker;
 @Mixin(value = GuiListBase.class, remap = false)
 public interface MalilibGuiListAccessor {
     @Invoker("getListWidget") WidgetListBase<?, ?> quickcraft$getListWidget();
+    @Invoker("setListPosition") void quickcraft$setListPosition(int x, int y);
+    @Invoker("reCreateListWidget") void quickcraft$reCreateListWidget();
     @Invoker("getListY") int quickcraft$getListY();
     @Invoker("getBrowserWidth") int quickcraft$getBrowserWidth();
 }

@@ -553,7 +553,10 @@ public final class QuickLitematicaEntityPlacement {
         if (spawnEgg != null) {
             return new ItemStack(spawnEgg);
         }
-        Identifier entityId = Registries.ENTITY_TYPE.getId(type);
+        return getPlaceableMaterial(Registries.ENTITY_TYPE.getId(type), nbt);
+    }
+
+    static ItemStack getPlaceableMaterial(Identifier entityId, NbtCompound nbt) {
         String entityPath = entityId.getPath();
         Item item = switch (entityPath) {
             case "armor_stand" -> Items.ARMOR_STAND;

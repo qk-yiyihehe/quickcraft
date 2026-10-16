@@ -1,18 +1,14 @@
 package com.yiyihehe.quickcraft.litematica;
 
-import fi.dy.masa.litematica.gui.GuiMaterialList;
 import fi.dy.masa.litematica.gui.GuiMainMenu.ButtonListenerChangeMenu;
-import fi.dy.masa.litematica.schematic.LitematicaSchematic;
 import fi.dy.masa.malilib.gui.GuiBase;
-import fi.dy.masa.malilib.gui.button.ButtonBase;
 import fi.dy.masa.malilib.gui.button.ButtonGeneric;
-import fi.dy.masa.malilib.gui.button.IButtonActionListener;
 import fi.dy.masa.malilib.gui.widgets.WidgetListBase;
 import fi.dy.masa.litematica.gui.Icons;
 import fi.dy.masa.malilib.util.StringUtils;
-import net.minecraft.client.Minecraft;
 import com.yiyihehe.quickcraft.litematica.QuickLitematicaMaterialGui.Context;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.client.Minecraft;
 import net.minecraft.network.chat.Component;
 
 import java.util.ArrayList;
@@ -27,19 +23,11 @@ import static com.yiyihehe.quickcraft.litematica.QuickLitematicaContainerMateria
 
 final class QuickLitematicaContainerMaterialsScreens {
     private QuickLitematicaContainerMaterialsScreens() {}
-    static void openMaterialListScreen(ContainerMaterialList list) { var screen = new ContainerMaterialListScreen(list); screen.setParent(list.parent); GuiBase.openGui(screen); }
-    static void openDetailScreen(ContainerMaterialList list) { var screen = new ContainerMaterialsScreen(list); screen.setParent(list.parent); GuiBase.openGui(screen); }
-    private static final class ContainerMaterialListScreen extends GuiMaterialList {
-        private final ContainerMaterialList materialList;
-
-        private ContainerMaterialListScreen(ContainerMaterialList materialList) {
-            super(materialList);
-            this.materialList = materialList;
-        }
-
-        // GuiMaterialList 的统一 TAIL 入口负责原生布局之后的按钮追加。
+    static net.minecraft.client.gui.screens.Screen createDetailScreen(ContainerMaterialList list) {
+        var screen = new ContainerMaterialsScreen(list);
+        screen.setParent(list.parent);
+        return screen;
     }
-
     private static final class ContainerMaterialsScreen
             extends QuickLitematicaMaterialGui.ListScreen<ContainerRow, ContainerGroupEntryWidget, ContainerGroupListWidget>
             implements QuickLitematicaMaterialReplacementScreen.RefreshableParent {
@@ -48,6 +36,7 @@ final class QuickLitematicaContainerMaterialsScreens {
         private int sortColumn = 1;
         private boolean sortReverse;
         private int savedScroll;
+        private int bottomMargin = 40;
         private final Map<String, ContainerMaterialsData.SummarySlot> selectedSlots = new LinkedHashMap<>();
 
         private ContainerMaterialsScreen(ContainerMaterialList materialList) {
@@ -65,64 +54,34 @@ final class QuickLitematicaContainerMaterialsScreens {
 
         @Override
         protected int getBrowserHeight() {
-            return this.height - 82;
+            return Math.max(0, this.height - this.getListY() - this.bottomMargin);
         }
 
         @Override
         public void initGui() {
             super.initGui();
 
-            int x = 12;
-            int y = 24;
-            x += this.createButton(x, y, ButtonType.REFRESH) + 2;
-            x += this.createButton(x, y, ButtonType.MATERIAL_LIST) + 2;
-            ButtonGeneric detailsButton = new ButtonGeneric(
-                    x,
-                    y,
-                    -1,
-                    20,
-                    StringUtils.translate("quickcraft.litematica.button.container_material_details")
-            );
-            detailsButton.setEnabled(false);
-            this.addButton(detailsButton, (button, mouseButton) -> {
-            });
-            x += detailsButton.getWidth() + 2;
-            if (QuickLitematicaContainerReplacements.enabled()) {
-                x += this.createButton(x, y, ButtonType.CLEAR_RULES) + 2;
-                ButtonGeneric save = new ButtonGeneric(x, y, -1, 20, StringUtils.translate("quickcraft.litematica.button.save_schematic_copy"));
-                this.addButton(save, (button, mouseButton) -> saveCopy(this.materialList));
-            }
-
-            if (QuickLitematicaContainerReplacements.enabled()) {
-                String summary = StringUtils.translate(
-                        "quickcraft.litematica.label.summary",
-                        this.data.visibleGroups().size(),
-                        this.data.totalVisibleContainerCount()
-                );
-                ButtonGeneric batch = new ButtonGeneric(12, this.height - 36, -1, 20,
-                        StringUtils.translate("quickcraft.litematica.button.batch_replace", this.selectedSlots.size()));
-                batch.setEnabled(!this.selectedSlots.isEmpty());
-                batch.setHoverStrings(summary, StringUtils.translate("quickcraft.litematica.tooltip.batch_select"));
-                this.addButton(batch, (clicked, mouseButton) -> {
-                    var slots = List.copyOf(this.selectedSlots.values());
-                    if (!slots.isEmpty()) {
-                        this.savedScroll = this.getListWidget().getScrollbar().getValue();
-                        QuickLitematicaMaterialReplacementScreen.open(this, slots.getFirst().source(), this.data.createBatchSlotBinding(slots));
-                    }
-                });
-                ButtonGeneric deselect = new ButtonGeneric(batch.getX() + batch.getWidth() + 2, this.height - 36, -1, 20,
-                        StringUtils.translate("quickcraft.litematica.button.clear_selection"));
-                this.addButton(deselect, (clicked, mouseButton) -> {
-                    this.selectedSlots.clear();
-                    this.savedScroll = this.getListWidget().getScrollbar().getValue();
-                    this.initGui();
-                });
-            }
             ButtonListenerChangeMenu.ButtonType type = ButtonListenerChangeMenu.ButtonType.MAIN_MENU;
             String label = StringUtils.translate(type.getLabelKey());
             int buttonWidth = this.getStringWidth(label) + 20;
             ButtonGeneric button = new ButtonGeneric(this.width - buttonWidth - 10, this.height - 36, buttonWidth, 20, label);
             this.addButton(button, new ButtonListenerChangeMenu(type, this.getParent()));
+            var actions = new ArrayList<QuickLitematicaMaterialButtons.Action>();
+            if (QuickLitematicaContainerReplacements.enabled()) {
+                actions.add(QuickLitematicaMaterialButtons.action("quickcraft.litematica.button.clear_container_material_rules", this::clearAllRules));
+                actions.add(QuickLitematicaMaterialButtons.action("quickcraft.litematica.button.save_schematic_copy", () -> saveCopy(this.materialList)));
+                actions.add(new QuickLitematicaMaterialButtons.Action(StringUtils.translate("quickcraft.litematica.button.batch_replace", this.selectedSlots.size()), () -> {
+                    var slots = List.copyOf(this.selectedSlots.values());
+                    this.savedScroll = this.getListWidget().getScrollbar().getValue();
+                    QuickLitematicaMaterialReplacementScreen.open(this, slots.getFirst().source(), this.data.createBatchSlotBinding(slots));
+                }, !this.selectedSlots.isEmpty()));
+                actions.add(QuickLitematicaMaterialButtons.action("quickcraft.litematica.button.clear_selection", () -> {
+                    this.selectedSlots.clear();
+                    this.savedScroll = this.getListWidget().getScrollbar().getValue();
+                    this.initGui();
+                }));
+            }
+            this.bottomMargin = QuickLitematicaMaterialButtons.addDetails(this, this.materialList, actions);
             this.getListWidget().getScrollbar().setValue(this.savedScroll);
             this.getListWidget().refreshEntries();
         }
@@ -140,13 +99,6 @@ final class QuickLitematicaContainerMaterialsScreens {
         @Override
         protected ContainerGroupListWidget createListWidget(int listX, int listY) {
             return new ContainerGroupListWidget(listX, listY, this.getBrowserWidth(), this.getBrowserHeight(), this);
-        }
-
-        private int createButton(int x, int y, ButtonType type) {
-            String label = StringUtils.translate(type.translationKey);
-            ButtonGeneric button = new ButtonGeneric(x, y, -1, 20, label);
-            this.addButton(button, new ContainerMaterialsButtonListener(this, type));
-            return button.getWidth();
         }
 
         private List<ContainerRow> rows(int rowWidth) {
@@ -185,21 +137,11 @@ final class QuickLitematicaContainerMaterialsScreens {
             super.removed();
         }
 
-        private void refreshData() {
-            this.materialList.reCreateMaterialList();
-            this.reCreateListWidget();
-            this.initGui();
-        }
-
         private void ignoreGroup(ContainerGroup group) {
             this.data.ignoreGroup(group);
             this.materialList.reCreateMaterialList();
             this.reCreateListWidget();
             this.initGui();
-        }
-
-        private void openMaterialList() {
-            openMaterialListScreen(this.materialList);
         }
 
         private void clearAllRules() {
@@ -553,34 +495,4 @@ final class QuickLitematicaContainerMaterialsScreens {
         }
     }
 
-    private enum ButtonType {
-        REFRESH("quickcraft.litematica.button.refresh_container_material_list"),
-        MATERIAL_LIST(BUTTON_KEY),
-        CLEAR_RULES("quickcraft.litematica.button.clear_container_material_rules");
-
-        private final String translationKey;
-
-        ButtonType(String translationKey) {
-            this.translationKey = translationKey;
-        }
-    }
-
-    private static final class ContainerMaterialsButtonListener implements IButtonActionListener {
-        private final ContainerMaterialsScreen screen;
-        private final ButtonType type;
-
-        private ContainerMaterialsButtonListener(ContainerMaterialsScreen screen, ButtonType type) {
-            this.screen = screen;
-            this.type = type;
-        }
-
-        @Override
-        public void actionPerformedWithButton(ButtonBase button, int mouseButton) {
-            switch (this.type) {
-                case REFRESH -> this.screen.refreshData();
-                case MATERIAL_LIST -> this.screen.openMaterialList();
-                case CLEAR_RULES -> this.screen.clearAllRules();
-            }
-        }
-    }
 }

@@ -28,6 +28,7 @@
 		"LitematicaGuiSchematicBrowserBaseMixin",
 		"LitematicaGuiMainMenuMixin",
 		"LitematicaGuiMaterialListMixin",
+		"LitematicaMaterialButtonAccessor",
 		"LitematicaMaterialListPlacementAccessor",
 		"LitematicaMaterialListSchematicAccessor",
 		"LitematicaGuiSchematicVerifierAccessor",
@@ -95,6 +96,7 @@
 		"LitematicaGlobalSaveWorldMixin",
 		"LitematicaWidgetMaterialListEntryMixin",
 		"MalilibGuiListAccessor",
+		"MalilibSearchBarAccessor",
 		"LitematicaGlobalProtoPlacementMixin",
 		"LitematicaSchematicDataMixin",
 		"StonecutterPredictionMixin"

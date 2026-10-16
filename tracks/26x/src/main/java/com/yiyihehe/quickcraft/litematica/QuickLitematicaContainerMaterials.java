@@ -3,7 +3,6 @@ package com.yiyihehe.quickcraft.litematica;
 import com.yiyihehe.quickcraft.QuickMaterialCollector;
 import com.yiyihehe.quickcraft.malilib.QuickCraftGuiButtonAccess;
 import com.yiyihehe.quickcraft.config.QuickCraftConfigs;
-import fi.dy.masa.litematica.data.DataManager;
 import fi.dy.masa.litematica.gui.GuiSchematicLoad;
 import fi.dy.masa.litematica.materials.MaterialListBase;
 import fi.dy.masa.litematica.materials.MaterialListEntry;
@@ -162,58 +161,7 @@ public final class QuickLitematicaContainerMaterials {
                 QuickLitematicaMaterialLists.getContainerReplacementContextKey(schematic)
         );
         ContainerMaterialList materialList = new ContainerMaterialList(data, gui);
-        DataManager.setMaterialList(materialList);
-        openMaterialListScreen(materialList);
-    }
-
-    public static void openForPlacement(SchematicPlacement placement, Screen parent) {
-        ContainerMaterialList materialList = new ContainerMaterialList(
-                ContainerMaterialsData.create(
-                        placement,
-                        QuickLitematicaMaterialLists.getContainerReplacementContextKey(placement)
-                ),
-                parent
-        );
-        DataManager.setMaterialList(materialList);
-        openMaterialListScreen(materialList);
-    }
-
-    public static void openDetailsForPlacement(SchematicPlacement placement, Screen parent) {
-        ContainerMaterialList materialList = new ContainerMaterialList(
-                ContainerMaterialsData.create(
-                        placement,
-                        QuickLitematicaMaterialLists.getContainerReplacementContextKey(placement)
-                ),
-                parent
-        );
-        DataManager.setMaterialList(materialList);
-        openDetailScreen(materialList);
-    }
-
-    public static void openForSchematic(LitematicaSchematic schematic, Collection<String> regions, Screen parent) {
-        ContainerMaterialList materialList = new ContainerMaterialList(
-                ContainerMaterialsData.create(
-                        schematic,
-                        regions,
-                        QuickLitematicaMaterialLists.getContainerReplacementContextKey(schematic)
-                ),
-                parent
-        );
-        DataManager.setMaterialList(materialList);
-        openMaterialListScreen(materialList);
-    }
-
-    public static void openDetailsForSchematic(LitematicaSchematic schematic, Collection<String> regions, Screen parent) {
-        ContainerMaterialList materialList = new ContainerMaterialList(
-                ContainerMaterialsData.create(
-                        schematic,
-                        regions,
-                        QuickLitematicaMaterialLists.getContainerReplacementContextKey(schematic)
-                ),
-                parent
-        );
-        DataManager.setMaterialList(materialList);
-        openDetailScreen(materialList);
+        QuickLitematicaMaterialNavigation.forContainers(materialList).show(QuickLitematicaMaterialNavigation.View.CONTAINERS);
     }
 
     public static void saveCopy(MaterialListBase materialList) {
@@ -360,16 +308,6 @@ public final class QuickLitematicaContainerMaterials {
             }
         }
         container.put("Items", items);
-    }
-
-    private static void openMaterialListScreen(ContainerMaterialList materialList) {
-        materialList.reCreateMaterialList();
-        QuickLitematicaContainerMaterialsScreens.openMaterialListScreen(materialList);
-    }
-
-    private static void openDetailScreen(ContainerMaterialList materialList) {
-        materialList.reCreateMaterialList();
-        QuickLitematicaContainerMaterialsScreens.openDetailScreen(materialList);
     }
 
     static int getDefaultButtonWidth(GuiSchematicLoad gui, String translationKey) {
@@ -1318,16 +1256,6 @@ public final class QuickLitematicaContainerMaterials {
             );
         }
 
-        int totalVisibleContainerCount() {
-            int total = 0;
-
-            for (ContainerGroup group : this.visibleGroups()) {
-                total += group.containerCount();
-            }
-
-            return total;
-        }
-
         Object2IntOpenHashMap<ItemKey> createWorldMissingCounts(
                 Object2IntOpenHashMap<ItemKey> totalCounts
         ) {
@@ -1454,6 +1382,7 @@ public final class QuickLitematicaContainerMaterials {
             implements ContainerMaterialRequestSource, ContainerReplacementBindingSource, ICompletionListener {
         final ContainerMaterialsData data;
         final Screen parent;
+        QuickLitematicaMaterialNavigation navigation;
         final Map<ItemKey, ItemStack> selectedMaterials = new LinkedHashMap<>();
         List<MaterialListEntry> hudEntries;
         long hudRevision = -1;
