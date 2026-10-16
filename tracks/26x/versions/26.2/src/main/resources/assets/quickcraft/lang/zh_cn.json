@@ -751,5 +751,10 @@
   "quickcraft.anvil.plan_fortune": "时运",
   "quickcraft.anvil.selected_plan": "镐的方案：%s",
   "quickcraft.anvil.ready_partial": "可用方案：%s 步，累计消耗 %s 级；未能完成的目标已跳过。",
-  "quickcraft.anvil.partial_complete": "本次可用附魔打造完成；装备已收入背包，其余目标已跳过。"
+  "quickcraft.anvil.partial_complete": "本次可用附魔打造完成；装备已收入背包，其余目标已跳过。",
+  "quickcraft.config.crafting.name.anvilCreativeNoBooks": "创造模式无需附魔书",
+  "quickcraft.config.crafting.prettyName.anvilCreativeNoBooks": "创造模式无需附魔书",
+  "quickcraft.config.crafting.comment.anvilCreativeNoBooks": "默认开启。创造模式下直接为左槽装备补上目标附魔，无需附魔书，不消耗经验；保留名称、损耗和已有附魔，跳过冲突项。需有一个未锁定的背包空格。关闭后按背包附魔书规划。",
+  "quickcraft.anvil.creative_ready": "创造方案：%s 步，无需附魔书，不消耗经验。",
+  "quickcraft.anvil.creative_step": "直接补齐目标附魔，并将装备放回背包。"
 }

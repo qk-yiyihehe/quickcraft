@@ -145,6 +145,7 @@ public class QuickCraftConfigScreen extends GuiConfigsBase {
         ANVIL_ASSISTANT(QuickCraftConfigs.Crafting.ENABLE_ANVIL_ASSISTANT,
                 java.util.stream.Stream.concat(
                         java.util.stream.Stream.of(QuickCraftConfigs.Crafting.ENABLE_ANVIL_RENAME,
+                                QuickCraftConfigs.Crafting.ANVIL_CREATIVE_NO_BOOKS,
                                 QuickCraftConfigs.Crafting.ANVIL_PICKAXE_PLAN),
                         com.yiyihehe.quickcraft.config.QuickCraftAnvilPresets.OPTIONS.stream())
                         .toArray(IConfigBase[]::new)),

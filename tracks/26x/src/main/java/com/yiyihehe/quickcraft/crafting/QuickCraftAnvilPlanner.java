@@ -15,8 +15,9 @@ import net.minecraft.world.inventory.AnvilMenu;
 import net.minecraft.network.chat.Component;
 import java.util.*;
 
-/** 只模拟装备加书；独立 handler 不领取产物，不修改玩家背包或经验。 */
+/** 生存模式模拟装备加书，创造模式可直接预览目标；规划不修改玩家背包或经验。 */
 public final class QuickCraftAnvilPlanner {
+    /** bookSlot=-1 为创造模式直接附魔，不读取或生成附魔书。 */
     public record Step(int bookSlot, ItemStack book, ItemStack input, ItemStack output, int cost) {}
     public record State(int equipmentSlot, ItemStack equipment, long used, List<Step> steps) {}
     private record Key(int slot, Map<Holder<Enchantment>, Integer> enchantments, int repairCost, long used) {}
@@ -25,12 +26,14 @@ public final class QuickCraftAnvilPlanner {
     private final List<Book> books = new ArrayList<>();
     private final ItemStack initialEquipment;
     private final boolean pickaxe;
+    private final boolean creative;
     private final AnvilMenu simulation;
     private final QuickCraftAnvilSearch<State, Key> search;
 
     public QuickCraftAnvilPlanner(Minecraft client, AnvilMenu handler) {
         ItemStack seed = handler.getSlot(0).getItem();
         initialEquipment = seed.copy();
+        creative = client.player.hasInfiniteMaterials() && QuickCraftConfigs.Crafting.ANVIL_CREATIVE_NO_BOOKS.getBooleanValue();
         var preset = QuickCraftAnvilPresets.forItem(BuiltInRegistries.ITEM.getKey(seed.getItem()).toString(),
                 QuickCraftConfigs.Crafting.ANVIL_PICKAXE_PLAN.getOptionListValue() == QuickCraftConfigs.AnvilPickaxePlan.FORTUNE);
         pickaxe = preset == QuickCraftAnvilPresets.PICKAXE_SILK || preset == QuickCraftAnvilPresets.PICKAXE_FORTUNE;
@@ -62,23 +65,43 @@ public final class QuickCraftAnvilPlanner {
             }
         }
         List<State> roots = new ArrayList<>();
-        for (int slot = 0; slot < handler.slots.size(); slot++) {
-            if (slot == 1 || slot == 2 || QuickContainerLock.isLockedSlot(handler, slot)) continue;
-            ItemStack stack = handler.getSlot(slot).getItem();
-            if (stack.isEmpty()) continue;
-            if (stack.is(seed.getItem()) && stack.getCount() == 1 && !complete(stack)) {
-                roots.add(new State(slot, stack.copy(), 0, List.of()));
-            } else if (slot >= 3 && stack.is(Items.ENCHANTED_BOOK) && stack.getCount() == 1
-                    && !enchantments(stack).isEmpty() && target.keySet().containsAll(enchantments(stack).keySet())) {
-                books.add(new Book(slot, stack.copy()));
+        if (creative) {
+            if (complete(seed)) throw new IllegalArgumentException("already");
+            ItemStack output = creativeOutput(seed, target);
+            if (progress(output) <= progress(seed)) throw new IllegalArgumentException("no_route");
+            roots.add(new State(0, output, 0,
+                    List.of(new Step(-1, ItemStack.EMPTY, seed.copy(), output, 0))));
+        } else {
+            for (int slot = 0; slot < handler.slots.size(); slot++) {
+                if (slot == 1 || slot == 2 || QuickContainerLock.isLockedSlot(handler, slot)) continue;
+                ItemStack stack = handler.getSlot(slot).getItem();
+                if (stack.isEmpty()) continue;
+                if (stack.is(seed.getItem()) && stack.getCount() == 1 && !complete(stack)) {
+                    roots.add(new State(slot, stack.copy(), 0, List.of()));
+                } else if (slot >= 3 && stack.is(Items.ENCHANTED_BOOK) && stack.getCount() == 1
+                        && !enchantments(stack).isEmpty() && target.keySet().containsAll(enchantments(stack).keySet())) {
+                    books.add(new Book(slot, stack.copy()));
+                }
             }
         }
         if (roots.isEmpty()) throw new IllegalArgumentException(complete(seed) ? "already" : "conflict");
-        simulation = new AnvilMenu(-1, client.player.getInventory());
+        simulation = creative ? null : new AnvilMenu(-1, client.player.getInventory());
         search = new QuickCraftAnvilSearch<>(roots, state -> new Key(state.equipmentSlot,
                 enchantments(state.equipment), state.equipment.getOrDefault(DataComponents.REPAIR_COST, 0), state.used),
-                state -> complete(state.equipment), this::expand,
+                state -> creative || complete(state.equipment), this::expand,
                 state -> state.steps.isEmpty() ? -1 : progress(state.equipment));
+    }
+
+    static ItemStack creativeOutput(ItemStack seed, Map<Holder<Enchantment>, Integer> target) {
+        ItemStack output = seed.copy();
+        for (var desired : target.entrySet()) {
+            var current = enchantments(output);
+            if (current.getOrDefault(desired.getKey(), 0) >= desired.getValue()) continue;
+            if (current.keySet().stream().anyMatch(existing -> !existing.equals(desired.getKey())
+                    && !Enchantment.areCompatible(existing, desired.getKey()))) continue;
+            output.enchant(desired.getKey(), desired.getValue());
+        }
+        return output;
     }
 
     private boolean complete(ItemStack stack) {
@@ -132,6 +155,7 @@ public final class QuickCraftAnvilPlanner {
         return result != null && !result.state().steps.isEmpty() ? result : null;
     }
     public boolean isPickaxe() { return pickaxe; }
+    public boolean isCreative() { return creative; }
     public static List<Component> bookDescription(ItemStack book) {
         return enchantments(book).entrySet().stream()
                 .map(entry -> Enchantment.getFullname(entry.getKey(), entry.getValue())).toList();

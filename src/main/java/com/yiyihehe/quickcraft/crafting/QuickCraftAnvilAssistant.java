@@ -26,6 +26,7 @@ public final class QuickCraftAnvilAssistant {
     private static List<Text> targets = List.of();
     private static List<Text> skipped = List.of();
     private static boolean pickaxe;
+    private static boolean creative;
     private static List<ItemStack> expected;
     private static ItemStack expectedCursor = ItemStack.EMPTY;
     private static final org.slf4j.Logger LOGGER = org.slf4j.LoggerFactory.getLogger("QuickCraft/Anvil");
@@ -97,6 +98,7 @@ public final class QuickCraftAnvilAssistant {
             planner = new QuickCraftAnvilPlanner(client, handler);
             targets = planner.targetDescription();
             pickaxe = planner.isPickaxe();
+            creative = planner.isCreative();
             autoStart = hotkey;
             snapshot();
             status = message("planning");
@@ -132,7 +134,8 @@ public final class QuickCraftAnvilAssistant {
                     }
                     else {
                         skipped = missing;
-                        status = message(skipped.isEmpty() ? "ready" : "ready_partial", plan.state().steps().size(), plan.cost());
+                        status = message(creative ? "creative_ready" : skipped.isEmpty() ? "ready" : "ready_partial",
+                                plan.state().steps().size(), plan.cost());
                         refreshButtons();
                         if (autoStart) action(true);
                     }
@@ -154,6 +157,7 @@ public final class QuickCraftAnvilAssistant {
             return;
         }
         var step = plan.state().steps().get(stepIndex);
+        if (creative) { advanceCreative(client, step); return; }
         if (equipmentSlot != 0) {
             if (!same(handler.getSlot(equipmentSlot).getStack(), step.input())) { stop("changed"); return; }
             boolean moved = handler.getSlot(0).getStack().isEmpty()
@@ -192,6 +196,35 @@ public final class QuickCraftAnvilAssistant {
         }
     }
 
+    private static void advanceCreative(MinecraftClient client, QuickCraftAnvilPlanner.Step step) {
+        if (!client.player.getAbilities().creativeMode || !QuickCraftConfigs.Crafting.ANVIL_CREATIVE_NO_BOOKS.getBooleanValue()) {
+            stop("changed");
+            return;
+        }
+        if (QuickContainerLock.isLockedSlot(handler, equipmentSlot)) { stop("locked"); return; }
+        if (!same(handler.getSlot(equipmentSlot).getStack(), step.input())) { stop("changed"); return; }
+        if (equipmentSlot == 0) {
+            for (int slot = 3; slot < handler.slots.size(); slot++) {
+                var destination = handler.getSlot(slot);
+                int index = destination.getIndex();
+                if (destination.inventory != client.player.getInventory() || index < 0 || index >= 36
+                        || !destination.getStack().isEmpty() || QuickContainerLock.isLockedSlot(handler, slot)
+                        || !destination.canInsert(step.output())) continue;
+                if (transfer(client, 0, slot)) equipmentSlot = slot;
+                return;
+            }
+            stop("full");
+            return;
+        }
+        var destination = handler.getSlot(equipmentSlot);
+        int index = destination.getIndex();
+        // 创造包使用玩家容器槽位：快捷栏为 36–44，主背包为 9–35；不能直接写铁砧输入槽。
+        client.interactionManager.clickCreativeStack(step.output().copy(), index < 9 ? 36 + index : index);
+        destination.setStack(step.output().copy());
+        stepIndex++;
+        awaitConfirmation();
+    }
+
     private static boolean transfer(MinecraftClient client, int... slots) {
         if (!handler.getCursorStack().isEmpty()) { stop("changed"); return false; }
         for (int slot : slots) {
@@ -212,11 +245,15 @@ public final class QuickCraftAnvilAssistant {
             stop("changed");
             return false;
         }
+        awaitConfirmation();
+        return true;
+    }
+
+    private static void awaitConfirmation() {
         snapshot();
         waiting = true;
         sentAt = System.nanoTime();
         connection.sendPacket(new ClientStatusC2SPacket(ClientStatusC2SPacket.Mode.REQUEST_STATS));
-        return true;
     }
 
     private static void rawClick(MinecraftClient client, int slot) {
@@ -289,7 +326,7 @@ public final class QuickCraftAnvilAssistant {
         stepIndex = 0;
         targets = List.of();
         skipped = List.of();
-        pickaxe = false;
+        pickaxe = creative = false;
         running = executing = waiting = autoStart = false;
         expected = null;
         expectedCursor = ItemStack.EMPTY;
@@ -313,7 +350,7 @@ public final class QuickCraftAnvilAssistant {
         status = message("idle");
         targets = List.of();
         skipped = List.of();
-        pickaxe = false;
+        pickaxe = creative = false;
         stepIndex = 0;
         actionButton = null;
     }
@@ -332,13 +369,14 @@ public final class QuickCraftAnvilAssistant {
             int level = client.player.experienceLevel;
             int remainingCost = plan.state().steps().subList(stepIndex, plan.state().steps().size()).stream()
                     .mapToInt(QuickCraftAnvilPlanner.Step::cost).sum();
-            if (remainingCost <= level) {
+            if (!creative && remainingCost <= level) {
                 double spent = QuickCraftAnvilSearch.experienceAt(level, client.player.experienceProgress)
                         - QuickCraftAnvilSearch.experienceAt(level - remainingCost, client.player.experienceProgress);
                 lines.add(message("points", (int) Math.ceil(spent), level - remainingCost));
             }
             for (int index = 0; index < plan.state().steps().size(); index++) {
                 var step = plan.state().steps().get(index);
+                if (creative) { lines.add(message("creative_step")); continue; }
                 var description = Text.empty();
                 for (var enchantment : QuickCraftAnvilPlanner.bookDescription(step.book())) {
                     if (!description.getString().isEmpty()) description.append(", ");

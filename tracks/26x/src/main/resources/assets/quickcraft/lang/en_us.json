@@ -750,5 +750,10 @@
   "quickcraft.anvil.plan_fortune": "Fortune",
   "quickcraft.anvil.selected_plan": "Pickaxe plan: %s",
   "quickcraft.anvil.ready_partial": "Available plan: %s steps, %s total levels. Unreachable targets will be skipped.",
-  "quickcraft.anvil.partial_complete": "Available enchantments applied. Equipment returned to inventory; remaining targets skipped."
+  "quickcraft.anvil.partial_complete": "Available enchantments applied. Equipment returned to inventory; remaining targets skipped.",
+  "quickcraft.config.crafting.name.anvilCreativeNoBooks": "Creative: no enchantment books",
+  "quickcraft.config.crafting.prettyName.anvilCreativeNoBooks": "Creative: no enchantment books",
+  "quickcraft.config.crafting.comment.anvilCreativeNoBooks": "Enabled by default. In Creative, apply target enchantments to the left-slot equipment without books or XP. Keeps its name, damage and existing enchantments; skips conflicts. Requires one unlocked empty inventory slot. Disable to plan with inventory books.",
+  "quickcraft.anvil.creative_ready": "Creative plan: %s step(s), no books or XP required.",
+  "quickcraft.anvil.creative_step": "Apply target enchantments directly and return the equipment to inventory."
 }

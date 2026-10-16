@@ -270,6 +270,8 @@ public final class QuickCraftConfigs implements IConfigHandler {
         ).apply(CRAFTING_TRANSLATION_PREFIX);
         public static final ConfigBooleanHotkeyed ENABLE_ANVIL_ASSISTANT = new ConfigBooleanHotkeyed(
                 "enableAnvilAssistant", true, "").apply(CRAFTING_TRANSLATION_PREFIX);
+        public static final ConfigBoolean ANVIL_CREATIVE_NO_BOOKS = new ConfigBoolean(
+                "anvilCreativeNoBooks", true).apply(CRAFTING_TRANSLATION_PREFIX);
         public static final ConfigOptionList ANVIL_PICKAXE_PLAN = new ConfigOptionList(
                 "anvilPickaxePlan", AnvilPickaxePlan.SILK).apply(CRAFTING_TRANSLATION_PREFIX);
         public static final ConfigInteger CRAFTS_PER_SECOND = new ConfigInteger(
@@ -304,6 +306,7 @@ public final class QuickCraftConfigs implements IConfigHandler {
                 ENABLE_STONECUTTER,
                 ENABLE_ANVIL_RENAME,
                 ENABLE_ANVIL_ASSISTANT,
+                ANVIL_CREATIVE_NO_BOOKS,
                 ANVIL_PICKAXE_PLAN,
                 SHOW_CRAFT_ACTION_BUTTON,
                 DROP_RESULTS_ON_STOP,
