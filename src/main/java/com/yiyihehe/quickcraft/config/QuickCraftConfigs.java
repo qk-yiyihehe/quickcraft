@@ -329,6 +329,10 @@ public final class QuickCraftConfigs implements IConfigHandler {
                 false,
                 ""
         ).apply(CONTAINER_TRANSLATION_PREFIX);
+        public static final ConfigColor MATCHING_TRANSFER_HIGHLIGHT_COLOR = new ConfigColor(
+                "matchingTransferHighlightColor",
+                "#553F6FFF"
+        ).apply(CONTAINER_TRANSLATION_PREFIX);
         public static final ConfigBooleanHotkeyed ENABLE_SCROLL_TRANSFER = new ConfigBooleanHotkeyed(
                 "enableScrollTransfer",
                 true,
@@ -471,6 +475,7 @@ public final class QuickCraftConfigs implements IConfigHandler {
         public static final List<IConfigBase> OPTIONS = List.of(
                 ENABLE_QUICK_TRANSFER,
                 SHOW_MATCHING_TRANSFER_HIGHLIGHT,
+                MATCHING_TRANSFER_HIGHLIGHT_COLOR,
                 ENABLE_SCROLL_TRANSFER,
                 QUICK_TRANSFER_RETAIN_ONE,
                 SHOW_QUICK_STASH_BUTTON,

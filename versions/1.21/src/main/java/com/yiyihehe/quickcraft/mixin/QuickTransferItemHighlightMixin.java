@@ -1,6 +1,7 @@
 package com.yiyihehe.quickcraft.mixin;
 
 import com.yiyihehe.quickcraft.QuickTransfer;
+import com.yiyihehe.quickcraft.config.QuickCraftConfigs;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.gui.screen.ingame.HandledScreen;
 import net.minecraft.screen.ScreenHandler;
@@ -19,7 +20,8 @@ public abstract class QuickTransferItemHighlightMixin<T extends ScreenHandler> {
     private void quickcraft$drawMatchingTransferHighlight(DrawContext context, Slot slot, CallbackInfo ci) {
         HandledScreen<?> screen = (HandledScreen<?>) (Object) this;
         if (QuickTransfer.shouldHighlightMatchingSlot(screen, slot)) {
-            context.fill(slot.x, slot.y, slot.x + 16, slot.y + 16, 0x553F6FFF);
+            context.fill(slot.x, slot.y, slot.x + 16, slot.y + 16,
+                    QuickCraftConfigs.ContainerTools.MATCHING_TRANSFER_HIGHLIGHT_COLOR.getIntegerValue());
         }
     }
 }

@@ -1,6 +1,7 @@
 package com.yiyihehe.quickcraft.mixin;
 
 import com.yiyihehe.quickcraft.QuickTransfer;
+import com.yiyihehe.quickcraft.config.QuickCraftConfigs;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 import net.minecraft.world.inventory.AbstractContainerMenu;
@@ -20,7 +21,8 @@ public abstract class QuickTransferItemHighlightMixin<T extends AbstractContaine
             GuiGraphicsExtractor context, Slot slot, int mouseX, int mouseY, CallbackInfo ci) {
         AbstractContainerScreen<?> screen = (AbstractContainerScreen<?>) (Object) this;
         if (QuickTransfer.shouldHighlightMatchingSlot(screen, slot)) {
-            context.fill(slot.x, slot.y, slot.x + 16, slot.y + 16, 0x553F6FFF);
+            context.fill(slot.x, slot.y, slot.x + 16, slot.y + 16,
+                    QuickCraftConfigs.ContainerTools.MATCHING_TRANSFER_HIGHLIGHT_COLOR.getIntegerValue());
         }
     }
 }
