@@ -15,6 +15,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.mockStatic;
 
 @ExtendWith(QuickCraftMinecraftTestBootstrap.class)
 class QuickSortGcaCompatibilityTest {
@@ -32,13 +33,16 @@ class QuickSortGcaCompatibilityTest {
             AbstractContainerMenu.class, Slot.class, Minecraft.class);
         safe.setAccessible(true);
         var client = mock(Minecraft.class);
-        for (int slot = 0; slot < 90; slot++) {
-            assertThat((boolean) safe.invoke(null, handler, handler.getSlot(slot), client))
-                .as("slot %s", slot).isEqualTo(slot >= 18);
-        }
+        try (var screens = mockStatic(QuickClientScreenAccess.class)) {
+            screens.when(() -> QuickClientScreenAccess.currentScreen(client)).thenReturn(null);
+            for (int slot = 0; slot < 90; slot++) {
+                assertThat((boolean) safe.invoke(null, handler, handler.getSlot(slot), client))
+                    .as("slot %s", slot).isEqualTo(slot >= 18);
+            }
 
-        // 普通大箱子里的结构空位物品不能触发 GCA 布局。
-        marker.remove(DataComponents.CUSTOM_DATA);
-        assertThat((boolean) safe.invoke(null, handler, handler.getSlot(0), client)).isTrue();
+            // 普通大箱子里的结构空位物品不能触发 GCA 布局。
+            marker.remove(DataComponents.CUSTOM_DATA);
+            assertThat((boolean) safe.invoke(null, handler, handler.getSlot(0), client)).isTrue();
+        }
     }
 }
