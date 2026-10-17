@@ -36,31 +36,34 @@ final class QuickMaterialCollectorShulkerSelection {
         return bestCandidate != null ? bestCandidate.slot() : null;
     }
 
-    static boolean isUsableDestinationShulker(ItemStack stack, List<ItemStack> targetTemplates) {
-        return isShulkerBox(stack) && containsOnlyTargetMaterials(stack, targetTemplates);
-    }
-
     static DestinationShulkerCandidate createDestinationShulkerCandidate(Slot slot,
                                                                           ItemStack insertStack,
                                                                           List<ItemStack> targetTemplates) {
-        if (!slot.hasStack() || !isShulkerBox(slot.getStack())) {
+        if (!slot.hasStack() || !isShulkerBox(slot.getStack()) || isShulkerBox(insertStack)) {
             return null;
         }
 
-        ItemStack shulker = slot.getStack();
-        int totalCapacity = getShulkerCapacityFor(shulker, insertStack);
+        int usedSlots = 0;
+        int matchingCapacity = 0;
+        boolean hasMatchingMaterial = false;
+        boolean hasStoredTargetMaterial = false;
+        boolean targetOnly = true;
+        for (ItemStack stored : getStoredStacks(slot.getStack())) {
+            usedSlots++;
+            hasMatchingMaterial |= stacksMatch(stored, insertStack);
+            boolean target = containsTarget(targetTemplates, stored);
+            hasStoredTargetMaterial |= target;
+            targetOnly &= target;
+            if (stacksExactlyMatch(stored, insertStack)) {
+                matchingCapacity += Math.max(0, stored.getMaxCount() - stored.getCount());
+            }
+        }
+        int totalCapacity = matchingCapacity + Math.max(0, VANILLA_SHULKER_SLOTS - usedSlots) * insertStack.getMaxCount();
         if (totalCapacity <= 0) {
             return null;
         }
-
         return new DestinationShulkerCandidate(
-                slot,
-                containsStoredMaterial(shulker, insertStack),
-                containsAnyTargetMaterial(shulker, targetTemplates),
-                getShulkerMatchingCapacity(shulker, insertStack),
-                isUsableDestinationShulker(shulker, targetTemplates),
-                totalCapacity
-        );
+                slot, hasMatchingMaterial, hasStoredTargetMaterial, matchingCapacity, targetOnly, totalCapacity);
     }
 
     static boolean containsOnlyTargetMaterials(ItemStack shulker, List<ItemStack> targetTemplates) {
@@ -70,15 +73,6 @@ final class QuickMaterialCollectorShulkerSelection {
             }
         }
         return true;
-    }
-
-    static boolean containsAnyTargetMaterial(ItemStack shulker, List<ItemStack> targetTemplates) {
-        for (ItemStack stored : getStoredStacks(shulker)) {
-            if (containsTarget(targetTemplates, stored)) {
-                return true;
-            }
-        }
-        return false;
     }
 
     static List<StoredCount> getStoredTargetCounts(ItemStack shulker, List<Demand> demands) {
@@ -144,61 +138,6 @@ final class QuickMaterialCollectorShulkerSelection {
         }
 
         return new WholeShulkerCandidate(source, contribution, contents.size());
-    }
-
-    static boolean containsStoredMaterial(ItemStack shulker, ItemStack template) {
-        for (ItemStack stored : getStoredStacks(shulker)) {
-            if (stacksMatch(stored, template)) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    static int getShulkerMatchingCapacity(ItemStack shulker, ItemStack insertStack) {
-        int capacity = 0;
-        for (ItemStack stored : getStoredStacks(shulker)) {
-            if (stacksExactlyMatch(stored, insertStack)) {
-                capacity += Math.max(0, stored.getMaxCount() - stored.getCount());
-            }
-        }
-        return capacity;
-    }
-
-    static int getShulkerCapacityFor(ItemStack shulker, ItemStack insertStack) {
-        if (!isShulkerBox(shulker) || isShulkerBox(insertStack)) {
-            return 0;
-        }
-
-        int usedSlots = 0;
-        int capacity = 0;
-        for (ItemStack stored : getStoredStacks(shulker)) {
-            usedSlots++;
-            if (stacksExactlyMatch(stored, insertStack)) {
-                capacity += Math.max(0, stored.getMaxCount() - stored.getCount());
-            }
-        }
-
-        int emptySlots = Math.max(0, VANILLA_SHULKER_SLOTS - usedSlots);
-        capacity += emptySlots * insertStack.getMaxCount();
-        return capacity;
-    }
-
-    static int countStoredInPlayerShulkers(PlayerInventory inventory, ItemStack template) {
-        int count = 0;
-        for (int i = 0; i < 36; i++) {
-            ItemStack stack = inventory.getStack(i);
-            if (!isShulkerBox(stack) || !hasStoredItems(stack)) {
-                continue;
-            }
-
-            for (ItemStack stored : getStoredStacks(stack)) {
-                if (stacksMatch(stored, template)) {
-                    count += stored.getCount();
-                }
-            }
-        }
-        return count;
     }
 
     static List<ItemStack> getStoredStacks(ItemStack shulker) {

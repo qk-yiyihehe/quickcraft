@@ -4,6 +4,7 @@ import static com.yiyihehe.quickcraft.QuickMaterialCollectorShulkerSelection.*;
 
 import com.yiyihehe.quickcraft.compat.QuickShulkerConnection;
 import com.yiyihehe.quickcraft.config.QuickCraftConfigs;
+import it.unimi.dsi.fastutil.objects.Object2IntOpenHashMap;
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.loader.api.FabricLoader;
@@ -17,6 +18,7 @@ import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.entity.player.Inventory;
+import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.inventory.ChestMenu;
@@ -574,6 +576,7 @@ public final class QuickMaterialCollector implements ClientModInitializer {
         }
 
         MutableComponent details = Component.empty();
+        InventoryCounts inventoryCounts = countPlayerInventory(client.player.getInventory());
         int totalCollected = 0;
         int successColor = getMaterialStatusColor("getCollectorSuccessColor", FALLBACK_SUCCESS_COLOR);
         int shortageColor = getMaterialStatusColor("getCollectorShortageColor", FALLBACK_SHORTAGE_COLOR);
@@ -584,7 +587,7 @@ public final class QuickMaterialCollector implements ClientModInitializer {
             }
 
             totalCollected += collected;
-            int available = countAvailableInPlayerInventory(client.player.getInventory(), demand.template());
+            int available = inventoryCounts.available().getInt(demand.template().getItem());
             int shortage = Math.max(0, demand.missing() - available);
             int color = shortage > 0 ? shortageColor : successColor;
             if (totalCollected > collected) {
@@ -711,11 +714,12 @@ public final class QuickMaterialCollector implements ClientModInitializer {
             }
         }
 
-        List<PackDemand> packDemands = buildPackDemands(player.getInventory(), demands);
+        InventoryCounts inventoryCounts = countPlayerInventory(player.getInventory());
+        List<PackDemand> packDemands = buildPackDemands(inventoryCounts.boxed(), demands);
 
         for (int i = demands.size() - 1; i >= 0; i--) {
             Demand demand = demands.get(i);
-            int available = countAvailableInPlayerInventory(player.getInventory(), demand.template());
+            int available = inventoryCounts.available().getInt(demand.template().getItem());
             int missing = Math.max(0, demand.missing() - available);
             int remaining = getTargetCollectCount(missing);
             if (remaining <= 0) {
@@ -731,12 +735,12 @@ public final class QuickMaterialCollector implements ClientModInitializer {
         return new MaterialPlan(demands, targetTemplates, packDemands);
     }
 
-    private List<PackDemand> buildPackDemands(Inventory inventory, List<Demand> demands) {
+    private List<PackDemand> buildPackDemands(Object2IntOpenHashMap<Item> boxedCounts, List<Demand> demands) {
         List<PackDemand> packDemands = new ArrayList<>();
         for (Demand demand : demands) {
             // 装盒上限必须跨收集轮次保持稳定，否则背包满足需求后会退回 0-10 档并漏掉此前多拿的余量。
             int desired = demand.missing() + getExtraAllowance(demand.missing());
-            int alreadyBoxed = countStoredInPlayerShulkers(inventory, demand.template());
+            int alreadyBoxed = boxedCounts.getInt(demand.template().getItem());
             int remaining = Math.max(0, desired - alreadyBoxed);
             if (remaining <= 0) {
                 continue;
@@ -810,6 +814,9 @@ public final class QuickMaterialCollector implements ClientModInitializer {
             return;
         }
 
+        // 只在本次调用内复用；搬运可能改变需求、盒内物品和背包容量，之后必须重新评选。
+        WholeShulkerCandidate bestWholeShulker = null;
+        boolean searchWholeShulker = true;
         for (Demand demand : demands) {
             if (demand.remaining() <= 0) {
                 continue;
@@ -825,13 +832,21 @@ public final class QuickMaterialCollector implements ClientModInitializer {
 
                 ItemStack stack = source.getItem();
                 if (isShulkerBox(stack)) {
-                    moveWholeCleanShulkerIfUseful(handler, source, demands, targetTemplates);
+                    if (searchWholeShulker) {
+                        bestWholeShulker = findBestWholeShulkerCandidate(handler, demands, targetTemplates);
+                        searchWholeShulker = false;
+                    }
+                    if (bestWholeShulker != null && bestWholeShulker.slot().index == source.index) {
+                        moveWholeCleanShulkerIfUseful(handler, source, demands, targetTemplates);
+                        searchWholeShulker = true;
+                    }
                     continue;
                 }
                 if (!stacksMatch(stack, demand.template())) {
                     continue;
                 }
 
+                searchWholeShulker = true;
                 int amount = Math.min(stack.getCount(), demand.remaining());
                 int moved = moveFromContainerToPlayer(handler, source.index, demand.template(), amount);
                 demand.decrease(moved);
@@ -844,6 +859,9 @@ public final class QuickMaterialCollector implements ClientModInitializer {
             return;
         }
 
+        // 只在本次调用内复用；搬运可能改变需求、盒内物品和背包容量，之后必须重新评选。
+        WholeShulkerCandidate bestWholeShulker = null;
+        boolean searchWholeShulker = true;
         for (Demand demand : demands) {
             if (demand.remaining() <= 0) {
                 continue;
@@ -859,13 +877,21 @@ public final class QuickMaterialCollector implements ClientModInitializer {
 
                 ItemStack stack = source.getItem();
                 if (isShulkerBox(stack)) {
-                    moveWholeCleanShulkerIfUseful(handler, source, demands, targetTemplates);
+                    if (searchWholeShulker) {
+                        bestWholeShulker = findBestWholeShulkerCandidate(handler, demands, targetTemplates);
+                        searchWholeShulker = false;
+                    }
+                    if (bestWholeShulker != null && bestWholeShulker.slot().index == source.index) {
+                        moveWholeCleanShulkerIfUseful(handler, source, demands, targetTemplates);
+                        searchWholeShulker = true;
+                    }
                     continue;
                 }
                 if (!stacksMatch(stack, demand.template())) {
                     continue;
                 }
 
+                searchWholeShulker = true;
                 int amount = Math.min(stack.getCount(), demand.remaining());
                 int moved = moveSlotAmountIntoShulkers(handler, source.index, demand.template(), amount, targetTemplates);
                 demand.decrease(moved);
@@ -1092,11 +1118,6 @@ public final class QuickMaterialCollector implements ClientModInitializer {
                                                Slot source,
                                                List<Demand> demands,
                                                List<ItemStack> targetTemplates) {
-        WholeShulkerCandidate bestCandidate = findBestWholeShulkerCandidate(handler, demands, targetTemplates);
-        if (bestCandidate == null || bestCandidate.slot().index != source.index) {
-            return;
-        }
-
         ItemStack shulker = source.getItem();
         List<StoredCount> contents = getStoredTargetCounts(shulker, demands);
         if (contents.isEmpty() || !containsOnlyTargetMaterials(shulker, targetTemplates)) {
@@ -1178,25 +1199,28 @@ public final class QuickMaterialCollector implements ClientModInitializer {
                 && QuickShulkerConnection.canBundle();
     }
 
-    private int countAvailableInPlayerInventory(Inventory inventory, ItemStack template) {
-        int count = 0;
+    private InventoryCounts countPlayerInventory(Inventory inventory) {
+        Object2IntOpenHashMap<Item> available = new Object2IntOpenHashMap<>();
+        Object2IntOpenHashMap<Item> boxed = new Object2IntOpenHashMap<>();
+        // 与材料表一致只按物品类型统计；快照不跨点击或收集轮次保存。
         for (int i = 0; i < 36; i++) {
             ItemStack stack = inventory.getItem(i);
             if (stack.isEmpty()) {
                 continue;
             }
-
-            if (isShulkerBox(stack) && hasStoredItems(stack)) {
-                for (ItemStack stored : getStoredStacks(stack)) {
-                    if (stacksMatch(stored, template)) {
-                        count += stored.getCount();
+            if (isShulkerBox(stack)) {
+                List<ItemStack> contents = getStoredStacks(stack);
+                if (!contents.isEmpty()) {
+                    for (ItemStack stored : contents) {
+                        available.addTo(stored.getItem(), stored.getCount());
+                        boxed.addTo(stored.getItem(), stored.getCount());
                     }
+                    continue;
                 }
-            } else if (stacksMatch(stack, template)) {
-                count += stack.getCount();
             }
+            available.addTo(stack.getItem(), stack.getCount());
         }
-        return count;
+        return new InventoryCounts(available, boxed);
     }
 
     private Slot findPlayerDepositSlot(AbstractContainerMenu handler, ItemStack template) {
@@ -1305,6 +1329,9 @@ public final class QuickMaterialCollector implements ClientModInitializer {
     }
 
     public record MaterialRequest(ItemStack stack, int count) {
+    }
+
+    private record InventoryCounts(Object2IntOpenHashMap<Item> available, Object2IntOpenHashMap<Item> boxed) {
     }
 
     private record MaterialPlan(List<Demand> demands, List<ItemStack> targetTemplates, List<PackDemand> packDemands) {
