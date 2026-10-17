@@ -2,7 +2,6 @@ package com.yiyihehe.quickcraft.litematica;
 
 import com.yiyihehe.quickcraft.config.QuickCraftConfigs;
 import fi.dy.masa.litematica.data.DataManager;
-import fi.dy.masa.litematica.materials.MaterialCache;
 import fi.dy.masa.litematica.schematic.LitematicaSchematic;
 import fi.dy.masa.litematica.schematic.placement.SchematicPlacement;
 import fi.dy.masa.malilib.config.options.ConfigStringList;
@@ -109,7 +108,7 @@ public final class QuickLitematicaGlobalReplacements {
     }
 
     private static Optional<ItemStack> blockTarget(BlockState source, String context) {
-        ItemStack material = MaterialCache.getInstance().getRequiredBuildItemForState(source);
+        ItemStack material = QuickLitematicaProjectionMaterials.replacementSource(source);
         return QuickLitematicaContainerReplacements.getReplacementTarget(material, Scope.PROJECTION, context)
                 .or(() -> target(material, Scope.PROJECTION));
     }

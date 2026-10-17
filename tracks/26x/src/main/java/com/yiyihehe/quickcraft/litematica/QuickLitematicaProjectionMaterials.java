@@ -15,6 +15,11 @@ import fi.dy.masa.malilib.util.StringUtils;
 import it.unimi.dsi.fastutil.objects.Object2IntOpenHashMap;
 import net.minecraft.world.level.block.EntityBlock;
 import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.block.BedBlock;
+import net.minecraft.world.level.block.DoorBlock;
+import net.minecraft.world.level.block.DoublePlantBlock;
+import net.minecraft.world.level.block.state.properties.BedPart;
+import net.minecraft.world.level.block.state.properties.DoubleBlockHalf;
 import net.minecraft.client.Minecraft;
 import net.minecraft.world.item.BlockItem;
 import net.minecraft.world.item.ItemStack;
@@ -84,7 +89,7 @@ public final class QuickLitematicaProjectionMaterials {
                 if (index >= recordedCounts.length || recordedCounts[index] == 0) { continue; }
                 BlockState state = container.getPalette().getBlockState(index);
                 if (state == null || state.isAir()) { continue; }
-                ItemStack material = MaterialCache.getInstance().getRequiredBuildItemForState(state);
+                ItemStack material = replacementSource(state);
                 states.computeIfAbsent(new ItemType(material, true, false), ignored -> new ArrayList<>()).add(state);
             }
         }
@@ -122,9 +127,19 @@ public final class QuickLitematicaProjectionMaterials {
         };
     }
 
+    static ItemStack replacementSource(BlockState state) {
+        // 材料缓存省略多格结构的附属部分；仅归一化规则来源，替换和计数仍使用原状态。
+        if (state.getBlock() instanceof DoorBlock || state.getBlock() instanceof DoublePlantBlock) {
+            state = state.setValue(DoorBlock.HALF, DoubleBlockHalf.LOWER);
+        } else if (state.getBlock() instanceof BedBlock) {
+            state = state.setValue(BedBlock.PART, BedPart.FOOT);
+        }
+        return MaterialCache.getInstance().getRequiredBuildItemForState(state);
+    }
+
     public static BlockState targetState(BlockState original, String context) {
         if (original == null || original.isAir()) { return original; }
-        ItemStack material = MaterialCache.getInstance().getRequiredBuildItemForState(original);
+        ItemStack material = replacementSource(original);
         var target = QuickLitematicaContainerReplacements.getReplacementTarget(material,
                 QuickLitematicaContainerReplacements.Scope.PROJECTION, context);
         if (target.isEmpty()) { return original; }
@@ -135,7 +150,7 @@ public final class QuickLitematicaProjectionMaterials {
     public static void replaceBlocks(LitematicaSchematic copy, String context) {
         if (!QuickLitematicaContainerReplacements.hasValidRules(QuickLitematicaContainerReplacements.Scope.PROJECTION, context)) { return; }
         replaceBlocks(copy, state -> QuickLitematicaContainerReplacements.getReplacementTarget(
-                MaterialCache.getInstance().getRequiredBuildItemForState(state),
+                replacementSource(state),
                 QuickLitematicaContainerReplacements.Scope.PROJECTION, context));
     }
 
@@ -304,7 +319,7 @@ public final class QuickLitematicaProjectionMaterials {
                                                               java.util.Set<String> ignored) {
         Object2IntOpenHashMap<ItemType> result = new Object2IntOpenHashMap<>();
         original.forEach((state, count) -> {
-            ItemStack source = MaterialCache.getInstance().getRequiredBuildItemForState(state);
+            ItemStack source = replacementSource(state);
             if (ignored.contains(new ItemType(source, true, true).toString())) { return; }
             BlockState finalState = targetState(state, context);
             var replacement = QuickLitematicaContainerReplacements.getReplacementTarget(source,
