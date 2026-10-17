@@ -21,9 +21,12 @@ final class QuickMaterialCollectorShulkerSelection {
 
     private static final int VANILLA_SHULKER_SLOTS = 27;
 
-    static Slot findDestinationShulkerSlot(ScreenHandler handler, ItemStack insertStack, List<ItemStack> targetTemplates) {
+    static Slot findDestinationShulkerSlot(ScreenHandler handler, ItemStack insertStack, List<ItemStack> targetTemplates, int excludedPlayerIndex) {
         DestinationShulkerCandidate bestCandidate = null;
         for (Slot slot : getPlayerStorageSlots(handler)) {
+            if (slot.getIndex() == excludedPlayerIndex) {
+                continue;
+            }
             DestinationShulkerCandidate candidate = createDestinationShulkerCandidate(slot, insertStack, targetTemplates);
             if (candidate == null) {
                 continue;

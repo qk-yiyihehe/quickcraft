@@ -14,6 +14,7 @@ import net.minecraft.world.level.block.ChestBlock;
 import net.minecraft.world.level.block.EnderChestBlock;
 import net.minecraft.world.level.block.ShulkerBoxBlock;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 import net.minecraft.world.entity.player.Player;
@@ -60,6 +61,7 @@ public final class QuickMaterialCollector implements ClientModInitializer {
     private static final int EXTRA_ALLOWANCE_LIMIT_500 = 500;
 
     private static CollectionTask activeTask;
+    private static CollectionTask pendingReturn;
     private static BlockPos completedTarget;
     private static boolean suppressUseUntilRelease;
     private static boolean longPressSessionActive;
@@ -70,6 +72,19 @@ public final class QuickMaterialCollector implements ClientModInitializer {
     }
 
     private void onClientTick(Minecraft client) {
+        if (pendingReturn != null) {
+            if (client.level != pendingReturn.world || client.player == null
+                    || client.player.getInventory() != pendingReturn.inventory) {
+                pendingReturn = null;
+            } else {
+                int index = findPendingSourceIndex(pendingReturn);
+                if (index < 0) {
+                    pendingReturn = null;
+                } else {
+                    pendingReturn.sourcePlayerIndex = index;
+                }
+            }
+        }
         if (!QuickCraftConfigs.isAutoCollectMaterialsEnabled()) {
             completedTarget = null;
             suppressUseUntilRelease = false;
@@ -126,23 +141,23 @@ public final class QuickMaterialCollector implements ClientModInitializer {
         if (player == null
                 || client.level == null
                 || interactionManager == null
-                || !hasVisibleMaterialLists(player)
                 || !(client.hitResult instanceof BlockHitResult hitResult)
                 || !isLookingAtSupportedBlock(client)) {
             return;
         }
 
         BlockPos target = hitResult.getBlockPos().immutable();
-        if (target.equals(completedTarget)) {
+        boolean returning = pendingReturn != null && target.equals(pendingReturn.target);
+        if (target.equals(completedTarget) || (!returning && !hasVisibleMaterialLists(player))) {
             return;
         }
 
         AbstractContainerMenu openHandler = getOpenHandledContainer(client);
         if (openHandler != null) {
-            if (!isSupportedHandler(openHandler)) {
+            if (!isSupportedHandler(openHandler) || !openHandler.getCarried().isEmpty()) {
                 return;
             }
-            activeTask = new CollectionTask(hitResult, target, CollectionStage.COLLECT_TARGET);
+            activeTask = returning ? resumePendingReturn() : new CollectionTask(client, hitResult, target, CollectionStage.COLLECT_TARGET);
             activeTask.longPressActivated = longPressSessionActive;
             return;
         }
@@ -151,7 +166,10 @@ public final class QuickMaterialCollector implements ClientModInitializer {
             return;
         }
 
-        activeTask = new CollectionTask(hitResult, target, CollectionStage.WAIT_TARGET);
+        activeTask = returning ? resumePendingReturn() : new CollectionTask(client, hitResult, target, CollectionStage.WAIT_TARGET);
+        if (returning) {
+            activeTask.stage = CollectionStage.WAIT_REOPEN;
+        }
         activeTask.longPressActivated = longPressSessionActive;
         interactionManager.useItemOn(player, InteractionHand.MAIN_HAND, hitResult);
     }
@@ -160,7 +178,8 @@ public final class QuickMaterialCollector implements ClientModInitializer {
         if (activeTask == null) {
             return;
         }
-        if (client.player == null || client.level == null || client.gameMode == null) {
+        if (client.player == null || client.level != activeTask.world
+                || client.player.getInventory() != activeTask.inventory || client.gameMode == null) {
             stopTask(client, false);
             return;
         }
@@ -212,9 +231,13 @@ public final class QuickMaterialCollector implements ClientModInitializer {
 
         int remainingBefore = getTotalRemaining(activeTask.plan.demands());
         if (shouldUseQuickShulker()) {
-            MaterialPlan packingPlan = buildMaterialPlan(player);
-            packPlayerTargetMaterialsIntoShulkers(handler, packingPlan.packDemands(), packingPlan.targetTemplates());
+            packPlayerTargetMaterials(client, handler);
+            // 先用最后的空格周转来源盒，避免散装材料占满后仍有随身盒容量却无法开盒。
+            if (countEmptyPlayerStorageSlots(handler) == 1 && tryOpenSourceShulker(client, handler)) {
+                return;
+            }
             collectToShulkersOrPlayer(handler, activeTask.plan.demands(), activeTask.plan.targetTemplates());
+            packPlayerTargetMaterials(client, handler);
         } else {
             collectToPlayer(handler, activeTask.plan.demands(), activeTask.plan.targetTemplates());
         }
@@ -232,37 +255,51 @@ public final class QuickMaterialCollector implements ClientModInitializer {
         if (shouldUseQuickShulker()
                 && countEmptyPlayerStorageSlots(handler) <= 1
                 && takeEmptyContainerShulker(handler, activeTask.plan.targetTemplates())) {
+            activeTask.processedSourceSlots.clear();
             return;
         }
 
-        Slot source = shouldUseQuickShulker() ? findExternalSourceShulker(handler, activeTask) : null;
+        if (!tryOpenSourceShulker(client, handler)) {
+            finishTarget(client);
+        }
+    }
+
+    private boolean tryOpenSourceShulker(Minecraft client, AbstractContainerMenu handler) {
+        if (!canOpenQuickShulker() || pendingReturn != null || !handler.getCarried().isEmpty()) {
+            return false;
+        }
+        Slot source = findExternalSourceShulker(handler, activeTask);
         Slot destination = source != null ? findEmptyPlayerStorageSlot(handler) : null;
         if (source == null || destination == null) {
-            finishTarget(client);
-            return;
+            return false;
         }
 
         activeTask.processedSourceSlots.add(source.index);
         activeTask.sourceContainerSlotId = source.index;
         activeTask.sourcePlayerIndex = destination.getContainerSlot();
+        activeTask.sourceStack = source.getItem().copy();
         clickSlot(handler, source.index, 0, ContainerInput.PICKUP);
         clickSlot(handler, destination.index, 0, ContainerInput.PICKUP);
 
         Slot moved = findPlayerStorageSlotByIndex(handler, activeTask.sourcePlayerIndex);
         if (moved == null || !moved.hasItem() || !isShulkerBox(moved.getItem())) {
             activeTask.stage = CollectionStage.RETURN_SHULKER;
-            return;
+            if (isShulkerBox(handler.getCarried()) && !source.hasItem()) {
+                clickSlot(handler, source.index, 0, ContainerInput.PICKUP);
+            }
+            return true;
         }
 
         if (!sendOpenQuickShulkerPacket(moved.index)) {
             activeTask.stage = CollectionStage.REOPEN_DELAY;
             activeTask.ticks = REOPEN_DELAY_TICKS;
-            return;
+            return true;
         }
 
         activeTask.previousSyncId = handler.containerId;
         activeTask.stage = CollectionStage.WAIT_SHULKER;
         activeTask.ticks = 0;
+        return true;
     }
 
     private int getTotalRemaining(List<Demand> demands) {
@@ -379,7 +416,20 @@ public final class QuickMaterialCollector implements ClientModInitializer {
             return;
         }
 
-        collectToPlayer(handler, activeTask.plan.demands(), activeTask.plan.targetTemplates());
+        if (!activeTask.stopRequested) {
+            int remainingBefore = getTotalRemaining(activeTask.plan.demands());
+            if (shouldUseQuickShulker()) {
+                packPlayerTargetMaterials(client, handler);
+                collectToShulkersOrPlayer(handler, activeTask.plan.demands(), activeTask.plan.targetTemplates());
+                packPlayerTargetMaterials(client, handler);
+            } else {
+                collectToPlayer(handler, activeTask.plan.demands(), activeTask.plan.targetTemplates());
+            }
+            // 有进展的来源允许继续取；无进展或开盒失败的来源本轮跳过，避免反复开关。
+            if (getTotalRemaining(activeTask.plan.demands()) < remainingBefore) {
+                activeTask.processedSourceSlots.remove(activeTask.sourceContainerSlotId);
+            }
+        }
         closeCurrentScreen(client);
         activeTask.stage = CollectionStage.REOPEN_DELAY;
         activeTask.ticks = 0;
@@ -436,7 +486,8 @@ public final class QuickMaterialCollector implements ClientModInitializer {
             return;
         }
 
-        Slot target = getReturnContainerSlot(handler, activeTask.sourceContainerSlotId);
+        Slot target = source.mayPickup(client.player)
+                ? getReturnContainerSlot(handler, activeTask.sourceContainerSlotId, source.getItem()) : null;
         if (target == null) {
             if (++activeTask.returnTicks > OPEN_TIMEOUT_TICKS) {
                 // 容器满时保留盒子在玩家背包，不丢弃也不清除未完成追踪。
@@ -449,29 +500,26 @@ public final class QuickMaterialCollector implements ClientModInitializer {
         clickSlot(handler, target.index, 0, ContainerInput.PICKUP);
         if (handler.getCarried().isEmpty() && !source.hasItem()) {
             clearReturnedSource(client, handler);
-        } else if (++activeTask.returnTicks > OPEN_TIMEOUT_TICKS) {
-            stopTask(client, true);
+        } else {
+            if (!handler.getCarried().isEmpty() && !source.hasItem()) {
+                clickSlot(handler, source.index, 0, ContainerInput.PICKUP);
+            }
+            if (++activeTask.returnTicks > OPEN_TIMEOUT_TICKS) {
+                stopTask(client, true);
+            }
         }
     }
 
     private void clearReturnedSource(Minecraft client, AbstractContainerMenu handler) {
         activeTask.sourceContainerSlotId = -1;
         activeTask.sourcePlayerIndex = -1;
+        activeTask.sourceStack = ItemStack.EMPTY;
+        packPlayerTargetMaterials(client, handler);
         if (activeTask.stopRequested) {
             finishTarget(client);
             return;
         }
 
-        // 抽出的材料此时已经脱离源盒，按需求量从大到小集中进玩家随身盒。
-        Player player = client.player;
-        if (player == null) {
-            stopTask(client, true);
-            return;
-        }
-        MaterialPlan packingPlan = buildMaterialPlan(player);
-        if (shouldUseQuickShulker()) {
-            packPlayerTargetMaterialsIntoShulkers(handler, packingPlan.packDemands(), packingPlan.targetTemplates());
-        }
         activeTask.stage = CollectionStage.COLLECT_TARGET;
         activeTask.returnTicks = 0;
     }
@@ -528,19 +576,19 @@ public final class QuickMaterialCollector implements ClientModInitializer {
         return null;
     }
 
-    private Slot getReturnContainerSlot(AbstractContainerMenu handler, int preferredSlotId) {
-        if (preferredSlotId >= 0 && preferredSlotId < handler.slots.size()) {
-            Slot preferred = handler.getSlot(preferredSlotId);
-            if (!isPlayerStorageSlot(preferred) && !preferred.hasItem()) {
-                return preferred;
-            }
-        }
+    private Slot getReturnContainerSlot(AbstractContainerMenu handler, int preferredSlotId, ItemStack shulker) {
+        Slot fallback = null;
         for (Slot slot : getContainerSlots(handler)) {
-            if (!slot.hasItem()) {
-                return slot;
+            if (!slot.hasItem() && slot.mayPlace(shulker)) {
+                if (slot.index == preferredSlotId) {
+                    return slot;
+                }
+                if (fallback == null) {
+                    fallback = slot;
+                }
             }
         }
-        return null;
+        return fallback;
     }
 
     private AbstractContainerMenu getOpenHandledContainer(Minecraft client) {
@@ -636,11 +684,52 @@ public final class QuickMaterialCollector implements ClientModInitializer {
 
     private void stopTask(Minecraft client, boolean closeScreen) {
         boolean hasOpenHandler = getOpenHandledContainer(client) != null;
-        suppressUseUntilRelease |= activeTask != null;
-        activeTask = null;
+        // 先让原版归置光标物品，再记录待还盒；失败点击可能让盒子仍留在光标上。
         if (closeScreen || hasOpenHandler) {
             closeCurrentScreen(client);
         }
+        if (activeTask != null && activeTask.sourcePlayerIndex >= 0
+                && client.level == activeTask.world && client.player != null
+                && client.player.getInventory() == activeTask.inventory) {
+            ItemStack source = activeTask.inventory.getItem(activeTask.sourcePlayerIndex);
+            if (isShulkerBox(source) && stacksMatch(source, activeTask.sourceStack)) {
+                activeTask.sourceStack = source.copy();
+                pendingReturn = activeTask;
+                completedTarget = activeTask.target;
+                sendStatusMessage(client, Component.translatable("quickcraft.message.material_collector.return_pending"));
+            }
+        }
+        suppressUseUntilRelease |= activeTask != null;
+        activeTask = null;
+    }
+
+    private CollectionTask resumePendingReturn() {
+        CollectionTask task = pendingReturn;
+        pendingReturn = null;
+        task.stage = CollectionStage.RETURN_SHULKER;
+        task.stopRequested = true;
+        task.holdTicks = 0;
+        task.ticks = 0;
+        task.returnTicks = 0;
+        return task;
+    }
+
+    private int findPendingSourceIndex(CollectionTask task) {
+        int preferred = task.sourcePlayerIndex;
+        if (preferred >= 0 && stacksExactlyMatch(task.inventory.getItem(preferred), task.sourceStack)) {
+            return preferred;
+        }
+        for (int i = 0; i < 36; i++) {
+            if (stacksExactlyMatch(task.inventory.getItem(i), task.sourceStack)) {
+                return i;
+            }
+        }
+        return -1;
+    }
+
+    private int getTemporarySourcePlayerIndex() {
+        return activeTask != null && activeTask.sourcePlayerIndex >= 0 ? activeTask.sourcePlayerIndex
+                : pendingReturn != null ? pendingReturn.sourcePlayerIndex : -1;
     }
 
     public static boolean shouldHideBackgroundHandledScreen() {
@@ -664,7 +753,10 @@ public final class QuickMaterialCollector implements ClientModInitializer {
         }
 
         QuickMaterialCollector collector = new QuickMaterialCollector();
-        return collector.isLookingAtSupportedBlock(client) && collector.hasVisibleMaterialLists(client.player);
+        return collector.isLookingAtSupportedBlock(client)
+                && (collector.hasVisibleMaterialLists(client.player)
+                || (pendingReturn != null && client.level == pendingReturn.world
+                && client.hitResult instanceof BlockHitResult hit && hit.getBlockPos().equals(pendingReturn.target)));
     }
 
     private boolean isLookingAtSupportedBlock(Minecraft client) {
@@ -787,7 +879,7 @@ public final class QuickMaterialCollector implements ClientModInitializer {
     }
 
     private int getTargetCollectCount(int requestedCount) {
-        return requestedCount + getExtraAllowance(requestedCount);
+        return requestedCount > 0 ? requestedCount + getExtraAllowance(requestedCount) : 0;
     }
 
     private int getExtraAllowance(int needed) {
@@ -911,11 +1003,15 @@ public final class QuickMaterialCollector implements ClientModInitializer {
                                            int amount,
                                            List<ItemStack> targetTemplates) {
         Slot source = handler.getSlot(sourceSlotId);
-        if (amount <= 0 || !source.hasItem() || isShulkerBox(source.getItem()) || !stacksMatch(source.getItem(), template)) {
+        if (amount <= 0 || !handler.getCarried().isEmpty()
+                || !source.hasItem() || isShulkerBox(source.getItem()) || !stacksMatch(source.getItem(), template)) {
             return 0;
         }
 
         int amountToPack = Math.min(amount, source.getItem().getCount());
+        if (findDestinationShulkerSlot(handler, source.getItem(), targetTemplates, getTemporarySourcePlayerIndex()) == null) {
+            return 0;
+        }
         if (amountToPack < source.getItem().getCount() && hasQuickShulkerBundlingConflict(template)) {
             return moveQuickShulkerConflictAmount(
                     handler,
@@ -934,7 +1030,8 @@ public final class QuickMaterialCollector implements ClientModInitializer {
             clickSlot(handler, sourceSlotId, 1, ContainerInput.PICKUP);
             int after = handler.getCarried().isEmpty() ? 0 : handler.getCarried().getCount();
             if (after >= before) {
-                break;
+                clickSlot(handler, sourceSlotId, 0, ContainerInput.PICKUP);
+                return 0;
             }
         }
 
@@ -948,7 +1045,7 @@ public final class QuickMaterialCollector implements ClientModInitializer {
     }
 
     private int moveFromContainerToPlayer(AbstractContainerMenu handler, int sourceSlotId, ItemStack template, int amount) {
-        if (amount <= 0) {
+        if (amount <= 0 || !handler.getCarried().isEmpty()) {
             return 0;
         }
 
@@ -960,14 +1057,16 @@ public final class QuickMaterialCollector implements ClientModInitializer {
         ItemStack sourceTemplate = source.getItem().copy();
         sourceTemplate.setCount(1);
         int sourceCount = source.getItem().getCount();
-        int moveAmount = Math.min(amount, sourceCount);
-        if (!hasPlayerCapacity(handler, sourceTemplate, moveAmount)) {
+        int moveAmount = getPlayerCapacity(handler, sourceTemplate, Math.min(amount, sourceCount));
+        if (moveAmount <= 0) {
             return 0;
         }
 
         if (moveAmount == sourceCount) {
             clickSlot(handler, sourceSlotId, 0, ContainerInput.QUICK_MOVE);
-            return moveAmount;
+            int remaining = source.hasItem() && stacksExactlyMatch(source.getItem(), sourceTemplate)
+                    ? source.getItem().getCount() : 0;
+            return Math.max(0, sourceCount - remaining);
         }
         if (hasQuickShulkerBundlingConflict(sourceTemplate)) {
             return moveQuickShulkerConflictAmount(
@@ -1134,18 +1233,32 @@ public final class QuickMaterialCollector implements ClientModInitializer {
         }
 
         clickSlot(handler, source.index, 0, ContainerInput.QUICK_MOVE);
+        if (source.hasItem()) {
+            return;
+        }
         for (StoredCount content : contents) {
             content.demand().decrease(content.count());
         }
     }
 
-    private void packPlayerTargetMaterialsIntoShulkers(AbstractContainerMenu handler,
+    private void packPlayerTargetMaterials(Minecraft client, AbstractContainerMenu handler) {
+        if (client.player == null || !shouldUseQuickShulker()) {
+            return;
+        }
+        MaterialPlan packingPlan = buildMaterialPlan(client.player);
+        if (packPlayerTargetMaterialsIntoShulkers(handler, packingPlan.packDemands(), packingPlan.targetTemplates()) > 0) {
+            activeTask.processedSourceSlots.clear();
+        }
+    }
+
+    private int packPlayerTargetMaterialsIntoShulkers(AbstractContainerMenu handler,
                                                        List<PackDemand> packDemands,
                                                        List<ItemStack> targetTemplates) {
         if (!handler.getCarried().isEmpty()) {
-            return;
+            return 0;
         }
 
+        int packed = 0;
         for (PackDemand demand : packDemands) {
             if (demand.remaining() <= 0) {
                 continue;
@@ -1162,15 +1275,17 @@ public final class QuickMaterialCollector implements ClientModInitializer {
                 int amount = Math.min(source.getItem().getCount(), demand.remaining());
                 int moved = moveSlotAmountIntoShulkers(handler, source.index, demand.template(), amount, targetTemplates);
                 demand.decrease(moved);
+                packed += moved;
             }
         }
+        return packed;
     }
 
     private int packCursorIntoShulkers(AbstractContainerMenu handler, List<ItemStack> targetTemplates) {
         int moved = 0;
 
         while (!handler.getCarried().isEmpty()) {
-            Slot shulkerSlot = findDestinationShulkerSlot(handler, handler.getCarried(), targetTemplates);
+            Slot shulkerSlot = findDestinationShulkerSlot(handler, handler.getCarried(), targetTemplates, getTemporarySourcePlayerIndex());
             if (shulkerSlot == null) {
                 break;
             }
@@ -1204,6 +1319,10 @@ public final class QuickMaterialCollector implements ClientModInitializer {
         Object2IntOpenHashMap<Item> boxed = new Object2IntOpenHashMap<>();
         // 与材料表一致只按物品类型统计；快照不跨点击或收集轮次保存。
         for (int i = 0; i < 36; i++) {
+            // 临时来源盒仍属于原容器，不能计入玩家库存或用于满足装盒上限。
+            if (i == getTemporarySourcePlayerIndex()) {
+                continue;
+            }
             ItemStack stack = inventory.getItem(i);
             if (stack.isEmpty()) {
                 continue;
@@ -1307,6 +1426,8 @@ public final class QuickMaterialCollector implements ClientModInitializer {
     }
 
     private static final class CollectionTask {
+        private final ClientLevel world;
+        private final Inventory inventory;
         private final BlockHitResult hitResult;
         private final BlockPos target;
         private final Set<Integer> processedSourceSlots = new HashSet<>();
@@ -1320,8 +1441,11 @@ public final class QuickMaterialCollector implements ClientModInitializer {
         private int previousSyncId = -1;
         private int sourceContainerSlotId = -1;
         private int sourcePlayerIndex = -1;
+        private ItemStack sourceStack = ItemStack.EMPTY;
 
-        private CollectionTask(BlockHitResult hitResult, BlockPos target, CollectionStage stage) {
+        private CollectionTask(Minecraft client, BlockHitResult hitResult, BlockPos target, CollectionStage stage) {
+            this.world = client.level;
+            this.inventory = client.player.getInventory();
             this.hitResult = hitResult;
             this.target = target;
             this.stage = stage;

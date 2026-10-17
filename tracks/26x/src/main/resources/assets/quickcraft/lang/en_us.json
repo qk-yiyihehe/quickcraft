@@ -427,6 +427,7 @@
   "quickcraft.message.litematica_autofill.no_container_content": "QuickCraft: No usable projection container contents at the current position",
   "quickcraft.message.material_collector.hold_to_collect": "QuickCraft: Hold use to collect schematic materials",
   "quickcraft.message.material_collector.result": "QuickCraft: %s",
+  "quickcraft.message.material_collector.return_pending": "QuickCraft: The temporary shulker could not be returned and remains in your inventory. Hold use on the original container to retry.",
   "quickcraft.message.container_copy.recording": "QuickCraft: Recording %s contents",
   "quickcraft.message.container_copy.recorded": "QuickCraft: Recorded %s contents",
   "quickcraft.message.container_copy.copied": "QuickCraft: Copied %s contents",

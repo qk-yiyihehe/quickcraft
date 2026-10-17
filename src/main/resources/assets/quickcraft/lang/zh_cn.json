@@ -427,6 +427,7 @@
   "quickcraft.message.litematica_autofill.no_container_content": "QuickCraft: 当前位置没有可用的投影容器内容",
   "quickcraft.message.material_collector.hold_to_collect": "QuickCraft: 请长按右键收集投影材料",
   "quickcraft.message.material_collector.result": "QuickCraft: %s",
+  "quickcraft.message.material_collector.return_pending": "QuickCraft: 临时潜影盒暂时无法归还，已保留在背包；对准原容器长按右键重试归还",
   "quickcraft.message.container_copy.recording": "QuickCraft: 正在记录%s内容",
   "quickcraft.message.container_copy.recorded": "QuickCraft: 已记录%s内容",
   "quickcraft.message.container_copy.copied": "QuickCraft: 已复制%s内容",
