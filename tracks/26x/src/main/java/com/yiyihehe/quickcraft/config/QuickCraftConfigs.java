@@ -615,6 +615,9 @@ public final class QuickCraftConfigs implements IConfigHandler {
                 true,
                 ""
         ).apply(PROJECTION_TRANSLATION_PREFIX);
+        public static final ConfigBooleanHotkeyed ENABLE_LITEMATICA_LIST_PAGINATION = new ConfigBooleanHotkeyed(
+                "enableLitematicaListPagination", false, ""
+        ).apply(PROJECTION_TRANSLATION_PREFIX);
         public static final ConfigBooleanHotkeyed SHOW_LITEMATICA_ENTITY_MATERIAL_BUTTON = new ConfigBooleanHotkeyed(
                 "showLitematicaEntityMaterialButton",
                 true,
@@ -776,6 +779,7 @@ public final class QuickCraftConfigs implements IConfigHandler {
                 HOLD_EASY_PLACE_CACHE_TIME_MS,
                 SHOW_LITEMATICA_SCHEMATIC_FOLDER_BUTTON,
                 SHOW_LITEMATICA_CONTAINER_MATERIAL_BUTTON,
+                ENABLE_LITEMATICA_LIST_PAGINATION,
                 SHOW_LITEMATICA_ENTITY_MATERIAL_BUTTON,
                 SHOW_LITEMATICA_CONTAINER_SLOT_HINTS,
                 SHOW_LITEMATICA_CONTAINER_VERIFIER,
@@ -1043,6 +1047,7 @@ public final class QuickCraftConfigs implements IConfigHandler {
                 ProjectionTools.ENABLE_EASY_PLACE_ENTITIES,
                 ProjectionTools.SHOW_LITEMATICA_SCHEMATIC_FOLDER_BUTTON,
                 ProjectionTools.SHOW_LITEMATICA_CONTAINER_MATERIAL_BUTTON,
+                ProjectionTools.ENABLE_LITEMATICA_LIST_PAGINATION,
                 ProjectionTools.SHOW_LITEMATICA_ENTITY_MATERIAL_BUTTON,
                 ProjectionTools.SHOW_LITEMATICA_CONTAINER_SLOT_HINTS,
                 ProjectionTools.SHOW_LITEMATICA_CONTAINER_VERIFIER,
@@ -1111,6 +1116,7 @@ public final class QuickCraftConfigs implements IConfigHandler {
                 ProjectionTools.ENABLE_EASY_PLACE_ENTITIES,
                 ProjectionTools.SHOW_LITEMATICA_SCHEMATIC_FOLDER_BUTTON,
                 ProjectionTools.SHOW_LITEMATICA_CONTAINER_MATERIAL_BUTTON,
+                ProjectionTools.ENABLE_LITEMATICA_LIST_PAGINATION,
                 ProjectionTools.SHOW_LITEMATICA_ENTITY_MATERIAL_BUTTON,
                 ProjectionTools.SHOW_LITEMATICA_CONTAINER_SLOT_HINTS,
                 ProjectionTools.SHOW_LITEMATICA_CONTAINER_VERIFIER,

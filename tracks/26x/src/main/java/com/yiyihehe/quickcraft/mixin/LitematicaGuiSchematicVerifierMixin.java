@@ -95,6 +95,11 @@ public abstract class LitematicaGuiSchematicVerifierMixin {
         gui.addLabel(12, gui.getScreenHeight() - 14, 100, 12, 0xFFF0F0F0, label);
     }
 
+    @Inject(method = "initGui", at = @At("TAIL"))
+    private void quickcraft$addPagination(CallbackInfo ci) {
+        com.yiyihehe.quickcraft.litematica.QuickLitematicaListPagination.add((GuiSchematicVerifier) (Object) this);
+    }
+
     @Inject(method = "onSelectionChange", at = @At("HEAD"), cancellable = true)
     private void quickcraft$ignoreContainerSectionTitle(GuiSchematicVerifier.BlockMismatchEntry entry, CallbackInfo ci) {
         String title = StringUtils.translate("quickcraft.litematica.verifier.title.container_errors");

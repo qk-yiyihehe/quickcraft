@@ -89,6 +89,7 @@
 		"LitematicaGlobalSaveWorldMixin",
 		"LitematicaWidgetMaterialListEntryMixin",
 		"MalilibGuiListAccessor",
+		"LitematicaListPaginationMixin",
 		"MalilibSearchBarAccessor",
 		"LitematicaSchematicDataMixin",
 		"StonecutterPredictionMixin"

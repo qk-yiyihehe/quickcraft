@@ -25,7 +25,7 @@ public final class QuickLitematicaMaterialButtons {
 
     public static void add(GuiMaterialList gui) {
         var navigation = QuickLitematicaMaterialNavigation.bind(gui);
-        if (navigation == null) { return; }
+        if (navigation == null) { QuickLitematicaListPagination.add(gui); return; }
         var list = gui.getMaterialList();
         View current = list instanceof QuickLitematicaContainerMaterials.ContainerMaterialList ? View.CONTAINERS
                 : list instanceof QuickLitematicaEntityMaterials.EntityMaterialList ? View.ENTITIES : View.BLOCKS;
@@ -116,6 +116,7 @@ public final class QuickLitematicaMaterialButtons {
             screen.quickcraft$setBottomMargin(bottomMargin);
         }
         resizeList(gui, listY, footer.listBottom());
+        QuickLitematicaListPagination.add(gui, gui.getScreenWidth() - 12, gui.getScreenHeight() - 24);
         return bottomMargin;
     }
 

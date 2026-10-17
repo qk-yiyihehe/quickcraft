@@ -766,5 +766,11 @@
   "quickcraft.litematica.nav.entities": "Entities",
   "quickcraft.config.projection_tools.name.includeEnderChestInMaterialHud": "Include Ender Chest in Material HUD",
   "quickcraft.config.projection_tools.prettyName.includeEnderChestInMaterialHud": "Include Ender Chest in Material HUD",
-  "quickcraft.config.projection_tools.comment.includeEnderChestInMaterialHud": "Include ender chest items and their shulker box contents in material list HUD availability, including QuickShulker access.\nUses ender chest data already synced by QuickShulker when available. Otherwise, open an ender chest once after joining. Forgets recorded contents when leaving; actual items are unaffected. Only affects the HUD, not material collection or restocking."
+  "quickcraft.config.projection_tools.comment.includeEnderChestInMaterialHud": "Include ender chest items and their shulker box contents in material list HUD availability, including QuickShulker access.\nUses ender chest data already synced by QuickShulker when available. Otherwise, open an ender chest once after joining. Forgets recorded contents when leaving; actual items are unaffected. Only affects the HUD, not material collection or restocking.",
+  "quickcraft.config.projection_tools.name.enableLitematicaListPagination": "Material and Verifier List Pagination",
+  "quickcraft.config.projection_tools.prettyName.enableLitematicaListPagination": "Material and Verifier List Pagination",
+  "quickcraft.config.projection_tools.comment.enableLitematicaListPagination": "Show material lists, container details, and schematic/container verification results in pages. Use the arrow buttons or mouse wheel to change pages. Disabled by default.",
+  "quickcraft.litematica.pagination.previous": "Previous page",
+  "quickcraft.litematica.pagination.next": "Next page",
+  "quickcraft.litematica.pagination.page": "%s / %s"
 }
