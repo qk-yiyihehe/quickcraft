@@ -62,10 +62,9 @@ public class LitematicaWorldUtilsEasyPlaceMixin {
         BlockPos targetPos = schematicHit.getBlockPos();
         BlockState schematicState = schematicWorld.getBlockState(targetPos);
         BlockState worldState = client.world.getBlockState(targetPos);
-        if (!schematicState.isOf(Blocks.WATER)
-                || !schematicState.getFluidState().isStill()
+        if (!QuickLitematicaEasyPlaceInteractions.isSourceWater(schematicState)
                 || (!worldState.isAir()
-                && (!worldState.isOf(Blocks.WATER) || !worldState.getFluidState().isStill()))) {
+                && !QuickLitematicaEasyPlaceInteractions.isSourceWater(worldState))) {
             return;
         }
 

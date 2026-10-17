@@ -63,9 +63,9 @@ public final class QuickLitematicaEasyPlaceInteractions {
         BlockPos targetPos = schematicHit.getBlockPos();
         BlockState schematicState = schematicWorld.getBlockState(targetPos);
         BlockState worldState = client.level.getBlockState(targetPos);
-        if (!schematicState.is(Blocks.WATER) || !schematicState.getFluidState().isSource()
+        if (!isSourceWater(schematicState)
                 || (!worldState.isAir()
-                && (!worldState.is(Blocks.WATER) || !worldState.getFluidState().isSource()))) {
+                && !isSourceWater(worldState))) {
             return null;
         }
 
@@ -87,6 +87,11 @@ public final class QuickLitematicaEasyPlaceInteractions {
         InteractionResult result = client.gameMode.useItemOn(client.player, hand, placementHit);
         QuickLitematicaEasyPlaceAccess.swingHandIfSuccess(client, hand, result);
         return result == InteractionResult.FAIL ? InteractionResult.FAIL : InteractionResult.SUCCESS;
+    }
+
+    private static boolean isSourceWater(BlockState state) {
+        return (state.is(Blocks.WATER) || state.is(Blocks.BUBBLE_COLUMN))
+                && state.getFluidState().isSource();
     }
 
     public static boolean shouldAllowVanillaUse(Minecraft client) {

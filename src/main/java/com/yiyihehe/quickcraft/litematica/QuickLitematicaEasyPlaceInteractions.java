@@ -85,6 +85,11 @@ public final class QuickLitematicaEasyPlaceInteractions {
     private QuickLitematicaEasyPlaceInteractions() {
     }
 
+    public static boolean isSourceWater(net.minecraft.block.BlockState state) {
+        return (state.isOf(Blocks.WATER) || state.isOf(Blocks.BUBBLE_COLUMN))
+                && state.getFluidState().isStill();
+    }
+
     public static boolean shouldAllowVanillaUse(MinecraftClient client) {
         if (!QuickCraftConfigs.areEasyPlaceVanillaInteractionsAllowed()
                 || client == null
