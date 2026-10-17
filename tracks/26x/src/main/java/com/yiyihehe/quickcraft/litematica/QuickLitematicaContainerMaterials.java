@@ -1385,6 +1385,8 @@ public final class QuickLitematicaContainerMaterials {
         QuickLitematicaMaterialNavigation navigation;
         final Map<ItemKey, ItemStack> selectedMaterials = new LinkedHashMap<>();
         List<MaterialListEntry> hudEntries;
+        List<MaterialListEntry> hudMissingEntries;
+        int hudMultiplier;
         long hudRevision = -1;
         int hudIgnoredHash;
 
@@ -1527,6 +1529,7 @@ public final class QuickLitematicaContainerMaterials {
                     entries.add(new ContainerSummaryEntry(stack, total, missing == null ? total : missing.getInt(type), List.of(stack)));
                 }
                 this.hudEntries = entries;
+                this.hudMissingEntries = null;
                 this.hudRevision = revision;
                 this.hudIgnoredHash = ignoredHash;
             }
@@ -1535,13 +1538,24 @@ public final class QuickLitematicaContainerMaterials {
 
         @Override
         public List<MaterialListEntry> quickcraft$getHudMaterialsMissing() {
-            List<MaterialListEntry> missing = new ArrayList<>();
-            for (MaterialListEntry entry : this.quickcraft$getHudMaterialsAll(false)) {
-                int needed = this.getMultiplier() == 1 ? entry.getCountMissing() : entry.getCountTotal() * this.getMultiplier();
-                if (needed > entry.getCountAvailable()) { missing.add(entry); }
+            List<MaterialListEntry> entries = this.quickcraft$getHudMaterialsAll(false);
+            int multiplier = this.getMultiplier();
+            if (this.hudMissingEntries == null || this.hudMultiplier != multiplier) {
+                List<MaterialListEntry> missing = new ArrayList<>();
+                for (MaterialListEntry entry : entries) {
+                    int needed = multiplier == 1 ? entry.getCountMissing() : entry.getCountTotal() * multiplier;
+                    int available = entry.getCountAvailable();
+                    if (needed > available) {
+                        // HUD 按原版刷新周期保存数量，避免逐帧筛选、排序和显示时反复扫描背包。
+                        missing.add(new MaterialListEntry(entry.getStack(), entry.getCountTotal(),
+                                entry.getCountMissing(), entry.getCountMismatched(), available));
+                    }
+                }
+                missing.sort(new fi.dy.masa.litematica.materials.MaterialListSorter(this));
+                this.hudMissingEntries = missing;
+                this.hudMultiplier = multiplier;
             }
-            missing.sort(new fi.dy.masa.litematica.materials.MaterialListSorter(this));
-            return missing;
+            return this.hudMissingEntries;
         }
 
         @Override
