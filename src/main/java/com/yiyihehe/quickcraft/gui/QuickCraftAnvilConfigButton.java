@@ -32,15 +32,20 @@ final class QuickCraftAnvilConfigButton extends ButtonGeneric {
         var profile = config;
         var defaults = ImmutableList.copyOf(profile.getDefaultStrings().stream()
                 .map(QuickCraftAnvilEnchantments::display).toList());
-        var localized = new ConfigStringList(profile.getName(), defaults) {
+        var localized = new ConfigStringList(profile.getName(), defaults);
+        localized.setStrings(profile.getStrings().stream().map(QuickCraftAnvilEnchantments::display).toList());
+        var editor = new GuiStringListEdit(localized, host, null, GuiUtils.getCurrentScreen()) {
             @Override
-            public void setStrings(java.util.List<String> strings) {
-                super.setStrings(strings);
-                profile.setStrings(strings.stream().map(QuickCraftAnvilEnchantments::canonical).toList());
+            public void removed() {
+                if (getListWidget() != null && getListWidget().wereConfigsModified()) {
+                    // 原生控件直接修改列表，须在父类通知保存前应用输入并统一回写。
+                    getListWidget().applyPendingModifications();
+                    profile.setStrings(localized.getStrings().stream()
+                            .map(QuickCraftAnvilEnchantments::canonical).toList());
+                }
+                super.removed();
             }
         };
-        localized.setStrings(profile.getStrings().stream().map(QuickCraftAnvilEnchantments::display).toList());
-        var editor = new GuiStringListEdit(localized, host, null, GuiUtils.getCurrentScreen());
         editor.setTitle(StringUtils.translate("quickcraft.anvil.edit_title", profile.getConfigGuiDisplayName()));
         GuiBase.openGui(editor);
     }

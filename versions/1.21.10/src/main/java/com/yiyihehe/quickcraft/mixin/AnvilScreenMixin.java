@@ -5,7 +5,7 @@ import com.llamalad7.mixinextras.injector.wrapoperation.WrapOperation;
 import com.yiyihehe.quickcraft.crafting.QuickCraftAnvilAssistant;
 import com.yiyihehe.quickcraft.config.QuickCraftConfigs;
 import net.minecraft.client.gui.screen.ingame.HandledScreen;
-import net.minecraft.client.gui.widget.ButtonWidget;
+import com.yiyihehe.quickcraft.gui.QuickCraftAnvilButton;
 import net.minecraft.entity.player.PlayerInventory;
 import net.minecraft.screen.AnvilScreenHandler;
 import net.minecraft.text.Text;
@@ -37,9 +37,15 @@ public abstract class AnvilScreenMixin extends HandledScreen<AnvilScreenHandler>
     private void quickcraft$addAnvilAssistant(CallbackInfo ci) {
         if (!QuickCraftConfigs.Crafting.ENABLE_ANVIL_ASSISTANT.getBooleanValue()) return;
         int buttonY = Math.max(2, this.y - 23);
-        var action = this.addDrawableChild(ButtonWidget.builder(Text.empty(),
-                button -> QuickCraftAnvilAssistant.action(false)).dimensions(this.x, buttonY, 176, 20).build());
+        var action = this.addDrawableChild(new QuickCraftAnvilButton(this.x, buttonY,
+                button -> QuickCraftAnvilAssistant.action(false)));
         QuickCraftAnvilAssistant.attach(action);
+    }
+
+    @Override
+    public boolean mouseScrolled(double mouseX, double mouseY, double horizontal, double vertical) {
+        return QuickCraftAnvilAssistant.scrollPlan(mouseX, mouseY, horizontal, vertical)
+                || super.mouseScrolled(mouseX, mouseY, horizontal, vertical);
     }
 
     @Inject(method = "keyPressed", at = @At("HEAD"), cancellable = true)

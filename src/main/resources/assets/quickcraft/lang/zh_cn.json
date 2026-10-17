@@ -669,7 +669,7 @@
   "quickcraft.message.stonecutter.sync_changed": "服务端纠正了切石机库存，已停止",
   "quickcraft.config.crafting.name.enableAnvilAssistant": "铁砧助手",
   "quickcraft.config.crafting.prettyName.enableAnvilAssistant": "铁砧助手",
-  "quickcraft.config.crafting.comment.enableAnvilAssistant": "§6功能：§r使用背包附魔书打造指定神装，比较同类底材、用书与敲打顺序，优先补齐当前能完成的附魔，再选最省经验的方案；缺书的目标自动跳过。\n§e操作：§r左槽放装备，点击预览查看费用，再开始；动作热键直接规划并执行，再按停止。\n§7规则：§r仅装备加书，不合书；跳过锁格，不丢弃产物。右槽和光标需为空，停止后手动取回剩余材料。\n§7目标：§r展开本项编辑各装备的附魔列表，预设可恢复默认。",
+  "quickcraft.config.crafting.comment.enableAnvilAssistant": "§6功能：§r使用背包附魔书打造指定神装，比较同类底材、用书与敲打顺序，优先补齐当前能完成的附魔，再选最省经验的方案；缺书的目标自动跳过。\n§e操作：§r左槽放装备，点击预览查看费用，再开始；动作热键直接规划并执行，再按停止。\n§7规则：§r支持合书后加到装备，不合并两件装备；跳过锁格，不丢弃产物。右槽和光标需为空，停止后手动取回剩余材料。\n§7目标：§r展开本项编辑各装备的附魔列表，预设可恢复默认。",
   "quickcraft.config.crafting.name.anvilPickaxePlan": "镐的打造方案",
   "quickcraft.config.crafting.prettyName.anvilPickaxePlan": "镐的打造方案",
   "quickcraft.config.crafting.comment.anvilPickaxePlan": "点击在精准采集和时运之间切换；两套附魔目标分别在下方编辑。",
@@ -752,7 +752,7 @@
   "quickcraft.anvil.inputs": "请清空右槽和鼠标光标，并先停止快速命名。",
   "quickcraft.anvil.locked": "参与操作的槽位已锁定，已停止。",
   "quickcraft.anvil.full": "没有可用位置存放装备，已停止。",
-  "quickcraft.anvil.no_route": "当前没有能直接提升装备的附魔书，或铁砧费用过高；未消耗材料。",
+  "quickcraft.anvil.no_route": "现有装备和附魔书无法组成可用路线，或铁砧费用过高；未消耗材料。",
   "quickcraft.anvil.config": "目标附魔配置无效：请使用“锋利5”或“sharpness=5”等格式，检查等级、适用装备和重复项。",
   "quickcraft.anvil.conflict": "目标附魔互斥，请修改铁砧助手内的目标配置。",
   "quickcraft.anvil.target": "请在左槽放入支持的装备，再预览方案。",
@@ -785,5 +785,7 @@
   "quickcraft.litematica.pagination.previous": "上一页",
   "quickcraft.litematica.pagination.next": "下一页",
   "quickcraft.litematica.pagination.page": "%s / %s",
-  "quickcraft.button.inventory_lock.tooltip": "锁定/解锁整个背包"
+  "quickcraft.button.inventory_lock.tooltip": "锁定/解锁整个背包",
+  "quickcraft.anvil.merge_step": "第 %s 步：合书（%s ＋ %s），消耗 %s 级",
+  "quickcraft.anvil.scroll_plan": "滚轮查看：%s–%s / %s"
 }

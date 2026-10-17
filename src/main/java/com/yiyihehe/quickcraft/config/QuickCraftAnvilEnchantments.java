@@ -42,6 +42,8 @@ public final class QuickCraftAnvilEnchantments {
                 }
             }
             if (name.startsWith("minecraft:")) name = name.substring("minecraft:".length());
+            // 旧翻译键 sweeping 与 sweeping_edge 同名，但只有后者是当前注册 ID。
+            if (name.equals("sweeping")) name = "sweeping_edge";
             return name + '=' + entry.level;
         } catch (IllegalArgumentException invalid) {
             // 无效输入留在编辑器里供修正，开始规划时统一校验，不能悄悄改成另一条附魔。

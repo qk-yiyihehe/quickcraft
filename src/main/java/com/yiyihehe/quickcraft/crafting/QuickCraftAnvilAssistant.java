@@ -3,11 +3,11 @@ package com.yiyihehe.quickcraft.crafting;
 import com.yiyihehe.quickcraft.QuickContainerLock;
 import com.yiyihehe.quickcraft.QuickCraftKeyBindings;
 import com.yiyihehe.quickcraft.config.QuickCraftConfigs;
+import net.minecraft.component.DataComponentTypes;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.gui.screen.ingame.AnvilScreen;
-import net.minecraft.client.gui.tooltip.Tooltip;
-import net.minecraft.client.gui.widget.ButtonWidget;
+import com.yiyihehe.quickcraft.gui.QuickCraftAnvilButton;
 import net.minecraft.client.network.ClientPlayNetworkHandler;
 import net.minecraft.item.ItemStack;
 import net.minecraft.network.packet.c2s.play.ClientStatusC2SPacket;
@@ -15,6 +15,7 @@ import net.minecraft.screen.AnvilScreenHandler;
 import net.minecraft.screen.slot.SlotActionType;
 import net.minecraft.text.Text;
 import net.minecraft.network.packet.c2s.play.RenameItemC2SPacket;
+import net.minecraft.item.Items;
 import java.util.*;
 
 /** 每批搬运必须清空光标，再用统计响应确认服务端处理完成，不能把半次搬运留给下一帧。 */
@@ -30,9 +31,11 @@ public final class QuickCraftAnvilAssistant {
     private static List<ItemStack> expected;
     private static ItemStack expectedCursor = ItemStack.EMPTY;
     private static final org.slf4j.Logger LOGGER = org.slf4j.LoggerFactory.getLogger("QuickCraft/Anvil");
-    private static ButtonWidget actionButton;
+    private static QuickCraftAnvilButton actionButton;
     private static int stepIndex;
     private static int equipmentSlot;
+    private static int[] locations;
+    private static int outputSlot = -1;
     private static boolean running;
     private static boolean executing;
     private static boolean waiting;
@@ -57,10 +60,14 @@ public final class QuickCraftAnvilAssistant {
                 || QuickCraftKeyBindings.isHotkeyDown(QuickCraftConfigs.Hotkeys.ANVIL_BUILD.getKeybind()));
     }
 
-    public static void attach(ButtonWidget action) {
+    public static void attach(QuickCraftAnvilButton action) {
         reset();
         actionButton = action;
         refreshButtons();
+    }
+
+    public static boolean scrollPlan(double mouseX, double mouseY, double horizontal, double vertical) {
+        return actionButton != null && actionButton.mouseScrolled(mouseX, mouseY, horizontal, vertical);
     }
 
     public static void action(boolean hotkey) {
@@ -83,6 +90,8 @@ public final class QuickCraftAnvilAssistant {
             if (!executing) {
                 executing = true;
                 equipmentSlot = plan.state().equipmentSlot();
+                locations = java.util.stream.IntStream.range(0, handler.slots.size()).toArray();
+                outputSlot = -1;
                 stepIndex = 0;
             }
             return;
@@ -156,27 +165,36 @@ public final class QuickCraftAnvilAssistant {
             refreshButtons();
             return;
         }
+        for (int slot = 0; slot <= 2; slot++) {
+            if (QuickContainerLock.isLockedSlot(handler, slot)) { stop("locked"); return; }
+        }
         var step = plan.state().steps().get(stepIndex);
         if (creative) { advanceCreative(client, step); return; }
-        if (equipmentSlot != 0) {
-            if (!same(handler.getSlot(equipmentSlot).getStack(), step.input())) { stop("changed"); return; }
+        int inputSlot = locations[step.inputSlot()];
+        if (inputSlot != 0) {
+            if (!same(handler.getSlot(inputSlot).getStack(), step.input())) { stop("changed"); return; }
             boolean moved = handler.getSlot(0).getStack().isEmpty()
-                    ? transfer(client, equipmentSlot, 0)
-                    : transfer(client, equipmentSlot, 0, equipmentSlot);
-            if (moved) equipmentSlot = 0;
+                    ? transfer(client, inputSlot, 0)
+                    : transfer(client, inputSlot, 0, inputSlot);
+            if (moved) swapLocations(inputSlot, 0);
             return;
         }
         if (!same(handler.getSlot(0).getStack(), step.input())) { stop("changed"); return; }
         if (handler.getSlot(1).getStack().isEmpty()) {
-            if (!same(handler.getSlot(step.bookSlot()).getStack(), step.book())) { stop("changed"); return; }
+            int bookSlot = locations[step.bookSlot()];
+            if (bookSlot < 3 || !same(handler.getSlot(bookSlot).getStack(), step.book())) { stop("changed"); return; }
             if (client.player.experienceLevel < step.cost() && !client.player.getAbilities().creativeMode) {
                 running = false;
                 status = message("experience", step.cost());
                 return;
             }
-            String name = step.input().getName().getString();
+            // 默认显示名随客户端语言变化，发给服务器会被当作额外改名。
+            String name = step.input().contains(DataComponentTypes.CUSTOM_NAME) ? step.input().getName().getString() : "";
             if (handler.setNewItemName(name)) connection.sendPacket(new RenameItemC2SPacket(name));
-            transfer(client, step.bookSlot(), 1);
+            if (transfer(client, bookSlot, 1)) {
+                outputSlot = bookSlot;
+                swapLocations(bookSlot, 1);
+            }
             return;
         }
         // 结果槽会被服务端和命名框多次刷新，只在实际领取前校验完整结果及费用。
@@ -188,11 +206,21 @@ public final class QuickCraftAnvilAssistant {
             stop("changed");
             return;
         }
-        if (!handler.getSlot(step.bookSlot()).getStack().isEmpty()) { stop("full"); return; }
-        if (transfer(client, 2, step.bookSlot())) {
-            equipmentSlot = step.bookSlot();
+        if (outputSlot < 3) { stop("changed"); return; }
+        if (!handler.getSlot(outputSlot).getStack().isEmpty()) { stop("full"); return; }
+        if (transfer(client, 2, outputSlot)) {
+            swapLocations(0, outputSlot);
+            outputSlot = -1;
             stepIndex++;
             status = message("working", stepIndex, plan.state().steps().size());
+        }
+    }
+
+    // 步骤引用原始材料编号；左槽换料可能暂存另一件装备，必须同步其实际位置。
+    private static void swapLocations(int first, int second) {
+        for (int index = 0; index < locations.length; index++) {
+            if (locations[index] == first) locations[index] = second;
+            else if (locations[index] == second) locations[index] = first;
         }
     }
 
@@ -319,11 +347,13 @@ public final class QuickCraftAnvilAssistant {
             ItemStack carried = handler.getCursorStack();
             boolean taskItem = plan.state().steps().stream().anyMatch(step -> same(carried, step.input())
                     || same(carried, step.book()) || same(carried, step.output()));
-            if (taskItem) recoverCursor(client, equipmentSlot);
+            if (taskItem) recoverCursor(client, locations == null ? equipmentSlot : locations[plan.state().equipmentSlot()]);
         }
         planner = null;
         plan = null;
         stepIndex = 0;
+        locations = null;
+        outputSlot = -1;
         targets = List.of();
         skipped = List.of();
         pickaxe = creative = false;
@@ -352,6 +382,8 @@ public final class QuickCraftAnvilAssistant {
         skipped = List.of();
         pickaxe = creative = false;
         stepIndex = 0;
+        locations = null;
+        outputSlot = -1;
         actionButton = null;
     }
 
@@ -363,26 +395,17 @@ public final class QuickCraftAnvilAssistant {
         lines.add(status);
         if (pickaxe) lines.add(message("selected_plan", QuickCraftConfigs.Crafting.ANVIL_PICKAXE_PLAN.getOptionListValue().getDisplayName()));
         if (plan != null) {
-            MinecraftClient client = MinecraftClient.getInstance();
             lines.add(message("source", message(plan.state().equipmentSlot() == 0 ? "left_slot" : "inventory_slot",
                     plan.state().equipmentSlot() - 2), plan.state().equipment().getName()));
-            int level = client.player.experienceLevel;
-            int remainingCost = plan.state().steps().subList(stepIndex, plan.state().steps().size()).stream()
-                    .mapToInt(QuickCraftAnvilPlanner.Step::cost).sum();
-            if (!creative && remainingCost <= level) {
-                double spent = QuickCraftAnvilSearch.experienceAt(level, client.player.experienceProgress)
-                        - QuickCraftAnvilSearch.experienceAt(level - remainingCost, client.player.experienceProgress);
-                lines.add(message("points", (int) Math.ceil(spent), level - remainingCost));
-            }
             for (int index = 0; index < plan.state().steps().size(); index++) {
                 var step = plan.state().steps().get(index);
                 if (creative) { lines.add(message("creative_step")); continue; }
-                var description = Text.empty();
-                for (var enchantment : QuickCraftAnvilPlanner.bookDescription(step.book())) {
-                    if (!description.getString().isEmpty()) description.append(", ");
-                    description.append(enchantment);
+                var description = describeEnchantments(step.book());
+                if (step.input().isOf(Items.ENCHANTED_BOOK)) {
+                    lines.add(message("merge_step", index + 1, describeEnchantments(step.input()), description, step.cost()));
+                } else {
+                    lines.add(message("step", index + 1, description, step.cost()));
                 }
-                lines.add(message("step", index + 1, description, step.cost()));
             }
         }
         lines.addAll(1, targets);
@@ -392,8 +415,17 @@ public final class QuickCraftAnvilAssistant {
             if (!tooltip.getString().isEmpty()) tooltip.append("\n");
             tooltip.append(line);
         }
-        actionButton.setTooltip(Tooltip.of(tooltip));
+        actionButton.setPlanTooltip(tooltip);
 
+    }
+
+    private static Text describeEnchantments(ItemStack stack) {
+        var description = Text.empty();
+        for (var enchantment : QuickCraftAnvilPlanner.bookDescription(stack)) {
+            if (!description.getString().isEmpty()) description.append(", ");
+            description.append(enchantment);
+        }
+        return description;
     }
 
     private static Text message(String key, Object... args) {
