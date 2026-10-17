@@ -18,6 +18,8 @@ public class QuickDraggableButton extends ButtonWidget {
         CONTAINER_LOCK("containerLock"),
         INVENTORY_LOCK("inventoryLock"),
         QUICK_STASH("quickStash"),
+        CONTAINER_SORT("containerSort"),
+        INVENTORY_SORT("inventorySort"),
         QUICK_RETRIEVE("quickRetrieve"),
         WORKBENCH_CRAFT("workbenchCraft"),
         WORKBENCH_MODE("workbenchMode"),
@@ -48,6 +50,8 @@ public class QuickDraggableButton extends ButtonWidget {
     }
 
     public void setDefaultPosition(int x, int y) {
+        // 给槽位上沿留出一像素间隔，拖动偏移仍相对调整后的默认位置保存。
+        y -= 1;
         this.defaultX = x;
         this.defaultY = y;
         if (!this.dragging) {

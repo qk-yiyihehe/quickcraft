@@ -166,6 +166,7 @@ public class QuickCraftConfigScreen extends GuiConfigsBase {
         ),
         QUICK_SORT(
                 QuickCraftConfigs.ContainerTools.ENABLE_QUICK_SORT,
+                QuickCraftConfigs.ContainerTools.SHOW_QUICK_SORT_BUTTON,
                 QuickCraftConfigs.ContainerTools.QUICK_SORT_TOP_PRIORITY_ITEMS,
                 QuickCraftConfigs.ContainerTools.QUICK_SORT_BOTTOM_PRIORITY_ITEMS,
                 QuickCraftConfigs.ContainerTools.QUICK_SORT_SHULKER_BOXES_AT_END,

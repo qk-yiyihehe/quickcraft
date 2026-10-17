@@ -378,6 +378,11 @@ public final class QuickCraftConfigs implements IConfigHandler {
                 true,
                 ""
         ).apply(CONTAINER_TRANSLATION_PREFIX);
+        public static final ConfigBooleanHotkeyed SHOW_QUICK_SORT_BUTTON = new ConfigBooleanHotkeyed(
+                "showQuickSortButton",
+                true,
+                ""
+        ).apply(CONTAINER_TRANSLATION_PREFIX);
         public static final ConfigStringList QUICK_SORT_TOP_PRIORITY_ITEMS = new ConfigStringList(
                 "quickSortTopPriorityItems",
                 DEFAULT_QUICK_SORT_TOP_PRIORITY_ITEMS
@@ -479,6 +484,7 @@ public final class QuickCraftConfigs implements IConfigHandler {
                 ENABLE_CONTINUOUS_TRADE,
                 ENABLE_FAVORITE_TRADE,
                 ENABLE_QUICK_SORT,
+                SHOW_QUICK_SORT_BUTTON,
                 QUICK_SORT_TOP_PRIORITY_ITEMS,
                 QUICK_SORT_BOTTOM_PRIORITY_ITEMS,
                 QUICK_SORT_SHULKER_BOXES_AT_END,
@@ -1040,6 +1046,7 @@ public final class QuickCraftConfigs implements IConfigHandler {
                 ContainerTools.ENABLE_CONTINUOUS_TRADE,
                 ContainerTools.ENABLE_FAVORITE_TRADE,
                 ContainerTools.ENABLE_QUICK_SORT,
+                ContainerTools.SHOW_QUICK_SORT_BUTTON,
                 ContainerTools.SHOW_CONTAINER_LOCK_BUTTON,
                 ContainerTools.SHOW_SLOT_LOCK_OVERLAY,
                 ContainerTools.SHOW_CONTAINER_FILL_STATUS_OUTLINES,
@@ -1111,6 +1118,7 @@ public final class QuickCraftConfigs implements IConfigHandler {
                 ContainerTools.ENABLE_CONTINUOUS_TRADE,
                 ContainerTools.ENABLE_FAVORITE_TRADE,
                 ContainerTools.ENABLE_QUICK_SORT,
+                ContainerTools.SHOW_QUICK_SORT_BUTTON,
                 ContainerTools.SHOW_CONTAINER_LOCK_BUTTON,
                 ContainerTools.SHOW_SLOT_LOCK_OVERLAY,
                 ContainerTools.SHOW_CONTAINER_FILL_STATUS_OUTLINES,
@@ -1243,6 +1251,10 @@ public final class QuickCraftConfigs implements IConfigHandler {
 
     public static boolean isQuickSortEnabled() {
         return ContainerTools.ENABLE_QUICK_SORT.getBooleanValue();
+    }
+
+    public static boolean isQuickSortButtonVisible() {
+        return isQuickSortEnabled() && ContainerTools.SHOW_QUICK_SORT_BUTTON.getBooleanValue();
     }
 
     public static List<String> getQuickSortTopPriorityItems() {

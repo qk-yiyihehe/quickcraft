@@ -179,6 +179,18 @@ public final class QuickContainerLock implements ClientModInitializer {
             return;
         }
 
+        toggleLock(client, key);
+    }
+
+    public static void togglePlayerInventoryLock(Minecraft client) {
+        toggleLock(client, PLAYER_CONTAINER_KEY);
+    }
+
+    public static boolean isPlayerInventoryLocked() {
+        return LOCKED_CONTAINERS.contains(PLAYER_CONTAINER_KEY);
+    }
+
+    private static void toggleLock(Minecraft client, String key) {
         if (!LOCKED_CONTAINERS.add(key)) {
             LOCKED_CONTAINERS.remove(key);
             QuickPersistentState.saveCurrentProfileState();

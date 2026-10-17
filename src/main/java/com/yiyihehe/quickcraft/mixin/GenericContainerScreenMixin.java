@@ -2,9 +2,11 @@ package com.yiyihehe.quickcraft.mixin;
 
 import com.yiyihehe.quickcraft.QuickContainerLock;
 import com.yiyihehe.quickcraft.QuickStash;
+import com.yiyihehe.quickcraft.QuickSort;
 import com.yiyihehe.quickcraft.config.QuickCraftConfigs;
 import com.yiyihehe.quickcraft.render.QuickContainerLockButton;
 import com.yiyihehe.quickcraft.render.QuickDraggableButton;
+import com.yiyihehe.quickcraft.render.QuickSortButton;
 import com.yiyihehe.quickcraft.render.QuickStashButton;
 import com.yiyihehe.quickcraft.render.QuickRetrieveButton;
 import net.minecraft.client.gui.DrawContext;
@@ -34,6 +36,15 @@ public abstract class GenericContainerScreenMixin extends HandledScreen<GenericC
     @Unique
     private QuickRetrieveButton quickcraft$retrieveButton;
 
+    @Unique
+    private QuickSortButton quickcraft$containerSortButton;
+
+    @Unique
+    private QuickSortButton quickcraft$inventorySortButton;
+
+    @Unique
+    private QuickContainerLockButton quickcraft$inventoryLockButton;
+
     protected GenericContainerScreenMixin(GenericContainerScreenHandler handler, PlayerInventory inventory, Text title) {
         super(handler, inventory, title);
     }
@@ -43,6 +54,8 @@ public abstract class GenericContainerScreenMixin extends HandledScreen<GenericC
         QuickContainerLock.bindCurrentScreen(this);
         this.quickcraft$ensureStashButton();
         this.quickcraft$ensureRetrieveButton();
+        this.quickcraft$ensureSortButtons();
+        this.quickcraft$ensureInventoryLockButton();
         if (!QuickContainerLock.shouldShowLockButton(this)) {
             if (this.quickcraft$lockButton != null) {
                 this.quickcraft$lockButton.visible = false;
@@ -81,6 +94,55 @@ public abstract class GenericContainerScreenMixin extends HandledScreen<GenericC
     }
 
     @Unique
+    private void quickcraft$ensureInventoryLockButton() {
+        boolean visible = QuickCraftConfigs.isContainerLockButtonVisible();
+        if (visible && (this.quickcraft$inventoryLockButton == null
+                || !this.children().contains(this.quickcraft$inventoryLockButton))) {
+            this.quickcraft$inventoryLockButton = this.addDrawableChild(new QuickContainerLockButton(
+                    this.x + this.backgroundWidth - 18, this.y + this.backgroundHeight - 96,
+                    button -> QuickContainerLock.togglePlayerInventoryLock(this.client),
+                    QuickContainerLock::isPlayerInventoryLocked,
+                    QuickDraggableButton.PositionKey.INVENTORY_LOCK,
+                    Text.translatable("quickcraft.button.inventory_lock.tooltip")));
+        }
+        if (this.quickcraft$inventoryLockButton != null) {
+            this.quickcraft$inventoryLockButton.visible = visible;
+            this.quickcraft$inventoryLockButton.setDefaultPosition(
+                    this.x + this.backgroundWidth - 18, this.y + this.backgroundHeight - 96);
+        }
+    }
+
+    @Unique
+    private void quickcraft$ensureSortButtons() {
+        boolean visible = QuickCraftConfigs.isQuickSortButtonVisible();
+        if (visible && (this.quickcraft$containerSortButton == null
+                || !this.children().contains(this.quickcraft$containerSortButton))) {
+            this.quickcraft$containerSortButton = this.addDrawableChild(new QuickSortButton(
+                    this.x + this.backgroundWidth - 50, this.y + 4,
+                    button -> QuickSort.sortFromButton(this, false),
+                    QuickDraggableButton.PositionKey.CONTAINER_SORT,
+                    Text.translatable("quickcraft.button.sort_container")));
+        }
+        if (visible && (this.quickcraft$inventorySortButton == null
+                || !this.children().contains(this.quickcraft$inventorySortButton))) {
+            this.quickcraft$inventorySortButton = this.addDrawableChild(new QuickSortButton(
+                    this.x + this.backgroundWidth - 50, this.y + this.backgroundHeight - 96,
+                    button -> QuickSort.sortFromButton(this, true),
+                    QuickDraggableButton.PositionKey.INVENTORY_SORT,
+                    Text.translatable("quickcraft.button.sort_inventory")));
+        }
+        if (this.quickcraft$containerSortButton != null) {
+            this.quickcraft$containerSortButton.visible = visible;
+            this.quickcraft$containerSortButton.setDefaultPosition(this.x + this.backgroundWidth - 50, this.y + 4);
+        }
+        if (this.quickcraft$inventorySortButton != null) {
+            this.quickcraft$inventorySortButton.visible = visible;
+            this.quickcraft$inventorySortButton.setDefaultPosition(
+                    this.x + this.backgroundWidth - 50, this.y + this.backgroundHeight - 96);
+        }
+    }
+
+    @Unique
     private void quickcraft$ensureStashButton() {
         if (!QuickCraftConfigs.isQuickStashButtonVisible()) {
             if (this.quickcraft$stashButton != null) {
@@ -111,7 +173,7 @@ public abstract class GenericContainerScreenMixin extends HandledScreen<GenericC
         }
         if (this.quickcraft$retrieveButton == null || !this.children().contains(this.quickcraft$retrieveButton)) {
             this.quickcraft$retrieveButton = this.addDrawableChild(new QuickRetrieveButton(
-                    this.x + this.backgroundWidth - 18,
+                    this.x + this.backgroundWidth - 34,
                     this.y + this.backgroundHeight - 96,
                     button -> QuickStash.retrieveFromButton(this),
                     QuickDraggableButton.PositionKey.QUICK_RETRIEVE,
@@ -120,7 +182,7 @@ public abstract class GenericContainerScreenMixin extends HandledScreen<GenericC
         }
         this.quickcraft$retrieveButton.visible = true;
         this.quickcraft$retrieveButton.setDefaultPosition(
-                this.x + this.backgroundWidth - 18,
+                this.x + this.backgroundWidth - 34,
                 this.y + this.backgroundHeight - 96
         );
     }

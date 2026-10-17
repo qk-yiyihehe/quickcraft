@@ -98,13 +98,31 @@ public class QuickSort implements ClientModInitializer {
     }
 
     public static void sortInventory(AbstractContainerScreen<?> gui) {
+        sortInventory(gui, findSortTarget(gui));
+    }
+
+    public static void sortFromButton(AbstractContainerScreen<?> gui, boolean playerInventory) {
+        if (!QuickCraftConfigs.isQuickSortEnabled()) {
+            return;
+        }
+        HandledScreenAccessor accessor = (HandledScreenAccessor) gui;
+        List<SortTarget> targets = playerInventory
+                ? buildPlayerTargets(gui, accessor.quickcraft$getGuiLeft(), accessor.quickcraft$getGuiTop())
+                : buildContainerTargets(gui, accessor.quickcraft$getGuiLeft(), accessor.quickcraft$getGuiTop());
+        // 按钮可拖出槽位区域，点击时仍绑定原来的整理区域，且重新计算锁格与可操作槽位。
+        SortTarget target = targets.stream()
+                .filter(area -> !playerInventory || area.label().equals("player-main"))
+                .findFirst().orElse(null);
+        sortInventory(gui, target);
+    }
+
+    private static void sortInventory(AbstractContainerScreen<?> gui, SortTarget target) {
         Minecraft client = Minecraft.getInstance();
         if (client.player == null || client.gameMode == null) {
             return;
         }
 
         AbstractContainerMenu handler = gui.getMenu();
-        SortTarget target = findSortTarget(gui);
         if (target == null || target.slotIds.size() < 2) {
             return;
         }

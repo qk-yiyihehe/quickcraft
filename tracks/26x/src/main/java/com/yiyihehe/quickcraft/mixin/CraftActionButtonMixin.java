@@ -2,6 +2,7 @@ package com.yiyihehe.quickcraft.mixin;
 
 import com.yiyihehe.quickcraft.QuickCraftKeyBindings;
 import com.yiyihehe.quickcraft.QuickContainerLock;
+import com.yiyihehe.quickcraft.QuickSort;
 import com.yiyihehe.quickcraft.config.QuickCraftConfigs;
 import com.yiyihehe.quickcraft.crafting.QuickCraftActionButton;
 import com.yiyihehe.quickcraft.crafting.QuickCraftBackpack;
@@ -10,6 +11,7 @@ import com.yiyihehe.quickcraft.crafting.QuickCraftWorkbenchOptionButton;
 import com.yiyihehe.quickcraft.crafting.QuickCraftWorkbenchRouter;
 import com.yiyihehe.quickcraft.render.QuickContainerLockButton;
 import com.yiyihehe.quickcraft.render.QuickDraggableButton;
+import com.yiyihehe.quickcraft.render.QuickSortButton;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.components.Tooltip;
@@ -145,6 +147,9 @@ abstract class CraftActionButtonBackpackMixin extends AbstractContainerScreen<In
     @Unique
     private QuickContainerLockButton quickcraft$lockButton;
 
+    @Unique
+    private QuickSortButton quickcraft$sortButton;
+
     protected CraftActionButtonBackpackMixin(InventoryMenu handler, Inventory inventory, Component title) {
         super(handler, inventory, title);
     }
@@ -188,6 +193,7 @@ abstract class CraftActionButtonBackpackMixin extends AbstractContainerScreen<In
     //#enable-remap
     private void quickcraft$addLockButton(GuiGraphicsExtractor context, int mouseX, int mouseY, float delta, CallbackInfo ci) {
         QuickContainerLock.bindCurrentScreen(this);
+        this.quickcraft$ensureSortButton();
         if (!QuickContainerLock.shouldShowLockButton(this)) {
             if (this.quickcraft$lockButton != null) {
                 this.quickcraft$lockButton.visible = false;
@@ -204,13 +210,29 @@ abstract class CraftActionButtonBackpackMixin extends AbstractContainerScreen<In
         }
 
         int buttonX = this.leftPos + this.imageWidth - 18;
-        int buttonY = this.topPos + 65;
+        int buttonY = this.topPos + 67;
         this.quickcraft$lockButton = this.addRenderableWidget(new QuickContainerLockButton(buttonX, buttonY, button -> {
                     QuickContainerLock.toggleCurrentScreenLock(client, this);
                 }, () -> QuickContainerLock.isCurrentScreenLocked(this),
                 QuickDraggableButton.PositionKey.INVENTORY_LOCK,
-                Component.translatable("quickcraft.button.container_lock.tooltip")));
+                Component.translatable("quickcraft.button.inventory_lock.tooltip")));
         this.quickcraft$syncLockButtonPosition();
+    }
+
+    @Unique
+    private void quickcraft$ensureSortButton() {
+        boolean visible = QuickCraftConfigs.isQuickSortButtonVisible();
+        if (visible && (this.quickcraft$sortButton == null || !this.children().contains(this.quickcraft$sortButton))) {
+            this.quickcraft$sortButton = this.addRenderableWidget(new QuickSortButton(
+                    this.leftPos + this.imageWidth - 34, this.topPos + 67,
+                    button -> QuickSort.sortFromButton(this, true),
+                    QuickDraggableButton.PositionKey.INVENTORY_SORT,
+                    Component.translatable("quickcraft.button.sort_inventory")));
+        }
+        if (this.quickcraft$sortButton != null) {
+            this.quickcraft$sortButton.visible = visible;
+            this.quickcraft$sortButton.setDefaultPosition(this.leftPos + this.imageWidth - 34, this.topPos + 67);
+        }
     }
 
     @Unique
@@ -221,7 +243,7 @@ abstract class CraftActionButtonBackpackMixin extends AbstractContainerScreen<In
 
         this.quickcraft$lockButton.visible = true;
         // 背包界面右侧中部有一块空白边，锁按钮放这里避免挤在右上角。
-        this.quickcraft$lockButton.setDefaultPosition(this.leftPos + this.imageWidth - 18, this.topPos + 65);
+        this.quickcraft$lockButton.setDefaultPosition(this.leftPos + this.imageWidth - 18, this.topPos + 67);
     }
 
 
