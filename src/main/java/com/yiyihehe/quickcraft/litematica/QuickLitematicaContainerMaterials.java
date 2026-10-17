@@ -1364,17 +1364,8 @@ public final class QuickLitematicaContainerMaterials {
 
         @Override
         public int getCountAvailable() {
-            var player = MinecraftClient.getInstance().player;
-            if (player == null) { return 0; }
-            int count = 0;
             // 左侧显示原材料；可用数量必须比较实际目标，不能让原版按左侧图标统计。
-            for (int slot = 0; slot < player.getInventory().size(); slot++) {
-                ItemStack stack = player.getInventory().getStack(slot);
-                if (this.targets.stream().anyMatch(target -> ItemStack.areItemsAndComponentsEqual(target, stack))) {
-                    count += stack.getCount();
-                }
-            }
-            return count;
+            return QuickLitematicaMaterialInventory.countAvailable(this.targets);
         }
     }
 

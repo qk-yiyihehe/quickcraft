@@ -325,13 +325,7 @@ public final class QuickLitematicaProjectionMaterials {
     }
 
     private static int available(ItemStack template) {
-        int count = 0;
-        var inventory = Minecraft.getInstance().player.getInventory();
-        for (int slot = 0; slot < inventory.getContainerSize(); slot++) {
-            ItemStack stack = inventory.getItem(slot);
-            if (ItemStack.isSameItemSameComponents(template, stack)) { count += stack.getCount(); }
-        }
-        return count;
+        return QuickLitematicaMaterialInventory.countAvailable(List.of(template));
     }
 
     private static void updateEditorAvailability(MaterialListBase list, List<MaterialListEntry> entries) {
