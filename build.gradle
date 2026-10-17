@@ -35,7 +35,10 @@ def minecraft121Projects = versionMatrix.tracks['1.21x'].versions.collect { ":${
 def minecraft26Projects = versionMatrix.tracks['26x'].versions.collect { project(":${it.project}") }
 def minecraft26Build = gradle.includedBuild('quickcraft-26x')
 def quickcraftSidebarTasks = ['compileJava', 'build', 'clean', 'runClient'] as Set
-def quickcraftRootSidebarTasks = ['compileAllVersions', 'buildAllVersions', 'collectArtifacts'] as Set
+def quickcraftRootSidebarTasks = [
+	'compileAllVersions', 'buildAllVersions', 'collectArtifacts',
+	'buildAllVersionsWithTimestamp', 'collectArtifactsWithTimestamp'
+] as Set
 
 minecraft26Projects.each { proxyProject ->
 	[
@@ -139,6 +142,32 @@ tasks.register('buildAllVersions') {
 	dependsOn 'build121', 'build26x'
 }
 
+def artifactDate = new Date().format('yyyyMMdd', TimeZone.getTimeZone('Asia/Shanghai'))
+def releaseJarDirectories = versionMatrix.tracks.values().collectMany { track ->
+	track.versions.collect { versionSpec -> new File(quickcraftBuildRoot, "targets/${versionSpec.project}/libs") }
+}
+def releaseJars = files(releaseJarDirectories.collect { directory ->
+	fileTree(directory) {
+		include '*.jar'
+		exclude '*-sources.jar', '*-????????.jar'
+	}
+})
+
+tasks.register('buildAllVersionsWithTimestamp') {
+	group = '全版本'
+	description = 'Build every Minecraft target and copy release Jars with a Beijing yyyyMMdd suffix.'
+	dependsOn 'buildAllVersions'
+	doLast {
+		releaseJars.files.each { artifact ->
+			copy {
+				from artifact
+				into artifact.parentFile
+				rename { name -> name.replaceFirst(/\.jar$/, "-${artifactDate}.jar") }
+			}
+		}
+	}
+}
+
 tasks.register('collectArtifacts', Sync) {
 	group = 'build'
 	description = 'Build and collect one release Jar for every declared Minecraft target.'
@@ -146,22 +175,32 @@ tasks.register('collectArtifacts', Sync) {
 	into layout.buildDirectory.dir('distributions')
 	duplicatesStrategy = DuplicatesStrategy.FAIL
 
-	from(minecraft121Projects.collect { project(it).layout.buildDirectory.dir('libs') }) {
-		include '*.jar'
-		exclude '*-sources.jar'
+	from releaseJars
+
+	doLast {
+		def expectedCount = versionMatrix.tracks.values().sum { it.versions.size() }
+		def artifacts = source.files
+		if (artifacts.size() != expectedCount) {
+			throw new GradleException("Expected ${expectedCount} release Jars, found ${artifacts.size()}")
+		}
 	}
-	from(versionMatrix.tracks['26x'].versions.collect { versionSpec ->
-		new File(quickcraftBuildRoot, "targets/${versionSpec.project}/libs")
-	}) {
-		include '*.jar'
-		exclude '*-sources.jar'
+}
+
+tasks.register('collectArtifactsWithTimestamp', Sync) {
+	group = '全版本'
+	description = 'Build dated release Jars and replace the contents of distributions.'
+	dependsOn 'buildAllVersionsWithTimestamp'
+	into layout.buildDirectory.dir('distributions')
+	duplicatesStrategy = DuplicatesStrategy.FAIL
+	from(releaseJarDirectories) {
+		include "*-${artifactDate}.jar"
 	}
 
 	doLast {
 		def expectedCount = versionMatrix.tracks.values().sum { it.versions.size() }
-		def artifacts = destinationDir.listFiles({ file -> file.name.endsWith('.jar') } as FileFilter)
-		if (artifacts == null || artifacts.size() != expectedCount) {
-			throw new GradleException("Expected ${expectedCount} release Jars, found ${artifacts?.size() ?: 0}")
+		def artifacts = source.files
+		if (artifacts.size() != expectedCount) {
+			throw new GradleException("Expected ${expectedCount} release Jars, found ${artifacts.size()}")
 		}
 	}
 }
