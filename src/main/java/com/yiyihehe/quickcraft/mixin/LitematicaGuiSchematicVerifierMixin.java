@@ -24,6 +24,24 @@ import java.util.List;
 @Mixin(value = GuiSchematicVerifier.class, remap = false)
 public abstract class LitematicaGuiSchematicVerifierMixin {
     @Shadow
+    @org.spongepowered.asm.mixin.Final
+    private fi.dy.masa.litematica.schematic.placement.SchematicPlacement placement;
+
+    @Inject(method = "initGui", at = @At("HEAD"))
+    private void quickcraft$restoreVerifierIgnores(CallbackInfo ci) {
+        var verifier = ((LitematicaGuiSchematicVerifierAccessor) this).quickcraft$getVerifier();
+        com.yiyihehe.quickcraft.litematica.QuickLitematicaVerifierIgnores.restore(verifier, this.placement);
+    }
+
+    @com.llamalad7.mixinextras.injector.ModifyExpressionValue(method = "createButton",
+            at = @At(value = "INVOKE", target = "Ljava/util/Set;size()I"))
+    private int quickcraft$countAllIgnores(int count) {
+        var verifier = ((LitematicaGuiSchematicVerifierAccessor) this).quickcraft$getVerifier();
+        return count + ((com.yiyihehe.quickcraft.litematica.QuickLitematicaProjectionPersistence.PersistentVerifier) verifier)
+                .quickcraft$containerVerification().quickcraft$getIgnoredContainerCount();
+    }
+
+    @Shadow
     private static MismatchType resultMode;
 
     @Inject(method = "initGui", at = @At("HEAD"))

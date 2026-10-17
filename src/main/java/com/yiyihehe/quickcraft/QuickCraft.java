@@ -37,6 +37,15 @@ public class QuickCraft implements ModInitializer {
                             : "quickcraft.message.developer.preview_logs_enabled", QuickLitematicaPreviewLog.logPath());
         });
         if (FabricLoader.getInstance().isModLoaded("litematica")) {
+            QuickCraftConfigs.ProjectionTools.PERSIST_PROJECTION_FEATURES.setValueChangeCallback(config ->
+                    com.yiyihehe.quickcraft.litematica.QuickLitematicaProjectionPersistence.settingsChanged());
+            QuickCraftConfigs.ProjectionTools.PERSIST_SCHEMATIC_VERIFIER.setValueChangeCallback(config ->
+                    com.yiyihehe.quickcraft.litematica.QuickLitematicaProjectionPersistence.settingsChanged());
+            QuickCraftConfigs.ProjectionTools.ALLOW_PERSISTENT_MATERIAL_IGNORES.setValueChangeCallback(config ->
+                    com.yiyihehe.quickcraft.litematica.QuickLitematicaMaterialIgnores.settingsChanged());
+            QuickCraftConfigs.ProjectionTools.ALLOW_PERSISTENT_VERIFIER_IGNORES.setValueChangeCallback(config ->
+                    com.yiyihehe.quickcraft.litematica.QuickLitematicaVerifierIgnores.settingsChanged());
+
             QuickCraftConfigs.ProjectionTools.SHOW_LITEMATICA_MATERIAL_REPLACEMENTS.setValueChangeCallback(config ->
                     com.yiyihehe.quickcraft.litematica.QuickLitematicaGlobalReplacements.changed());
             QuickCraftConfigs.ProjectionTools.GLOBAL_CONTAINER_REPLACEMENTS.setValueChangeCallback(config ->

@@ -99,6 +99,27 @@ public final class QuickLitematicaContainerVerification implements VerifierExten
 
     private final Map<BlockPos, List<ItemStack>> quickcraft$missingContainerStacks = new HashMap<>();
 
+    private final Set<ContainerMismatchKey> quickcraft$ignoredContainers = new HashSet<>();
+    private final Set<ContainerMismatchKey> quickcraft$restoredContainerIgnores = new HashSet<>();
+
+    public int quickcraft$getIgnoredContainerCount() { return this.quickcraft$ignoredContainers.size(); }
+
+    public void quickcraft$restoreIgnoredContainers(Set<ContainerMismatchKey> entries) {
+        for (var key : entries) {
+            if (this.quickcraft$ignoredContainers.add(key)) { this.quickcraft$restoredContainerIgnores.add(key); }
+        }
+    }
+
+    public void quickcraft$forgetRestoredContainerIgnores() {
+        this.quickcraft$ignoredContainers.removeAll(this.quickcraft$restoredContainerIgnores);
+        this.quickcraft$restoredContainerIgnores.clear();
+    }
+
+    public void quickcraft$resetIgnoredContainers() {
+        this.quickcraft$ignoredContainers.clear();
+        this.quickcraft$restoredContainerIgnores.clear();
+    }
+
     private final Set<ChunkPos> quickcraft$requestedContainerDataChunks = new HashSet<>();
 
     private final Set<ChunkPos> quickcraft$containerDataChunks = new HashSet<>();
@@ -441,6 +462,9 @@ public final class QuickLitematicaContainerVerification implements VerifierExten
         }
 
         ContainerMismatchKey key = ((BlockMismatchExtension) (Object) mismatch).quickcraft$getContainerMismatchKey();
+        this.quickcraft$ignoredContainers.add(key);
+        QuickLitematicaVerifierIgnores.rememberContainer(this.host.quickcraft$verifier(),
+                this.host.quickcraft$verificationSchematicPlacement(), key);
         this.quickcraft$containerMismatchesByKey.values().removeIf(entry -> quickcraft$groupKey(entry).equals(key));
         for (List<ContainerMismatch> entries : this.quickcraft$containerMismatches.values()) {
             entries.removeIf(entry -> quickcraft$groupKey(entry).equals(key));
@@ -453,6 +477,11 @@ public final class QuickLitematicaContainerVerification implements VerifierExten
         }
 
         return true;
+    }
+
+    public void quickcraft$resetContainerDataRequests() {
+        // 跨维度前的容器数据请求可能已失效，恢复后允许重新请求。
+        this.quickcraft$requestedContainerDataChunks.clear();
     }
 
     public void quickcraft$clearInventoryData() {
@@ -828,12 +857,17 @@ public final class QuickLitematicaContainerVerification implements VerifierExten
     }
 
     private void quickcraft$addContainerMismatch(ContainerMismatch mismatch) {
+        if (!this.quickcraft$ignoredContainers.isEmpty()
+                && this.quickcraft$ignoredContainers.contains(quickcraft$groupKey(mismatch))) { return; }
         this.quickcraft$containerMismatches.computeIfAbsent(mismatch.type(), type -> new ArrayList<>()).add(mismatch);
         this.quickcraft$containerMismatchesByKey.put(mismatch.key(), mismatch);
         QuickLitematicaContainerVerifier.setSuppressInventorySlotHighlights(false);
     }
 
     private boolean quickcraft$replaceContainerMismatchesAt(BlockPos pos, List<ContainerMismatch> mismatches) {
+        if (!this.quickcraft$ignoredContainers.isEmpty()) {
+            mismatches = mismatches.stream().filter(entry -> !this.quickcraft$ignoredContainers.contains(quickcraft$groupKey(entry))).toList();
+        }
         List<ContainerMismatchKey> oldKeys = this.quickcraft$containerMismatchesByKey.entrySet().stream()
                 .filter(entry -> entry.getValue().pos().equals(pos))
                 .map(Map.Entry::getKey)

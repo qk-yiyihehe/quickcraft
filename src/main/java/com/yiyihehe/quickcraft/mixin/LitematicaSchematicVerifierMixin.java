@@ -44,7 +44,8 @@ import java.util.Set;
  * 注入点保留原版调用时机，容器业务由独立核心维护。
  */
 @Mixin(value = SchematicVerifier.class, remap = false)
-public abstract class LitematicaSchematicVerifierMixin extends TaskBase implements VerifierExtension, QuickLitematicaContainerVerification.Host {
+public abstract class LitematicaSchematicVerifierMixin extends TaskBase implements VerifierExtension, QuickLitematicaContainerVerification.Host,
+        com.yiyihehe.quickcraft.litematica.QuickLitematicaProjectionPersistence.PersistentVerifier {
 
     @Shadow
     @Final
@@ -52,6 +53,40 @@ public abstract class LitematicaSchematicVerifierMixin extends TaskBase implemen
 
     @Shadow
     private ClientWorld worldClient;
+
+    @Shadow
+    private WorldSchematic worldSchematic;
+
+    @Unique
+    private boolean quickcraft$wasActiveVerifier;
+
+    @Override
+    public QuickLitematicaContainerVerification quickcraft$containerVerification() {
+        return this.quickcraft$containerVerification;
+    }
+
+    @Override
+    public SchematicPlacement quickcraft$persistentPlacement() {
+        return this.worldClient != null ? this.schematicPlacement : null;
+    }
+
+    @Override
+    public void quickcraft$detachVerificationWorld() {
+        this.quickcraft$wasActiveVerifier = ACTIVE_VERIFIERS.remove((SchematicVerifier) (Object) this);
+        this.worldClient = null;
+        this.worldSchematic = null;
+    }
+
+    @Override
+    public void quickcraft$attachVerificationWorld(SchematicPlacement placement) {
+        this.schematicPlacement = placement;
+        this.worldClient = this.mc.world;
+        this.worldSchematic = fi.dy.masa.litematica.world.SchematicWorldHandler.getSchematicWorld();
+        this.quickcraft$containerVerification.quickcraft$resetContainerDataRequests();
+        if (this.quickcraft$wasActiveVerifier) {
+            ACTIVE_VERIFIERS.add((SchematicVerifier) (Object) this);
+        }
+    }
 
     @Shadow
     private SchematicPlacement schematicPlacement;
@@ -253,6 +288,18 @@ public abstract class LitematicaSchematicVerifierMixin extends TaskBase implemen
         }
     }
 
+    @Inject(method = "ignoreStateMismatch(Lfi/dy/masa/litematica/schematic/verifier/SchematicVerifier$BlockMismatch;Z)V", at = @At("TAIL"))
+    private void quickcraft$rememberBlockIgnore(BlockMismatch mismatch, boolean updateOverlay, CallbackInfo ci) {
+        com.yiyihehe.quickcraft.litematica.QuickLitematicaVerifierIgnores.rememberBlock(
+                (SchematicVerifier) (Object) this, this.schematicPlacement, mismatch);
+    }
+
+    @Inject(method = "resetIgnoredStateMismatches", at = @At("TAIL"))
+    private void quickcraft$resetAllIgnored(CallbackInfo ci) {
+        com.yiyihehe.quickcraft.litematica.QuickLitematicaVerifierIgnores.reset(
+                (SchematicVerifier) (Object) this, this.schematicPlacement);
+    }
+
     @Inject(method = "clearData", at = @At("HEAD"))
     private void quickcraft$clearInventoryData(CallbackInfo ci) {
         this.quickcraft$containerVerification.quickcraft$clearInventoryData();
@@ -266,6 +313,8 @@ public abstract class LitematicaSchematicVerifierMixin extends TaskBase implemen
             ICompletionListener completionListener,
             CallbackInfo ci
     ) {
+        com.yiyihehe.quickcraft.litematica.QuickLitematicaVerifierIgnores.restore(
+                (SchematicVerifier) (Object) this, schematicPlacement);
         this.quickcraft$containerVerification.quickcraft$requestContainerDataOnStart(worldClient, worldSchematic, schematicPlacement, completionListener);
     }
 

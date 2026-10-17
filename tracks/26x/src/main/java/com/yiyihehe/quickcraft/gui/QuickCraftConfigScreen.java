@@ -234,9 +234,11 @@ public class QuickCraftConfigScreen extends GuiConfigsBase {
                 QuickCraftConfigs.ProjectionTools.GLOBAL_CONTAINER_REPLACEMENTS,
                 QuickCraftConfigs.ProjectionTools.GLOBAL_PROJECTION_MATERIAL_REPLACEMENTS
         ),
-        MATERIAL_IGNORES(
+        PROJECTION_PERSISTENCE(
+                QuickCraftConfigs.ProjectionTools.PERSIST_PROJECTION_FEATURES,
                 QuickCraftConfigs.ProjectionTools.ALLOW_PERSISTENT_MATERIAL_IGNORES,
-                QuickCraftConfigs.ProjectionTools.MATERIAL_LIST_IGNORES
+                QuickCraftConfigs.ProjectionTools.ALLOW_PERSISTENT_VERIFIER_IGNORES,
+                QuickCraftConfigs.ProjectionTools.PERSIST_SCHEMATIC_VERIFIER
         ),
         NONEMPTY_PROJECTION_CONTAINERS(
                 QuickCraftConfigs.ProjectionTools.HIGHLIGHT_NONEMPTY_PROJECTION_CONTAINERS,

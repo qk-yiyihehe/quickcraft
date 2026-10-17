@@ -29,12 +29,7 @@ public abstract class LitematicaMaterialListIgnoresMixin implements QuickLitemat
 
     @Inject(method = "setMaterialListEntries", at = @At("HEAD"))
     private void quickcraft$restoreIgnored(List<MaterialListEntry> entries, CallbackInfo ci) {
-        String context = QuickLitematicaMaterialLists.getPersistentContextKey((MaterialListBase) (Object) this);
-        if (context.isEmpty()) { return; }
-        var saved = QuickLitematicaMaterialIgnores.get(context);
-        for (MaterialListEntry entry : entries) {
-            if (saved.contains(new ItemType(entry.getStack(), true, true).toString())) { this.ignored.add(entry); }
-        }
+        QuickLitematicaMaterialIgnores.restore((MaterialListBase) (Object) this, entries);
     }
 
     @Inject(method = "ignoreEntry", at = @At("TAIL"))

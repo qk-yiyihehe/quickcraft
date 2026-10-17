@@ -639,8 +639,17 @@ public final class QuickCraftConfigs implements IConfigHandler {
         public static final ConfigBooleanHotkeyed INCLUDE_ENDER_CHEST_IN_MATERIAL_HUD = new ConfigBooleanHotkeyed(
                 "includeEnderChestInMaterialHud", true, ""
         ).apply(PROJECTION_TRANSLATION_PREFIX);
+        public static final ConfigBooleanHotkeyed PERSIST_PROJECTION_FEATURES = new ConfigBooleanHotkeyed(
+                "persistProjectionFeatures", true, ""
+        ).apply(PROJECTION_TRANSLATION_PREFIX);
+        public static final ConfigBooleanHotkeyed PERSIST_SCHEMATIC_VERIFIER = new ConfigBooleanHotkeyed(
+                "persistSchematicVerifier", true, ""
+        ).apply(PROJECTION_TRANSLATION_PREFIX);
+        public static final ConfigBoolean ALLOW_PERSISTENT_VERIFIER_IGNORES = new ConfigBoolean(
+                "allowPersistentVerifierIgnores", false
+        ).apply(PROJECTION_TRANSLATION_PREFIX);
         public static final ConfigBoolean ALLOW_PERSISTENT_MATERIAL_IGNORES = new ConfigBoolean(
-                "allowPersistentMaterialIgnores", true
+                "allowPersistentMaterialIgnores", false
         ).apply(PROJECTION_TRANSLATION_PREFIX);
         public static final ConfigStringList GLOBAL_CONTAINER_REPLACEMENTS = new ConfigStringList(
                 "globalContainerReplacements", ImmutableList.of()
@@ -737,9 +746,6 @@ public final class QuickCraftConfigs implements IConfigHandler {
                 "containerFillReplacements",
                 ImmutableList.of()
         ).apply(PROJECTION_TRANSLATION_PREFIX);
-        public static final ConfigStringList MATERIAL_LIST_IGNORES = new ConfigStringList(
-                "materialListIgnores", ImmutableList.of()
-        ).apply(PROJECTION_TRANSLATION_PREFIX);
         public static final ConfigStringList PROJECTION_MATERIAL_REPLACEMENTS = new ConfigStringList(
                 "projectionMaterialReplacements",
                 ImmutableList.of()
@@ -789,7 +795,10 @@ public final class QuickCraftConfigs implements IConfigHandler {
                 INCLUDE_ENDER_CHEST_IN_MATERIAL_HUD,
                 GLOBAL_CONTAINER_REPLACEMENTS,
                 GLOBAL_PROJECTION_MATERIAL_REPLACEMENTS,
+                PERSIST_PROJECTION_FEATURES,
                 ALLOW_PERSISTENT_MATERIAL_IGNORES,
+                ALLOW_PERSISTENT_VERIFIER_IGNORES,
+                PERSIST_SCHEMATIC_VERIFIER,
                 ENABLE_AUTO_COLLECT_MATERIALS,
                 MATERIAL_COLLECT_EXTRA_0_TO_10,
                 MATERIAL_COLLECT_EXTRA_10_TO_20,
@@ -803,7 +812,6 @@ public final class QuickCraftConfigs implements IConfigHandler {
                 CONTAINER_FILL_FREE_SLOTS_LIMIT,
                 CONTAINER_FILL_PROTECTED_ITEMS,
                 CONTAINER_FILL_REPLACEMENTS,
-                MATERIAL_LIST_IGNORES,
                 PROJECTION_MATERIAL_REPLACEMENTS,
                 ENABLE_LITEMATICA_SHULKER_MATERIAL_RESTOCK,
                 LITEMATICA_SHULKER_MATERIAL_ORDERLY_STORAGE
@@ -1054,6 +1062,8 @@ public final class QuickCraftConfigs implements IConfigHandler {
                 ProjectionTools.HIGHLIGHT_NONEMPTY_PROJECTION_CONTAINERS,
                 ProjectionTools.SHOW_LITEMATICA_MATERIAL_REPLACEMENTS,
                 ProjectionTools.INCLUDE_ENDER_CHEST_IN_MATERIAL_HUD,
+                ProjectionTools.PERSIST_PROJECTION_FEATURES,
+                ProjectionTools.PERSIST_SCHEMATIC_VERIFIER,
                 ProjectionTools.ENABLE_AUTO_COLLECT_MATERIALS,
                 ProjectionTools.ENABLE_LITEMATICA_CONTAINER_AUTOFILL,
                 ProjectionTools.ENABLE_CREATIVE_CONTAINER_FILL,
@@ -1123,6 +1133,8 @@ public final class QuickCraftConfigs implements IConfigHandler {
                 ProjectionTools.HIGHLIGHT_NONEMPTY_PROJECTION_CONTAINERS,
                 ProjectionTools.SHOW_LITEMATICA_MATERIAL_REPLACEMENTS,
                 ProjectionTools.INCLUDE_ENDER_CHEST_IN_MATERIAL_HUD,
+                ProjectionTools.PERSIST_PROJECTION_FEATURES,
+                ProjectionTools.PERSIST_SCHEMATIC_VERIFIER,
                 ProjectionTools.ENABLE_AUTO_COLLECT_MATERIALS,
                 ProjectionTools.ENABLE_LITEMATICA_CONTAINER_AUTOFILL,
                 ProjectionTools.ENABLE_CREATIVE_CONTAINER_FILL,

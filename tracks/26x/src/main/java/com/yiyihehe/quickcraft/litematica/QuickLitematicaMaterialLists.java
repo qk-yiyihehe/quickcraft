@@ -63,19 +63,22 @@ public final class QuickLitematicaMaterialLists {
 
     public static String getPersistentContextKey(MaterialListBase materialList) {
         if (materialList instanceof QuickLitematicaEntityMaterials.EntityMaterialList entities) {
-            return getReplacementContextKey(entities.schematic, entities.regions) + "#entity";
+            return getSessionSchematicContext(entities.schematic, entities.regions) + "#entity";
         }
         if (materialList instanceof QuickLitematicaContainerMaterials.ContainerReplacementBindingSource source) {
             return source.quickcraft$getPersistentContextKey();
         }
         if (materialList instanceof LitematicaMaterialListPlacementAccessor accessor) {
-            SchematicPlacement placement = accessor.quickcraft$getPlacement();
-            return getReplacementContextKey(placement.getSchematic(),
-                    placement.getEnabledRelativeSubRegionPlacements().keySet()) + "#projection";
+            return getReplacementContextKey(accessor.quickcraft$getPlacement()) + "#projection";
         }
+        if (materialList instanceof LitematicaMaterialListSchematicAccessor accessor) {
+            return getSessionSchematicContext(accessor.quickcraft$getSchematic(), accessor.quickcraft$getRegions()) + "#projection";
+        }
+        return "";
+    }
 
-        String key = getReplacementContextKey(materialList);
-        return key.isEmpty() ? "" : key + "#projection";
+    static String getSessionSchematicContext(LitematicaSchematic schematic, Collection<?> regions) {
+        return getReplacementContextKey(schematic, regions) + "#instance=" + Integer.toHexString(System.identityHashCode(schematic));
     }
 
     public static String getReplacementContextKey(MaterialListBase materialList) {

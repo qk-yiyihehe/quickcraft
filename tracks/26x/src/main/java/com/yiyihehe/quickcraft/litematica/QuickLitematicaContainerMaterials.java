@@ -895,12 +895,13 @@ public final class QuickLitematicaContainerMaterials {
             this.placement = placement;
             this.replacementContextKey = QuickLitematicaContainerMemory.effectiveContext(schematic,
                     replacementContextKey == null ? "" : replacementContextKey);
-            this.ignoredGroupSignatures.addAll(QuickLitematicaMaterialIgnores.get(this.persistentContextKey() + "#groups"));
+            QuickLitematicaMaterialIgnores.restoreGroups(this);
             this.refresh();
         }
 
         String persistentContextKey() {
-            return QuickLitematicaMaterialLists.getReplacementContextKey(this.schematic, this.regions) + "#container";
+            return (this.placement != null ? QuickLitematicaMaterialLists.getReplacementContextKey(this.placement)
+                    : QuickLitematicaMaterialLists.getSessionSchematicContext(this.liveSchematic, this.regions)) + "#container";
         }
 
         static ContainerMaterialsData create(LitematicaSchematic schematic, Collection<String> regions, String replacementContextKey) {
