@@ -22,6 +22,7 @@ public final class QuickLitematicaGlobalReplacements {
     private static final Map<LitematicaSchematic, RuntimeCopy> COPIES = new WeakHashMap<>();
     private static final Map<Scope, ParsedRules> RULES = new EnumMap<>(Scope.class);
     private static final Map<QuickLitematicaContainerReplacements.ReplacementRule, ItemStack> SOURCES = new WeakHashMap<>();
+    private static ReplacementSettings appliedSettings;
 
     private QuickLitematicaGlobalReplacements() { }
 
@@ -140,6 +141,14 @@ public final class QuickLitematicaGlobalReplacements {
 
     public static void changed() {
         synchronized (QuickLitematicaGlobalReplacements.class) {
+            var settings = new ReplacementSettings(QuickLitematicaContainerReplacements.enabled(),
+                    List.copyOf(QuickCraftConfigs.ProjectionTools.CONTAINER_FILL_REPLACEMENTS.getStrings()),
+                    List.copyOf(QuickCraftConfigs.ProjectionTools.PROJECTION_MATERIAL_REPLACEMENTS.getStrings()),
+                    List.copyOf(config(Scope.CONTAINER).getStrings()),
+                    List.copyOf(config(Scope.PROJECTION).getStrings()));
+            // 配置界面会保存后重载；无关设置变化不能清除已有验证结果。
+            if (settings.equals(appliedSettings)) { return; }
+            appliedSettings = settings;
             COPIES.clear();
             RULES.clear();
             SOURCES.clear();
@@ -256,6 +265,9 @@ public final class QuickLitematicaGlobalReplacements {
     }
 
     private record Location(SchematicPlacement placement, String region, BlockPos local, BlockState state) { }
+
+    private record ReplacementSettings(boolean enabled, List<String> containerRules, List<String> blockRules,
+                                       List<String> globalContainerRules, List<String> globalBlockRules) { }
 
     private record RuntimeCopy(LitematicaSchematic schematic, String context, long revision,
                                List<String> containerRules, List<String> blockRules) { }
