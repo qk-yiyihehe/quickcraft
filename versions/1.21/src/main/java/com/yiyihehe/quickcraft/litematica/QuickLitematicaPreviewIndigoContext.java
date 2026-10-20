@@ -1,4 +1,8 @@
-package net.fabricmc.fabric.impl.client.indigo.renderer.render;
+package com.yiyihehe.quickcraft.litematica;
+
+import com.yiyihehe.quickcraft.mixin.LitematicaPreviewIndigoBlockInfoAccessor;
+import net.fabricmc.fabric.impl.client.indigo.renderer.render.AbstractBlockRenderContext;
+import net.fabricmc.fabric.impl.client.indigo.renderer.render.BlockRenderInfo;
 
 import net.fabricmc.fabric.impl.client.indigo.renderer.aocalc.AoCalculator;
 import net.fabricmc.fabric.impl.client.indigo.renderer.aocalc.AoLuminanceFix;
@@ -21,19 +25,25 @@ import java.util.function.Function;
 
 /**
  * 1.21 离屏世界 mesh 的 Indigo 方块模型上下文。
+ * Indigo 未公开按 RenderLayer 分流且保留 AO 的离屏入口；内部依赖只留在此适配器，字段通过 Mixin 访问。
  */
 @SuppressWarnings("UnstableApiUsage")
-public class WorldMesherRenderContext extends AbstractBlockRenderContext {
+public final class QuickLitematicaPreviewIndigoContext extends AbstractBlockRenderContext {
     private BlockRenderView blockView;
+    private final LitematicaPreviewIndigoBlockInfoAccessor blockInfoAccess;
     private final Function<RenderLayer, VertexConsumer> bufferFunc;
 
-    public WorldMesherRenderContext(BlockRenderView blockView, Function<RenderLayer, VertexConsumer> bufferFunc) {
+    public QuickLitematicaPreviewIndigoContext(BlockRenderView blockView, Function<RenderLayer, VertexConsumer> bufferFunc) {
+        if (!(this.blockInfo instanceof LitematicaPreviewIndigoBlockInfoAccessor access)) {
+            throw new IllegalStateException("QuickCraft Indigo preview accessor was not applied");
+        }
+        this.blockInfoAccess = access;
         this.blockView = blockView;
         this.bufferFunc = bufferFunc;
         this.overlay = OverlayTexture.DEFAULT_UV;
 
         this.blockInfo.prepareForWorld(blockView, true);
-        this.blockInfo.random = Random.create();
+        this.blockInfoAccess.quickcraft$setRandom(Random.create());
     }
 
     public void tessellateBlock(BlockRenderView blockView, BlockState blockState, BlockPos blockPos, BakedModel model, MatrixStack matrixStack) {
@@ -48,7 +58,7 @@ public class WorldMesherRenderContext extends AbstractBlockRenderContext {
             this.normalMatrix = matrixStack.peek().getNormalMatrix();
             this.overlay = OverlayTexture.DEFAULT_UV;
 
-            this.blockInfo.recomputeSeed = true;
+            this.blockInfoAccess.quickcraft$setRecomputeSeed(true);
 
             this.aoCalc.clear();
             this.blockInfo.prepareForBlock(blockState, blockPos, model.useAmbientOcclusion());
@@ -66,12 +76,12 @@ public class WorldMesherRenderContext extends AbstractBlockRenderContext {
         return new AoCalculator(blockInfo) {
             @Override
             public int light(BlockPos pos, BlockState state) {
-                return WorldRenderer.getLightmapCoordinates(WorldMesherRenderContext.this.blockView, state, pos);
+                return WorldRenderer.getLightmapCoordinates(QuickLitematicaPreviewIndigoContext.this.blockView, state, pos);
             }
 
             @Override
             public float ao(BlockPos pos, BlockState state) {
-                return AoLuminanceFix.INSTANCE.apply(WorldMesherRenderContext.this.blockView, pos, state);
+                return AoLuminanceFix.INSTANCE.apply(QuickLitematicaPreviewIndigoContext.this.blockView, pos, state);
             }
         };
     }

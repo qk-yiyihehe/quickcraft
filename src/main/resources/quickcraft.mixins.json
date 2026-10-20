@@ -3,8 +3,7 @@
 	"package": "com.yiyihehe.quickcraft.mixin",
 	"plugin": "com.yiyihehe.quickcraft.mixin.QuickCraftMixinPlugin",
 	"compatibilityLevel": "JAVA_21",
-	"mixins": [
-	],
+	"mixins": [],
 	"client": [
 		"AnvilRenameTextFieldMixin",
 		"AnvilScreenMixin",
@@ -91,7 +90,8 @@
 		"LitematicaListPaginationMixin",
 		"MalilibSearchBarAccessor",
 		"LitematicaSchematicDataMixin",
-		"StonecutterPredictionMixin"
+		"StonecutterPredictionMixin",
+		"LitematicaPreviewIndigoBlockInfoAccessor"
 	],
 	"injectors": {
 		"defaultRequire": 1

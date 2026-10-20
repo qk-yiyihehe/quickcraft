@@ -15,7 +15,6 @@ import fi.dy.masa.litematica.world.WorldSchematic;
 import fi.dy.masa.malilib.gui.widgets.WidgetFileBrowserBase.DirectoryEntry;
 import fi.dy.masa.malilib.render.RenderUtils;
 import net.fabricmc.fabric.api.renderer.v1.RendererAccess;
-import net.fabricmc.fabric.impl.client.indigo.renderer.render.WorldMesherRenderContext;
 import net.minecraft.SharedConstants;
 import net.minecraft.block.BlockEntityProvider;
 import net.minecraft.block.BlockRenderType;
@@ -859,7 +858,7 @@ final class QuickLitematicaPreviewAccess {
         final BlockRenderManager blockRenderManager;
         final MatrixStack matrices;
         final Random random;
-        final WorldMesherRenderContext fabricContext;
+        final QuickLitematicaPreviewIndigoContext fabricContext;
 
         MeshRenderer(MeshCollector collector, BlockRenderManager manager, MatrixStack matrices, Random random, ClientWorld world) {
             this.collector = collector;
@@ -878,13 +877,13 @@ final class QuickLitematicaPreviewAccess {
         }
 
         @Nullable
-        static WorldMesherRenderContext createFabricContext(MeshCollector collector, ClientWorld world) {
+        static QuickLitematicaPreviewIndigoContext createFabricContext(MeshCollector collector, ClientWorld world) {
             try {
                 if (RendererAccess.INSTANCE.hasRenderer()) {
                     var renderer = RendererAccess.INSTANCE.getRenderer();
                     if (renderer != null && renderer.getClass().getName().contains("indigo")) {
                         DummyWorld dummyWorld = DummyWorld.fromWorld(world);
-                        return new WorldMesherRenderContext(dummyWorld, layer -> collector.consumerFor(layer));
+                        return new QuickLitematicaPreviewIndigoContext(dummyWorld, layer -> collector.consumerFor(layer));
                     }
                 }
             } catch (Throwable ignored) {
@@ -921,7 +920,7 @@ final class QuickLitematicaPreviewAccess {
         static void renderBlockModel(
                 MeshCollector collector,
                 BlockRenderManager blockRenderManager,
-                @Nullable WorldMesherRenderContext fabricContext,
+                @Nullable QuickLitematicaPreviewIndigoContext fabricContext,
                 MatrixStack matrices,
                 RegionBlockView view,
                 BlockState state,
@@ -1082,7 +1081,7 @@ final class QuickLitematicaPreviewAccess {
             return this.consumers.computeIfAbsent(layer, ignored -> new RecordingVertexConsumer(this));
         }
 
-        void addVertex(QuantizedVertexBuffer vertices, float x, float y, float z, int argb, float u, float v, int light, float nx, float ny, float nz) {
+        void addVertex(QuickLitematicaPreviewVertexBuffer vertices, float x, float y, float z, int argb, float u, float v, int light, float nx, float ny, float nz) {
             QuickLitematicaPreviewVertexBudget.checkVertexCount(this.vertexCount, this.vertexLimit);
 
             this.vertexCount++;
@@ -1108,7 +1107,7 @@ final class QuickLitematicaPreviewAccess {
 
     static final class RecordingVertexConsumer implements VertexConsumer {
         final MeshCollector collector;
-        final QuantizedVertexBuffer vertices = new QuantizedVertexBuffer();
+        final QuickLitematicaPreviewVertexBuffer vertices = new QuickLitematicaPreviewVertexBuffer(QUANTIZED_VERTEX_BYTES);
         float x;
         float y;
         float z;
@@ -1230,57 +1229,6 @@ final class QuickLitematicaPreviewAccess {
 
     }
 
-    static final class QuantizedVertexBuffer {
-        byte[] bytes = new byte[QUANTIZED_VERTEX_BYTES * 256];
-        int position;
-
-        boolean isEmpty() {
-            return this.position == 0;
-        }
-
-        int vertexCount() {
-            return this.position / QUANTIZED_VERTEX_BYTES;
-        }
-
-        void add(float x, float y, float z, int argb, float u, float v, int light, float nx, float ny, float nz) {
-            this.ensureCapacity(this.position + QUANTIZED_VERTEX_BYTES);
-            this.writeInt(Float.floatToIntBits(x));
-            this.writeInt(Float.floatToIntBits(y));
-            this.writeInt(Float.floatToIntBits(z));
-            this.writeInt(argb);
-            this.writeInt(Float.floatToIntBits(u));
-            this.writeInt(Float.floatToIntBits(v));
-            this.writeInt(light);
-            this.writeShort(CacheFile.encodeNormal(nx, ny, nz));
-        }
-
-        byte[] takeBytes() {
-            byte[] result = this.bytes.length == this.position ? this.bytes : Arrays.copyOf(this.bytes, this.position);
-            this.bytes = new byte[0];
-            this.position = 0;
-            return result;
-        }
-
-        void ensureCapacity(int needed) {
-            if (needed <= this.bytes.length) {
-                return;
-            }
-            this.bytes = Arrays.copyOf(this.bytes,
-                    QuickLitematicaPreviewVertexBudget.growCapacity(this.bytes.length, needed));
-        }
-
-        void writeInt(int value) {
-            this.bytes[this.position++] = (byte) (value >>> 24);
-            this.bytes[this.position++] = (byte) (value >>> 16);
-            this.bytes[this.position++] = (byte) (value >>> 8);
-            this.bytes[this.position++] = (byte) value;
-        }
-
-        void writeShort(short value) {
-            this.bytes[this.position++] = (byte) (value >>> 8);
-            this.bytes[this.position++] = (byte) value;
-        }
-    }
 
     record BlockStateData(int x, int y, int z, NbtCompound stateNbt) {
         BlockState state(DynamicRegistryManager registryManager) {
