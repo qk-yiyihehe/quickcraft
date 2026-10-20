@@ -29,6 +29,7 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.Supplier;
 
 /** 为 Tweakeroo 灵魂出窍提供相机准星交互，不修改玩家位置或服务端距离校验。 */
 public final class QuickFreeCameraInteractions {
@@ -250,12 +251,11 @@ public final class QuickFreeCameraInteractions {
         }
     }
 
-    public static void beginEasyPlaceAction() {
+    public static <T> T callEasyPlaceAction(Supplier<T> action) {
         easyPlaceActionDepth++;
-    }
-
-    public static void endEasyPlaceAction() {
-        if (easyPlaceActionDepth > 0) {
+        try {
+            return action.get();
+        } finally {
             easyPlaceActionDepth--;
         }
     }

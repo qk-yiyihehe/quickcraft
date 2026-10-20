@@ -1,5 +1,6 @@
 package com.yiyihehe.quickcraft.litematica;
 
+import com.yiyihehe.quickcraft.QuickFreeCameraInteractions;
 import com.yiyihehe.quickcraft.mixin.LitematicaEasyPlaceUtilsInvoker;
 import com.yiyihehe.quickcraft.mixin.LitematicaWorldUtilsInvoker;
 import fi.dy.masa.litematica.config.Configs;
@@ -42,7 +43,8 @@ public final class QuickLitematicaEasyPlaceAccess {
                 EasyPlaceUtils.setHandling(false);
             }
         } else {
-            LitematicaWorldUtilsInvoker.quickcraft$doEasyPlaceAction(client);
+            QuickFreeCameraInteractions.callEasyPlaceAction(
+                    () -> LitematicaWorldUtilsInvoker.quickcraft$doEasyPlaceAction(client));
         }
     }
 

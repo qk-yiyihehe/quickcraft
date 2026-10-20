@@ -1,14 +1,14 @@
 package com.yiyihehe.quickcraft.mixin;
 
 import com.yiyihehe.quickcraft.QuickFreeCameraInteractions;
+import com.llamalad7.mixinextras.injector.wrapoperation.Operation;
+import com.llamalad7.mixinextras.injector.wrapoperation.WrapOperation;
 import fi.dy.masa.litematica.util.WorldUtils;
 import net.minecraft.client.Minecraft;
 import net.minecraft.world.entity.Entity;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
-import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.ModifyArg;
-import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 import net.minecraft.world.InteractionResult;
 
 /**
@@ -17,16 +17,11 @@ import net.minecraft.world.InteractionResult;
  */
 @Mixin(value = WorldUtils.class, remap = false, priority = 1100)
 public final class LitematicaWorldUtilsFreeCameraMixin {
-    @Inject(method = "doEasyPlaceAction", at = @At("HEAD"), remap = false)
-    private static void quickcraft$beginEasyPlaceAction(
-            Minecraft client, CallbackInfoReturnable<InteractionResult> cir) {
-        QuickFreeCameraInteractions.beginEasyPlaceAction();
-    }
-
-    @Inject(method = "doEasyPlaceAction", at = @At("RETURN"), remap = false)
-    private static void quickcraft$endEasyPlaceAction(
-            Minecraft client, CallbackInfoReturnable<InteractionResult> cir) {
-        QuickFreeCameraInteractions.endEasyPlaceAction();
+    // 包住实际调用，覆盖目标内部的取消回调及异常；无需为 WrapMethod 提高 Loader 下限。
+    @WrapOperation(method = {"handleEasyPlace", "easyPlaceOnUseTick"}, at = @At(value = "INVOKE",
+            target = "Lfi/dy/masa/litematica/util/WorldUtils;doEasyPlaceAction(Lnet/minecraft/client/Minecraft;)Lnet/minecraft/world/InteractionResult;"), remap = false, require = 2)
+    private static InteractionResult quickcraft$withEasyPlaceContext(Minecraft client, Operation<InteractionResult> original) {
+        return QuickFreeCameraInteractions.callEasyPlaceAction(() -> original.call(client));
     }
 
     @ModifyArg(

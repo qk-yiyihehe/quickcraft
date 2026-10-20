@@ -1,5 +1,6 @@
 package com.yiyihehe.quickcraft.litematica;
 
+import com.yiyihehe.quickcraft.QuickFreeCameraInteractions;
 import com.yiyihehe.quickcraft.mixin.LitematicaWorldUtilsInvoker;
 import net.minecraft.client.Minecraft;
 import net.minecraft.world.InteractionHand;
@@ -27,7 +28,8 @@ public final class QuickLitematicaEasyPlaceAccess {
     }
 
     public static void triggerHoldEasyPlace(Minecraft client) {
-        LitematicaWorldUtilsInvoker.quickcraft$doEasyPlaceAction(client);
+        QuickFreeCameraInteractions.callEasyPlaceAction(
+                () -> LitematicaWorldUtilsInvoker.quickcraft$doEasyPlaceAction(client));
     }
 
     public static void swingHandIfSuccess(Minecraft client, InteractionHand hand, InteractionResult result) {

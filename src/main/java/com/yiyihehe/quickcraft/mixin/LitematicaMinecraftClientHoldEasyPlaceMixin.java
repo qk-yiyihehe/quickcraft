@@ -1,5 +1,6 @@
 package com.yiyihehe.quickcraft.mixin;
 
+import com.yiyihehe.quickcraft.QuickFreeCameraInteractions;
 import com.yiyihehe.quickcraft.config.QuickCraftConfigs;
 import com.yiyihehe.quickcraft.litematica.QuickLitematicaEasyPlaceInteractions;
 import fi.dy.masa.litematica.config.Configs;
@@ -30,6 +31,7 @@ public abstract class LitematicaMinecraftClientHoldEasyPlaceMixin {
             return;
         }
 
-        LitematicaWorldUtilsInvoker.quickcraft$doEasyPlaceAction(client);
+        QuickFreeCameraInteractions.callEasyPlaceAction(
+                () -> LitematicaWorldUtilsInvoker.quickcraft$doEasyPlaceAction(client));
     }
 }
