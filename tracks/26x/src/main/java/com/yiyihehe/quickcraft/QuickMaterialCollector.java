@@ -4,6 +4,7 @@ import static com.yiyihehe.quickcraft.QuickMaterialCollectorShulkerSelection.*;
 
 import com.yiyihehe.quickcraft.compat.QuickShulkerConnection;
 import com.yiyihehe.quickcraft.config.QuickCraftConfigs;
+import com.yiyihehe.quickcraft.litematica.QuickLitematicaMaterialLists;
 import it.unimi.dsi.fastutil.objects.Object2IntOpenHashMap;
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
@@ -36,7 +37,8 @@ import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.phys.HitResult;
 import net.minecraft.core.BlockPos;
 
-import java.lang.reflect.Method;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashSet;
@@ -48,6 +50,8 @@ import java.util.Set;
  * 所有搬运都通过原版槽位点击完成，避免直接改客户端背包造成幽灵物品。
  */
 public final class QuickMaterialCollector implements ClientModInitializer {
+    private static final Logger LOGGER = LoggerFactory.getLogger(QuickMaterialCollector.class);
+    private static boolean materialListFailureLogged;
     private static final int OPEN_TIMEOUT_TICKS = 20;
     private static final int REOPEN_DELAY_TICKS = 2;
     private static final int LONG_PRESS_TICKS = 4;
@@ -626,8 +630,8 @@ public final class QuickMaterialCollector implements ClientModInitializer {
         MutableComponent details = Component.empty();
         InventoryCounts inventoryCounts = countPlayerInventory(client.player.getInventory());
         int totalCollected = 0;
-        int successColor = getMaterialStatusColor("getCollectorSuccessColor", FALLBACK_SUCCESS_COLOR);
-        int shortageColor = getMaterialStatusColor("getCollectorShortageColor", FALLBACK_SHORTAGE_COLOR);
+        int successColor = getMaterialStatusColor(false);
+        int shortageColor = getMaterialStatusColor(true);
         for (Demand demand : plan.demands()) {
             int collected = demand.collected();
             if (collected <= 0) {
@@ -665,14 +669,24 @@ public final class QuickMaterialCollector implements ClientModInitializer {
                 : stackSize + "*" + groups + "+" + remainder;
     }
 
-    private int getMaterialStatusColor(String methodName, int fallback) {
-        try {
-            Class<?> bridge = Class.forName("com.yiyihehe.quickcraft.litematica.QuickLitematicaMaterialLists");
-            Method method = bridge.getMethod(methodName);
-            Object value = method.invoke(null);
-            return value instanceof Number number ? number.intValue() : fallback;
-        } catch (ReflectiveOperationException | LinkageError ignored) {
+    private int getMaterialStatusColor(boolean shortage) {
+        int fallback = shortage ? FALLBACK_SHORTAGE_COLOR : FALLBACK_SUCCESS_COLOR;
+        if (!FabricLoader.getInstance().isModLoaded("litematica")) {
             return fallback;
+        }
+        try {
+            return shortage ? QuickLitematicaMaterialLists.getCollectorShortageColor()
+                    : QuickLitematicaMaterialLists.getCollectorSuccessColor();
+        } catch (RuntimeException | LinkageError failure) {
+            logMaterialListFailure(failure);
+            return fallback;
+        }
+    }
+
+    private static void logMaterialListFailure(Throwable failure) {
+        if (!materialListFailureLogged) {
+            materialListFailureLogged = true;
+            LOGGER.warn("Litematica material list bridge failed; using fallback values", failure);
         }
     }
 
@@ -853,27 +867,22 @@ public final class QuickMaterialCollector implements ClientModInitializer {
         if (!FabricLoader.getInstance().isModLoaded("litematica")) {
             return false;
         }
-
         try {
-            Class<?> bridge = Class.forName("com.yiyihehe.quickcraft.litematica.QuickLitematicaMaterialLists");
-            Method method = bridge.getMethod("hasVisibleMaterialLists", Player.class);
-            return Boolean.TRUE.equals(method.invoke(null, player));
-        } catch (ReflectiveOperationException | LinkageError ignored) {
+            return QuickLitematicaMaterialLists.hasVisibleMaterialLists(player);
+        } catch (RuntimeException | LinkageError failure) {
+            logMaterialListFailure(failure);
             return false;
         }
     }
 
-    @SuppressWarnings("unchecked")
     private List<MaterialRequest> getVisibleMaterialRequests(Player player) {
         if (!FabricLoader.getInstance().isModLoaded("litematica")) {
             return List.of();
         }
-
         try {
-            Class<?> bridge = Class.forName("com.yiyihehe.quickcraft.litematica.QuickLitematicaMaterialLists");
-            Method method = bridge.getMethod("getVisibleMaterialRequests", Player.class);
-            return (List<MaterialRequest>) method.invoke(null, player);
-        } catch (ReflectiveOperationException | LinkageError ignored) {
+            return QuickLitematicaMaterialLists.getVisibleMaterialRequests(player);
+        } catch (RuntimeException | LinkageError failure) {
+            logMaterialListFailure(failure);
             return List.of();
         }
     }

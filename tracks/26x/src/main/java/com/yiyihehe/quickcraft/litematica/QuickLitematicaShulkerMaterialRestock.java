@@ -2,6 +2,7 @@ package com.yiyihehe.quickcraft.litematica;
 
 import com.yiyihehe.quickcraft.QuickClientScreenAccess;
 import com.yiyihehe.quickcraft.config.QuickCraftConfigs;
+import com.yiyihehe.quickcraft.compat.QuickShulkerConnection;
 import fi.dy.masa.litematica.config.Configs;
 import fi.dy.masa.litematica.data.DataManager;
 import fi.dy.masa.litematica.materials.MaterialCache;
@@ -9,8 +10,6 @@ import fi.dy.masa.litematica.util.InventoryUtils;
 import fi.dy.masa.litematica.world.SchematicWorldHandler;
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
-import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
-import net.fabricmc.loader.api.FabricLoader;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.block.ShulkerBoxBlock;
 import net.minecraft.client.Minecraft;
@@ -22,13 +21,11 @@ import net.minecraft.world.item.Item;
 import net.minecraft.world.item.context.BlockPlaceContext;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.context.UseOnContext;
-import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
 import net.minecraft.world.inventory.AbstractContainerMenu;
 import net.minecraft.world.inventory.ShulkerBoxMenu;
 import net.minecraft.world.inventory.Slot;
 import net.minecraft.world.inventory.ContainerInput;
 import net.minecraft.world.InteractionHand;
-import net.minecraft.resources.Identifier;
 import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.phys.HitResult;
 import net.minecraft.core.BlockPos;
@@ -47,7 +44,6 @@ public final class QuickLitematicaShulkerMaterialRestock implements ClientModIni
     private static final int OPEN_TIMEOUT_TICKS = 40;
     private static final int CLOSE_TIMEOUT_TICKS = 20;
     private static final int CLOSE_CURSOR_RETRIES = 10;
-    private static final Identifier QUICK_SHULKER_OPEN_PACKET = Identifier.fromNamespaceAndPath("quickshulker", "open_shulker_packet");
 
     private static final Deque<RetrievedMaterial> retrievedMaterials = new ArrayDeque<>();
     private static PendingRequest pendingRequest;
@@ -606,15 +602,7 @@ public final class QuickLitematicaShulkerMaterialRestock implements ClientModIni
     }
 
     private static boolean canUseQuickShulker() {
-        if (!FabricLoader.getInstance().isModLoaded("quickshulker")) {
-            return false;
-        }
-
-        try {
-            return ClientPlayNetworking.canSend(QUICK_SHULKER_OPEN_PACKET);
-        } catch (IllegalArgumentException exception) {
-            return false;
-        }
+        return QuickShulkerConnection.canOpen();
     }
 
     private static boolean sendOpenQuickShulkerPacket(int slotId) {
@@ -628,14 +616,7 @@ public final class QuickLitematicaShulkerMaterialRestock implements ClientModIni
             return false;
         }
 
-        try {
-            Class<?> packetClass = Class.forName("net.kyrptonaught.quickshulker.network.OpenShulkerPacket");
-            Object packet = packetClass.getConstructor(int.class).newInstance(handlerSlotId);
-            ClientPlayNetworking.send((CustomPacketPayload) packet);
-            return true;
-        } catch (ReflectiveOperationException | RuntimeException exception) {
-            return false;
-        }
+        return QuickShulkerConnection.sendOpen(handlerSlotId);
     }
 
     /**
