@@ -21,10 +21,23 @@ jobs:
           distribution: 'microsoft'
       - name: make gradle wrapper executable
         run: chmod +x ./gradlew
+      - name: verify version matrix
+        shell: pwsh
+        run: ./scripts/verify-version-matrix.ps1
       - name: build
-        run: ./gradlew build
+        run: ./gradlew collectArtifacts --console=plain
+      - name: verify effective material resources
+        shell: pwsh
+        run: ./scripts/verify-material-replacement-resources.ps1
       - name: capture build artifacts
         uses: actions/upload-artifact@v7
         with:
           name: Artifacts
-          path: build/libs/
+          path: build/distributions/*.jar
+          if-no-files-found: error
+      - name: capture static analysis reports
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: SpotBugs
+          path: build/targets/*/reports/spotbugs/

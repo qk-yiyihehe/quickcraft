@@ -21,10 +21,12 @@ spotbugs {
 }
 
 spotbugsMain {
+	baselineFile = rootProject.file('config/spotbugs/baseline-1.21x.xml')
 	reports {
 		html.required = true
+		xml.required = true
 	}
-	ignoreFailures = true
+	ignoreFailures = false
 }
 
 spotbugsTest {
