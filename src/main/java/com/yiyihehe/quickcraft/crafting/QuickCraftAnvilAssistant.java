@@ -23,7 +23,7 @@ public final class QuickCraftAnvilAssistant {
     private static AnvilScreenHandler handler;
     private static ClientPlayNetworkHandler connection;
     private static QuickCraftAnvilPlanner planner;
-    private static QuickCraftAnvilSearch.Result<QuickCraftAnvilPlanner.State> plan;
+    private static QuickCraftAnvilPlanner.Plan plan;
     private static List<Text> targets = List.of();
     private static List<Text> skipped = List.of();
     private static boolean pickaxe;
