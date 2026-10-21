@@ -28,7 +28,7 @@ import java.util.List;
  */
 public class QuickCraftConfigScreen extends GuiConfigsBase {
     private static final int EXPAND_BUTTON_WIDTH = 18;
-    private static final int CHILD_INDENT = 28;
+    private static final int CHILD_INDENT = EXPAND_BUTTON_WIDTH + 28;
     private static final int NAME_COLUMN_PADDING = 16;
     private static final EnumSet<ConfigGroup> EXPANDED_GROUPS = EnumSet.noneOf(ConfigGroup.class);
     private static Tab currentTab = Tab.CRAFTING;
@@ -331,10 +331,8 @@ public class QuickCraftConfigScreen extends GuiConfigsBase {
                 IConfigBase config = wrapper.getConfig();
 
                 if (config != null) {
-                    int indent = 0;
-                    if (wrapper instanceof GroupedConfigOptionWrapper grouped) {
-                        indent = grouped.child ? CHILD_INDENT : EXPAND_BUTTON_WIDTH;
-                    }
+                    int indent = wrapper instanceof GroupedConfigOptionWrapper grouped && grouped.child
+                            ? CHILD_INDENT : EXPAND_BUTTON_WIDTH;
                     width = Math.max(
                             width,
                             this.getStringWidth(config.getConfigGuiDisplayName()) + indent + NAME_COLUMN_PADDING
@@ -383,9 +381,10 @@ public class QuickCraftConfigScreen extends GuiConfigsBase {
         ) {
             super(x, y, width, height, labelWidth, configWidth, wrapper, listIndex, host, parent);
 
-            if (wrapper instanceof GroupedConfigOptionWrapper grouped) {
-                this.indentLabelArea(grouped.child ? CHILD_INDENT : EXPAND_BUTTON_WIDTH);
+            this.indentLabelArea(wrapper instanceof GroupedConfigOptionWrapper grouped && grouped.child
+                    ? CHILD_INDENT : EXPAND_BUTTON_WIDTH);
 
+            if (wrapper instanceof GroupedConfigOptionWrapper grouped) {
                 if (!grouped.child) {
                     ButtonGeneric expandButton = new ButtonGeneric(
                             x,
