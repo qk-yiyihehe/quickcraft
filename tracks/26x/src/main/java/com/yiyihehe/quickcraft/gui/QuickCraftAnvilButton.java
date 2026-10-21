@@ -1,5 +1,6 @@
 package com.yiyihehe.quickcraft.gui;
 
+import com.yiyihehe.quickcraft.crafting.QuickCraftAnvilAssistant;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.components.Button;
@@ -13,7 +14,7 @@ import org.joml.Vector2i;
 import java.util.ArrayList;
 import java.util.List;
 
-public final class QuickCraftAnvilButton extends Button.Plain {
+public final class QuickCraftAnvilButton extends Button.Plain implements QuickCraftAnvilAssistant.ButtonView {
     private Component planTooltip = Component.empty();
     private List<FormattedCharSequence> lines = List.of();
     private int wrapWidth;
@@ -27,6 +28,12 @@ public final class QuickCraftAnvilButton extends Button.Plain {
         super(x, y, 176, 20, Component.empty(), onPress, DEFAULT_NARRATION);
     }
 
+    @Override
+    public void setVisible(boolean visible) {
+        this.visible = visible;
+    }
+
+    @Override
     public void setPlanTooltip(Component text) {
         if (planTooltip.equals(text)) return;
         planTooltip = text;

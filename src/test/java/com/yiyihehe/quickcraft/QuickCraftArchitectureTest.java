@@ -139,7 +139,7 @@ class QuickCraftArchitectureTest {
     }
 
     @Test
-    @DisplayName("gui 包不应被根包反向依赖")
+    @DisplayName("业务包不应依赖 gui，Mixin 可以组装界面")
     void guiPackage_dependencies() {
         ArchRule rule = classes()
                 .that().resideInAPackage(ROOT + ".gui..")
@@ -147,6 +147,7 @@ class QuickCraftArchitectureTest {
                 .resideInAnyPackage(
                         ROOT + ".gui..",
                         ROOT + ".malilib..",
+                        ROOT + ".mixin..",
                         ROOT,
                         "java..",
                         "com.terraformersmc..")

@@ -7,7 +7,6 @@ import net.minecraft.core.component.DataComponents;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.inventory.AnvilScreen;
-import com.yiyihehe.quickcraft.gui.QuickCraftAnvilButton;
 import net.minecraft.client.multiplayer.ClientPacketListener;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.network.protocol.game.ServerboundClientCommandPacket;
@@ -16,10 +15,18 @@ import net.minecraft.world.inventory.ContainerInput;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.protocol.game.ServerboundRenameItemPacket;
 import net.minecraft.world.item.Items;
+import java.lang.ref.WeakReference;
 import java.util.*;
 
 /** 每批搬运必须清空光标，再用统计响应确认服务端处理完成，不能把半次搬运留给下一帧。 */
 public final class QuickCraftAnvilAssistant {
+    public interface ButtonView {
+        void setVisible(boolean visible);
+        void setMessage(Component message);
+        void setPlanTooltip(Component tooltip);
+        boolean mouseScrolled(double mouseX, double mouseY, double horizontal, double vertical);
+    }
+
     private static AnvilMenu handler;
     private static ClientPacketListener connection;
     private static QuickCraftAnvilPlanner planner;
@@ -31,7 +38,8 @@ public final class QuickCraftAnvilAssistant {
     private static List<ItemStack> expected;
     private static ItemStack expectedCursor = ItemStack.EMPTY;
     private static final org.slf4j.Logger LOGGER = org.slf4j.LoggerFactory.getLogger("QuickCraft/Anvil");
-    private static QuickCraftAnvilButton actionButton;
+    // 屏幕持有按钮；静态任务只观察视图，不能延长已关闭界面的生命周期。
+    private static WeakReference<ButtonView> actionButton = new WeakReference<>(null);
     private static int stepIndex;
     private static int equipmentSlot;
     private static int[] locations;
@@ -60,14 +68,15 @@ public final class QuickCraftAnvilAssistant {
                 || QuickCraftKeyBindings.isHotkeyDown(QuickCraftConfigs.Hotkeys.ANVIL_BUILD.getKeybind()));
     }
 
-    public static void attach(QuickCraftAnvilButton action) {
+    public static void attach(ButtonView action) {
         reset();
-        actionButton = action;
+        actionButton = new WeakReference<>(action);
         refreshButtons();
     }
 
     public static boolean scrollPlan(double mouseX, double mouseY, double horizontal, double vertical) {
-        return actionButton != null && actionButton.mouseScrolled(mouseX, mouseY, horizontal, vertical);
+        var button = actionButton.get();
+        return button != null && button.mouseScrolled(mouseX, mouseY, horizontal, vertical);
     }
 
     public static void action(boolean hotkey) {
@@ -119,7 +128,7 @@ public final class QuickCraftAnvilAssistant {
 
     private static void tick(Minecraft client) {
         if (!valid(client)) {
-            if (handler != null || ownsAnvil() || actionButton != null) reset();
+            if (handler != null || ownsAnvil() || actionButton.get() != null) reset();
             lastHotkey = false;
             return;
         }
@@ -369,7 +378,8 @@ public final class QuickCraftAnvilAssistant {
     }
 
     private static void reset() {
-        if (actionButton != null) actionButton.visible = false;
+        var button = actionButton.get();
+        if (button != null) button.setVisible(false);
         planner = null;
         plan = null;
         handler = null;
@@ -384,13 +394,14 @@ public final class QuickCraftAnvilAssistant {
         stepIndex = 0;
         locations = null;
         outputSlot = -1;
-        actionButton = null;
+        actionButton.clear();
     }
 
     private static void refreshButtons() {
-        if (actionButton == null) return;
-        actionButton.visible = QuickCraftConfigs.Crafting.ENABLE_ANVIL_ASSISTANT.getBooleanValue();
-        actionButton.setMessage(message(running || planner != null ? "stop_button" : plan != null ? "start_button" : "preview_button"));
+        var button = actionButton.get();
+        if (button == null) return;
+        button.setVisible(QuickCraftConfigs.Crafting.ENABLE_ANVIL_ASSISTANT.getBooleanValue());
+        button.setMessage(message(running || planner != null ? "stop_button" : plan != null ? "start_button" : "preview_button"));
         List<Component> lines = new ArrayList<>();
         lines.add(status);
         if (pickaxe) lines.add(message("selected_plan", QuickCraftConfigs.Crafting.ANVIL_PICKAXE_PLAN.getOptionListValue().getDisplayName()));
@@ -415,7 +426,7 @@ public final class QuickCraftAnvilAssistant {
             if (!tooltip.getString().isEmpty()) tooltip.append("\n");
             tooltip.append(line);
         }
-        actionButton.setPlanTooltip(tooltip);
+        button.setPlanTooltip(tooltip);
 
     }
 
