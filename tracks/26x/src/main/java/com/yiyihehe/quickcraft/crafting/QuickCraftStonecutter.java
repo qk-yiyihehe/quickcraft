@@ -19,14 +19,12 @@ import net.minecraft.client.multiplayer.ClientPacketListener;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.ArrayDeque;
-import java.util.Deque;
 import java.util.List;
 
 import static com.yiyihehe.quickcraft.crafting.QuickCraftMouseCraftAckRules.*;
 
 /**
- * 切石机按本地预测连续补料和取产物，回包不参与合成调度。
+ * 切石机按本地预测连续补料和取产物，不额外处理服务端库存回包。
  */
 public class QuickCraftStonecutter implements ClientModInitializer {
     private static QuickCraftStonecutter INSTANCE;
@@ -56,10 +54,6 @@ public class QuickCraftStonecutter implements ClientModInitializer {
     private Phase batchPhase;
     private boolean predicting;
     private boolean inputRecoveryAttempted;
-    private record PredictedSelection(int revision, ItemStack output) { }
-    private final Deque<PredictedSelection> predictedSelections = new ArrayDeque<>();
-    private int predictedRevision;
-    private ItemStack predictedOutput = ItemStack.EMPTY;
     private int predictionRecipeIndex = -1;
     private int batchStartRevision;
     private ItemStack batchInput = ItemStack.EMPTY;
@@ -128,7 +122,6 @@ public class QuickCraftStonecutter implements ClientModInitializer {
         }
         if (sessionHandler != handler || sessionNetwork != client.getConnection()) {
             clearLockedSelection();
-            predictedSelections.clear();
         }
         if (!lockCurrentSelection(client, handler)) {
             if (QuickCraftConfigs.isMouseCraftAckDebugEnabled()) {
@@ -155,8 +148,6 @@ public class QuickCraftStonecutter implements ClientModInitializer {
         predictionRecipeIndex = handler.getSelectedRecipeIndex();
         batchSentAtNanos = 0L;
         batchStartRevision = handler.getStateId();
-        predictedRevision = handler.getStateId();
-        predictedOutput = handler.getSlot(OUTPUT_SLOT).getItem().copy();
         logCraft("会话开始：" + (rapid ? "持续合成" : "单次合成") + (fromButton ? "，按钮触发" : "，热键触发"));
         if (rapid) {
             sendStatusMessage(client, Component.translatable("quickcraft.message.crafting.started"));
@@ -244,10 +235,6 @@ public class QuickCraftStonecutter implements ClientModInitializer {
                     if (handler.getSelectedRecipeIndex() != index) {
                         handler.clickMenuButton(client.player, index);
                         client.gameMode.handleInventoryButtonClick(handler.containerId, index);
-                        // 原版选配方会发送一个结果槽包并递增序号；后续点击直接使用该序号。
-                        predictedRevision = (handler.getStateId() + 1) & 32767;
-                        predictedSelections.addLast(new PredictedSelection(predictedRevision, lockedResultTemplate.copy()));
-                        sessionHandler.setItem(OUTPUT_SLOT, predictedRevision, lockedResultTemplate.copy());
                     }
                     refreshClientPrediction(handler);
                 }
@@ -273,7 +260,6 @@ public class QuickCraftStonecutter implements ClientModInitializer {
                 }
             }
         } finally {
-            predictedOutput = sessionHandler.getSlot(OUTPUT_SLOT).getItem().copy();
             predicting = false;
         }
     }
@@ -359,44 +345,6 @@ public class QuickCraftStonecutter implements ClientModInitializer {
         return true;
     }
 
-    static boolean isExpectedRecipeResult(int expectedRevision, int revision, boolean sameOutput,
-                                          int expectedCount, int count) {
-        return expectedRevision == revision && sameOutput && expectedCount == count;
-    }
-
-    private void applyServerSlotUpdate(Minecraft client, int revision, int slotId, ItemStack stack) {
-        if (!isSessionValid(client)) return;
-        PredictedSelection expected = predictedSelections.peekFirst();
-        if (slotId == OUTPUT_SLOT && expected != null
-                && isExpectedRecipeResult(expected.revision(), revision,
-                ItemStack.isSameItemSameComponents(expected.output(), stack), expected.output().getCount(), stack.getCount())) {
-            predictedSelections.removeFirst();
-            // 迟到的选配方结果属于之前的点击，不能把已取空的结果槽重新填满。
-            sessionHandler.setItem(OUTPUT_SLOT, predictedRevision, predictedOutput.copy());
-            logCraft("收到预期配方结果包，连续发送不等待");
-        } else if (slotId == INPUT_SLOT || slotId == OUTPUT_SLOT) {
-            stopOnServerCorrection(client);
-        } else if (predictedSelections.isEmpty()) {
-            predictedRevision = revision;
-        } else {
-            // 外部拾取等库存变化保留原版结果；后续序号包含仍在途的选配方操作。
-            predictedRevision = (revision + predictedSelections.size()) & 32767;
-            sessionHandler.setItem(OUTPUT_SLOT, predictedRevision, predictedOutput.copy());
-        }
-    }
-
-    private void stopOnServerCorrection(Minecraft client) {
-        predictedSelections.clear();
-        predictedRevision = sessionHandler.getStateId();
-        predictedOutput = sessionHandler.getSlot(OUTPUT_SLOT).getItem().copy();
-        if (rapidCraftingActive || singleCraftPending) {
-            logCraft("服务端纠正预测，保留实际库存并停止发送");
-            // 纠正后不按旧库存继续执行结束丢弃。
-            rapidCraftingActive = false;
-            finish(client, Component.translatable("quickcraft.message.stonecutter.sync_changed"));
-        }
-    }
-
     private boolean matchesLockedInput(ItemStack input) {
         return !input.isEmpty() && ItemStack.isSameItemSameComponents(input, lockedInputTemplate);
     }
@@ -427,32 +375,6 @@ public class QuickCraftStonecutter implements ClientModInitializer {
         logCraft("批次开始");
     }
 
-    public static void onServerSlotUpdate(int syncId, int revision, int slotId, ItemStack stack) {
-        QuickCraftStonecutter active = INSTANCE;
-        if (active != null && active.sessionHandler != null && active.sessionHandler.containerId == syncId
-                && QuickCraftConfigs.isMouseCraftAckDebugEnabled()) {
-            LOGGER.info("切石机服务端槽位包：会话=#{}，批次=#{}，syncId={}，revision={}，slot={}，物品={}",
-                    active.sessionId, active.batchId, syncId, revision, slotId, stack);
-        }
-        if (active != null && active.sessionHandler != null && active.sessionHandler.containerId == syncId) {
-            active.applyServerSlotUpdate(Minecraft.getInstance(), revision, slotId, stack);
-        }
-    }
-
-    public static void onServerInventoryUpdate(int syncId, int revision,
-                                               List<ItemStack> contents, ItemStack cursor) {
-        QuickCraftStonecutter active = INSTANCE;
-        if (active != null && active.sessionHandler != null && active.sessionHandler.containerId == syncId
-                && QuickCraftConfigs.isMouseCraftAckDebugEnabled()) {
-            LOGGER.info("切石机服务端全量包：会话=#{}，批次=#{}，syncId={}，revision={}，光标={}，内容={}",
-                    active.sessionId, active.batchId, syncId, revision, cursor, contents);
-        }
-        if (active != null && active.sessionHandler != null && active.sessionHandler.containerId == syncId) {
-            Minecraft client = Minecraft.getInstance();
-            if (active.isSessionValid(client)) active.stopOnServerCorrection(client);
-        }
-    }
-
     private void logCraft(String event) {
         if (!QuickCraftConfigs.isMouseCraftAckDebugEnabled() || !LOGGER.isInfoEnabled()) return;
         StringBuilder slots = new StringBuilder();
@@ -466,13 +388,13 @@ public class QuickCraftStonecutter implements ClientModInitializer {
         }
         LOGGER.info("切石机合成：会话=#{}，批次=#{}，事件={}，阶段={}，syncId={}，revision={}->{}，"
                         + "目标={}，批前原料={}，补料来源={}x{}，光标={}，喷射={}，当前空格={}，"
-                        + "在途配方包={}，耗时={}ms，槽位=[{}]",
+                        + "耗时={}ms，槽位=[{}]",
                 sessionId, batchId, event, batchId == 0 ? "未发批次" : batchPhase,
                 sessionHandler == null ? -1 : sessionHandler.containerId, batchStartRevision,
                 sessionHandler == null ? -1 : sessionHandler.getStateId(), lockedResultTemplate,
                 batchId == 0 ? ItemStack.EMPTY : batchInput, batchSourceSlot, batchSourceCount,
                 sessionHandler == null ? ItemStack.EMPTY : sessionHandler.getCarried(),
-                outputSprayMode, sessionHandler == null ? -1 : unlockedEmptySlots(sessionHandler), predictedSelections.size(),
+                outputSprayMode, sessionHandler == null ? -1 : unlockedEmptySlots(sessionHandler),
                 batchSentAtNanos == 0L ? 0L : (System.nanoTime() - batchSentAtNanos) / 1_000_000L, slots);
     }
 
@@ -552,8 +474,6 @@ public class QuickCraftStonecutter implements ClientModInitializer {
         sessionHandler = null;
         sessionNetwork = null;
         predictionRecipeIndex = -1;
-        predictedSelections.clear();
-        predictedOutput = ItemStack.EMPTY;
         clearLockedSelection();
     }
 

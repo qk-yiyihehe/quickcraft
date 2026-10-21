@@ -2,7 +2,6 @@ package com.yiyihehe.quickcraft.mixin;
 
 import com.yiyihehe.quickcraft.crafting.QuickCraftAnvilRename;
 import com.yiyihehe.quickcraft.crafting.QuickCraftMouseCraftAckExecutor;
-import com.yiyihehe.quickcraft.crafting.QuickCraftStonecutter;
 import com.yiyihehe.quickcraft.crafting.QuickCraftWorkbenchShulkerCraft;
 import net.minecraft.client.multiplayer.ClientPacketListener;
 import net.minecraft.network.protocol.game.ClientboundContainerSetContentPacket;
@@ -23,8 +22,6 @@ public abstract class WorkbenchShulkerNetworkMixin {
                 packet.getContainerId(), packet.getStateId(), false);
         QuickCraftMouseCraftAckExecutor.onServerSlotUpdate(
                 packet.getContainerId(), packet.getStateId(), packet.getSlot(), packet.getItem());
-        QuickCraftStonecutter.onServerSlotUpdate(
-                packet.getContainerId(), packet.getStateId(), packet.getSlot(), packet.getItem());
     }
 
     @Inject(method = "handleContainerContent", at = @At("RETURN"))
@@ -33,8 +30,6 @@ public abstract class WorkbenchShulkerNetworkMixin {
         QuickCraftWorkbenchShulkerCraft.onServerContainerUpdate(
                 packet.containerId(), packet.stateId(), true);
         QuickCraftMouseCraftAckExecutor.onServerInventoryUpdate(
-                packet.containerId(), packet.stateId(), packet.items(), packet.carriedItem());
-        QuickCraftStonecutter.onServerInventoryUpdate(
                 packet.containerId(), packet.stateId(), packet.items(), packet.carriedItem());
     }
 

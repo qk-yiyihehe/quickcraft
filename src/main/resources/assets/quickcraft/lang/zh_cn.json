@@ -666,7 +666,6 @@
   "quickcraft.litematica.error.container_data_incomplete": "容器物品 %s 无法完整读取，材料统计可能不完整；替换与写入保留该容器的原始内容。",
   "quickcraft.message.stonecutter.input_changed": "QuickCraft: 输入原料与锁定的切石机配方不符，已停止",
   "quickcraft.message.stonecutter.blocked_input": "QuickCraft: 无法返还误入输入槽的产物，请腾出或解锁一个背包格",
-  "quickcraft.message.stonecutter.sync_changed": "服务端纠正了切石机库存，已停止",
   "quickcraft.config.crafting.name.enableAnvilAssistant": "铁砧助手",
   "quickcraft.config.crafting.prettyName.enableAnvilAssistant": "铁砧助手",
   "quickcraft.config.crafting.comment.enableAnvilAssistant": "§6功能：§r使用背包附魔书打造指定神装，比较同类底材、用书与敲打顺序，优先补齐当前能完成的附魔，再选最省经验的方案；缺书的目标自动跳过。\n§e操作：§r左槽放装备，点击预览查看费用，再开始；动作热键直接规划并执行，再按停止。\n§7规则：§r支持合书后加到装备，不合并两件装备；跳过锁格，不丢弃产物。右槽和光标需为空，停止后手动取回剩余材料。\n§7目标：§r展开本项编辑各装备的附魔列表，预设可恢复默认。",

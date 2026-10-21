@@ -667,7 +667,6 @@
   "quickcraft.litematica.error.container_data_incomplete": "Cannot fully read schematic item %s. Material counts may be incomplete; replacement and writing preserve this container's original contents.",
   "quickcraft.message.stonecutter.input_changed": "QuickCraft: Stonecutter input does not match the locked recipe; stopped",
   "quickcraft.message.stonecutter.blocked_input": "QuickCraft: Cannot return the result from the input slot; free or unlock an inventory slot",
-  "quickcraft.message.stonecutter.sync_changed": "The server corrected the stonecutter inventory; crafting stopped",
   "quickcraft.config.crafting.name.enableAnvilAssistant": "Anvil Assistant",
   "quickcraft.config.crafting.prettyName.enableAnvilAssistant": "Anvil Assistant",
   "quickcraft.config.crafting.comment.enableAnvilAssistant": "§6Function: §rApplies as many attainable target enchantments as possible, then minimizes the total level cost across matching equipment, books and order. Unavailable targets are skipped.\n§eAction: §rPlace equipment on the left, preview and start. The action hotkey plans and starts directly; press again to stop.\n§7Rules: §rCombines books before applying them when beneficial; never combines two equipment items. Skips locked slots, never drops results. Clear the right slot and cursor first. Retrieve remaining items after stopping.\n§7Targets: §rExpand to edit each equipment profile. Reset restores the preset.",
