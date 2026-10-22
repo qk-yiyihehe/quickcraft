@@ -10,8 +10,9 @@ import net.minecraft.world.inventory.Slot;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.item.component.CustomData;
-import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
@@ -19,13 +20,16 @@ import static org.mockito.Mockito.mockStatic;
 
 @ExtendWith(QuickCraftMinecraftTestBootstrap.class)
 class QuickSortGcaCompatibilityTest {
-    @Test
-    void protectsEquipmentAndControlsButAllowsBothInventories() throws Exception {
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    void protectsEquipmentAndControlsButAllowsBothInventories(boolean hasButtonMarker) throws Exception {
         var handler = ChestMenu.sixRows(1, mock(Inventory.class));
         ItemStack marker = Items.STRUCTURE_VOID.getDefaultInstance();
         CompoundTag tag = new CompoundTag();
         tag.putBoolean("GcaClear", true);
-        tag.putInt("GcaButton", 0);
+        if (hasButtonMarker) {
+            tag.putInt("GcaButton", 0);
+        }
         marker.set(DataComponents.CUSTOM_DATA, CustomData.of(tag));
         handler.getSlot(0).set(marker);
 

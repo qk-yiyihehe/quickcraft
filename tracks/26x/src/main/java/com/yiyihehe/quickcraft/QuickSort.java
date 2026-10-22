@@ -342,8 +342,9 @@ public class QuickSort implements ClientModInitializer {
         // 标记随服务端物品同步，不依赖客户端安装 GCA，也不依赖菜单标题的语言。
         ItemStack marker = handler.getSlot(0).getItem();
         CustomData data = marker.get(DataComponents.CUSTOM_DATA);
+        // GCA 2.12.6 及更早版本只有 GcaClear，GcaButton 不是旧版背包的必要标记。
         return marker.is(Items.STRUCTURE_VOID) && data != null
-            && data.copyTag().contains("GcaClear") && data.copyTag().contains("GcaButton");
+            && data.copyTag().contains("GcaClear");
     }
 
     private static boolean shouldShowPlayerSortTargets(AbstractContainerScreen<?> gui) {

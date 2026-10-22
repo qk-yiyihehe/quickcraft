@@ -10,21 +10,25 @@ import net.minecraft.nbt.NbtCompound;
 import net.minecraft.screen.GenericContainerScreenHandler;
 import net.minecraft.screen.ScreenHandler;
 import net.minecraft.screen.slot.Slot;
-import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
 
 @ExtendWith(QuickCraftMinecraftTestBootstrap.class)
 class QuickSortGcaCompatibilityTest {
-    @Test
-    void protectsEquipmentAndControlsButAllowsBothInventories() throws Exception {
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    void protectsEquipmentAndControlsButAllowsBothInventories(boolean hasButtonMarker) throws Exception {
         var handler = GenericContainerScreenHandler.createGeneric9x6(1, mock(PlayerInventory.class));
         ItemStack marker = Items.STRUCTURE_VOID.getDefaultStack();
         NbtCompound tag = new NbtCompound();
         tag.putBoolean("GcaClear", true);
-        tag.putInt("GcaButton", 0);
+        if (hasButtonMarker) {
+            tag.putInt("GcaButton", 0);
+        }
         marker.set(DataComponentTypes.CUSTOM_DATA, NbtComponent.of(tag));
         handler.getSlot(0).setStack(marker);
 
