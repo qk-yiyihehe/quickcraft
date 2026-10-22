@@ -6,8 +6,6 @@ import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
 import net.fabricmc.loader.api.FabricLoader;
 import net.minecraft.world.level.block.ShulkerBoxBlock;
 import net.minecraft.client.Minecraft;
-import net.minecraft.core.component.DataComponents;
-import net.minecraft.world.item.component.ItemContainerContents;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.item.BlockItem;
 import net.minecraft.world.item.ItemStack;
@@ -66,11 +64,13 @@ public final class QuickCraftWorkbenchShulker {
     }
 
     static void beginSession(QuickCraftConfigs.WorkbenchShulkerPipelineMode mode) {
+        QuickCraftWorkbenchShulkerContents.clear();
         sessionSourceBatches = 0;
         sessionMode = mode;
     }
 
     static void clearSession() {
+        QuickCraftWorkbenchShulkerContents.clear();
         sessionSourceBatches = 0;
         sessionMode = QuickCraftConfigs.WorkbenchShulkerPipelineMode.RESPONSE_STABLE;
     }
@@ -416,24 +416,12 @@ public final class QuickCraftWorkbenchShulker {
     }
 
     private static boolean isHomogeneousShulker(ItemStack shulker) {
-        ItemStack first = getFirstStoredStack(shulker);
-        if (first.isEmpty()) {
-            return false;
-        }
-        for (ItemStack stored : getStoredStacks(shulker)) {
-            if (!ItemStack.isSameItemSameComponents(first, stored)) {
-                return false;
-            }
-        }
-        return true;
+        QuickCraftWorkbenchShulkerContents.Contents contents = QuickCraftWorkbenchShulkerContents.get(shulker);
+        return contents.count() > 0 && contents.homogeneous();
     }
 
     private static ItemStack getFirstStoredStack(ItemStack shulker) {
-        ItemContainerContents container = shulker.getOrDefault(DataComponents.CONTAINER, ItemContainerContents.EMPTY);
-        for (ItemStack stored : container.nonEmptyItemCopyStream().toList()) {
-            return stored;
-        }
-        return ItemStack.EMPTY;
+        return QuickCraftWorkbenchShulkerContents.get(shulker).material();
     }
 
     private static void setActionCooldown() {
@@ -613,15 +601,6 @@ public final class QuickCraftWorkbenchShulker {
         return -1;
     }
 
-    private static List<ItemStack> getStoredStacks(ItemStack shulker) {
-        ItemContainerContents container = shulker.getOrDefault(DataComponents.CONTAINER, ItemContainerContents.EMPTY);
-        List<ItemStack> stacks = new ArrayList<>();
-        for (ItemStack stack : container.nonEmptyItemCopyStream().toList()) {
-            stacks.add(stack);
-        }
-        return stacks;
-    }
-
     private static boolean isShulkerBox(ItemStack stack) {
         return stack.getItem() instanceof BlockItem blockItem && blockItem.getBlock() instanceof ShulkerBoxBlock;
     }
@@ -629,8 +608,13 @@ public final class QuickCraftWorkbenchShulker {
     private static SourceShulker findSource(AbstractContainerMenu handler,
                                             List<ItemStack> pattern,
                                             Set<Integer> excludedPlayerIndices) {
+        List<Slot> slots = getPlayerStorageSlots(handler);
+        slots.sort(Comparator.comparingInt((Slot slot) -> slot.getContainerSlot() < 9 ? 1 : 0)
+                .thenComparingInt(Slot::getContainerSlot));
+        SourceShulker bestSource = null;
+        int smallestCount = Integer.MAX_VALUE;
         int scannedShulkers = 0;
-        for (Slot slot : getPlayerStorageSlots(handler)) {
+        for (Slot slot : slots) {
             if (!slot.hasItem() || slot.getItem().getCount() != 1 || !isShulkerBox(slot.getItem())) {
                 continue;
             }
@@ -638,17 +622,26 @@ public final class QuickCraftWorkbenchShulker {
             if (scannedShulkers > MAX_SOURCE_SHULKERS) {
                 break;
             }
-            if (excludedPlayerIndices.contains(slot.getContainerSlot())
-                    || !isHomogeneousShulker(slot.getItem())) {
+            if (excludedPlayerIndices.contains(slot.getContainerSlot())) {
                 continue;
             }
-            ItemStack material = getFirstStoredStack(slot.getItem());
-            if (handler instanceof CraftingMenu craftingHandler
-                    && findFillableGridSlot(craftingHandler, pattern, material) != -1) {
-                return new SourceShulker(slot.getContainerSlot());
+            QuickCraftWorkbenchShulkerContents.Contents contents =
+                    QuickCraftWorkbenchShulkerContents.get(slot.getContainerSlot(), slot.getItem());
+            if (contents.count() == 0 || !contents.homogeneous()) {
+                continue;
+            }
+            ItemStack material = contents.material();
+            if (!(handler instanceof CraftingMenu craftingHandler)
+                    || findFillableGridSlot(craftingHandler, pattern, material) == -1) {
+                continue;
+            }
+            int count = contents.count();
+            if (count < smallestCount) {
+                bestSource = new SourceShulker(slot.getContainerSlot());
+                smallestCount = count;
             }
         }
-        return null;
+        return bestSource;
     }
 
 

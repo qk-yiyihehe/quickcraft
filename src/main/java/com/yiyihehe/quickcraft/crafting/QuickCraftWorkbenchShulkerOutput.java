@@ -2,8 +2,6 @@ package com.yiyihehe.quickcraft.crafting;
 
 import net.minecraft.block.ShulkerBoxBlock;
 import net.minecraft.client.MinecraftClient;
-import net.minecraft.component.DataComponentTypes;
-import net.minecraft.component.type.ContainerComponent;
 import net.minecraft.entity.player.PlayerInventory;
 import net.minecraft.item.BlockItem;
 import net.minecraft.item.ItemStack;
@@ -90,15 +88,7 @@ final class QuickCraftWorkbenchShulkerOutput {
             return 0;
         }
 
-        int usedSlots = 0;
-        int matchingCapacity = 0;
-        for (ItemStack stored : getStoredStacks(shulker)) {
-            usedSlots++;
-            if (ItemStack.areItemsAndComponentsEqual(stored, output)) {
-                matchingCapacity += Math.max(0, stored.getMaxCount() - stored.getCount());
-            }
-        }
-        return calculateCapacity(output.getMaxCount(), usedSlots, matchingCapacity);
+        return QuickCraftWorkbenchShulkerContents.get(shulker).capacity(output);
     }
 
     static int calculateCapacity(int maxStackSize,
@@ -115,10 +105,12 @@ final class QuickCraftWorkbenchShulkerOutput {
             if (!slot.hasStack() || slot.getStack().getCount() != 1 || !isShulkerBox(slot.getStack())) {
                 continue;
             }
-            boolean empty = getStoredStacks(slot.getStack()).isEmpty();
-            int priority = outputBoxContentPriority(empty,
-                    isOutputOnlyBox(slot.getStack(), output),
-                    getCapacity(slot.getStack(), output) >= output.getCount());
+            QuickCraftWorkbenchShulkerContents.Contents contents =
+                    QuickCraftWorkbenchShulkerContents.get(slot.getIndex(), slot.getStack());
+            boolean outputOnly = contents.containsOnly(output);
+            int priority = outputBoxContentPriority(contents.count() == 0,
+                    outputOnly,
+                    outputOnly && contents.capacity(output) >= output.getCount());
             if (priority == 0) {
                 return slot;
             }
@@ -138,26 +130,8 @@ final class QuickCraftWorkbenchShulkerOutput {
         return empty ? 1 : 0;
     }
 
-    private static boolean isOutputOnlyBox(ItemStack shulker, ItemStack output) {
-        for (ItemStack stored : getStoredStacks(shulker)) {
-            if (!ItemStack.areItemsAndComponentsEqual(stored, output)) {
-                return false;
-            }
-        }
-        return true;
-    }
-
     private static boolean isSingleShulker(ItemStack stack) {
         return stack.getCount() == 1 && isShulkerBox(stack);
-    }
-
-    private static List<ItemStack> getStoredStacks(ItemStack shulker) {
-        ContainerComponent container = shulker.getOrDefault(DataComponentTypes.CONTAINER, ContainerComponent.DEFAULT);
-        List<ItemStack> stacks = new ArrayList<>();
-        for (ItemStack stack : container.iterateNonEmpty()) {
-            stacks.add(stack);
-        }
-        return stacks;
     }
 
     private static List<Slot> getPlayerStorageSlots(CraftingScreenHandler handler) {

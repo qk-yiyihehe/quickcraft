@@ -1996,6 +1996,7 @@ public final class QuickCraftWorkbenchShulkerCraft implements ClientModInitializ
         active = false;
         startedByButton = false;
         consecutiveFailures = 0;
+        QuickCraftWorkbenchShulkerContents.clear();
         sendMessage(client, message);
     }
 
