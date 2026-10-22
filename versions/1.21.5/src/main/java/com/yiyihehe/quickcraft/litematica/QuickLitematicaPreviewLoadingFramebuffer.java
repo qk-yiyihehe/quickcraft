@@ -13,13 +13,13 @@ import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.render.BufferBuilder;
 import net.minecraft.client.util.BufferAllocator;
 import net.minecraft.util.Identifier;
-import org.joml.Matrix4f;
 import java.util.Optional;
 import java.util.OptionalDouble;
 import java.util.OptionalInt;
 
 final class QuickLitematicaPreviewLoadingFramebuffer implements AutoCloseable {
-    private static final RenderPipeline BLIT = new OpaqueGuiPipeline(RenderPipelines.GUI_TEXTURED);
+    // 贴回 GUI 时忽略已有深度，且不写深度；与旧后端的 disableDepthTest 保持一致。
+    private static final RenderPipeline BLIT = new OpaqueGuiPipeline(RenderPipelines.GUI_TEXTURED_OVERLAY);
     private Framebuffer framebuffer;
     private GpuBuffer quad;
 
@@ -52,7 +52,14 @@ final class QuickLitematicaPreviewLoadingFramebuffer implements AutoCloseable {
             }
         }
         context.enableScissor(x + 1, y + 1, x + size - 2, y + size - 2);
+        var modelView = RenderSystem.getModelViewStack();
+        float[] previousColor = RenderSystem.getShaderColor().clone();
+        modelView.pushMatrix();
         try {
+            // 1.21.5 在 draw 前用全局状态重写预定义 uniform，pass.setUniform 的变换会被覆盖。
+            modelView.mul(context.getMatrices().peek().getPositionMatrix())
+                    .translate(x, y, 0).scale(size, size, 1);
+            RenderSystem.setShaderColor(1.0F, 1.0F, 1.0F, 1.0F);
             var main = MinecraftClient.getInstance().getFramebuffer();
             var sequential = RenderSystem.getSequentialBuffer(BLIT.getVertexFormatMode());
             var indices = sequential.getIndexBuffer(6);
@@ -63,13 +70,11 @@ final class QuickLitematicaPreviewLoadingFramebuffer implements AutoCloseable {
                 pass.setIndexBuffer(indices, sequential.getIndexType());
                 pass.enableScissor(RenderSystem.SCISSOR_STATE);
                 pass.bindSampler("Sampler0", this.framebuffer.getColorAttachment());
-                pass.setUniform("ModelViewMat", new Matrix4f(RenderSystem.getModelViewMatrix())
-                        .mul(context.getMatrices().peek().getPositionMatrix())
-                        .translate(x, y, 0).scale(size, size, 1));
-                pass.setUniform("ColorModulator", 1.0F, 1.0F, 1.0F, 1.0F);
                 pass.drawIndexed(0, 6);
             }
         } finally {
+            modelView.popMatrix();
+            RenderSystem.setShaderColor(previousColor[0], previousColor[1], previousColor[2], previousColor[3]);
             context.disableScissor();
         }
     }
