@@ -45,7 +45,7 @@ final class QuickLitematicaPreviewCache {
     static final String CACHE_DIR_NAME = "litematica-preview-cache";
     static final String CACHE_VERSION_FILE_NAME = "cache-version.txt";
     static final String CACHE_INDEX_FILE_NAME = "cache-index.properties";
-    static final String MESH_CACHE_MARKER = CACHE_RENDER_MARKER + "/entity-anchor-v1";
+    static final String MESH_CACHE_MARKER = CACHE_RENDER_MARKER + "/entity-anchor-v1/light-uv-v1";
     static final int CACHE_IO_CHUNK_BYTES = 1024 * 1024;
     private static final AtomicBoolean CACHE_DIRECTORY_READY = new AtomicBoolean();
     private static final Object CACHE_INDEX_LOCK = new Object();
@@ -399,7 +399,7 @@ final class QuickLitematicaPreviewCache {
 
     static String currentCacheVersionToken() {
         // 格式、渲染和预处理语义共同决定失效；发行版本号不影响缓存复用。
-        return CACHE_FORMAT_VERSION + "|" + CACHE_RENDER_MARKER + "|nbt-verified-inventory-v7-beacon-transparent"
+        return CACHE_FORMAT_VERSION + "|" + MESH_CACHE_MARKER + "|nbt-verified-inventory-v7-beacon-transparent"
                 + "|ctm:" + ctmRuntimeToken();
     }
 

@@ -23,6 +23,11 @@ final class QuickLitematicaPreviewVertexBuffer {
         return this.position / this.vertexBytes;
     }
 
+    static int packLightCoordinates(int u, int v) {
+        // VertexConsumer 接收已缩放的 UV，不能再按 0..15 亮度等级左移四位。
+        return (u & 0xFFFF) | ((v & 0xFFFF) << 16);
+    }
+
     void add(float x, float y, float z, int argb, float u, float v, int light, float nx, float ny, float nz) {
         this.writePrefix(x, y, z, argb, u, v);
         this.writeInt(light);

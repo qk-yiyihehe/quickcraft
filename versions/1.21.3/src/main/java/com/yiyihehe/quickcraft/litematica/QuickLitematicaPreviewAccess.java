@@ -1153,7 +1153,7 @@ final class QuickLitematicaPreviewAccess {
 
         @Override
         public VertexConsumer light(int u, int v) {
-            this.light = LightmapTextureManager.pack(u, v);
+            this.light = QuickLitematicaPreviewVertexBuffer.packLightCoordinates(u, v);
             return this;
         }
 
