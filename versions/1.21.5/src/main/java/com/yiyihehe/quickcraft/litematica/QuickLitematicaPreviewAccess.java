@@ -794,7 +794,8 @@ final class QuickLitematicaPreviewAccess {
             int previousWrite = org.lwjgl.opengl.GL11.glGetInteger(org.lwjgl.opengl.GL31.GL_COPY_WRITE_BUFFER);
             int previousArray = org.lwjgl.opengl.GL11.glGetInteger(org.lwjgl.opengl.GL15.GL_ARRAY_BUFFER_BINDING);
             try {
-                target.quickcraft$ensureAllocated();
+                // 1.21.5 的 ensureAllocated 只绑定对象；空写入才会分配存储并登记 hasData。
+                RenderSystem.getDevice().createCommandEncoder().writeToBuffer(destination, java.nio.ByteBuffer.allocateDirect(0), 0);
                 org.lwjgl.opengl.GL15.glBindBuffer(org.lwjgl.opengl.GL31.GL_COPY_WRITE_BUFFER, target.quickcraft$getId());
                 if (org.lwjgl.opengl.GL15.glGetBufferParameteri(org.lwjgl.opengl.GL31.GL_COPY_WRITE_BUFFER,
                         org.lwjgl.opengl.GL15.GL_BUFFER_SIZE) != destination.size()) {
