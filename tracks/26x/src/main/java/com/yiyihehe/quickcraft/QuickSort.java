@@ -29,6 +29,8 @@ import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.world.inventory.AbstractContainerMenu;
 import net.minecraft.world.inventory.ChestMenu;
+import net.minecraft.world.inventory.CraftingMenu;
+import net.minecraft.world.inventory.InventoryMenu;
 import net.minecraft.world.inventory.Slot;
 import net.minecraft.world.inventory.ContainerInput;
 
@@ -38,7 +40,6 @@ import java.util.HashMap;
 import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 
 /**
  * 一键整理入口。
@@ -385,9 +386,9 @@ public class QuickSort implements ClientModInitializer {
 
         long columnCount = slots.stream().map(slot -> slot.x).distinct().count();
         long rowCount = slots.stream().map(slot -> slot.y).distinct().count();
-        String handlerName = gui.getMenu().getClass().getSimpleName();
+        AbstractContainerMenu handler = gui.getMenu();
 
-        if (Objects.equals(handlerName, "CraftingScreenHandler") || Objects.equals(handlerName, "PlayerScreenHandler")) {
+        if (handler instanceof CraftingMenu || handler instanceof InventoryMenu) {
             if (columnCount <= 3 && rowCount <= 3) {
                 return false;
             }

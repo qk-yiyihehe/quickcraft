@@ -29,6 +29,8 @@ import net.minecraft.registry.RegistryKey;
 import net.minecraft.util.Identifier;
 import net.minecraft.screen.ScreenHandler;
 import net.minecraft.screen.GenericContainerScreenHandler;
+import net.minecraft.screen.CraftingScreenHandler;
+import net.minecraft.screen.PlayerScreenHandler;
 import net.minecraft.screen.slot.Slot;
 import net.minecraft.screen.slot.SlotActionType;
 
@@ -38,7 +40,6 @@ import java.util.HashMap;
 import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 
 /**
  * 一键整理入口。
@@ -379,9 +380,9 @@ public class QuickSort implements ClientModInitializer {
 
         long columnCount = slots.stream().map(slot -> slot.x).distinct().count();
         long rowCount = slots.stream().map(slot -> slot.y).distinct().count();
-        String handlerName = gui.getScreenHandler().getClass().getSimpleName();
+        ScreenHandler handler = gui.getScreenHandler();
 
-        if (Objects.equals(handlerName, "CraftingScreenHandler") || Objects.equals(handlerName, "PlayerScreenHandler")) {
+        if (handler instanceof CraftingScreenHandler || handler instanceof PlayerScreenHandler) {
             if (columnCount <= 3 && rowCount <= 3) {
                 return false;
             }
