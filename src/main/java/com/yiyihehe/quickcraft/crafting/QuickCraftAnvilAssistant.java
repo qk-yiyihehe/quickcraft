@@ -22,7 +22,8 @@ import java.util.*;
 public final class QuickCraftAnvilAssistant {
     public interface ButtonView {
         void setVisible(boolean visible);
-        void setMessage(Text message);
+        // 独立命名，避免发布映射后与原版继承方法失配。
+        void setButtonMessage(Text message);
         void setPlanTooltip(Text tooltip);
         boolean mouseScrolled(double mouseX, double mouseY, double horizontal, double vertical);
     }
@@ -401,7 +402,7 @@ public final class QuickCraftAnvilAssistant {
         var button = actionButton.get();
         if (button == null) return;
         button.setVisible(QuickCraftConfigs.Crafting.ENABLE_ANVIL_ASSISTANT.getBooleanValue());
-        button.setMessage(message(running || planner != null ? "stop_button" : plan != null ? "start_button" : "preview_button"));
+        button.setButtonMessage(message(running || planner != null ? "stop_button" : plan != null ? "start_button" : "preview_button"));
         List<Text> lines = new ArrayList<>();
         lines.add(status);
         if (pickaxe) lines.add(message("selected_plan", QuickCraftConfigs.Crafting.ANVIL_PICKAXE_PLAN.getOptionListValue().getDisplayName()));

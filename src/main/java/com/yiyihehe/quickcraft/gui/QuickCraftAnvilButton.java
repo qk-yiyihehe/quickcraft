@@ -32,6 +32,11 @@ public final class QuickCraftAnvilButton extends QuickCraftAnvilButtonAccess imp
     }
 
     @Override
+    public void setButtonMessage(net.minecraft.text.Text message) {
+        super.setMessage(message);
+    }
+
+    @Override
     public void setPlanTooltip(net.minecraft.text.Text text) {
         if (planTooltip.equals(text)) return;
         planTooltip = text;
