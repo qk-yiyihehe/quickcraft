@@ -311,6 +311,9 @@ public abstract class LitematicaSchematicVerifierMixin extends TaskBase implemen
 
     @Inject(method = "execute", at = @At("TAIL"))
     private void quickcraft$refreshContainerMismatches(CallbackInfoReturnable<Boolean> cir) {
+        // 兜底：verifyChunk 被第三方模组（如 litematicafastmove 取消 verifyChunks）跳过时，
+        // 在验证结束后补做容器收集，避免「已检查 0/0」的静默失效。
+        this.quickcraft$containerVerification.quickcraft$collectMissingContainerInventories();
         this.quickcraft$containerVerification.quickcraft$refreshContainerMismatches();
     }
 
