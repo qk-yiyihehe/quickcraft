@@ -340,7 +340,7 @@ public final class QuickLitematicaProjectionMaterials {
     }
 
     private static int available(ItemStack template) {
-        return QuickLitematicaMaterialInventory.countAvailable(List.of(template));
+        return QuickLitematicaMaterialInventory.countAvailableWithSources(List.of(template));
     }
 
     private static void updateEditorAvailability(MaterialListBase list, List<MaterialListEntry> entries) {

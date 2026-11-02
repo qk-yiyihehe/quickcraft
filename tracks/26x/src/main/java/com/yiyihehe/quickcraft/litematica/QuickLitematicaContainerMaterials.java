@@ -1366,7 +1366,7 @@ public final class QuickLitematicaContainerMaterials {
         @Override
         public int getCountAvailable() {
             // 左侧显示原材料；可用数量必须比较实际目标，不能让原版按左侧图标统计。
-            return QuickLitematicaMaterialInventory.countAvailable(this.targets);
+            return QuickLitematicaMaterialInventory.countAvailableWithSources(this.targets);
         }
     }
 
