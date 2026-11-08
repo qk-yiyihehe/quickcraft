@@ -39,13 +39,8 @@ final class QuickLitematicaEntityPlacementScreen extends QuickLitematicaEntityPl
     public void tick() {
         super.tick();
         if (this.evaluation == null || --this.evaluationRefreshTicks <= 0) {
-            this.evaluation = QuickLitematicaEntityPlacement.evaluatePlacement(this.client, this.candidates);
+            this.applyEvaluation(QuickLitematicaEntityPlacement.evaluatePlacement(this.client, this.candidates));
             this.evaluationRefreshTicks = 4;
-            this.excessDisplays.clear();
-            for (net.minecraft.entity.Entity entity : this.evaluation.excessEntities()) {
-                this.excessDisplays.put(entity,
-                        QuickLitematicaEntityPlacement.createExcessDisplay(entity, this.candidates));
-            }
         }
     }
 
@@ -238,21 +233,48 @@ final class QuickLitematicaEntityPlacementScreen extends QuickLitematicaEntityPl
         if (index < candidates.size()
                 && mouseX < left + 8 + column * SLOT_SIZE + 16
                 && mouseY < top + 18 + row * SLOT_SIZE + 16) {
-            if (QuickLitematicaEntityPlacement.requestPlacement(this.client, candidates.get(index), this.candidates)) {
-                if (countUnplacedCandidates() <= 1) {
-                    this.close();
-                } else {
-                    this.evaluationRefreshTicks = 0;
-                }
+            QuickLitematicaEntityPlacement.PlacementRequestResult result =
+                    QuickLitematicaEntityPlacement.requestPlacement(this.client, candidates.get(index), this.candidates);
+            if (this.handlePlacementResult(result)) {
+                this.close();
+            } else if (result.outcome() != QuickLitematicaEntityPlacement.PlacementRequestOutcome.REJECTED) {
+                this.evaluationRefreshTicks = 0;
             }
             return true;
         }
         return false;
     }
 
+    boolean handlePlacementResult(QuickLitematicaEntityPlacement.PlacementRequestResult result) {
+        if (result.evaluation() != null) {
+            this.applyEvaluation(result.evaluation());
+        }
+        return shouldCloseAfterPlacement(result.outcome(), this.countUnplacedCandidates());
+    }
+
+    void applyEvaluation(QuickLitematicaEntityPlacement.PlacementEvaluation evaluation) {
+        this.evaluation = evaluation;
+        this.excessDisplays.clear();
+        for (net.minecraft.entity.Entity entity : evaluation.excessEntities()) {
+            this.excessDisplays.put(entity,
+                    QuickLitematicaEntityPlacement.createExcessDisplay(entity, this.candidates));
+        }
+    }
+
+    static boolean shouldCloseAfterPlacement(
+            QuickLitematicaEntityPlacement.PlacementRequestOutcome outcome,
+            int remainingCandidates
+    ) {
+        return switch (outcome) {
+            case REQUEST_SENT -> remainingCandidates <= 1;
+            case ALREADY_HANDLED -> remainingCandidates == 0;
+            case REJECTED -> false;
+        };
+    }
+
     private int countUnplacedCandidates() {
         if (this.evaluation == null) {
-            this.evaluation = QuickLitematicaEntityPlacement.evaluatePlacement(this.client, this.candidates);
+            this.applyEvaluation(QuickLitematicaEntityPlacement.evaluatePlacement(this.client, this.candidates));
         }
         int remaining = 0;
         for (QuickLitematicaEntityPlacement.Candidate candidate : this.candidates) {

@@ -24,6 +24,51 @@ class QuickLitematicaEntityMaterialsTest {
     }
 
     @Test
+    void freshRequestEvaluationReplacesStaleCacheAndClosesCompletedLastCandidate() {
+        QuickLitematicaEntityPlacement.Candidate candidate = mock(QuickLitematicaEntityPlacement.Candidate.class);
+        QuickLitematicaEntityPlacementScreen screen = testScreen(List.of(candidate));
+        screen.applyEvaluation(new QuickLitematicaEntityPlacement.PlacementEvaluation(
+                java.util.Map.of(candidate, QuickLitematicaEntityPlacement.PlacementStatus.UNPLACED), List.of()));
+        QuickLitematicaEntityPlacement.PlacementEvaluation fresh = new QuickLitematicaEntityPlacement.PlacementEvaluation(
+                java.util.Map.of(candidate, QuickLitematicaEntityPlacement.PlacementStatus.MATCHED), List.of());
+        QuickLitematicaEntityPlacement.PlacementRequestResult result = new QuickLitematicaEntityPlacement.PlacementRequestResult(
+                QuickLitematicaEntityPlacement.PlacementRequestOutcome.ALREADY_HANDLED, fresh);
+
+        assertThat(screen.handlePlacementResult(result)).isTrue();
+    }
+
+    @Test
+    void freshRequestEvaluationKeepsOpenWhenAnotherCandidateRemains() {
+        QuickLitematicaEntityPlacement.Candidate completed = mock(QuickLitematicaEntityPlacement.Candidate.class);
+        QuickLitematicaEntityPlacement.Candidate pending = mock(QuickLitematicaEntityPlacement.Candidate.class);
+        QuickLitematicaEntityPlacementScreen screen = testScreen(List.of(completed, pending));
+        screen.applyEvaluation(new QuickLitematicaEntityPlacement.PlacementEvaluation(
+                java.util.Map.of(completed, QuickLitematicaEntityPlacement.PlacementStatus.UNPLACED,
+                        pending, QuickLitematicaEntityPlacement.PlacementStatus.UNPLACED), List.of()));
+        QuickLitematicaEntityPlacement.PlacementEvaluation fresh = new QuickLitematicaEntityPlacement.PlacementEvaluation(
+                java.util.Map.of(completed, QuickLitematicaEntityPlacement.PlacementStatus.MATCHED,
+                        pending, QuickLitematicaEntityPlacement.PlacementStatus.UNPLACED), List.of());
+        QuickLitematicaEntityPlacement.PlacementRequestResult result = new QuickLitematicaEntityPlacement.PlacementRequestResult(
+                QuickLitematicaEntityPlacement.PlacementRequestOutcome.ALREADY_HANDLED, fresh);
+
+        assertThat(screen.handlePlacementResult(result)).isFalse();
+    }
+
+    @Test
+    void rejectedRequestKeepsScreenOpen() {
+        QuickLitematicaEntityPlacement.Candidate candidate = mock(QuickLitematicaEntityPlacement.Candidate.class);
+        QuickLitematicaEntityPlacementScreen screen = testScreen(List.of(candidate));
+        screen.applyEvaluation(new QuickLitematicaEntityPlacement.PlacementEvaluation(
+                java.util.Map.of(candidate, QuickLitematicaEntityPlacement.PlacementStatus.UNPLACED), List.of()));
+        QuickLitematicaEntityPlacement.PlacementEvaluation fresh = new QuickLitematicaEntityPlacement.PlacementEvaluation(
+                java.util.Map.of(candidate, QuickLitematicaEntityPlacement.PlacementStatus.MATCHED), List.of());
+        QuickLitematicaEntityPlacement.PlacementRequestResult result = new QuickLitematicaEntityPlacement.PlacementRequestResult(
+                QuickLitematicaEntityPlacement.PlacementRequestOutcome.REJECTED, fresh);
+
+        assertThat(screen.handlePlacementResult(result)).isFalse();
+    }
+
+    @Test
     void hudFallbackCanBeSortedWithoutChangingSource() {
         var list = mock(MaterialListBase.class);
         var first = new MaterialListEntry(new ItemStack(Items.MINECART), 2, 2, 0, 0);
@@ -115,6 +160,24 @@ class QuickLitematicaEntityMaterialsTest {
         var result = new ArrayList<ItemStack>();
         QuickLitematicaEntityMaterials.appendMaterials(mob, null, result, 9);
         assertThat(result).isEmpty();
+    }
+
+    private static QuickLitematicaEntityPlacementScreen testScreen(List<QuickLitematicaEntityPlacement.Candidate> candidates) {
+        QuickLitematicaEntityPlacementScreen screen = mock(QuickLitematicaEntityPlacementScreen.class,
+                withSettings().defaultAnswer(CALLS_REAL_METHODS));
+        try {
+            setField(screen, "candidates", candidates);
+            setField(screen, "excessDisplays", new java.util.IdentityHashMap<>());
+            return screen;
+        } catch (ReflectiveOperationException failure) {
+            throw new AssertionError(failure);
+        }
+    }
+
+    private static void setField(Object target, String name, Object value) throws ReflectiveOperationException {
+        var field = QuickLitematicaEntityPlacementScreen.class.getDeclaredField(name);
+        field.setAccessible(true);
+        field.set(target, value);
     }
 
     private static List<ItemStack> materials(NbtCompound... entities) {

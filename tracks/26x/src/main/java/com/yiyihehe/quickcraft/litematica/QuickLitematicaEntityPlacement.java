@@ -41,6 +41,7 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.world.phys.Vec3;
 import net.minecraft.tags.BlockTags;
+import org.jetbrains.annotations.Nullable;
 
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -143,27 +144,32 @@ public final class QuickLitematicaEntityPlacement {
         return QuickLitematicaEntityPlacementAccess.isItemEntityType(type);
     }
 
-    public static boolean requestPlacement(
+    public static PlacementRequestResult requestPlacement(
             Minecraft client,
             Candidate candidate,
             List<Candidate> candidates
     ) {
         if (!QuickCraftConfigs.isEasyPlaceEntitiesEnabled() || !isServerAvailable() || candidate == null) {
-            return false;
+            return new PlacementRequestResult(PlacementRequestOutcome.REJECTED, null);
         }
-        PlacementStatus status = evaluatePlacementStatuses(client, candidates)
+        PlacementEvaluation evaluation = evaluatePlacement(client, candidates);
+        PlacementStatus status = evaluation.statuses()
                 .getOrDefault(candidate, PlacementStatus.UNPLACED);
         if (status == PlacementStatus.MATCHED) {
             if (client.player != null) {
                 showOverlay(client, Component.translatable("quickcraft.entity_placement.already_placed"));
             }
-            return true;
+            return new PlacementRequestResult(PlacementRequestOutcome.ALREADY_HANDLED, evaluation);
         }
         if (pendingRequests.values().stream().anyMatch(request -> request.key.equals(candidate.key()))) {
-            return true;
+            return new PlacementRequestResult(PlacementRequestOutcome.ALREADY_HANDLED, evaluation);
         }
 
-        return sendRequest(client, candidate);
+        boolean sent = sendRequest(client, candidate);
+        return new PlacementRequestResult(
+                sent ? PlacementRequestOutcome.REQUEST_SENT : PlacementRequestOutcome.REJECTED,
+                evaluation
+        );
     }
 
     public static boolean isServerAvailable() {
@@ -314,13 +320,6 @@ public final class QuickLitematicaEntityPlacement {
             }
         }
         return candidates;
-    }
-
-    static Map<Candidate, PlacementStatus> evaluatePlacementStatuses(
-            Minecraft client,
-            List<Candidate> candidates
-    ) {
-        return evaluatePlacement(client, candidates).statuses();
     }
 
     static PlacementEvaluation evaluatePlacement(
@@ -1353,6 +1352,15 @@ public final class QuickLitematicaEntityPlacement {
         MATCHED,
         MISMATCHED,
         WRONG
+    }
+
+    record PlacementRequestResult(PlacementRequestOutcome outcome, @Nullable PlacementEvaluation evaluation) {
+    }
+
+    enum PlacementRequestOutcome {
+        REQUEST_SENT,
+        ALREADY_HANDLED,
+        REJECTED
     }
 
     enum ContainerPreviewType {
