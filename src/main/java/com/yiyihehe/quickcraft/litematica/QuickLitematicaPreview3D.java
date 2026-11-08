@@ -305,7 +305,7 @@ public final class QuickLitematicaPreview3D {
             }
 
             Path path = entryPath(entry).toAbsolutePath().normalize();
-            if (!path.equals(this.currentPath)) {
+            if (shouldSwitchPreviewSource(this.currentPath, path, this.current != null)) {
                 this.switchTo(path, entry);
             }
             this.currentEntry = entry;
@@ -919,6 +919,10 @@ public final class QuickLitematicaPreview3D {
             this.clearCurrent();
         }
     }
+    static boolean shouldSwitchPreviewSource(@Nullable Path currentPath, Path requestedPath, boolean hasCurrent) {
+        return !requestedPath.equals(currentPath) || !hasCurrent;
+    }
+
     static void runBuildTask(Runnable work, Consumer<Throwable> failureSink) {
         // submit 会把 Error 收进无人读取的 Future，必须在任务内交接失败与资源清理。
         try {

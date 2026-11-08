@@ -33,6 +33,15 @@ class QuickLitematicaPreview3DCacheTest {
     }
 
     @Test
+    void recreatesPreviewWhenLauncherRecordedTheSamePathWithoutCreatingOne() {
+        Path path = this.temporaryDirectory.resolve("same-path.litematic");
+        assertThat(QuickLitematicaPreview3D.shouldSwitchPreviewSource(path, path, false)).isTrue();
+        assertThat(QuickLitematicaPreview3D.shouldSwitchPreviewSource(path, path, true)).isFalse();
+        assertThat(QuickLitematicaPreview3D.shouldSwitchPreviewSource(
+                path, this.temporaryDirectory.resolve("other.litematic"), true)).isTrue();
+    }
+
+    @Test
     void preservesOversizedDynamicCacheAndReadsItWhenForced() throws Exception {
         Path cache = this.temporaryDirectory.resolve("forced.qcp3d");
         int count = QuickLitematicaPreview3D.MAX_DYNAMIC_ENTITIES + 1;

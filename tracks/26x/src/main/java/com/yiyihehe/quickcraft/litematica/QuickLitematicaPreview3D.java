@@ -374,7 +374,7 @@ public final class QuickLitematicaPreview3D {
             }
 
             Path path = entry.getFullPath().toAbsolutePath().normalize();
-            if (!path.equals(this.currentPath)) {
+            if (shouldSwitchPreviewSource(this.currentPath, path, this.current != null)) {
                 this.switchTo(path, entry);
             }
             this.currentEntry = entry;
@@ -873,6 +873,10 @@ public final class QuickLitematicaPreview3D {
 
     private static boolean isSupportedLitematic(DirectoryEntry entry) {
         return Files.isRegularFile(entry.getFullPath()) && FileType.fromFile(entry.getFullPath()) == FileType.LITEMATICA_SCHEMATIC;
+    }
+
+    static boolean shouldSwitchPreviewSource(@Nullable Path currentPath, Path requestedPath, boolean hasCurrent) {
+        return !requestedPath.equals(currentPath) || !hasCurrent;
     }
 
     static void runBuildTask(Runnable work, Consumer<Throwable> failureSink) {
