@@ -24,6 +24,57 @@ class QuickLitematicaMaterialNavigationTest {
     }
 
     @Test
+    void thumbDragKeepsRowThreeAcrossHorizontalAndRoundTripMovement() {
+        int gridY = 0;
+        int gridHeight = 140;
+        int thumbHeight = 18;
+        int maxRow = 95;
+        int startRow = 3;
+        int pressY = 8;
+        int thumbY = QuickLitematicaMaterialReplacementScreen.scrollbarThumbY(
+                gridY, gridHeight, thumbHeight, maxRow, startRow);
+        assertThat(thumbY).isEqualTo(3);
+        assertThat(QuickLitematicaMaterialReplacementScreen.scrollbarRowAtPress(
+                pressY, gridY, gridHeight, thumbHeight, maxRow, startRow)).isEqualTo(startRow);
+        assertThat(QuickLitematicaMaterialReplacementScreen.scrollbarRowFromDrag(
+                startRow, pressY, pressY, gridHeight, thumbHeight, maxRow)).isEqualTo(startRow);
+        assertThat(QuickLitematicaMaterialReplacementScreen.scrollbarRowFromDrag(
+                startRow, pressY, pressY + 40, gridHeight, thumbHeight, maxRow)).isGreaterThan(startRow);
+        assertThat(QuickLitematicaMaterialReplacementScreen.scrollbarRowFromDrag(
+                startRow, pressY, pressY, gridHeight, thumbHeight, maxRow)).isEqualTo(startRow);
+        assertThat(QuickLitematicaMaterialReplacementScreen.scrollbarRowFromDrag(
+                startRow, pressY, -1000, gridHeight, thumbHeight, maxRow)).isZero();
+        assertThat(QuickLitematicaMaterialReplacementScreen.scrollbarRowFromDrag(
+                startRow, pressY, 1000, gridHeight, thumbHeight, maxRow)).isEqualTo(maxRow);
+    }
+
+    @Test
+    void trackPressStillJumpsBeforeDrag() {
+        int gridY = 0;
+        int gridHeight = 140;
+        int thumbHeight = 18;
+        int maxRow = 95;
+        int rowIndex = 50;
+        assertThat(QuickLitematicaMaterialReplacementScreen.scrollbarRowAtPress(
+                40, gridY, gridHeight, thumbHeight, maxRow, rowIndex)).isEqualTo(24);
+        assertThat(QuickLitematicaMaterialReplacementScreen.scrollbarRowAtPress(
+                0, gridY, gridHeight, thumbHeight, maxRow, rowIndex)).isZero();
+        assertThat(QuickLitematicaMaterialReplacementScreen.scrollbarRowAtPress(
+                gridHeight - 1, gridY, gridHeight, thumbHeight, maxRow, rowIndex)).isEqualTo(maxRow);
+    }
+
+    @Test
+    void explicitCountMustBePositiveAndWithinStackLimitWhileBlankKeepsSourceCount() {
+        assertThat(QuickLitematicaMaterialReplacementScreen.isCountInputValid("", 64)).isTrue();
+        assertThat(QuickLitematicaMaterialReplacementScreen.isCountInputValid("   ", 64)).isTrue();
+        assertThat(QuickLitematicaMaterialReplacementScreen.isCountInputValid("0", 64)).isFalse();
+        assertThat(QuickLitematicaMaterialReplacementScreen.isCountInputValid("-1", 64)).isFalse();
+        assertThat(QuickLitematicaMaterialReplacementScreen.isCountInputValid("abc", 64)).isFalse();
+        assertThat(QuickLitematicaMaterialReplacementScreen.isCountInputValid("64", 64)).isTrue();
+        assertThat(QuickLitematicaMaterialReplacementScreen.isCountInputValid("65", 64)).isFalse();
+    }
+
+    @Test
     void wrapsEveryButtonWithoutHidingOperations() {
         var layout = QuickLitematicaMaterialLayout.rows(100, 0, new int[] {40, 50, 70});
         assertThat(layout.slots()).containsExactly(

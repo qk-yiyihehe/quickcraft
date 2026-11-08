@@ -42,10 +42,13 @@ public final class QuickLitematicaMaterialGui {
     }
     public static boolean controlDown() { return net.minecraft.client.MinecraftClient.getInstance().isCtrlPressed(); }
     abstract static class BaseScreen extends GuiBase {
+        private int activeClickModifiers;
         protected void drawMaterialContents(Context context, int x, int y, float ticks) {}
         protected void drawMaterialButtons(int x, int y, float ticks, Context context) { super.drawButtons(context.nativeContext, x, y, ticks); }
         protected void drawMaterialFields(int x, int y, Context context) { super.drawTextFields(context.nativeContext, x, y); }
-        public boolean materialMouseClicked(int x, int y, int button) { return super.onMouseClicked(new Click(x,y,new MouseInput(button,0)), false); }
+        public boolean materialMouseClicked(int x, int y, int button) {
+            return super.onMouseClicked(new Click(x, y, new MouseInput(button, this.activeClickModifiers)), false);
+        }
         public boolean materialMouseReleased(int x, int y, int button) { return super.onMouseReleased(new Click(x,y,new MouseInput(button,0))); }
         public boolean materialMouseScrolled(int x, int y, double horizontal, double vertical) { return super.onMouseScrolled(x, y, horizontal, vertical); }
         public boolean materialMouseDragged(double x, double y, int button, double dx, double dy) { return super.mouseDragged(new Click(x,y,new MouseInput(button,0)),dx,dy); }
@@ -54,7 +57,15 @@ public final class QuickLitematicaMaterialGui {
         @Override protected void drawContents(DrawContext c, int x, int y, float ticks) { this.drawMaterialContents(new Context(c), x, y, ticks); }
         @Override protected void drawButtons(DrawContext c, int x, int y, float ticks) { this.drawMaterialButtons(x, y, ticks, new Context(c)); }
         @Override protected void drawTextFields(DrawContext c, int x, int y) { this.drawMaterialFields(x, y, new Context(c)); }
-        @Override public boolean onMouseClicked(Click c, boolean doubleClick) { return this.materialMouseClicked((int)c.x(), (int)c.y(), c.button()); }
+        @Override public boolean onMouseClicked(Click c, boolean doubleClick) {
+            int previousModifiers = this.activeClickModifiers;
+            this.activeClickModifiers = c.modifiers();
+            try {
+                return this.materialMouseClicked((int)c.x(), (int)c.y(), c.button());
+            } finally {
+                this.activeClickModifiers = previousModifiers;
+            }
+        }
         @Override public boolean onMouseReleased(Click c) { return this.materialMouseReleased((int)c.x(), (int)c.y(), c.button()); }
         @Override public boolean onMouseScrolled(double x, double y, double h, double v) { return this.materialMouseScrolled((int)x, (int)y, h, v); }
         @Override public boolean onKeyTyped(KeyInput input) { return this.materialKeyTyped(input.key(), input.scancode(), input.modifiers()); }

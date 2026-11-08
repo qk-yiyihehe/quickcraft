@@ -70,7 +70,8 @@ public final class QuickLitematicaMaterialReplacementScreen extends QuickLitemat
     private int panelHeight;
     private int rowIndex;
     private boolean draggingScrollbar;
-    private int scrollbarDragOffset;
+    private int scrollbarDragStartRow;
+    private int scrollbarDragStartMouseY;
 
     public QuickLitematicaMaterialReplacementScreen(
             Screen parent,
@@ -277,10 +278,8 @@ public final class QuickLitematicaMaterialReplacementScreen extends QuickLitemat
                 && mouseY >= gridY && mouseY < gridY + gridHeight) {
             int maxRow = this.getMaxRowIndex();
             if (maxRow > 0) {
-                int thumbY = this.getScrollbarThumbY(gridY);
                 this.draggingScrollbar = true;
-                this.scrollbarDragOffset = Math.max(0, mouseY - thumbY);
-                this.setRowFromScrollbarMouse(mouseY);
+                this.beginScrollbarDrag(gridY, mouseY);
             }
             return true;
         }
@@ -323,7 +322,9 @@ public final class QuickLitematicaMaterialReplacementScreen extends QuickLitemat
     @Override
     public boolean materialMouseDragged(double mouseX, double mouseY, int button, double deltaX, double deltaY) {
         if (this.draggingScrollbar) {
-            this.setRowFromScrollbarMouse((int) mouseY - this.scrollbarDragOffset + this.getScrollbarThumbHeight() / 2);
+            this.rowIndex = scrollbarRowFromDrag(this.scrollbarDragStartRow, this.scrollbarDragStartMouseY,
+                    (int) mouseY, this.getGridRows() * this.getGridCellSize(),
+                    this.getScrollbarThumbHeight(), this.getMaxRowIndex());
             return true;
         }
         return super.materialMouseDragged(mouseX, mouseY, button, deltaX, deltaY);
@@ -597,18 +598,44 @@ public final class QuickLitematicaMaterialReplacementScreen extends QuickLitemat
     }
 
     private int getScrollbarThumbY(int gridY) {
-        int gridHeight = this.getGridRows() * this.getGridCellSize();
-        int maxRow = this.getMaxRowIndex();
-        int travel = Math.max(0, gridHeight - this.getScrollbarThumbHeight());
-        return gridY + (maxRow == 0 ? 0 : travel * this.rowIndex / maxRow);
+        return scrollbarThumbY(gridY, this.getGridRows() * this.getGridCellSize(),
+                this.getScrollbarThumbHeight(), this.getMaxRowIndex(), this.rowIndex);
     }
 
-    private void setRowFromScrollbarMouse(int mouseY) {
-        int gridY = this.panelY + GRID_TOP;
-        int travel = Math.max(1, this.getGridRows() * this.getGridCellSize() - this.getScrollbarThumbHeight());
-        double fraction = (double) (mouseY - gridY - this.getScrollbarThumbHeight() / 2) / travel;
-        this.rowIndex = Math.max(0, Math.min(this.getMaxRowIndex(),
-                (int) Math.round(fraction * this.getMaxRowIndex())));
+    static int scrollbarThumbY(int gridY, int gridHeight, int thumbHeight, int maxRow, int rowIndex) {
+        int travel = Math.max(0, gridHeight - thumbHeight);
+        int row = Math.max(0, Math.min(maxRow, rowIndex));
+        return gridY + (maxRow == 0 ? 0 : travel * row / maxRow);
+    }
+
+    static int scrollbarRowFromMouse(int mouseY, int gridY, int gridHeight, int thumbHeight, int maxRow) {
+        int travel = Math.max(1, gridHeight - thumbHeight);
+        double fraction = (double) (mouseY - gridY - thumbHeight / 2) / travel;
+        return Math.max(0, Math.min(maxRow, (int) Math.round(fraction * maxRow)));
+    }
+
+    static int scrollbarRowAtPress(int mouseY, int gridY, int gridHeight,
+                                   int thumbHeight, int maxRow, int rowIndex) {
+        int row = Math.max(0, Math.min(maxRow, rowIndex));
+        int thumbY = scrollbarThumbY(gridY, gridHeight, thumbHeight, maxRow, row);
+        return mouseY >= thumbY && mouseY < thumbY + thumbHeight
+                ? row
+                : scrollbarRowFromMouse(mouseY, gridY, gridHeight, thumbHeight, maxRow);
+    }
+
+    static int scrollbarRowFromDrag(int startRow, int startMouseY, int mouseY,
+                                    int gridHeight, int thumbHeight, int maxRow) {
+        int travel = Math.max(1, gridHeight - thumbHeight);
+        int rowDelta = (int) Math.round((mouseY - startMouseY) * (double) maxRow / travel);
+        return Math.max(0, Math.min(maxRow, startRow + rowDelta));
+    }
+
+    private void beginScrollbarDrag(int gridY, int mouseY) {
+        this.rowIndex = scrollbarRowAtPress(mouseY, gridY,
+                this.getGridRows() * this.getGridCellSize(), this.getScrollbarThumbHeight(),
+                this.getMaxRowIndex(), this.rowIndex);
+        this.scrollbarDragStartRow = this.rowIndex;
+        this.scrollbarDragStartMouseY = mouseY;
     }
 
     private void sortCreativeOrder() {
@@ -669,21 +696,44 @@ public final class QuickLitematicaMaterialReplacementScreen extends QuickLitemat
             target.set(DataComponentTypes.CUSTOM_NAME, Text.literal(this.targetName));
         }
         int count = Math.max(1, this.source.getCount());
-        if (this.binding.supportsCount() && !this.countText.isBlank()) {
-            try { count = Integer.parseInt(this.countText.trim()); }
-            catch (NumberFormatException ignored) { count = 0; }
+        if (this.binding.supportsCount() && !this.countText.isBlank()
+                && isCountInputValid(this.countText, this.selectedTemplate.getMaxCount())) {
+            count = Integer.parseInt(this.countText.trim());
         }
         target.setCount(count);
         return target;
+    }
+
+    static boolean isCountInputValid(String countText, int maxCount) {
+        if (countText == null || countText.isBlank()) {
+            return true;
+        }
+        try {
+            int count = Integer.parseInt(countText.trim());
+            return count >= 1 && count <= maxCount;
+        } catch (NumberFormatException ignored) {
+            return false;
+        }
     }
 
     private void apply() {
         if (this.selectedItem == null) {
             return;
         }
+        if (this.selectedItem != Items.AIR
+                && this.binding.supportsCount()
+                && !isCountInputValid(this.countText, this.selectedTemplate.getMaxCount())) {
+            this.validationError = StringUtils.translate(
+                    "quickcraft.litematica.label.material_replace_count_error",
+                    this.selectedTemplate.getMaxCount());
+            return;
+        }
         ItemStack target = this.editedTarget();
-        if (this.binding.supportsCount() && !target.isEmpty() && (target.getCount() < 1 || target.getCount() > target.getMaxCount())) {
-            this.validationError = StringUtils.translate("quickcraft.litematica.label.material_replace_count_error", this.selectedTemplate.getMaxCount());
+        if (this.binding.supportsCount() && !target.isEmpty()
+                && (target.getCount() < 1 || target.getCount() > target.getMaxCount())) {
+            this.validationError = StringUtils.translate(
+                    "quickcraft.litematica.label.material_replace_count_error",
+                    this.selectedTemplate.getMaxCount());
             return;
         }
         boolean preserveCount = this.binding.supportsCount() && this.countText.isBlank();
