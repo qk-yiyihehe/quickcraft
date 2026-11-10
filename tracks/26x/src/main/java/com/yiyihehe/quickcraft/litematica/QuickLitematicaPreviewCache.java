@@ -49,6 +49,7 @@ final class QuickLitematicaPreviewCache {
     static final String CACHE_RENDER_MARKER = QuickLitematicaPreviewAccess.getCacheRenderMarker();
     static final String MESH_CACHE_MARKER = CACHE_RENDER_MARKER + "/entity-anchor-v1/identity-v2";
     static final int CACHE_IO_CHUNK_BYTES = 64 * 1024;
+    static final long FAST_TEMP_STALE_MILLIS = 60L * 60L * 1000L;
     private static final AtomicBoolean CACHE_DIRECTORY_READY = new AtomicBoolean();
     private static final Object CACHE_DIRECTORY_LOCK = new Object();
     private static final Object CACHE_INDEX_LOCK = new Object();
@@ -403,12 +404,25 @@ final class QuickLitematicaPreviewCache {
                             String name = path.getFileName().toString();
                             return name.endsWith(".tmp")
                                     || name.endsWith(".converted.tmp.litematic")
+                                    || isStaleFastTemporary(path, name)
                                     || (name.endsWith(".qcp3d") || name.endsWith(".converted.litematic"))
                                     && !retainedCacheFiles.contains(name);
                         })
                         .forEach(QuickLitematicaPreviewCache::deleteQuietly);
             }
             writeCacheIndex(cacheDir);
+        }
+    }
+
+    private static boolean isStaleFastTemporary(Path path, String name) {
+        if (!QuickLitematicaPreviewSchematicFiles.isFastTemporaryName(name)) {
+            return false;
+        }
+        try {
+            return Files.getLastModifiedTime(path).toMillis() + FAST_TEMP_STALE_MILLIS < System.currentTimeMillis();
+        } catch (IOException ignored) {
+            // 正在被其他进程使用或无法读取时间时不删除。
+            return false;
         }
     }
 

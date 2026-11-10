@@ -467,8 +467,63 @@ class QuickLitematicaPreview3DCacheTest {
     }
 
     @Test
+    void startupCleanupRemovesOnlyExactFastPreparationTempFilesAndKeepsIndexedCache() throws Exception {
+        Path cacheDir = this.temporaryDirectory.resolve("cache-cleanup");
+        Files.createDirectories(cacheDir);
+        Files.writeString(cacheDir.resolve("cache-version.txt"), QuickLitematicaPreviewCache.currentCacheVersionToken());
+
+        Path source = this.temporaryDirectory.resolve("source.litematic");
+        Files.writeString(source, "source");
+        Path retained = cacheDir.resolve("kept.qcp3d");
+        Files.writeString(retained, "mesh");
+        String convertedFingerprint = "converted-structure";
+        String convertedSignature = "converted-signature";
+        Path retainedConverted = QuickLitematicaPreviewCache.convertedCachePath(
+                cacheDir, "kept", convertedFingerprint, convertedSignature);
+        Files.writeString(retainedConverted, "converted");
+        java.util.Properties index = new java.util.Properties();
+        index.setProperty("kept.path", source.toString());
+        index.setProperty("kept.sourceHash", "source-hash");
+        index.setProperty("kept.resourceSignature", "resource-signature");
+        index.setProperty("kept.structureFingerprint", "structure-fingerprint");
+        index.setProperty("kept.convertedSourceHash", "source-hash");
+        index.setProperty("kept.convertedResourceSignature", convertedSignature);
+        index.setProperty("kept.convertedStructureFingerprint", convertedFingerprint);
+        try (var output = Files.newOutputStream(cacheDir.resolve("cache-index.properties"))) {
+            index.store(output, null);
+        }
+
+        Path fastTemp = cacheDir.resolve("fast-123456.fast.tmp.litematic");
+        Path freshFastTemp = cacheDir.resolve("fast-654321.fast.tmp.litematic");
+        Path foreignFastName = cacheDir.resolve("fast-not-a-number.fast.tmp.litematic");
+        Path foreignTmpName = cacheDir.resolve("my.fast.tmp.litematic");
+        Path schematic = cacheDir.resolve("author-schematic.litematic");
+        Files.writeString(fastTemp, "stale");
+        Files.setLastModifiedTime(fastTemp, java.nio.file.attribute.FileTime.fromMillis(
+                System.currentTimeMillis() - QuickLitematicaPreviewCache.FAST_TEMP_STALE_MILLIS - 60_000L
+        ));
+        Files.writeString(freshFastTemp, "in-use");
+        Files.writeString(foreignFastName, "foreign");
+        Files.writeString(foreignTmpName, "foreign");
+        Files.writeString(schematic, "source");
+
+        try {
+            assertThat(QuickLitematicaPreviewCache.prepareCacheDirectory(cacheDir)).isTrue();
+            assertThat(fastTemp).doesNotExist();
+            assertThat(freshFastTemp).exists();
+            assertThat(foreignFastName).exists();
+            assertThat(foreignTmpName).exists();
+            assertThat(schematic).exists();
+            assertThat(retained).exists();
+            assertThat(retainedConverted).exists();
+        } finally {
+            clearCacheIndex();
+        }
+    }
+
+    @Test
     void stalePreviewImageWriteCallbackCannotClearNewerOperation() {
-        var manager = new QuickLitematicaPreview3D.Manager(null, () -> {});
+        var manager = new QuickLitematicaPreview3D.Manager(null);
         long first = manager.beginPreviewImageWrite();
         assertThat(first).isNotZero();
         manager.completePreviewImageWrite(first);

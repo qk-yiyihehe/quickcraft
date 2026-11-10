@@ -35,13 +35,25 @@ import java.util.function.Predicate;
 import java.util.function.Function;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.regex.Pattern;
 import java.util.zip.GZIPInputStream;
 import static com.yiyihehe.quickcraft.litematica.QuickLitematicaPreview3D.*;
 import static com.yiyihehe.quickcraft.litematica.QuickLitematicaPreviewCache.*;
 
 /** 预览专用原理图读取、可见数据保留与转换文件写入；取消传播和临时文件清理集中处理。 */
 final class QuickLitematicaPreviewSchematicFiles {
+    private static final Pattern FAST_TEMP_PATTERN =
+            Pattern.compile("fast-[0-9]+\\.fast\\.tmp\\.litematic");
+
     private QuickLitematicaPreviewSchematicFiles() {
+    }
+
+    static String fastTemporaryName() {
+        return "fast-" + Long.toUnsignedString(System.nanoTime()) + ".fast.tmp.litematic";
+    }
+
+    static boolean isFastTemporaryName(String name) {
+        return FAST_TEMP_PATTERN.matcher(name).matches();
     }
 
     static synchronized boolean writeConvertedSchematic(LitematicaSchematic schematic, Path convertedPath, String cacheSlot) {
@@ -537,7 +549,7 @@ final class QuickLitematicaPreviewSchematicFiles {
             if (!stats.modified()) return null;
             Path cacheDir = cacheDirectory();
             if (cacheDir == null) return null;
-            Path temporary = cacheDir.resolve("fast-" + Long.toUnsignedString(System.nanoTime()) + ".fast.tmp.litematic");
+            Path temporary = cacheDir.resolve(fastTemporaryName());
             // 上游 NBT 构造器先解析、后初始化 converter，旧数据后处理会抛异常；文件入口初始化顺序正确。
             try (var phase = QuickLitematicaPreviewLog.phase("预处理临时文件写入/上游解析")) {
                 try (OutputStream os = Files.newOutputStream(temporary);
