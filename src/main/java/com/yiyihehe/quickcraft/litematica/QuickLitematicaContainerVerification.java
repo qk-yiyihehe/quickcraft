@@ -26,7 +26,9 @@ import fi.dy.masa.malilib.interfaces.ICompletionListener;
 import fi.dy.masa.malilib.util.IntBoundingBox;
 import fi.dy.masa.malilib.util.StringUtils;
 import net.minecraft.block.BlockState;
+import net.minecraft.block.ChestBlock;
 import net.minecraft.block.entity.BlockEntity;
+import net.minecraft.block.enums.ChestType;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.world.ClientWorld;
 import net.minecraft.inventory.Inventory;
@@ -72,7 +74,10 @@ public final class QuickLitematicaContainerVerification implements VerifierExten
         List<SchematicVerifier> quickcraft$activeVerifiers();
     }
 
-    private final Map<BlockPos, List<ItemStack>> materialMissing = new HashMap<>();
+    private record MaterialMissingKey(BlockPos pos, boolean doubleChest) {
+    }
+
+    private final Map<MaterialMissingKey, List<ItemStack>> materialMissing = new HashMap<>();
 
     private final Host host;
 
@@ -168,6 +173,7 @@ public final class QuickLitematicaContainerVerification implements VerifierExten
 
     private void recordMaterialMissing(World world, BlockPos pos, Inventory found, int size) {
         if (!QuickLitematicaGlobalReplacements.hasRuntimeRules()) { return; }
+        this.quickcraft$removeMaterialMissingAt(world, pos, size);
         Inventory expected = QuickLitematicaContainerVerifier.getMaterialInventoryAt(world, pos, size);
         if (expected == null) { return; }
         List<ItemStack> missing = new ArrayList<>();
@@ -178,7 +184,45 @@ public final class QuickLitematicaContainerVerification implements VerifierExten
                     ? Math.max(0, target.getCount() - actual.getCount()) : target.getCount();
             if (!target.isEmpty() && count > 0) { missing.add(target.copyWithCount(count)); }
         }
-        this.materialMissing.put(pos.toImmutable(), missing);
+        this.materialMissing.put(new MaterialMissingKey(
+                quickcraft$materialMissingKey(world, pos, size), size == 54), missing);
+    }
+
+    private void quickcraft$removeMaterialMissingAt(World world, BlockPos pos, int size) {
+        BlockPos immutable = pos.toImmutable();
+        this.materialMissing.remove(new MaterialMissingKey(immutable, false));
+
+        // 27格逐半初扫只替换当前半；54格菜单才覆盖整对，并清掉旧的两半表示。
+        BlockPos doubleKey = quickcraft$materialMissingKey(world, pos, 54);
+        this.materialMissing.remove(new MaterialMissingKey(doubleKey, true));
+        if (size != 54) {
+            return;
+        }
+
+        BlockState state = world.getBlockState(pos);
+        if (QuickLitematicaContainerInventory.getChestType(state) == ChestType.SINGLE) {
+            return;
+        }
+        BlockPos adjacentPos = pos.add(ChestBlock.getFacing(state).getVector());
+        this.materialMissing.remove(new MaterialMissingKey(adjacentPos.toImmutable(), false));
+    }
+
+    BlockPos quickcraft$materialMissingKey(World world, BlockPos pos, int size) {
+        BlockPos immutable = pos.toImmutable();
+        if (size != 54) {
+            return immutable;
+        }
+        BlockState state = world.getBlockState(pos);
+        if (QuickLitematicaContainerInventory.getChestType(state) == ChestType.SINGLE) {
+            return immutable;
+        }
+        BlockPos adjacentPos = pos.add(ChestBlock.getFacing(state).getVector());
+        BlockState adjacentState = world.getBlockState(adjacentPos);
+        if (!QuickLitematicaContainerVerifier.isMatchingDoubleChest(state, adjacentState)) {
+            return immutable;
+        }
+        // 菜单两半都携带同一份 54 格库存，材料缺口只登记一次；校验结果仍按两个坐标保存。
+        return immutable.asLong() <= adjacentPos.asLong() ? immutable : adjacentPos.toImmutable();
     }
 
     @Override
@@ -420,6 +464,7 @@ public final class QuickLitematicaContainerVerification implements VerifierExten
                 }
 
                 this.host.quickcraft$verificationMismatchPositionsForRender().add(new MismatchRenderPos(type, pos));
+                this.host.quickcraft$verificationMismatchBlockPositionsForRender().add(pos);
             }
         }
     }
@@ -561,9 +606,11 @@ public final class QuickLitematicaContainerVerification implements VerifierExten
 
         MinecraftClient client = MinecraftClient.getInstance();
 
-        if (client.world == null || client.world.getTime() % 10 != 0) {
+        if (client.world == null) {
             return;
         }
+
+        // execute 已由上游按十刻调度；不能再按世界时间取模，否则 pending 会随相位长期跳过。
 
         World bestWorld = fi.dy.masa.malilib.util.WorldUtils.getBestWorld(client);
 

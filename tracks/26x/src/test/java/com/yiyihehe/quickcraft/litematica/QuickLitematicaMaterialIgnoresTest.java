@@ -1,13 +1,22 @@
 package com.yiyihehe.quickcraft.litematica;
 
 import com.yiyihehe.quickcraft.config.QuickCraftConfigs;
+import com.yiyihehe.quickcraft.litematica.QuickLitematicaContainerMaterials.ContainerSummaryEntry;
 import com.yiyihehe.quickcraft.mixin.LitematicaMaterialListPlacementAccessor;
+import fi.dy.masa.litematica.materials.MaterialListBase;
 import fi.dy.masa.litematica.materials.MaterialListPlacement;
 import fi.dy.masa.litematica.schematic.placement.SchematicPlacement;
+import net.minecraft.core.component.DataComponents;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Items;
+import net.minecraft.network.chat.Component;
 import org.junit.jupiter.api.Test;
+import java.util.List;
 import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.mockStatic;
 import static org.mockito.Mockito.when;
 import static org.mockito.Mockito.withSettings;
 
@@ -25,6 +34,28 @@ class QuickLitematicaMaterialIgnoresTest {
         when(((LitematicaMaterialListPlacementAccessor) secondList).quickcraft$getPlacement()).thenReturn(second);
         assertThat(QuickLitematicaMaterialLists.getPersistentContextKey(firstList))
                 .isNotEqualTo(QuickLitematicaMaterialLists.getPersistentContextKey(secondList));
+    }
+
+    @Test
+    void containerSummaryIgnoreKeepsComponentDistinctRows() {
+        var list = new TestMaterialList();
+        var plain = new ItemStack(Items.STONE);
+        var named = new ItemStack(Items.STONE);
+        named.set(DataComponents.CUSTOM_NAME, Component.literal("named"));
+        var plainEntry = new ContainerSummaryEntry(plain, 1, 0, List.of(plain));
+        var namedEntry = new ContainerSummaryEntry(named, 1, 0, List.of(named));
+
+        try (var inventory = mockStatic(QuickLitematicaMaterialInventory.class)) {
+            inventory.when(() -> QuickLitematicaMaterialInventory.countAvailable(any())).thenReturn(0);
+            list.setMaterialListEntries(List.of(plainEntry, namedEntry));
+            list.ignoreEntry(namedEntry);
+
+            assertThat(list.getMaterialsFiltered(false)).containsExactly(plainEntry);
+            assertThat(list.getMaterialsAll()).containsExactly(plainEntry, namedEntry);
+
+            list.clearIgnored();
+            assertThat(list.getMaterialsFiltered(false)).containsExactly(plainEntry, namedEntry);
+        }
     }
 
     @Test
@@ -57,6 +88,22 @@ class QuickLitematicaMaterialIgnoresTest {
             QuickLitematicaMaterialIgnores.clearSession();
             options.setBooleanValue(oldMaster);
             materials.setBooleanValue(oldMaterials);
+        }
+    }
+
+    private static final class TestMaterialList extends MaterialListBase {
+        @Override
+        public String getName() {
+            return "test";
+        }
+
+        @Override
+        public String getTitle() {
+            return "test";
+        }
+
+        @Override
+        public void reCreateMaterialList() {
         }
     }
 }

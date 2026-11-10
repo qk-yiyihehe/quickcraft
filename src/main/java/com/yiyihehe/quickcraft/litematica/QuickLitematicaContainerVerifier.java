@@ -227,7 +227,13 @@ public final class QuickLitematicaContainerVerifier {
             return null;
         }
 
-        ExpectedContainer current = getExpectedContainerInternal(pos, placementFilter);
+        LocalPlacementPos currentPlacement = getLocalPlacementPos(pos, placementFilter);
+
+        if (currentPlacement == null) {
+            return null;
+        }
+
+        ExpectedContainer current = getExpectedContainerInternal(pos, currentPlacement);
 
         if (current == null) {
             return null;
@@ -238,7 +244,7 @@ public final class QuickLitematicaContainerVerifier {
             return null;
         }
 
-        ExpectedContainer merged = getExpectedDoubleChestContainer(pos, current, placementFilter);
+        ExpectedContainer merged = getExpectedDoubleChestContainer(pos, current, currentPlacement, placementFilter);
 
         return merged != null ? merged : current;
     }
@@ -278,7 +284,7 @@ public final class QuickLitematicaContainerVerifier {
                 expected.state().getBlock(),
                 QuickLitematicaContainerInventory.getChestType(expected.state())
         );
-        if (type == null) {
+        if (type == null || type == QuickContainerCopy.PublicContainerType.LARGE_CHEST && expected.inventory().size() != 54) {
             return null;
         }
 
@@ -300,6 +306,7 @@ public final class QuickLitematicaContainerVerifier {
     private static ExpectedContainer getExpectedDoubleChestContainer(
             BlockPos pos,
             ExpectedContainer current,
+            LocalPlacementPos currentPlacement,
             @Nullable SchematicPlacement placementFilter
     ) {
         ChestType chestType = QuickLitematicaContainerInventory.getChestType(current.state());
@@ -309,9 +316,19 @@ public final class QuickLitematicaContainerVerifier {
         }
 
         BlockPos adjacentPos = pos.add(ChestBlock.getFacing(current.state()).getVector());
-        ExpectedContainer adjacent = getExpectedContainerInternal(adjacentPos, placementFilter);
+        LocalPlacementPos adjacentPlacement = getLocalPlacementPos(adjacentPos, placementFilter);
 
-        if (adjacent == null) {
+        if (adjacentPlacement == null
+                || !isMatchingDoubleChest(current.state(), adjacentPlacement.worldState(),
+                        adjacentPlacement.placement() == currentPlacement.placement())) {
+            return null;
+        }
+
+        ExpectedContainer adjacent = getExpectedContainerInternal(adjacentPos, adjacentPlacement);
+
+        if (adjacent == null
+                || current.inventory().size() != 27
+                || adjacent.inventory().size() != 27) {
             return null;
         }
 
@@ -338,17 +355,41 @@ public final class QuickLitematicaContainerVerifier {
             BlockPos pos,
             @Nullable SchematicPlacement placementFilter
     ) {
-        ExpectedContainer current = getExpectedContainerInternal(pos, placementFilter);
+        LocalPlacementPos currentPlacement = getLocalPlacementPos(pos, placementFilter);
 
-        if (current == null || QuickLitematicaContainerInventory.getChestType(current.state()) == ChestType.SINGLE) {
+        if (currentPlacement == null
+                || QuickLitematicaContainerInventory.getChestType(currentPlacement.worldState()) == ChestType.SINGLE) {
             return null;
         }
 
-        BlockPos adjacentPos = pos.add(ChestBlock.getFacing(current.state()).getVector());
-        ExpectedContainer adjacent = getExpectedContainerInternal(adjacentPos, placementFilter);
-        return adjacent != null && QuickLitematicaContainerInventory.getChestType(adjacent.state()) != ChestType.SINGLE
-                ? adjacentPos
-                : null;
+        BlockPos adjacentPos = pos.add(ChestBlock.getFacing(currentPlacement.worldState()).getVector());
+        LocalPlacementPos adjacentPlacement = getLocalPlacementPos(adjacentPos, placementFilter);
+
+        if (adjacentPlacement == null
+                || !isMatchingDoubleChest(currentPlacement.worldState(), adjacentPlacement.worldState(),
+                        adjacentPlacement.placement() == currentPlacement.placement())
+                || getExpectedContainerInternal(adjacentPos, adjacentPlacement) == null) {
+            return null;
+        }
+
+        return adjacentPos;
+    }
+
+    static boolean isMatchingDoubleChest(BlockState currentState, BlockState adjacentState) {
+        return isMatchingDoubleChest(currentState, adjacentState, true);
+    }
+
+    static boolean isMatchingDoubleChest(BlockState currentState, BlockState adjacentState, boolean samePlacement) {
+        if (!samePlacement || currentState.getBlock() != adjacentState.getBlock()) {
+            return false;
+        }
+        ChestType currentType = QuickLitematicaContainerInventory.getChestType(currentState);
+        ChestType adjacentType = QuickLitematicaContainerInventory.getChestType(adjacentState);
+        if (currentType == ChestType.SINGLE || adjacentType != currentType.getOpposite()) {
+            return false;
+        }
+        return currentState.get(ChestBlock.FACING) == adjacentState.get(ChestBlock.FACING)
+                && ChestBlock.getFacing(currentState) == ChestBlock.getFacing(adjacentState).getOpposite();
     }
 
     public static boolean hasUnreadableExpectedInventory(BlockPos worldPos, @Nullable SchematicPlacement placement) {
@@ -366,11 +407,10 @@ public final class QuickLitematicaContainerVerifier {
             @Nullable SchematicPlacement placementFilter
     ) {
         LocalPlacementPos placementPos = getLocalPlacementPos(worldPos, placementFilter);
+        return placementPos != null ? getExpectedContainerInternal(worldPos, placementPos) : null;
+    }
 
-        if (placementPos == null) {
-            return null;
-        }
-
+    private static ExpectedContainer getExpectedContainerInternal(BlockPos worldPos, LocalPlacementPos placementPos) {
         NbtCompound nbt = QuickLitematicaVerifierAccess.getSchematicBlockEntityNbt(
                 QuickLitematicaGlobalReplacements.runtime(placementPos.placement()),
                 placementPos.region(),

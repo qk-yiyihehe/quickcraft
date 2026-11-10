@@ -1355,18 +1355,31 @@ public final class QuickLitematicaContainerMaterials {
         }
     }
 
-    private static final class ContainerSummaryEntry extends MaterialListEntry {
+    static final class ContainerSummaryEntry extends MaterialListEntry {
         private final List<ItemStack> targets;
+        private final ItemKey sourceKey;
 
-        private ContainerSummaryEntry(ItemStack original, int total, int missing, List<ItemStack> targets) {
+        ContainerSummaryEntry(ItemStack original, int total, int missing, List<ItemStack> targets) {
             super(original, total, missing, 0, 0);
             this.targets = targets;
+            this.sourceKey = QuickLitematicaContainerMaterialsAccess.createItemKey(original);
         }
 
         @Override
         public int getCountAvailable() {
             // 左侧显示原材料；可用数量必须比较实际目标，不能让原版按左侧图标统计。
             return QuickLitematicaMaterialInventory.countAvailable(this.targets);
+        }
+
+        @Override
+        public boolean equals(Object other) {
+            // 上游 MaterialListEntry 只按 ItemType 比较；容器汇总行必须保留组件身份。
+            return this == other || other instanceof ContainerSummaryEntry entry && this.sourceKey.equals(entry.sourceKey);
+        }
+
+        @Override
+        public int hashCode() {
+            return this.sourceKey.hashCode();
         }
     }
 
