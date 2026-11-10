@@ -80,15 +80,15 @@ final class QuickLitematicaPreviewImageWriter {
         }
     }
 
-    static void writePreview(Path schematicPath, int[] pixels) throws IOException {
-        updatePreview(schematicPath, pixels);
+    static PreviewWriteResult writePreview(Path schematicPath, int[] pixels) throws IOException {
+        return updatePreview(schematicPath, pixels);
     }
 
-    static void removePreview(Path schematicPath) throws IOException {
-        updatePreview(schematicPath, null);
+    static PreviewWriteResult removePreview(Path schematicPath) throws IOException {
+        return updatePreview(schematicPath, null);
     }
 
-    private static void updatePreview(Path schematicPath, @Nullable int[] pixels) throws IOException {
+    private static PreviewWriteResult updatePreview(Path schematicPath, @Nullable int[] pixels) throws IOException {
         Path target = schematicPath.toAbsolutePath().normalize();
         Path directory = target.getParent();
         Path targetName = target.getFileName();
@@ -96,6 +96,7 @@ final class QuickLitematicaPreviewImageWriter {
             throw new IOException("Schematic file is not writable");
         }
 
+        FileSnapshot snapshot = FileSnapshot.capture(target);
         LitematicaSchematic schematic = QuickLitematicaPreviewImageWriterAccess.readSchematic(
                 directory,
                 targetName.toString()
@@ -114,9 +115,21 @@ final class QuickLitematicaPreviewImageWriter {
                     || !QuickLitematicaPreviewImageWriterAccess.writeSchematic(schematic, directory, temporaryName.toString(), true)) {
                 throw new IOException("Failed to write temporary litematic file");
             }
-            replaceFile(temporary, target);
+            LitematicaSchematic written = QuickLitematicaPreviewImageWriterAccess.readSchematic(
+                    directory, temporaryName.toString());
+            if (written == null) {
+                throw new IOException("Failed to verify temporary litematic file");
+            }
+            String structureFingerprint = QuickLitematicaPreviewSchematicFiles.structureFingerprint(written);
+            String contentHash = QuickLitematicaPreviewCache.hashFile(temporary);
+            replaceIfUnchanged(temporary, target, snapshot);
+            return new PreviewWriteResult(structureFingerprint, contentHash);
         } finally {
-            Files.deleteIfExists(temporary);
+            try {
+                Files.deleteIfExists(temporary);
+            } catch (IOException cleanupFailure) {
+                QuickLitematicaPreview3D.LOGGER.warn("预览图临时文件清理失败：{}", temporary, cleanupFailure);
+            }
         }
     }
 
@@ -127,7 +140,36 @@ final class QuickLitematicaPreviewImageWriter {
         if (throwable instanceof InvalidImageException) {
             return "quickcraft.litematica.preview_3d.image_invalid";
         }
+        if (throwable instanceof TargetChangedException) {
+            return "quickcraft.litematica.preview_3d.preview_file_changed";
+        }
         return "quickcraft.litematica.preview_3d.preview_write_failed";
+    }
+
+    record PreviewWriteResult(@Nullable String structureFingerprint, String contentHash) {
+    }
+
+    record FileSnapshot(String contentHash) {
+        static FileSnapshot capture(Path target) throws IOException {
+            return new FileSnapshot(QuickLitematicaPreviewCache.hashFile(target));
+        }
+
+        boolean matches(Path target) {
+            try {
+                return Files.isRegularFile(target)
+                        && this.contentHash.equals(QuickLitematicaPreviewCache.hashFile(target));
+            } catch (IOException failure) {
+                return false;
+            }
+        }
+    }
+
+    static void replaceIfUnchanged(Path temporary, Path target, FileSnapshot snapshot) throws IOException {
+        // 只在最终替换前再核对一次；检查与原子移动之间仍有外部进程竞争窗口，不能宣称绝对互斥。
+        if (!snapshot.matches(target)) {
+            throw new TargetChangedException();
+        }
+        replaceFile(temporary, target);
     }
 
     private static void validateSourceFile(Path imagePath) throws IOException {
@@ -227,5 +269,8 @@ final class QuickLitematicaPreviewImageWriter {
     }
 
     static final class InvalidImageException extends IOException {
+    }
+
+    static final class TargetChangedException extends IOException {
     }
 }

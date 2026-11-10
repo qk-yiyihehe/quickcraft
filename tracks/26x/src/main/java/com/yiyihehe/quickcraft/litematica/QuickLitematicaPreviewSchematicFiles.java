@@ -24,6 +24,10 @@ import net.minecraft.nbt.NbtAccounterException;
 import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.security.DigestOutputStream;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.util.HexFormat;
 import java.util.Set;
 import java.util.Map;
 import java.util.HashMap;
@@ -40,7 +44,7 @@ final class QuickLitematicaPreviewSchematicFiles {
     private QuickLitematicaPreviewSchematicFiles() {
     }
 
-    static boolean writeConvertedSchematic(LitematicaSchematic schematic, Path convertedPath, String cacheSlot) {
+    static synchronized boolean writeConvertedSchematic(LitematicaSchematic schematic, Path convertedPath, String cacheSlot) {
         try (var phase = QuickLitematicaPreviewLog.phase("转换原理图缓存保存")) {
             Path parent = convertedPath.getParent();
             Path fileName = convertedPath.getFileName();
@@ -48,7 +52,9 @@ final class QuickLitematicaPreviewSchematicFiles {
                 return false;
             }
 
-            Path temporary = convertedPath.resolveSibling(cacheSlot + ".converted.tmp.litematic");
+            String convertedName = fileName.toString();
+            Path temporary = convertedPath.resolveSibling(convertedName.replace(
+                    ".converted.litematic", ".converted.tmp.litematic"));
             Path temporaryName = temporary.getFileName();
             if (temporaryName == null) {
                 return false;
@@ -65,7 +71,6 @@ final class QuickLitematicaPreviewSchematicFiles {
             } catch (Exception failure) {
                 LOGGER.warn("转换原理图缓存保存失败：槽={}，临时={}，最终={}", cacheSlot, temporary, convertedPath, failure);
                 deleteQuietly(temporary);
-                deleteQuietly(convertedPath);
                 return false;
             }
         }
@@ -270,6 +275,40 @@ final class QuickLitematicaPreviewSchematicFiles {
     static int sourceDataVersion(CompoundTag root, int defaultDataVersion) {
         // 上游仅在缺少有效版本字段时使用缺省值；明确声明的旧版本仍需按旧格式解释。
         return root.getIntOr("MinecraftDataVersion", defaultDataVersion);
+    }
+
+    /** 预览网格只依赖结构内容；具体目标的 NBT 序列化差异由 QuickLitematicaPreviewAccess 适配。 */
+    static String structureFingerprint(LitematicaSchematic schematic) {
+        return QuickLitematicaPreviewAccess.structureFingerprint(schematic);
+    }
+
+    static String normalizedStructureFingerprint(CompoundTag root) {
+        int defaultDataVersion;
+        try {
+            defaultDataVersion = fi.dy.masa.litematica.config.Configs.Generic.DATAFIXER_DEFAULT_SCHEMA.getIntegerValue();
+        } catch (RuntimeException | LinkageError unavailableInTest) {
+            defaultDataVersion = 0;
+        }
+        int effectiveSourceVersion = sourceDataVersion(root, defaultDataVersion);
+        preparePreviewNbt(root, new AtomicBoolean(),
+                QuickLitematicaPreview3D::hasPreviewRendererForBlockEntity,
+                blockId -> QuickLitematicaPreview3D.inferPreviewBlockEntityId(blockId, effectiveSourceVersion),
+                QuickLitematicaPreview3D::isPreviewInventoryHidden);
+        return structureFingerprint(root);
+    }
+
+    static String structureFingerprint(CompoundTag root) {
+        root.remove("Metadata");
+        try {
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            try (DigestOutputStream digestOutput = new DigestOutputStream(OutputStream.nullOutputStream(), digest);
+                 DataOutputStream output = new DataOutputStream(digestOutput)) {
+                NbtIo.write(root, output);
+            }
+            return HexFormat.of().formatHex(digest.digest());
+        } catch (IOException | NoSuchAlgorithmException failure) {
+            throw new IllegalStateException("Cannot fingerprint preview structure", failure);
+        }
     }
 
     record StreamingPreparation(CompoundTag root, PreparationStats stats) {}

@@ -553,6 +553,7 @@
   "quickcraft.litematica.preview_3d.preview_removing": "Removing schematic preview image...",
   "quickcraft.litematica.preview_3d.preview_write_success": "Written to %s; remains visible without QuickCraft",
   "quickcraft.litematica.preview_3d.preview_write_failed": "Preview image write failed; the schematic file was not replaced",
+  "quickcraft.litematica.preview_3d.preview_file_changed": "The schematic was changed by another program; this preview image write was canceled and the newer file content was preserved",
   "quickcraft.litematica.preview_3d.preview_write_unavailable": "Only .litematic files opened from the schematic list can receive a preview image",
   "quickcraft.litematica.preview_3d.preview_remove_success": "Removed the preview image from %s",
   "quickcraft.litematica.preview_3d.preview_remove_unavailable": "This schematic does not have a stored preview image to remove",

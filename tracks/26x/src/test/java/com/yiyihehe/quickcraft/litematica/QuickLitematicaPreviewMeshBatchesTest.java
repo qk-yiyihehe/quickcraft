@@ -55,9 +55,9 @@ class QuickLitematicaPreviewMeshBatchesTest {
         var mesh = new MeshData(List.of(original), List.of(), List.of(), List.of(), 1, 1, 1);
         QuickLitematicaPreviewCache.CacheFile.writeAtomically(
                 this.temporaryDirectory.resolve("translucent.tmp"), cache, mesh, mesh.layers(),
-                new AtomicBoolean(), progress -> {});
+                "struct-test", "pack-test", new AtomicBoolean(), progress -> {});
         byte[] file = java.nio.file.Files.readAllBytes(cache);
-        var restored = QuickLitematicaPreviewCache.CacheFile.read(cache, new AtomicBoolean());
+        var restored = QuickLitematicaPreviewCache.CacheFile.read(cache, new AtomicBoolean(), null, "struct-test", "pack-test");
         assertThat(restored).isNotNull();
         assertThat(restored.layers()).hasSize(2);
         assertThat(restored.layers()).allSatisfy(batch -> assertThat(batch.needsTranslucentSorting()).isTrue());

@@ -45,10 +45,13 @@ final class QuickLitematicaPreviewCache {
     static final String CACHE_DIR_NAME = "litematica-preview-cache";
     static final String CACHE_VERSION_FILE_NAME = "cache-version.txt";
     static final String CACHE_INDEX_FILE_NAME = "cache-index.properties";
-    static final String MESH_CACHE_MARKER = CACHE_RENDER_MARKER + "/entity-anchor-v1/light-uv-v1";
+    static final String MESH_CACHE_MARKER = CACHE_RENDER_MARKER + "/entity-anchor-v1/light-uv-v1/identity-v2";
     static final int CACHE_IO_CHUNK_BYTES = 1024 * 1024;
     private static final AtomicBoolean CACHE_DIRECTORY_READY = new AtomicBoolean();
+    private static final Object CACHE_DIRECTORY_LOCK = new Object();
     private static final Object CACHE_INDEX_LOCK = new Object();
+    @Nullable
+    static volatile Runnable indexCommitHook;
     private static final Properties CACHE_INDEX = new Properties();
     private static final ConcurrentHashMap<Path, PendingWrite> CACHE_WRITES = new ConcurrentHashMap<>();
     private static final ExecutorService CACHE_EXECUTOR = Executors.newSingleThreadExecutor(r -> {
@@ -71,9 +74,16 @@ final class QuickLitematicaPreviewCache {
     static CompletableFuture<Void> writeAsync(Path cachePath, Runnable write,
             @Nullable String sourceHash, @Nullable String resourceSignature, long vertices,
             @Nullable MeshData mesh, @Nullable QuickLitematicaPreviewMeshStore store) {
+        return writeAsync(cachePath, write, sourceHash, resourceSignature, null, vertices, mesh, store);
+    }
+
+    static CompletableFuture<Void> writeAsync(Path cachePath, Runnable write,
+            @Nullable String sourceHash, @Nullable String resourceSignature, @Nullable String structureFingerprint,
+            long vertices, @Nullable MeshData mesh, @Nullable QuickLitematicaPreviewMeshStore store) {
         CompletableFuture<Void> completion = new CompletableFuture<>();
         MeshData reusable = mesh == null ? null : copyMesh(mesh);
-        PendingWrite pending = new PendingWrite(completion, sourceHash, resourceSignature, vertices, reusable, store);
+        PendingWrite pending = new PendingWrite(completion, sourceHash, resourceSignature, structureFingerprint,
+                vertices, reusable, store);
         CACHE_WRITES.put(cachePath, pending);
         try {
             CACHE_EXECUTOR.execute(() -> {
@@ -142,7 +152,7 @@ final class QuickLitematicaPreviewCache {
             MeshData mesh = copyMesh(pending.mesh());
             if (!mesh.withinBudget()) throw new PreviewTooLargeException(false);
             LOGGER.info("pending-mesh-reuse-v1：复用待保存网格，跳过等待压缩及缓存解压，顶点={}，路径={}", mesh.vertexCount(), cachePath);
-            return new MeshLease(mesh, pending.store());
+            return new MeshLease(mesh, pending.structureFingerprint(), pending.store());
         } catch (RuntimeException | Error failure) {
             pending.store().releaseCache();
             throw failure;
@@ -156,11 +166,13 @@ final class QuickLitematicaPreviewCache {
 
     static final class MeshLease implements AutoCloseable {
         final MeshData mesh;
+        @Nullable final String structureFingerprint;
         private final QuickLitematicaPreviewMeshStore store;
         private final AtomicBoolean closed = new AtomicBoolean();
 
-        private MeshLease(MeshData mesh, QuickLitematicaPreviewMeshStore store) {
+        private MeshLease(MeshData mesh, @Nullable String structureFingerprint, QuickLitematicaPreviewMeshStore store) {
             this.mesh = mesh;
+            this.structureFingerprint = structureFingerprint;
             this.store = store;
         }
 
@@ -173,8 +185,8 @@ final class QuickLitematicaPreviewCache {
     }
 
     private record PendingWrite(CompletableFuture<Void> completion, @Nullable String sourceHash,
-            @Nullable String resourceSignature, long vertices, @Nullable MeshData mesh,
-            @Nullable QuickLitematicaPreviewMeshStore store) {}
+            @Nullable String resourceSignature, @Nullable String structureFingerprint, long vertices,
+            @Nullable MeshData mesh, @Nullable QuickLitematicaPreviewMeshStore store) {}
 
     static String currentCacheSignature() {
         return cacheSignature(currentResourcePackSignature() + ":" + QuickLitematicaPreviewResources.signature(),
@@ -240,25 +252,52 @@ final class QuickLitematicaPreviewCache {
         if (cacheDir != null) {
             return cacheDir;
         }
+        MinecraftClient client = MinecraftClient.getInstance();
+        return cacheDirectory(client.runDirectory.toPath());
+    }
 
-        synchronized (QuickLitematicaPreviewCache.class) {
+    static Path cacheDirectory(Path runDirectory) {
+        Path cacheDir = currentCacheDirectory;
+        if (cacheDir != null) {
+            return cacheDir;
+        }
+
+        synchronized (CACHE_DIRECTORY_LOCK) {
             cacheDir = currentCacheDirectory;
             if (cacheDir != null) {
                 return cacheDir;
             }
 
-            MinecraftClient client = MinecraftClient.getInstance();
-            Path runDirectory = client.runDirectory.toPath();
             cacheDir = runDirectory.resolve(CACHE_DIR_NAME);
-            currentCacheDirectory = cacheDir;
-            if (CACHE_DIRECTORY_READY.compareAndSet(false, true)) {
-                prepareCacheDirectory(cacheDir);
+            // 初始化失败后若已有索引写入，不能在索引修改期间重新加载/清理它。
+            if (hasIndexEntries()) {
+                return cacheDir;
+            }
+            if (prepareCacheDirectory(cacheDir)) {
+                CACHE_DIRECTORY_READY.set(true);
+                currentCacheDirectory = cacheDir;
             }
             return cacheDir;
         }
     }
 
-    static void prepareCacheDirectory(Path cacheDir) {
+    static boolean ensureCacheDirectoryReady() {
+        cacheDirectory();
+        return currentCacheDirectory != null;
+    }
+
+    static boolean ensureCacheDirectoryReady(Path runDirectory) {
+        cacheDirectory(runDirectory);
+        return currentCacheDirectory != null;
+    }
+
+    private static boolean hasIndexEntries() {
+        synchronized (CACHE_INDEX_LOCK) {
+            return !CACHE_INDEX.isEmpty();
+        }
+    }
+
+    static boolean prepareCacheDirectory(Path cacheDir) {
         QuickLitematicaPreviewLog.file("缓存目录初始化", cacheDir);
         try {
             Files.createDirectories(cacheDir);
@@ -272,19 +311,40 @@ final class QuickLitematicaPreviewCache {
                 Files.writeString(versionFile, currentVersion, java.nio.charset.StandardCharsets.UTF_8);
             }
             loadAndCleanCacheIndex(cacheDir);
-        } catch (IOException ignored) {
+            return true;
+        } catch (IOException failure) {
+            LOGGER.warn("预览缓存目录初始化失败，保留可重试状态：目录={}", cacheDir, failure);
+            synchronized (CACHE_INDEX_LOCK) {
+                CACHE_INDEX.clear();
+            }
+            return false;
         }
     }
 
     static void loadAndCleanCacheIndex(Path cacheDir) throws IOException {
         synchronized (CACHE_INDEX_LOCK) {
-            CACHE_INDEX.clear();
             Path indexPath = cacheDir.resolve(CACHE_INDEX_FILE_NAME);
+            Properties loaded = new Properties();
+            boolean corruptIndex = false;
             if (Files.isRegularFile(indexPath)) {
                 try (InputStream input = new BufferedInputStream(Files.newInputStream(indexPath))) {
-                    CACHE_INDEX.load(input);
+                    loaded.load(input);
+                } catch (IllegalArgumentException failure) {
+                    corruptIndex = true;
+                    LOGGER.warn("预览缓存索引解析失败，清空索引并重建：目录={}", cacheDir, failure);
                 }
             }
+
+            CACHE_INDEX.clear();
+            if (corruptIndex) {
+                // 损坏索引中的半成品条目不可信；缓存文件没有独立身份时也不能继续复用。
+                clearRenderCacheFiles(cacheDir);
+                Files.writeString(cacheDir.resolve(CACHE_VERSION_FILE_NAME), currentCacheVersionToken(),
+                        java.nio.charset.StandardCharsets.UTF_8);
+                writeCacheIndex(cacheDir);
+                return;
+            }
+            CACHE_INDEX.putAll(loaded);
 
             Set<String> retainedCacheFiles = new java.util.HashSet<>();
             List<String> staleSlots = new ArrayList<>();
@@ -295,20 +355,31 @@ final class QuickLitematicaPreviewCache {
                 String slot = key.substring(0, key.length() - ".path".length());
                 String source = CACHE_INDEX.getProperty(key, "");
                 Path cachePath = cacheDir.resolve(slot + ".qcp3d");
+                String meshFingerprint = CACHE_INDEX.getProperty(slot + ".structureFingerprint");
+                String convertedFingerprint = CACHE_INDEX.getProperty(slot + ".convertedStructureFingerprint");
+                String convertedSignature = CACHE_INDEX.getProperty(slot + ".convertedResourceSignature");
                 boolean sourceExists;
                 try {
                     sourceExists = !source.isBlank() && Files.isRegularFile(Path.of(source));
                 } catch (RuntimeException e) {
                     sourceExists = false;
                 }
-                if (!sourceExists) {
-                    LOGGER.info("缓存槽失效：原因=source_missing_or_invalid，槽={}，原路径={}", slot, source);
+                boolean hasMesh = meshFingerprint != null && !meshFingerprint.isBlank();
+                boolean hasConverted = convertedFingerprint != null && !convertedFingerprint.isBlank()
+                        && convertedSignature != null && !convertedSignature.isBlank();
+                if (!sourceExists || (!hasMesh && !hasConverted)) {
+                    LOGGER.info("缓存槽失效：原因=source_missing_invalid_or_legacy_index，槽={}，原路径={}", slot, source);
                     staleSlots.add(slot);
                 } else {
-                    if (Files.isRegularFile(cachePath)) {
+                    if (hasMesh && Files.isRegularFile(cachePath)) {
                         retainedCacheFiles.add(cachePath.getFileName().toString());
                     }
-                    retainedCacheFiles.add(slot + ".converted.litematic");
+                    if (hasConverted) {
+                        Path convertedPath = convertedCachePath(cacheDir, slot, convertedFingerprint, convertedSignature);
+                        if (Files.isRegularFile(convertedPath)) {
+                            retainedCacheFiles.add(convertedPath.getFileName().toString());
+                        }
+                    }
                 }
             }
 
@@ -332,9 +403,12 @@ final class QuickLitematicaPreviewCache {
         synchronized (CACHE_INDEX_LOCK) {
             String sourceHash = CACHE_INDEX.getProperty(slot + ".sourceHash");
             String resourceSignature = CACHE_INDEX.getProperty(slot + ".resourceSignature");
-            return sourceHash == null || resourceSignature == null
+            String structureFingerprint = CACHE_INDEX.getProperty(slot + ".structureFingerprint");
+            return sourceHash == null || sourceHash.isBlank()
+                    || resourceSignature == null || resourceSignature.isBlank()
+                    || structureFingerprint == null || structureFingerprint.isBlank()
                     ? null
-                    : new CacheIndexEntry(sourceHash, resourceSignature);
+                    : new CacheIndexEntry(sourceHash, resourceSignature, structureFingerprint);
         }
     }
 
@@ -343,58 +417,119 @@ final class QuickLitematicaPreviewCache {
         synchronized (CACHE_INDEX_LOCK) {
             String sourceHash = CACHE_INDEX.getProperty(slot + ".convertedSourceHash");
             String resourceSignature = CACHE_INDEX.getProperty(slot + ".convertedResourceSignature");
-            return sourceHash == null || resourceSignature == null ? null : new CacheIndexEntry(sourceHash, resourceSignature);
+            String structureFingerprint = CACHE_INDEX.getProperty(slot + ".convertedStructureFingerprint");
+            return sourceHash == null || sourceHash.isBlank()
+                    || resourceSignature == null || resourceSignature.isBlank()
+                    || structureFingerprint == null || structureFingerprint.isBlank()
+                    ? null
+                    : new CacheIndexEntry(sourceHash, resourceSignature, structureFingerprint);
         }
     }
 
-    static boolean convertedCacheMatches(@Nullable CacheIndexEntry converted, @Nullable CacheIndexEntry legacy,
-            String sourceHash, String resourceSignature) {
-        CacheIndexEntry entry = converted != null ? converted : legacy;
-        return entry != null && sourceHash.equals(entry.sourceHash()) && resourceSignature.equals(entry.resourcePackSignature());
+    static boolean convertedCacheMatches(@Nullable CacheIndexEntry converted, String sourceHash, String resourceSignature) {
+        return converted != null && sourceHash.equals(converted.sourceHash())
+                && resourceSignature.equals(converted.resourcePackSignature());
     }
 
-    static void writeConvertedCacheIndexEntry(String slot, Path sourcePath, String sourceHash, String resourceSignature) throws IOException {
+    static void writeConvertedCacheIndexEntry(String slot, Path sourcePath, String sourceHash,
+                                               String resourceSignature, String structureFingerprint) throws IOException {
+        if (!ensureCacheDirectoryReady()) {
+            throw new IOException("Preview cache directory is not initialized");
+        }
+        Path cacheDir = currentCacheDirectory;
         synchronized (CACHE_INDEX_LOCK) {
             // 转换结果独立提交；网格超限或仍在压缩时也能复用已经完成的 DFU。
             CACHE_INDEX.setProperty(slot + ".path", sourcePath.toAbsolutePath().normalize().toString());
             CACHE_INDEX.setProperty(slot + ".convertedSourceHash", sourceHash);
             CACHE_INDEX.setProperty(slot + ".convertedResourceSignature", resourceSignature);
-            writeCacheIndex(cacheDirectory());
+            CACHE_INDEX.setProperty(slot + ".convertedStructureFingerprint", structureFingerprint);
+            runIndexCommitHook();
+            writeCacheIndex(cacheDir);
         }
     }
 
-    static void writeCacheIndexEntry(String slot, Path sourcePath, String sourceHash, String resourceSignature) throws IOException {
+    static void writeCacheIndexEntry(String slot, Path sourcePath, String sourceHash,
+                                     String resourceSignature, String structureFingerprint) throws IOException {
+        if (!ensureCacheDirectoryReady()) {
+            throw new IOException("Preview cache directory is not initialized");
+        }
+        Path cacheDir = currentCacheDirectory;
         synchronized (CACHE_INDEX_LOCK) {
             CACHE_INDEX.setProperty(slot + ".path", sourcePath.toAbsolutePath().normalize().toString());
             CACHE_INDEX.setProperty(slot + ".sourceHash", sourceHash);
             CACHE_INDEX.setProperty(slot + ".resourceSignature", resourceSignature);
-            LOGGER.info("缓存索引提交：槽={}，源={}，源哈希={}，资源签名={}", slot, sourcePath, sourceHash, resourceSignature);
-            writeCacheIndex(cacheDirectory());
+            CACHE_INDEX.setProperty(slot + ".structureFingerprint", structureFingerprint);
+            LOGGER.info("缓存索引提交：槽={}，源={}，源哈希={}，资源签名={}，结构指纹={}",
+                    slot, sourcePath, sourceHash, resourceSignature, structureFingerprint);
+            runIndexCommitHook();
+            writeCacheIndex(cacheDir);
+        }
+    }
+
+    static Path convertedCachePath(Path cacheDir, String slot, String structureFingerprint, String resourceSignature) {
+        return cacheDir.resolve(slot + "-" + artifactIdentity(structureFingerprint, resourceSignature)
+                + ".converted.litematic");
+    }
+
+    private static String artifactIdentity(String structureFingerprint, String resourceSignature) {
+        try {
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            updateDigest(digest, structureFingerprint);
+            updateDigest(digest, resourceSignature);
+            updateDigest(digest, currentCacheVersionToken());
+            return HexFormat.of().formatHex(digest.digest()).substring(0, 32);
+        } catch (NoSuchAlgorithmException e) {
+            throw new IllegalStateException("SHA-256 is unavailable", e);
         }
     }
 
     static void removeCacheIndexEntry(Path cacheDir, String slot) {
-        CACHE_INDEX.remove(slot + ".path");
-        CACHE_INDEX.remove(slot + ".sourceHash");
-        CACHE_INDEX.remove(slot + ".resourceSignature");
-        CACHE_INDEX.remove(slot + ".convertedSourceHash");
-        CACHE_INDEX.remove(slot + ".convertedResourceSignature");
-        deleteQuietly(cacheDir.resolve(slot + ".qcp3d"));
-        deleteQuietly(cacheDir.resolve(slot + ".qcp3d.tmp"));
-        deleteQuietly(cacheDir.resolve(slot + ".converted.litematic"));
-        deleteQuietly(cacheDir.resolve(slot + ".converted.tmp.litematic"));
+        synchronized (CACHE_INDEX_LOCK) {
+            CACHE_INDEX.remove(slot + ".path");
+            CACHE_INDEX.remove(slot + ".sourceHash");
+            CACHE_INDEX.remove(slot + ".resourceSignature");
+            CACHE_INDEX.remove(slot + ".structureFingerprint");
+            CACHE_INDEX.remove(slot + ".convertedSourceHash");
+            CACHE_INDEX.remove(slot + ".convertedResourceSignature");
+            CACHE_INDEX.remove(slot + ".convertedStructureFingerprint");
+            deleteQuietly(cacheDir.resolve(slot + ".qcp3d"));
+            deleteQuietly(cacheDir.resolve(slot + ".qcp3d.tmp"));
+            deleteQuietly(cacheDir.resolve(slot + ".converted.litematic"));
+            deleteQuietly(cacheDir.resolve(slot + ".converted.tmp.litematic"));
+            deleteConvertedCacheVariants(cacheDir, slot);
+        }
+    }
+
+    private static void deleteConvertedCacheVariants(Path cacheDir, String slot) {
+        try (var paths = Files.list(cacheDir)) {
+            paths.filter(path -> {
+                        String name = path.getFileName().toString();
+                        return name.startsWith(slot + "-")
+                                && (name.endsWith(".converted.litematic")
+                                || name.endsWith(".converted.tmp.litematic"));
+                    })
+                    .forEach(QuickLitematicaPreviewCache::deleteQuietly);
+        } catch (IOException ignored) {
+        }
+    }
+
+    private static void runIndexCommitHook() {
+        Runnable hook = indexCommitHook;
+        if (hook != null) hook.run();
     }
 
     static void writeCacheIndex(Path cacheDir) throws IOException {
-        Path indexPath = cacheDir.resolve(CACHE_INDEX_FILE_NAME);
-        Path temporaryPath = cacheDir.resolve(CACHE_INDEX_FILE_NAME + ".tmp");
-        try (OutputStream output = new BufferedOutputStream(Files.newOutputStream(temporaryPath))) {
-            CACHE_INDEX.store(output, "QuickCraft Litematica 3D preview cache index");
+        synchronized (CACHE_INDEX_LOCK) {
+            Path indexPath = cacheDir.resolve(CACHE_INDEX_FILE_NAME);
+            Path temporaryPath = cacheDir.resolve(CACHE_INDEX_FILE_NAME + ".tmp");
+            try (OutputStream output = new BufferedOutputStream(Files.newOutputStream(temporaryPath))) {
+                CACHE_INDEX.store(output, "QuickCraft Litematica 3D preview cache index");
+            }
+            moveCacheFile(temporaryPath, indexPath);
         }
-        moveCacheFile(temporaryPath, indexPath);
     }
 
-    record CacheIndexEntry(String sourceHash, String resourcePackSignature) {
+    record CacheIndexEntry(String sourceHash, String resourcePackSignature, String structureFingerprint) {
     }
 
     static String currentCacheVersionToken() {
@@ -418,11 +553,7 @@ final class QuickLitematicaPreviewCache {
 
     static void clearRenderCacheFiles(Path cacheDir) {
         try (var paths = Files.list(cacheDir)) {
-            paths.filter(path -> {
-                        String name = path.getFileName().toString();
-                        return !CACHE_INDEX_FILE_NAME.equals(name);
-                    })
-                    .forEach(QuickLitematicaPreviewCache::deleteRecursivelyQuietly);
+            paths.forEach(QuickLitematicaPreviewCache::deleteRecursivelyQuietly);
         } catch (IOException ignored) {
         }
     }
@@ -462,12 +593,8 @@ final class QuickLitematicaPreviewCache {
         }
     }
     static class CacheFile {
-        @Nullable
-        static MeshData read(Path path, AtomicBoolean cancelled) {
-            return read(path, cancelled, null);
-        }
-
-        static MeshData read(Path path, AtomicBoolean cancelled, @Nullable QuickLitematicaPreviewMeshStore meshStore) {
+        static MeshData read(Path path, AtomicBoolean cancelled, @Nullable QuickLitematicaPreviewMeshStore meshStore,
+                             String expectedStructureFingerprint, String expectedResourceSignature) {
             try (var phase = QuickLitematicaPreviewLog.phase("网格缓存解压/解码")) {
                 if (!Files.isRegularFile(path)) {
                     LOGGER.info("网格缓存未命中：原因=cache_file_missing，路径={}", path);
@@ -479,8 +606,15 @@ final class QuickLitematicaPreviewCache {
                     int magic = input.readInt();
                     int version = input.readInt();
                     String marker = input.readUTF();
-                    if (magic != CACHE_MAGIC || version != CACHE_FORMAT_VERSION || !MESH_CACHE_MARKER.equals(marker)) {
-                            LOGGER.warn("缓存读取失效：原因=cache_header_mismatch：magic={}/{}，format={}/{}，marker={}/{}，文件={}", magic, CACHE_MAGIC, version, CACHE_FORMAT_VERSION, marker, MESH_CACHE_MARKER, path);
+                    String structureFingerprint = input.readUTF();
+                    String resourceSignature = input.readUTF();
+                    if (magic != CACHE_MAGIC || version != CACHE_FORMAT_VERSION || !MESH_CACHE_MARKER.equals(marker)
+                            || !expectedStructureFingerprint.equals(structureFingerprint)
+                            || !expectedResourceSignature.equals(resourceSignature)) {
+                            LOGGER.warn("缓存读取失效：原因=cache_header_or_identity_mismatch：magic={}/{}，format={}/{}，marker={}/{}，结构={}/{}，资源={}/{}，文件={}",
+                                    magic, CACHE_MAGIC, version, CACHE_FORMAT_VERSION, marker, MESH_CACHE_MARKER,
+                                    structureFingerprint, expectedStructureFingerprint,
+                                    resourceSignature, expectedResourceSignature, path);
                         deleteQuietly(path);
                         return null;
                     }
@@ -652,6 +786,8 @@ final class QuickLitematicaPreviewCache {
                 Path finalPath,
                 MeshData data,
                 List<LayerMesh> layers,
+                String structureFingerprint,
+                String resourceSignature,
                 AtomicBoolean cancelled,
                 ProgressSink progressSink
         ) throws IOException {
@@ -663,6 +799,8 @@ final class QuickLitematicaPreviewCache {
                     output.writeInt(CACHE_MAGIC);
                     output.writeInt(CACHE_FORMAT_VERSION);
                     output.writeUTF(MESH_CACHE_MARKER);
+                    output.writeUTF(structureFingerprint);
+                    output.writeUTF(resourceSignature);
                     output.writeInt(data.sizeX());
                     output.writeInt(data.sizeY());
                     output.writeInt(data.sizeZ());

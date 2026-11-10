@@ -53,10 +53,10 @@ class QuickLitematicaPreviewMeshStoreTest {
         var original = new MeshData(List.of(new LayerMesh(LayerKey.SOLID, vertices)), List.of(), List.of(), List.of(), 1, 1, 1);
         Path cache = directory.resolve("source.qcp3d");
         QuickLitematicaPreviewCache.CacheFile.writeAtomically(directory.resolve("source.tmp"), cache,
-                original, original.layers(), new AtomicBoolean(), value -> {});
+                original, original.layers(), "struct-test", "pack-test", new AtomicBoolean(), value -> {});
         Path spillDirectory = Files.createDirectory(directory.resolve("spill"));
         try (var store = new QuickLitematicaPreviewMeshStore(spillDirectory)) {
-            MeshData read = QuickLitematicaPreviewCache.CacheFile.read(cache, new AtomicBoolean(), store);
+            MeshData read = QuickLitematicaPreviewCache.CacheFile.read(cache, new AtomicBoolean(), store, "struct-test", "pack-test");
             assertThat(read).isNotNull();
             assertThat(read.vertexCount()).isEqualTo(vertices.length / QUANTIZED_VERTEX_BYTES);
             assertThat(read.layers()).allSatisfy(mesh -> assertThat(mesh.vertices()).isNull());
@@ -68,7 +68,7 @@ class QuickLitematicaPreviewMeshStoreTest {
             }
             Path rewritten = directory.resolve("rewritten.qcp3d");
             QuickLitematicaPreviewCache.CacheFile.writeAtomically(directory.resolve("rewritten.tmp"), rewritten,
-                    read, read.layers(), new AtomicBoolean(), value -> {});
+                    read, read.layers(), "struct-test", "pack-test", new AtomicBoolean(), value -> {});
             assertThat(Files.readAllBytes(rewritten)).isEqualTo(Files.readAllBytes(cache));
         }
         try (var files = Files.list(spillDirectory)) { assertThat(files.count()).isZero(); }

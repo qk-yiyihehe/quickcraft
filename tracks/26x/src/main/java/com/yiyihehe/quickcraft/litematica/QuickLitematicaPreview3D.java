@@ -70,6 +70,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
@@ -349,6 +350,8 @@ public final class QuickLitematicaPreview3D {
         private final Screen owner;
         private final Runnable previewMetadataRefresh;
         private final AtomicBoolean previewImageWriteInProgress = new AtomicBoolean();
+        private final AtomicLong previewImageWriteGeneration = new AtomicLong();
+        private boolean closed;
         @Nullable
         private Consumer<Component> pendingPreviewImageCallback;
         private boolean pendingPreviewImageRestoreFullscreen;
@@ -361,7 +364,7 @@ public final class QuickLitematicaPreview3D {
         private boolean showExpandButton;
         private long nextSourceCheckMillis;
 
-        private Manager(Screen owner, Runnable previewMetadataRefresh) {
+        Manager(Screen owner, Runnable previewMetadataRefresh) {
             this.owner = owner;
             this.previewMetadataRefresh = previewMetadataRefresh;
             LIVE_MANAGERS.add(this);
@@ -542,6 +545,27 @@ public final class QuickLitematicaPreview3D {
             return this.canEditPreviewImage() && this.hasEmbeddedPreviewImage;
         }
 
+        long beginPreviewImageWrite() {
+            if (this.closed || !this.previewImageWriteInProgress.compareAndSet(false, true)) {
+                return 0L;
+            }
+            return this.previewImageWriteGeneration.incrementAndGet();
+        }
+
+        boolean previewImageWriteInProgress() {
+            return this.previewImageWriteInProgress.get();
+        }
+
+        boolean isCurrentPreviewImageWrite(long generation) {
+            return generation != 0L && this.previewImageWriteGeneration.get() == generation;
+        }
+
+        void completePreviewImageWrite(long generation) {
+            if (this.isCurrentPreviewImageWrite(generation)) {
+                this.previewImageWriteInProgress.set(false);
+            }
+        }
+
         void saveCurrentViewAsPreview(int backgroundColor, Consumer<Component> callback) {
             Preview preview = this.current;
             Path target = this.currentPath;
@@ -549,23 +573,29 @@ public final class QuickLitematicaPreview3D {
                 callback.accept(Component.translatable("quickcraft.litematica.preview_3d.preview_write_unavailable"));
                 return;
             }
-            if (!this.previewImageWriteInProgress.compareAndSet(false, true)) {
+            long generation = this.beginPreviewImageWrite();
+            if (generation == 0L) {
                 callback.accept(Component.translatable("quickcraft.litematica.preview_3d.preview_writing"));
                 return;
             }
 
-            preview.captureSnapshot(EMBEDDED_PREVIEW_DIMENSION, backgroundColor, this.drag, callback, image -> {
-                try {
-                    this.writePreviewAsync(preview, target, image.getPixels(), callback);
-                } catch (Throwable throwable) {
-                    LOGGER.error("Failed to convert the 3D view into Litematica preview pixels", throwable);
-                    this.previewImageWriteInProgress.set(false);
-                    callback.accept(Component.translatable("quickcraft.litematica.preview_3d.preview_write_failed"));
-                } finally {
-                    image.close();
-                    preview.snapshotInProgress.set(false);
-                }
-            });
+            try {
+                preview.captureSnapshot(EMBEDDED_PREVIEW_DIMENSION, backgroundColor, this.drag,
+                        message -> this.failPreviewWrite(generation, callback, message), image -> {
+                            try {
+                                this.writePreviewAsync(preview, target, image.getPixels(), generation, callback);
+                            } catch (Throwable throwable) {
+                                LOGGER.error("Failed to convert the 3D view into Litematica preview pixels", throwable);
+                                this.failPreviewWrite(generation, callback, throwable);
+                            } finally {
+                                image.close();
+                                preview.snapshotInProgress.set(false);
+                            }
+                        });
+            } catch (Throwable throwable) {
+                LOGGER.error("Failed to capture the 3D view for the preview image", throwable);
+                this.failPreviewWrite(generation, callback, throwable);
+            }
         }
 
         void selectPreviewImage(Consumer<Component> callback) {
@@ -654,7 +684,12 @@ public final class QuickLitematicaPreview3D {
                 callback.accept(Component.translatable("quickcraft.litematica.preview_3d.image_selection_cancelled"));
                 return;
             }
-            if (!this.previewImageWriteInProgress.compareAndSet(false, true)) {
+            if (this.current != preview || !target.equals(this.currentPath)) {
+                callback.accept(Component.translatable("quickcraft.litematica.preview_3d.preview_write_unavailable"));
+                return;
+            }
+            long generation = this.beginPreviewImageWrite();
+            if (generation == 0L) {
                 callback.accept(Component.translatable("quickcraft.litematica.preview_3d.preview_writing"));
                 return;
             }
@@ -662,13 +697,14 @@ public final class QuickLitematicaPreview3D {
             Util.ioPool().execute(() -> {
                 try {
                     int[] pixels = QuickLitematicaPreviewImageWriter.readImagePixels(selected);
-                    QuickLitematicaPreviewImageWriter.writePreview(target, pixels);
-                    preview.refreshCacheSourceHash();
-                    this.finishPreviewWrite(preview, true, callback, Component.translatable(
+                    QuickLitematicaPreviewImageWriter.PreviewWriteResult result =
+                            QuickLitematicaPreviewImageWriter.writePreview(target, pixels);
+                    boolean structureChanged = preview.refreshCacheSourceHash(result);
+                    this.finishPreviewWrite(preview, true, structureChanged, generation, callback, Component.translatable(
                             "quickcraft.litematica.preview_3d.preview_write_success", target.getFileName().toString()));
                 } catch (Throwable throwable) {
                     LOGGER.error("Failed to set the Litematica preview image from {}", selected, throwable);
-                    this.failPreviewWrite(callback, throwable);
+                    this.failPreviewWrite(generation, callback, throwable);
                 }
             });
         }
@@ -680,43 +716,68 @@ public final class QuickLitematicaPreview3D {
                 callback.accept(Component.translatable("quickcraft.litematica.preview_3d.preview_remove_unavailable"));
                 return;
             }
-            if (!this.previewImageWriteInProgress.compareAndSet(false, true)) {
+            long generation = this.beginPreviewImageWrite();
+            if (generation == 0L) {
                 callback.accept(Component.translatable("quickcraft.litematica.preview_3d.preview_writing"));
                 return;
             }
 
-            Util.ioPool().execute(preview.trace.wrap("原理图预览图更新", () -> {
-                try {
-                    QuickLitematicaPreviewImageWriter.removePreview(target);
-                    preview.refreshCacheSourceHash();
-                    this.finishPreviewWrite(preview, false, callback, Component.translatable(
-                            "quickcraft.litematica.preview_3d.preview_remove_success", target.getFileName().toString()));
-                } catch (Throwable throwable) {
-                    LOGGER.error("Failed to remove the Litematica preview image from {}", target, throwable);
-                    this.failPreviewWrite(callback, throwable);
-                }
-            }));
+            try {
+                Util.ioPool().execute(preview.trace.wrap("原理图预览图更新", () -> {
+                    try {
+                        QuickLitematicaPreviewImageWriter.PreviewWriteResult result =
+                                QuickLitematicaPreviewImageWriter.removePreview(target);
+                        boolean structureChanged = preview.refreshCacheSourceHash(result);
+                        this.finishPreviewWrite(preview, false, structureChanged, generation, callback, Component.translatable(
+                                "quickcraft.litematica.preview_3d.preview_remove_success", target.getFileName().toString()));
+                    } catch (Throwable throwable) {
+                        LOGGER.error("Failed to remove the Litematica preview image from {}", target, throwable);
+                        this.failPreviewWrite(generation, callback, throwable);
+                    }
+                }));
+            } catch (Throwable throwable) {
+                LOGGER.error("Failed to schedule the Litematica preview image removal", throwable);
+                this.failPreviewWrite(generation, callback, throwable);
+            }
         }
 
-        private void writePreviewAsync(Preview preview, Path target, int[] pixels, Consumer<Component> callback) {
-            Util.ioPool().execute(() -> {
-                try {
-                    QuickLitematicaPreviewImageWriter.writePreview(target, pixels);
-                    preview.refreshCacheSourceHash();
-                    this.finishPreviewWrite(preview, true, callback, Component.translatable(
-                            "quickcraft.litematica.preview_3d.preview_write_success", target.getFileName().toString()));
-                } catch (Throwable throwable) {
-                    LOGGER.error("Failed to set the Litematica preview image for {}", target, throwable);
-                    this.failPreviewWrite(callback, throwable);
-                }
-            });
+        private void writePreviewAsync(Preview preview, Path target, int[] pixels, long generation,
+                                       Consumer<Component> callback) {
+            if (this.current != preview || !target.equals(this.currentPath)) {
+                this.failPreviewWrite(generation, callback,
+                        Component.translatable("quickcraft.litematica.preview_3d.preview_write_unavailable"));
+                return;
+            }
+            try {
+                Util.ioPool().execute(() -> {
+                    try {
+                        QuickLitematicaPreviewImageWriter.PreviewWriteResult result =
+                                QuickLitematicaPreviewImageWriter.writePreview(target, pixels);
+                        boolean structureChanged = preview.refreshCacheSourceHash(result);
+                        this.finishPreviewWrite(preview, true, structureChanged, generation, callback, Component.translatable(
+                                "quickcraft.litematica.preview_3d.preview_write_success", target.getFileName().toString()));
+                    } catch (Throwable throwable) {
+                        LOGGER.error("Failed to set the Litematica preview image for {}", target, throwable);
+                        this.failPreviewWrite(generation, callback, throwable);
+                    }
+                });
+            } catch (Throwable throwable) {
+                LOGGER.error("Failed to schedule the Litematica preview image write", throwable);
+                this.failPreviewWrite(generation, callback, throwable);
+            }
         }
 
-        private void finishPreviewWrite(Preview preview, boolean hasEmbeddedPreview,
-                                        Consumer<Component> callback, Component message) {
+        private void finishPreviewWrite(Preview preview, boolean hasEmbeddedPreview, boolean structureChanged,
+                                        long generation, Consumer<Component> callback, Component message) {
             Minecraft.getInstance().execute(() -> {
-                this.previewImageWriteInProgress.set(false);
+                if (!this.isCurrentPreviewImageWrite(generation)) {
+                    return;
+                }
+                this.completePreviewImageWrite(generation);
                 if (this.current == preview) {
+                    if (structureChanged && this.currentPath != null && this.currentEntry != null) {
+                        this.switchTo(this.currentPath, this.currentEntry);
+                    }
                     this.hasEmbeddedPreviewImage = hasEmbeddedPreview;
                 }
                 try {
@@ -728,15 +789,26 @@ public final class QuickLitematicaPreview3D {
             });
         }
 
-        private void failPreviewWrite(Consumer<Component> callback, Throwable throwable) {
+        private void failPreviewWrite(long generation, Consumer<Component> callback, Component message) {
             Minecraft.getInstance().execute(() -> {
-                this.previewImageWriteInProgress.set(false);
-                callback.accept(Component.translatable(QuickLitematicaPreviewImageWriter.failureTranslationKey(throwable)));
+                if (!this.isCurrentPreviewImageWrite(generation)) {
+                    return;
+                }
+                this.completePreviewImageWrite(generation);
+                callback.accept(message);
             });
+        }
+
+        private void failPreviewWrite(long generation, Consumer<Component> callback, Throwable throwable) {
+            this.failPreviewWrite(generation, callback,
+                    Component.translatable(QuickLitematicaPreviewImageWriter.failureTranslationKey(throwable)));
         }
 
         @Override
         public void close() {
+            this.closed = true;
+            this.previewImageWriteGeneration.incrementAndGet();
+            this.previewImageWriteInProgress.set(false);
             LIVE_MANAGERS.remove(this);
             this.generatedSupplier = null;
             this.generatedName = null;
@@ -896,6 +968,9 @@ public final class QuickLitematicaPreview3D {
         final String resourcePackSignature;
         private volatile long sourceSize;
         private volatile long sourceModifiedMillis;
+        @Nullable
+        private volatile String structureFingerprint;
+        private volatile boolean cachePersistenceAllowed;
         private final long startedAtNanos = System.nanoTime();
         final QuickLitematicaPreviewLog.Trace trace;
         boolean forceRender;
@@ -1126,7 +1201,14 @@ public final class QuickLitematicaPreview3D {
                     throw new IOException("3D preview cache path has no parent directory");
                 }
                 Files.createDirectories(cacheDirectory);
+                Path runDirectory = cacheDirectory.getParent();
+                this.cachePersistenceAllowed = runDirectory != null
+                        && QuickLitematicaPreviewCache.ensureCacheDirectoryReady(runDirectory);
+                if (!this.cachePersistenceAllowed) {
+                    this.trace.event("缓存持久化禁用：原因=directory_not_initialized，目录={}", cacheDirectory);
+                }
                 MeshData pendingMesh = null;
+                String pendingStructureFingerprint = null;
                 try (var phase = QuickLitematicaPreviewLog.phase("等待同投影后台缓存提交")) {
                     var lease = borrowPendingMesh(this.cachePath, sourceHash, this.resourcePackSignature);
                     if (lease == null) {
@@ -1137,6 +1219,7 @@ public final class QuickLitematicaPreview3D {
                                 this.throwIfCancelled();
                                 this.borrowedMesh = lease;
                                 pendingMesh = lease.mesh;
+                                pendingStructureFingerprint = lease.structureFingerprint;
                             }
                         } catch (RuntimeException | Error failure) {
                             lease.close();
@@ -1153,8 +1236,15 @@ public final class QuickLitematicaPreview3D {
                 this.trace.event("缓存判定：索引={}，源哈希匹配={}，资源签名匹配={}，读取路径={}，缓存版本/标记由文件头校验",
                         indexEntry, sourceHashMatches, cacheSignatureMatches, readCachePath);
                 MeshData cached = pendingMesh != null ? pendingMesh
-                        : cacheSignatureMatches ? CacheFile.read(readCachePath, this.cancelled, this.staticMeshStore) : null;
+                        : cacheSignatureMatches ? CacheFile.read(readCachePath, this.cancelled, this.staticMeshStore,
+                                indexEntry.structureFingerprint(), this.resourcePackSignature) : null;
                 if (cached != null) {
+                    if (!sourceHash.equals(hashFile(this.sourcePath))) {
+                        this.markSourceStampForRecheck();
+                        throw new IOException("Source changed while loading preview cache");
+                    }
+                    this.structureFingerprint = pendingMesh != null
+                            ? pendingStructureFingerprint : indexEntry.structureFingerprint();
                     this.trace.event("静态网格缓存命中：层批次={}，顶点={}，动态状态/方块实体/实体={}/{}/{}，跳过原理图读取和模型构建",
                             cached.layers().size(), cached.vertexCount(), cached.blockStates().size(), cached.blockEntities().size(), cached.entities().size());
                     this.throwIfCancelled();
@@ -1177,9 +1267,13 @@ public final class QuickLitematicaPreview3D {
 
                 this.state = State.BUILDING;
                 this.trace.event("预览状态改变：BUILDING");
-                Path convertedPath = this.convertedSchematicPath();
-                boolean convertedSignatureMatches = convertedCacheMatches(readConvertedCacheIndexEntry(this.cacheSlot),
-                        indexEntry, sourceHash, this.resourcePackSignature);
+                CacheIndexEntry convertedEntry = readConvertedCacheIndexEntry(this.cacheSlot);
+                boolean convertedSignatureMatches = convertedCacheMatches(convertedEntry, sourceHash,
+                        this.resourcePackSignature);
+                Path convertedPath = convertedSignatureMatches
+                        ? convertedCachePath(cacheDirectory, this.cacheSlot, convertedEntry.structureFingerprint(),
+                        this.resourcePackSignature)
+                        : this.convertedSchematicPath();
                 LitematicaSchematic schematic = convertedSignatureMatches
                         ? QuickLitematicaPreviewSchematicFiles.readSchematic(convertedPath, this.cancelled, false)
                         : null;
@@ -1188,6 +1282,16 @@ public final class QuickLitematicaPreview3D {
                 if (!convertedCacheHit) {
                     deleteQuietly(convertedPath);
                     schematic = QuickLitematicaPreviewSchematicFiles.readSchematic(this.sourcePath, this.cancelled, true);
+                }
+                if (!sourceHash.equals(hashFile(this.sourcePath))) {
+                    this.markSourceStampForRecheck();
+                    throw new IOException("Source changed while reading preview");
+                }
+                try {
+                    this.structureFingerprint = QuickLitematicaPreviewSchematicFiles.structureFingerprint(schematic);
+                } catch (RuntimeException failure) {
+                    this.structureFingerprint = null;
+                    LOGGER.warn("预览结构指纹计算失败，跳过磁盘缓存：源={}", this.sourcePath, failure);
                 }
                 int effectiveSourceVersion = schematic.getMetadata().getMinecraftDataVersion();
                 // 上游禁用 DFU 时不能把未转换的 NBT 写成当前版本缓存。
@@ -1229,7 +1333,7 @@ public final class QuickLitematicaPreview3D {
 
                 synchronized (this) {
                     this.throwIfCancelled();
-                    this.saveCacheAsync(built, sourceHash, convertedSchematic);
+                    this.saveCacheAsync(built, sourceHash, this.structureFingerprint, convertedSchematic);
                     this.trace.milestone("CPU 模型构建完成：顶点={}，层批次={}，尺寸={}x{}x{}", built.vertexCount(), built.layers().size(), built.sizeX(), built.sizeY(), built.sizeZ());
                     this.meshData = built;
                     this.progress = 1.0F;
@@ -1254,17 +1358,41 @@ public final class QuickLitematicaPreview3D {
         }
 
         private void saveConvertedCache(LitematicaSchematic schematic, String sourceHash) {
+            if (!this.cachePersistenceAllowed) {
+                this.trace.event("转换缓存保存跳过：原因=directory_not_initialized，源={}", this.sourcePath);
+                return;
+            }
             try {
-                if (QuickLitematicaPreviewSchematicFiles.writeConvertedSchematic(schematic, this.convertedSchematicPath(), this.cacheSlot)) {
-                    writeConvertedCacheIndexEntry(this.cacheSlot, this.sourcePath, sourceHash, this.resourcePackSignature);
-                    this.trace.milestone("converted-cache-independent-v1：转换原理图及独立签名已提交，网格超限或压缩不影响复用");
+                if (!sourceHash.equals(hashFile(this.sourcePath))) {
+                    this.trace.event("转换缓存保存跳过：原因=source_changed，源={}", this.sourcePath);
+                    return;
                 }
-            } catch (IOException failure) {
+                String structureFingerprint = QuickLitematicaPreviewSchematicFiles.structureFingerprint(schematic);
+                Path convertedPath = this.convertedSchematicPath(structureFingerprint);
+                if (QuickLitematicaPreviewSchematicFiles.writeConvertedSchematic(schematic, convertedPath, this.cacheSlot)) {
+                    if (!sourceHash.equals(hashFile(this.sourcePath))) {
+                        this.trace.event("转换缓存索引提交跳过：原因=source_changed，源={}", this.sourcePath);
+                        return;
+                    }
+                    writeConvertedCacheIndexEntry(this.cacheSlot, this.sourcePath, sourceHash,
+                            this.resourcePackSignature, structureFingerprint);
+                    this.trace.milestone("converted-cache-identity-v2：转换原理图按结构指纹命名并提交，索引不匹配时安全重建");
+                }
+            } catch (RuntimeException | IOException failure) {
                 LOGGER.warn("转换原理图缓存索引保存失败：源={}，继续原读取回退", this.sourcePath, failure);
             }
         }
 
-        private void saveCacheAsync(MeshData built, String sourceHash, @Nullable LitematicaSchematic schematic) {
+        private void saveCacheAsync(MeshData built, String sourceHash, @Nullable String structureFingerprint,
+                                    @Nullable LitematicaSchematic schematic) {
+            if (!this.cachePersistenceAllowed) {
+                this.trace.event("缓存保存跳过：原因=directory_not_initialized，路径={}", this.cachePath);
+                return;
+            }
+            if (structureFingerprint == null) {
+                this.trace.event("缓存保存跳过：原因=structure_fingerprint_unavailable，路径={}", this.cachePath);
+                return;
+            }
             // 快照保留小网格顶点或大网格暂存引用；关闭预览不会打断独立的缓存保存。
             MeshData snapshot = new MeshData(List.copyOf(built.layers()), built.blockStates(), built.blockEntities(),
                     built.entities(), built.sizeX(), built.sizeY(), built.sizeZ());
@@ -1277,15 +1405,32 @@ public final class QuickLitematicaPreview3D {
             long cacheQueued = QuickLitematicaPreviewLog.startTimer();
             Runnable cacheWrite = this.trace.wrap(() -> {
                 LOGGER.info("后台缓存保存开始：路径={}，排队={} us", cachePath, QuickLitematicaPreviewLog.microsSince(cacheQueued));
+                boolean cacheWritten = false;
                 try {
-                    if (schematic != null) this.saveConvertedCache(schematic, sourceHash);
-                    CacheFile.writeAtomically(tmpPath, cachePath, snapshot, snapshot.layers(), new AtomicBoolean(), QuickLitematicaPreviewLog.progressSink("缓存压缩写入"));
-                    try (var phase = QuickLitematicaPreviewLog.phase("提交缓存索引")) {
-                        writeCacheIndexEntry(cacheSlot, sourcePath, sourceHash, resourcePackSignature);
+                    if (!sourceHash.equals(hashFile(sourcePath))) {
+                        this.markSourceStampForRecheck();
+                        this.trace.event("缓存保存跳过：原因=source_changed，路径={}", cachePath);
+                        return;
                     }
-                    this.trace.milestone("缓存文件及索引提交成功：路径={}，源哈希={}", cachePath, sourceHash);
+                    if (schematic != null) this.saveConvertedCache(schematic, sourceHash);
+                    CacheFile.writeAtomically(tmpPath, cachePath, snapshot, snapshot.layers(),
+                            structureFingerprint, resourcePackSignature, new AtomicBoolean(),
+                            QuickLitematicaPreviewLog.progressSink("缓存压缩写入"));
+                    cacheWritten = true;
+                    if (!sourceHash.equals(hashFile(sourcePath))) {
+                        this.markSourceStampForRecheck();
+                        deleteQuietly(cachePath);
+                        this.trace.event("缓存索引提交跳过：原因=source_changed，路径={}", cachePath);
+                        return;
+                    }
+                    try (var phase = QuickLitematicaPreviewLog.phase("提交缓存索引")) {
+                        writeCacheIndexEntry(cacheSlot, sourcePath, sourceHash, resourcePackSignature, structureFingerprint);
+                    }
+                    this.trace.milestone("缓存文件及索引提交成功：路径={}，源哈希={}，结构指纹={}",
+                            cachePath, sourceHash, structureFingerprint);
                     QuickLitematicaPreviewLog.file("缓存保存完成", cachePath);
                 } catch (Exception e) {
+                    if (cacheWritten) deleteQuietly(cachePath);
                     deleteTmpQuietly(tmpPath);
                     LOGGER.error("后台缓存保存失败：源={}，临时={}，最终={}，显示结果保留，临时文件清理", sourcePath, tmpPath, cachePath, e);
                 } finally {
@@ -1296,7 +1441,8 @@ public final class QuickLitematicaPreview3D {
             });
             this.staticMeshStore.retainForCache();
             try {
-                writeAsync(cachePath, cacheWrite, sourceHash, resourcePackSignature, snapshot.vertexCount(), snapshot, this.staticMeshStore);
+                writeAsync(cachePath, cacheWrite, sourceHash, resourcePackSignature, structureFingerprint,
+                        snapshot.vertexCount(), snapshot, this.staticMeshStore);
             } catch (RuntimeException | Error failure) {
                 this.staticMeshStore.releaseCache();
                 throw failure;
@@ -1305,6 +1451,14 @@ public final class QuickLitematicaPreview3D {
 
         private Path convertedSchematicPath() {
             return this.cachePath.resolveSibling(this.cacheSlot + ".converted.litematic");
+        }
+
+        private Path convertedSchematicPath(String structureFingerprint) {
+            Path directory = this.cachePath.getParent();
+            if (directory == null) {
+                return this.convertedSchematicPath();
+            }
+            return convertedCachePath(directory, this.cacheSlot, structureFingerprint, this.resourcePackSignature);
         }
 
         private void initializeDimensions(int sizeX, int sizeY, int sizeZ) {
@@ -1524,13 +1678,32 @@ public final class QuickLitematicaPreview3D {
         }
 
         private void captureSourceStamp() {
-            try {
-                this.sourceSize = Files.size(this.sourcePath);
-                this.sourceModifiedMillis = Files.getLastModifiedTime(this.sourcePath).toMillis();
-            } catch (IOException e) {
-                this.sourceSize = -1L;
-                this.sourceModifiedMillis = -1L;
+            SourceStamp stamp = this.readSourceStamp();
+            if (stamp != null) {
+                this.applySourceStamp(stamp);
+            } else {
+                this.markSourceStampForRecheck();
             }
+        }
+
+        @Nullable
+        private SourceStamp readSourceStamp() {
+            try {
+                return new SourceStamp(Files.size(this.sourcePath),
+                        Files.getLastModifiedTime(this.sourcePath).toMillis());
+            } catch (IOException e) {
+                return null;
+            }
+        }
+
+        private void applySourceStamp(SourceStamp stamp) {
+            this.sourceSize = stamp.size();
+            this.sourceModifiedMillis = stamp.modifiedMillis();
+        }
+
+        void markSourceStampForRecheck() {
+            this.sourceSize = -1L;
+            this.sourceModifiedMillis = -1L;
         }
 
         private boolean sourceStampChanged() {
@@ -1555,14 +1728,71 @@ public final class QuickLitematicaPreview3D {
             }
         }
 
-        private void refreshCacheSourceHash() {
+        boolean refreshCacheSourceHash(QuickLitematicaPreviewImageWriter.PreviewWriteResult result) {
             try (var scope = this.trace.bind(); var phase = QuickLitematicaPreviewLog.phase("预览图更新后刷新缓存源哈希")) {
+                String writtenFingerprint = result.structureFingerprint();
+                String currentFingerprint = this.structureFingerprint;
+                SourceStamp stampBefore = this.readSourceStamp();
+                if (stampBefore == null) {
+                    return this.invalidateCacheForRefresh(currentFingerprint, writtenFingerprint);
+                }
                 String sourceHash = hashFile(this.sourcePath);
-                writeCacheIndexEntry(this.cacheSlot, this.sourcePath, sourceHash, this.resourcePackSignature);
-                this.captureSourceStamp();
-            } catch (IOException ignored) {
+                SourceStamp stampAfterHash = this.readSourceStamp();
+                if (stampAfterHash == null || !stampBefore.equals(stampAfterHash)) {
+                    return this.invalidateCacheForRefresh(currentFingerprint, writtenFingerprint);
+                }
+                if (currentFingerprint == null || writtenFingerprint == null
+                        || !currentFingerprint.equals(writtenFingerprint)
+                        || !sourceHash.equals(result.contentHash())) {
+                    return this.invalidateCacheForRefresh(currentFingerprint, writtenFingerprint);
+                }
+
+                writeCacheIndexEntry(this.cacheSlot, this.sourcePath, sourceHash,
+                        this.resourcePackSignature, writtenFingerprint);
+                CacheIndexEntry converted = readConvertedCacheIndexEntry(this.cacheSlot);
+                Path cacheDirectory = this.cachePath.getParent();
+                if (cacheDirectory != null && converted != null
+                        && writtenFingerprint.equals(converted.structureFingerprint())
+                        && this.resourcePackSignature.equals(converted.resourcePackSignature())) {
+                    Path convertedPath = convertedCachePath(cacheDirectory, this.cacheSlot,
+                            converted.structureFingerprint(), this.resourcePackSignature);
+                    if (Files.isRegularFile(convertedPath)) {
+                        writeConvertedCacheIndexEntry(this.cacheSlot, this.sourcePath, sourceHash,
+                                this.resourcePackSignature, writtenFingerprint);
+                    }
+                }
+                String verifiedHash = hashFile(this.sourcePath);
+                SourceStamp stampAfterIndex = this.readSourceStamp();
+                if (!sourceHash.equals(verifiedHash) || stampAfterIndex == null
+                        || !stampAfterHash.equals(stampAfterIndex)) {
+                    return this.invalidateCacheForRefresh(currentFingerprint, writtenFingerprint);
+                }
+                this.structureFingerprint = writtenFingerprint;
+                this.applySourceStamp(stampAfterHash);
+                return false;
+            } catch (IOException | RuntimeException ignored) {
+                this.markSourceStampForRecheck();
                 LOGGER.warn("预览局部失败：入口=refreshCacheSourceHash，继续原有回退", ignored);
+                return true;
             }
+        }
+
+        private boolean invalidateCacheForRefresh(@Nullable String currentFingerprint,
+                                                  @Nullable String writtenFingerprint) {
+            this.structureFingerprint = null;
+            this.markSourceStampForRecheck();
+            Path cacheDirectory = this.cachePath.getParent();
+            if (cacheDirectory != null) {
+                removeCacheIndexEntry(cacheDirectory, this.cacheSlot);
+                try {
+                    writeCacheIndex(cacheDirectory);
+                } catch (IOException failure) {
+                    LOGGER.warn("预览缓存索引失效写回失败：目录={}", cacheDirectory, failure);
+                }
+            }
+            this.trace.event("预览图更新后内容已变化：旧网格缓存失效，等待重建；当前结构={}，写入结构={}",
+                    currentFingerprint, writtenFingerprint);
+            return true;
         }
 
         private int recommendedExportResolution() {
@@ -2103,6 +2333,9 @@ public final class QuickLitematicaPreview3D {
         BlockState state(RegistryAccess registryManager) {
             return NbtUtils.readBlockState(blockLookup(registryManager), this.stateNbt);
         }
+    }
+
+    record SourceStamp(long size, long modifiedMillis) {
     }
 
     static record PreviewDimensions(int sizeX, int sizeY, int sizeZ) {

@@ -71,6 +71,13 @@ public final class QuickLitematicaPreviewAccess {
         return "quickcraft-model-mesh-v20-api-audit-stable-path-content-resource-signature-dynamic-render-state-mc26.3-ctm-overlay-equipment-v1";
     }
 
+    static String structureFingerprint(fi.dy.masa.litematica.schematic.LitematicaSchematic schematic) {
+        fi.dy.masa.malilib.util.data.tag.CompoundData data = schematic.writeToData();
+        net.minecraft.nbt.CompoundTag root =
+                fi.dy.masa.malilib.util.data.tag.converter.DataConverterNbt.toVanillaCompound(data);
+        return QuickLitematicaPreviewSchematicFiles.normalizedStructureFingerprint(root);
+    }
+
     public static VertexConsumer delegateSetUv3(VertexConsumer consumer, float u, float v) {
         return consumer.setUv3(u, v);
     }

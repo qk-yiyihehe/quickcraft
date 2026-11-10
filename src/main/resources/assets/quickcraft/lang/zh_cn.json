@@ -552,6 +552,7 @@
   "quickcraft.litematica.preview_3d.preview_removing": "正在移除原理图预览图……",
   "quickcraft.litematica.preview_3d.preview_write_success": "已写入 %s；关闭 QuickCraft 后仍可显示",
   "quickcraft.litematica.preview_3d.preview_write_failed": "预览图写入失败，原理图文件未被替换",
+  "quickcraft.litematica.preview_3d.preview_file_changed": "原理图已被其他程序修改；本次预览图写入已取消，较新的文件内容已保留",
   "quickcraft.litematica.preview_3d.preview_write_unavailable": "只有从原理图列表打开的 .litematic 文件才能写入预览图",
   "quickcraft.litematica.preview_3d.preview_remove_success": "已从 %s 移除预览图",
   "quickcraft.litematica.preview_3d.preview_remove_unavailable": "这个投影没有可以移除的文件预览图",
