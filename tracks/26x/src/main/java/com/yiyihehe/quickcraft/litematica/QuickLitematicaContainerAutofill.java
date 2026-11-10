@@ -38,6 +38,8 @@ public final class QuickLitematicaContainerAutofill implements ClientModInitiali
     @Override
     public void onInitializeClient() {
         QuickLitematicaPreview3D.registerSpecialRenderer();
+        QuickLitematicaPreview3D.initializeLifecycle();
+        QuickLitematicaContainerScreenBinding.initializeLifecycle();
         ACTIVE.set(this);
         ClientTickEvents.END_CLIENT_TICK.register(this::onClientTick);
     }

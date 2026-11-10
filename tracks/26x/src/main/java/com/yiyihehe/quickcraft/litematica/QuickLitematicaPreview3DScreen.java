@@ -62,6 +62,7 @@ public final class QuickLitematicaPreview3DScreen extends Screen {
     private int previewSectionTitleY = -1;
     private int exportSectionTitleY;
     private boolean snapshotActionInProgress;
+    private boolean temporaryChildScreen;
     private Component status = Component.empty();
 
     QuickLitematicaPreview3DScreen(
@@ -87,6 +88,7 @@ public final class QuickLitematicaPreview3DScreen extends Screen {
 
     @Override
     protected void init() {
+        this.temporaryChildScreen = false;
         int panelX = this.width - PANEL_WIDTH + 10;
         int buttonWidth = PANEL_WIDTH - 20;
         int halfWidth = (buttonWidth - 4) / 2;
@@ -273,6 +275,7 @@ public final class QuickLitematicaPreview3DScreen extends Screen {
     }
 
     private void openColorPicker() {
+        this.temporaryChildScreen = true;
         setScreen(this.minecraft, new ColorPickerScreen(this));
     }
 
@@ -433,6 +436,29 @@ public final class QuickLitematicaPreview3DScreen extends Screen {
     }
 
     @Override
+    public void removed() {
+        super.removed();
+        // 颜色选择器等临时子屏会返回本页；只有最终退出或被直接替换才释放拥有的任务。
+        if (!this.temporaryChildScreen) {
+            this.closeOwnedManager();
+        }
+    }
+
+    private void closeOwnedManager() {
+        if (this.closeManagerOnExit) {
+            this.manager.close();
+        }
+    }
+
+    boolean ownsManager(QuickLitematicaPreview3D.Manager manager) {
+        return this.manager == manager;
+    }
+
+    static boolean isColorPickerFor(Screen screen, QuickLitematicaPreview3D.Manager manager) {
+        return screen instanceof ColorPickerScreen picker && picker.parent.ownsManager(manager);
+    }
+
+    @Override
     public boolean isPauseScreen() {
         return false;
     }
@@ -451,6 +477,7 @@ public final class QuickLitematicaPreview3DScreen extends Screen {
     private static final class ColorPickerScreen extends Screen {
         private final QuickLitematicaPreview3DScreen parent;
         private int dragArea = -1;
+        private boolean returningToParent;
 
         private ColorPickerScreen(QuickLitematicaPreview3DScreen parent) {
             super(Component.translatable("quickcraft.litematica.preview_3d.color_picker_title"));
@@ -577,7 +604,17 @@ public final class QuickLitematicaPreview3DScreen extends Screen {
 
         @Override
         public void onClose() {
+            this.returningToParent = true;
             setScreen(this.minecraft, this.parent);
+        }
+
+        @Override
+        public void removed() {
+            super.removed();
+            this.parent.temporaryChildScreen = false;
+            if (!this.returningToParent) {
+                this.parent.closeOwnedManager();
+            }
         }
 
         @Override

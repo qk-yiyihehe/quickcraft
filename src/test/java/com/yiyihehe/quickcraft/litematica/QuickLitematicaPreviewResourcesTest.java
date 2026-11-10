@@ -2,11 +2,15 @@ package com.yiyihehe.quickcraft.litematica;
 
 import java.io.ByteArrayInputStream;
 import java.io.InputStream;
+import java.lang.reflect.Field;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.concurrent.Callable;
+import java.util.concurrent.atomic.AtomicBoolean;
 import org.junit.jupiter.api.Test;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.mockStatic;
+import static org.mockito.Mockito.times;
 
 class QuickLitematicaPreviewResourcesTest {
     private static Callable<InputStream> data(byte[] bytes) { return () -> new ByteArrayInputStream(bytes); }
@@ -49,5 +53,30 @@ class QuickLitematicaPreviewResourcesTest {
         resources.put("minecraft:textures/block/test.png.mcmeta", data(new byte[]{2}));
         assertThat(QuickLitematicaPreviewResources.hashResources(resources)).isNotEqualTo(animated);
         assertThat(QuickLitematicaPreviewResources.relevant("optifine/ctm/test.properties")).isTrue();
+    }
+
+    @Test
+    void clientResourceListenerRegistrationIsIdempotent() throws Exception {
+        Field registeredField = QuickLitematicaPreviewResources.class.getDeclaredField("REGISTERED");
+        registeredField.setAccessible(true);
+        AtomicBoolean registered = (AtomicBoolean) registeredField.get(null);
+        boolean wasRegistered = registered.get();
+        registered.set(false);
+        try (var access = mockStatic(QuickLitematicaPreviewResourceAccess.class)) {
+            QuickLitematicaPreviewResources.initialize();
+            QuickLitematicaPreviewResources.initialize();
+            access.verify(QuickLitematicaPreviewResourceAccess::register, times(1));
+        } finally {
+            registered.set(wasRegistered);
+        }
+    }
+
+    @Test
+    void litematicaClientStartupInitializesResourceListenerBeforeVersionHook() {
+        try (var resources = mockStatic(QuickLitematicaPreviewResources.class);
+             var materialAccess = mockStatic(QuickLitematicaMaterialAccess.class)) {
+            new QuickLitematicaContainerAutofill().onInitializeClient();
+            resources.verify(QuickLitematicaPreviewResources::initialize);
+        }
     }
 }

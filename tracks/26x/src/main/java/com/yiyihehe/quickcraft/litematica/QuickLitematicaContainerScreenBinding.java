@@ -4,8 +4,11 @@ import com.yiyihehe.quickcraft.QuickContainerCopy;
 import com.yiyihehe.quickcraft.QuickClientScreenAccess;
 import fi.dy.masa.litematica.data.DataManager;
 import fi.dy.masa.litematica.schematic.placement.SchematicPlacement;
+import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
+import net.fabricmc.fabric.api.client.networking.v1.ClientPlayConnectionEvents;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.Container;
@@ -30,6 +33,7 @@ import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicBoolean;
 import static com.yiyihehe.quickcraft.litematica.QuickLitematicaContainerVerifier.*;
 
 /** 当前容器屏幕的绑定、刷新和槽位提示状态；关闭与切换入口统一清理。 */
@@ -37,6 +41,7 @@ final class QuickLitematicaContainerScreenBinding {
     private QuickLitematicaContainerScreenBinding() {
     }
 
+    private static final AtomicBoolean LIFECYCLE_REGISTERED = new AtomicBoolean();
     private static boolean suppressInventorySlotHighlights;
     private static BlockPos pendingContainerPos;
     private static BlockPos currentScreenContainerPos;
@@ -45,6 +50,25 @@ final class QuickLitematicaContainerScreenBinding {
     private static int lastCurrentScreenRevision = Integer.MIN_VALUE;
     private static List<SlotOverlay> currentScreenSlotOverlays = List.of();
     private static Container currentScreenContainerInventory;
+
+    static void initializeLifecycle() {
+        if (!LIFECYCLE_REGISTERED.compareAndSet(false, true)) {
+            return;
+        }
+        ClientTickEvents.END_CLIENT_TICK.register(client ->
+                reconcileCurrentScreen(QuickClientScreenAccess.currentScreen(client)));
+        ClientPlayConnectionEvents.DISCONNECT.register(
+                (handler, client) -> clearCurrentHandledScreenBinding()
+        );
+    }
+
+    /** 仅在容器屏幕真正关闭时释放；聊天、暂停等临时子屏返回后仍复用原绑定。 */
+    static void reconcileCurrentScreen(Screen currentScreen) {
+        if (currentHandledScreen != null && currentScreen == null) {
+            currentHandledScreen = null;
+            clearCurrentScreenContainerBinding();
+        }
+    }
 
     static boolean shouldSuppressInventorySlotHighlights() {
         return suppressInventorySlotHighlights && isEnabled();

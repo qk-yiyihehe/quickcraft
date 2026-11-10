@@ -21,6 +21,8 @@ import fi.dy.masa.malilib.render.GuiContext;
 import fi.dy.masa.malilib.render.RenderUtils;
 import fi.dy.masa.malilib.util.InfoUtils;
 import fi.dy.masa.malilib.util.StringUtils;
+import fi.dy.masa.malilib.gui.GuiBase;
+import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.EntityBlock;
 import net.minecraft.world.level.block.state.BlockState;
@@ -138,9 +140,10 @@ public final class QuickLitematicaPreview3D {
         }
     }
 
-    private static final Map<fi.dy.masa.litematica.gui.GuiSchematicBrowserBase, Manager> MANAGERS = new WeakHashMap<>();
-    // 客户端线程访问；也覆盖不进浏览器映射的选区预览，不延长屏幕的生命周期。
-    private static final java.util.Set<Manager> LIVE_MANAGERS = java.util.Collections.newSetFromMap(new WeakHashMap<>());
+    private static final Map<fi.dy.masa.litematica.gui.GuiSchematicBrowserBase, java.lang.ref.WeakReference<Manager>> MANAGERS = new WeakHashMap<>();
+    // 客户端线程访问；强 set 只保留 Manager，不保留 GUI，使遗弃页面也能由 tick 主动终结。
+    private static final java.util.Set<Manager> LIVE_MANAGERS = java.util.concurrent.ConcurrentHashMap.newKeySet();
+    private static final AtomicBoolean PREVIEW_LIFECYCLE_REGISTERED = new AtomicBoolean();
     // 预览构建专用单线程池：避免与 Util.getMainWorkerExecutor 共享导致排队等几秒。
     // 单线程足够（预览一次只构建一个文件），且避免 BlockRenderDispatcher 多线程竞争。
     private static final AtomicReference<Preview> PENDING_PREVIEW_BUILD = new AtomicReference<>();
@@ -193,28 +196,90 @@ public final class QuickLitematicaPreview3D {
         }
     }
 
-    public static Manager init(fi.dy.masa.litematica.gui.GuiSchematicBrowserBase gui, Runnable previewMetadataRefresh) {
-        Manager existing = MANAGERS.get(gui);
+    static void initializeLifecycle() {
+        if (!PREVIEW_LIFECYCLE_REGISTERED.compareAndSet(false, true)) {
+            return;
+        }
+        ClientTickEvents.END_CLIENT_TICK.register(client ->
+                reapAbandonedManagers(QuickClientScreenAccess.currentScreen(client)));
+    }
+
+    /** 浏览器被其他页面直接替换时，由客户端 tick 主动关闭其拥有的 Manager。 */
+    static void reapAbandonedManagers(Screen currentScreen) {
+        for (Manager manager : LIVE_MANAGERS) {
+            if (!manager.browserManager) {
+                continue;
+            }
+            Screen owner = manager.owner.get();
+            if (owner instanceof fi.dy.masa.litematica.gui.GuiSchematicBrowserBase browser) {
+                if (isBrowserRetained(manager, browser, currentScreen)) {
+                    continue;
+                }
+                QuickLitematicaPreview3D.close(browser);
+                manager.close();
+            } else {
+                manager.close();
+            }
+        }
+    }
+
+    private static boolean isBrowserRetained(
+            Manager manager,
+            fi.dy.masa.litematica.gui.GuiSchematicBrowserBase browser,
+            Screen currentScreen
+    ) {
+        if (currentScreen == browser) {
+            return true;
+        }
+        if (currentScreen instanceof QuickLitematicaPreview3DScreen screen && screen.ownsManager(manager)) {
+            return true;
+        }
+        if (QuickLitematicaPreview3DScreen.isColorPickerFor(currentScreen, manager)) {
+            return true;
+        }
+        Screen cursor = currentScreen;
+        while (cursor instanceof GuiBase gui) {
+            Screen parent = gui.getParent();
+            if (parent == browser) {
+                return true;
+            }
+            if (parent == cursor) {
+                break;
+            }
+            cursor = parent;
+        }
+        return false;
+    }
+
+    public static Manager init(fi.dy.masa.litematica.gui.GuiSchematicBrowserBase gui) {
+        Manager existing = managerFor(gui);
         if (existing != null) {
             // 全屏返回和窗口尺寸变化会重新 initGui，同一页面仍拥有原来的预览任务。
             if (existing.current != null) existing.current.trace.event("页面重新初始化：复用原管理器及预览任务，当前状态={}", existing.current.state);
             return existing;
         }
 
-        Manager manager = new Manager(gui, previewMetadataRefresh);
-        MANAGERS.put(gui, manager);
+        Manager manager = new Manager(gui);
+        MANAGERS.put(gui, new java.lang.ref.WeakReference<>(manager));
         return manager;
     }
 
+    @Nullable
+    private static Manager managerFor(fi.dy.masa.litematica.gui.GuiSchematicBrowserBase gui) {
+        java.lang.ref.WeakReference<Manager> reference = MANAGERS.get(gui);
+        return reference != null ? reference.get() : null;
+    }
+
     public static void close(fi.dy.masa.litematica.gui.GuiSchematicBrowserBase gui) {
-        Manager manager = MANAGERS.remove(gui);
+        java.lang.ref.WeakReference<Manager> reference = MANAGERS.remove(gui);
+        Manager manager = reference != null ? reference.get() : null;
         if (manager != null) {
             manager.close();
         }
     }
 
     static void openGenerated(Screen parent, String displayName, Supplier<LitematicaSchematic> schematicSupplier) {
-        Manager manager = new Manager(parent, () -> {});
+        Manager manager = new Manager(parent);
         manager.generatedName = displayName;
         manager.generatedSupplier = schematicSupplier;
         manager.current = Preview.createGenerated(displayName, schematicSupplier);
@@ -244,8 +309,9 @@ public final class QuickLitematicaPreview3D {
             shaderPackActive = !prepare3DPreview();
         }
         if (!previewEnabled || shaderPackActive) {
-            for (Manager manager : MANAGERS.values()) {
-                manager.releasePreview();
+            for (java.lang.ref.WeakReference<Manager> reference : MANAGERS.values()) {
+                Manager manager = reference.get();
+                if (manager != null) manager.releasePreview();
             }
             if (previewEnabled
                     && shaderPackActive
@@ -257,7 +323,7 @@ public final class QuickLitematicaPreview3D {
             return;
         }
 
-        Manager manager = MANAGERS.get(gui);
+        Manager manager = managerFor(gui);
         if (manager == null) {
             return;
         }
@@ -347,8 +413,8 @@ public final class QuickLitematicaPreview3D {
         @Nullable
         private DirectoryEntry currentEntry;
         private final DragState drag = new DragState();
-        private final Screen owner;
-        private final Runnable previewMetadataRefresh;
+        private final java.lang.ref.WeakReference<Screen> owner;
+        private final boolean browserManager;
         private final AtomicBoolean previewImageWriteInProgress = new AtomicBoolean();
         private final AtomicLong previewImageWriteGeneration = new AtomicLong();
         private boolean closed;
@@ -364,9 +430,9 @@ public final class QuickLitematicaPreview3D {
         private boolean showExpandButton;
         private long nextSourceCheckMillis;
 
-        Manager(Screen owner, Runnable previewMetadataRefresh) {
-            this.owner = owner;
-            this.previewMetadataRefresh = previewMetadataRefresh;
+        Manager(Screen owner) {
+            this.owner = new java.lang.ref.WeakReference<>(owner);
+            this.browserManager = owner instanceof fi.dy.masa.litematica.gui.GuiSchematicBrowserBase;
             LIVE_MANAGERS.add(this);
         }
 
@@ -468,6 +534,10 @@ public final class QuickLitematicaPreview3D {
             }
 
             if (mouseButton == InputConstants.MOUSE_BUTTON_LEFT && this.showExpandButton && this.isExpandButtonHovered(mouseX, mouseY) && this.currentEntry != null) {
+                Screen owner = this.owner.get();
+                if (owner == null) {
+                    return false;
+                }
                 DirectoryEntry entry = this.currentEntry;
                 if (this.current == null && this.currentPath != null) {
                     boolean hasEmbeddedPreview = this.hasEmbeddedPreviewImage;
@@ -476,7 +546,7 @@ public final class QuickLitematicaPreview3D {
                     this.hasEmbeddedPreviewImage = hasEmbeddedPreview;
                 }
                 if (this.current != null) this.current.trace.event("进入全屏：复用任务，当前状态={}", this.current.state);
-                QuickClientScreenAccess.setScreen(Minecraft.getInstance(), new QuickLitematicaPreview3DScreen(this.owner, entry.getName(), this));
+                QuickClientScreenAccess.setScreen(Minecraft.getInstance(), new QuickLitematicaPreview3DScreen(owner, entry.getName(), this));
                 return true;
             }
 
@@ -767,8 +837,8 @@ public final class QuickLitematicaPreview3D {
             }
         }
 
-        private void finishPreviewWrite(Preview preview, boolean hasEmbeddedPreview, boolean structureChanged,
-                                        long generation, Consumer<Component> callback, Component message) {
+        void finishPreviewWrite(Preview preview, boolean hasEmbeddedPreview, boolean structureChanged,
+                                long generation, Consumer<Component> callback, Component message) {
             Minecraft.getInstance().execute(() -> {
                 if (!this.isCurrentPreviewImageWrite(generation)) {
                     return;
@@ -780,10 +850,14 @@ public final class QuickLitematicaPreview3D {
                     }
                     this.hasEmbeddedPreviewImage = hasEmbeddedPreview;
                 }
-                try {
-                    this.previewMetadataRefresh.run();
-                } catch (Throwable throwable) {
-                    LOGGER.error("Failed to refresh the Litematica preview image cache", throwable);
+                // 只通过弱 owner 回调浏览器，避免 Manager 长期强引用 GUI。
+                Screen owner = this.owner.get();
+                if (owner instanceof QuickLitematicaPreviewMetadataRefresh refresh) {
+                    try {
+                        refresh.quickcraft$clearPreviewMetadataCache();
+                    } catch (Throwable throwable) {
+                        LOGGER.error("Failed to refresh the Litematica preview image cache", throwable);
+                    }
                 }
                 callback.accept(message);
             });
@@ -806,6 +880,9 @@ public final class QuickLitematicaPreview3D {
 
         @Override
         public void close() {
+            if (this.closed) {
+                return;
+            }
             this.closed = true;
             this.previewImageWriteGeneration.incrementAndGet();
             this.previewImageWriteInProgress.set(false);

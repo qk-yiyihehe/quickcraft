@@ -1,6 +1,7 @@
 package com.yiyihehe.quickcraft.mixin;
 
 import com.yiyihehe.quickcraft.litematica.QuickLitematicaPreview3D;
+import com.yiyihehe.quickcraft.litematica.QuickLitematicaPreviewMetadataRefresh;
 import fi.dy.masa.litematica.gui.GuiSchematicBrowserBase;
 import fi.dy.masa.litematica.gui.widgets.WidgetSchematicBrowser;
 import fi.dy.masa.malilib.gui.GuiListBase;
@@ -12,7 +13,8 @@ import org.spongepowered.asm.mixin.Unique;
 
 @Mixin(value = GuiSchematicBrowserBase.class, remap = false)
 public abstract class LitematicaGuiSchematicBrowserBaseMixin
-        extends GuiListBase<WidgetFileBrowserBase.DirectoryEntry, WidgetDirectoryEntry, WidgetSchematicBrowser> {
+        extends GuiListBase<WidgetFileBrowserBase.DirectoryEntry, WidgetDirectoryEntry, WidgetSchematicBrowser>
+        implements QuickLitematicaPreviewMetadataRefresh {
     @Unique
     private QuickLitematicaPreview3D.Manager quickcraft$preview3DManager;
 
@@ -23,14 +25,13 @@ public abstract class LitematicaGuiSchematicBrowserBaseMixin
     @Override
     public void initGui() {
         this.quickcraft$preview3DManager = QuickLitematicaPreview3D.init(
-                (GuiSchematicBrowserBase) (Object) this,
-                this::quickcraft$refreshPreviewMetadata
+                (GuiSchematicBrowserBase) (Object) this
         );
         super.initGui();
     }
 
-    @Unique
-    private void quickcraft$refreshPreviewMetadata() {
+    @Override
+    public void quickcraft$clearPreviewMetadataCache() {
         WidgetSchematicBrowser widget = this.getListWidget();
         if (widget != null) {
             widget.clearSchematicMetadataCache();

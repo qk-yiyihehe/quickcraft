@@ -35,7 +35,11 @@ public final class QuickLitematicaContainerAutofill implements ClientModInitiali
 
     @Override
     public void onInitializeClient() {
+        // 1.21-.5 的 special renderer 适配为空，资源监听不能依赖该版本钩子。
+        QuickLitematicaPreviewResources.initialize();
         QuickLitematicaMaterialAccess.registerSpecialRenderer();
+        QuickLitematicaPreview3D.initializeLifecycle();
+        QuickLitematicaContainerScreenBinding.initializeLifecycle();
         ACTIVE.set(this);
         ClientTickEvents.END_CLIENT_TICK.register(this::onClientTick);
     }
