@@ -255,6 +255,7 @@ public class QuickCraftStonecutter implements ClientModInitializer {
                 logCraft("批次本地预测完成");
                 if (singleCraftPending) {
                     singleCraftPending = false;
+                    dropSingleCraftTail(client, handler);
                     logCraft("单次合成结束");
                     return;
                 }
@@ -450,6 +451,14 @@ public class QuickCraftStonecutter implements ClientModInitializer {
         return QuickCraftConfigs.isStonecutterQuickCraftEnabled()
                 && isCraftingContextValid(client) && client.gameMode != null
                 && client.player.containerMenu == sessionHandler && client.getConnection() == sessionNetwork;
+    }
+
+    private void dropSingleCraftTail(Minecraft client, StonecutterMenu handler) {
+        if (!QuickCraftConfigs.isDropCraftResultsOnStopEnabled()
+                || !isSessionValid(client) || !handler.getCarried().isEmpty()) {
+            return;
+        }
+        dropInventoryCraftResults(client, handler);
     }
 
     private void finish(Minecraft client, Component message) {
