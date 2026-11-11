@@ -1309,6 +1309,8 @@ public final class QuickLitematicaPreview3D {
                     }
                     // 有界发布可能等待渲染线程消费，不能持有预览锁或提前标记上传完成。
                     this.publishStaticLayers(cached.layers());
+                    // 网格命中也要用本次已计算的源哈希/资源签名清掉过期转换引用，但不重新读取原理图或构建网格。
+                    cleanAndReadConvertedCacheIndexEntry(cacheDirectory, sourceHash);
                     synchronized (this) {
                         this.throwIfCancelled();
                         this.progress = 1.0F;
@@ -1320,7 +1322,7 @@ public final class QuickLitematicaPreview3D {
 
                 this.state = State.BUILDING;
                 this.trace.event("预览状态改变：BUILDING");
-                CacheIndexEntry convertedEntry = readConvertedCacheIndexEntry(this.cacheSlot);
+                CacheIndexEntry convertedEntry = cleanAndReadConvertedCacheIndexEntry(cacheDirectory, sourceHash);
                 boolean convertedSignatureMatches = convertedCacheMatches(convertedEntry, sourceHash,
                         this.resourcePackSignature);
                 Path convertedPath = convertedSignatureMatches
@@ -1464,6 +1466,31 @@ public final class QuickLitematicaPreview3D {
         String sourceName() {
             Path fileName = this.sourcePath.getFileName();
             return fileName == null ? this.sourcePath.toString() : fileName.toString();
+        }
+
+        /**
+         * 用本次已计算的源哈希与资源签名读取转换索引；若索引仍是过期条目，先按旧快照清理该条目及其工件再返回 null。
+         * 与网格命中/未命中无关，两条路径共用同一清理规则。
+         */
+        @Nullable
+        private CacheIndexEntry cleanAndReadConvertedCacheIndexEntry(Path cacheDirectory, String sourceHash) {
+            CacheIndexEntry converted = readConvertedCacheIndexEntry(this.cacheSlot);
+            if (!this.cachePersistenceAllowed
+                    || converted == null
+                    || convertedCacheMatches(converted, sourceHash, this.resourcePackSignature)) {
+                return converted;
+            }
+            if (!removeConvertedCacheEntry(cacheDirectory, this.cacheSlot, converted)) {
+                // 读取快照后已有新条目提交，旧清理必须让位，不能删除新索引或工件。
+                return readConvertedCacheIndexEntry(this.cacheSlot);
+            }
+            try {
+                writeCacheIndex(cacheDirectory);
+            } catch (IOException failure) {
+                LOGGER.warn("转换缓存过期索引写回失败：目录={}", cacheDirectory, failure);
+            }
+            this.trace.event("转换缓存过期清理：旧条目与工件已移除，网格缓存索引保留");
+            return null;
         }
 
         private void saveConvertedCache(LitematicaSchematic schematic, String sourceHash) {

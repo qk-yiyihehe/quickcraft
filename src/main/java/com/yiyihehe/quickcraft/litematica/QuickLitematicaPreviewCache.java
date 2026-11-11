@@ -514,6 +514,24 @@ final class QuickLitematicaPreviewCache {
         }
     }
 
+    static boolean removeConvertedCacheEntry(Path cacheDir, String slot, CacheIndexEntry stale) {
+        synchronized (CACHE_INDEX_LOCK) {
+            // 调用方持有的是读取时的快照；锁内再次核对，期间已提交的新条目不能被旧清理删除。
+            CacheIndexEntry current = readConvertedCacheIndexEntry(slot);
+            if (stale == null || !stale.equals(current)) {
+                return false;
+            }
+            CACHE_INDEX.remove(slot + ".convertedSourceHash");
+            CACHE_INDEX.remove(slot + ".convertedResourceSignature");
+            CACHE_INDEX.remove(slot + ".convertedStructureFingerprint");
+            // 只删该过期条目对应的指纹工件与旧名残留；其它变体由启动清理按索引引用回收。
+            deleteQuietly(convertedCachePath(cacheDir, slot, stale.structureFingerprint(), stale.resourcePackSignature()));
+            deleteQuietly(cacheDir.resolve(slot + ".converted.litematic"));
+            deleteQuietly(cacheDir.resolve(slot + ".converted.tmp.litematic"));
+            return true;
+        }
+    }
+
     private static void deleteConvertedCacheVariants(Path cacheDir, String slot) {
         try (var paths = Files.list(cacheDir)) {
             paths.filter(path -> {

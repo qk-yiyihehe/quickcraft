@@ -10,6 +10,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Collections;
 import java.util.List;
+import java.util.Properties;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.CancellationException;
@@ -19,8 +20,11 @@ import java.util.concurrent.TimeUnit;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.Mockito.CALLS_REAL_METHODS;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.mockStatic;
 import static org.mockito.Mockito.withSettings;
 
 class QuickLitematicaPreview3DCacheTest {
@@ -172,6 +176,80 @@ class QuickLitematicaPreview3DCacheTest {
         QuickLitematicaPreviewCache.awaitPendingWrite(cache);
         assertThat(Files.readAllBytes(cache)).containsExactly(1, 2, 3);
     }
+    @Test
+    void dropsStaleConvertedBeforeSchematicReadFailsAfterMeshMiss() throws Exception {
+        Path runDir = this.temporaryDirectory.resolve("stale-converted-run");
+        Files.createDirectories(runDir);
+        setStaticField("currentCacheDirectory", null);
+        clearCacheIndex();
+        Path cacheDir = runDir.resolve(QuickLitematicaPreviewCache.CACHE_DIR_NAME);
+        Files.createDirectories(cacheDir);
+        Files.writeString(cacheDir.resolve(QuickLitematicaPreviewCache.CACHE_VERSION_FILE_NAME),
+                QuickLitematicaPreviewCache.currentCacheVersionToken());
+        Path source = this.temporaryDirectory.resolve("stale-source.litematic");
+        Files.writeString(source, "new-content");
+        String slot = QuickLitematicaPreviewCache.cacheKey(source);
+        Path mesh = cacheDir.resolve(slot + ".qcp3d");
+        Files.write(mesh, new byte[]{1, 2, 3});
+        String staleFingerprint = "stale-structure";
+        String staleSignature = "stale-pack";
+        Path staleConverted = QuickLitematicaPreviewCache.convertedCachePath(
+                cacheDir, slot, staleFingerprint, staleSignature);
+        Files.writeString(staleConverted, "stale-converted");
+        Path legacyConverted = cacheDir.resolve(slot + ".converted.litematic");
+        Files.writeString(legacyConverted, "legacy-converted");
+        Properties index = new Properties();
+        index.setProperty(slot + ".path", source.toString());
+        index.setProperty(slot + ".sourceHash", "old-source-hash");
+        index.setProperty(slot + ".resourceSignature", "pack");
+        index.setProperty(slot + ".structureFingerprint", "old-structure");
+        index.setProperty(slot + ".convertedSourceHash", "old-source-hash");
+        index.setProperty(slot + ".convertedResourceSignature", staleSignature);
+        index.setProperty(slot + ".convertedStructureFingerprint", staleFingerprint);
+        try (var output = Files.newOutputStream(cacheDir.resolve(QuickLitematicaPreviewCache.CACHE_INDEX_FILE_NAME))) {
+            index.store(output, null);
+        }
+
+        QuickLitematicaPreview3D.Preview preview = mock(QuickLitematicaPreview3D.Preview.class,
+                withSettings().defaultAnswer(CALLS_REAL_METHODS));
+        setField(preview, "sourcePath", source);
+        setField(preview, "cachePath", mesh);
+        setField(preview, "tmpPath", cacheDir.resolve(slot + ".qcp3d.tmp"));
+        setField(preview, "cacheSlot", slot);
+        setField(preview, "resourcePackSignature", "pack");
+        setField(preview, "trace", new QuickLitematicaPreviewLog.Trace(source, 0L));
+        setField(preview, "cancelled", new AtomicBoolean());
+        setField(preview, "staticUploads", new QuickLitematicaPreviewUploadQueue());
+        setField(preview, "staticMeshStore", new QuickLitematicaPreviewMeshStore());
+        setField(preview, "backend", mock(QuickLitematicaPreviewBackend.class));
+
+        try (var minecraft = mockStatic(net.minecraft.client.Minecraft.class);
+             var schematicFiles = mockStatic(QuickLitematicaPreviewSchematicFiles.class);
+             var render = mockStatic(com.mojang.blaze3d.systems.RenderSystem.class)) {
+            minecraft.when(net.minecraft.client.Minecraft::getInstance)
+                    .thenReturn(mock(net.minecraft.client.Minecraft.class));
+            schematicFiles.when(() -> QuickLitematicaPreviewSchematicFiles.readSchematic(any(), any(), anyBoolean()))
+                    .thenThrow(new IllegalStateException("force-build-failure"));
+            render.when(com.mojang.blaze3d.systems.RenderSystem::isOnRenderThread).thenReturn(false);
+
+            var loadOrBuild = QuickLitematicaPreview3D.Preview.class.getDeclaredMethod("loadOrBuild");
+            loadOrBuild.setAccessible(true);
+            loadOrBuild.invoke(preview);
+
+            assertThat(getField(preview, "state").toString()).isEqualTo("FAILED");
+            assertThat(QuickLitematicaPreviewCache.readConvertedCacheIndexEntry(slot)).isNull();
+            assertThat(staleConverted).doesNotExist();
+            assertThat(legacyConverted).doesNotExist();
+            // 网格索引和文件不属于转换清理范围，必须保留。
+            assertThat(QuickLitematicaPreviewCache.readCacheIndexEntry(slot)).isNotNull();
+            assertThat(mesh).exists();
+        } finally {
+            setStaticField("currentCacheDirectory", null);
+            clearCacheIndex();
+        }
+    }
+
+
     @Test
     void conversionSignatureRequiresFullIdentity() {
         var current = new QuickLitematicaPreviewCache.CacheIndexEntry("source", "pack", "structure");
@@ -667,6 +745,128 @@ class QuickLitematicaPreview3DCacheTest {
         }
         write.get(5, TimeUnit.SECONDS);
         assertThat(store.retainForRead()).isFalse();
+    }
+
+
+    @Test
+    void validMeshHitAlsoDropsStaleConvertedIndexAndArtifact() throws Exception {
+        Path runDir = this.temporaryDirectory.resolve("mesh-hit-run");
+        Files.createDirectories(runDir);
+        setStaticField("currentCacheDirectory", null);
+        clearCacheIndex();
+        Path cacheDir = runDir.resolve(QuickLitematicaPreviewCache.CACHE_DIR_NAME);
+        Files.createDirectories(cacheDir);
+        Files.writeString(cacheDir.resolve(QuickLitematicaPreviewCache.CACHE_VERSION_FILE_NAME),
+                QuickLitematicaPreviewCache.currentCacheVersionToken());
+        Path source = this.temporaryDirectory.resolve("mesh-hit-source.litematic");
+        Files.writeString(source, "mesh-hit-content");
+        String slot = QuickLitematicaPreviewCache.cacheKey(source);
+        String sourceHash = QuickLitematicaPreviewCache.hashFile(source);
+        String meshFingerprint = "mesh-structure";
+        Path mesh = cacheDir.resolve(slot + ".qcp3d");
+        var meshData = new QuickLitematicaPreview3D.MeshData(List.of(), List.of(), List.of(), List.of(), 1, 1, 1);
+        QuickLitematicaPreviewCache.CacheFile.writeAtomically(
+                cacheDir.resolve(slot + ".qcp3d.tmp"), mesh, meshData, meshData.layers(),
+                meshFingerprint, "pack", new AtomicBoolean(), progress -> {});
+        String staleFingerprint = "stale-structure";
+        String staleSignature = "stale-pack";
+        Path staleConverted = QuickLitematicaPreviewCache.convertedCachePath(
+                cacheDir, slot, staleFingerprint, staleSignature);
+        Files.writeString(staleConverted, "stale-converted");
+        Path legacyConverted = cacheDir.resolve(slot + ".converted.litematic");
+        Files.writeString(legacyConverted, "legacy-converted");
+        Properties index = new Properties();
+        index.setProperty(slot + ".path", source.toString());
+        index.setProperty(slot + ".sourceHash", sourceHash);
+        index.setProperty(slot + ".resourceSignature", "pack");
+        index.setProperty(slot + ".structureFingerprint", meshFingerprint);
+        index.setProperty(slot + ".convertedSourceHash", "old-source-hash");
+        index.setProperty(slot + ".convertedResourceSignature", staleSignature);
+        index.setProperty(slot + ".convertedStructureFingerprint", staleFingerprint);
+        try (var output = Files.newOutputStream(cacheDir.resolve(QuickLitematicaPreviewCache.CACHE_INDEX_FILE_NAME))) {
+            index.store(output, null);
+        }
+
+        QuickLitematicaPreview3D.Preview preview = mock(QuickLitematicaPreview3D.Preview.class,
+                withSettings().defaultAnswer(CALLS_REAL_METHODS));
+        setField(preview, "sourcePath", source);
+        setField(preview, "cachePath", mesh);
+        setField(preview, "tmpPath", cacheDir.resolve(slot + ".qcp3d.tmp"));
+        setField(preview, "cacheSlot", slot);
+        setField(preview, "resourcePackSignature", "pack");
+        setField(preview, "trace", new QuickLitematicaPreviewLog.Trace(source, 0L));
+        setField(preview, "cancelled", new AtomicBoolean());
+        setField(preview, "staticUploads", new QuickLitematicaPreviewUploadQueue());
+        setField(preview, "staticMeshStore", new QuickLitematicaPreviewMeshStore());
+        setField(preview, "backend", mock(QuickLitematicaPreviewBackend.class));
+
+        try (var minecraft = mockStatic(net.minecraft.client.Minecraft.class);
+             var schematicFiles = mockStatic(QuickLitematicaPreviewSchematicFiles.class)) {
+            minecraft.when(net.minecraft.client.Minecraft::getInstance)
+                    .thenReturn(mock(net.minecraft.client.Minecraft.class));
+            schematicFiles.when(() -> QuickLitematicaPreviewSchematicFiles.readSchematic(any(), any(), anyBoolean()))
+                    .thenThrow(new AssertionError("mesh hit must not read schematic"));
+
+            var loadOrBuild = QuickLitematicaPreview3D.Preview.class.getDeclaredMethod("loadOrBuild");
+            loadOrBuild.setAccessible(true);
+            loadOrBuild.invoke(preview);
+
+            assertThat(getField(preview, "state").toString()).isEqualTo("READY");
+            // 网格命中路径不能触发原理图读取；过期转换引用与工件仍应被清掉。
+            schematicFiles.verify(() -> QuickLitematicaPreviewSchematicFiles.readSchematic(any(), any(), anyBoolean()),
+                    org.mockito.Mockito.never());
+            assertThat(QuickLitematicaPreviewCache.readConvertedCacheIndexEntry(slot)).isNull();
+            assertThat(staleConverted).doesNotExist();
+            assertThat(legacyConverted).doesNotExist();
+            assertThat(QuickLitematicaPreviewCache.readCacheIndexEntry(slot)).isNotNull();
+            assertThat(mesh).exists();
+            assertThat(QuickLitematicaPreviewCache.CacheFile.read(
+                    mesh, new AtomicBoolean(), null, meshFingerprint, "pack")).isNotNull();
+        } finally {
+            setStaticField("currentCacheDirectory", null);
+            clearCacheIndex();
+        }
+    }
+
+    @Test
+    void staleConvertedSnapshotCleanupKeepsNewerEntryAndArtifact() throws Exception {
+        Path cacheDir = this.temporaryDirectory.resolve("guard-cache");
+        Files.createDirectories(cacheDir);
+        setStaticField("currentCacheDirectory", cacheDir);
+        clearCacheIndex();
+        try {
+            Path source = this.temporaryDirectory.resolve("guard-source.litematic");
+            Files.writeString(source, "source");
+            String slot = "slot-guard";
+            QuickLitematicaPreviewCache.CacheIndexEntry stale = new QuickLitematicaPreviewCache.CacheIndexEntry(
+                    "old-source", "old-signature", "old-fingerprint");
+            Path oldArtifact = QuickLitematicaPreviewCache.convertedCachePath(
+                    cacheDir, slot, stale.structureFingerprint(), stale.resourcePackSignature());
+            Files.writeString(oldArtifact, "old-artifact");
+            Path newArtifact = QuickLitematicaPreviewCache.convertedCachePath(
+                    cacheDir, slot, "new-fingerprint", "new-signature");
+            Files.writeString(newArtifact, "new-artifact");
+
+            QuickLitematicaPreviewCache.writeConvertedCacheIndexEntry(
+                    slot, source, "new-source", "new-signature", "new-fingerprint");
+            QuickLitematicaPreviewCache.CacheIndexEntry newer = QuickLitematicaPreviewCache.readConvertedCacheIndexEntry(slot);
+            assertThat(newer).isEqualTo(new QuickLitematicaPreviewCache.CacheIndexEntry(
+                    "new-source", "new-signature", "new-fingerprint"));
+
+            // 旧快照清理必须让位：新索引与该新工件保留，旧快照工件也不能误删。
+            assertThat(QuickLitematicaPreviewCache.removeConvertedCacheEntry(cacheDir, slot, stale)).isFalse();
+            assertThat(QuickLitematicaPreviewCache.readConvertedCacheIndexEntry(slot)).isEqualTo(newer);
+            assertThat(newArtifact).exists();
+            assertThat(oldArtifact).exists();
+
+            assertThat(QuickLitematicaPreviewCache.removeConvertedCacheEntry(cacheDir, slot, newer)).isTrue();
+            QuickLitematicaPreviewCache.writeCacheIndex(cacheDir);
+            assertThat(QuickLitematicaPreviewCache.readConvertedCacheIndexEntry(slot)).isNull();
+            assertThat(newArtifact).doesNotExist();
+        } finally {
+            setStaticField("currentCacheDirectory", null);
+            clearCacheIndex();
+        }
     }
 
 }
