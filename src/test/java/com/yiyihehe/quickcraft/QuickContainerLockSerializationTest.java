@@ -3,12 +3,15 @@ package com.yiyihehe.quickcraft;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
+import com.google.gson.JsonParser;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
+import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.util.HashSet;
+import java.util.Map;
 import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -94,6 +97,54 @@ class QuickContainerLockSerializationTest {
         Set<Integer> target = new HashSet<>();
         invokeReadIntSet(null, target);
         assertThat(target).isEmpty();
+    }
+
+    // ---- 损坏单项容错（CONF-03）----
+
+    @Test
+    @DisplayName("readIntSet: 非法单项被跳过，合法整数保留")
+    void readIntSet_skipsInvalidEntries() {
+        JsonArray array = JsonParser.parseString("[1,\"abc\",true,5,null,{}]").getAsJsonArray();
+        Set<Integer> target = new HashSet<>();
+        invokeReadIntSet(array, target);
+        assertThat(target).containsExactlyInAnyOrder(1, 5);
+    }
+
+    @Test
+    @DisplayName("loadPersistentState: 锁格数组坏值不影响其他锁数据，保存只写有效值")
+    void loadPersistentState_keepsValidLocks() throws Exception {
+        QuickContainerLock.clearPersistentState();
+        JsonObject root = JsonParser.parseString("""
+                {"schemaVersion":1,
+                 "containerLock":{
+                   "lockedContainers":["minecraft:overworld#1,2,3"],
+                   "lockedPlayerSlots":[1,"abc",true,5],
+                   "lockedContainerSlots":{"k":[2,"bad",7]}}}""").getAsJsonObject();
+
+        QuickContainerLock.loadPersistentState(root);
+
+        @SuppressWarnings("unchecked")
+        Set<Integer> playerSlots = (Set<Integer>) readStaticField("LOCKED_PLAYER_SLOTS");
+        @SuppressWarnings("unchecked")
+        Set<String> containers = (Set<String>) readStaticField("LOCKED_CONTAINERS");
+        @SuppressWarnings("unchecked")
+        Map<String, Set<Integer>> containerSlots = (Map<String, Set<Integer>>) readStaticField("LOCKED_CONTAINER_SLOTS");
+
+        assertThat(playerSlots).containsExactlyInAnyOrder(1, 5);
+        assertThat(containers).contains("minecraft:overworld#1,2,3");
+        assertThat(containerSlots.get("k")).containsExactlyInAnyOrder(2, 7);
+
+        JsonObject saved = new JsonObject();
+        QuickContainerLock.writePersistentState(saved);
+        assertThat(saved.getAsJsonObject("containerLock").getAsJsonArray("lockedPlayerSlots"))
+                .extracting(JsonElement::getAsInt)
+                .containsExactlyInAnyOrder(1, 5);
+    }
+
+    private static Object readStaticField(String name) throws Exception {
+        Field field = QuickContainerLock.class.getDeclaredField(name);
+        field.setAccessible(true);
+        return field.get(null);
     }
 
     // ---- toStringArray ----

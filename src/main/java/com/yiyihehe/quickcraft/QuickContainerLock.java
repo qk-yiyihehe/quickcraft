@@ -1062,7 +1062,11 @@ public final class QuickContainerLock implements ClientModInitializer {
 
         for (JsonElement value : element.getAsJsonArray()) {
             if (value != null && value.isJsonPrimitive()) {
-                target.add(value.getAsInt());
+                // 单项类型损坏只丢弃该项，保留其余锁格，避免整份档案加载中断后被后续保存覆盖。
+                try {
+                    target.add(value.getAsInt());
+                } catch (RuntimeException ignored) {
+                }
             }
         }
     }
