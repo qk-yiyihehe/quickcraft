@@ -493,6 +493,7 @@
   "quickcraft.message.beacon.crafting_busy": "The player's 2x2 crafting grid is busy, so the mineral block cannot be decomposed automatically.",
   "quickcraft.message.beacon.no_room_for_decompose": "There is not enough inventory space to decompose the matching mineral block.",
   "quickcraft.message.beacon.already_selected": "This beacon is already set to %s. It will not be activated again.",
+  "quickcraft.message.beacon.level_too_low": "QuickCraft: The beacon base is too low for level II effects (requires all four layers).",
   "quickcraft.beacon.effect.haste": "Haste",
   "quickcraft.beacon.effect.haste2": "Haste II",
   "quickcraft.beacon.effect.strength": "Strength",

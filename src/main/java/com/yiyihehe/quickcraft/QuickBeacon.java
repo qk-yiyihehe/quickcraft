@@ -130,7 +130,25 @@ public final class QuickBeacon implements ClientModInitializer {
             return;
         }
 
+        // 配置目标全部是主副同效果的 II 级组合；I~III 层信标只生效 I 级主效果。
+        // 菜单属性可能晚于屏幕到达，先保留短暂 0 层等待；等待期间复用阶段计时器不清零，
+        // 超过 OPEN_TIMEOUT_TICKS 仍为 0 时明确提示并结束，避免 pending 永久悬挂。
+        int beaconLevel = handler.getProperties();
+        if (beaconLevel <= 0) {
+            if (pendingTicks > OPEN_TIMEOUT_TICKS) {
+                sendStatusMessage(client, Text.translatable("quickcraft.message.beacon.level_too_low"));
+                closeCurrentScreen(client);
+                clearPendingState();
+            }
+            return;
+        }
         pendingTicks = 0;
+        if (beaconLevel < 4) {
+            sendStatusMessage(client, Text.translatable("quickcraft.message.beacon.level_too_low"));
+            closeCurrentScreen(client);
+            clearPendingState();
+            return;
+        }
 
         BeaconConfiguredState configuredState = getConfirmedConfiguredState(handler);
         if (configuredState != null) {

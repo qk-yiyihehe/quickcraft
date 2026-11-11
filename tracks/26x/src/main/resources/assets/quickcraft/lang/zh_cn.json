@@ -493,6 +493,7 @@
   "quickcraft.message.beacon.crafting_busy": "当前 2x2 合成栏被占用，无法自动分解矿物块。",
   "quickcraft.message.beacon.no_room_for_decompose": "背包空间不足，无法分解对应的矿物块。",
   "quickcraft.message.beacon.already_selected": "这个信标已经设置为 %s，不再重复激活。",
+  "quickcraft.message.beacon.level_too_low": "信标层数不足，无法设置二级效果（需要四层）。",
   "quickcraft.beacon.effect.haste": "急迫",
   "quickcraft.beacon.effect.haste2": "急迫2",
   "quickcraft.beacon.effect.strength": "力量",
