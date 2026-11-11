@@ -188,16 +188,11 @@ public final class QuickLitematicaGlobalReplacements {
     }
 
     public static BlockEntity baselineWorldEntity(BlockPos pos, net.minecraft.world.World world) {
-        var location = baselineLocation(pos);
-        if (location == null) { return null; }
-        var entities = QuickLitematicaContainerMaterialsAccess.getBlockEntities(location.placement.getSchematic(), location.region);
-        var nbt = entities == null ? null : entities.get(location.local);
-        if (nbt == null) { return null; }
-        var entity = BlockEntity.createFromNbt(pos, location.state, nbt.copy(), world.getRegistryManager());
-        return entity;
+        Location location = baselineLocation(pos);
+        return location == null ? null : baselineEntity(location, pos, world);
     }
 
-    private static Location baselineLocation(BlockPos pos) {
+    static Location baselineLocation(BlockPos pos) {
         Location result = null;
         for (var part : DataManager.getSchematicPlacementManager().getAllPlacementsTouchingChunk(pos)) {
             if (!part.getBox().containsPos(pos) || !part.getPlacement().isEnabled()) { continue; }
@@ -205,6 +200,13 @@ public final class QuickLitematicaGlobalReplacements {
             if (location != null && !location.state.isAir()) { result = location; }
         }
         return result;
+    }
+
+    static BlockEntity baselineEntity(Location location, BlockPos worldPos, net.minecraft.world.World world) {
+        var entities = QuickLitematicaContainerMaterialsAccess.getBlockEntities(location.placement.getSchematic(), location.region);
+        var nbt = entities == null ? null : entities.get(location.local);
+        if (nbt == null) { return null; }
+        return BlockEntity.createFromNbt(worldPos, location.state, nbt.copy(), world.getRegistryManager());
     }
 
     public static void restoreSavedEntityItems(net.minecraft.entity.Entity entity, net.minecraft.nbt.NbtCompound output) {
@@ -236,7 +238,7 @@ public final class QuickLitematicaGlobalReplacements {
         }
     }
 
-    private static Location baselineLocation(SchematicPlacement placement, BlockPos pos) {
+    static Location baselineLocation(SchematicPlacement placement, BlockPos pos) {
         var schematic = placement.getSchematic();
         Location result = null;
         for (var entry : placement.getEnabledRelativeSubRegionPlacements().entrySet()) {
@@ -264,7 +266,7 @@ public final class QuickLitematicaGlobalReplacements {
         return result;
     }
 
-    private record Location(SchematicPlacement placement, String region, BlockPos local, BlockState state) { }
+    record Location(SchematicPlacement placement, String region, BlockPos local, BlockState state) { }
 
     private record ReplacementSettings(boolean enabled, List<String> containerRules, List<String> blockRules,
                                        List<String> globalContainerRules, List<String> globalBlockRules) { }

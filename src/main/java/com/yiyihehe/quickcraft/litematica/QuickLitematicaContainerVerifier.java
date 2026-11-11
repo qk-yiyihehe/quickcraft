@@ -239,12 +239,26 @@ public final class QuickLitematicaContainerVerifier {
             return null;
         }
 
-        if (QuickLitematicaContainerInventory.getChestType(current.state()) != ChestType.SINGLE
-                && hasUnreadableExpectedInventory(pos.add(ChestBlock.getFacing(current.state()).getVector()), placementFilter)) {
-            return null;
+        if (QuickLitematicaContainerInventory.getChestType(current.state()) == ChestType.SINGLE) {
+            return current;
         }
 
-        ExpectedContainer merged = getExpectedDoubleChestContainer(pos, current, currentPlacement, placementFilter);
+        BlockPos adjacentPos = pos.add(ChestBlock.getFacing(current.state()).getVector());
+        LocalPlacementPos adjacentPlacement = getLocalPlacementPos(adjacentPos, placementFilter);
+        if (adjacentPlacement == null
+                || !isMatchingDoubleChest(current.state(), adjacentPlacement.worldState(),
+                        adjacentPlacement.placement() == currentPlacement.placement())) {
+            // 未确认是同一 placement 的合法双箱配对：邻侧（独立容器/别处投影）的不可读数据不影响当前半。
+            return current;
+        }
+
+        ExpectedContainer adjacent = getExpectedContainerInternal(adjacentPos, adjacentPlacement);
+        if (adjacent == null) {
+            // 合法配对的邻半缺失或不可读时保持原有安全失败，不能静默降级为单半。
+            return hasUnreadableExpectedInventory(adjacentPlacement) ? null : current;
+        }
+
+        ExpectedContainer merged = mergeExpectedDoubleChest(pos, current, adjacent);
 
         return merged != null ? merged : current;
     }
@@ -259,19 +273,26 @@ public final class QuickLitematicaContainerVerifier {
     }
 
     public static Inventory getMaterialInventoryAt(World world, BlockPos pos, int size) {
-        var entity = QuickLitematicaGlobalReplacements.baselineWorldEntity(pos, world);
-        if (!(entity instanceof Inventory inventory)) { return null; }
-        var state = QuickLitematicaGlobalReplacements.baselineWorldState(pos);
-        if (inventory.size() == size) { return QuickLitematicaContainerInventory.copyInventory(inventory); }
-        if (QuickLitematicaContainerInventory.getChestType(state) != ChestType.SINGLE) {
-            var adjacent = QuickLitematicaGlobalReplacements.baselineWorldEntity(pos.add(ChestBlock.getFacing(state).getVector()), world);
-            if (adjacent instanceof Inventory other && inventory.size() + other.size() == size) {
-                return QuickLitematicaContainerInventory.getChestType(state) == ChestType.RIGHT
-                        ? QuickLitematicaContainerInventory.mergeInventories(inventory, other)
-                        : QuickLitematicaContainerInventory.mergeInventories(other, inventory);
-            }
+        var current = QuickLitematicaGlobalReplacements.baselineLocation(pos);
+        if (current == null
+                || !(QuickLitematicaGlobalReplacements.baselineEntity(current, pos, world) instanceof Inventory inventory)) {
+            return null;
         }
-        return null;
+        if (inventory.size() == size) { return QuickLitematicaContainerInventory.copyInventory(inventory); }
+        ChestType chestType = QuickLitematicaContainerInventory.getChestType(current.state());
+        if (chestType == ChestType.SINGLE) { return null; }
+        BlockPos adjacentPos = pos.add(ChestBlock.getFacing(current.state()).getVector());
+        var adjacent = QuickLitematicaGlobalReplacements.baselineLocation(current.placement(), adjacentPos);
+        // 材料侧基线逐坐标取“最后非空”可能落在另一个 placement；双箱合并必须保持同一 placement 并满足合法配对。
+        if (adjacent == null
+                || !isMatchingDoubleChest(current.state(), adjacent.state(), true)
+                || !(QuickLitematicaGlobalReplacements.baselineEntity(adjacent, adjacentPos, world) instanceof Inventory other)
+                || inventory.size() + other.size() != size) {
+            return null;
+        }
+        return chestType == ChestType.RIGHT
+                ? QuickLitematicaContainerInventory.mergeInventories(inventory, other)
+                : QuickLitematicaContainerInventory.mergeInventories(other, inventory);
     }
 
     public static QuickContainerCopy.TemplateSnapshot getTemplateSnapshotAt(World foundWorld, BlockPos pos) {
@@ -303,38 +324,18 @@ public final class QuickLitematicaContainerVerifier {
         return QuickLitematicaContainerInventory.getDisabledSlots(blockEntity);
     }
 
-    private static ExpectedContainer getExpectedDoubleChestContainer(
+    private static ExpectedContainer mergeExpectedDoubleChest(
             BlockPos pos,
             ExpectedContainer current,
-            LocalPlacementPos currentPlacement,
-            @Nullable SchematicPlacement placementFilter
+            ExpectedContainer adjacent
     ) {
-        ChestType chestType = QuickLitematicaContainerInventory.getChestType(current.state());
-
-        if (chestType == ChestType.SINGLE) {
-            return null;
-        }
-
-        BlockPos adjacentPos = pos.add(ChestBlock.getFacing(current.state()).getVector());
-        LocalPlacementPos adjacentPlacement = getLocalPlacementPos(adjacentPos, placementFilter);
-
-        if (adjacentPlacement == null
-                || !isMatchingDoubleChest(current.state(), adjacentPlacement.worldState(),
-                        adjacentPlacement.placement() == currentPlacement.placement())) {
-            return null;
-        }
-
-        ExpectedContainer adjacent = getExpectedContainerInternal(adjacentPos, adjacentPlacement);
-
-        if (adjacent == null
-                || current.inventory().size() != 27
-                || adjacent.inventory().size() != 27) {
+        if (current.inventory().size() != 27 || adjacent.inventory().size() != 27) {
             return null;
         }
 
         Inventory currentInventory = current.inventory();
         Inventory adjacentInventory = adjacent.inventory();
-        Inventory merged = chestType == ChestType.RIGHT
+        Inventory merged = QuickLitematicaContainerInventory.getChestType(current.state()) == ChestType.RIGHT
                 ? QuickLitematicaContainerInventory.mergeInventories(currentInventory, adjacentInventory)
                 : QuickLitematicaContainerInventory.mergeInventories(adjacentInventory, currentInventory);
 
@@ -394,8 +395,12 @@ public final class QuickLitematicaContainerVerifier {
 
     public static boolean hasUnreadableExpectedInventory(BlockPos worldPos, @Nullable SchematicPlacement placement) {
         LocalPlacementPos local = getLocalPlacementPos(worldPos, placement);
+        return local != null && hasUnreadableExpectedInventory(local);
+    }
+
+    private static boolean hasUnreadableExpectedInventory(LocalPlacementPos local) {
         var client = MinecraftClient.getInstance();
-        if (local == null || client.world == null) { return false; }
+        if (client.world == null) { return false; }
         NbtCompound nbt = QuickLitematicaVerifierAccess.getSchematicBlockEntityNbt(
                 QuickLitematicaGlobalReplacements.runtime(local.placement()), local.region(), local.pos());
         return nbt != null && nbt.contains("Items")
