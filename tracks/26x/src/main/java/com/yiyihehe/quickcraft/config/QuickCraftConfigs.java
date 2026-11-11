@@ -1646,7 +1646,7 @@ public final class QuickCraftConfigs implements IConfigHandler {
             anvilPresetDefaultsV2Applied = true;
         }
 
-        JsonObject crafting = root.getAsJsonObject("Crafting");
+        JsonObject crafting = getObject(root, "Crafting");
         if (crafting != null && !crafting.has("anvilPickaxePlan")
                 && getLegacyEnabledValue(crafting.get("anvilFortunePickaxe"))) {
             Crafting.ANVIL_PICKAXE_PLAN.setOptionListValue(AnvilPickaxePlan.FORTUNE);
@@ -1658,7 +1658,7 @@ public final class QuickCraftConfigs implements IConfigHandler {
                     WorkbenchShulkerPipelineMode.COMBINED_ULTRA);
         }
 
-        JsonObject containerTools = root.getAsJsonObject("ContainerTools");
+        JsonObject containerTools = getObject(root, "ContainerTools");
         if (containerTools != null) {
             if (getLegacyEnabledValue(containerTools.get("quickTradeStandby"))) {
                 ContainerTools.ENABLE_QUICK_TRADE.setBooleanValue(true);
@@ -1701,6 +1701,11 @@ public final class QuickCraftConfigs implements IConfigHandler {
             ProjectionTools.GLOBAL_CONTAINER_REPLACEMENTS.setStrings(globals);
             saveToFile();
         }
+    }
+
+    private static JsonObject getObject(JsonObject root, String key) {
+        JsonElement element = root.get(key);
+        return element != null && element.isJsonObject() ? element.getAsJsonObject() : null;
     }
 
     private static boolean getLegacyEnabledValue(JsonElement element) {
@@ -1775,7 +1780,7 @@ public final class QuickCraftConfigs implements IConfigHandler {
     }
 
     private static void readMigrations(JsonObject root) {
-        JsonObject migrations = root.getAsJsonObject(MIGRATIONS_KEY);
+        JsonObject migrations = getObject(root, MIGRATIONS_KEY);
         if (migrations == null) {
             return;
         }
@@ -1808,7 +1813,7 @@ public final class QuickCraftConfigs implements IConfigHandler {
 
     private static void readButtonPositions(JsonObject root) {
         BUTTON_OFFSETS.clear();
-        JsonObject positions = root.getAsJsonObject(BUTTON_POSITIONS_KEY);
+        JsonObject positions = getObject(root, BUTTON_POSITIONS_KEY);
         if (positions == null) {
             return;
         }
