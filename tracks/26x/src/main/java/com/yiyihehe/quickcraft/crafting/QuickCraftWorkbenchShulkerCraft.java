@@ -158,7 +158,10 @@ public final class QuickCraftWorkbenchShulkerCraft implements ClientModInitializ
         }
         if (active && startedByButton && !isButtonRapidModeHeld(client)) {
             requestAckStopOrStop(client);
-            return;
+            // 松键后不再发起新合成，但已发批次仍要每 tick 推进探针、静稳确认和超时清理。
+            if (!active || !ackBatchAwaiting) {
+                return;
+            }
         }
         if (!active) {
             return;
@@ -1015,7 +1018,7 @@ public final class QuickCraftWorkbenchShulkerCraft implements ClientModInitializ
             return false;
         }
         for (ItemStack remainder : remainderPattern) {
-            if (!remainder.isEmpty() && stack.getItem() == remainder.getItem()) {
+            if (!remainder.isEmpty() && ItemStack.isSameItemSameComponents(remainder, stack)) {
                 return true;
             }
         }
@@ -1417,7 +1420,7 @@ public final class QuickCraftWorkbenchShulkerCraft implements ClientModInitializ
             return false;
         }
         ItemStack remainder = remainderPattern.get(patternIndex);
-        return !remainder.isEmpty() && actual.getItem() == remainder.getItem();
+        return !remainder.isEmpty() && ItemStack.isSameItemSameComponents(remainder, actual);
     }
 
     private int discardGridRemainders(Minecraft client,
