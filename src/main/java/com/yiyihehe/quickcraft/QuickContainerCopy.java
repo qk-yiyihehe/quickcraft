@@ -31,6 +31,7 @@ import net.minecraft.item.Item;
 import net.minecraft.item.ItemStack;
 import net.minecraft.item.Items;
 import net.minecraft.registry.Registries;
+import net.minecraft.registry.RegistryKey;
 import net.minecraft.screen.BlastFurnaceScreenHandler;
 import net.minecraft.screen.BrewingStandScreenHandler;
 import net.minecraft.screen.CrafterScreenHandler;
@@ -51,7 +52,10 @@ import net.minecraft.util.Identifier;
 import net.minecraft.util.hit.BlockHitResult;
 import net.minecraft.util.hit.EntityHitResult;
 import net.minecraft.util.hit.HitResult;
+import net.minecraft.util.math.BlockPos;
+import net.minecraft.world.World;
 
+import java.lang.ref.WeakReference;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
@@ -78,6 +82,8 @@ public final class QuickContainerCopy implements ClientModInitializer {
     private static boolean allowQuickShulkerSources;
     private static ContinuousFillTask continuousTask;
     private static TargetInteraction suppressedContinuousTarget;
+    private static PendingStashRecovery pendingStashRecovery;
+    private static Object lastPendingStashScreen;
     private static boolean suppressContainerVerifierRemember;
 
     @Override
@@ -155,7 +161,8 @@ public final class QuickContainerCopy implements ClientModInitializer {
                     client,
                     handler,
                     SuccessMessage.of("quickcraft.message.container_copy.projection_filled", type.displayName()),
-                    true
+                    true,
+                    target != null ? new TargetInteraction(target, type) : null
             );
             QuickContainerFillStatus.finish(client, target, result.issueCount());
             if (result.isComplete()) {
@@ -168,6 +175,7 @@ public final class QuickContainerCopy implements ClientModInitializer {
     }
 
     private void onClientTick(MinecraftClient client) {
+        processPendingStashRecovery(client);
         if (!QuickCraftConfigs.isQuickContainerCopyEnabled()
                 && !QuickCraftConfigs.isLitematicaContainerAutofillEnabled()) {
             lastUseDown = false;
@@ -259,7 +267,12 @@ public final class QuickContainerCopy implements ClientModInitializer {
         pendingFillTarget = null;
         pendingTicks = 0;
         suppressedContinuousTarget = null;
-        continuousTask = new ContinuousFillTask(new TargetInteraction(hitResult, type), template);
+        continuousTask = new ContinuousFillTask(
+                new TargetInteraction(hitResult, type),
+                template,
+                client.world.getRegistryKey()
+        );
+        continuousTask.worldRef = new WeakReference<>(client.world);
         QuickContainerFillStatus.begin(client, hitResult);
         sendStatusMessage(client, Text.translatable("quickcraft.message.container_copy.background_start", type.displayName()));
     }
@@ -430,7 +443,8 @@ public final class QuickContainerCopy implements ClientModInitializer {
 
         FillResult result;
         try {
-            result = applyTemplate(client, handler, continuousTask.template.successMessage(), false);
+            result = applyTemplate(client, handler, continuousTask.template.successMessage(), false,
+                    continuousTask.target);
         } finally {
             recordedTemplate = previousTemplate;
             allowQuickShulkerSources = previousQuickShulkerSources;
@@ -638,22 +652,199 @@ public final class QuickContainerCopy implements ClientModInitializer {
         if (continuousTask == null) {
             return;
         }
-        QuickContainerFillStatus.stop(client, continuousTask.target.hitResult(), message != null);
-        suppressedContinuousTarget = lastContinuousFillDown ? continuousTask.target : null;
+        ContinuousFillTask task = continuousTask;
+        TemporaryContainerStash stash = task.temporaryStash;
+        boolean stashPending = false;
+        if (stash != null && !tryRestoreContinuousStash(client, task, stash)) {
+            pendingStashRecovery = new PendingStashRecovery(task.target, task.worldKey, task.worldRef, stash);
+            stashPending = true;
+        }
+        Text displayMessage = stashPending ? stashPendingMessage(message, stash) : message;
+        QuickContainerFillStatus.stop(client, task.target.hitResult(), displayMessage != null);
+        suppressedContinuousTarget = lastContinuousFillDown ? task.target : null;
         if (lastContinuousFillDown) {
             // 本 tick 结束后台任务后仍会进入普通右键处理；消费同一次按住，避免重复打开已填完的容器。
             lastUseDown = true;
         }
-        continuousTask.batchFreeSlotsTarget = -1;
+        task.batchFreeSlotsTarget = -1;
+        task.temporaryStash = null;
         continuousTask = null;
         allowQuickShulkerSources = false;
         clearLitematicaHandledScreenBinding();
         if (closeScreen) {
             closeCurrentScreen(client);
         }
-        if (message != null) {
-            sendStatusMessage(client, message);
+        if (displayMessage != null) {
+            sendStatusMessage(client, displayMessage);
         }
+    }
+
+    private boolean tryRestoreContinuousStash(MinecraftClient client,
+                                             ContinuousFillTask task,
+                                             TemporaryContainerStash stash) {
+        if (client == null || client.player == null || client.world == null
+                || task.worldRef == null
+                || task.worldRef.get() != client.world
+                || !task.worldKey.equals(client.world.getRegistryKey())) {
+            return false;
+        }
+        if (task.stage == ContinuousStage.WAIT_SOURCE_SCREEN
+                || task.stage == ContinuousStage.EXTRACT_SOURCE) {
+            return false;
+        }
+        if (client.currentScreen != null && !(client.currentScreen instanceof HandledScreen<?>)) {
+            return false;
+        }
+        if (!currentTargetStillMatches(client, task.target, client.crosshairTarget)) {
+            return false;
+        }
+        ScreenHandler handler = getOpenHandledContainer(client);
+        if (handler == null || !isSupportedHandlerForType(handler, task.target.type())) {
+            return false;
+        }
+        continuousTask = task;
+        task.temporaryStash = stash;
+        boolean restored = restoreTemporaryContainerStash(handler, getContainerSlotIds(handler), client);
+        task.temporaryStash = null;
+        return restored;
+    }
+
+    private void processPendingStashRecovery(MinecraftClient client) {
+        if (pendingStashRecovery == null) {
+            lastPendingStashScreen = null;
+            return;
+        }
+        if (client == null || client.world == null || client.player == null) {
+            return;
+        }
+        if (client.currentScreen == null) {
+            lastPendingStashScreen = null;
+            return;
+        }
+        if (!(client.currentScreen instanceof HandledScreen<?> screen)) {
+            return;
+        }
+        if (screen == lastPendingStashScreen) {
+            return;
+        }
+        lastPendingStashScreen = screen;
+
+        if (continuousTask != null
+                && (continuousTask.stage == ContinuousStage.WAIT_SOURCE_SCREEN
+                || continuousTask.stage == ContinuousStage.EXTRACT_SOURCE)) {
+            // 已知源盒阶段打开的潜影盒是取料来源，不能当作原目标恢复。
+            return;
+        }
+
+        PendingStashRecovery pending = pendingStashRecovery;
+        if (pending.worldRef() == null
+                || pending.worldRef().get() != client.world
+                || !pending.worldKey().equals(client.world.getRegistryKey())
+                || !currentTargetStillMatches(client, pending.target(), client.crosshairTarget)) {
+            return;
+        }
+        ScreenHandler handler = screen.getScreenHandler();
+        if (!isSupportedHandlerForType(handler, pending.target().type())) {
+            return;
+        }
+
+        pendingStashRecovery = null;
+        if (restoreTemporaryContainerStash(handler, getContainerSlotIds(handler), client, pending.stash())) {
+            sendStatusMessage(client, stashMessage("quickcraft.message.container_copy.temporary_stash_recovered", pending.stash()));
+        } else {
+            pendingStashRecovery = pending;
+            sendStatusMessage(client, stashMessage("quickcraft.message.container_copy.temporary_stash_recovery_failed", pending.stash()));
+        }
+    }
+
+    /**
+     * 原目标寄存尚未恢复时，不能在同一容器的写入路径里清格或丢弃寄存物。
+     * 客户端菜单库存与世界方块实体不是同一对象，只能按本次操作的实际目标位置和类型判断关系：
+     * 同目标/可能同一容器先恢复，恢复失败就阻断；确认无关的容器照常操作；无法排除碰撞时阻断。
+     */
+    private boolean preparePendingStashForHandler(MinecraftClient client,
+                                                  ScreenHandler handler,
+                                                  TargetInteraction operationTarget) {
+        PendingStashRecovery pending = pendingStashRecovery;
+        if (pending == null) {
+            return true;
+        }
+        if (client == null || client.world == null
+                || pending.worldRef() == null
+                || pending.worldRef().get() != client.world
+                || !pending.worldKey().equals(client.world.getRegistryKey())) {
+            return true;
+        }
+        StashTargetRelation relation = classifyStashTarget(client, pending.target(), operationTarget);
+        if (relation == StashTargetRelation.UNRELATED) {
+            return true;
+        }
+        if (relation == StashTargetRelation.SAME_CONTAINER
+                && restoreTemporaryContainerStash(handler, getContainerSlotIds(handler), client, pending.stash())) {
+            pendingStashRecovery = null;
+            return true;
+        }
+        return false;
+    }
+
+    private StashTargetRelation classifyStashTarget(MinecraftClient client,
+                                                    TargetInteraction stashedTarget,
+                                                    TargetInteraction operationTarget) {
+        if (operationTarget == null) {
+            return StashTargetRelation.UNCERTAIN;
+        }
+        if (!(stashedTarget.hitResult() instanceof BlockHitResult stashedHit)
+                || !(operationTarget.hitResult() instanceof BlockHitResult operationHit)) {
+            if (!QuickContainerFillStatus.sameTarget(client, stashedTarget.hitResult(), operationTarget.hitResult())) {
+                return StashTargetRelation.UNRELATED;
+            }
+            return stashedTarget.type() == operationTarget.type()
+                    ? StashTargetRelation.SAME_CONTAINER
+                    : StashTargetRelation.UNCERTAIN;
+        }
+
+        BlockPos stashedPos = stashedHit.getBlockPos();
+        BlockPos operationPos = operationHit.getBlockPos();
+        boolean sameType = stashedTarget.type() == operationTarget.type();
+        if (stashedPos.equals(operationPos)) {
+            return sameType ? StashTargetRelation.SAME_CONTAINER : StashTargetRelation.UNCERTAIN;
+        }
+        if (sameType && QuickContainerFillStatus.sameTarget(
+                client, stashedTarget.hitResult(), operationTarget.hitResult())) {
+            return StashTargetRelation.SAME_CONTAINER;
+        }
+        if (areConnectedChestHalves(client, stashedPos, operationPos)) {
+            return StashTargetRelation.UNCERTAIN;
+        }
+        return StashTargetRelation.UNRELATED;
+    }
+
+    private boolean areConnectedChestHalves(MinecraftClient client, BlockPos firstPos, BlockPos secondPos) {
+        if (client == null || client.world == null || firstPos.getManhattanDistance(secondPos) != 1) {
+            return false;
+        }
+        var firstState = client.world.getBlockState(firstPos);
+        var secondState = client.world.getBlockState(secondPos);
+        if (!(firstState.getBlock() instanceof ChestBlock)
+                || firstState.getBlock() != secondState.getBlock()) {
+            return false;
+        }
+        ChestType firstType = firstState.get(ChestBlock.CHEST_TYPE);
+        return firstType != ChestType.SINGLE
+                && secondState.get(ChestBlock.CHEST_TYPE) == firstType.getOpposite()
+                && firstState.get(ChestBlock.FACING) == secondState.get(ChestBlock.FACING)
+                && firstPos.offset(ChestBlock.getFacing(firstState)).equals(secondPos);
+    }
+
+    private Text stashPendingMessage(Text reason, TemporaryContainerStash stash) {
+        Text pending = stashMessage("quickcraft.message.container_copy.temporary_stash_pending", stash);
+        return reason == null
+                ? pending
+                : Text.translatable("quickcraft.message.container_copy.temporary_stash_pending_with_reason", reason, pending);
+    }
+
+    private Text stashMessage(String key, TemporaryContainerStash stash) {
+        return Text.translatable(key, stash.stack().getName(), stash.stack().getCount());
     }
 
     public static boolean shouldHideBackgroundHandledScreen() {
@@ -704,6 +895,17 @@ public final class QuickContainerCopy implements ClientModInitializer {
     private boolean targetMatches(MinecraftClient client, TargetInteraction target, HitResult hitResult, SupportedContainerType type) {
         return target.type() == type
                 && QuickContainerFillStatus.sameTarget(client, target.hitResult(), hitResult);
+    }
+
+    /**
+     * 保存的 type 只描述记录时的容器；同形状菜单（小箱/木桶/三行Generic）还要核对当前世界里准星目标的实际类型，
+     * 避免原容器被拆换后从同坐标的另一类容器取走物品。
+     */
+    private boolean currentTargetStillMatches(MinecraftClient client,
+                                              TargetInteraction target,
+                                              HitResult currentHitResult) {
+        return targetMatches(client, target, currentHitResult, target.type())
+                && getSupportedContainerType(client, currentHitResult) == target.type();
     }
 
     private void handleUseAttempt(MinecraftClient client) {
@@ -796,7 +998,8 @@ public final class QuickContainerCopy implements ClientModInitializer {
                     client,
                     handler,
                     SuccessMessage.of("quickcraft.message.container_copy.copied", recordedTemplate.type.displayName()),
-                    true
+                    true,
+                    fillTarget != null ? new TargetInteraction(fillTarget, type) : null
             );
             QuickContainerFillStatus.finish(client, fillTarget, result.issueCount());
             if (result.isComplete()) {
@@ -842,7 +1045,8 @@ public final class QuickContainerCopy implements ClientModInitializer {
     private FillResult applyTemplate(MinecraftClient client,
                                      ScreenHandler handler,
                                      SuccessMessage successMessage,
-                                     boolean showMessages) {
+                                     boolean showMessages,
+                                     TargetInteraction operationTarget) {
         List<Text> missingMessages = new ArrayList<>();
         List<Text> blockedMessages = new ArrayList<>();
         List<MissingDemand> missingDemands = new ArrayList<>();
@@ -853,6 +1057,18 @@ public final class QuickContainerCopy implements ClientModInitializer {
 
         if (!handler.getCursorStack().isEmpty()) {
             FillResult result = FillResult.blocked(Text.translatable("quickcraft.message.container_copy.cursor_stack_blocked"));
+            if (showMessages) {
+                sendStatusMessage(client, result.message(successMessage));
+            }
+            return result;
+        }
+
+        if (!preparePendingStashForHandler(client, handler, operationTarget)) {
+            PendingStashRecovery pending = pendingStashRecovery;
+            FillResult result = FillResult.blocked(stashMessage(
+                    "quickcraft.message.container_copy.temporary_stash_recovery_failed",
+                    pending.stash()
+            ));
             if (showMessages) {
                 sendStatusMessage(client, result.message(successMessage));
             }
@@ -1853,7 +2069,9 @@ public final class QuickContainerCopy implements ClientModInitializer {
             return PrepareBatchResult.READY;
         }
 
-        if (continuousTask != null && continuousTask.temporaryStash == null
+        if (continuousTask != null
+                && continuousTask.temporaryStash == null
+                && pendingStashRecovery == null
                 && stashOnePlayerStackInEmptyContainerSlot(handler, containerSlotIds, client)) {
             return PrepareBatchResult.READY;
         }
@@ -2045,7 +2263,17 @@ public final class QuickContainerCopy implements ClientModInitializer {
             return true;
         }
 
-        TemporaryContainerStash stash = continuousTask.temporaryStash;
+        boolean restored = restoreTemporaryContainerStash(handler, containerSlotIds, client, continuousTask.temporaryStash);
+        if (restored) {
+            continuousTask.temporaryStash = null;
+        }
+        return restored;
+    }
+
+    private boolean restoreTemporaryContainerStash(ScreenHandler handler,
+                                                   List<Integer> containerSlotIds,
+                                                   MinecraftClient client,
+                                                   TemporaryContainerStash stash) {
         if (stash.templateIndex() < 0 || stash.templateIndex() >= containerSlotIds.size()) {
             return false;
         }
@@ -2053,10 +2281,10 @@ public final class QuickContainerCopy implements ClientModInitializer {
         int containerSlotId = containerSlotIds.get(stash.templateIndex());
         Slot slot = handler.getSlot(containerSlotId);
         if (!slot.hasStack()) {
-            continuousTask.temporaryStash = null;
             return true;
         }
-        if (!ItemStack.areItemsAndComponentsEqual(slot.getStack(), stash.stack())) {
+        if (!ItemStack.areItemsAndComponentsEqual(slot.getStack(), stash.stack())
+                || slot.getStack().getCount() != stash.stack().getCount()) {
             return false;
         }
 
@@ -2068,7 +2296,6 @@ public final class QuickContainerCopy implements ClientModInitializer {
                 client.player
         );
         if (handler.getCursorStack().isEmpty()) {
-            continuousTask.temporaryStash = null;
             return true;
         }
 
@@ -2084,7 +2311,6 @@ public final class QuickContainerCopy implements ClientModInitializer {
             return false;
         }
 
-        continuousTask.temporaryStash = null;
         return true;
     }
 
@@ -2530,9 +2756,17 @@ public final class QuickContainerCopy implements ClientModInitializer {
         REOPEN_DELAY
     }
 
+    private enum StashTargetRelation {
+        SAME_CONTAINER,
+        UNRELATED,
+        UNCERTAIN
+    }
+
     private static final class ContinuousFillTask {
         private final TargetInteraction target;
         private final ContinuousTemplate template;
+        private final RegistryKey<World> worldKey;
+        private WeakReference<World> worldRef;
         private ContinuousStage stage = ContinuousStage.OPEN_TARGET;
         private int ticks;
         private int previousSyncId = -1;
@@ -2543,9 +2777,12 @@ public final class QuickContainerCopy implements ClientModInitializer {
         private List<MissingDemand> missingDemands = List.of();
         private TemporaryContainerStash temporaryStash;
 
-        private ContinuousFillTask(TargetInteraction target, ContinuousTemplate template) {
+        private ContinuousFillTask(TargetInteraction target,
+                                   ContinuousTemplate template,
+                                   RegistryKey<World> worldKey) {
             this.target = target;
             this.template = template;
+            this.worldKey = worldKey;
         }
     }
 
@@ -2563,6 +2800,12 @@ public final class QuickContainerCopy implements ClientModInitializer {
     }
 
     private record TemporaryContainerStash(int templateIndex, int slotId, ItemStack stack) {
+    }
+
+    private record PendingStashRecovery(TargetInteraction target,
+                                        RegistryKey<World> worldKey,
+                                        WeakReference<World> worldRef,
+                                        TemporaryContainerStash stash) {
     }
 
     private record ExtractResult(int moved, List<MissingDemand> remainingDemands, boolean attemptedMove) {

@@ -33,6 +33,7 @@ import net.minecraft.world.inventory.CraftingMenu;
 import net.minecraft.world.inventory.InventoryMenu;
 import net.minecraft.world.inventory.Slot;
 import net.minecraft.world.inventory.ContainerInput;
+import net.minecraft.network.chat.Component;
 
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -138,13 +139,20 @@ public class QuickSort implements ClientModInitializer {
 
         AbstractContainerMenu targetHandler = target.handler();
         if (!targetHandler.getCarried().isEmpty() && !storeCursorStackForTarget(gui, target)) {
+            notifySortIncomplete(client);
             return;
         }
 
         mergeIdenticalStacks(targetHandler, target.slotIds);
-        reorderSlots(targetHandler, target.slotIds, buildTargetOrder(targetHandler, target.slotIds), targetHandler == handler);
-        if (!targetHandler.getCarried().isEmpty()) {
-            storeCursorStackForTarget(gui, target);
+        if (!reorderSlots(targetHandler, target.slotIds, buildTargetOrder(targetHandler, target.slotIds), targetHandler == handler)) {
+            if (!targetHandler.getCarried().isEmpty()) {
+                storeCursorStackForTarget(gui, target);
+            }
+            notifySortIncomplete(client);
+            return;
+        }
+        if (!targetHandler.getCarried().isEmpty() && !storeCursorStackForTarget(gui, target)) {
+            notifySortIncomplete(client);
         }
     }
 
@@ -473,10 +481,10 @@ public class QuickSort implements ClientModInitializer {
         }
     }
 
-    private static void reorderSlots(AbstractContainerMenu handler,
-                                     List<Integer> slotIds,
-                                     List<ItemStack> targetOrder,
-                                     boolean useVisibleStorageFallback) {
+    private static boolean reorderSlots(AbstractContainerMenu handler,
+                                        List<Integer> slotIds,
+                                        List<ItemStack> targetOrder,
+                                        boolean useVisibleStorageFallback) {
         for (int targetIndex = 0; targetIndex < slotIds.size(); targetIndex++) {
             int targetSlotId = slotIds.get(targetIndex);
             Slot targetSlot = handler.getSlot(targetSlotId);
@@ -497,8 +505,8 @@ public class QuickSort implements ClientModInitializer {
                 moveStackToEmptySlot(handler, targetSlotId, sourceSlotId);
             } else if (targetSlot.getItem().isEmpty()) {
                 moveStackToEmptySlot(handler, sourceSlotId, targetSlotId);
-            } else {
-                swapSlots(handler, targetSlotId, sourceSlotId);
+            } else if (!swapSlots(handler, targetSlotId, sourceSlotId)) {
+                return false;
             }
 
             if (!handler.getCarried().isEmpty()) {
@@ -506,11 +514,12 @@ public class QuickSort implements ClientModInitializer {
                     ? storeCursorStackInVisibleSlots(handler)
                     : storeCursorStack(handler, slotIds);
                 if (!stored) {
-                    return;
+                    return false;
                 }
             }
 
         }
+        return true;
     }
 
     private static List<ItemStack> buildTargetOrder(AbstractContainerMenu handler, List<Integer> slotIds) {
@@ -615,18 +624,30 @@ public class QuickSort implements ClientModInitializer {
         clickSlot(handler, toSlotId, 0, ContainerInput.PICKUP);
     }
 
-    private static void swapSlots(AbstractContainerMenu handler, int slotA, int slotB) {
+    private static boolean swapSlots(AbstractContainerMenu handler, int slotA, int slotB) {
+        ItemStack beforeA = handler.getSlot(slotA).getItem().copy();
+        ItemStack beforeB = handler.getSlot(slotB).getItem().copy();
         int swapBufferHotbar = findSwapBufferHotbarIndex(handler, slotA, slotB);
         if (swapBufferHotbar >= 0) {
             clickSlot(handler, slotA, swapBufferHotbar, ContainerInput.SWAP);
             clickSlot(handler, slotB, swapBufferHotbar, ContainerInput.SWAP);
             clickSlot(handler, slotA, swapBufferHotbar, ContainerInput.SWAP);
-            return;
+        } else if (canStacksMerge(beforeA, beforeB)) {
+            // 同类物品不能沿用普通三步交换：满堆会因容量为零而留在光标上。
+            if (beforeB.getCount() < beforeB.getMaxStackSize() || beforeA.getCount() >= beforeA.getMaxStackSize()) {
+                return false;
+            }
+            clickSlot(handler, slotB, 0, ContainerInput.PICKUP);
+            clickSlot(handler, slotA, 0, ContainerInput.PICKUP);
+            clickSlot(handler, slotB, 0, ContainerInput.PICKUP);
+        } else {
+            clickSlot(handler, slotA, 0, ContainerInput.PICKUP);
+            clickSlot(handler, slotB, 0, ContainerInput.PICKUP);
+            clickSlot(handler, slotA, 0, ContainerInput.PICKUP);
         }
-
-        clickSlot(handler, slotA, 0, ContainerInput.PICKUP);
-        clickSlot(handler, slotB, 0, ContainerInput.PICKUP);
-        clickSlot(handler, slotA, 0, ContainerInput.PICKUP);
+        return handler.getCarried().isEmpty()
+                && stacksEqualExactly(handler.getSlot(slotA).getItem(), beforeB)
+                && stacksEqualExactly(handler.getSlot(slotB).getItem(), beforeA);
     }
 
     /**
@@ -686,6 +707,9 @@ public class QuickSort implements ClientModInitializer {
 
         // 满背包/满容器时，优先尝试并入可叠加的同类堆叠，避免因为没有空位直接失败。
         for (Slot slot : handler.slots) {
+            if (QuickContainerLock.isLockedSlot(handler, slot)) {
+                continue;
+            }
             if (!isSafeVisibleStorageSlot(handler, slot, client)) {
                 continue;
             }
@@ -706,6 +730,9 @@ public class QuickSort implements ClientModInitializer {
         }
 
         for (Slot slot : handler.slots) {
+            if (QuickContainerLock.isLockedSlot(handler, slot)) {
+                continue;
+            }
             if (!isSafeVisibleStorageSlot(handler, slot, client)) {
                 continue;
             }
@@ -749,7 +776,7 @@ public class QuickSort implements ClientModInitializer {
 
         for (int slotId : slotIds) {
             Slot slot = handler.getSlot(slotId);
-            if (!slot.hasItem()) {
+            if (QuickContainerLock.isLockedSlot(handler, slot) || !slot.hasItem()) {
                 continue;
             }
             if (!slot.mayPickup(client.player) || !slot.mayPlace(cursorStack)) {
@@ -767,7 +794,7 @@ public class QuickSort implements ClientModInitializer {
 
         for (int slotId : slotIds) {
             Slot slot = handler.getSlot(slotId);
-            if (slot.hasItem()) {
+            if (QuickContainerLock.isLockedSlot(handler, slot) || slot.hasItem()) {
                 continue;
             }
             if (!slot.mayPickup(client.player) || !slot.mayPlace(cursorStack)) {
@@ -788,6 +815,12 @@ public class QuickSort implements ClientModInitializer {
             return storeCursorStackInVisibleSlots(gui.getMenu());
         }
         return storeCursorStack(target.handler(), target.slotIds);
+    }
+
+    private static void notifySortIncomplete(Minecraft client) {
+        if (client.player != null) {
+            client.player.sendOverlayMessage(Component.translatable("quickcraft.message.sort.incomplete"));
+        }
     }
 
     private static boolean canStacksMerge(ItemStack target, ItemStack source) {

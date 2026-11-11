@@ -12,9 +12,14 @@ import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.Container;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.crafting.RecipePropertySet;
 import net.minecraft.world.inventory.AbstractContainerMenu;
+import net.minecraft.world.inventory.AbstractFurnaceMenu;
+import net.minecraft.world.inventory.BlastFurnaceMenu;
 import net.minecraft.world.inventory.Slot;
+import net.minecraft.world.inventory.SmokerMenu;
 import net.minecraft.world.inventory.ContainerInput;
+import net.minecraft.network.chat.Component;
 import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.phys.HitResult;
 
@@ -123,6 +128,14 @@ public final class QuickFillContainer implements ClientModInitializer {
             return;
         }
 
+        List<Integer> containerSlotIds = getContainerSlotIds(handler);
+        int remainingCapacity = getContainerCapacity(client, handler, containerSlotIds, mostAbundant);
+        if (remainingCapacity <= 0) {
+            notifyFillSkipped(client);
+            return;
+        }
+
+        boolean movedAny = false;
         for (int playerSlotId : playerSlotIds) {
             Slot slot = handler.getSlot(playerSlotId);
             if (!slot.hasItem()
@@ -131,6 +144,8 @@ public final class QuickFillContainer implements ClientModInitializer {
                 continue;
             }
 
+            int sourceCount = slot.getItem().getCount();
+            int beforeContainer = countMatchingInContainer(handler, containerSlotIds, mostAbundant);
             client.gameMode.handleContainerInput(
                     handler.containerId,
                     playerSlotId,
@@ -138,6 +153,97 @@ public final class QuickFillContainer implements ClientModInitializer {
                     ContainerInput.QUICK_MOVE,
                     client.player
             );
+            int afterContainer = countMatchingInContainer(handler, containerSlotIds, mostAbundant);
+            int afterSource = handler.getSlot(playerSlotId).getItem().getCount();
+            int movedToContainer = afterContainer - beforeContainer;
+            if (movedToContainer <= 0
+                    || movedToContainer > remainingCapacity
+                    || afterSource != sourceCount - movedToContainer) {
+                notifyFillSkipped(client);
+                return;
+            }
+            movedAny = true;
+            remainingCapacity -= movedToContainer;
+            if (remainingCapacity <= 0) {
+                break;
+            }
+        }
+        if (!movedAny) {
+            notifyFillSkipped(client);
+        }
+    }
+
+    private List<Integer> getContainerSlotIds(AbstractContainerMenu handler) {
+        List<Slot> containerSlots = new ArrayList<>();
+        for (Slot slot : handler.slots) {
+            if (!isVisibleSlot(slot)
+                    || isPlayerStorageSlot(slot)
+                    || QuickContainerLock.isLockedSlot(handler, slot)) {
+                continue;
+            }
+            containerSlots.add(slot);
+        }
+        return containerSlots.stream()
+                .map(slot -> handler.slots.indexOf(slot))
+                .toList();
+    }
+
+    private int getContainerCapacity(Minecraft client, AbstractContainerMenu handler,
+                                     List<Integer> containerSlotIds, ItemStack stack) {
+        int capacity = 0;
+        for (int slotId : containerSlotIds) {
+            Slot slot = handler.getSlot(slotId);
+            if (handler instanceof AbstractFurnaceMenu
+                    && slot == handler.slots.get(0)
+                    && !isFurnaceInputAccepted(client, handler, stack)) {
+                continue;
+            }
+            capacity += getSlotCapacity(slot, stack);
+        }
+        return capacity;
+    }
+
+    private int getSlotCapacity(Slot slot, ItemStack stack) {
+        if (!slot.isActive() || !slot.mayPlace(stack)) {
+            return 0;
+        }
+        int maxCount = Math.min(stack.getMaxStackSize(), slot.getMaxStackSize(stack));
+        if (!slot.hasItem()) {
+            return Math.max(0, maxCount);
+        }
+        if (!ItemStack.isSameItemSameComponents(slot.getItem(), stack)) {
+            return 0;
+        }
+        return Math.max(0, maxCount - slot.getItem().getCount());
+    }
+
+    private boolean isFurnaceInputAccepted(Minecraft client, AbstractContainerMenu handler, ItemStack stack) {
+        if (client.level == null) {
+            return false;
+        }
+        if (handler instanceof BlastFurnaceMenu) {
+            return client.level.recipeAccess().propertySet(RecipePropertySet.BLAST_FURNACE_INPUT).test(stack);
+        }
+        if (handler instanceof SmokerMenu) {
+            return client.level.recipeAccess().propertySet(RecipePropertySet.SMOKER_INPUT).test(stack);
+        }
+        return client.level.recipeAccess().propertySet(RecipePropertySet.FURNACE_INPUT).test(stack);
+    }
+
+    private int countMatchingInContainer(AbstractContainerMenu handler, List<Integer> containerSlotIds, ItemStack expected) {
+        int count = 0;
+        for (int slotId : containerSlotIds) {
+            ItemStack stack = handler.getSlot(slotId).getItem();
+            if (ItemStack.isSameItemSameComponents(stack, expected)) {
+                count += stack.getCount();
+            }
+        }
+        return count;
+    }
+
+    private void notifyFillSkipped(Minecraft client) {
+        if (client.player != null) {
+            client.player.sendOverlayMessage(Component.translatable("quickcraft.message.fill_container.not_insertable"));
         }
     }
 
@@ -199,9 +305,8 @@ public final class QuickFillContainer implements ClientModInitializer {
     }
 
     private boolean isPlayerStorageSlot(Slot slot) {
-        return slot.container instanceof Inventory
-                && slot.getContainerSlot() >= 0
-                && slot.getContainerSlot() < 36;
+        // 玩家菜单里的装备、副手和合成槽也不能被当作目标容器槽。
+        return slot.container instanceof Inventory;
     }
 
     private boolean isVisibleSlot(Slot slot) {

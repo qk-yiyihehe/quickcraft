@@ -4,16 +4,20 @@ import com.yiyihehe.quickcraft.config.QuickCraftConfigs;
 import com.yiyihehe.quickcraft.litematica.QuickLitematicaContainerAutofill;
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
+import net.minecraft.world.level.block.ChestBlock;
 import net.minecraft.world.level.block.EnderChestBlock;
 import net.minecraft.world.level.block.entity.BlockEntity;
+import net.minecraft.world.level.block.state.properties.ChestType;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
+import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.Container;
 import net.minecraft.world.inventory.AbstractContainerMenu;
 import net.minecraft.world.inventory.Slot;
 import net.minecraft.world.inventory.ContainerInput;
+import net.minecraft.core.BlockPos;
 import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.phys.HitResult;
 
@@ -29,10 +33,13 @@ import java.util.List;
  */
 public final class QuickClearContainer implements ClientModInitializer {
     private static final int OPEN_TIMEOUT_TICKS = 20;
+    private static final int ENDER_CHEST_SLOT_COUNT = 27;
 
     private static boolean lastUseDown;
     private static boolean pendingOpen;
     private static int pendingTicks;
+    private static ClientLevel pendingLevel;
+    private static BlockPos pendingPos;
 
     @Override
     public void onInitializeClient() {
@@ -41,8 +48,7 @@ public final class QuickClearContainer implements ClientModInitializer {
 
     private void onClientTick(Minecraft client) {
         if (!QuickCraftConfigs.isQuickClearContainerEnabled()) {
-            pendingOpen = false;
-            pendingTicks = 0;
+            clearPending();
         }
 
         handleUseAttempt(client);
@@ -61,9 +67,12 @@ public final class QuickClearContainer implements ClientModInitializer {
                 && currentScreen(client) == null
                 && !QuickMaterialCollector.shouldHandleCurrentTarget(client)
                 && !QuickLitematicaContainerAutofill.shouldHandleCurrentTarget(client)
+                && client.hitResult instanceof BlockHitResult blockHitResult
                 && isLookingAtSupportedContainer(client)) {
             pendingOpen = true;
             pendingTicks = 0;
+            pendingLevel = client.level;
+            pendingPos = blockHitResult.getBlockPos().immutable();
         }
 
         lastUseDown = useDown;
@@ -75,21 +84,83 @@ public final class QuickClearContainer implements ClientModInitializer {
         }
 
         pendingTicks++;
+        if (!pendingTargetStillValid(client)) {
+            clearPending();
+            return;
+        }
         if (!(currentScreen(client) instanceof AbstractContainerScreen<?> screen)) {
             if (pendingTicks > OPEN_TIMEOUT_TICKS) {
-                pendingOpen = false;
-                pendingTicks = 0;
+                clearPending();
             }
             return;
         }
 
-        pendingOpen = false;
-        pendingTicks = 0;
-        if (!hasVisibleContainerSlots(screen.getMenu())) {
+        if (!isConfirmedTargetScreen(client, screen)) {
+            clearPending();
             return;
         }
+
+        clearPending();
         clearContainer(screen);
         closeCurrentScreen(client);
+    }
+
+    private boolean pendingTargetStillValid(Minecraft client) {
+        if (client.level == null || pendingLevel != client.level || pendingPos == null) {
+            return false;
+        }
+        return client.level.getBlockEntity(pendingPos) != null
+                && !client.level.getBlockState(pendingPos).isAir();
+    }
+
+    private boolean isConfirmedTargetScreen(Minecraft client, AbstractContainerScreen<?> screen) {
+        if (client.player == null || client.level == null || pendingPos == null) {
+            return false;
+        }
+        // 客户端菜单由 MenuType 工厂新建独立 SimpleContainer，不与世界方块实体共享对象；
+        // 这里只能按“开屏源自对 pendingPos 的实际交互”和“菜单容量与目标容器一致”做关联。
+        if (!(client.hitResult instanceof BlockHitResult hit)
+                || !hit.getBlockPos().equals(pendingPos)) {
+            return false;
+        }
+
+        AbstractContainerMenu handler = screen.getMenu();
+        if (handler == client.player.inventoryMenu) {
+            return false;
+        }
+        int targetSlotCount = targetContainerSlotCount(client);
+        return targetSlotCount >= 0 && targetSlotCount == countContainerSlots(handler);
+    }
+
+    private int targetContainerSlotCount(Minecraft client) {
+        var state = client.level.getBlockState(pendingPos);
+        BlockEntity blockEntity = client.level.getBlockEntity(pendingPos);
+        if (blockEntity instanceof Container container) {
+            if (state.getBlock() instanceof ChestBlock
+                    && state.getValue(ChestBlock.TYPE) != ChestType.SINGLE) {
+                // 双箱菜单两半合计 54 格；客户端半侧方块实体自身仍是 27 格。
+                return container.getContainerSize() * 2;
+            }
+            return container.getContainerSize();
+        }
+        return state.getBlock() instanceof EnderChestBlock ? ENDER_CHEST_SLOT_COUNT : -1;
+    }
+
+    private int countContainerSlots(AbstractContainerMenu handler) {
+        int count = 0;
+        for (Slot slot : handler.slots) {
+            if (slot.x >= 0 && slot.y >= 0 && !isPlayerStorageSlot(slot)) {
+                count++;
+            }
+        }
+        return count;
+    }
+
+    private void clearPending() {
+        pendingOpen = false;
+        pendingTicks = 0;
+        pendingLevel = null;
+        pendingPos = null;
     }
 
     private static Screen currentScreen(Minecraft client) {
@@ -141,15 +212,6 @@ public final class QuickClearContainer implements ClientModInitializer {
         }
     }
 
-    private boolean hasVisibleContainerSlots(AbstractContainerMenu handler) {
-        for (Slot slot : handler.slots) {
-            if (isVisibleSlot(slot) && !isPlayerStorageSlot(slot)) {
-                return true;
-            }
-        }
-        return false;
-    }
-
     private List<Integer> getContainerSlotIds(AbstractContainerMenu handler) {
         List<Slot> containerSlots = new ArrayList<>();
         for (Slot slot : handler.slots) {
@@ -172,9 +234,8 @@ public final class QuickClearContainer implements ClientModInitializer {
     }
 
     private boolean isPlayerStorageSlot(Slot slot) {
-        return slot.container instanceof Inventory
-                && slot.getContainerSlot() >= 0
-                && slot.getContainerSlot() < 36;
+        // 玩家菜单里的装备、副手和合成槽也不能被当作目标容器槽。
+        return slot.container instanceof Inventory;
     }
 
     private boolean isVisibleSlot(Slot slot) {

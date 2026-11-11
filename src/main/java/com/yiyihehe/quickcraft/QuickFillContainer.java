@@ -11,9 +11,11 @@ import net.minecraft.client.gui.screen.ingame.HandledScreen;
 import net.minecraft.entity.player.PlayerInventory;
 import net.minecraft.inventory.Inventory;
 import net.minecraft.item.ItemStack;
+import net.minecraft.screen.AbstractFurnaceScreenHandler;
 import net.minecraft.screen.ScreenHandler;
 import net.minecraft.screen.slot.Slot;
 import net.minecraft.screen.slot.SlotActionType;
+import net.minecraft.text.Text;
 import net.minecraft.util.hit.BlockHitResult;
 import net.minecraft.util.hit.HitResult;
 
@@ -118,6 +120,14 @@ public final class QuickFillContainer implements ClientModInitializer {
             return;
         }
 
+        List<Integer> containerSlotIds = getContainerSlotIds(handler);
+        int remainingCapacity = getContainerCapacity(client, handler, containerSlotIds, mostAbundant);
+        if (remainingCapacity <= 0) {
+            notifyFillSkipped(client);
+            return;
+        }
+
+        boolean movedAny = false;
         for (int playerSlotId : playerSlotIds) {
             Slot slot = handler.getSlot(playerSlotId);
             if (!slot.hasStack()
@@ -126,6 +136,8 @@ public final class QuickFillContainer implements ClientModInitializer {
                 continue;
             }
 
+            int sourceCount = slot.getStack().getCount();
+            int beforeContainer = countMatchingInContainer(handler, containerSlotIds, mostAbundant);
             client.interactionManager.clickSlot(
                     handler.syncId,
                     playerSlotId,
@@ -133,6 +145,88 @@ public final class QuickFillContainer implements ClientModInitializer {
                     SlotActionType.QUICK_MOVE,
                     client.player
             );
+            int afterContainer = countMatchingInContainer(handler, containerSlotIds, mostAbundant);
+            int afterSource = handler.getSlot(playerSlotId).getStack().getCount();
+            int movedToContainer = afterContainer - beforeContainer;
+            if (movedToContainer <= 0
+                    || movedToContainer > remainingCapacity
+                    || afterSource != sourceCount - movedToContainer) {
+                notifyFillSkipped(client);
+                return;
+            }
+            movedAny = true;
+            remainingCapacity -= movedToContainer;
+            if (remainingCapacity <= 0) {
+                break;
+            }
+        }
+        if (!movedAny) {
+            notifyFillSkipped(client);
+        }
+    }
+
+    private List<Integer> getContainerSlotIds(ScreenHandler handler) {
+        List<Slot> containerSlots = new ArrayList<>();
+        for (Slot slot : handler.slots) {
+            if (!isVisibleSlot(slot)
+                    || isPlayerStorageSlot(slot)
+                    || QuickContainerLock.isLockedSlot(handler, slot)) {
+                continue;
+            }
+            containerSlots.add(slot);
+        }
+        return containerSlots.stream()
+                .map(slot -> handler.slots.indexOf(slot))
+                .toList();
+    }
+
+    private int getContainerCapacity(MinecraftClient client, ScreenHandler handler,
+                                     List<Integer> containerSlotIds, ItemStack stack) {
+        int capacity = 0;
+        for (int slotId : containerSlotIds) {
+            Slot slot = handler.getSlot(slotId);
+            if (handler instanceof AbstractFurnaceScreenHandler
+                    && slot == handler.slots.get(0)
+                    && !isFurnaceInputAccepted(client, handler, stack)) {
+                continue;
+            }
+            capacity += getSlotCapacity(slot, stack);
+        }
+        return capacity;
+    }
+
+    private int getSlotCapacity(Slot slot, ItemStack stack) {
+        if (!slot.isEnabled() || !slot.canInsert(stack)) {
+            return 0;
+        }
+        int maxCount = Math.min(stack.getMaxCount(), slot.getMaxItemCount(stack));
+        if (!slot.hasStack()) {
+            return Math.max(0, maxCount);
+        }
+        if (!ItemStack.areItemsAndComponentsEqual(slot.getStack(), stack)) {
+            return 0;
+        }
+        return Math.max(0, maxCount - slot.getStack().getCount());
+    }
+
+    private boolean isFurnaceInputAccepted(MinecraftClient client, ScreenHandler handler, ItemStack stack) {
+        return QuickFillContainerRecipeAccess.isAccepted(client, handler, stack);
+    }
+
+    private int countMatchingInContainer(ScreenHandler handler, List<Integer> containerSlotIds, ItemStack expected) {
+        int count = 0;
+        for (int slotId : containerSlotIds) {
+            ItemStack stack = handler.getSlot(slotId).getStack();
+            if (ItemStack.areItemsAndComponentsEqual(stack, expected)) {
+                count += stack.getCount();
+            }
+        }
+        return count;
+    }
+
+    private void notifyFillSkipped(MinecraftClient client) {
+        if (client.player != null) {
+            client.player.sendMessage(Text.translatable("quickcraft.message.fill_container.not_insertable"), true);
         }
     }
 
@@ -194,9 +288,8 @@ public final class QuickFillContainer implements ClientModInitializer {
     }
 
     private boolean isPlayerStorageSlot(Slot slot) {
-        return slot.inventory instanceof PlayerInventory
-                && slot.getIndex() >= 0
-                && slot.getIndex() < 36;
+        // 玩家菜单里的装备、副手和合成槽也不能被当作目标容器槽。
+        return slot.inventory instanceof PlayerInventory;
     }
 
     private boolean isVisibleSlot(Slot slot) {
