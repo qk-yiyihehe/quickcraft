@@ -50,7 +50,6 @@ final class QuickLitematicaPreviewCache {
     static final String MESH_CACHE_MARKER = CACHE_RENDER_MARKER + "/entity-anchor-v1/identity-v2";
     static final int CACHE_IO_CHUNK_BYTES = 64 * 1024;
     static final long FAST_TEMP_STALE_MILLIS = 60L * 60L * 1000L;
-    private static final AtomicBoolean CACHE_DIRECTORY_READY = new AtomicBoolean();
     private static final Object CACHE_DIRECTORY_LOCK = new Object();
     private static final Object CACHE_INDEX_LOCK = new Object();
     @Nullable
@@ -64,21 +63,6 @@ final class QuickLitematicaPreviewCache {
     });
     @Nullable
     private static volatile Path currentCacheDirectory;
-
-    static CompletableFuture<Void> writeAsync(Path cachePath, Runnable write) {
-        return writeAsync(cachePath, write, null, null, 0L);
-    }
-
-    static CompletableFuture<Void> writeAsync(Path cachePath, Runnable write,
-            @Nullable String sourceHash, @Nullable String resourceSignature, long vertices) {
-        return writeAsync(cachePath, write, sourceHash, resourceSignature, vertices, null, null);
-    }
-
-    static CompletableFuture<Void> writeAsync(Path cachePath, Runnable write,
-            @Nullable String sourceHash, @Nullable String resourceSignature, long vertices,
-            @Nullable MeshData mesh, @Nullable QuickLitematicaPreviewMeshStore store) {
-        return writeAsync(cachePath, write, sourceHash, resourceSignature, null, vertices, mesh, store);
-    }
 
     static CompletableFuture<Void> writeAsync(Path cachePath, Runnable write,
             @Nullable String sourceHash, @Nullable String resourceSignature, @Nullable String structureFingerprint,
@@ -289,7 +273,6 @@ final class QuickLitematicaPreviewCache {
                 return cacheDir;
             }
             if (prepareCacheDirectory(cacheDir)) {
-                CACHE_DIRECTORY_READY.set(true);
                 currentCacheDirectory = cacheDir;
             }
             return cacheDir;

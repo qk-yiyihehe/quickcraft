@@ -122,7 +122,7 @@ class QuickLitematicaPreview3DCacheTest {
                 Thread.currentThread().interrupt();
                 throw new IllegalStateException(e);
             }
-        }, "source", "pack", (long) QuickLitematicaPreviewVertexBudget.DEFAULT_VERTEX_LIMIT + 1);
+        }, "source", "pack", null, (long) QuickLitematicaPreviewVertexBudget.DEFAULT_VERTEX_LIMIT + 1, null, null);
         try {
             assertThatThrownBy(() -> QuickLitematicaPreviewCache.awaitPendingWrite(cache, "source", "pack"))
                     .isInstanceOf(QuickLitematicaPreview3D.PreviewTooLargeException.class);
@@ -147,7 +147,7 @@ class QuickLitematicaPreview3DCacheTest {
             } catch (Exception e) {
                 throw new IllegalStateException(e);
             }
-        });
+        }, null, null, null, 0L, null, null);
         CountDownLatch readerStarted = new CountDownLatch(1);
         FutureTask<Boolean> reader = new FutureTask<>(() -> {
             readerStarted.countDown();
@@ -683,7 +683,7 @@ class QuickLitematicaPreview3DCacheTest {
                 snapshot.releaseStaticVertices();
                 store.releaseCache();
             }
-        }, "source", "pack", snapshot.vertexCount(), snapshot, store);
+        }, "source", "pack", null, snapshot.vertexCount(), snapshot, store);
         try {
             store.close();
             assertThat(QuickLitematicaPreviewCache.borrowPendingMesh(cache, "other-source", "pack")).isNull();
@@ -725,7 +725,7 @@ class QuickLitematicaPreview3DCacheTest {
             } finally {
                 store.releaseCache();
             }
-        }, "source", "pack", snapshot.vertexCount(), snapshot, store);
+        }, "source", "pack", null, snapshot.vertexCount(), snapshot, store);
         try {
             store.close();
             assertThatThrownBy(() -> QuickLitematicaPreviewCache.borrowPendingMesh(cache, "source", "pack"))
