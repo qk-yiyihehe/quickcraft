@@ -455,7 +455,7 @@ public class QuickCraftStonecutter implements ClientModInitializer {
 
     private void dropSingleCraftTail(Minecraft client, StonecutterMenu handler) {
         if (!QuickCraftConfigs.isDropCraftResultsOnStopEnabled()
-                || !isSessionValid(client) || !handler.getCarried().isEmpty()) {
+                || !isSessionValid(client)) {
             return;
         }
         dropInventoryCraftResults(client, handler);

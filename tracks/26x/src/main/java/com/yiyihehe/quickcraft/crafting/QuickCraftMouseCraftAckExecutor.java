@@ -1897,7 +1897,7 @@ public final class QuickCraftMouseCraftAckExecutor {
                             + "请求={}，强制全量请求={}，全量快速确认={}，探针兜底确认={}，省略探针={}，"
                             + "统计ACK={}/{}，计划合成轮数={}，满64批={}，尾料批={}，"
                             + "槽位点击={}，输出搬运={}，输出槽点击={}，"
-                            + "输出槽丢出={}，背包产物丢出={}，返还物丢出={}，丢原料={}，快照补料={}/{}，"
+                            + "输出槽丢出={}，背包产物丢出={}，丢原料={}，快照补料={}/{}，"
                             + "回退旧流程={}，槽位/全量/失败包={}/{}/{}，超时={}，"
                             + "单批最大点击/全量={}/{}, "
                             + "ACK平均/最小/最大={}/{}/{} us，ACK等待={} ms({}%)，本地发送={} us，"
@@ -1912,7 +1912,7 @@ public final class QuickCraftMouseCraftAckExecutor {
                     completed.clientSlotClicks,
                     completed.quickMoves, completed.outputSlotClicks,
                     completed.outputThrows, completed.inventoryResultDrops,
-                    completed.remainderThrows, completed.ingredientDrops,
+                    completed.ingredientDrops,
                     completed.snapshotRefillSuccesses, completed.snapshotRefillBatches,
                     completed.legacyHandoffs, completed.slotUpdates, completed.fullUpdates,
                     completed.failurePackets, completed.timeouts,
@@ -1938,11 +1938,10 @@ public final class QuickCraftMouseCraftAckExecutor {
         }
         if (QuickCraftConfigs.isMouseCraftAckDebugEnabled()) {
             LOGGER.info("[ACK会话#" + completed.sessionId + "] " + "手动补货ACK产物异常统计：界面={}，配方={}，中间错误产物包={}，"
-                            + "权威错误产物包={}，客户端原料THROW={}，返还物THROW={}，输出槽THROW={}，"
+                            + "权威错误产物包={}，客户端原料THROW={}，输出槽THROW={}，"
                             + "留样来源权威变化={}，留样来源空槽回包={}",
                     layout.name(), completed.recipeId, completed.intermediateOutputPacketsTotal,
                     completed.authoritativeWrongOutputPacketsTotal, completed.ingredientDrops,
-                    completed.remainderThrows,
                     completed.outputThrows, completed.retainedSourceTransitions,
                     completed.retainedSourceEmptyPackets);
         }
@@ -3135,7 +3134,6 @@ public final class QuickCraftMouseCraftAckExecutor {
         private int maxClientSlotClicksPerBatch;
         private int maxFullUpdatesPerBatch;
         private int outputSlotClicks;
-        private int remainderThrows;
         private long batchId;
         private int batchStartRevision;
         private int batchFullUpdatesStart;

@@ -770,7 +770,7 @@ public class QuickSort implements ClientModInitializer {
 
         for (int slotId : slotIds) {
             Slot slot = handler.getSlot(slotId);
-            if (QuickContainerLock.isLockedSlot(handler, slot) || !slot.hasStack()) {
+            if (!slot.hasStack()) {
                 continue;
             }
             if (!slot.canTakeItems(client.player) || !slot.canInsert(cursorStack)) {
@@ -788,7 +788,7 @@ public class QuickSort implements ClientModInitializer {
 
         for (int slotId : slotIds) {
             Slot slot = handler.getSlot(slotId);
-            if (QuickContainerLock.isLockedSlot(handler, slot) || slot.hasStack()) {
+            if (slot.hasStack()) {
                 continue;
             }
             if (!slot.canTakeItems(client.player) || !slot.canInsert(cursorStack)) {
