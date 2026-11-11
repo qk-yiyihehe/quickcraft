@@ -421,6 +421,7 @@
   "quickcraft.message.crafting.started": "QuickCraft: Auto processing started",
   "quickcraft.message.crafting.stopped": "QuickCraft: Auto processing stopped",
   "quickcraft.message.crafting.no_ingredients": "QuickCraft: Not enough ingredients, stopped",
+  "quickcraft.message.crafting.unrelated_grid_item": "QuickCraft: The crafting grid contains an item outside the locked recipe; remove it to continue",
   "quickcraft.message.crafting.shulker_unavailable": "QuickCraft: Quick Shulker unavailable; using normal jet crafting",
   "quickcraft.message.crafting.shulker_nearby_items": "QuickCraft: Dropped items near your feet; Box Jet cannot start or continue",
   "quickcraft.message.crafting.shulker_cursor_blocked": "QuickCraft: Cursor is occupied; Quick Shulker crafting stopped",

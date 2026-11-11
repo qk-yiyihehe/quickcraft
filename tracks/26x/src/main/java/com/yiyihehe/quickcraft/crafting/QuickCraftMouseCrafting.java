@@ -76,7 +76,8 @@ final class QuickCraftMouseCrafting {
     private RecipeDisplayId lockedRecipeId = null;
 
     private List<ItemStack> lockedCraftingPattern = new ArrayList<>();
-    private final List<ItemStack> knownRecipeRemainders = new ArrayList<>();
+    // 同一次触发内的“无关物品已提示”去重标记；新一轮单次/连续触发会重新允许提示。
+    private boolean unrelatedGridItemNotified = false;
 
     private ItemStack lockedResultTemplate = ItemStack.EMPTY;
 
@@ -297,6 +298,7 @@ final class QuickCraftMouseCrafting {
     }
 
     private void handleSingleCraft(Minecraft client, AbstractContainerMenu handler) {
+        unrelatedGridItemNotified = false;
 
         RecipeHolder<CraftingRecipe> currentRecipe = getCurrentCraftingRecipe(client, handler);
         if (currentRecipe != null || handler.getSlot(OUTPUT_SLOT).hasItem()) {
@@ -341,7 +343,6 @@ final class QuickCraftMouseCrafting {
     private boolean restockCraftingGrid(Minecraft client,
                                         AbstractContainerMenu handler,
                                         RecipeHolder<CraftingRecipe> recipe) {
-        dropKnownRecipeRemainders(client, handler);
         relocateMismatchedGridItems(client, handler);
         if (rapidCraftingActive) {
             return fillManualPatternStacks(client, handler);
@@ -364,7 +365,6 @@ final class QuickCraftMouseCrafting {
             return false;
         }
 
-        dropKnownRecipeRemainders(client, handler);
         int relocated = relocateMismatchedGridItems(client, handler);
         if (getManualPatternState(handler) == ManualPatternState.INVALID) {
             relocated += relocateMismatchedGridItems(client, handler);
@@ -1532,21 +1532,16 @@ final class QuickCraftMouseCrafting {
             boolean isIngredient = matchesLockedPatternIngredient(moving)
                     || matchesCurrentRecipeIngredient(moving);
             if (!isIngredient) {
-                rememberRecipeRemainder(moving);
-                if (QuickCraftConfigs.isMouseCraftAckDebugEnabled()) {
-                    LOGGER.info(QuickCraftMouseCraftAckExecutor.diagnosticContext() + "手动补货整组丢出合成格返还物：界面={}，格={}，物品={}",
-                            layout.name(), gridSlot, moving);
-                }
-                client.gameMode.handleContainerInput(
-                        handler.containerId,
-                        gridSlot,
-                        1,
-                        ContainerInput.THROW,
-                        client.player
-                );
-                mouseCraftAckExecutor.recordRemainderThrow();
-                if (handler.getSlot(gridSlot).getItem().isEmpty()) {
+                // 26.x 客户端只同步配方展示，无法核对真实 RecipeHolder；
+                // 默认返还推导不能作为 THROW/登记证据，统一安全收回背包，失败则明确中止。
+                if (recoverUnrelatedGridItem(client, handler, gridSlot, moving)) {
                     relocated++;
+                    if (QuickCraftConfigs.isMouseCraftAckDebugEnabled()) {
+                        LOGGER.info(QuickCraftMouseCraftAckExecutor.diagnosticContext() + "手动补货收回合成格无关物品：界面={}，格={}，物品={}",
+                                layout.name(), gridSlot, moving);
+                    }
+                } else {
+                    noteUnrelatedGridItem(client);
                 }
                 continue;
             }
@@ -1643,48 +1638,30 @@ final class QuickCraftMouseCrafting {
         return relocated;
     }
 
-    private void rememberRecipeRemainder(ItemStack stack) {
-        if (stack == null || stack.isEmpty()) {
-            return;
+
+    private boolean recoverUnrelatedGridItem(Minecraft client,
+                                             AbstractContainerMenu handler,
+                                             int gridSlot,
+                                             ItemStack moving) {
+        if (QuickCraftMouseCraftInventory.findAcceptingUnlockedSlot(handler, layout, moving) < 0) {
+            return false;
         }
-        for (ItemStack known : knownRecipeRemainders) {
-            if (ItemStack.isSameItemSameComponents(known, stack)) {
-                return;
-            }
-        }
-        ItemStack template = stack.copy();
-        template.setCount(1);
-        knownRecipeRemainders.add(template);
+        client.gameMode.handleContainerInput(
+                handler.containerId, gridSlot, 0, ContainerInput.QUICK_MOVE, client.player);
+        return handler.getSlot(gridSlot).getItem().isEmpty()
+                && handler.getCarried().isEmpty();
     }
 
-    private int dropKnownRecipeRemainders(Minecraft client, AbstractContainerMenu handler) {
-        if (client == null || client.player == null || client.gameMode == null
-                || handler == null || !handler.getCarried().isEmpty()
-                || knownRecipeRemainders.isEmpty()) {
-            return 0;
+    private void noteUnrelatedGridItem(Minecraft client) {
+        if (unrelatedGridItemNotified) {
+            return;
         }
-        int dropped = 0;
-        for (int invIndex = 0; invIndex < QuickCraftMouseCraftLayout.PLAYER_INVENTORY_SIZE; invIndex++) {
-            int handlerSlot = layout.handlerSlotForInventoryIndex(invIndex);
-            if (handlerSlot < 0 || QuickContainerLock.isLockedSlot(handler, handlerSlot)) {
-                continue;
-            }
-            ItemStack stack = handler.getSlot(handlerSlot).getItem();
-            if (stack.isEmpty() || !knownRecipeRemainders.stream()
-                    .anyMatch(known -> ItemStack.isSameItemSameComponents(known, stack))) {
-                continue;
-            }
-            ItemStack droppedStack = stack.copy();
-            client.gameMode.handleContainerInput(
-                    handler.containerId, handlerSlot, 1, ContainerInput.THROW, client.player);
-            dropped++;
-            mouseCraftAckExecutor.recordRemainderThrow();
-            if (QuickCraftConfigs.isMouseCraftAckDebugEnabled()) {
-                LOGGER.info(QuickCraftMouseCraftAckExecutor.diagnosticContext() + "手动补货整组丢出背包返还物：界面={}，槽={}，物品={}",
-                        layout.name(), handlerSlot, droppedStack);
-            }
+        unrelatedGridItemNotified = true;
+        Component message = Component.translatable("quickcraft.message.crafting.unrelated_grid_item");
+        sendStatusMessage(client, message);
+        if (mouseCraftAckExecutor.isActive()) {
+            mouseCraftAckExecutor.requestStop(client, message);
         }
-        return dropped;
     }
 
     private ManualPatternState getManualPatternState(AbstractContainerMenu handler) {
@@ -1821,7 +1798,6 @@ final class QuickCraftMouseCrafting {
     private void lockCurrentRecipe(Minecraft client,
                                    RecipeHolder<CraftingRecipe> recipe,
                                    AbstractContainerMenu handler) {
-        knownRecipeRemainders.clear();
         lockedRecipe = recipe;
         lockedCraftingPattern = snapshotCraftingGrid(handler);
         lockedResultTemplate = handler.getSlot(OUTPUT_SLOT).hasItem()
@@ -2138,6 +2114,7 @@ final class QuickCraftMouseCrafting {
     private boolean startRapidCraft(Minecraft client,
                                     AbstractContainerMenu handler,
                                     boolean fromButton) {
+        unrelatedGridItemNotified = false;
         mouseCraftAckLegacyFallback = false;
         mouseCraftAckManualRestockFallback = false;
         RecipeHolder<CraftingRecipe> currentRecipe = getCurrentCraftingRecipe(client, handler);
@@ -2201,7 +2178,12 @@ final class QuickCraftMouseCrafting {
     }
 
     private void finishRapidCraft(Minecraft client, Component message) {
-        if (QuickCraftConfigs.isDropCraftResultsOnStopEnabled()
+        finishRapidCraft(client, message, true);
+    }
+
+    private void finishRapidCraft(Minecraft client, Component message, boolean allowTailDrop) {
+        if (allowTailDrop
+                && QuickCraftConfigs.isDropCraftResultsOnStopEnabled()
                 && client != null && client.player != null
                 && client.player.containerMenu != null) {
             QuickCraftMouseCraftInventory.dropMatchingUnlockedInventory(
@@ -2237,7 +2219,6 @@ final class QuickCraftMouseCrafting {
         lockedRecipeId = null;
         lockedCraftingPattern.clear();
         lockedResultTemplate = ItemStack.EMPTY;
-        knownRecipeRemainders.clear();
         if (hadCraftState) {
             clearRecipeGhosts.run();
         }
@@ -2295,7 +2276,7 @@ final class QuickCraftMouseCrafting {
     private int finishMouseCraftAck(Minecraft client,
                                     Component message,
                                     boolean allowTailDrop) {
-        finishRapidCraft(client, message);
+        finishRapidCraft(client, message, allowTailDrop);
         return 0;
     }
 

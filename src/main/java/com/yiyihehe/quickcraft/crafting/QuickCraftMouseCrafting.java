@@ -76,6 +76,8 @@ final class QuickCraftMouseCrafting {
 
     private List<ItemStack> lockedCraftingPattern = new ArrayList<>();
     private final List<ItemStack> knownRecipeRemainders = new ArrayList<>();
+    // 同一次触发内的“无关物品已提示”去重标记；新一轮单次/连续触发会重新允许提示。
+    private boolean unrelatedGridItemNotified = false;
 
     private ItemStack lockedResultTemplate = ItemStack.EMPTY;
 
@@ -296,6 +298,7 @@ final class QuickCraftMouseCrafting {
     }
 
     private void handleSingleCraft(MinecraftClient client, ScreenHandler handler) {
+        unrelatedGridItemNotified = false;
 
         RecipeEntry<CraftingRecipe> currentRecipe = getCurrentCraftingRecipe(client, handler);
         if (currentRecipe != null || handler.getSlot(OUTPUT_SLOT).hasStack()) {
@@ -1513,6 +1516,7 @@ final class QuickCraftMouseCrafting {
             return 0;
         }
 
+        List<ItemStack> expectedRemainders = null;
         int relocated = 0;
         for (int i = 0; i < lockedCraftingPattern.size(); i++) {
             ItemStack template = lockedCraftingPattern.get(i);
@@ -1531,6 +1535,26 @@ final class QuickCraftMouseCrafting {
             boolean isIngredient = matchesLockedPatternIngredient(moving)
                     || matchesCurrentRecipeIngredient(moving);
             if (!isIngredient) {
+                if (expectedRemainders == null) {
+                    // 只有真的遇到非原料物品时才查询配方，避免普通补料每 tick 遍历配方表。
+                    expectedRemainders = expectedCraftingRemainders(client);
+                }
+                boolean expectedRemainder = i < expectedRemainders.size()
+                        && !expectedRemainders.get(i).isEmpty()
+                        && ItemStack.areItemsAndComponentsEqual(expectedRemainders.get(i), moving);
+                if (!expectedRemainder) {
+                    // 只有按锁定配方算出的真实返还物才允许整组丢出；用户新放的无关物品先安全收回背包。
+                    if (recoverUnrelatedGridItem(client, handler, gridSlot, moving)) {
+                        relocated++;
+                        if (QuickCraftConfigs.isMouseCraftAckDebugEnabled()) {
+                            LOGGER.info(QuickCraftMouseCraftAckExecutor.diagnosticContext() + "手动补货收回合成格无关物品：界面={}，格={}，物品={}",
+                                    layout.name(), gridSlot, moving);
+                        }
+                    } else {
+                        noteUnrelatedGridItem(client);
+                    }
+                    continue;
+                }
                 rememberRecipeRemainder(moving);
                 if (QuickCraftConfigs.isMouseCraftAckDebugEnabled()) {
                     LOGGER.info(QuickCraftMouseCraftAckExecutor.diagnosticContext() + "手动补货整组丢出合成格返还物：界面={}，格={}，物品={}",
@@ -1684,6 +1708,82 @@ final class QuickCraftMouseCrafting {
             }
         }
         return dropped;
+    }
+
+    private List<ItemStack> expectedCraftingRemainders(MinecraftClient client) {
+        if (client == null || lockedCraftingPattern.isEmpty() || lockedResultTemplate.isEmpty()) {
+            return List.of();
+        }
+        // create()/createPositioned() 会把非空内容裁剪到最小包围盒，必须按 left/top 还原到完整网格索引，
+        // 否则偏移摆放的配方会把别的格误判成返还物格。
+        CraftingRecipeInput.Positioned positioned = CraftingRecipeInput.createPositioned(
+                layout.gridWidth(),
+                layout.gridHeight(),
+                new ArrayList<>(lockedCraftingPattern));
+        CraftingRecipeInput input = positioned.input();
+        RecipeEntry<CraftingRecipe> recipe =
+                QuickCraftMouseCraftAccess.findCraftingRecipe(client, input, lockedResultTemplate);
+        if (recipe == null) {
+            // 无法取得可核对的配方实例时不把“默认返还推导”当作真实返还证据。
+            if (QuickCraftConfigs.isMouseCraftAckDebugEnabled()) {
+                LOGGER.info(QuickCraftMouseCraftAckExecutor.diagnosticContext()
+                                + "无法取得可核对配方，合成格非原料物品按安全回收处理：界面={}，锁定产物={}",
+                        layout.name(), lockedResultTemplate);
+            }
+            return List.of();
+        }
+        List<ItemStack> compact = QuickCraftMouseCraftAccess.getRecipeRemainders(recipe, input);
+        if (compact == null) {
+            if (QuickCraftConfigs.isMouseCraftAckDebugEnabled()) {
+                LOGGER.info(QuickCraftMouseCraftAckExecutor.diagnosticContext()
+                                + "配方返还读取失败，按无法确认处理并安全回收：界面={}，配方={}",
+                        layout.name(), lockedResultTemplate);
+            }
+            return List.of();
+        }
+        List<ItemStack> full = new ArrayList<>(layout.gridSize());
+        for (int i = 0; i < layout.gridSize(); i++) {
+            full.add(ItemStack.EMPTY);
+        }
+        int width = input.getWidth();
+        int height = input.getHeight();
+        for (int y = 0; y < height; y++) {
+            for (int x = 0; x < width; x++) {
+                int compactIndex = y * width + x;
+                int fullIndex = (y + positioned.top()) * layout.gridWidth()
+                        + x + positioned.left();
+                if (compactIndex < compact.size()
+                        && fullIndex >= 0 && fullIndex < full.size()) {
+                    full.set(fullIndex, compact.get(compactIndex));
+                }
+            }
+        }
+        return full;
+    }
+
+    private boolean recoverUnrelatedGridItem(MinecraftClient client,
+                                             ScreenHandler handler,
+                                             int gridSlot,
+                                             ItemStack moving) {
+        if (QuickCraftMouseCraftInventory.findAcceptingUnlockedSlot(handler, layout, moving) < 0) {
+            return false;
+        }
+        client.interactionManager.clickSlot(
+                handler.syncId, gridSlot, 0, SlotActionType.QUICK_MOVE, client.player);
+        return handler.getSlot(gridSlot).getStack().isEmpty()
+                && handler.getCursorStack().isEmpty();
+    }
+
+    private void noteUnrelatedGridItem(MinecraftClient client) {
+        if (unrelatedGridItemNotified) {
+            return;
+        }
+        unrelatedGridItemNotified = true;
+        Text message = Text.translatable("quickcraft.message.crafting.unrelated_grid_item");
+        sendStatusMessage(client, message);
+        if (mouseCraftAckExecutor.isActive()) {
+            mouseCraftAckExecutor.requestStop(client, message);
+        }
     }
 
     private ManualPatternState getManualPatternState(ScreenHandler handler) {
@@ -2133,6 +2233,7 @@ final class QuickCraftMouseCrafting {
     private boolean startRapidCraft(MinecraftClient client,
                                     ScreenHandler handler,
                                     boolean fromButton) {
+        unrelatedGridItemNotified = false;
         mouseCraftAckLegacyFallback = false;
         mouseCraftAckManualRestockFallback = false;
         RecipeEntry<CraftingRecipe> currentRecipe = getCurrentCraftingRecipe(client, handler);
@@ -2196,7 +2297,12 @@ final class QuickCraftMouseCrafting {
     }
 
     private void finishRapidCraft(MinecraftClient client, Text message) {
-        if (QuickCraftConfigs.isDropCraftResultsOnStopEnabled()
+        finishRapidCraft(client, message, true);
+    }
+
+    private void finishRapidCraft(MinecraftClient client, Text message, boolean allowTailDrop) {
+        if (allowTailDrop
+                && QuickCraftConfigs.isDropCraftResultsOnStopEnabled()
                 && client != null && client.player != null
                 && client.player.currentScreenHandler != null) {
             QuickCraftMouseCraftInventory.dropMatchingUnlockedInventory(
@@ -2289,7 +2395,7 @@ final class QuickCraftMouseCrafting {
     private int finishMouseCraftAck(MinecraftClient client,
                                     Text message,
                                     boolean allowTailDrop) {
-        finishRapidCraft(client, message);
+        finishRapidCraft(client, message, allowTailDrop);
         return 0;
     }
 

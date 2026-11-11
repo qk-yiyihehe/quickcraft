@@ -41,6 +41,26 @@ final class QuickCraftMouseCraftAccess {
         return false;
     }
 
+    public static RecipeEntry<CraftingRecipe> findCraftingRecipe(MinecraftClient client,
+                                                                 CraftingRecipeInput input,
+                                                                 ItemStack expectedResult) {
+        // 1.21.2+ 客户端只收到配方展示，无法取得可核对的 RecipeEntry；
+        // 不能把“按默认返还推导”当作真实配方证据，交给调用方安全回收或中止。
+        return null;
+    }
+
+    public static List<ItemStack> getRecipeRemainders(RecipeEntry<CraftingRecipe> recipe,
+                                                      CraftingRecipeInput input) {
+        if (recipe == null || input == null) {
+            return null;
+        }
+        try {
+            return new java.util.ArrayList<>(recipe.value().getRecipeRemainders(input));
+        } catch (RuntimeException exception) {
+            return null;
+        }
+    }
+
     public static boolean hasMatchingLockedRecipe(MinecraftClient client,
                                                ScreenHandler handler,
                                                RecipeEntry<CraftingRecipe> recipe,

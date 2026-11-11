@@ -1568,12 +1568,6 @@ public final class QuickCraftMouseCraftAckExecutor {
         }
     }
 
-    void recordRemainderThrow() {
-        if (isActive() && dispatchingBatch) {
-            session.remainderThrows++;
-        }
-    }
-
     void recordRetainedSourcePrediction(AbstractContainerMenu handler,
                                         int sourceSlot,
                                         ItemStack ingredient,

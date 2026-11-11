@@ -421,6 +421,7 @@
   "quickcraft.message.crafting.started": "QuickCraft: 自动处理已启动",
   "quickcraft.message.crafting.stopped": "QuickCraft: 自动处理已停止",
   "quickcraft.message.crafting.no_ingredients": "QuickCraft: 原料不足，已停止",
+  "quickcraft.message.crafting.unrelated_grid_item": "QuickCraft: 合成格内有不属于已锁定配方的物品，请取出后继续",
   "quickcraft.message.crafting.shulker_unavailable": "QuickCraft: 快捷潜影盒不可用，继续使用普通喷射合成",
   "quickcraft.message.crafting.shulker_nearby_items": "QuickCraft: 脚边有掉落物，盒喷无法启动或继续",
   "quickcraft.message.crafting.shulker_cursor_blocked": "QuickCraft: 光标上仍有物品，已停止潜影盒联动",
