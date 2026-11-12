@@ -61,11 +61,14 @@ public final class QuickTrade implements ClientModInitializer {
     private static final int MAX_BATCH_TRADES = 512;
     private static final int AUTO_TRADE_TIMEOUT_TICKS = 40;
     private static final int MERCHANT_OPEN_TIMEOUT_TICKS = 20;
+    // 开屏失败后的短期退避；离开范围、关闭功能或换档案时由扫描/状态清理负责释放。
+    private static final int MERCHANT_RETRY_TICKS = 100;
     // 扫描盒按原版默认实体交互距离外扩，实际目标仍由玩家实体交互范围校验。
     private static final double CONTINUOUS_TRADE_SCAN_RADIUS = 4.5;
 
     private static final Map<String, List<FavoriteTrade>> FAVORITE_TRADES = new HashMap<>();
     private static final Set<String> CONTINUOUS_HANDLED_MERCHANTS = new HashSet<>();
+    private static final Map<String, Integer> MERCHANT_OPEN_BACKOFF = new HashMap<>();
     private static boolean lastUseDown;
     private static boolean pendingAutoTrade;
     private static boolean pendingContinuousTrade;
@@ -73,6 +76,9 @@ public final class QuickTrade implements ClientModInitializer {
     private static int pendingMerchantTicks;
     private static String pendingMerchantKey;
     private static String currentScreenMerchantKey;
+    private static String continuousTaskMerchantKey;
+    private static MerchantScreen continuousClaimedScreen;
+    private static MerchantMenu continuousClaimedHandler;
     private static TradeOrderState currentOrderState;
 
     @Override
@@ -80,7 +86,12 @@ public final class QuickTrade implements ClientModInitializer {
         ClientTickEvents.END_CLIENT_TICK.register(this::onClientTick);
     }
 
-    private void onClientTick(Minecraft client) {
+    void onClientTick(Minecraft client) {
+        // 关闭持续交易后不再执行等待中的自动选择/付款/取出；已认领的商人菜单在此关闭并归还付款。
+        if (pendingContinuousTrade && !QuickCraftConfigs.isContinuousTradeEnabled()) {
+            cancelPendingContinuousTrade(client);
+        }
+
         handleMerchantUseAttempt(client);
         processPendingMerchantOpen(client);
         clearCurrentMerchantKeyIfNeeded(client);
@@ -94,7 +105,7 @@ public final class QuickTrade implements ClientModInitializer {
         processContinuousTrade(client);
 
         if (currentOrderState != null && getCurrentScreen(client) != currentOrderState.screen()) {
-            restoreTradeOrder(currentOrderState.screen(), currentOrderState.originalOffers());
+            restoreTradeOrder(currentOrderState.screen(), currentOrderState.offers(), currentOrderState.originalOffers());
             currentOrderState = null;
         }
     }
@@ -134,6 +145,7 @@ public final class QuickTrade implements ClientModInitializer {
 
         if (currentOrderState != null
                 && currentOrderState.screen() == screen
+                && currentOrderState.offers() == offers
                 && currentOrderState.originalOffers().length == offers.size()) {
             return;
         }
@@ -143,6 +155,7 @@ public final class QuickTrade implements ClientModInitializer {
         applyDisplayOrder(offers, originalOffers, displayOrder.displayToServerIndex());
         currentOrderState = new TradeOrderState(
                 screen,
+                offers,
                 originalOffers,
                 displayOrder.displayToServerIndex(),
                 displayOrder.favoriteCount()
@@ -194,6 +207,8 @@ public final class QuickTrade implements ClientModInitializer {
         if (useDown && !lastUseDown && getCurrentScreen(client) == null) {
             AbstractVillager merchant = getLookedAtMerchant(client);
             if (merchant != null) {
+                // 手动使用另一商人即接管旧持续任务；旧任务不再拥有后续菜单或自动操作。
+                abandonContinuousTaskForManualUse();
                 pendingMerchantKey = buildMerchantKey(merchant);
                 pendingMerchantTicks = 0;
 
@@ -310,8 +325,11 @@ public final class QuickTrade implements ClientModInitializer {
         if (!QuickCraftConfigs.isContinuousTradeEnabled()
                 || !QuickCraftConfigs.isFavoriteTradeEnabled()) {
             CONTINUOUS_HANDLED_MERCHANTS.clear();
+            MERCHANT_OPEN_BACKOFF.clear();
             return;
         }
+
+        tickMerchantBackoff();
 
         if (client.player == null
                 || client.level == null
@@ -333,9 +351,11 @@ public final class QuickTrade implements ClientModInitializer {
             nearbyKeys.add(buildMerchantKey(merchant));
         }
         CONTINUOUS_HANDLED_MERCHANTS.retainAll(nearbyKeys);
+        MERCHANT_OPEN_BACKOFF.keySet().retainAll(nearbyKeys);
 
         AbstractVillager target = nearbyMerchants.stream()
                 .filter(merchant -> !CONTINUOUS_HANDLED_MERCHANTS.contains(buildMerchantKey(merchant)))
+                .filter(merchant -> !MERCHANT_OPEN_BACKOFF.containsKey(buildMerchantKey(merchant)))
                 .filter(merchant -> !getFavoriteTrades(buildMerchantKey(merchant)).isEmpty())
                 .min((left, right) -> Double.compare(
                         client.player.distanceToSqr(left),
@@ -351,7 +371,17 @@ public final class QuickTrade implements ClientModInitializer {
         pendingAutoTrade = true;
         pendingContinuousTrade = true;
         pendingAutoTradeTicks = 0;
+        continuousTaskMerchantKey = pendingMerchantKey;
+        continuousClaimedScreen = null;
+        continuousClaimedHandler = null;
         client.gameMode.interact(client.player, target, new EntityHitResult(target), InteractionHand.MAIN_HAND);
+    }
+
+    private static void tickMerchantBackoff() {
+        MERCHANT_OPEN_BACKOFF.entrySet().removeIf(entry -> {
+            entry.setValue(entry.getValue() - 1);
+            return entry.getValue() <= 0;
+        });
     }
 
     /**
@@ -373,14 +403,17 @@ public final class QuickTrade implements ClientModInitializer {
         }
 
         pendingMerchantTicks++;
-        if (getCurrentScreen(client) instanceof MerchantScreen || getOpenMerchantHandler(client) != null) {
-            currentScreenMerchantKey = pendingMerchantKey;
-            pendingMerchantKey = null;
-            pendingMerchantTicks = 0;
+        MerchantScreen screen = getCurrentScreen(client) instanceof MerchantScreen merchantScreen ? merchantScreen : null;
+        MerchantMenu handler = screen != null ? screen.getMenu() : getOpenMerchantHandler(client);
+        if (screen != null || handler != null) {
+            bindPendingMerchant(screen, handler);
             return;
         }
 
         if (pendingMerchantTicks > MERCHANT_OPEN_TIMEOUT_TICKS) {
+            if (pendingContinuousTrade) {
+                MERCHANT_OPEN_BACKOFF.put(pendingMerchantKey, MERCHANT_RETRY_TICKS);
+            }
             pendingMerchantKey = null;
             pendingMerchantTicks = 0;
         }
@@ -617,6 +650,7 @@ public final class QuickTrade implements ClientModInitializer {
                 && !offers.isEmpty()
                 && currentOrderState != null
                 && currentOrderState.favoriteCount() > 0
+                && currentOrderState.offers() == offers
                 && currentOrderState.screen().getMenu().getOffers() == offers) {
             MerchantOffer firstOffer = offers.get(0);
             return firstOffer.satisfiedBy(firstBuyItem, secondBuyItem) ? firstOffer : null;
@@ -672,6 +706,40 @@ public final class QuickTrade implements ClientModInitializer {
         pendingAutoTrade = false;
         pendingContinuousTrade = false;
         pendingAutoTradeTicks = 0;
+        continuousTaskMerchantKey = null;
+        continuousClaimedScreen = null;
+        continuousClaimedHandler = null;
+    }
+
+    private static void abandonContinuousTaskForManualUse() {
+        if (!pendingContinuousTrade) {
+            return;
+        }
+        clearPendingAutoTradeState();
+    }
+
+    private static void cancelPendingContinuousTrade(Minecraft client) {
+        MerchantScreen screen = getCurrentScreen(client) instanceof MerchantScreen merchantScreen ? merchantScreen : null;
+        MerchantMenu handler = screen != null ? screen.getMenu() : getOpenMerchantHandler(client);
+        boolean ownsClaimedMenu = continuousTaskMerchantKey != null
+                && ((continuousClaimedScreen != null && screen == continuousClaimedScreen)
+                || (continuousClaimedHandler != null && handler == continuousClaimedHandler));
+        boolean ownsPendingOpen = pendingMerchantKey != null
+                && pendingMerchantKey.equals(continuousTaskMerchantKey);
+        boolean ownsCurrentBinding = ownsClaimedMenu
+                && continuousTaskMerchantKey.equals(currentScreenMerchantKey);
+
+        clearPendingAutoTradeState();
+        if (ownsPendingOpen) {
+            pendingMerchantKey = null;
+        }
+        pendingMerchantTicks = 0;
+        if (ownsClaimedMenu && client.player != null) {
+            client.player.closeContainer();
+        }
+        if (ownsCurrentBinding) {
+            currentScreenMerchantKey = null;
+        }
     }
 
     private static void refreshTradeOrder(MerchantScreen screen, boolean resetScroll) {
@@ -689,6 +757,7 @@ public final class QuickTrade implements ClientModInitializer {
         applyDisplayOrder(offers, originalOffers, displayOrder.displayToServerIndex());
         currentOrderState = new TradeOrderState(
                 screen,
+                offers,
                 originalOffers,
                 displayOrder.displayToServerIndex(),
                 displayOrder.favoriteCount()
@@ -699,9 +768,10 @@ public final class QuickTrade implements ClientModInitializer {
         }
     }
 
-    private static void restoreTradeOrder(MerchantScreen screen, MerchantOffer[] originalOffers) {
+    private static void restoreTradeOrder(MerchantScreen screen, MerchantOffers expectedOffers, MerchantOffer[] originalOffers) {
         MerchantOffers offers = screen.getMenu().getOffers();
-        if (offers == null || originalOffers == null || offers.size() != originalOffers.length) {
+        if (offers == null || offers != expectedOffers
+                || originalOffers == null || offers.size() != originalOffers.length) {
             return;
         }
 
@@ -800,10 +870,18 @@ public final class QuickTrade implements ClientModInitializer {
         }
 
         if (currentScreenMerchantKey == null && pendingMerchantKey != null) {
-            currentScreenMerchantKey = pendingMerchantKey;
-            pendingMerchantKey = null;
-            pendingMerchantTicks = 0;
+            bindPendingMerchant(screen, screen.getMenu());
         }
+    }
+
+    private static void bindPendingMerchant(MerchantScreen screen, MerchantMenu handler) {
+        currentScreenMerchantKey = pendingMerchantKey;
+        if (pendingContinuousTrade && pendingMerchantKey.equals(continuousTaskMerchantKey)) {
+            continuousClaimedScreen = screen;
+            continuousClaimedHandler = handler;
+        }
+        pendingMerchantKey = null;
+        pendingMerchantTicks = 0;
     }
 
     private static String getCurrentMerchantKey(MerchantScreen screen) {
@@ -860,6 +938,7 @@ public final class QuickTrade implements ClientModInitializer {
     static void clearPersistentState() {
         FAVORITE_TRADES.clear();
         CONTINUOUS_HANDLED_MERCHANTS.clear();
+        MERCHANT_OPEN_BACKOFF.clear();
         currentOrderState = null;
         clearPendingAutoTradeState();
         pendingMerchantKey = null;
@@ -929,6 +1008,7 @@ public final class QuickTrade implements ClientModInitializer {
     }
 
     private record TradeOrderState(MerchantScreen screen,
+                                   MerchantOffers offers,
                                    MerchantOffer[] originalOffers,
                                    int[] displayToServerIndex,
                                    int favoriteCount) {
