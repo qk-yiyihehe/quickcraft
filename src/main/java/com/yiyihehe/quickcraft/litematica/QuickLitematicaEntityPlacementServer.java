@@ -145,6 +145,11 @@ public final class QuickLitematicaEntityPlacementServer {
             sendResult(player, payload.nonce(), "PERMISSION_DENIED", "");
             return;
         }
+        // 请求不包含实际用物及点击面，不能证明冒险模式的 CanPlaceOn 例外。
+        if (player.isSpectator() || !player.getAbilities().allowModifyWorld) {
+            sendResult(player, payload.nonce(), "PERMISSION_DENIED", "");
+            return;
+        }
 
         NbtCompound requested = payload.entityNbt();
         int[] entityCount = {0};
@@ -442,18 +447,28 @@ public final class QuickLitematicaEntityPlacementServer {
         if (!pathOf(id).equals("item") && !appendStoredItem(materials, nbt, "Item", world)) {
             return false;
         }
-        for (String key : List.of("SaddleItem", "ArmorItem", "DecorItem", "body_armor_item")) {
-            if (!appendStoredItem(materials, nbt, key, world)) {
+        // 与原版加载及客户端计料保持相同的版本格式边界。
+        if (QuickLitematicaEntityPlacementAccess.usesEntityEquipment()) {
+            if (!appendEquipmentMaterials(materials, nbt, world)) {
                 return false;
+            }
+        } else {
+            for (String key : List.of("SaddleItem", "ArmorItem", "DecorItem", "body_armor_item")) {
+                if (!appendStoredItem(materials, nbt, key, world)) {
+                    return false;
+                }
+            }
+            for (String key : List.of("ArmorItems", "HandItems")) {
+                if (!appendStoredItems(materials, nbt, key, world, 0)) {
+                    return false;
+                }
             }
         }
         if (isChestedHorse(id, nbt)) {
             materials.add(new ItemStack(Items.CHEST));
         }
-        for (String key : List.of("Inventory", "ArmorItems", "HandItems")) {
-            if (!appendStoredItems(materials, nbt, key, world, 0)) {
-                return false;
-            }
+        if (!appendStoredItems(materials, nbt, "Inventory", world, 0)) {
+            return false;
         }
         int containerCapacity = containerCapacity(id, nbt);
         if (containerCapacity == Integer.MIN_VALUE
@@ -611,6 +626,22 @@ public final class QuickLitematicaEntityPlacementServer {
             return false;
         }
         materials.add(stack);
+        return true;
+    }
+
+    private static boolean appendEquipmentMaterials(List<ItemStack> materials, NbtCompound nbt, ServerWorld world) {
+        NbtCompound equipment = compoundValue(nbt, "equipment");
+        for (String slot : List.of("mainhand", "offhand", "head", "chest", "legs", "feet", "body", "saddle")) {
+            NbtCompound itemNbt = compoundValue(equipment, slot);
+            if (itemNbt.isEmpty()) {
+                continue;
+            }
+            ItemStack stack = parseItem(world, itemNbt);
+            if (stack.isEmpty()) {
+                return false;
+            }
+            materials.add(stack);
+        }
         return true;
     }
 

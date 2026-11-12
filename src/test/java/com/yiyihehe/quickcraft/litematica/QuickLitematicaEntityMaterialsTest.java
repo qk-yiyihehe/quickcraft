@@ -128,6 +128,7 @@ class QuickLitematicaEntityMaterialsTest {
         armor.add(item);
         legacy.put("ArmorItems", armor);
         legacy.put("HandItems", armor.copy());
+        legacy.put("SaddleItem", item);
         var current = entity("armor_stand");
         var equipment = new NbtCompound();
         equipment.put("head", item);
@@ -146,8 +147,11 @@ class QuickLitematicaEntityMaterialsTest {
             }
             data.verify(() -> QuickLitematicaSchematicData.decodeItem(item, lookup), times(5));
         }
-        assertThat(result.stream().filter(stack -> stack.getItem() == Items.DIAMOND).count()).isEqualTo(5);
-        assertThat(result).hasSize(8);
+        // 低版本由 ArmorItems/HandItems 加载，equipment 不生效；1.21.5+ 只认 equipment。
+        // 旧目标：展示物 1 + legacy 3 + current 遗留字段 1；新目标：展示物 1 + 两组 equipment 各 2。
+        int expectedDiamonds = 5;
+        assertThat(result.stream().filter(stack -> stack.getItem() == Items.DIAMOND).count()).isEqualTo(expectedDiamonds);
+        assertThat(result).hasSize(expectedDiamonds + 3);
     }
 
     @Test

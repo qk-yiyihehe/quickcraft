@@ -224,15 +224,8 @@ final class QuickLitematicaEntityPlacementScreen extends QuickLitematicaEntityPl
         }
         int left = (this.width - PANEL_WIDTH) / 2;
         int top = (this.height - PANEL_HEIGHT) / 2;
-        int column = ((int) mouseX - left - 8) / SLOT_SIZE;
-        int row = ((int) mouseY - top - 18) / SLOT_SIZE;
-        if (column < 0 || column >= COLUMNS || row < 0 || row >= ROWS) {
-            return false;
-        }
-        int index = row * COLUMNS + column;
-        if (index < candidates.size()
-                && mouseX < left + 8 + column * SLOT_SIZE + 16
-                && mouseY < top + 18 + row * SLOT_SIZE + 16) {
+        int index = cellIndexAt(mouseX, mouseY, left, top, this.candidates.size());
+        if (index >= 0) {
             QuickLitematicaEntityPlacement.PlacementRequestResult result =
                     QuickLitematicaEntityPlacement.requestPlacement(this.client, candidates.get(index), this.candidates);
             if (this.handlePlacementResult(result)) {
@@ -243,6 +236,27 @@ final class QuickLitematicaEntityPlacementScreen extends QuickLitematicaEntityPl
             return true;
         }
         return false;
+    }
+
+    /** 命中候选格返回索引，未命中返回 -1；负偏移先排除，避免整数除法把格子外上方/左侧截断成第 0 行/列。 */
+    static int cellIndexAt(double mouseX, double mouseY, int left, int top, int candidateCount) {
+        int relativeX = (int) mouseX - left - 8;
+        int relativeY = (int) mouseY - top - 18;
+        if (relativeX < 0 || relativeY < 0) {
+            return -1;
+        }
+        int column = relativeX / SLOT_SIZE;
+        int row = relativeY / SLOT_SIZE;
+        if (column >= COLUMNS || row >= ROWS) {
+            return -1;
+        }
+        int index = row * COLUMNS + column;
+        if (index >= candidateCount
+                || mouseX >= left + 8 + column * SLOT_SIZE + 16
+                || mouseY >= top + 18 + row * SLOT_SIZE + 16) {
+            return -1;
+        }
+        return index;
     }
 
     boolean handlePlacementResult(QuickLitematicaEntityPlacement.PlacementRequestResult result) {

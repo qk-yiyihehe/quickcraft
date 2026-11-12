@@ -28,6 +28,11 @@ final class QuickLitematicaEntityPlacementAccess {
     private QuickLitematicaEntityPlacementAccess() {
     }
 
+    /** 该目标实际按 equipment 复合标签加载装备；低版本仍由 ArmorItems/HandItems 加载。 */
+    public static boolean usesEntityEquipment() {
+        return true;
+    }
+
     public static Entity createEntity(EntityType<?> type, ServerWorld world) {
         return type.create(world, SpawnReason.LOAD);
     }
@@ -201,6 +206,15 @@ final class QuickLitematicaEntityPlacementAccess {
 
     public static NbtCompound getSchematicEntityNbt(LitematicaSchematic.EntityInfo entity) {
         return entity.nbt.copy();
+    }
+
+    /** 预筛复用旧船 ID 映射，但不复制或改写原始 NBT。 */
+    public static String schematicEntityId(LitematicaSchematic.EntityInfo entity) {
+        Identifier id = Identifier.tryParse(stringValue(entity.nbt, "id"));
+        if (id != null && !Registries.ENTITY_TYPE.containsId(id)) {
+            id = getModernBoatId(id, entity.nbt);
+        }
+        return id == null ? "" : id.toString();
     }
 
     public static Vec3d getSchematicEntityPos(LitematicaSchematic.EntityInfo entity) {

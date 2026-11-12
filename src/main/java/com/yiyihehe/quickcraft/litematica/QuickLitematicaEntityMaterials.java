@@ -20,6 +20,9 @@ import java.util.Map;
 
 /** 只从文件绑定的原理图统计实体本体及展示物，不依赖投影世界或实体库存。 */
 public final class QuickLitematicaEntityMaterials {
+    private static final List<String> EQUIPMENT_SLOTS = List.of(
+            "mainhand", "offhand", "head", "chest", "legs", "feet", "body", "saddle");
+
     private QuickLitematicaEntityMaterials() { }
 
     static void appendMaterials(NbtCompound nbt, RegistryWrapper.WrapperLookup lookup, List<ItemStack> materials, int depth) {
@@ -52,17 +55,20 @@ public final class QuickLitematicaEntityMaterials {
             if (lookup != null) {
                 if (id.getPath().equals("item_frame") || id.getPath().equals("glow_item_frame")) {
                     appendDisplayedItem(nbt, "Item", lookup, materials);
-                } else if (id.getPath().equals("armor_stand")) {
-                    if (nbt.get("equipment") instanceof NbtCompound equipment) {
-                        for (String slot : List.of("head", "chest", "legs", "feet", "mainhand", "offhand")) {
-                            appendDisplayedItem(equipment, slot, lookup, materials);
-                        }
-                    } else {
-                        for (String key : List.of("ArmorItems", "HandItems")) {
-                            var equipment = QuickLitematicaContainerMaterialsAccess.readCompoundList(nbt, key);
-                            for (int index = 0; index < equipment.size(); index++) {
-                                appendItem(QuickLitematicaContainerMaterialsAccess.readCompound(equipment, index), lookup, materials);
-                            }
+                } else if (QuickLitematicaEntityPlacementAccess.usesEntityEquipment()) {
+                    NbtCompound equipment = QuickLitematicaEntityPlacementAccess.compoundValue(nbt, "equipment");
+                    for (String slot : EQUIPMENT_SLOTS) {
+                        appendDisplayedItem(equipment, slot, lookup, materials);
+                    }
+                } else {
+                    // 旧格式动物装备是单件字段，和客户端材料计算/服务端扣料保持一致。
+                    for (String key : List.of("SaddleItem", "ArmorItem", "DecorItem", "body_armor_item")) {
+                        appendDisplayedItem(nbt, key, lookup, materials);
+                    }
+                    for (String key : List.of("ArmorItems", "HandItems")) {
+                        var equipment = QuickLitematicaContainerMaterialsAccess.readCompoundList(nbt, key);
+                        for (int index = 0; index < equipment.size(); index++) {
+                            appendItem(QuickLitematicaContainerMaterialsAccess.readCompound(equipment, index), lookup, materials);
                         }
                     }
                 }

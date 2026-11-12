@@ -32,6 +32,11 @@ final class QuickLitematicaEntityPlacementAccess {
     private QuickLitematicaEntityPlacementAccess() {
     }
 
+    /** 该目标实际按 equipment 复合标签加载装备；低版本仍由 ArmorItems/HandItems 加载。 */
+    public static boolean usesEntityEquipment() {
+        return true;
+    }
+
     public static Entity createEntity(EntityType<?> type, ServerWorld world) {
         return type.create(world, SpawnReason.LOAD);
     }
@@ -145,7 +150,7 @@ final class QuickLitematicaEntityPlacementAccess {
             return false;
         }
         if (!Registries.ENTITY_TYPE.containsId(id)) {
-            id = getModernBoatId(id, nbt);
+            id = getModernBoatId(id, stringValue(nbt, "Type"));
             if (id == null || !Registries.ENTITY_TYPE.containsId(id)) {
                 return false;
             }
@@ -161,7 +166,7 @@ final class QuickLitematicaEntityPlacementAccess {
         return true;
     }
 
-    private static Identifier getModernBoatId(Identifier id, NbtCompound nbt) {
+    private static Identifier getModernBoatId(Identifier id, String boatType) {
         if (!id.getNamespace().equals(Identifier.DEFAULT_NAMESPACE)) {
             return null;
         }
@@ -169,7 +174,7 @@ final class QuickLitematicaEntityPlacementAccess {
         if (!chestBoat && !id.getPath().equals("boat")) {
             return null;
         }
-        String path = getSplitBoatPath(stringValue(nbt, "Type"), chestBoat);
+        String path = getSplitBoatPath(boatType, chestBoat);
         return path == null ? null : Identifier.ofVanilla(path);
     }
 
@@ -210,6 +215,15 @@ final class QuickLitematicaEntityPlacementAccess {
 
     public static NbtCompound getSchematicEntityNbt(LitematicaSchematic.EntityInfo entity) {
         return QuickLitematicaDataCompat.entityNbt(entity).copy();
+    }
+
+    /** 预筛复用旧船 ID 映射，但不复制或改写原始 NBT。 */
+    public static String schematicEntityId(LitematicaSchematic.EntityInfo entity) {
+        Identifier id = Identifier.tryParse(QuickLitematicaDataCompat.entityString(entity, "id"));
+        if (id != null && !Registries.ENTITY_TYPE.containsId(id)) {
+            id = getModernBoatId(id, QuickLitematicaDataCompat.entityString(entity, "Type"));
+        }
+        return id == null ? "" : id.toString();
     }
 
     public static Vec3d getSchematicEntityPos(LitematicaSchematic.EntityInfo entity) {

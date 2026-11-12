@@ -39,6 +39,14 @@ final class QuickLitematicaDataCompat {
         return toVanillaNbt(readEntityMember(info, ENTITY_NBT_METHOD, ENTITY_NBT_FIELD, "nbt"));
     }
 
+    static String entityString(EntityInfo info, String key) {
+        Object data = readEntityMember(info, ENTITY_NBT_METHOD, ENTITY_NBT_FIELD, "nbt");
+        if (data instanceof NbtCompound nbt) {
+            return nbt.getString(key).orElse("");
+        }
+        return data instanceof CompoundData compound ? compound.getString(key) : "";
+    }
+
     static Vec3d entityPos(EntityInfo info) {
         return (Vec3d) readEntityMember(info, ENTITY_POS_METHOD, ENTITY_POS_FIELD, "posVec");
     }

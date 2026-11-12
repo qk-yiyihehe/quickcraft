@@ -27,6 +27,11 @@ final class QuickLitematicaEntityPlacementAccess {
     private QuickLitematicaEntityPlacementAccess() {
     }
 
+    /** 该目标实际按 equipment 复合标签加载装备；低版本仍由 ArmorItems/HandItems 加载。 */
+    public static boolean usesEntityEquipment() {
+        return false;
+    }
+
     public static Entity createEntity(EntityType<?> type, ServerWorld world) {
         return type.create(world);
     }
@@ -160,6 +165,11 @@ final class QuickLitematicaEntityPlacementAccess {
 
     public static NbtCompound getSchematicEntityNbt(LitematicaSchematic.EntityInfo entity) {
         return entity.nbt.copy();
+    }
+
+    /** 只读取原始 id，不复制 NBT。 */
+    public static String schematicEntityId(LitematicaSchematic.EntityInfo entity) {
+        return entity.nbt.getString("id");
     }
 
     public static Vec3d getSchematicEntityPos(LitematicaSchematic.EntityInfo entity) {
