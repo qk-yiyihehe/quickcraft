@@ -64,6 +64,10 @@ public final class QuickCreativePacking {
         }
 
         ItemStack result = createPackedStack(client, mainHand, player.getOffHandStack());
+        if (result.isEmpty()) {
+            sendError(player, "bundle_full");
+            return false;
+        }
         QuickCreativePackingResultAccess.submit(client, player, result);
         return true;
     }
@@ -130,11 +134,16 @@ public final class QuickCreativePacking {
 
     private static ItemStack fillBundle(ItemStack contents) {
         BundleContentsComponent.Builder builder = new BundleContentsComponent.Builder(BundleContentsComponent.DEFAULT);
+        boolean inserted = false;
         for (int stack = 0; stack < QuickCraftConfigs.getCreativePackingBundleStacks(); stack++) {
             ItemStack remaining = contents.copy();
             if (builder.add(remaining) == 0) {
                 break;
             }
+            inserted = true;
+        }
+        if (!inserted) {
+            return ItemStack.EMPTY;
         }
 
         ItemStack bundle = Items.BUNDLE.getDefaultStack();

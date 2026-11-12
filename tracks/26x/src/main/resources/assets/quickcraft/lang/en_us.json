@@ -386,6 +386,7 @@
   "quickcraft.message.creative_packing.not_creative": "Creative Packing is only available in Creative mode",
   "quickcraft.message.creative_packing.no_main_hand_item": "The main hand has no item to pack",
   "quickcraft.message.creative_packing.nested_containers_disabled": "Nested container packing is disabled for containers or bundles with contents",
+  "quickcraft.message.creative_packing.bundle_full": "The bundle cannot hold this item; packing was cancelled",
   "quickcraft.message.creative_packing.nesting_depth_limit": "Nested container depth reached the safe limit; packing was cancelled",
   "quickcraft.label.container_tool_mode.quick_stash": "Quick Stash",
   "quickcraft.button.quick_stash": "Quick Stash",

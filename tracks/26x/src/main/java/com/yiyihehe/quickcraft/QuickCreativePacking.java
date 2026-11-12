@@ -66,6 +66,10 @@ public final class QuickCreativePacking {
         }
 
         ItemStack result = createPackedStack(client, mainHand, player.getOffhandItem());
+        if (result.isEmpty()) {
+            sendError(player, "bundle_full");
+            return false;
+        }
         int selectedSlot = player.getInventory().getSelectedSlot();
         player.getInventory().setItem(selectedSlot, result.copy());
         client.gameMode.handleCreativeModeItemAdd(result, 36 + selectedSlot);
@@ -142,11 +146,16 @@ public final class QuickCreativePacking {
 
     private static ItemStack fillBundle(ItemStack contents) {
         BundleContents.Mutable builder = QuickCreativePackingBundleAccess.newBuilder();
+        boolean inserted = false;
         for (int stack = 0; stack < QuickCraftConfigs.getCreativePackingBundleStacks(); stack++) {
             ItemStack remaining = contents.copy();
             if (builder.tryInsert(remaining) == 0) {
                 break;
             }
+            inserted = true;
+        }
+        if (!inserted) {
+            return ItemStack.EMPTY;
         }
 
         ItemStack bundle = Items.BUNDLE.getDefaultInstance();

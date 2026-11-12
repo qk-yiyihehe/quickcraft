@@ -386,6 +386,7 @@
   "quickcraft.message.creative_packing.not_creative": "创造装箱只能在创造模式使用",
   "quickcraft.message.creative_packing.no_main_hand_item": "主手没有可装箱的物品",
   "quickcraft.message.creative_packing.nested_containers_disabled": "已关闭嵌套容器装箱，无法继续打包已有内容的容器或收纳袋",
+  "quickcraft.message.creative_packing.bundle_full": "收纳袋无法装入该物品，已取消装箱",
   "quickcraft.message.creative_packing.nesting_depth_limit": "嵌套容器深度已达安全上限，已取消装箱",
   "quickcraft.label.container_tool_mode.quick_stash": "一键回存",
   "quickcraft.button.quick_stash": "一键回存",
