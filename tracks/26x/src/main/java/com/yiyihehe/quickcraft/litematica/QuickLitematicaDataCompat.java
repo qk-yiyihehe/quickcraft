@@ -44,6 +44,15 @@ final class QuickLitematicaDataCompat {
         return toVanillaNbt(readEntityMember(info, ENTITY_NBT_METHOD, ENTITY_NBT_FIELD, "nbt"));
     }
 
+    /** 预筛只读单个字段，不把完整 CompoundData 转成原版 NBT。 */
+    static String entityString(EntityInfo info, String key) {
+        Object data = readEntityMember(info, ENTITY_NBT_METHOD, ENTITY_NBT_FIELD, "nbt");
+        if (data instanceof CompoundTag nbt) {
+            return nbt.getStringOr(key, "");
+        }
+        return data instanceof CompoundData compound ? compound.getString(key) : "";
+    }
+
     static Vec3 entityPos(EntityInfo info) {
         return (Vec3) readEntityMember(info, ENTITY_POS_METHOD, ENTITY_POS_FIELD, "posVec");
     }

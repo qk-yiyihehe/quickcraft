@@ -120,7 +120,7 @@ class QuickLitematicaEntityMaterialsTest {
     }
 
     @Test
-    void includesFrameDisplayAndBothArmorStandEquipmentFormatsOnly() {
+    void includesFrameDisplayAndEquipmentForAllEntities() {
         var item = entity("diamond");
         item.putInt("count", 1);
         var frame = entity("glow_item_frame");
@@ -130,26 +130,26 @@ class QuickLitematicaEntityMaterialsTest {
         armor.add(item);
         legacy.put("ArmorItems", armor);
         legacy.put("HandItems", armor.copy());
-        var current = entity("armor_stand");
+        legacy.put("SaddleItem", item);
+        var current = entity("zombie");
         var equipment = new CompoundTag();
         equipment.put("head", item);
         equipment.put("offhand", item);
         current.put("equipment", equipment);
         // 新格式存在时，不能将遗留字段的同一件装备再计一次。
         current.put("ArmorItems", armor.copy());
-        var mob = entity("zombie");
-        mob.put("equipment", equipment.copy());
         var lookup = mock(HolderLookup.Provider.class);
         List<ItemStack> result = new ArrayList<>();
         try (var data = mockStatic(QuickLitematicaSchematicData.class)) {
             data.when(() -> QuickLitematicaSchematicData.decodeItem(item, lookup)).thenReturn(new ItemStack(Items.DIAMOND));
-            for (var nbt : List.of(frame, legacy, current, mob)) {
+            for (var nbt : List.of(frame, legacy, current)) {
                 QuickLitematicaEntityMaterials.appendMaterials(nbt, lookup, result, 0);
             }
-            data.verify(() -> QuickLitematicaSchematicData.decodeItem(item, lookup), times(5));
+            data.verify(() -> QuickLitematicaSchematicData.decodeItem(item, lookup), times(3));
         }
-        assertThat(result.stream().filter(stack -> stack.getItem() == Items.DIAMOND).count()).isEqualTo(5);
-        assertThat(result).hasSize(8);
+        // 新版不加载 legacy 的三个旧装备字段：展示物 1 + equipment 2。
+        assertThat(result.stream().filter(stack -> stack.getItem() == Items.DIAMOND).count()).isEqualTo(3);
+        assertThat(result).hasSize(5);
     }
 
     @Test

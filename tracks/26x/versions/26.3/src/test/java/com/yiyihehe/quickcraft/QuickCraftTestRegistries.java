@@ -12,5 +12,7 @@ final class QuickCraftTestRegistries {
         SharedConstants.tryDetectVersion();
         Bootstrap.bootStrap();
         BuiltInRegistries.DATA_COMPONENT_INITIALIZERS.build(VanillaRegistries.createWorldLookup()).forEach(pending -> pending.apply());
+        // Fabric 将原版注册表冻结推迟到模组初始化之后；单元测试没有游戏启动的后半段。
+        BuiltInRegistries.bootStrap();
     }
 }

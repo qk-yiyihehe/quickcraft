@@ -62,6 +62,8 @@ import java.util.concurrent.ThreadLocalRandom;
 public final class QuickLitematicaEntityPlacement {
     private static final double DEFAULT_REACH = 4.5D;
     private static final int MAX_SCAN_CANDIDATES = 4096;
+    private static final List<String> EQUIPMENT_SLOTS = List.of(
+            "mainhand", "offhand", "head", "chest", "legs", "feet", "body", "saddle");
     private static final int MAX_SELECTOR_CANDIDATES = 54;
     private static final int MAX_ENTITY_TREE_DEPTH = 8;
     private static final int MAX_ENTITY_TREE_SIZE = 16;
@@ -286,6 +288,14 @@ public final class QuickLitematicaEntityPlacement {
     }
 
     static List<Candidate> collectCandidates(Minecraft client) {
+        return collectCandidates(client, null, null);
+    }
+
+    private static List<Candidate> collectCandidates(
+            Minecraft client,
+            @Nullable Vec3 rayStart,
+            @Nullable Vec3 rayEnd
+    ) {
         if (!canCollectCandidates(client)) {
             return List.of();
         }
@@ -297,6 +307,7 @@ public final class QuickLitematicaEntityPlacement {
 
         LitematicaSchematic schematic = placement.getSchematic();
         List<Candidate> candidates = new ArrayList<>();
+        int buildAttempts = 0;
         for (var entry : placement.getEnabledRelativeSubRegionPlacements().entrySet()) {
             String region = entry.getKey();
             SubRegionPlacement subRegion = entry.getValue();
@@ -308,18 +319,54 @@ public final class QuickLitematicaEntityPlacement {
             if (entities == null) {
                 continue;
             }
-            for (int index = 0; index < entities.size() && candidates.size() < MAX_SCAN_CANDIDATES; index++) {
-                Candidate candidate = createCandidate(client, placement, subRegion, region, index, entities.get(index));
-                if (candidate != null && DataManager.getRenderLayerRange().isPositionWithinRange(
-                        (int) candidate.position.x,
-                        (int) candidate.position.y,
-                        (int) candidate.position.z
-                )) {
+            for (int index = 0; index < entities.size() && buildAttempts < MAX_SCAN_CANDIDATES; index++) {
+                LitematicaSchematic.EntityInfo entity = entities.get(index);
+                // 廉价预筛：原始位置、类型尺寸与既有变换，不合格不进入 NBT 复制/材料/变换。
+                if (!passesCheapCandidateFilter(placement, subRegion, entity, rayStart, rayEnd)) {
+                    continue;
+                }
+                buildAttempts++;
+                Candidate candidate = createCandidate(client, placement, subRegion, region, index, entity);
+                if (candidate != null) {
                     candidates.add(candidate);
                 }
             }
         }
         return candidates;
+    }
+
+    /** 仅用原始位置、类型尺寸和既有变换做空间/渲染层/射线预筛，避免为不合格实体复制 NBT 或计算材料。 */
+    private static boolean passesCheapCandidateFilter(
+            SchematicPlacement placement,
+            SubRegionPlacement subRegion,
+            LitematicaSchematic.EntityInfo entity,
+            @Nullable Vec3 rayStart,
+            @Nullable Vec3 rayEnd
+    ) {
+        Identifier id = Identifier.tryParse(QuickLitematicaDataCompat.entityString(entity, "id"));
+        if (id != null && !BuiltInRegistries.ENTITY_TYPE.containsKey(id)) {
+            id = getModernBoatId(id, QuickLitematicaDataCompat.entityString(entity, "Type"));
+        }
+        EntityType<?> type = id == null ? null : BuiltInRegistries.ENTITY_TYPE.getValue(id);
+        if (type == null) {
+            return false;
+        }
+        Vec3 position = PositionUtils.getTransformedPosition(
+                QuickLitematicaDataCompat.entityPos(entity),
+                placement.getMirror(), placement.getRotation());
+        position = PositionUtils.getTransformedPosition(position, subRegion.getMirror(), subRegion.getRotation());
+        BlockPos blockOffset = placement.getOrigin().offset(
+                PositionUtils.getTransformedBlockPos(subRegion.getPos(), placement.getMirror(), placement.getRotation())
+        );
+        position = position.add(Vec3.atLowerCornerOf(blockOffset));
+        if (!DataManager.getRenderLayerRange().isPositionWithinRange(
+                (int) position.x, (int) position.y, (int) position.z)) {
+            return false;
+        }
+        if (rayStart == null) {
+            return true;
+        }
+        return type.getSpawnAABB(position.x, position.y, position.z).clip(rayStart, rayEnd).isPresent();
     }
 
     static PlacementEvaluation evaluatePlacement(
@@ -424,8 +471,7 @@ public final class QuickLitematicaEntityPlacement {
         double reach = currentReach(client);
         Vec3 start = client.player.getEyePosition(1.0F);
         Vec3 end = start.add(client.player.getViewVector(1.0F).scale(reach));
-        return collectCandidates(client).stream()
-                .filter(candidate -> candidate.box.clip(start, end).isPresent())
+        return collectCandidates(client, start, end).stream()
                 .sorted(Comparator.comparingDouble(candidate -> candidate.position.distanceToSqr(start)))
                 .limit(MAX_SELECTOR_CANDIDATES)
                 .toList();
@@ -531,18 +577,28 @@ public final class QuickLitematicaEntityPlacement {
         if (!isItemEntityType(type) && !appendStoredItem(materials, nbt, "Item")) {
             return false;
         }
-        for (String key : List.of("SaddleItem", "ArmorItem", "DecorItem", "body_armor_item")) {
-            if (!appendStoredItem(materials, nbt, key)) {
+        // 按目标原版加载格式计料；新格式即使缺少 equipment，也不读取已失效的旧字段。
+        if (QuickLitematicaEntityPlacementAccess.usesEntityEquipment()) {
+            if (!appendEquipmentMaterials(materials, nbt)) {
                 return false;
+            }
+        } else {
+            for (String key : List.of("SaddleItem", "ArmorItem", "DecorItem", "body_armor_item")) {
+                if (!appendStoredItem(materials, nbt, key)) {
+                    return false;
+                }
+            }
+            for (String key : List.of("ArmorItems", "HandItems")) {
+                if (!appendStoredItems(materials, nbt, key)) {
+                    return false;
+                }
             }
         }
         if (isChestedHorse(type, nbt)) {
             materials.add(new ItemStack(Items.CHEST));
         }
-        for (String key : List.of("Inventory", "ArmorItems", "HandItems")) {
-            if (!appendStoredItems(materials, nbt, key)) {
-                return false;
-            }
+        if (!appendStoredItems(materials, nbt, "Inventory")) {
+            return false;
         }
         int containerCapacity = containerCapacity(type, nbt);
         if (containerCapacity == Integer.MIN_VALUE
@@ -689,7 +745,7 @@ public final class QuickLitematicaEntityPlacement {
             return false;
         }
         if (!BuiltInRegistries.ENTITY_TYPE.containsKey(id)) {
-            id = getModernBoatId(id, nbt);
+            id = getModernBoatId(id, nbt.getStringOr("Type", ""));
             if (id == null || !BuiltInRegistries.ENTITY_TYPE.containsKey(id)) {
                 return false;
             }
@@ -705,7 +761,7 @@ public final class QuickLitematicaEntityPlacement {
         return true;
     }
 
-    private static Identifier getModernBoatId(Identifier id, CompoundTag nbt) {
+    private static Identifier getModernBoatId(Identifier id, String boatType) {
         if (!id.getNamespace().equals(Identifier.DEFAULT_NAMESPACE)) {
             return null;
         }
@@ -713,7 +769,7 @@ public final class QuickLitematicaEntityPlacement {
         if (!chestBoat && !id.getPath().equals("boat")) {
             return null;
         }
-        String path = getSplitBoatPath(nbt.getStringOr("Type", ""), chestBoat);
+        String path = getSplitBoatPath(boatType, chestBoat);
         return path == null ? null : Identifier.withDefaultNamespace(path);
     }
 
@@ -760,6 +816,23 @@ public final class QuickLitematicaEntityPlacement {
             materials.add(stack);
             return true;
         }).orElse(false);
+    }
+
+    private static boolean appendEquipmentMaterials(List<ItemStack> materials, CompoundTag entityNbt) {
+        CompoundTag equipment = entityNbt.getCompoundOrEmpty("equipment");
+        for (String slot : EQUIPMENT_SLOTS) {
+            CompoundTag itemNbt = equipment.getCompoundOrEmpty(slot);
+            if (itemNbt.isEmpty()) {
+                continue;
+            }
+            if (!decodeItemStack(itemNbt).map(stack -> {
+                materials.add(stack);
+                return true;
+            }).orElse(false)) {
+                return false;
+            }
+        }
+        return true;
     }
 
     private static boolean appendStoredItems(
@@ -975,7 +1048,12 @@ public final class QuickLitematicaEntityPlacement {
         motion.add(DoubleTag.valueOf(velocity.z));
         nbt.put("Motion", motion);
         transformFacing(nbt, "Facing", placement, subRegion);
-        transformFacing(nbt, "facing", placement, subRegion);
+        // 画的小写 facing 使用二维水平编码（0=SOUTH）；其他实体仍按六向编码转换。
+        if ("minecraft:painting".equals(nbt.getStringOr("id", ""))) {
+            transformPaintingFacing(nbt, "facing", placement, subRegion);
+        } else {
+            transformFacing(nbt, "facing", placement, subRegion);
+        }
         transformDecorationPosition(nbt, placement, subRegion, blockOffset);
 
         ListTag passengers = nbt.getListOrEmpty("Passengers");
@@ -1018,6 +1096,34 @@ public final class QuickLitematicaEntityPlacement {
         Direction direction = Direction.from3DDataValue(nbt.getByteOr(key, (byte) 0));
         Vec3 transformed = transformVector(direction.getUnitVec3(), placement, subRegion);
         nbt.putByte(key, (byte) Direction.getApproximateNearest(transformed).get3DDataValue());
+    }
+
+    private static void transformPaintingFacing(
+            CompoundTag nbt,
+            String key,
+            SchematicPlacement placement,
+            SubRegionPlacement subRegion
+    ) {
+        if (!nbt.contains(key)) {
+            return;
+        }
+        // 原版画使用二维水平编码：0=SOUTH、1=WEST、2=NORTH、3=EAST；按常量换算避免版本差异 API。
+        // 原版按 abs(value % 4) 归一化，负值也走同一映射，不用位与截断。
+        Direction direction = switch (Math.abs(nbt.getByteOr(key, (byte) 0) % 4)) {
+            case 0 -> Direction.SOUTH;
+            case 1 -> Direction.WEST;
+            case 2 -> Direction.NORTH;
+            default -> Direction.EAST;
+        };
+        Vec3 transformed = transformVector(direction.getUnitVec3(), placement, subRegion);
+        Direction result = Direction.getApproximateNearest(transformed);
+        nbt.putByte(key, (byte) switch (result) {
+            case SOUTH -> 0;
+            case WEST -> 1;
+            case NORTH -> 2;
+            case EAST -> 3;
+            default -> 0;
+        });
     }
 
     private static float readRotation(CompoundTag nbt, int index) {
