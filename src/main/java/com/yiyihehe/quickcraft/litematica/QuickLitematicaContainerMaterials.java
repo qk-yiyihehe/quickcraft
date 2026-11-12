@@ -66,6 +66,7 @@ public final class QuickLitematicaContainerMaterials {
     static final int CONTAINER_COLUMN_WIDTH = 144;
     static final int COUNT_COLUMN_WIDTH = 58;
     static final int ACTION_COLUMN_WIDTH = 66;
+    private static final int SHULKER_SLOT_COUNT = 27;
     static final int ITEM_CELL_WIDTH = 20;
     static final int ITEM_CELL_HEIGHT = 28;
     static final int HEADER_HEIGHT = 22;
@@ -436,7 +437,7 @@ public final class QuickLitematicaContainerMaterials {
         }
 
         accumulator.add(descriptor.stack(), descriptor.displayName(), null, contents, slotStacks, 1, false);
-        addStoredShulkerGroups(accumulator, descriptor.displayName(), descriptor.signatureKey(), contents, 0);
+        addStoredShulkerGroups(accumulator, descriptor.displayName(), descriptor.signatureKey(), contents, 0, 1);
     }
 
     private static void addStoredShulkerGroups(
@@ -444,7 +445,8 @@ public final class QuickLitematicaContainerMaterials {
             String sourceName,
             String sourceKey,
             List<ItemCount> containerContents,
-            int depth
+            int depth,
+            int parentMultiplier
     ) {
         if (depth >= 4) {
             return;
@@ -469,8 +471,9 @@ public final class QuickLitematicaContainerMaterials {
             String nestedSourceName = sourceName + " / " + shulkerName;
             String nestedSourceKey = sourceKey + "/" + itemSignature(shulkerStack);
 
-            accumulator.add(shulkerStack, shulkerName, shulkerSource, shulkerContents, shulkerSlotStacks, item.count(), true);
-            addStoredShulkerGroups(accumulator, nestedSourceName, nestedSourceKey, shulkerContents, depth + 1);
+            int totalCount = item.count() * parentMultiplier;
+            accumulator.add(shulkerStack, shulkerName, shulkerSource, shulkerContents, shulkerSlotStacks, totalCount, true);
+            addStoredShulkerGroups(accumulator, nestedSourceName, nestedSourceKey, shulkerContents, depth + 1, totalCount);
         }
     }
 
@@ -548,7 +551,7 @@ public final class QuickLitematicaContainerMaterials {
 
     private static List<ItemStack> readStoredShulkerStacks(ItemStack shulkerStack) {
         List<ItemStack> stacks = new ArrayList<>();
-        DefaultedList<ItemStack> storedItems = fi.dy.masa.malilib.util.InventoryUtils.getStoredItems(shulkerStack);
+        DefaultedList<ItemStack> storedItems = fi.dy.masa.malilib.util.InventoryUtils.getStoredItems(shulkerStack, SHULKER_SLOT_COUNT);
 
         for (ItemStack storedStack : storedItems) {
             stacks.add(storedStack.isEmpty() ? ItemStack.EMPTY : storedStack.copy());
