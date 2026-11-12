@@ -130,17 +130,9 @@ public final class QuickLitematicaGlobalReplacementScreen extends QuickLitematic
                 return current.isEmpty() ? Optional.empty() : Optional.of(current);
             }
             @Override public void apply(ItemStack ignored, ItemStack selected) {
-                if (sourceSide) { row.source = selected.copyWithCount(1); }
-                else { row.target = selected.copyWithCount(1); }
-                if (!row.source.isEmpty() && !row.target.isEmpty()) {
-                    if (!QuickLitematicaContainerReplacements.isReplacementAllowed(row.source, row.target, scope)) {
-                        row.target = ItemStack.EMPTY;
-                        return;
-                    }
-                    QuickLitematicaGlobalReplacements.set(row.source, row.target, scope, row.savedSource);
-                    rows.removeIf(other -> other != row && ItemStack.areItemsAndComponentsEqual(other.source, row.source));
-                    row.savedSource = ItemStack.areItemsAndComponentsEqual(row.source, row.target)
-                            ? ItemStack.EMPTY : row.source.copy();
+                if (applyChoice(row, sourceSide, selected, scope)) {
+                    rows.removeIf(other -> other != row
+                            && ItemStack.areItemsAndComponentsEqual(other.source, row.source));
                 }
             }
             @Override public void clear(ItemStack ignored) { }
@@ -149,11 +141,43 @@ public final class QuickLitematicaGlobalReplacementScreen extends QuickLitematic
 
     @Override public void quickcraft$refreshAfterReplacement() { this.initGui(); }
 
-    private static final class Draft {
-        private ItemStack source;
-        private ItemStack target;
-        private ItemStack savedSource;
-        private Draft(ItemStack source, ItemStack target) {
+    static boolean applyChoice(Draft row, boolean sourceSide, ItemStack selected, Scope scope) {
+        if (selected.isEmpty()) { return false; }
+        ItemStack candidate = selected.copyWithCount(1);
+        if (sourceSide) {
+            if (!row.target.isEmpty()
+                    && !QuickLitematicaContainerReplacements.isReplacementAllowed(candidate, row.target, scope)) {
+                // 新来源无法沿用旧目标：同步移除旧规则，避免界面显示新来源而旧规则仍生效。
+                row.source = candidate;
+                row.target = ItemStack.EMPTY;
+                QuickLitematicaGlobalReplacements.set(row.source, null, scope, row.savedSource);
+                row.savedSource = ItemStack.EMPTY;
+                return true;
+            }
+            row.source = candidate;
+        } else {
+            if (!row.source.isEmpty()
+                    && !QuickLitematicaContainerReplacements.isReplacementAllowed(row.source, candidate, scope)) {
+                return false;
+            }
+            row.target = candidate;
+        }
+        if (row.source.isEmpty() || row.target.isEmpty()) { return false; }
+        QuickLitematicaGlobalReplacements.set(row.source, row.target, scope, row.savedSource);
+        if (ItemStack.areItemsAndComponentsEqual(row.source, row.target)) {
+            row.target = ItemStack.EMPTY;
+            row.savedSource = ItemStack.EMPTY;
+        } else {
+            row.savedSource = row.source.copy();
+        }
+        return true;
+    }
+
+    static final class Draft {
+        ItemStack source;
+        ItemStack target;
+        ItemStack savedSource;
+        Draft(ItemStack source, ItemStack target) {
             this.source = source.copy();
             this.target = target.copy();
             this.savedSource = source.copy();
