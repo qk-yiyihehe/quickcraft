@@ -30,7 +30,7 @@ foreach ($versionRoot in $versionRoots) {
     if (-not (Test-Path -LiteralPath $versionRoot -PathType Container)) {
         continue
     }
-    $generatedNames = if ($IdeOutputsOnly) { @('bin') } else { @('bin', 'build', 'logs', 'run') }
+    $generatedNames = if ($IdeOutputsOnly) { @('bin') } else { @('bin', 'build', 'logs') }
     foreach ($versionDirectory in Get-ChildItem -LiteralPath $versionRoot -Directory) {
         foreach ($generatedName in $generatedNames) {
             $targets.Add((Join-Path $versionDirectory.FullName $generatedName))
@@ -40,6 +40,14 @@ foreach ($versionRoot in $versionRoots) {
 
 if ($IncludeRun) {
     $targets.Add((Join-Path $repositoryRoot 'run'))
+    foreach ($versionRoot in $versionRoots) {
+        if (-not (Test-Path -LiteralPath $versionRoot -PathType Container)) {
+            continue
+        }
+        foreach ($versionDirectory in Get-ChildItem -LiteralPath $versionRoot -Directory) {
+            $targets.Add((Join-Path $versionDirectory.FullName 'run'))
+        }
+    }
 }
 if ($IncludeGradleCache) {
     $targets.Add((Join-Path $repositoryRoot '.gradle'))
