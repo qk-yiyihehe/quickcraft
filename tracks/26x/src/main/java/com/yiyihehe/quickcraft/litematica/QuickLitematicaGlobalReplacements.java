@@ -209,8 +209,10 @@ public final class QuickLitematicaGlobalReplacements {
         return BlockEntity.loadStatic(worldPos, location.state, nbt.copy(), world.registryAccess());
     }
 
-    public static void restoreSavedEntityItems(net.minecraft.world.entity.Entity entity, net.minecraft.nbt.CompoundTag output) {
+    public static void restoreSavedEntityItems(net.minecraft.world.entity.Entity entity, net.minecraft.nbt.CompoundTag output,
+                                               net.minecraft.world.level.Level world) {
         if (!output.contains("Items")) { return; }
+        if (!QuickLitematicaSaveContext.isCurrentSchematicWorld(world)) { return; }
         String entityId = QuickLitematicaContainerMaterialsAccess.readString(output, "id");
         if (entityId.isBlank()) { entityId = net.minecraft.core.registries.BuiltInRegistries.ENTITY_TYPE.getKey(entity.getType()).toString(); }
         var placements = DataManager.getSchematicPlacementManager().getAllSchematicsPlacements();

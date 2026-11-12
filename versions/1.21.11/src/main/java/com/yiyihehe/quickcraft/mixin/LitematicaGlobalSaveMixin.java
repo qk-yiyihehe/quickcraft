@@ -49,8 +49,8 @@ public abstract class LitematicaGlobalSaveMixin {
     }
 
     private static void quickcraft$restore(net.minecraft.entity.Entity entity, net.minecraft.storage.WriteView output) {
-        if (entity.getEntityWorld() instanceof WorldSchematic && output instanceof net.minecraft.storage.NbtWriteView nbt) {
-            QuickLitematicaGlobalReplacements.restoreSavedEntityItems(entity, nbt.getNbt());
+        if (entity.getEntityWorld() instanceof WorldSchematic world && output instanceof net.minecraft.storage.NbtWriteView nbt) {
+            QuickLitematicaGlobalReplacements.restoreSavedEntityItems(entity, nbt.getNbt(), world);
         }
     }
 }

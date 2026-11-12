@@ -1,5 +1,6 @@
 package com.yiyihehe.quickcraft.litematica;
 
+import fi.dy.masa.litematica.world.SchematicWorldHandler;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.level.Level;
 
@@ -22,7 +23,12 @@ public final class QuickLitematicaSaveContext {
 
     public static boolean contains(Level world, BlockPos pos) {
         Read read = CURRENT.get();
-        return read != null && read.world() == world && read.pos().equals(pos);
+        return read != null && read.world() == world && read.pos().equals(pos)
+                && isCurrentSchematicWorld(world);
+    }
+
+    public static boolean isCurrentSchematicWorld(Level world) {
+        return world != null && world == SchematicWorldHandler.getSchematicWorld();
     }
 
     public record Read(Level world, BlockPos pos) { }

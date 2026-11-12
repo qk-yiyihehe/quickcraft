@@ -37,8 +37,8 @@ public abstract class LitematicaGlobalSaveMixin {
             target = "Lnet/minecraft/entity/Entity;saveNbt(Lnet/minecraft/nbt/NbtCompound;)Z", remap = true))
     private boolean quickcraft$saveBaselineEntityContents(net.minecraft.entity.Entity entity, net.minecraft.nbt.NbtCompound output, Operation<Boolean> original) {
         boolean saved = original.call(entity, output);
-        if (saved && entity.getWorld() instanceof WorldSchematic) {
-            QuickLitematicaGlobalReplacements.restoreSavedEntityItems(entity, output);
+        if (saved && entity.getWorld() instanceof WorldSchematic world) {
+            QuickLitematicaGlobalReplacements.restoreSavedEntityItems(entity, output, world);
         }
         return saved;
     }
