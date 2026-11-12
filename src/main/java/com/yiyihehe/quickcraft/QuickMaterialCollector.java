@@ -638,7 +638,7 @@ public final class QuickMaterialCollector implements ClientModInitializer {
             }
 
             totalCollected += collected;
-            int available = inventoryCounts.available().getInt(demand.template().getItem());
+            int available = countAvailableForDemand(client.player.getInventory(), inventoryCounts, demand.template());
             int shortage = Math.max(0, demand.missing() - available);
             int color = shortage > 0 ? shortageColor : successColor;
             if (totalCollected > collected) {
@@ -824,7 +824,7 @@ public final class QuickMaterialCollector implements ClientModInitializer {
 
         for (int i = demands.size() - 1; i >= 0; i--) {
             Demand demand = demands.get(i);
-            int available = inventoryCounts.available().getInt(demand.template().getItem());
+            int available = countAvailableForDemand(player.getInventory(), inventoryCounts, demand.template());
             int missing = Math.max(0, demand.missing() - available);
             int remaining = getTargetCollectCount(missing);
             if (remaining <= 0) {
@@ -931,18 +931,17 @@ public final class QuickMaterialCollector implements ClientModInitializer {
                 }
 
                 ItemStack stack = source.getStack();
-                if (isShulkerBox(stack)) {
-                    if (searchWholeShulker) {
-                        bestWholeShulker = findBestWholeShulkerCandidate(handler, demands, targetTemplates);
-                        searchWholeShulker = false;
+                if (!matchesDemandTemplate(stack, demand.template())) {
+                    if (isShulkerBox(stack)) {
+                        if (searchWholeShulker) {
+                            bestWholeShulker = findBestWholeShulkerCandidate(handler, demands, targetTemplates);
+                            searchWholeShulker = false;
+                        }
+                        if (bestWholeShulker != null && bestWholeShulker.slot().id == source.id) {
+                            moveWholeCleanShulkerIfUseful(handler, source, demands, targetTemplates);
+                            searchWholeShulker = true;
+                        }
                     }
-                    if (bestWholeShulker != null && bestWholeShulker.slot().id == source.id) {
-                        moveWholeCleanShulkerIfUseful(handler, source, demands, targetTemplates);
-                        searchWholeShulker = true;
-                    }
-                    continue;
-                }
-                if (!stacksMatch(stack, demand.template())) {
                     continue;
                 }
 
@@ -976,23 +975,26 @@ public final class QuickMaterialCollector implements ClientModInitializer {
                 }
 
                 ItemStack stack = source.getStack();
-                if (isShulkerBox(stack)) {
-                    if (searchWholeShulker) {
-                        bestWholeShulker = findBestWholeShulkerCandidate(handler, demands, targetTemplates);
-                        searchWholeShulker = false;
+                if (!matchesDemandTemplate(stack, demand.template())) {
+                    if (isShulkerBox(stack)) {
+                        if (searchWholeShulker) {
+                            bestWholeShulker = findBestWholeShulkerCandidate(handler, demands, targetTemplates);
+                            searchWholeShulker = false;
+                        }
+                        if (bestWholeShulker != null && bestWholeShulker.slot().id == source.id) {
+                            moveWholeCleanShulkerIfUseful(handler, source, demands, targetTemplates);
+                            searchWholeShulker = true;
+                        }
                     }
-                    if (bestWholeShulker != null && bestWholeShulker.slot().id == source.id) {
-                        moveWholeCleanShulkerIfUseful(handler, source, demands, targetTemplates);
-                        searchWholeShulker = true;
-                    }
-                    continue;
-                }
-                if (!stacksMatch(stack, demand.template())) {
                     continue;
                 }
 
                 searchWholeShulker = true;
                 int amount = Math.min(stack.getCount(), demand.remaining());
+                if (isShulkerBox(stack)) {
+                    demand.decrease(moveFromContainerToPlayer(handler, source.id, demand.template(), amount));
+                    continue;
+                }
                 int moved = moveSlotAmountIntoShulkers(handler, source.id, demand.template(), amount, targetTemplates);
                 demand.decrease(moved);
 
@@ -1058,7 +1060,7 @@ public final class QuickMaterialCollector implements ClientModInitializer {
         }
 
         Slot source = handler.getSlot(sourceSlotId);
-        if (!source.hasStack() || !stacksMatch(source.getStack(), template)) {
+        if (!source.hasStack() || !matchesDemandTemplate(source.getStack(), template)) {
             return 0;
         }
 
@@ -1108,7 +1110,7 @@ public final class QuickMaterialCollector implements ClientModInitializer {
         }
 
         Slot source = handler.getSlot(sourceSlotId);
-        if (!source.hasStack() || !stacksMatch(source.getStack(), template)) {
+        if (!source.hasStack() || !matchesDemandTemplate(source.getStack(), template)) {
             return 0;
         }
 
@@ -1320,6 +1322,20 @@ public final class QuickMaterialCollector implements ClientModInitializer {
     private boolean shouldUseQuickShulker() {
         return QuickCraftConfigs.isAutoCollectMaterialsWithQuickShulkerEnabled()
                 && QuickShulkerConnection.canBundle();
+    }
+
+    private int countAvailableForDemand(PlayerInventory inventory, InventoryCounts counts, ItemStack template) {
+        if (!isShulkerBox(template)) {
+            return counts.available().getInt(template.getItem());
+        }
+        // 盒本体需求不能由另一组件的盒或其内容物抵扣；借来的来源盒仍不属于玩家。
+        int available = 0;
+        for (int i = 0; i < 36; i++) {
+            if (i != getTemporarySourcePlayerIndex() && matchesDemandTemplate(inventory.getStack(i), template)) {
+                available += inventory.getStack(i).getCount();
+            }
+        }
+        return available;
     }
 
     private InventoryCounts countPlayerInventory(PlayerInventory inventory) {

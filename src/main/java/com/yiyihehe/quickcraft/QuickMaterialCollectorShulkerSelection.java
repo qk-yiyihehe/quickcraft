@@ -212,7 +212,7 @@ final class QuickMaterialCollectorShulkerSelection {
 
     static Demand findDemand(List<Demand> demands, ItemStack stack) {
         for (Demand demand : demands) {
-            if (stacksMatch(stack, demand.template())) {
+            if (matchesDemandTemplate(stack, demand.template())) {
                 return demand;
             }
         }
@@ -221,7 +221,7 @@ final class QuickMaterialCollectorShulkerSelection {
 
     static boolean containsTarget(List<ItemStack> targetTemplates, ItemStack stack) {
         for (ItemStack target : targetTemplates) {
-            if (stacksMatch(stack, target)) {
+            if (matchesDemandTemplate(stack, target)) {
                 return true;
             }
         }
@@ -244,6 +244,11 @@ final class QuickMaterialCollectorShulkerSelection {
     static boolean stacksMatch(ItemStack a, ItemStack b) {
         // Litematica 的材料表按 ItemType(stack, true, false) 统计，这里同样只按物品类型匹配。
         return !a.isEmpty() && !b.isEmpty() && ItemStack.areItemsEqual(a, b);
+    }
+
+    static boolean matchesDemandTemplate(ItemStack stack, ItemStack template) {
+        // 空潜影盒本体作为需求时，颜色/组件必须精确匹配；普通材料仍按物品类型。
+        return isShulkerBox(template) ? stacksExactlyMatch(stack, template) : stacksMatch(stack, template);
     }
 
     static boolean stacksExactlyMatch(ItemStack a, ItemStack b) {
