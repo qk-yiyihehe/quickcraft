@@ -130,7 +130,7 @@ public final class QuickLitematicaSelectionPreview {
         return box.getPos1() != null && box.getPos2() != null;
     }
 
-    private static long selectionVolume(AreaSelection selection) {
+    static long selectionVolume(AreaSelection selection) {
         long total = 0L;
         for (Box box : selection.getAllSubRegionBoxes()) {
             if (!isComplete(box)) {
@@ -142,8 +142,17 @@ public final class QuickLitematicaSelectionPreview {
             long sizeX = Math.abs((long) pos1.getX() - pos2.getX()) + 1L;
             long sizeY = Math.abs((long) pos1.getY() - pos2.getY()) + 1L;
             long sizeZ = Math.abs((long) pos1.getZ() - pos2.getZ()) + 1L;
-            long volume = sizeX * sizeY * sizeZ;
-            if (volume > MAX_SELECTION_CAPTURE_VOLUME || total > MAX_SELECTION_CAPTURE_VOLUME - volume) {
+            // 先逐轴做除法判断，避免三轴乘积在 long 中回绕后绕过上限。
+            long volume = sizeX;
+            if (volume > MAX_SELECTION_CAPTURE_VOLUME / sizeY) {
+                return MAX_SELECTION_CAPTURE_VOLUME + 1L;
+            }
+            volume *= sizeY;
+            if (volume > MAX_SELECTION_CAPTURE_VOLUME / sizeZ) {
+                return MAX_SELECTION_CAPTURE_VOLUME + 1L;
+            }
+            volume *= sizeZ;
+            if (total > MAX_SELECTION_CAPTURE_VOLUME - volume) {
                 return MAX_SELECTION_CAPTURE_VOLUME + 1L;
             }
             total += volume;
