@@ -1,6 +1,7 @@
 package com.yiyihehe.quickcraft.litematica;
 
 import com.yiyihehe.quickcraft.config.QuickCraftConfigs;
+import com.yiyihehe.quickcraft.mixin.LitematicaTaskSchedulerAccessor;
 import fi.dy.masa.litematica.data.DataManager;
 import fi.dy.masa.litematica.data.SchematicHolder;
 import fi.dy.masa.litematica.scheduler.TaskScheduler;
@@ -18,7 +19,9 @@ import fi.dy.masa.malilib.util.StringUtils;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.world.ClientWorld;
 
+import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 
 /**
@@ -27,6 +30,7 @@ import java.util.Set;
  */
 public final class QuickLitematicaAreaClone {
     private static final Set<String> RESERVED_NAMES = new HashSet<>();
+    private static final Set<PendingClone> PENDING = new HashSet<>();
 
     private QuickLitematicaAreaClone() {
     }
@@ -74,47 +78,166 @@ public final class QuickLitematicaAreaClone {
         schematic.getMetadata().setName(name);
         LitematicaSchematic.SchematicSaveInfo saveInfo =
                 new LitematicaSchematic.SchematicSaveInfo(false, false);
-        TaskSaveSchematic task = new TaskSaveSchematic(schematic, snapshot, saveInfo);
+        TaskSaveSchematic task = new CloneSaveTask(schematic, snapshot, saveInfo, sourceWorld);
+        TaskScheduler scheduler = TaskScheduler.getServerInstanceIfExistsOrClient();
+        PendingClone pending = new PendingClone(task, sourceWorld, name, schematic, scheduler, snapshot.getEffectiveOrigin());
         task.disableCompletionMessage();
         task.setCompletionListener(new ICompletionListener() {
             @Override
             public void onTaskCompleted() {
-                if (client.world != sourceWorld || client.player == null) {
-                    releaseTemporaryName(name);
-                    return;
-                }
-
-                // 支持范围内的 Litematica 会在通知监听器前把内存投影加入 SchematicHolder。
-                releaseTemporaryName(name);
-                SchematicPlacement placement = SchematicPlacement.createFor(
-                        schematic,
-                        snapshot.getEffectiveOrigin(),
-                        name,
-                        true,
-                        true
-                );
-                placement.setShouldBeSaved(false);
-
-                DataManager.getSchematicPlacementManager().addSchematicPlacement(placement, false);
-                DataManager.getSchematicPlacementManager().setSelectedSchematicPlacement(placement);
-                InfoUtils.printActionbarMessage(
-                        "quickcraft.message.litematica.area_clone.created",
-                        name
-                );
+                complete(pending);
             }
 
             @Override
             public void onTaskAborted() {
-                releaseTemporaryName(name);
-                if (client.world == sourceWorld && client.player != null) {
-                    InfoUtils.printActionbarMessage("quickcraft.message.litematica.area_clone.aborted");
-                }
+                abort(pending);
             }
         });
 
-        TaskScheduler.getServerInstanceIfExistsOrClient().scheduleTask(task, 10);
+        synchronized (PENDING) {
+            PENDING.add(pending);
+        }
+        scheduler.scheduleTask(task, 10);
         InfoUtils.printActionbarMessage("quickcraft.message.litematica.area_clone.scheduled");
         return true;
+    }
+
+    public static void beforeWorldChange() {
+        List<PendingClone> pending;
+        synchronized (PENDING) {
+            pending = new ArrayList<>(PENDING);
+            PENDING.clear();
+            for (PendingClone clone : pending) {
+                clone.cancelled = true;
+            }
+        }
+
+        for (PendingClone clone : pending) {
+            cancelTask(clone);
+            discard(clone);
+        }
+    }
+
+    private static void complete(PendingClone pending) {
+        boolean current;
+        synchronized (PENDING) {
+            if (pending.finished) { return; }
+            pending.finished = true;
+            current = !pending.cancelled && PENDING.remove(pending);
+        }
+        MinecraftClient client = MinecraftClient.getInstance();
+        if (!current || client == null || client.world != pending.world || client.player == null) {
+            discard(pending);
+            return;
+        }
+
+        releaseName(pending);
+        SchematicPlacement placement = SchematicPlacement.createFor(
+                pending.schematic,
+                pending.selectionOrigin,
+                pending.name,
+                true,
+                true
+        );
+        placement.setShouldBeSaved(false);
+
+        DataManager.getSchematicPlacementManager().addSchematicPlacement(placement, false);
+        DataManager.getSchematicPlacementManager().setSelectedSchematicPlacement(placement);
+        InfoUtils.printActionbarMessage(
+                "quickcraft.message.litematica.area_clone.created",
+                pending.name
+        );
+    }
+
+    private static void abort(PendingClone pending) {
+        boolean cancelled;
+        synchronized (PENDING) {
+            if (pending.finished) { return; }
+            pending.finished = true;
+            cancelled = pending.cancelled;
+            PENDING.remove(pending);
+        }
+        discard(pending);
+        MinecraftClient client = MinecraftClient.getInstance();
+        if (!cancelled && client != null && client.world == pending.world && client.player != null) {
+            InfoUtils.printActionbarMessage("quickcraft.message.litematica.area_clone.aborted");
+        }
+    }
+
+    private static void cancelTask(PendingClone pending) {
+        if (pending.task instanceof CloneSaveTask cloneTask) { cloneTask.cancel(); }
+        TaskScheduler scheduler = pending.scheduler;
+        var queued = ((LitematicaTaskSchedulerAccessor) scheduler).quickcraft$getQueuedTasks();
+        synchronized (scheduler) {
+            if (queued.remove(pending.task)) {
+                pending.task.stop();
+            } else if (scheduler.getAllTasks().contains(pending.task)) {
+                scheduler.removeTask(pending.task);
+            }
+        }
+    }
+
+    private static void discard(PendingClone pending) {
+        releaseName(pending);
+        var holder = SchematicHolder.getInstance();
+        if (holder.getAllSchematics().contains(pending.schematic)) {
+            holder.removeSchematic(pending.schematic);
+        }
+    }
+
+    private static void releaseName(PendingClone pending) {
+        synchronized (PENDING) {
+            if (pending.nameReleased) { return; }
+            pending.nameReleased = true;
+        }
+        releaseTemporaryName(pending.name);
+    }
+
+    private static final class CloneSaveTask extends TaskSaveSchematic {
+        private final ClientWorld sourceWorld;
+        private volatile boolean cancelled;
+
+        private CloneSaveTask(LitematicaSchematic schematic, AreaSelection area,
+                              LitematicaSchematic.SchematicSaveInfo info, ClientWorld sourceWorld) {
+            super(schematic, area, info);
+            this.sourceWorld = sourceWorld;
+        }
+
+        private void cancel() {
+            this.cancelled = true;
+        }
+
+        @Override
+        protected void onStop() {
+            MinecraftClient client = MinecraftClient.getInstance();
+            if (this.cancelled || client == null || client.world != this.sourceWorld) {
+                this.finished = false;
+            }
+            super.onStop();
+        }
+    }
+
+    private static final class PendingClone {
+        private final TaskSaveSchematic task;
+        private final ClientWorld world;
+        private final String name;
+        private final LitematicaSchematic schematic;
+        private final TaskScheduler scheduler;
+        private final net.minecraft.util.math.BlockPos selectionOrigin;
+        private volatile boolean cancelled;
+        private boolean finished;
+        private boolean nameReleased;
+
+        private PendingClone(TaskSaveSchematic task, ClientWorld world, String name,
+                             LitematicaSchematic schematic, TaskScheduler scheduler,
+                             net.minecraft.util.math.BlockPos selectionOrigin) {
+            this.task = task;
+            this.world = world;
+            this.name = name;
+            this.schematic = schematic;
+            this.scheduler = scheduler;
+            this.selectionOrigin = selectionOrigin;
+        }
     }
 
     private static synchronized String reserveTemporaryName() {
