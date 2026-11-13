@@ -104,4 +104,14 @@ public class LitematicaWorldUtilsEasyPlaceMixin {
             ci.cancel();
         }
     }
+
+    @Inject(method = "handlePlacementRestriction", at = @At("HEAD"), cancellable = true, remap = false)
+    private static void quickcraft$letVanillaUseBypassPlacementRestriction(
+            MinecraftClient mc,
+            CallbackInfoReturnable<Boolean> cir
+    ) {
+        if (QuickLitematicaEasyPlaceInteractions.shouldAllowVanillaUse(mc)) {
+            cir.setReturnValue(false);
+        }
+    }
 }

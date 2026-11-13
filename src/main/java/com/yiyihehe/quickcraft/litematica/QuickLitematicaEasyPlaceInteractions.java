@@ -202,7 +202,7 @@ public final class QuickLitematicaEasyPlaceInteractions {
                 && (heldStack.getItem() instanceof BucketItem || heldStack.getItem() instanceof GlassBottleItem));
     }
 
-    private static boolean isToolInteraction(Block block, ItemStack heldStack) {
+    static boolean isToolInteraction(Block block, ItemStack heldStack) {
         if (!QuickCraftConfigs.areEasyPlaceToolInteractionsAllowed()) {
             return false;
         }
@@ -294,6 +294,7 @@ public final class QuickLitematicaEasyPlaceInteractions {
                 || block == Blocks.CRIMSON_HYPHAE
                 || block == Blocks.WARPED_STEM
                 || block == Blocks.WARPED_HYPHAE
-                || block == Blocks.BAMBOO_BLOCK;
+                || block == Blocks.BAMBOO_BLOCK
+                || QuickLitematicaEasyPlaceBlocks.isAdditionalStrippable(block);
     }
 }
