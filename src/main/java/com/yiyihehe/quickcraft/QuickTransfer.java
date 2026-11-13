@@ -807,6 +807,33 @@ public final class QuickTransfer implements ClientModInitializer {
             return false;
         }
 
+        if (QuickShulkerClickSafety.isBundlingConflict(template)) {
+            int emptyTargetSlot = -1;
+            for (int targetSlotId : targetSlotIds) {
+                Slot targetSlot = handler.getSlot(targetSlotId);
+                if (!isVisibleSlot(targetSlot)
+                        || QuickContainerLock.isLockedSlot(handler, targetSlot)
+                        || !targetSlot.canInsert(template)
+                        || (targetSlot.hasStack() && (!ItemStack.areItemsAndComponentsEqual(targetSlot.getStack(), template)
+                        || targetSlot.getStack().getCount() >= targetSlot.getStack().getMaxCount()))) {
+                    continue;
+                }
+                if (!targetSlot.hasStack()) {
+                    emptyTargetSlot = targetSlotId;
+                    break;
+                }
+                if (QuickShulkerClickSafety.moveExactAmountToSlot(
+                        handler, sourceSlotId, targetSlotId, 1, client) > 0) {
+                    return true;
+                }
+            }
+            if (emptyTargetSlot == -1) {
+                return false;
+            }
+            // 空目标沿用原版单件放置，且不再尝试可能被第三方接管的其它目标。
+            targetSlotIds = List.of(emptyTargetSlot);
+        }
+
         clickSlot(screen, sourceSlotId, 1, SlotActionType.PICKUP);
         if (handler.getCursorStack().isEmpty()) {
             return false;

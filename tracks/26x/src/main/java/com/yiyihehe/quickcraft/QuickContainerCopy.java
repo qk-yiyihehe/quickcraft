@@ -1761,6 +1761,22 @@ public final class QuickContainerCopy implements ClientModInitializer {
             return false;
         }
 
+        if (QuickShulkerClickSafety.isBundlingConflict(template)) {
+            int remaining = extraCount;
+            for (int returnSlotId : getPlayerStorageSlotIds(handler)) {
+                int moved = QuickShulkerClickSafety.moveExactAmountToSlot(
+                        handler, containerSlotId, returnSlotId, remaining, client);
+                remaining -= moved;
+                if (remaining == 0 || !handler.getCarried().isEmpty()) {
+                    break;
+                }
+            }
+            return remaining == 0
+                    && handler.getCarried().isEmpty()
+                    && handler.getSlot(containerSlotId).hasItem()
+                    && handler.getSlot(containerSlotId).getItem().getCount() == template.getCount();
+        }
+
         client.gameMode.handleContainerInput(
                 handler.containerId,
                 containerSlotId,
@@ -1834,6 +1850,12 @@ public final class QuickContainerCopy implements ClientModInitializer {
         Slot sourceSlot = handler.getSlot(sourceSlotId);
         if (!sourceSlot.hasItem()) {
             return 0;
+        }
+
+        if (QuickShulkerClickSafety.isBundlingConflict(sourceSlot.getItem())
+                && sourceSlot.getItem().getCount() > neededCount) {
+            return QuickShulkerClickSafety.moveExactAmountToSlot(
+                    handler, sourceSlotId, targetSlotId, neededCount, client);
         }
 
         client.gameMode.handleContainerInput(

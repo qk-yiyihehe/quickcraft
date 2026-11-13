@@ -1022,7 +1022,7 @@ public final class QuickMaterialCollector implements ClientModInitializer {
         if (findDestinationShulkerSlot(handler, source.getStack(), targetTemplates, getTemporarySourcePlayerIndex()) == null) {
             return 0;
         }
-        if (amountToPack < source.getStack().getCount() && hasQuickShulkerBundlingConflict(template)) {
+        if (amountToPack < source.getStack().getCount() && QuickShulkerClickSafety.isBundlingConflict(template)) {
             return moveQuickShulkerConflictAmount(
                     handler,
                     sourceSlotId,
@@ -1078,7 +1078,7 @@ public final class QuickMaterialCollector implements ClientModInitializer {
                     ? source.getStack().getCount() : 0;
             return Math.max(0, sourceCount - remaining);
         }
-        if (hasQuickShulkerBundlingConflict(sourceTemplate)) {
+        if (QuickShulkerClickSafety.isBundlingConflict(sourceTemplate)) {
             return moveQuickShulkerConflictAmount(
                     handler,
                     sourceSlotId,
@@ -1401,10 +1401,6 @@ public final class QuickMaterialCollector implements ClientModInitializer {
             }
         }
         return null;
-    }
-
-    private boolean hasQuickShulkerBundlingConflict(ItemStack stack) {
-        return FabricLoader.getInstance().isModLoaded("quickshulker") && stack.isOf(Items.ENDER_CHEST);
     }
 
     private void clickSlot(ScreenHandler handler, int slotId, int button, SlotActionType actionType) {
