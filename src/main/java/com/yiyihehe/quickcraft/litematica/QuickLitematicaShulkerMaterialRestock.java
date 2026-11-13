@@ -235,7 +235,7 @@ public final class QuickLitematicaShulkerMaterialRestock implements ClientModIni
 
             TrackedShulker source = TrackedShulker.from(inventory.getStack(sourceShulkerSlot), sourceShulkerSlot);
             if (QuickCraftConfigs.isLitematicaShulkerMaterialOrderlyStorageEnabled()) {
-                RetrievedMaterial retrievedMaterial = new RetrievedMaterial(pendingRequest.template().getItem(), source);
+                RetrievedMaterial retrievedMaterial = new RetrievedMaterial(copyTemplate(pendingRequest.template()), source);
                 if (hasEmptyContainerSlot(inventory.getStack(sourceShulkerSlot))) {
                     return openShulker(
                             client,
@@ -257,7 +257,7 @@ public final class QuickLitematicaShulkerMaterialRestock implements ClientModIni
                     client,
                     sourceShulkerSlot,
                     ActionType.REPLACE,
-                    new RetrievedMaterial(pendingRequest.template().getItem(), source),
+                    new RetrievedMaterial(copyTemplate(pendingRequest.template()), source),
                     targetHotbarSlot
             );
         }
@@ -273,7 +273,7 @@ public final class QuickLitematicaShulkerMaterialRestock implements ClientModIni
                 client,
                 shulkerSlot,
                 ActionType.EXTRACT,
-                new RetrievedMaterial(pendingRequest.template().getItem(), source),
+                new RetrievedMaterial(copyTemplate(pendingRequest.template()), source),
                 targetHotbarSlot
         );
     }
@@ -321,14 +321,22 @@ public final class QuickLitematicaShulkerMaterialRestock implements ClientModIni
             return;
         }
 
-        if (destinationSlot.getIndex() != action.targetHotbarSlot()
-                && !moveExtractedMaterialToHotbar(client, handler, destinationSlot, action.targetHotbarSlot())) {
-            pendingRequest = null;
-            return;
+        ItemStack extractedStack = destinationSlot.getStack();
+        if (destinationSlot.getIndex() != action.targetHotbarSlot()) {
+            if (!moveExtractedMaterialToHotbar(client, handler, destinationSlot, action.targetHotbarSlot())) {
+                pendingRequest = null;
+                return;
+            }
+            Slot targetSlot = findPlayerStorageSlot(handler, action.targetHotbarSlot());
+            if (targetSlot == null || !targetSlot.hasStack()) {
+                pendingRequest = null;
+                return;
+            }
+            extractedStack = targetSlot.getStack();
         }
 
         action.material().source().updateContents(getContainerContents(handler));
-        retrievedMaterials.addLast(action.material());
+        retrievedMaterials.addLast(action.material().withIdentity(extractedStack));
         InventoryUtils.setPickedItemToHand(pendingRequest.template(), client);
         pendingRequest = null;
     }
@@ -402,7 +410,7 @@ public final class QuickLitematicaShulkerMaterialRestock implements ClientModIni
             }
         } else {
             action.material().source().updateContents(getContainerContents(handler));
-            retrievedMaterials.addLast(action.material());
+            retrievedMaterials.addLast(action.material().withIdentity(destinationSlot.getStack()));
         }
 
         InventoryUtils.setPickedItemToHand(pendingRequest.template(), client);
@@ -478,7 +486,7 @@ public final class QuickLitematicaShulkerMaterialRestock implements ClientModIni
         }
 
         action.material().source().updateContents(getContainerContents(handler));
-        retrievedMaterials.addLast(action.material());
+        retrievedMaterials.addLast(action.material().withIdentity(playerSlot.getStack()));
         InventoryUtils.setPickedItemToHand(pendingRequest.template(), client);
         pendingRequest = null;
     }
@@ -491,7 +499,7 @@ public final class QuickLitematicaShulkerMaterialRestock implements ClientModIni
             return;
         }
 
-        Slot sourceSlot = findPlayerMaterialSlot(handler, material.item());
+        Slot sourceSlot = findPlayerMaterialSlot(handler, material.identity());
         Slot destinationSlot = findEmptyContainerSlot(handler);
         if (sourceSlot == null || destinationSlot == null || !sourceSlot.canTakeItems(client.player)) {
             retrievedMaterials.removeFirstOccurrence(material);
@@ -664,7 +672,7 @@ public final class QuickLitematicaShulkerMaterialRestock implements ClientModIni
                 if (isShulkerBox(stack)
                         && stack.getCount() == 1
                         && getStoredStacks(stack).size() < 27
-                        && containsItem(stack, material.item())) {
+                        && material.source().isSameBox(stack)) {
                     return slot;
                 }
             }
@@ -684,7 +692,7 @@ public final class QuickLitematicaShulkerMaterialRestock implements ClientModIni
     private static RetrievedMaterial getReturnCandidate(PlayerInventory inventory) {
         while (!retrievedMaterials.isEmpty()) {
             RetrievedMaterial candidate = retrievedMaterials.peekFirst();
-            if (hasPlayerItem(inventory, candidate.item())) {
+            if (hasPlayerStack(inventory, candidate.identity())) {
                 return candidate;
             }
             retrievedMaterials.removeFirst();
@@ -699,6 +707,16 @@ public final class QuickLitematicaShulkerMaterialRestock implements ClientModIni
     private static boolean hasPlayerItem(PlayerInventory inventory, Item item) {
         for (int slot = 0; slot < 36; slot++) {
             if (inventory.getStack(slot).isOf(item)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static boolean hasPlayerStack(PlayerInventory inventory, ItemStack identity) {
+        for (int slot = 0; slot < 36; slot++) {
+            ItemStack stack = inventory.getStack(slot);
+            if (!stack.isEmpty() && ItemStack.areItemsAndComponentsEqual(stack, identity)) {
                 return true;
             }
         }
@@ -836,9 +854,9 @@ public final class QuickLitematicaShulkerMaterialRestock implements ClientModIni
                 && (!Configs.Generic.PICK_BLOCK_AVOID_TOOLS.getBooleanValue() || !EquipmentUtils.isRegularTool(stack));
     }
 
-    private static Slot findPlayerMaterialSlot(ShulkerBoxScreenHandler handler, Item item) {
+    private static Slot findPlayerMaterialSlot(ShulkerBoxScreenHandler handler, ItemStack identity) {
         for (Slot slot : getPlayerStorageSlots(handler)) {
-            if (slot.hasStack() && slot.getStack().isOf(item)) {
+            if (slot.hasStack() && ItemStack.areItemsAndComponentsEqual(slot.getStack(), identity)) {
                 return slot;
             }
         }
@@ -890,6 +908,12 @@ public final class QuickLitematicaShulkerMaterialRestock implements ClientModIni
         return template;
     }
 
+    private static ItemStack boxIdentity(ItemStack stack) {
+        ItemStack identity = copyTemplate(stack);
+        identity.remove(DataComponentTypes.CONTAINER);
+        return identity;
+    }
+
     private enum Operation {
         IDLE,
         WAITING_FOR_OPEN,
@@ -910,22 +934,25 @@ public final class QuickLitematicaShulkerMaterialRestock implements ClientModIni
     private record ActiveAction(ActionType type, RetrievedMaterial material, int targetHotbarSlot, int syncId) {
     }
 
-    private record RetrievedMaterial(Item item, TrackedShulker source) {
+    private record RetrievedMaterial(ItemStack identity, TrackedShulker source) {
+        private RetrievedMaterial withIdentity(ItemStack stack) {
+            return new RetrievedMaterial(copyTemplate(stack), source);
+        }
     }
 
     private static final class TrackedShulker {
-        private final Item boxItem;
+        private final ItemStack identity;
         private List<ItemStack> contents;
         private int lastKnownSlot;
 
-        private TrackedShulker(Item boxItem, List<ItemStack> contents, int lastKnownSlot) {
-            this.boxItem = boxItem;
+        private TrackedShulker(ItemStack identity, List<ItemStack> contents, int lastKnownSlot) {
+            this.identity = identity;
             this.contents = contents;
             this.lastKnownSlot = lastKnownSlot;
         }
 
         private static TrackedShulker from(ItemStack shulker, int slot) {
-            return new TrackedShulker(shulker.getItem(), getStoredStacks(shulker), slot);
+            return new TrackedShulker(boxIdentity(shulker), getStoredStacks(shulker), slot);
         }
 
         private void updateContents(List<ItemStack> contents) {
@@ -933,15 +960,20 @@ public final class QuickLitematicaShulkerMaterialRestock implements ClientModIni
         }
 
         private int findIn(PlayerInventory inventory) {
+            if (lastKnownSlot >= 0
+                    && lastKnownSlot < 36
+                    && isMatch(inventory.getStack(lastKnownSlot))) {
+                return lastKnownSlot;
+            }
+
             for (int slot = 0; slot < 36; slot++) {
-                if (isMatch(inventory.getStack(slot))) {
+                if (slot != lastKnownSlot && isMatch(inventory.getStack(slot))) {
                     lastKnownSlot = slot;
                     return slot;
                 }
             }
-
-            if (lastKnownSlot >= 0
-                    && lastKnownSlot < 36
+            // 先找盒体和内容都吻合的来源，再保留原位置内容变化后的既有回退。
+            if (lastKnownSlot >= 0 && lastKnownSlot < 36
                     && isSameBox(inventory.getStack(lastKnownSlot))) {
                 return lastKnownSlot;
             }
@@ -954,7 +986,7 @@ public final class QuickLitematicaShulkerMaterialRestock implements ClientModIni
         }
 
         private boolean isSameBox(ItemStack stack) {
-            return stack.getItem() == boxItem && stack.getCount() == 1;
+            return stack.getCount() == 1 && ItemStack.areEqual(identity, boxIdentity(stack));
         }
     }
 
