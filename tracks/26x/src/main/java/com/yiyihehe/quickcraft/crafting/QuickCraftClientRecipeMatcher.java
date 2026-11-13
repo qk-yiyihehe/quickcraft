@@ -57,13 +57,25 @@ final class QuickCraftClientRecipeMatcher {
             return null;
         }
         ContextMap context = SlotDisplayContext.fromLevel(client.level);
+        return findUniqueRecipeIdInCollections(
+                client.player.getRecipeBook().getCollections(), finder, grid, resultTemplate,
+                gridWidth, gridHeight, context);
+    }
+
+    static RecipeDisplayId findUniqueRecipeIdInCollections(
+            List<RecipeCollection> collections,
+            StackedItemContents finder,
+            List<ItemStack> grid,
+            ItemStack resultTemplate,
+            int gridWidth,
+            int gridHeight,
+            ContextMap context
+    ) {
         RecipeDisplayId matchedId = null;
 
-        for (RecipeCollection collection : client.player.getRecipeBook().getCollections()) {
-            collection.selectRecipes(finder, display -> true);
-
+        for (RecipeCollection collection : collections) {
             for (RecipeDisplayEntry entry : collection.getRecipes()) {
-                if (!collection.isCraftable(entry.id())
+                if (!entry.canCraft(finder)
                         || !matchesResult(entry, resultTemplate, context)
                         || !matchesCraftingGrid(entry.display(), grid, gridWidth, gridHeight, context)) {
                     continue;
