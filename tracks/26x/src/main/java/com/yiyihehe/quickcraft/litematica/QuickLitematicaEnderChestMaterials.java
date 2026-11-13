@@ -4,7 +4,6 @@ import com.yiyihehe.quickcraft.config.QuickCraftConfigs;
 import com.yiyihehe.quickcraft.compat.QuickShulkerConnection;
 import fi.dy.masa.litematica.materials.MaterialListBase;
 import fi.dy.masa.litematica.materials.MaterialListEntry;
-import fi.dy.masa.litematica.materials.MaterialListSorter;
 import fi.dy.masa.malilib.util.InventoryUtils;
 import fi.dy.masa.malilib.util.data.ItemType;
 import it.unimi.dsi.fastutil.objects.Object2IntOpenHashMap;
@@ -20,11 +19,14 @@ import net.minecraft.world.inventory.ChestMenu;
 import net.minecraft.world.phys.BlockHitResult;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import java.util.WeakHashMap;
 
 /** 复用 QuickShulker 同步的末影箱库存；未提供同步时记录实际开箱内容，仅供 HUD 使用。 */
 public final class QuickLitematicaEnderChestMaterials {
     private static final int OPEN_TIMEOUT_TICKS = 100; // 允许服务器在 5 秒内返回开箱内容。
     private static final Object2IntOpenHashMap<ItemType> COUNTS = new Object2IntOpenHashMap<>();
+    private static final Map<MaterialListBase, EnderHudCache> HUD_CACHE = new WeakHashMap<>();
     private static List<ItemStack> snapshot = List.of();
     private static ChestMenu activeHandler;
     private static int pendingTicks;
@@ -101,25 +103,43 @@ public final class QuickLitematicaEnderChestMaterials {
         }
     }
 
-    public static List<MaterialListEntry> hud(MaterialListBase list, List<MaterialListEntry> entries) {
+    public static List<MaterialListEntry> hud(MaterialListBase list, List<MaterialListEntry> entries, boolean refresh) {
+        EnderHudCache cached = HUD_CACHE.get(list);
         if (!QuickCraftConfigs.ProjectionTools.INCLUDE_ENDER_CHEST_IN_MATERIAL_HUD.getBooleanValue()
-                || COUNTS.isEmpty()) { return entries; }
-        List<MaterialListEntry> result = new ArrayList<>();
+                || (COUNTS.isEmpty() && (cached == null || !list.getHideAvailable() || cached.hidden().isEmpty()))) {
+            HUD_CACHE.remove(list);
+            return entries;
+        }
+        if (!refresh && cached != null && cached.source() == entries
+                && cached.hideAvailable() == list.getHideAvailable() && cached.multiplier() == list.getMultiplier()) {
+            return cached.result();
+        }
+        List<MaterialListEntry> augmented = new ArrayList<>();
         for (MaterialListEntry entry : entries) {
             int available = entry.getCountAvailable() + COUNTS.getInt(new ItemType(entry.getStack(), true, true));
-            int needed = list.getMultiplier() == 1 ? entry.getCountMissing() : entry.getCountTotal() * list.getMultiplier();
-            if (needed > available) {
-                // HUD 使用副本，避免重复累加，也不把末影箱库存交给背包自动补料和备货。
-                result.add(new MaterialListEntry(entry.getStack(), entry.getCountTotal(), entry.getCountMissing(),
-                        entry.getCountMismatched(), available));
-            }
+            // HUD 使用副本，不把末影箱计数写回背包材料表。
+            augmented.add(new MaterialListEntry(entry.getStack(), entry.getCountTotal(), entry.getCountMissing(),
+                    entry.getCountMismatched(), available));
         }
-        result.sort(new MaterialListSorter(list));
+        var hidden = QuickLitematicaProjectionMaterials.hiddenSnapshot(list, augmented,
+                cached == null ? java.util.Set.of() : cached.hidden(), true);
+        List<MaterialListEntry> result = QuickLitematicaProjectionMaterials.buildMissingEntries(list, augmented, hidden);
+        HUD_CACHE.put(list, new EnderHudCache(entries, list.getHideAvailable(), list.getMultiplier(),
+                java.util.Set.copyOf(hidden), result));
         return result;
+    }
+
+    private record EnderHudCache(List<MaterialListEntry> source, boolean hideAvailable, int multiplier,
+                                java.util.Set<String> hidden, List<MaterialListEntry> result) {
+    }
+
+    static void resetHud(MaterialListBase list) {
+        HUD_CACHE.remove(list);
     }
 
     private static void clear() {
         COUNTS.clear();
+        HUD_CACHE.clear();
         snapshot = List.of();
         activeHandler = null;
         pendingTicks = 0;

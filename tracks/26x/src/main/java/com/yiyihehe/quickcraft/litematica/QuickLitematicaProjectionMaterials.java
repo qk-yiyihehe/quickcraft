@@ -26,10 +26,12 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.core.BlockPos;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.WeakHashMap;
 
 /** 普通方块编辑保留原始材料行；实际投影、HUD 和备货读取最终方块。 */
@@ -41,7 +43,9 @@ public final class QuickLitematicaProjectionMaterials {
     private record PendingRows(Counts counts, List<MaterialListEntry> originalBlocks, List<MaterialListEntry> actualBlocks) { }
     private static final Map<MaterialListBase, PendingRows> PENDING = new WeakHashMap<>();
     private static final Map<MaterialListBase, HudCache> HUD_CACHE = new WeakHashMap<>();
-    private record HudCache(Counts counts, long revision, java.util.Set<String> ignored, List<MaterialListEntry> entries) { }
+    private record HudCache(Counts counts, long revision, java.util.Set<String> ignored,
+                            String context, boolean hideAvailable, int multiplier, Set<String> hidden,
+                            List<MaterialListEntry> entries, List<MaterialListEntry> missingEntries) { }
     private static boolean restoringEditor;
     private QuickLitematicaProjectionMaterials() { }
     public interface OriginalCountSource { void quickcraft$prepareOriginalRows(); }
@@ -357,22 +361,27 @@ public final class QuickLitematicaProjectionMaterials {
     }
 
     public static List<MaterialListEntry> hud(MaterialListBase list, boolean missing) {
-        return hud(list, missing, () -> missing ? list.getMaterialsMissingOnly(true) : list.getMaterialsAll());
+        return hud(list, missing, missing, () -> missing ? list.getMaterialsMissingOnly(true) : list.getMaterialsAll());
     }
 
-    public static List<MaterialListEntry> hud(MaterialListBase list, boolean missing,
+    public static void resetHud(MaterialListBase list) {
+        HUD_CACHE.remove(list);
+        QuickLitematicaEnderChestMaterials.resetHud(list);
+    }
+
+    public static List<MaterialListEntry> hud(MaterialListBase list, boolean missing, boolean refresh,
                                              java.util.function.Supplier<? extends List<MaterialListEntry>> original) {
         Counts counts = COUNTS.get(list);
         var ignored = QuickLitematicaMaterialIgnores.effective(list);
         if (counts == null) {
-            var entries = original.get();
+            var nativeEntries = original.get();
             // Litematica 的 HUD 会原地排序，不能返回 Stream.toList() 的只读列表。
-            return new ArrayList<>(entries.stream().filter(entry -> !ignored.contains(new ItemType(entry.getStack(), true, true).toString())).toList());
+            return new ArrayList<>(nativeEntries.stream().filter(entry -> !ignored.contains(new ItemType(entry.getStack(), true, true).toString())).toList());
         }
         String context = QuickLitematicaMaterialLists.getReplacementContextKey(list);
         HudCache cached = HUD_CACHE.get(list);
         if (cached == null || cached.counts() != counts || cached.revision() != QuickLitematicaContainerMemory.revision()
-                || !cached.ignored().equals(ignored)) {
+                || !cached.ignored().equals(ignored) || !cached.context().equals(context)) {
             var totalItems = finalItems(counts.total(), context, ignored);
             var missingItems = finalItems(counts.missing(), context, ignored);
             var mismatchItems = finalItems(counts.mismatch(), context, ignored);
@@ -388,16 +397,63 @@ public final class QuickLitematicaProjectionMaterials {
                 entries.add(new MaterialListEntry(type.getStack().copyWithCount(1), totalItems.getInt(type),
                         missingItems.getInt(type), mismatchItems.getInt(type), 0));
             }
-            cached = new HudCache(counts, QuickLitematicaContainerMemory.revision(), java.util.Set.copyOf(ignored), entries);
+            cached = new HudCache(counts, QuickLitematicaContainerMemory.revision(),
+                    java.util.Set.copyOf(ignored), context, list.getHideAvailable(), list.getMultiplier(),
+                    cached != null && cached.counts() == counts && cached.context().equals(context)
+                            && cached.revision() == QuickLitematicaContainerMemory.revision() ? cached.hidden() : Set.of(),
+                    entries, null);
             HUD_CACHE.put(list, cached);
         }
-        var actual = cached.entries();
-        updateAvailable(actual);
-        if (!missing) { return actual; }
-        List<MaterialListEntry> filtered = new ArrayList<>(actual.stream().filter(entry -> (list.getMultiplier() == 1
-                ? entry.getCountMissing() : list.getMultiplier() * entry.getCountTotal()) > entry.getCountAvailable()).toList());
+        if (!missing) { return cached.entries(); }
+
+        boolean stateChanged = cached.hideAvailable() != list.getHideAvailable()
+                || cached.multiplier() != list.getMultiplier();
+        boolean refreshSnapshot = refresh || cached.missingEntries() == null || stateChanged;
+        if (refreshSnapshot) {
+            updateAvailable(cached.entries());
+            Set<String> hidden = hiddenSnapshot(list, cached.entries(), cached.hidden(), refresh || stateChanged);
+            List<MaterialListEntry> filtered = buildMissingEntries(list, cached.entries(), hidden);
+            cached = new HudCache(cached.counts(), cached.revision(), cached.ignored(), cached.context(),
+                    list.getHideAvailable(), list.getMultiplier(), Set.copyOf(hidden), cached.entries(), filtered);
+            HUD_CACHE.put(list, cached);
+        }
+        return cached.missingEntries();
+    }
+
+    static List<MaterialListEntry> buildMissingEntries(MaterialListBase list,
+                                                               List<MaterialListEntry> entries,
+                                                               Set<String> hidden) {
+        int multiplier = list.getMultiplier();
+        List<MaterialListEntry> filtered = new ArrayList<>(entries.stream()
+                .filter(entry -> !hidden.contains(new ItemType(entry.getStack(), true, true).toString()))
+                .filter(entry -> (multiplier == 1
+                        ? entry.getCountMissing() : multiplier * entry.getCountTotal()) > entry.getCountAvailable())
+                .toList());
         filtered.sort(new fi.dy.masa.litematica.materials.MaterialListSorter(list));
         return filtered;
+    }
+
+    static Set<String> hiddenSnapshot(MaterialListBase list, List<MaterialListEntry> entries,
+                                              Set<String> previous, boolean refresh) {
+        if (!list.getHideAvailable()) {
+            return Set.of();
+        }
+        Set<String> present = new HashSet<>();
+        for (MaterialListEntry entry : entries) {
+            present.add(new ItemType(entry.getStack(), true, true).toString());
+        }
+        Set<String> hidden = new HashSet<>(previous);
+        hidden.retainAll(present);
+        if (refresh) {
+            int multiplier = list.getMultiplier();
+            for (MaterialListEntry entry : entries) {
+                int required = multiplier == 1 ? entry.getCountMissing() : multiplier * entry.getCountTotal();
+                if (entry.getCountAvailable() >= required) {
+                    hidden.add(new ItemType(entry.getStack(), true, true).toString());
+                }
+            }
+        }
+        return hidden;
     }
 
     public static BlockState originalAt(SchematicPlacement placement, BlockPos pos) {

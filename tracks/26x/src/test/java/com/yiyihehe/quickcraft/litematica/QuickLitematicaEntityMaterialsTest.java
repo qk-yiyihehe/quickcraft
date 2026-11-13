@@ -78,7 +78,7 @@ class QuickLitematicaEntityMaterialsTest {
         try (var ignores = mockStatic(QuickLitematicaMaterialIgnores.class)) {
             ignores.when(() -> QuickLitematicaMaterialIgnores.effective(list)).thenReturn(java.util.Set.of());
             for (var source : List.of(List.of(first, second), List.<MaterialListEntry>of())) {
-                var hud = QuickLitematicaProjectionMaterials.hud(list, true, () -> source);
+                var hud = QuickLitematicaProjectionMaterials.hud(list, true, true, () -> source);
                 java.util.Collections.sort(hud, java.util.Comparator.comparingInt(
                         MaterialListEntry::getCountTotal));
                 assertThat(hud).containsExactlyElementsOf(source.isEmpty() ? source : List.of(second, first));

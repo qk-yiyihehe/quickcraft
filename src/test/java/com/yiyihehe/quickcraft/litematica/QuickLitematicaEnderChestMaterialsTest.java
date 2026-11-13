@@ -24,6 +24,37 @@ import static org.mockito.Mockito.*;
 
 @org.junit.jupiter.api.extension.ExtendWith(com.yiyihehe.quickcraft.QuickCraftMinecraftTestBootstrap.class)
 class QuickLitematicaEnderChestMaterialsTest {
+
+    @Test
+    void enderCompletedRowsStayHiddenUntilExplicitReset() {
+        var client = mock(MinecraftClient.class);
+        client.player = mock(ClientPlayerEntity.class);
+        var list = mock(MaterialListBase.class);
+        when(list.getMultiplier()).thenReturn(1);
+        when(list.getHideAvailable()).thenReturn(true);
+        var entries = List.of(new MaterialListEntry(new ItemStack(Items.STONE), 8, 8, 0, 0));
+        client.world = mock(ClientWorld.class);
+        var inventory = new EnderChestInventory();
+        when(client.player.getEnderChestInventory()).thenReturn(inventory);
+        inventory.setStack(0, new ItemStack(Items.STONE, 8));
+        var config = QuickCraftConfigs.ProjectionTools.INCLUDE_ENDER_CHEST_IN_MATERIAL_HUD;
+        boolean previous = config.getBooleanValue();
+        config.setBooleanValue(true);
+        try (var connection = mockStatic(QuickShulkerConnection.class)) {
+            connection.when(QuickShulkerConnection::canOpen).thenReturn(true);
+            QuickLitematicaEnderChestMaterials.tick(client);
+            assertThat(QuickLitematicaEnderChestMaterials.hud(list, entries, true)).isEmpty();
+            inventory.clear();
+            QuickLitematicaEnderChestMaterials.tick(client);
+            assertThat(QuickLitematicaEnderChestMaterials.hud(list, entries, true)).isEmpty();
+            QuickLitematicaProjectionMaterials.resetHud(list);
+            assertThat(QuickLitematicaEnderChestMaterials.hud(list, entries, true)).hasSize(1);
+        } finally {
+            client.player = null;
+            QuickLitematicaEnderChestMaterials.tick(client);
+            config.setBooleanValue(previous);
+        }
+    }
     @BeforeAll
     static void initializeMinecraft() {
         net.minecraft.SharedConstants.createGameVersion();
@@ -61,26 +92,26 @@ class QuickLitematicaEnderChestMaterialsTest {
             when(client.world.getBlockState(BlockPos.ORIGIN)).thenReturn(Blocks.CHEST.getDefaultState());
             QuickLitematicaEnderChestMaterials.rememberContainerUse(client, hit);
             QuickLitematicaEnderChestMaterials.onContentsReceived(handler.syncId);
-            assertThat(QuickLitematicaEnderChestMaterials.hud(list, entries)).isSameAs(entries);
+            assertThat(QuickLitematicaEnderChestMaterials.hud(list, entries, true)).isSameAs(entries);
 
             when(client.world.getBlockState(BlockPos.ORIGIN)).thenReturn(Blocks.ENDER_CHEST.getDefaultState());
             QuickLitematicaEnderChestMaterials.rememberContainerUse(client, hit);
             QuickLitematicaEnderChestMaterials.onContentsReceived(handler.syncId);
             for (int pass = 0; pass < 2; pass++) {
-                assertThat(QuickLitematicaEnderChestMaterials.hud(list, entries).getFirst().getCountAvailable()).isEqualTo(36);
+                assertThat(QuickLitematicaEnderChestMaterials.hud(list, entries, true).getFirst().getCountAvailable()).isEqualTo(36);
                 assertThat(source.getCountAvailable()).isEqualTo(4);
             }
             config.setBooleanValue(false);
-            assertThat(QuickLitematicaEnderChestMaterials.hud(list, entries)).isSameAs(entries);
+            assertThat(QuickLitematicaEnderChestMaterials.hud(list, entries, true)).isSameAs(entries);
             config.setBooleanValue(true);
             contents.set(0, new ItemStack(Items.STONE, 80));
             QuickLitematicaEnderChestMaterials.onContentsReceived(handler.syncId);
-            assertThat(QuickLitematicaEnderChestMaterials.hud(list, entries)).isEmpty();
+            assertThat(QuickLitematicaEnderChestMaterials.hud(list, entries, true)).isEmpty();
 
             // 空箱完整快照必须覆盖旧库存。
             java.util.Collections.fill(contents, ItemStack.EMPTY);
             QuickLitematicaEnderChestMaterials.onContentsReceived(handler.syncId);
-            assertThat(QuickLitematicaEnderChestMaterials.hud(list, entries)).isSameAs(entries);
+            assertThat(QuickLitematicaEnderChestMaterials.hud(list, entries, true)).isSameAs(entries);
         } finally {
             config.setBooleanValue(enabled);
         }
@@ -104,13 +135,13 @@ class QuickLitematicaEnderChestMaterialsTest {
         try (var quickShulker = mockStatic(QuickShulkerConnection.class)) {
             quickShulker.when(QuickShulkerConnection::canOpen).thenReturn(true);
             QuickLitematicaEnderChestMaterials.tick(client);
-            assertThat(QuickLitematicaEnderChestMaterials.hud(list, entries).getFirst().getCountAvailable()).isEqualTo(36);
+            assertThat(QuickLitematicaEnderChestMaterials.hud(list, entries, true).getFirst().getCountAvailable()).isEqualTo(36);
             inventory.setStack(0, new ItemStack(Items.STONE, 8));
             QuickLitematicaEnderChestMaterials.tick(client);
-            assertThat(QuickLitematicaEnderChestMaterials.hud(list, entries).getFirst().getCountAvailable()).isEqualTo(12);
+            assertThat(QuickLitematicaEnderChestMaterials.hud(list, entries, true).getFirst().getCountAvailable()).isEqualTo(12);
             client.player = null;
             QuickLitematicaEnderChestMaterials.tick(client);
-            assertThat(QuickLitematicaEnderChestMaterials.hud(list, entries)).isSameAs(entries);
+            assertThat(QuickLitematicaEnderChestMaterials.hud(list, entries, true)).isSameAs(entries);
             assertThat(source.getCountAvailable()).isEqualTo(4);
         } finally {
             config.setBooleanValue(enabled);

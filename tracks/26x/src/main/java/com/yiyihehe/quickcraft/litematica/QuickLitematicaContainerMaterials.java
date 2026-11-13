@@ -86,7 +86,7 @@ public final class QuickLitematicaContainerMaterials {
     public interface ContainerMaterialRequestSource {
         List<QuickMaterialCollector.MaterialRequest> quickcraft$getReplacementMaterialRequests();
         List<MaterialListEntry> quickcraft$getHudMaterialsAll(boolean refresh);
-        List<MaterialListEntry> quickcraft$getHudMaterialsMissing();
+        List<MaterialListEntry> quickcraft$getHudMaterialsMissing(boolean refresh);
     }
 
     public interface ContainerReplacementBindingSource {
@@ -1397,6 +1397,8 @@ public final class QuickLitematicaContainerMaterials {
         int hudMultiplier;
         long hudRevision = -1;
         int hudIgnoredHash;
+        boolean hudHideAvailable;
+        final Set<String> hudHidden = new HashSet<>();
 
         ContainerMaterialList(ContainerMaterialsData data, Screen parent) {
             this.data = data;
@@ -1456,6 +1458,13 @@ public final class QuickLitematicaContainerMaterials {
             this.reCreateMaterialList();
         }
 
+        @Override
+        public void refreshPreFilteredList() {
+            super.refreshPreFilteredList();
+            this.hudHidden.clear();
+            this.hudMissingEntries = null;
+        }
+
         List<MaterialListEntry> createMaterialEntries() {
             var finalCounts = this.data.collectReplacementMaterialCounts(1).counts();
             var worldMissing = this.data.createWorldMissingCounts(finalCounts);
@@ -1513,7 +1522,11 @@ public final class QuickLitematicaContainerMaterials {
         public List<MaterialListEntry> quickcraft$getHudMaterialsAll(boolean refresh) {
             long revision = QuickLitematicaContainerMemory.revision();
             int ignoredHash = this.ignored.hashCode() + this.data.ignoredGroupSignatures.hashCode();
-            if (refresh || this.hudEntries == null || this.hudRevision != revision || this.hudIgnoredHash != ignoredHash) {
+            boolean resetHidden = this.hudEntries == null || this.hudRevision != revision || this.hudIgnoredHash != ignoredHash;
+            if (refresh || resetHidden) {
+                if (resetHidden) {
+                    this.hudHidden.clear();
+                }
                 Object2IntOpenHashMap<ItemKey> counts = new Object2IntOpenHashMap<>();
                 Map<ItemKey, ItemStack> stacks = new HashMap<>();
                 Set<ItemKey> ignoredSources = new HashSet<>();
@@ -1545,23 +1558,18 @@ public final class QuickLitematicaContainerMaterials {
         }
 
         @Override
-        public List<MaterialListEntry> quickcraft$getHudMaterialsMissing() {
+        public List<MaterialListEntry> quickcraft$getHudMaterialsMissing(boolean refresh) {
             List<MaterialListEntry> entries = this.quickcraft$getHudMaterialsAll(false);
             int multiplier = this.getMultiplier();
-            if (this.hudMissingEntries == null || this.hudMultiplier != multiplier) {
-                List<MaterialListEntry> missing = new ArrayList<>();
-                for (MaterialListEntry entry : entries) {
-                    int needed = multiplier == 1 ? entry.getCountMissing() : entry.getCountTotal() * multiplier;
-                    int available = entry.getCountAvailable();
-                    if (needed > available) {
-                        // HUD 按原版刷新周期保存数量，避免逐帧筛选、排序和显示时反复扫描背包。
-                        missing.add(new MaterialListEntry(entry.getStack(), entry.getCountTotal(),
-                                entry.getCountMissing(), entry.getCountMismatched(), available));
-                    }
-                }
-                missing.sort(new fi.dy.masa.litematica.materials.MaterialListSorter(this));
-                this.hudMissingEntries = missing;
+            if (refresh || this.hudMissingEntries == null || this.hudMultiplier != multiplier
+                    || this.hudHideAvailable != this.getHideAvailable()) {
+                Set<String> hidden = QuickLitematicaProjectionMaterials.hiddenSnapshot(
+                        this, entries, this.hudHidden, true);
+                this.hudHidden.clear();
+                this.hudHidden.addAll(hidden);
+                this.hudMissingEntries = QuickLitematicaProjectionMaterials.buildMissingEntries(this, entries, hidden);
                 this.hudMultiplier = multiplier;
+                this.hudHideAvailable = this.getHideAvailable();
             }
             return this.hudMissingEntries;
         }

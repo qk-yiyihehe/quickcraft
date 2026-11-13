@@ -42,4 +42,10 @@ public abstract class LitematicaMaterialListIgnoresMixin implements QuickLitemat
     private void quickcraft$clearIgnored(CallbackInfo ci) {
         QuickLitematicaMaterialIgnores.clear(QuickLitematicaMaterialLists.getPersistentContextKey((MaterialListBase) (Object) this));
     }
+
+    @Inject(method = "refreshPreFilteredList", at = @At("TAIL"))
+    private void quickcraft$resetHudSnapshot(CallbackInfo ci) {
+        com.yiyihehe.quickcraft.litematica.QuickLitematicaProjectionMaterials.resetHud(
+                (MaterialListBase) (Object) this);
+    }
 }
