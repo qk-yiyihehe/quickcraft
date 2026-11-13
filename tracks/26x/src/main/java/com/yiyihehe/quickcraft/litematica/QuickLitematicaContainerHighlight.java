@@ -33,6 +33,7 @@ import java.util.Set;
 public final class QuickLitematicaContainerHighlight {
     private static final int REFRESH_INTERVAL_TICKS = 20;
     private static final Set<String> NON_INVENTORY_BLOCK_ENTITY_IDS = new HashSet<>();
+    private static final Set<FailedBlockEntity> FAILED_BLOCK_ENTITIES = new HashSet<>();
     private static List<ProjectedContainer> positions = List.of();
     private static ClientLevel cachedWorld;
     private static int ticksUntilRefresh;
@@ -54,12 +55,17 @@ public final class QuickLitematicaContainerHighlight {
             positions = List.of();
             cachedWorld = client.level;
             ticksUntilRefresh = 0;
+            FAILED_BLOCK_ENTITIES.clear();
             QuickLitematicaContainerFillState.clear();
             return;
         }
 
-        if (client.level != cachedWorld || --ticksUntilRefresh <= 0) {
+        if (client.level != cachedWorld) {
             cachedWorld = client.level;
+            ticksUntilRefresh = REFRESH_INTERVAL_TICKS;
+            FAILED_BLOCK_ENTITIES.clear();
+            positions = collectContainerPositions(client);
+        } else if (--ticksUntilRefresh <= 0) {
             ticksUntilRefresh = REFRESH_INTERVAL_TICKS;
             positions = collectContainerPositions(client);
         }
@@ -72,6 +78,7 @@ public final class QuickLitematicaContainerHighlight {
             return List.of();
         }
         Set<ProjectedContainer> found = new HashSet<>();
+        Set<FailedBlockEntity> seenFailures = new HashSet<>();
         for (SchematicPlacement placement : DataManager.getSchematicPlacementManager().getAllSchematicsPlacements()) {
             if (!placement.isRenderingEnabled()) {
                 continue;
@@ -105,14 +112,26 @@ public final class QuickLitematicaContainerHighlight {
                     if (NON_INVENTORY_BLOCK_ENTITY_IDS.contains(nbt.getString("id").orElse(""))) {
                         continue;
                     }
+                    FailedBlockEntity failed = new FailedBlockEntity(localPos, state, nbt);
+                    if (FAILED_BLOCK_ENTITIES.contains(failed)) {
+                        seenFailures.add(failed);
+                        continue;
+                    }
 
                     BlockEntity blockEntity = BlockEntity.loadStatic(
                             localPos, state, nbt, world.registryAccess()
                     );
-                    if (!(blockEntity instanceof Container inventory)) {
+                    if (blockEntity == null) {
+                        // 单条 NBT 解析失败不能标记整个方块实体类型；后续正常条目仍需高亮。
+                        FAILED_BLOCK_ENTITIES.add(new FailedBlockEntity(localPos, state, nbt.copy()));
+                        seenFailures.add(failed);
+                        continue;
+                    }
+                    if (isConfirmedNonInventory(blockEntity)) {
                         NON_INVENTORY_BLOCK_ENTITY_IDS.add(nbt.getString("id").orElse(""));
                         continue;
                     }
+                    Container inventory = (Container) blockEntity;
                     if (!inventory.isEmpty()) {
                         found.add(new ProjectedContainer(
                                 toWorldPos(localPos, size, placement, region), state.getBlock()
@@ -121,7 +140,12 @@ public final class QuickLitematicaContainerHighlight {
                 }
             }
         }
+        FAILED_BLOCK_ENTITIES.retainAll(seenFailures);
         return new ArrayList<>(found);
+    }
+
+    static boolean isConfirmedNonInventory(BlockEntity blockEntity) {
+        return blockEntity != null && !(blockEntity instanceof Container);
     }
 
     private static BlockPos toWorldPos(
@@ -158,5 +182,8 @@ public final class QuickLitematicaContainerHighlight {
     }
 
     record ProjectedContainer(BlockPos pos, Block block) {
+    }
+
+    private record FailedBlockEntity(BlockPos pos, BlockState state, CompoundTag nbt) {
     }
 }
