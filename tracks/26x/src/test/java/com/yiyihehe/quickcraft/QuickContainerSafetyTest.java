@@ -792,9 +792,10 @@ class QuickContainerSafetyTest {
     private static Object continuousTask(Object target, Object template, Level level) throws Exception {
         Class<?> taskClass = copyNested("ContinuousFillTask");
         var constructor = taskClass.getDeclaredConstructor(
-                copyNested("TargetInteraction"), copyNested("ContinuousTemplate"), ResourceKey.class);
+                copyNested("TargetInteraction"), copyNested("ContinuousTemplate"), ResourceKey.class,
+                com.yiyihehe.quickcraft.render.QuickContainerFillStatus.Handle.class);
         constructor.setAccessible(true);
-        return constructor.newInstance(target, template, Level.OVERWORLD);
+        return constructor.newInstance(target, template, Level.OVERWORLD, null);
     }
 
     private static Object temporaryStash(int templateIndex, int slotId, ItemStack stack) throws Exception {

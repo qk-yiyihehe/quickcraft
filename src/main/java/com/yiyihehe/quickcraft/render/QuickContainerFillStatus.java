@@ -44,9 +44,9 @@ public final class QuickContainerFillStatus {
         QuickContainerFillStatusAccess.renderWorld(client, camera);
     }
 
-    public static void begin(MinecraftClient client, HitResult hitResult) {
+    public static Handle begin(MinecraftClient client, HitResult hitResult) {
         if (!isAvailable(client)) {
-            return;
+            return null;
         }
         if (client.world != markerWorld) {
             MARKERS.clear();
@@ -54,32 +54,28 @@ public final class QuickContainerFillStatus {
         }
         Target target = Target.from(client.world, hitResult);
         if (target == null) {
-            return;
+            return null;
         }
         MARKERS.remove(target);
-        MARKERS.put(target, new Marker(Status.FILLING, 0, Long.MAX_VALUE));
+        Marker marker = new Marker(Status.FILLING, 0, Long.MAX_VALUE);
+        MARKERS.put(target, marker);
         while (MARKERS.size() > MAX_MARKERS) {
             Target oldest = MARKERS.keySet().iterator().next();
             MARKERS.remove(oldest);
         }
+        return new Handle(target, marker);
     }
 
-    public static void progress(MinecraftClient client, HitResult hitResult, int pendingIssues) {
-        if (!isAvailable(client)) {
-            return;
-        }
-        Marker marker = MARKERS.get(Target.from(client.world, hitResult));
+    public static void progress(MinecraftClient client, Handle handle, int pendingIssues) {
+        Marker marker = marker(client, handle);
         if (marker == null || marker.status != Status.FILLING) {
             return;
         }
         marker.pendingIssues = pendingIssues;
     }
 
-    public static void finish(MinecraftClient client, HitResult hitResult, int pendingIssues) {
-        if (!isAvailable(client)) {
-            return;
-        }
-        Marker marker = MARKERS.get(Target.from(client.world, hitResult));
+    public static void finish(MinecraftClient client, Handle handle, int pendingIssues) {
+        Marker marker = marker(client, handle);
         if (marker == null) {
             return;
         }
@@ -88,16 +84,21 @@ public final class QuickContainerFillStatus {
         marker.expiresAt = tick + RESULT_LIFETIME_TICKS;
     }
 
-    public static void stop(MinecraftClient client, HitResult hitResult, boolean failed) {
-        if (!isAvailable(client)) {
-            return;
-        }
-        Marker marker = MARKERS.get(Target.from(client.world, hitResult));
+    public static void stop(MinecraftClient client, Handle handle, boolean failed) {
+        Marker marker = marker(client, handle);
         if (marker == null || marker.status != Status.FILLING) {
             return;
         }
         marker.status = failed ? Status.FAILED : marker.pendingIssues > 0 ? Status.PARTIAL : Status.STOPPED;
         marker.expiresAt = tick + RESULT_LIFETIME_TICKS;
+    }
+
+    private static Marker marker(MinecraftClient client, Handle handle) {
+        if (!isAvailable(client) || handle == null) {
+            return null;
+        }
+        Marker marker = MARKERS.get(handle.target);
+        return marker == handle.marker ? marker : null;
     }
 
     public static boolean sameTarget(MinecraftClient client, HitResult first, HitResult second) {
@@ -146,6 +147,16 @@ public final class QuickContainerFillStatus {
         int x = (context.getScaledWindowWidth() - client.textRenderer.getWidth(label)) / 2;
         int y = context.getScaledWindowHeight() / 2 + 20;
         context.drawTextWithShadow(client.textRenderer, label, x, y, marker.status.textColor);
+    }
+
+    public static final class Handle {
+        private final Target target;
+        private final Marker marker;
+
+        private Handle(Target target, Marker marker) {
+            this.target = target;
+            this.marker = marker;
+        }
     }
 
     record Target(BlockPos blockPos, int entityId) {

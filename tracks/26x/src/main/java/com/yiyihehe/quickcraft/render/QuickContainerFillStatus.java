@@ -31,7 +31,7 @@ public final class QuickContainerFillStatus {
     private static final int RESULT_LIFETIME_TICKS = 200;
     private static final int MAX_MARKERS = 24;
     private static final double MAX_RENDER_DISTANCE_SQUARED = 32.0 * 32.0;
-    private static final Map<Target, Marker> MARKERS = new LinkedHashMap<>();
+    static final Map<Target, Marker> MARKERS = new LinkedHashMap<>();
 
     private static ClientLevel markerWorld;
     private static long tick;
@@ -47,9 +47,9 @@ public final class QuickContainerFillStatus {
                 (graphics, tickCounter) -> renderHud(graphics));
     }
 
-    public static void begin(Minecraft client, HitResult hitResult) {
+    public static Handle begin(Minecraft client, HitResult hitResult) {
         if (!isAvailable(client)) {
-            return;
+            return null;
         }
         if (client.level != markerWorld) {
             MARKERS.clear();
@@ -57,32 +57,28 @@ public final class QuickContainerFillStatus {
         }
         Target target = Target.from(client.level, hitResult);
         if (target == null) {
-            return;
+            return null;
         }
         MARKERS.remove(target);
-        MARKERS.put(target, new Marker(Status.FILLING, 0, Long.MAX_VALUE));
+        Marker marker = new Marker(Status.FILLING, 0, Long.MAX_VALUE);
+        MARKERS.put(target, marker);
         while (MARKERS.size() > MAX_MARKERS) {
             Target oldest = MARKERS.keySet().iterator().next();
             MARKERS.remove(oldest);
         }
+        return new Handle(target, marker);
     }
 
-    public static void progress(Minecraft client, HitResult hitResult, int pendingIssues) {
-        if (!isAvailable(client)) {
-            return;
-        }
-        Marker marker = MARKERS.get(Target.from(client.level, hitResult));
+    public static void progress(Minecraft client, Handle handle, int pendingIssues) {
+        Marker marker = marker(client, handle);
         if (marker == null || marker.status != Status.FILLING) {
             return;
         }
         marker.pendingIssues = pendingIssues;
     }
 
-    public static void finish(Minecraft client, HitResult hitResult, int pendingIssues) {
-        if (!isAvailable(client)) {
-            return;
-        }
-        Marker marker = MARKERS.get(Target.from(client.level, hitResult));
+    public static void finish(Minecraft client, Handle handle, int pendingIssues) {
+        Marker marker = marker(client, handle);
         if (marker == null) {
             return;
         }
@@ -91,16 +87,21 @@ public final class QuickContainerFillStatus {
         marker.expiresAt = tick + RESULT_LIFETIME_TICKS;
     }
 
-    public static void stop(Minecraft client, HitResult hitResult, boolean failed) {
-        if (!isAvailable(client)) {
-            return;
-        }
-        Marker marker = MARKERS.get(Target.from(client.level, hitResult));
+    public static void stop(Minecraft client, Handle handle, boolean failed) {
+        Marker marker = marker(client, handle);
         if (marker == null || marker.status != Status.FILLING) {
             return;
         }
         marker.status = failed ? Status.FAILED : marker.pendingIssues > 0 ? Status.PARTIAL : Status.STOPPED;
         marker.expiresAt = tick + RESULT_LIFETIME_TICKS;
+    }
+
+    private static Marker marker(Minecraft client, Handle handle) {
+        if (!isAvailable(client) || handle == null) {
+            return null;
+        }
+        Marker marker = MARKERS.get(handle.target);
+        return marker == handle.marker ? marker : null;
     }
 
     public static boolean sameTarget(Minecraft client, HitResult first, HitResult second) {
@@ -160,8 +161,18 @@ public final class QuickContainerFillStatus {
         graphics.text(client.font, label, x, y, marker.status.textColor, true);
     }
 
+    public static final class Handle {
+        private final Target target;
+        private final Marker marker;
+
+        private Handle(Target target, Marker marker) {
+            this.target = target;
+            this.marker = marker;
+        }
+    }
+
     record Target(BlockPos blockPos, int entityId) {
-        private static Target from(ClientLevel world, HitResult hitResult) {
+        static Target from(ClientLevel world, HitResult hitResult) {
             if (hitResult instanceof BlockHitResult blockHitResult) {
                 BlockPos pos = blockHitResult.getBlockPos();
                 BlockState state = world.getBlockState(pos);

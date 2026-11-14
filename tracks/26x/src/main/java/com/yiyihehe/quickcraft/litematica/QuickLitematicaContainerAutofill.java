@@ -33,6 +33,7 @@ public final class QuickLitematicaContainerAutofill implements ClientModInitiali
     private boolean lastUseDown;
     private BlockPos pendingContainerPos;
     private BlockHitResult pendingFillTarget;
+    private QuickContainerFillStatus.Handle pendingFillStatus;
     private int pendingTicks;
 
     @Override
@@ -49,9 +50,10 @@ public final class QuickLitematicaContainerAutofill implements ClientModInitiali
         if (active == null || active.pendingContainerPos == null) {
             return;
         }
-        QuickContainerFillStatus.stop(client, active.pendingFillTarget, false);
+        QuickContainerFillStatus.stop(client, active.pendingFillStatus, false);
         active.pendingContainerPos = null;
         active.pendingFillTarget = null;
+        active.pendingFillStatus = null;
         active.pendingTicks = 0;
     }
 
@@ -59,8 +61,9 @@ public final class QuickLitematicaContainerAutofill implements ClientModInitiali
         if (!QuickCraftConfigs.isLitematicaContainerAutofillEnabled()) {
             lastUseDown = false;
             pendingContainerPos = null;
-            QuickContainerFillStatus.stop(client, pendingFillTarget, true);
+            QuickContainerFillStatus.stop(client, pendingFillStatus, true);
             pendingFillTarget = null;
+            pendingFillStatus = null;
             pendingTicks = 0;
             return;
         }
@@ -83,7 +86,7 @@ public final class QuickLitematicaContainerAutofill implements ClientModInitiali
                 pendingContainerPos = pos.immutable();
                 pendingFillTarget = hitResult;
                 pendingTicks = 0;
-                QuickContainerFillStatus.begin(client, hitResult);
+                pendingFillStatus = QuickContainerFillStatus.begin(client, hitResult);
             }
         }
         lastUseDown = useDown;
@@ -97,9 +100,10 @@ public final class QuickLitematicaContainerAutofill implements ClientModInitiali
         pendingTicks++;
         if (!(currentScreen(client) instanceof AbstractContainerScreen<?> screen)) {
             if (pendingTicks > OPEN_TIMEOUT_TICKS) {
-                QuickContainerFillStatus.stop(client, pendingFillTarget, true);
+                QuickContainerFillStatus.stop(client, pendingFillStatus, true);
                 pendingContainerPos = null;
                 pendingFillTarget = null;
+                pendingFillStatus = null;
                 pendingTicks = 0;
             }
             return;
@@ -107,13 +111,15 @@ public final class QuickLitematicaContainerAutofill implements ClientModInitiali
 
         BlockPos pos = pendingContainerPos;
         BlockHitResult target = pendingFillTarget;
+        QuickContainerFillStatus.Handle fillStatus = pendingFillStatus;
         pendingContainerPos = null;
         pendingFillTarget = null;
+        pendingFillStatus = null;
         pendingTicks = 0;
 
         QuickContainerCopy.TemplateSnapshot snapshot = getTemplateSnapshot(client, pos);
         if (snapshot == null) {
-            QuickContainerFillStatus.stop(client, target, true);
+            QuickContainerFillStatus.stop(client, fillStatus, true);
             sendStatusMessage(client, Component.translatable("quickcraft.message.litematica_autofill.no_container_content"));
             closeCurrentScreen(client);
             return;
@@ -121,13 +127,13 @@ public final class QuickLitematicaContainerAutofill implements ClientModInitiali
 
         AbstractContainerMenu handler = screen.getMenu();
         if (!QuickContainerCopy.canApplyTemplateSnapshot(handler, snapshot)) {
-            QuickContainerFillStatus.stop(client, target, true);
+            QuickContainerFillStatus.stop(client, fillStatus, true);
             sendStatusMessage(client, Component.translatable("quickcraft.message.container_copy.projection_type_mismatch"));
             closeCurrentScreen(client);
             return;
         }
 
-        QuickContainerCopy.applyTemplateSnapshot(client, handler, snapshot, shouldUseQuickShulker(), target);
+        QuickContainerCopy.applyTemplateSnapshot(client, handler, snapshot, shouldUseQuickShulker(), target, fillStatus);
         closeCurrentScreen(client);
     }
 

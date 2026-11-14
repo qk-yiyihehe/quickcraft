@@ -78,6 +78,7 @@ public final class QuickContainerCopy implements ClientModInitializer {
     private static PendingAction pendingAction = PendingAction.NONE;
     private static SupportedContainerType pendingContainerType;
     private static HitResult pendingFillTarget;
+    private static QuickContainerFillStatus.Handle pendingFillStatus;
     private static RecordedContainerTemplate recordedTemplate;
     private static boolean allowQuickShulkerSources;
     private static ContinuousFillTask continuousTask;
@@ -116,8 +117,9 @@ public final class QuickContainerCopy implements ClientModInitializer {
 
         pendingAction = PendingAction.RECORD;
         pendingContainerType = type;
-        QuickContainerFillStatus.stop(client, pendingFillTarget, false);
+        QuickContainerFillStatus.stop(client, pendingFillStatus, false);
         pendingFillTarget = null;
+        pendingFillStatus = null;
         pendingTicks = 0;
         if (hitResult instanceof BlockHitResult blockHitResult) {
             client.interactionManager.interactBlock(client.player, Hand.MAIN_HAND, blockHitResult);
@@ -139,7 +141,8 @@ public final class QuickContainerCopy implements ClientModInitializer {
                                              ScreenHandler handler,
                                              TemplateSnapshot snapshot,
                                              boolean useQuickShulkerSources,
-                                             HitResult target) {
+                                             HitResult target,
+                                             QuickContainerFillStatus.Handle fillStatus) {
         SupportedContainerType type = SupportedContainerType.fromPublicType(snapshot.type());
         if (type == null || !isSupportedHandlerForType(handler, type)) {
             sendStatusMessage(client, Text.translatable("quickcraft.message.container_copy.projection_type_mismatch"));
@@ -164,7 +167,7 @@ public final class QuickContainerCopy implements ClientModInitializer {
                     true,
                     target != null ? new TargetInteraction(target, type) : null
             );
-            QuickContainerFillStatus.finish(client, target, result.issueCount());
+            QuickContainerFillStatus.finish(client, fillStatus, result.issueCount());
             if (result.isComplete()) {
                 suppressContinuousFillAfterSingleAction(client, target, type);
             }
@@ -182,8 +185,9 @@ public final class QuickContainerCopy implements ClientModInitializer {
             lastContinuousFillDown = false;
             pendingAction = PendingAction.NONE;
             pendingContainerType = null;
-            QuickContainerFillStatus.stop(client, pendingFillTarget, true);
+            QuickContainerFillStatus.stop(client, pendingFillStatus, true);
             pendingFillTarget = null;
+            pendingFillStatus = null;
             pendingTicks = 0;
             stopContinuousTask(client, false, null);
             return;
@@ -263,17 +267,18 @@ public final class QuickContainerCopy implements ClientModInitializer {
         QuickLitematicaContainerAutofill.cancelPendingForContinuousFill(client);
         pendingAction = PendingAction.NONE;
         pendingContainerType = null;
-        QuickContainerFillStatus.stop(client, pendingFillTarget, false);
+        QuickContainerFillStatus.stop(client, pendingFillStatus, false);
         pendingFillTarget = null;
+        pendingFillStatus = null;
         pendingTicks = 0;
         suppressedContinuousTarget = null;
         continuousTask = new ContinuousFillTask(
                 new TargetInteraction(hitResult, type),
                 template,
-                client.world.getRegistryKey()
+                client.world.getRegistryKey(),
+                QuickContainerFillStatus.begin(client, hitResult)
         );
         continuousTask.worldRef = new WeakReference<>(client.world);
-        QuickContainerFillStatus.begin(client, hitResult);
         sendStatusMessage(client, Text.translatable("quickcraft.message.container_copy.background_start", type.displayName()));
     }
 
@@ -449,10 +454,10 @@ public final class QuickContainerCopy implements ClientModInitializer {
             recordedTemplate = previousTemplate;
             allowQuickShulkerSources = previousQuickShulkerSources;
         }
-        QuickContainerFillStatus.progress(client, continuousTask.target.hitResult(), result.issueCount());
+        QuickContainerFillStatus.progress(client, continuousTask.fillStatus, result.issueCount());
 
         if (result.isComplete()) {
-            QuickContainerFillStatus.finish(client, continuousTask.target.hitResult(), 0);
+            QuickContainerFillStatus.finish(client, continuousTask.fillStatus, 0);
             if (continuousTask.temporaryStash != null
                     && !restoreTemporaryContainerStash(handler, containerSlotIds, client)) {
                 stopContinuousTask(client, true, Text.translatable("quickcraft.message.container_copy.filled_but_stash_restore_failed"));
@@ -465,7 +470,7 @@ public final class QuickContainerCopy implements ClientModInitializer {
         if (!continuousTask.template.useQuickShulker()
                 || result.missingDemands().isEmpty()
                 || !canUseQuickShulkerOpenPacket()) {
-            QuickContainerFillStatus.finish(client, continuousTask.target.hitResult(), result.issueCount());
+            QuickContainerFillStatus.finish(client, continuousTask.fillStatus, result.issueCount());
             stopContinuousTask(client, true, result.message(continuousTask.template.successMessage()));
             return;
         }
@@ -493,7 +498,7 @@ public final class QuickContainerCopy implements ClientModInitializer {
 
         SourceShulker source = findSourceShulkerForDemandsExcept(handler, result.missingDemands(), -1);
         if (source == null) {
-            QuickContainerFillStatus.finish(client, continuousTask.target.hitResult(), result.issueCount());
+            QuickContainerFillStatus.finish(client, continuousTask.fillStatus, result.issueCount());
             stopContinuousTask(client, true, result.message(continuousTask.template.successMessage()));
             return;
         }
@@ -660,7 +665,7 @@ public final class QuickContainerCopy implements ClientModInitializer {
             stashPending = true;
         }
         Text displayMessage = stashPending ? stashPendingMessage(message, stash) : message;
-        QuickContainerFillStatus.stop(client, task.target.hitResult(), displayMessage != null);
+        QuickContainerFillStatus.stop(client, task.fillStatus, displayMessage != null);
         suppressedContinuousTarget = lastContinuousFillDown ? task.target : null;
         if (lastContinuousFillDown) {
             // 本 tick 结束后台任务后仍会进入普通右键处理；消费同一次按住，避免重复打开已填完的容器。
@@ -937,7 +942,7 @@ public final class QuickContainerCopy implements ClientModInitializer {
                 pendingContainerType = type;
                 pendingFillTarget = client.crosshairTarget;
                 pendingTicks = 0;
-                QuickContainerFillStatus.begin(client, pendingFillTarget);
+                pendingFillStatus = QuickContainerFillStatus.begin(client, pendingFillTarget);
             }
         }
 
@@ -952,10 +957,11 @@ public final class QuickContainerCopy implements ClientModInitializer {
         pendingTicks++;
         if (!(client.currentScreen instanceof HandledScreen<?> screen)) {
             if (pendingTicks > OPEN_TIMEOUT_TICKS) {
-                QuickContainerFillStatus.stop(client, pendingFillTarget, true);
+                QuickContainerFillStatus.stop(client, pendingFillStatus, true);
                 pendingAction = PendingAction.NONE;
                 pendingContainerType = null;
                 pendingFillTarget = null;
+                pendingFillStatus = null;
                 pendingTicks = 0;
             }
             return;
@@ -964,19 +970,22 @@ public final class QuickContainerCopy implements ClientModInitializer {
         ScreenHandler handler = screen.getScreenHandler();
         SupportedContainerType type = pendingContainerType;
         if (type == null || !isSupportedHandlerForType(handler, type)) {
-            QuickContainerFillStatus.stop(client, pendingFillTarget, true);
+            QuickContainerFillStatus.stop(client, pendingFillStatus, true);
             pendingAction = PendingAction.NONE;
             pendingContainerType = null;
             pendingFillTarget = null;
+            pendingFillStatus = null;
             pendingTicks = 0;
             return;
         }
 
         PendingAction action = pendingAction;
         HitResult fillTarget = pendingFillTarget;
+        QuickContainerFillStatus.Handle fillStatus = pendingFillStatus;
         pendingAction = PendingAction.NONE;
         pendingContainerType = null;
         pendingFillTarget = null;
+        pendingFillStatus = null;
         pendingTicks = 0;
 
         if (action == PendingAction.RECORD) {
@@ -986,7 +995,7 @@ public final class QuickContainerCopy implements ClientModInitializer {
         }
 
         if (recordedTemplate == null || recordedTemplate.type != type) {
-            QuickContainerFillStatus.stop(client, fillTarget, true);
+            QuickContainerFillStatus.stop(client, fillStatus, true);
             sendStatusMessage(client, Text.translatable("quickcraft.message.container_copy.no_record_for_type", type.displayName()));
             closeCurrentScreen(client);
             return;
@@ -1001,7 +1010,7 @@ public final class QuickContainerCopy implements ClientModInitializer {
                     true,
                     fillTarget != null ? new TargetInteraction(fillTarget, type) : null
             );
-            QuickContainerFillStatus.finish(client, fillTarget, result.issueCount());
+            QuickContainerFillStatus.finish(client, fillStatus, result.issueCount());
             if (result.isComplete()) {
                 suppressContinuousFillAfterSingleAction(client, fillTarget, type);
             }
@@ -2788,6 +2797,7 @@ public final class QuickContainerCopy implements ClientModInitializer {
         private final TargetInteraction target;
         private final ContinuousTemplate template;
         private final RegistryKey<World> worldKey;
+        private final QuickContainerFillStatus.Handle fillStatus;
         private WeakReference<World> worldRef;
         private ContinuousStage stage = ContinuousStage.OPEN_TARGET;
         private int ticks;
@@ -2801,10 +2811,12 @@ public final class QuickContainerCopy implements ClientModInitializer {
 
         private ContinuousFillTask(TargetInteraction target,
                                    ContinuousTemplate template,
-                                   RegistryKey<World> worldKey) {
+                                   RegistryKey<World> worldKey,
+                                   QuickContainerFillStatus.Handle fillStatus) {
             this.target = target;
             this.template = template;
             this.worldKey = worldKey;
+            this.fillStatus = fillStatus;
         }
     }
 
