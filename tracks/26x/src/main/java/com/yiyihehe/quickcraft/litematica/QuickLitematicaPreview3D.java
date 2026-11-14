@@ -180,7 +180,7 @@ public final class QuickLitematicaPreview3D {
     static final float PROGRESS_BLOCK_ENTITIES_CACHE_END = 0.99F;
     private static final AtomicBoolean SPECIAL_RENDERER_REGISTERED = new AtomicBoolean();
     static volatile boolean refreshCachedPreviewDynamicTransforms;
-    private static final long SOURCE_CHECK_INTERVAL_MILLIS = 1_000L;
+    static final long SOURCE_CHECK_INTERVAL_NANOS = 1_000_000_000L;
 
     private QuickLitematicaPreview3D() {
     }
@@ -428,7 +428,7 @@ public final class QuickLitematicaPreview3D {
         private int viewY;
         private int viewSize;
         private boolean showExpandButton;
-        private long nextSourceCheckMillis;
+        private long nextSourceCheckNanos = Long.MIN_VALUE;
 
         Manager(Screen owner) {
             this.owner = new java.lang.ref.WeakReference<>(owner);
@@ -486,7 +486,7 @@ public final class QuickLitematicaPreview3D {
                 return;
             }
 
-            this.checkCurrentSource();
+            this.checkCurrentSource(System.nanoTime());
             this.viewX = x;
             this.viewY = y;
             this.viewSize = Math.max(1, size);
@@ -554,6 +554,7 @@ public final class QuickLitematicaPreview3D {
                 this.current.trace.event("用户强制渲染：解除当前投影静态顶点保护，可能耗尽内存/显存");
                 this.current.close();
                 this.current = Preview.create(this.currentEntry, true);
+                this.nextSourceCheckNanos = System.nanoTime() + SOURCE_CHECK_INTERVAL_NANOS;
                 this.drag.stop();
                 return true;
             }
@@ -899,7 +900,7 @@ public final class QuickLitematicaPreview3D {
                     && this.drag.inViewport(mouseX, mouseY);
         }
 
-        private void checkCurrentSource() {
+        private void checkCurrentSource(long now) {
             if (QuickLitematicaPreviewResources.reloading()) return;
             if (this.generatedSupplier != null) {
                 if (this.current != null && this.current.isCancelled()) {
@@ -908,10 +909,10 @@ public final class QuickLitematicaPreview3D {
                 return;
             }
             if (this.current == null || this.currentPath == null || this.currentEntry == null) return;
-            long now = System.currentTimeMillis();
-            boolean checkDue = now >= this.nextSourceCheckMillis;
+            boolean checkDue = this.nextSourceCheckNanos == Long.MIN_VALUE
+                    || now - this.nextSourceCheckNanos >= 0;
             // 只有执行核验才推进截止时间，避免连续渲染把检查永久推迟。
-            if (checkDue) this.nextSourceCheckMillis = now + SOURCE_CHECK_INTERVAL_MILLIS;
+            if (checkDue) this.nextSourceCheckNanos = now + SOURCE_CHECK_INTERVAL_NANOS;
             if (this.current.isCancelled() || (checkDue && this.current.sourceStampChanged())) {
                 boolean hasEmbeddedPreview = this.hasEmbeddedPreviewImage;
                 this.switchTo(this.currentPath, this.currentEntry);
@@ -925,7 +926,7 @@ public final class QuickLitematicaPreview3D {
             this.currentPath = path;
             this.currentEntry = entry;
             this.current = Preview.create(entry);
-            this.nextSourceCheckMillis = System.currentTimeMillis() + SOURCE_CHECK_INTERVAL_MILLIS;
+            this.nextSourceCheckNanos = System.nanoTime() + SOURCE_CHECK_INTERVAL_NANOS;
         }
 
         private void clearCurrent() {
@@ -1810,7 +1811,7 @@ public final class QuickLitematicaPreview3D {
             this.sourceModifiedMillis = -1L;
         }
 
-        private boolean sourceStampChanged() {
+        boolean sourceStampChanged() {
             try {
                 long actualSize = Files.size(this.sourcePath);
                 if (actualSize != this.sourceSize) {
