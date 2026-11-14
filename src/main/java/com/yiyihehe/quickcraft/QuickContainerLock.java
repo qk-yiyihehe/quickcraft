@@ -11,9 +11,11 @@ import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.loader.api.FabricLoader;
 import net.minecraft.block.BarrelBlock;
 import net.minecraft.block.Block;
+import net.minecraft.block.BlockState;
 import net.minecraft.block.ChestBlock;
 import net.minecraft.block.EnderChestBlock;
 import net.minecraft.block.ShulkerBoxBlock;
+import net.minecraft.block.enums.ChestType;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.gui.screen.ingame.CreativeInventoryScreen;
@@ -30,12 +32,14 @@ import net.minecraft.screen.slot.SlotActionType;
 import net.minecraft.text.Text;
 import net.minecraft.util.Identifier;
 import net.minecraft.util.hit.BlockHitResult;
+import net.minecraft.util.math.BlockPos;
 import net.minecraft.world.World;
 
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
+import java.util.WeakHashMap;
 import java.util.function.Supplier;
 
 /**
@@ -74,16 +78,18 @@ public final class QuickContainerLock implements ClientModInitializer {
     private static final Identifier SLOT_LOCK_TEXTURE = Identifier.of("quickcraft", "textures/gui/slot_lock.png");
 
     private static final Set<String> LOCKED_CONTAINERS = new HashSet<>();
+    private static final Set<String> MIGRATED_DOUBLE_CHESTS = new HashSet<>();
     private static final Set<Integer> LOCKED_PLAYER_SLOTS = new HashSet<>();
     private static final Map<String, Set<Integer>> LOCKED_CONTAINER_SLOTS = new HashMap<>();
-    private static final Map<Integer, String> SYNC_ID_TO_CONTAINER_KEY = new HashMap<>();
+    private static final Map<ScreenHandler, String> HANDLER_CONTAINER_KEYS = new WeakHashMap<>();
     private static HandledScreen<?> slotLockDragScreen;
     private static final Set<Slot> DRAGGED_LOCK_SLOTS = new HashSet<>();
     private static boolean lastUseDown;
     private static int pendingTicks;
     private static String pendingContainerKey;
     private static boolean pendingShulkerBoxOpen;
-    private static int pendingSourceSyncId = INVALID_LOCK_SLOT;
+    private static ScreenHandler pendingSourceHandler;
+    private static ScreenHandler currentScreenHandler;
     private static String currentScreenContainerKey;
     private static boolean bypassPlayerSlotLocks;
     private static int scopedPlayerSlotLockBypassDepth;
@@ -126,21 +132,26 @@ public final class QuickContainerLock implements ClientModInitializer {
     }
 
     public static void bindCurrentScreen(HandledScreen<?> screen) {
-        rememberHandlerKey(screen.getScreenHandler(), getCurrentScreenContainerKey(screen));
+        MinecraftClient client = MinecraftClient.getInstance();
+        if (client == null || client.currentScreen != screen) {
+            return;
+        }
 
+        ScreenHandler handler = screen.getScreenHandler();
         if (isCreativePlayerInventoryScreen(screen)
-                || screen.getScreenHandler() instanceof PlayerScreenHandler) {
-            currentScreenContainerKey = PLAYER_CONTAINER_KEY;
-            rememberHandlerKey(screen.getScreenHandler(), PLAYER_CONTAINER_KEY);
+                || handler instanceof PlayerScreenHandler) {
+            setCurrentScreenHandler(handler, PLAYER_CONTAINER_KEY);
             clearPendingContainerOpen();
             return;
         }
 
-        if (isPendingContainerScreen(screen.getScreenHandler())) {
-            currentScreenContainerKey = pendingContainerKey;
-            rememberHandlerKey(screen.getScreenHandler(), currentScreenContainerKey);
+        if (isPendingContainerScreen(handler)) {
+            setCurrentScreenHandler(handler, pendingContainerKey);
             clearPendingContainerOpen();
+            return;
         }
+
+        setCurrentScreenHandler(handler, HANDLER_CONTAINER_KEYS.get(handler));
     }
 
     public static void prepareQuickShulkerOpen(HandledScreen<?> screen, double mouseX, double mouseY, int guiLeft, int guiTop) {
@@ -158,7 +169,7 @@ public final class QuickContainerLock implements ClientModInitializer {
 
             pendingContainerKey = QUICK_SHULKER_CONTAINER_KEY_PREFIX + effectiveSlot.getIndex();
             pendingShulkerBoxOpen = true;
-            pendingSourceSyncId = screen.getScreenHandler().syncId;
+            pendingSourceHandler = screen.getScreenHandler();
             pendingTicks = 0;
             return;
         }
@@ -776,7 +787,7 @@ public final class QuickContainerLock implements ClientModInitializer {
             if (containerKey != null) {
                 pendingContainerKey = containerKey;
                 pendingShulkerBoxOpen = false;
-                pendingSourceSyncId = INVALID_LOCK_SLOT;
+                pendingSourceHandler = null;
                 pendingTicks = 0;
             }
         }
@@ -791,8 +802,7 @@ public final class QuickContainerLock implements ClientModInitializer {
 
         pendingTicks++;
         if (client.currentScreen instanceof HandledScreen<?> screen && isPendingContainerScreen(screen.getScreenHandler())) {
-            currentScreenContainerKey = pendingContainerKey;
-            rememberHandlerKey(screen.getScreenHandler(), currentScreenContainerKey);
+            setCurrentScreenHandler(screen.getScreenHandler(), pendingContainerKey);
             clearPendingContainerOpen();
             return;
         }
@@ -804,22 +814,22 @@ public final class QuickContainerLock implements ClientModInitializer {
 
     private void clearCurrentScreenKeyIfNeeded(MinecraftClient client) {
         if (!(client.currentScreen instanceof HandledScreen<?> screen)) {
-            currentScreenContainerKey = null;
+            setCurrentScreenHandler(null, null);
             return;
         }
 
-        if (screen.getScreenHandler() instanceof PlayerScreenHandler) {
-            currentScreenContainerKey = PLAYER_CONTAINER_KEY;
-            rememberHandlerKey(screen.getScreenHandler(), PLAYER_CONTAINER_KEY);
+        ScreenHandler handler = screen.getScreenHandler();
+        if (handler instanceof PlayerScreenHandler) {
+            setCurrentScreenHandler(handler, PLAYER_CONTAINER_KEY);
             return;
         }
 
-        if (isContainerSlotLockSupportedHandler(screen.getScreenHandler())) {
-            rememberHandlerKey(screen.getScreenHandler(), currentScreenContainerKey);
+        if (isContainerSlotLockSupportedHandler(handler)) {
+            setCurrentScreenHandler(handler, HANDLER_CONTAINER_KEYS.get(handler));
             return;
         }
 
-        currentScreenContainerKey = null;
+        setCurrentScreenHandler(handler, null);
     }
 
     private static String getCurrentScreenContainerKey(HandledScreen<?> screen) {
@@ -828,19 +838,20 @@ public final class QuickContainerLock implements ClientModInitializer {
             return null;
         }
 
-        if (screen.getScreenHandler() instanceof PlayerScreenHandler) {
+        ScreenHandler handler = screen.getScreenHandler();
+        if (handler instanceof PlayerScreenHandler) {
             return PLAYER_CONTAINER_KEY;
         }
 
-        if (!isContainerSlotLockSupportedHandler(screen.getScreenHandler())) {
+        if (!isContainerSlotLockSupportedHandler(handler)) {
             return null;
         }
 
-        if (currentScreenContainerKey != null) {
+        if (currentScreenHandler == handler && currentScreenContainerKey != null) {
             return currentScreenContainerKey;
         }
 
-        return SYNC_ID_TO_CONTAINER_KEY.get(screen.getScreenHandler().syncId);
+        return HANDLER_CONTAINER_KEYS.get(handler);
     }
 
     private static boolean hasAnyLockableSlot(HandledScreen<?> screen) {
@@ -879,7 +890,15 @@ public final class QuickContainerLock implements ClientModInitializer {
             }
         }
 
-        return SYNC_ID_TO_CONTAINER_KEY.get(handler.syncId);
+        return HANDLER_CONTAINER_KEYS.get(handler);
+    }
+
+    private static void setCurrentScreenHandler(ScreenHandler handler, String containerKey) {
+        currentScreenHandler = handler;
+        currentScreenContainerKey = containerKey;
+        if (handler != null && containerKey != null) {
+            rememberHandlerKey(handler, containerKey);
+        }
     }
 
     private static void rememberHandlerKey(ScreenHandler handler, String containerKey) {
@@ -887,7 +906,7 @@ public final class QuickContainerLock implements ClientModInitializer {
             return;
         }
 
-        SYNC_ID_TO_CONTAINER_KEY.put(handler.syncId, containerKey);
+        HANDLER_CONTAINER_KEYS.put(handler, containerKey);
     }
 
     private static boolean isContainerSlotLocked(String key, int slotIndex) {
@@ -926,13 +945,13 @@ public final class QuickContainerLock implements ClientModInitializer {
         return pendingContainerKey != null
                 && isContainerSlotLockSupportedHandler(handler)
                 && (!pendingShulkerBoxOpen || handler instanceof ShulkerBoxScreenHandler)
-                && (pendingSourceSyncId == INVALID_LOCK_SLOT || handler.syncId != pendingSourceSyncId);
+                && handler != pendingSourceHandler;
     }
 
     private static void clearPendingContainerOpen() {
         pendingContainerKey = null;
         pendingShulkerBoxOpen = false;
-        pendingSourceSyncId = INVALID_LOCK_SLOT;
+        pendingSourceHandler = null;
         pendingTicks = 0;
     }
 
@@ -950,11 +969,52 @@ public final class QuickContainerLock implements ClientModInitializer {
             return null;
         }
 
-        return buildContainerKey(world, blockHitResult.getBlockPos().asLong());
+        return buildContainerKey(world, blockHitResult.getBlockPos());
     }
 
-    private static String buildContainerKey(World world, long blockPosLong) {
-        return world.getRegistryKey().getValue() + "#" + blockPosLong;
+    static String buildContainerKey(World world, BlockPos pos) {
+        BlockState state = world.getBlockState(pos);
+        String dimension = world.getRegistryKey().getValue().toString();
+        if (!(state.getBlock() instanceof ChestBlock)
+                || state.get(ChestBlock.CHEST_TYPE) == ChestType.SINGLE) {
+            return dimension + "#" + pos.asLong();
+        }
+
+        BlockPos pairedPos = pos.offset(ChestBlock.getFacing(state));
+        BlockState pairedState = world.getBlockState(pairedPos);
+        if (pairedState.getBlock() != state.getBlock()
+                || pairedState.get(ChestBlock.FACING) != state.get(ChestBlock.FACING)
+                || pairedState.get(ChestBlock.CHEST_TYPE) != state.get(ChestBlock.CHEST_TYPE).getOpposite()) {
+            return dimension + "#" + pos.asLong();
+        }
+
+        BlockPos identity = pairedPos.asLong() < pos.asLong() ? pairedPos : pos;
+        String canonical = dimension + "#double#" + identity.asLong();
+        migrateProvableLegacyDoubleChestLocks(dimension, pos, pairedPos, canonical);
+        return canonical;
+    }
+
+    private static void migrateProvableLegacyDoubleChestLocks(String dimension,
+                                                               BlockPos first,
+                                                               BlockPos second,
+                                                               String canonical) {
+        if (MIGRATED_DOUBLE_CHESTS.contains(canonical)) {
+            return;
+        }
+        for (BlockPos half : new BlockPos[]{first, second}) {
+            String legacy = dimension + "#" + half.asLong();
+            Set<Integer> slots = LOCKED_CONTAINER_SLOTS.get(legacy);
+            // 单箱/桶最多 27 格；出现 27 以上索引只能来自 54 格双箱记录。
+            if (slots == null || slots.stream().noneMatch(index -> index >= 27)) {
+                continue;
+            }
+            // 保留旧键时必须记录已迁移，避免重开或重载后撤销用户在新键上的解锁。
+            MIGRATED_DOUBLE_CHESTS.add(canonical);
+            LOCKED_CONTAINER_SLOTS.computeIfAbsent(canonical, ignored -> new HashSet<>()).addAll(slots);
+            if (LOCKED_CONTAINERS.contains(legacy)) {
+                LOCKED_CONTAINERS.add(canonical);
+            }
+        }
     }
 
     private static int getGuiLeft(HandledScreen<?> screen) {
@@ -982,9 +1042,11 @@ public final class QuickContainerLock implements ClientModInitializer {
     static void clearPersistentState() {
         clearSlotLockDrag();
         LOCKED_CONTAINERS.clear();
+        MIGRATED_DOUBLE_CHESTS.clear();
         LOCKED_PLAYER_SLOTS.clear();
         LOCKED_CONTAINER_SLOTS.clear();
-        SYNC_ID_TO_CONTAINER_KEY.clear();
+        HANDLER_CONTAINER_KEYS.clear();
+        currentScreenHandler = null;
         currentScreenContainerKey = null;
         clearPendingContainerOpen();
         lastUseDown = false;
@@ -1004,6 +1066,7 @@ public final class QuickContainerLock implements ClientModInitializer {
         }
 
         readStringSet(getElement(state, "lockedContainers"), LOCKED_CONTAINERS);
+        readStringSet(getElement(state, "migratedDoubleChests"), MIGRATED_DOUBLE_CHESTS);
         readIntSet(getElement(state, "lockedPlayerSlots"), LOCKED_PLAYER_SLOTS);
 
         JsonObject lockedContainerSlots = getObject(state, "lockedContainerSlots");
@@ -1023,6 +1086,7 @@ public final class QuickContainerLock implements ClientModInitializer {
     static void writePersistentState(JsonObject root) {
         JsonObject state = new JsonObject();
         state.add("lockedContainers", toStringArray(LOCKED_CONTAINERS));
+        state.add("migratedDoubleChests", toStringArray(MIGRATED_DOUBLE_CHESTS));
         state.add("lockedPlayerSlots", toIntArray(LOCKED_PLAYER_SLOTS));
 
         JsonObject lockedContainerSlots = new JsonObject();
