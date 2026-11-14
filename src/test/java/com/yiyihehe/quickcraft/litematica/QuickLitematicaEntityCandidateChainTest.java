@@ -40,6 +40,27 @@ class QuickLitematicaEntityCandidateChainTest {
     }
 
     @Test
+    void unknownRootIsRejectedWhileRegisteredPigRemains() throws Exception {
+        assertThat(collect(List.of(entity("unknownmod:missing", new Vec3d(0.5, 0, 0.5), null)), true)).isEmpty();
+
+        var pigs = collect(List.of(entity("minecraft:pig", new Vec3d(0.5, 0, 0.5), null)), true);
+        assertThat(pigs).hasSize(1);
+        assertThat(pigs.getFirst().entityType()).isEqualTo(net.minecraft.util.Identifier.of("minecraft", "pig"));
+        assertThat(pigs.getFirst().material().isOf(Items.PIG_SPAWN_EGG)).isTrue();
+    }
+
+    @Test
+    void unknownPassengerRejectsTheWholeTreeWhenPassengerMaterialsAreRequired() throws Exception {
+        var unknownPassenger = entityWithPassenger("minecraft:armor_stand", "unknownmod:missing",
+                new Vec3d(0.5, 0, 0.5));
+        assertThat(collect(List.of(unknownPassenger), true, true)).isEmpty();
+
+        var knownPassenger = entityWithPassenger("minecraft:armor_stand", "minecraft:pig",
+                new Vec3d(0.5, 0, 0.5));
+        assertThat(collect(List.of(knownPassenger), true, true)).hasSize(1);
+    }
+
+    @Test
     void irrelevantEntitiesAfter4096StillLeaveUniqueRayTarget() throws Exception {
         List<LitematicaSchematic.EntityInfo> entities = new ArrayList<>();
         for (int i = 0; i < 4096; i++) {
@@ -87,10 +108,16 @@ class QuickLitematicaEntityCandidateChainTest {
 
     private static List<QuickLitematicaEntityPlacement.Candidate> collect(
             List<LitematicaSchematic.EntityInfo> entities, boolean rayEntry) throws Exception {
+        return collect(entities, rayEntry, false);
+    }
+
+    private static List<QuickLitematicaEntityPlacement.Candidate> collect(
+            List<LitematicaSchematic.EntityInfo> entities, boolean rayEntry, boolean requirePassengerMaterials) throws Exception {
         MinecraftClient client = mock(MinecraftClient.class);
         client.player = mock(ClientPlayerEntity.class);
         client.world = mock(ClientWorld.class);
         when(client.world.getRegistryManager()).thenReturn(net.minecraft.registry.DynamicRegistryManager.of(net.minecraft.registry.Registries.REGISTRIES));
+        when(client.player.getInventory()).thenReturn(com.yiyihehe.quickcraft.QuickCraftTestInventories.newPlayerInventory(client.player));
         when(client.player.getCameraPosVec(1.0F)).thenReturn(new Vec3d(0.5, 0.125, -2.0));
         when(client.player.getRotationVec(1.0F)).thenReturn(new Vec3d(0.0, 0.0, 1.0));
         when(client.player.getBlockInteractionRange()).thenReturn(64.0D);
@@ -123,7 +150,8 @@ class QuickLitematicaEntityCandidateChainTest {
             data.when(DataManager::getRenderLayerRange).thenAnswer(invocation -> range);
             configs.when(QuickCraftConfigs::isEasyPlaceEntitiesEnabled).thenReturn(true);
             configs.when(QuickCraftConfigs::areEasyPlaceEntityContainerContentMaterialsRequired).thenReturn(false);
-            configs.when(QuickCraftConfigs::areEasyPlaceEntityPassengerMaterialsRequired).thenReturn(false);
+            configs.when(QuickCraftConfigs::areEasyPlaceEntityPassengerMaterialsRequired)
+                    .thenReturn(requirePassengerMaterials);
             Method method = rayEntry
                     ? QuickLitematicaEntityPlacement.class.getDeclaredMethod("collectRayCandidates", MinecraftClient.class)
                     : QuickLitematicaEntityPlacement.class.getDeclaredMethod(
@@ -164,6 +192,21 @@ class QuickLitematicaEntityCandidateChainTest {
         if (item != null) {
             nbt.put("Item", item);
         }
+        return entityInfo(pos, nbt);
+    }
+
+    private static LitematicaSchematic.EntityInfo entityWithPassenger(String id, String passengerId, Vec3d pos) {
+        NbtCompound nbt = new NbtCompound();
+        nbt.putString("id", id);
+        NbtCompound passenger = new NbtCompound();
+        passenger.putString("id", passengerId);
+        net.minecraft.nbt.NbtList passengers = new net.minecraft.nbt.NbtList();
+        passengers.add(passenger);
+        nbt.put("Passengers", passengers);
+        return entityInfo(pos, nbt);
+    }
+
+    private static LitematicaSchematic.EntityInfo entityInfo(Vec3d pos, NbtCompound nbt) {
         // 1.21.11 的同一依赖范围同时允许原生 NBT 与 MaLiLib CompoundData。
         try {
             for (var constructor : LitematicaSchematic.EntityInfo.class.getConstructors()) {

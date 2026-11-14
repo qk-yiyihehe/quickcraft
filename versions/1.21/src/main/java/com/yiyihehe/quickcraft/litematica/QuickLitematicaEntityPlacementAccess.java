@@ -176,7 +176,7 @@ final class QuickLitematicaEntityPlacementAccess {
         return entity.posVec;
     }
     public static EntityType<?> getEntityType(Identifier id) {
-        return Registries.ENTITY_TYPE.get(id);
+        return id != null && Registries.ENTITY_TYPE.containsId(id) ? Registries.ENTITY_TYPE.get(id) : null;
     }
 
     public static Item getItem(Identifier id) {
