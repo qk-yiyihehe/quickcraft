@@ -5,9 +5,12 @@ import com.yiyihehe.quickcraft.litematica.QuickLitematicaContainerVerifier;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.network.ClientPlayerEntity;
 import net.minecraft.client.network.ClientPlayerInteractionManager;
+import net.minecraft.entity.Entity;
+import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.util.ActionResult;
 import net.minecraft.util.Hand;
 import net.minecraft.util.hit.BlockHitResult;
+import net.minecraft.util.hit.EntityHitResult;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
@@ -19,6 +22,41 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
  */
 @Mixin(ClientPlayerInteractionManager.class)
 public class LitematicaClientPlayerInteractionManagerMixin {
+    @Inject(method = "interactBlock", at = @At("HEAD"))
+    private void quickcraft$clearPendingContainerUses(
+            ClientPlayerEntity player,
+            Hand hand,
+            BlockHitResult hitResult,
+            CallbackInfoReturnable<ActionResult> cir
+    ) {
+        quickcraft$clearPendingContainerUsesStatic();
+    }
+
+    @Inject(method = "interactEntityAtLocation", at = @At("HEAD"))
+    private void quickcraft$clearPendingContainerUsesAtLocation(
+            PlayerEntity player,
+            Entity entity,
+            EntityHitResult hitResult,
+            Hand hand,
+            CallbackInfoReturnable<ActionResult> cir
+    ) {
+        quickcraft$clearPendingContainerUsesStatic();
+    }
+
+    @Inject(method = "interactEntity", at = @At("HEAD"))
+    private void quickcraft$clearPendingContainerUsesOnEntity(
+            PlayerEntity player,
+            Entity entity,
+            Hand hand,
+            CallbackInfoReturnable<ActionResult> cir
+    ) {
+        quickcraft$clearPendingContainerUsesStatic();
+    }
+
+    private static void quickcraft$clearPendingContainerUsesStatic() {
+        QuickLitematicaContainerVerifier.clearPendingContainerUses();
+    }
+
     @Inject(method = "interactBlock", at = @At("RETURN"))
     private void quickcraft$rememberOpenedContainer(
             ClientPlayerEntity player,

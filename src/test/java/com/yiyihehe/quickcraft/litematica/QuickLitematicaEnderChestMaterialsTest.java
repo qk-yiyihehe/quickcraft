@@ -1,5 +1,6 @@
 package com.yiyihehe.quickcraft.litematica;
 
+import com.yiyihehe.quickcraft.QuickCraftTestInventories;
 import com.yiyihehe.quickcraft.config.QuickCraftConfigs;
 import com.yiyihehe.quickcraft.compat.QuickShulkerConnection;
 import fi.dy.masa.litematica.materials.MaterialListBase;
@@ -114,6 +115,48 @@ class QuickLitematicaEnderChestMaterialsTest {
             assertThat(QuickLitematicaEnderChestMaterials.hud(list, entries, true)).isSameAs(entries);
         } finally {
             config.setBooleanValue(enabled);
+        }
+    }
+
+    private static void clearMaterialState() throws Exception {
+        var clear = QuickLitematicaEnderChestMaterials.class.getDeclaredMethod("clear");
+        clear.setAccessible(true);
+        clear.invoke(null);
+    }
+
+    @Test
+    void cancelledBlockedEnderChestPendingDoesNotCaptureMinecartContents() throws Exception {
+        clearMaterialState();
+        var client = mock(MinecraftClient.class);
+        client.player = mock(ClientPlayerEntity.class);
+        var world = mock(ClientWorld.class);
+        client.world = world;
+        var pos = BlockPos.ORIGIN;
+        when(world.getBlockState(pos)).thenReturn(Blocks.ENDER_CHEST.getDefaultState());
+        var hit = mock(BlockHitResult.class);
+        when(hit.getBlockPos()).thenReturn(pos);
+        var handler = GenericContainerScreenHandler.createGeneric9x3(
+                9, QuickCraftTestInventories.newPlayerInventory(client.player));
+        handler.getSlot(0).setStack(new ItemStack(Items.STONE, 12));
+        client.player.currentScreenHandler = handler;
+        var list = mock(MaterialListBase.class);
+        when(list.getMultiplier()).thenReturn(1);
+        var source = new MaterialListEntry(new ItemStack(Items.STONE), 100, 100, 0, 4);
+        var entries = List.of(source);
+        var config = QuickCraftConfigs.ProjectionTools.INCLUDE_ENDER_CHEST_IN_MATERIAL_HUD;
+        boolean previous = config.getBooleanValue();
+        config.setBooleanValue(true);
+        try (var minecraft = mockStatic(MinecraftClient.class)) {
+            minecraft.when(MinecraftClient::getInstance).thenReturn(client);
+            QuickLitematicaEnderChestMaterials.rememberContainerUse(client, hit);
+            QuickLitematicaContainerVerifier.clearPendingContainerUses();
+            QuickLitematicaEnderChestMaterials.onContentsReceived(handler.syncId);
+            assertThat(QuickLitematicaEnderChestMaterials.hud(list, entries, true)).isSameAs(entries);
+            assertThat(source.getCountAvailable()).isEqualTo(4);
+        } finally {
+            client.player = null;
+            QuickLitematicaEnderChestMaterials.tick(client);
+            config.setBooleanValue(previous);
         }
     }
 

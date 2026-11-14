@@ -44,6 +44,10 @@ public final class QuickLitematicaEnderChestMaterials {
                 && client.level.getBlockState(hit.getBlockPos()).getBlock() instanceof EnderChestBlock ? OPEN_TIMEOUT_TICKS : 0;
     }
 
+    public static void clearPendingUse() {
+        pendingTicks = 0;
+    }
+
     public static void onContentsReceived(int syncId) {
         var client = Minecraft.getInstance();
         if (client.player == null || client.player.containerMenu.containerId != syncId) { return; }

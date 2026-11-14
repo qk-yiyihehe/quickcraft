@@ -1,14 +1,25 @@
 package com.yiyihehe.quickcraft.litematica;
 
+import com.yiyihehe.quickcraft.config.QuickCraftConfigs;
+import fi.dy.masa.malilib.util.WorldUtils;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.multiplayer.ClientLevel;
+import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.Container;
+import net.minecraft.world.entity.EntityEquipment;
+import net.minecraft.world.entity.player.Inventory;
+import net.minecraft.world.inventory.ChestMenu;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Items;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.phys.BlockHitResult;
+import net.minecraft.world.phys.Vec3;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -21,12 +32,14 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.any;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.mockStatic;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.mockito.Mockito.withSettings;
 
+@org.junit.jupiter.api.extension.ExtendWith(com.yiyihehe.quickcraft.QuickCraftMinecraftTestBootstrap.class)
 class QuickLitematicaContainerFillStateTest {
     @AfterEach
     void clearWorldState() {
@@ -83,6 +96,33 @@ class QuickLitematicaContainerFillStateTest {
         var field = QuickLitematicaContainerFillState.class.getDeclaredField(name);
         field.setAccessible(true);
         field.set(null, world);
+    }
+
+    @Test
+    void cancelledBlockedChestPendingDoesNotCaptureMinecartContents() {
+        ClientLevel clientLevel = mock(ClientLevel.class);
+        LocalPlayer player = mock(LocalPlayer.class);
+        Minecraft client = mock(Minecraft.class);
+        client.level = clientLevel;
+        client.player = player;
+        BlockPos pos = new BlockPos(1, 64, 2);
+        BlockEntity container = mock(BlockEntity.class, withSettings().extraInterfaces(Container.class));
+        when(clientLevel.getBlockEntity(pos)).thenReturn(container);
+        var config = QuickCraftConfigs.ProjectionTools.HIGHLIGHT_NONEMPTY_PROJECTION_CONTAINERS;
+        boolean previous = config.getBooleanValue();
+        config.setBooleanValue(true);
+        try (var minecraft = mockStatic(Minecraft.class);
+             var worldUtils = mockStatic(WorldUtils.class)) {
+            minecraft.when(Minecraft::getInstance).thenReturn(client);
+            worldUtils.when(() -> WorldUtils.getBestWorld(client)).thenReturn(clientLevel);
+            QuickLitematicaContainerFillState.rememberContainerUse(client,
+                    new BlockHitResult(new Vec3(1.5, 64.5, 2.5), Direction.NORTH, pos, false));
+            QuickLitematicaContainerVerifier.clearPendingContainerUses();
+            QuickLitematicaContainerFillState.onContentsReceived(5);
+            assertThat(QuickLitematicaContainerFillState.isFilled(pos)).isFalse();
+        } finally {
+            config.setBooleanValue(previous);
+        }
     }
 
     @ParameterizedTest

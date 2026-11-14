@@ -41,8 +41,11 @@ final class QuickLitematicaContainerScreenBinding {
     }
 
     private static final AtomicBoolean LIFECYCLE_REGISTERED = new AtomicBoolean();
+    private static final int PENDING_TIMEOUT_TICKS = 40;
     private static boolean suppressInventorySlotHighlights;
     private static BlockPos pendingContainerPos;
+    private static World pendingContainerWorld;
+    private static int pendingTicks;
     private static BlockPos currentScreenContainerPos;
     private static HandledScreen<?> currentHandledScreen;
     private static long lastCurrentScreenRefreshTick = Long.MIN_VALUE;
@@ -62,6 +65,9 @@ final class QuickLitematicaContainerScreenBinding {
 
     /** 仅在容器屏幕真正关闭时释放；聊天、暂停等临时子屏返回后仍复用原绑定。 */
     static void reconcileCurrentScreen(Screen currentScreen) {
+        if (pendingContainerPos != null && ++pendingTicks > PENDING_TIMEOUT_TICKS) {
+            clearPendingContainerUse();
+        }
         if (currentHandledScreen != null && currentScreen == null) {
             currentHandledScreen = null;
             clearCurrentScreenContainerBinding();
@@ -77,12 +83,19 @@ final class QuickLitematicaContainerScreenBinding {
     }
 
     static void clearCurrentHandledScreenBinding() {
-        pendingContainerPos = null;
+        clearPendingContainerUse();
         currentHandledScreen = null;
         clearCurrentScreenContainerBinding();
     }
 
+    static void clearPendingContainerUse() {
+        pendingContainerPos = null;
+        pendingContainerWorld = null;
+        pendingTicks = 0;
+    }
+
     static void rememberContainerUse(MinecraftClient client, BlockHitResult hitResult) {
+        clearPendingContainerUse();
         if (!isEnabled() || client.world == null) {
             return;
         }
@@ -93,6 +106,7 @@ final class QuickLitematicaContainerScreenBinding {
 
         if (blockEntity instanceof Inventory || getExpectedContainerAt(world, pos) != null) {
             pendingContainerPos = pos.toImmutable();
+            pendingContainerWorld = client.world;
         }
     }
 
@@ -136,8 +150,8 @@ final class QuickLitematicaContainerScreenBinding {
         }
         if (currentHandledScreen != screen) {
             currentHandledScreen = screen;
-            currentScreenContainerPos = pendingContainerPos;
-            pendingContainerPos = null;
+            currentScreenContainerPos = pendingContainerWorld == client.world ? pendingContainerPos : null;
+            clearPendingContainerUse();
             lastCurrentScreenRefreshTick = Long.MIN_VALUE;
             lastCurrentScreenRevision = Integer.MIN_VALUE;
             currentScreenSlotOverlays = List.of();

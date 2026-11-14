@@ -1,11 +1,23 @@
 package com.yiyihehe.quickcraft.litematica;
 
 import com.yiyihehe.quickcraft.QuickClientScreenAccess;
+import com.yiyihehe.quickcraft.config.QuickCraftConfigs;
+import fi.dy.masa.malilib.util.WorldUtils;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
+import net.minecraft.client.multiplayer.ClientLevel;
+import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
+import net.minecraft.world.Container;
+import net.minecraft.world.entity.EntityEquipment;
+import net.minecraft.world.entity.player.Inventory;
+import net.minecraft.world.inventory.ChestMenu;
 import net.minecraft.world.inventory.HopperMenu;
+import net.minecraft.world.level.block.entity.BlockEntity;
+import net.minecraft.world.phys.BlockHitResult;
+import net.minecraft.world.phys.Vec3;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
@@ -77,6 +89,48 @@ class QuickLitematicaContainerScreenBindingTest {
             assertThat(staticField("pendingContainerPos")).isNull();
         } finally {
             QuickLitematicaContainerScreenBinding.clearCurrentHandledScreenBinding();
+        }
+    }
+
+    @Test
+    void cancelledPendingDoesNotBindMinecartScreenToTheOldChest() throws Exception {
+        BlockPos chestPos = new BlockPos(3, 64, 3);
+        ClientLevel world = mock(ClientLevel.class);
+        LocalPlayer player = mock(LocalPlayer.class);
+        Minecraft client = mock(Minecraft.class);
+        client.level = world;
+        client.player = player;
+        client.hitResult = null;
+        BlockEntity chest = mock(BlockEntity.class, org.mockito.Mockito.withSettings().extraInterfaces(Container.class));
+        when(world.getBlockEntity(chestPos)).thenReturn(chest);
+        ChestMenu minecartHandler = ChestMenu.threeRows(3, new Inventory(player, new EntityEquipment()));
+        AbstractContainerScreen<?> minecartScreen = mock(AbstractContainerScreen.class);
+        when(minecartScreen.getMenu()).thenReturn(minecartHandler);
+        var config = QuickCraftConfigs.ProjectionTools.SHOW_LITEMATICA_CONTAINER_VERIFIER;
+        boolean previous = config.getBooleanValue();
+        config.setBooleanValue(true);
+        QuickLitematicaContainerScreenBinding.clearCurrentHandledScreenBinding();
+        var currentScreen = new AtomicReference<Screen>(null);
+        try (var minecraft = mockStatic(Minecraft.class);
+             var screens = mockStatic(QuickClientScreenAccess.class);
+             var worldUtils = mockStatic(WorldUtils.class)) {
+            minecraft.when(Minecraft::getInstance).thenReturn(client);
+            screens.when(() -> QuickClientScreenAccess.currentScreen(client))
+                    .thenAnswer(invocation -> currentScreen.get());
+            worldUtils.when(() -> WorldUtils.getBestWorld(client)).thenReturn(world);
+            QuickLitematicaContainerScreenBinding.rememberContainerUse(client,
+                    new BlockHitResult(new Vec3(3.5, 64.5, 3.5), Direction.NORTH, chestPos, false));
+            assertThat(staticField("pendingContainerPos")).isEqualTo(chestPos);
+
+            QuickLitematicaContainerVerifier.clearPendingContainerUses();
+            assertThat(staticField("pendingContainerPos")).isNull();
+
+            currentScreen.set(minecartScreen);
+            QuickLitematicaContainerScreenBinding.bindCurrentScreen(minecartScreen);
+            assertThat(staticField("currentScreenContainerPos")).isNull();
+        } finally {
+            QuickLitematicaContainerScreenBinding.clearCurrentHandledScreenBinding();
+            config.setBooleanValue(previous);
         }
     }
 

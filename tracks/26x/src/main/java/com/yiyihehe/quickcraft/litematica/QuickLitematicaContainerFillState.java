@@ -68,11 +68,17 @@ public final class QuickLitematicaContainerFillState {
     }
 
     public static void rememberContainerUse(Minecraft client, BlockHitResult hit) {
+        clearPendingUse();
         if (!prepare(client)) { return; }
         captureScreen(client);
         pendingPos = client.level.getBlockEntity(hit.getBlockPos()) instanceof Container
                 ? hit.getBlockPos().immutable() : null;
         pendingTicks = 40;
+    }
+
+    public static void clearPendingUse() {
+        pendingPos = null;
+        pendingTicks = 0;
     }
 
     public static void onContentsReceived(int syncId) {

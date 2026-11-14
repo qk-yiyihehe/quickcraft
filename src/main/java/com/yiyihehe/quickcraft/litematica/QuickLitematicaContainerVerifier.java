@@ -174,6 +174,12 @@ public final class QuickLitematicaContainerVerifier {
         QuickLitematicaContainerScreenBinding.clearCurrentHandledScreenBinding();
     }
 
+    public static void clearPendingContainerUses() {
+        QuickLitematicaContainerFillState.clearPendingUse();
+        QuickLitematicaContainerScreenBinding.clearPendingContainerUse();
+        QuickLitematicaEnderChestMaterials.clearPendingUse();
+    }
+
     public static void drawGhostItems(
             DrawContext context,
             MinecraftClient client,

@@ -9,13 +9,18 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.core.component.DataComponents;
+import net.minecraft.core.Direction;
+import net.minecraft.world.entity.EntityEquipment;
+import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.item.component.ItemContainerContents;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.inventory.ChestMenu;
 import net.minecraft.world.inventory.PlayerEnderChestContainer;
 import net.minecraft.world.phys.BlockHitResult;
+import net.minecraft.world.phys.Vec3;
 import net.minecraft.core.BlockPos;
+import java.lang.reflect.Method;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import java.util.List;
@@ -115,6 +120,46 @@ class QuickLitematicaEnderChestMaterialsTest {
         } finally {
             config.setBooleanValue(enabled);
         }
+    }
+
+    @Test
+    void cancelledBlockedEnderChestPendingDoesNotCaptureMinecartContents() throws Exception {
+        clearMaterialState();
+        var client = mock(Minecraft.class);
+        client.player = mock(LocalPlayer.class);
+        var world = mock(ClientLevel.class);
+        client.level = world;
+        var pos = BlockPos.ZERO;
+        when(world.getBlockState(pos)).thenReturn(Blocks.ENDER_CHEST.defaultBlockState());
+        var handler = ChestMenu.threeRows(9, new Inventory(client.player, new EntityEquipment()));
+        handler.getSlot(0).container.setItem(0, new ItemStack(Items.STONE, 12));
+        client.player.containerMenu = handler;
+        var list = mock(MaterialListBase.class);
+        when(list.getMultiplier()).thenReturn(1);
+        var source = new MaterialListEntry(new ItemStack(Items.STONE), 100, 100, 0, 4);
+        var entries = List.of(source);
+        var config = QuickCraftConfigs.ProjectionTools.INCLUDE_ENDER_CHEST_IN_MATERIAL_HUD;
+        boolean previous = config.getBooleanValue();
+        config.setBooleanValue(true);
+        try (var minecraft = mockStatic(Minecraft.class)) {
+            minecraft.when(Minecraft::getInstance).thenReturn(client);
+            QuickLitematicaEnderChestMaterials.rememberContainerUse(client,
+                    new BlockHitResult(new Vec3(0.5, 64.5, 0.5), Direction.NORTH, pos, false));
+            QuickLitematicaContainerVerifier.clearPendingContainerUses();
+            QuickLitematicaEnderChestMaterials.onContentsReceived(handler.containerId);
+            assertThat(QuickLitematicaEnderChestMaterials.hud(list, entries, true)).isSameAs(entries);
+            assertThat(source.getCountAvailable()).isEqualTo(4);
+        } finally {
+            client.player = null;
+            QuickLitematicaEnderChestMaterials.tick(client);
+            config.setBooleanValue(previous);
+        }
+    }
+
+    private static void clearMaterialState() throws Exception {
+        Method clear = QuickLitematicaEnderChestMaterials.class.getDeclaredMethod("clear");
+        clear.setAccessible(true);
+        clear.invoke(null);
     }
 
     @Test
