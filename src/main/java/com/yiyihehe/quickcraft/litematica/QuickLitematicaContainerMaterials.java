@@ -38,7 +38,6 @@ import net.minecraft.nbt.NbtList;
 import net.minecraft.registry.RegistryWrapper;
 import net.minecraft.util.collection.DefaultedList;
 import net.minecraft.util.math.BlockPos;
-import net.minecraft.util.math.Direction;
 import net.minecraft.util.math.Vec3i;
 
 import java.nio.file.Files;
@@ -70,10 +69,6 @@ public final class QuickLitematicaContainerMaterials {
     static final int ITEM_CELL_WIDTH = 20;
     static final int ITEM_CELL_HEIGHT = 28;
     static final int HEADER_HEIGHT = 22;
-    private static final Direction[] HORIZONTAL_DIRECTIONS = new Direction[] {
-            Direction.NORTH, Direction.SOUTH, Direction.WEST, Direction.EAST
-    };
-
     private QuickLitematicaContainerMaterials() {
     }
 
@@ -222,16 +217,37 @@ public final class QuickLitematicaContainerMaterials {
                     BlockState state = getState(states, pos);
                     BlockPos paired = findPairedChest(pos, state, states, entities, consumed);
                     consumed.add(pos);
+                    int pairedSize = 0;
                     if (paired != null) {
                         var pairedSlots = readItems(entities.get(paired), lookup);
                         if (pairedSlots == null) { continue; }
-                        slots.addAll(pairedSlots);
+                        List<ItemStack> currentHalf = padChestHalf(slots);
+                        List<ItemStack> pairedHalf = padChestHalf(pairedSlots);
+                        if (currentHalf == null || pairedHalf == null) { continue; }
+                        firstSize = currentHalf.size();
+                        pairedSize = pairedHalf.size();
+                        List<ItemStack> ordered = new ArrayList<>(firstSize + pairedSize);
+                        if (state.get(ChestBlock.CHEST_TYPE) == ChestType.RIGHT) {
+                            ordered.addAll(currentHalf);
+                            ordered.addAll(pairedHalf);
+                        } else {
+                            ordered.addAll(pairedHalf);
+                            ordered.addAll(currentHalf);
+                        }
+                        slots = ordered;
                         consumed.add(paired);
                     }
                     var descriptor = describeBlockContainer(state, entry.getValue(), paired != null);
                     var replaced = exportSlotStacks(descriptor.stack(), slots, context, lookup, 0, globals);
-                    writeSlotStacks(entry.getValue(), replaced.subList(0, firstSize), lookup);
-                    if (paired != null) { writeSlotStacks(entities.get(paired), replaced.subList(firstSize, replaced.size()), lookup); }
+                    if (paired == null) {
+                        writeSlotStacks(entry.getValue(), replaced, lookup);
+                    } else if (state.get(ChestBlock.CHEST_TYPE) == ChestType.RIGHT) {
+                        writeSlotStacks(entry.getValue(), replaced.subList(0, firstSize), lookup);
+                        writeSlotStacks(entities.get(paired), replaced.subList(firstSize, replaced.size()), lookup);
+                    } else {
+                        writeSlotStacks(entities.get(paired), replaced.subList(0, pairedSize), lookup);
+                        writeSlotStacks(entry.getValue(), replaced.subList(pairedSize, replaced.size()), lookup);
+                    }
                 }
             }
             if (entities != null) { QuickLitematicaContainerMaterialsAccess.setBlockEntities(copy, region, entities); }
@@ -395,7 +411,18 @@ public final class QuickLitematicaContainerMaterials {
                 NbtCompound pairedNbt = blockEntities.get(pairedChestPos);
                 var pairedStacks = readItemsForStatistics(pairedNbt, registryLookup);
                 if (pairedStacks == null) { continue; }
-                stacks.addAll(pairedStacks);
+                List<ItemStack> currentHalf = padChestHalf(stacks);
+                List<ItemStack> pairedHalf = padChestHalf(pairedStacks);
+                if (currentHalf == null || pairedHalf == null) { continue; }
+                if (state.get(ChestBlock.CHEST_TYPE) == ChestType.RIGHT) {
+                    currentHalf.addAll(pairedHalf);
+                    stacks = currentHalf;
+                } else {
+                    List<ItemStack> ordered = new ArrayList<>(pairedHalf.size() + currentHalf.size());
+                    ordered.addAll(pairedHalf);
+                    ordered.addAll(currentHalf);
+                    stacks = ordered;
+                }
                 consumed.add(pairedChestPos);
             }
 
@@ -636,6 +663,21 @@ public final class QuickLitematicaContainerMaterials {
         return container.get(x, y, z);
     }
 
+    private static List<ItemStack> padChestHalf(List<ItemStack> slots) {
+        if (slots == null || slots.size() > 27) {
+            return null;
+        }
+        if (slots.size() == 27) {
+            return slots;
+        }
+        List<ItemStack> padded = new ArrayList<>(27);
+        padded.addAll(slots);
+        while (padded.size() < 27) {
+            padded.add(ItemStack.EMPTY);
+        }
+        return padded;
+    }
+
     private static BlockPos findPairedChest(
             BlockPos pos,
             BlockState state,
@@ -653,24 +695,13 @@ public final class QuickLitematicaContainerMaterials {
             return null;
         }
 
-        for (Direction direction : HORIZONTAL_DIRECTIONS) {
-            BlockPos otherPos = pos.offset(direction);
-
-            if (consumed.contains(otherPos) || !blockEntities.containsKey(otherPos)) {
-                continue;
-            }
-
-            BlockState otherState = getState(stateContainer, otherPos);
-
-            if (otherState != null
-                    && otherState.getBlock() == state.getBlock()
-                    && otherState.getBlock() instanceof ChestBlock
-                    && otherState.get(ChestBlock.CHEST_TYPE) != ChestType.SINGLE) {
-                return otherPos;
-            }
+        BlockPos otherPos = pos.offset(ChestBlock.getFacing(state));
+        if (consumed.contains(otherPos) || !blockEntities.containsKey(otherPos)) {
+            return null;
         }
-
-        return null;
+        BlockState otherState = getState(stateContainer, otherPos);
+        return otherState != null && QuickLitematicaContainerVerifier.isMatchingDoubleChest(state, otherState)
+                ? otherPos : null;
     }
 
     private static ContainerDescriptor describeBlockContainer(
