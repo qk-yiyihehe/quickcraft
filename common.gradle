@@ -146,7 +146,7 @@ tasks.test {
 	workingDir = layout.buildDirectory.dir('test-runtime').get().asFile
 	doFirst {
 		workingDir.mkdirs()
-		systemProperty 'quickcraft.testClasses', (sourceSets.main.output.classesDirs.files + sourceSets.test.output.classesDirs.files).collect { it.absolutePath }.join(File.pathSeparator)
+		systemProperty 'quickcraft.mainClasses', sourceSets.main.output.classesDirs.files.collect { it.absolutePath }.join(File.pathSeparator)
 		// Gradle 测试工作进程通过独立类加载器提供依赖，Knot 不能只读取 java.class.path。
 		def gameLibraries = new File(workingDir, 'fabric-game-libraries.txt')
 		gameLibraries.setText(classpath.files.collect { it.absolutePath }.join('\n'), 'UTF-8')

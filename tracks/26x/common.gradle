@@ -138,7 +138,7 @@ tasks.test {
 	workingDir = layout.buildDirectory.dir('test-runtime').get().asFile
 	doFirst {
 		workingDir.mkdirs()
-		systemProperty 'quickcraft.testClasses', (sourceSets.main.output.classesDirs.files + sourceSets.test.output.classesDirs.files).collect { it.absolutePath }.join(File.pathSeparator)
+		systemProperty 'quickcraft.mainClasses', sourceSets.main.output.classesDirs.files.collect { it.absolutePath }.join(File.pathSeparator)
 		def gameLibraries = new File(workingDir, 'fabric-game-libraries.txt')
 		gameLibraries.setText(classpath.files.collect { it.absolutePath }.join('\n'), 'UTF-8')
 		systemProperty 'fabric.gameLibraries', '@' + gameLibraries.absolutePath
