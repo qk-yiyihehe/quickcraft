@@ -1,5 +1,7 @@
 package com.yiyihehe.quickcraft.mixin;
 
+import com.llamalad7.mixinextras.injector.wrapmethod.WrapMethod;
+import com.llamalad7.mixinextras.injector.wrapoperation.Operation;
 import com.yiyihehe.quickcraft.QuickFreeCameraInteractions;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.multiplayer.MultiPlayerGameMode;
@@ -97,6 +99,18 @@ public class QuickFreeCameraInteractionManagerMixin {
             target = "Lnet/minecraft/network/protocol/game/ServerboundInteractPacket;<init>(ILnet/minecraft/world/InteractionHand;Lnet/minecraft/world/phys/Vec3;Z)V"), index = 3)
     private boolean quickcraft$useFreeCameraSneakingForEntityUse(boolean originalSneaking) {
         return QuickFreeCameraInteractions.resolveEntitySneaking(Minecraft.getInstance(), originalSneaking);
+    }
+
+    @WrapMethod(method = "interact")
+    private InteractionResult quickcraft$restoreEntitySneakAfterUse(
+            Player player,
+            Entity entity,
+            EntityHitResult hitResult,
+            InteractionHand hand,
+            Operation<InteractionResult> original
+    ) {
+        return QuickFreeCameraInteractions.withEntityUseFromFreeCamera(
+                Minecraft.getInstance(), () -> original.call(player, entity, hitResult, hand));
     }
 
     @Inject(method = "attack", at = @At("HEAD"), cancellable = true)

@@ -2,6 +2,7 @@ package com.yiyihehe.quickcraft;
 
 import com.yiyihehe.quickcraft.config.QuickCraftConfigs;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.multiplayer.ClientPacketListener;
 import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
@@ -9,6 +10,7 @@ import net.minecraft.network.protocol.game.ServerboundMovePlayerPacket;
 import net.minecraft.network.protocol.game.ServerboundPlayerInputPacket;
 import net.minecraft.util.Mth;
 import net.minecraft.world.InteractionHand;
+import net.minecraft.world.InteractionResult;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.player.Input;
 import net.minecraft.world.item.BlockItem;
@@ -57,7 +59,9 @@ public final class QuickFreeCameraInteractions {
             BlockStateProperties.NOTE,
             BlockStateProperties.ROTATION_16);
     private static boolean sneakPlacementCommandSent;
+    private static boolean entitySneakingReleasePending;
     private static Input restoredPlayerInput;
+    private static ClientPacketListener temporarySneakConnection;
     private static boolean cameraFacingApplied;
     private static int cameraFacingDepth;
     private static boolean serverFacingRestorePending;
@@ -126,12 +130,42 @@ public final class QuickFreeCameraInteractions {
                 : QuickCraftConfigs.areFreeCameraBlockInteractionsEnabled();
     }
 
-    /** 26.x 的实体交互包自身携带潜行状态，不能只发送玩家输入包。 */
+    /** 26.x 的实体交互包自身携带潜行状态，交互结束后要恢复真实输入。 */
     public static boolean resolveEntitySneaking(Minecraft client, boolean originalSneaking) {
-        return originalSneaking
-                || (shouldOverrideCrosshair(client)
-                && QuickCraftConfigs.areFreeCameraEntityInteractionsEnabled()
-                && isSneakKeyPressed(client));
+        if (originalSneaking
+                || !shouldOverrideCrosshair(client)
+                || !QuickCraftConfigs.areFreeCameraEntityInteractionsEnabled()
+                || !isSneakKeyPressed(client)) {
+            return originalSneaking;
+        }
+        if (sneakPlacementCommandSent) {
+            return true;
+        }
+        if (!beginTemporarySneak(client)) {
+            return false;
+        }
+        entitySneakingReleasePending = true;
+        return true;
+    }
+
+    public static InteractionResult withEntityUseFromFreeCamera(Minecraft client, Supplier<InteractionResult> use) {
+        // 嵌套实体调用或方块交互已借用潜行时，由外层负责恢复。
+        boolean borrowedSneak = sneakPlacementCommandSent;
+        try {
+            return use.get();
+        } finally {
+            if (!borrowedSneak) {
+                endEntityUseFromFreeCamera(client);
+            }
+        }
+    }
+
+    static void endEntityUseFromFreeCamera(Minecraft client) {
+        if (!entitySneakingReleasePending) {
+            return;
+        }
+        entitySneakingReleasePending = false;
+        endSneakPlacement(client);
     }
 
     public static void beginBlockUseFromFreeCamera(Minecraft client, InteractionHand hand, BlockHitResult hitResult) {
@@ -262,7 +296,11 @@ public final class QuickFreeCameraInteractions {
 
     /** Tweakeroo V3 协议把方块方向和属性编码在命中点 X 坐标中。 */
     public static BlockHitResult encodeFreeCameraPlacementState(Minecraft client, BlockHitResult hitResult) {
-        if (!cameraFacingApplied || easyPlaceActionDepth > 0
+        return encodeFreeCameraPlacementState(client, hitResult, isV3PlacementProtocolActive());
+    }
+
+    static BlockHitResult encodeFreeCameraPlacementState(Minecraft client, BlockHitResult hitResult, boolean v3Protocol) {
+        if (!v3Protocol || isProtocolEncoded(hitResult) || !cameraFacingApplied || easyPlaceActionDepth > 0
                 || activeBlockUseHand == null || client == null || client.player == null) {
             return hitResult;
         }
@@ -289,16 +327,30 @@ public final class QuickFreeCameraInteractions {
     }
 
     private static void beginSneakPlacement(Minecraft client) {
-        if (sneakPlacementCommandSent || !shouldSneakPlaceFromFreeCamera(client)
-                || client.player == null || client.player.connection == null || client.player.input == null) {
-            return;
+        if (shouldSneakPlaceFromFreeCamera(client)) {
+            beginTemporarySneak(client);
         }
-        restoredPlayerInput = client.player.input.keyPresses;
-        Input sneaking = new Input(restoredPlayerInput.forward(), restoredPlayerInput.backward(),
-                restoredPlayerInput.left(), restoredPlayerInput.right(),
-                restoredPlayerInput.jump(), true, restoredPlayerInput.sprint());
-        client.player.connection.send(new ServerboundPlayerInputPacket(sneaking));
+    }
+
+    private static boolean beginTemporarySneak(Minecraft client) {
+        if (sneakPlacementCommandSent) {
+            return true;
+        }
+        if (client == null || client.player == null || client.getConnection() == null
+                || client.player.input == null || client.player.input.keyPresses == null) {
+            return false;
+        }
+        Input original = client.player.input.keyPresses;
+        if (original.shift()) {
+            return false;
+        }
+        restoredPlayerInput = original;
+        temporarySneakConnection = client.getConnection();
+        Input sneaking = new Input(original.forward(), original.backward(),
+                original.left(), original.right(), original.jump(), true, original.sprint());
+        temporarySneakConnection.send(new ServerboundPlayerInputPacket(sneaking));
         sneakPlacementCommandSent = true;
+        return true;
     }
 
     private static void endSneakPlacement(Minecraft client) {
@@ -307,9 +359,11 @@ public final class QuickFreeCameraInteractions {
         }
         sneakPlacementCommandSent = false;
         Input restored = restoredPlayerInput;
+        ClientPacketListener connection = temporarySneakConnection;
         restoredPlayerInput = null;
-        if (client != null && client.player != null && client.player.connection != null && restored != null) {
-            client.player.connection.send(new ServerboundPlayerInputPacket(restored));
+        temporarySneakConnection = null;
+        if (client != null && client.getConnection() == connection && connection != null && restored != null) {
+            connection.send(new ServerboundPlayerInputPacket(restored));
         }
     }
 
@@ -394,7 +448,7 @@ public final class QuickFreeCameraInteractions {
             if (directionProperty.isPresent() && property.equals(directionProperty.get())) {
                 continue;
             }
-            if (directionProperty.isEmpty() && !V3_PROPERTIES_WITHOUT_DIRECTION.contains(property)) {
+            if (!V3_PROPERTIES_WITHOUT_DIRECTION.contains(property)) {
                 continue;
             }
             protocolValue |= getSortedValueIndex(state, property) << shift;
@@ -408,6 +462,25 @@ public final class QuickFreeCameraInteractions {
         List<T> values = new ArrayList<>(property.getPossibleValues());
         values.sort(Comparable::compareTo);
         return values.indexOf(state.getValue(property));
+    }
+
+    private static boolean isV3PlacementProtocolActive() {
+        try {
+            Class<?> generic = Class.forName("fi.dy.masa.tweakeroo.config.Configs$Generic");
+            Object protocolConfig = generic.getField("ACCURATE_PLACEMENT_PROTOCOL").get(null);
+            if (!Boolean.TRUE.equals(protocolConfig.getClass().getMethod("getBooleanValue").invoke(protocolConfig))) {
+                return false;
+            }
+            Class<?> handler = Class.forName("fi.dy.masa.tweakeroo.tweaks.PlacementHandler");
+            Object protocol = handler.getMethod("getEffectiveProtocolVersion").invoke(null);
+            return protocol instanceof Enum<?> value && "V3".equals(value.name());
+        } catch (ReflectiveOperationException | LinkageError ignored) {
+            return false;
+        }
+    }
+
+    private static boolean isProtocolEncoded(BlockHitResult hitResult) {
+        return Math.abs(hitResult.getLocation().x - hitResult.getBlockPos().getX() - 0.5D) > 1.0D;
     }
 
     private static boolean isSneakKeyPressed(Minecraft client) {

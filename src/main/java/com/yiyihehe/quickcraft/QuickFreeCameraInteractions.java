@@ -293,7 +293,17 @@ public final class QuickFreeCameraInteractions {
             MinecraftClient client,
             BlockHitResult hitResult
     ) {
-        if (!cameraFacingApplied
+        return encodeFreeCameraPlacementState(client, hitResult, isV3PlacementProtocolActive());
+    }
+
+    static BlockHitResult encodeFreeCameraPlacementState(
+            MinecraftClient client,
+            BlockHitResult hitResult,
+            boolean v3Protocol
+    ) {
+        if (!v3Protocol
+                || isProtocolEncoded(hitResult)
+                || !cameraFacingApplied
                 || easyPlaceActionDepth > 0
                 || activeBlockUseHand == null
                 || client == null
@@ -443,11 +453,10 @@ public final class QuickFreeCameraInteractions {
         properties.sort(Comparator.comparing(Property::getName));
         boolean encodedProperty = directionProperty != null;
         for (Property<?> property : properties) {
-            if (directionProperty != null) {
-                if (property.equals(directionProperty)) {
-                    continue;
-                }
-            } else if (!V3_PROPERTIES_WITHOUT_DIRECTION.contains(property)) {
+            if (directionProperty != null && property.equals(directionProperty)) {
+                continue;
+            }
+            if (!V3_PROPERTIES_WITHOUT_DIRECTION.contains(property)) {
                 continue;
             }
 
@@ -465,6 +474,25 @@ public final class QuickFreeCameraInteractions {
         List<T> values = new ArrayList<>(property.getValues());
         values.sort(Comparable::compareTo);
         return values.indexOf(state.get(property));
+    }
+
+    private static boolean isV3PlacementProtocolActive() {
+        try {
+            Class<?> generic = Class.forName("fi.dy.masa.tweakeroo.config.Configs$Generic");
+            Object protocolConfig = generic.getField("ACCURATE_PLACEMENT_PROTOCOL").get(null);
+            if (!Boolean.TRUE.equals(protocolConfig.getClass().getMethod("getBooleanValue").invoke(protocolConfig))) {
+                return false;
+            }
+            Class<?> handler = Class.forName("fi.dy.masa.tweakeroo.tweaks.PlacementHandler");
+            Object protocol = handler.getMethod("getEffectiveProtocolVersion").invoke(null);
+            return protocol instanceof Enum<?> value && "V3".equals(value.name());
+        } catch (ReflectiveOperationException | LinkageError ignored) {
+            return false;
+        }
+    }
+
+    private static boolean isProtocolEncoded(BlockHitResult hitResult) {
+        return Math.abs(hitResult.getPos().x - hitResult.getBlockPos().getX() - 0.5D) > 1.0D;
     }
 
     private static boolean isSneakKeyPressed(MinecraftClient client) {
