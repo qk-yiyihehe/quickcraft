@@ -663,7 +663,7 @@ public final class QuickContainerCopy implements ClientModInitializer {
         TemporaryContainerStash stash = task.temporaryStash;
         boolean stashPending = false;
         if (stash != null && !tryRestoreContinuousStash(client, task, stash)) {
-            pendingStashRecovery = new PendingStashRecovery(task.target, task.worldKey, task.worldRef, stash);
+            pendingStashRecovery = new PendingStashRecovery(task.target, task.worldRef, stash);
             stashPending = true;
         }
         Component displayMessage = stashPending ? stashPendingMessage(message, stash) : message;
@@ -748,7 +748,6 @@ public final class QuickContainerCopy implements ClientModInitializer {
         PendingStashRecovery pending = pendingStashRecovery;
         if (pending.worldRef() == null
                 || pending.worldRef().get() != client.level
-                || !pending.worldKey().equals(client.level.dimension())
                 || !currentTargetStillMatches(client, pending.target(), client.hitResult)) {
             return;
         }
@@ -780,8 +779,7 @@ public final class QuickContainerCopy implements ClientModInitializer {
         }
         if (client == null || client.level == null
                 || pending.worldRef() == null
-                || pending.worldRef().get() != client.level
-                || !pending.worldKey().equals(client.level.dimension())) {
+                || pending.worldRef().get() != client.level) {
             return true;
         }
         StashTargetRelation relation = classifyStashTarget(client, pending.target(), operationTarget);
@@ -2845,7 +2843,6 @@ public final class QuickContainerCopy implements ClientModInitializer {
     }
 
     private record PendingStashRecovery(TargetInteraction target,
-                                        ResourceKey<Level> worldKey,
                                         WeakReference<Level> worldRef,
                                         TemporaryContainerStash stash) {
     }

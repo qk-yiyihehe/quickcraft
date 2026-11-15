@@ -47,6 +47,7 @@ import java.util.Map;
  * 根据鼠标所在的玩家区/容器区决定整理目标，先合并同类堆叠，再按固定顺序重排槽位。
  */
 public class QuickSort implements ClientModInitializer {
+    private static final org.slf4j.Logger LOGGER = org.slf4j.LoggerFactory.getLogger("QuickCraft/Sort");
     private static final int SLOT_SIZE = 18;
     private static final int BOUNDS_PADDING = 4;
     private static final List<ResourceKey<CreativeModeTab>> CATEGORY_ORDER = List.of(
@@ -138,20 +139,26 @@ public class QuickSort implements ClientModInitializer {
         }
 
         AbstractContainerMenu targetHandler = target.handler();
-        if (!targetHandler.getCarried().isEmpty() && !storeCursorStackForTarget(gui, target)) {
-            notifySortIncomplete(client);
-            return;
-        }
-
-        mergeIdenticalStacks(targetHandler, target.slotIds);
-        if (!reorderSlots(targetHandler, target.slotIds, buildTargetOrder(targetHandler, target.slotIds), targetHandler == handler)) {
-            if (!targetHandler.getCarried().isEmpty()) {
-                storeCursorStackForTarget(gui, target);
+        try {
+            if (!targetHandler.getCarried().isEmpty() && !storeCursorStackForTarget(gui, target)) {
+                notifySortIncomplete(client);
+                return;
             }
-            notifySortIncomplete(client);
-            return;
-        }
-        if (!targetHandler.getCarried().isEmpty() && !storeCursorStackForTarget(gui, target)) {
+
+            mergeIdenticalStacks(targetHandler, target.slotIds);
+            if (!reorderSlots(targetHandler, target.slotIds, buildTargetOrder(targetHandler, target.slotIds), targetHandler == handler)) {
+                if (!targetHandler.getCarried().isEmpty()) {
+                    storeCursorStackForTarget(gui, target);
+                }
+                notifySortIncomplete(client);
+                return;
+            }
+            if (!targetHandler.getCarried().isEmpty() && !storeCursorStackForTarget(gui, target)) {
+                notifySortIncomplete(client);
+            }
+        } catch (RuntimeException exception) {
+            // 点击失败后不再尝试后续交换或回填，保留光标供玩家处理。
+            LOGGER.warn("整理已中止：槽位点击或客户端容器处理失败", exception);
             notifySortIncomplete(client);
         }
     }
@@ -205,7 +212,7 @@ public class QuickSort implements ClientModInitializer {
             .toList();
 
         if (gui instanceof CreativeModeInventoryScreen creativeScreen) {
-            addCreativeTargets(creativeScreen, targets, playerSlots, guiLeft, guiTop);
+            addCreativeInventoryTabTargets(creativeScreen, targets, playerSlots, guiLeft, guiTop);
             return targets;
         }
 
@@ -229,19 +236,6 @@ public class QuickSort implements ClientModInitializer {
         }
 
         return targets;
-    }
-
-    private static void addCreativeTargets(CreativeModeInventoryScreen gui,
-                                           List<SortTarget> targets,
-                                           List<Slot> playerSlots,
-                                           int guiLeft,
-                                           int guiTop) {
-        if (gui.isInventoryOpen()) {
-            addCreativeInventoryTabTargets(gui, targets, playerSlots, guiLeft, guiTop);
-            return;
-        }
-
-        addCreativeHotbarTarget(gui, targets, playerSlots, guiLeft, guiTop);
     }
 
     private static void addCreativeInventoryTabTargets(CreativeModeInventoryScreen gui,
@@ -271,26 +265,6 @@ public class QuickSort implements ClientModInitializer {
                 handler
             ));
         }
-    }
-
-    private static void addCreativeHotbarTarget(CreativeModeInventoryScreen gui,
-                                                List<SortTarget> targets,
-                                                List<Slot> playerSlots,
-                                                int guiLeft,
-                                                int guiTop) {
-        AbstractContainerMenu handler = gui.getMenu();
-        List<Slot> hotbarSlots = exactPlayerSlots(playerSlots, 0, 9);
-        if (hotbarSlots.size() != 9) {
-            return;
-        }
-
-        // 创造分类页只显示快捷栏，不能把上方物品列表当成玩家背包整理。
-        targets.add(new SortTarget(
-            "creative-player-hotbar",
-            toUnlockedPlayerSortSlotIds(handler, hotbarSlots),
-            Bounds.fromSlots(hotbarSlots, guiLeft, guiTop),
-            handler
-        ));
     }
 
     private static List<SortTarget> buildContainerTargets(AbstractContainerScreen<?> gui, int guiLeft, int guiTop) {
@@ -1139,26 +1113,24 @@ public class QuickSort implements ClientModInitializer {
             return;
         }
 
-        try {
-            if (getCurrentScreen(client) instanceof CreativeModeInventoryScreen creativeScreen
-                && handler == creativeScreen.getMenu()) {
-                Slot slot = slotId >= 0 && slotId < handler.slots.size()
-                    ? handler.getSlot(slotId)
-                    : null;
-                ((CreativeInventoryScreenInvoker) creativeScreen)
-                    .quickcraft$invokeOnMouseClick(slot, slotId, button, actionType);
-                return;
-            }
-
-            client.gameMode.handleContainerInput(
-                handler.containerId,
-                slotId,
-                button,
-                actionType,
-                client.player
-            );
-        } catch (Exception ignored) {
+        if (getCurrentScreen(client) instanceof CreativeModeInventoryScreen creativeScreen
+            && handler == creativeScreen.getMenu()) {
+            Slot slot = slotId >= 0 && slotId < handler.slots.size()
+                ? handler.getSlot(slotId)
+                : null;
+            ((CreativeInventoryScreenInvoker) creativeScreen)
+                .quickcraft$invokeOnMouseClick(slot, slotId, button, actionType);
+            return;
         }
+
+        client.gameMode.handleContainerInput(
+            handler.containerId,
+            slotId,
+            button,
+            actionType,
+            client.player
+        );
+
     }
 
     private static List<Slot> sortSlotsForLayout(List<Slot> slots) {

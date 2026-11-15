@@ -59,6 +59,41 @@ import static org.mockito.Mockito.when;
 @org.junit.jupiter.api.extension.ExtendWith(com.yiyihehe.quickcraft.QuickCraftMinecraftTestBootstrap.class)
 class QuickContainerSafetyTest {
     @Test
+    void sortAbortsAfterFirstClickExceptionWithoutFurtherClicksOrCursorRecovery() throws Exception {
+        MinecraftClient client = mock(MinecraftClient.class);
+        ClientPlayerEntity player = mock(ClientPlayerEntity.class);
+        ClientPlayerInteractionManager manager = mock(ClientPlayerInteractionManager.class);
+        setField(client, "player", player);
+        setField(client, "interactionManager", manager);
+        TestScreenHandler handler = new TestScreenHandler();
+        SimpleInventory inventory = new SimpleInventory(2);
+        handler.addTestSlot(inventory, 0);
+        handler.addTestSlot(inventory, 1);
+        handler.setCursorStack(new ItemStack(Items.STONE, 3));
+        net.minecraft.client.gui.screen.ingame.HandledScreen<?> screen = mock(net.minecraft.client.gui.screen.ingame.HandledScreen.class);
+        doReturn(handler).when(screen).getScreenHandler();
+        org.mockito.Mockito.doThrow(new IllegalStateException("simulated third-party menu failure"))
+                .when(manager).clickSlot(anyInt(), anyInt(), anyInt(), any(SlotActionType.class), any(PlayerEntity.class));
+        Class<?> targetType = java.util.Arrays.stream(QuickSort.class.getDeclaredClasses())
+                .filter(type -> type.getSimpleName().equals("SortTarget")).findFirst().orElseThrow();
+        var constructor = targetType.getDeclaredConstructors()[0];
+        constructor.setAccessible(true);
+        Object target = constructor.newInstance("container", List.of(0, 1), null, handler);
+        Method sort = QuickSort.class.getDeclaredMethod("sortInventory", net.minecraft.client.gui.screen.ingame.HandledScreen.class, targetType);
+        sort.setAccessible(true);
+        try (var minecraft = mockStatic(MinecraftClient.class);
+             var locks = mockStatic(QuickContainerLock.class)) {
+            minecraft.when(MinecraftClient::getInstance).thenReturn(client);
+            sort.invoke(null, screen, target);
+        }
+        verify(manager).clickSlot(anyInt(), anyInt(), anyInt(), any(SlotActionType.class), any(PlayerEntity.class));
+        assertThat(handler.getCursorStack().getCount()).isEqualTo(3);
+        assertThat(inventory.getStack(0).isEmpty()).isTrue();
+        assertThat(inventory.getStack(1).isEmpty()).isTrue();
+        verify(player).sendMessage(Text.translatable("quickcraft.message.sort.incomplete"), true);
+    }
+
+    @Test
     void sameItemFullAndPartialStackSwapsWithoutHotbarBuffer() throws Exception {
         MinecraftClient client = mock(MinecraftClient.class);
         ClientPlayerInteractionManager interactionManager = mock(ClientPlayerInteractionManager.class);
@@ -829,10 +864,10 @@ class QuickContainerSafetyTest {
             throws Exception {
         Class<?> pendingClass = copyNested("PendingStashRecovery");
         var constructor = pendingClass.getDeclaredConstructor(
-                copyNested("TargetInteraction"), RegistryKey.class, WeakReference.class,
+                copyNested("TargetInteraction"), WeakReference.class,
                 copyNested("TemporaryContainerStash"));
         constructor.setAccessible(true);
-        return constructor.newInstance(target, World.OVERWORLD, worldRef, stash);
+        return constructor.newInstance(target, worldRef, stash);
     }
 
     private static Object successMessage(String key) throws Exception {

@@ -66,6 +66,42 @@ import static org.mockito.Mockito.when;
 @org.junit.jupiter.api.extension.ExtendWith(com.yiyihehe.quickcraft.QuickCraftMinecraftTestBootstrap.class)
 class QuickContainerSafetyTest {
     @Test
+    void sortAbortsAfterFirstClickExceptionWithoutFurtherClicksOrCursorRecovery() throws Exception {
+        Minecraft client = mock(Minecraft.class);
+        LocalPlayer player = mock(LocalPlayer.class);
+        MultiPlayerGameMode manager = mock(MultiPlayerGameMode.class);
+        setField(client, "player", player);
+        setField(client, "gameMode", manager);
+        TestMenu handler = new TestMenu();
+        SimpleContainer inventory = new SimpleContainer(2);
+        handler.addTestSlot(inventory, 0);
+        handler.addTestSlot(inventory, 1);
+        handler.setCarried(new ItemStack(Items.STONE, 3));
+        AbstractContainerScreen<?> screen = mock(AbstractContainerScreen.class);
+        doReturn(handler).when(screen).getMenu();
+        setClientScreen(client, screen);
+        org.mockito.Mockito.doThrow(new IllegalStateException("simulated third-party menu failure"))
+                .when(manager).handleContainerInput(anyInt(), anyInt(), anyInt(), any(ContainerInput.class), any(Player.class));
+        Class<?> targetType = java.util.Arrays.stream(QuickSort.class.getDeclaredClasses())
+                .filter(type -> type.getSimpleName().equals("SortTarget")).findFirst().orElseThrow();
+        var constructor = targetType.getDeclaredConstructors()[0];
+        constructor.setAccessible(true);
+        Object target = constructor.newInstance("container", List.of(0, 1), null, handler);
+        Method sort = QuickSort.class.getDeclaredMethod("sortInventory", AbstractContainerScreen.class, targetType);
+        sort.setAccessible(true);
+        try (var minecraft = mockStatic(Minecraft.class);
+             var locks = mockStatic(QuickContainerLock.class)) {
+            minecraft.when(Minecraft::getInstance).thenReturn(client);
+            sort.invoke(null, screen, target);
+        }
+        verify(manager).handleContainerInput(anyInt(), anyInt(), anyInt(), any(ContainerInput.class), any(Player.class));
+        assertThat(handler.getCarried().getCount()).isEqualTo(3);
+        assertThat(inventory.getItem(0).isEmpty()).isTrue();
+        assertThat(inventory.getItem(1).isEmpty()).isTrue();
+        verify(player).sendOverlayMessage(Component.translatable("quickcraft.message.sort.incomplete"));
+    }
+
+    @Test
     void sameItemFullAndPartialStackSwapsWithoutHotbarBuffer() throws Exception {
         Minecraft client = mock(Minecraft.class);
         MultiPlayerGameMode gameMode = mock(MultiPlayerGameMode.class);
@@ -809,10 +845,10 @@ class QuickContainerSafetyTest {
             throws Exception {
         Class<?> pendingClass = copyNested("PendingStashRecovery");
         var constructor = pendingClass.getDeclaredConstructor(
-                copyNested("TargetInteraction"), ResourceKey.class, WeakReference.class,
+                copyNested("TargetInteraction"), WeakReference.class,
                 copyNested("TemporaryContainerStash"));
         constructor.setAccessible(true);
-        return constructor.newInstance(target, Level.OVERWORLD, worldRef, stash);
+        return constructor.newInstance(target, worldRef, stash);
     }
 
     private static Object successMessage(String key) throws Exception {

@@ -661,7 +661,7 @@ public final class QuickContainerCopy implements ClientModInitializer {
         TemporaryContainerStash stash = task.temporaryStash;
         boolean stashPending = false;
         if (stash != null && !tryRestoreContinuousStash(client, task, stash)) {
-            pendingStashRecovery = new PendingStashRecovery(task.target, task.worldKey, task.worldRef, stash);
+            pendingStashRecovery = new PendingStashRecovery(task.target, task.worldRef, stash);
             stashPending = true;
         }
         Text displayMessage = stashPending ? stashPendingMessage(message, stash) : message;
@@ -744,7 +744,6 @@ public final class QuickContainerCopy implements ClientModInitializer {
         PendingStashRecovery pending = pendingStashRecovery;
         if (pending.worldRef() == null
                 || pending.worldRef().get() != client.world
-                || !pending.worldKey().equals(client.world.getRegistryKey())
                 || !currentTargetStillMatches(client, pending.target(), client.crosshairTarget)) {
             return;
         }
@@ -776,8 +775,7 @@ public final class QuickContainerCopy implements ClientModInitializer {
         }
         if (client == null || client.world == null
                 || pending.worldRef() == null
-                || pending.worldRef().get() != client.world
-                || !pending.worldKey().equals(client.world.getRegistryKey())) {
+                || pending.worldRef().get() != client.world) {
             return true;
         }
         StashTargetRelation relation = classifyStashTarget(client, pending.target(), operationTarget);
@@ -2837,7 +2835,6 @@ public final class QuickContainerCopy implements ClientModInitializer {
     }
 
     private record PendingStashRecovery(TargetInteraction target,
-                                        RegistryKey<World> worldKey,
                                         WeakReference<World> worldRef,
                                         TemporaryContainerStash stash) {
     }
