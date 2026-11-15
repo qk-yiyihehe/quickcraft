@@ -1207,7 +1207,6 @@ public final class QuickCraftWorkbenchShulkerCraft implements ClientModInitializ
             return true;
         }
 
-        boolean exactStateMatches = handlerMatchesAckExpected(handler);
         boolean terminalStateSafe = isAckBatchTerminalStateSafe(handler);
         if (!shouldConfirmAckStatsProbe(currentProbe, terminalStateSafe)) {
             stop(client, Text.translatable("quickcraft.message.crafting.shulker_grid_desync"));
@@ -1313,11 +1312,6 @@ public final class QuickCraftWorkbenchShulkerCraft implements ClientModInitializ
     private RecipeEntry<CraftingRecipe> findCurrentRecipe(MinecraftClient client,
                                                            CraftingScreenHandler handler) {
         return QuickCraftWorkbenchShulkerAccess.findCurrentRecipe(client, createInput(handler));
-    }
-
-    private boolean hasRemainder(RecipeEntry<CraftingRecipe> currentRecipe,
-                                 CraftingScreenHandler handler) {
-        return QuickCraftWorkbenchShulkerAccess.hasRemainder(currentRecipe, createInput(handler));
     }
 
     private List<ItemStack> snapshotRemainderPattern(RecipeEntry<CraftingRecipe> currentRecipe,

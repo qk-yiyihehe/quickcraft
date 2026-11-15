@@ -6,6 +6,7 @@ import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+@org.junit.jupiter.api.extension.ExtendWith(com.yiyihehe.quickcraft.QuickCraftMinecraftTestBootstrap.class)
 class QuickCraftWorkbenchShulkerTest {
     @Test
 //#if MC<12111
@@ -30,13 +31,20 @@ class QuickCraftWorkbenchShulkerTest {
     }
 
     @Test
-    @DisplayName("来源潜影盒扫描完整三十六格玩家物品栏")
-    void sourceScanCount_usesFullPlayerInventory() {
-        assertThat(QuickCraftWorkbenchShulker.sourceScanCount(-1)).isZero();
-        assertThat(QuickCraftWorkbenchShulker.sourceScanCount(12)).isEqualTo(12);
-        assertThat(QuickCraftWorkbenchShulker.sourceScanCount(30)).isEqualTo(30);
-        assertThat(QuickCraftWorkbenchShulker.sourceScanCount(36)).isEqualTo(36);
-        assertThat(QuickCraftWorkbenchShulker.sourceScanCount(40)).isEqualTo(36);
+    @DisplayName("实际来源槽枚举覆盖三十六格并排除装备与副手")
+    void sourceSlots_useFullPlayerInventoryAndExcludeEquipment() throws Exception {
+        var inventory = org.mockito.Mockito.mock(net.minecraft.entity.player.PlayerInventory.class);
+        var handler = net.minecraft.screen.GenericContainerScreenHandler.createGeneric9x3(0, inventory);
+        handler.slots.add(new net.minecraft.screen.slot.Slot(inventory, 36, 0, 0));
+        handler.slots.add(new net.minecraft.screen.slot.Slot(inventory, 40, 0, 0));
+        java.util.Collections.reverse(handler.slots);
+        var method = QuickCraftWorkbenchShulker.class.getDeclaredMethod(
+                "getPlayerStorageSlots", net.minecraft.screen.ScreenHandler.class);
+        method.setAccessible(true);
+        var slots = (java.util.List<?>) method.invoke(null, handler);
+        assertThat(slots).hasSize(36);
+        assertThat(slots.stream().map(value -> ((net.minecraft.screen.slot.Slot) value).getIndex()).toList())
+                .containsExactlyElementsOf(java.util.stream.IntStream.range(0, 36).boxed().toList());
     }
 
     @Test

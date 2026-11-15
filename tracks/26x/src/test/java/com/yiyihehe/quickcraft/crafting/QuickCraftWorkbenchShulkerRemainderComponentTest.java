@@ -1,6 +1,12 @@
 package com.yiyihehe.quickcraft.crafting;
 
 import com.yiyihehe.quickcraft.QuickCraftMinecraftTestBootstrap;
+import com.yiyihehe.quickcraft.QuickClientScreenAccess;
+import net.minecraft.client.multiplayer.ClientLevel;
+import net.minecraft.client.gui.screens.inventory.CraftingScreen;
+import net.minecraft.world.phys.AABB;
+import static org.mockito.Mockito.mockStatic;
+import static org.mockito.Mockito.when;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.multiplayer.MultiPlayerGameMode;
 import net.minecraft.client.player.LocalPlayer;
@@ -30,38 +36,54 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
-/** DS-CRF-04（26x 轨）：盒喷返还物按物品与组件身份比较，用户自定义同类物品不得被整组丢出。 */
+/** 26x 保持拒绝返还物配方；不再用反射造出生产不可达的返还物丢弃状态。 */
 @ExtendWith(QuickCraftMinecraftTestBootstrap.class)
 class QuickCraftWorkbenchShulkerRemainderComponentTest {
     @Test
-    void changedComponentRemainderSlotIsNotDiscardedButRealRemainderStillIs() throws Exception {
+    void remainderRecipeIsRejectedByProductionStartBeforeAnyClick() throws Exception {
         Fixture fixture = new Fixture();
-        fixture.set("recipeHasRemainder", true);
-        fixture.set("remainderPattern", patternOf(Items.BUCKET));
-        fixture.set("pattern", patternOf(Items.MILK_BUCKET));
-
-        ItemStack customBucket = new ItemStack(Items.BUCKET);
-        customBucket.set(DataComponents.CUSTOM_NAME, Component.literal("user bucket"));
-        fixture.handler.getSlot(1).set(customBucket);
-        int discarded = fixture.discardGridRemainders();
-        assertThat(discarded).isZero();
-        assertThat(fixture.handler.getSlot(1).getItem().is(Items.BUCKET)).isTrue();
+        fixture.handler.getSlot(1).set(new ItemStack(Items.MILK_BUCKET));
+        fixture.handler.getSlot(0).set(new ItemStack(Items.STICK));
+        setField(fixture.client, "level", mock(ClientLevel.class));
+        setField(fixture.player, "containerMenu", fixture.handler);
+        when(fixture.player.getBoundingBox()).thenReturn(new AABB(0, 0, 0, 1, 2, 1));
+        try (var availability = mockStatic(QuickCraftWorkbenchShulker.class);
+             var screens = mockStatic(QuickClientScreenAccess.class)) {
+            availability.when(QuickCraftWorkbenchShulker::isAvailable).thenReturn(true);
+            screens.when(() -> QuickClientScreenAccess.currentScreen(fixture.client))
+                    .thenReturn(mock(CraftingScreen.class));
+            Method start = QuickCraftWorkbenchShulkerCraft.class.getDeclaredMethod(
+                    "start", Minecraft.class, boolean.class);
+            start.setAccessible(true);
+            assertThat((Boolean) start.invoke(fixture.shulker, fixture.client, true)).isFalse();
+        }
+        verify(fixture.player).sendOverlayMessage(
+                Component.translatable("quickcraft.message.crafting.shulker_recipe_remainder"));
         verify(fixture.gameMode, never()).handleContainerInput(anyInt(), anyInt(), anyInt(),
                 any(ContainerInput.class), any());
+        assertThat(fixture.handler.getSlot(1).getItem().is(Items.MILK_BUCKET)).isTrue();
+    }
 
+    @Test
+    void ingredientCompatibilityRejectsBothPlainAndRenamedBucket() throws Exception {
+        Fixture fixture = new Fixture();
+        fixture.set("pattern", patternOf(Items.MILK_BUCKET));
+        Method compatible = QuickCraftWorkbenchShulkerCraft.class.getDeclaredMethod(
+                "isPatternGridCompatible", CraftingMenu.class);
+        compatible.setAccessible(true);
         fixture.handler.getSlot(1).set(new ItemStack(Items.BUCKET));
-        int genuine = fixture.discardGridRemainders();
-        assertThat(genuine).isEqualTo(1);
-        assertThat(fixture.handler.getSlot(1).hasItem()).isFalse();
-        verify(fixture.gameMode).handleContainerInput(anyInt(), eq(1), eq(1),
-                eq(ContainerInput.THROW), any());
+        assertThat((Boolean) compatible.invoke(fixture.shulker, fixture.handler)).isFalse();
+        ItemStack custom = new ItemStack(Items.BUCKET);
+        custom.set(DataComponents.CUSTOM_NAME, Component.literal("user bucket"));
+        fixture.handler.getSlot(1).set(custom);
+        assertThat((Boolean) compatible.invoke(fixture.shulker, fixture.handler)).isFalse();
+        verify(fixture.gameMode, never()).handleContainerInput(anyInt(), anyInt(), anyInt(),
+                any(ContainerInput.class), any());
     }
 
     @Test
     void outputBoxSlotWithSameItemDifferentComponentsIsNotDiscarded() throws Exception {
         Fixture fixture = new Fixture();
-        fixture.set("recipeHasRemainder", true);
-        fixture.set("remainderPattern", patternOf(Items.BUCKET));
         fixture.set("pattern", patternOf(Items.MILK_BUCKET));
 
         ItemStack customBucket = new ItemStack(Items.BUCKET);
@@ -106,13 +128,6 @@ class QuickCraftWorkbenchShulkerRemainderComponentTest {
                     any(ContainerInput.class), any(Player.class));
             setField(client, "player", player);
             setField(client, "gameMode", gameMode);
-        }
-
-        private int discardGridRemainders() throws Exception {
-            Method method = QuickCraftWorkbenchShulkerCraft.class.getDeclaredMethod(
-                    "discardGridRemainders", Minecraft.class, CraftingMenu.class);
-            method.setAccessible(true);
-            return (Integer) method.invoke(shulker, client, handler);
         }
 
         private boolean returnOutputBox(int sourceSlotId) throws Exception {

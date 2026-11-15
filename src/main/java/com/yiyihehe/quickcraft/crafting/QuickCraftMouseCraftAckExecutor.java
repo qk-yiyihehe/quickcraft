@@ -50,7 +50,6 @@ public final class QuickCraftMouseCraftAckExecutor {
     }
 
     private final QuickCraftMouseCraftLayout.Layout layout;
-    private final LegacyFallbackHandler fallbackHandler;
     private final SnapshotRefillHandler snapshotRefillHandler;
     private final IngredientAvailabilityHandler ingredientAvailabilityHandler;
     private Session session;
@@ -60,45 +59,16 @@ public final class QuickCraftMouseCraftAckExecutor {
     private boolean dispatchingBatch;
     private long dispatchingBatchLogId;
 
-    public QuickCraftMouseCraftAckExecutor(QuickCraftMouseCraftLayout.Layout layout) {
-        this(layout, null, null, null);
-    }
-
     public QuickCraftMouseCraftAckExecutor(QuickCraftMouseCraftLayout.Layout layout,
-                                           LegacyFallbackHandler fallbackHandler) {
-        this(layout, fallbackHandler, null, null);
-    }
-
-    public QuickCraftMouseCraftAckExecutor(QuickCraftMouseCraftLayout.Layout layout,
-                                           LegacyFallbackHandler fallbackHandler,
-                                           SnapshotRefillHandler snapshotRefillHandler) {
-        this(layout, fallbackHandler, snapshotRefillHandler, null);
-    }
-
-    public QuickCraftMouseCraftAckExecutor(QuickCraftMouseCraftLayout.Layout layout,
-                                           LegacyFallbackHandler fallbackHandler,
                                            SnapshotRefillHandler snapshotRefillHandler,
                                            IngredientAvailabilityHandler ingredientAvailabilityHandler) {
         this.layout = layout;
-        this.fallbackHandler = fallbackHandler;
         this.snapshotRefillHandler = snapshotRefillHandler;
         this.ingredientAvailabilityHandler = ingredientAvailabilityHandler;
     }
 
     public boolean isActive() {
         return activeExecutor == this && session != null;
-    }
-
-    public static boolean shouldBlockScreenInput() {
-        MinecraftClient client = MinecraftClient.getInstance();
-        if (client.player != null && !client.player.currentScreenHandler.getCursorStack().isEmpty()) {
-            return false;
-        }
-        if (activeExecutor != null && activeExecutor.isActive()) {
-            return true;
-        }
-        return client.player != null
-                && isCanceledBatchDraining(client.player.currentScreenHandler);
     }
 
     public boolean owns(ScreenHandler handler) {
@@ -1836,23 +1806,6 @@ public final class QuickCraftMouseCraftAckExecutor {
         finish(Text.translatable("quickcraft.message.crafting.stopped"), reason);
     }
 
-    private void handoffToLegacy(MinecraftClient client, String reason) {
-        if (!isActive()) {
-            return;
-        }
-        Session handedOff = session;
-        handedOff.legacyHandoffs++;
-        if (QuickCraftConfigs.isMouseCraftAckDebugEnabled()) {
-            LOGGER.warn(diagnosticContext() + "手动补货ACK回退旧流程：界面={}，批次=#{}，原因={}",
-                    layout.name(), handedOff.batchId, reason);
-        }
-        clearSession();
-        logSummary(handedOff, "回退旧Tick流程：" + reason, 0, handedOff.inputHeld.getAsBoolean());
-        if (fallbackHandler != null && client != null && client.player != null) {
-            fallbackHandler.fallback(client, handedOff.handler);
-        }
-    }
-
     private void logBatchDispatch(Session current,
                                   int outputMoveOperations,
                                   long dispatchMicros,
@@ -1896,8 +1849,8 @@ public final class QuickCraftMouseCraftAckExecutor {
                             + "请求={}，强制全量请求={}，全量快速确认={}，探针兜底确认={}，省略探针={}，"
                             + "统计ACK={}/{}，计划合成轮数={}，满64批={}，尾料批={}，"
                             + "槽位点击={}，输出搬运={}，输出槽点击={}，"
-                            + "输出槽丢出={}，背包产物丢出={}，返还物丢出={}，丢原料={}，快照补料={}/{}，"
-                            + "回退旧流程={}，槽位/全量/失败包={}/{}/{}，超时={}，"
+                            + "输出槽丢出={}，背包产物丢出={}，返还物丢出={}，快照补料={}/{}，"
+                            + "槽位/全量/失败包={}/{}/{}，超时={}，"
                             + "单批最大点击/全量={}/{}, "
                             + "ACK平均/最小/最大={}/{}/{} us，ACK等待={} ms({}%)，本地发送={} us，"
                             + "确认批次/秒={}，首个全量平均={} us，统计平均={} us，"
@@ -1911,9 +1864,9 @@ public final class QuickCraftMouseCraftAckExecutor {
                     completed.clientSlotClicks,
                     completed.quickMoves, completed.outputSlotClicks,
                     completed.outputThrows, completed.inventoryResultDrops,
-                    completed.remainderThrows, completed.ingredientDrops,
+                    completed.remainderThrows,
                     completed.snapshotRefillSuccesses, completed.snapshotRefillBatches,
-                    completed.legacyHandoffs, completed.slotUpdates, completed.fullUpdates,
+                    completed.slotUpdates, completed.fullUpdates,
                     completed.failurePackets, completed.timeouts,
                     completed.maxClientSlotClicksPerBatch, completed.maxFullUpdatesPerBatch,
                     averageAckMicros,
@@ -1937,10 +1890,10 @@ public final class QuickCraftMouseCraftAckExecutor {
         }
         if (QuickCraftConfigs.isMouseCraftAckDebugEnabled()) {
             LOGGER.info("[ACK会话#" + completed.sessionId + "] " + "手动补货ACK产物异常统计：界面={}，配方={}，中间错误产物包={}，"
-                            + "权威错误产物包={}，客户端原料THROW={}，返还物THROW={}，输出槽THROW={}，"
+                            + "权威错误产物包={}，返还物THROW={}，输出槽THROW={}，"
                             + "留样来源权威变化={}，留样来源空槽回包={}",
                     layout.name(), describeStack(completed.resultTemplate), completed.intermediateOutputPacketsTotal,
-                    completed.authoritativeWrongOutputPacketsTotal, completed.ingredientDrops,
+                    completed.authoritativeWrongOutputPacketsTotal,
                     completed.remainderThrows,
                     completed.outputThrows, completed.retainedSourceTransitions,
                     completed.retainedSourceEmptyPackets);
@@ -2496,12 +2449,6 @@ public final class QuickCraftMouseCraftAckExecutor {
     }
 
     @FunctionalInterface
-    public interface LegacyFallbackHandler {
-        void fallback(MinecraftClient client,
-                      ScreenHandler handler);
-    }
-
-    @FunctionalInterface
     public interface SnapshotRefillHandler {
         boolean refill(MinecraftClient client,
                        ScreenHandler handler,
@@ -2595,36 +2542,6 @@ public final class QuickCraftMouseCraftAckExecutor {
                     active.describeMaterialLedger(current, handler));
         }
         current.clickDiagnosticNanos += System.nanoTime() - diagnosticStartedAtNanos;
-    }
-
-    public static boolean shouldBlockIngredientThrow(int syncId,
-                                                      int slotId,
-                                                      int button,
-                                                      SlotActionType actionType,
-                                                      PlayerEntity player) {
-        QuickCraftMouseCraftAckExecutor active = activeExecutor;
-        if (active == null || !active.isActive() || actionType != SlotActionType.THROW
-                || player == null || player.currentScreenHandler == null
-                || player.currentScreenHandler.syncId != syncId || active.session == null
-                || slotId <= QuickCraftMouseCraftLayout.OUTPUT_SLOT
-                || slotId >= player.currentScreenHandler.slots.size()) {
-            return false;
-        }
-        Session current = active.session;
-        ScreenHandler handler = player.currentScreenHandler;
-        ItemStack target = handler.getSlot(slotId).getStack().copy();
-        if (!active.isPatternIngredient(current, target)) {
-            return false;
-        }
-        current.ingredientDrops++;
-        if (QuickCraftConfigs.isMouseCraftAckDebugEnabled()) {
-            LOGGER.error(diagnosticContext() + "普通配方书已拦截客户端原料THROW：界面={}，批次=#{}，slot={}，物品={}，"
-                            + "button={}，revision={}，光标={}，格子={}，材料={}",
-                    active.layout.name(), current.batchId, slotId, describeStack(target), button,
-                    handler.getRevision(), describeStack(handler.getCursorStack()),
-                    active.describeGrid(handler), active.describeMaterialLedger(current, handler));
-        }
-        return true;
     }
 
     public static void onClientClickEnd(int syncId,
@@ -3154,7 +3071,6 @@ public final class QuickCraftMouseCraftAckExecutor {
         private int pickupWaitBatches;
         private int pickupWaitStartRevision = Integer.MIN_VALUE;
         private int[] pickupWaitStartMaterialCounts;
-        private int ingredientDrops;
         private final Map<Integer, RetainedSourceTrace> retainedSourceTraces =
                 new LinkedHashMap<>();
         private int retainedSourceTransitions;
@@ -3175,7 +3091,6 @@ public final class QuickCraftMouseCraftAckExecutor {
         private int quickMoves;
         private int snapshotRefillBatches;
         private int snapshotRefillSuccesses;
-        private int legacyHandoffs;
         private int slotUpdates;
         private int fullUpdates;
         private int failurePackets;

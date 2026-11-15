@@ -19,8 +19,6 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.network.protocol.game.ServerboundClientCommandPacket;
 import net.minecraft.world.item.crafting.CraftingRecipe;
 import net.minecraft.world.item.crafting.RecipeHolder;
-import net.minecraft.world.item.crafting.RecipeManager;
-import net.minecraft.world.item.crafting.RecipeType;
 import net.minecraft.world.item.crafting.CraftingInput;
 import net.minecraft.world.inventory.CraftingMenu;
 import net.minecraft.world.inventory.AbstractContainerMenu;
@@ -64,8 +62,6 @@ public final class QuickCraftWorkbenchShulkerCraft implements ClientModInitializ
     private int consecutiveFailures;
     private RecipeHolder<CraftingRecipe> recipe;
     private List<ItemStack> pattern = List.of();
-    private List<ItemStack> remainderPattern = List.of();
-    private boolean recipeHasRemainder;
     private ItemStack resultTemplate = ItemStack.EMPTY;
     private int snapshotSyncId = -1;
     private int sessionOutputClicks;
@@ -757,8 +753,7 @@ public final class QuickCraftWorkbenchShulkerCraft implements ClientModInitializ
                     return false;
                 }
             } else if (!actual.isEmpty()
-                    && !ItemStack.isSameItemSameComponents(expected, actual)
-                    && !isExpectedRemainder(patternIndex, actual)) {
+                    && !ItemStack.isSameItemSameComponents(expected, actual)) {
                 return false;
             }
         }
@@ -822,11 +817,6 @@ public final class QuickCraftWorkbenchShulkerCraft implements ClientModInitializ
     }
 
     private void processCraftTick(Minecraft client, CraftingMenu handler) {
-        int discardedRemainders = discardGridRemainders(client, handler);
-        if (discardedRemainders > 0) {
-            consecutiveFailures = 0;
-            return;
-        }
         if (waitForServerOutputCorrection(client, handler)) {
             return;
         }
@@ -987,47 +977,9 @@ public final class QuickCraftWorkbenchShulkerCraft implements ClientModInitializ
                                     int sourceSlotId) {
         if (sourceSlotId >= 0 && sourceSlotId < handler.slots.size()
                 && handler.getSlot(sourceSlotId).hasItem()) {
-            ItemStack blockingStack = handler.getSlot(sourceSlotId).getItem();
-            if (!shouldDiscardOutputBoxSlot(recipeHasRemainder,
-                    isCachedRemainder(blockingStack))) {
-                return false;
-            }
-            if (!QuickCraftWorkbenchShulkerOutput.isShulkerBox(handler.getCarried())
-                    || handler.getCarried().getCount() != 1) {
-                return false;
-            }
-            client.gameMode.handleContainerInput(handler.containerId, sourceSlotId, 0,
-                    ContainerInput.PICKUP, client.player);
-            if (!QuickCraftWorkbenchShulkerOutput.isShulkerBox(
-                    handler.getSlot(sourceSlotId).getItem())
-                    || !isCachedRemainder(handler.getCarried())) {
-                return false;
-            }
-            client.gameMode.handleContainerInput(handler.containerId, AbstractContainerMenu.SLOT_CLICKED_OUTSIDE, 0,
-                    ContainerInput.PICKUP, client.player);
-            if (!handler.getCarried().isEmpty()) {
-                return false;
-            }
-            return true;
-        }
-        return QuickCraftWorkbenchShulkerOutput.returnBox(client, handler, sourceSlotId);
-    }
-
-    private boolean isCachedRemainder(ItemStack stack) {
-        if (stack.isEmpty()) {
             return false;
         }
-        for (ItemStack remainder : remainderPattern) {
-            if (!remainder.isEmpty() && ItemStack.isSameItemSameComponents(remainder, stack)) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    static boolean shouldDiscardOutputBoxSlot(boolean hasRemainder,
-                                              boolean matchesCachedRemainder) {
-        return hasRemainder && matchesCachedRemainder;
+        return QuickCraftWorkbenchShulkerOutput.returnBox(client, handler, sourceSlotId);
     }
 
     private void processRefillResult(Minecraft client, CraftingMenu handler) {
@@ -1120,11 +1072,9 @@ public final class QuickCraftWorkbenchShulkerCraft implements ClientModInitializ
             }
             recipe = currentRecipe;
             pattern = snapshotPattern(handler);
-            remainderPattern = capturedRemainders;
-            recipeHasRemainder = capturedHasRemainder;
             resultTemplate = handler.getSlot(OUTPUT_SLOT).getItem().copy();
             snapshotSyncId = handler.containerId;
-        } else if (recipeHasRemainder || hasRemainder(currentRecipe, handler)) {
+        } else if (hasRemainder(currentRecipe, handler)) {
             sendMessage(client, Component.translatable("quickcraft.message.crafting.shulker_recipe_remainder"));
             return false;
         }
@@ -1141,8 +1091,7 @@ public final class QuickCraftWorkbenchShulkerCraft implements ClientModInitializ
         sessionRequiresOrderedProbe = requiresOrderedAckProbe(
                 unidentifiedRecipe,
                 resultTemplate.getMaxStackSize(),
-                hasPerCraftMaterial(pattern),
-                recipeHasRemainder);
+                hasPerCraftMaterial(pattern));
         sessionMode = QuickCraftConfigs.getWorkbenchQuickShulkerPipelineMode();
         serverCorrectionPauseTicks = 0;
         occupiedCursorTicks = 0;
@@ -1223,7 +1172,6 @@ public final class QuickCraftWorkbenchShulkerCraft implements ClientModInitializ
             return true;
         }
 
-        boolean exactStateMatches = handlerMatchesAckExpected(handler);
         boolean terminalStateSafe = isAckBatchTerminalStateSafe(handler);
         if (!shouldConfirmAckStatsProbe(currentProbe, terminalStateSafe)) {
             stop(client, Component.translatable("quickcraft.message.crafting.shulker_grid_desync"));
@@ -1349,44 +1297,14 @@ public final class QuickCraftWorkbenchShulkerCraft implements ClientModInitializ
         return false;
     }
 
-    static List<ItemStack> expandRemainderPattern(List<ItemStack> compactRemainders,
-                                                   int width,
-                                                   int height,
-                                                   int left,
-                                                   int top) {
-        List<ItemStack> captured = new ArrayList<>(9);
-        for (int patternIndex = 0; patternIndex < 9; patternIndex++) {
-            captured.add(ItemStack.EMPTY);
-        }
-        for (int y = 0; y < height; y++) {
-            for (int x = 0; x < width; x++) {
-                int compactIndex = x + y * width;
-                if (compactIndex >= compactRemainders.size()) {
-                    continue;
-                }
-                ItemStack remainder = compactRemainders.get(compactIndex);
-                int patternIndex = expandRemainderIndex(compactIndex, width, left, top);
-                captured.set(patternIndex, remainder.isEmpty() ? ItemStack.EMPTY : remainder.copy());
-            }
-        }
-        return List.copyOf(captured);
-    }
-
-    static int expandRemainderIndex(int compactIndex, int width, int left, int top) {
-        int x = compactIndex % width;
-        int y = compactIndex / width;
-        return left + x + (top + y) * 3;
-    }
-
     static boolean isPerCraftMaterial(int maxCount) {
         return maxCount == 1;
     }
 
     static boolean requiresOrderedAckProbe(boolean ignoredInRecipeBook,
                                            int outputMaxCount,
-                                           boolean perCraftMaterial,
-                                           boolean hasRemainder) {
-        return ignoredInRecipeBook || outputMaxCount == 1 || perCraftMaterial || hasRemainder;
+                                           boolean perCraftMaterial) {
+        return ignoredInRecipeBook || outputMaxCount == 1 || perCraftMaterial;
     }
 
     private boolean isIgnoredInRecipeBook(RecipeHolder<CraftingRecipe> currentRecipe) {
@@ -1413,45 +1331,6 @@ public final class QuickCraftWorkbenchShulkerCraft implements ClientModInitializ
             }
         }
         return false;
-    }
-
-    private boolean isExpectedRemainder(int patternIndex, ItemStack actual) {
-        if (patternIndex < 0 || patternIndex >= remainderPattern.size() || actual.isEmpty()) {
-            return false;
-        }
-        ItemStack remainder = remainderPattern.get(patternIndex);
-        return !remainder.isEmpty() && ItemStack.isSameItemSameComponents(remainder, actual);
-    }
-
-    private int discardGridRemainders(Minecraft client,
-                                      CraftingMenu handler) {
-        if (!recipeHasRemainder || client.player == null || client.gameMode == null
-                || !handler.getCarried().isEmpty()) {
-            return 0;
-        }
-
-        int discarded = 0;
-        for (int patternIndex = 0; patternIndex < pattern.size(); patternIndex++) {
-            int slotId = GRID_START + patternIndex;
-            ItemStack actual = handler.getSlot(slotId).getItem();
-            boolean matchesPattern = !actual.isEmpty()
-                    && ItemStack.isSameItemSameComponents(pattern.get(patternIndex), actual);
-            if (!shouldDiscardGridRemainder(matchesPattern,
-                    isExpectedRemainder(patternIndex, actual))) {
-                continue;
-            }
-            ItemStack thrown = actual.copy();
-            client.gameMode.handleContainerInput(
-                    handler.containerId, slotId, 1, ContainerInput.THROW, client.player);
-            recordLocalThrow(client, thrown);
-            discarded++;
-        }
-        return discarded;
-    }
-
-    static boolean shouldDiscardGridRemainder(boolean matchesLockedPattern,
-                                              boolean matchesRemainder) {
-        return !matchesLockedPattern && matchesRemainder;
     }
 
     static boolean canReuseSnapshot(int currentSyncId, int capturedSyncId, boolean snapshotComplete) {
@@ -2031,8 +1910,6 @@ public final class QuickCraftWorkbenchShulkerCraft implements ClientModInitializ
         consecutiveFailures = 0;
         recipe = null;
         pattern = List.of();
-        remainderPattern = List.of();
-        recipeHasRemainder = false;
         resultTemplate = ItemStack.EMPTY;
         snapshotSyncId = -1;
         lastSingleKeyDown = false;

@@ -37,7 +37,6 @@ public final class QuickCraftWorkbenchShulker {
     private static Task task;
     private static TaskResult pendingResult = TaskResult.NONE;
     private static Text pendingMessage;
-    private static TaskOwner pendingOwner;
     private static int sessionSourceBatches;
     private static QuickCraftConfigs.WorkbenchShulkerPipelineMode sessionMode =
             QuickCraftConfigs.WorkbenchShulkerPipelineMode.RESPONSE_STABLE;
@@ -78,12 +77,8 @@ public final class QuickCraftWorkbenchShulker {
         return sessionSourceBatches;
     }
 
-    public static boolean isBusy() {
-        return isTaskOwnedBy(TaskOwner.LEGACY);
-    }
-
     public static boolean isShulkerCraftBusy() {
-        return isTaskOwnedBy(TaskOwner.SHULKER_CRAFT);
+        return task != null;
     }
 
     public static boolean shouldBlockWorkbenchInput() {
@@ -99,40 +94,28 @@ public final class QuickCraftWorkbenchShulker {
         return true;
     }
 
-    public static void requestStopAfterCurrentAction() {
-        if (isTaskOwnedBy(TaskOwner.LEGACY)) {
-            task.stopRequested = true;
-        }
-    }
-
     public static void requestShulkerCraftStopAfterCurrentAction() {
-        if (isTaskOwnedBy(TaskOwner.SHULKER_CRAFT)) {
+        if (task != null) {
             task.stopRequested = true;
         }
-    }
-
-    public static void reset() {
-        resetOwner(TaskOwner.LEGACY);
     }
 
     public static void resetShulkerCraft() {
-        resetOwner(TaskOwner.SHULKER_CRAFT);
-    }
-
-    public static TaskResult consumeResult() {
-        return consumeResult(TaskOwner.LEGACY);
+        task = null;
+        pendingResult = TaskResult.NONE;
+        pendingMessage = null;
     }
 
     public static TaskResult consumeShulkerCraftResult() {
-        return consumeResult(TaskOwner.SHULKER_CRAFT);
-    }
-
-    public static Text consumeMessage() {
-        return consumeMessage(TaskOwner.LEGACY);
+        TaskResult result = pendingResult;
+        pendingResult = TaskResult.NONE;
+        return result;
     }
 
     public static Text consumeShulkerCraftMessage() {
-        return consumeMessage(TaskOwner.SHULKER_CRAFT);
+        Text message = pendingMessage;
+        pendingMessage = null;
+        return message;
     }
 
     public static boolean recoverShulkerCraftCursor(CraftingScreenHandler handler) {
@@ -141,23 +124,13 @@ public final class QuickCraftWorkbenchShulker {
                 && recoverUnexpectedShulker(handler, -1);
     }
 
-    public static RefillStart beginRefill(CraftingScreenHandler handler, List<ItemStack> pattern) {
-        return beginRefill(handler, pattern, TaskOwner.LEGACY);
-    }
-
-    public static RefillStart beginShulkerCraftRefill(CraftingScreenHandler handler, List<ItemStack> pattern) {
-        return beginRefill(handler, pattern, TaskOwner.SHULKER_CRAFT);
-    }
-
-    private static RefillStart beginRefill(CraftingScreenHandler handler,
-                                           List<ItemStack> pattern,
-                                           TaskOwner owner) {
+    public static RefillStart beginShulkerCraftRefill(CraftingScreenHandler handler,
+                                           List<ItemStack> pattern) {
         if (task != null || handler == null || pattern == null || pattern.isEmpty() || !isAvailable()) {
             return RefillStart.NOT_STARTED;
         }
         if (!handler.getCursorStack().isEmpty()) {
-            if (owner == TaskOwner.SHULKER_CRAFT
-                    && isSingleShulker(handler.getCursorStack())
+            if (isSingleShulker(handler.getCursorStack())
                     && recoverUnexpectedShulker(handler, -1)) {
                 return RefillStart.RECOVERED_DESYNC;
             }
@@ -166,14 +139,13 @@ public final class QuickCraftWorkbenchShulker {
         List<ItemStack> normalizedPattern = normalizePattern(pattern);
         if (!isGridCompatible(handler, normalizedPattern)) {
             int unexpectedShulkerSlot = findUnexpectedGridShulker(handler, normalizedPattern);
-            if (owner == TaskOwner.SHULKER_CRAFT
-                    && unexpectedShulkerSlot != -1
+            if (unexpectedShulkerSlot != -1
                     && recoverUnexpectedShulker(handler, unexpectedShulkerSlot)) {
                 return RefillStart.RECOVERED_DESYNC;
             }
             return RefillStart.GRID_MISMATCH;
         }
-        task = new Task(normalizedPattern, handler.syncId, owner);
+        task = new Task(normalizedPattern, handler.syncId);
         task.nextSource = findSource(handler, normalizedPattern, Set.of());
         if (task.nextSource == null) {
             task = null;
@@ -182,24 +154,8 @@ public final class QuickCraftWorkbenchShulker {
         return RefillStart.STARTED;
     }
 
-    public static void tick(MinecraftClient client) {
-        tick(client, TaskOwner.LEGACY);
-    }
-
     public static void tickShulkerCraft(MinecraftClient client) {
-        tick(client, TaskOwner.SHULKER_CRAFT);
-    }
-
-    public static void tickShulkerCraftOnce(MinecraftClient client) {
-        tick(client, TaskOwner.SHULKER_CRAFT, 1);
-    }
-
-    private static void tick(MinecraftClient client, TaskOwner owner) {
-        tick(client, owner, -1);
-    }
-
-    private static void tick(MinecraftClient client, TaskOwner owner, int sourceBatchLimit) {
-        if (!isTaskOwnedBy(owner)) {
+        if (task == null) {
             return;
         }
         if (client == null || client.player == null || client.interactionManager == null
@@ -214,28 +170,17 @@ public final class QuickCraftWorkbenchShulker {
             return;
         }
 
-        if (owner != TaskOwner.SHULKER_CRAFT && task.actionCooldown > 0) {
-            task.actionCooldown--;
-            return;
-        }
-        int maxSourceBatches = owner == TaskOwner.SHULKER_CRAFT
-                ? sourceBatchesPerAck(sessionMode)
-                : 1;
-        if (sourceBatchLimit > 0) {
-            maxSourceBatches = Math.min(maxSourceBatches, sourceBatchLimit);
-        }
+        int maxSourceBatches = sourceBatchesPerAck(sessionMode);
         for (int batch = 0; batch < maxSourceBatches && task != null; batch++) {
             extractDirectly(client, handler);
-            if (task == null || isActionCoolingDown(owner)) {
+            if (task == null) {
                 break;
             }
         }
     }
 
     private static void extractDirectly(MinecraftClient client, CraftingScreenHandler handler) {
-        if (task.owner == TaskOwner.SHULKER_CRAFT) {
-            sessionSourceBatches++;
-        }
+        sessionSourceBatches++;
         SourceShulker source = task.nextSource;
         task.nextSource = null;
         if (source == null) {
@@ -318,7 +263,6 @@ public final class QuickCraftWorkbenchShulker {
             return;
         }
         task.exhaustedSourcePlayerIndices.add(source.playerIndex());
-        setActionCooldown();
         if (!hasAnyFillableGridSlot(handler, task.pattern)) {
             finish(TaskResult.REFILLED, null);
             return;
@@ -358,11 +302,9 @@ public final class QuickCraftWorkbenchShulker {
 
     private static void finish(TaskResult result, Text message) {
         boolean exitAfterStop = task != null && task.exitAfterStop;
-        TaskOwner owner = task == null ? null : task.owner;
         task = null;
         pendingResult = result;
         pendingMessage = message;
-        pendingOwner = owner;
         if (exitAfterStop) {
             closeWorkbenchScreenIfSafe();
         }
@@ -416,19 +358,6 @@ public final class QuickCraftWorkbenchShulker {
         return QuickCraftWorkbenchShulkerContents.get(shulker).material();
     }
 
-    private static void setActionCooldown() {
-        if (task != null && task.owner != TaskOwner.SHULKER_CRAFT) {
-            task.actionCooldown = Math.max(0,
-                    QuickCraftConfigs.getQuickShulkerActionIntervalTicks() - 1);
-        }
-    }
-
-    private static boolean isActionCoolingDown(TaskOwner owner) {
-        return owner != TaskOwner.SHULKER_CRAFT
-                && task != null
-                && task.actionCooldown > 0;
-    }
-
     private static List<Slot> getPlayerStorageSlots(ScreenHandler handler) {
         List<Slot> slots = new ArrayList<>();
         for (Slot slot : handler.slots) {
@@ -443,53 +372,10 @@ public final class QuickCraftWorkbenchShulker {
         return slots;
     }
 
-    static int sourceScanCount(int carriedShulkers) {
-        return Math.min(Math.max(0, carriedShulkers), MAX_SOURCE_SHULKERS);
-    }
-
     static int sourceBatchesPerAck(QuickCraftConfigs.WorkbenchShulkerPipelineMode mode) {
         return mode == null || mode == QuickCraftConfigs.WorkbenchShulkerPipelineMode.RESPONSE_STABLE
                 ? 1
                 : MULTI_SOURCE_BATCHES_PER_ACK;
-    }
-
-    private static boolean isTaskOwnedBy(TaskOwner owner) {
-        return task != null && task.owner == owner;
-    }
-
-    private static void resetOwner(TaskOwner owner) {
-        if (isTaskOwnedBy(owner)) {
-            task = null;
-        }
-        if (pendingOwner == owner) {
-            pendingResult = TaskResult.NONE;
-            pendingMessage = null;
-            pendingOwner = null;
-        }
-    }
-
-    private static TaskResult consumeResult(TaskOwner owner) {
-        if (pendingOwner != owner) {
-            return TaskResult.NONE;
-        }
-        TaskResult result = pendingResult;
-        pendingResult = TaskResult.NONE;
-        if (pendingMessage == null) {
-            pendingOwner = null;
-        }
-        return result;
-    }
-
-    private static Text consumeMessage(TaskOwner owner) {
-        if (pendingOwner != owner) {
-            return null;
-        }
-        Text message = pendingMessage;
-        pendingMessage = null;
-        if (pendingResult == TaskResult.NONE) {
-            pendingOwner = null;
-        }
-        return message;
     }
 
     private static int findUnexpectedGridShulker(CraftingScreenHandler handler,
@@ -652,25 +538,17 @@ public final class QuickCraftWorkbenchShulker {
     private static final class Task {
         private final int workbenchSyncId;
         private final List<ItemStack> pattern;
-        private final TaskOwner owner;
         private final Set<Integer> exhaustedSourcePlayerIndices = new HashSet<>();
-        private int actionCooldown;
         private int currentSourcePlayerIndex = -1;
         private int movedItems;
         private SourceShulker nextSource;
         private boolean stopRequested;
         private boolean exitAfterStop;
 
-        private Task(List<ItemStack> pattern, int workbenchSyncId, TaskOwner owner) {
+        private Task(List<ItemStack> pattern, int workbenchSyncId) {
             this.pattern = pattern;
             this.workbenchSyncId = workbenchSyncId;
-            this.owner = owner;
         }
-    }
-
-    private enum TaskOwner {
-        LEGACY,
-        SHULKER_CRAFT
     }
 
     private record SourceShulker(int playerIndex) {

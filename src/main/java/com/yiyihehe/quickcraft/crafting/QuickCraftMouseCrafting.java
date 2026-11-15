@@ -7,10 +7,8 @@ import net.minecraft.client.MinecraftClient;
 import net.minecraft.entity.player.PlayerInventory;
 import net.minecraft.item.ItemStack;
 import net.minecraft.recipe.CraftingRecipe;
-import net.minecraft.recipe.Ingredient;
 import net.minecraft.recipe.RecipeEntry;
 import net.minecraft.recipe.RecipeManager;
-import net.minecraft.recipe.RecipeType;
 import net.minecraft.recipe.input.CraftingRecipeInput;
 import net.minecraft.registry.DynamicRegistryManager;
 import net.minecraft.screen.ScreenHandler;
@@ -18,13 +16,11 @@ import net.minecraft.screen.slot.Slot;
 import net.minecraft.screen.slot.SlotActionType;
 import net.minecraft.text.Text;
 import net.minecraft.world.World;
-import org.lwjgl.glfw.GLFW;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
-import java.util.Optional;
 import java.util.function.BooleanSupplier;
 
 /**
@@ -34,18 +30,10 @@ import java.util.function.BooleanSupplier;
 final class QuickCraftMouseCrafting {
     private static final Logger LOGGER = LoggerFactory.getLogger("QuickCraft/RecipeBookCraft");
 
-    private final QuickCraftRateLimiter rateLimiter = new QuickCraftRateLimiter();
     private final QuickCraftMouseCraftLayout.Layout layout;
     private final BooleanSupplier enabled;
     private final Runnable clearRecipeGhosts;
     private final QuickCraftMouseCraftAckExecutor mouseCraftAckExecutor;
-
-    private static final int RAPID_INTERVAL = 1;
-
-    private static final int MAX_CONSECUTIVE_FAILURES = 3;
-
-    // 服务端结果包最多等 10 Tick，但产物一到就立即继续。
-    private static final int CRAFTING_RESULT_WAIT_TICKS = 10;
 
     private static final int OUTPUT_SLOT = 0;
 
@@ -58,17 +46,6 @@ final class QuickCraftMouseCrafting {
 
     private boolean rapidCraftingActive = false;
     private boolean rapidCraftStartedByButton = false;
-    private boolean mouseCraftAckLegacyFallback = false;
-    private boolean mouseCraftAckManualRestockFallback = false;
-
-    private int rapidCooldown = 0;
-
-    private int consecutiveFailures = 0;
-
-    private int craftingResultWaitTicks = 0;
-
-    // 阻止特殊配方在同一 Tick 内重复读取 burst 后的预测状态；下一 Tick 立即继续。
-    private int manualGridSyncWaitTicks = 0;
 
     private RecipeEntry<CraftingRecipe> lockedRecipe = null;
 
@@ -95,7 +72,6 @@ final class QuickCraftMouseCrafting {
         this.clearRecipeGhosts = clearRecipeGhosts != null ? clearRecipeGhosts : () -> { };
         this.mouseCraftAckExecutor = new QuickCraftMouseCraftAckExecutor(
                 layout,
-                this::fallbackMouseCraftAck,
                 this::refillAckSnapshot,
                 this::hasItemsForMissingPatternSlots
         );
@@ -160,57 +136,6 @@ final class QuickCraftMouseCrafting {
         }
     }
 
-    private void processRapidCraftTick(MinecraftClient client,
-                                       ScreenHandler handler,
-                                       RecipeEntry<CraftingRecipe> recipe) {
-        if (waitForManualGridSync()) {
-            return;
-        }
-        if (waitForCraftingResult(client, handler)) {
-            return;
-        }
-
-        boolean anyProgress = false;
-        int rate = QuickCraftConfigs.getCraftsPerSecond();
-        if (!rateLimiter.isReady(rate, System.nanoTime())) {
-            return;
-        }
-
-        while (rateLimiter.isReady(rate, System.nanoTime())) {
-            rateLimiter.recordDispatch(rate, System.nanoTime());
-            boolean progressed = runOneCraftSubLoop(client, handler, recipe);
-            if (progressed) {
-                anyProgress = true;
-            }
-            if (!rapidCraftingActive || craftingResultWaitTicks > 0 || manualGridSyncWaitTicks > 0) {
-                break;
-            }
-            if (!progressed) {
-                break;
-            }
-        }
-
-        if (anyProgress) {
-            consecutiveFailures = 0;
-            if (craftingResultWaitTicks <= 0 && manualGridSyncWaitTicks <= 0) {
-                rateLimiter.resumeWhenReady(rate, client, () -> {
-                    if (rapidCraftingActive && enabled.getAsBoolean() && isCraftingContextValid(client)
-                            && client.player.currentScreenHandler == handler && lockedRecipe == recipe
-                            && craftingResultWaitTicks <= 0 && manualGridSyncWaitTicks <= 0
-                            && !mouseCraftAckExecutor.isActive() && isRapidCraftInputHeld(client)) {
-                        processRapidCraftTick(client, handler, recipe);
-                    }
-                });
-            }
-        } else {
-            consecutiveFailures++;
-
-            if (consecutiveFailures >= MAX_CONSECUTIVE_FAILURES) {
-                stopRapidCraft(client, Text.translatable("quickcraft.message.crafting.no_ingredients"));
-            }
-        }
-    }
-
     private boolean runOneCraftSubLoop(MinecraftClient client,
                                        ScreenHandler handler,
                                        RecipeEntry<CraftingRecipe> recipe) {
@@ -243,9 +168,6 @@ final class QuickCraftMouseCrafting {
                 }
 
                 boolean thrown = throwCraftingOutput(client, handler);
-                if (thrown) {
-                    beginManualGridSync();
-                }
                 return thrown;
             }
 
@@ -255,9 +177,6 @@ final class QuickCraftMouseCrafting {
         }
 
         if (restockCraftingGrid(client, handler, recipe)) {
-            if (rapidCraftingActive && !handler.getSlot(OUTPUT_SLOT).hasStack()) {
-                craftingResultWaitTicks = CRAFTING_RESULT_WAIT_TICKS;
-            }
             if (!manualRecipe || !rapidCraftingActive) {
                 tryTakeOutputForRecipe(client, handler, recipe);
             }
@@ -265,36 +184,6 @@ final class QuickCraftMouseCrafting {
         }
 
         return false;
-    }
-
-    private boolean waitForCraftingResult(MinecraftClient client, ScreenHandler handler) {
-        if (craftingResultWaitTicks <= 0) {
-            return false;
-        }
-
-        if (handler.getSlot(OUTPUT_SLOT).hasStack()) {
-            craftingResultWaitTicks = 0;
-            return false;
-        }
-
-        craftingResultWaitTicks--;
-        if (craftingResultWaitTicks <= 0) {
-            stopRapidCraft(client, Text.translatable("quickcraft.message.crafting.no_ingredients"));
-        }
-        return true;
-    }
-
-    private boolean waitForManualGridSync() {
-        if (manualGridSyncWaitTicks <= 0) {
-            return false;
-        }
-
-        manualGridSyncWaitTicks--;
-        return manualGridSyncWaitTicks > 0;
-    }
-
-    private void beginManualGridSync() {
-        manualGridSyncWaitTicks = 1;
     }
 
     private void handleSingleCraft(MinecraftClient client, ScreenHandler handler) {
@@ -633,15 +522,6 @@ final class QuickCraftMouseCrafting {
             }
         }
         return true;
-    }
-
-    private boolean fillManualPatternStacks(MinecraftClient client,
-                                            ScreenHandler handler,
-                                            int maxSourceStacksPerIngredient,
-                                            boolean moveWholeStackToSingleSlot) {
-        return fillManualPatternStacks(
-                client, handler, maxSourceStacksPerIngredient,
-                moveWholeStackToSingleSlot, false);
     }
 
     private boolean fillManualPatternStacks(MinecraftClient client,
@@ -2234,8 +2114,6 @@ final class QuickCraftMouseCrafting {
                                     ScreenHandler handler,
                                     boolean fromButton) {
         unrelatedGridItemNotified = false;
-        mouseCraftAckLegacyFallback = false;
-        mouseCraftAckManualRestockFallback = false;
         RecipeEntry<CraftingRecipe> currentRecipe = getCurrentCraftingRecipe(client, handler);
         if (currentRecipe != null || handler.getSlot(OUTPUT_SLOT).hasStack()) {
             lockCurrentRecipe(client, currentRecipe, handler);
@@ -2251,10 +2129,6 @@ final class QuickCraftMouseCrafting {
         rapidCraftingActive = true;
         rapidCraftStartedByButton = fromButton;
         clearRecipeGhosts.run();
-        rapidCooldown = 0;
-        consecutiveFailures = 0;
-        craftingResultWaitTicks = 0;
-        manualGridSyncWaitTicks = 0;
         tryStartMouseCraftAck(client, handler);
 
         sendStatusMessage(client, Text.translatable("quickcraft.message.crafting.started"));
@@ -2311,12 +2185,6 @@ final class QuickCraftMouseCrafting {
         }
         rapidCraftingActive = false;
         rapidCraftStartedByButton = false;
-        rapidCooldown = 0;
-        consecutiveFailures = 0;
-        craftingResultWaitTicks = 0;
-        manualGridSyncWaitTicks = 0;
-        mouseCraftAckLegacyFallback = false;
-        mouseCraftAckManualRestockFallback = false;
         clearRecipeGhosts.run();
         sendStatusMessage(client, message);
     }
@@ -2328,12 +2196,6 @@ final class QuickCraftMouseCrafting {
         mouseCraftAckExecutor.cancel("配方书合成状态重置：" + layout.name());
         rapidCraftingActive = false;
         rapidCraftStartedByButton = false;
-        rapidCooldown = 0;
-        consecutiveFailures = 0;
-        craftingResultWaitTicks = 0;
-        manualGridSyncWaitTicks = 0;
-        mouseCraftAckLegacyFallback = false;
-        mouseCraftAckManualRestockFallback = false;
         lockedRecipe = null;
         hasLockedRecipe = false;
         lockedCraftingPattern.clear();
@@ -2397,25 +2259,6 @@ final class QuickCraftMouseCrafting {
                                     boolean allowTailDrop) {
         finishRapidCraft(client, message, allowTailDrop);
         return 0;
-    }
-
-    private void fallbackMouseCraftAck(MinecraftClient client,
-                                       ScreenHandler screenHandler) {
-        mouseCraftAckLegacyFallback = true;
-        mouseCraftAckManualRestockFallback = true;
-        if (screenHandler == null
-                || QuickCraftMouseCraftLayout.fromHandler(screenHandler) != layout
-                || !isCraftingContextValid(client)) {
-            rapidCraftingActive = false;
-            return;
-        }
-        if (QuickCraftConfigs.isMouseCraftAckDebugEnabled()) {
-            LOGGER.info(QuickCraftMouseCraftAckExecutor.diagnosticContext() + "普通配方书切换快照整栈补料：界面={}，配方={}，背包可补一轮={}",
-                    layout.name(), lockedResultTemplate, hasItemsForMissingPatternSlots(screenHandler));
-        }
-        craftingResultWaitTicks = 0;
-        manualGridSyncWaitTicks = 0;
-        rapidCooldown = 0;
     }
 
 }

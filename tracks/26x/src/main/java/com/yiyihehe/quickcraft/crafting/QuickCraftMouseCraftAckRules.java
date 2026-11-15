@@ -75,15 +75,6 @@ final class QuickCraftMouseCraftAckRules {
         return distance > 0 && distance < 16384;
     }
 
-    static boolean canConfirmBarrier(boolean statsProbeReceived,
-                                     boolean recipeReadyFullObserved,
-                                     boolean fullContainsExpectedOutput,
-                                     boolean cursorEmpty,
-                                     boolean recipeMatches) {
-        return statsProbeReceived && recipeReadyFullObserved
-                && fullContainsExpectedOutput && cursorEmpty && recipeMatches;
-    }
-
     static boolean canConfirmManualBatch(boolean authoritativeStateReceived,
                                          boolean cursorEmpty,
                                          boolean patternReady,
