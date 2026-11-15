@@ -1255,6 +1255,8 @@ public final class QuickLitematicaPreview3D {
                 this.cancelBuild();
             } catch (PreviewTooLargeException failure) {
                 this.rejectBuild(failure.vertexLimit);
+            } catch (QuickLitematicaPreviewSchematicFiles.PreviewNbtBudgetExceededException budget) {
+                this.rejectBuild(false);
             } catch (Exception e) {
                 if (this.isCancelled()) {
                     this.cancelBuild();
@@ -1424,6 +1426,8 @@ public final class QuickLitematicaPreview3D {
                 this.cancelBuild();
             } catch (PreviewTooLargeException failure) {
                 this.rejectBuild(failure.vertexLimit);
+            } catch (QuickLitematicaPreviewSchematicFiles.PreviewNbtBudgetExceededException budget) {
+                this.rejectBuild(false);
             } catch (Exception e) {
                 if (this.isCancelled()) {
                     this.cancelBuild();

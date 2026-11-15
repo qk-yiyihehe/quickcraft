@@ -14,6 +14,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import java.util.concurrent.atomic.AtomicBoolean;
 import static org.assertj.core.api.Assertions.assertThat;
 import static com.yiyihehe.quickcraft.litematica.QuickLitematicaPreviewSchematicFiles.*;
+import net.minecraft.nbt.NbtIo;
 
 class QuickLitematicaPreviewSchematicFilesTest {
     @Test
@@ -454,15 +455,33 @@ class QuickLitematicaPreviewSchematicFilesTest {
     }
 
     @Test
-    void streamingStopsCancelledReadsAndLeavesFutureFormatsToUpstream(@TempDir Path temporary) throws Exception {
+    void streamingStopsCancelledReadsAndLeavesVersionPolicyToCaller(@TempDir Path temporary) throws Exception {
         CompoundTag source = root(999);
         regionOf(source).put("TileEntities", new ListTag());
         Path file = temporary.resolve("future.litematic");
         writeWithEntitiesFirst(source, file);
         assertThat(readStreamingPreviewNbt(file, new AtomicBoolean(), 0, id -> false,
-                (block, version) -> inferredType(block), id -> true)).isNull();
+                (block, version) -> inferredType(block), id -> true)).isNotNull();
         assertThatThrownBy(() -> readStreamingPreviewNbt(file, new AtomicBoolean(true), 0, id -> false,
                 (block, version) -> inferredType(block), id -> true)).isInstanceOf(CancellationException.class);
+    }
+
+    @Test
+    void budgetRejectionDoesNotFallBackToFullRead(@TempDir Path temporary) throws Exception {
+        Path file = temporary.resolve("budget.litematic");
+        CompoundTag payload = root(7);
+        payload.putString("LargePayload", "x".repeat(20_000));
+        assertThat(payload.sizeInBytes()).isGreaterThan(20_000);
+        assertThatThrownBy(() -> checkPreviewNbtBudget(payload.sizeInBytes(), 64L))
+                .isInstanceOf(PreviewNbtBudgetExceededException.class);
+        QuickLitematicaPreviewVertexBudget.run(true,
+                () -> checkPreviewNbtBudget(payload.sizeInBytes(), 64L));
+        try (DataOutputStream output = new DataOutputStream(new GZIPOutputStream(Files.newOutputStream(file)))) {
+            NbtIo.write(payload, output);
+        }
+        assertThatThrownBy(() -> readSchematic(file, new AtomicBoolean(), true, 64L))
+                .isInstanceOf(PreviewNbtBudgetExceededException.class);
+        assertThat(readSchematic(file, new AtomicBoolean(), false, 64L)).isNull();
     }
 
     private static void writeWithEntitiesFirst(CompoundTag root, Path file) throws Exception {

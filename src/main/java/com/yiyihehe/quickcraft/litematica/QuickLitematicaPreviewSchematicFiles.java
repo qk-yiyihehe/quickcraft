@@ -337,27 +337,38 @@ final class QuickLitematicaPreviewSchematicFiles {
                                                         Predicate<String> hasRenderer,
                                                         BiFunction<String, Integer, String> inferBlockEntityId,
                                                         Predicate<String> inventoryHidden) throws IOException {
+        return readStreamingPreviewNbt(source, cancelled, defaultDataVersion, hasRenderer, inferBlockEntityId,
+                inventoryHidden, PREVIEW_NBT_BYTES, () -> defaultDataVersion);
+    }
+
+    @Nullable
+    static StreamingPreparation readStreamingPreviewNbt(Path source, AtomicBoolean cancelled, int defaultDataVersion,
+                                                        Predicate<String> hasRenderer,
+                                                        BiFunction<String, Integer, String> inferBlockEntityId,
+                                                        Predicate<String> inventoryHidden, long nbtBudgetBytes,
+                                                        java.util.function.Supplier<Integer> configuredDefaultDataVersion) throws IOException {
         throwIfCancelled(cancelled);
         long sourceSize = Files.size(source);
         var sourceTime = Files.getLastModifiedTime(source);
-        NbtSizeTracker retained = NbtSizeTracker.of(QuickLitematicaPreviewVertexBudget.nbtByteLimit(PREVIEW_NBT_BYTES));
+        NbtSizeTracker retained = NbtSizeTracker.of(QuickLitematicaPreviewVertexBudget.nbtByteLimit(nbtBudgetBytes));
         NbtCompound root;
         // 调色板、尺寸、数据版本可能排在 TileEntities 后面，先独立读取这些信息。
         try (DataInputStream input = previewInput(source, cancelled)) {
             readRootHeader(input);
             root = readStreamingMetadata(input, 0, retained, cancelled);
         }
-        retained = NbtSizeTracker.of(QuickLitematicaPreviewVertexBudget.nbtByteLimit(PREVIEW_NBT_BYTES));
+        retained = NbtSizeTracker.of(QuickLitematicaPreviewVertexBudget.nbtByteLimit(nbtBudgetBytes));
         retained.add(root.getSizeInBytes());
+        checkPreviewNbtBudget(root.getSizeInBytes(), nbtBudgetBytes);
         int formatVersion = (root.get("Version") instanceof AbstractNbtNumber version ? version.intValue() : -1);
-        if (formatVersion < 1 || formatVersion > LitematicaSchematic.SCHEMATIC_VERSION) return null;
-        int sourceVersion = sourceDataVersion(root, defaultDataVersion);
+        int declaredSourceVersion = sourceDataVersion(root, -1);
+        int sourceVersion = declaredSourceVersion == -1 ? configuredDefaultDataVersion.get() : declaredSourceVersion;
         Preparation preparation = new Preparation(formatVersion, cancelled, hasRenderer,
                 blockId -> inferBlockEntityId.apply(blockId, sourceVersion), inventoryHidden);
         // 逐条核验后才保留记录；单条负载和最终保留的数据仍各受原内存预算约束。
         try (DataInputStream input = previewInput(source, cancelled)) {
             readRootHeader(input);
-            readStreamingEntries(input, root, 0, preparation, retained, cancelled);
+            readStreamingEntries(input, root, 0, preparation, retained, cancelled, nbtBudgetBytes);
         }
         if (sourceSize != Files.size(source) || !sourceTime.equals(Files.getLastModifiedTime(source))) {
             throw new IOException("Schematic changed between streaming passes");
@@ -420,7 +431,7 @@ final class QuickLitematicaPreviewSchematicFiles {
 
     private static void readStreamingEntries(DataInputStream input, NbtCompound target, int level,
                                              Preparation preparation, NbtSizeTracker retained,
-                                             AtomicBoolean cancelled) throws IOException {
+                                             AtomicBoolean cancelled, long nbtBudgetBytes) throws IOException {
         InventoryPalette palette = level == 2 ? InventoryPalette.from(target) : null;
         retained.pushStack();
         try {
@@ -430,7 +441,7 @@ final class QuickLitematicaPreviewSchematicFiles {
                 String name = input.readUTF();
                 if (type == 10 && ((level == 0 && name.equals("Regions")) || level == 1)
                         && target.get(name) instanceof NbtCompound child) {
-                    readStreamingEntries(input, child, level + 1, preparation, retained, cancelled);
+                    readStreamingEntries(input, child, level + 1, preparation, retained, cancelled, nbtBudgetBytes);
                 } else if (level == 2 && name.equals("TileEntities") && type == 9) {
                     int elementType = input.readUnsignedByte();
                     int count = input.readInt();
@@ -439,7 +450,7 @@ final class QuickLitematicaPreviewSchematicFiles {
                     retained.add(36);
                     for (int i = 0; i < count; i++) {
                         throwIfCancelled(cancelled);
-                        NbtSizeTracker entryBudget = NbtSizeTracker.of(QuickLitematicaPreviewVertexBudget.nbtByteLimit(PREVIEW_NBT_BYTES));
+                        NbtSizeTracker entryBudget = NbtSizeTracker.of(QuickLitematicaPreviewVertexBudget.nbtByteLimit(nbtBudgetBytes));
                         for (int depth = 0; depth <= retained.getDepth(); depth++) entryBudget.pushStack();
                         NbtElement entry = NbtTypes.byId(elementType).read(input, entryBudget);
                         if (entry instanceof NbtCompound compound && preparation.remove(compound, palette)) continue;
@@ -462,6 +473,16 @@ final class QuickLitematicaPreviewSchematicFiles {
             AtomicBoolean cancelled,
             boolean required
     ) {
+        return readSchematic(path, cancelled, required, PREVIEW_NBT_BYTES);
+    }
+
+    @Nullable
+    static LitematicaSchematic readSchematic(
+            Path path,
+            AtomicBoolean cancelled,
+            boolean required,
+            long nbtBudgetBytes
+    ) {
         try (var phase = QuickLitematicaPreviewLog.phase("原理图预处理/读取/转换总入口")) {
             QuickLitematicaPreviewLog.file("原理图读取入口", path);
             if (QuickLitematicaPreviewLog.enabled()) LOGGER.info("DFU 配置快照：模式={}，缺省源数据版本={}，实际调用和版本另见 DFU 钩子",
@@ -478,7 +499,16 @@ final class QuickLitematicaPreviewSchematicFiles {
                 return null;
             }
 
-            LitematicaSchematic schematic = readPreprocessedSchematic(path, cancelled);
+            LitematicaSchematic schematic;
+            try {
+                schematic = readPreprocessedSchematic(path, cancelled, nbtBudgetBytes);
+            } catch (PreviewNbtBudgetExceededException budget) {
+                if (!required) {
+                    LOGGER.info("可选原理图读取预算拒绝，按缺失处理：路径={}", path);
+                    return null;
+                }
+                throw budget;
+            }
 
             if (schematic == null) {
                 throwIfCancelled(cancelled);
@@ -503,6 +533,11 @@ final class QuickLitematicaPreviewSchematicFiles {
 
     @Nullable
     static LitematicaSchematic readPreprocessedSchematic(Path sourcePath, AtomicBoolean cancelled) {
+        return readPreprocessedSchematic(sourcePath, cancelled, PREVIEW_NBT_BYTES);
+    }
+
+    @Nullable
+    static LitematicaSchematic readPreprocessedSchematic(Path sourcePath, AtomicBoolean cancelled, long nbtBudgetBytes) {
         throwIfCancelled(cancelled);
         String name = sourcePath.getFileName() != null ? sourcePath.getFileName().toString() : "";
         if (!name.endsWith(".litematic")) return null;
@@ -514,27 +549,29 @@ final class QuickLitematicaPreviewSchematicFiles {
                 long expandedHint = gzipExpandedSizeHint(sourcePath);
                 if (expandedHint >= STREAMING_RAW_BYTES) {
                     LOGGER.info("预处理直接逐条读取：源={}，GZIP 解压体积提示={} B，避免完整读取触限后重读", sourcePath, expandedHint);
-                    streaming = readStreamingPreviewNbt(sourcePath, cancelled,
-                            fi.dy.masa.litematica.config.Configs.Generic.DATAFIXER_DEFAULT_SCHEMA.getIntegerValue(),
+                    streaming = readStreamingPreviewNbt(sourcePath, cancelled, 0,
                             QuickLitematicaPreview3D::hasPreviewRendererForBlockEntity,
                             QuickLitematicaPreview3D::inferPreviewBlockEntityId,
-                            QuickLitematicaPreview3D::isPreviewInventoryHidden);
+                            QuickLitematicaPreview3D::isPreviewInventoryHidden, nbtBudgetBytes,
+                            () -> fi.dy.masa.litematica.config.Configs.Generic.DATAFIXER_DEFAULT_SCHEMA.getIntegerValue());
                     if (streaming == null) return null;
                     root = streaming.root();
                 } else try (DataInputStream dis = previewInput(sourcePath, cancelled)) {
-                    root = NbtIo.readCompound(dis, NbtSizeTracker.of(PREVIEW_NBT_BYTES));
+                    // 首轮全量读取始终保留旧 256 MiB 安全帽；强制预算只放开逐条 streaming。
+                    root = NbtIo.readCompound(dis, NbtSizeTracker.of(Math.min(nbtBudgetBytes, PREVIEW_NBT_BYTES)));
                 } catch (NbtSizeValidationException limit) {
-                    LOGGER.info("预处理完整 NBT 达到安全限制，尝试逐条读取：源={}，预算={} B，原因={}", sourcePath, PREVIEW_NBT_BYTES, limit.getMessage());
-                    streaming = readStreamingPreviewNbt(sourcePath, cancelled,
-                            fi.dy.masa.litematica.config.Configs.Generic.DATAFIXER_DEFAULT_SCHEMA.getIntegerValue(),
+                    LOGGER.info("预处理完整 NBT 达到安全限制，尝试逐条读取：源={}，预算={} B，原因={}", sourcePath, nbtBudgetBytes, limit.getMessage());
+                    streaming = readStreamingPreviewNbt(sourcePath, cancelled, 0,
                             QuickLitematicaPreview3D::hasPreviewRendererForBlockEntity,
                             QuickLitematicaPreview3D::inferPreviewBlockEntityId,
-                            QuickLitematicaPreview3D::isPreviewInventoryHidden);
+                            QuickLitematicaPreview3D::isPreviewInventoryHidden, nbtBudgetBytes,
+                            () -> fi.dy.masa.litematica.config.Configs.Generic.DATAFIXER_DEFAULT_SCHEMA.getIntegerValue());
                     if (streaming == null) return null;
                     root = streaming.root();
                 }
                 throwIfCancelled(cancelled);
                 if (root == null || !root.contains("Regions")) return null;
+                checkPreviewNbtBudget(root.getSizeInBytes(), nbtBudgetBytes);
                 int formatVersion = root.get("Version") instanceof AbstractNbtNumber version ? version.intValue() : -1;
                 // 未知格式继续使用上游带验证的文件入口。
                 if (formatVersion < 1 || formatVersion > LitematicaSchematic.SCHEMATIC_VERSION) return null;
@@ -573,9 +610,31 @@ final class QuickLitematicaPreviewSchematicFiles {
             }
         } catch (CancellationException cancellation) {
             throw cancellation;
+        } catch (PreviewNbtBudgetExceededException budget) {
+            throw budget;
+        } catch (NbtSizeValidationException limit) {
+            LOGGER.warn("预处理 NBT 预算拒绝：源={}，预算={} B，不执行完整读取", sourcePath, nbtBudgetBytes, limit);
+            throw new PreviewNbtBudgetExceededException(limit);
         } catch (Throwable failure) {
             LOGGER.warn("预处理投影读取失败：源={}，回退上游文件读取", sourcePath, failure);
             return null;
+        }
+    }
+
+    static void checkPreviewNbtBudget(long retainedBytes, long nbtBudgetBytes) {
+        if (retainedBytes > QuickLitematicaPreviewVertexBudget.nbtByteLimit(nbtBudgetBytes)) {
+            throw new PreviewNbtBudgetExceededException("Retained preview NBT exceeds budget: "
+                    + retainedBytes + " > " + nbtBudgetBytes);
+        }
+    }
+
+    static final class PreviewNbtBudgetExceededException extends RuntimeException {
+        PreviewNbtBudgetExceededException(String message) {
+            super(message);
+        }
+
+        PreviewNbtBudgetExceededException(Throwable cause) {
+            super("Preview NBT budget exceeded", cause);
         }
     }
 

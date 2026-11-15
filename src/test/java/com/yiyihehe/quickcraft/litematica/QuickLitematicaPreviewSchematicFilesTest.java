@@ -5,9 +5,11 @@ import net.minecraft.nbt.NbtList;
 import net.minecraft.nbt.NbtString;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.zip.GZIPInputStream;
 import java.util.zip.GZIPOutputStream;
 import java.util.concurrent.CancellationException;
 import net.minecraft.nbt.NbtElement;
@@ -15,8 +17,15 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import java.util.concurrent.atomic.AtomicBoolean;
 import static org.assertj.core.api.Assertions.assertThat;
 import static com.yiyihehe.quickcraft.litematica.QuickLitematicaPreviewSchematicFiles.*;
+import net.minecraft.nbt.NbtIo;
 
 class QuickLitematicaPreviewSchematicFilesTest {
+    static {
+        // 该测试类可直接单跑，LitematicaSchematic 的静态初始化也需要完整原版注册表。
+        net.minecraft.SharedConstants.createGameVersion();
+        net.minecraft.Bootstrap.initialize();
+    }
+
     @Test
     void usesDefaultDataVersionOnlyWhenTheDeclaredVersionIsMissingOrInvalid() {
         NbtCompound root = new NbtCompound();
@@ -455,15 +464,39 @@ class QuickLitematicaPreviewSchematicFilesTest {
     }
 
     @Test
-    void streamingStopsCancelledReadsAndLeavesFutureFormatsToUpstream(@TempDir Path temporary) throws Exception {
+    void streamingStopsCancelledReadsAndLeavesVersionPolicyToCaller(@TempDir Path temporary) throws Exception {
         NbtCompound source = root(999);
         regionOf(source).put("TileEntities", new NbtList());
         Path file = temporary.resolve("future.litematic");
         writeWithEntitiesFirst(source, file);
         assertThat(readStreamingPreviewNbt(file, new AtomicBoolean(), 0, id -> false,
-                (block, version) -> inferredType(block), id -> true)).isNull();
+                (block, version) -> inferredType(block), id -> true)).isNotNull();
         assertThatThrownBy(() -> readStreamingPreviewNbt(file, new AtomicBoolean(true), 0, id -> false,
                 (block, version) -> inferredType(block), id -> true)).isInstanceOf(CancellationException.class);
+    }
+
+    @Test
+    void budgetRejectionDoesNotFallBackToFullRead(@TempDir Path temporary) throws Exception {
+        Path file = temporary.resolve("budget.litematic");
+        NbtCompound payload = root(7);
+        payload.putString("LargePayload", "x".repeat(20_000));
+        assertThat(payload.getSizeInBytes()).isGreaterThan(20_000);
+        assertThatThrownBy(() -> checkPreviewNbtBudget(payload.getSizeInBytes(), 64L))
+                .isInstanceOf(PreviewNbtBudgetExceededException.class);
+        QuickLitematicaPreviewVertexBudget.run(true,
+                () -> checkPreviewNbtBudget(payload.getSizeInBytes(), 64L));
+        try (DataOutputStream output = new DataOutputStream(new GZIPOutputStream(Files.newOutputStream(file)))) {
+            NbtIo.writeCompound(payload, output);
+        }
+        assertThat(Files.size(file)).isGreaterThan(100L);
+        assertThatThrownBy(() -> {
+            try (DataInputStream input = new DataInputStream(new GZIPInputStream(Files.newInputStream(file)))) {
+                NbtIo.readCompound(input, net.minecraft.nbt.NbtSizeTracker.of(64L));
+            }
+        }).isInstanceOf(net.minecraft.nbt.NbtSizeValidationException.class);
+        assertThatThrownBy(() -> readSchematic(file, new AtomicBoolean(), true, 64L))
+                .isInstanceOf(PreviewNbtBudgetExceededException.class);
+        assertThat(readSchematic(file, new AtomicBoolean(), false, 64L)).isNull();
     }
 
     private static void writeWithEntitiesFirst(NbtCompound root, Path file) throws Exception {
