@@ -4,6 +4,7 @@ import net.minecraft.SharedConstants;
 import net.minecraft.server.Bootstrap;
 import net.fabricmc.loader.impl.FabricLoaderImpl;
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -16,6 +17,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 @org.junit.jupiter.api.extension.ExtendWith(com.yiyihehe.quickcraft.QuickCraftMinecraftTestBootstrap.class)
 class QuickCraftIpnDefaultsTest {
+    private static Path previousGameDir;
+    private static Path previousConfigDir;
+
     @BeforeAll
     static void initializeGameVersion() throws ReflectiveOperationException {
         SharedConstants.tryDetectVersion();
@@ -23,11 +27,23 @@ class QuickCraftIpnDefaultsTest {
         // 早期 MaLiLib 在配置类初始化时立即读取 Fabric 的游戏目录，单元测试没有经过 Loader 启动流程。
         Field gameDir = FabricLoaderImpl.class.getDeclaredField("gameDir");
         gameDir.setAccessible(true);
+        previousGameDir = (Path) gameDir.get(FabricLoaderImpl.INSTANCE);
         Path testGameDir = Path.of("").toAbsolutePath();
         gameDir.set(FabricLoaderImpl.INSTANCE, testGameDir);
         Field configDir = FabricLoaderImpl.class.getDeclaredField("configDir");
         configDir.setAccessible(true);
+        previousConfigDir = (Path) configDir.get(FabricLoaderImpl.INSTANCE);
         configDir.set(FabricLoaderImpl.INSTANCE, testGameDir.resolve("config"));
+    }
+
+    @AfterAll
+    static void restoreLoaderDirectories() throws ReflectiveOperationException {
+        Field gameDir = FabricLoaderImpl.class.getDeclaredField("gameDir");
+        gameDir.setAccessible(true);
+        gameDir.set(FabricLoaderImpl.INSTANCE, previousGameDir);
+        Field configDir = FabricLoaderImpl.class.getDeclaredField("configDir");
+        configDir.setAccessible(true);
+        configDir.set(FabricLoaderImpl.INSTANCE, previousConfigDir);
     }
 
     @BeforeEach
