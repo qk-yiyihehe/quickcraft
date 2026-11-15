@@ -774,6 +774,12 @@ public final class QuickLitematicaContainerVerification implements VerifierExten
             return null;
         }
 
+        Set<Integer> foundDisabledSlots = QuickLitematicaContainerInventory.getActualDisabledSlots(
+                foundWorld, pos, foundBlockEntity);
+        if (foundDisabledSlots == null) {
+            this.quickcraft$requestContainerInventoryData(foundWorld, pos);
+            return null;
+        }
         this.recordMaterialMissing(foundWorld, pos, found, found.size());
         return QuickLitematicaContainerVerifier.findMismatches(
                 pos,
@@ -784,7 +790,7 @@ public final class QuickLitematicaContainerVerification implements VerifierExten
                 expectedContainer != null
                         ? expectedContainer.disabledSlots()
                         : QuickLitematicaContainerVerifier.getDisabledSlots(expectedBlockEntity),
-                QuickLitematicaContainerVerifier.getDisabledSlots(foundBlockEntity),
+                foundDisabledSlots,
                 expected,
                 found
         );
@@ -853,6 +859,12 @@ public final class QuickLitematicaContainerVerification implements VerifierExten
             return null;
         }
 
+        Set<Integer> foundDisabledSlots = QuickLitematicaContainerInventory.getActualDisabledSlots(
+                foundWorld, pos, foundBlockEntity);
+        if (foundDisabledSlots == null) {
+            this.quickcraft$requestContainerInventoryData(foundWorld, pos);
+            return null;
+        }
         this.recordMaterialMissing(foundWorld, pos, found, found.size());
         return QuickLitematicaContainerVerifier.findMismatches(
                 pos,
@@ -861,7 +873,7 @@ public final class QuickLitematicaContainerVerification implements VerifierExten
                 expected.blockEntity(),
                 foundBlockEntity,
                 expected.disabledSlots(),
-                QuickLitematicaContainerVerifier.getDisabledSlots(foundBlockEntity),
+                foundDisabledSlots,
                 expected.inventory(),
                 found
         );
@@ -890,6 +902,13 @@ public final class QuickLitematicaContainerVerification implements VerifierExten
             return null;
         }
 
+        if (foundDisabledSlots == null) {
+            foundDisabledSlots = QuickLitematicaContainerInventory.getActualDisabledSlots(
+                    foundWorld, pos, foundBlockEntity);
+        }
+        if (foundDisabledSlots == null) {
+            return null;
+        }
         this.recordMaterialMissing(foundWorld, pos, found, found.size());
         return QuickLitematicaContainerVerifier.findMismatches(
                 pos,
@@ -898,7 +917,7 @@ public final class QuickLitematicaContainerVerification implements VerifierExten
                 expected.blockEntity(),
                 foundBlockEntity,
                 expected.disabledSlots(),
-                foundDisabledSlots != null ? foundDisabledSlots : foundBlockEntity != null ? QuickLitematicaContainerVerifier.getDisabledSlots(foundBlockEntity) : Set.of(),
+                foundDisabledSlots,
                 expected.inventory(),
                 found
         );

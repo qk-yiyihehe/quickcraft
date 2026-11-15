@@ -127,6 +127,12 @@ public final class QuickLitematicaVerifierAccess {
         return EntitiesDataStorage.getInstance().getFromBlockEntityCacheNbt(pos);
     }
 
+    public static NbtCompound getReceivedBlockEntityNbtFromStorage(BlockPos pos) {
+        NbtCompound data = getBlockEntityNbtFromStorage(pos);
+        return QuickLitematicaContainerInventory.wasReceivedBlockEntityData(MinecraftClient.getInstance().world, pos, data)
+                ? data : null;
+    }
+
     public static BlockEntity getBlockEntityFromStorage(BlockPos pos) {
         return EntitiesDataStorage.getInstance().getFromBlockEntityCache(pos);
     }
@@ -246,7 +252,9 @@ public final class QuickLitematicaVerifierAccess {
     }
 
     public static boolean isServerEmptyContainerNbt(NbtCompound cachedNbt, Inventory expected) {
-        return false;
+        // 旧版缓存缺键返回 null；非 null 且无任何物品/战利品字段的记录来自服务端响应，可确认空库存。
+        return cachedNbt != null && !cachedNbt.contains("Items") && !cachedNbt.contains("RecordItem")
+                && !cachedNbt.contains("item") && !cachedNbt.contains("LootTable");
     }
 
     public static boolean hasCachedContainerData(NbtCompound cachedNbt, Inventory expected) {

@@ -61,6 +61,12 @@ import java.util.Set;
  * TechUtils 只作为交互参考，这里不依赖它的任何 API。
  */
 public final class QuickLitematicaContainerVerifier {
+    /** 只在 Litematica 数据响应处理完成后标记；Object 是不透明的原生负载键，不在核心解析版本数据。 */
+    public static void rememberReceivedBlockEntityData(Level world, BlockPos pos, Object data) {
+        QuickLitematicaContainerInventory.rememberReceivedBlockEntityData(world, pos, data);
+    }
+
+
     public static final MismatchType WRONG_FILL = ClassTinkerers.getEnum(
             MismatchType.class,
             EarlyRiser.WRONG_FILL_ENUM

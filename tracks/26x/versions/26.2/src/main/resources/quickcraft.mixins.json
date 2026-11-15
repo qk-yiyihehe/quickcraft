@@ -20,6 +20,7 @@
 		"GuiBaseAccessor",
 		"HandledScreenAccessor",
 		"JeiRecipeTransferMixin",
+		"LitematicaEntityDataReceiptMixin",
 		"LitematicaBlockMismatchMixin",
 		"LitematicaClientPlayNetworkHandlerShulkerRestockMixin",
 		"LitematicaClientPlayerInteractionManagerMixin",

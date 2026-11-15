@@ -19,6 +19,8 @@ import net.minecraft.core.HolderLookup;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.level.Level;
+import java.lang.ref.ReferenceQueue;
+import java.lang.ref.WeakReference;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
@@ -31,8 +33,50 @@ final class QuickLitematicaContainerInventory {
     }
 
     private static ActualInventoryReadStatus lastActualInventoryReadStatus = ActualInventoryReadStatus.NOT_READ;
-    private static Level trustedCacheWorld;
+    private static WeakReference<Level> trustedCacheWorld = new WeakReference<>(null);
     private static final Map<BlockPos, SimpleContainer> trustedInventoryCache = new HashMap<>();
+    // 仅弱引用收包负载并按对象身份核对；回收队列清理坐标，不复制 NBT 或延长缓存寿命。
+    private static final Map<BlockPos, ReceivedDataReference> receivedBlockEntityData = new HashMap<>();
+    private static final ReferenceQueue<Object> collectedBlockEntityData = new ReferenceQueue<>();
+
+    private static final class ReceivedDataReference extends WeakReference<Object> {
+        private final BlockPos pos;
+        private ReceivedDataReference(BlockPos pos, Object data) {
+            super(data, collectedBlockEntityData);
+            this.pos = pos;
+        }
+    }
+
+    private static void removeCollectedBlockEntityData() {
+        ReceivedDataReference collected;
+        while ((collected = (ReceivedDataReference) collectedBlockEntityData.poll()) != null) {
+            receivedBlockEntityData.remove(collected.pos, collected);
+        }
+    }
+
+    static void rememberReceivedBlockEntityData(Level world, BlockPos pos, Object data) {
+        resetDataWorld(world);
+        removeCollectedBlockEntityData();
+        if (world != null && data != null) {
+            BlockPos key = pos.immutable();
+            receivedBlockEntityData.put(key, new ReceivedDataReference(key, data));
+        }
+    }
+
+    static boolean wasReceivedBlockEntityData(Level world, BlockPos pos, Object data) {
+        resetDataWorld(world);
+        removeCollectedBlockEntityData();
+        ReceivedDataReference received = receivedBlockEntityData.get(pos);
+        return world != null && data != null && received != null && received.get() == data;
+    }
+
+    private static void resetDataWorld(Level world) {
+        if (trustedCacheWorld.get() != world) {
+            trustedCacheWorld = new WeakReference<>(world);
+            trustedInventoryCache.clear();
+            receivedBlockEntityData.clear();
+        }
+    }
 
     static Container getExpectedInventory(BlockEntity expectedBlockEntity, Container directInventory) {
         if (expectedBlockEntity == null) {
@@ -69,10 +113,7 @@ final class QuickLitematicaContainerInventory {
             return null;
         }
 
-        if (trustedCacheWorld != world) {
-            trustedCacheWorld = world;
-            trustedInventoryCache.clear();
-        }
+        resetDataWorld(world);
 
         if (directInventory != null
                 && expected != null
@@ -90,12 +131,33 @@ final class QuickLitematicaContainerInventory {
             return mergedOrDirect != null ? mergedOrDirect : directInventory;
         }
 
-        EntityDataManager storage = EntityDataManager.getInstance();
-        CompoundTag cachedNbt = storage.getCache().getBlockEntityNbtFromCache(pos);
+        // 双箱合并必须先同时拿到两侧记录；单侧缓存不能冒充完整 54 格库存，也不能回退旧快照。
+        if (expected != null && expected.getContainerSize() == 54) {
+            EntityDataManager storage = EntityDataManager.getInstance();
+            Container merged = getMergedCachedDoubleChestInventory(world, pos, storage, 54);
+            if (merged == null) {
+                lastActualInventoryReadStatus = ActualInventoryReadStatus.NO_CACHE_NBT;
+                storage.requestBlockEntityWrapped(world, pos);
+                return null;
+            }
+            lastActualInventoryReadStatus = ActualInventoryReadStatus.CACHE_INVENTORY;
+            trustedInventoryCache.put(pos.immutable(), copyInventory(merged));
+            return merged;
+        }
 
+        EntityDataManager storage = EntityDataManager.getInstance();
+        CompoundTag cachedNbt = getCachedBlockEntityNbt(storage, pos);
+        if (cachedNbt != null && cachedNbt.contains("LootTable")) {
+            lastActualInventoryReadStatus = ActualInventoryReadStatus.CACHE_WITHOUT_ITEMS;
+            storage.requestBlockEntityWrapped(world, pos);
+            return null;
+        }
+
+        // 54 格合并期望必须同时核验两侧；单侧空记录不能代替双箱合并。
         if (cachedNbt != null && !cachedNbt.contains("Items") && !cachedNbt.contains("RecordItem")
-                && expected != null && isInventoryEmpty(expected)) {
-            // 服务器空容器 NBT 可能只带 x/y/z/id，没有 Items；这表示已读到空库存。
+                && !cachedNbt.contains("item") && !cachedNbt.contains("LootTable")
+                && expected != null && expected.getContainerSize() <= 27) {
+            // 服务器空容器 NBT 可能只带 x/y/z/id，没有其他物品字段；这表示已读到空库存。
             trustedInventoryCache.put(pos.immutable(), new SimpleContainer(expected.getContainerSize()));
             lastActualInventoryReadStatus = ActualInventoryReadStatus.CACHE_INVENTORY;
             return new SimpleContainer(expected.getContainerSize());
@@ -135,11 +197,14 @@ final class QuickLitematicaContainerInventory {
     static Container getCachedInventory(Level world, BlockPos pos, EntityDataManager storage, int expectedSize) {
         Container merged = getMergedCachedDoubleChestInventory(world, pos, storage, expectedSize);
 
+        if (expectedSize == 54) {
+            return merged;
+        }
         if (merged != null) {
             return merged;
         }
 
-        CompoundTag cachedNbt = storage.getCache().getBlockEntityNbtFromCache(pos);
+        CompoundTag cachedNbt = getCachedBlockEntityNbt(storage, pos);
         if (cachedNbt != null && cachedNbt.contains("Items")
                 && QuickLitematicaContainerMaterials.readItems(cachedNbt, world.registryAccess()) == null) {
             return null;
@@ -213,23 +278,20 @@ final class QuickLitematicaContainerInventory {
         }
 
         BlockPos adjacentPos = ChestBlock.getConnectedBlockPos(pos, state);
-        CompoundTag currentNbt = storage.getCache().getBlockEntityNbtFromCache(pos);
-        CompoundTag adjacentNbt = storage.getCache().getBlockEntityNbtFromCache(adjacentPos);
+        if (!isMatchingDoubleChest(state, world.getBlockState(adjacentPos))) {
+            return null;
+        }
+        CompoundTag currentNbt = getCachedBlockEntityNbt(storage, pos);
+        CompoundTag adjacentNbt = getCachedBlockEntityNbt(storage, adjacentPos);
 
         if (currentNbt == null || adjacentNbt == null) {
+            // 邻半可能不在本次校验/批量请求的区块中，不能只刷新当前半后永久等待。
+            if (adjacentNbt == null) storage.requestBlockEntityWrapped(world, adjacentPos);
             return null;
         }
 
-        Container currentInventory = getNbtInventoryPreservingComponents(
-                currentNbt,
-                27,
-                world.registryAccess()
-        );
-        Container adjacentInventory = getNbtInventoryPreservingComponents(
-                adjacentNbt,
-                27,
-                world.registryAccess()
-        );
+        Container currentInventory = getCachedChestHalf(currentNbt, world.registryAccess());
+        Container adjacentInventory = getCachedChestHalf(adjacentNbt, world.registryAccess());
 
         if (currentInventory == null || adjacentInventory == null) {
             return null;
@@ -238,6 +300,26 @@ final class QuickLitematicaContainerInventory {
         return chestType == ChestType.RIGHT
                 ? mergeInventories(currentInventory, adjacentInventory)
                 : mergeInventories(adjacentInventory, currentInventory);
+    }
+
+    static CompoundTag getCachedBlockEntityNbt(EntityDataManager storage, BlockPos pos) {
+        var cache = storage.getCache();
+        // MaLiLib 对缺键也返回空 Compound；只有实际缓存项才能作为服务端响应。
+        var entry = cache.getBlockEntityPairFromCache(pos);
+        return entry != null && wasReceivedBlockEntityData(
+                net.minecraft.client.Minecraft.getInstance().level, pos, entry.data())
+                ? fi.dy.masa.malilib.util.data.tag.converter.DataConverterNbt.toVanillaCompound(entry.data())
+                : null;
+    }
+
+    static Container getCachedChestHalf(CompoundTag nbt, HolderLookup.Provider registryLookup) {
+        if (nbt == null || nbt.contains("RecordItem") || nbt.contains("item") || nbt.contains("LootTable")) {
+            return null;
+        }
+        // 服务端返回的半箱记录可以不带 Items，此时该半箱已确认是 27 格空库存。
+        return nbt.contains("Items")
+                ? getNbtInventoryPreservingComponents(nbt, 27, registryLookup)
+                : new SimpleContainer(27);
     }
 
     static Container getNbtInventoryPreservingComponents(
@@ -347,6 +429,23 @@ final class QuickLitematicaContainerInventory {
         }
 
         return Set.of();
+    }
+
+    static Set<Integer> getActualDisabledSlots(Level world, BlockPos pos, BlockEntity blockEntity) {
+        if (!(blockEntity instanceof CrafterBlockEntity)) {
+            return Set.of();
+        }
+        if (DataManager.getInstance().hasIntegratedServer()) {
+            // 初扫传入的是客户端方块实体；单人世界应读取服务端世界实体，无法取得时保持待核验。
+            if (!(world instanceof net.minecraft.server.level.ServerLevel)) {
+                return null;
+            }
+            BlockEntity authoritative = world.getBlockEntity(pos);
+            return authoritative instanceof CrafterBlockEntity ? getDisabledSlots(authoritative) : null;
+        }
+        CompoundTag nbt = getCachedBlockEntityNbt(EntityDataManager.getInstance(), pos);
+        // 客户端空壳的 disabled_slots 默认为空；只有服务端缓存明确带该字段时才可比较锁状态。
+        return nbt != null && nbt.contains("disabled_slots") ? getDisabledSlots(blockEntity, nbt) : null;
     }
 
     static Container getMergedDoubleChestInventory(Level world, BlockPos pos) {

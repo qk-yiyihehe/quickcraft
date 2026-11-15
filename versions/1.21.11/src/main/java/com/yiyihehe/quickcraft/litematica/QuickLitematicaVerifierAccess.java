@@ -124,7 +124,25 @@ public final class QuickLitematicaVerifierAccess {
     }
 
     public static NbtCompound getBlockEntityNbtFromStorage(BlockPos pos) {
-        return EntityDataManager.getInstance().getCache().getBlockEntityNbtFromCache(pos);
+        var entry = EntityDataManager.getInstance().getCache().getBlockEntityPairFromCache(pos);
+        return entry != null
+                ? fi.dy.masa.malilib.util.data.tag.converter.DataConverterNbt.toVanillaCompound(entry.data()) : null;
+    }
+
+    public static NbtCompound getReceivedBlockEntityNbtFromStorage(BlockPos pos) {
+        return getReceivedBlockEntityNbtFromCache(EntityDataManager.getInstance().getCache(), pos);
+    }
+
+    static NbtCompound getReceivedBlockEntityNbtFromCache(
+            fi.dy.masa.malilib.util.data_syncer.EntityDataCache cache,
+            BlockPos pos
+    ) {
+        // MaLiLib 对缺键也返回空 Compound；只有实际缓存项才能作为服务端响应。
+        var entry = cache.getBlockEntityPairFromCache(pos);
+        return entry != null && QuickLitematicaContainerInventory.wasReceivedBlockEntityData(
+                MinecraftClient.getInstance().world, pos, entry.data())
+                ? fi.dy.masa.malilib.util.data.tag.converter.DataConverterNbt.toVanillaCompound(entry.data())
+                : null;
     }
 
     public static BlockEntity getBlockEntityFromStorage(BlockPos pos) {
@@ -247,7 +265,7 @@ public final class QuickLitematicaVerifierAccess {
 
     public static boolean isServerEmptyContainerNbt(NbtCompound cachedNbt, Inventory expected) {
         return cachedNbt != null && !cachedNbt.contains("Items") && !cachedNbt.contains("RecordItem")
-                && expected != null && expected.isEmpty();
+                && !cachedNbt.contains("item") && !cachedNbt.contains("LootTable");
     }
 
     public static boolean hasCachedContainerData(NbtCompound cachedNbt, Inventory expected) {
