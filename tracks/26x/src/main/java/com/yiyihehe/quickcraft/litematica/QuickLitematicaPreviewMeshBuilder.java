@@ -22,7 +22,6 @@ import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.texture.OverlayTexture;
 import net.minecraft.client.renderer.chunk.ChunkSectionLayer;
-import net.minecraft.client.renderer.rendertype.RenderType;
 import net.minecraft.client.renderer.block.FluidRenderer;
 import net.minecraft.client.renderer.block.ModelBlockRenderer;
 import net.minecraft.client.multiplayer.ClientLevel;
@@ -596,10 +595,6 @@ final class QuickLitematicaPreviewMeshBuilder {
         private final EnumMap<LayerKey, RecordingVertexConsumer> consumers = new EnumMap<>(LayerKey.class);
         private final int vertexLimit = QuickLitematicaPreviewVertexBudget.vertexLimit();
         private int vertexCount;
-
-        private VertexConsumer consumerFor(RenderType renderLayer) {
-            return this.consumerFor(LayerKey.from(renderLayer));
-        }
 
         private VertexConsumer consumerFor(LayerKey layer) {
             // 这些材质共用透明管线，必须一起排序，避免水先写深度后遮掉玻璃。

@@ -1,7 +1,6 @@
 package com.yiyihehe.quickcraft.litematica;
 
 import fi.dy.masa.litematica.schematic.LitematicaSchematic;
-import net.minecraft.client.MinecraftClient;
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.EntityType;
 import net.minecraft.entity.player.PlayerInventory;
@@ -9,7 +8,6 @@ import net.minecraft.item.Item;
 import net.minecraft.item.ItemStack;
 import net.minecraft.item.Items;
 import net.minecraft.nbt.NbtCompound;
-import net.minecraft.nbt.NbtElement;
 import net.minecraft.nbt.NbtList;
 import net.minecraft.registry.Registries;
 import net.minecraft.server.network.ServerPlayerEntity;
@@ -21,7 +19,6 @@ import net.minecraft.util.math.Vec3d;
 import net.minecraft.world.World;
 
 import java.util.List;
-import java.util.Optional;
 
 final class QuickLitematicaEntityPlacementAccess {
     private QuickLitematicaEntityPlacementAccess() {
@@ -70,13 +67,6 @@ final class QuickLitematicaEntityPlacementAccess {
 
     public static ItemStack parseServerItem(ServerWorld world, NbtCompound nbt) {
         return ItemStack.fromNbt(world.getRegistryManager(), nbt).orElse(ItemStack.EMPTY);
-    }
-
-    public static Optional<ItemStack> decodeItemStack(MinecraftClient client, NbtCompound nbt) {
-        if (client == null || client.world == null) {
-            return Optional.empty();
-        }
-        return ItemStack.fromNbt(client.world.getRegistryManager(), nbt);
     }
 
     public static NbtCompound compoundAt(NbtList list, int index) {

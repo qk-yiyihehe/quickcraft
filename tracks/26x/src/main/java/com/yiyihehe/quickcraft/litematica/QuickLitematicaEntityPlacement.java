@@ -27,7 +27,6 @@ import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.DoubleTag;
 import net.minecraft.nbt.FloatTag;
 import net.minecraft.nbt.ListTag;
-import net.minecraft.nbt.NbtOps;
 import net.minecraft.util.Mth;
 import net.minecraft.world.level.block.Mirror;
 import net.minecraft.world.level.block.Rotation;
@@ -1185,10 +1184,6 @@ public final class QuickLitematicaEntityPlacement {
             this.yaw = yaw;
             this.pitch = pitch;
             this.velocity = velocity;
-        }
-
-        private boolean sameEntity(Candidate other) {
-            return region.equals(other.region) && index == other.index && entityType.equals(other.entityType);
         }
 
         private String key() {

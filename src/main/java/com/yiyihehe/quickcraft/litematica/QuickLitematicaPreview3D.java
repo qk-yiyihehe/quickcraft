@@ -47,7 +47,6 @@ import org.jetbrains.annotations.Nullable;
 import org.lwjgl.glfw.GLFW;
 import org.lwjgl.glfw.GLFWNativeWin32;
 import java.io.IOException;
-import java.nio.ByteBuffer;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.HashMap;
@@ -1645,35 +1644,6 @@ public final class QuickLitematicaPreview3D {
             if (data != null) {
                 data.releaseStaticVertices();
             }
-        }
-
-        void markTooLarge(@Nullable MeshData data) {
-            this.closeBuffers();
-            if (data != null) {
-                data.closeDynamic();
-            }
-            this.staticUploads.discard();
-            this.releaseBorrowedMesh();
-            this.staticMeshStore.close();
-            this.meshData = null;
-            this.dimensions = null;
-            this.state = State.TOO_LARGE;
-            this.trace.event("预览状态改变：TOO_LARGE，顶点保护触发={}，强制渲染={}", this.vertexLimitExceeded, this.forceRender);
-            this.progress = 1.0F;
-            this.trace.event("GPU/动态资源预算失败：状态={}，缓存文件失效，容量判定明细见前序事件", this.state);
-            deleteQuietly(this.cachePath);
-        }
-
-        void releaseMeshData() {
-            this.closeBuffers();
-            MeshData data = this.meshData;
-            if (data != null) {
-                data.closeDynamic();
-            }
-            this.meshData = null;
-            this.dimensions = null;
-            this.staticUploads.discard();
-            this.releaseBorrowedMesh();
         }
 
         boolean refreshCacheSourceHash(QuickLitematicaPreviewImageWriter.PreviewWriteResult result) {
