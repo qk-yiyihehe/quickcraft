@@ -1,6 +1,7 @@
 package com.yiyihehe.quickcraft.litematica;
 
 import net.fabricmc.fabric.api.client.render.fluid.v1.FluidRenderingRegistry;
+import net.fabricmc.fabric.impl.client.rendering.fluid.FluidRenderingRegistryImpl;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.world.level.BlockGetter;
@@ -14,8 +15,9 @@ final class QuickLitematicaPreviewFluids {
     boolean skipEnclosed(BlockGetter view, BlockPos pos, FluidState state) {
         this.examined++;
         var fluid = state.getType();
-        // 注册处理器可以绘制内部几何；有处理器时保留完整原生调用。
-        if (FluidRenderingRegistry.get(fluid) != null) {
+        // 显式 handler 或自定义 FluidModel 都可能绘制内部几何；get() 的默认处理器不能阻断普通流体剔除。
+        if (FluidRenderingRegistry.getOverride(fluid) != null
+                || FluidRenderingRegistryImpl.getUnbakedModels().containsKey(fluid)) {
             this.custom++;
             return false;
         }
