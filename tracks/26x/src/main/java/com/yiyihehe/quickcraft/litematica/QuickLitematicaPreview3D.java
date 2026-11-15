@@ -59,6 +59,7 @@ import org.joml.Matrix4fStack;
 import org.joml.Vector4f;
 
 import java.io.IOException;
+import java.lang.reflect.Method;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.HashMap;
@@ -83,6 +84,8 @@ import java.util.function.Supplier;
 public final class QuickLitematicaPreview3D {
     private static final AtomicBoolean SHADER_API_ERROR_LOGGED = new AtomicBoolean();
     private static final AtomicBoolean SHADER_DISABLE_ERROR_LOGGED = new AtomicBoolean();
+    // 只复用可选 API 的类/方法查找；是否启用光影仍由每次查询决定。
+    private static final IrisApi IRIS = IrisApi.load();
     static final QuickLitematicaPreviewLog LOGGER = QuickLitematicaPreviewLog.LOGGER;
     static String inferPreviewBlockEntityId(String blockId, int sourceDataVersion) {
         // 704 之前使用旧式 TileEntity 名称；无法可靠恢复时保留原数据给上游处理。
@@ -356,17 +359,39 @@ public final class QuickLitematicaPreview3D {
     }
 
     public static boolean isShaderPackActive() {
+        IrisApi api = IRIS;
+        if (api.missing()) return false;
+        if (api.error() != null) return shaderQueryFailed(api.error());
         try {
-            Class<?> apiClass = Class.forName("net.irisshaders.iris.api.v0.IrisApi");
-            Object api = apiClass.getMethod("getInstance").invoke(null);
-            return (boolean) apiClass.getMethod("isShaderPackInUse").invoke(api);
-        } catch (ClassNotFoundException ignored) {
-            return false;
+            Object instance = api.getInstance().invoke(null);
+            return (boolean) api.isShaderPackInUse().invoke(instance);
         } catch (Throwable throwable) {
-            if (QuickLitematicaPreviewLog.enabled() && SHADER_API_ERROR_LOGGED.compareAndSet(false, true)) {
-                LOGGER.error("Iris shader state could not be queried; disabling QuickCraft 3D previews for this session", throwable);
+            return shaderQueryFailed(throwable);
+        }
+    }
+
+    private static boolean shaderQueryFailed(Throwable throwable) {
+        if (QuickLitematicaPreviewLog.enabled() && SHADER_API_ERROR_LOGGED.compareAndSet(false, true)) {
+            LOGGER.error("Iris shader state could not be queried; disabling QuickCraft 3D previews for this session", throwable);
+        }
+        return true;
+    }
+
+    private record IrisApi(Method getInstance, Method isShaderPackInUse, boolean missing, Throwable error) {
+        private static IrisApi load() {
+            try {
+                Class<?> apiClass = Class.forName("net.irisshaders.iris.api.v0.IrisApi");
+                return new IrisApi(
+                        apiClass.getMethod("getInstance"),
+                        apiClass.getMethod("isShaderPackInUse"),
+                        false,
+                        null
+                );
+            } catch (ClassNotFoundException ignored) {
+                return new IrisApi(null, null, true, null);
+            } catch (Throwable throwable) {
+                return new IrisApi(null, null, false, throwable);
             }
-            return true;
         }
     }
 
