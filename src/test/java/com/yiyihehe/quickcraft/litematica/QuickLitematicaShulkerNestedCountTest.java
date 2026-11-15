@@ -61,10 +61,10 @@ class QuickLitematicaShulkerNestedCountTest {
         Object itemCount = itemCountConstructor.newInstance(parent, parentCount, "");
 
         Method add = QuickLitematicaContainerMaterials.class.getDeclaredMethod(
-                "addStoredShulkerGroups", accumulatorType, String.class, String.class,
+                "addStoredShulkerGroups", accumulatorType, String.class,
                 List.class, int.class, int.class);
         add.setAccessible(true);
-        add.invoke(null, accumulator, "source", "key", List.of(itemCount), 0, 1);
+        add.invoke(null, accumulator, "source", List.of(itemCount), 0, 1);
 
         Method toGroups = accumulatorType.getDeclaredMethod("toGroups");
         toGroups.setAccessible(true);

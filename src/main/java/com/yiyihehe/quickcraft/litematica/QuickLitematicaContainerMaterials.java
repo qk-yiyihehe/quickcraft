@@ -464,13 +464,12 @@ public final class QuickLitematicaContainerMaterials {
         }
 
         accumulator.add(descriptor.stack(), descriptor.displayName(), null, contents, slotStacks, 1, false);
-        addStoredShulkerGroups(accumulator, descriptor.displayName(), descriptor.signatureKey(), contents, 0, 1);
+        addStoredShulkerGroups(accumulator, descriptor.displayName(), contents, 0, 1);
     }
 
     private static void addStoredShulkerGroups(
             GroupAccumulator accumulator,
             String sourceName,
-            String sourceKey,
             List<ItemCount> containerContents,
             int depth,
             int parentMultiplier
@@ -496,11 +495,10 @@ public final class QuickLitematicaContainerMaterials {
             String shulkerName = shulkerStack.getName().getString();
             String shulkerSource = StringUtils.translate("quickcraft.litematica.label.source", sourceName);
             String nestedSourceName = sourceName + " / " + shulkerName;
-            String nestedSourceKey = sourceKey + "/" + itemSignature(shulkerStack);
 
             int totalCount = item.count() * parentMultiplier;
             accumulator.add(shulkerStack, shulkerName, shulkerSource, shulkerContents, shulkerSlotStacks, totalCount, true);
-            addStoredShulkerGroups(accumulator, nestedSourceName, nestedSourceKey, shulkerContents, depth + 1, totalCount);
+            addStoredShulkerGroups(accumulator, nestedSourceName, shulkerContents, depth + 1, totalCount);
         }
     }
 
@@ -716,17 +714,15 @@ public final class QuickLitematicaContainerMaterials {
         }
 
         String displayName = stack.getName().getString();
-        String signatureKey = itemSignature(stack);
 
         if (largeChest) {
             String key = stack.isOf(Items.TRAPPED_CHEST)
                     ? "quickcraft.litematica.container.large_trapped_chest"
                     : "quickcraft.litematica.container.large_chest";
             displayName = StringUtils.translate(key);
-            signatureKey = "large_chest:" + signatureKey;
         }
 
-        return new ContainerDescriptor(stack, displayName, signatureKey);
+        return new ContainerDescriptor(stack, displayName);
     }
 
     private static ContainerDescriptor describeEntityContainer(String id) {
@@ -736,7 +732,7 @@ public final class QuickLitematicaContainerMaterials {
             default -> new ItemStack(Items.CHEST_MINECART);
         };
 
-        return new ContainerDescriptor(stack, stack.getName().getString(), "entity:" + id + ":" + itemSignature(stack));
+        return new ContainerDescriptor(stack, stack.getName().getString());
     }
 
     private static ItemStack stackFromState(BlockState state) {
@@ -806,7 +802,7 @@ public final class QuickLitematicaContainerMaterials {
     public record ButtonPlacement(int x, int y) {
     }
 
-    private record ContainerDescriptor(ItemStack stack, String displayName, String signatureKey) {
+    private record ContainerDescriptor(ItemStack stack, String displayName) {
     }
 
     record ItemCount(ItemStack stack, int count, String signature) {

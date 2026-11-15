@@ -13,7 +13,6 @@ import net.minecraft.item.Items;
 import net.minecraft.registry.Registries;
 import net.minecraft.registry.DynamicRegistryManager;
 import net.minecraft.registry.RegistryWrapper;
-import net.minecraft.nbt.StringNbtReader;
 import net.minecraft.text.Text;
 import net.minecraft.util.Identifier;
 
@@ -56,14 +55,6 @@ public final class QuickLitematicaContainerReplacements {
                 || QuickLitematicaProjectionReplacementCompatibility.isAllowed(source, target);
     }
 
-    public static boolean hasValidRules() {
-        return hasValidRules(Scope.CONTAINER);
-    }
-
-    public static boolean hasValidRules(Scope scope) {
-        return hasValidRules(scope, "");
-    }
-
     public static boolean hasValidRules(Scope scope, String contextKey) {
         return !getRules(scope, contextKey).isEmpty();
     }
@@ -96,14 +87,6 @@ public final class QuickLitematicaContainerReplacements {
         );
     }
 
-    public static ItemStack applyToStack(ItemStack stack) {
-        return applyToStack(stack, Scope.CONTAINER);
-    }
-
-    public static ItemStack applyToStack(ItemStack stack, Scope scope) {
-        return applyToStack(stack, scope, "");
-    }
-
     public static ItemStack applyToStack(ItemStack stack, Scope scope, String contextKey) {
         return applyToStack(stack, scope, contextKey, "", -1);
     }
@@ -116,14 +99,6 @@ public final class QuickLitematicaContainerReplacements {
             int slotIndex
     ) {
         return applyToStack(stack, scope, getRules(scope, contextKey), contextKey, groupKey, slotIndex);
-    }
-
-    public static Optional<ItemStack> getReplacementTarget(ItemStack stack) {
-        return getReplacementTarget(stack, Scope.CONTAINER);
-    }
-
-    public static Optional<ItemStack> getReplacementTarget(ItemStack stack, Scope scope) {
-        return getReplacementTarget(stack, scope, "");
     }
 
     public static Optional<ItemStack> getReplacementTarget(ItemStack stack, Scope scope, String contextKey) {
@@ -527,15 +502,7 @@ public final class QuickLitematicaContainerReplacements {
                 continue;
             }
 
-            if (scope == Scope.PROJECTION) {
-                if (isBlank(effectiveContextKey) || !scopedRule.contextKey().equals(effectiveContextKey)) {
-                    continue;
-                }
-            } else if (isBlank(effectiveContextKey)) {
-                if (!scopedRule.contextKey().isEmpty() || !scopedRule.groupKey().isEmpty()) {
-                    continue;
-                }
-            } else if (!scopedRule.contextKey().equals(effectiveContextKey)) {
+            if (!scopedRule.contextKey().equals(effectiveContextKey)) {
                 continue;
             }
 
