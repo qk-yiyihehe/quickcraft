@@ -7,15 +7,9 @@ import com.yiyihehe.quickcraft.litematica.QuickLitematicaContainerMaterials;
 import fi.dy.masa.litematica.materials.MaterialListBase;
 import fi.dy.masa.litematica.materials.MaterialListEntry;
 import java.util.List;
-import com.yiyihehe.quickcraft.litematica.QuickLitematicaContainerVerifier;
 import fi.dy.masa.litematica.materials.MaterialListHudRenderer;
-import fi.dy.masa.malilib.render.GuiContext;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.gui.screen.ingame.HandledScreen;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
-import org.spongepowered.asm.mixin.injection.Inject;
-import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 /**
  * 在容器校验接管槽位高亮时，临时关闭 Litematica 原版材料 HUD 的槽位提示。
@@ -38,11 +32,4 @@ public class LitematicaMaterialListHudRendererMixin {
         return com.yiyihehe.quickcraft.litematica.QuickLitematicaEnderChestMaterials.hud(list, entries, refresh);
     }
 
-    @Inject(method = "renderLookedAtBlockInInventory", at = @At("HEAD"), cancellable = true)
-    private static void quickcraft$skipContainerMaterialSlotHighlights(
-            GuiContext drawContext, HandledScreen<?> gui, MinecraftClient mc, CallbackInfo ci) {
-        if (QuickLitematicaContainerVerifier.shouldSuppressInventorySlotHighlights()) {
-            ci.cancel();
-        }
-    }
 }

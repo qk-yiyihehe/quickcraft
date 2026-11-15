@@ -928,7 +928,6 @@ public final class QuickLitematicaContainerVerification implements VerifierExten
                 && this.quickcraft$ignoredContainers.contains(quickcraft$groupKey(mismatch))) { return; }
         this.quickcraft$containerMismatches.computeIfAbsent(mismatch.type(), type -> new ArrayList<>()).add(mismatch);
         this.quickcraft$containerMismatchesByKey.put(mismatch.key(), mismatch);
-        QuickLitematicaContainerVerifier.setSuppressInventorySlotHighlights(false);
     }
 
     private boolean quickcraft$replaceContainerMismatchesAt(BlockPos pos, List<ContainerMismatch> mismatches) {
@@ -969,7 +968,6 @@ public final class QuickLitematicaContainerVerification implements VerifierExten
             mismatches.removeIf(mismatch -> mismatch.pos().equals(pos));
         }
 
-        QuickLitematicaContainerVerifier.setSuppressInventorySlotHighlights(false);
     }
 
     private void quickcraft$clearContainerData() {
@@ -986,7 +984,6 @@ public final class QuickLitematicaContainerVerification implements VerifierExten
         this.quickcraft$containerDataChunks.clear();
         this.host.quickcraft$verificationSelectedCategories().removeIf(QuickLitematicaContainerVerifier::isContainerMismatchType);
         this.host.quickcraft$verificationSelectedEntries().keySet().removeIf(QuickLitematicaContainerVerifier::isContainerMismatchType);
-        QuickLitematicaContainerVerifier.setSuppressInventorySlotHighlights(false);
     }
 
     private void quickcraft$requestContainerInventoryData(World world, BlockPos pos) {

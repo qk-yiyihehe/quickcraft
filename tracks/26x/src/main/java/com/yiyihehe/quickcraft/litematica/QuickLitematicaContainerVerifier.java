@@ -181,14 +181,6 @@ public final class QuickLitematicaContainerVerifier {
         renderInventoryOverlay(BlockInfoAlignment.CENTER, LeftRight.RIGHT, 0, mismatch.type(), inventories.getRight(), foundState, foundDisabledSlots, mismatch.slotMismatches(), true, mouseX, mouseY, mc, drawContext);
     }
 
-    public static boolean shouldSuppressInventorySlotHighlights() {
-        return QuickLitematicaContainerScreenBinding.shouldSuppressInventorySlotHighlights();
-    }
-
-    public static void setSuppressInventorySlotHighlights(boolean suppress) {
-        QuickLitematicaContainerScreenBinding.setSuppressInventorySlotHighlights(suppress);
-    }
-
     public static void clearCurrentHandledScreenBinding() {
         QuickLitematicaContainerScreenBinding.clearCurrentHandledScreenBinding();
     }

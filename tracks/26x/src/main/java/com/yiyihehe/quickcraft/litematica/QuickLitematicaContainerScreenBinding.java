@@ -43,7 +43,6 @@ final class QuickLitematicaContainerScreenBinding {
 
     private static final AtomicBoolean LIFECYCLE_REGISTERED = new AtomicBoolean();
     private static final int PENDING_TIMEOUT_TICKS = 40;
-    private static boolean suppressInventorySlotHighlights;
     private static BlockPos pendingContainerPos;
     private static Level pendingContainerWorld;
     private static int pendingTicks;
@@ -74,14 +73,6 @@ final class QuickLitematicaContainerScreenBinding {
             currentHandledScreen = null;
             clearCurrentScreenContainerBinding();
         }
-    }
-
-    static boolean shouldSuppressInventorySlotHighlights() {
-        return suppressInventorySlotHighlights && isEnabled();
-    }
-
-    static void setSuppressInventorySlotHighlights(boolean suppress) {
-        suppressInventorySlotHighlights = suppress;
     }
 
     static void clearCurrentHandledScreenBinding() {

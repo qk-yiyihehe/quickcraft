@@ -168,14 +168,6 @@ public final class QuickLitematicaContainerVerifier {
         );
     }
 
-    public static boolean shouldSuppressInventorySlotHighlights() {
-        return QuickLitematicaContainerScreenBinding.shouldSuppressInventorySlotHighlights();
-    }
-
-    public static void setSuppressInventorySlotHighlights(boolean suppress) {
-        QuickLitematicaContainerScreenBinding.setSuppressInventorySlotHighlights(suppress);
-    }
-
     public static void clearCurrentHandledScreenBinding() {
         QuickLitematicaContainerScreenBinding.clearCurrentHandledScreenBinding();
     }
