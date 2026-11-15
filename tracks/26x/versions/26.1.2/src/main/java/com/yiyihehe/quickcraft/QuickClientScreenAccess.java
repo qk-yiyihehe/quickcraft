@@ -18,6 +18,7 @@ import java.nio.file.Path;
 
 /** 26.1.2 客户端屏幕与系统交互适配。 */
 public final class QuickClientScreenAccess {
+    private static final org.slf4j.Logger LOGGER = org.slf4j.LoggerFactory.getLogger(QuickClientScreenAccess.class);
     private QuickClientScreenAccess() {
     }
 
@@ -124,7 +125,8 @@ public final class QuickClientScreenAccess {
                 User32.INSTANCE.ShowWindow(hwnd, WinUser.SW_RESTORE);
             }
             User32.INSTANCE.SetForegroundWindow(hwnd);
-        } catch (Throwable ignored) {
+        } catch (RuntimeException | LinkageError exception) {
+            LOGGER.debug("无法恢复并激活游戏窗口", exception);
         }
     }
     @Nullable
@@ -135,7 +137,8 @@ public final class QuickClientScreenAccess {
         try {
             long hwndValue = GLFWNativeWin32.glfwGetWin32Window(windowHandle);
             return hwndValue != 0L ? new Pointer(hwndValue) : null;
-        } catch (Throwable ignored) {
+        } catch (RuntimeException | LinkageError exception) {
+            LOGGER.debug("无法取得游戏窗口的 Win32 句柄", exception);
             return null;
         }
     }
