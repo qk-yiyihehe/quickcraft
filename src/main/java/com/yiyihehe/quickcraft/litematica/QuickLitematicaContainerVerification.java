@@ -618,14 +618,9 @@ public final class QuickLitematicaContainerVerification implements VerifierExten
             return;
         }
 
-        List<BlockPos> positions = new ArrayList<>();
-
         // 多人服容器 NBT 可能稍后才由 Servux/OP 查询返回，pending 位置也要持续复查。
-        for (BlockPos pos : this.quickcraft$pendingContainerPositions) {
-            if (!positions.contains(pos)) {
-                positions.add(pos);
-            }
-        }
+        // 集合本身已去重；直接复制保留遍历顺序和游标语义，避免逐项 contains 的二次扫描。
+        List<BlockPos> positions = new ArrayList<>(this.quickcraft$pendingContainerPositions);
 
         if (positions.isEmpty()) {
             return;
