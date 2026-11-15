@@ -1006,27 +1006,6 @@ public final class QuickCraftConfigs implements IConfigHandler {
                 CREATIVE_PACKING
         );
 
-        public static final List<IHotkey> HOTKEYS = List.of(
-                OPEN_CONFIG,
-                OPEN_LITEMATICA_AREA_3D_PREVIEW,
-                CLONE_LITEMATICA_AREA,
-                OPEN_EASY_PLACE_ENTITY_SELECTOR,
-                SINGLE_CRAFT,
-                ANVIL_BUILD,
-                RAPID_CRAFT,
-                QUICK_SORT,
-                DROP_MATCHING,
-                DROP_WHOLE_STACK,
-                QUICK_TRANSFER,
-                QUICK_TRANSFER_RETAIN_ONE,
-                SLOT_QUICK_TRANSFER,
-                SLOT_LOCK,
-                COPY_CONTAINER_TEMPLATE,
-                CONTINUOUS_CONTAINER_FILL,
-                TOGGLE_CONTAINER_TOOL_MODE,
-                CREATIVE_PACKING
-        );
-
         private Hotkeys() {
         }
     }
