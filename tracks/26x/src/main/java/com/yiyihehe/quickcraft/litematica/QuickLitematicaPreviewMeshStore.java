@@ -1,10 +1,12 @@
 package com.yiyihehe.quickcraft.litematica;
 
+import java.io.File;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
 import java.nio.file.Files;
+import java.nio.file.OpenOption;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import java.util.List;
@@ -15,6 +17,7 @@ import static com.yiyihehe.quickcraft.litematica.QuickLitematicaPreview3D.LayerM
 
 final class QuickLitematicaPreviewMeshStore implements AutoCloseable {
     static final long MEMORY_BYTES = 64L * 1024 * 1024;
+    private static final boolean DELETE_ON_CLOSE = File.separatorChar == '\\';
     private final Path directory;
     private Path path;
     private FileChannel channel;
@@ -58,8 +61,11 @@ final class QuickLitematicaPreviewMeshStore implements AutoCloseable {
             if (this.ownerClosed) throw new CancellationException();
             if (this.channel == null) {
                 this.path = Files.createTempFile(this.directory, "quickcraft-preview-mesh-", ".tmp");
-                // Windows 用句柄标记删除，进程退出也能回收未完成任务的暂存文件。
-                this.channel = FileChannel.open(this.path, StandardOpenOption.READ, StandardOpenOption.WRITE, StandardOpenOption.DELETE_ON_CLOSE);
+                // Windows 用句柄标记删除；Unix 的 DELETE_ON_CLOSE 会立即 unlink 路径，独立读取通道无法重开。
+                OpenOption[] options = DELETE_ON_CLOSE
+                        ? new OpenOption[]{StandardOpenOption.READ, StandardOpenOption.WRITE, StandardOpenOption.DELETE_ON_CLOSE}
+                        : new OpenOption[]{StandardOpenOption.READ, StandardOpenOption.WRITE};
+                this.channel = FileChannel.open(this.path, options);
                 QuickLitematicaPreviewLog.LOGGER.info("CPU 顶点暂存启用：文件={}，驻留阈值={} B", this.path, MEMORY_BYTES);
             }
             long offset = this.position;
@@ -73,18 +79,23 @@ final class QuickLitematicaPreviewMeshStore implements AutoCloseable {
 
     byte[] read(long offset, int length) {
         try (var phase = QuickLitematicaPreviewLog.phase("CPU顶点暂存读取")) {
-            FileChannel input;
+            Path inputPath;
             synchronized (this) {
-                if (this.references == 0 || this.channel == null) throw new IOException("Preview mesh store is closed");
-                input = this.channel;
+                if (this.references == 0 || this.channel == null || this.path == null) {
+                    throw new IOException("Preview mesh store is closed");
+                }
+                // 每次读取使用独立通道；中断只会关闭当前读取通道，不关闭写入任务共享的通道。
+                inputPath = this.path;
             }
-            byte[] bytes = new byte[length];
-            ByteBuffer target = ByteBuffer.wrap(bytes);
-            while (target.hasRemaining()) {
-                int count = input.read(target, offset + target.position());
-                if (count < 0) throw new IOException("Truncated preview mesh store");
+            try (FileChannel input = FileChannel.open(inputPath, StandardOpenOption.READ)) {
+                byte[] bytes = new byte[length];
+                ByteBuffer target = ByteBuffer.wrap(bytes);
+                while (target.hasRemaining()) {
+                    int count = input.read(target, offset + target.position());
+                    if (count < 0) throw new IOException("Truncated preview mesh store");
+                }
+                return bytes;
             }
-            return bytes;
         } catch (IOException failure) {
             throw new UncheckedIOException("Unable to read preview vertices", failure);
         }

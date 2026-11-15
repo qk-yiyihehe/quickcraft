@@ -7,7 +7,10 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CancellationException;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static com.yiyihehe.quickcraft.litematica.QuickLitematicaPreview3D.*;
@@ -72,6 +75,55 @@ class QuickLitematicaPreviewMeshStoreTest {
             assertThat(Files.readAllBytes(rewritten)).isEqualTo(Files.readAllBytes(cache));
         }
         try (var files = Files.list(spillDirectory)) { assertThat(files.count()).isZero(); }
+    }
+
+    @Test
+    void interruptedReaderDoesNotCloseTheSharedWriteChannelOrOtherLease(@TempDir Path directory) throws Exception {
+        byte[] vertices = new byte[QUANTIZED_VERTEX_BYTES * 4];
+        vertices[3] = 42;
+        byte[] laterVertices = new byte[QUANTIZED_VERTEX_BYTES * 4];
+        laterVertices[3] = 77;
+        QuickLitematicaPreviewMeshStore store = new QuickLitematicaPreviewMeshStore(directory);
+        try {
+            LayerMesh spilled = store.store(new LayerMesh(LayerKey.SOLID, vertices));
+            assertThat(store.retainForRead()).isTrue();
+
+            AtomicReference<Throwable> readFailure = new AtomicReference<>();
+            CountDownLatch started = new CountDownLatch(1);
+            CountDownLatch release = new CountDownLatch(1);
+            Thread reader = new Thread(() -> {
+                started.countDown();
+                try {
+                    release.await();
+                } catch (InterruptedException interrupted) {
+                    Thread.currentThread().interrupt();
+                }
+                try {
+                    spilled.quantizedVertices();
+                } catch (Throwable failure) {
+                    readFailure.set(failure);
+                }
+            }, "mesh-store-interrupted-reader");
+            reader.start();
+            assertThat(started.await(5, TimeUnit.SECONDS)).isTrue();
+            reader.interrupt();
+            release.countDown();
+            reader.join(5_000L);
+            assertThat(reader.isAlive()).isFalse();
+            assertThat(readFailure.get()).isInstanceOf(java.io.UncheckedIOException.class);
+
+            // 被中断的是读取者自己的通道；共享写入通道和其他租约仍可读取。
+            assertThat(spilled.quantizedVertices()).isEqualTo(vertices);
+            LayerMesh later = store.store(new LayerMesh(LayerKey.SOLID, laterVertices));
+            assertThat(later.quantizedVertices()).isEqualTo(laterVertices);
+
+            store.releaseCache();
+        } finally {
+            store.close();
+        }
+        try (var files = Files.list(directory)) {
+            assertThat(files.count()).isZero();
+        }
     }
 
     @Test
