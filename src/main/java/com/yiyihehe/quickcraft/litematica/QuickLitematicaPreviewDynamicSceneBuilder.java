@@ -4,6 +4,7 @@ import net.minecraft.client.MinecraftClient;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.block.entity.BlockEntity;
 import net.minecraft.entity.Entity;
+import net.minecraft.entity.decoration.DisplayEntity;
 import net.minecraft.block.BlockState;
 import com.yiyihehe.quickcraft.litematica.QuickLitematicaPreviewAccess.BlockStateData;
 import com.yiyihehe.quickcraft.litematica.QuickLitematicaPreviewAccess.BlockEntityData;
@@ -117,6 +118,10 @@ final class QuickLitematicaPreviewDynamicSceneBuilder {
         // 已正确载入的位置不能再取整设置，否则画等实体的挂载点偏移会丢失。
         if (entity.getX() != x || entity.getY() != y || entity.getZ() != z) {
             entity.setPosition(x, y, z);
+        }
+        // Display 的渲染状态由 tick 在客户端首次建立；这里只初始化真正的展示实体。
+        if (entity instanceof DisplayEntity display && display.getRenderState() == null) {
+            display.tick();
         }
     }
 
