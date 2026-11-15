@@ -65,7 +65,9 @@ final class QuickCraftStonecutterAccess {
                     .optionDisplay()
                     .getFirst(SlotDisplayContexts.createParameters(client.world))
                     .copy();
-        } catch (Throwable throwable) {
+        } catch (RuntimeException exception) {
+            org.slf4j.LoggerFactory.getLogger("QuickCraft/StonecutterCraft").debug(
+                    "无法解析切石机展示结果：配方索引={}", recipeIndex, exception);
             return ItemStack.EMPTY;
         }
     }

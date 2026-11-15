@@ -58,7 +58,9 @@ final class QuickCraftStonecutterAccess {
         try {
             ItemStack input = client.player.currentScreenHandler.getSlot(0).getStack().copy();
             return recipe.value().craft(new net.minecraft.recipe.input.SingleStackRecipeInput(input), client.world.getRegistryManager()).copy();
-        } catch (Throwable throwable) {
+        } catch (RuntimeException exception) {
+            org.slf4j.LoggerFactory.getLogger("QuickCraft/StonecutterCraft").debug(
+                    "无法解析切石机展示结果：配方索引={}", recipeIndex, exception);
             return ItemStack.EMPTY;
         }
     }

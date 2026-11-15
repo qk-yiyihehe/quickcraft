@@ -590,7 +590,8 @@ public class QuickCraftStonecutter implements ClientModInitializer {
                     .optionDisplay()
                     .resolveForFirstStack(SlotDisplayContext.fromLevel(client.level))
                     .copy();
-        } catch (Throwable throwable) {
+        } catch (RuntimeException exception) {
+            LOGGER.debug("无法解析切石机展示结果：配方索引={}", recipeIndex, exception);
             return ItemStack.EMPTY;
         }
     }
