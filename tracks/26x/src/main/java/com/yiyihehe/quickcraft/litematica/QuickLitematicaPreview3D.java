@@ -8,6 +8,7 @@ import static com.yiyihehe.quickcraft.litematica.QuickLitematicaPreviewSchematic
 import com.mojang.blaze3d.platform.NativeImage;
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.sun.jna.Platform;
+import com.sun.jna.Pointer;
 import com.sun.jna.platform.win32.User32;
 import com.yiyihehe.quickcraft.QuickClientScreenAccess;
 import com.yiyihehe.quickcraft.config.QuickCraftConfigs;
@@ -1982,6 +1983,13 @@ public final class QuickLitematicaPreview3D {
                     return;
                 }
 
+                Pointer clipboardOwner = QuickClientScreenAccess.getWin32Hwnd(
+                        Minecraft.getInstance().getWindow().handle());
+                if (clipboardOwner == null) {
+                    callback.accept(Component.translatable("quickcraft.litematica.preview_3d.copy_failed"));
+                    return;
+                }
+
                 if (isShaderPackActive()) {
                     callback.accept(Component.translatable("quickcraft.message.litematica.preview_3d.shader_disabled"));
                     return;
@@ -2011,7 +2019,11 @@ public final class QuickLitematicaPreview3D {
                 boolean keepBackgroundOpaque = ((backgroundColor >>> 24) & 0xFF) == 0xFF;
                 this.backend.captureSnapshot(resolution, backgroundColor, drag, data, keepBackgroundOpaque, image -> Util.ioPool().execute(this.trace.wrap("剪贴板编码/写入", () -> {
                     try {
-                        QuickLitematicaPreviewClipboard.copyImage(image, ((backgroundColor >>> 24) & 0xFF) != 0xFF);
+                        QuickLitematicaPreviewClipboard.copyImage(
+                                image,
+                                ((backgroundColor >>> 24) & 0xFF) != 0xFF,
+                                clipboardOwner
+                        );
                         Minecraft.getInstance().execute(() -> callback.accept(Component.translatable(
                                 "quickcraft.litematica.preview_3d.copy_success"
                         )));

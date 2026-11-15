@@ -12,7 +12,6 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import javax.imageio.ImageIO;
-import com.sun.jna.platform.win32.User32;
 
 /** Headless 客户端的图片剪贴板；独立管理 Win32 句柄及向系统移交后的内存所有权。 */
 final class QuickLitematicaPreviewClipboard {
@@ -21,7 +20,15 @@ final class QuickLitematicaPreviewClipboard {
 
     private QuickLitematicaPreviewClipboard() { }
 
-    static void copyImage(NativeImage image, boolean preserveTransparency) throws InterruptedException {
+    static void copyImage(NativeImage image, boolean preserveTransparency, Pointer owner) throws InterruptedException {
+        writeImage(image, preserveTransparency, WindowsClipboard.INSTANCE, WindowsMemory.INSTANCE, owner);
+    }
+
+    static void writeImage(NativeImage image, boolean preserveTransparency,
+                           WindowsClipboard clipboard, WindowsMemory memory, Pointer owner) throws InterruptedException {
+        if (owner == null) {
+            throw new IllegalArgumentException("Clipboard owner is required");
+        }
         int width = image.getWidth();
         int height = image.getHeight();
         double compatScale = Math.min(1.0, COMPAT_CLIPBOARD_MAX_DIMENSION / (double) Math.max(width, height));
@@ -35,20 +42,20 @@ final class QuickLitematicaPreviewClipboard {
         }
         long pixelBytes = (long) width * height * 4L;
         long compatPixelBytes = (long) compatWidth * compatHeight * 4L;
-        Pointer dibV5Handle = WindowsMemory.INSTANCE.GlobalAlloc(
+        Pointer dibV5Handle = memory.GlobalAlloc(
                 WindowsMemory.GHND,
                 new BaseTSD.SIZE_T(WindowsMemory.BITMAP_V5_HEADER_SIZE + pixelBytes)
         );
-        Pointer dibHandle = WindowsMemory.INSTANCE.GlobalAlloc(
+        Pointer dibHandle = memory.GlobalAlloc(
                 WindowsMemory.GHND,
                 new BaseTSD.SIZE_T(WindowsMemory.BITMAP_INFO_HEADER_SIZE + compatPixelBytes)
         );
         if (dibV5Handle == null || dibHandle == null) {
             if (dibV5Handle != null) {
-                WindowsMemory.INSTANCE.GlobalFree(dibV5Handle);
+                memory.GlobalFree(dibV5Handle);
             }
             if (dibHandle != null) {
-                WindowsMemory.INSTANCE.GlobalFree(dibHandle);
+                memory.GlobalFree(dibHandle);
             }
             throw new IllegalStateException("GlobalAlloc failed");
         }
@@ -59,14 +66,14 @@ final class QuickLitematicaPreviewClipboard {
         boolean clipboardOpen = false;
         Pointer pngHandle = null;
         try {
-            Pointer dibV5Memory = WindowsMemory.INSTANCE.GlobalLock(dibV5Handle);
-            Pointer dibMemory = WindowsMemory.INSTANCE.GlobalLock(dibHandle);
+            Pointer dibV5Memory = memory.GlobalLock(dibV5Handle);
+            Pointer dibMemory = memory.GlobalLock(dibHandle);
             if (dibV5Memory == null || dibMemory == null) {
                 if (dibV5Memory != null) {
-                    WindowsMemory.INSTANCE.GlobalUnlock(dibV5Handle);
+                    memory.GlobalUnlock(dibV5Handle);
                 }
                 if (dibMemory != null) {
-                    WindowsMemory.INSTANCE.GlobalUnlock(dibHandle);
+                    memory.GlobalUnlock(dibHandle);
                 }
                 throw new IllegalStateException("GlobalLock failed");
             }
@@ -112,62 +119,57 @@ final class QuickLitematicaPreviewClipboard {
                     }
                 }
             } finally {
-                WindowsMemory.INSTANCE.GlobalUnlock(dibV5Handle);
-                WindowsMemory.INSTANCE.GlobalUnlock(dibHandle);
+                memory.GlobalUnlock(dibV5Handle);
+                memory.GlobalUnlock(dibHandle);
             }
 
             if (pngBytes != null) {
-                pngHandle = WindowsMemory.INSTANCE.GlobalAlloc(
+                pngHandle = memory.GlobalAlloc(
                         WindowsMemory.GHND,
                         new BaseTSD.SIZE_T(pngBytes.length)
                 );
                 if (pngHandle == null) {
                     throw new IllegalStateException("GlobalAlloc(PNG) failed");
                 }
-                Pointer pngMemory = WindowsMemory.INSTANCE.GlobalLock(pngHandle);
+                Pointer pngMemory = memory.GlobalLock(pngHandle);
                 if (pngMemory == null) {
                     throw new IllegalStateException("GlobalLock(PNG) failed");
                 }
                 try {
                     pngMemory.write(0, pngBytes, 0, pngBytes.length);
                 } finally {
-                    WindowsMemory.INSTANCE.GlobalUnlock(pngHandle);
+                    memory.GlobalUnlock(pngHandle);
                 }
             }
 
-            clipboardOpen = openWindowsClipboard();
-            if (!clipboardOpen || !WindowsClipboard.INSTANCE.EmptyClipboard()) {
+            int pngFormat = pngHandle != null ? getWindowsPngClipboardFormat(clipboard) : 0;
+
+            clipboardOpen = openWindowsClipboard(clipboard, owner);
+            if (!clipboardOpen || !clipboard.EmptyClipboard()) {
                 throw new IllegalStateException("Could not open/empty clipboard");
             }
 
-            if (WindowsClipboard.INSTANCE.SetClipboardData(WindowsClipboard.CF_DIBV5, dibV5Handle) == null) {
-                throw new IllegalStateException("SetClipboardData(CF_DIBV5) failed");
+            // 透明图片优先公布 PNG，避免按枚举顺序选择格式的程序先读到不含 Alpha 的 DIB。
+            if (pngHandle != null && pngFormat != 0) {
+                clipboardOwnsPng = clipboard.SetClipboardData(pngFormat, pngHandle) != null;
             }
-            clipboardOwnsDibV5 = true;
-
-            if (WindowsClipboard.INSTANCE.SetClipboardData(WindowsClipboard.CF_DIB, dibHandle) == null) {
-                throw new IllegalStateException("SetClipboardData(CF_DIB) failed");
-            }
-            clipboardOwnsDib = true;
-
-            if (pngHandle != null) {
-                int pngFormat = getWindowsPngClipboardFormat();
-                if (pngFormat != 0 && WindowsClipboard.INSTANCE.SetClipboardData(pngFormat, pngHandle) != null) {
-                    clipboardOwnsPng = true;
-                }
+            clipboardOwnsDib = clipboard.SetClipboardData(WindowsClipboard.CF_DIB, dibHandle) != null;
+            clipboardOwnsDibV5 = clipboard.SetClipboardData(WindowsClipboard.CF_DIBV5, dibV5Handle) != null;
+            if (!clipboardOwnsPng && !clipboardOwnsDib && !clipboardOwnsDibV5) {
+                throw new IllegalStateException("SetClipboardData failed for every prepared image format");
             }
         } finally {
             if (clipboardOpen) {
-                WindowsClipboard.INSTANCE.CloseClipboard();
+                clipboard.CloseClipboard();
             }
             if (!clipboardOwnsDibV5) {
-                WindowsMemory.INSTANCE.GlobalFree(dibV5Handle);
+                memory.GlobalFree(dibV5Handle);
             }
             if (!clipboardOwnsDib) {
-                WindowsMemory.INSTANCE.GlobalFree(dibHandle);
+                memory.GlobalFree(dibHandle);
             }
             if (pngHandle != null && !clipboardOwnsPng) {
-                WindowsMemory.INSTANCE.GlobalFree(pngHandle);
+                memory.GlobalFree(pngHandle);
             }
         }
     }
@@ -194,9 +196,9 @@ final class QuickLitematicaPreviewClipboard {
         return output.toByteArray();
     }
 
-    private static boolean openWindowsClipboard() throws InterruptedException {
+    private static boolean openWindowsClipboard(WindowsClipboard clipboard, Pointer owner) throws InterruptedException {
         for (int attempt = 0; attempt < 5; attempt++) {
-            if (WindowsClipboard.INSTANCE.OpenClipboard(null)) {
+            if (clipboard.OpenClipboard(owner)) {
                 return true;
             }
             Thread.sleep(10L);
@@ -236,16 +238,16 @@ final class QuickLitematicaPreviewClipboard {
         return header.array();
     }
 
-    private static int getWindowsPngClipboardFormat() {
+    private static int getWindowsPngClipboardFormat(WindowsClipboard clipboard) {
         try {
-            return User32.INSTANCE.RegisterClipboardFormat("PNG");
+            return clipboard.RegisterClipboardFormat("PNG");
         } catch (Throwable ignored) {
             LOGGER.warn("预览局部失败：入口=getWindowsPngClipboardFormat，继续原有回退", ignored);
             return 0;
         }
     }
 
-    private interface WindowsClipboard extends StdCallLibrary {
+    interface WindowsClipboard extends StdCallLibrary {
         WindowsClipboard INSTANCE = Native.load("user32", WindowsClipboard.class, W32APIOptions.DEFAULT_OPTIONS);
         int CF_DIB = 8;
         int CF_DIBV5 = 17;
@@ -261,7 +263,7 @@ final class QuickLitematicaPreviewClipboard {
         boolean CloseClipboard();
     }
 
-    private interface WindowsMemory extends StdCallLibrary {
+    interface WindowsMemory extends StdCallLibrary {
         WindowsMemory INSTANCE = Native.load("kernel32", WindowsMemory.class, W32APIOptions.DEFAULT_OPTIONS);
         int GHND = 0x0042;
         int BITMAP_INFO_HEADER_SIZE = 40;

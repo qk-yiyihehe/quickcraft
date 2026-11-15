@@ -1951,6 +1951,21 @@ public final class QuickLitematicaPreview3D {
                     return;
                 }
 
+                long hwndValue;
+                try {
+                    hwndValue = GLFWNativeWin32.glfwGetWin32Window(
+                            MinecraftClient.getInstance().getWindow().getHandle());
+                } catch (RuntimeException | LinkageError throwable) {
+                    LOGGER.error("Failed to resolve the game window for the Windows clipboard", throwable);
+                    callback.accept(Text.translatable("quickcraft.litematica.preview_3d.copy_failed"));
+                    return;
+                }
+                if (hwndValue == 0L) {
+                    callback.accept(Text.translatable("quickcraft.litematica.preview_3d.copy_failed"));
+                    return;
+                }
+                Pointer clipboardOwner = new Pointer(hwndValue);
+
                 this.captureSnapshot(
                         resolution,
                         backgroundColor,
@@ -1960,7 +1975,11 @@ public final class QuickLitematicaPreview3D {
 
                 Util.getIoWorkerExecutor().execute(this.trace.wrap("剪贴板编码/写入", () -> {
                     try {
-                        QuickLitematicaPreviewClipboard.copyImage(image, ((backgroundColor >>> 24) & 0xFF) != 0xFF);
+                        QuickLitematicaPreviewClipboard.copyImage(
+                                image,
+                                ((backgroundColor >>> 24) & 0xFF) != 0xFF,
+                                clipboardOwner
+                        );
                         MinecraftClient.getInstance().execute(() -> callback.accept(Text.translatable(
                                 "quickcraft.litematica.preview_3d.copy_success"
                         )));
