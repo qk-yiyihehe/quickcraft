@@ -6,8 +6,13 @@ import net.minecraft.core.component.DataComponents;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.network.chat.Component;
+import net.bytebuddy.ByteBuddy;
+import net.bytebuddy.dynamic.loading.ClassLoadingStrategy;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
+import sun.misc.Unsafe;
+
+import java.lang.reflect.Field;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -224,12 +229,12 @@ class QuickLitematicaProjectionReplacementCompatibilityTest {
     }
 
     @Test
-    void groupsConfirmedStructuralSubclassesWithoutGroupingSpecialPlants() {
-        var settings = net.minecraft.world.level.block.state.BlockBehaviour.Properties.ofFullCopy(block("minecraft:lantern")).setId(net.minecraft.resources.ResourceKey.create(net.minecraft.core.registries.Registries.BLOCK, net.minecraft.resources.Identifier.fromNamespaceAndPath("quickcraft_test", "lantern")));
-        var lanternVariant = new net.minecraft.world.level.block.LanternBlock(settings) { };
-        var chainVariant = new net.minecraft.world.level.block.ChainBlock(net.minecraft.world.level.block.state.BlockBehaviour.Properties.ofFullCopy(block("minecraft:iron_chain")).setId(net.minecraft.resources.ResourceKey.create(net.minecraft.core.registries.Registries.BLOCK, net.minecraft.resources.Identifier.fromNamespaceAndPath("quickcraft_test", "iron_chain")))) { };
-        var paneVariant = new net.minecraft.world.level.block.IronBarsBlock(net.minecraft.world.level.block.state.BlockBehaviour.Properties.ofFullCopy(block("minecraft:iron_bars")).setId(net.minecraft.resources.ResourceKey.create(net.minecraft.core.registries.Registries.BLOCK, net.minecraft.resources.Identifier.fromNamespaceAndPath("quickcraft_test", "iron_bars")))) { };
-        var rodVariant = new net.minecraft.world.level.block.LightningRodBlock(net.minecraft.world.level.block.state.BlockBehaviour.Properties.ofFullCopy(block("minecraft:lightning_rod")).setId(net.minecraft.resources.ResourceKey.create(net.minecraft.core.registries.Registries.BLOCK, net.minecraft.resources.Identifier.fromNamespaceAndPath("quickcraft_test", "lightning_rod")))) { };
+    void groupsConfirmedStructuralSubclassesWithoutGroupingSpecialPlants() throws Exception {
+        // Block 构造器会向已冻结的方块注册表创建 intrusive holder；子类身份用不调用构造器的真正子类替身验证。
+        var lanternVariant = subclassMock(net.minecraft.world.level.block.LanternBlock.class);
+        var chainVariant = subclassMock(net.minecraft.world.level.block.ChainBlock.class);
+        var paneVariant = subclassMock(net.minecraft.world.level.block.IronBarsBlock.class);
+        var rodVariant = subclassMock(net.minecraft.world.level.block.LightningRodBlock.class);
         assertThat(QuickLitematicaProjectionReplacementCompatibility.nonFullFamily(lanternVariant)).isEqualTo(net.minecraft.world.level.block.LanternBlock.class);
         assertThat(QuickLitematicaProjectionReplacementCompatibility.nonFullFamily(chainVariant)).isEqualTo(net.minecraft.world.level.block.ChainBlock.class);
         assertThat(QuickLitematicaProjectionReplacementCompatibility.nonFullFamily(paneVariant)).isEqualTo(net.minecraft.world.level.block.IronBarsBlock.class);
@@ -239,6 +244,22 @@ class QuickLitematicaProjectionReplacementCompatibilityTest {
         assertThat(allowed(item("minecraft:lantern").getDefaultInstance(), item("minecraft:soul_lantern").getDefaultInstance())).isTrue();
         assertThat(allowed(item("minecraft:lantern").getDefaultInstance(), item("minecraft:iron_chain").getDefaultInstance())).isFalse();
         assertThat(allowed(item("minecraft:poppy").getDefaultInstance(), item("minecraft:wither_rose").getDefaultInstance())).isFalse();
+    }
+
+    @SuppressWarnings("unchecked")
+    private static <T extends net.minecraft.world.level.block.Block> T subclassMock(Class<T> family) throws Exception {
+        Class<? extends T> subtype = new ByteBuddy()
+                .subclass(family)
+                .make()
+                .load(family.getClassLoader(), ClassLoadingStrategy.Default.WRAPPER)
+                .getLoaded();
+        Field unsafeField = Unsafe.class.getDeclaredField("theUnsafe");
+        unsafeField.setAccessible(true);
+        T mock = (T) ((Unsafe) unsafeField.get(null)).allocateInstance(subtype);
+        assertThat(subtype).isNotEqualTo(family);
+        assertThat(family.isInstance(mock)).isTrue();
+        assertThat(mock.getClass()).isNotEqualTo(family);
+        return mock;
     }
 
     private static boolean allowed(ItemStack source, ItemStack target) {
