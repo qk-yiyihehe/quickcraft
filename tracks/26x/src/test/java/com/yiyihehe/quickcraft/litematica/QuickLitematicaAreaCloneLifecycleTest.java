@@ -49,6 +49,34 @@ import static org.mockito.ArgumentMatchers.*;
 @org.junit.jupiter.api.extension.ExtendWith(com.yiyihehe.quickcraft.QuickCraftMinecraftTestBootstrap.class)
 class QuickLitematicaAreaCloneLifecycleTest {
     @Test
+    void namingReadsLoadedMetadataOnceAndKeepsReservations() throws Exception {
+        String prefix = fi.dy.masa.malilib.util.StringUtils.translate("quickcraft.litematica.area_clone.name_prefix");
+        var loaded = new ArrayList<LitematicaSchematic>();
+        for (int i = 1; i <= 500; i++) {
+            var schematic = mock(LitematicaSchematic.class);
+            var metadata = mock(SchematicMetadata.class);
+            when(schematic.getMetadata()).thenReturn(metadata);
+            when(metadata.getName()).thenReturn(prefix + i);
+            loaded.add(schematic);
+        }
+        var holder = mock(SchematicHolder.class);
+        when(holder.getAllSchematics()).thenReturn(loaded);
+        List<String> names = new ArrayList<>();
+        try (var holders = mockStatic(SchematicHolder.class)) {
+            holders.when(SchematicHolder::getInstance).thenReturn(holder);
+            names.add(reserveName());
+            assertThat(names.getFirst()).isEqualTo(prefix + 501);
+            for (var schematic : loaded) verify(schematic).getMetadata();
+            names.add(reserveName());
+            assertThat(names.getLast()).isEqualTo(prefix + 502);
+        } finally {
+            var release = QuickLitematicaAreaClone.class.getDeclaredMethod("releaseTemporaryName", String.class);
+            release.setAccessible(true);
+            for (String name : names) release.invoke(null, name);
+        }
+    }
+
+    @Test
     void hotkeyScheduledTaskCancelsFromBothRealSchedulerQueuesWithoutRemovingOtherTasks() throws Exception {
         for (boolean active : new boolean[]{false, true}) {
             try (RealTaskFixture f = new RealTaskFixture(false)) {

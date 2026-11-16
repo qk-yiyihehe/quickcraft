@@ -243,18 +243,18 @@ public final class QuickLitematicaAreaClone {
     private static synchronized String reserveTemporaryName() {
         String prefix = StringUtils.translate("quickcraft.litematica.area_clone.name_prefix");
 
+        Set<String> occupied = new HashSet<>(RESERVED_NAMES);
+        for (LitematicaSchematic schematic : SchematicHolder.getInstance().getAllSchematics()) {
+            occupied.add(schematic.getMetadata().getName());
+        }
         for (int id = 1; id < Integer.MAX_VALUE; id++) {
             String name = prefix + id;
-            if (RESERVED_NAMES.contains(name)) {
+            if (occupied.contains(name)) {
                 continue;
             }
 
-            boolean alreadyLoaded = SchematicHolder.getInstance().getAllSchematics().stream()
-                    .anyMatch(schematic -> name.equals(schematic.getMetadata().getName()));
-            if (!alreadyLoaded) {
-                RESERVED_NAMES.add(name);
-                return name;
-            }
+            RESERVED_NAMES.add(name);
+            return name;
         }
 
         throw new IllegalStateException("No temporary schematic name is available");
