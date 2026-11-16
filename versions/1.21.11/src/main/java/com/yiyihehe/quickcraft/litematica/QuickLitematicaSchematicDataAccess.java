@@ -10,6 +10,11 @@ import net.minecraft.nbt.NbtList;
 final class QuickLitematicaSchematicDataAccess {
     private QuickLitematicaSchematicDataAccess() { }
 
+    static fi.dy.masa.litematica.schematic.LitematicaSchematic fromPreviewNbt(java.nio.file.Path source, NbtCompound nbt) {
+        return new fi.dy.masa.litematica.schematic.LitematicaSchematic(source, DataConverterNbt.fromVanillaCompound(nbt),
+                fi.dy.masa.litematica.util.FileType.LITEMATICA_SCHEMATIC);
+    }
+
     static Object repairList(Object data, int version) {
         NbtList list = data instanceof NbtList nbt ? nbt : DataConverterNbt.toVanillaList((ListData) data);
         NbtList repaired = (NbtList) QuickLitematicaSchematicData.repair(list, version);

@@ -19,11 +19,45 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static com.yiyihehe.quickcraft.litematica.QuickLitematicaPreviewSchematicFiles.*;
 import net.minecraft.nbt.NbtIo;
 
+@org.junit.jupiter.api.extension.ExtendWith(com.yiyihehe.quickcraft.QuickCraftMinecraftTestBootstrap.class)
 class QuickLitematicaPreviewSchematicFilesTest {
-    static {
-        // 该测试类可直接单跑，LitematicaSchematic 的静态初始化也需要完整原版注册表。
-        net.minecraft.SharedConstants.createGameVersion();
-        net.minecraft.Bootstrap.initialize();
+    @Test
+    void unchangedCurrentSchematicUsesParsedNbtWithoutASecondFileRead(@TempDir Path temporary) throws Exception {
+        var root = new NbtCompound();
+        root.putInt("Version", fi.dy.masa.litematica.schematic.LitematicaSchematic.SCHEMATIC_VERSION);
+        root.putInt("MinecraftDataVersion", fi.dy.masa.litematica.schematic.LitematicaSchematic.MINECRAFT_DATA_VERSION);
+        var metadata = new NbtCompound();
+        metadata.putString("Name", "single-read");
+        root.put("Metadata", metadata);
+        var region = new NbtCompound();
+        region.put("Position", position(0, 0, 0));
+        region.put("Size", position(1, 1, 1));
+        var palette = new NbtList();
+        for (String id : java.util.List.of("minecraft:air", "minecraft:stone")) {
+            var state = new NbtCompound();
+            state.putString("Name", id);
+            palette.add(state);
+        }
+        region.put("BlockStatePalette", palette);
+        region.putLongArray("BlockStates", new long[] {1L});
+        var regions = new NbtCompound();
+        regions.put("region", region);
+        root.put("Regions", regions);
+        Path file = temporary.resolve("current.litematic");
+        try (var output = new DataOutputStream(new GZIPOutputStream(Files.newOutputStream(file)))) { NbtIo.writeCompound(root, output); }
+        try (var files = org.mockito.Mockito.mockStatic(fi.dy.masa.malilib.util.FileUtils.class, org.mockito.Mockito.CALLS_REAL_METHODS);
+             var upstream = org.mockito.Mockito.mockStatic(fi.dy.masa.litematica.schematic.LitematicaSchematic.class,
+                org.mockito.Mockito.CALLS_REAL_METHODS)) {
+            files.when(fi.dy.masa.malilib.util.FileUtils::getMinecraftDirectoryAsPath).thenReturn(temporary);
+            upstream.when(() -> fi.dy.masa.litematica.schematic.LitematicaSchematic.createFromFile(
+                    org.mockito.ArgumentMatchers.any(Path.class), org.mockito.ArgumentMatchers.anyString(),
+                    org.mockito.ArgumentMatchers.any(fi.dy.masa.litematica.util.FileType.class)))
+                    .thenThrow(new AssertionError("unchanged native data must not be decompressed again"));
+            var schematic = readSchematic(file, new AtomicBoolean(), true);
+            assertThat(schematic).isNotNull();
+            assertThat(schematic.getSubRegionContainer("region").get(0, 0, 0).getBlock()).isEqualTo(net.minecraft.block.Blocks.STONE);
+            assertThat(schematic.getMetadata().getName()).isEqualTo("single-read");
+        }
     }
 
     @Test

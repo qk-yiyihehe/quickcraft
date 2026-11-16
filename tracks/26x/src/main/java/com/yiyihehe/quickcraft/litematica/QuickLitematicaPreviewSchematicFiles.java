@@ -537,6 +537,7 @@ final class QuickLitematicaPreviewSchematicFiles {
         try {
             CompoundTag root = null;
             PreparationStats stats;
+            int formatVersion, declaredSourceVersion;
             try (var phase = QuickLitematicaPreviewLog.phase("原理图快速预处理")) {
                 StreamingPreparation streaming = null;
                 long expandedHint = gzipExpandedSizeHint(sourcePath);
@@ -565,10 +566,10 @@ final class QuickLitematicaPreviewSchematicFiles {
                 throwIfCancelled(cancelled);
                 if (root == null || !root.contains("Regions")) return null;
                 checkPreviewNbtBudget(root.sizeInBytes(), nbtBudgetBytes);
-                int formatVersion = root.getIntOr("Version", -1);
+                formatVersion = root.getIntOr("Version", -1);
                 // 未知格式继续使用上游带验证的文件入口。
                 if (formatVersion < 1 || formatVersion > LitematicaSchematic.SCHEMATIC_VERSION) return null;
-                int declaredSourceVersion = root.getIntOr("MinecraftDataVersion", 0);
+                declaredSourceVersion = root.getIntOr("MinecraftDataVersion", 0);
                 LOGGER.info("预处理 NBT 读取完成：源={}，数据版本={}，文件格式版本={}", sourcePath,
                         declaredSourceVersion, formatVersion);
                 int effectiveSourceVersion = sourceDataVersion(root,
@@ -583,7 +584,15 @@ final class QuickLitematicaPreviewSchematicFiles {
                         stats.blockEntities() - stats.skippedBlockEntities(), stats.skippedByType(), stats.modified());
             }
             throwIfCancelled(cancelled);
-            if (!stats.modified()) return null;
+            if (!stats.modified()) {
+                // 同版本当前格式不走旧数据转换，复用已解析NBT；旧格式仍保留上游文件入口的converter初始化顺序。
+                if (formatVersion == LitematicaSchematic.SCHEMATIC_VERSION
+                        && declaredSourceVersion == LitematicaSchematic.MINECRAFT_DATA_VERSION) {
+                    LOGGER.info("预处理原始NBT直接采用：路径={}，无需再次解压源文件", sourcePath);
+                    return new LitematicaSchematic(sourcePath, fi.dy.masa.malilib.util.data.tag.converter.DataConverterNbt.fromVanillaCompound(root), FileType.LITEMATICA_SCHEMATIC);
+                }
+                return null;
+            }
             Path cacheDir = cacheDirectory();
             if (cacheDir == null) return null;
             Path temporary = cacheDir.resolve(fastTemporaryName());
