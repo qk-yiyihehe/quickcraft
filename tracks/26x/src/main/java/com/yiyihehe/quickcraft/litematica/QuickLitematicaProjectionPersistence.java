@@ -11,6 +11,9 @@ import fi.dy.masa.litematica.scheduler.TaskScheduler;
 import fi.dy.masa.litematica.schematic.placement.SchematicPlacement;
 import fi.dy.masa.litematica.schematic.verifier.SchematicVerifier;
 
+import java.lang.ref.WeakReference;
+import fi.dy.masa.malilib.interfaces.ICompletionListener;
+import fi.dy.masa.litematica.gui.GuiSchematicVerifier;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashSet;
@@ -23,6 +26,21 @@ public final class QuickLitematicaProjectionPersistence {
     private static final Map<String, Map<UUID, VerifierState>> VERIFIERS = new HashMap<>();
 
     private QuickLitematicaProjectionPersistence() { }
+
+    public static ICompletionListener persistentCompletionListener(ICompletionListener listener) {
+        return listener instanceof GuiSchematicVerifier ? new GuiCompletion(new WeakReference<>(listener)) : listener;
+    }
+
+    private record GuiCompletion(WeakReference<ICompletionListener> target) implements ICompletionListener {
+        @Override public void onTaskCompleted() {
+            var listener = this.target.get();
+            if (listener != null) listener.onTaskCompleted();
+        }
+        @Override public void onTaskAborted() {
+            var listener = this.target.get();
+            if (listener != null) listener.onTaskAborted();
+        }
+    }
 
     public interface PersistentVerifier {
         SchematicPlacement quickcraft$persistentPlacement();

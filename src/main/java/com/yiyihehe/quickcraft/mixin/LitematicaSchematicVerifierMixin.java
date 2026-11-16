@@ -305,6 +305,11 @@ public abstract class LitematicaSchematicVerifierMixin extends TaskBase implemen
         this.quickcraft$containerVerification.quickcraft$clearInventoryData();
     }
 
+    @org.spongepowered.asm.mixin.injection.ModifyVariable(method = "startVerification", at = @At("HEAD"), argsOnly = true)
+    private ICompletionListener quickcraft$avoidRetainingVerifierGui(ICompletionListener listener) {
+        return com.yiyihehe.quickcraft.litematica.QuickLitematicaProjectionPersistence.persistentCompletionListener(listener);
+    }
+
     @Inject(method = "startVerification", at = @At("TAIL"))
     private void quickcraft$requestContainerDataOnStart(
             ClientWorld worldClient,
