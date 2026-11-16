@@ -86,9 +86,50 @@ class QuickCraftStonecutterTailDropTest {
                 eq(SlotActionType.THROW), any());
     }
 
+    @Test
+    void unlimitedRecyclingRecipeYieldsAndContinuesOnNextTickUntilReleased() throws Exception {
+        Fixture fixture = new Fixture(false);
+        fixture.recycleOutput = true;
+        fixture.rapidHeld = true;
+        fixture.setStack(0, new ItemStack(Items.STONE));
+        fixture.setStack(1, new ItemStack(Items.STONE));
+        setField(fixture.stonecutter, "singleCraftPending", false);
+        setField(fixture.stonecutter, "rapidCraftingActive", true);
+        setField(fixture.stonecutter, "lockedInputTemplate", new ItemStack(Items.STONE));
+        setField(fixture.stonecutter, "lockedResultTemplate", new ItemStack(Items.STONE));
+
+        fixture.pump();
+        assertThat(fixture.outputClicks).isEqualTo(64);
+        assertThat(fixture.field("rapidCraftingActive")).isEqualTo(true);
+        assertThat(fixture.field("predicting")).isEqualTo(false);
+        fixture.run("onClientTick");
+        assertThat(fixture.outputClicks).isEqualTo(128);
+        fixture.rapidHeld = false;
+        fixture.run("onClientTick");
+        assertThat(fixture.outputClicks).isEqualTo(128);
+        assertThat(fixture.field("rapidCraftingActive")).isEqualTo(false);
+    }
+
+    @Test
+    void positiveRateStillWaitsAfterFirstBatch() throws Exception {
+        Fixture fixture = new Fixture(false);
+        fixture.rapidHeld = true;
+        fixture.rate = 1;
+        setField(fixture.stonecutter, "singleCraftPending", false);
+        setField(fixture.stonecutter, "rapidCraftingActive", true);
+        fixture.pump();
+        fixture.pump();
+        assertThat(fixture.outputClicks).isEqualTo(1);
+        assertThat(fixture.field("rapidCraftingActive")).isEqualTo(true);
+    }
+
     private static final class Fixture {
         private static final int SLOT_COUNT = 38;
         private final boolean tailDropEnabled;
+        private boolean recycleOutput;
+        private boolean rapidHeld;
+        private int outputClicks;
+        private int rate;
         private final MinecraftClient client = mock(MinecraftClient.class);
         private final ClientPlayerEntity player = mock(ClientPlayerEntity.class);
         private final ClientPlayerInteractionManager interactionManager =
@@ -98,10 +139,11 @@ class QuickCraftStonecutterTailDropTest {
         private final StonecutterScreenHandler handler = mock(StonecutterScreenHandler.class);
         private final List<AtomicReference<ItemStack>> stacks = new ArrayList<>();
         private final QuickCraftStonecutter stonecutter = new QuickCraftStonecutter();
+        private final PlayerInventory inventory;
 
         private Fixture(boolean tailDropEnabled) throws Exception {
             this.tailDropEnabled = tailDropEnabled;
-            PlayerInventory inventory = newPlayerInventory(player);
+            inventory = newPlayerInventory(player);
             when(player.getInventory()).thenReturn(inventory);
             doNothing().when(player).sendMessage(any(Text.class), anyBoolean());
             installMenu();
@@ -148,9 +190,15 @@ class QuickCraftStonecutterTailDropTest {
             doAnswer(invocation -> {
                 int slotId = invocation.getArgument(1);
                 SlotActionType action = invocation.getArgument(3);
-                if (action == SlotActionType.THROW) {
+                if (recycleOutput && action == SlotActionType.QUICK_MOVE && slotId == 2) {
+                    stacks.get(0).set(stacks.get(2).get());
+                    stacks.get(1).set(new ItemStack(Items.STONE));
+                    stacks.get(2).set(ItemStack.EMPTY);
+                    inventory.setStack(9, ItemStack.EMPTY);
+                } else if (action == SlotActionType.THROW) {
                     stacks.get(slotId).set(ItemStack.EMPTY);
                 } else if (action == SlotActionType.QUICK_MOVE && slotId == 1) {
+                    if (++outputClicks > 128) throw new AssertionError("pump did not yield");
                     ItemStack result = stacks.get(1).get().copy();
                     stacks.get(1).set(ItemStack.EMPTY);
                     ItemStack input = stacks.get(0).get();
@@ -160,6 +208,7 @@ class QuickCraftStonecutterTailDropTest {
                     for (int slot = 2; slot < SLOT_COUNT; slot++) {
                         if (stacks.get(slot).get().isEmpty()) {
                             stacks.get(slot).set(result);
+                            if (recycleOutput) inventory.setStack(9, result);
                             break;
                         }
                     }
@@ -181,6 +230,10 @@ class QuickCraftStonecutterTailDropTest {
         }
 
         private void pump() throws Exception {
+            run("pump");
+        }
+
+        private void run(String entry) throws Exception {
             try (MockedStatic<QuickCraftConfigs> configs = mockStatic(QuickCraftConfigs.class);
                  MockedStatic<QuickContainerLock> locks = mockStatic(QuickContainerLock.class);
                  MockedStatic<QuickCraftKeyBindings> keys = mockStatic(QuickCraftKeyBindings.class)) {
@@ -188,11 +241,12 @@ class QuickCraftStonecutterTailDropTest {
                 configs.when(QuickCraftConfigs::isDropCraftResultsOnStopEnabled)
                         .thenReturn(tailDropEnabled);
                 configs.when(QuickCraftConfigs::isMouseCraftAckDebugEnabled).thenReturn(false);
+                configs.when(QuickCraftConfigs::getCraftsPerSecond).thenReturn(rate);
                 locks.when(() -> QuickContainerLock.isLockedSlot(any(ScreenHandler.class), anyInt()))
                         .thenReturn(false);
-                keys.when(() -> QuickCraftKeyBindings.isHotkeyDown(any())).thenReturn(false);
+                keys.when(() -> QuickCraftKeyBindings.isHotkeyDown(any())).thenAnswer(ignored -> rapidHeld);
                 Method pump = QuickCraftStonecutter.class.getDeclaredMethod(
-                        "pump", MinecraftClient.class);
+                        entry, MinecraftClient.class);
                 pump.setAccessible(true);
                 pump.invoke(stonecutter, client);
             }

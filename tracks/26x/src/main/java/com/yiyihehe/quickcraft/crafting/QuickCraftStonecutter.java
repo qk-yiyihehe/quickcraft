@@ -33,6 +33,8 @@ public class QuickCraftStonecutter implements ClientModInitializer {
     private static final int INPUT_SLOT = 0;
     private static final int OUTPUT_SLOT = 1;
     private static final int MAX_PICKUP_WAIT_TICKS = 10;
+    // 自循环配方在不限速时也必须让出客户端线程，由下一 tick 继续。
+    private static final int MAX_BATCHES_PER_PUMP = 64;
 
     private boolean lastVDown;
     private boolean lastAltCDown;
@@ -167,7 +169,8 @@ public class QuickCraftStonecutter implements ClientModInitializer {
         }
         predicting = true;
         try {
-            while (rapidCraftingActive || singleCraftPending) {
+            for (int batches = 0; batches < MAX_BATCHES_PER_PUMP
+                    && (rapidCraftingActive || singleCraftPending); batches++) {
                 if (rapidCraftingActive && !isRapidInputHeld(client)) {
                     finish(client, Component.translatable("quickcraft.message.crafting.stopped"));
                     return;
