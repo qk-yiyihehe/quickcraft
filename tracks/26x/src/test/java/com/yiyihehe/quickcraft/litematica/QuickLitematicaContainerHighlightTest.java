@@ -80,6 +80,18 @@ class QuickLitematicaContainerHighlightTest {
             assertThat(failures).isEmpty();
             entries.put(BlockPos.ZERO, chestWithStone());
             assertThat((java.util.List<?>) method.invoke(null, client)).hasSize(2);
+            var second = org.mockito.Mockito.mock(fi.dy.masa.litematica.schematic.placement.SchematicPlacement.class,
+                    org.mockito.AdditionalAnswers.delegatesTo(placement));
+            org.mockito.Mockito.when(second.getOrigin()).thenReturn(new BlockPos(10, 0, 0));
+            org.mockito.Mockito.when(manager.getAllSchematicsPlacements()).thenReturn(java.util.List.of(placement, second));
+            entries.remove(BlockPos.ZERO);
+            loading.clearInvocations();
+            assertThat((java.util.List<?>) method.invoke(null, client)).hasSize(2);
+            loading.verify(() -> BlockEntity.loadStatic(org.mockito.ArgumentMatchers.any(),
+                    org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any()),
+                    org.mockito.Mockito.times(1));
+            entries.get(new BlockPos(1, 0, 0)).put("Items", new net.minecraft.nbt.ListTag());
+            assertThat((java.util.List<?>) method.invoke(null, client)).isEmpty();
         } finally {
             failures.clear();
         }

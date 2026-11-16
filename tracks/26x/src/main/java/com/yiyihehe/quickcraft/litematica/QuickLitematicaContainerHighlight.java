@@ -74,74 +74,81 @@ public final class QuickLitematicaContainerHighlight {
 
     private static List<ProjectedContainer> collectContainerPositions(Minecraft client) {
         ClientLevel world = client.level;
-        if (world == null) {
-            return List.of();
-        }
+        if (world == null) { return List.of(); }
         Set<ProjectedContainer> found = new HashSet<>();
         Set<FailedBlockEntity> seenFailures = new HashSet<>();
+        // 只在本轮刷新内复用同一原理图区域的解析；下一轮仍读取最新库存和失败指纹。
+        var parsed = new java.util.IdentityHashMap<LitematicaSchematic, Map<String, List<ProjectedContainer>>>();
         for (SchematicPlacement placement : DataManager.getSchematicPlacementManager().getAllSchematicsPlacements()) {
-            if (!placement.isRenderingEnabled()) {
-                continue;
-            }
-
+            if (!placement.isRenderingEnabled()) { continue; }
             LitematicaSchematic schematic = placement.getSchematic();
             for (SubRegionPlacement region : placement.getAllSubRegionsPlacements()) {
-                if (!region.isEnabled() || !region.isRenderingEnabled()) {
-                    continue;
-                }
-
+                if (!region.isEnabled() || !region.isRenderingEnabled()) { continue; }
                 String regionName = region.getName();
-                Map<BlockPos, ?> blockEntities = schematic.getBlockEntityMapForRegion(regionName);
-                LitematicaBlockStateContainer blocks = schematic.getSubRegionContainer(regionName);
                 BlockPos size = schematic.getAreaSize(regionName);
-                if (blockEntities == null || blocks == null || size == null) {
-                    continue;
-                }
-
-                for (Map.Entry<BlockPos, ?> entry : blockEntities.entrySet()) {
-                    if (entry.getValue() == null) {
-                        continue;
-                    }
-                    CompoundTag nbt = QuickLitematicaDataCompat.toVanillaNbt(entry.getValue());
-                    BlockPos localPos = entry.getKey();
-                    BlockState state = blocks.get(localPos.getX(), localPos.getY(), localPos.getZ());
-                    nbt = QuickLitematicaSchematicData.prepareBlockEntity(nbt, state, localPos);
-                    if (nbt.contains("Items") && QuickLitematicaContainerMaterials.readItems(nbt, world.registryAccess()) == null) {
-                        continue;
-                    }
-                    if (NON_INVENTORY_BLOCK_ENTITY_IDS.contains(nbt.getString("id").orElse(""))) {
-                        continue;
-                    }
-                    FailedBlockEntity failed = new FailedBlockEntity(localPos, state, nbt);
-                    if (FAILED_BLOCK_ENTITIES.contains(failed)) {
-                        seenFailures.add(failed);
-                        continue;
-                    }
-
-                    BlockEntity blockEntity = BlockEntity.loadStatic(
-                            localPos, state, nbt, world.registryAccess()
-                    );
-                    if (blockEntity == null) {
-                        // 单条 NBT 解析失败不能标记整个方块实体类型；后续正常条目仍需高亮。
-                        FAILED_BLOCK_ENTITIES.add(new FailedBlockEntity(localPos, state, nbt.copy()));
-                        seenFailures.add(failed);
-                        continue;
-                    }
-                    if (isConfirmedNonInventory(blockEntity)) {
-                        NON_INVENTORY_BLOCK_ENTITY_IDS.add(nbt.getString("id").orElse(""));
-                        continue;
-                    }
-                    Container inventory = (Container) blockEntity;
-                    if (!inventory.isEmpty()) {
-                        found.add(new ProjectedContainer(
-                                toWorldPos(localPos, size, placement, region), state.getBlock()
-                        ));
-                    }
+                if (size == null) { continue; }
+                var regions = parsed.computeIfAbsent(schematic, key -> new java.util.HashMap<>());
+                var local = regions.computeIfAbsent(regionName,
+                        key -> scanRegion(schematic, regionName, world, seenFailures));
+                for (ProjectedContainer container : local) {
+                    found.add(new ProjectedContainer(toWorldPos(container.pos(), size, placement, region), container.block()));
                 }
             }
         }
         FAILED_BLOCK_ENTITIES.retainAll(seenFailures);
         return new ArrayList<>(found);
+    }
+
+    private static List<ProjectedContainer> scanRegion(LitematicaSchematic schematic, String regionName,
+            ClientLevel world, Set<FailedBlockEntity> seenFailures) {
+        List<ProjectedContainer> found = new ArrayList<>();
+        Map<BlockPos, ?> blockEntities = schematic.getBlockEntityMapForRegion(regionName);
+        LitematicaBlockStateContainer blocks = schematic.getSubRegionContainer(regionName);
+        if (blockEntities == null || blocks == null) {
+            return List.of();
+        }
+
+        for (Map.Entry<BlockPos, ?> entry : blockEntities.entrySet()) {
+            if (entry.getValue() == null) {
+                continue;
+            }
+            CompoundTag nbt = QuickLitematicaDataCompat.toVanillaNbt(entry.getValue());
+            BlockPos localPos = entry.getKey();
+            BlockState state = blocks.get(localPos.getX(), localPos.getY(), localPos.getZ());
+            nbt = QuickLitematicaSchematicData.prepareBlockEntity(nbt, state, localPos);
+            if (nbt.contains("Items") && QuickLitematicaContainerMaterials.readItems(nbt, world.registryAccess()) == null) {
+                continue;
+            }
+            if (NON_INVENTORY_BLOCK_ENTITY_IDS.contains(nbt.getString("id").orElse(""))) {
+                continue;
+            }
+            FailedBlockEntity failed = new FailedBlockEntity(localPos, state, nbt);
+            if (FAILED_BLOCK_ENTITIES.contains(failed)) {
+                seenFailures.add(failed);
+                continue;
+            }
+
+            BlockEntity blockEntity = BlockEntity.loadStatic(
+                    localPos, state, nbt, world.registryAccess()
+            );
+            if (blockEntity == null) {
+                // 单条 NBT 解析失败不能标记整个方块实体类型；后续正常条目仍需高亮。
+                FAILED_BLOCK_ENTITIES.add(new FailedBlockEntity(localPos, state, nbt.copy()));
+                seenFailures.add(failed);
+                continue;
+            }
+            if (isConfirmedNonInventory(blockEntity)) {
+                NON_INVENTORY_BLOCK_ENTITY_IDS.add(nbt.getString("id").orElse(""));
+                continue;
+            }
+            Container inventory = (Container) blockEntity;
+            if (!inventory.isEmpty()) {
+                found.add(new ProjectedContainer(
+                        localPos, state.getBlock()
+                ));
+            }
+        }
+        return found;
     }
 
     static boolean isConfirmedNonInventory(BlockEntity blockEntity) {
