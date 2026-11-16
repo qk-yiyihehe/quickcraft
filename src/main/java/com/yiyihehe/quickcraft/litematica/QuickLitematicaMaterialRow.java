@@ -142,11 +142,17 @@ public final class QuickLitematicaMaterialRow {
                     this.quickcraft$rowWidth, this.quickcraft$rowHeight, 0xFFFFD54F);
         }
 
-        java.util.Optional<net.minecraft.item.ItemStack> target =
-                this.quickcraft$materialList instanceof QuickLitematicaContainerMaterials.ContainerReplacementBindingSource source
-                        ? source.quickcraft$getSummaryReplacementTarget(this.entry.getStack())
-                        : QuickLitematicaContainerReplacements.getReplacementTarget(
-                                this.entry.getStack(), this.quickcraft$scope, this.quickcraft$contextKey);
+        java.util.Optional<net.minecraft.item.ItemStack> target;
+        String targetLabel;
+        if (this.quickcraft$materialList instanceof QuickLitematicaContainerMaterials.ContainerReplacementBindingSource source) {
+            var summary = source.quickcraft$getSummaryReplacement(this.entry.getStack());
+            target = summary.target();
+            targetLabel = summary.label();
+        } else {
+            target = QuickLitematicaContainerReplacements.getReplacementTarget(
+                    this.entry.getStack(), this.quickcraft$scope, this.quickcraft$contextKey);
+            targetLabel = target.map(stack -> stack.getName().getString()).orElse("");
+        }
         if (target.isEmpty()) {
             return;
         }
@@ -172,9 +178,6 @@ public final class QuickLitematicaMaterialRow {
         int sourceTextWidth = Math.max(24, arrowX - sourceTextX - 6);
         int targetTextWidth = Math.max(24, statusRight - targetTextX);
         String sourceName = fitText(this.entry.getStack().getName().getString(), sourceTextWidth);
-        String targetLabel = this.quickcraft$materialList instanceof QuickLitematicaContainerMaterials.ContainerReplacementBindingSource source
-                ? source.quickcraft$getSummaryReplacementLabel(this.entry.getStack())
-                : target.get().getName().getString();
         String targetName = fitText(targetLabel, targetTextWidth);
         drawContext.drawItem(this.entry.getStack(), statusX, statusY);
         drawContext.drawText(

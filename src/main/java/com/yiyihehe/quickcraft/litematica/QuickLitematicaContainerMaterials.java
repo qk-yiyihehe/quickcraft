@@ -78,6 +78,9 @@ public final class QuickLitematicaContainerMaterials {
         @Override public abstract String toString();
     }
 
+    public record SummaryReplacement(Optional<ItemStack> target, String label) {
+    }
+
     public interface ContainerMaterialRequestSource {
         List<QuickMaterialCollector.MaterialRequest> quickcraft$getReplacementMaterialRequests();
         List<MaterialListEntry> quickcraft$getHudMaterialsAll(boolean refresh);
@@ -93,6 +96,8 @@ public final class QuickLitematicaContainerMaterials {
         Optional<ItemStack> quickcraft$getSummaryReplacementTarget(ItemStack source);
 
         String quickcraft$getSummaryReplacementLabel(ItemStack source);
+
+        SummaryReplacement quickcraft$getSummaryReplacement(ItemStack source);
 
         boolean quickcraft$hasSummaryReplacement(ItemStack source);
 
@@ -1187,6 +1192,46 @@ public final class QuickLitematicaContainerMaterials {
             return Optional.empty();
         }
 
+        SummaryReplacement getSummaryReplacement(ItemStack source) {
+            if (source == null || source.isEmpty()) {
+                return new SummaryReplacement(Optional.empty(), "");
+            }
+
+            Optional<ItemStack> target = Optional.empty();
+            Map<ItemKey, ItemStack> targets = new LinkedHashMap<>();
+            for (ContainerGroup group : this.visibleGroups()) {
+                for (int slotIndex = 0; slotIndex < group.slotStacks().size(); slotIndex++) {
+                    ItemStack slotStack = group.slotStacks().get(slotIndex);
+                    if (!matchesSummarySource(group, slotIndex, slotStack, source)) {
+                        continue;
+                    }
+
+                    ItemStack replaced = QuickLitematicaContainerReplacements.getReplacementTarget(
+                            slotStack,
+                            QuickLitematicaContainerReplacements.Scope.CONTAINER,
+                            this.replacementContextKey,
+                            group.signature(),
+                            slotIndex
+                    ).orElse(slotStack);
+                    targets.putIfAbsent(QuickLitematicaContainerMaterialsAccess.createItemKey(replaced), replaced);
+                    if (target.isEmpty() && hasStackChange(slotStack, replaced)) {
+                        target = Optional.of(replaced);
+                    }
+                }
+            }
+
+            return new SummaryReplacement(target, target.isEmpty() ? "" : summaryLabel(targets));
+        }
+
+        String summaryLabel(Map<ItemKey, ItemStack> targets) {
+            if (targets.size() > 1) {
+                return StringUtils.translate("quickcraft.litematica.label.material_replace_multiple_targets", targets.size());
+            }
+            ItemStack target = targets.values().stream().findFirst().orElse(ItemStack.EMPTY);
+            return target.isEmpty() ? StringUtils.translate("quickcraft.litematica.label.material_replace_empty_slot")
+                    : target.getName().getString();
+        }
+
         List<SummarySlot> matchingSummarySlots(ItemStack source) {
             List<SummarySlot> result = new ArrayList<>();
             for (ContainerGroup group : this.visibleGroups()) {
@@ -1635,12 +1680,12 @@ public final class QuickLitematicaContainerMaterials {
                         slot.group().signature(), slot.slotIndex());
                 targets.putIfAbsent(QuickLitematicaContainerMaterialsAccess.createItemKey(target), target);
             }
-            if (targets.size() > 1) {
-                return StringUtils.translate("quickcraft.litematica.label.material_replace_multiple_targets", targets.size());
-            }
-            ItemStack target = targets.values().stream().findFirst().orElse(ItemStack.EMPTY);
-            return target.isEmpty() ? StringUtils.translate("quickcraft.litematica.label.material_replace_empty_slot")
-                    : target.getName().getString();
+            return this.data.summaryLabel(targets);
+        }
+
+        @Override
+        public SummaryReplacement quickcraft$getSummaryReplacement(ItemStack source) {
+            return this.data.getSummaryReplacement(source);
         }
 
         @Override

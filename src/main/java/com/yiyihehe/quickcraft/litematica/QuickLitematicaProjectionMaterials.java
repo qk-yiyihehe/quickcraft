@@ -320,7 +320,10 @@ public final class QuickLitematicaProjectionMaterials {
     }
 
     private static void updateAvailable(List<MaterialListEntry> entries) {
-        for (MaterialListEntry entry : entries) { entry.setCountAvailable(available(entry.getStack())); }
+        List<ItemStack> targets = new ArrayList<>(entries.size());
+        for (MaterialListEntry entry : entries) { targets.add(entry.getStack()); }
+        int[] counts = QuickLitematicaMaterialInventory.countAvailableFor(targets);
+        for (int i = 0; i < entries.size(); i++) { entries.get(i).setCountAvailable(counts[i]); }
     }
 
     public static List<MaterialListEntry> hud(MaterialListBase list, boolean missing) {

@@ -125,6 +125,132 @@ class QuickLitematicaProjectionHudTest {
 
 
     @Test
+    void summaryTargetAndLabelShareOneGroupWalk() {
+        var list = containerList("perf-summary");
+        var stone = new ItemStack(Items.STONE, 5);
+        list.data.groups = List.of(new QuickLitematicaContainerMaterials.ContainerGroup(
+                new ItemStack(Items.CHEST), "chest", null, 1, List.of(stone, stone), List.of(),
+                false, "test-group"));
+        var config = com.yiyihehe.quickcraft.config.QuickCraftConfigs.ProjectionTools.CONTAINER_FILL_REPLACEMENTS;
+        var previous = List.copyOf(config.getStrings());
+        var enabled = com.yiyihehe.quickcraft.config.QuickCraftConfigs.ProjectionTools.SHOW_LITEMATICA_MATERIAL_REPLACEMENTS;
+        boolean previousEnabled = enabled.getBooleanValue();
+        try (var replacements = org.mockito.Mockito.mockStatic(
+                QuickLitematicaContainerReplacements.class, org.mockito.Mockito.CALLS_REAL_METHODS)) {
+            enabled.setBooleanValue(true);
+            config.setStrings(List.of(list.data.replacementContextKey + "||test-group||-1||minecraft:stone->minecraft:dirt"));
+            var oldTarget = list.quickcraft$getSummaryReplacementTarget(stone);
+            var oldLabel = list.quickcraft$getSummaryReplacementLabel(stone);
+            replacements.clearInvocations();
+            var summary = list.quickcraft$getSummaryReplacement(stone);
+            assertThat(summary.target()).isPresent();
+            assertThat(summary.target().orElseThrow().getItem()).isEqualTo(Items.DIRT);
+            assertThat(summary.target().orElseThrow().getCount()).isEqualTo(oldTarget.orElseThrow().getCount());
+            assertThat(summary.label()).isEqualTo(oldLabel);
+            replacements.verify(() -> QuickLitematicaContainerReplacements.getReplacementTarget(
+                    org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any(),
+                    org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.anyString(),
+                    org.mockito.ArgumentMatchers.anyInt()), org.mockito.Mockito.times(2));
+            replacements.verify(() -> QuickLitematicaContainerReplacements.applyToStack(
+                    org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any(),
+                    org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.anyString(),
+                    org.mockito.ArgumentMatchers.anyInt()), org.mockito.Mockito.never());
+            config.setStrings(List.of(
+                    list.data.replacementContextKey + "||test-group||0||minecraft:stone->minecraft:dirt",
+                    list.data.replacementContextKey + "||test-group||1||minecraft:stone->minecraft:glass"));
+            var multiple = list.quickcraft$getSummaryReplacement(stone);
+            assertThat(multiple.label()).isEqualTo(list.quickcraft$getSummaryReplacementLabel(stone));
+            assertThat(multiple.target().orElseThrow().getItem()).isEqualTo(Items.DIRT);
+            var lookup = net.minecraft.core.RegistryAccess.fromRegistryOfRegistries(net.minecraft.core.registries.BuiltInRegistries.REGISTRY);
+            config.setStrings(List.of(QuickLitematicaContainerReplacements.encodeContainerRule(
+                    new QuickLitematicaContainerReplacements.ContainerReplacement(stone, ItemStack.EMPTY,
+                            list.data.replacementContextKey, "test-group", -1, false), lookup)));
+            var emptyTarget = list.quickcraft$getSummaryReplacement(stone);
+            assertThat(emptyTarget.target()).isPresent();
+            assertThat(emptyTarget.target().orElseThrow().isEmpty()).isTrue();
+            assertThat(emptyTarget.label()).isEqualTo(list.quickcraft$getSummaryReplacementLabel(stone));
+            config.setStrings(List.of());
+            var noReplacement = list.quickcraft$getSummaryReplacement(stone);
+            assertThat(noReplacement.target()).isEmpty();
+            assertThat(noReplacement.label()).isEmpty();
+        } finally {
+            config.setStrings(previous);
+            enabled.setBooleanValue(previousEnabled);
+        }
+    }
+
+    @Test
+    void countsAllTargetsInOneInventoryWalk() {
+        var client = org.mockito.Mockito.mock(net.minecraft.client.Minecraft.class);
+        var player = org.mockito.Mockito.mock(net.minecraft.client.player.LocalPlayer.class);
+        var inventory = org.mockito.Mockito.mock(net.minecraft.world.entity.player.Inventory.class);
+        client.player = player;
+        org.mockito.Mockito.when(player.getInventory()).thenReturn(inventory);
+        org.mockito.Mockito.when(inventory.getContainerSize()).thenReturn(2);
+        org.mockito.Mockito.when(inventory.getItem(0)).thenReturn(new ItemStack(Items.STONE, 16));
+        org.mockito.Mockito.when(inventory.getItem(1)).thenReturn(new ItemStack(Items.DIRT, 32));
+
+        try (var minecraft = org.mockito.Mockito.mockStatic(net.minecraft.client.Minecraft.class)) {
+            minecraft.when(net.minecraft.client.Minecraft::getInstance).thenReturn(client);
+            int[] counts = QuickLitematicaMaterialInventory.countAvailableFor(
+                    List.of(new ItemStack(Items.STONE), new ItemStack(Items.DIRT)));
+            assertThat(counts).containsExactly(16, 32);
+            org.mockito.Mockito.verify(inventory, org.mockito.Mockito.times(2))
+                    .getItem(org.mockito.ArgumentMatchers.anyInt());
+        }
+    }
+
+    @Test
+    void batchCountsKeepComponentsMultipliersDepthAndDuplicateTargets() {
+        var client = org.mockito.Mockito.mock(net.minecraft.client.Minecraft.class);
+        var player = org.mockito.Mockito.mock(net.minecraft.client.player.LocalPlayer.class);
+        var inventory = org.mockito.Mockito.mock(net.minecraft.world.entity.player.Inventory.class);
+        client.player = player;
+        org.mockito.Mockito.when(player.getInventory()).thenReturn(inventory);
+        var named = new ItemStack(Items.STONE, 5);
+        named.set(net.minecraft.core.component.DataComponents.CUSTOM_NAME, net.minecraft.network.chat.Component.literal("named"));
+        // 模拟服务端允许堆叠潜影盒；26x 的真实内容解码会拒绝超过组件上限的栈。
+        var inner = new ItemStack(Items.SHULKER_BOX, 3);
+        inner.set(net.minecraft.core.component.DataComponents.MAX_STACK_SIZE, 64);
+        inner.set(net.minecraft.core.component.DataComponents.CONTAINER, net.minecraft.world.item.component.ItemContainerContents.fromItems(List.of(new ItemStack(Items.STONE, 4))));
+        var outer = new ItemStack(Items.SHULKER_BOX, 2);
+        outer.set(net.minecraft.core.component.DataComponents.MAX_STACK_SIZE, 64);
+        outer.set(net.minecraft.core.component.DataComponents.CONTAINER, net.minecraft.world.item.component.ItemContainerContents.fromItems(List.of(inner)));
+        ItemStack tooDeep = new ItemStack(Items.STONE, 7);
+        for (int i = 0; i < 5; i++) {
+            var box = new ItemStack(Items.SHULKER_BOX);
+            box.set(net.minecraft.core.component.DataComponents.CONTAINER, net.minecraft.world.item.component.ItemContainerContents.fromItems(List.of(tooDeep)));
+            tooDeep = box;
+        }
+        var stacks = List.of(new ItemStack(Items.STONE, 11), named, outer, tooDeep, ItemStack.EMPTY);
+        org.mockito.Mockito.when(inventory.getContainerSize()).thenReturn(stacks.size());
+        org.mockito.Mockito.when(inventory.getItem(org.mockito.ArgumentMatchers.anyInt()))
+                .thenAnswer(call -> stacks.get(call.getArgument(0)));
+        try (var minecraft = org.mockito.Mockito.mockStatic(net.minecraft.client.Minecraft.class)) {
+            minecraft.when(net.minecraft.client.Minecraft::getInstance).thenReturn(client);
+            var stone = new ItemStack(Items.STONE);
+            assertThat(outer.getItem()).isInstanceOf(net.minecraft.world.item.BlockItem.class);
+            assertThat(((net.minecraft.world.item.BlockItem) outer.getItem()).getBlock())
+                    .isInstanceOf(net.minecraft.world.level.block.ShulkerBoxBlock.class);
+            var decodedInner = fi.dy.masa.malilib.util.InventoryUtils.getStoredItems(outer);
+            assertThat(decodedInner).hasSize(1);
+            var decodedStone = fi.dy.masa.malilib.util.InventoryUtils.getStoredItems(decodedInner.getFirst());
+            assertThat(decodedStone).hasSize(1);
+            assertThat(ItemStack.isSameItemSameComponents(stone, decodedStone.getFirst())).isTrue();
+            assertThat(QuickLitematicaMaterialInventory.countAvailable(List.of(stone))).isEqualTo(35);
+            var targets = List.of(stone, named.copy(), stone.copy(), ItemStack.EMPTY);
+            assertThat(QuickLitematicaMaterialInventory.countAvailableFor(targets)).containsExactly(35, 5, 35, 0);
+            for (int i = 0; i < targets.size(); i++) {
+                assertThat(QuickLitematicaMaterialInventory.countAvailable(List.of(targets.get(i))))
+                        .isEqualTo(new int[] {35, 5, 35, 0}[i]);
+            }
+            org.mockito.Mockito.clearInvocations(inventory);
+            assertThat(QuickLitematicaMaterialInventory.countAvailableFor(List.of())).isEmpty();
+            org.mockito.Mockito.verifyNoInteractions(inventory);
+        }
+    }
+
+    @Test
     void productionProjectionHudKeepsHistoryAcrossIgnoreAndResetsExplicitly() {
         var list = list(true, 1);
         var client = org.mockito.Mockito.mock(net.minecraft.client.Minecraft.class);
@@ -145,8 +271,8 @@ class QuickLitematicaProjectionHudTest {
                     org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any(),
                     org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any()))
                     .thenAnswer(call -> List.of(entry(new ItemStack(Items.STONE), 16, 16, 0)));
-            inventories.when(() -> QuickLitematicaMaterialInventory.countAvailable(org.mockito.ArgumentMatchers.any()))
-                    .thenAnswer(call -> available.get());
+            inventories.when(() -> QuickLitematicaMaterialInventory.countAvailableFor(org.mockito.ArgumentMatchers.any()))
+                    .thenAnswer(call -> new int[] { available.get() });
             ignores.when(() -> QuickLitematicaMaterialIgnores.effective(list)).thenAnswer(call -> ignored.get());
             contexts.when(() -> QuickLitematicaMaterialLists.getReplacementContextKey(list)).thenReturn("test");
             var counts = new it.unimi.dsi.fastutil.objects.Object2IntOpenHashMap<net.minecraft.world.level.block.state.BlockState>();
@@ -168,12 +294,16 @@ class QuickLitematicaProjectionHudTest {
     }
 
     private static QuickLitematicaContainerMaterials.ContainerMaterialList containerList() {
+        return containerList("");
+    }
+
+    private static QuickLitematicaContainerMaterials.ContainerMaterialList containerList(String context) {
         try (var memory = org.mockito.Mockito.mockStatic(QuickLitematicaContainerMemory.class, org.mockito.Mockito.CALLS_REAL_METHODS);
              var minecraft = org.mockito.Mockito.mockStatic(net.minecraft.client.Minecraft.class)) {
             minecraft.when(net.minecraft.client.Minecraft::getInstance).thenReturn(mock(net.minecraft.client.Minecraft.class));
             var schematic = mock(fi.dy.masa.litematica.schematic.LitematicaSchematic.class, org.mockito.Mockito.RETURNS_DEEP_STUBS);
             memory.when(() -> QuickLitematicaContainerMemory.original(schematic)).thenReturn(schematic);
-            var data = QuickLitematicaContainerMaterials.ContainerMaterialsData.create(schematic, List.of(), "");
+            var data = QuickLitematicaContainerMaterials.ContainerMaterialsData.create(schematic, List.of(), context);
             return new QuickLitematicaContainerMaterials.ContainerMaterialList(data, null);
         }
     }
