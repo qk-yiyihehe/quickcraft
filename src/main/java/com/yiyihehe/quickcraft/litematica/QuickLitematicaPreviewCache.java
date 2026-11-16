@@ -54,6 +54,8 @@ final class QuickLitematicaPreviewCache {
     static volatile Runnable indexCommitHook;
     private static final Properties CACHE_INDEX = new Properties();
     private static final ConcurrentHashMap<Path, PendingWrite> CACHE_WRITES = new ConcurrentHashMap<>();
+    // 单写线程加一份等待快照；容量在入队前取得，拒绝时不覆盖已有同路径pending记录。
+    private static final java.util.concurrent.Semaphore CACHE_WRITE_SLOTS = new java.util.concurrent.Semaphore(2);
     private static final ExecutorService CACHE_EXECUTOR = Executors.newSingleThreadExecutor(r -> {
         Thread thread = new Thread(r, "QuickCraft-Preview3D-Cache");
         thread.setDaemon(true);
@@ -65,25 +67,36 @@ final class QuickLitematicaPreviewCache {
     static CompletableFuture<Void> writeAsync(Path cachePath, Runnable write,
             @Nullable String sourceHash, @Nullable String resourceSignature, @Nullable String structureFingerprint,
             long vertices, @Nullable MeshData mesh, @Nullable QuickLitematicaPreviewMeshStore store) {
+        if (!CACHE_WRITE_SLOTS.tryAcquire()) {
+            throw new java.util.concurrent.RejectedExecutionException("Preview cache writer is busy");
+        }
         CompletableFuture<Void> completion = new CompletableFuture<>();
-        MeshData reusable = mesh == null ? null : copyMesh(mesh);
-        PendingWrite pending = new PendingWrite(completion, sourceHash, resourceSignature, structureFingerprint,
-                vertices, reusable, store);
-        CACHE_WRITES.put(cachePath, pending);
         try {
-            CACHE_EXECUTOR.execute(() -> {
-                try {
-                    write.run();
-                    completion.complete(null);
-                } catch (Throwable e) {
-                    LOGGER.error("Failed to save 3D preview cache {}", cachePath, e);
-                    completion.completeExceptionally(e);
-                } finally {
-                    CACHE_WRITES.remove(cachePath, pending);
-                }
-            });
+            MeshData reusable = mesh == null ? null : copyMesh(mesh);
+            PendingWrite pending = new PendingWrite(completion, sourceHash, resourceSignature, structureFingerprint,
+                    vertices, reusable, store);
+            CACHE_WRITES.put(cachePath, pending);
+            try {
+                CACHE_EXECUTOR.execute(() -> {
+                    Throwable failure = null;
+                    try {
+                        write.run();
+                    } catch (Throwable e) {
+                        failure = e;
+                        LOGGER.error("Failed to save 3D preview cache {}", cachePath, e);
+                    } finally {
+                        CACHE_WRITES.remove(cachePath, pending);
+                        CACHE_WRITE_SLOTS.release();
+                    }
+                    if (failure == null) completion.complete(null);
+                    else completion.completeExceptionally(failure);
+                });
+            } catch (RuntimeException | Error failure) {
+                CACHE_WRITES.remove(cachePath, pending);
+                throw failure;
+            }
         } catch (RuntimeException | Error failure) {
-            CACHE_WRITES.remove(cachePath, pending);
+            CACHE_WRITE_SLOTS.release();
             completion.completeExceptionally(failure);
             throw failure;
         }
@@ -676,11 +689,12 @@ final class QuickLitematicaPreviewCache {
                             throw new PreviewTooLargeException(!QuickLitematicaPreviewVertexBudget.isForced());
                         }
 
+                        if (layer.isTranslucent() && vertexCount % 4 != 0) {
+                            throw new IOException("Translucent cache contains an incomplete quad");
+                        }
                         int remainingVertices = vertexCount;
                         while (remainingVertices > 0) {
-                            int batchVertices = layer.isTranslucent()
-                                    ? remainingVertices
-                                    : Math.min(remainingVertices, STATIC_BATCH_TARGET_VERTICES);
+                            int batchVertices = Math.min(remainingVertices, STATIC_BATCH_TARGET_VERTICES);
                             byte[] quantizedVertices = new byte[batchVertices * QUANTIZED_VERTEX_BYTES];
                             readFullyCancellable(input, quantizedVertices, cancelled);
                             List<LayerMesh> batch = QuickLitematicaPreviewMeshBatches.split(new LayerMesh(layer, quantizedVertices), cancelled);

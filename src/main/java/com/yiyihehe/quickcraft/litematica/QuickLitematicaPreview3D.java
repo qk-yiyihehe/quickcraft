@@ -1583,7 +1583,12 @@ public final class QuickLitematicaPreview3D {
             try {
                 writeAsync(cachePath, cacheWrite, sourceHash, resourcePackSignature, structureFingerprint,
                         snapshot.vertexCount(), snapshot, this.staticMeshStore);
+            } catch (java.util.concurrent.RejectedExecutionException busy) {
+                snapshot.releaseStaticVertices();
+                this.staticMeshStore.releaseCache();
+                this.trace.event("缓存保存跳过：原因=writer_busy，保留当前预览，路径={}", cachePath);
             } catch (RuntimeException | Error failure) {
+                snapshot.releaseStaticVertices();
                 this.staticMeshStore.releaseCache();
                 throw failure;
             }

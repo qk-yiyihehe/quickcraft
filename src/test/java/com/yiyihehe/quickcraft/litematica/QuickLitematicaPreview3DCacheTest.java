@@ -38,6 +38,55 @@ class QuickLitematicaPreview3DCacheTest {
     Path temporaryDirectory;
 
     @Test
+    @Timeout(15)
+    void boundsQueuedSnapshotsWithoutReplacingPendingWritesOrFailingThePreview() throws Exception {
+        var entered = new CountDownLatch(1);
+        var release = new CountDownLatch(1);
+        Path first = this.temporaryDirectory.resolve("first.qcp3d");
+        Path second = this.temporaryDirectory.resolve("second.qcp3d");
+        var active = QuickLitematicaPreviewCache.writeAsync(first, () -> {
+            entered.countDown();
+            try { if (!release.await(10, TimeUnit.SECONDS)) throw new AssertionError("writer not released"); }
+            catch (InterruptedException e) { Thread.currentThread().interrupt(); throw new AssertionError(e); }
+        }, null, null, null, 0L, null, null);
+        java.util.concurrent.CompletableFuture<Void> queued = null;
+        var store = new QuickLitematicaPreviewMeshStore(this.temporaryDirectory);
+        try {
+            assertThat(entered.await(5, TimeUnit.SECONDS)).isTrue();
+            queued = QuickLitematicaPreviewCache.writeAsync(second, () -> {}, null, null, null, 0L, null, null);
+            var writesField = QuickLitematicaPreviewCache.class.getDeclaredField("CACHE_WRITES");
+            writesField.setAccessible(true);
+            var writes = (java.util.Map<?, ?>) writesField.get(null);
+            Object pending = writes.get(second);
+            assertThatThrownBy(() -> QuickLitematicaPreviewCache.writeAsync(second,
+                    () -> { throw new AssertionError("rejected writer executed"); }, null, null, null, 0L, null, null))
+                    .isInstanceOf(java.util.concurrent.RejectedExecutionException.class);
+            assertThat(writes.get(second)).isSameAs(pending);
+            var preview = mock(QuickLitematicaPreview3D.Preview.class, CALLS_REAL_METHODS);
+            setField(preview, "cachePersistenceAllowed", true);
+            setField(preview, "sourcePath", first);
+            setField(preview, "cachePath", second);
+            setField(preview, "trace", new QuickLitematicaPreviewLog.Trace(first, 0L));
+            setField(preview, "staticMeshStore", store);
+            var save = QuickLitematicaPreview3D.Preview.class.getDeclaredMethod("saveCacheAsync",
+                    QuickLitematicaPreview3D.MeshData.class, String.class, String.class,
+                    fi.dy.masa.litematica.schematic.LitematicaSchematic.class);
+            save.setAccessible(true);
+            save.invoke(preview, new QuickLitematicaPreview3D.MeshData(List.of(), List.of(), List.of(), List.of(), 1, 1, 1),
+                    "hash", "structure", null);
+            var refs = QuickLitematicaPreviewMeshStore.class.getDeclaredField("references");
+            refs.setAccessible(true);
+            assertThat(refs.getInt(store)).isEqualTo(1);
+        } finally {
+            release.countDown();
+            active.get(5, TimeUnit.SECONDS);
+            if (queued != null) queued.get(5, TimeUnit.SECONDS);
+            store.close();
+        }
+        QuickLitematicaPreviewCache.writeAsync(first, () -> {}, null, null, null, 0L, null, null).get(5, TimeUnit.SECONDS);
+    }
+
+    @Test
     void invalidatesBothCacheKindsWhenDfuSettingsChange() {
         String signature = QuickLitematicaPreviewCache.cacheSignature("pack", "always", 3700);
         assertThat(QuickLitematicaPreviewCache.cacheSignature("pack", "always", 3700)).isEqualTo(signature);
