@@ -28,6 +28,9 @@ class QuickLitematicaPreviewQuadDepthTest {
             var depth = new QuickLitematicaPreviewQuadDepth();
             depth.update(new Matrix4f().rotateX(0.37F).rotateY(0.83F));
             assertThat(depth.sort(points)).containsExactly(VertexSorting.byDistance(p -> -depth.depth(p)).sort(points));
+            var cancellable = new QuickLitematicaPreviewQuadDepth(() -> false);
+            cancellable.update(new Matrix4f().rotateX(0.37F).rotateY(0.83F));
+            assertThat(cancellable.sort(points)).containsExactly(VertexSorting.byDistance(p -> -depth.depth(p)).sort(points));
             int[] order = new int[count], keys = new int[count];
             for (float angle : new float[]{0.83F, -0.43F, 2.1F}) {
                 depth.update(new Matrix4f().rotateX(0.37F).rotateY(angle));
@@ -35,6 +38,16 @@ class QuickLitematicaPreviewQuadDepthTest {
                         .containsExactly(VertexSorting.byDistance(p -> -depth.depth(p)).sort(points));
             }
         }
+    }
+
+    @Test void checksCancellationDuringRadixPassesAfterAllCentersAreRead() {
+        var checks = new java.util.concurrent.atomic.AtomicInteger();
+        var depth = new QuickLitematicaPreviewQuadDepth(() -> checks.incrementAndGet() == 5);
+        depth.update(new Matrix4f());
+        var points = new CompactVectorArray(8192);
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> depth.sort(points))
+                .isInstanceOf(java.util.concurrent.CancellationException.class);
+        assertThat(checks.get()).isEqualTo(5);
     }
 
     @Test

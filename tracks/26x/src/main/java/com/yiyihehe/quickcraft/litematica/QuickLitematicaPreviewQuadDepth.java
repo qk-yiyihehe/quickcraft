@@ -6,8 +6,19 @@ import com.mojang.blaze3d.vertex.CompactVectorArray;
 import it.unimi.dsi.fastutil.ints.IntArrays;
 
 final class QuickLitematicaPreviewQuadDepth {
+    private final java.util.function.BooleanSupplier cancelled;
     private boolean initialized;
     private float x, y, z;
+
+    QuickLitematicaPreviewQuadDepth() { this(null); }
+
+    QuickLitematicaPreviewQuadDepth(java.util.function.BooleanSupplier cancelled) { this.cancelled = cancelled; }
+
+    private void checkCancelled(int index) {
+        if ((index & 0x7FF) == 0 && this.cancelled != null && this.cancelled.getAsBoolean()) {
+            throw new java.util.concurrent.CancellationException();
+        }
+    }
 
     boolean initialized() { return this.initialized; }
 
@@ -44,6 +55,7 @@ final class QuickLitematicaPreviewQuadDepth {
         // 26.1.2 的 getZ 错读 Y；get(index, scratch) 在所有目标中返回正确坐标。
         var point = new org.joml.Vector3f();
         for (int i = 0; i < order.length; i++) {
+            this.checkCancelled(i);
             float distance = -this.depth(points.get(i, point));
             int bits = Float.floatToIntBits(distance);
             // 与原生 Float.compare 距离降序一致，包括 NaN 和有符号零；稳定排序保留等深面的原顺序。
@@ -51,8 +63,38 @@ final class QuickLitematicaPreviewQuadDepth {
             order[i] = i;
         }
         // 小批次使用串行排序，避免争用公共线程池；大网格交给已有 fastutil 并行排序。
-        if (order.length >= 262_144) IntArrays.parallelRadixSortIndirect(order, keys, true);
+        if (this.cancelled != null) this.sortCancellable(order, keys);
+        else if (order.length >= 262_144) IntArrays.parallelRadixSortIndirect(order, keys, true);
         else IntArrays.radixSortIndirect(order, keys, true);
         return order;
+    }
+
+    // fastutil 不提供运行中取消回调；后台任务使用同样的稳定整数基数排序，在有限分段间检查关闭标志。
+    private void sortCancellable(int[] order, int[] keys) {
+        int[] from = order, to = new int[order.length];
+        int[] offsets = new int[256];
+        for (int pass = 0; pass < 4; pass++) {
+            java.util.Arrays.fill(offsets, 0);
+            int shift = pass * 8, sign = pass == 3 ? 128 : 0;
+            for (int i = 0; i < from.length; i++) {
+                this.checkCancelled(i);
+                offsets[((keys[from[i]] >>> shift) ^ sign) & 255]++;
+            }
+            int sum = 0;
+            for (int i = 0; i < offsets.length; i++) {
+                int count = offsets[i];
+                offsets[i] = sum;
+                sum += count;
+            }
+            for (int i = 0; i < from.length; i++) {
+                this.checkCancelled(i);
+                int index = from[i];
+                to[offsets[((keys[index] >>> shift) ^ sign) & 255]++] = index;
+            }
+            int[] previous = from;
+            from = to;
+            to = previous;
+        }
+        // 四次交换后结果已回到调用方提供的 order，无需再复制整份索引。
     }
 }

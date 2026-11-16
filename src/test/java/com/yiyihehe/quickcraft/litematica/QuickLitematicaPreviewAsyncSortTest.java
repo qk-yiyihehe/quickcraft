@@ -15,6 +15,41 @@ class QuickLitematicaPreviewAsyncSortTest {
         void run() { this.tasks.remove().run(); }
     }
 
+    @Test void closingRunningSortReleasesTheWorkerForTheNextPreview() throws Exception {
+        var executor = java.util.concurrent.Executors.newSingleThreadExecutor();
+        var entered = new java.util.concurrent.CountDownLatch(1);
+        var release = new java.util.concurrent.CountDownLatch(1);
+        var reads = new AtomicInteger();
+        var initial = new QuickLitematicaPreviewQuadDepth();
+        initial.update(new Matrix4f());
+        try (var old = new QuickLitematicaPreviewAsyncSort(8192, 4, initial, (depth, order, keys) -> {
+                depth.sort(8192, (index, target) -> {
+                    reads.incrementAndGet();
+                    if (index == 0) {
+                        entered.countDown();
+                        try { if (!release.await(5, java.util.concurrent.TimeUnit.SECONDS)) throw new AssertionError("not released"); }
+                        catch (InterruptedException e) { Thread.currentThread().interrupt(); throw new AssertionError(e); }
+                    }
+                    return target.set(index, 0, 0);
+                }, order, keys);
+            }, new int[8192], new int[8192], executor);
+             var next = new QuickLitematicaPreviewAsyncSort(1, 4, initial,
+                     (depth, order, keys) -> order[0] = 0, new int[1], new int[1], executor)) {
+            old.request(new Matrix4f().rotateY(1));
+            assertThat(entered.await(5, java.util.concurrent.TimeUnit.SECONDS)).isTrue();
+            old.close();
+            next.request(new Matrix4f().rotateY(1));
+            release.countDown();
+            executor.submit(() -> {}).get(5, java.util.concurrent.TimeUnit.SECONDS);
+            assertThat(reads.get()).isPositive().isLessThanOrEqualTo(2048);
+            assertThat(old.poll()).isNull();
+            try (var result = next.poll()) { assertThat(result).isNotNull(); }
+        } finally {
+            release.countDown();
+            executor.shutdownNow();
+        }
+    }
+
     @Test void draggingCoalescesWorkAndSettlesOnTheFinalView() {
         var executor = new ManualExecutor();
         var initial = new QuickLitematicaPreviewQuadDepth();

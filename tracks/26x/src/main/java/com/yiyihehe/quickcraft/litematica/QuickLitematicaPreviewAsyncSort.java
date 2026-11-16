@@ -88,7 +88,7 @@ final class QuickLitematicaPreviewAsyncSort implements AutoCloseable {
         ByteBuffer indices = null;
         try {
             if (this.closed) return;
-            var depth = new QuickLitematicaPreviewQuadDepth();
+            var depth = new QuickLitematicaPreviewQuadDepth(() -> this.closed);
             depth.update(view);
             try (var phase = QuickLitematicaPreviewLog.phase("后台透明面中心排序")) {
                 this.sorter.sort(depth, this.order, this.keys);

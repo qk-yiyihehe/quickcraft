@@ -30,7 +30,21 @@ class QuickLitematicaPreviewQuadDepthTest {
             Integer[] expected = IntStream.range(0, count).boxed().toArray(Integer[]::new);
             Arrays.sort(expected, (a, b) -> Float.compare(-depth.depth(points[b]), -depth.depth(points[a])));
             assertThat(depth.sort(points)).containsExactly(Arrays.stream(expected).mapToInt(Integer::intValue).toArray());
+            var cancellable = new QuickLitematicaPreviewQuadDepth(() -> false);
+            cancellable.update(new Matrix4f().rotateX(0.37F).rotateY(0.83F));
+            assertThat(cancellable.sort(points)).containsExactly(Arrays.stream(expected).mapToInt(Integer::intValue).toArray());
         }
+    }
+
+    @Test void checksCancellationDuringRadixPassesAfterAllCentersAreRead() {
+        var checks = new java.util.concurrent.atomic.AtomicInteger();
+        var depth = new QuickLitematicaPreviewQuadDepth(() -> checks.incrementAndGet() == 5);
+        depth.update(new Matrix4f());
+        Vector3f[] points = new Vector3f[8192];
+        java.util.Arrays.setAll(points, i -> new Vector3f(i, 0, 0));
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> depth.sort(points))
+                .isInstanceOf(java.util.concurrent.CancellationException.class);
+        assertThat(checks.get()).isEqualTo(5);
     }
 
     @Test
