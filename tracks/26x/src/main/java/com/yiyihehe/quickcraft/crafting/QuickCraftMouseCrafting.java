@@ -177,8 +177,6 @@ final class QuickCraftMouseCrafting {
         }
 
         if (restockCraftingGrid(client, handler, recipe)) {
-            if (rapidCraftingActive && !handler.getSlot(OUTPUT_SLOT).hasItem()) {
-            }
             if (!manualRecipe || !rapidCraftingActive) {
                 tryTakeOutputForRecipe(client, handler, recipe);
             }
