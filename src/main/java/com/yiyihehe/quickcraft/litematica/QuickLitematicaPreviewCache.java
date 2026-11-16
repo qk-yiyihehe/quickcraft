@@ -3,6 +3,7 @@ package com.yiyihehe.quickcraft.litematica;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.render.BufferBuilder;
 import net.minecraft.nbt.NbtIo;
+import net.minecraft.nbt.NbtCompound;
 import net.minecraft.nbt.NbtSizeTracker;
 import org.jetbrains.annotations.Nullable;
 import java.io.BufferedInputStream;
@@ -621,6 +622,8 @@ final class QuickLitematicaPreviewCache {
         }
     }
     static class CacheFile {
+        // 与源文件预处理同为 256 MiB，所有动态记录共用原版 NBT 分配估算预算。
+        private static final long TOTAL_NBT_READ_LIMIT_BYTES = 256L * 1024 * 1024;
         static MeshData read(Path path, AtomicBoolean cancelled, @Nullable QuickLitematicaPreviewMeshStore meshStore,
                              String expectedStructureFingerprint, String expectedResourceSignature) {
             try (var phase = QuickLitematicaPreviewLog.phase("网格缓存解压/解码")) {
@@ -716,6 +719,8 @@ final class QuickLitematicaPreviewCache {
                         throw new PreviewTooLargeException();
                     }
 
+                    NbtSizeTracker retainedNbt = NbtSizeTracker.of(
+                            QuickLitematicaPreviewVertexBudget.nbtByteLimit(TOTAL_NBT_READ_LIMIT_BYTES));
                     List<BlockStateData> blockStates = new ArrayList<>(blockStateCount);
                     for (int i = 0; i < blockStateCount; i++) {
                         if ((i & 0x7FF) == 0 && isCancelled(cancelled)) {
@@ -726,7 +731,7 @@ final class QuickLitematicaPreviewCache {
                                 input.readInt(),
                                 input.readInt(),
                                 input.readInt(),
-                                NbtIo.readCompound(input, NbtSizeTracker.of(QuickLitematicaPreviewVertexBudget.nbtByteLimit(NBT_READ_LIMIT_BYTES)))
+                                readCacheNbt(input, retainedNbt)
                         ));
                     }
 
@@ -752,8 +757,8 @@ final class QuickLitematicaPreviewCache {
                                 input.readInt(),
                                 input.readInt(),
                                 input.readInt(),
-                                NbtIo.readCompound(input, NbtSizeTracker.of(QuickLitematicaPreviewVertexBudget.nbtByteLimit(NBT_READ_LIMIT_BYTES))),
-                                NbtIo.readCompound(input, NbtSizeTracker.of(QuickLitematicaPreviewVertexBudget.nbtByteLimit(NBT_READ_LIMIT_BYTES)))
+                                readCacheNbt(input, retainedNbt),
+                                readCacheNbt(input, retainedNbt)
                         ));
                     }
 
@@ -779,7 +784,7 @@ final class QuickLitematicaPreviewCache {
                                 input.readDouble(),
                                 input.readDouble(),
                                 input.readDouble(),
-                                NbtIo.readCompound(input, NbtSizeTracker.of(QuickLitematicaPreviewVertexBudget.nbtByteLimit(NBT_READ_LIMIT_BYTES)))
+                                readCacheNbt(input, retainedNbt)
                         ));
                     }
 
@@ -795,6 +800,16 @@ final class QuickLitematicaPreviewCache {
                     return null;
                 }
             }
+        }
+
+        private static NbtCompound readCacheNbt(DataInputStream input, NbtSizeTracker retained) throws IOException {
+            long remaining = QuickLitematicaPreviewVertexBudget.nbtByteLimit(TOTAL_NBT_READ_LIMIT_BYTES)
+                    - retained.getAllocatedBytes();
+            NbtSizeTracker entry = NbtSizeTracker.of(Math.min(remaining,
+                    QuickLitematicaPreviewVertexBudget.nbtByteLimit(NBT_READ_LIMIT_BYTES)));
+            NbtCompound nbt = NbtIo.readCompound(input, entry);
+            retained.add(entry.getAllocatedBytes());
+            return nbt;
         }
 
         static void readFullyCancellable(DataInputStream input, byte[] bytes, AtomicBoolean cancelled) throws IOException {

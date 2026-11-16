@@ -134,6 +134,75 @@ class QuickLitematicaPreview3DCacheTest {
     }
 
     @Test
+    void boundsCumulativeNbtAcrossAllDynamicSectionsAndPreservesForceRead() throws Exception {
+        Path cache = writeNbtCache(1100, true);
+        byte[] original = Files.readAllBytes(cache);
+        try (var budgets = smallCacheNbtBudgets()) {
+            assertThatThrownBy(() -> QuickLitematicaPreviewCache.CacheFile.read(
+                    cache, new AtomicBoolean(), null, "struct-test", "pack-test"))
+                    .isInstanceOf(QuickLitematicaPreview3D.PreviewTooLargeException.class);
+            assertThat(Files.readAllBytes(cache)).containsExactly(original);
+            QuickLitematicaPreviewVertexBudget.run(true, () -> {
+                var loaded = QuickLitematicaPreviewCache.CacheFile.read(
+                        cache, new AtomicBoolean(), null, "struct-test", "pack-test");
+                assertThat(loaded).isNotNull();
+                assertThat(loaded.blockStates()).hasSize(1);
+                assertThat(loaded.blockEntities()).hasSize(1);
+                assertThat(loaded.entities()).hasSize(1);
+            });
+        }
+        assertThat(QuickLitematicaPreviewVertexBudget.isForced()).isFalse();
+    }
+
+    @Test
+    void readsDynamicNbtWithinTheCumulativeBudget() throws Exception {
+        Path cache = writeNbtCache(100, true);
+        try (var budgets = smallCacheNbtBudgets()) {
+            var loaded = QuickLitematicaPreviewCache.CacheFile.read(
+                    cache, new AtomicBoolean(), null, "struct-test", "pack-test");
+            assertThat(loaded).isNotNull();
+            assertThat(loaded.blockStates()).hasSize(1);
+            assertThat(loaded.blockEntities()).hasSize(1);
+            assertThat(loaded.entities()).hasSize(1);
+        }
+    }
+
+    @Test
+    void stillRejectsOneNbtAboveItsIndividualBudget() throws Exception {
+        Path cache = writeNbtCache(2200, false);
+        try (var budgets = smallCacheNbtBudgets()) {
+            assertThatThrownBy(() -> QuickLitematicaPreviewCache.CacheFile.read(
+                    cache, new AtomicBoolean(), null, "struct-test", "pack-test"))
+                    .isInstanceOf(QuickLitematicaPreview3D.PreviewTooLargeException.class);
+        }
+        assertThat(cache).exists();
+    }
+
+    private Path writeNbtCache(int payloadBytes, boolean allSections) throws Exception {
+        var nbt = new CompoundTag();
+        nbt.putByteArray("payload", new byte[payloadBytes]);
+        var mesh = new QuickLitematicaPreview3D.MeshData(List.of(),
+                allSections ? List.of(new QuickLitematicaPreview3D.BlockStateData(0, 0, 0, nbt)) : List.of(),
+                allSections ? List.of(new QuickLitematicaPreview3D.BlockEntityData(0, 0, 0, nbt, nbt)) : List.of(),
+                List.of(new QuickLitematicaPreview3D.EntityData(0, 0, 0, nbt)), 1, 1, 1);
+        Path cache = this.temporaryDirectory.resolve("nbt-" + payloadBytes + ".qcp3d");
+        QuickLitematicaPreviewCache.CacheFile.writeAtomically(
+                this.temporaryDirectory.resolve("nbt.tmp"), cache, mesh, mesh.layers(),
+                "struct-test", "pack-test", new AtomicBoolean(), progress -> {});
+        return cache;
+    }
+
+    private static org.mockito.MockedStatic<QuickLitematicaPreviewVertexBudget> smallCacheNbtBudgets() {
+        var budgets = mockStatic(QuickLitematicaPreviewVertexBudget.class, CALLS_REAL_METHODS);
+        // 只缩小额度；解码、累计分配计数和强制模式仍走真实生产路径。
+        budgets.when(() -> QuickLitematicaPreviewVertexBudget.nbtByteLimit(32L << 20))
+                .thenAnswer(ignored -> QuickLitematicaPreviewVertexBudget.isForced() ? Long.MAX_VALUE : 2048L);
+        budgets.when(() -> QuickLitematicaPreviewVertexBudget.nbtByteLimit(256L << 20))
+                .thenAnswer(ignored -> QuickLitematicaPreviewVertexBudget.isForced() ? Long.MAX_VALUE : 4096L);
+        return budgets;
+    }
+
+    @Test
     void hashesFileContentsInsteadOfFileMetadata() throws Exception {
         Path first = this.temporaryDirectory.resolve("first.litematic");
         Path second = this.temporaryDirectory.resolve("second.litematic");
