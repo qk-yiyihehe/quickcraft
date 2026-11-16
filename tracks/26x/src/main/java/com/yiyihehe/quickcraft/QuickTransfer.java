@@ -193,7 +193,13 @@ public final class QuickTransfer implements ClientModInitializer {
                 && screen.getMenu().getCarried().isEmpty();
     }
 
-    public static boolean shouldHighlightMatchingSlot(AbstractContainerScreen<?> screen, Slot slot) {
+    public static Slot resolveHighlightSlot(AbstractContainerScreen<?> screen) {
+        Minecraft client = Minecraft.getInstance();
+        return QuickCraftConfigs.isMatchingTransferHighlightEnabled() && canUseQuickTransfer(client, screen)
+                ? findHoveredSlot(screen, getMouseX(client), getMouseY(client)) : null;
+    }
+
+    public static boolean shouldHighlightMatchingSlot(AbstractContainerScreen<?> screen, Slot slot, Slot hoveredSlot) {
         Minecraft client = Minecraft.getInstance();
         if (!QuickCraftConfigs.isMatchingTransferHighlightEnabled()
                 || !canUseQuickTransfer(client, screen)
@@ -202,7 +208,6 @@ public final class QuickTransfer implements ClientModInitializer {
             return false;
         }
 
-        Slot hoveredSlot = findHoveredSlot(screen, getMouseX(client), getMouseY(client));
         return hoveredSlot != null
                 && hoveredSlot.hasItem()
                 && ItemStack.isSameItemSameComponents(slot.getItem(), hoveredSlot.getItem());
