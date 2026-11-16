@@ -336,8 +336,12 @@ public final class QuickFreeCameraInteractions {
         if (sneakPlacementCommandSent) {
             return true;
         }
-        if (client == null || client.player == null || client.getConnection() == null
+        if (client == null || client.player == null
                 || client.player.input == null || client.player.input.keyPresses == null) {
+            return false;
+        }
+        ClientPacketListener connection = client.getConnection();
+        if (connection == null) {
             return false;
         }
         Input original = client.player.input.keyPresses;
@@ -345,10 +349,10 @@ public final class QuickFreeCameraInteractions {
             return false;
         }
         restoredPlayerInput = original;
-        temporarySneakConnection = client.getConnection();
+        temporarySneakConnection = connection;
         Input sneaking = new Input(original.forward(), original.backward(),
                 original.left(), original.right(), original.jump(), true, original.sprint());
-        temporarySneakConnection.send(new ServerboundPlayerInputPacket(sneaking));
+        connection.send(new ServerboundPlayerInputPacket(sneaking));
         sneakPlacementCommandSent = true;
         return true;
     }

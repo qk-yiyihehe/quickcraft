@@ -173,6 +173,23 @@ class QuickFreeCameraEntitySneakTest {
         }
     }
 
+    @Test
+    void beginningSneakUsesOneConnectionSnapshot() throws Exception {
+        Fixture fixture = fixture(new Input(false, false, false, false, false, false, false));
+        when(fixture.client.getConnection()).thenReturn(fixture.connection, null);
+        try (var configs = enabledConfig(); var keys = sneakKey(true);
+             var free = freeCamera(fixture.client, true)) {
+            assertThat(QuickFreeCameraInteractions.resolveEntitySneaking(fixture.client, false)).isTrue();
+            verify(fixture.client, times(1)).getConnection();
+            verify(fixture.connection, times(1)).send(any(ServerboundPlayerInputPacket.class));
+
+            QuickFreeCameraInteractions.endEntityUseFromFreeCamera(fixture.client);
+            verify(fixture.connection, times(1)).send(any(ServerboundPlayerInputPacket.class));
+            assertThat(read("restoredPlayerInput")).isNull();
+            assertThat(read("temporarySneakConnection")).isNull();
+        }
+    }
+
     private static InteractionResult invokeUse(Operation<InteractionResult> original) {
         return QuickFreeCameraInteractions.withEntityUseFromFreeCamera(
                 Minecraft.getInstance(), () -> original.call(null, null, null, InteractionHand.MAIN_HAND));
