@@ -33,6 +33,53 @@ import static org.mockito.Mockito.when;
 @ExtendWith(com.yiyihehe.quickcraft.QuickCraftMinecraftTestBootstrap.class)
 class QuickLitematicaEntityCandidateChainTest {
     @Test
+    void denseEvaluationClassifiesEachPairOnceAndRefreshesNextEvaluation() throws Exception {
+        var position = new Vec3(0.5, 0, 0.5);
+        var expected = new CompoundTag();
+        expected.putString("id", "minecraft:armor_stand");
+        expected.putBoolean("Small", false);
+        var projected = new ArrayList<LitematicaSchematic.EntityInfo>();
+        for (int i = 0; i < 6; i++) projected.add(new LitematicaSchematic.EntityInfo(position,
+                fi.dy.masa.malilib.util.data.tag.converter.DataConverterNbt.fromVanillaCompound(expected)));
+        var candidates = collect(projected, false);
+        assertThat(candidates).hasSize(6);
+        var client = mock(Minecraft.class);
+        client.level = mock(ClientLevel.class);
+        var box = new net.minecraft.world.phys.AABB(0, 0, 0, 1, 2, 1);
+        var entities = new ArrayList<net.minecraft.world.entity.Entity>();
+        var changed = new java.util.concurrent.atomic.AtomicBoolean();
+        var writes = new java.util.concurrent.atomic.AtomicInteger();
+        var lookup = net.minecraft.core.RegistryAccess.fromRegistryOfRegistries(net.minecraft.core.registries.BuiltInRegistries.REGISTRY);
+        for (int i = 0; i < 6; i++) {
+            var entity = mock(net.minecraft.world.entity.Entity.class);
+            org.mockito.Mockito.doReturn(net.minecraft.core.registries.BuiltInRegistries.ENTITY_TYPE.getValue(
+                    candidates.getFirst().entityType())).when(entity).getType();
+            when(entity.getBoundingBox()).thenReturn(box);
+            when(entity.position()).thenReturn(position);
+            when(entity.registryAccess()).thenReturn(lookup);
+            when(entity.getSelfAndPassengers()).thenAnswer(call -> java.util.stream.Stream.of(entity));
+            org.mockito.Mockito.doAnswer(call -> {
+                net.minecraft.world.level.storage.ValueOutput output = call.getArgument(0);
+                output.putString("id", candidates.getFirst().entityType().toString());
+                output.putBoolean("Small", changed.get());
+                writes.incrementAndGet();
+                return null;
+            }).when(entity).saveWithoutId(any(net.minecraft.world.level.storage.ValueOutput.class));
+            entities.add(entity);
+        }
+        when(client.level.getEntities(org.mockito.ArgumentMatchers.<net.minecraft.world.entity.Entity>isNull(),
+                any(net.minecraft.world.phys.AABB.class), any())).thenReturn(entities);
+        var first = QuickLitematicaEntityPlacement.evaluatePlacement(client, candidates);
+        assertThat(first.statuses().values()).containsOnly(QuickLitematicaEntityPlacement.PlacementStatus.MATCHED);
+        assertThat(first.excessEntities()).isEmpty();
+        assertThat(writes).hasValue(36);
+        changed.set(true);
+        var next = QuickLitematicaEntityPlacement.evaluatePlacement(client, candidates);
+        assertThat(next.statuses().values()).containsOnly(QuickLitematicaEntityPlacement.PlacementStatus.MISMATCHED);
+        assertThat(writes).hasValue(72);
+    }
+
+    @Test
     void legacyBoatIdsStillReachNativeNormalization() throws Exception {
         for (String id : List.of("minecraft:boat", "minecraft:chest_boat")) {
             assertThat(collect(List.of(entity(id, new Vec3(0.5, 0, 0.5), null)), false)).hasSize(1);

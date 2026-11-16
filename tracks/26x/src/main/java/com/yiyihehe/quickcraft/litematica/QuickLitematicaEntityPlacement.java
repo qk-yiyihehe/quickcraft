@@ -376,6 +376,8 @@ public final class QuickLitematicaEntityPlacement {
             return new PlacementEvaluation(Map.of(), List.of());
         }
 
+        // 本次同步求值期间实体不变；三轮贪心分配复用同一对的分类，不跨tick保留。
+        Map<Candidate, Map<Entity, PlacementStatus>> classifications = new IdentityHashMap<>();
         Set<Entity> claimedEntities = Collections.newSetFromMap(new IdentityHashMap<>());
         Map<Candidate, PlacementStatus> statuses = new IdentityHashMap<>();
         Map<Candidate, List<Entity>> nearbyByCandidate = new IdentityHashMap<>();
@@ -397,9 +399,9 @@ public final class QuickLitematicaEntityPlacement {
             nearbyByCandidate.put(candidate, nearby);
         }
 
-        assignPlacementStatus(candidates, nearbyByCandidate, claimedEntities, statuses, PlacementStatus.MATCHED);
-        assignPlacementStatus(candidates, nearbyByCandidate, claimedEntities, statuses, PlacementStatus.MISMATCHED);
-        assignPlacementStatus(candidates, nearbyByCandidate, claimedEntities, statuses, PlacementStatus.WRONG);
+        assignPlacementStatus(candidates, nearbyByCandidate, claimedEntities, statuses, classifications, PlacementStatus.MATCHED);
+        assignPlacementStatus(candidates, nearbyByCandidate, claimedEntities, statuses, classifications, PlacementStatus.MISMATCHED);
+        assignPlacementStatus(candidates, nearbyByCandidate, claimedEntities, statuses, classifications, PlacementStatus.WRONG);
         candidates.forEach(candidate -> statuses.putIfAbsent(candidate, PlacementStatus.UNPLACED));
         Set<Entity> allNearby = Collections.newSetFromMap(new IdentityHashMap<>());
         nearbyByCandidate.values().forEach(allNearby::addAll);
@@ -414,6 +416,7 @@ public final class QuickLitematicaEntityPlacement {
             Map<Candidate, List<Entity>> nearbyByCandidate,
             Set<Entity> claimedEntities,
             Map<Candidate, PlacementStatus> statuses,
+            Map<Candidate, Map<Entity, PlacementStatus>> classifications,
             PlacementStatus wantedStatus
     ) {
         boolean assigned;
@@ -428,7 +431,8 @@ public final class QuickLitematicaEntityPlacement {
                 }
                 for (Entity entity : nearbyByCandidate.getOrDefault(candidate, List.of())) {
                     if (claimedEntities.contains(entity)
-                            || candidate.classifyEntity(entity) != wantedStatus) {
+                            || classifications.computeIfAbsent(candidate, ignored -> new IdentityHashMap<>())
+                            .computeIfAbsent(entity, candidate::classifyEntity) != wantedStatus) {
                         continue;
                     }
                     double distance = candidate.matchesConfirmedUuid(entity)
