@@ -9,7 +9,43 @@ import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+@org.junit.jupiter.api.extension.ExtendWith(com.yiyihehe.quickcraft.QuickCraftMinecraftTestBootstrap.class)
 class QuickLitematicaPreviewMeshBuilderTest {
+    @Test
+    void stackedBeaconsReadTheSharedSkyColumnOnlyOnce() throws Exception {
+        var viewType = Class.forName(QuickLitematicaPreviewMeshBuilder.class.getName() + "$RegionBlockView");
+        var view = org.mockito.Mockito.mock(viewType);
+        var readState = viewType.getDeclaredMethod("getBlockState", net.minecraft.core.BlockPos.class);
+        readState.setAccessible(true);
+        var skyReads = new java.util.concurrent.atomic.AtomicInteger();
+        org.mockito.Mockito.when(readState.invoke(view, org.mockito.ArgumentMatchers.any(net.minecraft.core.BlockPos.class)))
+                .thenAnswer(call -> {
+                    net.minecraft.core.BlockPos pos = call.getArgument(0);
+                    if (pos.getX() == 0 && pos.getZ() == 0 && pos.getY() > 5) skyReads.incrementAndGet();
+                    return pos.equals(new net.minecraft.core.BlockPos(0, 12, 0))
+                            ? net.minecraft.core.registries.BuiltInRegistries.BLOCK.getValue(
+                                    net.minecraft.resources.Identifier.withDefaultNamespace("red_stained_glass")).defaultBlockState()
+                            : net.minecraft.world.level.block.Blocks.AIR.defaultBlockState();
+                });
+        var tag = new CompoundTag();
+        tag.putString("Name", "minecraft:beacon");
+        var beacons = java.util.List.of(
+                new QuickLitematicaPreview3D.BlockEntityData(0, 5, 0, tag, new CompoundTag()),
+                new QuickLitematicaPreview3D.BlockEntityData(0, 0, 0, tag, new CompoundTag()));
+        var states = new java.util.HashMap<net.minecraft.core.BlockPos, QuickLitematicaPreview3D.BlockStateData>();
+        var boundsType = Class.forName(QuickLitematicaPreviewMeshBuilder.class.getName() + "$Bounds");
+        var constructor = boundsType.getDeclaredConstructor(net.minecraft.core.BlockPos.class, net.minecraft.core.BlockPos.class);
+        constructor.setAccessible(true);
+        var bounds = constructor.newInstance(net.minecraft.core.BlockPos.ZERO, new net.minecraft.core.BlockPos(0, 16, 0));
+        var method = QuickLitematicaPreviewMeshBuilder.class.getDeclaredMethod("recordBeaconBlockStates",
+                java.util.Map.class, java.util.List.class, java.util.List.class,
+                boundsType, java.util.concurrent.atomic.AtomicBoolean.class);
+        method.setAccessible(true);
+        method.invoke(null, states, beacons, java.util.List.of(view), bounds, new java.util.concurrent.atomic.AtomicBoolean());
+        assertThat(skyReads).hasValue(11);
+        assertThat(states).containsOnlyKeys(new net.minecraft.core.BlockPos(0, 12, 0));
+    }
+
     @Test
     void translatesLegacyAndModernAttachmentWithoutChangingSource() {
         CompoundTag source = source();

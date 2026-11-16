@@ -276,6 +276,7 @@ final class QuickLitematicaPreviewMeshBuilder {
 
     private static void recordBeaconBlockStates(Map<BlockPos, BlockStateData> states,
             List<BlockEntityData> entities, List<RegionBlockView> views, Bounds bounds, AtomicBoolean cancelled) {
+        Map<BlockPos, Integer> scannedColumns = new HashMap<>();
         for (BlockEntityData data : entities) {
             throwIfCancelled(cancelled);
             if (!"minecraft:beacon".equals(data.stateNbt().getStringOr("Name", ""))) continue;
@@ -287,10 +288,15 @@ final class QuickLitematicaPreviewMeshBuilder {
                     }
                 }
             }
-            for (int y = beacon.getY() + 1; y <= bounds.max().getY(); y++) {
+            BlockPos column = new BlockPos(beacon.getX(), 0, beacon.getZ());
+            Integer previousStart = scannedColumns.get(column);
+            int start = beacon.getY() + 1;
+            int end = previousStart == null ? bounds.max().getY() : Math.min(bounds.max().getY(), previousStart - 1);
+            for (int y = start; y <= end; y++) {
                 if ((y & 0xFF) == 0) throwIfCancelled(cancelled);
                 recordBeaconState(states, views, new BlockPos(beacon.getX(), y, beacon.getZ()), bounds);
             }
+            if (previousStart == null || start < previousStart) scannedColumns.put(column, start);
         }
     }
 

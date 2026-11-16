@@ -9,7 +9,36 @@ import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+@org.junit.jupiter.api.extension.ExtendWith(com.yiyihehe.quickcraft.QuickCraftMinecraftTestBootstrap.class)
 class QuickLitematicaPreviewMeshBuilderTest {
+    @Test
+    void stackedBeaconsReadTheSharedSkyColumnOnlyOnce() throws Exception {
+        var view = org.mockito.Mockito.mock(QuickLitematicaPreview3D.RegionBlockView.class);
+        var skyReads = new java.util.concurrent.atomic.AtomicInteger();
+        org.mockito.Mockito.when(view.getBlockState(org.mockito.ArgumentMatchers.any(net.minecraft.util.math.BlockPos.class)))
+                .thenAnswer(call -> {
+                    net.minecraft.util.math.BlockPos pos = call.getArgument(0);
+                    if (pos.getX() == 0 && pos.getZ() == 0 && pos.getY() > 5) skyReads.incrementAndGet();
+                    return pos.equals(new net.minecraft.util.math.BlockPos(0, 12, 0))
+                            ? net.minecraft.block.Blocks.RED_STAINED_GLASS.getDefaultState()
+                            : net.minecraft.block.Blocks.AIR.getDefaultState();
+                });
+        var tag = new NbtCompound();
+        tag.putString("Name", "minecraft:beacon");
+        var beacons = java.util.List.of(
+                new QuickLitematicaPreviewAccess.BlockEntityData(0, 5, 0, tag, new NbtCompound()),
+                new QuickLitematicaPreviewAccess.BlockEntityData(0, 0, 0, tag, new NbtCompound()));
+        var states = new java.util.HashMap<net.minecraft.util.math.BlockPos, QuickLitematicaPreviewAccess.BlockStateData>();
+        var bounds = new QuickLitematicaPreview3D.Bounds(net.minecraft.util.math.BlockPos.ORIGIN, new net.minecraft.util.math.BlockPos(0, 16, 0));
+        var method = QuickLitematicaPreviewMeshBuilder.class.getDeclaredMethod("recordBeaconBlockStates",
+                java.util.Map.class, java.util.List.class, java.util.List.class,
+                QuickLitematicaPreview3D.Bounds.class, java.util.concurrent.atomic.AtomicBoolean.class);
+        method.setAccessible(true);
+        method.invoke(null, states, beacons, java.util.List.of(view), bounds, new java.util.concurrent.atomic.AtomicBoolean());
+        assertThat(skyReads).hasValue(11);
+        assertThat(states).containsOnlyKeys(new net.minecraft.util.math.BlockPos(0, 12, 0));
+    }
+
     @Test
     void translatesLegacyAndModernAttachmentWithoutChangingSource() {
         NbtCompound source = source();
