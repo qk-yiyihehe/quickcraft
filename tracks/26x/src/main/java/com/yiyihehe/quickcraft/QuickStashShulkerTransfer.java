@@ -1,0 +1,653 @@
+package com.yiyihehe.quickcraft;
+
+import static com.yiyihehe.quickcraft.QuickContainerCopySources.*;
+
+import com.yiyihehe.quickcraft.compat.QuickShulkerConnection;
+import com.yiyihehe.quickcraft.config.QuickCraftConfigs;
+import net.minecraft.world.level.block.Block;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
+import net.minecraft.client.multiplayer.ClientLevel;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.inventory.AbstractContainerMenu;
+import net.minecraft.world.inventory.ShulkerBoxMenu;
+import net.minecraft.world.inventory.Slot;
+import net.minecraft.world.inventory.ContainerInput;
+import net.minecraft.network.chat.Component;
+import net.minecraft.world.InteractionHand;
+import net.minecraft.world.phys.BlockHitResult;
+import net.minecraft.world.phys.EntityHitResult;
+import net.minecraft.world.phys.HitResult;
+
+import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
+
+/** 回存只规划匹配物和目的地；拆量、批量取货及装盒沿用容器填充的实现。 */
+public final class QuickStashShulkerTransfer {
+    private static final int OPEN_TIMEOUT_TICKS = 40;
+    // 一批覆盖玩家的 36 个储物槽，避免不限速配置下单个回调无限占用客户端线程。
+    private static final int MAX_STACKS_PER_BATCH = 36;
+    private static final QuickContainerCopy TRANSFER = new QuickContainerCopy();
+    private static Session session;
+    private static AbstractContainerMenu lastSyncedHandler;
+
+    private QuickStashShulkerTransfer() {
+    }
+
+    static boolean isRunning() {
+        return session != null;
+    }
+
+    private static boolean isEnabled() {
+        return QuickCraftConfigs.ContainerTools.QUICK_STASH_WITH_QUICK_SHULKER.getBooleanValue()
+                && QuickCraftConfigs.ModSupport.ENABLE_QUICK_SHULKER.getBooleanValue()
+                && QuickShulkerConnection.canBundle() && QuickShulkerConnection.canOpen();
+    }
+
+    static boolean start(AbstractContainerScreen<?> screen, int inventorySlot, boolean closeAfter) {
+        if (session != null) {
+            return true;
+        }
+        Minecraft client = Minecraft.getInstance();
+        if (!isEnabled() || client.player == null || client.level == null || client.gameMode == null
+                || QuickClientScreenAccess.currentScreen(client) != screen || !screen.getMenu().getCarried().isEmpty()
+                || QuickContainerCopy.shouldHideBackgroundHandledScreen()
+                || QuickMaterialCollector.shouldHideBackgroundHandledScreen()) {
+            return false;
+        }
+        if (inventorySlot < 0) {
+            inventorySlot = QuickContainerLock.getInventoryShulkerSlot(screen);
+        }
+        if (QuickContainerLock.isCurrentScreenLocked(screen)) {
+            return true;
+        }
+        HitResult hit = client.hitResult;
+        if (inventorySlot < 0 && !(hit instanceof BlockHitResult) && !(hit instanceof EntityHitResult)) {
+            return false;
+        }
+        if (hit instanceof BlockHitResult blockHit) {
+            hit = blockHit.withPosition(blockHit.getBlockPos().immutable());
+        }
+        session = new Session(client, screen.getMenu(), hit, inventorySlot, closeAfter);
+        if (screen.getMenu() == lastSyncedHandler) {
+            rememberAcceptedItems(screen.getMenu());
+        } else {
+            session.stage = Stage.WAIT_INITIAL;
+        }
+        return true;
+    }
+
+    static void onClientTick(Minecraft client) {
+        if (client.player == null || client.player.containerMenu != lastSyncedHandler) {
+            lastSyncedHandler = null;
+        }
+        if (session == null) {
+            return;
+        }
+        if (!isEnabled() || client.player == null || client.level != session.world
+                || client.gameMode == null || !targetStillExists(client)) {
+            stop(client, false, null);
+            return;
+        }
+        if (session.stage == Stage.REOPEN) {
+            reopenTarget(client);
+            return;
+        }
+        if (session.stage == Stage.WAIT_INITIAL && !(QuickClientScreenAccess.currentScreen(client) instanceof AbstractContainerScreen<?> screen
+                && screen.getMenu() == session.ownedHandler)) {
+            stop(client, false, null);
+            return;
+        }
+        if (session.stage == Stage.WAIT_INITIAL || session.stage == Stage.WAIT_SOURCE || session.stage == Stage.WAIT_TARGET) {
+            if (++session.waitTicks > OPEN_TIMEOUT_TICKS
+                    || QuickClientScreenAccess.currentScreen(client) != null && !(QuickClientScreenAccess.currentScreen(client) instanceof AbstractContainerScreen<?>)) {
+                stop(client, false, "quickcraft.message.quick_stash.open_failed");
+            }
+            return;
+        }
+        if (!(QuickClientScreenAccess.currentScreen(client) instanceof AbstractContainerScreen<?> screen)
+                || screen.getMenu() != session.ownedHandler) {
+            stop(client, false, null);
+            return;
+        }
+        if (!session.ownedHandler.getCarried().isEmpty()) {
+            stop(client, false, "quickcraft.message.quick_stash.cursor_blocked");
+            return;
+        }
+        if (session.cooldown-- > 0) {
+            return;
+        }
+        session.cooldown = Math.max(0, QuickCraftConfigs.getQuickShulkerActionIntervalTicks() - 1);
+        if (session.stage == Stage.TARGET) {
+            processTarget(client, screen);
+        } else if (session.stage == Stage.NEXT_SOURCE) {
+            openNextSourceOrReturn(client);
+        } else {
+            extractSource(client, screen);
+        }
+    }
+
+    public static void onServerInventoryUpdate(int syncId) {
+        Minecraft client = Minecraft.getInstance();
+        if (client.player == null || !(QuickClientScreenAccess.currentScreen(client) instanceof AbstractContainerScreen<?> screen)) {
+            return;
+        }
+        AbstractContainerMenu handler = screen.getMenu();
+        if (handler == client.player.containerMenu && handler.containerId == syncId) {
+            lastSyncedHandler = handler;
+        }
+        if (session == null || client.level != session.world || handler != lastSyncedHandler) {
+            return;
+        }
+        if (session.stage == Stage.WAIT_INITIAL && handler == session.ownedHandler) {
+            rememberAcceptedItems(handler);
+            session.stage = Stage.TARGET;
+            session.waitTicks = 0;
+            if (QuickCraftConfigs.getQuickShulkerActionIntervalTicks() == 0) {
+                onClientTick(client);
+            }
+            return;
+        }
+        if (session.stage != Stage.WAIT_SOURCE && session.stage != Stage.WAIT_TARGET) {
+            return;
+        }
+        if (handler == session.ownedHandler || handler != client.player.containerMenu || handler.containerId != syncId) {
+            return;
+        }
+        if (session.stage == Stage.WAIT_SOURCE && handler instanceof ShulkerBoxMenu) {
+            QuickContainerLock.bindInventoryShulkerScreen(screen, session.sourcePlayerIndex);
+            session.stage = Stage.SOURCE;
+        } else if (session.stage == Stage.WAIT_TARGET
+                && handler.getClass() == session.originalHandler.getClass()
+                && handler.slots.size() == session.originalHandler.slots.size()) {
+            QuickContainerLock.bindSameContainerScreen(handler, session.originalHandler);
+            session.stage = Stage.TARGET;
+        } else {
+            stop(client, false, "quickcraft.message.quick_stash.open_failed");
+            return;
+        }
+        session.ownedHandler = handler;
+        session.waitTicks = 0;
+        session.cooldown = 0;
+        if (QuickCraftConfigs.getQuickShulkerActionIntervalTicks() == 0) {
+            onClientTick(client);
+        }
+    }
+
+    private static void processTarget(Minecraft client, AbstractContainerScreen<?> screen) {
+        if (QuickContainerLock.isCurrentScreenLocked(screen)) {
+            stop(client, false, null);
+            return;
+        }
+        AbstractContainerMenu handler = session.ownedHandler;
+        rememberAcceptedItems(handler);
+        for (int processed = 0; processed < MAX_STACKS_PER_BATCH; processed++) {
+            if (!depositOnePlayerStack(handler, client)) {
+                break;
+            }
+            if (session == null || processed == MAX_STACKS_PER_BATCH - 1) {
+                return;
+            }
+        }
+        if (!handler.getCarried().isEmpty()) {
+            stop(client, false, "quickcraft.message.quick_stash.cursor_blocked");
+            return;
+        }
+        session.demands = remainingCapacity(handler);
+        SourceShulker source = findSource(handler);
+        if (source == null) {
+            boolean restored = restoreTemporaryStack(handler, client);
+            stop(client, restored && session.closeAfter, null);
+            return;
+        }
+        boolean hasSpace = hasExtractionSpace(handler, handler.getSlot(source.slotId()).getItem());
+        if (!hasSpace) {
+            if (!makeWorkingSlot(handler, source.playerIndex(), client)) {
+                stop(client, false, "quickcraft.message.quick_stash.no_space");
+                return;
+            }
+            // 借走空格后重新分配容量，不能把周转格同时算作货物的最终落点。
+            session.demands = remainingCapacity(handler);
+            source = findSource(handler);
+            if (source == null) {
+                stop(client, false, "quickcraft.message.quick_stash.no_space");
+                return;
+            }
+        }
+        session.sourcePlayerIndex = source.playerIndex();
+        session.stage = Stage.WAIT_SOURCE;
+        session.waitTicks = 0;
+        if (!QuickShulkerConnection.sendOpen(source.slotId())) {
+            stop(client, false, "quickcraft.message.quick_stash.open_failed");
+        }
+    }
+
+    private static void rememberAcceptedItems(AbstractContainerMenu handler) {
+        for (int slotId : targetSlots(handler)) {
+            ItemStack stack = handler.getSlot(slotId).getItem();
+            if (stack.isEmpty()) {
+                continue;
+            }
+            if (!isShulkerBox(stack)) {
+                addAccepted(stack);
+            } else {
+                ItemStack pure = pureContent(stack);
+                if (!pure.isEmpty()) {
+                    addAccepted(pure);
+                }
+            }
+        }
+    }
+
+    private static void addAccepted(ItemStack stack) {
+        if (!matchesAccepted(stack)) {
+            session.accepted.add(stack.copyWithCount(1));
+        }
+    }
+
+    private static boolean matchesAccepted(ItemStack stack) {
+        return session.accepted.stream().anyMatch(template -> ItemStack.isSameItemSameComponents(template, stack));
+    }
+
+    private static ItemStack pureContent(ItemStack shulker) {
+        if (!isShulkerBox(shulker)) {
+            return ItemStack.EMPTY;
+        }
+        ItemStack template = ItemStack.EMPTY;
+        for (ItemStack stack : getStoredStacksBySlot(shulker)) {
+            if (stack.isEmpty()) {
+                continue;
+            }
+            if (!template.isEmpty() && !ItemStack.isSameItemSameComponents(template, stack)) {
+                return ItemStack.EMPTY;
+            }
+            template = stack;
+        }
+        return template.isEmpty() ? ItemStack.EMPTY : template.copyWithCount(1);
+    }
+
+    private static List<Integer> targetSlots(AbstractContainerMenu handler) {
+        return getContainerSlotIds(handler).stream()
+                .filter(id -> id != session.temporarySlot && !QuickContainerLock.isLockedSlot(handler, id))
+                .toList();
+    }
+
+    private static boolean depositOnePlayerStack(AbstractContainerMenu handler, Minecraft client) {
+        for (int slotId : getPlayerStorageSlotIds(handler)) {
+            Slot source = handler.getSlot(slotId);
+            if (source.getContainerSlot() == session.targetInventorySlot || !source.hasItem() || !source.mayPickup(client.player)) {
+                continue;
+            }
+            ItemStack stack = source.getItem();
+            if (isShulkerBox(stack)) {
+                ItemStack pure = pureContent(stack);
+                if (!pure.isEmpty() && matchesAccepted(pure)
+                        && moveToContainerSlots(handler, slotId, client)) {
+                    return true;
+                }
+            } else if (matchesAccepted(stack)) {
+                int before = stack.getCount();
+                if (!packIntoTargetShulkers(handler, slotId, client)) {
+                    stop(client, false, "quickcraft.message.quick_stash.bundle_failed");
+                    return true;
+                }
+                if (!handler.getCarried().isEmpty()) {
+                    return false;
+                }
+                boolean moved = source.getItem().getCount() < before;
+                if (moveToContainerSlots(handler, slotId, client) || moved) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    private static boolean packIntoTargetShulkers(AbstractContainerMenu handler, int sourceSlotId, Minecraft client) {
+        Slot source = handler.getSlot(sourceSlotId);
+        for (int slotId : targetSlots(handler)) {
+            Slot target = handler.getSlot(slotId);
+            if (!source.hasItem() || target.getItem().getCount() != 1 || !target.mayPickup(client.player)
+                    || !target.mayPlace(target.getItem())
+                    || !ItemStack.isSameItemSameComponents(pureContent(target.getItem()), source.getItem())
+                    || getShulkerCapacityFor(target.getItem(), source.getItem()) <= 0) {
+                continue;
+            }
+            int before = source.getItem().getCount();
+            click(client, handler, sourceSlotId, 0, ContainerInput.PICKUP);
+            if (handler.getCarried().isEmpty()) {
+                return false;
+            }
+            click(client, handler, slotId, 1, ContainerInput.PICKUP);
+            if (isShulkerBox(handler.getCarried()) && !isShulkerBox(target.getItem())) {
+                // 快盒关闭装盒时，原版右键会交换物品；先撤回交换，再归还来源。
+                click(client, handler, slotId, 0, ContainerInput.PICKUP);
+            }
+            int remaining = handler.getCarried().getCount();
+            if (!handler.getCarried().isEmpty()) {
+                click(client, handler, sourceSlotId, 0, ContainerInput.PICKUP);
+            }
+            if (!handler.getCarried().isEmpty() || remaining >= before) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private static boolean moveToContainerSlots(AbstractContainerMenu handler, int sourceSlotId, Minecraft client) {
+        Slot source = handler.getSlot(sourceSlotId);
+        if (!source.hasItem()) {
+            return false;
+        }
+        int before = source.getItem().getCount();
+        List<Integer> slots = new ArrayList<>(targetSlots(handler));
+        slots.sort(java.util.Comparator.comparing(id -> !handler.getSlot(id).hasItem()));
+        for (int slotId : slots) {
+            int capacity = capacity(handler.getSlot(slotId), source.getItem());
+            if (capacity > 0) {
+                TRANSFER.moveItemsToTargetSlot(handler, sourceSlotId, slotId, Math.min(capacity, source.getItem().getCount()), client);
+            }
+            if (!source.hasItem() || !handler.getCarried().isEmpty()) {
+                break;
+            }
+        }
+        return source.getItem().getCount() < before;
+    }
+
+    private static int capacity(Slot slot, ItemStack stack) {
+        if (stack.isEmpty() || !slot.isActive() || !slot.mayPlace(stack)
+                || slot.hasItem() && !ItemStack.isSameItemSameComponents(slot.getItem(), stack)) {
+            return 0;
+        }
+        return Math.max(0, Math.min(stack.getMaxStackSize(), slot.getMaxStackSize(stack))
+                - (slot.hasItem() ? slot.getItem().getCount() : 0));
+    }
+
+    private static List<MissingDemand> remainingCapacity(AbstractContainerMenu handler) {
+        List<MissingDemand> demands = new ArrayList<>();
+        List<Integer> emptySlots = new ArrayList<>(targetSlots(handler).stream()
+                .filter(id -> !handler.getSlot(id).hasItem()).toList());
+        for (ItemStack template : session.accepted) {
+            if (isShulkerBox(template)) {
+                continue;
+            }
+            int available = 0;
+            for (int playerId : getPlayerStorageSlotIds(handler)) {
+                Slot playerSlot = handler.getSlot(playerId);
+                if (playerSlot.getContainerSlot() == session.targetInventorySlot
+                        || session.exhaustedSources.contains(playerSlot.getContainerSlot())
+                        || !isShulkerBox(playerSlot.getItem())) {
+                    continue;
+                }
+                for (ItemStack stored : getStoredStacksBySlot(playerSlot.getItem())) {
+                    if (ItemStack.isSameItemSameComponents(stored, template)) {
+                        available += stored.getCount();
+                    }
+                }
+            }
+            if (available == 0) {
+                continue;
+            }
+            int capacity = 0;
+            for (int slotId : targetSlots(handler)) {
+                Slot slot = handler.getSlot(slotId);
+                if (slot.hasItem()) {
+                    capacity += capacity(slot, template);
+                }
+                if (slot.getItem().getCount() == 1 && slot.mayPickup(Minecraft.getInstance().player)
+                        && slot.mayPlace(slot.getItem())
+                        && ItemStack.isSameItemSameComponents(pureContent(slot.getItem()), template)) {
+                    capacity += getShulkerCapacityFor(slot.getItem(), template);
+                }
+            }
+            // 空格只能分配给一种物品，避免多个缺口重复占用同一个周转目的地。
+            var iterator = emptySlots.iterator();
+            while (capacity < available && iterator.hasNext()) {
+                int extra = capacity(handler.getSlot(iterator.next()), template);
+                if (extra > 0) {
+                    capacity += extra;
+                    iterator.remove();
+                }
+            }
+            if (capacity > 0) {
+                demands.add(new MissingDemand(template, Math.min(capacity, available)));
+            }
+        }
+        return demands;
+    }
+
+    private static SourceShulker findSource(AbstractContainerMenu handler) {
+        return findSource(handler, -1);
+    }
+
+    private static SourceShulker findSource(AbstractContainerMenu handler, int excludedPlayerIndex) {
+        SourceShulker fallback = null;
+        for (int slotId : getPlayerStorageSlotIds(handler)) {
+            Slot slot = handler.getSlot(slotId);
+            if (slot.getContainerSlot() != session.targetInventorySlot && slot.getContainerSlot() != excludedPlayerIndex
+                    && !session.exhaustedSources.contains(slot.getContainerSlot())
+                    && slot.hasItem() && slot.mayPickup(Minecraft.getInstance().player)
+                    && slot.getItem().getCount() == 1 && isShulkerBox(slot.getItem())
+                    && getSourceShulkerScore(slot.getItem(), session.demands).usefulItemCount() > 0) {
+                SourceShulker source = new SourceShulker(slotId, slot.getContainerSlot());
+                if (hasExtractionSpace(handler, slot.getItem())) {
+                    return source;
+                }
+                if (fallback == null) {
+                    fallback = source;
+                }
+            }
+        }
+        return fallback;
+    }
+
+    private static boolean hasExtractionSpace(AbstractContainerMenu handler, ItemStack source) {
+        for (ItemStack stored : getStoredStacksBySlot(source)) {
+            if (findDemandForStack(session.demands, stored) != null
+                    && canStoreAnyStackInPlayerStorage(handler, stored)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static boolean makeWorkingSlot(AbstractContainerMenu handler, int sourcePlayerIndex, Minecraft client) {
+        int excludedShulkerSlot = getPlayerStorageSlotIds(handler).stream()
+                .filter(id -> handler.getSlot(id).getContainerSlot() == session.targetInventorySlot).findFirst().orElse(-1);
+        for (int slotId : getPlayerStorageSlotIds(handler)) {
+            Slot slot = handler.getSlot(slotId);
+            if (TRANSFER.canUsePlayerStackToFreeQuickShulkerSpace(slot.getItem())
+                    && TRANSFER.packSlotIntoQuickShulkerExcept(handler, slotId, excludedShulkerSlot, client)) {
+                return true;
+            }
+        }
+        if (session.temporarySlot >= 0) {
+            return false;
+        }
+        for (int sourceId : getPlayerStorageSlotIds(handler)) {
+            Slot source = handler.getSlot(sourceId);
+            if (!source.hasItem() || !source.mayPickup(client.player)
+                    || source.getContainerSlot() == sourcePlayerIndex || source.getContainerSlot() == session.targetInventorySlot
+                    || !isShulkerBox(source.getItem())
+                        && !TRANSFER.canUsePlayerStackToFreeQuickShulkerSpace(source.getItem())) {
+                continue;
+            }
+            for (int targetId : targetSlots(handler)) {
+                Slot target = handler.getSlot(targetId);
+                if (!target.hasItem() && capacity(target, source.getItem()) >= source.getItem().getCount()) {
+                    ItemStack saved = source.getItem().copy();
+                    TRANSFER.moveItemsToTargetSlot(handler, sourceId, targetId, saved.getCount(), client);
+                    if (!source.hasItem() && handler.getCarried().isEmpty()
+                            && ItemStack.isSameItemSameComponents(saved, target.getItem())
+                            && target.getItem().getCount() == saved.getCount()) {
+                        session.temporarySlot = targetId;
+                        session.temporaryStack = saved;
+                        return true;
+                    }
+                    return false;
+                }
+            }
+        }
+        return false;
+    }
+
+    private static boolean restoreTemporaryStack(AbstractContainerMenu handler, Minecraft client) {
+        if (session.temporarySlot < 0) {
+            return true;
+        }
+        Slot source = handler.getSlot(session.temporarySlot);
+        if (!source.mayPickup(client.player) || QuickContainerLock.isLockedSlot(handler, source)
+                || !ItemStack.isSameItemSameComponents(source.getItem(), session.temporaryStack)
+                || source.getItem().getCount() != session.temporaryStack.getCount()) {
+            return false;
+        }
+        for (int slotId : getPlayerStorageSlotIds(handler)) {
+            Slot target = handler.getSlot(slotId);
+            int capacity = capacity(target, source.getItem());
+            if (target.getContainerSlot() != session.targetInventorySlot && capacity > 0) {
+                TRANSFER.moveItemsToTargetSlot(handler, source.index, slotId, Math.min(capacity, source.getItem().getCount()), client);
+                session.temporaryStack = source.getItem().copy();
+            }
+            if (!source.hasItem() && handler.getCarried().isEmpty()) {
+                session.temporarySlot = -1;
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static void extractSource(Minecraft client, AbstractContainerScreen<?> screen) {
+        int moved = 0;
+        if (!QuickContainerLock.isCurrentScreenLocked(screen)) {
+            var result = TRANSFER.moveMatchingItemsFromOpenShulker(
+                    (ShulkerBoxMenu) session.ownedHandler, session.demands, client);
+            moved = result.moved();
+            session.demands = result.remainingDemands();
+        }
+        if (moved == 0) {
+            session.exhaustedSources.add(session.sourcePlayerIndex);
+        }
+        if (!session.ownedHandler.getCarried().isEmpty()) {
+            stop(client, false, "quickcraft.message.quick_stash.cursor_blocked");
+            return;
+        }
+        session.stage = Stage.NEXT_SOURCE;
+        if (QuickCraftConfigs.getQuickShulkerActionIntervalTicks() == 0) {
+            openNextSourceOrReturn(client);
+        }
+    }
+
+    private static void openNextSourceOrReturn(Minecraft client) {
+        SourceShulker next = findSource(session.ownedHandler, session.sourcePlayerIndex);
+        if (next != null && hasExtractionSpace(session.ownedHandler, session.ownedHandler.getSlot(next.slotId()).getItem())) {
+            session.sourcePlayerIndex = next.playerIndex();
+            session.stage = Stage.WAIT_SOURCE;
+            session.waitTicks = 0;
+            if (!QuickShulkerConnection.sendOpen(next.slotId())) {
+                stop(client, false, "quickcraft.message.quick_stash.open_failed");
+            }
+            return;
+        }
+        client.player.closeContainer();
+        session.stage = Stage.REOPEN;
+    }
+
+    private static boolean targetStillExists(Minecraft client) {
+        if (session.targetInventorySlot >= 0) {
+            return isShulkerBox(client.player.getInventory().getItem(session.targetInventorySlot));
+        }
+        if (session.targetHit instanceof BlockHitResult hit) {
+            return client.level.getBlockState(hit.getBlockPos()).getBlock() == session.targetBlock;
+        }
+        return session.targetHit instanceof EntityHitResult hit && !hit.getEntity().isRemoved();
+    }
+
+    private static void reopenTarget(Minecraft client) {
+        if (QuickClientScreenAccess.currentScreen(client) != null) {
+            stop(client, false, null);
+            return;
+        }
+        boolean opened;
+        if (session.targetInventorySlot >= 0) {
+            int slotId = client.player.inventoryMenu.slots.stream()
+                    .filter(slot -> isPlayerStorageSlot(slot) && slot.getContainerSlot() == session.targetInventorySlot)
+                    .map(slot -> slot.index).findFirst().orElse(-1);
+            opened = slotId >= 0 && QuickShulkerConnection.sendOpen(slotId);
+        } else if (session.targetHit instanceof BlockHitResult hit) {
+            client.gameMode.useItemOn(client.player, InteractionHand.MAIN_HAND, hit);
+            opened = true;
+        } else if (session.targetHit instanceof EntityHitResult hit) {
+            client.gameMode.interact(client.player, hit.getEntity(), hit, InteractionHand.MAIN_HAND);
+            opened = true;
+        } else {
+            opened = false;
+        }
+        session.stage = Stage.WAIT_TARGET;
+        session.waitTicks = 0;
+        if (!opened) {
+            stop(client, false, "quickcraft.message.quick_stash.open_failed");
+        }
+    }
+
+    private static void stop(Minecraft client, boolean close, String message) {
+        Session finished = session;
+        if (finished.temporarySlot >= 0 && client.player != null && client.level == finished.world
+                && QuickClientScreenAccess.currentScreen(client) instanceof AbstractContainerScreen<?> screen
+                && screen.getMenu() == finished.ownedHandler && finished.stage == Stage.TARGET
+                && finished.ownedHandler.getCarried().isEmpty()) {
+            restoreTemporaryStack(finished.ownedHandler, client);
+            close &= finished.temporarySlot < 0;
+        }
+        session = null;
+        if (client.player != null) {
+            if (message != null) {
+                client.player.sendOverlayMessage(Component.translatable(message));
+            }
+            if (finished.temporarySlot >= 0) {
+                client.player.sendSystemMessage(Component.translatable("quickcraft.message.quick_stash.temporary_left",
+                        finished.temporarySlot + 1));
+            }
+            if (close && QuickClientScreenAccess.currentScreen(client) instanceof AbstractContainerScreen<?> screen
+                    && screen.getMenu() == finished.ownedHandler) {
+                client.player.closeContainer();
+            }
+        }
+    }
+
+    private static void click(Minecraft client, AbstractContainerMenu handler, int slotId, int button, ContainerInput action) {
+        client.gameMode.handleContainerInput(handler.containerId, slotId, button, action, client.player);
+    }
+
+    private enum Stage { WAIT_INITIAL, TARGET, WAIT_SOURCE, SOURCE, NEXT_SOURCE, REOPEN, WAIT_TARGET }
+
+    private static final class Session {
+        final ClientLevel world;
+        final AbstractContainerMenu originalHandler;
+        final HitResult targetHit;
+        final Block targetBlock;
+        final int targetInventorySlot;
+        final boolean closeAfter;
+        final List<ItemStack> accepted = new ArrayList<>();
+        final Set<Integer> exhaustedSources = new HashSet<>();
+        AbstractContainerMenu ownedHandler;
+        Stage stage = Stage.TARGET;
+        List<MissingDemand> demands = List.of();
+        int sourcePlayerIndex = -1;
+        int temporarySlot = -1;
+        ItemStack temporaryStack = ItemStack.EMPTY;
+        int waitTicks;
+        int cooldown;
+
+        Session(Minecraft client, AbstractContainerMenu handler, HitResult targetHit, int inventorySlot, boolean closeAfter) {
+            world = client.level;
+            originalHandler = handler;
+            ownedHandler = handler;
+            this.targetHit = targetHit;
+            targetBlock = targetHit instanceof BlockHitResult hit ? client.level.getBlockState(hit.getBlockPos()).getBlock() : null;
+            targetInventorySlot = inventorySlot;
+            this.closeAfter = closeAfter;
+        }
+    }
+}

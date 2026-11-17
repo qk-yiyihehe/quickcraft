@@ -1,6 +1,7 @@
 package com.yiyihehe.quickcraft.mixin;
 
 import com.yiyihehe.quickcraft.QuickInventoryShulkerTools;
+import com.yiyihehe.quickcraft.QuickStashShulkerTransfer;
 import com.yiyihehe.quickcraft.crafting.QuickCraftAnvilRename;
 import com.yiyihehe.quickcraft.crafting.QuickCraftMouseCraftAckExecutor;
 import com.yiyihehe.quickcraft.crafting.QuickCraftWorkbenchShulkerCraft;
@@ -33,6 +34,7 @@ public abstract class WorkbenchShulkerNetworkMixin {
         QuickCraftMouseCraftAckExecutor.onServerInventoryUpdate(
                 packet.syncId(), packet.revision(), packet.contents(), packet.cursorStack());
         QuickInventoryShulkerTools.onServerInventoryUpdate(packet.syncId());
+        QuickStashShulkerTransfer.onServerInventoryUpdate(packet.syncId());
     }
 
     // RETURN 时客户端 StatHandler 已应用服务端绝对值，统计探针可确认没有槽位变化的批次。

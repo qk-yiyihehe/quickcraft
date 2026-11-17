@@ -1854,7 +1854,7 @@ public final class QuickContainerCopy implements ClientModInitializer {
         );
     }
 
-    private int moveItemsToTargetSlot(ScreenHandler handler,
+    int moveItemsToTargetSlot(ScreenHandler handler,
                                       int sourceSlotId,
                                       int targetSlotId,
                                       int neededCount,
@@ -1953,7 +1953,7 @@ public final class QuickContainerCopy implements ClientModInitializer {
         return -1;
     }
 
-    private ExtractResult moveMatchingItemsFromOpenShulker(ShulkerBoxScreenHandler handler,
+    ExtractResult moveMatchingItemsFromOpenShulker(ShulkerBoxScreenHandler handler,
                                                            List<MissingDemand> demands,
                                                            MinecraftClient client) {
         if (client.player == null || client.interactionManager == null || !handler.getCursorStack().isEmpty()) {
@@ -2414,7 +2414,7 @@ public final class QuickContainerCopy implements ClientModInitializer {
         return false;
     }
 
-    private boolean canUsePlayerStackToFreeQuickShulkerSpace(ItemStack stack) {
+    boolean canUsePlayerStackToFreeQuickShulkerSpace(ItemStack stack) {
         // 腾格子保护常用物，其它物品允许临时塞进潜影盒。
         if (stack.isEmpty()
                 || isShulkerBox(stack)
@@ -2484,7 +2484,7 @@ public final class QuickContainerCopy implements ClientModInitializer {
         return packSlotIntoQuickShulkerExcept(handler, sourceSlotId, -1, client);
     }
 
-    private boolean packSlotIntoQuickShulkerExcept(ScreenHandler handler,
+    boolean packSlotIntoQuickShulkerExcept(ScreenHandler handler,
                                                    int sourceSlotId,
                                                    int excludedShulkerSlotId,
                                                    MinecraftClient client) {
@@ -2530,6 +2530,13 @@ public final class QuickContainerCopy implements ClientModInitializer {
                     client.player
             );
             int after = handler.getCursorStack().isEmpty() ? 0 : handler.getCursorStack().getCount();
+            if (isShulkerBox(handler.getCursorStack())
+                    && !isShulkerBox(handler.getSlot(shulkerSlotId).getStack())) {
+                // 未启用快盒装盒时，撤销原版交换，交由调用方归还光标物品。
+                client.interactionManager.clickSlot(
+                        handler.syncId, shulkerSlotId, 0, SlotActionType.PICKUP, client.player);
+                break;
+            }
             if (after >= before) {
                 break;
             }
@@ -2852,7 +2859,7 @@ public final class QuickContainerCopy implements ClientModInitializer {
                                         TemporaryContainerStash stash) {
     }
 
-    private record ExtractResult(int moved, List<MissingDemand> remainingDemands, boolean attemptedMove) {
+    record ExtractResult(int moved, List<MissingDemand> remainingDemands, boolean attemptedMove) {
     }
 
     private record FillResult(List<Text> missingMessages,

@@ -160,6 +160,7 @@ public class QuickCraftConfigScreen extends GuiConfigsBase {
         CONTAINER_TOOL_MODE(
                 QuickCraftConfigs.ContainerTools.CONTAINER_TOOL_MODE,
                 QuickCraftConfigs.ContainerTools.QUICK_STASH_INVENTORY_SHULKERS,
+                QuickCraftConfigs.ContainerTools.QUICK_STASH_WITH_QUICK_SHULKER,
                 QuickCraftConfigs.ContainerTools.QUICK_CLEAR_INVENTORY_SHULKERS,
                 QuickCraftConfigs.ContainerTools.QUICK_FILL_INVENTORY_SHULKERS
         ),

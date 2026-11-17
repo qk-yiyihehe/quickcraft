@@ -433,6 +433,10 @@ public final class QuickCraftConfigs implements IConfigHandler {
                 "quickStashInventoryShulkers",
                 false
         ).apply(CONTAINER_TRANSLATION_PREFIX);
+        public static final ConfigBoolean QUICK_STASH_WITH_QUICK_SHULKER = new ConfigBoolean(
+                "quickStashWithQuickShulker",
+                false
+        ).apply(CONTAINER_TRANSLATION_PREFIX);
         public static final ConfigBoolean QUICK_CLEAR_INVENTORY_SHULKERS = new ConfigBoolean(
                 "quickClearInventoryShulkers",
                 false
@@ -508,6 +512,7 @@ public final class QuickCraftConfigs implements IConfigHandler {
                 ENABLE_CONTAINER_TOOL_MODE,
                 CONTAINER_TOOL_MODE,
                 QUICK_STASH_INVENTORY_SHULKERS,
+                QUICK_STASH_WITH_QUICK_SHULKER,
                 QUICK_CLEAR_INVENTORY_SHULKERS,
                 QUICK_FILL_INVENTORY_SHULKERS,
                 ENABLE_CREATIVE_PACKING,

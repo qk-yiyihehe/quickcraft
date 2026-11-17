@@ -46,6 +46,7 @@ public final class QuickInventoryShulkerTools {
         if (client.player == null || client.world == null || client.currentScreen != screen
                 || !screen.getScreenHandler().getCursorStack().isEmpty()
                 || !isEnabled(mode) || !QuickShulkerConnection.canOpen()
+                || QuickStashShulkerTransfer.isRunning()
                 || QuickCraftWorkbenchShulker.shouldBlockWorkbenchInput()
                 || QuickContainerCopy.shouldHideBackgroundHandledScreen()
                 || QuickMaterialCollector.shouldHideBackgroundHandledScreen()) {
@@ -117,13 +118,14 @@ public final class QuickInventoryShulkerTools {
         // 完整库存包之前的菜单仍可能为空壳，不能据此回存或挑选填充物品。
         QuickContainerLock.bindInventoryShulkerScreen(screen, inventorySlot);
         switch (mode) {
-            case QUICK_STASH -> new QuickStash().stashMatchingPlayerItems(screen);
+            case QUICK_STASH -> {
+                if (!QuickStashShulkerTransfer.start(screen, inventorySlot, false)) {
+                    new QuickStash().stashMatchingPlayerItems(screen);
+                }
+            }
             case QUICK_CLEAR -> new QuickClearContainer().clearContainer(screen);
             case QUICK_FILL -> new QuickFillContainer().fillContainer(screen);
             default -> { return; }
-        }
-        if (client.currentScreen == screen && client.player.currentScreenHandler == screen.getScreenHandler()) {
-            client.player.closeHandledScreen();
         }
     }
 

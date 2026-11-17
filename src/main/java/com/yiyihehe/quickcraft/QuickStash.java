@@ -44,6 +44,10 @@ public final class QuickStash implements ClientModInitializer {
 
     private void onClientTick(MinecraftClient client) {
         QuickInventoryShulkerTools.onClientTick(client);
+        QuickStashShulkerTransfer.onClientTick(client);
+        if (QuickStashShulkerTransfer.isRunning()) {
+            return;
+        }
         if (!QuickCraftConfigs.isQuickStashEnabled()) {
             pendingOpen = false;
             pendingTicks = 0;
@@ -92,8 +96,10 @@ public final class QuickStash implements ClientModInitializer {
         if (!isSupportedHandler(screen.getScreenHandler())) {
             return;
         }
-        stashMatchingPlayerItems(screen);
-        closeCurrentScreen(client);
+        if (!QuickStashShulkerTransfer.start(screen, -1, true)) {
+            stashMatchingPlayerItems(screen);
+            closeCurrentScreen(client);
+        }
     }
 
     private boolean isLookingAtSupportedBlock(MinecraftClient client) {
@@ -115,7 +121,9 @@ public final class QuickStash implements ClientModInitializer {
 
     /** Runs the stash transfer without closing the current container screen. */
     public static void stashFromButton(HandledScreen<?> screen) {
-        new QuickStash().stashMatchingPlayerItems(screen);
+        if (!QuickStashShulkerTransfer.start(screen, -1, false)) {
+            new QuickStash().stashMatchingPlayerItems(screen);
+        }
     }
 
     /** Runs the reverse transfer without closing the current container screen. */

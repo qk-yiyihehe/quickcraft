@@ -198,6 +198,16 @@ public final class QuickContainerLock implements ClientModInitializer {
         clearPendingContainerOpen();
     }
 
+    static int getInventoryShulkerSlot(HandledScreen<?> screen) {
+        String key = getCurrentScreenContainerKey(screen);
+        return key != null && key.startsWith(QUICK_SHULKER_CONTAINER_KEY_PREFIX)
+                ? Integer.parseInt(key.substring(QUICK_SHULKER_CONTAINER_KEY_PREFIX.length())) : -1;
+    }
+
+    static void bindSameContainerScreen(ScreenHandler handler, ScreenHandler originalHandler) {
+        setCurrentScreenHandler(handler, getContainerKey(originalHandler));
+    }
+
     public static Text getLockButtonText(HandledScreen<?> screen) {
         return Text.translatable(isCurrentScreenLocked(screen)
                 ? "quickcraft.button.container_lock.unlock"

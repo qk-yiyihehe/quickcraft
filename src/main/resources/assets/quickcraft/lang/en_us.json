@@ -120,6 +120,9 @@
   "quickcraft.config.container_tools.prettyName.quickStashInventoryShulkers": "Stash into inventory shulkers",
   "quickcraft.config.container_tools.name.quickStashInventoryShulkers": "Stash into inventory shulkers",
   "quickcraft.config.container_tools.comment.quickStashInventoryShulkers": "§6Function:§r Right-click a shulker in your inventory to\nstash matching items from your inventory into it.\n§eRequires:§r Quick Stash mode and Quick Shulker support enabled.",
+  "quickcraft.config.container_tools.prettyName.quickStashWithQuickShulker": "Quick Stash with Quick Shulker",
+  "quickcraft.config.container_tools.name.quickStashWithQuickShulker": "Quick Stash with Quick Shulker",
+  "quickcraft.config.container_tools.comment.quickStashWithQuickShulker": "§6Function:§r Stash single-item shulkers whole; extract only matching items from mixed shulkers.\n§eOrder:§r Pack loose items into matching single-item target shulkers before normal slots.\n§eFull inventory:§r Pack items away or temporarily borrow a target slot, then retrieve them.\n§7Requires:§r Quick Shulker support enabled.",
   "quickcraft.config.container_tools.prettyName.quickClearInventoryShulkers": "Clear inventory shulkers",
   "quickcraft.config.container_tools.name.quickClearInventoryShulkers": "Clear inventory shulkers",
   "quickcraft.config.container_tools.comment.quickClearInventoryShulkers": "§6Function:§r Right-click a shulker in your inventory to\ndrop its contents onto the ground as whole stacks.\n§eRequires:§r Quick Clear mode and Quick Shulker support enabled.",
@@ -806,5 +809,10 @@
   "quickcraft.litematica.pagination.page": "%s / %s",
   "quickcraft.button.inventory_lock.tooltip": "Lock or unlock the entire player inventory",
   "quickcraft.anvil.merge_step": "Step %s: combine books (%s + %s), %s levels",
-  "quickcraft.anvil.scroll_plan": "Scroll: %s–%s / %s"
+  "quickcraft.anvil.scroll_plan": "Scroll: %s–%s / %s",
+  "quickcraft.message.quick_stash.open_failed": "QuickCraft: Could not reopen the stash container; stopped",
+  "quickcraft.message.quick_stash.no_space": "QuickCraft: No inventory space for transfers; stash stopped",
+  "quickcraft.message.quick_stash.cursor_blocked": "QuickCraft: An item remains on the cursor; stash stopped",
+  "quickcraft.message.quick_stash.temporary_left": "QuickCraft: Temporary items could not be retrieved automatically; check target slot %s",
+  "quickcraft.message.quick_stash.bundle_failed": "QuickCraft: Shulker packing failed; stash stopped. Check Quick Shulker insertion settings"
 }

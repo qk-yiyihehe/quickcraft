@@ -120,6 +120,9 @@
   "quickcraft.config.container_tools.prettyName.quickStashInventoryShulkers": "回存对背包潜影盒生效",
   "quickcraft.config.container_tools.name.quickStashInventoryShulkers": "回存对背包潜影盒生效",
   "quickcraft.config.container_tools.comment.quickStashInventoryShulkers": "§6功能：§r在背包内右键潜影盒时，将背包内同类物品存入盒中。\n§e条件：§r当前为一键回存模式，且已启用快捷潜影盒支持。",
+  "quickcraft.config.container_tools.prettyName.quickStashWithQuickShulker": "回存联动快捷潜影盒",
+  "quickcraft.config.container_tools.name.quickStashWithQuickShulker": "回存联动快捷潜影盒",
+  "quickcraft.config.container_tools.comment.quickStashWithQuickShulker": "§6功能：§r纯净盒整盒回存，杂物盒只取出容器接受的同类物品。\n§e顺序：§r散装物品先装入容器内的同类纯净潜影盒，再放普通容器格。\n§e满包：§r自动装盒腾格，必要时借用容器空格周转，完成后取回。\n§7要求：§r启用快捷潜影盒支持；纯净盒指只含同一种物品的盒子。",
   "quickcraft.config.container_tools.prettyName.quickClearInventoryShulkers": "清空对背包潜影盒生效",
   "quickcraft.config.container_tools.name.quickClearInventoryShulkers": "清空对背包潜影盒生效",
   "quickcraft.config.container_tools.comment.quickClearInventoryShulkers": "§6功能：§r在背包内右键潜影盒时，将盒内物品整组丢到地上。\n§e条件：§r当前为一键清空模式，且已启用快捷潜影盒支持。",
@@ -806,5 +809,10 @@
   "quickcraft.litematica.pagination.page": "%s / %s",
   "quickcraft.button.inventory_lock.tooltip": "锁定/解锁整个背包",
   "quickcraft.anvil.merge_step": "第 %s 步：合书（%s ＋ %s），消耗 %s 级",
-  "quickcraft.anvil.scroll_plan": "滚轮查看：%s–%s / %s"
+  "quickcraft.anvil.scroll_plan": "滚轮查看：%s–%s / %s",
+  "quickcraft.message.quick_stash.open_failed": "QuickCraft: 无法继续打开回存容器，已停止",
+  "quickcraft.message.quick_stash.no_space": "QuickCraft: 背包没有可用周转格，已停止回存",
+  "quickcraft.message.quick_stash.cursor_blocked": "QuickCraft: 鼠标仍持有物品，已停止回存",
+  "quickcraft.message.quick_stash.temporary_left": "QuickCraft: 周转物品未能自动取回，请检查目标容器第 %s 格",
+  "quickcraft.message.quick_stash.bundle_failed": "QuickCraft: 潜影盒装盒未生效，已停止回存，请检查快盒装盒设置"
 }
