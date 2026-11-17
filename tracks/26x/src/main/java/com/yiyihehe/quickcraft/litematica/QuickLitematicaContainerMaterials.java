@@ -297,15 +297,23 @@ public final class QuickLitematicaContainerMaterials {
 
     private static List<ItemStack> exportSlotStacks(ItemStack container, List<ItemStack> slots, String context,
                                                     HolderLookup.Provider lookup, int depth, boolean globals) {
-        String group = QuickLitematicaContainerReplacements.containerGroupSignature(container, slots);
+        return exportSlotStacks(container, slots, context, lookup, depth, globals, false);
+    }
+
+    private static List<ItemStack> exportSlotStacks(ItemStack container, List<ItemStack> slots, String context,
+                                                    HolderLookup.Provider lookup, int depth, boolean globals, boolean hudStatistics) {
+        var identitySlots = hudStatistics && isShulkerBox(container)
+                && !fi.dy.masa.malilib.util.InventoryUtils.getStoredItems(container).isEmpty()
+                ? readStoredShulkerStacks(container) : slots;
+        String group = QuickLitematicaContainerReplacements.containerGroupSignature(container, identitySlots);
         var replaced = globals ? QuickLitematicaGlobalReplacements.containerSlots(slots, context, group)
                 : getReplacedSlotStacks(slots, context, group);
         if (depth < 4) {
             for (ItemStack stack : replaced) {
                 if (isShulkerBox(stack)) {
-                    var nested = readStoredShulkerStacks(stack);
+                    var nested = readStoredShulkerStacks(stack, hudStatistics);
                     if (!nested.isEmpty()) {
-                        var contents = exportSlotStacks(stack, nested, context, lookup, depth + 1, globals);
+                        var contents = exportSlotStacks(stack, nested, context, lookup, depth + 1, globals, hudStatistics);
                         for (int slot = 0; slot < nested.size(); slot++) {
                             if (hasStackChange(nested.get(slot), contents.get(slot))) {
                                 stack.set(net.minecraft.core.component.DataComponents.CONTAINER,
@@ -362,8 +370,13 @@ public final class QuickLitematicaContainerMaterials {
     }
 
     private static List<ContainerGroup> createContainerGroups(LitematicaSchematic schematic, Collection<String> regions) {
+        return createContainerGroups(schematic, regions, false);
+    }
+
+    private static List<ContainerGroup> createContainerGroups(LitematicaSchematic schematic, Collection<String> regions,
+                                                              boolean hudStatistics) {
         HolderLookup.Provider registryLookup = getRegistryLookup();
-        GroupAccumulator accumulator = new GroupAccumulator();
+        GroupAccumulator accumulator = new GroupAccumulator(hudStatistics);
 
         if (registryLookup == null) {
             return List.of();
@@ -488,7 +501,7 @@ public final class QuickLitematicaContainerMaterials {
                 continue;
             }
 
-            List<ItemStack> shulkerSlotStacks = readStoredShulkerStacks(item.stack());
+            List<ItemStack> shulkerSlotStacks = readStoredShulkerStacks(item.stack(), accumulator.hudStatistics);
             List<ItemCount> shulkerContents = countStacks(shulkerSlotStacks);
 
             if (shulkerContents.isEmpty()) {
@@ -580,13 +593,21 @@ public final class QuickLitematicaContainerMaterials {
     }
 
     private static List<ItemStack> readStoredShulkerStacks(ItemStack shulkerStack) {
+        return readStoredShulkerStacks(shulkerStack, false);
+    }
+
+    private static List<ItemStack> readStoredShulkerStacks(ItemStack shulkerStack, boolean hudStatistics) {
         List<ItemStack> stacks = new ArrayList<>();
-        NonNullList<ItemStack> storedItems = fi.dy.masa.malilib.util.InventoryUtils.getStoredItems(shulkerStack, SHULKER_SLOT_COUNT);
+        NonNullList<ItemStack> storedItems = fi.dy.masa.malilib.util.InventoryUtils.getStoredItems(shulkerStack, hudStatistics ? 0 : SHULKER_SLOT_COUNT);
 
         for (ItemStack storedStack : storedItems) {
             stacks.add(storedStack.isEmpty() ? ItemStack.EMPTY : storedStack.copy());
         }
 
+        // HUD 保留完整槽号；普通盒仍补齐 27 格，沿用既有忽略与替换分组身份。
+        if (hudStatistics) {
+            while (stacks.size() < SHULKER_SLOT_COUNT) { stacks.add(ItemStack.EMPTY); }
+        }
         return stacks;
     }
 
@@ -830,6 +851,11 @@ public final class QuickLitematicaContainerMaterials {
 
     private static final class GroupAccumulator {
         private final Map<String, GroupBuilder> groups = new LinkedHashMap<>();
+        private final boolean hudStatistics;
+
+        private GroupAccumulator(boolean hudStatistics) {
+            this.hudStatistics = hudStatistics;
+        }
 
         private void add(
                 ItemStack stack,
@@ -840,7 +866,8 @@ public final class QuickLitematicaContainerMaterials {
                 int count,
                 boolean nestedShulker
         ) {
-            String signature = QuickLitematicaContainerReplacements.containerGroupSignature(stack, slotStacks);
+            var identitySlots = this.hudStatistics && nestedShulker ? readStoredShulkerStacks(stack) : slotStacks;
+            String signature = QuickLitematicaContainerReplacements.containerGroupSignature(stack, identitySlots);
             GroupBuilder builder = this.groups.computeIfAbsent(
                     signature,
                     key -> new GroupBuilder(stack.copy(), displayName, sourceLabel, contents, slotStacks, nestedShulker, signature)
@@ -915,6 +942,7 @@ public final class QuickLitematicaContainerMaterials {
         final String replacementContextKey;
         final Set<String> ignoredGroupSignatures = new HashSet<>();
         List<ContainerGroup> groups;
+        private List<ContainerGroup> hudGroups;
 
         ContainerMaterialsData(
                 LitematicaSchematic schematic,
@@ -955,6 +983,15 @@ public final class QuickLitematicaContainerMaterials {
         void refresh() {
             QuickLitematicaContainerMemory.update(this.liveSchematic, this.regions, this.replacementContextKey);
             this.groups = createContainerGroups(this.schematic, this.regions);
+            this.hudGroups = null;
+        }
+
+        List<ContainerGroup> hudGroups() {
+            // HUD 会逐帧刷新数量，扩容分组只随原理图数据刷新重建。
+            if (this.hudGroups == null) {
+                this.hudGroups = createContainerGroups(this.schematic, this.regions, true);
+            }
+            return this.hudGroups;
         }
 
         List<ContainerGroup> visibleGroups() {
@@ -1335,6 +1372,13 @@ public final class QuickLitematicaContainerMaterials {
         Object2IntOpenHashMap<ItemKey> createWorldMissingCounts(
                 Object2IntOpenHashMap<ItemKey> totalCounts
         ) {
+            return this.createWorldMissingCounts(totalCounts, false);
+        }
+
+        Object2IntOpenHashMap<ItemKey> createWorldMissingCounts(
+                Object2IntOpenHashMap<ItemKey> totalCounts,
+                boolean hudStatistics
+        ) {
             if (this.placement == null
                     || !this.placement.hasVerifier()
                     || !(this.placement.getSchematicVerifier() instanceof QuickLitematicaContainerVerifier.VerifierExtension verifier)
@@ -1347,7 +1391,7 @@ public final class QuickLitematicaContainerMaterials {
 
             if (QuickLitematicaGlobalReplacements.hasRuntimeRules()) {
                 for (ItemStack stack : verifier.quickcraft$getMaterialMissingStacks()) {
-                    addMissingStackCounts(missing, stack, stack.getCount());
+                    addMissingStackCounts(missing, stack, stack.getCount(), 0, hudStatistics);
                 }
                 for (ItemKey type : missing.keySet()) { missing.put(type, Math.min(missing.getInt(type), totalCounts.getInt(type))); }
                 return missing;
@@ -1358,14 +1402,14 @@ public final class QuickLitematicaContainerMaterials {
                     int count = getMissingCount(slotMismatch);
 
                     if (count > 0) {
-                        addMissingStackCounts(missing, slotMismatch.expectedStack(), count);
+                        addMissingStackCounts(missing, slotMismatch.expectedStack(), count, 0, hudStatistics);
                     }
                 }
             }
 
             for (ItemStack stack : verifier.quickcraft$getMissingContainerStacks()) {
                 if (!stack.isEmpty()) {
-                    addMissingStackCounts(missing, stack, stack.getCount());
+                    addMissingStackCounts(missing, stack, stack.getCount(), 0, hudStatistics);
                 }
             }
 
@@ -1390,6 +1434,12 @@ public final class QuickLitematicaContainerMaterials {
                 int count,
                 int depth
         ) {
+            addMissingStackCounts(missing, stack, count, depth, false);
+        }
+
+        private static void addMissingStackCounts(
+                Object2IntOpenHashMap<ItemKey> missing, ItemStack stack, int count, int depth, boolean hudStatistics
+        ) {
             if (stack.isEmpty() || count <= 0) {
                 return;
             }
@@ -1402,12 +1452,13 @@ public final class QuickLitematicaContainerMaterials {
                 return;
             }
 
-            for (ItemStack nestedStack : readStoredShulkerStacks(stack)) {
+            for (ItemStack nestedStack : readStoredShulkerStacks(stack, hudStatistics)) {
                 addMissingStackCounts(
                         missing,
                         nestedStack,
                         count * nestedStack.getCount(),
-                        depth + 1
+                        depth + 1,
+                        hudStatistics
                 );
             }
         }
@@ -1604,8 +1655,9 @@ public final class QuickLitematicaContainerMaterials {
                 Set<ItemKey> ignoredSources = new HashSet<>();
                 for (var entry : this.ignored) { ignoredSources.add(QuickLitematicaContainerMaterialsAccess.createItemKey(entry.getStack())); }
                 String context = QuickLitematicaContainerMemory.appliedContext(this.data.liveSchematic, this.data.replacementContextKey);
-                for (ContainerGroup group : this.data.visibleGroups()) {
-                    var targets = exportSlotStacks(group.containerStack(), group.slotStacks(), context, getRegistryLookup(), 0, false);
+                for (ContainerGroup group : this.data.hudGroups()) {
+                    if (this.data.ignoredGroupSignatures.contains(group.signature())) { continue; }
+                    var targets = exportSlotStacks(group.containerStack(), group.slotStacks(), context, getRegistryLookup(), 0, false, true);
                     for (int slot = 0; slot < targets.size(); slot++) {
                         ItemStack original = group.slotStacks().get(slot);
                         ItemStack target = targets.get(slot);
@@ -1614,7 +1666,7 @@ public final class QuickLitematicaContainerMaterials {
                         addStackCount(counts, stacks, target, target.getCount() * group.containerCount());
                     }
                 }
-                var missing = this.data.createWorldMissingCounts(counts);
+                var missing = this.data.createWorldMissingCounts(counts, true);
                 List<MaterialListEntry> entries = new ArrayList<>();
                 for (ItemKey type : counts.keySet()) {
                     ItemStack stack = stacks.get(type);

@@ -46,12 +46,42 @@ class QuickLitematicaShulkerNestedCountTest {
         });
     }
 
+    @Test
+    void hudCountsExpandedTailAndNestedBoxesWithoutChangingOtherGroups() throws Exception {
+        List<ItemStack> childSlots = new ArrayList<>(java.util.Collections.nCopies(54, ItemStack.EMPTY));
+        childSlots.set(53, new ItemStack(Items.STONE, 64));
+        ItemStack child = shulkerWith(childSlots);
+        List<ItemStack> parentSlots = new ArrayList<>(java.util.Collections.nCopies(54, ItemStack.EMPTY));
+        parentSlots.set(0, new ItemStack(Items.DIRT));
+        parentSlots.set(53, child);
+        ItemStack parent = shulkerWith(parentSlots);
+
+        List<?> hudGroups = collect(parent, 2, true);
+        List<?> otherGroups = collect(parent, 2);
+        Object childGroup = findGroup(hudGroups, child);
+        assertThat(childGroup).isNotNull();
+        assertThat(containerCount(childGroup)).isEqualTo(2);
+        assertThat(contents(childGroup)).singleElement().satisfies(content -> {
+            assertThat(content.stack().getItem()).isEqualTo(Items.STONE);
+            assertThat(content.count()).isEqualTo(64);
+        });
+        assertThat(findGroup(otherGroups, child)).isNull();
+        Object hudParent = findGroup(hudGroups, parent);
+        Object otherParent = findGroup(otherGroups, parent);
+        assertThat(hudParent.getClass().getMethod("signature").invoke(hudParent))
+                .isEqualTo(otherParent.getClass().getMethod("signature").invoke(otherParent));
+    }
+
     private static List<?> collect(ItemStack parent, int parentCount) throws Exception {
+        return collect(parent, parentCount, false);
+    }
+
+    private static List<?> collect(ItemStack parent, int parentCount, boolean hudStatistics) throws Exception {
         Class<?> accumulatorType = Class.forName(
                 "com.yiyihehe.quickcraft.litematica.QuickLitematicaContainerMaterials$GroupAccumulator");
-        Constructor<?> constructor = accumulatorType.getDeclaredConstructor();
+        Constructor<?> constructor = accumulatorType.getDeclaredConstructor(boolean.class);
         constructor.setAccessible(true);
-        Object accumulator = constructor.newInstance();
+        Object accumulator = constructor.newInstance(hudStatistics);
 
         Class<?> itemCountType = Class.forName(
                 "com.yiyihehe.quickcraft.litematica.QuickLitematicaContainerMaterials$ItemCount");

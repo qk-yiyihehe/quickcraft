@@ -39,7 +39,7 @@ public final class QuickLitematicaEnderChestMaterials {
     }
 
     public static void rememberContainerUse(MinecraftClient client, BlockHitResult hit) {
-        // 只接管真实末影箱的成功交互，不能把同为 27 格的普通箱子当作末影箱。
+        // 通过真实末影箱交互认领菜单，容量不能用来区分末影箱与普通容器。
         pendingTicks = client.world != null
                 && client.world.getBlockState(hit.getBlockPos()).getBlock() instanceof EnderChestBlock ? OPEN_TIMEOUT_TICKS : 0;
     }
@@ -51,8 +51,7 @@ public final class QuickLitematicaEnderChestMaterials {
     public static void onContentsReceived(int syncId) {
         var client = MinecraftClient.getInstance();
         if (client.player == null || client.player.currentScreenHandler.syncId != syncId) { return; }
-        if (pendingTicks > 0 && client.player.currentScreenHandler instanceof GenericContainerScreenHandler handler
-                && handler.getRows() == 3) {
+        if (pendingTicks > 0 && client.player.currentScreenHandler instanceof GenericContainerScreenHandler handler) {
             activeHandler = handler;
             pendingTicks = 0;
         }
@@ -62,18 +61,17 @@ public final class QuickLitematicaEnderChestMaterials {
 
     static void tick(MinecraftClient client) {
         if (client.player == null || client.world == null) { clear(); return; }
-        if (QuickShulkerConnection.canOpen()) {
-            // QuickShulker 在加入、重生、切维度及末影箱存取时同步这份玩家库存。
-            capture(client.player.getEnderChestInventory());
-            activeHandler = null;
-            pendingTicks = 0;
-            return;
-        }
         if (pendingTicks > 0) { pendingTicks--; }
         if (activeHandler != null) {
             // 即使本 tick 已关箱，处理器仍保留最后一次存取后的槽位。
             capture(activeHandler.getInventory());
             if (client.player.currentScreenHandler != activeHandler) { activeHandler = null; }
+            return;
+        }
+        if (QuickShulkerConnection.canOpen()) {
+            var synced = client.player.getEnderChestInventory();
+            // 原版玩家库存可能只同步前 27 格，不能覆盖已打开菜单取得的完整扩容快照。
+            if (synced.size() >= snapshot.size()) { capture(synced); }
         }
     }
 

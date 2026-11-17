@@ -60,6 +60,48 @@ class QuickLitematicaEnderChestMaterialsTest {
             config.setBooleanValue(previous);
         }
     }
+    @Test
+    void largeEnderChestTailSurvivesSmallerQuickShulkerSync() throws Exception {
+        clearMaterialState();
+        var client = mock(Minecraft.class);
+        client.player = mock(LocalPlayer.class);
+        client.level = mock(ClientLevel.class);
+        var handler = mock(ChestMenu.class);
+        when(handler.getRowCount()).thenReturn(6);
+        var largeInventory = mock(PlayerEnderChestContainer.class);
+        when(largeInventory.getContainerSize()).thenReturn(54);
+        when(largeInventory.getItem(anyInt())).thenAnswer(call ->
+                call.getArgument(0, Integer.class) == 53 ? new ItemStack(Items.STONE, 12) : ItemStack.EMPTY);
+        when(handler.getContainer()).thenReturn(largeInventory);
+        client.player.containerMenu = handler;
+        when(client.player.getEnderChestInventory()).thenReturn(new PlayerEnderChestContainer());
+        var hit = mock(BlockHitResult.class);
+        when(hit.getBlockPos()).thenReturn(BlockPos.ZERO);
+        when(client.level.getBlockState(BlockPos.ZERO)).thenReturn(Blocks.ENDER_CHEST.defaultBlockState());
+        var list = mock(MaterialListBase.class);
+        when(list.getMultiplier()).thenReturn(1);
+        var entries = List.of(new MaterialListEntry(new ItemStack(Items.STONE), 100, 100, 0, 0));
+        var config = QuickCraftConfigs.ProjectionTools.INCLUDE_ENDER_CHEST_IN_MATERIAL_HUD;
+        boolean previous = config.getBooleanValue();
+        config.setBooleanValue(true);
+        try (var minecraft = mockStatic(Minecraft.class); var connection = mockStatic(QuickShulkerConnection.class)) {
+            minecraft.when(Minecraft::getInstance).thenReturn(client);
+            connection.when(QuickShulkerConnection::canOpen).thenReturn(true);
+            QuickLitematicaEnderChestMaterials.rememberContainerUse(client, hit);
+            QuickLitematicaEnderChestMaterials.tick(client);
+            QuickLitematicaEnderChestMaterials.onContentsReceived(handler.containerId);
+            assertThat(QuickLitematicaEnderChestMaterials.hud(list, entries, true).getFirst().getCountAvailable()).isEqualTo(12);
+            client.player.containerMenu = null;
+            QuickLitematicaEnderChestMaterials.tick(client);
+            QuickLitematicaEnderChestMaterials.tick(client);
+            assertThat(QuickLitematicaEnderChestMaterials.hud(list, entries, true).getFirst().getCountAvailable()).isEqualTo(12);
+        } finally {
+            client.player = null;
+            QuickLitematicaEnderChestMaterials.tick(client);
+            config.setBooleanValue(previous);
+        }
+    }
+
     @BeforeAll
     static void initializeMinecraft() {
         net.minecraft.SharedConstants.tryDetectVersion();

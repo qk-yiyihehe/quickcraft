@@ -39,7 +39,7 @@ public final class QuickLitematicaEnderChestMaterials {
     }
 
     public static void rememberContainerUse(Minecraft client, BlockHitResult hit) {
-        // 只接管真实末影箱的成功交互，不能把同为 27 格的普通箱子当作末影箱。
+        // 通过真实末影箱交互认领菜单，容量不能用来区分末影箱与普通容器。
         pendingTicks = client.level != null
                 && client.level.getBlockState(hit.getBlockPos()).getBlock() instanceof EnderChestBlock ? OPEN_TIMEOUT_TICKS : 0;
     }
@@ -51,8 +51,7 @@ public final class QuickLitematicaEnderChestMaterials {
     public static void onContentsReceived(int syncId) {
         var client = Minecraft.getInstance();
         if (client.player == null || client.player.containerMenu.containerId != syncId) { return; }
-        if (pendingTicks > 0 && client.player.containerMenu instanceof ChestMenu handler
-                && handler.getRowCount() == 3) {
+        if (pendingTicks > 0 && client.player.containerMenu instanceof ChestMenu handler) {
             activeHandler = handler;
             pendingTicks = 0;
         }
@@ -62,18 +61,17 @@ public final class QuickLitematicaEnderChestMaterials {
 
     static void tick(Minecraft client) {
         if (client.player == null || client.level == null) { clear(); return; }
-        if (QuickShulkerConnection.canOpen()) {
-            // QuickShulker 在加入、重生、切维度及末影箱存取时同步这份玩家库存。
-            capture(client.player.getEnderChestInventory());
-            activeHandler = null;
-            pendingTicks = 0;
-            return;
-        }
         if (pendingTicks > 0) { pendingTicks--; }
         if (activeHandler != null) {
             // 即使本 tick 已关箱，处理器仍保留最后一次存取后的槽位。
             capture(activeHandler.getContainer());
             if (client.player.containerMenu != activeHandler) { activeHandler = null; }
+            return;
+        }
+        if (QuickShulkerConnection.canOpen()) {
+            var synced = client.player.getEnderChestInventory();
+            // 原版玩家库存可能只同步前 27 格，不能覆盖已打开菜单取得的完整扩容快照。
+            if (synced.getContainerSize() >= snapshot.size()) { capture(synced); }
         }
     }
 
