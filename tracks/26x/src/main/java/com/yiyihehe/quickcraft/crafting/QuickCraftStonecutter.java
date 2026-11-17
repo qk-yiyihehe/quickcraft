@@ -198,7 +198,8 @@ public class QuickCraftStonecutter implements ClientModInitializer {
                     refreshClientPrediction(handler);
                 }
                 if (!recoverInput(client)) return;
-                if (!handler.getSlot(INPUT_SLOT).hasItem()) {
+                boolean refilled = !handler.getSlot(INPUT_SLOT).hasItem();
+                if (refilled) {
                     int source = findBestSupplyIngredientSlot(client.player.getInventory(), handler);
                     if (source < 0) {
                         if (rapidCraftingActive && !noIngredientRescueAttempted && unlockedEmptySlots(handler) == 0) {
@@ -244,6 +245,11 @@ public class QuickCraftStonecutter implements ClientModInitializer {
                 ItemStack output = handler.getSlot(OUTPUT_SLOT).getItem();
                 if (output.isEmpty() || !ItemStack.isSameItemSameComponents(output, lockedResultTemplate)) {
                     finish(client, Component.translatable("quickcraft.message.crafting.stopped"));
+                    return;
+                }
+                if (singleCraftPending && refilled) {
+                    singleCraftPending = false;
+                    logCraft("单次补料完成，等待下次取出");
                     return;
                 }
                 batchPhase = Phase.OUTPUT;
