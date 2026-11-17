@@ -66,7 +66,7 @@ import java.util.Locale;
  * 容器内容复制：
  * - 支持漏斗、漏斗矿车、箱子、木桶、潜影盒、发射器、投掷器、合成器、炉子和酿造台
  * - 先用热键记录一个模板
- * - 再对下一个同类容器右键，把背包里的对应材料按槽位顺序复制进去
+ * - 再按住填充热键对准同类容器，把对应材料按槽位顺序复制进去
  */
 public final class QuickContainerCopy implements ClientModInitializer {
     private static final int OPEN_TIMEOUT_TICKS = 20;
@@ -919,6 +919,19 @@ public final class QuickContainerCopy implements ClientModInitializer {
                 && getSupportedContainerType(client, currentHitResult) == target.type();
     }
 
+    public static boolean requireContainerFillHotkey(Minecraft client) {
+        var keybind = QuickCraftConfigs.Hotkeys.CONTINUOUS_CONTAINER_FILL.getKeybind();
+        if (!keybind.getKeys().isEmpty()
+                && QuickCraftKeyBindings.isHotkeyDown(client, keybind, client.options.keyUse)) {
+            return true;
+        }
+        String messageKey = keybind.getKeys().isEmpty()
+                ? "quickcraft.message.container_copy.fill_hotkey_unbound"
+                : "quickcraft.message.container_copy.hold_to_fill";
+        sendStatusMessage(client, Component.translatable(messageKey).withStyle(ChatFormatting.RED));
+        return false;
+    }
+
     private void handleUseAttempt(Minecraft client) {
         if (suppressedContinuousTarget != null && lastContinuousFillDown) {
             lastUseDown = QuickCraftKeyBindings.isVanillaKeyDown(client, client.options.keyUse);
@@ -943,7 +956,7 @@ public final class QuickContainerCopy implements ClientModInitializer {
             }
 
             SupportedContainerType type = getSupportedContainerType(client, client.hitResult);
-            if (type == recordedTemplate.type) {
+            if (type == recordedTemplate.type && requireContainerFillHotkey(client)) {
                 pendingAction = PendingAction.APPLY;
                 pendingContainerType = type;
                 pendingFillTarget = client.hitResult;

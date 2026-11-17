@@ -23,7 +23,7 @@ import net.minecraft.world.level.Level;
 import java.util.concurrent.atomic.AtomicReference;
 
 /**
- * 根据当前投影中对应位置的容器内容，自动填充玩家右键打开的实际容器。
+ * 按住填充热键时，根据当前投影中对应位置的容器内容填充实际容器。
  */
 public final class QuickLitematicaContainerAutofill implements ClientModInitializer {
     private static final int OPEN_TIMEOUT_TICKS = 20;
@@ -81,7 +81,8 @@ public final class QuickLitematicaContainerAutofill implements ClientModInitiali
         boolean useDown = QuickCraftKeyBindings.isVanillaKeyDown(client, client.options.keyUse);
         if (useDown && !lastUseDown && currentScreen(client) == null) {
             BlockHitResult hitResult = getLookedAtBlock(client);
-            if (hitResult != null && shouldHandleTarget(client, hitResult)) {
+            if (hitResult != null && shouldHandleTarget(client, hitResult)
+                    && QuickContainerCopy.requireContainerFillHotkey(client)) {
                 BlockPos pos = hitResult.getBlockPos();
                 pendingContainerPos = pos.immutable();
                 pendingFillTarget = hitResult;
