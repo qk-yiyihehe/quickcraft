@@ -62,7 +62,7 @@
   "quickcraft.config.container_tools.comment.showQuickStashButton": "§6功能：§r在箱子、木桶、末影箱和潜影盒界面标题栏显示双向快速转移按钮。\n§e说明：§r上方按钮把背包中与容器已有物品同类的物品存入容器，下方按钮把容器物品取回背包。",
   "quickcraft.config.container_tools.prettyName.enableScrollTransfer": "悬停滚轮转移",
   "quickcraft.config.container_tools.name.enableScrollTransfer": "悬停滚轮转移",
-  "quickcraft.config.container_tools.comment.enableScrollTransfer": "§6功能：§r启用悬停物品槽位时的滚轮转移。\n§e操作：§r直接滚动每次转移 1 个；按住 §bAlt§r 转移同类物品，按住 §bShift§r 转移整组物品。\n§e方向：§r向上从悬停侧移到另一侧，向下从另一侧移回悬停侧。",
+  "quickcraft.config.container_tools.comment.enableScrollTransfer": "§6功能：§r悬停物品槽位时滚轮转移。\n§e操作：§r直接滚动转移 1 个；§bAlt§r 转移同类，§bShift§r 转移整组。\n§e方向：§r向上移出悬停侧，向下移回。\n§7记忆：§r槽位移空后仍可继续滚动或反向移回；离开该格或关闭界面清除记忆。\n§7兼容：§r启用时接管这些槽位的 IPN、Item Scroller 滚轮转移。",
   "quickcraft.config.container_tools.prettyName.quickTransferRetainOne": "快速转移保留一个",
   "quickcraft.config.container_tools.name.quickTransferRetainOne": "快速转移保留一个",
   "quickcraft.config.container_tools.comment.quickTransferRetainOne": "§6功能：§r启用按格子保留一个的快速转移。\n§e生效范围：§r开启后，使用下方快捷键点击或滑过格子时，当前格子的可堆叠物品会在源侧尽量保留 1 个。\n§e说明：§r只在容器与玩家背包之间生效，不接管原版 Shift 快速转移。",

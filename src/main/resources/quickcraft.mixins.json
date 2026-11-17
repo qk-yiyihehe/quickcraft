@@ -73,6 +73,8 @@
 		"QuickFreeCameraPlayerEntityMixin",
 		"TweakerooPlacementTweaksFreeCameraMixin",
 		"QuickTransferItemHighlightMixin",
+		"IpnScrollTransferMixin",
+		"ItemScrollerScrollTransferMixin",
 		"QuickTransferScreenMixin",
 		"ShulkerBoxScreenMixin",
 		"MalilibWidgetContainerInvoker",

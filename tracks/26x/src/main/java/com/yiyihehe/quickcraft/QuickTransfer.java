@@ -47,6 +47,9 @@ public final class QuickTransfer implements ClientModInitializer {
     private static boolean hasLastMousePosition;
     private static double lastMouseX;
     private static double lastMouseY;
+    private static AbstractContainerScreen<?> scrollScreen;
+    private static SlotKey scrollSlotKey;
+    private static ItemStack scrollTemplate = ItemStack.EMPTY;
 
     @Override
     public void onInitializeClient() {
@@ -122,6 +125,47 @@ public final class QuickTransfer implements ClientModInitializer {
         return handled;
     }
 
+    /** 第三方输入入口只查询事件归属，不发点击或修改滚轮记忆。 */
+    public static boolean shouldHandleScrollTransfer() {
+        Minecraft client = Minecraft.getInstance();
+        if (!(getCurrentScreen(client) instanceof AbstractContainerScreen<?> screen)
+                || screen instanceof CreativeModeInventoryScreen || !canUseScrollTransfer(client, screen)) {
+            return false;
+        }
+        Slot slot = findHoveredSlot(screen, getMouseX(client), getMouseY(client));
+        return slot != null && isVisibleSlot(slot) && !resolveScrollTemplate(screen, slot).isEmpty();
+    }
+
+    private static ItemStack resolveScrollTemplate(AbstractContainerScreen<?> screen, Slot slot) {
+        if (slot.hasItem()) {
+            return slot.getItem();
+        }
+        return scrollScreen == screen && createSlotKey(screen, slot).equals(scrollSlotKey)
+                ? scrollTemplate : ItemStack.EMPTY;
+    }
+
+    private static void refreshScrollMemory(Minecraft client) {
+        if (scrollScreen == null) {
+            return;
+        }
+        if (getCurrentScreen(client) != scrollScreen || !canUseScrollTransfer(client, scrollScreen)) {
+            resetScrollMemory();
+            return;
+        }
+        Slot slot = findHoveredSlot(scrollScreen, getMouseX(client), getMouseY(client));
+        if (slot == null || !createSlotKey(scrollScreen, slot).equals(scrollSlotKey)
+                || !canUseScrollTransferSlot(scrollScreen, slot, client)
+                || (slot.hasItem() && !ItemStack.isSameItemSameComponents(slot.getItem(), scrollTemplate))) {
+            resetScrollMemory();
+        }
+    }
+
+    private static void resetScrollMemory() {
+        scrollScreen = null;
+        scrollSlotKey = null;
+        scrollTemplate = ItemStack.EMPTY;
+    }
+
     public static boolean handleScrollTransfer(AbstractContainerScreen<?> screen,
                                                double mouseX,
                                                double mouseY,
@@ -130,25 +174,43 @@ public final class QuickTransfer implements ClientModInitializer {
         if (verticalAmount == 0
                 || screen instanceof CreativeModeInventoryScreen
                 || !canUseScrollTransfer(client, screen)) {
+            resetScrollMemory();
             return false;
         }
 
         Slot hoveredSlot = findHoveredSlot(screen, mouseX, mouseY);
-        if (!canUseScrollTransferSlot(screen, hoveredSlot, client)) {
+        if (hoveredSlot == null || !isVisibleSlot(hoveredSlot)) {
+            resetScrollMemory();
             return false;
         }
+        ItemStack template = resolveScrollTemplate(screen, hoveredSlot).copy();
+        if (template.isEmpty()) {
+            resetScrollMemory();
+            return false;
+        }
+        // 认领事件与是否能移动分开，满包、缺料和锁格时也不交给其它滚轮处理器重试。
+        if (!canUseScrollTransferSlot(screen, hoveredSlot, client)) {
+            resetScrollMemory();
+            return true;
+        }
+        template.setCount(1);
+        scrollScreen = screen;
+        scrollSlotKey = createSlotKey(screen, hoveredSlot);
+        scrollTemplate = template;
 
         boolean moveToOtherInventory = verticalAmount > 0;
         if (QuickCraftKeyBindings.isShiftDown()) {
-            return moveFullStackByScroll(screen, hoveredSlot, moveToOtherInventory);
+            moveFullStackByScroll(screen, hoveredSlot, template, moveToOtherInventory);
+        } else if (QuickCraftKeyBindings.isAltDown()) {
+            moveMatchingStacksByScroll(screen, hoveredSlot, template, moveToOtherInventory);
+        } else {
+            moveSingleItemByScroll(screen, hoveredSlot, template, moveToOtherInventory);
         }
-        if (QuickCraftKeyBindings.isAltDown()) {
-            return moveMatchingStacksByScroll(screen, hoveredSlot, moveToOtherInventory);
-        }
-        return moveSingleItemByScroll(screen, hoveredSlot, moveToOtherInventory);
+        return true;
     }
 
     private void onClientTick(Minecraft client) {
+        refreshScrollMemory(client);
         TransferMode mode = getHeldTransferMode();
         if (mode == TransferMode.NONE) {
             resetHoldGesture();
@@ -226,60 +288,43 @@ public final class QuickTransfer implements ClientModInitializer {
                                                     Minecraft client) {
         return slot != null
                 && isVisibleSlot(slot)
-                && slot.hasItem()
                 && slot.mayPickup(client.player)
                 && !QuickContainerLock.isLockedSlot(screen.getMenu(), slot);
     }
 
     private static boolean moveFullStackByScroll(AbstractContainerScreen<?> screen,
                                                  Slot hoveredSlot,
+                                                 ItemStack template,
                                                  boolean moveToOtherInventory) {
-        if (moveToOtherInventory) {
-            return quickMoveHoveredSlot(screen, hoveredSlot, isPlayerStorageSlot(hoveredSlot));
-        }
-
-        Slot sourceSlot = findFirstMatchingOtherInventorySlot(screen, hoveredSlot);
+        Slot sourceSlot = findScrollSourceSlot(screen, hoveredSlot, template, moveToOtherInventory);
         return sourceSlot != null && quickMoveHoveredSlot(screen, sourceSlot, isPlayerStorageSlot(sourceSlot));
     }
 
     private static boolean moveMatchingStacksByScroll(AbstractContainerScreen<?> screen,
                                                        Slot hoveredSlot,
+                                                       ItemStack template,
                                                        boolean moveToOtherInventory) {
-        if (moveToOtherInventory) {
-            return processHoveredSlot(screen, hoveredSlot, TransferMode.MATCHING);
-        }
-
-        AbstractContainerMenu handler = screen.getMenu();
-        if (!canMoveFromPlayerStorage(handler)) {
-            return false;
-        }
-
-        return isPlayerStorageSlot(hoveredSlot)
-                ? moveAllMatchingStacksToPlayerMainInventory(screen, hoveredSlot)
-                : moveAllMatchingStacksByQuickMove(screen, hoveredSlot, true);
+        Slot sourceSlot = findScrollSourceSlot(screen, hoveredSlot, template, moveToOtherInventory);
+        return sourceSlot != null && processHoveredSlot(screen, sourceSlot, TransferMode.MATCHING);
     }
 
     private static boolean moveSingleItemByScroll(AbstractContainerScreen<?> screen,
                                                    Slot hoveredSlot,
+                                                   ItemStack template,
                                                    boolean moveToOtherInventory) {
-        if (canMoveFromPlayerStorage(screen.getMenu())
-                && isSingleShulkerBox(hoveredSlot.getItem())) {
-            // QuickShulker 将单个潜影盒右键放入空槽识别为解包；快速移动可避免触发该物品回调。
-            return moveFullStackByScroll(screen, hoveredSlot, moveToOtherInventory);
-        }
-
-        if (moveToOtherInventory) {
-            List<Integer> targetSlotIds = getOtherInventoryTargetSlotIds(screen.getMenu(), hoveredSlot);
-            return moveOneSourceItemToTargetSlots(screen, hoveredSlot.index, hoveredSlot.getItem().copy(), targetSlotIds);
-        }
-
-        Slot sourceSlot = findFirstMatchingOtherInventorySlot(screen, hoveredSlot);
+        Slot sourceSlot = findScrollSourceSlot(screen, hoveredSlot, template, moveToOtherInventory);
         if (sourceSlot == null) {
             return false;
         }
-
-        List<Integer> targetSlotIds = getPreferredTargetSlotIds(screen.getMenu(), hoveredSlot);
-        return moveOneSourceItemToTargetSlots(screen, sourceSlot.index, hoveredSlot.getItem().copy(), targetSlotIds);
+        if (canMoveFromPlayerStorage(screen.getMenu())
+                && isSingleShulkerBox(sourceSlot.getItem())) {
+            // QuickShulker 将单个潜影盒右键放入空槽识别为解包；快速移动可避免触发该物品回调。
+            return quickMoveHoveredSlot(screen, sourceSlot, isPlayerStorageSlot(sourceSlot));
+        }
+        List<Integer> targetSlotIds = moveToOtherInventory
+                ? getOtherInventoryTargetSlotIds(screen.getMenu(), hoveredSlot)
+                : getPreferredTargetSlotIds(screen.getMenu(), hoveredSlot);
+        return moveOneSourceItemToTargetSlots(screen, sourceSlot.index, template, targetSlotIds);
     }
 
     private static boolean isSingleShulkerBox(ItemStack stack) {
@@ -288,17 +333,25 @@ public final class QuickTransfer implements ClientModInitializer {
                 && blockItem.getBlock() instanceof ShulkerBoxBlock;
     }
 
-    private static Slot findFirstMatchingOtherInventorySlot(AbstractContainerScreen<?> screen, Slot hoveredSlot) {
+    private static Slot findScrollSourceSlot(AbstractContainerScreen<?> screen, Slot hoveredSlot,
+                                             ItemStack template, boolean moveToOtherInventory) {
         AbstractContainerMenu handler = screen.getMenu();
-        if (!canMoveFromPlayerStorage(handler)) {
+        Minecraft client = Minecraft.getInstance();
+        if (moveToOtherInventory && isMatchingTransferCandidate(hoveredSlot, template, client, handler)) {
+            return hoveredSlot;
+        }
+        if (!canMoveFromPlayerStorage(handler) && !moveToOtherInventory) {
             return null;
         }
-
-        Minecraft client = Minecraft.getInstance();
-        boolean sourceFromPlayerStorage = !isPlayerStorageSlot(hoveredSlot);
-        ItemStack template = hoveredSlot.getItem();
+        // 结果槽移空后不借用其它输入/结果槽继续操作。
+        if (moveToOtherInventory && !hoveredSlot.mayPlace(template)) {
+            return null;
+        }
+        boolean sourceFromPlayerStorage = moveToOtherInventory == isPlayerStorageSlot(hoveredSlot);
         for (Slot slot : handler.slots) {
-            if (isMatchingSourceSlot(slot, template, sourceFromPlayerStorage, client, handler)) {
+            if (isMatchingSourceSlot(slot, template, sourceFromPlayerStorage, client, handler)
+                    && (canMoveFromPlayerStorage(handler) || !isPlayerStorageSlot(hoveredSlot)
+                    || belongsToPlayerStorageSide(slot, isPlayerHotbarSlot(hoveredSlot)))) {
                 return slot;
             }
         }
