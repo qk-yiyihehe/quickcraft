@@ -59,7 +59,7 @@
   "quickcraft.config.container_tools.comment.matchingTransferHighlightColor": "§6Function: §rSets the matching item slot highlight color and opacity. Click the color swatch to open the color picker.\n§eNote: §rA (Alpha) is opacity: 0 is fully transparent, 255 is fully opaque. You can also enter #AARRGGBB.\n§7Default: §r#553F6FFF (blue-violet, about 33%% opacity).",
   "quickcraft.config.container_tools.prettyName.showQuickStashButton": "Show Quick Stash Button",
   "quickcraft.config.container_tools.name.showQuickStashButton": "Show Quick Stash Button",
-  "quickcraft.config.container_tools.comment.showQuickStashButton": "§6Function: §rShows two quick-transfer buttons in chest, barrel, ender chest, and shulker box screens.\n§eNote: §rThe upper button stores matching inventory items into the container; the lower button moves container items back to your inventory.",
+  "quickcraft.config.container_tools.comment.showQuickStashButton": "§6Function:§r Show stash and retrieve buttons in containers.\n§ePlayer inventory:§r Show a stash button to pack loose items into carried shulkers already holding the same item.\n§7Inventory packing:§r Requires Quick Shulker support; boxes stay in place and are never unpacked.",
   "quickcraft.config.container_tools.prettyName.enableScrollTransfer": "Hovered Scroll Transfer",
   "quickcraft.config.container_tools.name.enableScrollTransfer": "Hovered Scroll Transfer",
   "quickcraft.config.container_tools.comment.enableScrollTransfer": "§6Function: §rMouse-wheel transfer over item slots.\n§eUse: §rMove one item, hold §bAlt§r for matching items, or §bShift§r for a full stack.\n§eDirection: §rScroll up to move away from the hovered side, or down to move into it.\n§7Memory: §rKeep scrolling after the slot empties, or reverse to move items back. Leaving the slot or closing the screen clears memory.\n§7Compatibility: §rWhile enabled, takes over IPN and Item Scroller wheel transfers on these slots.",
@@ -122,7 +122,7 @@
   "quickcraft.config.container_tools.comment.quickStashInventoryShulkers": "§6Function:§r Right-click a shulker in your inventory to\nstash matching items from your inventory into it.\n§eRequires:§r Quick Stash mode and Quick Shulker support enabled.",
   "quickcraft.config.container_tools.prettyName.quickStashWithQuickShulker": "Quick Stash with Quick Shulker",
   "quickcraft.config.container_tools.name.quickStashWithQuickShulker": "Quick Stash with Quick Shulker",
-  "quickcraft.config.container_tools.comment.quickStashWithQuickShulker": "§6Function:§r Stash single-item shulkers whole; extract only matching items from mixed shulkers.\n§eOrder:§r Pack loose items into matching single-item target shulkers before normal slots.\n§eFull inventory:§r Pack items away or temporarily borrow a target slot, then retrieve them.\n§7Requires:§r Quick Shulker support enabled.",
+  "quickcraft.config.container_tools.comment.quickStashWithQuickShulker": "§6Function:§r Stash single-item shulkers whole; extract only matching items from mixed shulkers.\n§eOrder:§r Pack loose items into target shulkers already containing the same item, then normal slots.\n§eFull inventory:§r Pack items away or temporarily borrow a target slot, then retrieve them.\n§7Requires:§r Quick Shulker support enabled.",
   "quickcraft.config.container_tools.prettyName.quickClearInventoryShulkers": "Clear inventory shulkers",
   "quickcraft.config.container_tools.name.quickClearInventoryShulkers": "Clear inventory shulkers",
   "quickcraft.config.container_tools.comment.quickClearInventoryShulkers": "§6Function:§r Right-click a shulker in your inventory to\ndrop its contents onto the ground as whole stacks.\n§eRequires:§r Quick Clear mode and Quick Shulker support enabled.",
@@ -811,9 +811,7 @@
   "quickcraft.button.inventory_lock.tooltip": "Lock or unlock the entire player inventory",
   "quickcraft.anvil.merge_step": "Step %s: combine books (%s + %s), %s levels",
   "quickcraft.anvil.scroll_plan": "Scroll: %s–%s / %s",
-  "quickcraft.message.quick_stash.open_failed": "QuickCraft: Could not reopen the stash container; stopped",
-  "quickcraft.message.quick_stash.no_space": "QuickCraft: No inventory space for transfers; stash stopped",
-  "quickcraft.message.quick_stash.cursor_blocked": "QuickCraft: An item remains on the cursor; stash stopped",
-  "quickcraft.message.quick_stash.temporary_left": "QuickCraft: Temporary items could not be retrieved automatically; check target slot %s",
-  "quickcraft.message.quick_stash.bundle_failed": "QuickCraft: Shulker packing failed; stash stopped. Check Quick Shulker insertion settings"
+  "quickcraft.message.quick_stash.cursor_blocked": "QuickCraft: Put down the item on your cursor",
+  "quickcraft.message.quick_stash.temporary_left": "QuickCraft: Retrieve the temporarily stored items from container slot %s",
+  "quickcraft.button.inventory_shulker_stash": "Stash into shulker boxes"
 }

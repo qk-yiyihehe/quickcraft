@@ -20,6 +20,7 @@ public class QuickDraggableButton extends Button {
         CONTAINER_LOCK("containerLock"),
         INVENTORY_LOCK("inventoryLock"),
         QUICK_STASH("quickStash"),
+        INVENTORY_SHULKER_STASH("inventoryShulkerStash"),
         CONTAINER_SORT("containerSort"),
         INVENTORY_SORT("inventorySort"),
         QUICK_RETRIEVE("quickRetrieve"),

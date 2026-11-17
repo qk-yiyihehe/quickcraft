@@ -3,6 +3,7 @@ package com.yiyihehe.quickcraft.mixin;
 import com.yiyihehe.quickcraft.QuickCraftKeyBindings;
 import com.yiyihehe.quickcraft.QuickContainerLock;
 import com.yiyihehe.quickcraft.QuickSort;
+import com.yiyihehe.quickcraft.QuickShulkerStash;
 import com.yiyihehe.quickcraft.config.QuickCraftConfigs;
 import com.yiyihehe.quickcraft.crafting.QuickCraftActionButton;
 import com.yiyihehe.quickcraft.crafting.QuickCraftBackpack;
@@ -12,6 +13,7 @@ import com.yiyihehe.quickcraft.crafting.QuickCraftWorkbenchRouter;
 import com.yiyihehe.quickcraft.render.QuickContainerLockButton;
 import com.yiyihehe.quickcraft.render.QuickDraggableButton;
 import com.yiyihehe.quickcraft.render.QuickSortButton;
+import com.yiyihehe.quickcraft.render.QuickStashButton;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.components.Tooltip;
@@ -150,6 +152,9 @@ abstract class CraftActionButtonBackpackMixin extends AbstractContainerScreen<In
     @Unique
     private QuickSortButton quickcraft$sortButton;
 
+    @Unique
+    private QuickStashButton quickcraft$stashButton;
+
     protected CraftActionButtonBackpackMixin(InventoryMenu handler, Inventory inventory, Component title) {
         super(handler, inventory, title);
     }
@@ -194,6 +199,7 @@ abstract class CraftActionButtonBackpackMixin extends AbstractContainerScreen<In
     private void quickcraft$addLockButton(GuiGraphicsExtractor context, int mouseX, int mouseY, float delta, CallbackInfo ci) {
         QuickContainerLock.bindCurrentScreen(this);
         this.quickcraft$ensureSortButton();
+        this.quickcraft$ensureStashButton();
         if (!QuickContainerLock.shouldShowLockButton(this)) {
             if (this.quickcraft$lockButton != null) {
                 this.quickcraft$lockButton.visible = false;
@@ -232,6 +238,23 @@ abstract class CraftActionButtonBackpackMixin extends AbstractContainerScreen<In
         if (this.quickcraft$sortButton != null) {
             this.quickcraft$sortButton.visible = visible;
             this.quickcraft$sortButton.setDefaultPosition(this.leftPos + this.imageWidth - 34, this.topPos + 67);
+        }
+    }
+
+    @Unique
+    private void quickcraft$ensureStashButton() {
+        boolean visible = QuickCraftConfigs.isQuickStashButtonVisible();
+        if (visible && (this.quickcraft$stashButton == null || !this.children().contains(this.quickcraft$stashButton))) {
+            this.quickcraft$stashButton = this.addRenderableWidget(new QuickStashButton(
+                    this.leftPos + this.imageWidth - 18, this.topPos + 53,
+                    button -> QuickShulkerStash.stashInventory(this),
+                    QuickDraggableButton.PositionKey.INVENTORY_SHULKER_STASH,
+                    Component.translatable("quickcraft.button.inventory_shulker_stash")));
+        }
+        if (this.quickcraft$stashButton != null) {
+            this.quickcraft$stashButton.visible = visible;
+            this.quickcraft$stashButton.active = QuickShulkerStash.isAvailable();
+            this.quickcraft$stashButton.setDefaultPosition(this.leftPos + this.imageWidth - 18, this.topPos + 53);
         }
     }
 

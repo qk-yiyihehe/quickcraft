@@ -12,7 +12,6 @@ import net.minecraft.item.ItemStack;
 import net.minecraft.screen.ScreenHandler;
 import net.minecraft.screen.ShulkerBoxScreenHandler;
 import net.minecraft.screen.slot.Slot;
-import net.minecraft.screen.slot.SlotActionType;
 import net.minecraft.text.Text;
 import net.minecraft.util.Hand;
 import net.minecraft.util.hit.BlockHitResult;
@@ -103,7 +102,7 @@ public final class QuickStashShulkerTransfer {
         if (session.stage == Stage.WAIT_INITIAL || session.stage == Stage.WAIT_SOURCE || session.stage == Stage.WAIT_TARGET) {
             if (++session.waitTicks > OPEN_TIMEOUT_TICKS
                     || client.currentScreen != null && !(client.currentScreen instanceof HandledScreen<?>)) {
-                stop(client, false, "quickcraft.message.quick_stash.open_failed");
+                stop(client, false, null);
             }
             return;
         }
@@ -165,7 +164,7 @@ public final class QuickStashShulkerTransfer {
             QuickContainerLock.bindSameContainerScreen(handler, session.originalHandler);
             session.stage = Stage.TARGET;
         } else {
-            stop(client, false, "quickcraft.message.quick_stash.open_failed");
+            stop(client, false, null);
             return;
         }
         session.ownedHandler = handler;
@@ -205,14 +204,14 @@ public final class QuickStashShulkerTransfer {
         boolean hasSpace = hasExtractionSpace(handler, handler.getSlot(source.slotId()).getStack());
         if (!hasSpace) {
             if (!makeWorkingSlot(handler, source.playerIndex(), client)) {
-                stop(client, false, "quickcraft.message.quick_stash.no_space");
+                stop(client, false, null);
                 return;
             }
             // 借走空格后重新分配容量，不能把周转格同时算作货物的最终落点。
             session.demands = remainingCapacity(handler);
             source = findSource(handler);
             if (source == null) {
-                stop(client, false, "quickcraft.message.quick_stash.no_space");
+                stop(client, false, null);
                 return;
             }
         }
@@ -220,7 +219,7 @@ public final class QuickStashShulkerTransfer {
         session.stage = Stage.WAIT_SOURCE;
         session.waitTicks = 0;
         if (!QuickShulkerConnection.sendOpen(source.slotId())) {
-            stop(client, false, "quickcraft.message.quick_stash.open_failed");
+            stop(client, false, null);
         }
     }
 
@@ -233,9 +232,10 @@ public final class QuickStashShulkerTransfer {
             if (!isShulkerBox(stack)) {
                 addAccepted(stack);
             } else {
-                ItemStack pure = pureContent(stack);
-                if (!pure.isEmpty()) {
-                    addAccepted(pure);
+                for (ItemStack stored : getStoredStacksBySlot(stack)) {
+                    if (!stored.isEmpty() && !isShulkerBox(stored)) {
+                        addAccepted(stored);
+                    }
                 }
             }
         }
@@ -289,8 +289,8 @@ public final class QuickStashShulkerTransfer {
                 }
             } else if (matchesAccepted(stack)) {
                 int before = stack.getCount();
-                if (!packIntoTargetShulkers(handler, slotId, client)) {
-                    stop(client, false, "quickcraft.message.quick_stash.bundle_failed");
+                if (!QuickShulkerStash.packMatching(handler, slotId, targetSlots(handler), client)) {
+                    stop(client, false, null);
                     return true;
                 }
                 if (!handler.getCursorStack().isEmpty()) {
@@ -303,37 +303,6 @@ public final class QuickStashShulkerTransfer {
             }
         }
         return false;
-    }
-
-    private static boolean packIntoTargetShulkers(ScreenHandler handler, int sourceSlotId, MinecraftClient client) {
-        Slot source = handler.getSlot(sourceSlotId);
-        for (int slotId : targetSlots(handler)) {
-            Slot target = handler.getSlot(slotId);
-            if (!source.hasStack() || target.getStack().getCount() != 1 || !target.canTakeItems(client.player)
-                    || !target.canInsert(target.getStack())
-                    || !ItemStack.areItemsAndComponentsEqual(pureContent(target.getStack()), source.getStack())
-                    || getShulkerCapacityFor(target.getStack(), source.getStack()) <= 0) {
-                continue;
-            }
-            int before = source.getStack().getCount();
-            click(client, handler, sourceSlotId, 0, SlotActionType.PICKUP);
-            if (handler.getCursorStack().isEmpty()) {
-                return false;
-            }
-            click(client, handler, slotId, 1, SlotActionType.PICKUP);
-            if (isShulkerBox(handler.getCursorStack()) && !isShulkerBox(target.getStack())) {
-                // 快盒关闭装盒时，原版右键会交换物品；先撤回交换，再归还来源。
-                click(client, handler, slotId, 0, SlotActionType.PICKUP);
-            }
-            int remaining = handler.getCursorStack().getCount();
-            if (!handler.getCursorStack().isEmpty()) {
-                click(client, handler, sourceSlotId, 0, SlotActionType.PICKUP);
-            }
-            if (!handler.getCursorStack().isEmpty() || remaining >= before) {
-                return false;
-            }
-        }
-        return true;
     }
 
     private static boolean moveToContainerSlots(ScreenHandler handler, int sourceSlotId, MinecraftClient client) {
@@ -369,6 +338,20 @@ public final class QuickStashShulkerTransfer {
         List<MissingDemand> demands = new ArrayList<>();
         List<Integer> emptySlots = new ArrayList<>(targetSlots(handler).stream()
                 .filter(id -> !handler.getSlot(id).hasStack()).toList());
+        java.util.Map<Integer, Integer> shulkerFreeSlots = new java.util.HashMap<>();
+        for (int slotId : targetSlots(handler)) {
+            ItemStack shulker = handler.getSlot(slotId).getStack();
+            if (isShulkerBox(shulker)) {
+                int empty = 0;
+                for (ItemStack stored : getStoredStacksBySlot(shulker)) {
+                    if (stored.isEmpty()) {
+                        empty++;
+                    }
+                }
+                shulkerFreeSlots.put(slotId, empty);
+            }
+        }
+        // 杂物盒的空槽只能分配一次，不能同时计入多种物品的取货容量。
         for (ItemStack template : session.accepted) {
             if (isShulkerBox(template)) {
                 continue;
@@ -391,16 +374,26 @@ public final class QuickStashShulkerTransfer {
                 continue;
             }
             int capacity = 0;
+            List<Integer> matchingShulkers = new ArrayList<>();
             for (int slotId : targetSlots(handler)) {
                 Slot slot = handler.getSlot(slotId);
                 if (slot.hasStack()) {
                     capacity += capacity(slot, template);
                 }
-                if (slot.getStack().getCount() == 1 && slot.canTakeItems(MinecraftClient.getInstance().player)
-                        && slot.canInsert(slot.getStack())
-                        && ItemStack.areItemsAndComponentsEqual(pureContent(slot.getStack()), template)) {
-                    capacity += getShulkerCapacityFor(slot.getStack(), template);
+                if (QuickShulkerStash.canReceive(handler, slotId, template, MinecraftClient.getInstance())) {
+                    capacity += QuickShulkerStash.matchingPartialCapacity(slot.getStack(), template);
+                    matchingShulkers.add(slotId);
                 }
+            }
+            for (int slotId : matchingShulkers) {
+                if (capacity >= available) {
+                    break;
+                }
+                int maxCount = template.getMaxCount();
+                int neededSlots = (available - capacity + maxCount - 1) / maxCount;
+                int reserved = Math.min(shulkerFreeSlots.get(slotId), neededSlots);
+                capacity += reserved * maxCount;
+                shulkerFreeSlots.put(slotId, shulkerFreeSlots.get(slotId) - reserved);
             }
             // 空格只能分配给一种物品，避免多个缺口重复占用同一个周转目的地。
             var iterator = emptySlots.iterator();
@@ -546,7 +539,7 @@ public final class QuickStashShulkerTransfer {
             session.stage = Stage.WAIT_SOURCE;
             session.waitTicks = 0;
             if (!QuickShulkerConnection.sendOpen(next.slotId())) {
-                stop(client, false, "quickcraft.message.quick_stash.open_failed");
+                stop(client, false, null);
             }
             return;
         }
@@ -587,7 +580,7 @@ public final class QuickStashShulkerTransfer {
         session.stage = Stage.WAIT_TARGET;
         session.waitTicks = 0;
         if (!opened) {
-            stop(client, false, "quickcraft.message.quick_stash.open_failed");
+            stop(client, false, null);
         }
     }
 
@@ -614,10 +607,6 @@ public final class QuickStashShulkerTransfer {
                 client.player.closeHandledScreen();
             }
         }
-    }
-
-    private static void click(MinecraftClient client, ScreenHandler handler, int slotId, int button, SlotActionType action) {
-        client.interactionManager.clickSlot(handler.syncId, slotId, button, action, client.player);
     }
 
     private enum Stage { WAIT_INITIAL, TARGET, WAIT_SOURCE, SOURCE, NEXT_SOURCE, REOPEN, WAIT_TARGET }
