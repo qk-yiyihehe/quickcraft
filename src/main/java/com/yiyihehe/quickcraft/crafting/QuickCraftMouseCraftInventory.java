@@ -197,20 +197,6 @@ final class QuickCraftMouseCraftInventory {
 
     static boolean moveOutputToUnlockedInventory(MinecraftClient client,
                                                  ScreenHandler handler,
-                                                 QuickCraftMouseCraftLayout.Layout layout) {
-        return moveOutputToUnlockedInventory(client, handler, layout, 1, () -> {});
-    }
-
-    static boolean moveOutputToUnlockedInventory(MinecraftClient client,
-                                                 ScreenHandler handler,
-                                                 QuickCraftMouseCraftLayout.Layout layout,
-                                                 int maximumOutputs,
-                                                 Runnable onEachPickup) {
-        return moveOutputToUnlockedInventory(client, handler, layout, maximumOutputs, onEachPickup, true);
-    }
-
-    static boolean moveOutputToUnlockedInventory(MinecraftClient client,
-                                                 ScreenHandler handler,
                                                  QuickCraftMouseCraftLayout.Layout layout,
                                                  int maximumOutputs,
                                                  Runnable onEachPickup,

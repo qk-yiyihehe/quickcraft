@@ -176,14 +176,8 @@ final class QuickCraftMouseCrafting {
                     : tryTakeOutputForRecipe(client, handler, recipe);
         }
 
-        if (restockCraftingGrid(client, handler, recipe)) {
-            if (!manualRecipe || !rapidCraftingActive) {
-                tryTakeOutputForRecipe(client, handler, recipe);
-            }
-            return true;
-        }
-
-        return false;
+        // 补料和领取分属两次触发，不能依赖客户端结果槽的刷新时机。
+        return restockCraftingGrid(client, handler, recipe);
     }
 
     private void handleSingleCraft(MinecraftClient client, ScreenHandler handler) {
@@ -1853,13 +1847,31 @@ final class QuickCraftMouseCrafting {
     }
 
     private boolean tryQuickMoveOutput(MinecraftClient client, ScreenHandler handler) {
+        int[] gridCounts = new int[layout.gridSize()];
+        boolean[] requiredSlots = new boolean[layout.gridSize()];
+        for (int i = 0; i < lockedCraftingPattern.size(); i++) {
+            ItemStack template = lockedCraftingPattern.get(i);
+            requiredSlots[i] = !template.isEmpty();
+            gridCounts[i] = getPatternSlotCount(handler, i, template);
+        }
+        int maximumOutputs = Math.min(MAX_OUTPUT_THROW_BURST,
+                QuickCraftMouseCraftAckRules.maximumCraftsFromGridCounts(gridCounts, requiredSlots));
         if (QuickCraftMouseCraftInventory.canAcceptUnlocked(
                 handler, layout, handler.getSlot(OUTPUT_SLOT).getStack())
                 && QuickCraftMouseCraftInventory.moveOutputToUnlockedInventory(
-                client, handler, layout)) {
+                client, handler, layout, maximumOutputs,
+                () -> refreshSingleCraftOutput(handler),
+                QuickCraftMouseCraftAckRules.canBulkCraftGrid(gridCounts))) {
             return true;
         }
         return throwCraftingOutput(client, handler);
+    }
+
+    private void refreshSingleCraftOutput(ScreenHandler handler) {
+        // 客户端不会自动重算连续 PICKUP 的结果；只在原配方完整时复用已确认产物。
+        handler.getSlot(OUTPUT_SLOT).setStack(
+                QuickCraftMouseCraftInventory.isPatternComplete(handler, layout, lockedCraftingPattern)
+                        ? lockedResultTemplate.copy() : ItemStack.EMPTY);
     }
 
     private boolean tryTakeOutputForRecipe(MinecraftClient client,
