@@ -44,6 +44,7 @@ public final class QuickStash implements ClientModInitializer {
     }
 
     private void onClientTick(Minecraft client) {
+        QuickInventoryShulkerTools.onClientTick(client);
         if (!QuickCraftConfigs.isQuickStashEnabled()) {
             pendingOpen = false;
             pendingTicks = 0;
@@ -127,7 +128,7 @@ public final class QuickStash implements ClientModInitializer {
         new QuickStash().retrieveContainerItems(screen);
     }
 
-    private void stashMatchingPlayerItems(AbstractContainerScreen<?> screen) {
+    void stashMatchingPlayerItems(AbstractContainerScreen<?> screen) {
         Minecraft client = Minecraft.getInstance();
         if (client.player == null || client.gameMode == null) {
             return;

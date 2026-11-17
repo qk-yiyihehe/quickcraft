@@ -103,7 +103,7 @@ public final class QuickFillContainer implements ClientModInitializer {
         return client.world.getBlockState(blockHitResult.getBlockPos()).getBlock() instanceof EnderChestBlock;
     }
 
-    private void fillContainer(HandledScreen<?> screen) {
+    void fillContainer(HandledScreen<?> screen) {
         MinecraftClient client = MinecraftClient.getInstance();
         if (client.player == null || client.interactionManager == null) {
             return;

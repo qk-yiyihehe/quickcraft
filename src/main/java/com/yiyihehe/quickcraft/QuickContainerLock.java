@@ -175,6 +175,29 @@ public final class QuickContainerLock implements ClientModInitializer {
         }
     }
 
+    static boolean openInventoryShulkerForTool(double mouseX, double mouseY) {
+        MinecraftClient client = MinecraftClient.getInstance();
+        if (client.player == null || !(client.currentScreen instanceof HandledScreen<?> screen)) {
+            return false;
+        }
+        for (Slot slot : screen.getScreenHandler().slots) {
+            Slot effectiveSlot = unwrapCreativeSlot(slot);
+            if (slot.isEnabled() && slot.x >= 0 && slot.y >= 0
+                    && isPlayerStorageSlot(effectiveSlot)
+                    && isMouseOverSlot(slot, getGuiLeft(screen), getGuiTop(screen), mouseX, mouseY)
+                    && isShulkerBoxItem(effectiveSlot.getStack())
+                    && effectiveSlot.getStack().getCount() == 1) {
+                return QuickInventoryShulkerTools.tryOpen(screen, effectiveSlot);
+            }
+        }
+        return false;
+    }
+
+    static void bindInventoryShulkerScreen(HandledScreen<?> screen, int inventorySlot) {
+        setCurrentScreenHandler(screen.getScreenHandler(), QUICK_SHULKER_CONTAINER_KEY_PREFIX + inventorySlot);
+        clearPendingContainerOpen();
+    }
+
     public static Text getLockButtonText(HandledScreen<?> screen) {
         return Text.translatable(isCurrentScreenLocked(screen)
                 ? "quickcraft.button.container_lock.unlock"

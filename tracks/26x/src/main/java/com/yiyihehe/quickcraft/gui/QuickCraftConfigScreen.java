@@ -158,6 +158,12 @@ public class QuickCraftConfigScreen extends GuiConfigsBase {
                 QuickCraftConfigs.ContainerTools.QUICK_TRANSFER_RETAIN_ONE,
                 QuickCraftConfigs.ContainerTools.SHOW_QUICK_STASH_BUTTON
         ),
+        CONTAINER_TOOL_MODE(
+                QuickCraftConfigs.ContainerTools.CONTAINER_TOOL_MODE,
+                QuickCraftConfigs.ContainerTools.QUICK_STASH_INVENTORY_SHULKERS,
+                QuickCraftConfigs.ContainerTools.QUICK_CLEAR_INVENTORY_SHULKERS,
+                QuickCraftConfigs.ContainerTools.QUICK_FILL_INVENTORY_SHULKERS
+        ),
         QUICK_TRADE(
                 QuickCraftConfigs.ContainerTools.ENABLE_QUICK_TRADE,
                 QuickCraftConfigs.ContainerTools.QUICK_TRADE_RIGHT_CLICK,

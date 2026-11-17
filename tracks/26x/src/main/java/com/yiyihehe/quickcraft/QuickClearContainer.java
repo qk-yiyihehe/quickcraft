@@ -181,7 +181,7 @@ public final class QuickClearContainer implements ClientModInitializer {
         return client.level.getBlockState(blockHitResult.getBlockPos()).getBlock() instanceof EnderChestBlock;
     }
 
-    private void clearContainer(AbstractContainerScreen<?> screen) {
+    void clearContainer(AbstractContainerScreen<?> screen) {
         Minecraft client = Minecraft.getInstance();
         if (client.player == null || client.gameMode == null) {
             return;
