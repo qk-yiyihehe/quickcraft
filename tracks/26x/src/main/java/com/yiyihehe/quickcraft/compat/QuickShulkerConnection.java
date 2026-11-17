@@ -43,6 +43,7 @@ public final class QuickShulkerConnection {
             return false;
         }
         try {
+            com.yiyihehe.quickcraft.QuickContainerLock.prepareQuickShulkerOpen(slotId);
             ClientPlayNetworking.send(OpenPacket.CONSTRUCTOR.newInstance(slotId));
             return true;
         } catch (ReflectiveOperationException | RuntimeException | LinkageError failure) {

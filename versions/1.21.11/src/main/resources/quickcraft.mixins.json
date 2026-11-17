@@ -65,6 +65,7 @@
 		"QuickContainerLockScreenMixin",
 		"QuickContainerLockScreenHandlerMixin",
 		"QuickContainerLockSlotMixin",
+		"QuickShulkerOpenPacketMixin",
 		"WorkbenchShulkerClientClickMixin",
 		"WorkbenchShulkerNetworkMixin",
 		"RecipeBookScreenAccessor",

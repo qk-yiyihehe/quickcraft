@@ -7,8 +7,6 @@ import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
-import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
-import org.lwjgl.glfw.GLFW;
 
 /**
  * 通用槽位锁覆盖层（1.21.8）。
@@ -22,22 +20,5 @@ public abstract class QuickContainerLockScreenMixin {
         HandledScreenAccessor accessor = (HandledScreenAccessor) this;
         QuickContainerLock.bindCurrentScreen(screen);
         QuickContainerLock.renderSlotLocks(screen, context, accessor.quickcraft$getGuiLeft(), accessor.quickcraft$getGuiTop());
-    }
-
-    @Inject(method = "mouseClicked", at = @At("HEAD"))
-    private void quickcraft$prepareQuickShulkerOpen(double mouseX, double mouseY, int button,
-                                                    CallbackInfoReturnable<Boolean> cir) {
-        HandledScreen<?> screen = (HandledScreen<?>) (Object) this;
-        HandledScreenAccessor accessor = (HandledScreenAccessor) this;
-        QuickContainerLock.bindCurrentScreen(screen);
-        if (button == GLFW.GLFW_MOUSE_BUTTON_RIGHT) {
-            QuickContainerLock.prepareQuickShulkerOpen(
-                    screen,
-                    mouseX,
-                    mouseY,
-                    accessor.quickcraft$getGuiLeft(),
-                    accessor.quickcraft$getGuiTop()
-            );
-        }
     }
 }

@@ -45,6 +45,9 @@ public class QuickCraftMixinPlugin implements IMixinConfigPlugin {
         if (mixinClassName.startsWith(IPN_MIXIN_PREFIX)) {
             return FabricLoader.getInstance().isModLoaded("inventoryprofilesnext");
         }
+        if (mixinClassName.endsWith(".QuickShulkerOpenPacketMixin")) {
+            return FabricLoader.getInstance().isModLoaded("quickshulker");
+        }
 
         return true;
     }

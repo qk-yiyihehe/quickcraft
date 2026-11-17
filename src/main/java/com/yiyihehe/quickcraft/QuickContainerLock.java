@@ -8,7 +8,6 @@ import com.yiyihehe.quickcraft.mixin.CreativeSlotAccessor;
 import fi.dy.masa.malilib.event.InputEventHandler;
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
-import net.fabricmc.loader.api.FabricLoader;
 import net.minecraft.block.BarrelBlock;
 import net.minecraft.block.Block;
 import net.minecraft.block.BlockState;
@@ -141,7 +140,10 @@ public final class QuickContainerLock implements ClientModInitializer {
         if (isCreativePlayerInventoryScreen(screen)
                 || handler instanceof PlayerScreenHandler) {
             setCurrentScreenHandler(handler, PLAYER_CONTAINER_KEY);
-            clearPendingContainerOpen();
+            // 开盒响应到达前来源背包仍会渲染，不能清掉这次 QuickShulker 绑定。
+            if (handler != pendingSourceHandler) {
+                clearPendingContainerOpen();
+            }
             return;
         }
 
@@ -154,25 +156,23 @@ public final class QuickContainerLock implements ClientModInitializer {
         setCurrentScreenHandler(handler, HANDLER_CONTAINER_KEYS.get(handler));
     }
 
-    public static void prepareQuickShulkerOpen(HandledScreen<?> screen, double mouseX, double mouseY, int guiLeft, int guiTop) {
-        if (!FabricLoader.getInstance().isModLoaded("quickshulker")) {
+    public static void prepareQuickShulkerOpen(int handlerSlotId) {
+        clearPendingContainerOpen();
+        MinecraftClient client = MinecraftClient.getInstance();
+        if (client.player == null) {
             return;
         }
 
-        for (Slot slot : screen.getScreenHandler().slots) {
-            Slot effectiveSlot = unwrapCreativeSlot(slot);
-            if (!isPlayerStorageSlot(effectiveSlot)
-                    || !isMouseOverSlot(slot, guiLeft, guiTop, mouseX, mouseY)
-                    || !isShulkerBoxItem(effectiveSlot.getStack())) {
-                continue;
-            }
-
-            pendingContainerKey = QUICK_SHULKER_CONTAINER_KEY_PREFIX + effectiveSlot.getIndex();
-            pendingShulkerBoxOpen = true;
-            pendingSourceHandler = screen.getScreenHandler();
-            pendingTicks = 0;
+        ScreenHandler handler = client.player.currentScreenHandler;
+        Slot slot = getSlot(handler, handlerSlotId);
+        if (slot == null || !isPlayerStorageSlot(slot) || !isShulkerBoxItem(slot.getStack())) {
             return;
         }
+
+        pendingContainerKey = QUICK_SHULKER_CONTAINER_KEY_PREFIX + slot.getIndex();
+        pendingShulkerBoxOpen = true;
+        pendingSourceHandler = client.currentScreen instanceof HandledScreen<?> screen
+                ? screen.getScreenHandler() : handler;
     }
 
     static boolean openInventoryShulkerForTool(double mouseX, double mouseY) {
