@@ -2,6 +2,9 @@ package com.yiyihehe.quickcraft.mixin;
 
 import com.llamalad7.mixinextras.injector.wrapoperation.Operation;
 import com.llamalad7.mixinextras.injector.wrapoperation.WrapOperation;
+import com.llamalad7.mixinextras.sugar.Local;
+import com.llamalad7.mixinextras.sugar.Share;
+import com.llamalad7.mixinextras.sugar.ref.LocalIntRef;
 import com.mojang.blaze3d.pipeline.RenderPipeline;
 import com.yiyihehe.quickcraft.config.QuickCraftConfigs;
 import com.yiyihehe.quickcraft.litematica.QuickLitematicaPreview3D;
@@ -57,12 +60,26 @@ public abstract class LitematicaWidgetSchematicBrowserMixin extends WidgetFileBr
         super(x, y, width, height, cache, browserContext, defaultDirectory, selectionListener, Icons.FILE_ICON_LITEMATIC);
     }
 
+    @Inject(
+            method = "drawSelectedSchematicInfo",
+            at = @At(value = "FIELD",
+                    target = "Lfi/dy/masa/litematica/gui/widgets/WidgetSchematicBrowser;cachedPreviewImages:Ljava/util/Map;"),
+            remap = false
+    )
+    private void quickcraft$captureInfoTextBottom(CallbackInfo ci, @Local(ordinal = 1) int y,
+                                                 @Share("infoTextBottom") LocalIntRef infoTextBottom) {
+        // 信息行数随界面高度和元数据变化，使用原生文字绘制完成后的坐标。
+        infoTextBottom.set(y);
+    }
+
     @Inject(method = "drawSelectedSchematicInfo", at = @At("TAIL"), remap = false)
-    private void quickcraft$draw3DPreview(GuiContext drawContext, @Nullable DirectoryEntry entry, CallbackInfo ci) {
+    private void quickcraft$draw3DPreview(GuiContext drawContext, @Nullable DirectoryEntry entry, CallbackInfo ci,
+                                        @Share("infoTextBottom") LocalIntRef infoTextBottom) {
         int infoX = this.posX + this.totalWidth - this.infoWidth;
         int infoY = this.posY;
         int height = Math.min(this.infoHeight, this.parent.getMaxInfoHeight());
-        int size = Math.max(1, Math.min(this.infoWidth - 32, Math.max(48, height - 152)));
+        int previewTop = Math.max(infoY, infoTextBottom.get()) + 4;
+        int size = Math.max(1, Math.min(this.infoWidth - 32, infoY + height - previewTop - 8));
         int x = infoX + (this.infoWidth - size) / 2;
         int y = infoY + height - size - 8;
 
