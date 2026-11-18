@@ -69,6 +69,9 @@ This project is licensed under the [MIT License](LICENSE).
 
 ## Acknowledgements
 
+- [小莫音 (Bilibili UID 523797501)](https://space.bilibili.com/523797501): main design and code for cross-box sorting.
+- QQ group member (QQ number ending in 5094): UI design reference for the Portable Storage Sidebar.
+- [Better Shulker HUD](https://github.com/unionofblackbean/BetterShulkerHUDMod) (by BF_skt): primary source code and design reference for implementing the Portable Storage Sidebar.
 - [Tech Utils](https://github.com/Kikugie/techutils): reference for schematic and utility features.
 - [Item Scroller](https://github.com/maruohon/itemscroller): reference for inventory interaction design.
 - [Litematica Container Filler](https://modrinth.com/mod/litematica-container-filler): design inspiration for schematic container filling.

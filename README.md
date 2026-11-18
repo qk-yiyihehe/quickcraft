@@ -69,6 +69,9 @@ QuickCraft 是面向 Fabric 的客户端实用模组，让合成、容器和 Lit
 
 ## 致谢
 
+- [小莫音（B 站 UID 523797501）](https://space.bilibili.com/523797501)：提供跨盒整理的主要设计思路和代码。
+- QQ 群友（尾号 5094）：提供随身存储侧栏的界面设计参考。
+- [Better Shulker HUD](https://github.com/unionofblackbean/BetterShulkerHUDMod)（作者 BF_skt）：随身存储侧栏功能实现的主要源码与设计参考。
 - [Tech Utils](https://github.com/Kikugie/techutils)：投影与实用功能的实现参考。
 - [Item Scroller](https://github.com/maruohon/itemscroller)：物品栏操作设计参考。
 - [Litematica Container Filler](https://modrinth.com/mod/litematica-container-filler)：容器投影填充功能的设计思路参考。
