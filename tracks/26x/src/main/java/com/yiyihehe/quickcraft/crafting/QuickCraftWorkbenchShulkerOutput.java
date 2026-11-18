@@ -6,6 +6,7 @@ import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.item.BlockItem;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.inventory.CraftingMenu;
+import net.minecraft.world.inventory.AbstractContainerMenu;
 import net.minecraft.world.inventory.Slot;
 import net.minecraft.world.inventory.ContainerInput;
 
@@ -29,6 +30,9 @@ final class QuickCraftWorkbenchShulkerOutput {
         }
 
         Slot target = findBox(handler, output);
+        if (target == null) {
+            target = splitEmptyBox(client, handler);
+        }
         if (target == null) {
             return -1;
         }
@@ -119,6 +123,55 @@ final class QuickCraftWorkbenchShulkerOutput {
             }
         }
         return emptyCandidate;
+    }
+
+    private static Slot splitEmptyBox(Minecraft client, CraftingMenu handler) {
+        List<Slot> slots = getPlayerStorageSlots(handler);
+        Slot source = null;
+        for (Slot slot : slots) {
+            if (slot.getItem().getCount() > 1 && isShulkerBox(slot.getItem())
+                    && slot.mayPickup(client.player)
+                    && QuickCraftWorkbenchShulkerContents.get(slot.getContainerSlot(), slot.getItem()).count() == 0) {
+                source = slot;
+                break;
+            }
+        }
+        if (source == null) {
+            return null;
+        }
+
+        ItemStack original = source.getItem().copy();
+        for (Slot target : slots) {
+            if (target.hasItem() || !target.mayPlace(original)) {
+                continue;
+            }
+            client.gameMode.handleContainerInput(handler.containerId, source.index, 0,
+                    ContainerInput.PICKUP, client.player);
+            if (source.hasItem() || handler.getCarried().getCount() != original.getCount()
+                    || !ItemStack.isSameItemSameComponents(handler.getCarried(), original)) {
+                return null;
+            }
+            // 普通右键会被 QuickShulker 当作拆包；右键拖拽只在空格放一个空盒。
+            client.gameMode.handleContainerInput(handler.containerId, -999, AbstractContainerMenu.getQuickcraftMask(0, 1),
+                    ContainerInput.QUICK_CRAFT, client.player);
+            client.gameMode.handleContainerInput(handler.containerId, target.index, AbstractContainerMenu.getQuickcraftMask(1, 1),
+                    ContainerInput.QUICK_CRAFT, client.player);
+            client.gameMode.handleContainerInput(handler.containerId, -999, AbstractContainerMenu.getQuickcraftMask(2, 1),
+                    ContainerInput.QUICK_CRAFT, client.player);
+            if (!source.hasItem() && ItemStack.isSameItemSameComponents(handler.getCarried(), original)) {
+                client.gameMode.handleContainerInput(handler.containerId, source.index, 0,
+                        ContainerInput.PICKUP, client.player);
+            }
+            if (handler.getCarried().isEmpty()
+                    && source.getItem().getCount() == original.getCount() - 1
+                    && ItemStack.isSameItemSameComponents(source.getItem(), original)
+                    && isSingleShulker(target.getItem())
+                    && ItemStack.isSameItemSameComponents(target.getItem(), original)) {
+                return target;
+            }
+            return null;
+        }
+        return null;
     }
 
     static int outputBoxContentPriority(boolean empty,

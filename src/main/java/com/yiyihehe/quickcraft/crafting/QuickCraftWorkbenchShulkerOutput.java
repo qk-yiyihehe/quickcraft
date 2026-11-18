@@ -6,6 +6,7 @@ import net.minecraft.entity.player.PlayerInventory;
 import net.minecraft.item.BlockItem;
 import net.minecraft.item.ItemStack;
 import net.minecraft.screen.CraftingScreenHandler;
+import net.minecraft.screen.ScreenHandler;
 import net.minecraft.screen.slot.Slot;
 import net.minecraft.screen.slot.SlotActionType;
 
@@ -29,6 +30,9 @@ final class QuickCraftWorkbenchShulkerOutput {
         }
 
         Slot target = findBox(handler, output);
+        if (target == null) {
+            target = splitEmptyBox(client, handler);
+        }
         if (target == null) {
             return -1;
         }
@@ -119,6 +123,55 @@ final class QuickCraftWorkbenchShulkerOutput {
             }
         }
         return emptyCandidate;
+    }
+
+    private static Slot splitEmptyBox(MinecraftClient client, CraftingScreenHandler handler) {
+        List<Slot> slots = getPlayerStorageSlots(handler);
+        Slot source = null;
+        for (Slot slot : slots) {
+            if (slot.getStack().getCount() > 1 && isShulkerBox(slot.getStack())
+                    && slot.canTakeItems(client.player)
+                    && QuickCraftWorkbenchShulkerContents.get(slot.getIndex(), slot.getStack()).count() == 0) {
+                source = slot;
+                break;
+            }
+        }
+        if (source == null) {
+            return null;
+        }
+
+        ItemStack original = source.getStack().copy();
+        for (Slot target : slots) {
+            if (target.hasStack() || !target.canInsert(original)) {
+                continue;
+            }
+            client.interactionManager.clickSlot(handler.syncId, source.id, 0,
+                    SlotActionType.PICKUP, client.player);
+            if (source.hasStack() || handler.getCursorStack().getCount() != original.getCount()
+                    || !ItemStack.areItemsAndComponentsEqual(handler.getCursorStack(), original)) {
+                return null;
+            }
+            // 普通右键会被 QuickShulker 当作拆包；右键拖拽只在空格放一个空盒。
+            client.interactionManager.clickSlot(handler.syncId, -999, ScreenHandler.packQuickCraftData(0, 1),
+                    SlotActionType.QUICK_CRAFT, client.player);
+            client.interactionManager.clickSlot(handler.syncId, target.id, ScreenHandler.packQuickCraftData(1, 1),
+                    SlotActionType.QUICK_CRAFT, client.player);
+            client.interactionManager.clickSlot(handler.syncId, -999, ScreenHandler.packQuickCraftData(2, 1),
+                    SlotActionType.QUICK_CRAFT, client.player);
+            if (!source.hasStack() && ItemStack.areItemsAndComponentsEqual(handler.getCursorStack(), original)) {
+                client.interactionManager.clickSlot(handler.syncId, source.id, 0,
+                        SlotActionType.PICKUP, client.player);
+            }
+            if (handler.getCursorStack().isEmpty()
+                    && source.getStack().getCount() == original.getCount() - 1
+                    && ItemStack.areItemsAndComponentsEqual(source.getStack(), original)
+                    && isSingleShulker(target.getStack())
+                    && ItemStack.areItemsAndComponentsEqual(target.getStack(), original)) {
+                return target;
+            }
+            return null;
+        }
+        return null;
     }
 
     static int outputBoxContentPriority(boolean empty,
