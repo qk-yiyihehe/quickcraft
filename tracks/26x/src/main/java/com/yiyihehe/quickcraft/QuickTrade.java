@@ -292,16 +292,6 @@ public final class QuickTrade implements ClientModInitializer {
                 continue;
             }
 
-            if (screen != null) {
-                selectTrade(screen, favoriteIndex);
-            } else {
-                selectTrade(handler, favoriteIndex);
-            }
-            if (!handler.getSlot(OUTPUT_SLOT_ID).hasItem()) {
-                failed = true;
-                continue;
-            }
-
             boolean tradeFailed = screen != null
                     ? tradeAllAvailable(screen, favoriteIndex)
                     : tradeAllAvailable(handler, favoriteIndex);
@@ -462,10 +452,16 @@ public final class QuickTrade implements ClientModInitializer {
             return false;
         }
 
+        if (needsExplicitPayments(handler, offer)) {
+            return tradeWithExplicitPayments(client, handler, tradeIndex, offer);
+        }
         selectTradeAction.run();
 
         for (int attempt = 0; attempt < MAX_BATCH_TRADES; attempt++) {
             if (!handler.getSlot(OUTPUT_SLOT_ID).hasItem()) {
+                if (needsExplicitPayments(handler, offer)) {
+                    return tradeWithExplicitPayments(client, handler, tradeIndex, offer);
+                }
                 selectTradeAction.run();
                 if (!handler.getSlot(OUTPUT_SLOT_ID).hasItem()) {
                     MerchantOffer currentOffer = getOffer(handler.getOffers(), tradeIndex);
@@ -475,13 +471,8 @@ public final class QuickTrade implements ClientModInitializer {
 
             ItemStack resultTemplate = handler.getSlot(OUTPUT_SLOT_ID).getItem().copy();
             int beforeCount = countMatchingItems(client.player.getInventory(), resultTemplate);
-            client.gameMode.handleContainerInput(
-                    handler.containerId,
-                    OUTPUT_SLOT_ID,
-                    0,
-                    ContainerInput.QUICK_MOVE,
-                    client.player
-            );
+            QuickSlotTransfer.quickMove(client, handler, OUTPUT_SLOT_ID,
+                    QuickSlotTransfer::isPlayerStorageSlot, true);
             int afterCount = countMatchingItems(client.player.getInventory(), resultTemplate);
             if (afterCount <= beforeCount) {
                 return true;
@@ -489,6 +480,101 @@ public final class QuickTrade implements ClientModInitializer {
         }
 
         return false;
+    }
+
+    private static boolean needsExplicitPayments(MerchantMenu handler, MerchantOffer offer) {
+        ItemStack first = offer.getCostA();
+        ItemStack second = offer.getCostB();
+        boolean hasLockedDestination = false;
+        for (int id = 3; id < handler.slots.size(); id++) {
+            if (!QuickContainerLock.isLockedSlot(handler, id)) continue;
+            hasLockedDestination = true;
+            ItemStack stack = handler.getSlot(id).getItem();
+            if (!stack.isEmpty()
+                    && (stack.is(first.getItem()) || (!second.isEmpty() && stack.is(second.getItem())))) return true;
+        }
+        // 选择交易也会把旧付款退回背包，目的锁格同样不能交给服务端自行选择。
+        return hasLockedDestination && (handler.getSlot(0).hasItem() || handler.getSlot(1).hasItem());
+    }
+
+    private static boolean tradeWithExplicitPayments(Minecraft client, MerchantMenu handler,
+                                                     int tradeIndex, MerchantOffer offer) {
+        ItemStack first = offer.getCostA();
+        ItemStack second = offer.getCostB();
+        MerchantOffer[] serverOrder = currentOrderState != null && currentOrderState.offers() == handler.getOffers()
+                ? currentOrderState.originalOffers() : handler.getOffers().toArray(MerchantOffer[]::new);
+        MerchantOffer matched = null;
+        for (MerchantOffer candidate : serverOrder) {
+            if (candidate.satisfiedBy(first, second)) {
+                matched = candidate;
+                break;
+            }
+        }
+        if (matched != offer) {
+            client.player.sendSystemMessage(Component.translatable("quickcraft.message.trade.locked_payment_ambiguous"));
+            return true;
+        }
+        if (!handler.getCarried().isEmpty() || client.getConnection() == null) return true;
+        // 原版对 -1 不执行自动补料；清除选中提示后，只发送明确来源的取放。
+        client.getConnection().send(new ServerboundSelectTradePacket(-1));
+        handler.setSelectionHint(tradeIndex);
+        if (!clearExplicitPayments(client, handler)) return true;
+        try {
+            for (int attempt = 0; attempt < MAX_BATCH_TRADES && !offer.isOutOfStock(); attempt++) {
+                if (!fillExplicitPayment(client, handler, 0, offer.getCostA())
+                        || !fillExplicitPayment(client, handler, 1, offer.getCostB())) return true;
+                ItemStack expected = offer.assemble();
+                ItemStack actual = handler.getSlot(OUTPUT_SLOT_ID).getItem();
+                if (!ItemStack.isSameItemSameComponents(actual, expected) || actual.getCount() != expected.getCount()) return true;
+                int before = countMatchingItems(client.player.getInventory(), expected);
+                QuickSlotTransfer.quickMove(client, handler, OUTPUT_SLOT_ID,
+                        QuickSlotTransfer::isPlayerStorageSlot, true);
+                if (!handler.getCarried().isEmpty()
+                        || countMatchingItems(client.player.getInventory(), expected) <= before) return true;
+            }
+            return false;
+        } finally {
+            clearExplicitPayments(client, handler);
+        }
+    }
+
+    private static boolean clearExplicitPayments(Minecraft client, MerchantMenu handler) {
+        if (client.player.containerMenu != handler || !handler.getCarried().isEmpty()) return false;
+        for (int id = 0; id < 2; id++) {
+            if (handler.getSlot(id).hasItem()) {
+                QuickSlotTransfer.quickMove(client, handler, id, QuickSlotTransfer::isPlayerStorageSlot, true);
+                if (handler.getSlot(id).hasItem() || !handler.getCarried().isEmpty()) return false;
+            }
+        }
+        return true;
+    }
+
+    private static boolean fillExplicitPayment(Minecraft client, MerchantMenu handler,
+                                                int target, ItemStack cost) {
+        if (cost.isEmpty()) return !handler.getSlot(target).hasItem();
+        ItemStack existing = handler.getSlot(target).getItem();
+        if (!existing.isEmpty() && !ItemStack.isSameItemSameComponents(existing, cost)) return false;
+        for (int id = 3; id < handler.slots.size(); id++) {
+            int missing = cost.getCount() - handler.getSlot(target).getItem().getCount();
+            if (missing <= 0) return true;
+            var source = handler.getSlot(id);
+            if (QuickContainerLock.isLockedSlot(handler, source) || !source.mayPickup(client.player)
+                    || !ItemStack.isSameItemSameComponents(source.getItem(), cost)) continue;
+            int amount = Math.min(missing, source.getItem().getCount());
+            client.gameMode.handleContainerInput(handler.containerId, id, 0, ContainerInput.PICKUP, client.player);
+            ItemStack cursor = handler.getCarried();
+            if (!ItemStack.isSameItemSameComponents(cursor, cost)) return false;
+            if (cursor.getCount() <= amount) {
+                client.gameMode.handleContainerInput(handler.containerId, target, 0, ContainerInput.PICKUP, client.player);
+            } else {
+                for (int placed = 0; placed < amount; placed++) {
+                    client.gameMode.handleContainerInput(handler.containerId, target, 1, ContainerInput.PICKUP, client.player);
+                }
+                client.gameMode.handleContainerInput(handler.containerId, id, 0, ContainerInput.PICKUP, client.player);
+            }
+            if (!handler.getCarried().isEmpty()) return false;
+        }
+        return handler.getSlot(target).getItem().getCount() >= cost.getCount();
     }
 
     private static void selectTrade(MerchantScreen screen, int tradeIndex) {

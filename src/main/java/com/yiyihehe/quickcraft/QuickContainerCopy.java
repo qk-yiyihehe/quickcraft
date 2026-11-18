@@ -1710,13 +1710,7 @@ public final class QuickContainerCopy implements ClientModInitializer {
             return !slot.hasStack();
         }
 
-        client.interactionManager.clickSlot(
-                handler.syncId,
-                containerSlotId,
-                0,
-                SlotActionType.QUICK_MOVE,
-                client.player
-        );
+        QuickSlotTransfer.quickMove(client, handler, containerSlotId, QuickSlotTransfer::isPlayerStorageSlot, true);
 
         if (handler.getSlot(containerSlotId).hasStack()
                 && handler.getCursorStack().isEmpty()
@@ -1726,13 +1720,7 @@ public final class QuickContainerCopy implements ClientModInitializer {
             }
 
             if (freePlayerStorageSlotIntoQuickShulker(handler, client)) {
-                client.interactionManager.clickSlot(
-                        handler.syncId,
-                        containerSlotId,
-                        0,
-                        SlotActionType.QUICK_MOVE,
-                        client.player
-                );
+                QuickSlotTransfer.quickMove(client, handler, containerSlotId, QuickSlotTransfer::isPlayerStorageSlot, true);
             }
         }
 

@@ -559,13 +559,7 @@ public final class QuickTransfer implements ClientModInitializer {
             return false;
         }
 
-        client.gameMode.handleContainerInput(
-                screen.getMenu().containerId,
-                hoveredSlot.index,
-                0,
-                ContainerInput.QUICK_MOVE,
-                client.player
-        );
+        quickMoveSlot(screen, hoveredSlot);
         return true;
     }
 
@@ -575,13 +569,14 @@ public final class QuickTransfer implements ClientModInitializer {
             return;
         }
 
-        client.gameMode.handleContainerInput(
-                screen.getMenu().containerId,
-                slot.index,
-                0,
-                ContainerInput.QUICK_MOVE,
-                client.player
-        );
+        var handler = screen.getMenu();
+        boolean fromPlayer = isPlayerStorageSlot(slot);
+        boolean fromHotbar = isPlayerHotbarSlot(slot);
+        QuickSlotTransfer.quickMove(client, handler, slot.index, target -> {
+            if (!fromPlayer) return isPlayerStorageSlot(target);
+            if (canMoveFromPlayerStorage(handler)) return !isPlayerStorageSlot(target);
+            return fromHotbar ? isPlayerMainInventorySlot(target) : isPlayerHotbarSlot(target);
+        }, !fromPlayer);
     }
 
     private static boolean moveAllMatchingStacksByQuickMove(AbstractContainerScreen<?> screen,

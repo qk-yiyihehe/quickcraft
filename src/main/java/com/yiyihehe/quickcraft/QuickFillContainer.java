@@ -138,13 +138,8 @@ public final class QuickFillContainer implements ClientModInitializer {
 
             int sourceCount = slot.getStack().getCount();
             int beforeContainer = countMatchingInContainer(handler, containerSlotIds, mostAbundant);
-            client.interactionManager.clickSlot(
-                    handler.syncId,
-                    playerSlotId,
-                    0,
-                    SlotActionType.QUICK_MOVE,
-                    client.player
-            );
+            QuickSlotTransfer.quickMove(client, handler, playerSlotId,
+                    target -> !isPlayerStorageSlot(target) && isVisibleSlot(target), false);
             int afterContainer = countMatchingInContainer(handler, containerSlotIds, mostAbundant);
             int afterSource = handler.getSlot(playerSlotId).getStack().getCount();
             int movedToContainer = afterContainer - beforeContainer;

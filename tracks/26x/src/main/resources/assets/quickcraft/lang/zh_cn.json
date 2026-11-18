@@ -841,5 +841,6 @@
   "quickcraft.button.cross_box_sort.compact": "杂盒跨盒整理",
   "quickcraft.message.cross_box_sort.container_space": "箱子跨盒整理请留出两个背包空位。",
   "quickcraft.message.cross_box_sort.container_unavailable": "请重新打开要整理的箱子。",
-  "quickcraft.message.cross_box_sort.container_recovery_failed": "整理已停止，请检查临时物品。"
+  "quickcraft.message.cross_box_sort.container_recovery_failed": "整理已停止，请检查临时物品。",
+  "quickcraft.message.trade.locked_payment_ambiguous": "QuickTrade: 锁格保护下无法安全区分这条交易，请手动选择并付款"
 }

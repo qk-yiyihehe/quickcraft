@@ -1718,13 +1718,7 @@ public final class QuickContainerCopy implements ClientModInitializer {
             return !slot.hasItem();
         }
 
-        client.gameMode.handleContainerInput(
-                handler.containerId,
-                containerSlotId,
-                0,
-                ContainerInput.QUICK_MOVE,
-                client.player
-        );
+        QuickSlotTransfer.quickMove(client, handler, containerSlotId, QuickSlotTransfer::isPlayerStorageSlot, true);
 
         if (handler.getSlot(containerSlotId).hasItem()
                 && handler.getCarried().isEmpty()
@@ -1734,13 +1728,7 @@ public final class QuickContainerCopy implements ClientModInitializer {
             }
 
             if (freePlayerStorageSlotIntoQuickShulker(handler, client)) {
-                client.gameMode.handleContainerInput(
-                        handler.containerId,
-                        containerSlotId,
-                        0,
-                        ContainerInput.QUICK_MOVE,
-                        client.player
-                );
+                QuickSlotTransfer.quickMove(client, handler, containerSlotId, QuickSlotTransfer::isPlayerStorageSlot, true);
             }
         }
 

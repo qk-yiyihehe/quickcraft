@@ -841,5 +841,6 @@
   "quickcraft.button.cross_box_sort.compact": "Mixed cross-box sorting",
   "quickcraft.message.cross_box_sort.container_space": "Leave two unlocked player inventory slots empty.",
   "quickcraft.message.cross_box_sort.container_unavailable": "Reopen the container you want to sort.",
-  "quickcraft.message.cross_box_sort.container_recovery_failed": "Sorting stopped. Check the temporarily stored items."
+  "quickcraft.message.cross_box_sort.container_recovery_failed": "Sorting stopped. Check the temporarily stored items.",
+  "quickcraft.message.trade.locked_payment_ambiguous": "QuickTrade: Locked-slot protection cannot safely select this offer. Select and pay manually."
 }

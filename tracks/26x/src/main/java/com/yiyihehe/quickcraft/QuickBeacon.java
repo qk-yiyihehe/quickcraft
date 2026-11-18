@@ -304,7 +304,7 @@ public final class QuickBeacon implements ClientModInitializer {
             return false;
         }
 
-        clickSlot(handler, PLAYER_CRAFT_RESULT_SLOT_ID, 0, ContainerInput.QUICK_MOVE, client);
+        QuickSlotTransfer.quickMove(client, handler, PLAYER_CRAFT_RESULT_SLOT_ID, QuickSlotTransfer::isPlayerStorageSlot, true);
 
         ItemStack after = handler.getSlot(PLAYER_CRAFT_RESULT_SLOT_ID).getItem();
         return after.isEmpty()
@@ -521,7 +521,7 @@ public final class QuickBeacon implements ClientModInitializer {
         for (int slotId = 1; slotId <= 4; slotId++) {
             Slot slot = handler.getSlot(slotId);
             if (slot.hasItem()) {
-                clickSlot(handler, slotId, 0, ContainerInput.QUICK_MOVE, client);
+                QuickSlotTransfer.quickMove(client, handler, slotId, QuickSlotTransfer::isPlayerStorageSlot, true);
             }
         }
     }

@@ -164,13 +164,8 @@ public final class QuickStash implements ClientModInitializer {
                 continue;
             }
 
-            client.gameMode.handleContainerInput(
-                    handler.containerId,
-                    playerSlotId,
-                    0,
-                    ContainerInput.QUICK_MOVE,
-                    client.player
-            );
+            QuickSlotTransfer.quickMove(client, handler, playerSlotId,
+                    target -> !isPlayerStorageSlot(target) && isVisibleSlot(target), false);
         }
     }
 
@@ -200,13 +195,7 @@ public final class QuickStash implements ClientModInitializer {
                 continue;
             }
 
-            client.gameMode.handleContainerInput(
-                    handler.containerId,
-                    slot.index,
-                    0,
-                    ContainerInput.QUICK_MOVE,
-                    client.player
-            );
+            QuickSlotTransfer.quickMove(client, handler, slot.index, QuickSlotTransfer::isPlayerStorageSlot, true);
         }
     }
 

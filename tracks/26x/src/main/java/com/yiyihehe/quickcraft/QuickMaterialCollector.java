@@ -1074,7 +1074,8 @@ public final class QuickMaterialCollector implements ClientModInitializer {
         }
 
         if (moveAmount == sourceCount) {
-            clickSlot(handler, sourceSlotId, 0, ContainerInput.QUICK_MOVE);
+            QuickSlotTransfer.quickMove(Minecraft.getInstance(), handler, sourceSlotId,
+                    QuickSlotTransfer::isPlayerStorageSlot, true);
             int remaining = source.hasItem() && stacksExactlyMatch(source.getItem(), sourceTemplate)
                     ? source.getItem().getCount() : 0;
             return Math.max(0, sourceCount - remaining);
@@ -1243,7 +1244,8 @@ public final class QuickMaterialCollector implements ClientModInitializer {
             return;
         }
 
-        clickSlot(handler, source.index, 0, ContainerInput.QUICK_MOVE);
+        QuickSlotTransfer.quickMove(Minecraft.getInstance(), handler, source.index,
+                    QuickSlotTransfer::isPlayerStorageSlot, true);
         if (source.hasItem()) {
             return;
         }
