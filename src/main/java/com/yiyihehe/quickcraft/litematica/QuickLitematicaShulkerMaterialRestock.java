@@ -1,6 +1,7 @@
 package com.yiyihehe.quickcraft.litematica;
 
 import com.yiyihehe.quickcraft.config.QuickCraftConfigs;
+import com.yiyihehe.quickcraft.QuickContainerLock;
 import com.yiyihehe.quickcraft.compat.QuickShulkerConnection;
 import fi.dy.masa.litematica.config.Configs;
 import fi.dy.masa.litematica.data.DataManager;
@@ -706,7 +707,7 @@ public final class QuickLitematicaShulkerMaterialRestock implements ClientModIni
 
     private static boolean hasPlayerItem(PlayerInventory inventory, Item item) {
         for (int slot = 0; slot < 36; slot++) {
-            if (inventory.getStack(slot).isOf(item)) {
+            if (!QuickContainerLock.isLockedPlayerInventorySlot(slot) && inventory.getStack(slot).isOf(item)) {
                 return true;
             }
         }
@@ -716,7 +717,8 @@ public final class QuickLitematicaShulkerMaterialRestock implements ClientModIni
     private static boolean hasPlayerStack(PlayerInventory inventory, ItemStack identity) {
         for (int slot = 0; slot < 36; slot++) {
             ItemStack stack = inventory.getStack(slot);
-            if (!stack.isEmpty() && ItemStack.areItemsAndComponentsEqual(stack, identity)) {
+            if (!QuickContainerLock.isLockedPlayerInventorySlot(slot)
+                    && !stack.isEmpty() && ItemStack.areItemsAndComponentsEqual(stack, identity)) {
                 return true;
             }
         }
@@ -725,7 +727,7 @@ public final class QuickLitematicaShulkerMaterialRestock implements ClientModIni
 
     private static boolean isInventoryFull(PlayerInventory inventory) {
         for (int slot = 0; slot < 36; slot++) {
-            if (inventory.getStack(slot).isEmpty()) {
+            if (!QuickContainerLock.isLockedPlayerInventorySlot(slot) && inventory.getStack(slot).isEmpty()) {
                 return false;
             }
         }
@@ -849,7 +851,8 @@ public final class QuickLitematicaShulkerMaterialRestock implements ClientModIni
 
     private static boolean isLitematicaPickBlockTarget(PlayerInventory inventory, int slot) {
         ItemStack stack = inventory.getStack(slot);
-        return !isShulkerBox(stack)
+        return !QuickContainerLock.isLockedPlayerHotbarSlot(slot)
+                && !isShulkerBox(stack)
                 && (!Configs.Generic.PICK_BLOCK_AVOID_DAMAGEABLE.getBooleanValue() || !stack.isDamageable())
                 && (!Configs.Generic.PICK_BLOCK_AVOID_TOOLS.getBooleanValue() || !EquipmentUtils.isRegularTool(stack));
     }
@@ -866,7 +869,8 @@ public final class QuickLitematicaShulkerMaterialRestock implements ClientModIni
     private static List<Slot> getContainerSlots(ScreenHandler handler) {
         List<Slot> slots = new ArrayList<>();
         for (Slot slot : handler.slots) {
-            if (!(slot.inventory instanceof PlayerInventory) && slot.isEnabled()) {
+            if (!(slot.inventory instanceof PlayerInventory) && slot.isEnabled()
+                    && !QuickContainerLock.isLockedSlot(handler, slot)) {
                 slots.add(slot);
             }
         }
@@ -880,7 +884,8 @@ public final class QuickLitematicaShulkerMaterialRestock implements ClientModIni
             if (slot.inventory instanceof PlayerInventory
                     && slot.getIndex() >= 0
                     && slot.getIndex() < 36
-                    && slot.isEnabled()) {
+                    && slot.isEnabled()
+                    && !QuickContainerLock.isLockedSlot(handler, slot)) {
                 slots.add(slot);
             }
         }

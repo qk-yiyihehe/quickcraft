@@ -438,6 +438,11 @@ public final class QuickContainerLock implements ClientModInitializer {
         return false;
     }
 
+    public static boolean isLockedPlayerInventorySlot(int inventoryIndex) {
+        return inventoryIndex >= 0 && inventoryIndex < PLAYER_STORAGE_SLOT_COUNT
+                && LOCKED_PLAYER_SLOTS.contains(inventoryIndex);
+    }
+
     public static boolean isLockedPlayerHotbarSlot(int hotbarIndex) {
         return hotbarIndex >= 0
                 && hotbarIndex < HOTBAR_SLOT_COUNT

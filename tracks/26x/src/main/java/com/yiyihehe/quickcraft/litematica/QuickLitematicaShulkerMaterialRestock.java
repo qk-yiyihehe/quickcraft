@@ -2,6 +2,7 @@ package com.yiyihehe.quickcraft.litematica;
 
 import com.yiyihehe.quickcraft.QuickClientScreenAccess;
 import com.yiyihehe.quickcraft.config.QuickCraftConfigs;
+import com.yiyihehe.quickcraft.QuickContainerLock;
 import com.yiyihehe.quickcraft.compat.QuickShulkerConnection;
 import fi.dy.masa.litematica.config.Configs;
 import fi.dy.masa.malilib.util.EquipmentUtils;
@@ -711,7 +712,7 @@ public final class QuickLitematicaShulkerMaterialRestock implements ClientModIni
 
     private static boolean hasPlayerItem(Inventory inventory, Item item) {
         for (int slot = 0; slot < 36; slot++) {
-            if (inventory.getItem(slot).is(item)) {
+            if (!QuickContainerLock.isLockedPlayerInventorySlot(slot) && inventory.getItem(slot).is(item)) {
                 return true;
             }
         }
@@ -721,7 +722,8 @@ public final class QuickLitematicaShulkerMaterialRestock implements ClientModIni
     private static boolean hasPlayerStack(Inventory inventory, ItemStack identity) {
         for (int slot = 0; slot < 36; slot++) {
             ItemStack stack = inventory.getItem(slot);
-            if (!stack.isEmpty() && ItemStack.isSameItemSameComponents(stack, identity)) {
+            if (!QuickContainerLock.isLockedPlayerInventorySlot(slot)
+                    && !stack.isEmpty() && ItemStack.isSameItemSameComponents(stack, identity)) {
                 return true;
             }
         }
@@ -730,7 +732,7 @@ public final class QuickLitematicaShulkerMaterialRestock implements ClientModIni
 
     private static boolean isInventoryFull(Inventory inventory) {
         for (int slot = 0; slot < 36; slot++) {
-            if (inventory.getItem(slot).isEmpty()) {
+            if (!QuickContainerLock.isLockedPlayerInventorySlot(slot) && inventory.getItem(slot).isEmpty()) {
                 return false;
             }
         }
@@ -839,12 +841,14 @@ public final class QuickLitematicaShulkerMaterialRestock implements ClientModIni
         }
 
         if (configuredSlots.contains(selectedSlot)
+                && !QuickContainerLock.isLockedPlayerHotbarSlot(selectedSlot)
                 && isLitematicaPickBlockTarget(inventory.getItem(selectedSlot), avoidDamageable, avoidTools)) {
             return selectedSlot;
         }
 
         for (int slot : configuredSlots) {
-            if (isLitematicaPickBlockTarget(inventory.getItem(slot), avoidDamageable, avoidTools)) {
+            if (!QuickContainerLock.isLockedPlayerHotbarSlot(slot)
+                    && isLitematicaPickBlockTarget(inventory.getItem(slot), avoidDamageable, avoidTools)) {
                 return slot;
             }
         }
@@ -867,7 +871,8 @@ public final class QuickLitematicaShulkerMaterialRestock implements ClientModIni
     }
 
     private static boolean isLitematicaPickBlockTarget(Inventory inventory, int slot) {
-        return isLitematicaPickBlockTarget(
+        return !QuickContainerLock.isLockedPlayerHotbarSlot(slot)
+                && isLitematicaPickBlockTarget(
                 inventory.getItem(slot),
                 Configs.Generic.PICK_BLOCK_AVOID_DAMAGEABLE.getBooleanValue(),
                 Configs.Generic.PICK_BLOCK_AVOID_TOOLS.getBooleanValue()
@@ -894,7 +899,8 @@ public final class QuickLitematicaShulkerMaterialRestock implements ClientModIni
     private static List<Slot> getContainerSlots(AbstractContainerMenu handler) {
         List<Slot> slots = new ArrayList<>();
         for (Slot slot : handler.slots) {
-            if (!(slot.container instanceof Inventory) && slot.isActive()) {
+            if (!(slot.container instanceof Inventory) && slot.isActive()
+                    && !QuickContainerLock.isLockedSlot(handler, slot)) {
                 slots.add(slot);
             }
         }
@@ -908,7 +914,8 @@ public final class QuickLitematicaShulkerMaterialRestock implements ClientModIni
             if (slot.container instanceof Inventory
                     && slot.getContainerSlot() >= 0
                     && slot.getContainerSlot() < 36
-                    && slot.isActive()) {
+                    && slot.isActive()
+                    && !QuickContainerLock.isLockedSlot(handler, slot)) {
                 slots.add(slot);
             }
         }
