@@ -1484,13 +1484,8 @@ final class QuickCraftMouseCrafting {
                 continue;
             }
 
-            client.interactionManager.clickSlot(
-                    handler.syncId,
-                    gridSlot,
-                    0,
-                    SlotActionType.QUICK_MOVE,
-                    client.player
-            );
+            com.yiyihehe.quickcraft.QuickSlotTransfer.quickMove(client, handler, gridSlot,
+                    com.yiyihehe.quickcraft.QuickSlotTransfer::isPlayerStorageSlot, true);
             existing = handler.getSlot(gridSlot).getStack();
             if (!existing.isEmpty()
                     && (template.isEmpty() || !ItemStack.areItemsAndComponentsEqual(existing, template))) {
@@ -1642,8 +1637,8 @@ final class QuickCraftMouseCrafting {
         if (QuickCraftMouseCraftInventory.findAcceptingUnlockedSlot(handler, layout, moving) < 0) {
             return false;
         }
-        client.interactionManager.clickSlot(
-                handler.syncId, gridSlot, 0, SlotActionType.QUICK_MOVE, client.player);
+        com.yiyihehe.quickcraft.QuickSlotTransfer.quickMove(client, handler, gridSlot,
+                    com.yiyihehe.quickcraft.QuickSlotTransfer::isPlayerStorageSlot, true);
         return handler.getSlot(gridSlot).getStack().isEmpty()
                 && handler.getCursorStack().isEmpty();
     }
@@ -1904,39 +1899,11 @@ final class QuickCraftMouseCrafting {
             return false;
         }
 
-        ItemStack before = handler.getSlot(OUTPUT_SLOT).getStack().copy();
-        int returnSlot = findAcceptingPlayerInventoryHandlerSlot(handler, before);
-        if (returnSlot == -1) {
+        if (!QuickCraftMouseCraftInventory.canAcceptUnlocked(
+                handler, layout, handler.getSlot(OUTPUT_SLOT).getStack())) {
             return throwCraftingOutput(client, handler);
         }
-
-        int beforeResultCount = countMatchingItems(client.player.getInventory(), before);
-        client.interactionManager.clickSlot(
-                handler.syncId,
-                OUTPUT_SLOT,
-                0,
-                SlotActionType.PICKUP,
-                client.player
-        );
-
-        boolean pickedOutput = !handler.getCursorStack().isEmpty()
-                && ItemStack.areItemsAndComponentsEqual(handler.getCursorStack(), before);
-        if (pickedOutput) {
-            client.interactionManager.clickSlot(
-                    handler.syncId,
-                    returnSlot,
-                    0,
-                    SlotActionType.PICKUP,
-                    client.player
-            );
-        }
-
-        ItemStack after = handler.getSlot(OUTPUT_SLOT).getStack();
-        return handler.getCursorStack().isEmpty()
-                && (after.isEmpty()
-                || !ItemStack.areItemsAndComponentsEqual(before, after)
-                || after.getCount() != before.getCount()
-                || countMatchingItems(client.player.getInventory(), before) > beforeResultCount);
+        return QuickCraftMouseCraftInventory.takeOneOutputToUnlockedInventory(client, handler, layout);
     }
 
     private boolean hasUnevenManualPatternStacks(ScreenHandler handler) {
