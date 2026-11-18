@@ -193,7 +193,7 @@ public final class QuickContainerLock implements ClientModInitializer {
         return false;
     }
 
-    static void bindInventoryShulkerScreen(HandledScreen<?> screen, int inventorySlot) {
+    public static void bindInventoryShulkerScreen(HandledScreen<?> screen, int inventorySlot) {
         setCurrentScreenHandler(screen.getScreenHandler(), QUICK_SHULKER_CONTAINER_KEY_PREFIX + inventorySlot);
         clearPendingContainerOpen();
     }
@@ -204,7 +204,7 @@ public final class QuickContainerLock implements ClientModInitializer {
                 ? Integer.parseInt(key.substring(QUICK_SHULKER_CONTAINER_KEY_PREFIX.length())) : -1;
     }
 
-    static void bindSameContainerScreen(ScreenHandler handler, ScreenHandler originalHandler) {
+    public static void bindSameContainerScreen(ScreenHandler handler, ScreenHandler originalHandler) {
         setCurrentScreenHandler(handler, getContainerKey(originalHandler));
     }
 

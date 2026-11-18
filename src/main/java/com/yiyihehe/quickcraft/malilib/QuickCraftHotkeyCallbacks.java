@@ -64,6 +64,8 @@ public final class QuickCraftHotkeyCallbacks {
         QuickCraftConfigs.Hotkeys.ANVIL_BUILD.getKeybind().setCallback((action, key) ->
                 MinecraftClient.getInstance().currentScreen instanceof AnvilScreen
                         && QuickCraftConfigs.Crafting.ENABLE_ANVIL_ASSISTANT.getBooleanValue());
+        QuickCraftConfigs.Hotkeys.CROSS_BOX_SORT.getKeybind().setCallback((action, key) ->
+                action == KeyAction.PRESS && com.yiyihehe.quickcraft.QuickCrossBoxSort.handleHotkey());
         QuickCraft.bindOptionalHotkeys();
     }
 

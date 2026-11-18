@@ -383,6 +383,8 @@ public final class QuickCraftConfigs implements IConfigHandler {
                 true,
                 ""
         ).apply(CONTAINER_TRANSLATION_PREFIX);
+        public static final ConfigBooleanHotkeyed ENABLE_CROSS_BOX_SORT = new ConfigBooleanHotkeyed(
+                "enableCrossBoxSort", true, "").apply(CONTAINER_TRANSLATION_PREFIX);
         public static final ConfigStringList QUICK_SORT_TOP_PRIORITY_ITEMS = new ConfigStringList(
                 "quickSortTopPriorityItems",
                 DEFAULT_QUICK_SORT_TOP_PRIORITY_ITEMS
@@ -501,6 +503,7 @@ public final class QuickCraftConfigs implements IConfigHandler {
                 ENABLE_FAVORITE_TRADE,
                 ENABLE_QUICK_SORT,
                 SHOW_QUICK_SORT_BUTTON,
+                ENABLE_CROSS_BOX_SORT,
                 QUICK_SORT_TOP_PRIORITY_ITEMS,
                 QUICK_SORT_BOTTOM_PRIORITY_ITEMS,
                 QUICK_SORT_SHULKER_BOXES_AT_END,
@@ -947,6 +950,8 @@ public final class QuickCraftConfigs implements IConfigHandler {
                 "R",
                 ANY_PRESS
         ).apply(HOTKEY_TRANSLATION_PREFIX);
+        public static final ConfigHotkey CROSS_BOX_SORT = new ConfigHotkey(
+                "crossBoxSortHotkey", "LEFT_CONTROL,R", GUI_PRESS).apply(HOTKEY_TRANSLATION_PREFIX);
         public static final ConfigHotkey DROP_MATCHING = new ConfigHotkey(
                 "dropMatchingHotkey",
                 "LEFT_CONTROL,Q",
@@ -1008,6 +1013,7 @@ public final class QuickCraftConfigs implements IConfigHandler {
                 ANVIL_BUILD,
                 RAPID_CRAFT,
                 QUICK_SORT,
+                CROSS_BOX_SORT,
                 DROP_MATCHING,
                 DROP_WHOLE_STACK,
                 QUICK_TRANSFER,
@@ -1046,6 +1052,7 @@ public final class QuickCraftConfigs implements IConfigHandler {
                 ContainerTools.ENABLE_FAVORITE_TRADE,
                 ContainerTools.ENABLE_QUICK_SORT,
                 ContainerTools.SHOW_QUICK_SORT_BUTTON,
+                ContainerTools.ENABLE_CROSS_BOX_SORT,
                 ContainerTools.SHOW_CONTAINER_LOCK_BUTTON,
                 ContainerTools.SHOW_SLOT_LOCK_OVERLAY,
                 ContainerTools.SHOW_CONTAINER_FILL_STATUS_OUTLINES,
@@ -1084,6 +1091,7 @@ public final class QuickCraftConfigs implements IConfigHandler {
                 Hotkeys.ANVIL_BUILD,
                 Hotkeys.RAPID_CRAFT,
                 Hotkeys.QUICK_SORT,
+                Hotkeys.CROSS_BOX_SORT,
                 Hotkeys.DROP_MATCHING,
                 Hotkeys.DROP_WHOLE_STACK,
                 Hotkeys.QUICK_TRANSFER,
@@ -1118,6 +1126,7 @@ public final class QuickCraftConfigs implements IConfigHandler {
                 ContainerTools.ENABLE_FAVORITE_TRADE,
                 ContainerTools.ENABLE_QUICK_SORT,
                 ContainerTools.SHOW_QUICK_SORT_BUTTON,
+                ContainerTools.ENABLE_CROSS_BOX_SORT,
                 ContainerTools.SHOW_CONTAINER_LOCK_BUTTON,
                 ContainerTools.SHOW_SLOT_LOCK_OVERLAY,
                 ContainerTools.SHOW_CONTAINER_FILL_STATUS_OUTLINES,
@@ -1251,6 +1260,12 @@ public final class QuickCraftConfigs implements IConfigHandler {
     public static boolean isQuickSortEnabled() {
         return ContainerTools.ENABLE_QUICK_SORT.getBooleanValue();
     }
+
+    public static boolean isCrossBoxSortEnabled() {
+        return isQuickSortEnabled() && ContainerTools.ENABLE_CROSS_BOX_SORT.getBooleanValue();
+    }
+
+    public static IKeybind getCrossBoxSortHotkey() { return Hotkeys.CROSS_BOX_SORT.getKeybind(); }
 
     public static boolean isQuickSortButtonVisible() {
         return isQuickSortEnabled() && ContainerTools.SHOW_QUICK_SORT_BUTTON.getBooleanValue();

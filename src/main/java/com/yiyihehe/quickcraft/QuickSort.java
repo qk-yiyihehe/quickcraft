@@ -74,14 +74,15 @@ public class QuickSort implements ClientModInitializer {
 
     private void onClientTick(MinecraftClient client) {
         boolean quickSortDown = QuickCraftKeyBindings.isHotkeyDown(QuickCraftConfigs.getQuickSortHotkey());
-        if (quickSortDown && !lastQuickSortDown) {
+        if (quickSortDown && !lastQuickSortDown && !QuickCrossBoxSort.isRunning()
+                && !QuickCraftKeyBindings.isHotkeyDown(QuickCraftConfigs.getCrossBoxSortHotkey())) {
             handleQuickSortHotkey(client);
         }
         lastQuickSortDown = quickSortDown;
     }
 
     public static boolean handleQuickSortHotkey(MinecraftClient client) {
-        if (client == null || client.player == null || !QuickCraftConfigs.isQuickSortEnabled()) {
+        if (client == null || client.player == null || QuickCrossBoxSort.isRunning() || !QuickCraftConfigs.isQuickSortEnabled()) {
             return false;
         }
 
@@ -101,7 +102,7 @@ public class QuickSort implements ClientModInitializer {
     }
 
     public static void sortFromButton(HandledScreen<?> gui, boolean playerInventory) {
-        if (!QuickCraftConfigs.isQuickSortEnabled()) {
+        if (QuickCrossBoxSort.isRunning() || !QuickCraftConfigs.isQuickSortEnabled()) {
             return;
         }
         HandledScreenAccessor accessor = (HandledScreenAccessor) gui;
@@ -113,6 +114,20 @@ public class QuickSort implements ClientModInitializer {
                 .filter(area -> !playerInventory || area.label().equals("player-main"))
                 .findFirst().orElse(null);
         sortInventory(gui, target);
+    }
+
+    public static boolean isContainerSortArea(HandledScreen<?> gui) {
+        var target = findSortTarget(gui);
+        return target != null && target.label().equals("container");
+    }
+
+    /** 跨盒整理复用普通整理的区域判定，玩家区同时包含主背包和快捷栏。 */
+    public static List<Integer> crossBoxSortSlots(HandledScreen<?> gui, boolean playerInventory) {
+        var targets = playerInventory ? buildPlayerTargets(gui, 0, 0) : buildContainerTargets(gui, 0, 0);
+        if (playerInventory) {
+            return targets.stream().flatMap(target -> target.slotIds().stream()).distinct().toList();
+        }
+        return targets.isEmpty() ? List.of() : targets.getFirst().slotIds();
     }
 
     private static void sortInventory(HandledScreen<?> gui, SortTarget target) {
@@ -190,7 +205,7 @@ public class QuickSort implements ClientModInitializer {
         };
     }
 
-    private static boolean isTextInputFocused(HandledScreen<?> gui) {
+    public static boolean isTextInputFocused(HandledScreen<?> gui) {
         Element focused = gui.getFocused();
         return focused instanceof TextFieldWidget;
     }
@@ -798,6 +813,31 @@ public class QuickSort implements ClientModInitializer {
             return false;
         }
         return target.getCount() < target.getMaxCount();
+    }
+
+    public static void prepareCrossBoxOrder() {
+        ensureItemGroupDisplayContext(MinecraftClient.getInstance());
+    }
+
+    public static int compareCrossBoxStacks(ItemStack a, ItemStack b) {
+        int rankA = crossBoxRank(a);
+        int rankB = crossBoxRank(b);
+        if (rankA != rankB) { return Integer.compare(rankA, rankB); }
+        return switch (rankA) {
+            case 0 -> comparePriorityStacks(a, b);
+            case 2 -> compareBottomPriorityStacks(a, b);
+            case 3 -> compareBundleStacks(a, b);
+            case 4 -> compareShulkerStacks(a, b);
+            default -> compareStacksWithStorageContents(a, b);
+        };
+    }
+
+    private static int crossBoxRank(ItemStack stack) {
+        if (getTopPriorityIndex(stack) >= 0) { return 0; }
+        if (getBottomPriorityIndex(stack) >= 0) { return 2; }
+        if (isBundle(stack) && QuickCraftConfigs.areQuickSortBundlesAtEnd()) { return 3; }
+        if (isShulkerBox(stack) && QuickCraftConfigs.areQuickSortShulkerBoxesAtEnd()) { return 4; }
+        return 1;
     }
 
     private static int compareStacks(ItemStack a, ItemStack b) {

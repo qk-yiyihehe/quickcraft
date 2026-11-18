@@ -14,6 +14,8 @@ import com.yiyihehe.quickcraft.render.QuickContainerLockButton;
 import com.yiyihehe.quickcraft.render.QuickDraggableButton;
 import com.yiyihehe.quickcraft.render.QuickSortButton;
 import com.yiyihehe.quickcraft.render.QuickStashButton;
+import com.yiyihehe.quickcraft.render.QuickCrossBoxSortButton;
+import com.yiyihehe.quickcraft.QuickCrossBoxSort;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.components.Tooltip;
@@ -155,6 +157,12 @@ abstract class CraftActionButtonBackpackMixin extends AbstractContainerScreen<In
     @Unique
     private QuickStashButton quickcraft$stashButton;
 
+    @Unique
+    private QuickCrossBoxSortButton quickcraft$pureSortButton;
+
+    @Unique
+    private QuickCrossBoxSortButton quickcraft$compactSortButton;
+
     protected CraftActionButtonBackpackMixin(InventoryMenu handler, Inventory inventory, Component title) {
         super(handler, inventory, title);
     }
@@ -216,7 +224,7 @@ abstract class CraftActionButtonBackpackMixin extends AbstractContainerScreen<In
         }
 
         int buttonX = this.leftPos + this.imageWidth - 18;
-        int buttonY = this.topPos + 67;
+        int buttonY = this.topPos + 69;
         this.quickcraft$lockButton = this.addRenderableWidget(new QuickContainerLockButton(buttonX, buttonY, button -> {
                     QuickContainerLock.toggleCurrentScreenLock(client, this);
                 }, () -> QuickContainerLock.isCurrentScreenLocked(this),
@@ -227,17 +235,31 @@ abstract class CraftActionButtonBackpackMixin extends AbstractContainerScreen<In
 
     @Unique
     private void quickcraft$ensureSortButton() {
+        boolean crossVisible = QuickCraftConfigs.isCrossBoxSortEnabled() && QuickCraftConfigs.isQuickSortButtonVisible();
+        if (crossVisible && (quickcraft$pureSortButton == null || !children().contains(quickcraft$pureSortButton))) {
+            quickcraft$pureSortButton = addRenderableWidget(new QuickCrossBoxSortButton(this.leftPos + this.imageWidth - 50, this.topPos + 53, true));
+            quickcraft$compactSortButton = addRenderableWidget(new QuickCrossBoxSortButton(this.leftPos + this.imageWidth - 34, this.topPos + 53, false));
+        }
+        if (quickcraft$pureSortButton != null) {
+            quickcraft$pureSortButton.visible = crossVisible;
+            quickcraft$compactSortButton.visible = crossVisible;
+            quickcraft$pureSortButton.active = !QuickCrossBoxSort.isRunning();
+            quickcraft$compactSortButton.active = !QuickCrossBoxSort.isRunning();
+            quickcraft$pureSortButton.setDefaultPosition(this.leftPos + this.imageWidth - 50, this.topPos + 53);
+            quickcraft$compactSortButton.setDefaultPosition(this.leftPos + this.imageWidth - 34, this.topPos + 53);
+        }
+
         boolean visible = QuickCraftConfigs.isQuickSortButtonVisible();
         if (visible && (this.quickcraft$sortButton == null || !this.children().contains(this.quickcraft$sortButton))) {
             this.quickcraft$sortButton = this.addRenderableWidget(new QuickSortButton(
-                    this.leftPos + this.imageWidth - 34, this.topPos + 67,
+                    this.leftPos + this.imageWidth - 34, this.topPos + 69,
                     button -> QuickSort.sortFromButton(this, true),
                     QuickDraggableButton.PositionKey.INVENTORY_SORT,
                     Component.translatable("quickcraft.button.sort_inventory")));
         }
         if (this.quickcraft$sortButton != null) {
             this.quickcraft$sortButton.visible = visible;
-            this.quickcraft$sortButton.setDefaultPosition(this.leftPos + this.imageWidth - 34, this.topPos + 67);
+            this.quickcraft$sortButton.setDefaultPosition(this.leftPos + this.imageWidth - 34, this.topPos + 69);
         }
     }
 
@@ -246,7 +268,7 @@ abstract class CraftActionButtonBackpackMixin extends AbstractContainerScreen<In
         boolean visible = QuickCraftConfigs.isQuickStashButtonVisible();
         if (visible && (this.quickcraft$stashButton == null || !this.children().contains(this.quickcraft$stashButton))) {
             this.quickcraft$stashButton = this.addRenderableWidget(new QuickStashButton(
-                    this.leftPos + this.imageWidth - 18, this.topPos + 53,
+                    this.leftPos + this.imageWidth - 50, this.topPos + 69,
                     button -> QuickShulkerStash.stashInventory(this),
                     QuickDraggableButton.PositionKey.INVENTORY_SHULKER_STASH,
                     Component.translatable("quickcraft.button.inventory_shulker_stash")));
@@ -254,7 +276,7 @@ abstract class CraftActionButtonBackpackMixin extends AbstractContainerScreen<In
         if (this.quickcraft$stashButton != null) {
             this.quickcraft$stashButton.visible = visible;
             this.quickcraft$stashButton.active = QuickShulkerStash.isAvailable();
-            this.quickcraft$stashButton.setDefaultPosition(this.leftPos + this.imageWidth - 18, this.topPos + 53);
+            this.quickcraft$stashButton.setDefaultPosition(this.leftPos + this.imageWidth - 50, this.topPos + 69);
         }
     }
 
@@ -266,7 +288,7 @@ abstract class CraftActionButtonBackpackMixin extends AbstractContainerScreen<In
 
         this.quickcraft$lockButton.visible = true;
         // 背包界面右侧中部有一块空白边，锁按钮放这里避免挤在右上角。
-        this.quickcraft$lockButton.setDefaultPosition(this.leftPos + this.imageWidth - 18, this.topPos + 67);
+        this.quickcraft$lockButton.setDefaultPosition(this.leftPos + this.imageWidth - 18, this.topPos + 69);
     }
 
 

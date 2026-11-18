@@ -24,6 +24,7 @@ public abstract class WorkbenchShulkerNetworkMixin {
                 packet.getSyncId(), packet.getRevision(), false);
         QuickCraftMouseCraftAckExecutor.onServerSlotUpdate(
                 packet.getSyncId(), packet.getRevision(), packet.getSlot(), packet.getStack());
+        com.yiyihehe.quickcraft.sort.QuickCrossBoxSortSync.recordSlot(packet.getSyncId(), packet.getRevision());
     }
 
     @Inject(method = "onInventory", at = @At("RETURN"))
@@ -35,6 +36,7 @@ public abstract class WorkbenchShulkerNetworkMixin {
                 packet.syncId(), packet.revision(), packet.contents(), packet.cursorStack());
         QuickInventoryShulkerTools.onServerInventoryUpdate(packet.syncId());
         QuickStashShulkerTransfer.onServerInventoryUpdate(packet.syncId());
+        com.yiyihehe.quickcraft.sort.QuickCrossBoxSortSync.recordContent(packet.syncId(), packet.revision());
     }
 
     // RETURN 时客户端 StatHandler 已应用服务端绝对值，统计探针可确认没有槽位变化的批次。
