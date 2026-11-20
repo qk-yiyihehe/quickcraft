@@ -14,6 +14,7 @@ import net.minecraft.world.InteractionResult;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.player.Input;
 import net.minecraft.world.item.BlockItem;
+import net.minecraft.world.item.BucketItem;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.item.context.BlockPlaceContext;
@@ -187,9 +188,8 @@ public final class QuickFreeCameraInteractions {
 
     public static boolean beginItemUseFromFreeCamera(Minecraft client, InteractionHand hand) {
         if (shouldOverrideCrosshair(client)
-                && (client.player.getItemInHand(hand).is(Items.WATER_BUCKET)
-                || client.player.getItemInHand(hand).is(Items.BUCKET))) {
-            if (!beginBucketUseFromFreeCamera(client, client.player.getItemInHand(hand).is(Items.BUCKET))) {
+                && client.player.getItemInHand(hand).getItem() instanceof BucketItem bucket) {
+            if (!beginBucketUseFromFreeCamera(client, bucket == Items.BUCKET)) {
                 return false;
             }
         } else {
@@ -213,7 +213,7 @@ public final class QuickFreeCameraInteractions {
         ClipContext.Fluid fluidHandling = collectFluid ? ClipContext.Fluid.SOURCE_ONLY : ClipContext.Fluid.NONE;
         BlockHitResult target;
         if (collectFluid) {
-            // 普通准星忽略液体，空桶必须从相机单独追踪水源，并与原版桶使用相同的液体规则。
+            // 普通准星忽略液体，空桶按原版规则从相机单独追踪液体源。
             Entity camera = client.getCameraEntity();
             Vec3 cameraEye = camera.getEyePosition();
             target = client.level.clip(new ClipContext(
@@ -248,7 +248,7 @@ public final class QuickFreeCameraInteractions {
         double horizontal = Math.sqrt(direction.x * direction.x + direction.z * direction.z);
         float yaw = (float) Math.toDegrees(Math.atan2(-direction.x, direction.z));
         float pitch = (float) -Math.toDegrees(Math.atan2(direction.y, horizontal));
-        // 使用物品包没有方块坐标；本体必须命中同一目标。倒水还需同一面，收水只取决于方块。
+        // 使用物品包没有方块坐标，倒桶需命中同一方块的同一面，空桶收集只取决于方块。
         BlockHitResult bodyHit = client.level.clip(new ClipContext(
                 eye,
                 eye.add(direction.normalize().scale(player.blockInteractionRange())),
