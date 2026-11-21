@@ -102,6 +102,7 @@ public class QuickSort implements ClientModInitializer {
     }
 
     public static void sortInventory(AbstractContainerScreen<?> gui) {
+        QuickContainerLock.bindCurrentScreen(gui);
         sortInventory(gui, findSortTarget(gui));
     }
 
@@ -109,6 +110,7 @@ public class QuickSort implements ClientModInitializer {
         if (QuickCrossBoxSort.isRunning() || !QuickCraftConfigs.isQuickSortEnabled()) {
             return;
         }
+        QuickContainerLock.bindCurrentScreen(gui);
         HandledScreenAccessor accessor = (HandledScreenAccessor) gui;
         List<SortTarget> targets = playerInventory
                 ? buildPlayerTargets(gui, accessor.quickcraft$getGuiLeft(), accessor.quickcraft$getGuiTop())
@@ -405,6 +407,14 @@ public class QuickSort implements ClientModInitializer {
         return effectiveSlot.container instanceof Inventory ? effectiveSlot.getContainerSlot() : -1;
     }
 
+    private static boolean isOpenShulkerSourceSlot(AbstractContainerMenu handler, Slot slot, Minecraft client) {
+        int inventoryIndex = playerInventoryIndex(slot);
+        return inventoryIndex >= 0
+                && getCurrentScreen(client) instanceof AbstractContainerScreen<?> screen
+                && screen.getMenu() == handler
+                && inventoryIndex == QuickContainerLock.getInventoryShulkerSlot(screen);
+    }
+
     private static List<Slot> exactPlayerSlots(List<Slot> slots, int first, int end) {
         List<Slot> matching = slots.stream()
             .filter(slot -> playerInventoryIndex(slot) >= first && playerInventoryIndex(slot) < end)
@@ -663,7 +673,7 @@ public class QuickSort implements ClientModInitializer {
             if (clickSlotId == slotA || clickSlotId == slotB) {
                 continue;
             }
-            if (QuickContainerLock.isLockedSlot(handler, slot)) {
+            if (QuickContainerLock.isLockedSlot(handler, slot) || isOpenShulkerSourceSlot(handler, slot, client)) {
                 continue;
             }
             if (client.player != null && !slot.mayPickup(client.player)) {
@@ -742,7 +752,8 @@ public class QuickSort implements ClientModInitializer {
     }
 
     private static boolean isSafeVisibleStorageSlot(AbstractContainerMenu handler, Slot slot, Minecraft client) {
-        if (isGcaPlayerInventory(handler) && getClickSlotId(handler, slot) < 18) {
+        if (isOpenShulkerSourceSlot(handler, slot, client)
+            || (isGcaPlayerInventory(handler) && getClickSlotId(handler, slot) < 18)) {
             return false;
         }
         if (getCurrentScreen(client) instanceof CreativeModeInventoryScreen creativeScreen
@@ -1183,7 +1194,7 @@ public class QuickSort implements ClientModInitializer {
     }
 
     /**
-     * 整理时锁住的玩家格子只参与区域判定，不参与实际移动。
+     * 锁格和当前打开的随身潜影盒来源槽仍参与区域判定，整理时跳过。
      */
     private static List<Integer> toUnlockedPlayerSortSlotIds(AbstractContainerMenu handler, List<Slot> slots) {
         Minecraft client = Minecraft.getInstance();
@@ -1193,6 +1204,7 @@ public class QuickSort implements ClientModInitializer {
 
         return sortSlotsForLayout(slots).stream()
             .filter(slot -> !QuickContainerLock.isLockedSlot(handler, slot))
+            .filter(slot -> !isOpenShulkerSourceSlot(handler, slot, client))
             .filter(slot -> slot.mayPickup(client.player))
             .map(slot -> getClickSlotId(handler, slot))
             .toList();
