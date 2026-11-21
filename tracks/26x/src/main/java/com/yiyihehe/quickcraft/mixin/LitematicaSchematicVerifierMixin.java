@@ -309,26 +309,18 @@ public abstract class LitematicaSchematicVerifierMixin extends TaskBase implemen
         this.quickcraft$containerVerification.quickcraft$requestContainerDataOnStart(worldClient, worldSchematic, schematicPlacement, completionListener);
     }
 
-    @Inject(method = "verifyChunks", at = @At("RETURN"))
-    private void quickcraft$logContainerVerificationProblems(CallbackInfoReturnable<Boolean> cir) {
-        this.quickcraft$containerVerification.quickcraft$logContainerVerificationProblems(cir.getReturnValue());
-    }
-
-    @Inject(method = "execute", at = @At("TAIL"))
-    private void quickcraft$refreshContainerMismatches(CallbackInfoReturnable<Boolean> cir) {
-        // 兜底：verifyChunk 被第三方模组（如 litematicafastmove 取消 verifyChunks）跳过时，
-        // 在验证结束后补做容器收集，避免「已检查 0/0」的静默失效。
-        this.quickcraft$containerVerification.quickcraft$collectMissingContainerInventories();
-        this.quickcraft$containerVerification.quickcraft$refreshContainerMismatches();
-    }
-
     @Inject(method = "updateMismatchPositionStringList", at = @At("TAIL"))
     private void quickcraft$splitInventoryHudLines(@Nullable MismatchType mismatchType, List<MismatchRenderPos> positionList, CallbackInfo ci) {
         this.quickcraft$containerVerification.quickcraft$splitInventoryHudLines(mismatchType, positionList);
     }
 
     @Inject(method = "execute", at = @At("RETURN"), cancellable = true)
-    private void quickcraft$removeFinishedContainerOnlyVerifier(CallbackInfoReturnable<Boolean> cir) {
+    private void quickcraft$finishContainerVerificationStep(CallbackInfoReturnable<Boolean> cir) {
+        boolean hasUncollected = this.quickcraft$containerVerification.quickcraft$collectMissingContainerInventories(
+                this.worldClient, this.worldSchematic);
+        this.quickcraft$containerVerification.quickcraft$refreshContainerMismatches();
+        if (hasUncollected) { return; }
+        this.quickcraft$containerVerification.quickcraft$logContainerVerificationProblems();
         Boolean result = this.quickcraft$containerVerification.quickcraft$removeFinishedContainerOnlyVerifier();
         if (result != null) {
             cir.setReturnValue(result);

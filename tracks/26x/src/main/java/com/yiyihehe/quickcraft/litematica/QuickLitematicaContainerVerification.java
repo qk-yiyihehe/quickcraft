@@ -50,6 +50,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -128,16 +129,8 @@ public final class QuickLitematicaContainerVerification implements VerifierExten
     private final Set<ChunkPos> quickcraft$requestedContainerDataChunks = new HashSet<>();
 
     private final Set<ChunkPos> quickcraft$containerDataChunks = new HashSet<>();
-
-    // 已按区块完成容器收集的区块。用于判断 verifyChunk 是否真的执行过：
-    // 部分模组（如 litematicafastmove）会在 verifyChunks 的 HEAD 直接取消原版流程，
-    // verifyChunk 因此永不执行，容器收集也就永不触发。这里留下的缺口由 execute 兜底补齐。
-    private final Set<ChunkPos> quickcraft$collectedContainerChunks = new HashSet<>();
-
-    // startVerification 时保存，供兜底收集使用（verifyChunk 未被调用时 host 上的世界可能已解绑）。
-    private WorldSchematic quickcraft$verificationWorldSchematic;
-    private ClientLevel quickcraft$verificationWorld;
-    private SchematicPlacement quickcraft$verificationPlacement;
+    private final LinkedHashSet<BlockPos> quickcraft$uncollectedContainers = new LinkedHashSet<>();
+    private static final int MAX_FALLBACK_CONTAINERS_PER_EXECUTE = 32;
 
     private boolean quickcraft$containerOnly;
 
@@ -372,108 +365,68 @@ public final class QuickLitematicaContainerVerification implements VerifierExten
                 continue;
             }
 
-            BlockPos pos = candidate.immutable();
-            BlockState schematicState = chunkSchematic.getBlockState(pos);
-            BlockEntity expectedBlockEntity = chunkSchematic.getBlockEntity(pos);
-            ExpectedContainer expectedContainer = QuickLitematicaContainerVerifier.getExpectedContainerPartAt(
-                    this.host.quickcraft$verificationSchematicPlacement(),
-                    pos
-            );
-            if (expectedContainer == null && !(expectedBlockEntity instanceof Container)) {
-                continue;
-            }
-
-            this.quickcraft$expectedContainerPositions.add(pos);
-            List<ContainerMismatch> mismatches = this.quickcraft$collectContainerMismatchesDuringVerification(
-                    foundWorld,
-                    chunkClient,
-                    pos,
-                    schematicState,
-                    expectedBlockEntity,
-                    expectedContainer
-            );
-
-            if (mismatches != null) {
-                this.quickcraft$markContainerChecked(pos);
-                this.quickcraft$removeContainerMismatchesAt(pos);
-                mismatches.forEach(this::quickcraft$addContainerMismatch);
-            } else {
-                this.quickcraft$markContainerPending(pos);
-                this.quickcraft$requestContainerInventoryData(this.host.quickcraft$verificationWorldClient(), pos);
-            }
+            this.quickcraft$collectContainerAt(foundWorld, chunkClient, chunkSchematic, candidate.immutable());
         }
-
-        this.quickcraft$collectedContainerChunks.add(chunkPos);
     }
 
-    /**
-     * verifyChunk 未被调用时的兜底收集。
-     * <p>
-     * 容器收集原本挂在 Litematica 的 {@code verifyChunk} 上；一旦有模组（例如 litematicafastmove）
-     * 在 {@code verifyChunks} 的 HEAD 直接 cancel 并接管验证，{@code verifyChunk} 就再也不会执行，
-     * 结果就是「验证跑完了，但期望容器数仍然是 0」，界面显示「已检查 0/0」且没有任何报错。
-     * <p>
-     * 这里在验证结束后，把 {@code containerDataChunks} 里尚未收集过的区块补收一遍。
-     * 正常流程（verifyChunk 会执行）下 {@code collectedContainerChunks} 已覆盖全部区块，本方法立即返回。
-     */
-    public void quickcraft$collectMissingContainerInventories() {
-        if (!QuickLitematicaContainerVerifier.isEnabled()
-                || this.host.quickcraft$verificationSchematicPlacement() == null
-                || !Boolean.TRUE.equals(this.host.quickcraft$verificationFinished())
-                || this.quickcraft$containerDataChunks.isEmpty()
-                || this.quickcraft$collectedContainerChunks.containsAll(this.quickcraft$containerDataChunks)) {
+    private void quickcraft$collectContainerAt(Level foundWorld, ChunkAccess chunkClient, ChunkAccess chunkSchematic, BlockPos pos) {
+        this.quickcraft$uncollectedContainers.remove(pos);
+        BlockState schematicState = chunkSchematic.getBlockState(pos);
+        BlockEntity expectedBlockEntity = chunkSchematic.getBlockEntity(pos);
+        ExpectedContainer expectedContainer = QuickLitematicaContainerVerifier.getExpectedContainerPartAt(
+                this.host.quickcraft$verificationSchematicPlacement(), pos);
+        if (expectedContainer == null && !(expectedBlockEntity instanceof Container)) {
             return;
         }
 
-        Level foundWorld = fi.dy.masa.malilib.util.WorldUtils.getBestWorld(Minecraft.getInstance());
-        ClientLevel worldClient = this.host.quickcraft$verificationWorldClient();
-
-        if (worldClient == null) {
-            worldClient = this.quickcraft$verificationWorld;
+        this.quickcraft$expectedContainerPositions.add(pos);
+        List<ContainerMismatch> mismatches = this.quickcraft$collectContainerMismatchesDuringVerification(
+                foundWorld, chunkClient, pos, schematicState, expectedBlockEntity, expectedContainer);
+        if (mismatches != null) {
+            this.quickcraft$markContainerChecked(pos);
+            this.quickcraft$removeContainerMismatchesAt(pos);
+            mismatches.forEach(this::quickcraft$addContainerMismatch);
+        } else {
+            this.quickcraft$markContainerPending(pos);
+            this.quickcraft$requestContainerInventoryData(this.host.quickcraft$verificationWorldClient(), pos);
         }
-        if (foundWorld == null || worldClient == null) {
-            return;
-        }
+    }
 
-        // verifyChunk 没跑过时 host 上的世界可能已被解绑，用 startVerification 保存的引用兜底。
-        WorldSchematic worldSchematic = this.quickcraft$verificationWorldSchematic;
+    public boolean quickcraft$collectMissingContainerInventories(ClientLevel worldClient, WorldSchematic worldSchematic) {
+        if (!this.host.quickcraft$verificationFinished() || this.quickcraft$uncollectedContainers.isEmpty()
+                || !QuickLitematicaContainerVerifier.isEnabled()) {
+            return false;
+        }
+        Minecraft client = Minecraft.getInstance();
         SchematicPlacement placement = this.host.quickcraft$verificationSchematicPlacement();
-
-        if (placement == null) {
-            placement = this.quickcraft$verificationPlacement;
+        if (worldClient == null || worldClient != client.level || worldSchematic == null || placement == null) {
+            return false;
         }
-        if (worldSchematic == null && placement != null) {
-            worldSchematic = fi.dy.masa.litematica.world.SchematicWorldHandler.getSchematicWorld();
-        }
-        if (worldSchematic == null || placement == null) {
-            return;
+        Level foundWorld = fi.dy.masa.malilib.util.WorldUtils.getBestWorld(client);
+        if (foundWorld == null) {
+            return false;
         }
 
-        for (ChunkPos chunkPos : new ArrayList<>(this.quickcraft$containerDataChunks)) {
-            if (this.quickcraft$collectedContainerChunks.contains(chunkPos)) {
+        // 异步验证接管 verifyChunks 时，跳过了原本逐箱收集的回调。
+        boolean renderLayers = placement.getSchematicVerifierType() == BlockInfoListType.RENDER_LAYERS;
+        boolean collected = false;
+        int checks = Math.min(MAX_FALLBACK_CONTAINERS_PER_EXECUTE, this.quickcraft$uncollectedContainers.size());
+        for (int i = 0; i < checks; i++) {
+            BlockPos pos = this.quickcraft$uncollectedContainers.removeFirst();
+            if (renderLayers && !DataManager.getRenderLayerRange().isPositionWithinRange(pos)) { continue; }
+            int chunkX = pos.getX() >> 4;
+            int chunkZ = pos.getZ() >> 4;
+            if (!worldClient.getChunkSource().hasChunk(chunkX, chunkZ)
+                    || !worldSchematic.getChunkSource().hasChunk(chunkX, chunkZ)) {
+                if (!this.quickcraft$containerOnly) { this.quickcraft$uncollectedContainers.addLast(pos); }
                 continue;
             }
-
-            ChunkAccess chunkSchematic = worldSchematic.getChunk(chunkPos.x(), chunkPos.z());
-            ChunkAccess chunkClient = worldClient.getChunk(chunkPos.x(), chunkPos.z());
-
-            if (chunkSchematic == null || chunkClient == null) {
-                continue;
-            }
-
-            for (var box : placement.getBoxesWithinChunk(chunkPos.x(), chunkPos.z()).values()) {
-                this.quickcraft$collectContainerInventories(
-                        chunkClient,
-                        chunkSchematic,
-                        box.minX(),
-                        box.minY(),
-                        box.minZ(),
-                        box.maxX(),
-                        box.maxY(),
-                        box.maxZ()
-                );
-            }
+            this.quickcraft$collectContainerAt(foundWorld, foundWorld.getChunk(chunkX, chunkZ),
+                    worldSchematic.getChunk(chunkX, chunkZ), pos);
+            collected = true;
         }
+        if (collected) { this.host.quickcraft$updateVerificationOverlays(); }
+        return !this.quickcraft$uncollectedContainers.isEmpty();
     }
 
     public List<BlockMismatch> quickcraft$getInventoryMismatchOverview(MismatchType type) {
@@ -629,10 +582,6 @@ public final class QuickLitematicaContainerVerification implements VerifierExten
         this.quickcraft$unavailableFoundInventories = 0;
         this.quickcraft$inventorySizeMismatches = 0;
         this.quickcraft$diagnosticSamples.clear();
-        this.quickcraft$collectedContainerChunks.clear();
-        this.quickcraft$verificationWorldSchematic = worldSchematic;
-        this.quickcraft$verificationWorld = worldClient;
-        this.quickcraft$verificationPlacement = schematicPlacement;
 
         if (enabled) {
             this.quickcraft$rebuildContainerDataChunks(worldSchematic, schematicPlacement);
@@ -647,8 +596,8 @@ public final class QuickLitematicaContainerVerification implements VerifierExten
         }
     }
 
-    public void quickcraft$logContainerVerificationProblems(Boolean vanillaResult) {
-        if (!this.quickcraft$diagnosticLogPending || !Boolean.TRUE.equals(vanillaResult)) {
+    public void quickcraft$logContainerVerificationProblems() {
+        if (!this.quickcraft$diagnosticLogPending || !this.host.quickcraft$verificationFinished()) {
             return;
         }
 
@@ -1062,6 +1011,7 @@ public final class QuickLitematicaContainerVerification implements VerifierExten
         this.quickcraft$missingContainerStacks.clear();
         this.quickcraft$requestedContainerDataChunks.clear();
         this.quickcraft$containerDataChunks.clear();
+        this.quickcraft$uncollectedContainers.clear();
         this.host.quickcraft$verificationSelectedCategories().removeIf(QuickLitematicaContainerVerifier::isContainerMismatchType);
         this.host.quickcraft$verificationSelectedEntries().keySet().removeIf(QuickLitematicaContainerVerifier::isContainerMismatchType);
     }
@@ -1133,6 +1083,7 @@ public final class QuickLitematicaContainerVerification implements VerifierExten
 
     private void quickcraft$rebuildContainerDataChunks(WorldSchematic worldSchematic, SchematicPlacement placement) {
         this.quickcraft$containerDataChunks.clear();
+        this.quickcraft$uncollectedContainers.clear();
         Set<ChunkPos> touchedChunks = placement.getTouchedChunks();
 
         for (ChunkPos chunkPos : touchedChunks) {
@@ -1152,6 +1103,7 @@ public final class QuickLitematicaContainerVerification implements VerifierExten
                 );
                 if (expectedContainer != null || expectedBlockEntity instanceof Container) {
                     hasContainer = true;
+                    this.quickcraft$uncollectedContainers.add(pos.immutable());
                 } else if (quickcraft$hasSerializedContainerData(worldSchematic, expectedBlockEntity)) {
                     this.quickcraft$unsupportedExpectedContainers++;
                     BlockState state = chunkSchematic.getBlockState(pos);

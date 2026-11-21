@@ -323,23 +323,18 @@ public abstract class LitematicaSchematicVerifierMixin extends TaskBase implemen
         this.quickcraft$containerVerification.quickcraft$requestContainerDataOnStart(worldClient, worldSchematic, schematicPlacement, completionListener);
     }
 
-    @Inject(method = "verifyChunks", at = @At("RETURN"))
-    private void quickcraft$logContainerVerificationProblems(CallbackInfoReturnable<Boolean> cir) {
-        this.quickcraft$containerVerification.quickcraft$logContainerVerificationProblems(cir.getReturnValue());
-    }
-
-    @Inject(method = "execute", at = @At("TAIL"))
-    private void quickcraft$refreshContainerMismatches(CallbackInfoReturnable<Boolean> cir) {
-        this.quickcraft$containerVerification.quickcraft$refreshContainerMismatches();
-    }
-
     @Inject(method = "updateMismatchPositionStringList", at = @At("TAIL"))
     private void quickcraft$splitInventoryHudLines(@Nullable MismatchType mismatchType, List<MismatchRenderPos> positionList, CallbackInfo ci) {
         this.quickcraft$containerVerification.quickcraft$splitInventoryHudLines(mismatchType, positionList);
     }
 
     @Inject(method = "execute", at = @At("RETURN"), cancellable = true)
-    private void quickcraft$removeFinishedContainerOnlyVerifier(CallbackInfoReturnable<Boolean> cir) {
+    private void quickcraft$finishContainerVerificationStep(CallbackInfoReturnable<Boolean> cir) {
+        boolean hasUncollected = this.quickcraft$containerVerification.quickcraft$collectMissingContainerInventories(
+                this.worldClient, this.worldSchematic);
+        this.quickcraft$containerVerification.quickcraft$refreshContainerMismatches();
+        if (hasUncollected) { return; }
+        this.quickcraft$containerVerification.quickcraft$logContainerVerificationProblems();
         Boolean result = this.quickcraft$containerVerification.quickcraft$removeFinishedContainerOnlyVerifier();
         if (result != null) {
             cir.setReturnValue(result);
