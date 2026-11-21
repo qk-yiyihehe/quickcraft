@@ -4,12 +4,14 @@ import com.yiyihehe.quickcraft.config.QuickCraftConfigs;
 import fi.dy.masa.litematica.data.DataManager;
 import fi.dy.masa.litematica.data.SchematicHolder;
 import fi.dy.masa.litematica.schematic.LitematicaSchematic;
+import fi.dy.masa.litematica.schematic.container.LitematicaBlockStateContainer;
 import fi.dy.masa.litematica.schematic.placement.SchematicPlacement;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.WeakHashMap;
+import net.minecraft.block.BlockState;
 
 /** 原始对照与实际投影数据分开保存；分别应用容器 Items 规则和方块状态规则，随后统一重建投影。 */
 public final class QuickLitematicaContainerMemory {
@@ -25,6 +27,63 @@ public final class QuickLitematicaContainerMemory {
     }
 
     public static long revision() { return revision; }
+
+    public static void schematicReloaded(LitematicaSchematic schematic) {
+        synchronized (QuickLitematicaGlobalReplacements.class) {
+            if (STATES.remove(schematic) != null) {
+                revision++;
+            }
+        }
+    }
+
+    public static final class Mode9Edit {
+        private final LitematicaSchematic schematic;
+        private final LitematicaSchematic displayed;
+        private final State state;
+        private LitematicaBlockStateContainer displayedRegion;
+        private LitematicaBlockStateContainer originalRegion;
+        private boolean changed;
+
+        public Mode9Edit(LitematicaSchematic schematic) {
+            this.schematic = schematic;
+            this.displayed = QuickLitematicaGlobalReplacements.runtime(schematic);
+            this.state = STATES.get(schematic);
+        }
+
+        public void selectRegion(String region) {
+            this.displayedRegion = this.displayed.getSubRegionContainer(region);
+            this.originalRegion = this.state == null ? null : this.state.original.getSubRegionContainer(region);
+        }
+
+        public LitematicaBlockStateContainer displayedRegion(LitematicaBlockStateContainer live) {
+            return this.displayedRegion == null ? live : this.displayedRegion;
+        }
+
+        public void record(int x, int y, int z, BlockState target, boolean liveChanged) {
+            if (this.originalRegion == null) { return; }
+            synchronized (QuickLitematicaGlobalReplacements.class) {
+                // 只同步模式 9 写入的位置，避免把其他格子上的规则结果固化进来源。
+                if (this.originalRegion.get(x, y, z) != target) {
+                    this.originalRegion.set(x, y, z, target);
+                    this.changed = true;
+                }
+                this.changed |= liveChanged;
+            }
+        }
+
+        public void finish(int totalBlocks) {
+            if (!this.changed) { return; }
+            synchronized (QuickLitematicaGlobalReplacements.class) {
+                var original = this.state.original.getMetadata();
+                original.setTotalBlocks(totalBlocks);
+                original.setTimeModifiedToNow();
+                revision++;
+            }
+            if (this.state.materialized || this.state.projectionMaterialized) {
+                update(this.schematic, this.state.context, true);
+            }
+        }
+    }
 
     public static String appliedContext(LitematicaSchematic schematic, String fallback) {
         State state = STATES.get(schematic);
@@ -51,6 +110,10 @@ public final class QuickLitematicaContainerMemory {
     }
 
     public static void update(LitematicaSchematic schematic, Collection<String> regions, String context) {
+        update(schematic, context, false);
+    }
+
+    private static void update(LitematicaSchematic schematic, String context, boolean sourceEdited) {
         if (net.minecraft.client.MinecraftClient.getInstance().world == null) { return; }
         boolean hasContainerRules = !context.isBlank() && QuickLitematicaContainerReplacements.hasValidRules(
                 QuickLitematicaContainerReplacements.Scope.CONTAINER, context);
@@ -66,7 +129,7 @@ public final class QuickLitematicaContainerMemory {
         List<String> projectionConfigured = List.copyOf(QuickCraftConfigs.ProjectionTools.PROJECTION_MATERIAL_REPLACEMENTS.getStrings());
         List<String> selectedRegions = new ArrayList<>(schematic.getAreas().keySet());
         selectedRegions.sort(String::compareTo);
-        if (context.equals(state.context) && selectedRegions.equals(state.regions) && configured.equals(state.configured) && projectionConfigured.equals(state.projectionConfigured) && state.enabled == QuickLitematicaContainerReplacements.enabled()) { return; }
+        if (!sourceEdited && context.equals(state.context) && selectedRegions.equals(state.regions) && configured.equals(state.configured) && projectionConfigured.equals(state.projectionConfigured) && state.enabled == QuickLitematicaContainerReplacements.enabled()) { return; }
         boolean rewrite = hasRules || state.materialized || state.projectionMaterialized;
         if (rewrite) {
             var replaced = QuickLitematicaContainerMaterials.createContainerReplacementCopy(state.original, selectedRegions, context);

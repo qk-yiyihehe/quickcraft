@@ -119,18 +119,41 @@ public final class QuickLitematicaGlobalReplacements {
     }
 
     public static synchronized LitematicaSchematic runtime(SchematicPlacement placement, LitematicaSchematic baseline) {
-        if (!hasRuntimeRules()) { return baseline; }
-        var context = QuickLitematicaMaterialLists.getContainerReplacementContextKey(placement);
+        return hasRuntimeRules()
+                ? runtime(baseline, QuickLitematicaMaterialLists.getContainerReplacementContextKey(placement))
+                : baseline;
+    }
+
+    static synchronized LitematicaSchematic runtime(LitematicaSchematic baseline) {
+        return hasRuntimeRules()
+                ? runtime(baseline, QuickLitematicaMaterialLists.getContainerReplacementContextKey(baseline))
+                : baseline;
+    }
+
+    private static LitematicaSchematic runtime(LitematicaSchematic baseline, String context) {
         var containerRules = List.copyOf(config(Scope.CONTAINER).getStrings());
         var blockRules = List.copyOf(config(Scope.PROJECTION).getStrings());
         long revision = QuickLitematicaContainerMemory.revision();
         var cached = COPIES.get(baseline);
         if (cached != null && cached.revision == revision && cached.context.equals(context)
                 && cached.containerRules.equals(containerRules) && cached.blockRules.equals(blockRules)) { return cached.schematic; }
-        var original = QuickLitematicaContainerMemory.original(baseline);
-        var copy = QuickLitematicaContainerMaterials.createContainerReplacementCopy(original, original.getAreas().keySet(), context, true);
-        QuickLitematicaProjectionMaterials.replaceBlocks(copy, state -> blockTarget(state, context));
+        var copy = createReplacementCopy(QuickLitematicaContainerMemory.original(baseline), context, true);
         COPIES.put(baseline, new RuntimeCopy(copy, context, revision, containerRules, blockRules));
+        return copy;
+    }
+
+    static LitematicaSchematic createReplacementCopy(LitematicaSchematic source, String context) {
+        return createReplacementCopy(source, context, hasRuntimeRules());
+    }
+
+    private static LitematicaSchematic createReplacementCopy(LitematicaSchematic source, String context, boolean useGlobals) {
+        var copy = QuickLitematicaContainerMaterials.createContainerReplacementCopy(
+                source, source.getAreas().keySet(), context, useGlobals);
+        if (useGlobals) {
+            QuickLitematicaProjectionMaterials.replaceBlocks(copy, state -> blockTarget(state, context));
+        } else {
+            QuickLitematicaProjectionMaterials.replaceBlocks(copy, context);
+        }
         return copy;
     }
 

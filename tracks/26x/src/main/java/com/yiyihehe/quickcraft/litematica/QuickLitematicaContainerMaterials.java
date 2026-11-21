@@ -187,8 +187,8 @@ public final class QuickLitematicaContainerMaterials {
         }
         try {
             Path source = sourceFile.toAbsolutePath();
-            var copy = createContainerReplacementCopy(data.schematic, data.schematic.getAreas().keySet(), data.replacementContextKey);
-            QuickLitematicaProjectionMaterials.replaceBlocks(copy, data.replacementContextKey);
+            var copy = QuickLitematicaGlobalReplacements.createReplacementCopy(
+                    QuickLitematicaContainerMemory.original(data.liveSchematic), data.replacementContextKey);
             var output = QuickLitematicaDataCompat.schematicNbt(copy);
             Path destination = writeNumberedCopy(source, output);
             InfoUtils.showGuiOrInGameMessage(MessageType.INFO, "quickcraft.litematica.message.copy_saved", destination.toString());

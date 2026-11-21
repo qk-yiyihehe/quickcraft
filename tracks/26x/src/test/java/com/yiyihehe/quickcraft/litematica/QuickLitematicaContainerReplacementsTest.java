@@ -8,6 +8,13 @@ import net.minecraft.world.item.Items;
 import net.minecraft.core.RegistryAccess;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.core.HolderLookup;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.multiplayer.ClientLevel;
+import net.minecraft.nbt.CompoundTag;
+import net.minecraft.nbt.ListTag;
+import com.yiyihehe.quickcraft.config.QuickCraftConfigs;
+import fi.dy.masa.litematica.schematic.container.LitematicaBlockStateContainer;
+import fi.dy.masa.malilib.util.FileUtils;
 import net.minecraft.network.chat.Component;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
@@ -16,6 +23,10 @@ import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.Mockito.CALLS_REAL_METHODS;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.mockStatic;
+import static org.mockito.Mockito.when;
 
 @org.junit.jupiter.api.extension.ExtendWith(com.yiyihehe.quickcraft.QuickCraftMinecraftTestBootstrap.class)
 class QuickLitematicaContainerReplacementsTest {
@@ -157,6 +168,94 @@ class QuickLitematicaContainerReplacementsTest {
             assertThat(QuickLitematicaContainerMaterialsAccess.itemStackFromNbt(lookup,
                     QuickLitematicaContainerMaterialsAccess.readCompound(QuickLitematicaContainerMaterialsAccess.readCompoundList(chest, "Items"), 0)).getCount()).isEqualTo(64);
         }
+    }
+
+    @Test
+    void mode9EditsRefreshGlobalProjectionAndSurviveSavingACopy(
+            @org.junit.jupiter.api.io.TempDir java.nio.file.Path directory) throws Exception {
+        var toggle = QuickCraftConfigs.ProjectionTools.SHOW_LITEMATICA_MATERIAL_REPLACEMENTS;
+        var rules = QuickCraftConfigs.ProjectionTools.GLOBAL_PROJECTION_MATERIAL_REPLACEMENTS;
+        boolean previousEnabled = toggle.getBooleanValue();
+        var previousRules = List.copyOf(rules.getStrings());
+        var registry = RegistryAccess.fromRegistryOfRegistries(BuiltInRegistries.REGISTRY);
+        var stone = block("minecraft:stone").defaultBlockState();
+        var glass = block("minecraft:glass").defaultBlockState();
+        var oak = block("minecraft:oak_planks").defaultBlockState();
+        var birch = block("minecraft:birch_planks").defaultBlockState();
+
+        try (var minecraft = mockStatic(Minecraft.class); var files = mockStatic(FileUtils.class, CALLS_REAL_METHODS)) {
+            files.when(FileUtils::getMinecraftDirectory).thenReturn(directory);
+            var client = mock(Minecraft.class);
+            client.level = mock(ClientLevel.class);
+            when(client.level.registryAccess()).thenReturn(registry);
+            minecraft.when(Minecraft::getInstance).thenReturn(client);
+
+            toggle.setBooleanValue(true);
+            rules.setStrings(List.of("minecraft:oak_planks->minecraft:birch_planks"));
+            var path = directory.resolve("mode9.litematic");
+            var schematic = schematicFixture(path, twoBlockSchematic());
+            var before = QuickLitematicaGlobalReplacements.runtime(schematic);
+            assertThat(before.getSubRegionContainer("test").get(1, 0, 0)).isSameAs(birch);
+
+            var edit = new QuickLitematicaContainerMemory.Mode9Edit(schematic);
+            edit.selectRegion("test");
+            var live = schematic.getSubRegionContainer("test");
+            assertThat(live.get(0, 0, 0)).isSameAs(stone);
+            live.set(0, 0, 0, glass);
+            edit.record(0, 0, 0, glass, true);
+            edit.finish(2);
+
+            var rendered = QuickLitematicaGlobalReplacements.runtime(schematic).getSubRegionContainer("test");
+            assertThat(rendered.get(0, 0, 0)).isSameAs(glass);
+            assertThat(rendered.get(1, 0, 0)).isSameAs(birch);
+            var original = QuickLitematicaContainerMemory.original(schematic);
+            assertThat(original.getSubRegionContainer("test").get(1, 0, 0)).isSameAs(oak);
+
+            var context = QuickLitematicaMaterialLists.getContainerReplacementContextKey(schematic);
+            var copy = QuickLitematicaGlobalReplacements.createReplacementCopy(original, context);
+            var saved = QuickLitematicaContainerMaterials.writeNumberedCopy(path, QuickLitematicaDataCompat.schematicNbt(copy));
+            var reloaded = fi.dy.masa.litematica.schematic.LitematicaSchematic.createFromFile(
+                    saved.getParent(), saved.getFileName().toString());
+            assertThat(reloaded).isNotNull();
+            assertThat(reloaded.getSubRegionContainer("test").get(0, 0, 0)).isSameAs(glass);
+            assertThat(reloaded.getSubRegionContainer("test").get(1, 0, 0)).isSameAs(birch);
+        } finally {
+            rules.setStrings(previousRules);
+            toggle.setBooleanValue(previousEnabled);
+        }
+    }
+
+    private static CompoundTag twoBlockSchematic() {
+        var states = new LitematicaBlockStateContainer(2, 1, 1);
+        states.set(0, 0, 0, block("minecraft:stone").defaultBlockState());
+        states.set(1, 0, 0, block("minecraft:oak_planks").defaultBlockState());
+        var palette = new ListTag();
+        for (String id : List.of("minecraft:air", "minecraft:stone", "minecraft:oak_planks")) {
+            var state = new CompoundTag();
+            state.putString("Name", id);
+            palette.add(state);
+        }
+
+        var position = new CompoundTag();
+        position.putInt("x", 0);
+        position.putInt("y", 0);
+        position.putInt("z", 0);
+        var size = new CompoundTag();
+        size.putInt("x", 2);
+        size.putInt("y", 1);
+        size.putInt("z", 1);
+        var region = new CompoundTag();
+        region.put("Position", position);
+        region.put("Size", size);
+        region.put("BlockStatePalette", palette);
+        region.putLongArray("BlockStates", states.getBackingLongArray());
+        var regions = new CompoundTag();
+        regions.put("test", region);
+        var schematic = new CompoundTag();
+        schematic.putInt("Version", 6);
+        schematic.putInt("MinecraftDataVersion", 3953);
+        schematic.put("Regions", regions);
+        return schematic;
     }
 
     @Test

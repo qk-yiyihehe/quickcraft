@@ -81,6 +81,8 @@
 		"MalilibWidgetContainerInvoker",
 		"LitematicaMaterialListIgnoresMixin",
 		"LitematicaContainerMemoryPlacementMixin",
+		"LitematicaMode9EditMixin",
+		"LitematicaSchematicReloadMixin",
 		"LitematicaSchematicBlocksAccessor",
 		"LitematicaProjectionFileMaterialsMixin",
 		"LitematicaProjectionCountPlacementMixin",
