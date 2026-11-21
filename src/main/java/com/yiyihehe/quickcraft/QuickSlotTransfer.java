@@ -20,15 +20,58 @@ public final class QuickSlotTransfer {
         return slot.inventory instanceof PlayerInventory && slot.getIndex() >= 0 && slot.getIndex() < 36;
     }
 
+    public static int moveAmount(MinecraftClient client, ScreenHandler menu, Slot source, Slot target, int amount) {
+        ItemStack stack = source.getStack();
+        if (amount <= 0 || source == target || stack.isEmpty() || !menu.getCursorStack().isEmpty()
+                || !source.canTakeItems(client.player) || QuickContainerLock.isLockedSlot(menu, source)
+                || !accepts(menu, target.id, stack)) {
+            return 0;
+        }
+        int before = target.getStack().getCount();
+        int capacity = target.getMaxItemCount(stack) - before;
+        int moved = Math.min(Math.min(stack.getCount(), amount), capacity);
+        if (QuickShulkerClickSafety.isBundlingConflict(stack) && moved < capacity && moved < stack.getCount()) {
+            return QuickShulkerClickSafety.moveExactAmountToSlot(menu, source.id, target.id, moved, client);
+        }
+        ItemStack original = stack.copy();
+        click(client, menu, source, 0);
+        if (!menu.getCursorStack().isEmpty()) {
+            placeCursorAmount(client, menu, target, moved == capacity ? original.getCount() : moved);
+        }
+        if (!menu.getCursorStack().isEmpty()) {
+            click(client, menu, source, 0);
+        }
+        return Math.max(0, target.getStack().getCount() - before);
+    }
+
+    static void placeCursorAmount(MinecraftClient client, ScreenHandler menu, Slot target, int amount) {
+        if (menu.getCursorStack().getCount() <= amount) {
+            click(client, menu, target, 0);
+        } else {
+            for (int i = 0; i < amount; i++) {
+                click(client, menu, target, 1);
+            }
+        }
+    }
+
+    private static void click(MinecraftClient client, ScreenHandler menu, Slot slot, int button) {
+        client.interactionManager.clickSlot(menu.syncId, slot.id, button, SlotActionType.PICKUP, client.player);
+    }
+
     public static void quickMove(MinecraftClient client, ScreenHandler handler, int sourceId,
                                  Predicate<Slot> destination, boolean reverse) {
+        quickMove(client, handler, sourceId, destination, reverse, slot -> QuickContainerLock.isLockedSlot(handler, slot));
+    }
+
+    public static void quickMove(MinecraftClient client, ScreenHandler handler, int sourceId,
+                                 Predicate<Slot> destination, boolean reverse, Predicate<Slot> locked) {
         if (client.player == null || client.interactionManager == null || !handler.getCursorStack().isEmpty()) return;
         List<Integer> targets = new ArrayList<>();
         boolean hasLock = false;
         for (Slot slot : handler.slots) {
             if (slot.id != sourceId && destination.test(slot)) {
                 targets.add(slot.id);
-                hasLock |= QuickContainerLock.isLockedSlot(handler, slot);
+                hasLock |= locked.test(slot);
             }
         }
         if (!hasLock) {
@@ -37,11 +80,11 @@ public final class QuickSlotTransfer {
         }
         if (reverse) Collections.reverse(targets);
         Slot source = handler.getSlot(sourceId);
-        if (QuickContainerLock.isLockedSlot(handler, source) || !source.hasStack() || !source.canTakeItems(client.player)) return;
+        if (locked.test(source) || !source.hasStack() || !source.canTakeItems(client.player)) return;
         ItemStack template = source.getStack().copy();
         int capacity = 0;
         for (int id : targets) {
-            if (accepts(handler, id, template)) {
+            if (accepts(handler, id, template, locked)) {
                 Slot target = handler.getSlot(id);
                 capacity += target.getMaxItemCount(template) - target.getStack().getCount();
             }
@@ -49,28 +92,33 @@ public final class QuickSlotTransfer {
         if (capacity <= 0 || (!source.canInsert(template) && capacity < template.getCount())) return;
         client.interactionManager.clickSlot(handler.syncId, sourceId, 0, SlotActionType.PICKUP, client.player);
         if (!ItemStack.areItemsAndComponentsEqual(handler.getCursorStack(), template)) return;
-        fillCursor(client, handler, targets);
+        fillCursor(client, handler, targets, locked);
         if (!handler.getCursorStack().isEmpty() && source.canInsert(handler.getCursorStack())
-                && !QuickContainerLock.isLockedSlot(handler, source)) {
+                && !locked.test(source)) {
             client.interactionManager.clickSlot(handler.syncId, sourceId, 0, SlotActionType.PICKUP, client.player);
         }
     }
 
     private static boolean accepts(ScreenHandler handler, int id, ItemStack stack) {
+        return accepts(handler, id, stack, slot -> QuickContainerLock.isLockedSlot(handler, slot));
+    }
+
+    private static boolean accepts(ScreenHandler handler, int id, ItemStack stack, Predicate<Slot> locked) {
         Slot slot = handler.getSlot(id);
         ItemStack existing = slot.getStack();
-        return slot.isEnabled() && !QuickContainerLock.isLockedSlot(handler, slot) && slot.canInsert(stack)
+        return slot.isEnabled() && !locked.test(slot) && slot.canInsert(stack)
                 && (existing.isEmpty() || (ItemStack.areItemsAndComponentsEqual(existing, stack)
                 && existing.getCount() < slot.getMaxItemCount(stack)));
     }
 
-    private static void fillCursor(MinecraftClient client, ScreenHandler handler, List<Integer> targets) {
+    private static void fillCursor(MinecraftClient client, ScreenHandler handler, List<Integer> targets,
+                                   Predicate<Slot> locked) {
         for (boolean emptyOnly : new boolean[]{false, true}) {
             for (int id : targets) {
                 ItemStack cursor = handler.getCursorStack();
                 if (cursor.isEmpty()) return;
                 Slot target = handler.getSlot(id);
-                if (target.getStack().isEmpty() != emptyOnly || !accepts(handler, id, cursor)) continue;
+                if (target.getStack().isEmpty() != emptyOnly || !accepts(handler, id, cursor, locked)) continue;
                 client.interactionManager.clickSlot(handler.syncId, id, 0, SlotActionType.PICKUP, client.player);
             }
         }

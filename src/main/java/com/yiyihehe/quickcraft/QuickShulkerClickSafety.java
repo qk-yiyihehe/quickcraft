@@ -109,6 +109,8 @@ final class QuickShulkerClickSafety {
         for (Slot slot : handler.slots) {
             if (slot.id == sourceSlotId || slot.id == targetSlotId || slot.hasStack()
                     || QuickContainerLock.isLockedSlot(handler, slot)
+                    || QuickSlotTransfer.isPlayerStorageSlot(slot)
+                    && QuickContainerLock.isLockedPlayerInventorySlot(slot.getIndex())
                     || !slot.canInsert(template)) {
                 continue;
             }

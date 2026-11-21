@@ -1882,24 +1882,9 @@ public final class QuickContainerCopy implements ClientModInitializer {
         Slot targetSlot = handler.getSlot(targetSlotId);
         int beforeCount = targetSlot.hasItem() ? targetSlot.getItem().getCount() : 0;
 
-        if (cursorStack.getCount() <= neededCount) {
-            client.gameMode.handleContainerInput(
-                    handler.containerId,
-                    targetSlotId,
-                    0,
-                    ContainerInput.PICKUP,
-                    client.player
-            );
-        } else {
-            for (int i = 0; i < neededCount; i++) {
-                client.gameMode.handleContainerInput(
-                        handler.containerId,
-                        targetSlotId,
-                        1,
-                        ContainerInput.PICKUP,
-                        client.player
-                );
-            }
+        boolean split = cursorStack.getCount() > neededCount;
+        QuickSlotTransfer.placeCursorAmount(client, handler, targetSlot, neededCount);
+        if (split) {
             returnCursorStack(handler, sourceSlotId, client);
         }
 
