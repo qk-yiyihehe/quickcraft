@@ -3,6 +3,8 @@ package com.yiyihehe.quickcraft.render;
 import com.yiyihehe.quickcraft.QuickContainerLock;
 import com.yiyihehe.quickcraft.QuickSort;
 import com.yiyihehe.quickcraft.QuickCrossBoxSort;
+import com.yiyihehe.quickcraft.QuickCraftKeyBindings;
+import com.yiyihehe.quickcraft.QuickShulkerStash;
 import com.yiyihehe.quickcraft.QuickStash;
 import com.yiyihehe.quickcraft.config.QuickCraftConfigs;
 import net.minecraft.client.Minecraft;
@@ -32,17 +34,29 @@ public final class QuickContainerButtons {
         boolean stashVisible = QuickCraftConfigs.isQuickStashButtonVisible();
         if (stashVisible && (stash == null || !screen.children().contains(stash))) {
             stash = new QuickStashButton(right - 50, top + 4,
-                    button -> QuickStash.stashFromButton(screen),
+                    button -> {
+                        if (QuickCraftKeyBindings.isAltDown()) {
+                            QuickShulkerStash.stashContainer(screen);
+                        } else {
+                            QuickStash.stashFromButton(screen);
+                        }
+                    },
                     QuickDraggableButton.PositionKey.QUICK_STASH,
-                    Component.translatable("quickcraft.button.quick_stash"));
+                    stashTooltip("quickcraft.button.quick_stash", "quickcraft.button.container_shulker_stash.alt"));
             add.accept(stash);
         }
         position(stash, stashVisible, right - 50, top + 4);
         if (stashVisible && (retrieve == null || !screen.children().contains(retrieve))) {
             retrieve = new QuickRetrieveButton(right - 50, bottom,
-                    button -> QuickStash.retrieveFromButton(screen),
+                    button -> {
+                        if (QuickCraftKeyBindings.isAltDown()) {
+                            QuickShulkerStash.stashInventory(screen);
+                        } else {
+                            QuickStash.retrieveFromButton(screen);
+                        }
+                    },
                     QuickDraggableButton.PositionKey.QUICK_RETRIEVE,
-                    Component.translatable("quickcraft.button.quick_retrieve"));
+                    stashTooltip("quickcraft.button.quick_retrieve", "quickcraft.button.inventory_shulker_stash.alt"));
             add.accept(retrieve);
         }
         position(retrieve, stashVisible, right - 50, bottom);
@@ -110,6 +124,11 @@ public final class QuickContainerButtons {
         position(button, visible, x, y);
         if (button != null) { button.active = !QuickCrossBoxSort.isRunning(); }
         return button;
+    }
+
+    private static Component stashTooltip(String actionKey, String altActionKey) {
+        return Component.translatable(actionKey).append("\n")
+                .append(Component.translatable(altActionKey));
     }
 
     private static void position(QuickDraggableButton button, boolean visible, int x, int y) {

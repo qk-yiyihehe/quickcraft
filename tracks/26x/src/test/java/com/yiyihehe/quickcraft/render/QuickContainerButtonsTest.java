@@ -1,6 +1,8 @@
 package com.yiyihehe.quickcraft.render;
 
 import com.yiyihehe.quickcraft.QuickContainerLock;
+import com.yiyihehe.quickcraft.QuickCraftKeyBindings;
+import com.yiyihehe.quickcraft.QuickShulkerStash;
 import com.yiyihehe.quickcraft.QuickSort;
 import com.yiyihehe.quickcraft.QuickStash;
 import com.yiyihehe.quickcraft.config.QuickCraftConfigs;
@@ -35,6 +37,8 @@ class QuickContainerButtonsTest {
              MockedStatic<QuickContainerLock> locks = mockStatic(QuickContainerLock.class);
              MockedStatic<QuickSort> sort = mockStatic(QuickSort.class);
              MockedStatic<QuickStash> stash = mockStatic(QuickStash.class);
+             MockedStatic<QuickCraftKeyBindings> keys = mockStatic(QuickCraftKeyBindings.class);
+             MockedStatic<QuickShulkerStash> shulkerStash = mockStatic(QuickShulkerStash.class);
              MockedConstruction<QuickStashButton> stashButtons = mockConstruction(QuickStashButton.class,
                      (widget, context) -> actions.put((QuickDraggableButton.PositionKey) context.arguments().get(3),
                              (Button.OnPress) context.arguments().get(2)));
@@ -93,6 +97,13 @@ class QuickContainerButtonsTest {
             stash.verify(() -> QuickStash.retrieveFromButton(screen));
             locks.verify(() -> QuickContainerLock.togglePlayerInventoryLock(client));
             locks.verify(() -> QuickContainerLock.toggleCurrentScreenLock(client, screen));
+
+            keys.when(QuickCraftKeyBindings::isAltDown).thenReturn(true);
+            actions.get(QuickDraggableButton.PositionKey.QUICK_STASH).onPress(null);
+            actions.get(QuickDraggableButton.PositionKey.QUICK_RETRIEVE).onPress(null);
+            shulkerStash.verify(() -> QuickShulkerStash.stashContainer(screen));
+            shulkerStash.verify(() -> QuickShulkerStash.stashInventory(screen));
+            stash.verifyNoMoreInteractions();
         }
     }
 }

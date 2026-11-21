@@ -7,7 +7,6 @@ import com.yiyihehe.quickcraft.config.QuickCraftConfigs;
 import com.yiyihehe.quickcraft.crafting.QuickCraftWorkbenchShulker;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
-import net.minecraft.client.gui.screens.inventory.InventoryScreen;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.inventory.AbstractContainerMenu;
 import net.minecraft.world.inventory.Slot;
@@ -29,33 +28,60 @@ public final class QuickShulkerStash {
     }
 
     public static void stashInventory(AbstractContainerScreen<?> screen) {
+        stash(screen, true);
+    }
+
+    public static void stashContainer(AbstractContainerScreen<?> screen) {
+        stash(screen, false);
+    }
+
+    private static void stash(AbstractContainerScreen<?> screen, boolean playerInventory) {
         Minecraft client = Minecraft.getInstance();
-        if (!(screen instanceof InventoryScreen) || client.player == null || client.gameMode == null
+        if (!QuickCraftConfigs.isQuickStashButtonVisible() || client.player == null || client.gameMode == null
                 || QuickClientScreenAccess.currentScreen(client) != screen || screen.getMenu() != client.player.containerMenu
-                || !isAvailable() || !screen.getMenu().getCarried().isEmpty()
-                || QuickStashShulkerTransfer.isRunning() || QuickCraftWorkbenchShulker.shouldBlockWorkbenchInput()
+                || QuickStashShulkerTransfer.isRunning() || QuickCrossBoxSort.isRunning()
+                || QuickCraftWorkbenchShulker.shouldBlockWorkbenchInput()
                 || QuickContainerCopy.shouldHideBackgroundHandledScreen()
                 || QuickMaterialCollector.shouldHideBackgroundHandledScreen()) {
             return;
         }
-        QuickContainerLock.bindCurrentScreen(screen);
-        if (QuickContainerLock.handleLockedAutomationAttempt(
-                client, screen, Component.translatable("quickcraft.button.quick_stash"))) {
+        if (!isAvailable()) {
+            client.player.sendOverlayMessage(Component.translatable("quickcraft.message.quick_stash.shulker_unavailable"));
             return;
         }
         AbstractContainerMenu handler = screen.getMenu();
-        List<Integer> slots = getPlayerStorageSlotIds(handler);
+        if (!handler.getCarried().isEmpty()) {
+            client.player.sendOverlayMessage(Component.translatable("quickcraft.message.quick_stash.cursor_blocked"));
+            return;
+        }
+        QuickContainerLock.bindCurrentScreen(screen);
+        var actionName = Component.translatable("quickcraft.button.inventory_shulker_stash");
+        boolean locked = playerInventory
+                ? QuickContainerLock.handleLockedPlayerInventoryAutomationAttempt(client, actionName)
+                : QuickContainerLock.handleLockedAutomationAttempt(client, screen, actionName);
+        if (locked) {
+            return;
+        }
+        List<Integer> slots = playerInventory ? getPlayerStorageSlotIds(handler) : getContainerSlotIds(handler);
+        boolean moved = false;
         for (int sourceId : slots) {
             Slot source = handler.getSlot(sourceId);
-            if (!source.hasItem() || isShulkerBox(source.getItem()) || !source.mayPickup(client.player)) {
+            if (!source.hasItem() || isShulkerBox(source.getItem()) || !source.mayPickup(client.player)
+                    || QuickContainerLock.isLockedSlot(handler, source)) {
                 continue;
             }
+            int before = source.getItem().getCount();
             if (!packMatching(handler, sourceId, slots, client)) {
-                if (!handler.getCarried().isEmpty()) {
-                    client.player.sendOverlayMessage(Component.translatable("quickcraft.message.quick_stash.cursor_blocked"));
-                }
+                String failure = handler.getCarried().isEmpty()
+                        ? "quickcraft.message.quick_stash.shulker_insert_failed"
+                        : "quickcraft.message.quick_stash.cursor_blocked";
+                client.player.sendOverlayMessage(Component.translatable(failure));
                 return;
             }
+            moved |= source.getItem().getCount() < before;
+        }
+        if (!moved) {
+            client.player.sendOverlayMessage(Component.translatable("quickcraft.message.quick_stash.shulker_no_match"));
         }
     }
 

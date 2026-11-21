@@ -264,14 +264,15 @@ public final class QuickContainerLock implements ClientModInitializer {
     }
 
     public static boolean handleLockedPlayerInventorySortAttempt(Minecraft client) {
-        if (!LOCKED_CONTAINERS.contains(PLAYER_CONTAINER_KEY)) {
+        return handleLockedPlayerInventoryAutomationAttempt(client, Component.translatable("quickcraft.action.sort"));
+    }
+
+    static boolean handleLockedPlayerInventoryAutomationAttempt(Minecraft client, Component actionName) {
+        if (!isPlayerInventoryLocked()) {
             return false;
         }
 
-        sendStatusMessage(client, Component.translatable(
-                "quickcraft.message.container_lock.blocked",
-                Component.translatable("quickcraft.action.sort")
-        ));
+        sendStatusMessage(client, Component.translatable("quickcraft.message.container_lock.blocked", actionName));
         return true;
     }
 
