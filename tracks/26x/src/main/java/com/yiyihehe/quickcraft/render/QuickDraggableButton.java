@@ -19,11 +19,13 @@ public class QuickDraggableButton extends Button {
     public enum PositionKey {
         CONTAINER_LOCK("containerLock"),
         INVENTORY_LOCK("inventoryLock"),
+        BACKPACK_LOCK("backpackLock"),
         QUICK_STASH("quickStash"),
         PORTABLE_STORAGE("portableStorage"),
         INVENTORY_SHULKER_STASH("inventoryShulkerStash"),
         CONTAINER_SORT("containerSort"),
         INVENTORY_SORT("inventorySort"),
+        BACKPACK_SORT("backpackSort"),
         BACKPACK_CROSS_BOX_SORT_PURE("backpackCrossBoxSortPure"),
         BACKPACK_CROSS_BOX_SORT_COMPACT("backpackCrossBoxSortCompact"),
         CONTAINER_CROSS_BOX_SORT_PURE("containerCrossBoxSortPure"),

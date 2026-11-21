@@ -131,7 +131,7 @@ public abstract class CraftActionButtonBackpackMixin extends HandledScreen<Playe
         this.quickcraft$lockButton = this.addDrawableChild(new QuickContainerLockButton(buttonX, buttonY, button -> {
                     QuickContainerLock.toggleCurrentScreenLock(client, this);
                 }, () -> QuickContainerLock.isCurrentScreenLocked(this),
-                QuickDraggableButton.PositionKey.INVENTORY_LOCK,
+                QuickDraggableButton.PositionKey.BACKPACK_LOCK,
                 Text.translatable("quickcraft.button.inventory_lock.tooltip")));
         this.quickcraft$syncLockButtonPosition();
     }
@@ -155,7 +155,7 @@ public abstract class CraftActionButtonBackpackMixin extends HandledScreen<Playe
             this.quickcraft$sortButton = this.addDrawableChild(new QuickSortButton(
                     this.x + this.backgroundWidth - 34, this.y + 69,
                     button -> QuickSort.sortFromButton(this, true),
-                    QuickDraggableButton.PositionKey.INVENTORY_SORT,
+                    QuickDraggableButton.PositionKey.BACKPACK_SORT,
                     Text.translatable("quickcraft.button.sort_inventory")));
         }
         if (this.quickcraft$sortButton != null) {

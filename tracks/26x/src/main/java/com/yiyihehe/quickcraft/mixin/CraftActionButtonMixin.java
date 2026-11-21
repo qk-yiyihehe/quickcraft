@@ -249,7 +249,7 @@ abstract class CraftActionButtonBackpackMixin extends AbstractContainerScreen<In
         this.quickcraft$lockButton = this.addRenderableWidget(new QuickContainerLockButton(buttonX, buttonY, button -> {
                     QuickContainerLock.toggleCurrentScreenLock(client, this);
                 }, () -> QuickContainerLock.isCurrentScreenLocked(this),
-                QuickDraggableButton.PositionKey.INVENTORY_LOCK,
+                QuickDraggableButton.PositionKey.BACKPACK_LOCK,
                 Component.translatable("quickcraft.button.inventory_lock.tooltip")));
         this.quickcraft$syncLockButtonPosition();
     }
@@ -273,7 +273,7 @@ abstract class CraftActionButtonBackpackMixin extends AbstractContainerScreen<In
             this.quickcraft$sortButton = this.addRenderableWidget(new QuickSortButton(
                     this.leftPos + this.imageWidth - 34, this.topPos + 69,
                     button -> QuickSort.sortFromButton(this, true),
-                    QuickDraggableButton.PositionKey.INVENTORY_SORT,
+                    QuickDraggableButton.PositionKey.BACKPACK_SORT,
                     Component.translatable("quickcraft.button.sort_inventory")));
         }
         if (this.quickcraft$sortButton != null) {
