@@ -5,6 +5,7 @@ import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.yiyihehe.quickcraft.QuickCraft;
+import com.yiyihehe.quickcraft.compat.voidwarehouse.QuickLitematicaVoidWarehouseMaterials;
 import fi.dy.masa.malilib.config.ConfigUtils;
 import fi.dy.masa.malilib.config.IConfigBase;
 import fi.dy.masa.malilib.config.IConfigHandler;
@@ -820,6 +821,11 @@ public final class QuickCraftConfigs implements IConfigHandler {
                 "litematicaShulkerMaterialOrderlyStorage",
                 false
         ).apply(PROJECTION_TRANSLATION_PREFIX);
+        public static final ConfigBooleanHotkeyed USE_VOID_WAREHOUSE_MATERIALS = new ConfigBooleanHotkeyed(
+                "useVoidWarehouseMaterials",
+                false,
+                ""
+        ).apply(PROJECTION_TRANSLATION_PREFIX);
         public static final List<IConfigBase> OPTIONS = List.of(
                 SHOW_LITEMATICA_3D_PREVIEW,
                 AUTO_DISABLE_SHADERS_FOR_3D_PREVIEW,
@@ -841,6 +847,7 @@ public final class QuickCraftConfigs implements IConfigHandler {
                 PROJECTION_MATERIAL_REPLACEMENTS,
                 ENABLE_LITEMATICA_SHULKER_MATERIAL_RESTOCK,
                 LITEMATICA_SHULKER_MATERIAL_ORDERLY_STORAGE,
+                USE_VOID_WAREHOUSE_MATERIALS,
                 ALLOW_EASY_PLACE_VANILLA_INTERACTIONS,
                 ALLOW_EASY_PLACE_ICE_OVER_SOURCE_WATER,
                 ALLOW_EASY_PLACE_INTERACTION_SCREENS,
@@ -1055,7 +1062,7 @@ public final class QuickCraftConfigs implements IConfigHandler {
     }
 
     public static List<IHotkey> getAllHotkeys() {
-        return List.of(
+        return List.<IHotkey>of(
                 Crafting.ENABLE_WORKBENCH,
                 Crafting.ENABLE_WORKBENCH_QUICK_SHULKER,
                 Crafting.ENABLE_WORKBENCH_QUICK_SHULKER_OUTPUT,
@@ -1101,6 +1108,7 @@ public final class QuickCraftConfigs implements IConfigHandler {
                 ProjectionTools.HIGHLIGHT_NONEMPTY_PROJECTION_CONTAINERS,
                 ProjectionTools.SHOW_LITEMATICA_MATERIAL_REPLACEMENTS,
                 ProjectionTools.INCLUDE_ENDER_CHEST_IN_MATERIAL_HUD,
+                ProjectionTools.USE_VOID_WAREHOUSE_MATERIALS,
                 ProjectionTools.PERSIST_PROJECTION_FEATURES,
                 ProjectionTools.PERSIST_SCHEMATIC_VERIFIER,
                 ProjectionTools.ENABLE_AUTO_COLLECT_MATERIALS,
@@ -1128,7 +1136,8 @@ public final class QuickCraftConfigs implements IConfigHandler {
                 Hotkeys.CONTINUOUS_CONTAINER_FILL,
                 Hotkeys.TOGGLE_CONTAINER_TOOL_MODE,
                 Hotkeys.CREATIVE_PACKING
-        );
+        ).stream().filter(hotkey -> hotkey != ProjectionTools.USE_VOID_WAREHOUSE_MATERIALS
+                || QuickLitematicaVoidWarehouseMaterials.isInstalled()).toList();
     }
 
     public static List<ConfigBooleanHotkeyed> getBooleanHotkeyConfigs() {
@@ -1177,6 +1186,7 @@ public final class QuickCraftConfigs implements IConfigHandler {
                 ProjectionTools.HIGHLIGHT_NONEMPTY_PROJECTION_CONTAINERS,
                 ProjectionTools.SHOW_LITEMATICA_MATERIAL_REPLACEMENTS,
                 ProjectionTools.INCLUDE_ENDER_CHEST_IN_MATERIAL_HUD,
+                ProjectionTools.USE_VOID_WAREHOUSE_MATERIALS,
                 ProjectionTools.PERSIST_PROJECTION_FEATURES,
                 ProjectionTools.PERSIST_SCHEMATIC_VERIFIER,
                 ProjectionTools.ENABLE_AUTO_COLLECT_MATERIALS,
@@ -1346,6 +1356,10 @@ public final class QuickCraftConfigs implements IConfigHandler {
 
     public static boolean isLitematicaShulkerMaterialRestockEnabled() {
         return ProjectionTools.ENABLE_LITEMATICA_SHULKER_MATERIAL_RESTOCK.getBooleanValue();
+    }
+
+    public static boolean isVoidWarehouseMaterialSourceEnabled() {
+        return ProjectionTools.USE_VOID_WAREHOUSE_MATERIALS.getBooleanValue();
     }
 
     public static boolean isLitematicaShulkerMaterialRestockWithQuickShulkerEnabled() {
