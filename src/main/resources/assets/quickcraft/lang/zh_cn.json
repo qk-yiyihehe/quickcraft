@@ -144,7 +144,7 @@
   "quickcraft.config.container_tools.comment.showContainerFillStatusOutlines": "§6功能：§r投影填充和容器复制时，在世界中短暂标出目标与结果。\n§e颜色：§r蓝色正在填充，绿色本次填充完成，黄色仍有项目未完成，灰色已停止，红色操作失败。\n§7说明：§r结果按本次填充流程立即显示，不等待二次槽位校验。",
   "quickcraft.config.container_tools.prettyName.allowManualLockedSlotInteraction": "允许手动操作锁格",
   "quickcraft.config.container_tools.name.allowManualLockedSlotInteraction": "允许手动操作锁格",
-  "quickcraft.config.container_tools.comment.allowManualLockedSlotInteraction": "§6功能：§r开启后，锁格只会被 §bQuickCraft§r 自动整理和转移跳过。\n§e说明：§r开启时可手动取放和交换锁格物品；§bQ / Ctrl+Q§r 丢弃始终受锁保护。关闭后恢复全面保护。",
+  "quickcraft.config.container_tools.comment.allowManualLockedSlotInteraction": "§6功能：§r开启后，允许通过原版界面手动取放和交换锁格物品。\n§e说明：§r自动点击仍受锁保护。§bQ / Ctrl+Q§r 和创造模式整包清空会跳过锁格。",
   "quickcraft.config.container_tools.prettyName.enableContainerToolMode": "启用容器辅助工具模式",
   "quickcraft.config.container_tools.name.enableContainerToolMode": "启用容器辅助工具模式",
   "quickcraft.config.container_tools.comment.enableContainerToolMode": "§6功能：§r总开关控制当前容器辅助工具模式是否生效。\n§e说明：§r关闭后，一键回存、容器复制、一键清空、一键填充都不会响应。",

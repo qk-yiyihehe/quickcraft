@@ -3,10 +3,12 @@ package com.yiyihehe.quickcraft.mixin;
 import com.llamalad7.mixinextras.injector.wrapoperation.Operation;
 import com.llamalad7.mixinextras.injector.wrapoperation.WrapOperation;
 import com.yiyihehe.quickcraft.QuickContainerLock;
+import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.item.ItemStack;
 import net.minecraft.item.Items;
 import net.minecraft.screen.ScreenHandler;
 import net.minecraft.screen.slot.Slot;
+import net.minecraft.screen.slot.SlotActionType;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Unique;
 import org.spongepowered.asm.mixin.injection.At;
@@ -19,6 +21,14 @@ import org.spongepowered.asm.mixin.injection.At;
 public abstract class QuickContainerLockScreenHandlerMixin {
     @Unique
     private static final ItemStack QUICKCRAFT_LOCKED_SLOT_PLACEHOLDER = new ItemStack(Items.BARRIER);
+
+    @WrapOperation(method = "onSlotClick", at = @At(value = "INVOKE",
+            target = "Lnet/minecraft/screen/ScreenHandler;internalOnSlotClick(IILnet/minecraft/screen/slot/SlotActionType;Lnet/minecraft/entity/player/PlayerEntity;)V"))
+    private void quickcraft$applySlotTakePermission(ScreenHandler handler, int slotId, int button,
+                                                    SlotActionType actionType, PlayerEntity player, Operation<Void> original) {
+        QuickContainerLock.runMenuSlotClick(handler, slotId, button, actionType, player,
+                () -> original.call(handler, slotId, button, actionType, player));
+    }
 
     @WrapOperation(
             method = "insertItem",

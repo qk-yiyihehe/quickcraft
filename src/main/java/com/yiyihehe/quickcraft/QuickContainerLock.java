@@ -15,10 +15,11 @@ import net.minecraft.block.ChestBlock;
 import net.minecraft.block.EnderChestBlock;
 import net.minecraft.block.ShulkerBoxBlock;
 import net.minecraft.block.enums.ChestType;
-import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.MinecraftClient;
+import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.gui.screen.ingame.CreativeInventoryScreen;
 import net.minecraft.client.gui.screen.ingame.HandledScreen;
+import net.minecraft.client.network.ClientPlayerEntity;
 import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.entity.player.PlayerInventory;
 import net.minecraft.item.BlockItem;
@@ -30,6 +31,7 @@ import net.minecraft.screen.ScreenHandler;
 import net.minecraft.screen.ShulkerBoxScreenHandler;
 import net.minecraft.screen.slot.Slot;
 import net.minecraft.screen.slot.SlotActionType;
+import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.text.Text;
 import net.minecraft.util.Hand;
 import net.minecraft.util.Identifier;
@@ -94,6 +96,8 @@ public final class QuickContainerLock implements ClientModInitializer {
     private static ScreenHandler pendingSourceHandler;
     private static ScreenHandler currentScreenHandler;
     private static String currentScreenContainerKey;
+    private static ManualSlotClick pendingManualClick;
+    private static Boolean manualSlotTakePermission;
     private static boolean bypassPlayerSlotLocks;
     private static int scopedPlayerSlotLockBypassDepth;
     private static final Set<Integer> activeAutoElytraPlayerSlots = new HashSet<>();
@@ -431,7 +435,7 @@ public final class QuickContainerLock implements ClientModInitializer {
         slot = unwrapCreativeSlot(slot);
 
         if (isPlayerStorageSlot(slot)) {
-            return !shouldBypassPlayerSlotLock(slot) && LOCKED_PLAYER_SLOTS.contains(slot.getIndex());
+            return hasPlayerSlotLock(slot);
         }
 
         MinecraftClient client = MinecraftClient.getInstance();
@@ -509,19 +513,76 @@ public final class QuickContainerLock implements ClientModInitializer {
                 && LOCKED_PLAYER_SLOTS.contains(hotbarIndex);
     }
 
-    public static boolean shouldBlockClick(ScreenHandler handler, int slotId, int button, SlotActionType actionType) {
-        if (handler == null || actionType == null) {
+    public static void dispatchManualSlotClick(HandledScreen<?> screen, int slotId, int button,
+                                              SlotActionType actionType, Runnable click) {
+        ManualSlotClick previousClick = pendingManualClick;
+        Boolean previousPermission = manualSlotTakePermission;
+        boolean manual = MinecraftClient.getInstance().currentScreen == screen
+                && QuickCraftConfigs.areManualLockedSlotInteractionsAllowed();
+        pendingManualClick = manual ? new ManualSlotClick(screen.getScreenHandler(), slotId, button, actionType) : null;
+        // 创造界面直接操作菜单，只有普通容器点击会进入客户端交互管理器。
+        manualSlotTakePermission = screen instanceof CreativeInventoryScreen ? manual : null;
+        try {
+            click.run();
+        } finally {
+            pendingManualClick = previousClick;
+            manualSlotTakePermission = previousPermission;
+        }
+    }
+
+    public static boolean consumeManualSlotClick(ScreenHandler handler, int slotId, int button, SlotActionType actionType) {
+        ManualSlotClick click = pendingManualClick;
+        if (click == null || click.handler() != handler || click.slotId() != slotId
+                || click.button() != button || click.actionType() != actionType) {
             return false;
         }
+        pendingManualClick = null;
+        return true;
+    }
 
-        if (isLockedSlot(handler, slotId)) {
-            return !QuickCraftConfigs.areManualLockedSlotInteractionsAllowed()
-                    || actionType == SlotActionType.THROW;
+    public static void runWithSlotTakePermission(boolean manual, Runnable click) {
+        Boolean previous = manualSlotTakePermission;
+        manualSlotTakePermission = manual;
+        try {
+            click.run();
+        } finally {
+            manualSlotTakePermission = previous;
+        }
+    }
+
+    public static void runMenuSlotClick(ScreenHandler handler, int slotId, int button,
+                                        SlotActionType actionType, PlayerEntity player, Runnable click) {
+        // 直接调用客户端菜单的操作没有经过交互管理器，仍然需要判锁。
+        if (player instanceof ClientPlayerEntity && manualSlotTakePermission == null) {
+            if (!shouldBlockClick(handler, slotId, button, actionType, false)) {
+                runWithSlotTakePermission(false, click);
+            }
+            return;
+        }
+        click.run();
+    }
+
+    public static boolean shouldBlockSlotTake(Slot slot, PlayerEntity player) {
+        boolean allowed = player instanceof ClientPlayerEntity && manualSlotTakePermission != null
+                ? manualSlotTakePermission : QuickCraftConfigs.areManualLockedSlotInteractionsAllowed();
+        return !allowed && isLockedSlot(slot);
+    }
+
+    public static boolean shouldBlockClick(ScreenHandler handler, Slot slot, int button,
+                                           SlotActionType actionType, boolean manual) {
+        if (isLockedSlot(handler, slot)) {
+            return !manual || actionType == SlotActionType.THROW;
         }
 
-        return !QuickCraftConfigs.areManualLockedSlotInteractionsAllowed()
-                && actionType == SlotActionType.SWAP
-                && isLockedHotbarSwapTarget(handler, button);
+        return !manual && actionType == SlotActionType.SWAP && isLockedHotbarSwapTarget(handler, button);
+    }
+
+    public static boolean shouldBlockClick(ScreenHandler handler, int slotId, int button,
+                                           SlotActionType actionType, boolean manual) {
+        return shouldBlockClick(handler, getSlot(handler, slotId), button, actionType, manual);
+    }
+
+    private record ManualSlotClick(ScreenHandler handler, int slotId, int button, SlotActionType actionType) {
     }
 
     public static void beginSlotClickContext(ScreenHandler handler, int slotId, int button, SlotActionType actionType) {
@@ -575,7 +636,7 @@ public final class QuickContainerLock implements ClientModInitializer {
         slot = unwrapCreativeSlot(slot);
 
         if (isPlayerStorageSlot(slot)) {
-            return !shouldBypassPlayerSlotLock(slot) && LOCKED_PLAYER_SLOTS.contains(slot.getIndex());
+            return hasPlayerSlotLock(slot);
         }
 
         int containerSlotIndex = getContainerSlotLockIndex(handler, slot);
@@ -647,6 +708,19 @@ public final class QuickContainerLock implements ClientModInitializer {
         return slot.inventory instanceof PlayerInventory
                 && slot.getIndex() >= 0
                 && slot.getIndex() < PLAYER_STORAGE_SLOT_COUNT;
+    }
+
+    private static boolean hasPlayerSlotLock(Slot slot) {
+        if (!LOCKED_PLAYER_SLOTS.contains(slot.getIndex())) {
+            return false;
+        }
+        MinecraftClient client = MinecraftClient.getInstance();
+        ClientPlayerEntity localPlayer = client == null ? null : client.player;
+        PlayerEntity owner = ((PlayerInventory) slot.inventory).player;
+        // 保持房主的本地预测与集成端一致，LAN 客机使用自己的库存。
+        return localPlayer != null
+                && (owner == localPlayer || (owner instanceof ServerPlayerEntity && owner.getUuid().equals(localPlayer.getUuid())))
+                && !shouldBypassPlayerSlotLock(slot);
     }
 
     private static boolean isPlayerHotbarSlot(Slot slot) {

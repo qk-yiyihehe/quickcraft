@@ -1,9 +1,14 @@
 package com.yiyihehe.quickcraft.mixin;
 
+import com.llamalad7.mixinextras.injector.wrapoperation.Operation;
+import com.llamalad7.mixinextras.injector.wrapoperation.WrapOperation;
+import com.llamalad7.mixinextras.sugar.Share;
+import com.llamalad7.mixinextras.sugar.ref.LocalBooleanRef;
 import com.yiyihehe.quickcraft.QuickContainerLock;
 import com.yiyihehe.quickcraft.sort.QuickCrossBoxSortSessions;
 import net.minecraft.client.multiplayer.MultiPlayerGameMode;
 import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.inventory.AbstractContainerMenu;
 import net.minecraft.world.inventory.ContainerInput;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
@@ -22,7 +27,8 @@ public class QuickContainerLockClientPlayerInteractionManagerMixin {
                                                  int button,
                                                  ContainerInput actionType,
                                                  Player player,
-                                                 CallbackInfo ci) {
+                                                 CallbackInfo ci,
+                                                 @Share("manualSlotClick") LocalBooleanRef manualSlotClick) {
         if (QuickCrossBoxSortSessions.INSTANCE.blocksInventoryClicks()) {
             ci.cancel();
             return;
@@ -33,11 +39,23 @@ public class QuickContainerLockClientPlayerInteractionManagerMixin {
             return;
         }
 
-        QuickContainerLock.beginSlotClickContext(player.containerMenu, slotId, button, actionType);
-        if (QuickContainerLock.shouldBlockClick(player.containerMenu, slotId, button, actionType)) {
+        AbstractContainerMenu handler = player.containerMenu;
+        boolean manual = QuickContainerLock.consumeManualSlotClick(handler, slotId, button, actionType);
+        manualSlotClick.set(manual);
+        QuickContainerLock.beginSlotClickContext(handler, slotId, button, actionType);
+        if (QuickContainerLock.shouldBlockClick(handler, slotId, button, actionType, manual)) {
             QuickContainerLock.endSlotClickContext();
             ci.cancel();
         }
+    }
+
+    @WrapOperation(method = "handleContainerInput", at = @At(value = "INVOKE",
+            target = "Lnet/minecraft/world/inventory/AbstractContainerMenu;clicked(IILnet/minecraft/world/inventory/ContainerInput;Lnet/minecraft/world/entity/player/Player;)V"))
+    private void quickcraft$applySlotTakePermission(AbstractContainerMenu handler, int slotId, int button,
+                                                    ContainerInput actionType, Player player, Operation<Void> original,
+                                                    @Share("manualSlotClick") LocalBooleanRef manualSlotClick) {
+        QuickContainerLock.runWithSlotTakePermission(manualSlotClick.get(),
+                () -> original.call(handler, slotId, button, actionType, player));
     }
 
     @Inject(method = "handleContainerInput", at = @At("RETURN"))

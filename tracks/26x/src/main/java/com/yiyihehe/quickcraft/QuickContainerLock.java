@@ -20,9 +20,11 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.gui.screens.inventory.CreativeModeInventoryScreen;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
+import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.client.renderer.RenderPipelines;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.entity.player.Inventory;
+import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.BlockItem;
 import net.minecraft.world.item.ItemStack;
@@ -96,6 +98,8 @@ public final class QuickContainerLock implements ClientModInitializer {
     private static AbstractContainerMenu pendingSourceHandler;
     private static AbstractContainerMenu currentScreenHandler;
     private static String currentScreenContainerKey;
+    private static ManualSlotClick pendingManualClick;
+    private static Boolean manualSlotTakePermission;
     private static boolean bypassPlayerSlotLocks;
     private static int scopedPlayerSlotLockBypassDepth;
     private static final Set<Integer> activeAutoElytraPlayerSlots = new HashSet<>();
@@ -433,7 +437,7 @@ public final class QuickContainerLock implements ClientModInitializer {
         slot = unwrapCreativeSlot(slot);
 
         if (isPlayerStorageSlot(slot)) {
-            return !shouldBypassPlayerSlotLock(slot) && LOCKED_PLAYER_SLOTS.contains(slot.getContainerSlot());
+            return hasPlayerSlotLock(slot);
         }
 
         Minecraft client = Minecraft.getInstance();
@@ -511,19 +515,76 @@ public final class QuickContainerLock implements ClientModInitializer {
                 && LOCKED_PLAYER_SLOTS.contains(hotbarIndex);
     }
 
-    public static boolean shouldBlockClick(AbstractContainerMenu handler, int slotId, int button, ContainerInput actionType) {
-        if (handler == null || actionType == null) {
+    public static void dispatchManualSlotClick(AbstractContainerScreen<?> screen, int slotId, int button,
+                                              ContainerInput actionType, Runnable click) {
+        ManualSlotClick previousClick = pendingManualClick;
+        Boolean previousPermission = manualSlotTakePermission;
+        boolean manual = getCurrentScreen(Minecraft.getInstance()) == screen
+                && QuickCraftConfigs.areManualLockedSlotInteractionsAllowed();
+        pendingManualClick = manual ? new ManualSlotClick(screen.getMenu(), slotId, button, actionType) : null;
+        // 创造界面直接操作菜单，只有普通容器点击会进入客户端交互管理器。
+        manualSlotTakePermission = screen instanceof CreativeModeInventoryScreen ? manual : null;
+        try {
+            click.run();
+        } finally {
+            pendingManualClick = previousClick;
+            manualSlotTakePermission = previousPermission;
+        }
+    }
+
+    public static boolean consumeManualSlotClick(AbstractContainerMenu handler, int slotId, int button, ContainerInput actionType) {
+        ManualSlotClick click = pendingManualClick;
+        if (click == null || click.handler() != handler || click.slotId() != slotId
+                || click.button() != button || click.actionType() != actionType) {
             return false;
         }
+        pendingManualClick = null;
+        return true;
+    }
 
-        if (isLockedSlot(handler, slotId)) {
-            return !QuickCraftConfigs.areManualLockedSlotInteractionsAllowed()
-                    || actionType == ContainerInput.THROW;
+    public static void runWithSlotTakePermission(boolean manual, Runnable click) {
+        Boolean previous = manualSlotTakePermission;
+        manualSlotTakePermission = manual;
+        try {
+            click.run();
+        } finally {
+            manualSlotTakePermission = previous;
+        }
+    }
+
+    public static void runMenuSlotClick(AbstractContainerMenu handler, int slotId, int button,
+                                        ContainerInput actionType, Player player, Runnable click) {
+        // 直接调用客户端菜单的操作没有经过交互管理器，仍然需要判锁。
+        if (player instanceof LocalPlayer && manualSlotTakePermission == null) {
+            if (!shouldBlockClick(handler, slotId, button, actionType, false)) {
+                runWithSlotTakePermission(false, click);
+            }
+            return;
+        }
+        click.run();
+    }
+
+    public static boolean shouldBlockSlotTake(Slot slot, Player player) {
+        boolean allowed = player instanceof LocalPlayer && manualSlotTakePermission != null
+                ? manualSlotTakePermission : QuickCraftConfigs.areManualLockedSlotInteractionsAllowed();
+        return !allowed && isLockedSlot(slot);
+    }
+
+    public static boolean shouldBlockClick(AbstractContainerMenu handler, Slot slot, int button,
+                                           ContainerInput actionType, boolean manual) {
+        if (isLockedSlot(handler, slot)) {
+            return !manual || actionType == ContainerInput.THROW;
         }
 
-        return !QuickCraftConfigs.areManualLockedSlotInteractionsAllowed()
-                && actionType == ContainerInput.SWAP
-                && isLockedHotbarSwapTarget(handler, button);
+        return !manual && actionType == ContainerInput.SWAP && isLockedHotbarSwapTarget(handler, button);
+    }
+
+    public static boolean shouldBlockClick(AbstractContainerMenu handler, int slotId, int button,
+                                           ContainerInput actionType, boolean manual) {
+        return shouldBlockClick(handler, getSlot(handler, slotId), button, actionType, manual);
+    }
+
+    private record ManualSlotClick(AbstractContainerMenu handler, int slotId, int button, ContainerInput actionType) {
     }
 
     public static void beginSlotClickContext(AbstractContainerMenu handler, int slotId, int button, ContainerInput actionType) {
@@ -577,7 +638,7 @@ public final class QuickContainerLock implements ClientModInitializer {
         slot = unwrapCreativeSlot(slot);
 
         if (isPlayerStorageSlot(slot)) {
-            return !shouldBypassPlayerSlotLock(slot) && LOCKED_PLAYER_SLOTS.contains(slot.getContainerSlot());
+            return hasPlayerSlotLock(slot);
         }
 
         int containerSlotIndex = getContainerSlotLockIndex(handler, slot);
@@ -649,6 +710,19 @@ public final class QuickContainerLock implements ClientModInitializer {
         return slot.container instanceof Inventory
                 && slot.getContainerSlot() >= 0
                 && slot.getContainerSlot() < PLAYER_STORAGE_SLOT_COUNT;
+    }
+
+    private static boolean hasPlayerSlotLock(Slot slot) {
+        if (!LOCKED_PLAYER_SLOTS.contains(slot.getContainerSlot())) {
+            return false;
+        }
+        Minecraft client = Minecraft.getInstance();
+        LocalPlayer localPlayer = client == null ? null : client.player;
+        Player owner = ((Inventory) slot.container).player;
+        // 保持房主的本地预测与集成端一致，LAN 客机使用自己的库存。
+        return localPlayer != null
+                && (owner == localPlayer || (owner instanceof ServerPlayer && owner.getUUID().equals(localPlayer.getUUID())))
+                && !shouldBypassPlayerSlotLock(slot);
     }
 
     private static boolean isPlayerHotbarSlot(Slot slot) {

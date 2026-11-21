@@ -3,10 +3,12 @@ package com.yiyihehe.quickcraft.mixin;
 import com.llamalad7.mixinextras.injector.wrapoperation.Operation;
 import com.llamalad7.mixinextras.injector.wrapoperation.WrapOperation;
 import com.yiyihehe.quickcraft.QuickContainerLock;
+import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.inventory.AbstractContainerMenu;
 import net.minecraft.world.inventory.Slot;
+import net.minecraft.world.inventory.ContainerInput;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 
@@ -16,6 +18,14 @@ import org.spongepowered.asm.mixin.injection.At;
  */
 @Mixin(AbstractContainerMenu.class)
 public abstract class QuickContainerLockScreenHandlerMixin {
+    @WrapOperation(method = "clicked", at = @At(value = "INVOKE",
+            target = "Lnet/minecraft/world/inventory/AbstractContainerMenu;doClick(IILnet/minecraft/world/inventory/ContainerInput;Lnet/minecraft/world/entity/player/Player;)V"))
+    private void quickcraft$applySlotTakePermission(AbstractContainerMenu handler, int slotId, int button,
+                                                    ContainerInput actionType, Player player, Operation<Void> original) {
+        QuickContainerLock.runMenuSlotClick(handler, slotId, button, actionType, player,
+                () -> original.call(handler, slotId, button, actionType, player));
+    }
+
     @WrapOperation(
             method = "moveItemStackTo",
             at = @At(

@@ -4,8 +4,12 @@ import com.llamalad7.mixinextras.injector.wrapoperation.Operation;
 import com.llamalad7.mixinextras.injector.wrapoperation.WrapOperation;
 import com.yiyihehe.quickcraft.QuickContainerLock;
 import com.yiyihehe.quickcraft.QuickContainerLockAccess;
+import com.yiyihehe.quickcraft.config.QuickCraftConfigs;
 import net.minecraft.client.MinecraftClient;
+import net.minecraft.client.network.ClientPlayNetworkHandler;
 import net.minecraft.client.network.ClientPlayerEntity;
+import net.minecraft.network.packet.Packet;
+import net.minecraft.network.packet.c2s.play.PlayerActionC2SPacket;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 
@@ -28,5 +32,18 @@ public abstract class QuickContainerLockMinecraftClientMixin {
         }
 
         return original.call(player, entireStack);
+    }
+
+    @WrapOperation(method = "handleInputEvents", at = @At(value = "INVOKE",
+            target = "Lnet/minecraft/client/network/ClientPlayNetworkHandler;sendPacket(Lnet/minecraft/network/packet/Packet;)V"))
+    private void quickcraft$blockLockedOffhandSwap(ClientPlayNetworkHandler connection, Packet<?> packet, Operation<Void> original) {
+        ClientPlayerEntity player = MinecraftClient.getInstance().player;
+        if (player != null && packet instanceof PlayerActionC2SPacket action
+                && action.getAction() == PlayerActionC2SPacket.Action.SWAP_ITEM_WITH_OFFHAND
+                && !QuickCraftConfigs.areManualLockedSlotInteractionsAllowed()
+                && QuickContainerLock.isLockedPlayerHotbarSlot(QuickContainerLockAccess.getSelectedSlot(player.getInventory()))) {
+            return;
+        }
+        original.call(connection, packet);
     }
 }
