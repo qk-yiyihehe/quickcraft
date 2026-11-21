@@ -7,7 +7,6 @@ import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.minecraft.world.level.block.EnderChestBlock;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.client.Minecraft;
-import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.Container;
@@ -29,11 +28,9 @@ import java.util.List;
 
 /** Fills the clicked container with the most abundant transferable item in the player inventory. */
 public final class QuickFillContainer implements ClientModInitializer {
-    private static final int OPEN_TIMEOUT_TICKS = 20;
 
     private static boolean lastUseDown;
-    private static boolean pendingOpen;
-    private static int pendingTicks;
+    private static QuickContainerToolSync.PendingOpen pendingOpen;
 
     @Override
     public void onInitializeClient() {
@@ -42,8 +39,7 @@ public final class QuickFillContainer implements ClientModInitializer {
 
     private void onClientTick(Minecraft client) {
         if (!QuickCraftConfigs.isQuickFillContainerEnabled()) {
-            pendingOpen = false;
-            pendingTicks = 0;
+            pendingOpen = null;
         }
 
         handleUseAttempt(client);
@@ -59,42 +55,39 @@ public final class QuickFillContainer implements ClientModInitializer {
         boolean useDown = QuickCraftKeyBindings.isVanillaKeyDown(client, client.options.keyUse);
         if (useDown
                 && !lastUseDown
-                && getCurrentScreen(client) == null
+                && pendingOpen == null
+                && QuickClientScreenAccess.currentScreen(client) == null
                 && !QuickMaterialCollector.shouldHandleCurrentTarget(client)
                 && !QuickLitematicaContainerAutofill.shouldHandleCurrentTarget(client)
                 && isLookingAtSupportedContainer(client)) {
-            pendingOpen = true;
-            pendingTicks = 0;
+            pendingOpen = new QuickContainerToolSync.PendingOpen(client);
         }
 
         lastUseDown = useDown;
     }
 
     private void processPendingOpen(Minecraft client) {
-        if (!pendingOpen) {
+        if (pendingOpen == null) {
             return;
         }
-
-        pendingTicks++;
-        if (!(getCurrentScreen(client) instanceof AbstractContainerScreen<?> screen)) {
-            if (pendingTicks > OPEN_TIMEOUT_TICKS) {
-                pendingOpen = false;
-                pendingTicks = 0;
-            }
+        if (!pendingOpen.tick(client)) {
+            pendingOpen = null;
             return;
         }
-
-        pendingOpen = false;
-        pendingTicks = 0;
+        if (!(QuickClientScreenAccess.currentScreen(client) instanceof AbstractContainerScreen<?> screen)) {
+            return;
+        }
         if (!hasVisibleContainerSlots(screen.getMenu())) {
+            pendingOpen = null;
             return;
         }
+        if (!pendingOpen.inventoryReady(screen)) {
+            return;
+        }
+
+        pendingOpen = null;
         fillContainer(screen);
         closeCurrentScreen(client);
-    }
-
-    private static Screen getCurrentScreen(Minecraft client) {
-        return QuickClientScreenAccess.currentScreen(client);
     }
 
     private boolean isLookingAtSupportedContainer(Minecraft client) {

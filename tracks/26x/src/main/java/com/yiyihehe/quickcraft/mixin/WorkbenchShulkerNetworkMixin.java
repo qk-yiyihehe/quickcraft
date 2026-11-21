@@ -1,7 +1,6 @@
 package com.yiyihehe.quickcraft.mixin;
 
-import com.yiyihehe.quickcraft.QuickInventoryShulkerTools;
-import com.yiyihehe.quickcraft.QuickStashShulkerTransfer;
+import com.yiyihehe.quickcraft.QuickContainerToolSync;
 import com.yiyihehe.quickcraft.crafting.QuickCraftAnvilRename;
 import com.yiyihehe.quickcraft.crafting.QuickCraftMouseCraftAckExecutor;
 import com.yiyihehe.quickcraft.crafting.QuickCraftWorkbenchShulkerCraft;
@@ -39,8 +38,7 @@ public abstract class WorkbenchShulkerNetworkMixin {
                 packet.containerId(), packet.stateId(), true);
         QuickCraftMouseCraftAckExecutor.onServerInventoryUpdate(
                 packet.containerId(), packet.stateId(), packet.items(), packet.carriedItem());
-        QuickInventoryShulkerTools.onServerInventoryUpdate(packet.containerId());
-        QuickStashShulkerTransfer.onServerInventoryUpdate(packet.containerId());
+        QuickContainerToolSync.onServerInventoryUpdate(packet.containerId());
         com.yiyihehe.quickcraft.sort.QuickCrossBoxSortSync.recordContent(packet.containerId(), packet.stateId());
     }
 

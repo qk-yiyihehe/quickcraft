@@ -25,11 +25,9 @@ import java.util.List;
 
 /** Fills the clicked container with the most abundant transferable item in the player inventory. */
 public final class QuickFillContainer implements ClientModInitializer {
-    private static final int OPEN_TIMEOUT_TICKS = 20;
 
     private static boolean lastUseDown;
-    private static boolean pendingOpen;
-    private static int pendingTicks;
+    private static QuickContainerToolSync.PendingOpen pendingOpen;
 
     @Override
     public void onInitializeClient() {
@@ -38,8 +36,7 @@ public final class QuickFillContainer implements ClientModInitializer {
 
     private void onClientTick(MinecraftClient client) {
         if (!QuickCraftConfigs.isQuickFillContainerEnabled()) {
-            pendingOpen = false;
-            pendingTicks = 0;
+            pendingOpen = null;
         }
 
         handleUseAttempt(client);
@@ -55,36 +52,37 @@ public final class QuickFillContainer implements ClientModInitializer {
         boolean useDown = QuickCraftKeyBindings.isVanillaKeyDown(client, client.options.useKey);
         if (useDown
                 && !lastUseDown
+                && pendingOpen == null
                 && client.currentScreen == null
                 && !QuickMaterialCollector.shouldHandleCurrentTarget(client)
                 && !QuickLitematicaContainerAutofill.shouldHandleCurrentTarget(client)
                 && isLookingAtSupportedContainer(client)) {
-            pendingOpen = true;
-            pendingTicks = 0;
+            pendingOpen = new QuickContainerToolSync.PendingOpen(client);
         }
 
         lastUseDown = useDown;
     }
 
     private void processPendingOpen(MinecraftClient client) {
-        if (!pendingOpen) {
+        if (pendingOpen == null) {
             return;
         }
-
-        pendingTicks++;
+        if (!pendingOpen.tick(client)) {
+            pendingOpen = null;
+            return;
+        }
         if (!(client.currentScreen instanceof HandledScreen<?> screen)) {
-            if (pendingTicks > OPEN_TIMEOUT_TICKS) {
-                pendingOpen = false;
-                pendingTicks = 0;
-            }
+            return;
+        }
+        if (!hasVisibleContainerSlots(screen.getScreenHandler())) {
+            pendingOpen = null;
+            return;
+        }
+        if (!pendingOpen.inventoryReady(screen)) {
             return;
         }
 
-        pendingOpen = false;
-        pendingTicks = 0;
-        if (!hasVisibleContainerSlots(screen.getScreenHandler())) {
-            return;
-        }
+        pendingOpen = null;
         fillContainer(screen);
         closeCurrentScreen(client);
     }

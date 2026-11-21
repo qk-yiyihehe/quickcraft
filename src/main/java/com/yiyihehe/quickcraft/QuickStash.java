@@ -31,11 +31,9 @@ import java.util.List;
  * - 完成后自动关闭界面
  */
 public final class QuickStash implements ClientModInitializer {
-    private static final int OPEN_TIMEOUT_TICKS = 20;
 
     private static boolean lastUseDown;
-    private static boolean pendingOpen;
-    private static int pendingTicks;
+    private static QuickContainerToolSync.PendingOpen pendingOpen;
 
     @Override
     public void onInitializeClient() {
@@ -49,8 +47,7 @@ public final class QuickStash implements ClientModInitializer {
             return;
         }
         if (!QuickCraftConfigs.isQuickStashEnabled()) {
-            pendingOpen = false;
-            pendingTicks = 0;
+            pendingOpen = null;
         }
 
         handleUseAttempt(client);
@@ -66,36 +63,37 @@ public final class QuickStash implements ClientModInitializer {
         boolean useDown = QuickCraftKeyBindings.isVanillaKeyDown(client, client.options.useKey);
         if (useDown
                 && !lastUseDown
+                && pendingOpen == null
                 && client.currentScreen == null
                 && !QuickMaterialCollector.shouldHandleCurrentTarget(client)
                 && !QuickLitematicaContainerAutofill.shouldHandleCurrentTarget(client)
                 && isLookingAtSupportedBlock(client)) {
-            pendingOpen = true;
-            pendingTicks = 0;
+            pendingOpen = new QuickContainerToolSync.PendingOpen(client);
         }
 
         lastUseDown = useDown;
     }
 
     private void processPendingOpen(MinecraftClient client) {
-        if (!pendingOpen) {
+        if (pendingOpen == null) {
             return;
         }
-
-        pendingTicks++;
+        if (!pendingOpen.tick(client)) {
+            pendingOpen = null;
+            return;
+        }
         if (!(client.currentScreen instanceof HandledScreen<?> screen)) {
-            if (pendingTicks > OPEN_TIMEOUT_TICKS) {
-                pendingOpen = false;
-                pendingTicks = 0;
-            }
+            return;
+        }
+        if (!isSupportedHandler(screen.getScreenHandler())) {
+            pendingOpen = null;
+            return;
+        }
+        if (!pendingOpen.inventoryReady(screen)) {
             return;
         }
 
-        pendingOpen = false;
-        pendingTicks = 0;
-        if (!isSupportedHandler(screen.getScreenHandler())) {
-            return;
-        }
+        pendingOpen = null;
         if (!QuickStashShulkerTransfer.start(screen, -1, true)) {
             stashMatchingPlayerItems(screen);
             closeCurrentScreen(client);

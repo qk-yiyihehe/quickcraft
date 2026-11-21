@@ -11,7 +11,6 @@ import net.minecraft.world.level.block.state.properties.ChestType;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
-import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.Container;
 import net.minecraft.world.inventory.AbstractContainerMenu;
@@ -32,13 +31,10 @@ import java.util.List;
  * - 完成后自动关闭界面
  */
 public final class QuickClearContainer implements ClientModInitializer {
-    private static final int OPEN_TIMEOUT_TICKS = 20;
     private static final int ENDER_CHEST_SLOT_COUNT = 27;
 
     private static boolean lastUseDown;
-    private static boolean pendingOpen;
-    private static int pendingTicks;
-    private static ClientLevel pendingLevel;
+    private static QuickContainerToolSync.PendingOpen pendingOpen;
     private static BlockPos pendingPos;
 
     @Override
@@ -64,14 +60,13 @@ public final class QuickClearContainer implements ClientModInitializer {
         boolean useDown = QuickCraftKeyBindings.isVanillaKeyDown(client, client.options.keyUse);
         if (useDown
                 && !lastUseDown
+                && pendingOpen == null
                 && currentScreen(client) == null
                 && !QuickMaterialCollector.shouldHandleCurrentTarget(client)
                 && !QuickLitematicaContainerAutofill.shouldHandleCurrentTarget(client)
                 && client.hitResult instanceof BlockHitResult blockHitResult
                 && isLookingAtSupportedContainer(client)) {
-            pendingOpen = true;
-            pendingTicks = 0;
-            pendingLevel = client.level;
+            pendingOpen = new QuickContainerToolSync.PendingOpen(client);
             pendingPos = blockHitResult.getBlockPos().immutable();
         }
 
@@ -79,24 +74,25 @@ public final class QuickClearContainer implements ClientModInitializer {
     }
 
     private void processPendingOpen(Minecraft client) {
-        if (!pendingOpen) {
+        if (pendingOpen == null) {
             return;
         }
-
-        pendingTicks++;
+        if (!pendingOpen.tick(client)) {
+            clearPending();
+            return;
+        }
         if (!pendingTargetStillValid(client)) {
             clearPending();
             return;
         }
-        if (!(currentScreen(client) instanceof AbstractContainerScreen<?> screen)) {
-            if (pendingTicks > OPEN_TIMEOUT_TICKS) {
-                clearPending();
-            }
+        if (!(QuickClientScreenAccess.currentScreen(client) instanceof AbstractContainerScreen<?> screen)) {
             return;
         }
-
         if (!isConfirmedTargetScreen(client, screen)) {
             clearPending();
+            return;
+        }
+        if (!pendingOpen.inventoryReady(screen)) {
             return;
         }
 
@@ -106,7 +102,7 @@ public final class QuickClearContainer implements ClientModInitializer {
     }
 
     private boolean pendingTargetStillValid(Minecraft client) {
-        if (client.level == null || pendingLevel != client.level || pendingPos == null) {
+        if (client.level == null || pendingPos == null) {
             return false;
         }
         return client.level.getBlockEntity(pendingPos) != null
@@ -157,9 +153,7 @@ public final class QuickClearContainer implements ClientModInitializer {
     }
 
     private void clearPending() {
-        pendingOpen = false;
-        pendingTicks = 0;
-        pendingLevel = null;
+        pendingOpen = null;
         pendingPos = null;
     }
 

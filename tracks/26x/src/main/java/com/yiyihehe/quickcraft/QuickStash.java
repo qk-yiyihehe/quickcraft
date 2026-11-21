@@ -10,7 +10,6 @@ import net.minecraft.world.level.block.ChestBlock;
 import net.minecraft.world.level.block.EnderChestBlock;
 import net.minecraft.world.level.block.ShulkerBoxBlock;
 import net.minecraft.client.Minecraft;
-import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.inventory.ChestMenu;
@@ -32,11 +31,9 @@ import java.util.List;
  * - 完成后自动关闭界面
  */
 public final class QuickStash implements ClientModInitializer {
-    private static final int OPEN_TIMEOUT_TICKS = 20;
 
     private static boolean lastUseDown;
-    private static boolean pendingOpen;
-    private static int pendingTicks;
+    private static QuickContainerToolSync.PendingOpen pendingOpen;
 
     @Override
     public void onInitializeClient() {
@@ -50,8 +47,7 @@ public final class QuickStash implements ClientModInitializer {
             return;
         }
         if (!QuickCraftConfigs.isQuickStashEnabled()) {
-            pendingOpen = false;
-            pendingTicks = 0;
+            pendingOpen = null;
         }
 
         handleUseAttempt(client);
@@ -67,44 +63,41 @@ public final class QuickStash implements ClientModInitializer {
         boolean useDown = QuickCraftKeyBindings.isVanillaKeyDown(client, client.options.keyUse);
         if (useDown
                 && !lastUseDown
-                && getCurrentScreen(client) == null
+                && pendingOpen == null
+                && QuickClientScreenAccess.currentScreen(client) == null
                 && !QuickMaterialCollector.shouldHandleCurrentTarget(client)
                 && !QuickLitematicaContainerAutofill.shouldHandleCurrentTarget(client)
                 && isLookingAtSupportedBlock(client)) {
-            pendingOpen = true;
-            pendingTicks = 0;
+            pendingOpen = new QuickContainerToolSync.PendingOpen(client);
         }
 
         lastUseDown = useDown;
     }
 
     private void processPendingOpen(Minecraft client) {
-        if (!pendingOpen) {
+        if (pendingOpen == null) {
             return;
         }
-
-        pendingTicks++;
-        if (!(getCurrentScreen(client) instanceof AbstractContainerScreen<?> screen)) {
-            if (pendingTicks > OPEN_TIMEOUT_TICKS) {
-                pendingOpen = false;
-                pendingTicks = 0;
-            }
+        if (!pendingOpen.tick(client)) {
+            pendingOpen = null;
             return;
         }
-
-        pendingOpen = false;
-        pendingTicks = 0;
+        if (!(QuickClientScreenAccess.currentScreen(client) instanceof AbstractContainerScreen<?> screen)) {
+            return;
+        }
         if (!isSupportedHandler(screen.getMenu())) {
+            pendingOpen = null;
             return;
         }
+        if (!pendingOpen.inventoryReady(screen)) {
+            return;
+        }
+
+        pendingOpen = null;
         if (!QuickStashShulkerTransfer.start(screen, -1, true)) {
             stashMatchingPlayerItems(screen);
             closeCurrentScreen(client);
         }
-    }
-
-    private static Screen getCurrentScreen(Minecraft client) {
-        return QuickClientScreenAccess.currentScreen(client);
     }
 
     private boolean isLookingAtSupportedBlock(Minecraft client) {

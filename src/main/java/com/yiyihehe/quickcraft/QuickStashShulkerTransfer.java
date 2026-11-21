@@ -27,11 +27,10 @@ import java.util.Set;
 /** 回存只规划匹配物和目的地；拆量、批量取货及装盒沿用容器填充的实现。 */
 public final class QuickStashShulkerTransfer {
     private static final int OPEN_TIMEOUT_TICKS = 40;
-    // 一批覆盖玩家的 36 个储物槽，避免不限速配置下单个回调无限占用客户端线程。
+    // 一批覆盖玩家的 36 个储物槽，避免单个客户端 Tick 被转移操作占满。
     private static final int MAX_STACKS_PER_BATCH = 36;
     private static final QuickContainerCopy TRANSFER = new QuickContainerCopy();
     private static Session session;
-    private static ScreenHandler lastSyncedHandler;
 
     private QuickStashShulkerTransfer() {
     }
@@ -72,18 +71,13 @@ public final class QuickStashShulkerTransfer {
             hit = blockHit.withBlockPos(blockHit.getBlockPos().toImmutable());
         }
         session = new Session(client, screen.getScreenHandler(), hit, inventorySlot, closeAfter);
-        if (screen.getScreenHandler() == lastSyncedHandler) {
-            rememberAcceptedItems(screen.getScreenHandler());
-        } else {
+        if (!QuickContainerToolSync.hasSyncedContents(screen.getScreenHandler())) {
             session.stage = Stage.WAIT_INITIAL;
         }
         return true;
     }
 
     static void onClientTick(MinecraftClient client) {
-        if (client.player == null || client.player.currentScreenHandler != lastSyncedHandler) {
-            lastSyncedHandler = null;
-        }
         if (session == null) {
             return;
         }
@@ -102,11 +96,13 @@ public final class QuickStashShulkerTransfer {
             return;
         }
         if (session.stage == Stage.WAIT_INITIAL || session.stage == Stage.WAIT_SOURCE || session.stage == Stage.WAIT_TARGET) {
-            if (++session.waitTicks > OPEN_TIMEOUT_TICKS
-                    || client.currentScreen != null && !(client.currentScreen instanceof HandledScreen<?>)) {
+            if (++session.waitTicks > OPEN_TIMEOUT_TICKS) {
                 stop(client, false, null);
+                return;
             }
-            return;
+            if (!advanceSyncedMenu(client)) {
+                return;
+            }
         }
         if (!(client.currentScreen instanceof HandledScreen<?> screen)
                 || screen.getScreenHandler() != session.ownedHandler) {
@@ -124,32 +120,25 @@ public final class QuickStashShulkerTransfer {
         }
     }
 
-    public static void onServerInventoryUpdate(int syncId) {
-        MinecraftClient client = MinecraftClient.getInstance();
-        if (client.player == null || !(client.currentScreen instanceof HandledScreen<?> screen)) {
-            return;
+    private static boolean advanceSyncedMenu(MinecraftClient client) {
+        var current = client.currentScreen;
+        if (current == null) {
+            return false;
         }
+        if (!(current instanceof HandledScreen<?> screen) || screen.getScreenHandler() != client.player.currentScreenHandler) {
+            stop(client, false, null);
+            return false;
+        }
+
         ScreenHandler handler = screen.getScreenHandler();
-        if (handler == client.player.currentScreenHandler && handler.syncId == syncId) {
-            lastSyncedHandler = handler;
-        }
-        if (session == null || client.world != session.world || handler != lastSyncedHandler) {
-            return;
+        if (!QuickContainerToolSync.hasSyncedContents(handler)) {
+            return false;
         }
         if (session.stage == Stage.WAIT_INITIAL && handler == session.ownedHandler) {
-            rememberAcceptedItems(handler);
             session.stage = Stage.TARGET;
-            session.waitTicks = 0;
-            onClientTick(client);
-            return;
-        }
-        if (session.stage != Stage.WAIT_SOURCE && session.stage != Stage.WAIT_TARGET) {
-            return;
-        }
-        if (handler == session.ownedHandler || handler != client.player.currentScreenHandler || handler.syncId != syncId) {
-            return;
-        }
-        if (session.stage == Stage.WAIT_SOURCE && handler instanceof ShulkerBoxScreenHandler) {
+        } else if (handler == session.ownedHandler) {
+            return false;
+        } else if (session.stage == Stage.WAIT_SOURCE && handler instanceof ShulkerBoxScreenHandler) {
             QuickContainerLock.bindInventoryShulkerScreen(screen, session.sourcePlayerIndex);
             session.stage = Stage.SOURCE;
         } else if (session.stage == Stage.WAIT_TARGET
@@ -159,11 +148,11 @@ public final class QuickStashShulkerTransfer {
             session.stage = Stage.TARGET;
         } else {
             stop(client, false, null);
-            return;
+            return false;
         }
         session.ownedHandler = handler;
         session.waitTicks = 0;
-        onClientTick(client);
+        return true;
     }
 
     private static void processTarget(MinecraftClient client, HandledScreen<?> screen) {

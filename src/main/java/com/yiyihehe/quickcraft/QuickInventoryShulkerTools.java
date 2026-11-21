@@ -8,14 +8,17 @@ import net.minecraft.client.gui.screen.ingame.CreativeInventoryScreen;
 import net.minecraft.screen.slot.Slot;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.gui.screen.ingame.HandledScreen;
+import net.minecraft.client.network.ClientPlayerEntity;
 import net.minecraft.client.world.ClientWorld;
 import net.minecraft.screen.ShulkerBoxScreenHandler;
 
 /** 接管背包潜影盒的右键操作，收到完整库存后复用当前容器工具。 */
 public final class QuickInventoryShulkerTools {
-    private static final int OPEN_TIMEOUT_TICKS = 20;
+    private static final int OPEN_TIMEOUT_TICKS = 40;
 
     private static HandledScreen<?> sourceScreen;
+    private static HandledScreen<?> openedScreen;
+    private static ClientPlayerEntity sourcePlayer;
     private static ClientWorld sourceWorld;
     private static ContainerToolMode pendingMode;
     private static int sourceInventorySlot;
@@ -48,13 +51,20 @@ public final class QuickInventoryShulkerTools {
     }
 
     static boolean tryOpen(HandledScreen<?> screen, Slot sourceSlot) {
-        clearPending();
         MinecraftClient client = MinecraftClient.getInstance();
+        if (sourceScreen != null) {
+            if (client.player == sourcePlayer && client.world == sourceWorld) {
+                return true;
+            }
+            clearPending();
+        }
+        if (QuickStashShulkerTransfer.isRunning()) {
+            return true;
+        }
         ContainerToolMode mode = QuickCraftConfigs.getContainerToolMode();
         if (client.player == null || client.world == null || client.currentScreen != screen
                 || !screen.getScreenHandler().getCursorStack().isEmpty()
                 || !isEnabled(mode) || !QuickShulkerConnection.canOpen()
-                || QuickStashShulkerTransfer.isRunning()
                 || QuickCraftWorkbenchShulker.shouldBlockWorkbenchInput()
                 || QuickContainerCopy.shouldHideBackgroundHandledScreen()
                 || QuickMaterialCollector.shouldHideBackgroundHandledScreen()) {
@@ -77,6 +87,7 @@ public final class QuickInventoryShulkerTools {
             }
         }
         sourceScreen = screen;
+        sourcePlayer = client.player;
         sourceWorld = client.world;
         pendingMode = mode;
         sourceInventorySlot = inventorySlot;
@@ -91,28 +102,32 @@ public final class QuickInventoryShulkerTools {
         if (sourceScreen == null) {
             return;
         }
-        if (++pendingTicks > OPEN_TIMEOUT_TICKS || !isPendingValid(client)
-                || (client.currentScreen != sourceScreen
-                    && !(client.currentScreen instanceof HandledScreen<?> screen
-                        && screen.getScreenHandler() instanceof ShulkerBoxScreenHandler))) {
+        if (++pendingTicks > OPEN_TIMEOUT_TICKS || client.player != sourcePlayer || client.world != sourceWorld) {
             clearPending();
+            return;
         }
-    }
 
-    public static void onServerInventoryUpdate(int syncId) {
-        if (sourceScreen == null) {
+        var current = client.currentScreen;
+        if (current == sourceScreen && openedScreen == null) {
             return;
         }
-        MinecraftClient client = MinecraftClient.getInstance();
-        if (!isPendingValid(client)) {
-            clearPending();
-            return;
-        }
-        if (!(client.currentScreen instanceof HandledScreen<?> screen)
-                || screen == sourceScreen
+        if (!(current instanceof HandledScreen<?> screen)
                 || !(screen.getScreenHandler() instanceof ShulkerBoxScreenHandler)
                 || screen.getScreenHandler() != client.player.currentScreenHandler
-                || screen.getScreenHandler().syncId != syncId) {
+                || openedScreen != null && current != openedScreen) {
+            clearPending();
+            return;
+        }
+
+        if (openedScreen == null) {
+            openedScreen = screen;
+            pendingTicks = 0;
+        }
+        if (!QuickContainerToolSync.hasSyncedContents(screen.getScreenHandler())) {
+            return;
+        }
+        if (QuickCraftConfigs.getContainerToolMode() != pendingMode || !isEnabled(pendingMode)) {
+            clearPending();
             return;
         }
 
@@ -137,12 +152,6 @@ public final class QuickInventoryShulkerTools {
         }
     }
 
-    private static boolean isPendingValid(MinecraftClient client) {
-        return client.player != null && client.world == sourceWorld
-                && QuickCraftConfigs.getContainerToolMode() == pendingMode
-                && isEnabled(pendingMode);
-    }
-
     private static boolean isEnabled(ContainerToolMode mode) {
         if (!QuickCraftConfigs.isContainerToolModeEnabled()
                 || !QuickCraftConfigs.ModSupport.ENABLE_QUICK_SHULKER.getBooleanValue()) {
@@ -158,6 +167,8 @@ public final class QuickInventoryShulkerTools {
 
     private static void clearPending() {
         sourceScreen = null;
+        openedScreen = null;
+        sourcePlayer = null;
         sourceWorld = null;
         pendingMode = null;
         sourceInventorySlot = -1;
