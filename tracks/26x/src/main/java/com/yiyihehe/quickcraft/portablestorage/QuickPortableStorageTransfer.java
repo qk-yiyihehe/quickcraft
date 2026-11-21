@@ -62,7 +62,6 @@ public final class QuickPortableStorageTransfer {
     private static final Map<Integer, ClosedShulker> recentContents = new HashMap<>();
     private static long storageRevision;
     private static long tickNumber;
-    private static long lastOpenTick = -1;
     private static LocalPlayer owner;
     private static ClientLevel world;
     private static List<ItemStack> enderContents = List.of();
@@ -244,7 +243,6 @@ public final class QuickPortableStorageTransfer {
             active = null;
             recentContents.clear();
             storageRevision++;
-            lastOpenTick = -1;
             enderContents = List.of();
             owner = client.player;
             world = client.level;
@@ -274,12 +272,7 @@ public final class QuickPortableStorageTransfer {
                 return;
             }
         }
-        Request next = requests.peekFirst();
-        if (next == null || owner.containerMenu != owner.inventoryMenu || otherTransferRunning()) {
-            return;
-        }
-        if (next.source != Source.BUNDLE && lastOpenTick >= 0
-                && tickNumber - lastOpenTick < QuickCraftConfigs.getQuickShulkerActionIntervalTicks()) {
+        if (requests.isEmpty() || owner.containerMenu != owner.inventoryMenu || otherTransferRunning()) {
             return;
         }
         start(client, requests.removeFirst());
@@ -364,7 +357,6 @@ public final class QuickPortableStorageTransfer {
 
         long revision = QuickCrossBoxSortSync.revision();
         if (QuickShulkerConnection.sendOpen(carrierSlot.index)) {
-            lastOpenTick = tickNumber;
             active = new Session(request, carrier, carrierSlot.getItem().copy(), staging, revision);
         } else {
             restoreCursor(client, request, staging, request.stack);
@@ -487,9 +479,6 @@ public final class QuickPortableStorageTransfer {
                     || (isStore(next.mode) ? selectCarrier(next, owner.inventoryMenu) != session.carrier
                     : findLiveSource(menu, next) == null)) {
                 finish(client, session, null);
-                return;
-            }
-            if (tickNumber - session.lastActionTick < QuickCraftConfigs.getQuickShulkerActionIntervalTicks()) {
                 return;
             }
             requests.removeFirst();

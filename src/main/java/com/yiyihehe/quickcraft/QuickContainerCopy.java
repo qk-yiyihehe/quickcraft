@@ -507,9 +507,6 @@ public final class QuickContainerCopy implements ClientModInitializer {
             return;
         }
 
-        if (!canRunQuickShulkerAction(continuousTask)) {
-            return;
-        }
         int currentSyncId = handler.syncId;
         if (!sendOpenQuickShulkerPacket(source.slotId())) {
             stopContinuousTask(client, true, Text.translatable("quickcraft.message.container_copy.quick_shulker_open_failed"));
@@ -566,10 +563,6 @@ public final class QuickContainerCopy implements ClientModInitializer {
             return;
         }
 
-        if (!canRunQuickShulkerAction(continuousTask)) {
-            return;
-        }
-
         ExtractResult extractResult = moveMatchingItemsFromOpenShulker(handler, continuousTask.missingDemands, client);
         continuousTask.missingDemands = extractResult.remainingDemands();
 
@@ -584,11 +577,6 @@ public final class QuickContainerCopy implements ClientModInitializer {
             return;
         }
 
-        if (!extractResult.attemptedMove()) {
-            // 只做了本地扫描时不消耗限速，直接尝试下一个潜影盒。
-            continuousTask.quickShulkerActionCooldown = 0;
-        }
-        continuousTask.openNextSourceBeforeExtract = true;
         openNextSourceShulkerOrReopenTarget(client, handler);
     }
 
@@ -604,9 +592,6 @@ public final class QuickContainerCopy implements ClientModInitializer {
                     continuousTask.currentSourcePlayerIndex
             );
             if (nextSource != null) {
-                if (!canRunQuickShulkerAction(continuousTask)) {
-                    return;
-                }
                 int currentSyncId = handler.syncId;
                 if (!sendOpenQuickShulkerPacket(nextSource.slotId())) {
                     stopContinuousTask(client, true, Text.translatable("quickcraft.message.container_copy.quick_shulker_open_failed"));
@@ -1941,11 +1926,10 @@ public final class QuickContainerCopy implements ClientModInitializer {
                                                            List<MissingDemand> demands,
                                                            MinecraftClient client) {
         if (client.player == null || client.interactionManager == null || !handler.getCursorStack().isEmpty()) {
-            return new ExtractResult(0, demands, false);
+            return new ExtractResult(0, demands);
         }
 
         int totalMoved = 0;
-        boolean attemptedMove = false;
         List<MissingDemand> remainingDemands = demands;
         List<Integer> remainingSourceSlotIds = new ArrayList<>(getContainerSlotIds(handler));
         while (!remainingSourceSlotIds.isEmpty()) {
@@ -1996,7 +1980,6 @@ public final class QuickContainerCopy implements ClientModInitializer {
 
                 // 限制为缺口和目标容量，拆分后的余量由现有转移逻辑放回原盒槽位。
                 moveItemsToTargetSlot(handler, slotId, playerSlotId, Math.min(remaining, capacity), client);
-                attemptedMove = true;
             }
 
             int moved = Math.max(0, countMatchingPlayerStorage(handler, template) - before);
@@ -2011,7 +1994,7 @@ public final class QuickContainerCopy implements ClientModInitializer {
             }
         }
 
-        return new ExtractResult(totalMoved, remainingDemands, attemptedMove);
+        return new ExtractResult(totalMoved, remainingDemands);
     }
 
     private int findReturnSlotId(ScreenHandler handler, ItemStack cursorStack) {
@@ -2117,10 +2100,6 @@ public final class QuickContainerCopy implements ClientModInitializer {
         int candidateSlotId = findFreeablePlayerStorageSlotId(handler, demands);
         if (candidateSlotId == -1) {
             return emptySlots > 0 ? PrepareBatchResult.READY : PrepareBatchResult.BLOCKED;
-        }
-
-        if (!canRunQuickShulkerAction(continuousTask)) {
-            return PrepareBatchResult.WAIT;
         }
 
         return packSlotIntoQuickShulker(handler, candidateSlotId, client)
@@ -2612,24 +2591,6 @@ public final class QuickContainerCopy implements ClientModInitializer {
         return QuickShulkerConnection.canOpen();
     }
 
-    private boolean canRunQuickShulkerAction(ContinuousFillTask task) {
-        if (task == null) {
-            return true;
-        }
-
-        int interval = QuickCraftConfigs.getQuickShulkerActionIntervalTicks();
-        if (interval <= 0) {
-            return true;
-        }
-        if (task.quickShulkerActionCooldown > 0) {
-            task.quickShulkerActionCooldown--;
-            return false;
-        }
-
-        task.quickShulkerActionCooldown = Math.max(0, interval - 1);
-        return true;
-    }
-
     private boolean sendOpenQuickShulkerPacket(int slotId) {
         return QuickShulkerConnection.sendOpen(slotId);
     }
@@ -2804,7 +2765,6 @@ public final class QuickContainerCopy implements ClientModInitializer {
         private ContinuousStage stage = ContinuousStage.OPEN_TARGET;
         private int ticks;
         private int previousSyncId = -1;
-        private int quickShulkerActionCooldown;
         private int batchFreeSlotsTarget = -1;
         private int currentSourcePlayerIndex = -1;
         private boolean openNextSourceBeforeExtract;
@@ -2843,7 +2803,7 @@ public final class QuickContainerCopy implements ClientModInitializer {
                                         TemporaryContainerStash stash) {
     }
 
-    record ExtractResult(int moved, List<MissingDemand> remainingDemands, boolean attemptedMove) {
+    record ExtractResult(int moved, List<MissingDemand> remainingDemands) {
     }
 
     private record FillResult(List<Text> missingMessages,

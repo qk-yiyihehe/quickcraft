@@ -117,14 +117,8 @@ public final class QuickStashShulkerTransfer {
             stop(client, false, "quickcraft.message.quick_stash.cursor_blocked");
             return;
         }
-        if (session.cooldown-- > 0) {
-            return;
-        }
-        session.cooldown = Math.max(0, QuickCraftConfigs.getQuickShulkerActionIntervalTicks() - 1);
         if (session.stage == Stage.TARGET) {
             processTarget(client, screen);
-        } else if (session.stage == Stage.NEXT_SOURCE) {
-            openNextSourceOrReturn(client);
         } else {
             extractSource(client, screen);
         }
@@ -146,9 +140,7 @@ public final class QuickStashShulkerTransfer {
             rememberAcceptedItems(handler);
             session.stage = Stage.TARGET;
             session.waitTicks = 0;
-            if (QuickCraftConfigs.getQuickShulkerActionIntervalTicks() == 0) {
-                onClientTick(client);
-            }
+            onClientTick(client);
             return;
         }
         if (session.stage != Stage.WAIT_SOURCE && session.stage != Stage.WAIT_TARGET) {
@@ -171,10 +163,7 @@ public final class QuickStashShulkerTransfer {
         }
         session.ownedHandler = handler;
         session.waitTicks = 0;
-        session.cooldown = 0;
-        if (QuickCraftConfigs.getQuickShulkerActionIntervalTicks() == 0) {
-            onClientTick(client);
-        }
+        onClientTick(client);
     }
 
     private static void processTarget(MinecraftClient client, HandledScreen<?> screen) {
@@ -528,10 +517,7 @@ public final class QuickStashShulkerTransfer {
             stop(client, false, "quickcraft.message.quick_stash.cursor_blocked");
             return;
         }
-        session.stage = Stage.NEXT_SOURCE;
-        if (QuickCraftConfigs.getQuickShulkerActionIntervalTicks() == 0) {
-            openNextSourceOrReturn(client);
-        }
+        openNextSourceOrReturn(client);
     }
 
     private static void openNextSourceOrReturn(MinecraftClient client) {
@@ -612,7 +598,7 @@ public final class QuickStashShulkerTransfer {
         }
     }
 
-    private enum Stage { WAIT_INITIAL, TARGET, WAIT_SOURCE, SOURCE, NEXT_SOURCE, REOPEN, WAIT_TARGET }
+    private enum Stage { WAIT_INITIAL, TARGET, WAIT_SOURCE, SOURCE, REOPEN, WAIT_TARGET }
 
     private static final class Session {
         final ClientWorld world;
@@ -630,7 +616,6 @@ public final class QuickStashShulkerTransfer {
         int temporarySlot = -1;
         ItemStack temporaryStack = ItemStack.EMPTY;
         int waitTicks;
-        int cooldown;
 
         Session(MinecraftClient client, ScreenHandler handler, HitResult targetHit, int inventorySlot, boolean closeAfter) {
             world = client.world;

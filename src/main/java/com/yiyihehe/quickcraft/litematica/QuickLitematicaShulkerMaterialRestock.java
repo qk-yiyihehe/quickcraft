@@ -53,7 +53,6 @@ public final class QuickLitematicaShulkerMaterialRestock implements ClientModIni
     private static Operation operation = Operation.IDLE;
     private static int operationTicks;
     private static int closeCursorRetries;
-    private static int restockCooldownTicks;
     private static boolean closeSent;
 
     @Override
@@ -79,11 +78,6 @@ public final class QuickLitematicaShulkerMaterialRestock implements ClientModIni
         }
 
         PlayerInventory inventory = client.player.getInventory();
-        if (restockCooldownTicks > 0) {
-            boolean materialInShulker = findShulkerWithMaterial(inventory, requiredStack) != -1;
-            return materialInShulker;
-        }
-
         if (QuickPortableStorageTransfer.isRunning()) {
             if (findShulkerWithMaterial(inventory, requiredStack) == -1
                     || !QuickPortableStorageTransfer.yieldHandRestockToEasyPlace()) {
@@ -158,10 +152,6 @@ public final class QuickLitematicaShulkerMaterialRestock implements ClientModIni
                 || client.world == null) {
             resetState(client);
             return;
-        }
-
-        if (restockCooldownTicks > 0) {
-            restockCooldownTicks--;
         }
 
         switch (operation) {
@@ -584,7 +574,6 @@ public final class QuickLitematicaShulkerMaterialRestock implements ClientModIni
             return false;
         }
 
-        restockCooldownTicks = QuickCraftConfigs.getQuickShulkerActionIntervalTicks();
         return true;
     }
 
@@ -602,15 +591,11 @@ public final class QuickLitematicaShulkerMaterialRestock implements ClientModIni
     }
 
     private static void finishActiveAction() {
-        boolean completedReturn = activeAction != null && activeAction.type() == ActionType.RETURN;
         activeAction = null;
         operation = Operation.IDLE;
         operationTicks = 0;
         closeCursorRetries = 0;
         closeSent = false;
-        if (completedReturn) {
-            restockCooldownTicks = 0;
-        }
     }
 
     private static void resetState(MinecraftClient client) {
@@ -628,7 +613,6 @@ public final class QuickLitematicaShulkerMaterialRestock implements ClientModIni
         operation = Operation.IDLE;
         operationTicks = 0;
         closeCursorRetries = 0;
-        restockCooldownTicks = 0;
         closeSent = false;
     }
 

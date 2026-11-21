@@ -77,9 +77,6 @@ public final class QuickCraftConfigs implements IConfigHandler {
     public static final int DEFAULT_HOLD_EASY_PLACE_CACHE_TIME_MS = 500;
     public static final int MIN_HOLD_EASY_PLACE_CACHE_TIME_MS = 10;
     public static final int MAX_HOLD_EASY_PLACE_CACHE_TIME_MS = 10000;
-    public static final int DEFAULT_QUICK_SHULKER_ACTION_INTERVAL_TICKS = 5;
-    public static final int MIN_QUICK_SHULKER_ACTION_INTERVAL_TICKS = 0;
-    public static final int MAX_QUICK_SHULKER_ACTION_INTERVAL_TICKS = 20;
     private static final ImmutableList<String> DEFAULT_QUICK_SORT_TOP_PRIORITY_ITEMS =
             ImmutableList.copyOf(QuickCraftItemAliases.getDefaultPriorityAliases());
     private static final ImmutableList<String> DEFAULT_QUICK_SORT_BOTTOM_PRIORITY_ITEMS = ImmutableList.of();
@@ -894,16 +891,8 @@ public final class QuickCraftConfigs implements IConfigHandler {
                 true,
                 ""
         ).apply(MOD_SUPPORT_TRANSLATION_PREFIX);
-        public static final ConfigInteger QUICK_SHULKER_ACTION_INTERVAL_TICKS = new ConfigInteger(
-                "quickShulkerActionIntervalTicks",
-                DEFAULT_QUICK_SHULKER_ACTION_INTERVAL_TICKS,
-                MIN_QUICK_SHULKER_ACTION_INTERVAL_TICKS,
-                MAX_QUICK_SHULKER_ACTION_INTERVAL_TICKS,
-                true
-        ).apply(MOD_SUPPORT_TRANSLATION_PREFIX);
         public static final List<IConfigBase> OPTIONS = List.of(
                 ENABLE_QUICK_SHULKER,
-                QUICK_SHULKER_ACTION_INTERVAL_TICKS,
                 CHECK_UPDATE_NOTICES
         );
 
@@ -1426,15 +1415,6 @@ public final class QuickCraftConfigs implements IConfigHandler {
         int clamped = Math.max(MIN_MATERIAL_COLLECT_EXTRA, Math.min(maxValue, value));
         if (clamped != value) {
             config.setIntegerValue(clamped);
-        }
-        return clamped;
-    }
-
-    public static int getQuickShulkerActionIntervalTicks() {
-        int value = ModSupport.QUICK_SHULKER_ACTION_INTERVAL_TICKS.getIntegerValue();
-        int clamped = Math.max(MIN_QUICK_SHULKER_ACTION_INTERVAL_TICKS, Math.min(MAX_QUICK_SHULKER_ACTION_INTERVAL_TICKS, value));
-        if (clamped != value) {
-            ModSupport.QUICK_SHULKER_ACTION_INTERVAL_TICKS.setIntegerValue(clamped);
         }
         return clamped;
     }
