@@ -1,5 +1,6 @@
 package com.yiyihehe.quickcraft.litematica;
 
+import com.yiyihehe.quickcraft.compat.voidwarehouse.QuickLitematicaVoidWarehouseMaterials.MaterialTargets;
 import com.yiyihehe.quickcraft.QuickMaterialCollector;
 import com.yiyihehe.quickcraft.malilib.QuickCraftGuiButtonAccess;
 import com.yiyihehe.quickcraft.config.QuickCraftConfigs;
@@ -1481,7 +1482,7 @@ public final class QuickLitematicaContainerMaterials {
         }
     }
 
-    static final class ContainerSummaryEntry extends MaterialListEntry {
+    static final class ContainerSummaryEntry extends MaterialListEntry implements MaterialTargets {
         private final List<ItemStack> targets;
         private final ItemKey sourceKey;
 
@@ -1495,6 +1496,11 @@ public final class QuickLitematicaContainerMaterials {
         public int getCountAvailable() {
             // 左侧显示原材料；可用数量必须比较实际目标，不能让原版按左侧图标统计。
             return QuickLitematicaMaterialInventory.countAvailableWithSources(this.targets);
+        }
+
+        @Override
+        public List<ItemStack> quickcraft$getWarehouseTargets() {
+            return this.targets;
         }
 
         @Override

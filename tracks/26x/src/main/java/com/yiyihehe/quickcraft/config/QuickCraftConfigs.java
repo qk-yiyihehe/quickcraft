@@ -5,6 +5,7 @@ import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.yiyihehe.quickcraft.QuickCraft;
+import com.yiyihehe.quickcraft.compat.voidwarehouse.QuickLitematicaVoidWarehouseMaterials;
 import fi.dy.masa.malilib.config.ConfigUtils;
 import fi.dy.masa.malilib.config.IConfigBase;
 import fi.dy.masa.malilib.config.IConfigHandler;
@@ -1055,7 +1056,7 @@ public final class QuickCraftConfigs implements IConfigHandler {
     }
 
     public static List<IHotkey> getAllHotkeys() {
-        return List.of(
+        return List.<IHotkey>of(
                 Crafting.ENABLE_WORKBENCH,
                 Crafting.ENABLE_WORKBENCH_QUICK_SHULKER,
                 Crafting.ENABLE_WORKBENCH_QUICK_SHULKER_OUTPUT,
@@ -1129,7 +1130,8 @@ public final class QuickCraftConfigs implements IConfigHandler {
                 Hotkeys.CONTINUOUS_CONTAINER_FILL,
                 Hotkeys.TOGGLE_CONTAINER_TOOL_MODE,
                 Hotkeys.CREATIVE_PACKING
-        );
+        ).stream().filter(hotkey -> hotkey != ProjectionTools.USE_VOID_WAREHOUSE_MATERIALS
+                || QuickLitematicaVoidWarehouseMaterials.isInstalled()).toList();
     }
 
     public static List<ConfigBooleanHotkeyed> getBooleanHotkeyConfigs() {
