@@ -565,7 +565,8 @@ public final class QuickStashShulkerTransfer {
         boolean opened;
         if (session.targetInventorySlot >= 0) {
             int slotId = client.player.playerScreenHandler.slots.stream()
-                    .filter(slot -> isPlayerStorageSlot(slot) && slot.getIndex() == session.targetInventorySlot)
+                    .filter(slot -> slot.inventory == client.player.getInventory()
+                            && slot.getIndex() == session.targetInventorySlot)
                     .map(slot -> slot.id).findFirst().orElse(-1);
             opened = slotId >= 0 && QuickShulkerConnection.sendOpen(slotId);
         } else if (session.targetHit instanceof BlockHitResult hit) {

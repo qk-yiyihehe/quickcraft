@@ -19,9 +19,11 @@ import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.gui.screen.ingame.CreativeInventoryScreen;
 import net.minecraft.client.gui.screen.ingame.HandledScreen;
+import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.entity.player.PlayerInventory;
 import net.minecraft.item.BlockItem;
 import net.minecraft.item.ItemStack;
+import net.minecraft.item.Items;
 import net.minecraft.screen.GenericContainerScreenHandler;
 import net.minecraft.screen.PlayerScreenHandler;
 import net.minecraft.screen.ScreenHandler;
@@ -29,6 +31,7 @@ import net.minecraft.screen.ShulkerBoxScreenHandler;
 import net.minecraft.screen.slot.Slot;
 import net.minecraft.screen.slot.SlotActionType;
 import net.minecraft.text.Text;
+import net.minecraft.util.Hand;
 import net.minecraft.util.Identifier;
 import net.minecraft.util.hit.BlockHitResult;
 import net.minecraft.util.math.BlockPos;
@@ -66,6 +69,7 @@ public final class QuickContainerLock implements ClientModInitializer {
     private static final int AUTO_ELYTRA_SESSION_CLICK_COUNT = 3;
     private static final int AUTO_ELYTRA_LINGER_TICKS = 2;
     private static final String PLAYER_CONTAINER_KEY = "player_inventory";
+    private static final String ENDER_CHEST_KEY = "ender_chest";
     private static final String QUICK_SHULKER_CONTAINER_KEY_PREFIX = "quickshulker:";
     private static final String TWEAKEROO_ELYTRA_SWAP_CLASS = "fi.dy.masa.tweakeroo.util.InventoryUtils";
     private static final String TWEAKEROO_ELYTRA_SWAP_METHOD = "swapElytraAndChestPlate";
@@ -147,13 +151,19 @@ public final class QuickContainerLock implements ClientModInitializer {
             return;
         }
 
-        if (isPendingContainerScreen(handler)) {
+        if (isPendingContainerScreen(screen)) {
             setCurrentScreenHandler(handler, pendingContainerKey);
             clearPendingContainerOpen();
             return;
         }
 
-        setCurrentScreenHandler(handler, HANDLER_CONTAINER_KEYS.get(handler));
+        // Using a held ender chest bypasses QuickShulker's custom open request.
+        String key = HANDLER_CONTAINER_KEYS.get(handler);
+        if (key == null && isEnderChestScreen(screen)) {
+            bindEnderChestScreen(screen);
+            return;
+        }
+        setCurrentScreenHandler(handler, key);
     }
 
     public static void prepareQuickShulkerOpen(int handlerSlotId) {
@@ -163,16 +173,39 @@ public final class QuickContainerLock implements ClientModInitializer {
             return;
         }
 
-        ScreenHandler handler = client.player.currentScreenHandler;
+        ScreenHandler handler = client.currentScreen instanceof CreativeInventoryScreen
+                ? client.player.playerScreenHandler : client.player.currentScreenHandler;
         Slot slot = getSlot(handler, handlerSlotId);
-        if (slot == null || !isPlayerStorageSlot(slot) || !isShulkerBoxItem(slot.getStack())) {
+        if (slot == null || slot.inventory != client.player.getInventory()
+                || (!isPlayerStorageSlot(slot) && slot.getIndex() != PlayerInventory.OFF_HAND_SLOT)) {
             return;
         }
 
-        pendingContainerKey = QUICK_SHULKER_CONTAINER_KEY_PREFIX + slot.getIndex();
-        pendingShulkerBoxOpen = true;
-        pendingSourceHandler = client.currentScreen instanceof HandledScreen<?> screen
+        ScreenHandler sourceHandler = client.currentScreen instanceof HandledScreen<?> screen
                 ? screen.getScreenHandler() : handler;
+        prepareQuickShulkerOpen(slot.getStack(), slot.getIndex(), sourceHandler);
+    }
+
+    public static void prepareQuickShulkerHandOpen(PlayerEntity player, Hand hand) {
+        MinecraftClient client = MinecraftClient.getInstance();
+        if (client.player != player || client.currentScreen != null) {
+            return;
+        }
+        clearPendingContainerOpen();
+        int slot = hand == Hand.MAIN_HAND ? QuickContainerLockAccess.getSelectedSlot(player.getInventory()) : PlayerInventory.OFF_HAND_SLOT;
+        prepareQuickShulkerOpen(player.getStackInHand(hand), slot, player.currentScreenHandler);
+    }
+
+    private static void prepareQuickShulkerOpen(ItemStack stack, int slot, ScreenHandler sourceHandler) {
+        if (isShulkerBoxItem(stack)) {
+            pendingContainerKey = QUICK_SHULKER_CONTAINER_KEY_PREFIX + slot;
+            pendingShulkerBoxOpen = true;
+        } else if (stack.isOf(Items.ENDER_CHEST)) {
+            pendingContainerKey = ENDER_CHEST_KEY;
+        } else {
+            return;
+        }
+        pendingSourceHandler = sourceHandler;
     }
 
     static boolean openInventoryShulkerForTool(double mouseX, double mouseY) {
@@ -204,6 +237,16 @@ public final class QuickContainerLock implements ClientModInitializer {
                 ? Integer.parseInt(key.substring(QUICK_SHULKER_CONTAINER_KEY_PREFIX.length())) : -1;
     }
 
+    public static boolean isEnderChestScreen(HandledScreen<?> screen) {
+        return screen.getScreenHandler() instanceof GenericContainerScreenHandler chest && chest.getRows() == 3
+                && screen.getTitle().equals(Text.translatable("container.enderchest"));
+    }
+
+    public static void bindEnderChestScreen(HandledScreen<?> screen) {
+        setCurrentScreenHandler(screen.getScreenHandler(), ENDER_CHEST_KEY);
+        clearPendingContainerOpen();
+    }
+
     public static void bindSameContainerScreen(ScreenHandler handler, ScreenHandler originalHandler) {
         setCurrentScreenHandler(handler, getContainerKey(originalHandler));
     }
@@ -225,6 +268,22 @@ public final class QuickContainerLock implements ClientModInitializer {
 
     public static void togglePlayerInventoryLock(MinecraftClient client) {
         toggleLock(client, PLAYER_CONTAINER_KEY);
+    }
+
+    public static boolean isInventoryShulkerLocked(int inventorySlot) {
+        return LOCKED_CONTAINERS.contains(QUICK_SHULKER_CONTAINER_KEY_PREFIX + inventorySlot);
+    }
+
+    public static boolean isInventoryShulkerSlotLocked(int inventorySlot, int boxSlot) {
+        return isContainerSlotLocked(QUICK_SHULKER_CONTAINER_KEY_PREFIX + inventorySlot, boxSlot);
+    }
+
+    public static boolean isEnderChestLocked() {
+        return LOCKED_CONTAINERS.contains(ENDER_CHEST_KEY);
+    }
+
+    public static boolean isEnderChestSlotLocked(int slot) {
+        return isContainerSlotLocked(ENDER_CHEST_KEY, slot);
     }
 
     public static boolean isPlayerInventoryLocked() {
@@ -821,7 +880,9 @@ public final class QuickContainerLock implements ClientModInitializer {
         }
 
         boolean useDown = QuickCraftKeyBindings.isVanillaKeyDown(client, client.options.useKey);
-        if (useDown && !lastUseDown && client.crosshairTarget instanceof BlockHitResult blockHitResult) {
+        // A hand-open accepted this tick is more precise than the crosshair target.
+        if (useDown && !lastUseDown && !(pendingSourceHandler != null && pendingTicks == 0)
+                && client.crosshairTarget instanceof BlockHitResult blockHitResult) {
             String containerKey = getSupportedContainerKey(client, blockHitResult);
             if (containerKey != null) {
                 pendingContainerKey = containerKey;
@@ -840,7 +901,7 @@ public final class QuickContainerLock implements ClientModInitializer {
         }
 
         pendingTicks++;
-        if (client.currentScreen instanceof HandledScreen<?> screen && isPendingContainerScreen(screen.getScreenHandler())) {
+        if (client.currentScreen instanceof HandledScreen<?> screen && isPendingContainerScreen(screen)) {
             setCurrentScreenHandler(screen.getScreenHandler(), pendingContainerKey);
             clearPendingContainerOpen();
             return;
@@ -980,11 +1041,13 @@ public final class QuickContainerLock implements ClientModInitializer {
                 || handler instanceof ShulkerBoxScreenHandler;
     }
 
-    private static boolean isPendingContainerScreen(ScreenHandler handler) {
+    private static boolean isPendingContainerScreen(HandledScreen<?> screen) {
+        ScreenHandler handler = screen.getScreenHandler();
         return pendingContainerKey != null
                 && isContainerSlotLockSupportedHandler(handler)
                 && (!pendingShulkerBoxOpen || handler instanceof ShulkerBoxScreenHandler)
-                && handler != pendingSourceHandler;
+                && handler != pendingSourceHandler
+                && (ENDER_CHEST_KEY.equals(pendingContainerKey) == isEnderChestScreen(screen));
     }
 
     private static void clearPendingContainerOpen() {
@@ -1008,7 +1071,24 @@ public final class QuickContainerLock implements ClientModInitializer {
             return null;
         }
 
-        return buildContainerKey(world, blockHitResult.getBlockPos());
+        String positionKey = buildContainerKey(world, blockHitResult.getBlockPos());
+        if (!(block instanceof EnderChestBlock)) {
+            return positionKey;
+        }
+
+        // Old ender chest locks used block coordinates. The block type is known when the player opens it.
+        Set<Integer> legacySlots = LOCKED_CONTAINER_SLOTS.remove(positionKey);
+        boolean legacyContainerLock = LOCKED_CONTAINERS.remove(positionKey);
+        if (legacySlots != null) {
+            LOCKED_CONTAINER_SLOTS.computeIfAbsent(ENDER_CHEST_KEY, ignored -> new HashSet<>()).addAll(legacySlots);
+        }
+        if (legacyContainerLock) {
+            LOCKED_CONTAINERS.add(ENDER_CHEST_KEY);
+        }
+        if (legacySlots != null || legacyContainerLock) {
+            QuickPersistentState.saveCurrentProfileState();
+        }
+        return ENDER_CHEST_KEY;
     }
 
     static String buildContainerKey(World world, BlockPos pos) {
