@@ -79,7 +79,9 @@ public final class QuickLitematicaContainerAutofill implements ClientModInitiali
         }
 
         boolean useDown = QuickCraftKeyBindings.isVanillaKeyDown(client, client.options.keyUse);
-        if (useDown && !lastUseDown && currentScreen(client) == null) {
+        if (useDown && !lastUseDown
+                && !QuickContainerCopy.shouldSuppressContinuousFillUseInput()
+                && currentScreen(client) == null) {
             BlockHitResult hitResult = getLookedAtBlock(client);
             if (hitResult != null && shouldHandleTarget(client, hitResult)
                     && QuickContainerCopy.requireContainerFillHotkey(client)) {
