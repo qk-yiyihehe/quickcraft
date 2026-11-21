@@ -1,5 +1,7 @@
 package com.yiyihehe.quickcraft.mixin;
 
+import com.yiyihehe.quickcraft.portablestorage.QuickPortableStoragePanel;
+import com.yiyihehe.quickcraft.portablestorage.QuickPortableStorageTransfer;
 import com.yiyihehe.quickcraft.QuickCraftKeyBindings;
 import com.yiyihehe.quickcraft.QuickContainerLock;
 import com.yiyihehe.quickcraft.QuickSort;
@@ -30,7 +32,28 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
  * 按钮点击后走 QuickCraftBackpack 的快速合成逻辑。
  */
 @Mixin(InventoryScreen.class)
-public abstract class CraftActionButtonBackpackMixin extends HandledScreen<PlayerScreenHandler> {
+public abstract class CraftActionButtonBackpackMixin extends HandledScreen<PlayerScreenHandler>
+        implements QuickPortableStoragePanel.Access {
+    @Unique
+    private QuickPortableStoragePanel quickcraft$storage;
+
+    @Override
+    public QuickPortableStoragePanel quickcraft$portableStoragePanel() {
+        return this.quickcraft$storage;
+    }
+
+    @Unique
+    private void quickcraft$layoutPortableStorage() {
+        if (QuickPortableStorageTransfer.panelEnabled()
+                && (this.quickcraft$storage == null || !this.children().contains(this.quickcraft$storage.button()))) {
+            this.quickcraft$storage = new QuickPortableStoragePanel((InventoryScreen) (Object) this, this.client);
+            this.addDrawableChild(this.quickcraft$storage.button());
+            this.addSelectableChild(this.quickcraft$storage.search());
+        }
+        if (this.quickcraft$storage != null) {
+            this.quickcraft$storage.layout(this.x, this.y, this.backgroundWidth, this.backgroundHeight);
+        }
+    }
     @Unique
     private QuickCraftActionButton quickcraft$craftButton;
 
@@ -90,6 +113,7 @@ public abstract class CraftActionButtonBackpackMixin extends HandledScreen<Playe
         QuickContainerLock.bindCurrentScreen(this);
         this.quickcraft$ensureSortButton();
         this.quickcraft$ensureStashButton();
+        this.quickcraft$layoutPortableStorage();
         if (!QuickContainerLock.shouldShowLockButton(this)) {
             if (this.quickcraft$lockButton != null) {
                 this.quickcraft$lockButton.visible = false;

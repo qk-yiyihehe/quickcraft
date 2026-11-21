@@ -158,6 +158,12 @@ public class QuickCraftConfigScreen extends GuiConfigsBase {
                 QuickCraftConfigs.ContainerTools.QUICK_TRANSFER_RETAIN_ONE,
                 QuickCraftConfigs.ContainerTools.SHOW_QUICK_STASH_BUTTON
         ),
+        PORTABLE_STORAGE(
+                QuickCraftConfigs.ContainerTools.ENABLE_PORTABLE_STORAGE,
+                QuickCraftConfigs.ContainerTools.PORTABLE_STORAGE_OPEN_BY_DEFAULT,
+                QuickCraftConfigs.ContainerTools.PORTABLE_STORAGE_COLUMNS,
+                QuickCraftConfigs.ContainerTools.PORTABLE_STORAGE_ROWS
+        ),
         CONTAINER_TOOL_MODE(
                 QuickCraftConfigs.ContainerTools.CONTAINER_TOOL_MODE,
                 QuickCraftConfigs.ContainerTools.QUICK_STASH_INVENTORY_SHULKERS,

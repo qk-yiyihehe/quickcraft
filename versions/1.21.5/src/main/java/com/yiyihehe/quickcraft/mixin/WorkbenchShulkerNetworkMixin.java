@@ -5,7 +5,10 @@ import com.yiyihehe.quickcraft.QuickStashShulkerTransfer;
 import com.yiyihehe.quickcraft.crafting.QuickCraftAnvilRename;
 import com.yiyihehe.quickcraft.crafting.QuickCraftMouseCraftAckExecutor;
 import com.yiyihehe.quickcraft.crafting.QuickCraftWorkbenchShulkerCraft;
+import com.yiyihehe.quickcraft.portablestorage.QuickShulkerRestockFallback;
+import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.network.ClientPlayNetworkHandler;
+import net.minecraft.network.packet.s2c.play.EntityStatusS2CPacket;
 import net.minecraft.network.packet.s2c.play.InventoryS2CPacket;
 import net.minecraft.network.packet.s2c.play.ScreenHandlerSlotUpdateS2CPacket;
 import net.minecraft.network.packet.s2c.play.StatisticsS2CPacket;
@@ -37,6 +40,15 @@ public abstract class WorkbenchShulkerNetworkMixin {
         QuickInventoryShulkerTools.onServerInventoryUpdate(packet.syncId());
         QuickStashShulkerTransfer.onServerInventoryUpdate(packet.syncId());
         com.yiyihehe.quickcraft.sort.QuickCrossBoxSortSync.recordContent(packet.syncId(), packet.revision());
+    }
+
+    @Inject(method = "onEntityStatus", at = @At("RETURN"))
+    private void quickcraft$onTotemUsed(EntityStatusS2CPacket packet, CallbackInfo ci) {
+        MinecraftClient client = MinecraftClient.getInstance();
+        if (packet.getStatus() == 35 && client.player != null && client.world != null
+                && packet.getEntity(client.world) == client.player) {
+            QuickShulkerRestockFallback.totemUsed(client);
+        }
     }
 
     // RETURN 时客户端 StatHandler 已应用服务端绝对值，统计探针可确认没有槽位变化的批次。

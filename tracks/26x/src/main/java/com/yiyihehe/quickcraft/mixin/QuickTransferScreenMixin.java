@@ -1,6 +1,7 @@
 package com.yiyihehe.quickcraft.mixin;
 
 import com.yiyihehe.quickcraft.QuickTransfer;
+import com.yiyihehe.quickcraft.portablestorage.QuickPortableStoragePanel;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
@@ -20,7 +21,8 @@ public abstract class QuickTransferScreenMixin {
                                                  double verticalAmount,
                                                  CallbackInfoReturnable<Boolean> cir) {
         AbstractContainerScreen<?> screen = (AbstractContainerScreen<?>) (Object) this;
-        if (QuickTransfer.handleScrollTransfer(screen, mouseX, mouseY, verticalAmount)) {
+        if (QuickPortableStoragePanel.scroll(screen, mouseX, mouseY, verticalAmount)
+                || QuickTransfer.handleScrollTransfer(screen, mouseX, mouseY, verticalAmount)) {
             cir.setReturnValue(true);
         }
     }

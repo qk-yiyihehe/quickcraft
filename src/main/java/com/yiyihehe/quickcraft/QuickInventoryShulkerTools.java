@@ -39,6 +39,10 @@ public final class QuickInventoryShulkerTools {
         return consumeRightRelease;
     }
 
+    public static boolean isOpening() {
+        return sourceScreen != null;
+    }
+
     static boolean tryOpen(HandledScreen<?> screen, Slot sourceSlot) {
         clearPending();
         MinecraftClient client = MinecraftClient.getInstance();

@@ -1,6 +1,7 @@
 package com.yiyihehe.quickcraft.mixin;
 
 import com.yiyihehe.quickcraft.QuickContainerLock;
+import com.yiyihehe.quickcraft.portablestorage.QuickPortableStoragePanel;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 import org.spongepowered.asm.mixin.Mixin;
@@ -15,6 +16,11 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
  */
 @Mixin(value = AbstractContainerScreen.class, priority = 1100)
 public abstract class QuickContainerLockScreenMixin {
+    @Inject(method = "extractContents", at = @At("HEAD"))
+    private void quickcraft$renderPortableStorage(GuiGraphicsExtractor context, int mouseX, int mouseY, float delta, CallbackInfo ci) {
+        QuickPortableStoragePanel.render((AbstractContainerScreen<?>) (Object) this, context, mouseX, mouseY, delta);
+    }
+
     @Inject(method = "extractContents", at = @At("TAIL"))
     private void quickcraft$renderSlotLocks(GuiGraphicsExtractor context, int mouseX, int mouseY, float delta, CallbackInfo ci) {
         AbstractContainerScreen<?> screen = (AbstractContainerScreen<?>) (Object) this;

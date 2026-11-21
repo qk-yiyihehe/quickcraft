@@ -344,6 +344,26 @@ public final class QuickCraftConfigs implements IConfigHandler {
                 true,
                 ""
         ).apply(CONTAINER_TRANSLATION_PREFIX);
+        public static final ConfigBooleanHotkeyed ENABLE_PORTABLE_STORAGE = new ConfigBooleanHotkeyed(
+                "enablePortableStorage",
+                false,
+                ""
+        ).apply(CONTAINER_TRANSLATION_PREFIX);
+        public static final ConfigBoolean PORTABLE_STORAGE_OPEN_BY_DEFAULT = new ConfigBoolean(
+                "portableStorageOpenByDefault",
+                true
+        ).apply(CONTAINER_TRANSLATION_PREFIX);
+        public static final ConfigInteger PORTABLE_STORAGE_COLUMNS = new ConfigInteger(
+                "portableStorageColumns", 5, 2, 12, true
+        ).apply(CONTAINER_TRANSLATION_PREFIX);
+        public static final ConfigInteger PORTABLE_STORAGE_ROWS = new ConfigInteger(
+                "portableStorageRows", 8, 1, 12, true
+        ).apply(CONTAINER_TRANSLATION_PREFIX);
+        public static final ConfigBooleanHotkeyed ENABLE_AUTO_SHULKER_RESTOCK = new ConfigBooleanHotkeyed(
+                "enableAutoShulkerRestock",
+                false,
+                ""
+        ).apply(CONTAINER_TRANSLATION_PREFIX);
         public static final ConfigBooleanHotkeyed SHOW_QUICK_STASH_BUTTON = new ConfigBooleanHotkeyed(
                 "showQuickStashButton",
                 true,
@@ -496,6 +516,11 @@ public final class QuickCraftConfigs implements IConfigHandler {
                 ENABLE_SCROLL_TRANSFER,
                 QUICK_TRANSFER_RETAIN_ONE,
                 SHOW_QUICK_STASH_BUTTON,
+                ENABLE_PORTABLE_STORAGE,
+                PORTABLE_STORAGE_OPEN_BY_DEFAULT,
+                PORTABLE_STORAGE_COLUMNS,
+                PORTABLE_STORAGE_ROWS,
+                ENABLE_AUTO_SHULKER_RESTOCK,
                 ENABLE_QUICK_THROW,
                 ENABLE_QUICK_TRADE,
                 QUICK_TRADE_RIGHT_CLICK,
@@ -1045,6 +1070,8 @@ public final class QuickCraftConfigs implements IConfigHandler {
                 ContainerTools.ENABLE_QUICK_TRANSFER,
                 ContainerTools.SHOW_MATCHING_TRANSFER_HIGHLIGHT,
                 ContainerTools.ENABLE_SCROLL_TRANSFER,
+                ContainerTools.ENABLE_PORTABLE_STORAGE,
+                ContainerTools.ENABLE_AUTO_SHULKER_RESTOCK,
                 ContainerTools.QUICK_TRANSFER_RETAIN_ONE,
                 ContainerTools.ENABLE_QUICK_THROW,
                 ContainerTools.ENABLE_QUICK_TRADE,
@@ -1119,6 +1146,8 @@ public final class QuickCraftConfigs implements IConfigHandler {
                 Crafting.RETAIN_ONE_CRAFT_INGREDIENT,
                 ContainerTools.ENABLE_QUICK_TRANSFER,
                 ContainerTools.ENABLE_SCROLL_TRANSFER,
+                ContainerTools.ENABLE_PORTABLE_STORAGE,
+                ContainerTools.ENABLE_AUTO_SHULKER_RESTOCK,
                 ContainerTools.QUICK_TRANSFER_RETAIN_ONE,
                 ContainerTools.ENABLE_QUICK_THROW,
                 ContainerTools.ENABLE_QUICK_TRADE,
@@ -1674,6 +1703,10 @@ public final class QuickCraftConfigs implements IConfigHandler {
 
         JsonObject containerTools = getObject(root, "ContainerTools");
         if (containerTools != null) {
+            if (containerTools.has("enablePortableStorage") && !containerTools.has("enableAutoShulkerRestock")) {
+                ContainerTools.ENABLE_AUTO_SHULKER_RESTOCK.setBooleanValue(
+                        ContainerTools.ENABLE_PORTABLE_STORAGE.getBooleanValue());
+            }
             if (getLegacyEnabledValue(containerTools.get("quickTradeStandby"))) {
                 ContainerTools.ENABLE_QUICK_TRADE.setBooleanValue(true);
             }

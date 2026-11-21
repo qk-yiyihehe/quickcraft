@@ -1,6 +1,7 @@
 package com.yiyihehe.quickcraft.mixin;
 
 import com.yiyihehe.quickcraft.QuickContainerLock;
+import com.yiyihehe.quickcraft.portablestorage.QuickPortableStoragePanel;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.gui.screen.ingame.HandledScreen;
 import org.spongepowered.asm.mixin.Mixin;
@@ -14,6 +15,11 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
  */
 @Mixin(value = HandledScreen.class, priority = 1100)
 public abstract class QuickContainerLockScreenMixin {
+    @Inject(method = "render", at = @At("HEAD"))
+    private void quickcraft$renderPortableStorage(DrawContext context, int mouseX, int mouseY, float delta, CallbackInfo ci) {
+        QuickPortableStoragePanel.render((HandledScreen<?>) (Object) this, context, mouseX, mouseY, delta);
+    }
+
     @Inject(method = "render", at = @At("TAIL"))
     private void quickcraft$renderSlotLocks(DrawContext context, int mouseX, int mouseY, float delta, CallbackInfo ci) {
         HandledScreen<?> screen = (HandledScreen<?>) (Object) this;

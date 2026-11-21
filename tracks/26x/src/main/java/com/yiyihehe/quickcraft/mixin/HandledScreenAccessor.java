@@ -10,6 +10,9 @@ import org.spongepowered.asm.mixin.gen.Accessor;
  */
 @Mixin(AbstractContainerScreen.class)
 public interface HandledScreenAccessor {
+    @Accessor("isQuickCrafting")
+    void quickcraft$setPortableStorageQuickCrafting(boolean active);
+
     @Accessor("leftPos")
     int quickcraft$getGuiLeft();
 

@@ -16,7 +16,11 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 public abstract class GuiContinuousTradeScreenMixin {
     @Inject(method = "setScreen", at = @At("HEAD"), cancellable = true)
     private void quickcraft$suppressContinuousTradeScreen(Screen screen, CallbackInfo ci) {
-        if (com.yiyihehe.quickcraft.QuickCrossBoxSort.consumeScreen(screen)) { ci.cancel(); return; }
+        if (com.yiyihehe.quickcraft.portablestorage.QuickPortableStorageTransfer.consumeScreen(screen)
+                || com.yiyihehe.quickcraft.QuickCrossBoxSort.consumeScreen(screen)) {
+            ci.cancel();
+            return;
+        }
         if (screen instanceof MerchantScreen && QuickTrade.shouldSuppressContinuousTradeScreenOpen()) {
             ci.cancel();
         }

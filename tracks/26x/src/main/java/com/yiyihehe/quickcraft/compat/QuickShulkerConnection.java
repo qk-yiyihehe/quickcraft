@@ -39,7 +39,8 @@ public final class QuickShulkerConnection {
     }
 
     public static boolean sendOpen(int slotId) {
-        if (!canOpen() || OpenPacket.CONSTRUCTOR == null) {
+        if (com.yiyihehe.quickcraft.portablestorage.QuickPortableStorageTransfer.isRunning()
+                || !canOpen() || OpenPacket.CONSTRUCTOR == null) {
             return false;
         }
         try {

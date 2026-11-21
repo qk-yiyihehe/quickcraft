@@ -76,6 +76,7 @@
 		"QuickFreeCameraMinecraftClientMixin",
 		"QuickFreeCameraPlayerEntityMixin",
 		"TweakerooPlacementTweaksFreeCameraMixin",
+		"TweakerooHandRestockMixin",
 		"QuickTransferItemHighlightMixin",
 		"IpnScrollTransferMixin",
 		"ItemScrollerScrollTransferMixin",

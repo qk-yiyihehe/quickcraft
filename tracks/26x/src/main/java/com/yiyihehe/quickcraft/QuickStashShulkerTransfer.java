@@ -4,6 +4,7 @@ import static com.yiyihehe.quickcraft.QuickContainerCopySources.*;
 
 import com.yiyihehe.quickcraft.compat.QuickShulkerConnection;
 import com.yiyihehe.quickcraft.config.QuickCraftConfigs;
+import com.yiyihehe.quickcraft.portablestorage.QuickPortableStorageTransfer;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
@@ -35,7 +36,7 @@ public final class QuickStashShulkerTransfer {
     private QuickStashShulkerTransfer() {
     }
 
-    static boolean isRunning() {
+    public static boolean isRunning() {
         return session != null;
     }
 
@@ -52,6 +53,7 @@ public final class QuickStashShulkerTransfer {
         Minecraft client = Minecraft.getInstance();
         if (!isEnabled() || client.player == null || client.level == null || client.gameMode == null
                 || QuickClientScreenAccess.currentScreen(client) != screen || !screen.getMenu().getCarried().isEmpty()
+                || QuickPortableStorageTransfer.isRunning()
                 || QuickContainerCopy.shouldHideBackgroundHandledScreen()
                 || QuickMaterialCollector.shouldHideBackgroundHandledScreen()) {
             return false;

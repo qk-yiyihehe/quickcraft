@@ -4,6 +4,7 @@ import com.yiyihehe.quickcraft.QuickClientScreenAccess;
 import com.yiyihehe.quickcraft.config.QuickCraftConfigs;
 import com.yiyihehe.quickcraft.QuickContainerLock;
 import com.yiyihehe.quickcraft.compat.QuickShulkerConnection;
+import com.yiyihehe.quickcraft.portablestorage.QuickPortableStorageTransfer;
 import fi.dy.masa.litematica.config.Configs;
 import fi.dy.masa.malilib.util.EquipmentUtils;
 import fi.dy.masa.litematica.data.DataManager;
@@ -84,6 +85,15 @@ public final class QuickLitematicaShulkerMaterialRestock implements ClientModIni
             return materialInShulker;
         }
 
+        if (QuickPortableStorageTransfer.isRunning()) {
+            if (findShulkerWithMaterial(inventory, requiredStack) == -1
+                    || !QuickPortableStorageTransfer.yieldHandRestockToEasyPlace()) {
+                return false;
+            }
+            pendingRequest = new PendingRequest(copyTemplate(requiredStack));
+            return true;
+        }
+
         pendingRequest = new PendingRequest(copyTemplate(requiredStack));
         if (startPendingRequest(client)) {
             return true;
@@ -99,13 +109,29 @@ public final class QuickLitematicaShulkerMaterialRestock implements ClientModIni
      * 此时主手可能为空，不能依赖 Litematica 后续的 pick block 回调来发现缺料。
      */
     public static boolean requestMaterialForEasyPlaceTarget(Minecraft client) {
-        if (!QuickCraftConfigs.isLitematicaShulkerMaterialRestockWithQuickShulkerEnabled()
-                || client == null
+        return QuickCraftConfigs.isLitematicaShulkerMaterialRestockWithQuickShulkerEnabled()
+                && requestMissingMaterial(getEasyPlaceTargetMaterial(client));
+    }
+
+    public static boolean isRestockInProgress() {
+        return pendingRequest != null || operation != Operation.IDLE;
+    }
+
+    public static boolean takesPriorityOverHandRestock(Minecraft client) {
+        return isRestockInProgress()
+                || QuickCraftConfigs.isLitematicaShulkerMaterialRestockWithQuickShulkerEnabled()
+                && Configs.Generic.EASY_PLACE_MODE.getBooleanValue()
+                && !getEasyPlaceTargetMaterial(client).isEmpty()
+                && !QuickLitematicaEasyPlaceInteractions.shouldAllowVanillaUse(client);
+    }
+
+    private static ItemStack getEasyPlaceTargetMaterial(Minecraft client) {
+        if (client == null
                 || client.player == null
                 || client.level == null
                 || !(client.hitResult instanceof BlockHitResult hitResult)
                 || hitResult.getType() != HitResult.Type.BLOCK) {
-            return false;
+            return ItemStack.EMPTY;
         }
 
         BlockPlaceContext placementContext = new BlockPlaceContext(
@@ -114,18 +140,17 @@ public final class QuickLitematicaShulkerMaterialRestock implements ClientModIni
         BlockPos position = placementContext.getClickedPos();
         Level schematicLevel = SchematicWorldHandler.getSchematicWorld();
         if (schematicLevel == null) {
-            return false;
+            return ItemStack.EMPTY;
         }
         BlockState schematicState = schematicLevel.getBlockState(position);
 
         if (schematicState.isAir()
                 || !DataManager.getRenderLayerRange().isPositionWithinRange(position)
                 || !client.level.getBlockState(position).canBeReplaced(placementContext)) {
-            return false;
+            return ItemStack.EMPTY;
         }
 
-        ItemStack requiredStack = MaterialCache.getInstance().getRequiredBuildItemForState(schematicState);
-        return requestMissingMaterial(requiredStack);
+        return MaterialCache.getInstance().getRequiredBuildItemForState(schematicState);
     }
 
     private static void onClientTick(Minecraft client) {
@@ -143,6 +168,7 @@ public final class QuickLitematicaShulkerMaterialRestock implements ClientModIni
         switch (operation) {
             case IDLE -> {
                 if (pendingRequest != null
+                        && !QuickPortableStorageTransfer.isRunning()
                         && !hasOpenScreen(client)
                         && !startPendingRequest(client)) {
                     pendingRequest = null;

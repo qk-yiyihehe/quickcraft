@@ -2,6 +2,8 @@ package com.yiyihehe.quickcraft.mixin;
 
 import com.yiyihehe.quickcraft.QuickContainerCopy;
 import com.yiyihehe.quickcraft.QuickMaterialCollector;
+import com.yiyihehe.quickcraft.portablestorage.QuickPortableStorageTransfer;
+import com.yiyihehe.quickcraft.portablestorage.QuickShulkerRestockFallback;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.gui.screen.Screen;
 import net.minecraft.client.gui.screen.ingame.HandledScreen;
@@ -27,8 +29,11 @@ public abstract class MinecraftClientContinuousFillUseMixin {
     @Inject(method = "doItemUse", at = @At("HEAD"), cancellable = true)
     private void quickcraft$suppressContinuousFillUse(CallbackInfo ci) {
         if (QuickContainerCopy.shouldSuppressContinuousFillUseInput()
-                || QuickMaterialCollector.shouldSuppressUseInput()) {
+                || QuickMaterialCollector.shouldSuppressUseInput()
+                || QuickPortableStorageTransfer.blocksItemUse()) {
             ci.cancel();
+        } else {
+            QuickShulkerRestockFallback.itemUseStarted((MinecraftClient) (Object) this);
         }
     }
 }

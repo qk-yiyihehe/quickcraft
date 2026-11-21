@@ -24,6 +24,7 @@ public class QuickCraft implements ModInitializer {
         InitializationHandler.getInstance().registerInitializationHandler(new QuickCraftMalilibInit());
         QuickLitematicaEntityPlacement.initializeCommon();
         QuickCraftUpdateNotice.initialize();
+        com.yiyihehe.quickcraft.portablestorage.QuickPortableStorageTransfer.initialize();
     }
 
     public static void bindOptionalHotkeys() {
