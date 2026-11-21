@@ -71,6 +71,7 @@
 		"WorkbenchShulkerNetworkMixin",
 		"RecipeBookScreenAccessor",
 		"QuickDraggableButtonScreenMixin",
+		"RecipeBookToggleButtonAccessor",
 		"QuickFreeCameraGameRendererMixin",
 		"QuickFreeCameraInteractionManagerMixin",
 		"QuickFreeCameraMinecraftClientMixin",

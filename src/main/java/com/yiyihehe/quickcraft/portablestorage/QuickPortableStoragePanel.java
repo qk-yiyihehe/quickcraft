@@ -6,6 +6,7 @@ import com.yiyihehe.quickcraft.render.QuickButtonAccess;
 import com.yiyihehe.quickcraft.QuickCraftKeyBindings;
 import com.yiyihehe.quickcraft.QuickSlotTransfer;
 import com.yiyihehe.quickcraft.config.QuickCraftConfigs;
+import com.yiyihehe.quickcraft.mixin.RecipeBookToggleButtonAccessor;
 import com.yiyihehe.quickcraft.render.QuickCompactIconButton;
 import com.yiyihehe.quickcraft.render.QuickDraggableButton;
 import com.yiyihehe.quickcraft.sort.QuickCrossBoxSortStackKey;
@@ -15,6 +16,7 @@ import net.minecraft.client.gui.screen.Screen;
 import net.minecraft.client.gui.widget.TextFieldWidget;
 import net.minecraft.client.gui.screen.ingame.HandledScreen;
 import net.minecraft.client.gui.screen.ingame.InventoryScreen;
+import net.minecraft.client.gui.screen.recipebook.RecipeBookWidget;
 import net.minecraft.component.DataComponentTypes;
 import net.minecraft.registry.Registries;
 import net.minecraft.text.Text;
@@ -492,6 +494,13 @@ public final class QuickPortableStoragePanel {
 
     public static boolean key(HandledScreen<?> screen, int key, int scancode, int modifiers) {
         var panel = panel(screen);
+        // The recipe book hides the panel while open, so reserve Space before testing visibility.
+        if (key == GLFW.GLFW_KEY_SPACE && panel != null && panelEnabled() && panel.shown && panel.fitsViewport()
+                && !MinecraftClient.getInstance().getNavigationType().isKeyboard()
+                && screen.getFocused() instanceof RecipeBookToggleButtonAccessor button
+                && button.quickcraft$getRecipeBookToggleSprites() == RecipeBookWidget.BUTTON_TEXTURES) {
+            return true;
+        }
         if (panel == null || !panel.visible()) {
             return blocksVanillaInput(screen) && key != GLFW.GLFW_KEY_ESCAPE;
         }

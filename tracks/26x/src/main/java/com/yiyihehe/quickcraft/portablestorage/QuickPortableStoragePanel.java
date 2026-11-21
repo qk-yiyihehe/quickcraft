@@ -5,6 +5,7 @@ import com.mojang.blaze3d.platform.InputConstants;
 import com.yiyihehe.quickcraft.QuickCraftKeyBindings;
 import com.yiyihehe.quickcraft.QuickSlotTransfer;
 import com.yiyihehe.quickcraft.config.QuickCraftConfigs;
+import com.yiyihehe.quickcraft.mixin.RecipeBookToggleButtonAccessor;
 import com.yiyihehe.quickcraft.mixin.RecipeBookScreenAccessor;
 import com.yiyihehe.quickcraft.render.QuickCompactIconButton;
 import com.yiyihehe.quickcraft.render.QuickDraggableButton;
@@ -15,6 +16,7 @@ import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 import net.minecraft.client.gui.screens.inventory.InventoryScreen;
+import net.minecraft.client.gui.screens.recipebook.RecipeBookComponent;
 import net.minecraft.client.input.KeyEvent;
 import net.minecraft.client.renderer.RenderPipelines;
 import net.minecraft.core.component.DataComponents;
@@ -493,6 +495,13 @@ public final class QuickPortableStoragePanel {
 
     public static boolean key(AbstractContainerScreen<?> screen, KeyEvent event) {
         var panel = panel(screen);
+        // The recipe book hides the panel while open, so reserve Space before testing visibility.
+        if (event.key() == InputConstants.KEY_SPACE && panel != null && panelEnabled() && panel.shown && panel.fitsViewport()
+                && !Minecraft.getInstance().getLastInputType().isKeyboard()
+                && screen.getFocused() instanceof RecipeBookToggleButtonAccessor button
+                && button.quickcraft$getRecipeBookToggleSprites() == RecipeBookComponent.RECIPE_BUTTON_SPRITES) {
+            return true;
+        }
         if (panel == null || !panel.visible()) {
             return blocksVanillaInput(screen) && event.key() != InputConstants.KEY_ESCAPE;
         }
