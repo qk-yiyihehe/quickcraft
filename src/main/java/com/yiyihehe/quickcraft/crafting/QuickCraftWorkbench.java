@@ -12,7 +12,7 @@ public class QuickCraftWorkbench implements ClientModInitializer {
 
     private final QuickCraftMouseCrafting crafting = new QuickCraftMouseCrafting(
             QuickCraftMouseCraftLayout.WORKBENCH,
-            QuickCraftConfigs::isWorkbenchQuickCraftEnabled,
+            QuickCraftConfigs::isWorkbenchQuickCraftFeatureEnabled,
             QuickCraftWorkbenchAccess::clearRecipeGhostSlots
     );
 
@@ -23,7 +23,8 @@ public class QuickCraftWorkbench implements ClientModInitializer {
     }
 
     public static boolean handleWorkbenchCraftButton(boolean rapidCraft) {
-        return instance != null && instance.crafting.handleCraftButton(rapidCraft);
+        return instance != null && (QuickCraftWorkbenchShulkerCraft.shouldSuppressRecipeGhostSlots()
+                || instance.crafting.handleCraftButton(rapidCraft));
     }
 
     public static boolean shouldSuppressRecipeGhostSlots() {

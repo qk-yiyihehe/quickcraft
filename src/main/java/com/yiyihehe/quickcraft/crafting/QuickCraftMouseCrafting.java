@@ -46,6 +46,7 @@ final class QuickCraftMouseCrafting {
 
     private boolean rapidCraftingActive = false;
     private boolean rapidCraftStartedByButton = false;
+    private ScreenHandler craftingHandler;
 
     private RecipeEntry<CraftingRecipe> lockedRecipe = null;
 
@@ -98,6 +99,18 @@ final class QuickCraftMouseCrafting {
         }
 
         ScreenHandler handler = client.player.currentScreenHandler;
+
+        bindCraftingHandler(handler);
+
+        // 盒喷入口仍会转发单次合成，配方快照随当前工作台保留。
+        if (layout == QuickCraftMouseCraftLayout.WORKBENCH && QuickCraftConfigs.isWorkbenchQuickShulkerCraftEnabled()) {
+            if (rapidCraftingActive || mouseCraftAckExecutor.isActive()) {
+                resetRapidCraft();
+                clearRecipeGhosts.run();
+            }
+            trackHotkeyState();
+            return;
+        }
 
         if (mouseCraftAckExecutor.isActive()) {
             trackHotkeyStateWhileBlocked();
@@ -207,11 +220,12 @@ final class QuickCraftMouseCrafting {
         if (!isCraftingContextValid(client)) {
             return false;
         }
+
+        ScreenHandler handler = client.player.currentScreenHandler;
+        bindCraftingHandler(handler);
         if (mouseCraftAckExecutor.isActive()) {
             return true;
         }
-
-        ScreenHandler handler = (ScreenHandler) client.player.currentScreenHandler;
         if (QuickCraftMouseCraftAckExecutor.isCanceledBatchDraining(handler)) {
             return true;
         }
@@ -2168,13 +2182,25 @@ final class QuickCraftMouseCrafting {
         sendStatusMessage(client, message);
     }
 
+    private void bindCraftingHandler(ScreenHandler handler) {
+        if (craftingHandler != null && craftingHandler != handler) {
+            resetAll();
+        }
+        craftingHandler = handler;
+    }
+
+    private void resetRapidCraft() {
+        mouseCraftAckExecutor.cancel("配方书合成状态重置：" + layout.name());
+        rapidCraftingActive = false;
+        rapidCraftStartedByButton = false;
+    }
+
     private void resetAll() {
         boolean hadCraftState = mouseCraftAckExecutor.isActive()
                 || rapidCraftingActive || lockedRecipe != null || hasLockedRecipe
                 || !lockedCraftingPattern.isEmpty() || !lockedResultTemplate.isEmpty();
-        mouseCraftAckExecutor.cancel("配方书合成状态重置：" + layout.name());
-        rapidCraftingActive = false;
-        rapidCraftStartedByButton = false;
+        resetRapidCraft();
+        craftingHandler = null;
         lockedRecipe = null;
         hasLockedRecipe = false;
         lockedCraftingPattern.clear();
