@@ -1,5 +1,6 @@
 package com.yiyihehe.quickcraft.litematica;
 
+import com.mojang.blaze3d.platform.InputConstants;
 import fi.dy.masa.litematica.gui.GuiMainMenu.ButtonListenerChangeMenu;
 import fi.dy.masa.malilib.gui.GuiBase;
 import fi.dy.masa.malilib.gui.button.ButtonGeneric;
@@ -309,7 +310,7 @@ final class QuickLitematicaContainerMaterialsScreens {
 
             int slotIndex = this.getHoveredSlotIndex(mouseX, mouseY);
             if (slotIndex >= 0) {
-                if (mouseButton != 0) { return false; }
+                if (mouseButton != InputConstants.MOUSE_BUTTON_LEFT) { return false; }
                 if (QuickLitematicaMaterialGui.controlDown()) {
                     this.gui.toggleSlotSelection(this.entry.group(), slotIndex);
                 } else {

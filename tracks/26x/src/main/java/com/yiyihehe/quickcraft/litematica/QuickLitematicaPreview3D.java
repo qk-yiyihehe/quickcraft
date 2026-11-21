@@ -574,7 +574,7 @@ public final class QuickLitematicaPreview3D {
                 return true;
             }
 
-            if (mouseButton == 0 && this.canForceRender() && this.isForceRenderButtonHovered(mouseX, mouseY)) {
+            if (mouseButton == InputConstants.MOUSE_BUTTON_LEFT && this.canForceRender() && this.isForceRenderButtonHovered(mouseX, mouseY)) {
                 this.current.trace.event("用户强制渲染：解除当前投影静态顶点保护，可能耗尽内存/显存");
                 this.current.close();
                 this.current = Preview.create(this.currentEntry, true);

@@ -1,5 +1,6 @@
 package com.yiyihehe.quickcraft.litematica;
 
+import com.mojang.blaze3d.platform.InputConstants;
 import com.yiyihehe.quickcraft.mixin.MalilibWidgetContainerInvoker;
 import com.yiyihehe.quickcraft.litematica.QuickLitematicaMaterialGui.Context;
 
@@ -105,13 +106,14 @@ public final class QuickLitematicaMaterialRow {
 
     public boolean select(int mouseX, int mouseY, int mouseButton) {
         if (!QuickLitematicaContainerReplacements.enabled()) { return false; }
-        if (this.entry != null && mouseButton == 0 && QuickLitematicaMaterialGui.controlDown()
-                && this.quickcraft$materialList instanceof QuickLitematicaContainerMaterials.ContainerReplacementBindingSource source) {
+        if (this.entry == null || mouseButton != InputConstants.MOUSE_BUTTON_LEFT || !QuickLitematicaMaterialGui.controlDown()) {
+            return false;
+        }
+        if (this.quickcraft$materialList instanceof QuickLitematicaContainerMaterials.ContainerReplacementBindingSource source) {
             source.quickcraft$toggleSelectedMaterial(this.entry.getStack());
             this.quickcraft$refreshSelection();
             return true;
-        } else if (this.entry != null && mouseButton == 0 && QuickLitematicaMaterialGui.controlDown()
-                && this.quickcraft$replacementSupported && this.quickcraft$scope == QuickLitematicaContainerReplacements.Scope.PROJECTION) {
+        } else if (this.quickcraft$replacementSupported && this.quickcraft$scope == QuickLitematicaContainerReplacements.Scope.PROJECTION) {
             com.yiyihehe.quickcraft.litematica.QuickLitematicaProjectionMaterials.toggle(this.quickcraft$materialList, this.entry.getStack());
             this.quickcraft$refreshSelection();
             return true;

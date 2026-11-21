@@ -1,5 +1,6 @@
 package com.yiyihehe.quickcraft;
 
+import com.mojang.blaze3d.platform.InputConstants;
 import com.yiyihehe.quickcraft.compat.QuickShulkerConnection;
 import com.yiyihehe.quickcraft.config.QuickCraftConfigs;
 import com.yiyihehe.quickcraft.config.QuickCraftConfigs.ContainerToolMode;
@@ -26,7 +27,7 @@ public final class QuickInventoryShulkerTools {
     }
 
     public static boolean handleMouseClick(double mouseX, double mouseY, int button, boolean pressed) {
-        if (button != 1) {
+        if (button != InputConstants.MOUSE_BUTTON_RIGHT) {
             return false;
         }
         if (!pressed) {
