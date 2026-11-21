@@ -16,6 +16,7 @@ import net.minecraft.entity.player.PlayerInventory;
 import net.minecraft.item.BlockItem;
 import net.minecraft.item.ItemStack;
 import net.minecraft.screen.CraftingScreenHandler;
+import net.minecraft.screen.GenericContainerScreenHandler;
 import net.minecraft.screen.PlayerScreenHandler;
 import net.minecraft.screen.ScreenHandler;
 import net.minecraft.screen.slot.Slot;
@@ -1010,6 +1011,14 @@ public final class QuickTransfer implements ClientModInitializer {
     }
 
     private static List<Integer> getPlayerPreferredStorageSlotIds(ScreenHandler handler) {
+        if (handler instanceof GenericContainerScreenHandler) {
+            // 与普通箱子原版 Shift 取出的槽位顺序一致。
+            return handler.slots.reversed().stream()
+                    .filter(slot -> isPlayerStorageSlot(slot) && isVisibleSlot(slot)
+                            && !QuickContainerLock.isLockedSlot(handler, slot))
+                    .map(slot -> slot.id)
+                    .toList();
+        }
         List<Integer> targetSlotIds = new ArrayList<>(36);
         targetSlotIds.addAll(getPlayerStorageSlotIdsByRange(handler, 9, 35));
         targetSlotIds.addAll(getPlayerStorageSlotIdsByRange(handler, 0, 8));

@@ -625,7 +625,7 @@ public final class QuickPortableStorageTransfer {
                 yield from.getStack().getCount() < before;
             }
             case ONE -> {
-                Slot target = findPlayerSlot(menu, request.stack, slot -> true);
+                Slot target = findPlayerTakeSlot(menu, request.stack, slot -> true);
                 yield target != null && QuickSlotTransfer.moveAmount(client, menu, from, target, 1) > 0;
             }
             case OFFHAND -> equipOffhand(client, menu, from);
@@ -884,16 +884,21 @@ public final class QuickPortableStorageTransfer {
     }
 
     static Slot findPlayerSlot(ScreenHandler menu, ItemStack stack, Predicate<Slot> filter) {
-        return findTarget(menu, stack, slot -> QuickSlotTransfer.isPlayerStorageSlot(slot) && filter.test(slot));
+        return findTarget(menu, menu.slots, stack, slot -> QuickSlotTransfer.isPlayerStorageSlot(slot) && filter.test(slot));
+    }
+
+    static Slot findPlayerTakeSlot(ScreenHandler menu, ItemStack stack, Predicate<Slot> filter) {
+        return findTarget(menu, menu.slots.reversed(), stack,
+                slot -> QuickSlotTransfer.isPlayerStorageSlot(slot) && filter.test(slot));
     }
 
     private static Slot findContainerSlot(ScreenHandler menu, ItemStack stack) {
-        return findTarget(menu, stack, slot -> slot.id < STORAGE_SLOTS);
+        return findTarget(menu, menu.slots, stack, slot -> slot.id < STORAGE_SLOTS);
     }
 
-    private static Slot findTarget(ScreenHandler menu, ItemStack stack, Predicate<Slot> filter) {
+    private static Slot findTarget(ScreenHandler menu, List<Slot> slots, ItemStack stack, Predicate<Slot> filter) {
         Slot empty = null;
-        for (Slot slot : menu.slots) {
+        for (Slot slot : slots) {
             if (!filter.test(slot) || locked(menu, slot) || !slot.canInsert(stack)) {
                 continue;
             }

@@ -48,8 +48,9 @@ final class QuickPortableStorageBundles {
         ItemStack stack = entry.stack();
         boolean splitConflict = mode == Mode.ONE && stack.is(Items.ENDER_CHEST) && stack.getCount() > 1;
         boolean offhand = mode == Mode.OFFHAND;
-        Slot target = findPlayerSlot(menu, stack,
-                slot -> slot != bundle && (!offhand || !slot.hasItem()));
+        Slot target = offhand
+                ? findPlayerSlot(menu, stack, slot -> slot != bundle && !slot.hasItem())
+                : findPlayerTakeSlot(menu, stack, slot -> slot != bundle);
         Slot buffer = splitConflict ? findPlayerSlot(menu, stack, slot -> slot != target && !slot.hasItem()) : null;
         if (target == null || splitConflict && buffer == null
                 || offhand && !client.player.getOffhandItem().isEmpty()
@@ -81,7 +82,7 @@ final class QuickPortableStorageBundles {
             click(client, menu, target, stack.getCount() == 1 ? 0 : 1);
         } else {
             for (boolean empty : new boolean[]{false, true}) {
-                for (Slot slot : menu.slots) {
+                for (Slot slot : menu.slots.reversed()) {
                     ItemStack cursor = menu.getCarried();
                     if (cursor.isEmpty()) {
                         return;
