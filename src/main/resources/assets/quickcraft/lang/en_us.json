@@ -679,7 +679,7 @@
   "quickcraft.litematica.message.copy_saved": "Copy saved: %s",
   "quickcraft.litematica.button.batch_replace": "Batch replace (%s)",
   "quickcraft.litematica.button.clear_selection": "Clear selection",
-  "quickcraft.litematica.tooltip.batch_select": "Ctrl + left click to toggle selection; yellow borders mark selected entries",
+  "quickcraft.litematica.tooltip.batch_select": "Ctrl + left click to toggle selection, or drag to select or deselect multiple entries",
   "quickcraft.litematica.label.batch_material_scope": "Replace %s selected materials; preserve slot overrides",
   "quickcraft.litematica.label.batch_slot_scope": "Replace %s selected slots across %s containers; blank count preserves each slot count",
   "quickcraft.litematica.button.batch_replace_materials": "Batch replace",

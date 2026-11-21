@@ -106,6 +106,7 @@
 		"LitematicaGlobalSaveWorldMixin",
 		"LitematicaWidgetMaterialListEntryMixin",
 		"MalilibGuiListAccessor",
+		"MalilibWidgetListAccessor",
 		"LitematicaListPaginationMixin",
 		"MalilibSearchBarAccessor",
 		"LitematicaGlobalProtoPlacementMixin",

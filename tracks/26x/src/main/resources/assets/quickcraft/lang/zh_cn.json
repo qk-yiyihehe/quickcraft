@@ -680,7 +680,7 @@
   "quickcraft.litematica.message.copy_saved": "副本已保存：%s",
   "quickcraft.litematica.button.batch_replace": "批量替换 (%s)",
   "quickcraft.litematica.button.clear_selection": "取消选中",
-  "quickcraft.litematica.tooltip.batch_select": "Ctrl + 左键选中或取消选中；黄色边框表示已选中",
+  "quickcraft.litematica.tooltip.batch_select": "Ctrl + 左键点选，按住拖动可批量选中或取消",
   "quickcraft.litematica.label.batch_material_scope": "替换选中的 %s 种材料；保留单格覆盖规则",
   "quickcraft.litematica.label.batch_slot_scope": "替换选中的 %s 个槽位，涉及 %s 个容器；数量留空保留各格数量",
   "quickcraft.litematica.button.batch_replace_materials": "批量替换",

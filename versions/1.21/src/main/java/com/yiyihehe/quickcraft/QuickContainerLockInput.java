@@ -1,5 +1,6 @@
 package com.yiyihehe.quickcraft;
 
+import com.yiyihehe.quickcraft.litematica.QuickLitematicaSelectionDrag;
 import fi.dy.masa.malilib.hotkeys.IMouseInputHandler;
 import net.minecraft.client.MinecraftClient;
 
@@ -7,11 +8,16 @@ import net.minecraft.client.MinecraftClient;
 public final class QuickContainerLockInput implements IMouseInputHandler {
     @Override
     public boolean onMouseClick(int mouseX, int mouseY, int button, boolean pressed) {
+        if (button == 0) {
+            QuickLitematicaSelectionDrag.stop();
+        }
         return QuickInventoryShulkerTools.handleMouseClick(mouseX, mouseY, button, pressed);
     }
 
     @Override
     public void onMouseMove(int mouseX, int mouseY) {
-        QuickContainerLock.handleSlotLockDrag(MinecraftClient.getInstance(), mouseX, mouseY);
+        MinecraftClient client = MinecraftClient.getInstance();
+        QuickContainerLock.handleSlotLockDrag(client, mouseX, mouseY);
+        QuickLitematicaSelectionDrag.move(client.currentScreen, mouseX, mouseY);
     }
 }

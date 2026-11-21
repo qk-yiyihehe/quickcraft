@@ -1,6 +1,8 @@
 package com.yiyihehe.quickcraft.litematica;
 
+import com.yiyihehe.quickcraft.mixin.MalilibGuiListAccessor;
 import com.yiyihehe.quickcraft.mixin.MalilibWidgetContainerInvoker;
+import com.yiyihehe.quickcraft.mixin.MalilibWidgetListAccessor;
 import com.yiyihehe.quickcraft.litematica.QuickLitematicaMaterialGui.Context;
 
 import com.yiyihehe.quickcraft.litematica.QuickLitematicaMaterialReplacementScreen;
@@ -13,6 +15,8 @@ import fi.dy.masa.litematica.gui.widgets.WidgetListMaterialList;
 import fi.dy.masa.litematica.materials.MaterialListBase;
 import fi.dy.masa.malilib.util.StringUtils;
 import net.minecraft.client.MinecraftClient;
+import net.minecraft.item.BlockItem;
+import net.minecraft.item.ItemStack;
 
 import com.yiyihehe.quickcraft.litematica.QuickLitematicaContainerReplacements;
 
@@ -59,7 +63,7 @@ public final class QuickLitematicaMaterialRow {
         this.quickcraft$contextKey = QuickLitematicaMaterialLists.getReplacementContextKey(materialList);
         this.quickcraft$replacementSupported = isContainerList
                 || (isProjectionList && !this.quickcraft$contextKey.isBlank()
-                && (entry == null || entry.getStack().getItem() instanceof net.minecraft.item.BlockItem));
+                && (entry == null || entry.getStack().getItem() instanceof BlockItem));
 
         if (!QuickLitematicaContainerReplacements.enabled() || entry == null || !this.quickcraft$replacementSupported) {
             return;
@@ -71,12 +75,8 @@ public final class QuickLitematicaMaterialRow {
         ) + 10;
         int replaceRight = x + width - ignoreWidth - 4;
         ButtonGeneric button = new ButtonGeneric(replaceRight, y + 1, -1, true, label);
-        if (isContainerList) {
-            button.setHoverStrings(StringUtils.translate("quickcraft.litematica.tooltip.material_replace"),
-                    StringUtils.translate("quickcraft.litematica.tooltip.batch_select"));
-        } else {
-            button.setHoverStrings(StringUtils.translate("quickcraft.litematica.tooltip.material_replace"));
-        }
+        button.setHoverStrings(StringUtils.translate("quickcraft.litematica.tooltip.material_replace"),
+                StringUtils.translate("quickcraft.litematica.tooltip.batch_select"));
         this.owner.quickcraft$addButton(button, (clicked, mouseButton) -> {
             if (MinecraftClient.getInstance().currentScreen != null) {
                 QuickLitematicaMaterialReplacementScreen.open(
@@ -104,24 +104,71 @@ public final class QuickLitematicaMaterialRow {
     }
 
     public boolean select(int mouseX, int mouseY, int mouseButton) {
-        if (!QuickLitematicaContainerReplacements.enabled()) { return false; }
-        if (this.entry != null && mouseButton == 0 && QuickLitematicaMaterialGui.controlDown()
-                && this.quickcraft$materialList instanceof QuickLitematicaContainerMaterials.ContainerReplacementBindingSource source) {
-            source.quickcraft$toggleSelectedMaterial(this.entry.getStack());
-            this.quickcraft$refreshSelection();
-            return true;
-        } else if (this.entry != null && mouseButton == 0 && QuickLitematicaMaterialGui.controlDown()
-                && this.quickcraft$replacementSupported && this.quickcraft$scope == QuickLitematicaContainerReplacements.Scope.PROJECTION) {
-            com.yiyihehe.quickcraft.litematica.QuickLitematicaProjectionMaterials.toggle(this.quickcraft$materialList, this.entry.getStack());
-            this.quickcraft$refreshSelection();
-            return true;
+        if (this.entry == null || mouseButton != 0 || !QuickLitematicaMaterialGui.controlDown()
+                || !QuickLitematicaContainerReplacements.enabled()) {
+            return false;
+        }
+        MaterialListBase list = this.quickcraft$materialList;
+        if (!(list instanceof QuickLitematicaContainerMaterials.ContainerReplacementBindingSource)
+                && !(this.quickcraft$replacementSupported && this.quickcraft$scope == QuickLitematicaContainerReplacements.Scope.PROJECTION)) {
+            return false;
+        }
+
+        ItemStack stack = this.entry.getStack();
+        boolean selected = !isSelected(list, stack);
+        toggleSelection(list, stack);
+        if (MinecraftClient.getInstance().currentScreen instanceof GuiMaterialList gui) {
+            QuickLitematicaSelectionDrag.start(gui, mouseX, mouseY, selected,
+                    (x, y, select) -> setSelectionAt(gui, x, y, select), () -> refreshSelection(gui));
+            refreshSelection(gui);
+        } else {
+            this.quickcraft$listWidget.refreshEntries();
+        }
+        return true;
+    }
+
+    private static boolean setSelectionAt(GuiMaterialList gui, int mouseX, int mouseY, boolean selected) {
+        var list = gui.getMaterialList();
+        var widget = ((MalilibGuiListAccessor) gui).quickcraft$getListWidget();
+        for (var row : ((MalilibWidgetListAccessor) widget).quickcraft$getVisibleEntries()) {
+            if (row.isMouseOver(mouseX, mouseY) && row.getEntry() instanceof MaterialListEntry entry) {
+                ItemStack stack = entry.getStack();
+                if (!(list instanceof QuickLitematicaContainerMaterials.ContainerReplacementBindingSource)
+                        && !(stack.getItem() instanceof BlockItem)) {
+                    return false;
+                }
+                if (isSelected(list, stack) == selected) { return false; }
+                toggleSelection(list, stack);
+                return true;
+            }
         }
         return false;
     }
 
-    private void quickcraft$refreshSelection() {
-        if (MinecraftClient.getInstance().currentScreen instanceof GuiMaterialList gui) { gui.initGui(); }
-        else { this.quickcraft$listWidget.refreshEntries(); }
+    private static boolean isSelected(MaterialListBase list, ItemStack stack) {
+        if (list instanceof QuickLitematicaContainerMaterials.ContainerReplacementBindingSource source) {
+            return source.quickcraft$isMaterialSelected(stack);
+        }
+        return QuickLitematicaProjectionMaterials.selected(list, stack);
+    }
+
+    private static void toggleSelection(MaterialListBase list, ItemStack stack) {
+        if (list instanceof QuickLitematicaContainerMaterials.ContainerReplacementBindingSource source) {
+            source.quickcraft$toggleSelectedMaterial(stack);
+        } else {
+            QuickLitematicaProjectionMaterials.toggle(list, stack);
+        }
+    }
+
+    private static void refreshSelection(GuiMaterialList gui) {
+        var access = (MalilibGuiListAccessor) gui;
+        int scroll = access.quickcraft$getListWidget().getScrollbar().getValue();
+        gui.initGui();
+        var widget = access.quickcraft$getListWidget();
+        if (widget.getScrollbar().getValue() != scroll) {
+            widget.getScrollbar().setValue(scroll);
+            widget.refreshEntries();
+        }
     }
 
     public void draw(
@@ -134,15 +181,12 @@ public final class QuickLitematicaMaterialRow {
             return;
         }
 
-        if (this.quickcraft$materialList instanceof QuickLitematicaContainerMaterials.ContainerReplacementBindingSource source
-                && source.quickcraft$isMaterialSelected(this.entry.getStack())
-                || this.quickcraft$scope == QuickLitematicaContainerReplacements.Scope.PROJECTION
-                && com.yiyihehe.quickcraft.litematica.QuickLitematicaProjectionMaterials.selected(this.quickcraft$materialList, this.entry.getStack())) {
+        if (isSelected(this.quickcraft$materialList, this.entry.getStack())) {
             drawContext.outline(this.quickcraft$rowX, this.quickcraft$rowY,
                     this.quickcraft$rowWidth, this.quickcraft$rowHeight, 0xFFFFD54F);
         }
 
-        java.util.Optional<net.minecraft.item.ItemStack> target;
+        java.util.Optional<ItemStack> target;
         String targetLabel;
         if (this.quickcraft$materialList instanceof QuickLitematicaContainerMaterials.ContainerReplacementBindingSource source) {
             var summary = source.quickcraft$getSummaryReplacement(this.entry.getStack());

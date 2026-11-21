@@ -150,12 +150,26 @@ final class QuickLitematicaContainerMaterialsScreens {
             this.initGui();
         }
 
-        private void toggleSlotSelection(ContainerGroup group, int slotIndex) {
+        private void startSlotSelection(ContainerGroup group, int slotIndex, int mouseX, int mouseY) {
             if (!QuickLitematicaContainerReplacements.enabled()) { return; }
+            boolean selected = !this.selectedSlots.containsKey(group.signature() + ":" + slotIndex);
+            this.setSlotSelected(group, slotIndex, selected);
+            QuickLitematicaSelectionDrag.start(this, mouseX, mouseY, selected,
+                    (x, y, select) -> this.getListWidget().setSelectionAt(x, y, select), this::refreshSelection);
+            this.refreshSelection();
+        }
+
+        private boolean setSlotSelected(ContainerGroup group, int slotIndex, boolean selected) {
             String key = group.signature() + ":" + slotIndex;
-            if (this.selectedSlots.remove(key) == null) {
-                this.selectedSlots.put(key, new ContainerMaterialsData.SummarySlot(group, slotIndex, group.slotStacks().get(slotIndex).copy()));
+            if (!selected) {
+                return this.selectedSlots.remove(key) != null;
             }
+            if (this.selectedSlots.containsKey(key)) { return false; }
+            this.selectedSlots.put(key, new ContainerMaterialsData.SummarySlot(group, slotIndex, group.slotStacks().get(slotIndex).copy()));
+            return true;
+        }
+
+        private void refreshSelection() {
             this.savedScroll = this.getListWidget().getScrollbar().getValue();
             this.initGui();
         }
@@ -212,6 +226,16 @@ final class QuickLitematicaContainerMaterialsScreens {
         @Override
         protected Collection<ContainerRow> getAllEntries() {
             return this.gui.rows(this.browserEntryWidth);
+        }
+
+        private boolean setSelectionAt(int mouseX, int mouseY, boolean selected) {
+            for (ContainerGroupEntryWidget widget : this.listWidgets) {
+                if (widget.getEntry() != null && widget.isMouseOver(mouseX, mouseY)) {
+                    int slotIndex = widget.getHoveredSlotIndex(mouseX, mouseY);
+                    return slotIndex >= 0 && this.gui.setSlotSelected(widget.getEntry().group(), slotIndex, selected);
+                }
+            }
+            return false;
         }
 
         @Override
@@ -310,7 +334,7 @@ final class QuickLitematicaContainerMaterialsScreens {
             if (slotIndex >= 0) {
                 if (mouseButton != 0) { return false; }
                 if (QuickLitematicaMaterialGui.controlDown()) {
-                    this.gui.toggleSlotSelection(this.entry.group(), slotIndex);
+                    this.gui.startSlotSelection(this.entry.group(), slotIndex, mouseX, mouseY);
                 } else {
                     this.gui.openSlotEditor(this.entry.group(), slotIndex);
                 }
