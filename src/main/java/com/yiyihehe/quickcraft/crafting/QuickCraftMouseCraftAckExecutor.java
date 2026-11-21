@@ -480,7 +480,7 @@ public final class QuickCraftMouseCraftAckExecutor {
             int outputOperations = 0;
             if (plannedThrows > 0) {
                 int actualOperations = moveOrThrowOutput(
-                        client, current, handler, interactionManager, output, gridBeforeOutput);
+                        client, current, handler, output, gridBeforeOutput);
                 outputOperations = QuickCraftMouseCraftAccess.resolveOutputOperations(plannedThrows, actualOperations);
                 current.outputExpectedAtDispatch = outputOperations > 0;
                 outputThrown = current.outputThrows > outputThrowsBefore;
@@ -583,7 +583,6 @@ public final class QuickCraftMouseCraftAckExecutor {
     private int moveOrThrowOutput(MinecraftClient client,
                                   Session current,
                                   ScreenHandler handler,
-                                  ClientPlayerInteractionManager interactionManager,
                                   ItemStack output,
                                   int[] gridBeforeOutput) {
         boolean bulkCraft = canBulkCraftGrid(gridBeforeOutput);
@@ -618,22 +617,9 @@ public final class QuickCraftMouseCraftAckExecutor {
         }
 
         activateOutputSprayMode(client, current, "产物无法放入背包");
-        // 原版 Shift/Ctrl 批量取出只比较物品类型；材料先耗尽时可能继续合成不同组件的产物。
-        if (!bulkCraft) {
-            int operations = 0;
-            for (int i = 0; i < safeCrafts && isExpectedOutput(
-                    handler.getSlot(QuickCraftMouseCraftLayout.OUTPUT_SLOT).getStack(),
-                    current.resultTemplate); i++) {
-                interactionManager.clickSlot(handler.syncId, QuickCraftMouseCraftLayout.OUTPUT_SLOT,
-                        0, SlotActionType.THROW, client.player);
-                operations++;
-                refreshClientPrediction(handler);
-            }
-            return operations;
-        }
-        return QuickCraftMouseCraftAccess.throwOutput(
-                interactionManager, client, handler, current.pattern, gridBeforeOutput,
-                () -> refreshClientPrediction(handler));
+        return QuickCraftMouseCraftInventory.throwOutputBatch(
+                client, handler, current.pattern, gridBeforeOutput, safeCrafts,
+                current.resultTemplate, () -> refreshClientPrediction(handler));
     }
 
     private void activateOutputSprayMode(MinecraftClient client,

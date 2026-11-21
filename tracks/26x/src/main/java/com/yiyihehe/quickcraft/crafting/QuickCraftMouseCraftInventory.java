@@ -150,17 +150,35 @@ final class QuickCraftMouseCraftInventory {
         return false;
     }
 
-    static boolean takeOneOutputToUnlockedInventory(Minecraft client,
-                                                    AbstractContainerMenu handler,
-                                                    QuickCraftMouseCraftLayout.Layout layout) {
-        if (client == null || client.player == null || client.gameMode == null
-                || handler == null || !handler.getCarried().isEmpty()
-                || !handler.getSlot(QuickCraftMouseCraftLayout.OUTPUT_SLOT).hasItem()) {
-            return false;
+    static int throwOutputBatch(Minecraft client,
+                                AbstractContainerMenu handler,
+                                int[] gridCounts,
+                                int safeCrafts,
+                                ItemStack expectedOutput,
+                                Runnable refreshOutput) {
+        if (!handler.getCarried().isEmpty()) {
+            return 0;
+        }
+        if (QuickCraftMouseCraftAckRules.canBulkCraftGrid(gridCounts)) {
+            client.gameMode.handleContainerInput(handler.containerId, QuickCraftMouseCraftLayout.OUTPUT_SLOT,
+                    1, ContainerInput.THROW, client.player);
+            return 1;
         }
 
-        return moveOutputWithPickup(client, handler, layout,
-                handler.getSlot(QuickCraftMouseCraftLayout.OUTPUT_SLOT).getItem().copy());
+        // 批量丢弃只比较物品类型，不均匀的材料格需要逐轮确认产物组件和数量。
+        int operations = 0;
+        while (operations < safeCrafts) {
+            ItemStack output = handler.getSlot(QuickCraftMouseCraftLayout.OUTPUT_SLOT).getItem();
+            if (output.isEmpty() || output.getCount() != expectedOutput.getCount()
+                    || !ItemStack.isSameItemSameComponents(output, expectedOutput)) {
+                break;
+            }
+            client.gameMode.handleContainerInput(handler.containerId, QuickCraftMouseCraftLayout.OUTPUT_SLOT,
+                    0, ContainerInput.THROW, client.player);
+            operations++;
+            refreshOutput.run();
+        }
+        return operations;
     }
 
     static boolean moveOutputToUnlockedInventory(Minecraft client,

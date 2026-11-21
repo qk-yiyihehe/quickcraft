@@ -149,48 +149,21 @@ final class QuickCraftMouseCrafting {
         }
     }
 
-    private boolean runOneCraftSubLoop(Minecraft client,
-                                       AbstractContainerMenu handler,
-                                       RecipeHolder<CraftingRecipe> recipe) {
-
+    private boolean runOneCraftSubLoop(Minecraft client, AbstractContainerMenu handler) {
         if (client.player == null || client.gameMode == null || client.level == null) {
             return false;
         }
 
-        ItemStack resultTemplate = getRecipeResultStack(client, recipe);
-        if (resultTemplate.isEmpty() && handler.getSlot(OUTPUT_SLOT).hasItem()) {
-            resultTemplate = handler.getSlot(OUTPUT_SLOT).getItem().copy();
-        }
-
-        boolean manualRecipe = shouldManualRestock(recipe);
         if (handler.getSlot(OUTPUT_SLOT).hasItem()) {
-            if (manualRecipe) {
-                ManualPatternState patternState = getManualPatternState(handler);
-                if (patternState == ManualPatternState.INVALID) {
-                    return false;
-                }
-                if (!rapidCraftingActive) {
-                    return tryTakeOutputForRecipe(client, handler, recipe);
-                }
-
-                boolean filled = fillManualPatternStacks(client, handler);
-                patternState = getManualPatternState(handler);
-                if (patternState != ManualPatternState.COMPLETE
-                        || !isLockedResult(handler.getSlot(OUTPUT_SLOT).getItem())) {
-                    return filled;
-                }
-
-                boolean thrown = throwCraftingOutput(client, handler);
-                return thrown;
+            if (shouldManualRestock(lockedRecipe)
+                    && getManualPatternState(handler) != ManualPatternState.COMPLETE) {
+                return false;
             }
-
-            return rapidCraftingActive
-                    ? throwCraftingOutput(client, handler)
-                    : tryTakeOutputForRecipe(client, handler, recipe);
+            return takeOutputBatch(client, handler);
         }
 
         // 补料和领取分属两次触发，不能依赖客户端结果槽的刷新时机。
-        return restockCraftingGrid(client, handler, recipe);
+        return restockCraftingGrid(client, handler);
     }
 
     private void handleSingleCraft(Minecraft client, AbstractContainerMenu handler) {
@@ -206,7 +179,7 @@ final class QuickCraftMouseCrafting {
             return;
         }
 
-        boolean success = runOneCraftSubLoop(client, handler, lockedRecipe);
+        boolean success = runOneCraftSubLoop(client, handler);
         if (success && QuickCraftConfigs.isDropCraftResultsOnStopEnabled()) {
             QuickCraftMouseCraftInventory.dropMatchingUnlockedInventory(
                     client, handler, layout, lockedResultTemplate, "单次合成结束丢出背包产物");
@@ -237,9 +210,7 @@ final class QuickCraftMouseCrafting {
         return true;
     }
 
-    private boolean restockCraftingGrid(Minecraft client,
-                                        AbstractContainerMenu handler,
-                                        RecipeHolder<CraftingRecipe> recipe) {
+    private boolean restockCraftingGrid(Minecraft client, AbstractContainerMenu handler) {
         relocateMismatchedGridItems(client, handler);
         if (rapidCraftingActive) {
             return fillManualPatternStacks(client, handler);
@@ -1739,7 +1710,12 @@ final class QuickCraftMouseCrafting {
         return pattern;
     }
 
-    private boolean tryQuickMoveOutput(Minecraft client, AbstractContainerMenu handler) {
+    private boolean takeOutputBatch(Minecraft client, AbstractContainerMenu handler) {
+        ItemStack output = handler.getSlot(OUTPUT_SLOT).getItem();
+        if (!isLockedResult(output) || !handler.getCarried().isEmpty()) {
+            return false;
+        }
+
         int[] gridCounts = new int[layout.gridSize()];
         boolean[] requiredSlots = new boolean[layout.gridSize()];
         for (int i = 0; i < lockedCraftingPattern.size(); i++) {
@@ -1749,15 +1725,22 @@ final class QuickCraftMouseCrafting {
         }
         int maximumOutputs = Math.min(MAX_OUTPUT_THROW_BURST,
                 QuickCraftMouseCraftAckRules.maximumCraftsFromGridCounts(gridCounts, requiredSlots));
-        if (QuickCraftMouseCraftInventory.canAcceptUnlocked(
-                handler, layout, handler.getSlot(OUTPUT_SLOT).getItem())
-                && QuickCraftMouseCraftInventory.moveOutputToUnlockedInventory(
-                client, handler, layout, maximumOutputs,
-                () -> refreshSingleCraftOutput(handler),
+        if (maximumOutputs <= 0) {
+            return false;
+        }
+
+        Runnable refreshOutput = () -> refreshSingleCraftOutput(handler);
+        boolean spray = QuickCraftMouseCraftAckRules.shouldEnterOutputSprayMode(
+                false, QuickCraftMouseCraftInventory.unlockedEmptySlots(handler, layout),
+                QuickCraftMouseCraftInventory.canAcceptUnlocked(handler, layout, output));
+        if (!spray && QuickCraftMouseCraftInventory.moveOutputToUnlockedInventory(
+                client, handler, layout, maximumOutputs, refreshOutput,
                 QuickCraftMouseCraftAckRules.canBulkCraftGrid(gridCounts))) {
             return true;
         }
-        return throwCraftingOutput(client, handler);
+        return QuickCraftMouseCraftInventory.throwOutputBatch(
+                client, handler, gridCounts, maximumOutputs,
+                lockedResultTemplate, refreshOutput) > 0;
     }
 
     private void refreshSingleCraftOutput(AbstractContainerMenu handler) {
@@ -1765,69 +1748,6 @@ final class QuickCraftMouseCrafting {
         handler.getSlot(OUTPUT_SLOT).set(
                 QuickCraftMouseCraftInventory.isPatternComplete(handler, layout, lockedCraftingPattern)
                         ? lockedResultTemplate.copy() : ItemStack.EMPTY);
-    }
-
-    private boolean tryTakeOutputForRecipe(Minecraft client,
-                                           AbstractContainerMenu handler,
-                                           RecipeHolder<CraftingRecipe> recipe) {
-
-        boolean moved;
-        if (shouldManualRestock(recipe)) {
-            if (getManualPatternState(handler) != ManualPatternState.COMPLETE
-                    || !isLockedResult(handler.getSlot(OUTPUT_SLOT).getItem())) {
-                return false;
-            }
-            if (hasUnevenManualPatternStacks(handler)) {
-                moved = tryTakeOneOutput(client, handler);
-            } else {
-                moved = tryQuickMoveOutput(client, handler);
-            }
-        } else {
-            moved = tryQuickMoveOutput(client, handler);
-        }
-
-        return moved;
-    }
-
-    private boolean tryTakeOneOutput(Minecraft client, AbstractContainerMenu handler) {
-        if (client.player == null || client.gameMode == null) {
-            return false;
-        }
-        if (!handler.getSlot(OUTPUT_SLOT).hasItem()) {
-            return false;
-        }
-
-        if (!QuickCraftMouseCraftInventory.canAcceptUnlocked(
-                handler, layout, handler.getSlot(OUTPUT_SLOT).getItem())) {
-            return throwCraftingOutput(client, handler);
-        }
-        return QuickCraftMouseCraftInventory.takeOneOutputToUnlockedInventory(client, handler, layout);
-    }
-
-    private boolean hasUnevenManualPatternStacks(AbstractContainerMenu handler) {
-        for (int i = 0; i < lockedCraftingPattern.size(); i++) {
-            ItemStack template = lockedCraftingPattern.get(i);
-            if (template.isEmpty()) {
-                continue;
-            }
-
-            int count = getPatternSlotCount(handler, i, template);
-            if (count <= 0) {
-                continue;
-            }
-
-            for (int j = i + 1; j < lockedCraftingPattern.size(); j++) {
-                ItemStack otherTemplate = lockedCraftingPattern.get(j);
-                if (otherTemplate.isEmpty() || !ItemStack.isSameItemSameComponents(template, otherTemplate)) {
-                    continue;
-                }
-                int otherCount = getPatternSlotCount(handler, j, otherTemplate);
-                if (otherCount > 0 && otherCount != count) {
-                    return true;
-                }
-            }
-        }
-        return false;
     }
 
     private int getPatternSlotCount(AbstractContainerMenu handler, int patternIndex, ItemStack template) {
@@ -1876,43 +1796,6 @@ final class QuickCraftMouseCrafting {
             }
         }
         return total;
-    }
-
-    private boolean throwCraftingOutput(Minecraft client, AbstractContainerMenu handler) {
-        if (client.player == null || client.gameMode == null) {
-            return false;
-        }
-        if (!handler.getSlot(OUTPUT_SLOT).hasItem()) {
-            return false;
-        }
-
-        client.gameMode.handleContainerInput(
-                handler.containerId,
-                OUTPUT_SLOT,
-                1,
-                ContainerInput.THROW,
-                client.player
-        );
-        return true;
-    }
-
-    private ItemStack getRecipeResultStack(Minecraft client, RecipeHolder<CraftingRecipe> recipe) {
-        if (!lockedResultTemplate.isEmpty()) {
-            return lockedResultTemplate.copy();
-        }
-        if (recipe == null) {
-            return ItemStack.EMPTY;
-        }
-        try {
-            if (client.level == null || client.player == null
-                    || QuickCraftMouseCraftLayout.fromHandler(
-                    client.player.containerMenu) != layout) {
-                return ItemStack.EMPTY;
-            }
-            return recipe.value().assemble(getCraftingRecipeInput(client.player.containerMenu)).copy();
-        } catch (Throwable t) {
-            return ItemStack.EMPTY;
-        }
     }
 
     private RecipeHolder<CraftingRecipe> getCurrentCraftingRecipe(Minecraft client, AbstractContainerMenu handler) {
