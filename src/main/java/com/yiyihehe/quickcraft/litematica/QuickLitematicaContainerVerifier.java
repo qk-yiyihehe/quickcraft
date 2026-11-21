@@ -26,6 +26,7 @@ import net.minecraft.nbt.NbtCompound;
 import net.minecraft.screen.slot.Slot;
 import net.minecraft.util.BlockMirror;
 import net.minecraft.util.BlockRotation;
+import net.minecraft.screen.ScreenHandler;
 import net.minecraft.util.hit.BlockHitResult;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.ChunkPos;
@@ -212,6 +213,44 @@ public final class QuickLitematicaContainerVerifier {
 
     public static void rememberContainerUse(MinecraftClient client, BlockHitResult hitResult) {
         QuickLitematicaContainerScreenBinding.rememberContainerUse(client, hitResult);
+    }
+
+    public static void refreshFilledContainer(MinecraftClient client, BlockPos pos, ScreenHandler handler) {
+        if (!isEnabled() || client.world == null || client.player == null
+                || client.player.currentScreenHandler != handler) {
+            return;
+        }
+        SchematicPlacement placement = DataManager.getSchematicPlacementManager().getSelectedSchematicPlacement();
+        if (placement == null || !placement.hasVerifier()) {
+            return;
+        }
+        World world = fi.dy.masa.malilib.util.WorldUtils.getBestWorld(client);
+        ExpectedContainer expected = getExpectedContainerAt(world, pos, placement);
+        if (expected == null || !QuickLitematicaContainerScreenBinding.isSupportedHandlerForExpectedContainer(handler, expected)) {
+            return;
+        }
+
+        Inventory inventory = QuickLitematicaContainerScreenBinding.findContainerInventory(handler, expected.inventory().size());
+        Inventory snapshot = QuickLitematicaContainerScreenBinding.copyContainerInventoryFromScreen(handler, inventory);
+        if (snapshot != null) {
+            Set<Integer> disabledSlots = QuickLitematicaContainerScreenBinding.copyCrafterDisabledSlotsFromScreen(handler, inventory);
+            refreshPlacementVerifier(placement, pos, snapshot, disabledSlots);
+        }
+    }
+
+    static List<ContainerMismatch> refreshPlacementVerifier(
+            SchematicPlacement placement, BlockPos pos, Inventory snapshot, Set<Integer> disabledSlots) {
+        if (placement == null || !placement.hasVerifier()) {
+            return null;
+        }
+        VerifierExtension verifier = (VerifierExtension) placement.getSchematicVerifier();
+        List<ContainerMismatch> mismatches = verifier.quickcraft$refreshContainerMismatchAt(pos, snapshot, disabledSlots);
+        BlockPos pairedPos = getExpectedDoubleChestAdjacentPos(pos, placement);
+        if (pairedPos != null) {
+            // 大箱子的错误可能记录在任一半坐标，两半共用同一份菜单库存。
+            verifier.quickcraft$refreshContainerMismatchAt(pairedPos, snapshot, disabledSlots);
+        }
+        return mismatches;
     }
 
     public static SlotOverlay getSlotOverlayForScreen(HandledScreen<?> screen, Slot slot) {

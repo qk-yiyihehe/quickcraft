@@ -200,22 +200,8 @@ final class QuickLitematicaContainerScreenBinding {
 
         currentScreenContainerInventory = containerInventory;
         Set<Integer> foundDisabledSlots = copyCrafterDisabledSlotsFromScreen(screen.getMenu(), containerInventory);
-        List<ContainerMismatch> mismatches = null;
-
-        if (placement != null && placement.hasVerifier()) {
-            VerifierExtension verifier = (VerifierExtension) placement.getSchematicVerifier();
-            mismatches = verifier.quickcraft$refreshContainerMismatchAt(
-                    containerPos,
-                    foundInventory,
-                    foundDisabledSlots
-            );
-
-            BlockPos pairedPos = getExpectedDoubleChestAdjacentPos(containerPos, placement);
-            if (pairedPos != null) {
-                // 大箱子的错误可能记录在另一半坐标；打开任意半边都同步刷新两半。
-                verifier.quickcraft$refreshContainerMismatchAt(pairedPos, foundInventory, foundDisabledSlots);
-            }
-        }
+        List<ContainerMismatch> mismatches = refreshPlacementVerifier(
+                placement, containerPos, foundInventory, foundDisabledSlots);
 
         if (foundInventory.getContainerSize() == expectedContainer.inventory().getContainerSize()) {
             currentScreenSlotOverlays = mismatches != null

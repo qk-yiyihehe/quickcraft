@@ -169,6 +169,7 @@ public final class QuickContainerCopy implements ClientModInitializer {
                     target != null ? new TargetInteraction(target, type) : null
             );
             QuickContainerFillStatus.finish(client, fillStatus, result.issueCount());
+            refreshContainerVerifier(client, target, handler);
             if (result.isComplete()) {
                 suppressContinuousFillAfterSingleAction(client, target, type);
             }
@@ -465,6 +466,7 @@ public final class QuickContainerCopy implements ClientModInitializer {
                 stopContinuousTask(client, true, Component.translatable("quickcraft.message.container_copy.filled_but_stash_restore_failed"));
                 return;
             }
+            refreshContainerVerifier(client, continuousTask.target.hitResult(), handler);
             stopContinuousTask(client, true, continuousTask.template.successMessage().text());
             return;
         }
@@ -473,6 +475,7 @@ public final class QuickContainerCopy implements ClientModInitializer {
                 || result.missingDemands().isEmpty()
                 || !canUseQuickShulkerOpenPacket()) {
             QuickContainerFillStatus.finish(client, continuousTask.fillStatus, result.issueCount());
+            refreshContainerVerifier(client, continuousTask.target.hitResult(), handler);
             stopContinuousTask(client, true, result.message(continuousTask.template.successMessage()));
             return;
         }
@@ -501,6 +504,7 @@ public final class QuickContainerCopy implements ClientModInitializer {
         SourceShulker source = findSourceShulkerForDemandsExcept(handler, result.missingDemands(), -1);
         if (source == null) {
             QuickContainerFillStatus.finish(client, continuousTask.fillStatus, result.issueCount());
+            refreshContainerVerifier(client, continuousTask.target.hitResult(), handler);
             stopContinuousTask(client, true, result.message(continuousTask.template.successMessage()));
             return;
         }
@@ -876,6 +880,12 @@ public final class QuickContainerCopy implements ClientModInitializer {
         return suppressContainerVerifierRemember;
     }
 
+    private static void refreshContainerVerifier(Minecraft client, HitResult target, AbstractContainerMenu handler) {
+        if (target instanceof BlockHitResult blockHit && FabricLoader.getInstance().isModLoaded("litematica")) {
+            QuickLitematicaContainerVerifier.refreshFilledContainer(client, blockHit.getBlockPos(), handler);
+        }
+    }
+
     private void clearLitematicaHandledScreenBinding() {
         if (FabricLoader.getInstance().isModLoaded("litematica")) {
             QuickLitematicaContainerVerifier.clearCurrentHandledScreenBinding();
@@ -1030,6 +1040,7 @@ public final class QuickContainerCopy implements ClientModInitializer {
                     fillTarget != null ? new TargetInteraction(fillTarget, type) : null
             );
             QuickContainerFillStatus.finish(client, fillStatus, result.issueCount());
+            refreshContainerVerifier(client, fillTarget, handler);
             if (result.isComplete()) {
                 suppressContinuousFillAfterSingleAction(client, fillTarget, type);
             }
