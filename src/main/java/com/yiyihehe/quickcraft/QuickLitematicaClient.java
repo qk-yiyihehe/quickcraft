@@ -20,6 +20,7 @@ public final class QuickLitematicaClient implements ClientModInitializer {
         new QuickLitematicaContainerAutofill().onInitializeClient();
         QuickLitematicaContainerHighlight.initialize();
         com.yiyihehe.quickcraft.litematica.QuickLitematicaEnderChestMaterials.initialize();
+        com.yiyihehe.quickcraft.compat.voidwarehouse.QuickLitematicaVoidWarehouseMaterials.initialize();
         QuickLitematicaEntityPlacement.initializeClient();
         new QuickLitematicaShulkerMaterialRestock().onInitializeClient();
     }

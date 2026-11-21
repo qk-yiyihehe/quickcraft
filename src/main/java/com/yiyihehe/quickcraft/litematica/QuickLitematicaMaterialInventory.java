@@ -1,5 +1,6 @@
 package com.yiyihehe.quickcraft.litematica;
 
+import com.yiyihehe.quickcraft.compat.voidwarehouse.QuickLitematicaVoidWarehouseMaterials;
 import fi.dy.masa.malilib.util.InventoryUtils;
 import net.minecraft.block.ShulkerBoxBlock;
 import net.minecraft.client.MinecraftClient;
@@ -27,6 +28,10 @@ final class QuickLitematicaMaterialInventory {
             count += countStack(inventory.getStack(slot), targets, 0);
         }
         return count;
+    }
+
+    static int countAvailableWithSources(List<ItemStack> targets) {
+        return QuickLitematicaVoidWarehouseMaterials.addAvailable(countAvailable(targets), targets);
     }
 
     static int[] countAvailableFor(List<ItemStack> targets) {

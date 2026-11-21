@@ -1,5 +1,6 @@
 package com.yiyihehe.quickcraft.litematica;
 
+import com.yiyihehe.quickcraft.compat.voidwarehouse.QuickLitematicaVoidWarehouseMaterials;
 import com.yiyihehe.quickcraft.mixin.LitematicaMaterialListPlacementAccessor;
 import com.yiyihehe.quickcraft.mixin.LitematicaMaterialListSchematicAccessor;
 import com.yiyihehe.quickcraft.mixin.LitematicaSchematicBlocksAccessor;
@@ -49,6 +50,9 @@ public final class QuickLitematicaProjectionMaterials {
     private static boolean restoringEditor;
     private QuickLitematicaProjectionMaterials() { }
     public interface OriginalCountSource { void quickcraft$prepareOriginalRows(); }
+    public interface WarehouseAvailability extends QuickLitematicaVoidWarehouseMaterials.MaterialTargets {
+        void quickcraft$setWarehouseTarget(ItemStack target);
+    }
 
     public static LitematicaSchematic schematic(MaterialListBase list) {
         if (list instanceof LitematicaMaterialListPlacementAccessor accessor) { return accessor.quickcraft$getPlacement().getSchematic(); }
@@ -295,7 +299,13 @@ public final class QuickLitematicaProjectionMaterials {
 
     public static List<MaterialListEntry> editorEntries(MaterialListBase list, List<MaterialListEntry> actual) {
         var originals = PENDING.remove(list);
-        return originals == null || restoringEditor ? actual : originals;
+        if (restoringEditor) { return actual; }
+        if (originals != null) { return originals; }
+        if (QuickLitematicaVoidWarehouseMaterials.isInstalled()
+                && (list instanceof LitematicaMaterialListPlacementAccessor || list instanceof LitematicaMaterialListSchematicAccessor)) {
+            for (var entry : actual) { setWarehouseTarget(entry, entry.getStack()); }
+        }
+        return actual;
     }
 
     private static Object2IntOpenHashMap<ItemType> finalItems(Object2IntOpenHashMap<BlockState> original, String context,
@@ -323,17 +333,19 @@ public final class QuickLitematicaProjectionMaterials {
         return result;
     }
 
-    private static int available(ItemStack template) {
-        return QuickLitematicaMaterialInventory.countAvailable(List.of(template));
-    }
-
     private static void updateEditorAvailability(MaterialListBase list, List<MaterialListEntry> entries) {
         String context = QuickLitematicaMaterialLists.getReplacementContextKey(list);
+        boolean warehouseInstalled = QuickLitematicaVoidWarehouseMaterials.isInstalled();
         for (var entry : entries) {
             var target = QuickLitematicaContainerReplacements.getReplacementTarget(entry.getStack(),
-                    QuickLitematicaContainerReplacements.Scope.PROJECTION, context);
-            entry.setCountAvailable(available(target.orElse(entry.getStack())));
+                    QuickLitematicaContainerReplacements.Scope.PROJECTION, context).orElse(entry.getStack());
+            entry.setCountAvailable(QuickLitematicaMaterialInventory.countAvailable(List.of(target)));
+            if (warehouseInstalled) { setWarehouseTarget(entry, target); }
         }
+    }
+
+    private static void setWarehouseTarget(MaterialListEntry entry, ItemStack target) {
+        if (entry instanceof WarehouseAvailability availability) { availability.quickcraft$setWarehouseTarget(target); }
     }
 
     private static void updateAvailable(List<MaterialListEntry> entries) {

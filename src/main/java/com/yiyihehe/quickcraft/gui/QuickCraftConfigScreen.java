@@ -1,6 +1,7 @@
 package com.yiyihehe.quickcraft.gui;
 
 import com.yiyihehe.quickcraft.QuickCraft;
+import com.yiyihehe.quickcraft.compat.voidwarehouse.QuickLitematicaVoidWarehouseMaterials;
 import com.yiyihehe.quickcraft.config.QuickCraftConfigs;
 import fi.dy.masa.malilib.config.IConfigBase;
 import fi.dy.masa.malilib.gui.GuiConfigsBase;
@@ -72,6 +73,8 @@ public class QuickCraftConfigScreen extends GuiConfigsBase {
                     && !com.yiyihehe.quickcraft.crafting.QuickCraftAnvilPlanner.supportsSpear()) continue;
             if (config == QuickCraftConfigs.ProjectionTools.PROJECTION_MATERIAL_REPLACEMENTS
                     || config == QuickCraftConfigs.ProjectionTools.CONTAINER_FILL_REPLACEMENTS) { continue; }
+            if (config == QuickCraftConfigs.ProjectionTools.USE_VOID_WAREHOUSE_MATERIALS
+                    && !QuickLitematicaVoidWarehouseMaterials.isInstalled()) { continue; }
             ConfigGroup parentGroup = ConfigGroup.findByParent(config);
 
             if (parentGroup != null) {
