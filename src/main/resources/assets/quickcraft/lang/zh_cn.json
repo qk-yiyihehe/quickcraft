@@ -71,7 +71,7 @@
   "quickcraft.config.container_tools.comment.portableStorageRows": "设置网格高度。窗口较矮时自动减少实际显示的行数。",
   "quickcraft.config.container_tools.prettyName.enableAutoShulkerRestock": "自动潜影盒补货",
   "quickcraft.config.container_tools.name.enableAutoShulkerRestock": "自动潜影盒补货",
-  "quickcraft.config.container_tools.comment.enableAutoShulkerRestock": "消耗物品后从随身潜影盒补货。\n背包无同类可用物品，或 Tweakeroo 补货未成功时接手。\n轻松放置补料优先，需要 QuickShulker 开盒。",
+  "quickcraft.config.container_tools.comment.enableAutoShulkerRestock": "消耗手持物品后，先从背包补货，再找随身潜影盒。\nIPN、Tweakeroo 和轻松放置补料优先。\n从潜影盒补货需要 QuickShulker 开盒。",
   "quickcraft.portable_storage.toggle": "随身存储",
   "quickcraft.portable_storage.search": "搜索",
   "quickcraft.portable_storage.empty": "没有物品",

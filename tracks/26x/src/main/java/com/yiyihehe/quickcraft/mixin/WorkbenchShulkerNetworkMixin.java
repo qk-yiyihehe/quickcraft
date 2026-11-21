@@ -5,13 +5,15 @@ import com.yiyihehe.quickcraft.QuickStashShulkerTransfer;
 import com.yiyihehe.quickcraft.crafting.QuickCraftAnvilRename;
 import com.yiyihehe.quickcraft.crafting.QuickCraftMouseCraftAckExecutor;
 import com.yiyihehe.quickcraft.crafting.QuickCraftWorkbenchShulkerCraft;
+import com.yiyihehe.quickcraft.portablestorage.QuickShulkerRestockFallback;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.multiplayer.ClientPacketListener;
 import net.minecraft.network.protocol.game.ClientboundEntityEventPacket;
-import com.yiyihehe.quickcraft.portablestorage.QuickShulkerRestockFallback;
 import net.minecraft.network.protocol.game.ClientboundContainerSetContentPacket;
 import net.minecraft.network.protocol.game.ClientboundContainerSetSlotPacket;
 import net.minecraft.network.protocol.game.ClientboundAwardStatsPacket;
+import net.minecraft.world.InteractionHand;
+import net.minecraft.world.entity.EntityEvent;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
@@ -43,11 +45,17 @@ public abstract class WorkbenchShulkerNetworkMixin {
     }
 
     @Inject(method = "handleEntityEvent", at = @At("RETURN"))
-    private void quickcraft$onTotemUsed(ClientboundEntityEventPacket packet, CallbackInfo ci) {
+    private void quickcraft$onHandItemConsumed(ClientboundEntityEventPacket packet, CallbackInfo ci) {
         Minecraft client = Minecraft.getInstance();
-        if (packet.getEventId() == 35 && client.player != null && client.level != null
+        int status = packet.getEventId();
+        if ((status == EntityEvent.PROTECTED_FROM_DEATH || status == EntityEvent.MAINHAND_BREAK
+                || status == EntityEvent.OFFHAND_BREAK) && client.player != null && client.level != null
                 && packet.getEntity(client.level) == client.player) {
-            QuickShulkerRestockFallback.totemUsed(client);
+            switch (status) {
+                case EntityEvent.PROTECTED_FROM_DEATH -> QuickShulkerRestockFallback.totemUsed(client);
+                case EntityEvent.MAINHAND_BREAK -> QuickShulkerRestockFallback.itemBroken(client, InteractionHand.MAIN_HAND);
+                case EntityEvent.OFFHAND_BREAK -> QuickShulkerRestockFallback.itemBroken(client, InteractionHand.OFF_HAND);
+            }
         }
     }
 

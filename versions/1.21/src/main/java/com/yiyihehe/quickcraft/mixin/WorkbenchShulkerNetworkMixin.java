@@ -8,10 +8,12 @@ import com.yiyihehe.quickcraft.crafting.QuickCraftWorkbenchShulkerCraft;
 import com.yiyihehe.quickcraft.portablestorage.QuickShulkerRestockFallback;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.network.ClientPlayNetworkHandler;
+import net.minecraft.entity.EntityStatuses;
 import net.minecraft.network.packet.s2c.play.EntityStatusS2CPacket;
 import net.minecraft.network.packet.s2c.play.InventoryS2CPacket;
 import net.minecraft.network.packet.s2c.play.ScreenHandlerSlotUpdateS2CPacket;
 import net.minecraft.network.packet.s2c.play.StatisticsS2CPacket;
+import net.minecraft.util.Hand;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
@@ -43,11 +45,17 @@ public abstract class WorkbenchShulkerNetworkMixin {
     }
 
     @Inject(method = "onEntityStatus", at = @At("RETURN"))
-    private void quickcraft$onTotemUsed(EntityStatusS2CPacket packet, CallbackInfo ci) {
+    private void quickcraft$onHandItemConsumed(EntityStatusS2CPacket packet, CallbackInfo ci) {
         MinecraftClient client = MinecraftClient.getInstance();
-        if (packet.getStatus() == 35 && client.player != null && client.world != null
+        int status = packet.getStatus();
+        if ((status == EntityStatuses.USE_TOTEM_OF_UNDYING || status == EntityStatuses.BREAK_MAINHAND
+                || status == EntityStatuses.BREAK_OFFHAND) && client.player != null && client.world != null
                 && packet.getEntity(client.world) == client.player) {
-            QuickShulkerRestockFallback.totemUsed(client);
+            switch (status) {
+                case EntityStatuses.USE_TOTEM_OF_UNDYING -> QuickShulkerRestockFallback.totemUsed(client);
+                case EntityStatuses.BREAK_MAINHAND -> QuickShulkerRestockFallback.itemBroken(client, Hand.MAIN_HAND);
+                case EntityStatuses.BREAK_OFFHAND -> QuickShulkerRestockFallback.itemBroken(client, Hand.OFF_HAND);
+            }
         }
     }
 

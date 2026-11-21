@@ -71,7 +71,7 @@
   "quickcraft.config.container_tools.comment.portableStorageRows": "Sets the grid height. Fewer rows are shown when space is limited.",
   "quickcraft.config.container_tools.prettyName.enableAutoShulkerRestock": "Automatic Shulker Restock",
   "quickcraft.config.container_tools.name.enableAutoShulkerRestock": "Automatic Shulker Restock",
-  "quickcraft.config.container_tools.comment.enableAutoShulkerRestock": "Restocks consumed items from carried shulker boxes.\nSteps in when the inventory has no spare items or Tweakeroo could not restock.\nEasy Place supplies have priority. Requires QuickShulker.",
+  "quickcraft.config.container_tools.comment.enableAutoShulkerRestock": "Restocks used hand items from your inventory first, then from carried shulker boxes.\nIPN, Tweakeroo, and Easy Place supplies have priority.\nOpening shulker boxes requires QuickShulker.",
   "quickcraft.portable_storage.toggle": "Portable storage",
   "quickcraft.portable_storage.search": "Search",
   "quickcraft.portable_storage.empty": "No items",
