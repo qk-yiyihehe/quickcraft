@@ -204,6 +204,10 @@ public class QuickCraftConfigScreen extends GuiConfigsBase {
                 QuickCraftConfigs.ContainerTools.SHOW_SLOT_LOCK_OVERLAY,
                 QuickCraftConfigs.ContainerTools.ALLOW_MANUAL_LOCKED_SLOT_INTERACTION
         ),
+        CONTAINER_FILL_STATUS(
+                QuickCraftConfigs.ContainerTools.SHOW_CONTAINER_FILL_STATUS_OUTLINES,
+                QuickCraftConfigs.ContainerTools.CONTAINER_FILL_OUTLINE_DURATION_SECONDS
+        ),
         LITEMATICA_3D_PREVIEW(
                 QuickCraftConfigs.ProjectionTools.SHOW_LITEMATICA_3D_PREVIEW,
                 QuickCraftConfigs.ProjectionTools.AUTO_DISABLE_SHADERS_FOR_3D_PREVIEW,

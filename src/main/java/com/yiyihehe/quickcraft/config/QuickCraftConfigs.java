@@ -435,6 +435,9 @@ public final class QuickCraftConfigs implements IConfigHandler {
                 true,
                 ""
         ).apply(CONTAINER_TRANSLATION_PREFIX);
+        public static final ConfigInteger CONTAINER_FILL_OUTLINE_DURATION_SECONDS = new ConfigInteger(
+                "containerFillOutlineDurationSeconds", 5, 1, 60, true
+        ).apply(CONTAINER_TRANSLATION_PREFIX);
         public static final ConfigBooleanHotkeyed ALLOW_MANUAL_LOCKED_SLOT_INTERACTION = new ConfigBooleanHotkeyed(
                 "allowManualLockedSlotInteraction",
                 true,
@@ -542,6 +545,7 @@ public final class QuickCraftConfigs implements IConfigHandler {
                 SHOW_CONTAINER_LOCK_BUTTON,
                 SHOW_SLOT_LOCK_OVERLAY,
                 SHOW_CONTAINER_FILL_STATUS_OUTLINES,
+                CONTAINER_FILL_OUTLINE_DURATION_SECONDS,
                 ALLOW_MANUAL_LOCKED_SLOT_INTERACTION,
                 ENABLE_CONTAINER_TOOL_MODE,
                 CONTAINER_TOOL_MODE,

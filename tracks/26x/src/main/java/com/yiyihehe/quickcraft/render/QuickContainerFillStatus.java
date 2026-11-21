@@ -28,7 +28,7 @@ import java.util.Map;
 
 /** Keeps short-lived world markers for container copy and projection fill results. */
 public final class QuickContainerFillStatus {
-    private static final int RESULT_LIFETIME_TICKS = 200;
+    private static final int TICKS_PER_SECOND = 20;
     private static final int MAX_MARKERS = 24;
     private static final double MAX_RENDER_DISTANCE_SQUARED = 32.0 * 32.0;
     static final Map<Target, Marker> MARKERS = new LinkedHashMap<>();
@@ -84,7 +84,7 @@ public final class QuickContainerFillStatus {
         }
         marker.pendingIssues = pendingIssues;
         marker.status = pendingIssues == 0 ? Status.COMPLETE : Status.PARTIAL;
-        marker.expiresAt = tick + RESULT_LIFETIME_TICKS;
+        marker.expiresAt = resultExpiryTick();
     }
 
     public static void stop(Minecraft client, Handle handle, boolean failed) {
@@ -93,7 +93,12 @@ public final class QuickContainerFillStatus {
             return;
         }
         marker.status = failed ? Status.FAILED : marker.pendingIssues > 0 ? Status.PARTIAL : Status.STOPPED;
-        marker.expiresAt = tick + RESULT_LIFETIME_TICKS;
+        marker.expiresAt = resultExpiryTick();
+    }
+
+    private static long resultExpiryTick() {
+        int seconds = QuickCraftConfigs.ContainerTools.CONTAINER_FILL_OUTLINE_DURATION_SECONDS.getIntegerValue();
+        return tick + (long) seconds * TICKS_PER_SECOND;
     }
 
     private static Marker marker(Minecraft client, Handle handle) {
