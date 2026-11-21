@@ -2,6 +2,7 @@ package com.yiyihehe.quickcraft.litematica;
 
 import net.minecraft.block.BlockState;
 import net.minecraft.block.Block;
+import net.minecraft.block.Blocks;
 import net.minecraft.block.StairsBlock;
 import net.minecraft.block.SlabBlock;
 import net.minecraft.block.CarpetBlock;
@@ -41,14 +42,15 @@ public final class QuickLitematicaProjectionReplacementCompatibility {
     private QuickLitematicaProjectionReplacementCompatibility() { }
 
     public static boolean isAllowed(ItemStack source, ItemStack target) {
-        if (source == null || target == null || source.isEmpty() || target.isEmpty()
-                || !(source.getItem() instanceof BlockItem sourceItem)
-                || !(target.getItem() instanceof BlockItem)) { return false; }
+        if (source == null || target == null || source.isEmpty()
+                || !(source.getItem() instanceof BlockItem sourceItem)) { return false; }
         return replacementState(sourceItem.getBlock().getDefaultState(), target) != null;
     }
 
     public static BlockState replacementState(BlockState source, ItemStack target) {
-        if (target == null || target.isEmpty() || !(target.getItem() instanceof BlockItem item)) { return null; }
+        if (target == null) { return null; }
+        if (target.isEmpty()) { return Blocks.AIR.getDefaultState(); }
+        if (!(target.getItem() instanceof BlockItem item)) { return null; }
         if (source.getBlock().asItem() == target.getItem()) { return source; }
         for (Block targetBlock : placedBlocks(item)) {
             BlockState result = targetBlock.getDefaultState();

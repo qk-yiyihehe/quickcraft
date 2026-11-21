@@ -19,6 +19,7 @@ import net.minecraft.registry.Registries;
 import net.minecraft.registry.RegistryKey;
 import net.minecraft.text.Text;
 import org.lwjgl.glfw.GLFW;
+import net.minecraft.block.Blocks;
 import org.lwjgl.opengl.GL11;
 
 import java.util.ArrayList;
@@ -53,6 +54,7 @@ public final class QuickLitematicaMaterialReplacementScreen extends QuickLitemat
     private final Screen parent;
     private final ItemStack source;
     private final ReplacementBinding binding;
+    private final boolean allowsEmptyTarget;
     private final List<Item> allItems = new ArrayList<>();
     private final List<Item> filteredItems = new ArrayList<>();
     private GuiTextFieldGeneric searchField;
@@ -104,6 +106,7 @@ public final class QuickLitematicaMaterialReplacementScreen extends QuickLitemat
         if (!this.binding.supportsCount() && !this.source.isEmpty()) {
             this.source.setCount(1);
         }
+        this.allowsEmptyTarget = this.binding.isTargetAllowed(this.source, ItemStack.EMPTY);
         this.title = "";
         this.useTitleHierarchy = false;
 
@@ -122,7 +125,7 @@ public final class QuickLitematicaMaterialReplacementScreen extends QuickLitemat
             Text customName = initial.get(DataComponentTypes.CUSTOM_NAME);
             this.targetName = customName == null ? "" : customName.getString();
         }
-        if (current.isPresent() && initial.isEmpty() && this.binding.supportsCount()) {
+        if (current.isPresent() && initial.isEmpty() && this.allowsEmptyTarget) {
             this.selectedItem = Items.AIR;
             this.selectedTemplate = ItemStack.EMPTY;
         }
@@ -228,15 +231,6 @@ public final class QuickLitematicaMaterialReplacementScreen extends QuickLitemat
                 this.validationError = "";
                 return true;
             });
-            ButtonGeneric empty = new ButtonGeneric(this.panelX + this.panelWidth - 66, editY, 48, 18,
-                    StringUtils.translate("quickcraft.litematica.button.material_replace_empty"));
-            this.addButton(empty, (button, mouseButton) -> {
-                this.selectedItem = Items.AIR;
-                this.selectedTemplate = ItemStack.EMPTY;
-                this.targetName = "";
-                this.nameField.setTextWrapper("");
-                this.validationError = "";
-            });
             if (this.binding.canKeepOriginal()) {
                 ButtonGeneric keep = new ButtonGeneric(this.panelX + 158, buttonY, 54, 20,
                         StringUtils.translate("quickcraft.litematica.button.material_replace_keep_original"));
@@ -246,6 +240,21 @@ public final class QuickLitematicaMaterialReplacementScreen extends QuickLitemat
                     this.closeToParent();
                 });
             }
+        }
+
+        if (this.allowsEmptyTarget) {
+            boolean withCount = this.binding.supportsCount();
+            int footerX = this.binding.selectionOnly() ? mainHand.getX() + mainHand.getWidth() + 4 : this.panelX + 158;
+            int emptyX = withCount ? this.panelX + this.panelWidth - 66 : footerX;
+            int emptyY = withCount ? this.getBottomBoxY() + 5 : buttonY;
+            ButtonGeneric empty = new ButtonGeneric(emptyX, emptyY, 48, withCount ? 18 : 20, this.binding.emptyTargetLabel());
+            this.addButton(empty, (button, mouseButton) -> {
+                this.selectedItem = Items.AIR;
+                this.selectedTemplate = ItemStack.EMPTY;
+                this.targetName = "";
+                this.nameField.setTextWrapper("");
+                this.validationError = "";
+            });
         }
 
         ButtonGeneric cancel = new ButtonGeneric(this.panelX + this.panelWidth - 116, buttonY, 50, 20,
@@ -415,7 +424,7 @@ public final class QuickLitematicaMaterialReplacementScreen extends QuickLitemat
             drawContext.drawText(
                     this.textRenderer,
                     this.fitText(selectedStack.isEmpty()
-                            ? StringUtils.translate("quickcraft.litematica.label.material_replace_empty_slot")
+                            ? this.binding.emptyTargetLabel()
                             : selectedStack.getItem().getName().getString(), this.getNameFieldX() - targetBoxX - 32),
                     targetBoxX + 28,
                     bottomBoxY + 9,
@@ -768,6 +777,11 @@ public final class QuickLitematicaMaterialReplacementScreen extends QuickLitemat
         GuiBase.openGui(this.parent);
     }
 
+    static String emptyTargetLabel(QuickLitematicaContainerReplacements.Scope scope) {
+        return scope == QuickLitematicaContainerReplacements.Scope.PROJECTION ? Blocks.AIR.getName().getString()
+                : StringUtils.translate("quickcraft.litematica.button.material_replace_empty");
+    }
+
     private static ReplacementBinding createDefaultBinding(
             QuickLitematicaContainerReplacements.Scope scope,
             String replacementContextKey
@@ -776,6 +790,11 @@ public final class QuickLitematicaMaterialReplacementScreen extends QuickLitemat
                 scope == null ? QuickLitematicaContainerReplacements.Scope.CONTAINER : scope;
         String effectiveContextKey = replacementContextKey == null ? "" : replacementContextKey;
         return new ReplacementBinding() {
+            @Override
+            public String emptyTargetLabel() {
+                return QuickLitematicaMaterialReplacementScreen.emptyTargetLabel(effectiveScope);
+            }
+
             @Override
             public boolean isTargetAllowed(ItemStack source, ItemStack target) {
                 return QuickLitematicaContainerReplacements.isReplacementAllowed(source, target, effectiveScope);
@@ -815,6 +834,10 @@ public final class QuickLitematicaMaterialReplacementScreen extends QuickLitemat
         default boolean selectionOnly() { return false; }
 
         default String selectionTitle() { return ""; }
+
+        default String emptyTargetLabel() {
+            return QuickLitematicaMaterialReplacementScreen.emptyTargetLabel(QuickLitematicaContainerReplacements.Scope.CONTAINER);
+        }
         default boolean supportsCount() { return false; }
 
         default boolean preserveCountByDefault() { return false; }

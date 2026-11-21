@@ -48,7 +48,7 @@ public final class QuickLitematicaContainerReplacements {
     }
 
     public static boolean isReplacementAllowed(ItemStack source, ItemStack target, Scope scope) {
-        if (source == null || target == null || source.isEmpty() || target.isEmpty()) {
+        if (source == null || target == null || source.isEmpty()) {
             return false;
         }
         return scope != Scope.PROJECTION
@@ -288,6 +288,11 @@ public final class QuickLitematicaContainerReplacements {
             return;
         }
 
+        if (target.isEmpty()) {
+            setProjectionReplacementRules(List.of(source), target, contextKey);
+            return;
+        }
+
         String sourceRule = stackToRule(source);
         String targetRule = stackToRule(target);
         List<String> rules = new ArrayList<>(getConfiguredRules(scope));
@@ -434,9 +439,8 @@ public final class QuickLitematicaContainerReplacements {
             for (ReplacementRule rule : rules) {
                 if (matchesLocation(rule, scope, contextKey, groupKey, wantedSlot) && matchesSource(source, rule)) {
                     ItemStack target = resolveTarget(source, rule);
-                    if ((scope == Scope.CONTAINER && target.isEmpty())
-                            || (!target.isEmpty() && target.getCount() <= target.getMaxCount()
-                            && (scope == Scope.CONTAINER || isReplacementAllowed(source, target, scope)))) {
+                    if ((target.isEmpty() || target.getCount() <= target.getMaxCount())
+                            && (scope == Scope.CONTAINER || isReplacementAllowed(source, target, scope))) {
                         return rule;
                     }
                     return null;

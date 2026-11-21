@@ -49,7 +49,7 @@ public final class QuickLitematicaGlobalReplacementScreen extends QuickLitematic
         this.first = pageStart(this.first, this.rows.size(), this.visibleRows());
         var add = new ButtonGeneric(this.panelX(), 30, -1, 20, StringUtils.translate("quickcraft.litematica.global.add"));
         this.addButton(add, (button, mouse) -> {
-            this.rows.add(new Draft(ItemStack.EMPTY, ItemStack.EMPTY));
+            this.rows.add(new Draft(ItemStack.EMPTY, null));
             this.first = pageStart(this.rows.size() - 1, this.rows.size(), this.visibleRows());
             this.initGui();
         });
@@ -79,9 +79,15 @@ public final class QuickLitematicaGlobalReplacementScreen extends QuickLitematic
 
     private void addChoiceButton(Draft row, boolean source, int x, int y) {
         var stack = source ? row.source : row.target;
-        String label = stack.isEmpty() ? StringUtils.translate(source
-                ? "quickcraft.litematica.global.choose_source" : "quickcraft.litematica.global.choose_target")
-                : "      " + this.font.plainSubstrByWidth(stack.getHoverName().getString(), this.columnWidth() - 38);
+        String label;
+        if (stack == null || (source && stack.isEmpty())) {
+            label = StringUtils.translate(source ? "quickcraft.litematica.global.choose_source"
+                    : "quickcraft.litematica.global.choose_target");
+        } else if (stack.isEmpty()) {
+            label = QuickLitematicaMaterialReplacementScreen.emptyTargetLabel(this.scope);
+        } else {
+            label = "      " + this.font.plainSubstrByWidth(stack.getHoverName().getString(), this.columnWidth() - 38);
+        }
         var choice = new ButtonGeneric(x, y, this.columnWidth(), 22, label);
         this.addButton(choice, (button, mouse) -> this.pick(row, source));
     }
@@ -106,7 +112,7 @@ public final class QuickLitematicaGlobalReplacementScreen extends QuickLitematic
             int y = 68 + (index - this.first) * 30;
             context.drawText(this.font, ">", x + this.columnWidth() + 9, y + 7, 0xFFFFD54F, false);
             if (!row.source.isEmpty()) { context.drawItem(row.source, x + 4, y + 3); }
-            if (!row.target.isEmpty()) { context.drawItem(row.target, this.targetX() + 4, y + 3); }
+            if (row.target != null && !row.target.isEmpty()) { context.drawItem(row.target, this.targetX() + 4, y + 3); }
         }
     }
 
@@ -117,8 +123,9 @@ public final class QuickLitematicaGlobalReplacementScreen extends QuickLitematic
             @Override public boolean selectionOnly() { return true; }
             @Override public String selectionTitle() { return StringUtils.translate(sourceSide
                     ? "quickcraft.litematica.global.choose_source" : "quickcraft.litematica.global.choose_target"); }
+            @Override public String emptyTargetLabel() { return QuickLitematicaMaterialReplacementScreen.emptyTargetLabel(scope); }
             @Override public boolean isTargetAllowed(ItemStack ignored, ItemStack selected) {
-                if (selected.isEmpty()) { return false; }
+                if (selected.isEmpty()) { return !sourceSide; }
                 if (scope == Scope.CONTAINER) { return true; }
                 return sourceSide || row.source.isEmpty() ? selected.getItem() instanceof net.minecraft.world.item.BlockItem
                         : QuickLitematicaContainerReplacements.isReplacementAllowed(row.source, selected, scope);
@@ -127,7 +134,7 @@ public final class QuickLitematicaGlobalReplacementScreen extends QuickLitematic
                 return StringUtils.translate("quickcraft.litematica.global.choose_both");
             }
             @Override public Optional<ItemStack> getCurrentTarget(ItemStack ignored) {
-                return current.isEmpty() ? Optional.empty() : Optional.of(current);
+                return sourceSide && current.isEmpty() ? Optional.empty() : Optional.ofNullable(current);
             }
             @Override public void apply(ItemStack ignored, ItemStack selected) {
                 if (applyChoice(row, sourceSide, selected, scope)) {
@@ -142,14 +149,14 @@ public final class QuickLitematicaGlobalReplacementScreen extends QuickLitematic
     @Override public void quickcraft$refreshAfterReplacement() { this.initGui(); }
 
     static boolean applyChoice(Draft row, boolean sourceSide, ItemStack selected, Scope scope) {
-        if (selected.isEmpty()) { return false; }
+        if (sourceSide && selected.isEmpty()) { return false; }
         ItemStack candidate = selected.copyWithCount(1);
         if (sourceSide) {
-            if (!row.target.isEmpty()
+            if (row.target != null
                     && !QuickLitematicaContainerReplacements.isReplacementAllowed(candidate, row.target, scope)) {
                 // 新来源无法沿用旧目标：同步移除旧规则，避免界面显示新来源而旧规则仍生效。
                 row.source = candidate;
-                row.target = ItemStack.EMPTY;
+                row.target = null;
                 QuickLitematicaGlobalReplacements.set(row.source, null, scope, row.savedSource);
                 row.savedSource = ItemStack.EMPTY;
                 return true;
@@ -162,10 +169,10 @@ public final class QuickLitematicaGlobalReplacementScreen extends QuickLitematic
             }
             row.target = candidate;
         }
-        if (row.source.isEmpty() || row.target.isEmpty()) { return false; }
+        if (row.source.isEmpty() || row.target == null) { return false; }
         QuickLitematicaGlobalReplacements.set(row.source, row.target, scope, row.savedSource);
         if (ItemStack.isSameItemSameComponents(row.source, row.target)) {
-            row.target = ItemStack.EMPTY;
+            row.target = null;
             row.savedSource = ItemStack.EMPTY;
         } else {
             row.savedSource = row.source.copy();
@@ -175,12 +182,13 @@ public final class QuickLitematicaGlobalReplacementScreen extends QuickLitematic
 
     static final class Draft {
         ItemStack source;
+        // null 表示尚未选择目标，EMPTY 表示清空匹配的方块或槽位。
         ItemStack target;
         ItemStack savedSource;
         Draft(ItemStack source, ItemStack target) {
             this.source = source.copy();
-            this.target = target.copy();
-            this.savedSource = source.copy();
+            this.target = target == null ? null : target.copy();
+            this.savedSource = target == null ? ItemStack.EMPTY : source.copy();
         }
     }
 }

@@ -151,7 +151,9 @@ public final class QuickLitematicaMaterialRow {
         } else {
             target = QuickLitematicaContainerReplacements.getReplacementTarget(
                     this.entry.getStack(), this.quickcraft$scope, this.quickcraft$contextKey);
-            targetLabel = target.map(stack -> stack.getName().getString()).orElse("");
+            targetLabel = target.map(stack -> stack.isEmpty()
+                    ? QuickLitematicaMaterialReplacementScreen.emptyTargetLabel(this.quickcraft$scope)
+                    : stack.getName().getString()).orElse("");
         }
         if (target.isEmpty()) {
             return;

@@ -101,8 +101,13 @@ public final class QuickLitematicaProjectionMaterials {
             @Override
             public String scopeDescription() { return StringUtils.translate("quickcraft.litematica.label.projection_batch_scope", sources.size()); }
             @Override
+            public String emptyTargetLabel() {
+                return QuickLitematicaMaterialReplacementScreen.emptyTargetLabel(QuickLitematicaContainerReplacements.Scope.PROJECTION);
+            }
+
+            @Override
             public boolean isTargetAllowed(ItemStack ignored, ItemStack target) {
-                if (!(target.getItem() instanceof BlockItem) || target.isEmpty()) { return false; }
+                if (target == null || (!target.isEmpty() && !(target.getItem() instanceof BlockItem))) { return false; }
                 for (ItemStack original : sources) {
                     if (!(original.getItem() instanceof BlockItem)) { return false; }
                     var recorded = states.get(new ItemType(original, true, false));
@@ -160,6 +165,7 @@ public final class QuickLitematicaProjectionMaterials {
 
     static void replaceBlocks(LitematicaSchematic copy, java.util.function.Function<BlockState, Optional<ItemStack>> targets) {
         var containers = ((LitematicaSchematicBlocksAccessor) copy).quickcraft$getBlockContainers();
+        long removedBlocks = 0;
         for (String region : copy.getAreas().keySet()) {
             var old = containers.get(region);
             if (old == null) { continue; }
@@ -170,13 +176,19 @@ public final class QuickLitematicaProjectionMaterials {
                 return mapped == null ? state : mapped;
             });
             containers.put(region, replacement);
-            var entities = QuickLitematicaContainerMaterialsAccess.getBlockEntities(copy, region);
-            if (entities == null) { continue; }
             boolean addsEntities = false;
+            long[] counts = null;
             for (int index = 0; index < old.getPalette().getPaletteSize(); index++) {
                 BlockState before = old.getPalette().getBlockState(index);
-                if (!before.hasBlockEntity() && replacement.getPalette().getBlockState(index).hasBlockEntity()) { addsEntities = true; break; }
+                BlockState after = replacement.getPalette().getBlockState(index);
+                addsEntities |= !before.hasBlockEntity() && after.hasBlockEntity();
+                if (!before.isAir() && after.isAir()) {
+                    if (counts == null) { counts = countPaletteStates(old); }
+                    removedBlocks += counts[index];
+                }
             }
+            var entities = QuickLitematicaContainerMaterialsAccess.getBlockEntities(copy, region);
+            if (entities == null) { continue; }
             if (addsEntities) {
                 var size = old.getSize();
                 var lookup = Minecraft.getInstance().level.registryAccess();
@@ -219,6 +231,10 @@ public final class QuickLitematicaProjectionMaterials {
                 } else { entities.remove(pos); }
             }
             QuickLitematicaContainerMaterialsAccess.setBlockEntities(copy, region, entities);
+        }
+        if (removedBlocks > 0) {
+            var metadata = copy.getMetadata();
+            metadata.setTotalBlocks((int) Math.max(0, metadata.getTotalBlocks() - removedBlocks));
         }
     }
 
@@ -326,6 +342,7 @@ public final class QuickLitematicaProjectionMaterials {
             ItemStack source = replacementSource(state);
             if (ignored.contains(new ItemType(source, true, true).toString())) { return; }
             BlockState finalState = targetState(state, context);
+            if (finalState.isAir()) { return; }
             var replacement = QuickLitematicaContainerReplacements.getReplacementTarget(source,
                     QuickLitematicaContainerReplacements.Scope.PROJECTION, context);
             Object2IntOpenHashMap<BlockState> singleton = new Object2IntOpenHashMap<>();

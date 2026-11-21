@@ -36,11 +36,37 @@ class QuickLitematicaGlobalReplacementScreenTest {
                     draft, true, new ItemStack(Items.STONE_SLAB), QuickLitematicaContainerReplacements.Scope.PROJECTION))
                     .isTrue();
             assertThat(draft.source.isOf(Items.STONE_SLAB)).isTrue();
-            assertThat(draft.target.isEmpty()).isTrue();
+            assertThat(draft.target).isNull();
             assertThat(config.getStrings()).isEmpty();
             assertThat(QuickLitematicaGlobalReplacements.rules(QuickLitematicaContainerReplacements.Scope.PROJECTION)).isEmpty();
         } finally {
             config.setStrings(old);
+        }
+    }
+
+    @Test
+    void choosingEmptyBeforeTheSourceSavesAnExplicitEmptyTargetInBothScopes() {
+        var source = new ItemStack(Items.STONE);
+        try (var configs = mockStatic(QuickCraftConfigs.class, CALLS_REAL_METHODS)) {
+            configs.when(QuickCraftConfigs::saveToFile).thenAnswer(invocation -> null);
+            for (var scope : QuickLitematicaContainerReplacements.Scope.values()) {
+                var config = QuickLitematicaGlobalReplacements.config(scope);
+                List<String> old = List.copyOf(config.getStrings());
+                try {
+                    config.setStrings(List.of());
+                    var draft = new QuickLitematicaGlobalReplacementScreen.Draft(ItemStack.EMPTY, null);
+                    assertThat(QuickLitematicaGlobalReplacementScreen.applyChoice(draft, false, ItemStack.EMPTY, scope)).isFalse();
+                    assertThat(draft.target).isSameAs(ItemStack.EMPTY);
+                    assertThat(config.getStrings()).isEmpty();
+                    assertThat(QuickLitematicaGlobalReplacementScreen.applyChoice(draft, true, source, scope)).isTrue();
+                    assertThat(QuickLitematicaGlobalReplacements.rules(scope)).singleElement().satisfies(rule -> {
+                        assertThat(QuickLitematicaContainerReplacements.matchesSource(source, rule)).isTrue();
+                        assertThat(rule.target().isEmpty()).isTrue();
+                    });
+                } finally {
+                    config.setStrings(old);
+                }
+            }
         }
     }
 
