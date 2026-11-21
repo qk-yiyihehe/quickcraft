@@ -1,5 +1,6 @@
 package com.yiyihehe.quickcraft.mixin;
 
+import com.yiyihehe.quickcraft.QuickCrossBoxSort;
 import com.yiyihehe.quickcraft.crafting.QuickCraftWorkbenchShulker;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
@@ -19,7 +20,8 @@ public abstract class QuickContainerBackgroundFillInputMixin {
     private void quickcraft$blockWorkbenchRefillClick(MouseButtonEvent event,
                                                       boolean doubleClick,
                                                       CallbackInfoReturnable<Boolean> cir) {
-        if (QuickCraftWorkbenchShulker.shouldBlockWorkbenchInput()) {
+        if (QuickCrossBoxSort.blocksInventoryInput((AbstractContainerScreen<?>) (Object) this)
+                || QuickCraftWorkbenchShulker.shouldBlockWorkbenchInput()) {
             cir.setReturnValue(true);
         }
     }
@@ -27,7 +29,8 @@ public abstract class QuickContainerBackgroundFillInputMixin {
     @Inject(method = "mouseReleased", at = @At("HEAD"), cancellable = true)
     private void quickcraft$blockWorkbenchRefillRelease(MouseButtonEvent event,
                                                         CallbackInfoReturnable<Boolean> cir) {
-        if (QuickCraftWorkbenchShulker.shouldBlockWorkbenchInput()) {
+        if (QuickCrossBoxSort.blocksInventoryInput((AbstractContainerScreen<?>) (Object) this)
+                || QuickCraftWorkbenchShulker.shouldBlockWorkbenchInput()) {
             cir.setReturnValue(true);
         }
     }
@@ -37,7 +40,8 @@ public abstract class QuickContainerBackgroundFillInputMixin {
                                                      double deltaX,
                                                      double deltaY,
                                                      CallbackInfoReturnable<Boolean> cir) {
-        if (QuickCraftWorkbenchShulker.shouldBlockWorkbenchInput()) {
+        if (QuickCrossBoxSort.blocksInventoryInput((AbstractContainerScreen<?>) (Object) this)
+                || QuickCraftWorkbenchShulker.shouldBlockWorkbenchInput()) {
             cir.setReturnValue(true);
         }
     }
@@ -45,6 +49,10 @@ public abstract class QuickContainerBackgroundFillInputMixin {
     @Inject(method = "keyPressed", at = @At("HEAD"), cancellable = true)
     private void quickcraft$blockWorkbenchRefillKey(KeyEvent event,
                                                     CallbackInfoReturnable<Boolean> cir) {
+        if (QuickCrossBoxSort.consumeInventoryKey((AbstractContainerScreen<?>) (Object) this, event.isEscape())) {
+            cir.setReturnValue(true);
+            return;
+        }
         if (!QuickCraftWorkbenchShulker.shouldBlockWorkbenchInput()) {
             return;
         }

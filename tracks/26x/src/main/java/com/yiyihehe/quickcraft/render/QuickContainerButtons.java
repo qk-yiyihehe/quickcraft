@@ -19,10 +19,8 @@ public final class QuickContainerButtons {
     private QuickRetrieveButton retrieve;
     private QuickSortButton containerSort;
     private QuickSortButton inventorySort;
-    private QuickCrossBoxSortButton containerPure;
-    private QuickCrossBoxSortButton containerCompact;
-    private QuickCrossBoxSortButton inventoryPure;
-    private QuickCrossBoxSortButton inventoryCompact;
+    private QuickCrossBoxSortButton containerCrossSort;
+    private QuickCrossBoxSortButton inventoryCrossSort;
     private QuickContainerLockButton inventoryLock;
     private QuickContainerLockButton containerLock;
 
@@ -80,13 +78,9 @@ public final class QuickContainerButtons {
         position(inventorySort, sortVisible, right - 34, bottom);
 
         boolean crossVisible = sortVisible && QuickCraftConfigs.isCrossBoxSortEnabled();
-        containerPure = crossSort(screen, containerPure, right - 82, top + 4, true, false,
-                QuickDraggableButton.PositionKey.CONTAINER_CROSS_BOX_SORT_PURE, crossVisible, add);
-        containerCompact = crossSort(screen, containerCompact, right - 66, top + 4, false, false,
+        containerCrossSort = crossSort(screen, containerCrossSort, right - 66, top + 4, false,
                 QuickDraggableButton.PositionKey.CONTAINER_CROSS_BOX_SORT_COMPACT, crossVisible, add);
-        inventoryPure = crossSort(screen, inventoryPure, right - 82, bottom, true, true,
-                QuickDraggableButton.PositionKey.INVENTORY_CROSS_BOX_SORT_PURE, crossVisible, add);
-        inventoryCompact = crossSort(screen, inventoryCompact, right - 66, bottom, false, true,
+        inventoryCrossSort = crossSort(screen, inventoryCrossSort, right - 66, bottom, true,
                 QuickDraggableButton.PositionKey.INVENTORY_CROSS_BOX_SORT_COMPACT, crossVisible, add);
 
         boolean inventoryLockVisible = QuickCraftConfigs.isContainerLockButtonVisible();
@@ -114,11 +108,10 @@ public final class QuickContainerButtons {
     }
 
     private static QuickCrossBoxSortButton crossSort(AbstractContainerScreen<?> screen, QuickCrossBoxSortButton button,
-            int x, int y, boolean pure, boolean playerInventory, QuickDraggableButton.PositionKey key,
+            int x, int y, boolean playerInventory, QuickDraggableButton.PositionKey key,
             boolean visible, Consumer<QuickDraggableButton> add) {
         if (visible && (button == null || !screen.children().contains(button))) {
-            button = new QuickCrossBoxSortButton(x, y, pure,
-                    clicked -> QuickCrossBoxSort.start(screen, playerInventory, pure), key);
+            button = new QuickCrossBoxSortButton(x, y, screen, playerInventory, key);
             add.accept(button);
         }
         position(button, visible, x, y);

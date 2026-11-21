@@ -1,6 +1,7 @@
 package com.yiyihehe.quickcraft.mixin;
 
 import com.yiyihehe.quickcraft.QuickContainerLock;
+import com.yiyihehe.quickcraft.sort.QuickCrossBoxSortSessions;
 import net.minecraft.client.multiplayer.MultiPlayerGameMode;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.inventory.ContainerInput;
@@ -22,6 +23,10 @@ public class QuickContainerLockClientPlayerInteractionManagerMixin {
                                                  ContainerInput actionType,
                                                  Player player,
                                                  CallbackInfo ci) {
+        if (QuickCrossBoxSortSessions.INSTANCE.blocksInventoryClicks()) {
+            ci.cancel();
+            return;
+        }
         if (player == null
                 || player.containerMenu == null
                 || player.containerMenu.containerId != syncId) {

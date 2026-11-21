@@ -27,6 +27,10 @@ public final class QuickInventoryShulkerTools {
     }
 
     public static boolean handleMouseClick(double mouseX, double mouseY, int button, boolean pressed) {
+        Minecraft client = Minecraft.getInstance();
+        if (QuickCrossBoxSort.blocksInventoryInput(QuickClientScreenAccess.currentScreen(client))) {
+            return true;
+        }
         if (button != InputConstants.MOUSE_BUTTON_RIGHT) {
             return false;
         }

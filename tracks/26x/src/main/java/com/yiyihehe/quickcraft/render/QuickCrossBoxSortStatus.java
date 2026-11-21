@@ -10,12 +10,13 @@ import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.network.chat.Component;
 
-/** 容量提示和结果依次显示；容器打开时在界面上层补画同一条中间提示。 */
+/** 在容器界面绘制整理状态，结果可即时替换开始提示。 */
 public final class QuickCrossBoxSortStatus {
     private static final int DISPLAY_TICKS = 60;
     private static final Deque<Component> pending = new ArrayDeque<>();
     private static Component current;
     private static int remaining;
+    private static boolean currentIsProgress;
     private static ClientLevel world;
 
     private QuickCrossBoxSortStatus() {}
@@ -33,27 +34,42 @@ public final class QuickCrossBoxSortStatus {
         pending.clear();
         current = null;
         remaining = 0;
+        currentIsProgress = false;
         world = null;
     }
 
     public static void show(Component text) {
+        show(text, false);
+    }
+
+    public static void showProgress(Component text) {
+        show(text, true);
+    }
+
+    private static void show(Component text, boolean progress) {
         var client = Minecraft.getInstance();
         if (client.player == null || client.level == null) { return; }
         if (world != client.level) { clear(); }
         world = client.level;
+        if (progress) {
+            current = text.copy();
+            currentIsProgress = true;
+            remaining = DISPLAY_TICKS;
+            return;
+        }
         pending.addLast(text.copy());
-        if (current == null) { advance(client); }
+        if (current == null || currentIsProgress) { advance(); }
     }
 
     private static void tick(Minecraft client) {
         if (client.player == null || client.level != world) { clear(); return; }
-        if (current != null && --remaining <= 0) { advance(client); }
+        if (current != null && --remaining <= 0) { advance(); }
     }
 
-    private static void advance(Minecraft client) {
+    private static void advance() {
         current = pending.pollFirst();
         remaining = DISPLAY_TICKS;
-        if (current != null) { client.player.sendOverlayMessage(current); }
+        currentIsProgress = false;
     }
 
     private static void render(GuiGraphicsExtractor graphics) {

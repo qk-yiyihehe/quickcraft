@@ -25,6 +25,9 @@ public final class QuickCrossBoxSortSessions {
     private net.minecraft.screen.ScreenHandler splitMenu;
     private net.minecraft.client.network.ClientPlayerEntity owner;
     private net.minecraft.client.world.ClientWorld world;
+    private InventoryScreen inventoryView;
+    private boolean dispatchingSort;
+    private boolean cancelRequested;
 
     private QuickCrossBoxSortSessions() {}
     public boolean isRunning() { return active != null || remote != null || splits != null; }
@@ -37,9 +40,9 @@ public final class QuickCrossBoxSortSessions {
         this.onePerBox = onePerBox;
         owner = player;
         world = client.world;
+        inventoryView = screen instanceof InventoryScreen inventory ? inventory : null;
         if (client.getServer() != null) {
             remote = QuickCrossBoxSortIntegratedSession.create(client, onePerBox, menuSlots);
-            if (remote != null && player.currentScreenHandler == player.playerScreenHandler) { client.setScreen(null); }
             return;
         }
         if (!com.yiyihehe.quickcraft.compat.QuickShulkerConnection.canOpen()) { message(client, "quickshulker_unavailable"); return; }
@@ -83,21 +86,50 @@ public final class QuickCrossBoxSortSessions {
         return active != null && active.consumeExpectedContainerScreen(screen);
     }
 
+    public boolean blocksInventoryInput(Screen screen) {
+        return inventoryView != null && screen == inventoryView && isRunning();
+    }
+
+    public boolean blocksInventoryClicks() {
+        MinecraftClient client = MinecraftClient.getInstance();
+        return !dispatchingSort && blocksInventoryInput(client.currentScreen);
+    }
+
+    public void requestCancel() {
+        cancelRequested = active != null || splits != null;
+    }
+
     public void clear() {
         active = null; remote = null; splits = null; settleTicks = 0; owner = null; world = null;
         containerSlots = null; splitMenu = null;
+        inventoryView = null;
+        cancelRequested = false;
         QuickCrossBoxSortSync.clear();
     }
 
     public void tick(MinecraftClient client) {
         if (client.player == null || client.getNetworkHandler() == null || isRunning() && (client.player != owner || client.world != world)) { clear(); return; }
-        if (active != null) {
-            if (!QuickCraftConfigs.isCrossBoxSortEnabled()) { active.cancel(client); }
-            if (!active.tick(client)) { active = null; }
-        } else if (remote != null) {
-            if (!remote.tick(client)) { remote = null; }
-        } else if (splits != null) {
-            tickSplits(client);
+        dispatchingSort = true;
+        try {
+            if (active != null) {
+                if (cancelRequested || !QuickCraftConfigs.isCrossBoxSortEnabled()) { active.cancel(client); }
+                if (!active.tick(client)) { active = null; }
+            } else if (remote != null) {
+                if (!remote.tick(client)) { remote = null; }
+            } else if (splits != null) {
+                if (cancelRequested) {
+                    splits = null;
+                    message(client, "safe_abort");
+                } else {
+                    tickSplits(client);
+                }
+            }
+        } finally {
+            dispatchingSort = false;
+            if (!isRunning()) {
+                cancelRequested = false;
+                inventoryView = null;
+            }
         }
     }
 
@@ -127,7 +159,7 @@ public final class QuickCrossBoxSortSessions {
 
     private void begin(MinecraftClient client) {
         active = QuickCrossBoxSortSession.create(client, onePerBox, containerSlots);
-        if (active != null) { active.enterBackgroundMode(client); }
+        if (active != null) { active.enterBackgroundMode(client, inventoryView); }
     }
 
     public static int inventoryMenuSlot(int slot) { return slot < 9 ? slot + 36 : slot; }

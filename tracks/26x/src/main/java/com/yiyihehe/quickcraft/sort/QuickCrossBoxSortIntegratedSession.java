@@ -34,10 +34,12 @@ final class QuickCrossBoxSortIntegratedSession {
         var session = new QuickCrossBoxSortIntegratedSession();
         server.execute(() -> {
             var serverPlayer = server.getPlayerList().getPlayer(player.getUUID());
-            if (serverPlayer == null) { return; }
-            var result = QuickCrossBoxSortIntegratedServer.apply(request, serverPlayer);
+            var result = serverPlayer == null ? QuickCrossBoxSortResult.MISMATCH
+                    : QuickCrossBoxSortIntegratedServer.apply(request, serverPlayer);
             client.execute(() -> {
-                if (client.player == player && client.getSingleplayerServer() == server) { session.result = result; }
+                if (client.player == player && client.getSingleplayerServer() == server) {
+                    session.result = result;
+                }
             });
         });
         return session;

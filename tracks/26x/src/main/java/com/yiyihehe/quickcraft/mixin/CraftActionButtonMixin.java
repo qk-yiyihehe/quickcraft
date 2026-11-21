@@ -181,10 +181,7 @@ abstract class CraftActionButtonBackpackMixin extends AbstractContainerScreen<In
     private QuickStashButton quickcraft$stashButton;
 
     @Unique
-    private QuickCrossBoxSortButton quickcraft$pureSortButton;
-
-    @Unique
-    private QuickCrossBoxSortButton quickcraft$compactSortButton;
+    private QuickCrossBoxSortButton quickcraft$crossSortButton;
 
     protected CraftActionButtonBackpackMixin(InventoryMenu handler, Inventory inventory, Component title) {
         super(handler, inventory, title);
@@ -260,17 +257,15 @@ abstract class CraftActionButtonBackpackMixin extends AbstractContainerScreen<In
     @Unique
     private void quickcraft$ensureSortButton() {
         boolean crossVisible = QuickCraftConfigs.isCrossBoxSortEnabled() && QuickCraftConfigs.isQuickSortButtonVisible();
-        if (crossVisible && (quickcraft$pureSortButton == null || !children().contains(quickcraft$pureSortButton))) {
-            quickcraft$pureSortButton = addRenderableWidget(new QuickCrossBoxSortButton(this.leftPos + this.imageWidth - 50, this.topPos + 53, true));
-            quickcraft$compactSortButton = addRenderableWidget(new QuickCrossBoxSortButton(this.leftPos + this.imageWidth - 34, this.topPos + 53, false));
+        if (crossVisible && (quickcraft$crossSortButton == null || !children().contains(quickcraft$crossSortButton))) {
+            quickcraft$crossSortButton = addRenderableWidget(new QuickCrossBoxSortButton(
+                    this.leftPos + this.imageWidth - 34, this.topPos + 53, this, true,
+                    QuickDraggableButton.PositionKey.BACKPACK_CROSS_BOX_SORT_COMPACT));
         }
-        if (quickcraft$pureSortButton != null) {
-            quickcraft$pureSortButton.visible = crossVisible;
-            quickcraft$compactSortButton.visible = crossVisible;
-            quickcraft$pureSortButton.active = !QuickCrossBoxSort.isRunning();
-            quickcraft$compactSortButton.active = !QuickCrossBoxSort.isRunning();
-            quickcraft$pureSortButton.setDefaultPosition(this.leftPos + this.imageWidth - 50, this.topPos + 53);
-            quickcraft$compactSortButton.setDefaultPosition(this.leftPos + this.imageWidth - 34, this.topPos + 53);
+        if (quickcraft$crossSortButton != null) {
+            quickcraft$crossSortButton.visible = crossVisible;
+            quickcraft$crossSortButton.active = !QuickCrossBoxSort.isRunning();
+            quickcraft$crossSortButton.setDefaultPosition(this.leftPos + this.imageWidth - 34, this.topPos + 53);
         }
 
         boolean visible = QuickCraftConfigs.isQuickSortButtonVisible();

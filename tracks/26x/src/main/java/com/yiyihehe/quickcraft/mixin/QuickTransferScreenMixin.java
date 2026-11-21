@@ -1,5 +1,6 @@
 package com.yiyihehe.quickcraft.mixin;
 
+import com.yiyihehe.quickcraft.QuickCrossBoxSort;
 import com.yiyihehe.quickcraft.QuickTransfer;
 import com.yiyihehe.quickcraft.portablestorage.QuickPortableStoragePanel;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
@@ -21,7 +22,8 @@ public abstract class QuickTransferScreenMixin {
                                                  double verticalAmount,
                                                  CallbackInfoReturnable<Boolean> cir) {
         AbstractContainerScreen<?> screen = (AbstractContainerScreen<?>) (Object) this;
-        if (QuickPortableStoragePanel.scroll(screen, mouseX, mouseY, verticalAmount)
+        if (QuickCrossBoxSort.blocksInventoryInput(screen)
+                || QuickPortableStoragePanel.scroll(screen, mouseX, mouseY, verticalAmount)
                 || QuickTransfer.handleScrollTransfer(screen, mouseX, mouseY, verticalAmount)) {
             cir.setReturnValue(true);
         }

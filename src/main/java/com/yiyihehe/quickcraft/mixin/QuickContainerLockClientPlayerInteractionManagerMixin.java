@@ -1,6 +1,7 @@
 package com.yiyihehe.quickcraft.mixin;
 
 import com.yiyihehe.quickcraft.QuickContainerLock;
+import com.yiyihehe.quickcraft.sort.QuickCrossBoxSortSessions;
 import net.minecraft.client.network.ClientPlayerInteractionManager;
 import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.screen.slot.SlotActionType;
@@ -22,6 +23,10 @@ public class QuickContainerLockClientPlayerInteractionManagerMixin {
                                                  SlotActionType actionType,
                                                  PlayerEntity player,
                                                  CallbackInfo ci) {
+        if (QuickCrossBoxSortSessions.INSTANCE.blocksInventoryClicks()) {
+            ci.cancel();
+            return;
+        }
         if (player == null
                 || player.currentScreenHandler == null
                 || player.currentScreenHandler.syncId != syncId) {

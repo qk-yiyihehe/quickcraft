@@ -1,29 +1,23 @@
 package com.yiyihehe.quickcraft.render;
 
 import com.yiyihehe.quickcraft.QuickCrossBoxSort;
+import com.yiyihehe.quickcraft.QuickCraftKeyBindings;
 import net.minecraft.client.gui.DrawContext;
-import net.minecraft.text.Text;
+import net.minecraft.client.gui.screen.ingame.HandledScreen;
 import net.minecraft.util.Identifier;
 
 public final class QuickCrossBoxSortButton extends QuickCompactIconButton {
-    private final Identifier icon;
+    private static final Identifier ICON =
+            Identifier.of("quickcraft", "textures/gui/cross_box_sort_compact.png");
 
-    public QuickCrossBoxSortButton(int x, int y, boolean onePerBox) {
-        this(x, y, onePerBox, button -> QuickCrossBoxSort.start(onePerBox),
-                onePerBox ? PositionKey.BACKPACK_CROSS_BOX_SORT_PURE : PositionKey.BACKPACK_CROSS_BOX_SORT_COMPACT);
-    }
-
-    public QuickCrossBoxSortButton(int x, int y, boolean onePerBox, PressAction action, PositionKey positionKey) {
-        super(x, y, onePerBox
-                        ? net.minecraft.text.Text.translatable("quickcraft.button.cross_box_sort.pure")
-                        : net.minecraft.text.Text.translatable("quickcraft.button.cross_box_sort.compact"),
-                action, positionKey);
-        this.icon = Identifier.of("quickcraft", onePerBox
-                ? "textures/gui/cross_box_sort_pure.png" : "textures/gui/cross_box_sort_compact.png");
+    public QuickCrossBoxSortButton(int x, int y, HandledScreen<?> screen, boolean playerInventory,
+                                   PositionKey positionKey) {
+        super(x, y, net.minecraft.text.Text.translatable("quickcraft.button.cross_box_sort"),
+                button -> QuickCrossBoxSort.start(screen, playerInventory, QuickCraftKeyBindings.isAltDown()), positionKey);
     }
 
     @Override
     protected void drawIcon(DrawContext graphics, int x, int y, boolean hovered) {
-        QuickButtonAccess.drawButtonIcon(graphics, icon, x, y, 10, 10);
+        QuickButtonAccess.drawButtonIcon(graphics, ICON, x, y, 10, 10);
     }
 }

@@ -1,6 +1,7 @@
 package com.yiyihehe.quickcraft;
 
 import com.yiyihehe.quickcraft.config.QuickCraftConfigs;
+import com.yiyihehe.quickcraft.portablestorage.QuickPortableStorageTransfer;
 import com.yiyihehe.quickcraft.sort.QuickCrossBoxSortSessions;
 import com.yiyihehe.quickcraft.sort.QuickCrossBoxSortStacks;
 import com.yiyihehe.quickcraft.sort.QuickCrossBoxSortStackKey;
@@ -40,7 +41,8 @@ public final class QuickCrossBoxSort implements ClientModInitializer {
         if (onePerBox && required > available) {
             message(net.minecraft.network.chat.Component.translatable("quickcraft.message.cross_box_sort.boxes_insufficient", required, available));
         } else {
-            message(net.minecraft.network.chat.Component.translatable("quickcraft.message.cross_box_sort.started"));
+            com.yiyihehe.quickcraft.render.QuickCrossBoxSortStatus.showProgress(
+                    net.minecraft.network.chat.Component.translatable("quickcraft.message.cross_box_sort.started"));
         }
     }
 
@@ -55,19 +57,15 @@ public final class QuickCrossBoxSort implements ClientModInitializer {
                 || QuickSort.isTextInputFocused(screen)) {
             return false;
         }
-        start(screen, !QuickSort.isContainerSortArea(screen), true);
+        start(screen, !QuickSort.isContainerSortArea(screen), false);
         return true;
-    }
-
-    public static void start(boolean onePerBox) {
-        Minecraft client = Minecraft.getInstance();
-        if (QuickClientScreenAccess.currentScreen(client) instanceof AbstractContainerScreen<?> screen) { start(screen, true, onePerBox); }
     }
 
     public static void start(AbstractContainerScreen<?> screen, boolean playerInventory, boolean onePerBox) {
         Minecraft client = Minecraft.getInstance();
         if (!QuickCraftConfigs.isCrossBoxSortEnabled() || isRunning() || client.player == null
                 || QuickClientScreenAccess.currentScreen(client) != screen || screen.getMenu() != client.player.containerMenu
+                || QuickPortableStorageTransfer.isRunning()
                 || QuickStashShulkerTransfer.isRunning()
                 || QuickContainerCopy.shouldHideBackgroundHandledScreen()
                 || QuickMaterialCollector.shouldHideBackgroundHandledScreen()) { return; }
@@ -82,5 +80,19 @@ public final class QuickCrossBoxSort implements ClientModInitializer {
 
     public static boolean consumeScreen(Screen screen) {
         return isRunning() && (screen instanceof InventoryScreen || QuickCrossBoxSortSessions.INSTANCE.consumeScreen(screen));
+    }
+
+    public static boolean blocksInventoryInput(Screen screen) {
+        return QuickCrossBoxSortSessions.INSTANCE.blocksInventoryInput(screen);
+    }
+
+    public static boolean consumeInventoryKey(Screen screen, boolean escape) {
+        if (!blocksInventoryInput(screen)) {
+            return false;
+        }
+        if (escape) {
+            QuickCrossBoxSortSessions.INSTANCE.requestCancel();
+        }
+        return true;
     }
 }

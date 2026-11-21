@@ -1,9 +1,11 @@
 package com.yiyihehe.quickcraft.sort;
 
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -102,33 +104,26 @@ public final class QuickCrossBoxSortPlanner {
         boolean[] targetUsed = new boolean[size];
 
         for(int i = 0; i < size; ++i) {
-            if (sameStack(source.get(i), target.get(i))) {
+            if (Objects.equals(source.get(i), target.get(i))) {
                 destination[i] = i;
                 targetUsed[i] = true;
             }
         }
 
-        for(int sourceIndex = 0; sourceIndex < size; ++sourceIndex) {
-            if (destination[sourceIndex] < 0) {
-                int best = -1;
-
-                for(int targetIndex = 0; targetIndex < size; ++targetIndex) {
-                    if (!targetUsed[targetIndex] && sameStack(source.get(sourceIndex), target.get(targetIndex)) && (best < 0 || sameBox(refs.get(sourceIndex), refs.get(targetIndex)) && !sameBox(refs.get(sourceIndex), refs.get(best)))) {
-                        best = targetIndex;
-                    }
-                }
-
-                if (best < 0) {
-                    throw new IllegalStateException("Source and target stack multisets differ");
-                }
-
-                destination[sourceIndex] = best;
-                targetUsed[best] = true;
+        // Reserve local matches in every box before an earlier box can claim them.
+        for (int start = 0; start < size; start += boxSize) {
+            matchSlots(source, target, destination, targetUsed, start, start + boxSize);
+        }
+        matchSlots(source, target, destination, targetUsed, 0, size);
+        for (int slot : destination) {
+            if (slot < 0) {
+                throw new IllegalStateException("Source and target stack multisets differ");
             }
         }
 
         boolean[] visited = new boolean[size];
         List<SwapCycle<K>> cycles = new ArrayList<>();
+        List<QuickCrossBoxSortStacks.Stack<K>> simulation = new ArrayList<>(source);
 
         for(int seed = 0; seed < size; ++seed) {
             if (!visited[seed] && destination[seed] != seed) {
@@ -163,11 +158,13 @@ public final class QuickCrossBoxSortPlanner {
                 }
 
                 QuickCrossBoxSortStacks.Stack<K> register = null;
-                List<QuickCrossBoxSortStacks.Stack<K>> simulation = new ArrayList<>(source);
                 List<SwapStep<K>> steps = new ArrayList<>();
 
                 for(int position : swapPositions) {
                     QuickCrossBoxSortStacks.Stack<K> slotBefore = simulation.get(position);
+                    if (Objects.equals(slotBefore, register)) {
+                        continue;
+                    }
                     QuickCrossBoxSortStacks.Stack<K> registerBefore = register;
                     simulation.set(position, register);
                     register = slotBefore;
@@ -189,8 +186,25 @@ public final class QuickCrossBoxSortPlanner {
         return left.inventorySlot() == right.inventorySlot();
     }
 
-    private static <K> boolean sameStack(QuickCrossBoxSortStacks.Stack<K> left, QuickCrossBoxSortStacks.Stack<K> right) {
-        return left == right || left != null && right != null && left.count() == right.count() && left.maxCount() == right.maxCount() && Objects.equals(left.key(), right.key());
+    private static <K> void matchSlots(List<QuickCrossBoxSortStacks.Stack<K>> source,
+                                       List<QuickCrossBoxSortStacks.Stack<K>> target,
+                                       int[] destination, boolean[] targetUsed, int start, int end) {
+        Map<QuickCrossBoxSortStacks.Stack<K>, ArrayDeque<Integer>> available = new HashMap<>();
+        for (int i = start; i < end; i++) {
+            if (!targetUsed[i]) {
+                available.computeIfAbsent(target.get(i), ignored -> new ArrayDeque<>()).addLast(i);
+            }
+        }
+        for (int i = start; i < end; i++) {
+            if (destination[i] < 0) {
+                var matches = available.get(source.get(i));
+                if (matches != null && !matches.isEmpty()) {
+                    int slot = matches.removeFirst();
+                    destination[i] = slot;
+                    targetUsed[slot] = true;
+                }
+            }
+        }
     }
 
     private static List<Position> allPositions(int boxCount, int boxSize) {
@@ -259,19 +273,8 @@ public final class QuickCrossBoxSortPlanner {
             contents.add(new ArrayList<>(Collections.nCopies(27, null)));
         }
 
-        // 纯模式优先使用原本存放该类型最多的盒子，减少跨盒搬运。
-        int[][] affinity = new int[groups.size()][boxes.size()];
-        for (int g = 0; g < groups.size(); g++) {
-            K key = groups.get(g).get(0).key();
-            for (int b = 0; b < boxes.size(); b++) {
-                affinity[g][b] = countOf(boxes.get(b), key);
-            }
-        }
-
         if (onePerBox && needed <= boxes.size()) {
-            if (!assignExclusive(groups, contents, affinity, boxes.size())) {
-                throw new IllegalStateException("No complete box layout");
-            }
+            assignExclusive(groups, contents, boxes);
         } else {
             assignGrouped(groups, contents, boxes.size());
         }
@@ -283,37 +286,32 @@ public final class QuickCrossBoxSortPlanner {
         return targets;
     }
 
-    private static <K> boolean assignExclusive(List<List<QuickCrossBoxSortStacks.Stack<K>>> groups,
-    List<List<QuickCrossBoxSortStacks.Stack<K>>> contents,
-    int[][] affinity, int boxCount) {
-        boolean[] used = new boolean[boxCount];
-        for (int g = 0; g < groups.size(); g++) {
-            List<QuickCrossBoxSortStacks.Stack<K>> group = groups.get(g);
-            int chunks = (group.size() + 27 - 1) / 27;
-            List<Integer> free = new ArrayList<>();
-            for (int b = 0; b < boxCount; b++) {
-                if (!used[b]) {
-                    free.add(b);
-                }
-            }
-            if (free.size() < chunks) {
-                return false;
-            }
-            final int index = g;
-            free.sort((left, right) -> {
-                int cmp = Integer.compare(affinity[index][right], affinity[index][left]);
-                return cmp != 0 ? cmp : Integer.compare(left, right);
-            });
-            for (int chunk = 0; chunk < chunks; chunk++) {
-                int box = free.get(chunk);
-                used[box] = true;
-                for (int s = 0; s < 27; s++) {
-                    int at = chunk * 27 + s;
-                    contents.get(box).set(s, at < group.size() ? group.get(at) : null);
-                }
+    private static <K> void assignExclusive(List<List<QuickCrossBoxSortStacks.Stack<K>>> groups,
+                                             List<List<QuickCrossBoxSortStacks.Stack<K>>> contents,
+                                             List<QuickCrossBoxSortStacks.Box<K>> boxes) {
+        List<List<QuickCrossBoxSortStacks.Stack<K>>> chunks = new ArrayList<>();
+        for (var group : groups) {
+            for (int start = 0; start < group.size(); start += 27) {
+                chunks.add(group.subList(start, Math.min(start + 27, group.size())));
             }
         }
-        return true;
+        var boxCounts = boxes.stream().map(box -> stackCounts(box.slots())).toList();
+        int[][] retained = new int[chunks.size()][boxes.size()];
+        for (int chunk = 0; chunk < chunks.size(); chunk++) {
+            var required = stackCounts(chunks.get(chunk));
+            for (int box = 0; box < boxes.size(); box++) {
+                var available = boxCounts.get(box);
+                int overlap = 0;
+                for (var stack : required.entrySet()) {
+                    overlap += Math.min(stack.getValue(), available.getOrDefault(stack.getKey(), 0));
+                }
+                retained[chunk][box] = overlap;
+            }
+        }
+        int[] assignedBoxes = maximumRetentionAssignment(retained);
+        for (int chunk = 0; chunk < chunks.size(); chunk++) {
+            Collections.copy(contents.get(assignedBoxes[chunk]), chunks.get(chunk));
+        }
     }
 
     private static <K> void assignGrouped(List<List<QuickCrossBoxSortStacks.Stack<K>>> groups,
@@ -335,14 +333,78 @@ public final class QuickCrossBoxSortPlanner {
         }
     }
 
-    private static <K> int countOf(QuickCrossBoxSortStacks.Box<K> box, K key) {
-        int count = 0;
-        for (QuickCrossBoxSortStacks.Stack<K> stack : box.slots()) {
-            if (stack != null && key.equals(stack.key())) {
-                count++;
+    private static <K> Map<QuickCrossBoxSortStacks.Stack<K>, Integer> stackCounts(
+            List<QuickCrossBoxSortStacks.Stack<K>> stacks) {
+        Map<QuickCrossBoxSortStacks.Stack<K>, Integer> counts = new HashMap<>();
+        for (var stack : stacks) {
+            if (stack != null) {
+                counts.merge(stack, 1, Integer::sum);
             }
         }
-        return count;
+        return counts;
+    }
+
+    // Rectangular Hungarian algorithm. Each chunk needs one distinct box; spare boxes may stay unmatched.
+    private static int[] maximumRetentionAssignment(int[][] retained) {
+        int chunkCount = retained.length;
+        int boxCount = retained[0].length;
+        int[] chunkPotential = new int[chunkCount + 1];
+        int[] boxPotential = new int[boxCount + 1];
+        int[] chunkByBox = new int[boxCount + 1];
+        int[] previousBox = new int[boxCount + 1];
+
+        for (int chunk = 1; chunk <= chunkCount; chunk++) {
+            // Column zero is a temporary root for the alternating path.
+            chunkByBox[0] = chunk;
+            int box = 0;
+            int[] slack = new int[boxCount + 1];
+            Arrays.fill(slack, Integer.MAX_VALUE);
+            boolean[] visited = new boolean[boxCount + 1];
+            do {
+                visited[box] = true;
+                int assignedChunk = chunkByBox[box];
+                int delta = Integer.MAX_VALUE;
+                int nextBox = 0;
+                for (int candidate = 1; candidate <= boxCount; candidate++) {
+                    if (visited[candidate]) {
+                        continue;
+                    }
+                    int cost = -retained[assignedChunk - 1][candidate - 1]
+                            - chunkPotential[assignedChunk] - boxPotential[candidate];
+                    if (cost < slack[candidate]) {
+                        slack[candidate] = cost;
+                        previousBox[candidate] = box;
+                    }
+                    if (slack[candidate] < delta) {
+                        delta = slack[candidate];
+                        nextBox = candidate;
+                    }
+                }
+                for (int candidate = 0; candidate <= boxCount; candidate++) {
+                    if (visited[candidate]) {
+                        chunkPotential[chunkByBox[candidate]] += delta;
+                        boxPotential[candidate] -= delta;
+                    } else {
+                        slack[candidate] -= delta;
+                    }
+                }
+                box = nextBox;
+            } while (chunkByBox[box] != 0);
+
+            while (box != 0) {
+                int previous = previousBox[box];
+                chunkByBox[box] = chunkByBox[previous];
+                box = previous;
+            }
+        }
+
+        int[] assignedBoxes = new int[chunkCount];
+        for (int box = 1; box <= boxCount; box++) {
+            if (chunkByBox[box] != 0) {
+                assignedBoxes[chunkByBox[box] - 1] = box - 1;
+            }
+        }
+        return assignedBoxes;
     }
 
     public record SlotRef(int inventorySlot, int boxSlot) {}
@@ -351,6 +413,86 @@ public final class QuickCrossBoxSortPlanner {
     public record SwapCycle<K>(List<SwapStep<K>> steps) {
         public SwapCycle { steps = List.copyOf(steps); }
     }
+
+    static <K> List<ScheduledSwap<K>> scheduleSwaps(List<SwapCycle<K>> cycles, int registerCount) {
+        List<ScheduledSwap<K>> original = new ArrayList<>();
+        for (var cycle : cycles) {
+            for (var step : cycle.steps()) {
+                original.add(new ScheduledSwap<>(0, step));
+            }
+        }
+        if (cycles.size() < 2) {
+            return original;
+        }
+
+        // The cycles touch disjoint slots. Advance each using its own empty hotbar slot.
+        List<SwapCycle<K>> pending = new ArrayList<>(cycles);
+        List<ArrayDeque<SwapStep<K>>> registers = new ArrayList<>(Collections.nCopies(registerCount, null));
+        List<ScheduledSwap<K>> grouped = new ArrayList<>(original.size());
+        int openBox = -1;
+        while (grouped.size() < original.size()) {
+            int firstReady = -1;
+            int chosen = -1;
+            for (int register = 0; register < registers.size(); register++) {
+                var ready = registers.get(register);
+                if (ready == null) {
+                    continue;
+                }
+                if (firstReady < 0) {
+                    firstReady = register;
+                }
+                if (ready.getFirst().slot().inventorySlot() == openBox) {
+                    chosen = register;
+                    break;
+                }
+            }
+            if (chosen < 0) {
+                int free = registers.indexOf(null);
+                int nextCycle = free < 0 ? -1 : findCycleStartingIn(pending, openBox);
+                if (nextCycle >= 0 || firstReady < 0) {
+                    chosen = free;
+                    var cycle = pending.remove(nextCycle < 0 ? 0 : nextCycle);
+                    registers.set(chosen, new ArrayDeque<>(cycle.steps()));
+                } else {
+                    chosen = firstReady;
+                }
+            }
+
+            var ready = registers.get(chosen);
+            var step = ready.removeFirst();
+            grouped.add(new ScheduledSwap<>(chosen, step));
+            openBox = step.slot().inventorySlot();
+            if (ready.isEmpty()) {
+                registers.set(chosen, null);
+            }
+        }
+        return countSwapOpens(grouped) < countSwapOpens(original) ? grouped : original;
+    }
+
+    private static <K> int findCycleStartingIn(List<SwapCycle<K>> cycles, int box) {
+        for (int i = 0; i < cycles.size(); i++) {
+            if (cycles.get(i).steps().getFirst().slot().inventorySlot() == box) {
+                return i;
+            }
+        }
+        return -1;
+    }
+
+    private static int countSwapOpens(List<? extends ScheduledSwap<?>> swaps) {
+        int opens = 0;
+        int lastBox = -1;
+        for (var swap : swaps) {
+            int box = swap.step().slot().inventorySlot();
+            if (box != lastBox) {
+                opens++;
+                lastBox = box;
+            }
+        }
+        return opens;
+    }
+
+    record ScheduledSwap<K>(int register, SwapStep<K> step) {}
+
     public record Plan<K>(List<QuickCrossBoxSortStacks.Transfer<K>> merges, List<QuickCrossBoxSortStacks.Box<K>> targets, List<SwapCycle<K>> swapCycles,
     int emptiedBoxes, int remainingNonEmptyBoxes, int crossBoxMoves) {}
     private record Position(int box, int slot) {}

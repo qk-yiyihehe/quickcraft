@@ -29,7 +29,8 @@ final class QuickCrossBoxSortSession {
     private int remainingBoxes;
     private int crossBoxMoves;
     private List<QuickCrossBoxSortPlanner.SwapCycle<QuickCrossBoxSortStackKey>> swapCycles = List.of();
-    private int swapCycleIndex;
+    private List<QuickCrossBoxSortPlanner.ScheduledSwap<QuickCrossBoxSortStackKey>> scheduledSwaps = List.of();
+    private List<Integer> swapHotbarSlots = List.of();
     private int swapStepIndex;
     private State afterSwapCloseState;
     private final boolean onePerBox;
@@ -41,6 +42,8 @@ final class QuickCrossBoxSortSession {
     private final int borrowedOriginalCount;
     private final boolean borrowedEligibleShulker;
     private boolean backgroundMode;
+    private InventoryScreen backgroundInventory;
+    private boolean closingOwnedBox;
     private boolean expectingHiddenContainerScreen;
     private Screen hiddenContainerScreen;
     private State state;
@@ -144,12 +147,20 @@ final class QuickCrossBoxSortSession {
         }
     }
 
-    void enterBackgroundMode(Minecraft client) {
+    void enterBackgroundMode(Minecraft client, InventoryScreen inventory) {
         this.backgroundMode = true;
-        QuickClientScreenAccess.setScreen(client, (Screen)null);
+        this.backgroundInventory = inventory;
+        if (inventory == null) {
+            QuickClientScreenAccess.setScreen(client, (Screen)null);
+        }
     }
 
     boolean consumeExpectedContainerScreen(Screen screen) {
+        if (screen == null && closingOwnedBox && backgroundInventory != null) {
+            Minecraft client = Minecraft.getInstance();
+            return QuickClientScreenAccess.currentScreen(client) == backgroundInventory && client.player != null
+                    && client.player.containerMenu == client.player.inventoryMenu;
+        }
         if (container != null && container.consume(screen)) { return true; }
         if (this.backgroundMode && this.expectingHiddenContainerScreen && screen instanceof AbstractContainerScreen<?> containerScreen) {
             if (!(screen instanceof InventoryScreen)) {
@@ -169,6 +180,10 @@ final class QuickCrossBoxSortSession {
     }
 
     void cancel(Minecraft client) {
+        if (expectingHiddenContainerScreen) {
+            // Let the in-flight open arrive under this session's ownership before recovering.
+            return;
+        }
         if (state != State.STOPPED && state != State.ABORT_RECOVERY_WAIT && state != State.ABORT_WAIT_INVENTORY
         && state != State.ABORT_RETURN_CONTAINER && state != State.ABORT_RESTORE_HOTBAR && state != State.ABORT_WAIT_HOTBAR_RESTORE) {
             abort(client, Component.translatable("quickcraft.message.cross_box_sort.safe_abort"));
@@ -193,7 +208,7 @@ final class QuickCrossBoxSortSession {
                 return this.state != State.STOPPED;
             } else {
                 Screen screen = QuickClientScreenAccess.currentScreen(client);
-                if (this.backgroundMode && screen != null) {
+                if (this.backgroundMode && screen != this.backgroundInventory) {
                     this.abort(client, Component.translatable("quickcraft.message.cross_box_sort.safe_abort"));
                     return this.state != State.STOPPED;
                 } else if (!this.backgroundMode && screen != null && !(screen instanceof AbstractContainerScreen)) {
@@ -237,7 +252,7 @@ final class QuickCrossBoxSortSession {
                             case BATCH_CLOSE_RETURN_SOURCE -> this.closeContainer(player, State.BATCH_WAIT_RETURN_SOURCE_CLOSE);
                             case BATCH_WAIT_RETURN_SOURCE_CLOSE -> this.waitForClosed(player, State.BATCH_COMPLETE);
                             case BATCH_COMPLETE -> this.completeBatch();
-                            case BEGIN_SWAP_CYCLE -> this.beginSwapCycle();
+                            case BEGIN_SWAP_CYCLE -> this.beginSwaps(client);
                             case OPEN_SWAP_BOX -> this.openCurrentSwapBox(client);
                             case WAIT_SWAP_OPEN -> this.waitForOpenContainer(client, State.EXECUTE_SWAP);
                             case EXECUTE_SWAP -> this.executeSwap(client);
@@ -371,7 +386,6 @@ final class QuickCrossBoxSortSession {
                 this.transfers = plan.merges();
                 this.swapCycles = plan.swapCycles();
                 this.transferIndex = 0;
-                this.swapCycleIndex = 0;
                 this.batch = null;
                 this.emptiedBoxes += plan.emptiedBoxes();
                 this.remainingBoxes = plan.remainingNonEmptyBoxes();
@@ -383,28 +397,49 @@ final class QuickCrossBoxSortSession {
         }
     }
 
-    private void beginSwapCycle() {
-        if (this.swapCycleIndex >= this.swapCycles.size()) {
+    private void beginSwaps(Minecraft client) {
+        if (this.swapCycles.isEmpty()) {
             this.state = State.RESTORE_HOTBAR;
-        } else {
-            this.swapStepIndex = 0;
-            this.state = State.OPEN_SWAP_BOX;
+            return;
         }
+        var inventory = client.player.getInventory();
+        List<Integer> hotbarSlots = new ArrayList<>();
+        hotbarSlots.add(this.workspaceHotbarSlot);
+        // The external-container path reserves its own temporary slot and keeps one swap register.
+        if (container == null) {
+            for (int slot = 0; slot < 9; slot++) {
+                if (slot != this.workspaceHotbarSlot && !QuickCrossBoxSortProtection.isLocked(slot)
+                        && inventory.getItem(slot).isEmpty()) {
+                    hotbarSlots.add(slot);
+                }
+            }
+        }
+        this.scheduledSwaps = QuickCrossBoxSortPlanner.scheduleSwaps(this.swapCycles, hotbarSlots.size());
+        int usedRegisters = scheduledSwaps.stream()
+                .mapToInt(QuickCrossBoxSortPlanner.ScheduledSwap::register).max().orElse(0) + 1;
+        this.swapHotbarSlots = List.copyOf(hotbarSlots.subList(0, usedRegisters));
+        this.swapStepIndex = 0;
+        this.state = State.OPEN_SWAP_BOX;
     }
 
-    private QuickCrossBoxSortPlanner.SwapStep<QuickCrossBoxSortStackKey> currentSwapStep() {
-        return (this.swapCycles.get(this.swapCycleIndex)).steps().get(this.swapStepIndex);
+    private QuickCrossBoxSortPlanner.ScheduledSwap<QuickCrossBoxSortStackKey> currentSwap() {
+        return this.scheduledSwaps.get(this.swapStepIndex);
     }
 
     private void openCurrentSwapBox(Minecraft client) {
-        this.openBox(client, this.currentSwapStep().slot().inventorySlot(), State.WAIT_SWAP_OPEN);
+        this.openBox(client, this.currentSwap().step().slot().inventorySlot(), State.WAIT_SWAP_OPEN);
     }
 
     private void executeSwap(Minecraft client) {
         LocalPlayer player = client.player;
-        QuickCrossBoxSortPlanner.SwapStep<QuickCrossBoxSortStackKey> step = this.currentSwapStep();
-        if (player != null && this.validOpenBoxMenu(player.containerMenu) && stackMatches(player.containerMenu.getSlot(step.slot().boxSlot()).getItem(), step.slotBefore()) && stackMatches(player.getInventory().getItem(this.workspaceHotbarSlot), step.registerBefore()) && player.containerMenu.getCarried().isEmpty()) {
-            this.sendSwap(client, player.containerMenu, step.slot().boxSlot(), this.workspaceHotbarSlot, State.WAIT_SWAP);
+        var swap = this.currentSwap();
+        var step = swap.step();
+        int hotbarSlot = this.swapHotbarSlots.get(swap.register());
+        if (player != null && this.validOpenBoxMenu(player.containerMenu)
+                && stackMatches(player.containerMenu.getSlot(step.slot().boxSlot()).getItem(), step.slotBefore())
+                && stackMatches(player.getInventory().getItem(hotbarSlot), step.registerBefore())
+                && player.containerMenu.getCarried().isEmpty()) {
+            this.sendSwap(client, player.containerMenu, step.slot().boxSlot(), hotbarSlot, State.WAIT_SWAP);
         } else {
             this.abort(client, Component.translatable("quickcraft.message.cross_box_sort.layout_changed"));
         }
@@ -412,31 +447,33 @@ final class QuickCrossBoxSortSession {
 
     private void waitForSwap(Minecraft client) {
         LocalPlayer player = client.player;
-        QuickCrossBoxSortPlanner.SwapStep<QuickCrossBoxSortStackKey> step = this.currentSwapStep();
-        BooleanSupplier validation = () -> stackMatches(player.containerMenu.getSlot(step.slot().boxSlot()).getItem(), step.slotAfter()) && stackMatches(player.getInventory().getItem(this.workspaceHotbarSlot), step.registerAfter()) && player.containerMenu.getCarried().isEmpty();
+        var swap = this.currentSwap();
+        var step = swap.step();
+        int hotbarSlot = this.swapHotbarSlots.get(swap.register());
+        BooleanSupplier validation = () -> stackMatches(player.containerMenu.getSlot(step.slot().boxSlot()).getItem(), step.slotAfter())
+                && stackMatches(player.getInventory().getItem(hotbarSlot), step.registerAfter())
+                && player.containerMenu.getCarried().isEmpty();
         if (!this.clickSettled(player, validation)) {
             this.abortIfClickTimedOut(client, player, State.EXECUTE_SWAP);
-        } else {
-            ++this.swapStepIndex;
-            List<QuickCrossBoxSortPlanner.SwapStep<QuickCrossBoxSortStackKey>> steps = (this.swapCycles.get(this.swapCycleIndex)).steps();
-            if (this.swapStepIndex >= steps.size()) {
-                ++this.swapCycleIndex;
-                this.afterSwapCloseState = State.BEGIN_SWAP_CYCLE;
-                this.state = State.CLOSE_SWAP_BOX;
-            } else {
-                if ((steps.get(this.swapStepIndex)).slot().inventorySlot() == step.slot().inventorySlot()) {
-                    this.state = State.EXECUTE_SWAP;
-                } else {
-                    this.afterSwapCloseState = State.OPEN_SWAP_BOX;
-                    this.state = State.CLOSE_SWAP_BOX;
-                }
-
-            }
+            return;
         }
+
+        boolean hasNextStep = ++this.swapStepIndex < this.scheduledSwaps.size();
+        if (hasNextStep && this.currentSwap().step().slot().inventorySlot() == step.slot().inventorySlot()) {
+            this.state = State.EXECUTE_SWAP;
+            return;
+        }
+        this.afterSwapCloseState = hasNextStep ? State.OPEN_SWAP_BOX : State.RESTORE_HOTBAR;
+        this.state = State.CLOSE_SWAP_BOX;
     }
 
     private void restoreHotbar(Minecraft client) {
         LocalPlayer player = client.player;
+        if (player != null && (!player.getInventory().getItem(this.workspaceHotbarSlot).isEmpty()
+                || hasItemsInExtraSwapSlots(player.getInventory()))) {
+            this.abort(client, Component.translatable("quickcraft.message.cross_box_sort.hotbar_restore_failed"));
+            return;
+        }
         if (this.borrowedDestinationSlot < 0) {
             this.state = State.PREPARE_EMPTY_MERGES;
         } else if (player != null && isBaseMenu(player.containerMenu) && player.getInventory().getItem(this.workspaceHotbarSlot).isEmpty() && this.borrowedStackMatches(player.getInventory().getItem(this.borrowedDestinationSlot))) {
@@ -621,11 +658,21 @@ final class QuickCrossBoxSortSession {
         if (!player.containerMenu.getCarried().isEmpty()) {
             this.abort(Minecraft.getInstance(), Component.translatable("quickcraft.message.cross_box_sort.safe_abort"));
         } else {
-            player.closeContainer();
+            closeOwnedBox(player);
             this.hiddenContainerScreen = null;
             this.openContainerId = Integer.MIN_VALUE;
             this.deadline = this.age + (container == null ? 20 : 120);
             this.state = waitState;
+        }
+    }
+
+    private void closeOwnedBox(LocalPlayer player) {
+        // Keep the inventory view while vanilla closes and resets the real, hidden menu.
+        closingOwnedBox = true;
+        try {
+            player.closeContainer();
+        } finally {
+            closingOwnedBox = false;
         }
     }
 
@@ -829,20 +876,20 @@ final class QuickCrossBoxSortSession {
 
     private void continueAbortWithEmptyCursor(LocalPlayer player) {
         if (container != null && container.hasBorrowedBox()) {
-            if (validOpenBoxMenu(player.containerMenu) || this.hiddenContainerScreen instanceof AbstractContainerScreen<?> hidden && hidden.getMenu() == player.containerMenu) { player.closeContainer(); }
+            if (validOpenBoxMenu(player.containerMenu) || this.hiddenContainerScreen instanceof AbstractContainerScreen<?> hidden && hidden.getMenu() == player.containerMenu) { closeOwnedBox(player); }
             this.state = State.ABORT_RETURN_CONTAINER;
             return;
         }
         Inventory inventory = player.getInventory();
         boolean borrowOutstanding = this.borrowedDestinationSlot >= 0 && !inventory.getItem(this.borrowedDestinationSlot).isEmpty();
         boolean liveWorkspaceToken = !inventory.getItem(this.workspaceHotbarSlot).isEmpty() && (this.borrowedDestinationSlot < 0 || borrowOutstanding);
-        if (liveWorkspaceToken) {
+        if (liveWorkspaceToken || hasItemsInExtraSwapSlots(inventory)) {
             this.revealHiddenContainerForRecovery();
             QuickCrossBoxSort.message(Component.translatable("quickcraft.message.cross_box_sort.hotbar_restore_failed"));
             this.state = State.STOPPED;
         } else if (borrowOutstanding) {
             if (player.containerMenu != player.inventoryMenu) {
-                player.closeContainer();
+                closeOwnedBox(player);
                 this.deadline = this.age + 20;
                 this.state = State.ABORT_WAIT_INVENTORY;
             } else {
@@ -851,7 +898,7 @@ final class QuickCrossBoxSortSession {
 
         } else {
             if (player.containerMenu != player.inventoryMenu) {
-                player.closeContainer();
+                closeOwnedBox(player);
             }
 
             QuickCrossBoxSort.message(this.abortMessage);
@@ -892,6 +939,15 @@ final class QuickCrossBoxSortSession {
             this.state = State.STOPPED;
         }
 
+    }
+
+    private boolean hasItemsInExtraSwapSlots(Inventory inventory) {
+        for (int slot : swapHotbarSlots) {
+            if (slot != workspaceHotbarSlot && !inventory.getItem(slot).isEmpty()) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private void revealHiddenContainerForRecovery() {

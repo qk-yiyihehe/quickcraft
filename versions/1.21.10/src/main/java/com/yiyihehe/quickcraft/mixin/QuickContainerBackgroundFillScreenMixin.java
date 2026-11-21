@@ -1,5 +1,6 @@
 package com.yiyihehe.quickcraft.mixin;
 
+import com.yiyihehe.quickcraft.QuickCrossBoxSort;
 import com.yiyihehe.quickcraft.QuickContainerCopy;
 import com.yiyihehe.quickcraft.QuickMaterialCollector;
 import com.yiyihehe.quickcraft.crafting.QuickCraftWorkbenchShulker;
@@ -31,7 +32,8 @@ public abstract class QuickContainerBackgroundFillScreenMixin {
     @Inject(method = "mouseClicked", at = @At("HEAD"), cancellable = true)
     private void quickcraft$blockWorkbenchRefillClick(Click click, boolean doubled,
                                                       CallbackInfoReturnable<Boolean> cir) {
-        if (QuickCraftWorkbenchShulker.shouldBlockWorkbenchInput()) {
+        if (QuickCrossBoxSort.blocksInventoryInput((HandledScreen<?>) (Object) this)
+                || QuickCraftWorkbenchShulker.shouldBlockWorkbenchInput()) {
             cir.setReturnValue(true);
         }
     }
@@ -39,7 +41,8 @@ public abstract class QuickContainerBackgroundFillScreenMixin {
     @Inject(method = "mouseReleased", at = @At("HEAD"), cancellable = true)
     private void quickcraft$blockWorkbenchRefillRelease(Click click,
                                                         CallbackInfoReturnable<Boolean> cir) {
-        if (QuickCraftWorkbenchShulker.shouldBlockWorkbenchInput()) {
+        if (QuickCrossBoxSort.blocksInventoryInput((HandledScreen<?>) (Object) this)
+                || QuickCraftWorkbenchShulker.shouldBlockWorkbenchInput()) {
             cir.setReturnValue(true);
         }
     }
@@ -49,7 +52,8 @@ public abstract class QuickContainerBackgroundFillScreenMixin {
                                                      double deltaX,
                                                      double deltaY,
                                                      CallbackInfoReturnable<Boolean> cir) {
-        if (QuickCraftWorkbenchShulker.shouldBlockWorkbenchInput()) {
+        if (QuickCrossBoxSort.blocksInventoryInput((HandledScreen<?>) (Object) this)
+                || QuickCraftWorkbenchShulker.shouldBlockWorkbenchInput()) {
             cir.setReturnValue(true);
         }
     }
@@ -57,6 +61,10 @@ public abstract class QuickContainerBackgroundFillScreenMixin {
     @Inject(method = "keyPressed", at = @At("HEAD"), cancellable = true)
     private void quickcraft$blockWorkbenchRefillKey(KeyInput input,
                                                     CallbackInfoReturnable<Boolean> cir) {
+        if (QuickCrossBoxSort.consumeInventoryKey((HandledScreen<?>) (Object) this, input.key() == GLFW.GLFW_KEY_ESCAPE)) {
+            cir.setReturnValue(true);
+            return;
+        }
         if (!QuickCraftWorkbenchShulker.shouldBlockWorkbenchInput()) {
             return;
         }
