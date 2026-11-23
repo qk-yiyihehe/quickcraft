@@ -1,6 +1,7 @@
 package com.yiyihehe.quickcraft;
 
 import com.yiyihehe.quickcraft.config.QuickCraftConfigs;
+import com.yiyihehe.quickcraft.crafting.QuickCraftMouseCraftLayout;
 import com.yiyihehe.quickcraft.mixin.CreativeInventoryScreenInvoker;
 import com.yiyihehe.quickcraft.mixin.CreativeSlotAccessor;
 import com.yiyihehe.quickcraft.mixin.HandledScreenAccessor;
@@ -21,9 +22,18 @@ import net.minecraft.world.inventory.CraftingMenu;
 import net.minecraft.world.inventory.ChestMenu;
 import net.minecraft.world.inventory.InventoryMenu;
 import net.minecraft.world.inventory.AbstractContainerMenu;
+import net.minecraft.world.inventory.AbstractFurnaceMenu;
+import net.minecraft.world.inventory.AnvilMenu;
+import net.minecraft.world.inventory.BeaconMenu;
+import net.minecraft.world.inventory.BrewingStandMenu;
+import net.minecraft.world.inventory.CartographyTableMenu;
+import net.minecraft.world.inventory.GrindstoneMenu;
+import net.minecraft.world.inventory.LoomMenu;
+import net.minecraft.world.inventory.MerchantMenu;
 import net.minecraft.world.inventory.MerchantResultSlot;
 import net.minecraft.world.inventory.ResultSlot;
 import net.minecraft.world.inventory.Slot;
+import net.minecraft.world.inventory.SmithingMenu;
 import net.minecraft.world.inventory.ContainerInput;
 import net.minecraft.world.inventory.StonecutterMenu;
 import java.util.ArrayList;
@@ -569,13 +579,19 @@ public final class QuickTransfer implements ClientModInitializer {
             return false;
         }
 
-        if (hoveredSlot instanceof ResultSlot || hoveredSlot instanceof MerchantResultSlot
-                || (screen.getMenu() instanceof StonecutterMenu && hoveredSlot.index == 1)) {
+        if (isRepeatableResult(screen.getMenu(), hoveredSlot)) {
             quickMoveResult(client, screen, hoveredSlot);
         } else {
             quickMoveSlot(screen, hoveredSlot);
         }
         return true;
+    }
+
+    private static boolean isRepeatableResult(AbstractContainerMenu handler, Slot slot) {
+        return slot instanceof ResultSlot || slot instanceof MerchantResultSlot
+                || (handler instanceof StonecutterMenu && slot.index == 1)
+                || (handler instanceof CartographyTableMenu && slot.index == 2)
+                || ((handler instanceof LoomMenu || handler instanceof SmithingMenu) && slot.index == 3);
     }
 
     private static void quickMoveResult(Minecraft client, AbstractContainerScreen<?> screen, Slot source) {
@@ -630,8 +646,32 @@ public final class QuickTransfer implements ClientModInitializer {
         }
 
         var handler = screen.getMenu();
+        if (!handler.getCarried().isEmpty()) return;
         boolean fromPlayer = isPlayerStorageSlot(slot);
         boolean fromHotbar = isPlayerHotbarSlot(slot);
+        boolean localServer = client.hasSingleplayerServer();
+        if (localServer && (!fromPlayer || handler instanceof CraftingMenu)) {
+            client.gameMode.handleContainerInput(handler.containerId, slot.index, 0, ContainerInput.QUICK_MOVE, client.player);
+            return;
+        }
+
+        if (fromPlayer && handler instanceof CraftingMenu) {
+            // 远程服的原版回退可能写进锁格，只有这个方向有锁格时才需要显式取放。
+            var layout = QuickCraftMouseCraftLayout.WORKBENCH;
+            int fallbackStart = fromHotbar ? layout.playerMainInventoryStart() : layout.playerHotbarStart();
+            int fallbackEnd = fromHotbar ? layout.playerHotbarStart()
+                    : layout.playerMainInventoryStart() + QuickCraftMouseCraftLayout.PLAYER_INVENTORY_SIZE;
+            ItemStack before = slot.getItem().copy();
+            if (QuickContainerLock.hasLockedSlotInRange(handler, fallbackStart, fallbackEnd)
+                    && QuickSlotTransfer.tryMoveToWorkbenchGrid(client, handler, slot)) {
+                ItemStack remaining = slot.getItem();
+                if (remaining.isEmpty() || !handler.getCarried().isEmpty()
+                        || !ItemStack.isSameItemSameComponents(before, remaining)
+                        || remaining.getCount() >= before.getCount()) {
+                    return;
+                }
+            }
+        }
         if (fromPlayer && handler instanceof InventoryMenu) {
             EquipmentSlot equipment = client.player.getEquipmentSlotForItem(slot.getItem());
             int equipmentSlotId = switch (equipment) {
@@ -649,11 +689,51 @@ public final class QuickTransfer implements ClientModInitializer {
                 return;
             }
         }
+        boolean playerStorageOnly = fromPlayer
+                && (!canMoveFromPlayerStorage(handler)
+                || (!localServer && usesPlayerStorageFallback(client, handler, slot.getItem())));
         QuickSlotTransfer.quickMove(client, handler, slot.index, target -> {
             if (!fromPlayer) return isPlayerStorageSlot(target);
-            if (canMoveFromPlayerStorage(handler)) return !isPlayerStorageSlot(target);
+            if (!playerStorageOnly) return !isPlayerStorageSlot(target);
             return fromHotbar ? isPlayerMainInventorySlot(target) : isPlayerHotbarSlot(target);
-        }, !fromPlayer);
+        }, !fromPlayer && !returnsInputInForwardOrder(handler, slot));
+    }
+
+    private static boolean usesPlayerStorageFallback(Minecraft client, AbstractContainerMenu handler, ItemStack stack) {
+        if (handler instanceof MerchantMenu) return true;
+        if (handler instanceof StonecutterMenu) return !client.level.recipeAccess().stonecutterRecipes().acceptsInput(stack);
+        if (handler instanceof AbstractFurnaceMenu) {
+            return !QuickFillContainer.isFurnaceInputAccepted(client, handler, stack)
+                    && !QuickTransferFuelAccess.isFurnaceFuel(client, stack);
+        }
+        if (handler instanceof BeaconMenu) {
+            Slot payment = handler.getSlot(0);
+            return payment.hasItem() || stack.getCount() != 1 || !payment.mayPlace(stack);
+        }
+        if (handler instanceof GrindstoneMenu) {
+            return handler.getSlot(0).hasItem() && handler.getSlot(1).hasItem();
+        }
+        if (handler instanceof SmithingMenu smithing) return !smithing.canMoveIntoInputSlots(stack);
+        int inputCount = switch (handler) {
+            case CartographyTableMenu ignored -> 2;
+            case LoomMenu ignored -> 3;
+            case BrewingStandMenu ignored -> 5;
+            default -> 0;
+        };
+        for (int i = 0; i < inputCount; i++) {
+            if (handler.getSlot(i).mayPlace(stack)) return false;
+        }
+        return inputCount > 0;
+    }
+
+    private static boolean returnsInputInForwardOrder(AbstractContainerMenu handler, Slot slot) {
+        return !isRepeatableResult(handler, slot) && (handler instanceof CraftingMenu
+                || handler instanceof InventoryMenu
+                || handler instanceof StonecutterMenu || handler instanceof MerchantMenu
+                || handler instanceof LoomMenu || handler instanceof CartographyTableMenu
+                || handler instanceof SmithingMenu
+                || (slot.index < 2 && (handler instanceof AbstractFurnaceMenu
+                || handler instanceof AnvilMenu || handler instanceof GrindstoneMenu)));
     }
 
     private static boolean moveAllMatchingStacksByQuickMove(AbstractContainerScreen<?> screen,

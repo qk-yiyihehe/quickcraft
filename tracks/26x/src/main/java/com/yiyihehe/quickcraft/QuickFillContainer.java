@@ -205,7 +205,7 @@ public final class QuickFillContainer implements ClientModInitializer {
         return Math.max(0, maxCount - slot.getItem().getCount());
     }
 
-    private boolean isFurnaceInputAccepted(Minecraft client, AbstractContainerMenu handler, ItemStack stack) {
+    static boolean isFurnaceInputAccepted(Minecraft client, AbstractContainerMenu handler, ItemStack stack) {
         if (client.level == null) {
             return false;
         }

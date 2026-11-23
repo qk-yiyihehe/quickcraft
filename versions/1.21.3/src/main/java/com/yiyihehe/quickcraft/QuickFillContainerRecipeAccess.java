@@ -8,9 +8,17 @@ import net.minecraft.screen.BlastFurnaceScreenHandler;
 import net.minecraft.screen.ScreenHandler;
 import net.minecraft.screen.SmokerScreenHandler;
 
-/** 1.21.3+ 使用配方属性集判定炉子输入；后续 1.21.x 目标继承此实现。 */
+/** 1.21.3+ 使用同步的配方属性集和燃料表判定工作站输入。 */
 public final class QuickFillContainerRecipeAccess {
     private QuickFillContainerRecipeAccess() {
+    }
+
+    static boolean isFurnaceFuel(MinecraftClient client, ItemStack stack) {
+        return client.world != null && client.world.getFuelRegistry().isFuel(stack);
+    }
+
+    static boolean isStonecutterInput(MinecraftClient client, ItemStack stack) {
+        return client.world != null && client.world.getRecipeManager().getStonecutterRecipes().contains(stack);
     }
 
     public static boolean isAccepted(MinecraftClient client, ScreenHandler handler, ItemStack stack) {

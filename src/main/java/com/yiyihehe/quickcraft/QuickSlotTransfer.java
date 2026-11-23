@@ -1,8 +1,11 @@
 package com.yiyihehe.quickcraft;
 
+import com.yiyihehe.quickcraft.crafting.QuickCraftMouseCraftLayout;
 import net.minecraft.client.MinecraftClient;
+import net.minecraft.component.DataComponentTypes;
 import net.minecraft.entity.player.PlayerInventory;
 import net.minecraft.item.ItemStack;
+import net.minecraft.screen.CartographyTableScreenHandler;
 import net.minecraft.screen.ScreenHandler;
 import net.minecraft.screen.slot.Slot;
 import net.minecraft.screen.slot.SlotActionType;
@@ -94,11 +97,32 @@ public final class QuickSlotTransfer {
         return moveWithPickup(client, handler, sourceId, targets, slot -> QuickContainerLock.isLockedSlot(handler, slot));
     }
 
+    static boolean tryMoveToWorkbenchGrid(MinecraftClient client, ScreenHandler handler, Slot source) {
+        var layout = QuickCraftMouseCraftLayout.WORKBENCH;
+        ItemStack stack = source.getStack();
+        List<Integer> targets = new ArrayList<>();
+        // 原版 QUICK_MOVE 循环先合并同类堆叠，再按合成格顺序填空格。
+        for (int i = 0; i < layout.gridSize(); i++) {
+            int id = layout.gridSlotId(i);
+            if (accepts(handler, id, stack)) {
+                targets.add(id);
+            }
+        }
+        if (targets.isEmpty()) return false;
+        moveWithPickup(client, handler, source.id, targets, slot -> QuickContainerLock.isLockedSlot(handler, slot));
+        return true;
+    }
+
     private static boolean moveWithPickup(MinecraftClient client, ScreenHandler handler, int sourceId,
                                           List<Integer> targets, Predicate<Slot> locked) {
         Slot source = handler.getSlot(sourceId);
         if (locked.test(source) || !source.hasStack() || !source.canTakeItems(client.player)) return false;
         ItemStack template = source.getStack().copy();
+        if (handler instanceof CartographyTableScreenHandler && sourceId == 2
+                && template.remove(DataComponentTypes.MAP_POST_PROCESSING) != null) {
+            // 缩放和锁定地图会在领取时更换服务端地图 ID，预留空格避免误合并。
+            targets = targets.stream().filter(id -> !handler.getSlot(id).hasStack()).toList();
+        }
         int capacity = 0;
         for (int id : targets) {
             if (accepts(handler, id, template, locked)) {

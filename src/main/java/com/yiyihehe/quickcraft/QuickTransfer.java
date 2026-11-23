@@ -1,6 +1,7 @@
 package com.yiyihehe.quickcraft;
 
 import com.yiyihehe.quickcraft.config.QuickCraftConfigs;
+import com.yiyihehe.quickcraft.crafting.QuickCraftMouseCraftLayout;
 import com.yiyihehe.quickcraft.mixin.CreativeInventoryScreenInvoker;
 import com.yiyihehe.quickcraft.mixin.CreativeSlotAccessor;
 import com.yiyihehe.quickcraft.mixin.HandledScreenAccessor;
@@ -16,10 +17,19 @@ import net.minecraft.entity.EquipmentSlot;
 import net.minecraft.entity.player.PlayerInventory;
 import net.minecraft.item.BlockItem;
 import net.minecraft.item.ItemStack;
+import net.minecraft.screen.AbstractFurnaceScreenHandler;
+import net.minecraft.screen.AnvilScreenHandler;
+import net.minecraft.screen.BeaconScreenHandler;
+import net.minecraft.screen.BrewingStandScreenHandler;
+import net.minecraft.screen.CartographyTableScreenHandler;
 import net.minecraft.screen.CraftingScreenHandler;
 import net.minecraft.screen.GenericContainerScreenHandler;
+import net.minecraft.screen.GrindstoneScreenHandler;
+import net.minecraft.screen.LoomScreenHandler;
+import net.minecraft.screen.MerchantScreenHandler;
 import net.minecraft.screen.PlayerScreenHandler;
 import net.minecraft.screen.ScreenHandler;
+import net.minecraft.screen.SmithingScreenHandler;
 import net.minecraft.screen.StonecutterScreenHandler;
 import net.minecraft.screen.slot.CraftingResultSlot;
 import net.minecraft.screen.slot.Slot;
@@ -564,13 +574,19 @@ public final class QuickTransfer implements ClientModInitializer {
             return false;
         }
 
-        if (hoveredSlot instanceof CraftingResultSlot || hoveredSlot instanceof TradeOutputSlot
-                || (screen.getScreenHandler() instanceof StonecutterScreenHandler && hoveredSlot.id == 1)) {
+        if (isRepeatableResult(screen.getScreenHandler(), hoveredSlot)) {
             quickMoveResult(client, screen, hoveredSlot);
         } else {
             quickMoveSlot(screen, hoveredSlot);
         }
         return true;
+    }
+
+    private static boolean isRepeatableResult(ScreenHandler handler, Slot slot) {
+        return slot instanceof CraftingResultSlot || slot instanceof TradeOutputSlot
+                || (handler instanceof StonecutterScreenHandler && slot.id == 1)
+                || (handler instanceof CartographyTableScreenHandler && slot.id == 2)
+                || ((handler instanceof LoomScreenHandler || handler instanceof SmithingScreenHandler) && slot.id == 3);
     }
 
     private static void quickMoveResult(MinecraftClient client, HandledScreen<?> screen, Slot source) {
@@ -625,8 +641,32 @@ public final class QuickTransfer implements ClientModInitializer {
         }
 
         var handler = screen.getScreenHandler();
+        if (!handler.getCursorStack().isEmpty()) return;
         boolean fromPlayer = isPlayerStorageSlot(slot);
         boolean fromHotbar = isPlayerHotbarSlot(slot);
+        boolean localServer = client.getServer() != null;
+        if (localServer && (!fromPlayer || handler instanceof CraftingScreenHandler)) {
+            client.interactionManager.clickSlot(handler.syncId, slot.id, 0, SlotActionType.QUICK_MOVE, client.player);
+            return;
+        }
+
+        if (fromPlayer && handler instanceof CraftingScreenHandler) {
+            // 远程服的原版回退可能写进锁格，只有这个方向有锁格时才需要显式取放。
+            var layout = QuickCraftMouseCraftLayout.WORKBENCH;
+            int fallbackStart = fromHotbar ? layout.playerMainInventoryStart() : layout.playerHotbarStart();
+            int fallbackEnd = fromHotbar ? layout.playerHotbarStart()
+                    : layout.playerMainInventoryStart() + QuickCraftMouseCraftLayout.PLAYER_INVENTORY_SIZE;
+            ItemStack before = slot.getStack().copy();
+            if (QuickContainerLock.hasLockedSlotInRange(handler, fallbackStart, fallbackEnd)
+                    && QuickSlotTransfer.tryMoveToWorkbenchGrid(client, handler, slot)) {
+                ItemStack remaining = slot.getStack();
+                if (remaining.isEmpty() || !handler.getCursorStack().isEmpty()
+                        || !ItemStack.areItemsAndComponentsEqual(before, remaining)
+                        || remaining.getCount() >= before.getCount()) {
+                    return;
+                }
+            }
+        }
         if (fromPlayer && handler instanceof PlayerScreenHandler) {
             EquipmentSlot equipment = client.player.getPreferredEquipmentSlot(slot.getStack());
             int equipmentSlotId = switch (equipment) {
@@ -644,11 +684,51 @@ public final class QuickTransfer implements ClientModInitializer {
                 return;
             }
         }
+        boolean playerStorageOnly = fromPlayer
+                && (!canMoveFromPlayerStorage(handler)
+                || (!localServer && usesPlayerStorageFallback(client, handler, slot.getStack())));
         QuickSlotTransfer.quickMove(client, handler, slot.id, target -> {
             if (!fromPlayer) return isPlayerStorageSlot(target);
-            if (canMoveFromPlayerStorage(handler)) return !isPlayerStorageSlot(target);
+            if (!playerStorageOnly) return !isPlayerStorageSlot(target);
             return fromHotbar ? isPlayerMainInventorySlot(target) : isPlayerHotbarSlot(target);
-        }, !fromPlayer);
+        }, !fromPlayer && !returnsInputInForwardOrder(handler, slot));
+    }
+
+    private static boolean usesPlayerStorageFallback(MinecraftClient client, ScreenHandler handler, ItemStack stack) {
+        if (handler instanceof MerchantScreenHandler) return true;
+        if (handler instanceof StonecutterScreenHandler) return !QuickFillContainerRecipeAccess.isStonecutterInput(client, stack);
+        if (handler instanceof AbstractFurnaceScreenHandler) {
+            return !QuickFillContainerRecipeAccess.isAccepted(client, handler, stack)
+                    && !QuickFillContainerRecipeAccess.isFurnaceFuel(client, stack);
+        }
+        if (handler instanceof BeaconScreenHandler) {
+            Slot payment = handler.getSlot(0);
+            return payment.hasStack() || stack.getCount() != 1 || !payment.canInsert(stack);
+        }
+        if (handler instanceof GrindstoneScreenHandler) {
+            return handler.getSlot(0).hasStack() && handler.getSlot(1).hasStack();
+        }
+        if (handler instanceof SmithingScreenHandler smithing) return !smithing.isValidIngredient(stack);
+        int inputCount = switch (handler) {
+            case CartographyTableScreenHandler ignored -> 2;
+            case LoomScreenHandler ignored -> 3;
+            case BrewingStandScreenHandler ignored -> 5;
+            default -> 0;
+        };
+        for (int i = 0; i < inputCount; i++) {
+            if (handler.getSlot(i).canInsert(stack)) return false;
+        }
+        return inputCount > 0;
+    }
+
+    private static boolean returnsInputInForwardOrder(ScreenHandler handler, Slot slot) {
+        return !isRepeatableResult(handler, slot) && (handler instanceof CraftingScreenHandler
+                || handler instanceof PlayerScreenHandler
+                || handler instanceof StonecutterScreenHandler || handler instanceof MerchantScreenHandler
+                || handler instanceof LoomScreenHandler || handler instanceof CartographyTableScreenHandler
+                || handler instanceof SmithingScreenHandler
+                || (slot.id < 2 && (handler instanceof AbstractFurnaceScreenHandler
+                || handler instanceof AnvilScreenHandler || handler instanceof GrindstoneScreenHandler)));
     }
 
     private static boolean moveAllMatchingStacksByQuickMove(HandledScreen<?> screen,
