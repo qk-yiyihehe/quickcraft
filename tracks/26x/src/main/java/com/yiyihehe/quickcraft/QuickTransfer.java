@@ -13,6 +13,7 @@ import net.minecraft.client.gui.components.events.GuiEventListener;
 import net.minecraft.client.gui.screens.inventory.CreativeModeInventoryScreen;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 import net.minecraft.client.gui.components.EditBox;
+import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.BlockItem;
@@ -20,13 +21,17 @@ import net.minecraft.world.inventory.CraftingMenu;
 import net.minecraft.world.inventory.ChestMenu;
 import net.minecraft.world.inventory.InventoryMenu;
 import net.minecraft.world.inventory.AbstractContainerMenu;
+import net.minecraft.world.inventory.MerchantResultSlot;
+import net.minecraft.world.inventory.ResultSlot;
 import net.minecraft.world.inventory.Slot;
 import net.minecraft.world.inventory.ContainerInput;
+import net.minecraft.world.inventory.StonecutterMenu;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
 
@@ -41,6 +46,7 @@ import java.util.function.Predicate;
 public final class QuickTransfer implements ClientModInitializer {
     private static final int SLOT_SIZE = 18;
     private static final int SLIDE_SAMPLE_STEP = SLOT_SIZE / 2;
+    private static final long RESULT_SYNC_TIMEOUT_NANOS = TimeUnit.SECONDS.toNanos(2);
 
     private static AbstractContainerScreen<?> activeScreen;
     private static TransferMode activeMode = TransferMode.NONE;
@@ -51,6 +57,7 @@ public final class QuickTransfer implements ClientModInitializer {
     private static AbstractContainerScreen<?> scrollScreen;
     private static SlotKey scrollSlotKey;
     private static ItemStack scrollTemplate = ItemStack.EMPTY;
+    private static ResultTransfer pendingResultTransfer;
 
     @Override
     public void onInitializeClient() {
@@ -81,6 +88,7 @@ public final class QuickTransfer implements ClientModInitializer {
     }
 
     public static boolean handleSlotQuickTransferHotkey() {
+        cancelResultTransfer();
         Minecraft client = Minecraft.getInstance();
         if (!(getCurrentScreen(client) instanceof AbstractContainerScreen<?> screen) || !canUseQuickTransfer(client, screen)) {
             return false;
@@ -211,6 +219,7 @@ public final class QuickTransfer implements ClientModInitializer {
     }
 
     private void onClientTick(Minecraft client) {
+        continueResultTransfer(client);
         refreshScrollMemory(client);
         TransferMode mode = getHeldTransferMode();
         if (mode == TransferMode.NONE) {
@@ -560,9 +569,59 @@ public final class QuickTransfer implements ClientModInitializer {
             return false;
         }
 
-        quickMoveSlot(screen, hoveredSlot);
+        if (hoveredSlot instanceof ResultSlot || hoveredSlot instanceof MerchantResultSlot
+                || (screen.getMenu() instanceof StonecutterMenu && hoveredSlot.index == 1)) {
+            quickMoveResult(client, screen, hoveredSlot);
+        } else {
+            quickMoveSlot(screen, hoveredSlot);
+        }
         return true;
     }
+
+    private static void quickMoveResult(Minecraft client, AbstractContainerScreen<?> screen, Slot source) {
+        cancelResultTransfer();
+        AbstractContainerMenu handler = screen.getMenu();
+        if (client.hasSingleplayerServer() || handler.slots.stream().noneMatch(slot ->
+                isPlayerStorageSlot(slot) && QuickContainerLock.isLockedSlot(handler, slot))) {
+            client.gameMode.handleContainerInput(handler.containerId, source.index, 0, ContainerInput.QUICK_MOVE, client.player);
+            return;
+        }
+
+        // 远程服务端自行选择 QUICK_MOVE 落点，显式取放才能避开客户端的锁格。
+        moveResultRound(client, screen, source, source.getItem().copy());
+    }
+
+    private static void moveResultRound(Minecraft client, AbstractContainerScreen<?> screen, Slot source, ItemStack result) {
+        if (QuickSlotTransfer.moveResultWithPickup(client, screen.getMenu(), source.index)) {
+            pendingResultTransfer = new ResultTransfer(screen, source, result,
+                    System.nanoTime() + RESULT_SYNC_TIMEOUT_NANOS);
+        }
+    }
+
+    private static void continueResultTransfer(Minecraft client) {
+        ResultTransfer transfer = pendingResultTransfer;
+        if (transfer == null) return;
+        if (getCurrentScreen(client) != transfer.screen()
+                || (!canUseQuickTransfer(client, transfer.screen()) && !canUseScrollTransfer(client, transfer.screen()))
+                || client.player.containerMenu != transfer.screen().getMenu()
+                || System.nanoTime() - transfer.syncDeadline() >= 0) {
+            cancelResultTransfer();
+            return;
+        }
+        ItemStack next = transfer.source().getItem();
+        if (next.isEmpty()) return;
+
+        cancelResultTransfer();
+        if (ItemStack.isSameItem(transfer.result(), next)) {
+            moveResultRound(client, transfer.screen(), transfer.source(), transfer.result());
+        }
+    }
+
+    public static void cancelResultTransfer() {
+        pendingResultTransfer = null;
+    }
+
+    private record ResultTransfer(AbstractContainerScreen<?> screen, Slot source, ItemStack result, long syncDeadline) {}
 
     private static void quickMoveSlot(AbstractContainerScreen<?> screen, Slot slot) {
         Minecraft client = Minecraft.getInstance();
@@ -573,6 +632,23 @@ public final class QuickTransfer implements ClientModInitializer {
         var handler = screen.getMenu();
         boolean fromPlayer = isPlayerStorageSlot(slot);
         boolean fromHotbar = isPlayerHotbarSlot(slot);
+        if (fromPlayer && handler instanceof InventoryMenu) {
+            EquipmentSlot equipment = client.player.getEquipmentSlotForItem(slot.getItem());
+            int equipmentSlotId = switch (equipment) {
+                case HEAD -> 5;
+                case CHEST -> 6;
+                case LEGS -> 7;
+                case FEET -> 8;
+                case OFFHAND -> InventoryMenu.SHIELD_SLOT;
+                default -> -1;
+            };
+            if (equipmentSlotId >= 0 && !handler.getSlot(equipmentSlotId).hasItem()
+                    && QuickContainerLock.hasLockedSlotInRange(handler, fromHotbar ? 9 : 36, fromHotbar ? 36 : 45)) {
+                Slot target = handler.getSlot(equipmentSlotId);
+                QuickSlotTransfer.moveAmount(client, handler, slot, target, slot.getItem().getCount());
+                return;
+            }
+        }
         QuickSlotTransfer.quickMove(client, handler, slot.index, target -> {
             if (!fromPlayer) return isPlayerStorageSlot(target);
             if (canMoveFromPlayerStorage(handler)) return !isPlayerStorageSlot(target);

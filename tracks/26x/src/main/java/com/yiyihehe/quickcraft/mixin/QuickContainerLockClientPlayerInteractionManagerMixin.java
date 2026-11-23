@@ -5,6 +5,7 @@ import com.llamalad7.mixinextras.injector.wrapoperation.WrapOperation;
 import com.llamalad7.mixinextras.sugar.Share;
 import com.llamalad7.mixinextras.sugar.ref.LocalBooleanRef;
 import com.yiyihehe.quickcraft.QuickContainerLock;
+import com.yiyihehe.quickcraft.QuickTransfer;
 import com.yiyihehe.quickcraft.sort.QuickCrossBoxSortSessions;
 import net.minecraft.client.multiplayer.MultiPlayerGameMode;
 import net.minecraft.world.entity.player.Player;
@@ -21,6 +22,11 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
  */
 @Mixin(MultiPlayerGameMode.class)
 public class QuickContainerLockClientPlayerInteractionManagerMixin {
+    @Inject(method = {"handlePlaceRecipe", "handleInventoryButtonClick"}, at = @At("HEAD"))
+    private void quickcraft$cancelResultTransferOnRecipeSelection(CallbackInfo ci) {
+        QuickTransfer.cancelResultTransfer();
+    }
+
     @Inject(method = "handleContainerInput", at = @At("HEAD"), cancellable = true)
     private void quickcraft$blockLockedSlotClick(int syncId,
                                                  int slotId,
@@ -29,6 +35,7 @@ public class QuickContainerLockClientPlayerInteractionManagerMixin {
                                                  Player player,
                                                  CallbackInfo ci,
                                                  @Share("manualSlotClick") LocalBooleanRef manualSlotClick) {
+        QuickTransfer.cancelResultTransfer();
         if (QuickCrossBoxSortSessions.INSTANCE.blocksInventoryClicks()) {
             ci.cancel();
             return;

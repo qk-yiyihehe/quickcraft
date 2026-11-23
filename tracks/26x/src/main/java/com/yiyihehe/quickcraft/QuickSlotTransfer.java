@@ -79,8 +79,25 @@ public final class QuickSlotTransfer {
             return;
         }
         if (reverse) Collections.reverse(targets);
+        moveWithPickup(client, handler, sourceId, targets, locked);
+    }
+
+    static boolean moveResultWithPickup(Minecraft client, AbstractContainerMenu handler, int sourceId) {
+        if (!handler.getCarried().isEmpty()) return false;
+        List<Integer> targets = new ArrayList<>();
+        for (int i = handler.slots.size() - 1; i >= 0; i--) {
+            Slot target = handler.getSlot(i);
+            if (i != sourceId && isPlayerStorageSlot(target)) {
+                targets.add(i);
+            }
+        }
+        return moveWithPickup(client, handler, sourceId, targets, slot -> QuickContainerLock.isLockedSlot(handler, slot));
+    }
+
+    private static boolean moveWithPickup(Minecraft client, AbstractContainerMenu handler, int sourceId,
+                                          List<Integer> targets, Predicate<Slot> locked) {
         Slot source = handler.getSlot(sourceId);
-        if (locked.test(source) || !source.hasItem() || !source.mayPickup(client.player)) return;
+        if (locked.test(source) || !source.hasItem() || !source.mayPickup(client.player)) return false;
         ItemStack template = source.getItem().copy();
         int capacity = 0;
         for (int id : targets) {
@@ -89,14 +106,15 @@ public final class QuickSlotTransfer {
                 capacity += target.getMaxStackSize(template) - target.getItem().getCount();
             }
         }
-        if (capacity <= 0 || (!source.mayPlace(template) && capacity < template.getCount())) return;
+        if (capacity <= 0 || (!source.mayPlace(template) && capacity < template.getCount())) return false;
         client.gameMode.handleContainerInput(handler.containerId, sourceId, 0, ContainerInput.PICKUP, client.player);
-        if (!ItemStack.isSameItemSameComponents(handler.getCarried(), template)) return;
+        if (!ItemStack.isSameItemSameComponents(handler.getCarried(), template)) return false;
         fillCursor(client, handler, targets, locked);
-        if (!handler.getCarried().isEmpty() && source.mayPlace(handler.getCarried())
-                && !locked.test(source)) {
+        if (handler.getCarried().isEmpty()) return true;
+        if (source.mayPlace(handler.getCarried()) && !locked.test(source)) {
             client.gameMode.handleContainerInput(handler.containerId, sourceId, 0, ContainerInput.PICKUP, client.player);
         }
+        return false;
     }
 
     private static boolean accepts(AbstractContainerMenu handler, int id, ItemStack stack) {
