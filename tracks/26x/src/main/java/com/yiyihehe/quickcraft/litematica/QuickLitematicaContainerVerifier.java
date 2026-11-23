@@ -2,6 +2,7 @@ package com.yiyihehe.quickcraft.litematica;
 
 import com.chocohead.mm.api.ClassTinkerers;
 import com.yiyihehe.quickcraft.QuickContainerCopy;
+import com.yiyihehe.quickcraft.compat.QuickLargeBarrel;
 import com.yiyihehe.quickcraft.config.QuickCraftConfigs;
 import net.fabricmc.loader.api.FabricLoader;
 import fi.dy.masa.litematica.data.DataManager;
@@ -20,6 +21,7 @@ import fi.dy.masa.malilib.render.InventoryOverlayType;
 import fi.dy.masa.malilib.render.GuiContext;
 import net.minecraft.world.level.block.AbstractFurnaceBlock;
 import net.minecraft.world.level.block.BrewingStandBlock;
+import net.minecraft.world.level.block.BarrelBlock;
 import net.minecraft.world.level.block.ChestBlock;
 import net.minecraft.world.level.block.CrafterBlock;
 import net.minecraft.world.level.block.DispenserBlock;
@@ -31,6 +33,7 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 import net.minecraft.world.Container;
+import net.minecraft.world.SimpleContainer;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.chunk.ChunkAccess;
 import net.minecraft.nbt.CompoundTag;
@@ -40,6 +43,7 @@ import net.minecraft.world.level.block.Rotation;
 import net.minecraft.world.inventory.AbstractContainerMenu;
 import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
 import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.level.Level;
 import org.apache.commons.lang3.tuple.Pair;
@@ -226,8 +230,20 @@ public final class QuickLitematicaContainerVerifier {
             return;
         }
         Level world = fi.dy.masa.malilib.util.WorldUtils.getBestWorld(client);
+        QuickLargeBarrel barrelPair = QuickLargeBarrel.hasSixRows(handler) ? QuickLargeBarrel.findPair(world, pos) : null;
+        if (barrelPair != null) {
+            if (getExpectedLargeBarrel(world, pos, barrelPair, placement) != null) {
+                Container inventory = QuickLitematicaContainerScreenBinding.findContainerInventory(handler, 54);
+                Container snapshot = QuickLitematicaContainerScreenBinding.copyContainerInventoryFromScreen(handler, inventory);
+                if (snapshot != null) {
+                    refreshLargeBarrelVerifier(placement, barrelPair, snapshot);
+                }
+            }
+            return;
+        }
         ExpectedContainer expected = getExpectedContainerAt(world, pos, placement);
-        if (expected == null || !QuickLitematicaContainerScreenBinding.isSupportedHandlerForExpectedContainer(handler, expected)) {
+        if (expected == null || !QuickLitematicaContainerScreenBinding.isSupportedHandlerForExpectedContainer(
+                handler, expected, world.getBlockState(pos))) {
             return;
         }
 
@@ -252,6 +268,22 @@ public final class QuickLitematicaContainerVerifier {
             verifier.quickcraft$refreshContainerMismatchAt(pairedPos, snapshot, disabledSlots);
         }
         return mismatches;
+    }
+
+    static void refreshLargeBarrelVerifier(SchematicPlacement placement, QuickLargeBarrel pair, Container snapshot) {
+        if (placement == null || !placement.hasVerifier()) {
+            return;
+        }
+        VerifierExtension verifier = (VerifierExtension) placement.getSchematicVerifier();
+        // 验证器按方块坐标存结果，TIS 菜单的两半要拆回各自的 27 格。
+        SimpleContainer first = new SimpleContainer(27);
+        SimpleContainer second = new SimpleContainer(27);
+        for (int i = 0; i < 27; i++) {
+            first.setItem(i, snapshot.getItem(i));
+            second.setItem(i, snapshot.getItem(i + 27));
+        }
+        verifier.quickcraft$refreshContainerMismatchAt(pair.first(), first, Set.of(), true);
+        verifier.quickcraft$refreshContainerMismatchAt(pair.second(), second, Set.of(), true);
     }
 
     public static SlotOverlay getSlotOverlayForScreen(AbstractContainerScreen<?> screen, Slot slot) {
@@ -302,9 +334,44 @@ public final class QuickLitematicaContainerVerifier {
             return hasUnreadableExpectedInventory(adjacentPlacement) ? null : current;
         }
 
-        ExpectedContainer merged = mergeExpectedDoubleChest(pos, current, adjacent);
+        ExpectedContainer merged = mergeExpectedHalves(current, adjacent,
+                QuickLitematicaContainerInventory.getChestType(current.state()) == ChestType.RIGHT);
 
         return merged != null ? merged : current;
+    }
+
+    static ExpectedContainer getExpectedLargeBarrel(
+            Level world, BlockPos pos, QuickLargeBarrel pair, @Nullable SchematicPlacement placementFilter
+    ) {
+        Direction facing = world.getBlockState(pos).getValue(BarrelBlock.FACING);
+        BlockPos adjacentPos = pair.other(pos);
+        LocalPlacementPos currentPlacement = getLocalPlacementPos(pos, placementFilter);
+        if (currentPlacement == null) {
+            return null;
+        }
+        LocalPlacementPos adjacentPlacement = getLocalPlacementPos(adjacentPos, currentPlacement.placement());
+        if (adjacentPlacement == null) {
+            return null;
+        }
+
+        BlockState expectedState = currentPlacement.worldState();
+        BlockState expectedAdjacent = adjacentPlacement.worldState();
+        boolean pairedBarrels = expectedState.getBlock() instanceof BarrelBlock
+                && expectedAdjacent.getBlock() instanceof BarrelBlock
+                && expectedState.getValue(BarrelBlock.FACING) == facing
+                && expectedAdjacent.getValue(BarrelBlock.FACING) == facing.getOpposite();
+        boolean pairedChests = isMatchingDoubleChest(expectedState, expectedAdjacent)
+                && ChestBlock.getConnectedBlockPos(pos, expectedState).equals(adjacentPos);
+        if (!pairedBarrels && !pairedChests) {
+            return null;
+        }
+
+        ExpectedContainer current = getExpectedContainerInternal(pos, currentPlacement);
+        ExpectedContainer adjacent = getExpectedContainerInternal(adjacentPos, adjacentPlacement);
+        if (current == null || adjacent == null) {
+            return null;
+        }
+        return mergeExpectedHalves(current, adjacent, pair.first().equals(pos));
     }
 
 
@@ -337,12 +404,19 @@ public final class QuickLitematicaContainerVerifier {
     }
 
     public static QuickContainerCopy.TemplateSnapshot getTemplateSnapshotAt(Level foundWorld, BlockPos pos) {
-        ExpectedContainer expected = getExpectedContainerAt(foundWorld, pos);
+        return getTemplateSnapshotAt(foundWorld, pos, false);
+    }
+
+    static QuickContainerCopy.TemplateSnapshot getTemplateSnapshotAt(Level world, BlockPos pos, boolean largeBarrel) {
+        QuickLargeBarrel pair = largeBarrel ? QuickLargeBarrel.findPair(world, pos) : null;
+        ExpectedContainer expected = largeBarrel
+                ? (pair != null ? getExpectedLargeBarrel(world, pos, pair, null) : null)
+                : getExpectedContainerAt(world, pos);
         if (expected == null) {
             return null;
         }
 
-        QuickContainerCopy.PublicContainerType type = QuickContainerCopy.getPublicContainerType(
+        QuickContainerCopy.PublicContainerType type = largeBarrel ? QuickContainerCopy.PublicContainerType.LARGE_BARREL : QuickContainerCopy.getPublicContainerType(
                 expected.state().getBlock(),
                 QuickLitematicaContainerInventory.getChestType(expected.state())
         );
@@ -365,10 +439,10 @@ public final class QuickLitematicaContainerVerifier {
         return QuickLitematicaContainerInventory.getDisabledSlots(blockEntity);
     }
 
-    private static ExpectedContainer mergeExpectedDoubleChest(
-            BlockPos pos,
+    private static ExpectedContainer mergeExpectedHalves(
             ExpectedContainer current,
-            ExpectedContainer adjacent
+            ExpectedContainer adjacent,
+            boolean currentFirst
     ) {
         if (current.inventory().getContainerSize() != 27 || adjacent.inventory().getContainerSize() != 27) {
             return null;
@@ -376,12 +450,12 @@ public final class QuickLitematicaContainerVerifier {
 
         Container currentInventory = current.inventory();
         Container adjacentInventory = adjacent.inventory();
-        Container merged = QuickLitematicaContainerInventory.getChestType(current.state()) == ChestType.RIGHT
+        Container merged = currentFirst
                 ? QuickLitematicaContainerInventory.mergeInventories(currentInventory, adjacentInventory)
                 : QuickLitematicaContainerInventory.mergeInventories(adjacentInventory, currentInventory);
 
         return new ExpectedContainer(
-                pos,
+                current.pos(),
                 current.state(),
                 current.blockEntity(),
                 merged,
@@ -921,7 +995,14 @@ public final class QuickLitematicaContainerVerifier {
                 int maxZ
         );
 
-        List<ContainerMismatch> quickcraft$refreshContainerMismatchAt(BlockPos pos, Container foundInventory, Set<Integer> foundDisabledSlots);
+        default List<ContainerMismatch> quickcraft$refreshContainerMismatchAt(
+                BlockPos pos, Container foundInventory, Set<Integer> foundDisabledSlots
+        ) {
+            return this.quickcraft$refreshContainerMismatchAt(pos, foundInventory, foundDisabledSlots, false);
+        }
+
+        List<ContainerMismatch> quickcraft$refreshContainerMismatchAt(
+                BlockPos pos, Container foundInventory, Set<Integer> foundDisabledSlots, boolean confirmedLargeBarrelHalf);
     }
 
     /**

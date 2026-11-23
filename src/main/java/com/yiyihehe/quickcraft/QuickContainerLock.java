@@ -3,6 +3,7 @@ package com.yiyihehe.quickcraft;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
+import com.yiyihehe.quickcraft.compat.QuickLargeBarrel;
 import com.yiyihehe.quickcraft.config.QuickCraftConfigs;
 import com.yiyihehe.quickcraft.mixin.CreativeSlotAccessor;
 import fi.dy.masa.malilib.event.InputEventHandler;
@@ -92,6 +93,8 @@ public final class QuickContainerLock implements ClientModInitializer {
     private static boolean lastUseDown;
     private static int pendingTicks;
     private static String pendingContainerKey;
+    private static BlockPos pendingBlockPos;
+    private static World pendingBlockWorld;
     private static boolean pendingShulkerBoxOpen;
     private static ScreenHandler pendingSourceHandler;
     private static ScreenHandler currentScreenHandler;
@@ -156,8 +159,7 @@ public final class QuickContainerLock implements ClientModInitializer {
         }
 
         if (isPendingContainerScreen(screen)) {
-            setCurrentScreenHandler(handler, pendingContainerKey);
-            clearPendingContainerOpen();
+            bindPendingContainer(client, handler);
             return;
         }
 
@@ -243,7 +245,7 @@ public final class QuickContainerLock implements ClientModInitializer {
 
     public static boolean isEnderChestScreen(HandledScreen<?> screen) {
         return screen.getScreenHandler() instanceof GenericContainerScreenHandler chest && chest.getRows() == 3
-                && screen.getTitle().equals(Text.translatable("container.enderchest"));
+                && Text.translatable("container.enderchest").equals(screen.getTitle());
     }
 
     public static void bindEnderChestScreen(HandledScreen<?> screen) {
@@ -960,6 +962,8 @@ public final class QuickContainerLock implements ClientModInitializer {
             String containerKey = getSupportedContainerKey(client, blockHitResult);
             if (containerKey != null) {
                 pendingContainerKey = containerKey;
+                pendingBlockPos = blockHitResult.getBlockPos().toImmutable();
+                pendingBlockWorld = client.world;
                 pendingShulkerBoxOpen = false;
                 pendingSourceHandler = null;
                 pendingTicks = 0;
@@ -976,8 +980,7 @@ public final class QuickContainerLock implements ClientModInitializer {
 
         pendingTicks++;
         if (client.currentScreen instanceof HandledScreen<?> screen && isPendingContainerScreen(screen)) {
-            setCurrentScreenHandler(screen.getScreenHandler(), pendingContainerKey);
-            clearPendingContainerOpen();
+            bindPendingContainer(client, screen.getScreenHandler());
             return;
         }
 
@@ -1126,9 +1129,25 @@ public final class QuickContainerLock implements ClientModInitializer {
 
     private static void clearPendingContainerOpen() {
         pendingContainerKey = null;
+        pendingBlockPos = null;
+        pendingBlockWorld = null;
         pendingShulkerBoxOpen = false;
         pendingSourceHandler = null;
         pendingTicks = 0;
+    }
+
+    private static void bindPendingContainer(MinecraftClient client, ScreenHandler handler) {
+        String key = pendingContainerKey;
+        if (pendingBlockPos != null && pendingBlockWorld == client.world && QuickLargeBarrel.hasSixRows(handler)) {
+            QuickLargeBarrel pair = QuickLargeBarrel.findPair(pendingBlockWorld, pendingBlockPos);
+            if (pair != null) {
+                String dimension = pendingBlockWorld.getRegistryKey().getValue().toString();
+                key = dimension + "#double_barrel#" + pair.first().asLong() + "#" + pair.second().asLong();
+                migrateLegacyPairedContainerLocks(dimension, pair.first(), pair.second(), key, true);
+            }
+        }
+        setCurrentScreenHandler(handler, key);
+        clearPendingContainerOpen();
     }
 
     private static String getSupportedContainerKey(MinecraftClient client, BlockHitResult blockHitResult) {
@@ -1183,28 +1202,30 @@ public final class QuickContainerLock implements ClientModInitializer {
 
         BlockPos identity = pairedPos.asLong() < pos.asLong() ? pairedPos : pos;
         String canonical = dimension + "#double#" + identity.asLong();
-        migrateProvableLegacyDoubleChestLocks(dimension, pos, pairedPos, canonical);
+        migrateLegacyPairedContainerLocks(dimension, pos, pairedPos, canonical, false);
         return canonical;
     }
 
-    private static void migrateProvableLegacyDoubleChestLocks(String dimension,
-                                                               BlockPos first,
-                                                               BlockPos second,
-                                                               String canonical) {
+    private static void migrateLegacyPairedContainerLocks(String dimension, BlockPos first, BlockPos second,
+                                                          String canonical, boolean preserveWholeBarrelLocks) {
         if (MIGRATED_DOUBLE_CHESTS.contains(canonical)) {
             return;
         }
         for (BlockPos half : new BlockPos[]{first, second}) {
             String legacy = dimension + "#" + half.asLong();
             Set<Integer> slots = LOCKED_CONTAINER_SLOTS.get(legacy);
-            // 单箱/桶最多 27 格；出现 27 以上索引只能来自 54 格双箱记录。
-            if (slots == null || slots.stream().noneMatch(index -> index >= 27)) {
+            // 旧坐标键只有出现下半区索引时，才能确认曾按 54 格菜单锁定。
+            boolean hasPairedSlots = slots != null && slots.stream().anyMatch(index -> index >= 27);
+            boolean wholeLocked = LOCKED_CONTAINERS.contains(legacy);
+            if (!hasPairedSlots && !(preserveWholeBarrelLocks && wholeLocked)) {
                 continue;
             }
             // 保留旧键时必须记录已迁移，避免重开或重载后撤销用户在新键上的解锁。
             MIGRATED_DOUBLE_CHESTS.add(canonical);
-            LOCKED_CONTAINER_SLOTS.computeIfAbsent(canonical, ignored -> new HashSet<>()).addAll(slots);
-            if (LOCKED_CONTAINERS.contains(legacy)) {
+            if (hasPairedSlots) {
+                LOCKED_CONTAINER_SLOTS.computeIfAbsent(canonical, ignored -> new HashSet<>()).addAll(slots);
+            }
+            if (wholeLocked) {
                 LOCKED_CONTAINERS.add(canonical);
             }
         }

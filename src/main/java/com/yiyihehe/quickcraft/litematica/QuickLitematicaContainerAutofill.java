@@ -1,6 +1,7 @@
 package com.yiyihehe.quickcraft.litematica;
 
 import com.yiyihehe.quickcraft.QuickContainerCopy;
+import com.yiyihehe.quickcraft.compat.QuickLargeBarrel;
 import com.yiyihehe.quickcraft.QuickCraftKeyBindings;
 import com.yiyihehe.quickcraft.config.QuickCraftConfigs;
 import com.yiyihehe.quickcraft.render.QuickContainerFillStatus;
@@ -83,13 +84,15 @@ public final class QuickLitematicaContainerAutofill implements ClientModInitiali
                 && !QuickContainerCopy.shouldSuppressContinuousFillUseInput()
                 && client.currentScreen == null) {
             BlockHitResult hitResult = getLookedAtBlock(client);
-            if (hitResult != null && shouldHandleTarget(client, hitResult)
-                    && QuickContainerCopy.requireContainerFillHotkey(client)) {
+            boolean ordinaryTarget = hitResult != null && hasOrdinaryTemplate(client, hitResult);
+            if (hitResult != null && (ordinaryTarget
+                    ? QuickContainerCopy.requireContainerFillHotkey(client)
+                    : QuickContainerCopy.isContainerFillHotkeyDown(client) && hasLargeBarrelCandidate(client, hitResult))) {
                 BlockPos pos = hitResult.getBlockPos();
                 pendingContainerPos = pos.toImmutable();
                 pendingFillTarget = hitResult;
                 pendingTicks = 0;
-                pendingFillStatus = QuickContainerFillStatus.begin(client, hitResult);
+                pendingFillStatus = ordinaryTarget ? QuickContainerFillStatus.begin(client, hitResult) : null;
             }
         }
         lastUseDown = useDown;
@@ -120,7 +123,17 @@ public final class QuickLitematicaContainerAutofill implements ClientModInitiali
         pendingFillStatus = null;
         pendingTicks = 0;
 
-        QuickContainerCopy.TemplateSnapshot snapshot = getTemplateSnapshot(client, pos);
+        ScreenHandler handler = screen.getScreenHandler();
+        QuickContainerCopy.PublicContainerType targetType = QuickContainerCopy.getPublicContainerType(client, target);
+        boolean barrelTarget = targetType == QuickContainerCopy.PublicContainerType.BARREL;
+        boolean largeBarrel = barrelTarget && QuickLargeBarrel.hasSixRows(handler);
+        QuickContainerCopy.TemplateSnapshot snapshot = getTemplateSnapshot(client, pos, largeBarrel);
+        QuickContainerCopy.PublicContainerType menuType = largeBarrel ? QuickContainerCopy.PublicContainerType.LARGE_BARREL : targetType;
+        if (barrelTarget && !largeBarrel && (snapshot == null || snapshot.type() != menuType)) {
+            // 桶底相贴时仍可能收到普通木桶菜单。保留这次正常开桶。
+            QuickContainerFillStatus.stop(client, fillStatus, false);
+            return;
+        }
         if (snapshot == null) {
             QuickContainerFillStatus.stop(client, fillStatus, true);
             sendStatusMessage(client, Text.translatable("quickcraft.message.litematica_autofill.no_container_content"));
@@ -128,8 +141,7 @@ public final class QuickLitematicaContainerAutofill implements ClientModInitiali
             return;
         }
 
-        ScreenHandler handler = screen.getScreenHandler();
-        if (!QuickContainerCopy.canApplyTemplateSnapshot(handler, snapshot)) {
+        if (snapshot.type() != menuType || !QuickContainerCopy.canApplyTemplateSnapshot(handler, snapshot)) {
             QuickContainerFillStatus.stop(client, fillStatus, true);
             sendStatusMessage(client, Text.translatable("quickcraft.message.container_copy.projection_type_mismatch"));
             closeCurrentScreen(client);
@@ -150,23 +162,33 @@ public final class QuickLitematicaContainerAutofill implements ClientModInitiali
     }
 
     private boolean shouldHandleTarget(MinecraftClient client, BlockHitResult hitResult) {
-        QuickContainerCopy.TemplateSnapshot snapshot = getTemplateSnapshot(client, hitResult.getBlockPos());
-        if (snapshot == null) {
-            return false;
-        }
+        return hasOrdinaryTemplate(client, hitResult)
+                || (QuickContainerCopy.isContainerFillHotkeyDown(client) && hasLargeBarrelCandidate(client, hitResult));
+    }
 
+    private boolean hasOrdinaryTemplate(MinecraftClient client, BlockHitResult hitResult) {
         QuickContainerCopy.PublicContainerType actualType = QuickContainerCopy.getPublicContainerType(client, hitResult);
-        return actualType == snapshot.type();
+        QuickContainerCopy.TemplateSnapshot snapshot = getTemplateSnapshot(client, hitResult.getBlockPos());
+        return snapshot != null && actualType == snapshot.type();
+    }
+
+    private boolean hasLargeBarrelCandidate(MinecraftClient client, BlockHitResult hitResult) {
+        return QuickContainerCopy.getPublicContainerType(client, hitResult) == QuickContainerCopy.PublicContainerType.BARREL
+                && getTemplateSnapshot(client, hitResult.getBlockPos(), true) != null;
     }
 
     public static QuickContainerCopy.TemplateSnapshot getTemplateSnapshot(MinecraftClient client, BlockPos pos) {
+        return getTemplateSnapshot(client, pos, false);
+    }
+
+    public static QuickContainerCopy.TemplateSnapshot getTemplateSnapshot(MinecraftClient client, BlockPos pos, boolean largeBarrel) {
         if (!FabricLoader.getInstance().isModLoaded("litematica") || client.world == null) {
             return null;
         }
 
         World world = fi.dy.masa.malilib.util.WorldUtils.getBestWorld(client);
         QuickContainerCopy.TemplateSnapshot snapshot =
-                QuickLitematicaContainerVerifier.getTemplateSnapshotAt(world != null ? world : client.world, pos);
+                QuickLitematicaContainerVerifier.getTemplateSnapshotAt(world != null ? world : client.world, pos, largeBarrel);
         return QuickLitematicaContainerReplacements.applyToSnapshot(snapshot);
     }
 

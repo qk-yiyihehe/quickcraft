@@ -2,6 +2,7 @@ package com.yiyihehe.quickcraft.render;
 
 import com.yiyihehe.quickcraft.QuickClientScreenAccess;
 import com.yiyihehe.quickcraft.config.QuickCraftConfigs;
+import com.yiyihehe.quickcraft.compat.QuickLargeBarrel;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.fabric.api.client.rendering.v1.hud.HudElementRegistry;
 import net.fabricmc.fabric.api.client.rendering.v1.hud.VanillaHudElements;
@@ -14,6 +15,7 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.Identifier;
 import net.minecraft.world.entity.Entity;
+import net.minecraft.world.inventory.AbstractContainerMenu;
 import net.minecraft.world.level.block.ChestBlock;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.block.state.properties.ChestType;
@@ -69,6 +71,22 @@ public final class QuickContainerFillStatus {
         return new Handle(target, marker);
     }
 
+    public static void confirmLargeBarrel(Minecraft client, Handle handle, AbstractContainerMenu handler) {
+        Marker marker = marker(client, handle);
+        if (marker == null || handle.target.blockPos() == null || handle.target.barrelPair() != null
+                || !QuickLargeBarrel.hasSixRows(handler)) {
+            return;
+        }
+        QuickLargeBarrel pair = QuickLargeBarrel.findPair(client.level, handle.target.blockPos());
+        if (pair == null) {
+            return;
+        }
+        MARKERS.remove(handle.target);
+        MARKERS.remove(new Target(pair.other(handle.target.blockPos()), -1));
+        handle.target = new Target(pair.first(), -1, pair);
+        MARKERS.put(handle.target, marker);
+    }
+
     public static void progress(Minecraft client, Handle handle, int pendingIssues) {
         Marker marker = marker(client, handle);
         if (marker == null || marker.status != Status.FILLING) {
@@ -102,7 +120,7 @@ public final class QuickContainerFillStatus {
     }
 
     private static Marker marker(Minecraft client, Handle handle) {
-        if (!isAvailable(client) || handle == null) {
+        if (!isAvailable(client) || client.level != markerWorld || handle == null) {
             return null;
         }
         Marker marker = MARKERS.get(handle.target);
@@ -115,6 +133,16 @@ public final class QuickContainerFillStatus {
         }
         Target target = Target.from(client.level, first);
         return target != null && target.equals(Target.from(client.level, second));
+    }
+
+    static Marker markerAt(ClientLevel world, HitResult hit) {
+        Target target = Target.from(world, hit);
+        Marker marker = MARKERS.get(target);
+        if (marker != null || target == null || target.blockPos() == null) {
+            return marker;
+        }
+        QuickLargeBarrel pair = QuickLargeBarrel.findPair(world, target.blockPos());
+        return pair != null ? MARKERS.get(new Target(pair.first(), -1, pair)) : null;
     }
 
     private static void onClientTick(Minecraft client) {
@@ -148,7 +176,7 @@ public final class QuickContainerFillStatus {
                 || QuickClientScreenAccess.isHudHidden(client)) {
             return;
         }
-        Marker marker = MARKERS.get(Target.from(client.level, client.hitResult));
+        Marker marker = markerAt(client.level, client.hitResult);
         if (marker == null) {
             return;
         }
@@ -167,7 +195,7 @@ public final class QuickContainerFillStatus {
     }
 
     public static final class Handle {
-        private final Target target;
+        private Target target;
         private final Marker marker;
 
         private Handle(Target target, Marker marker) {
@@ -176,7 +204,11 @@ public final class QuickContainerFillStatus {
         }
     }
 
-    record Target(BlockPos blockPos, int entityId) {
+    record Target(BlockPos blockPos, int entityId, QuickLargeBarrel barrelPair) {
+        Target(BlockPos blockPos, int entityId) {
+            this(blockPos, entityId, null);
+        }
+
         static Target from(ClientLevel world, HitResult hitResult) {
             if (hitResult instanceof BlockHitResult blockHitResult) {
                 BlockPos pos = blockHitResult.getBlockPos();
@@ -201,6 +233,10 @@ public final class QuickContainerFillStatus {
         }
 
         AABB box(ClientLevel world) {
+            if (barrelPair != null) {
+                return barrelPair.equals(QuickLargeBarrel.findPair(world, blockPos))
+                        ? new AABB(barrelPair.first()).minmax(new AABB(barrelPair.second())) : null;
+            }
             if (blockPos != null) {
                 BlockState state = world.getBlockState(blockPos);
                 if (state.isAir()) {

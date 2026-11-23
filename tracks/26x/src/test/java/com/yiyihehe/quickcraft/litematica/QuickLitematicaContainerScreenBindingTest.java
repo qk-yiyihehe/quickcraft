@@ -16,6 +16,8 @@ import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.inventory.ChestMenu;
 import net.minecraft.world.inventory.HopperMenu;
 import net.minecraft.world.level.block.entity.BlockEntity;
+import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.SimpleContainer;
 import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.phys.Vec3;
 import org.junit.jupiter.api.BeforeAll;
@@ -34,6 +36,21 @@ class QuickLitematicaContainerScreenBindingTest {
     static void initializeMinecraftRegistries() {
         net.minecraft.SharedConstants.tryDetectVersion();
         net.minecraft.server.Bootstrap.bootStrap();
+    }
+
+    @Test
+    void barrelGhostsRequireAnActualBarrelEvenForOtherThreeRowMenus() {
+        var barrel = Blocks.BARREL.defaultBlockState();
+        var expected = new QuickLitematicaContainerVerifier.ExpectedContainer(
+                BlockPos.ZERO, barrel, null, new SimpleContainer(27), java.util.Set.of());
+        var handler = mock(ChestMenu.class);
+        when(handler.getRowCount()).thenReturn(3);
+
+        assertThat(QuickLitematicaContainerScreenBinding.isSupportedHandlerForExpectedContainer(handler, expected, barrel)).isTrue();
+        assertThat(QuickLitematicaContainerScreenBinding.isSupportedHandlerForExpectedContainer(
+                handler, expected, Blocks.CHEST.defaultBlockState())).isFalse();
+        assertThat(QuickLitematicaContainerScreenBinding.isSupportedHandlerForExpectedContainer(
+                handler, expected, Blocks.ENDER_CHEST.defaultBlockState())).isFalse();
     }
 
     @Test

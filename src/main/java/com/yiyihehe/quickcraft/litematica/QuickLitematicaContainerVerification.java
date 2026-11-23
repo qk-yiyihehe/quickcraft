@@ -1,5 +1,6 @@
 package com.yiyihehe.quickcraft.litematica;
 
+
 import com.google.common.collect.ArrayListMultimap;
 import com.google.common.collect.HashMultimap;
 import com.yiyihehe.quickcraft.litematica.QuickLitematicaContainerVerifier;
@@ -286,14 +287,17 @@ public final class QuickLitematicaContainerVerification implements VerifierExten
     }
 
     @Override
-    public List<ContainerMismatch> quickcraft$refreshContainerMismatchAt(BlockPos pos, Inventory foundInventory, Set<Integer> foundDisabledSlots) {
+    public List<ContainerMismatch> quickcraft$refreshContainerMismatchAt(
+            BlockPos pos, Inventory foundInventory, Set<Integer> foundDisabledSlots, boolean confirmedLargeBarrelHalf
+    ) {
         if (!QuickLitematicaContainerVerifier.isEnabled() || foundInventory == null) {
             return null;
         }
 
         World bestWorld = fi.dy.masa.malilib.util.WorldUtils.getBestWorld(MinecraftClient.getInstance());
         List<ContainerMismatch> mismatches = bestWorld != null
-                ? this.quickcraft$collectContainerMismatchesFromInventory(bestWorld, pos, foundInventory, foundDisabledSlots)
+                ? this.quickcraft$collectContainerMismatchesFromInventory(
+                        bestWorld, pos, foundInventory, foundDisabledSlots, confirmedLargeBarrelHalf)
                 : null;
 
         if (mismatches != null) {
@@ -847,10 +851,7 @@ public final class QuickLitematicaContainerVerification implements VerifierExten
         }
 
         ExpectedContainer expected = QuickLitematicaContainerVerifier.getExpectedContainerAt(
-                foundWorld,
-                pos,
-                this.host.quickcraft$verificationSchematicPlacement()
-        );
+                foundWorld, pos, this.host.quickcraft$verificationSchematicPlacement());
         BlockEntity foundBlockEntity = foundWorld.getBlockEntity(pos);
 
         if (expected == null) {
@@ -913,13 +914,13 @@ public final class QuickLitematicaContainerVerification implements VerifierExten
             World foundWorld,
             BlockPos pos,
             Inventory found,
-            Set<Integer> foundDisabledSlots
+            Set<Integer> foundDisabledSlots,
+            boolean confirmedLargeBarrelHalf
     ) {
-        ExpectedContainer expected = QuickLitematicaContainerVerifier.getExpectedContainerAt(
-                foundWorld,
-                pos,
-                this.host.quickcraft$verificationSchematicPlacement()
-        );
+        SchematicPlacement placement = this.host.quickcraft$verificationSchematicPlacement();
+        ExpectedContainer expected = confirmedLargeBarrelHalf
+                ? QuickLitematicaContainerVerifier.getExpectedContainerPartAt(placement, pos)
+                : QuickLitematicaContainerVerifier.getExpectedContainerAt(foundWorld, pos, placement);
         BlockEntity foundBlockEntity = foundWorld.getBlockEntity(pos);
 
         if (expected == null) {

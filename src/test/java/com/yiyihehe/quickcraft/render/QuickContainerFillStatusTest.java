@@ -6,6 +6,9 @@ import com.yiyihehe.quickcraft.config.QuickCraftConfigs;
 import com.yiyihehe.quickcraft.litematica.QuickLitematicaContainerAutofill;
 import net.minecraft.block.BlockState;
 import net.minecraft.block.Blocks;
+import net.minecraft.block.BarrelBlock;
+import net.minecraft.screen.GenericContainerScreenHandler;
+import net.minecraft.util.math.Box;
 import net.minecraft.block.ChestBlock;
 import net.minecraft.block.enums.ChestType;
 import net.minecraft.client.MinecraftClient;
@@ -38,6 +41,33 @@ class QuickContainerFillStatusTest {
     void restoreConfig() {
         QuickContainerFillStatus.MARKERS.clear();
         QuickCraftConfigs.ContainerTools.SHOW_CONTAINER_FILL_STATUS_OUTLINES.setBooleanValue(previous);
+    }
+
+    @Test
+    void barrelOutlineExpandsOnlyAfterSixRowMenuAndIsSharedByBothHalves() {
+        enableStatus();
+        ClientWorld world = mock(ClientWorld.class);
+        when(world.getBlockState(LEFT)).thenReturn(Blocks.BARREL.getDefaultState().with(BarrelBlock.FACING, Direction.WEST));
+        when(world.getBlockState(RIGHT)).thenReturn(Blocks.BARREL.getDefaultState().with(BarrelBlock.FACING, Direction.EAST));
+        MinecraftClient client = client(world);
+        var handler = mock(GenericContainerScreenHandler.class);
+        var handle = QuickContainerFillStatus.begin(client, hit(RIGHT));
+
+        when(handler.getRows()).thenReturn(3);
+        QuickContainerFillStatus.confirmLargeBarrel(client, handle, handler);
+        assertThat(QuickContainerFillStatus.MARKERS.keySet()).containsExactly(target(world, hit(RIGHT)));
+        assertThat(QuickContainerFillStatus.markerAt(world, hit(LEFT))).isNull();
+
+        when(handler.getRows()).thenReturn(6);
+        QuickContainerFillStatus.confirmLargeBarrel(client, handle, handler);
+        QuickContainerFillStatus.finish(client, handle, 0);
+        assertThat(QuickContainerFillStatus.MARKERS.keySet())
+                .extracting(target -> target.box(world))
+                .containsExactly(new Box(0, 64, 0, 2, 65, 1));
+        assertThat(QuickContainerFillStatus.markerAt(world, hit(LEFT)))
+                .isSameAs(QuickContainerFillStatus.markerAt(world, hit(RIGHT)));
+        assertThat(QuickContainerFillStatus.markerAt(world, hit(LEFT)).status)
+                .isEqualTo(QuickContainerFillStatus.Status.COMPLETE);
     }
 
     @Test

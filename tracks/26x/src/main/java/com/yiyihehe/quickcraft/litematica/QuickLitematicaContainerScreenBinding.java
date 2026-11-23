@@ -1,11 +1,15 @@
 package com.yiyihehe.quickcraft.litematica;
 
 import com.yiyihehe.quickcraft.QuickContainerCopy;
+import com.yiyihehe.quickcraft.QuickContainerLock;
+import com.yiyihehe.quickcraft.compat.QuickLargeBarrel;
 import com.yiyihehe.quickcraft.QuickClientScreenAccess;
 import fi.dy.masa.litematica.data.DataManager;
 import fi.dy.masa.litematica.schematic.placement.SchematicPlacement;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayConnectionEvents;
+import net.minecraft.world.level.block.BarrelBlock;
+import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.Screen;
@@ -107,6 +111,7 @@ final class QuickLitematicaContainerScreenBinding {
     static SlotOverlay getSlotOverlayForScreen(AbstractContainerScreen<?> screen, Slot slot) {
         if (!isEnabled()
                 || QuickContainerCopy.shouldHideBackgroundHandledScreen()
+                || QuickContainerLock.isEnderChestScreen(screen)
                 || slot.container instanceof Inventory
                 // 只让真正的容器界面参与高亮，避免创造物品栏等界面误触发容器校验。
                 || !isSupportedContainerHandler(screen.getMenu())) {
@@ -168,7 +173,8 @@ final class QuickLitematicaContainerScreenBinding {
             return;
         }
 
-        int currentRevision = screen.getMenu().getStateId();
+        AbstractContainerMenu handler = screen.getMenu();
+        int currentRevision = handler.getStateId();
 
         long currentTick = clientWorld.getGameTime();
 
@@ -182,24 +188,36 @@ final class QuickLitematicaContainerScreenBinding {
         currentScreenContainerInventory = null;
         Level world = fi.dy.masa.malilib.util.WorldUtils.getBestWorld(client);
         SchematicPlacement placement = DataManager.getSchematicPlacementManager().getSelectedSchematicPlacement();
-        ExpectedContainer expectedContainer = getExpectedContainerAt(world, containerPos, placement);
+        BlockState actualState = world != null ? world.getBlockState(containerPos) : null;
+        boolean largeBarrelMenu = QuickLargeBarrel.hasSixRows(handler)
+                && actualState != null && actualState.getBlock() instanceof BarrelBlock;
+        QuickLargeBarrel barrelPair = largeBarrelMenu ? QuickLargeBarrel.findPair(world, containerPos) : null;
+        ExpectedContainer expectedContainer = largeBarrelMenu
+                ? (barrelPair != null ? getExpectedLargeBarrel(world, containerPos, barrelPair, placement) : null)
+                : getExpectedContainerAt(world, containerPos, placement);
 
         if (expectedContainer == null
-                || !isSupportedHandlerForExpectedContainer(screen.getMenu(), expectedContainer)) {
+                || (!largeBarrelMenu && !isSupportedHandlerForExpectedContainer(handler, expectedContainer, actualState))) {
             clearCurrentScreenContainerBinding();
             return;
         }
 
         Container containerInventory = findContainerInventory(
-                screen.getMenu(), expectedContainer.inventory().getContainerSize());
-        Container foundInventory = copyContainerInventoryFromScreen(screen.getMenu(), containerInventory);
+                handler, expectedContainer.inventory().getContainerSize());
+        Container foundInventory = copyContainerInventoryFromScreen(handler, containerInventory);
 
         if (foundInventory == null) {
             return;
         }
 
         currentScreenContainerInventory = containerInventory;
-        Set<Integer> foundDisabledSlots = copyCrafterDisabledSlotsFromScreen(screen.getMenu(), containerInventory);
+        Set<Integer> foundDisabledSlots = copyCrafterDisabledSlotsFromScreen(handler, containerInventory);
+        if (barrelPair != null) {
+            refreshLargeBarrelVerifier(placement, barrelPair, foundInventory);
+            currentScreenSlotOverlays = buildSlotOverlays(expectedContainer, foundInventory, foundDisabledSlots);
+            return;
+        }
+
         List<ContainerMismatch> mismatches = refreshPlacementVerifier(
                 placement, containerPos, foundInventory, foundDisabledSlots);
 
@@ -248,7 +266,12 @@ final class QuickLitematicaContainerScreenBinding {
                 || handler instanceof BrewingStandMenu;
     }
 
-    static boolean isSupportedHandlerForExpectedContainer(AbstractContainerMenu handler, ExpectedContainer expectedContainer) {
+    static boolean isSupportedHandlerForExpectedContainer(
+            AbstractContainerMenu handler, ExpectedContainer expectedContainer, BlockState actualState
+    ) {
+        if (actualState == null || actualState.getBlock() != expectedContainer.state().getBlock()) {
+            return false;
+        }
         QuickContainerCopy.PublicContainerType type = QuickContainerCopy.getPublicContainerType(
                 expectedContainer.state().getBlock(),
                 QuickLitematicaContainerInventory.getChestType(expectedContainer.state())
@@ -262,7 +285,7 @@ final class QuickLitematicaContainerScreenBinding {
             case HOPPER -> handler instanceof HopperMenu;
             case SMALL_CHEST, BARREL -> handler instanceof ChestMenu genericHandler
                     && genericHandler.getRowCount() == 3;
-            case LARGE_CHEST -> handler instanceof ChestMenu genericHandler
+            case LARGE_CHEST, LARGE_BARREL -> handler instanceof ChestMenu genericHandler
                     && genericHandler.getRowCount() == 6;
             case SHULKER_BOX -> handler instanceof ShulkerBoxMenu;
             case DISPENSER, DROPPER -> handler instanceof DispenserMenu;

@@ -19,8 +19,8 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 public abstract class MinecraftClientContinuousFillUseMixin {
     @Inject(method = "setScreen", at = @At("HEAD"), cancellable = true)
     private void quickcraft$suppressBackgroundHandledScreen(Screen screen, CallbackInfo ci) {
-        if (screen instanceof AbstractContainerScreen<?>
-                && (QuickContainerCopy.shouldSuppressBackgroundHandledScreenOpen()
+        if (screen instanceof AbstractContainerScreen<?> containerScreen
+                && (QuickContainerCopy.shouldSuppressBackgroundHandledScreenOpen(containerScreen.getMenu())
                 || QuickMaterialCollector.shouldSuppressBackgroundHandledScreenOpen())) {
             ci.cancel();
         }

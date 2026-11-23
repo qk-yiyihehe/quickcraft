@@ -172,8 +172,11 @@ public abstract class LitematicaSchematicVerifierMixin extends TaskBase implemen
     }
 
     @Override
-    public List<ContainerMismatch> quickcraft$refreshContainerMismatchAt(BlockPos pos, Inventory foundInventory, Set<Integer> foundDisabledSlots) {
-        return this.quickcraft$containerVerification.quickcraft$refreshContainerMismatchAt(pos, foundInventory, foundDisabledSlots);
+    public List<ContainerMismatch> quickcraft$refreshContainerMismatchAt(
+            BlockPos pos, Inventory foundInventory, Set<Integer> foundDisabledSlots, boolean confirmedLargeBarrelHalf
+    ) {
+        return this.quickcraft$containerVerification.quickcraft$refreshContainerMismatchAt(
+                pos, foundInventory, foundDisabledSlots, confirmedLargeBarrelHalf);
     }
 
     @WrapOperation(
