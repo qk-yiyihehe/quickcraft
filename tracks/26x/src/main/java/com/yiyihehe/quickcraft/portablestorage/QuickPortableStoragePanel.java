@@ -4,6 +4,7 @@ import com.ibm.icu.text.Transliterator;
 import com.mojang.blaze3d.platform.InputConstants;
 import com.yiyihehe.quickcraft.QuickCraftKeyBindings;
 import com.yiyihehe.quickcraft.QuickSlotTransfer;
+import com.yiyihehe.quickcraft.QuickSort;
 import com.yiyihehe.quickcraft.config.QuickCraftConfigs;
 import com.yiyihehe.quickcraft.mixin.RecipeBookToggleButtonAccessor;
 import com.yiyihehe.quickcraft.mixin.RecipeBookScreenAccessor;
@@ -30,9 +31,12 @@ import net.minecraft.world.item.Items;
 import net.minecraft.world.level.block.Block;
 
 import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -67,6 +71,7 @@ public final class QuickPortableStoragePanel {
     private boolean shown = QuickCraftConfigs.ContainerTools.PORTABLE_STORAGE_OPEN_BY_DEFAULT.getBooleanValue();
     private final QuickCompactIconButton button;
     private final EditBox search;
+    private final Map<Source, Set<QuickCrossBoxSortStackKey>> sourceOrders = new EnumMap<>(Source.class);
     private final List<QuickCrossBoxSortStackKey> order = new ArrayList<>();
     private final Map<QuickCrossBoxSortStackKey, Integer> amounts = new LinkedHashMap<>();
     private final Map<String, String> pinyin = new HashMap<>();
@@ -257,13 +262,7 @@ public final class QuickPortableStoragePanel {
         for (int i = 0; !changed && i < 36; i++) {
             changed = !same(inventorySnapshot.get(i), inventory.getItem(i));
         }
-        // Keep positions fixed during a take drag so another item cannot slide under the pointer.
-        boolean takingGesture = taking && gesture == InputConstants.MOUSE_BUTTON_LEFT;
         if (!changed) {
-            if (!takingGesture && order.size() != amounts.size()) {
-                order.removeIf(key -> !amounts.containsKey(key));
-                clampScroll();
-            }
             return;
         }
         dirty = false;
@@ -273,25 +272,32 @@ public final class QuickPortableStoragePanel {
         }
         lastStorageRevision = currentStorageRevision;
         amounts.clear();
-        String query = search.getValue().strip().toLowerCase(Locale.ROOT);
         for (Entry entry : entries(client.player, source)) {
             var key = new QuickCrossBoxSortStackKey(entry.stack());
             amounts.merge(key, entry.stack().getCount(), Integer::sum);
         }
-        amounts.keySet().removeIf(key -> {
-            ItemStack stack = key.template();
-            return !category.accepts(stack) || !matches(stack, query);
-        });
-        if (!takingGesture) {
-            order.removeIf(key -> !amounts.containsKey(key));
+        var sourceOrder = sourceOrders.computeIfAbsent(source, ignored -> new LinkedHashSet<>());
+        // Retain emptied slots until the inventory closes so stock changes cannot move a click target.
+        if (sourceOrder.isEmpty() && amounts.size() > 1) {
+            QuickSort.prepareCrossBoxOrder();
+            amounts.keySet().stream()
+                    .sorted(Comparator.<QuickCrossBoxSortStackKey>comparingInt(amounts::get).reversed()
+                            .thenComparing(QuickCrossBoxSortStackKey::template, QuickSort::compareCrossBoxStacks))
+                    .forEachOrdered(sourceOrder::add);
+        } else {
+            sourceOrder.addAll(amounts.keySet());
         }
-        Set<QuickCrossBoxSortStackKey> placed = new HashSet<>(order);
-        for (var key : amounts.keySet()) {
-            if (placed.add(key)) {
+
+        order.clear();
+        String query = search.getValue().strip().toLowerCase(Locale.ROOT);
+        for (var key : sourceOrder) {
+            ItemStack stack = key.template();
+            if (category.accepts(stack) && matches(stack, query)) {
                 order.add(key);
+            } else {
+                amounts.remove(key);
             }
         }
-        clampScroll();
     }
 
     private boolean matches(ItemStack stack, String query) {
@@ -526,11 +532,7 @@ public final class QuickPortableStoragePanel {
     }
 
     private int maxScroll() {
-        int last = order.size();
-        while (last > 0 && !amounts.containsKey(order.get(last - 1))) {
-            last--;
-        }
-        return Math.max(0, (last + columns - 1) / columns - rows);
+        return Math.max(0, (order.size() + columns - 1) / columns - rows);
     }
 
     private void takeAt(double x, double y, Mode mode) {
