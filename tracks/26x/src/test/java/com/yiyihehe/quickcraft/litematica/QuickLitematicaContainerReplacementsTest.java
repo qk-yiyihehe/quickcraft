@@ -70,6 +70,27 @@ class QuickLitematicaContainerReplacementsTest {
     }
 
     @Test
+    void individualContainerSlotOverridesGroupOnlyAtItsOwnLocation() {
+        ItemStack source = new ItemStack(item("minecraft:stone"), 32);
+        String targeted = "group@4:test:0";
+        String neighboring = "group@4:test:1";
+        var scope = QuickLitematicaContainerReplacements.Scope.CONTAINER;
+        var groupRule = roundTrip(source, new ItemStack(item("minecraft:glass")), 4, true);
+        String encoded = QuickLitematicaContainerReplacements.encodeContainerRule(
+                new QuickLitematicaContainerReplacements.ContainerReplacement(source, ItemStack.EMPTY,
+                        "context", targeted, 4, false), lookup);
+        var individual = QuickLitematicaContainerReplacements.decodeContainerRule(encoded, lookup);
+        assertThat(individual).isNotNull();
+        var rules = List.of(groupRule, individual);
+        assertThat(QuickLitematicaContainerReplacements.findRule(rules, source, scope, "context", targeted, 4))
+                .isSameAs(individual);
+        assertThat(QuickLitematicaContainerReplacements.findRule(rules, source, scope, "context", neighboring, 4))
+                .isSameAs(groupRule);
+        assertThat(QuickLitematicaContainerReplacements.findRule(rules, source, scope, "context", "group", 4))
+                .isSameAs(groupRule);
+    }
+
+    @Test
     void canFillEmptySlotAndKeepExplicitCount() {
         var rule = roundTrip(ItemStack.EMPTY, new ItemStack(item("minecraft:glass"), 7), 8, false);
         var selected = QuickLitematicaContainerReplacements.findRule(List.of(rule), ItemStack.EMPTY,

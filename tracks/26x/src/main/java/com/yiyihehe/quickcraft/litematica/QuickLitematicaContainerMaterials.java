@@ -177,11 +177,11 @@ public final class QuickLitematicaContainerMaterials {
             data = ContainerMaterialsData.create(accessor.quickcraft$getSchematic(), accessor.quickcraft$getRegions(),
                     QuickLitematicaMaterialLists.getContainerReplacementContextKey(accessor.quickcraft$getSchematic()));
         } else { return; }
-        saveCopy(data);
+        saveCopy(data.liveSchematic, data.replacementContextKey);
     }
 
-    private static void saveCopy(ContainerMaterialsData data) {
-        var sourceFile = QuickLitematicaContainerMaterialsAccess.schematicPath(data.liveSchematic);
+    static void saveCopy(LitematicaSchematic schematic, String context) {
+        var sourceFile = QuickLitematicaContainerMaterialsAccess.schematicPath(schematic);
         if (sourceFile == null) {
             InfoUtils.showGuiOrInGameMessage(MessageType.ERROR, "quickcraft.litematica.error.copy_no_source");
             return;
@@ -189,7 +189,7 @@ public final class QuickLitematicaContainerMaterials {
         try {
             Path source = sourceFile.toAbsolutePath();
             var copy = QuickLitematicaGlobalReplacements.createReplacementCopy(
-                    QuickLitematicaContainerMemory.original(data.liveSchematic), data.replacementContextKey);
+                    QuickLitematicaContainerMemory.original(schematic), context);
             var output = QuickLitematicaDataCompat.schematicNbt(copy);
             Path destination = writeNumberedCopy(source, output);
             InfoUtils.showGuiOrInGameMessage(MessageType.INFO, "quickcraft.litematica.message.copy_saved", destination.toString());
@@ -210,58 +210,32 @@ public final class QuickLitematicaContainerMaterials {
                 QuickLitematicaContainerReplacements.Scope.CONTAINER, context))) { return copy; }
         for (String region : regions) {
             var entities = QuickLitematicaContainerMaterialsAccess.getBlockEntities(copy, region);
-            replaceContainerItems(copy.getSubRegionContainer(region), entities, copy.getEntityListForRegion(region), context, globals);
+            replaceContainerItems(copy.getSubRegionContainer(region), entities, copy.getEntityListForRegion(region), region, context, globals);
             if (entities != null) { QuickLitematicaContainerMaterialsAccess.setBlockEntities(copy, region, entities); }
         }
         return copy;
     }
 
     static void replaceContainerItems(LitematicaBlockStateContainer states, Map<BlockPos, CompoundTag> entities,
-                                      List<EntityInfo> entityList, String context, boolean globals) {
+                                      List<EntityInfo> entityList, String region, String context, boolean globals) {
         HolderLookup.Provider lookup = getRegistryLookup();
         if (lookup == null) { throw new IllegalStateException("Registry lookup unavailable"); }
         Set<BlockPos> consumed = new HashSet<>();
+        Set<String> individualGroups = QuickLitematicaContainerReplacements.individualContainerGroups(context);
         if (entities != null) {
-            for (var entry : entities.entrySet()) {
-                BlockPos pos = entry.getKey();
-                if (consumed.contains(pos)) { continue; }
-                var slots = readItems(entry.getValue(), lookup);
-                if (slots == null || slots.isEmpty()) { continue; }
-                int firstSize = slots.size();
-                BlockState state = getState(states, pos);
-                BlockPos paired = findPairedChest(pos, state, states, entities, consumed);
-                consumed.add(pos);
-                int pairedSize = 0;
-                if (paired != null) {
-                    var pairedSlots = readItems(entities.get(paired), lookup);
-                    if (pairedSlots == null) { continue; }
-                    List<ItemStack> currentHalf = padChestHalf(slots);
-                    List<ItemStack> pairedHalf = padChestHalf(pairedSlots);
-                    if (currentHalf == null || pairedHalf == null) { continue; }
-                    firstSize = currentHalf.size();
-                    pairedSize = pairedHalf.size();
-                    List<ItemStack> ordered = new ArrayList<>(firstSize + pairedSize);
-                    if (state.getValue(ChestBlock.TYPE) == ChestType.RIGHT) {
-                        ordered.addAll(currentHalf);
-                        ordered.addAll(pairedHalf);
-                    } else {
-                        ordered.addAll(pairedHalf);
-                        ordered.addAll(currentHalf);
-                    }
-                    slots = ordered;
-                    consumed.add(paired);
-                }
-                var descriptor = describeBlockContainer(state, entry.getValue(), paired != null);
-                var replaced = exportSlotStacks(descriptor.stack(), slots, context, lookup, 0, globals);
+            for (BlockPos pos : entities.keySet()) {
+                var container = readBlockContainer(states, entities, pos, lookup, consumed, false);
+                if (container == null || (container.slots().isEmpty() && individualGroups.isEmpty())) { continue; }
+                String group = container.ruleGroup(region, individualGroups);
+                var slots = group.indexOf('@') < 0 ? container.slots() : container.editableSlots();
+                if (slots.isEmpty()) { continue; }
+                var replaced = exportSlotStacks(container.descriptor().stack(), slots, context, lookup, 0, globals, false, group);
                 if (!haveSlotChanges(slots, replaced)) { continue; }
-                if (paired == null) {
-                    writeSlotStacks(entry.getValue(), replaced, lookup);
-                } else if (state.getValue(ChestBlock.TYPE) == ChestType.RIGHT) {
-                    writeSlotStacks(entry.getValue(), replaced.subList(0, firstSize), lookup);
-                    writeSlotStacks(entities.get(paired), replaced.subList(firstSize, replaced.size()), lookup);
+                if (container.second() == null) {
+                    writeSlotStacks(entities.get(container.first()), replaced, lookup);
                 } else {
-                    writeSlotStacks(entities.get(paired), replaced.subList(0, pairedSize), lookup);
-                    writeSlotStacks(entry.getValue(), replaced.subList(pairedSize, replaced.size()), lookup);
+                    writeSlotStacks(entities.get(container.first()), replaced.subList(0, 27), lookup);
+                    writeSlotStacks(entities.get(container.second()), replaced.subList(27, replaced.size()), lookup);
                 }
             }
         }
@@ -318,10 +292,16 @@ public final class QuickLitematicaContainerMaterials {
 
     private static List<ItemStack> exportSlotStacks(ItemStack container, List<ItemStack> slots, String context,
                                                     HolderLookup.Provider lookup, int depth, boolean globals, boolean hudStatistics) {
+        return exportSlotStacks(container, slots, context, lookup, depth, globals, hudStatistics, null);
+    }
+
+    private static List<ItemStack> exportSlotStacks(ItemStack container, List<ItemStack> slots, String context,
+                                                    HolderLookup.Provider lookup, int depth, boolean globals, boolean hudStatistics,
+                                                    String group) {
         var identitySlots = hudStatistics && isShulkerBox(container)
                 && !fi.dy.masa.malilib.util.InventoryUtils.getStoredItems(container).isEmpty()
                 ? readStoredShulkerStacks(container) : slots;
-        String group = QuickLitematicaContainerReplacements.containerGroupSignature(container, identitySlots);
+        if (group == null) { group = QuickLitematicaContainerReplacements.containerGroupSignature(container, identitySlots); }
         var replaced = globals ? QuickLitematicaGlobalReplacements.containerSlots(slots, context, group)
                 : getReplacedSlotStacks(slots, context, group);
         if (depth < 4) {
@@ -385,82 +365,156 @@ public final class QuickLitematicaContainerMaterials {
         return client.level != null ? client.level.registryAccess() : null;
     }
 
-    private static List<ContainerGroup> createContainerGroups(LitematicaSchematic schematic, Collection<String> regions) {
-        return createContainerGroups(schematic, regions, false);
-    }
-
     private static List<ContainerGroup> createContainerGroups(LitematicaSchematic schematic, Collection<String> regions,
-                                                              boolean hudStatistics) {
+                                                              Set<String> individualGroups, boolean hudStatistics) {
         HolderLookup.Provider registryLookup = getRegistryLookup();
         GroupAccumulator accumulator = new GroupAccumulator(hudStatistics);
 
-        if (registryLookup == null) {
-            return List.of();
-        }
+        if (registryLookup == null) { return List.of(); }
 
-        for (String regionName : regions) {
-            addBlockEntityContainers(schematic, regionName, registryLookup, accumulator);
-            addEntityContainers(schematic, regionName, registryLookup, accumulator);
+        for (String region : regions) {
+            var entities = QuickLitematicaContainerMaterialsAccess.getBlockEntities(schematic, region);
+            if (entities != null) {
+                var states = schematic.getSubRegionContainer(region);
+                Set<BlockPos> consumed = new HashSet<>();
+                for (BlockPos pos : entities.keySet()) {
+                    var container = readBlockContainer(states, entities, pos, registryLookup, consumed, true);
+                    if (container == null || (container.slots().isEmpty() && individualGroups.isEmpty())) { continue; }
+                    String group = container.ruleGroup(region, individualGroups);
+                    boolean individual = group.indexOf('@') >= 0;
+                    var slots = individual ? container.editableSlots() : container.slots();
+                    var descriptor = container.descriptor();
+                    List<ItemCount> contents = countStacks(slots);
+                    if (contents.isEmpty() && !individual) { continue; }
+                    String label = individual ? region + " · " + container.first().toShortString() : null;
+                    accumulator.add(descriptor.stack(), descriptor.displayName(), label, contents, slots, 1, false, group);
+                    addStoredShulkerGroups(accumulator, descriptor.displayName(), contents, 0, 1);
+                }
+            }
+            addEntityContainers(schematic, region, registryLookup, accumulator);
         }
 
         return accumulator.toGroups();
     }
 
-    private static void addBlockEntityContainers(
-            LitematicaSchematic schematic,
-            String regionName,
-            HolderLookup.Provider registryLookup,
-            GroupAccumulator accumulator
-    ) {
-        Map<BlockPos, CompoundTag> blockEntities = QuickLitematicaContainerMaterialsAccess.getBlockEntities(schematic, regionName);
+    static BlockContainer readBlockContainer(LitematicaSchematic schematic, String region, BlockPos pos) {
+        var entities = QuickLitematicaContainerMaterialsAccess.getBlockEntities(schematic, region);
+        var lookup = getRegistryLookup();
+        if (entities == null || lookup == null) {
+            return null;
+        }
+        var container = readBlockContainer(
+                schematic.getSubRegionContainer(region), entities, pos, lookup, new HashSet<>(), false
+        );
+        return container == null || unresolvedLoot(entities.get(container.first()))
+                || (container.second() != null && unresolvedLoot(entities.get(container.second()))) ? null : container;
+    }
 
-        if (blockEntities == null || blockEntities.isEmpty()) {
-            return;
+    private static BlockContainer readBlockContainer(
+            LitematicaBlockStateContainer states,
+            Map<BlockPos, CompoundTag> entities,
+            BlockPos pos,
+            HolderLookup.Provider lookup,
+            Set<BlockPos> consumed,
+            boolean statistics
+    ) {
+        if (consumed.contains(pos)) {
+            return null;
+        }
+        var nbt = entities.get(pos);
+        if (nbt == null) {
+            return null;
+        }
+        var stacks = readItems(nbt, lookup, statistics);
+        if (stacks == null) {
+            return null;
         }
 
-        LitematicaBlockStateContainer stateContainer = schematic.getSubRegionContainer(regionName);
-        Set<BlockPos> consumed = new HashSet<>();
+        var state = getState(states, pos);
+        BlockPos second = findPairedChest(pos, state, states, entities, consumed);
+        var descriptor = describeBlockContainer(state, nbt, second != null);
+        consumed.add(pos);
+        if (second == null) {
+            return new BlockContainer(pos, null, descriptor, state, stacks);
+        }
 
-        for (Map.Entry<BlockPos, CompoundTag> entry : blockEntities.entrySet()) {
-            BlockPos pos = entry.getKey();
+        var otherNbt = entities.get(second);
+        var currentHalf = padChestHalf(stacks);
+        var otherHalf = padChestHalf(readItems(otherNbt, lookup, statistics));
+        if (currentHalf == null || otherHalf == null) {
+            return null;
+        }
+        consumed.add(second);
+        boolean startsWithCurrent = state.getValue(ChestBlock.TYPE) == ChestType.RIGHT;
+        var ordered = new ArrayList<ItemStack>(54);
+        ordered.addAll(startsWithCurrent ? currentHalf : otherHalf);
+        ordered.addAll(startsWithCurrent ? otherHalf : currentHalf);
+        return new BlockContainer(startsWithCurrent ? pos : second, startsWithCurrent ? second : pos,
+                descriptor, state, ordered);
+    }
 
-            if (consumed.contains(pos)) {
-                continue;
+    private static boolean unresolvedLoot(CompoundTag nbt) {
+        return nbt != null && nbt.contains("LootTable") && !nbt.contains("Items");
+    }
+
+    static int containerSize(BlockState state, BlockPos pos) {
+        return state != null && state.getBlock() instanceof net.minecraft.world.level.block.EntityBlock provider
+                && provider.newBlockEntity(pos, state) instanceof net.minecraft.world.Container inventory
+                ? inventory.getContainerSize() : 0;
+    }
+
+    record BlockContainer(
+            BlockPos first,
+            BlockPos second,
+            ContainerDescriptor descriptor,
+            BlockState state,
+            List<ItemStack> slots
+    ) {
+        // 双箱始终用原理图槽位顺序的第一半定位，瞄准任一半都写入同一库存规则。
+        String individualGroup(String region, String group) {
+            return group + '@' + region.length() + ':' + region + ':' + this.first.asLong();
+        }
+
+        String ruleGroup(String region, Set<String> individualGroups) {
+            String group = QuickLitematicaContainerReplacements.containerGroupSignature(this.descriptor.stack(), this.slots);
+            if (individualGroups.isEmpty()) {
+                return group;
             }
+            String individual = this.individualGroup(region, group);
+            return individualGroups.contains(individual) ? individual : group;
+        }
 
-            CompoundTag nbt = entry.getValue();
-            List<ItemStack> stacks = readItemsForStatistics(nbt, registryLookup);
-
-            if (stacks == null || stacks.isEmpty()) {
-                continue;
+        List<ItemStack> editableSlots() {
+            if (this.second != null) {
+                return this.slots;
             }
-
-            BlockState state = getState(stateContainer, pos);
-            BlockPos pairedChestPos = findPairedChest(pos, state, stateContainer, blockEntities, consumed);
-            ContainerDescriptor descriptor = describeBlockContainer(state, nbt, pairedChestPos != null);
-
-            consumed.add(pos);
-
-            if (pairedChestPos != null) {
-                CompoundTag pairedNbt = blockEntities.get(pairedChestPos);
-                var pairedStacks = readItemsForStatistics(pairedNbt, registryLookup);
-                if (pairedStacks == null) { continue; }
-                List<ItemStack> currentHalf = padChestHalf(stacks);
-                List<ItemStack> pairedHalf = padChestHalf(pairedStacks);
-                if (currentHalf == null || pairedHalf == null) { continue; }
-                if (state.getValue(ChestBlock.TYPE) == ChestType.RIGHT) {
-                    currentHalf.addAll(pairedHalf);
-                    stacks = currentHalf;
-                } else {
-                    List<ItemStack> ordered = new ArrayList<>(pairedHalf.size() + currentHalf.size());
-                    ordered.addAll(pairedHalf);
-                    ordered.addAll(currentHalf);
-                    stacks = ordered;
-                }
-                consumed.add(pairedChestPos);
+            int size = containerSize(this.state, this.first);
+            if (size <= this.slots.size()) {
+                return this.slots;
             }
+            List<ItemStack> padded = new ArrayList<>(this.slots);
+            while (padded.size() < size) {
+                padded.add(ItemStack.EMPTY);
+            }
+            return padded;
+        }
 
-            addContainer(accumulator, descriptor, stacks);
+        ContainerGroup editableGroup(String region) {
+            var stacks = this.editableSlots();
+            if (stacks.isEmpty()) {
+                return null;
+            }
+            String base = QuickLitematicaContainerReplacements.containerGroupSignature(this.descriptor.stack(), this.slots);
+            return new ContainerGroup(
+                    this.descriptor.stack(),
+                    this.descriptor.displayName(),
+                    null,
+                    1,
+                    stacks,
+                    countStacks(stacks),
+                    false,
+                    this.individualGroup(region, base)
+            );
         }
     }
 
@@ -884,6 +938,11 @@ public final class QuickLitematicaContainerMaterials {
         ) {
             var identitySlots = this.hudStatistics && nestedShulker ? readStoredShulkerStacks(stack) : slotStacks;
             String signature = QuickLitematicaContainerReplacements.containerGroupSignature(stack, identitySlots);
+            this.add(stack, displayName, sourceLabel, contents, slotStacks, count, nestedShulker, signature);
+        }
+
+        private void add(ItemStack stack, String displayName, String sourceLabel, List<ItemCount> contents,
+                         List<ItemStack> slotStacks, int count, boolean nestedShulker, String signature) {
             GroupBuilder builder = this.groups.computeIfAbsent(
                     signature,
                     key -> new GroupBuilder(stack.copy(), displayName, sourceLabel, contents, slotStacks, nestedShulker, signature)
@@ -961,6 +1020,7 @@ public final class QuickLitematicaContainerMaterials {
         private List<ContainerGroup> hudGroups;
         private HolderLookup.Provider groupLookup;
         private long groupSourceVersion = -1;
+        private Set<String> individualGroups = Set.of();
 
         ContainerMaterialsData(
                 LitematicaSchematic schematic,
@@ -1003,8 +1063,11 @@ public final class QuickLitematicaContainerMaterials {
             var source = QuickLitematicaContainerMemory.original(this.liveSchematic);
             var version = QuickLitematicaContainerMemory.originalVersion(this.liveSchematic);
             var lookup = getRegistryLookup();
-            if (source == this.schematic && version == this.groupSourceVersion && lookup == this.groupLookup) { return; }
-            this.groups = createContainerGroups(source, this.regions);
+            var groupsWithRules = QuickLitematicaContainerReplacements.individualContainerGroups(this.replacementContextKey);
+            if (source == this.schematic && version == this.groupSourceVersion && lookup == this.groupLookup
+                    && groupsWithRules.equals(this.individualGroups)) { return; }
+            this.individualGroups = groupsWithRules;
+            this.groups = createContainerGroups(source, this.regions, this.individualGroups, false);
             this.schematic = source;
             this.groupSourceVersion = version;
             this.groupLookup = lookup;
@@ -1014,15 +1077,20 @@ public final class QuickLitematicaContainerMaterials {
         List<ContainerGroup> hudGroups() {
             // HUD 会逐帧刷新数量，扩容分组只随原理图数据刷新重建。
             if (this.hudGroups == null) {
-                this.hudGroups = createContainerGroups(this.schematic, this.regions, true);
+                this.hudGroups = createContainerGroups(this.schematic, this.regions, this.individualGroups, true);
             }
             return this.hudGroups;
         }
 
         List<ContainerGroup> visibleGroups() {
             return this.groups.stream()
-                    .filter(group -> !this.ignoredGroupSignatures.contains(group.signature()))
+                    .filter(group -> !this.isGroupIgnored(group))
                     .toList();
+        }
+
+        private boolean isGroupIgnored(ContainerGroup group) {
+            return this.ignoredGroupSignatures.contains(group.signature())
+                    || this.ignoredGroupSignatures.contains(QuickLitematicaContainerReplacements.baseContainerGroup(group.signature()));
         }
 
         QuickLitematicaMaterialReplacementScreen.ReplacementBinding createSummaryReplacementBinding(ItemStack source) {
@@ -1078,7 +1146,7 @@ public final class QuickLitematicaContainerMaterials {
                     for (SummarySlot slot : slots) {
                         if (!hasSlotOverride(slot)) {
                             rules.add(new QuickLitematicaContainerReplacements.ContainerReplacement(
-                                    slot.source(), target, replacementContextKey, slot.group().signature(), -1, preserveCount));
+                                    slot.source(), target, replacementContextKey, QuickLitematicaContainerReplacements.baseContainerGroup(slot.group().signature()), -1, preserveCount));
                         }
                     }
                     QuickLitematicaContainerReplacements.setContainerReplacementRules(rules);
@@ -1095,7 +1163,7 @@ public final class QuickLitematicaContainerMaterials {
             for (SummarySlot slot : this.matchingSummarySlots(source == null ? ItemStack.EMPTY : source)) {
                 if (QuickLitematicaContainerReplacements.getReplacementTarget(slot.source(),
                         QuickLitematicaContainerReplacements.Scope.CONTAINER, this.replacementContextKey,
-                        slot.group().signature(), -1).isPresent()) { return true; }
+                        QuickLitematicaContainerReplacements.baseContainerGroup(slot.group().signature()), -1).isPresent()) { return true; }
             }
             return false;
         }
@@ -1110,6 +1178,12 @@ public final class QuickLitematicaContainerMaterials {
         QuickLitematicaMaterialReplacementScreen.ReplacementBinding createSlotReplacementBinding(
                 ContainerGroup group,
                 int slotIndex
+        ) {
+            return createSlotReplacementBinding(this.replacementContextKey, group, slotIndex);
+        }
+
+        static QuickLitematicaMaterialReplacementScreen.ReplacementBinding createSlotReplacementBinding(
+                String replacementContextKey, ContainerGroup group, int slotIndex
         ) {
             ItemStack sourceStack = slotIndex >= 0 && slotIndex < group.slotStacks().size()
                     ? group.slotStacks().get(slotIndex)
@@ -1130,8 +1204,13 @@ public final class QuickLitematicaContainerMaterials {
 
                 @Override
                 public void keepOriginal(ItemStack ignoredSource) {
+                    String baseGroup = QuickLitematicaContainerReplacements.baseContainerGroup(group.signature());
+                    int fallbackSlot = baseGroup.equals(group.signature()) ? -1 : slotIndex;
                     Optional<ItemStack> bulk = QuickLitematicaContainerReplacements.getReplacementTarget(sourceCopy,
-                            QuickLitematicaContainerReplacements.Scope.CONTAINER, replacementContextKey, group.signature(), -1);
+                            QuickLitematicaContainerReplacements.Scope.CONTAINER, replacementContextKey, baseGroup, fallbackSlot);
+                    if (fallbackSlot >= 0 && bulk.isEmpty()) {
+                        bulk = QuickLitematicaGlobalReplacements.target(sourceCopy, QuickLitematicaContainerReplacements.Scope.CONTAINER);
+                    }
                     if (bulk.isPresent() && hasStackChange(sourceCopy, bulk.get())) {
                         this.apply(ignoredSource, sourceCopy.copy());
                     } else {
@@ -1144,7 +1223,7 @@ public final class QuickLitematicaContainerMaterials {
                     return QuickLitematicaContainerReplacements.getReplacementTarget(
                             sourceCopy,
                             QuickLitematicaContainerReplacements.Scope.CONTAINER,
-                            ContainerMaterialsData.this.replacementContextKey,
+                            replacementContextKey,
                             group.signature(),
                             slotIndex
                     );
@@ -1166,7 +1245,7 @@ public final class QuickLitematicaContainerMaterials {
                     QuickLitematicaContainerReplacements.removeReplacementRule(
                             sourceCopy,
                             QuickLitematicaContainerReplacements.Scope.CONTAINER,
-                            ContainerMaterialsData.this.replacementContextKey,
+                            replacementContextKey,
                             group.signature(),
                             slotIndex
                     );
@@ -1175,6 +1254,12 @@ public final class QuickLitematicaContainerMaterials {
         }
 
         QuickLitematicaMaterialReplacementScreen.ReplacementBinding createBatchSlotBinding(List<SummarySlot> slots) {
+            return createBatchSlotBinding(this.replacementContextKey, slots);
+        }
+
+        static QuickLitematicaMaterialReplacementScreen.ReplacementBinding createBatchSlotBinding(
+                String replacementContextKey, List<SummarySlot> slots
+        ) {
             return new QuickLitematicaMaterialReplacementScreen.ReplacementBinding() {
                 @Override
                 public boolean supportsCount() { return true; }
@@ -1216,12 +1301,12 @@ public final class QuickLitematicaContainerMaterials {
 
                 @Override
                 public void clear(ItemStack source) {
-                    slots.forEach(slot -> createSlotReplacementBinding(slot.group(), slot.slotIndex()).clear(slot.source()));
+                    slots.forEach(slot -> createSlotReplacementBinding(replacementContextKey, slot.group(), slot.slotIndex()).clear(slot.source()));
                 }
 
                 @Override
                 public void keepOriginal(ItemStack source) {
-                    slots.forEach(slot -> createSlotReplacementBinding(slot.group(), slot.slotIndex()).keepOriginal(slot.source()));
+                    slots.forEach(slot -> createSlotReplacementBinding(replacementContextKey, slot.group(), slot.slotIndex()).keepOriginal(slot.source()));
                 }
             };
         }
@@ -1333,7 +1418,7 @@ public final class QuickLitematicaContainerMaterials {
                         slot.source(),
                         QuickLitematicaContainerReplacements.Scope.CONTAINER,
                         this.replacementContextKey,
-                        slot.group().signature(),
+                        QuickLitematicaContainerReplacements.baseContainerGroup(slot.group().signature()),
                         -1
                 );
             }
@@ -1678,6 +1763,7 @@ public final class QuickLitematicaContainerMaterials {
             boolean resetHidden = this.hudEntries == null || this.hudRevision != revision || this.hudIgnoredHash != ignoredHash;
             if (refresh || resetHidden) {
                 if (resetHidden) {
+                    this.data.refresh();
                     this.hudHidden.clear();
                 }
                 Object2IntOpenHashMap<ItemKey> counts = new Object2IntOpenHashMap<>();
@@ -1686,8 +1772,8 @@ public final class QuickLitematicaContainerMaterials {
                 for (var entry : this.ignored) { ignoredSources.add(QuickLitematicaContainerMaterialsAccess.createItemKey(entry.getStack())); }
                 String context = QuickLitematicaContainerMemory.appliedContext(this.data.liveSchematic, this.data.replacementContextKey);
                 for (ContainerGroup group : this.data.hudGroups()) {
-                    if (this.data.ignoredGroupSignatures.contains(group.signature())) { continue; }
-                    var targets = exportSlotStacks(group.containerStack(), group.slotStacks(), context, getRegistryLookup(), 0, false, true);
+                    if (this.data.isGroupIgnored(group)) { continue; }
+                    var targets = exportSlotStacks(group.containerStack(), group.slotStacks(), context, getRegistryLookup(), 0, false, true, group.signature());
                     for (int slot = 0; slot < targets.size(); slot++) {
                         ItemStack original = group.slotStacks().get(slot);
                         ItemStack target = targets.get(slot);

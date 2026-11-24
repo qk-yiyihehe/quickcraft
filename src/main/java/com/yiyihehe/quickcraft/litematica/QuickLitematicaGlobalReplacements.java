@@ -4,6 +4,8 @@ import com.yiyihehe.quickcraft.config.QuickCraftConfigs;
 import fi.dy.masa.litematica.data.DataManager;
 import fi.dy.masa.litematica.schematic.LitematicaSchematic;
 import fi.dy.masa.litematica.schematic.placement.SchematicPlacement;
+import fi.dy.masa.litematica.schematic.placement.SubRegionPlacement;
+import fi.dy.masa.litematica.util.PositionUtils;
 import fi.dy.masa.malilib.config.options.ConfigStringList;
 import net.minecraft.block.BlockState;
 import net.minecraft.item.ItemStack;
@@ -263,32 +265,88 @@ public final class QuickLitematicaGlobalReplacements {
         }
     }
 
+    static Location projectedLocation(BlockPos pos, BlockState projectedState) {
+        var manager = DataManager.getSchematicPlacementManager();
+        var selected = manager.getSelectedSchematicPlacement();
+        Location result = null;
+
+        for (var part : manager.getAllPlacementsTouchingChunk(pos)) {
+            var placement = part.getPlacement();
+            String region = part.getSubRegionName();
+            var sub = placement.getRelativeSubRegionPlacement(region);
+            if (!part.getBox().containsPos(pos)
+                    || !placement.isRenderingEnabled()
+                    || sub == null
+                    || !sub.isEnabled()
+                    || !sub.isRenderingEnabled()) {
+                continue;
+            }
+            var location = locationAt(placement, pos, runtime(placement), region, sub);
+            if (location == null || location.state().getBlock() != projectedState.getBlock()) {
+                continue;
+            }
+            if (placement == selected) {
+                return location;
+            }
+            result = location;
+        }
+
+        return result;
+    }
+
     static Location baselineLocation(SchematicPlacement placement, BlockPos pos) {
         var schematic = placement.getSchematic();
         Location result = null;
+
         for (var entry : placement.getEnabledRelativeSubRegionPlacements().entrySet()) {
-            var region = entry.getKey();
-            var container = schematic.getSubRegionContainer(region);
-            if (container == null) { continue; }
-            var sub = entry.getValue();
-            var offset = fi.dy.masa.litematica.util.PositionUtils.getTransformedBlockPos(sub.getPos(),
-                    placement.getMirror(), placement.getRotation()).add(placement.getOrigin());
-            var local = fi.dy.masa.litematica.util.PositionUtils.getReverseTransformedBlockPos(pos.subtract(offset), sub.getMirror(), sub.getRotation());
-            local = fi.dy.masa.litematica.util.PositionUtils.getReverseTransformedBlockPos(local, placement.getMirror(), placement.getRotation());
-            var min = fi.dy.masa.litematica.util.PositionUtils.getMinCorner(sub.getPos(),
-                    sub.getPos().add(fi.dy.masa.litematica.util.PositionUtils.getRelativeEndPositionFromAreaSize(schematic.getAreaSize(region))));
-            local = local.subtract(min.subtract(sub.getPos()));
-            var size = container.getSize();
-            // 原生坐标工具会把区域外坐标夹到边缘；材料统计和保存必须先检查真正的区域边界。
-            if (local.getX() < 0 || local.getY() < 0 || local.getZ() < 0 || local.getX() >= size.getX()
-                    || local.getY() >= size.getY() || local.getZ() >= size.getZ()) { continue; }
-            var state = container.get(local.getX(), local.getY(), local.getZ());
-            if (!state.isAir()) {
-                result = new Location(placement, region, local,
-                        QuickLitematicaContainerVerifier.getTransformedWorldState(state, placement, region));
+            var location = locationAt(placement, pos, schematic, entry.getKey(), entry.getValue());
+            if (location != null) {
+                result = location;
             }
         }
+
         return result;
+    }
+
+    private static Location locationAt(
+            SchematicPlacement placement,
+            BlockPos pos,
+            LitematicaSchematic schematic,
+            String region,
+            SubRegionPlacement sub
+    ) {
+        var container = schematic.getSubRegionContainer(region);
+        if (container == null) {
+            return null;
+        }
+
+        var offset = PositionUtils.getTransformedBlockPos(
+                sub.getPos(), placement.getMirror(), placement.getRotation()
+        ).add(placement.getOrigin());
+        var local = PositionUtils.getReverseTransformedBlockPos(
+                pos.subtract(offset), sub.getMirror(), sub.getRotation()
+        );
+        local = PositionUtils.getReverseTransformedBlockPos(local, placement.getMirror(), placement.getRotation());
+        var min = PositionUtils.getMinCorner(
+                sub.getPos(),
+                sub.getPos().add(
+                        PositionUtils.getRelativeEndPositionFromAreaSize(schematic.getAreaSize(region))
+                )
+        );
+        local = local.subtract(min.subtract(sub.getPos()));
+        var size = container.getSize();
+
+        // 原生坐标工具会把区域外坐标夹到边缘；材料统计和保存必须先检查真正的区域边界。
+        if (local.getX() < 0 || local.getY() < 0 || local.getZ() < 0
+                || local.getX() >= size.getX() || local.getY() >= size.getY() || local.getZ() >= size.getZ()) {
+            return null;
+        }
+
+        var state = container.get(local.getX(), local.getY(), local.getZ());
+        return state.isAir() ? null : new Location(
+                placement, region, local,
+                QuickLitematicaContainerVerifier.getTransformedWorldState(state, placement, region)
+        );
     }
 
     record Location(SchematicPlacement placement, String region, BlockPos local, BlockState state) { }

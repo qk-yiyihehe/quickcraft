@@ -18,10 +18,12 @@ import net.minecraft.resources.Identifier;
 
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.HexFormat;
 import java.util.Optional;
+import java.util.Set;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 
@@ -120,8 +122,27 @@ public final class QuickLitematicaContainerReplacements {
     }
 
     public static boolean hasSlotOverride(ItemStack source, String contextKey, String groupKey, int slotIndex) {
+        String base = baseContainerGroup(groupKey);
         return getRules(Scope.CONTAINER, contextKey).stream().anyMatch(rule ->
-                matchesLocation(rule, Scope.CONTAINER, contextKey, groupKey, slotIndex) && matchesSource(source, rule));
+                (matchesLocation(rule, Scope.CONTAINER, contextKey, groupKey, slotIndex)
+                        || matchesLocation(rule, Scope.CONTAINER, contextKey, base, slotIndex))
+                        && matchesSource(source, rule));
+    }
+
+    static String baseContainerGroup(String groupKey) {
+        if (groupKey == null) { return ""; }
+        int separator = groupKey.indexOf('@');
+        return separator < 0 ? groupKey : groupKey.substring(0, separator);
+    }
+
+    static Set<String> individualContainerGroups(String context) {
+        Set<String> groups = new HashSet<>();
+        for (ReplacementRule rule : getRules(Scope.CONTAINER, context)) {
+            if (rule.groupKey().indexOf('@') >= 0 && rule.contextKey().equals(context)) {
+                groups.add(rule.groupKey());
+            }
+        }
+        return groups;
     }
 
     private static final java.util.Set<String> migratedContexts = new java.util.HashSet<>();
@@ -430,24 +451,40 @@ public final class QuickLitematicaContainerReplacements {
 
     static ReplacementRule findRule(List<ReplacementRule> rules, ItemStack source, Scope scope,
                                     String contextKey, String groupKey, int slotIndex) {
+        String base = baseContainerGroup(groupKey);
+        if (scope == Scope.CONTAINER && !base.equals(groupKey)) {
+            if (slotIndex >= 0) {
+                ReplacementRule individual = findRuleAt(rules, source, scope, contextKey, groupKey, slotIndex);
+                if (individual != null) { return validRule(source, scope, individual); }
+            }
+            groupKey = base;
+        }
         // 精确槽位优先；保持原始也是精确规则，不能被后续总体修改覆盖。
         for (int pass = 0; pass < 2; pass++) {
             int wantedSlot = pass == 0 ? slotIndex : -1;
             if (pass == 1 && (scope != Scope.CONTAINER || slotIndex < 0)) {
                 break;
             }
-            for (ReplacementRule rule : rules) {
-                if (matchesLocation(rule, scope, contextKey, groupKey, wantedSlot) && matchesSource(source, rule)) {
-                    ItemStack target = resolveTarget(source, rule);
-                    if ((target.isEmpty() || target.getCount() <= target.getMaxStackSize())
-                            && (scope == Scope.CONTAINER || isReplacementAllowed(source, target, scope))) {
-                        return rule;
-                    }
-                    return null;
-                }
+            ReplacementRule rule = findRuleAt(rules, source, scope, contextKey, groupKey, wantedSlot);
+            if (rule != null) { return validRule(source, scope, rule); }
+        }
+        return null;
+    }
+
+    private static ReplacementRule findRuleAt(List<ReplacementRule> rules, ItemStack source, Scope scope,
+                                              String contextKey, String groupKey, int slotIndex) {
+        for (ReplacementRule rule : rules) {
+            if (matchesLocation(rule, scope, contextKey, groupKey, slotIndex) && matchesSource(source, rule)) {
+                return rule;
             }
         }
         return null;
+    }
+
+    private static ReplacementRule validRule(ItemStack source, Scope scope, ReplacementRule rule) {
+        ItemStack target = resolveTarget(source, rule);
+        return (target.isEmpty() || target.getCount() <= target.getMaxStackSize())
+                && (scope == Scope.CONTAINER || isReplacementAllowed(source, target, scope)) ? rule : null;
     }
 
     static ItemStack resolveTarget(ItemStack source, ReplacementRule rule) {

@@ -194,7 +194,7 @@ public final class QuickLitematicaContainerMemory {
             var originalEntities = state.original.getEntityListForRegion(region);
             var entities = replaceItems && originalEntities != null ? new ArrayList<>(originalEntities) : originalEntities;
             if (replaceItems) {
-                QuickLitematicaContainerMaterials.replaceContainerItems(original, blockEntities, entities, context, false);
+                QuickLitematicaContainerMaterials.replaceContainerItems(original, blockEntities, entities, region, context, false);
             }
             LitematicaBlockStateContainer blocks = null;
             if (original != null) {

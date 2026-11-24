@@ -971,6 +971,9 @@ public final class QuickCraftConfigs implements IConfigHandler {
                 "LEFT_CONTROL,C",
                 INGAME_PRESS
         ).apply(HOTKEY_TRANSLATION_PREFIX);
+        public static final ConfigHotkey OPEN_TARGET_MATERIAL_REPLACEMENT = new ConfigHotkey(
+                "openTargetMaterialReplacementHotkey", "", INGAME_PRESS
+        ).apply(HOTKEY_TRANSLATION_PREFIX);
         public static final ConfigHotkey OPEN_EASY_PLACE_ENTITY_SELECTOR = new ConfigHotkey(
                 "openEasyPlaceEntitySelectorHotkey",
                 "LEFT_ALT,E",
@@ -1052,6 +1055,7 @@ public final class QuickCraftConfigs implements IConfigHandler {
                 OPEN_LITEMATICA_AREA_3D_PREVIEW,
                 CLONE_LITEMATICA_AREA,
                 OPEN_EASY_PLACE_ENTITY_SELECTOR,
+                OPEN_TARGET_MATERIAL_REPLACEMENT,
                 SINGLE_CRAFT,
                 ANVIL_BUILD,
                 RAPID_CRAFT,
@@ -1133,6 +1137,7 @@ public final class QuickCraftConfigs implements IConfigHandler {
                 Hotkeys.OPEN_LITEMATICA_AREA_3D_PREVIEW,
                 Hotkeys.CLONE_LITEMATICA_AREA,
                 Hotkeys.OPEN_EASY_PLACE_ENTITY_SELECTOR,
+                Hotkeys.OPEN_TARGET_MATERIAL_REPLACEMENT,
                 Hotkeys.SINGLE_CRAFT,
                 Hotkeys.ANVIL_BUILD,
                 Hotkeys.RAPID_CRAFT,

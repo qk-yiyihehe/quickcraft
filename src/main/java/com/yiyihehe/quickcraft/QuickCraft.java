@@ -57,6 +57,7 @@ public class QuickCraft implements ModInitializer {
                     com.yiyihehe.quickcraft.litematica.QuickLitematicaGlobalReplacements.changed());
             QuickCraftConfigs.ProjectionTools.GLOBAL_PROJECTION_MATERIAL_REPLACEMENTS.setValueChangeCallback(config ->
                     com.yiyihehe.quickcraft.litematica.QuickLitematicaGlobalReplacements.changed());
+            com.yiyihehe.quickcraft.litematica.QuickLitematicaTargetReplacement.bindHotkey();
             QuickLitematicaSelectionPreview.bindHotkey();
             QuickLitematicaAreaClone.bindHotkey();
         }

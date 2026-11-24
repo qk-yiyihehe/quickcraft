@@ -42,6 +42,8 @@ public final class QuickLitematicaMaterialReplacementScreen extends QuickLitemat
     private final ItemStack source;
     private final ReplacementBinding binding;
     private final boolean allowsEmptyTarget;
+    private Runnable saveCopy;
+    private Runnable refreshWorldList;
     private final List<Item> allItems = new ArrayList<>();
     private final List<Item> filteredItems = new ArrayList<>();
     private GuiTextFieldGeneric searchField;
@@ -156,6 +158,18 @@ public final class QuickLitematicaMaterialReplacementScreen extends QuickLitemat
         ));
     }
 
+    static void openFromWorld(
+            ItemStack source,
+            ReplacementBinding binding,
+            Runnable saveCopy,
+            Runnable refreshWorldList
+    ) {
+        var screen = new QuickLitematicaMaterialReplacementScreen(null, source, binding);
+        screen.saveCopy = saveCopy;
+        screen.refreshWorldList = refreshWorldList;
+        GuiBase.openGui(screen);
+    }
+
     @Override
     public void initGui() {
         super.initGui();
@@ -177,7 +191,14 @@ public final class QuickLitematicaMaterialReplacementScreen extends QuickLitemat
         int buttonY = this.panelY + this.panelHeight - 30;
         ButtonGeneric apply = new ButtonGeneric(this.panelX + this.panelWidth - 62, buttonY, 50, 20,
                 StringUtils.translate("quickcraft.litematica.button.material_replace_apply"));
-        this.addButton(apply, (button, mouseButton) -> this.apply());
+        this.addButton(apply, (button, mouseButton) -> this.apply(false));
+
+        if (this.saveCopy != null) {
+            String label = StringUtils.translate("quickcraft.litematica.button.replace_and_save_copy");
+            int width = this.getStringWidth(label) + 12;
+            var save = new ButtonGeneric(this.panelX + this.panelWidth - width - 6, this.panelY + 2, width, 20, label);
+            this.addButton(save, (button, mouseButton) -> this.apply(true));
+        }
 
         if (!this.binding.selectionOnly()) {
             ButtonGeneric clear = new ButtonGeneric(this.panelX + 90, buttonY, 64, 20,
@@ -346,6 +367,10 @@ public final class QuickLitematicaMaterialReplacementScreen extends QuickLitemat
 
         String title = this.binding.selectionOnly() ? this.binding.selectionTitle()
                 : StringUtils.translate("quickcraft.litematica.title.material_replace", this.source.getHoverName().getString());
+        if (this.saveCopy != null) {
+            title = this.fitText(title, this.panelWidth - 58
+                    - this.getStringWidth(StringUtils.translate("quickcraft.litematica.button.replace_and_save_copy")));
+        }
         if (!this.binding.selectionOnly()) { drawContext.drawItem(this.source, this.panelX + 12, this.panelY + 4); }
         drawContext.drawText(this.font, title, this.panelX + (this.binding.selectionOnly() ? 12 : 34), this.panelY + 8, 0xFFFFFFFF, false);
 
@@ -711,7 +736,7 @@ public final class QuickLitematicaMaterialReplacementScreen extends QuickLitemat
         }
     }
 
-    private void apply() {
+    private void apply(boolean save) {
         if (this.selectedItem == null) {
             return;
         }
@@ -742,6 +767,9 @@ public final class QuickLitematicaMaterialReplacementScreen extends QuickLitemat
         this.binding.apply(this.source, target, preserveCount);
         this.refreshParent();
         this.closeToParent();
+        if (save) {
+            this.saveCopy.run();
+        }
     }
 
     private void clear() {
@@ -759,6 +787,8 @@ public final class QuickLitematicaMaterialReplacementScreen extends QuickLitemat
             gui.initGui();
         } else if (this.parent instanceof RefreshableParent refreshableParent) {
             refreshableParent.quickcraft$refreshAfterReplacement();
+        } else if (this.refreshWorldList != null) {
+            this.refreshWorldList.run();
         }
     }
 

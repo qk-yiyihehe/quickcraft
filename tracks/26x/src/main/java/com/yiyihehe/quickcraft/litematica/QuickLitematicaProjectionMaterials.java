@@ -88,59 +88,118 @@ public final class QuickLitematicaProjectionMaterials {
         return SELECTIONS.getOrDefault(list, Map.of()).values().stream().findFirst().orElse(ItemStack.EMPTY);
     }
 
-    public static QuickLitematicaMaterialReplacementScreen.ReplacementBinding binding(MaterialListBase list, ItemStack source) {
+    public static QuickLitematicaMaterialReplacementScreen.ReplacementBinding binding(
+            MaterialListBase list,
+            ItemStack source
+    ) {
         var sources = selected(list, source) ? List.copyOf(SELECTIONS.get(list).values()) : List.of(source.copy());
-        String context = QuickLitematicaMaterialLists.getReplacementContextKey(list);
-        LitematicaSchematic live = schematic(list);
+        return binding(
+                schematic(list),
+                regions(list),
+                QuickLitematicaMaterialLists.getReplacementContextKey(list),
+                source,
+                sources
+        );
+    }
+
+    static QuickLitematicaMaterialReplacementScreen.ReplacementBinding binding(
+            SchematicPlacement placement,
+            ItemStack source
+    ) {
+        return binding(
+                placement.getSchematic(),
+                placement.getEnabledRelativeSubRegionPlacements().keySet(),
+                QuickLitematicaMaterialLists.getContainerReplacementContextKey(placement),
+                source,
+                List.of(source.copy())
+        );
+    }
+
+    private static QuickLitematicaMaterialReplacementScreen.ReplacementBinding binding(
+            LitematicaSchematic live,
+            Collection<String> regions,
+            String context,
+            ItemStack source,
+            List<ItemStack> sources
+    ) {
         var originalSchematic = QuickLitematicaContainerMemory.original(live);
         Map<ItemType, Set<BlockState>> states = new LinkedHashMap<>();
         for (String region : originalSchematic.getAreas().keySet()) {
             var container = originalSchematic.getSubRegionContainer(region);
-            if (container == null) { continue; }
+            if (container == null) {
+                continue;
+            }
             long[] recordedCounts = QuickLitematicaContainerMemory.originalBlockCounts(live, region);
             for (int index = 0; index < recordedCounts.length; index++) {
-                if (recordedCounts[index] == 0) { continue; }
+                if (recordedCounts[index] == 0) {
+                    continue;
+                }
                 BlockState state = container.getPalette().getBlockState(index);
-                if (state == null || state.isAir()) { continue; }
+                if (state == null || state.isAir()) {
+                    continue;
+                }
                 ItemStack material = replacementSource(state);
                 states.computeIfAbsent(new ItemType(material, true, false), ignored -> new HashSet<>()).add(state);
             }
         }
         return new QuickLitematicaMaterialReplacementScreen.ReplacementBinding() {
             @Override
-            public String scopeDescription() { return StringUtils.translate("quickcraft.litematica.label.projection_batch_scope", sources.size()); }
+            public String scopeDescription() {
+                return StringUtils.translate("quickcraft.litematica.label.projection_batch_scope", sources.size());
+            }
+
             @Override
             public String emptyTargetLabel() {
-                return QuickLitematicaMaterialReplacementScreen.emptyTargetLabel(QuickLitematicaContainerReplacements.Scope.PROJECTION);
+                return QuickLitematicaMaterialReplacementScreen.emptyTargetLabel(
+                        QuickLitematicaContainerReplacements.Scope.PROJECTION
+                );
             }
 
             @Override
             public boolean isTargetAllowed(ItemStack ignored, ItemStack target) {
-                if (target == null || (!target.isEmpty() && !(target.getItem() instanceof BlockItem))) { return false; }
+                if (target == null || (!target.isEmpty() && !(target.getItem() instanceof BlockItem))) {
+                    return false;
+                }
                 for (ItemStack original : sources) {
-                    if (!(original.getItem() instanceof BlockItem)) { return false; }
+                    if (!(original.getItem() instanceof BlockItem)) {
+                        return false;
+                    }
                     var recorded = states.get(new ItemType(original, true, false));
-                    if (recorded == null || recorded.isEmpty()) { return false; }
-                    if (recorded.stream().anyMatch(state -> QuickLitematicaProjectionReplacementCompatibility.replacementState(state, target) == null)) { return false; }
+                    if (recorded == null || recorded.isEmpty()) {
+                        return false;
+                    }
+                    if (recorded.stream().anyMatch(state ->
+                            QuickLitematicaProjectionReplacementCompatibility.replacementState(state, target) == null
+                    )) {
+                        return false;
+                    }
                 }
                 return true;
             }
+
             @Override
             public Optional<ItemStack> getCurrentTarget(ItemStack ignored) {
                 return sources.size() == 1 ? QuickLitematicaContainerReplacements.getReplacementTarget(source,
                         QuickLitematicaContainerReplacements.Scope.PROJECTION, context) : Optional.empty();
             }
+
             @Override
             public void apply(ItemStack ignored, ItemStack target) {
-                if (!this.isTargetAllowed(source, target)) { return; }
+                if (!this.isTargetAllowed(source, target)) {
+                    return;
+                }
                 QuickLitematicaContainerReplacements.setProjectionReplacementRules(sources, target, context);
-                QuickLitematicaContainerMemory.update(live, regions(list), context);
+                QuickLitematicaContainerMemory.update(live, regions, context);
             }
+
             @Override
             public void clear(ItemStack ignored) {
-                for (ItemStack original : sources) { QuickLitematicaContainerReplacements.removeReplacementRule(original,
-                        QuickLitematicaContainerReplacements.Scope.PROJECTION, context); }
-                QuickLitematicaContainerMemory.update(live, regions(list), context);
+                for (ItemStack original : sources) {
+                    QuickLitematicaContainerReplacements.removeReplacementRule(
+                            original, QuickLitematicaContainerReplacements.Scope.PROJECTION, context
+                    );
+                }
+                QuickLitematicaContainerMemory.update(live, regions, context);
             }
         };
     }
