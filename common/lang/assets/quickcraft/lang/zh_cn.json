@@ -374,7 +374,7 @@
   "quickcraft.config.hotkeys.comment.enableOpenConfigHotkey": "§6功能：§r允许用快捷键打开 §bQuickCraft§r 配置页。\n§e说明：§r关闭后只能经 §bMod Menu§r 打开配置页。",
   "quickcraft.config.hotkeys.prettyName.enableActionButtonDragging": "允许拖动界面按钮",
   "quickcraft.config.hotkeys.name.enableActionButtonDragging": "允许拖动界面按钮",
-  "quickcraft.config.hotkeys.comment.enableActionButtonDragging": "§6功能：§r可拖动容器锁、一键回存、整理和快速合成按钮的位置。\n§e操作：§r按住 §bShift + 左键§r 拖动，§bShift + 右键§r 点击恢复默认位置。",
+  "quickcraft.config.hotkeys.comment.enableActionButtonDragging": "§6功能：§r可拖动容器、合成和投影材料界面中的 QuickCraft 按钮。\n§e操作：§r按住 §bShift + 左键§r 拖动，§bShift + 右键§r 点击恢复默认位置。",
   "quickcraft.config.hotkeys.prettyName.openConfigHotkey": "打开配置页",
   "quickcraft.config.hotkeys.name.openConfigHotkey": "打开配置页",
   "quickcraft.config.hotkeys.comment.openConfigHotkey": "§6功能：§r打开 §bQuickCraft§r 配置页的快捷键。",

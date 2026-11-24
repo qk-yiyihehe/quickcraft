@@ -21,5 +21,6 @@ public final class QuickCraftMalilibInit implements IInitializationHandler {
                 new ModInfo(QuickCraft.MOD_ID, "QuickCraft", QuickCraftConfigScreen::new)
         );
         QuickCraftHotkeyCallbacks.bind();
+        QuickCraftGuiButtonInput.initialize();
     }
 }

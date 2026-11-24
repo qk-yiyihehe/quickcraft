@@ -1,5 +1,6 @@
 package com.yiyihehe.quickcraft.mixin;
 
+import com.yiyihehe.quickcraft.malilib.QuickCraftMovableButton;
 import com.yiyihehe.quickcraft.litematica.QuickLitematicaContainerVerifier;
 import com.yiyihehe.quickcraft.litematica.QuickLitematicaContainerVerifier.VerifierExtension;
 import fi.dy.masa.litematica.config.Configs;
@@ -7,7 +8,6 @@ import fi.dy.masa.litematica.gui.GuiSchematicVerifier;
 import fi.dy.masa.litematica.schematic.verifier.SchematicVerifier;
 import fi.dy.masa.litematica.schematic.verifier.SchematicVerifier.MismatchType;
 import fi.dy.masa.malilib.gui.button.ButtonBase;
-import fi.dy.masa.malilib.gui.button.ButtonGeneric;
 import fi.dy.masa.malilib.util.StringUtils;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
@@ -71,7 +71,8 @@ public abstract class LitematicaGuiSchematicVerifierMixin {
         for (MismatchType type : QuickLitematicaContainerVerifier.getContainerMismatchTypes()) {
             String label = type.getDisplayname();
             int width = gui.getStringWidth(label) + 10;
-            ButtonGeneric button = new ButtonGeneric(x, y, width, 20, label);
+            var button = new QuickCraftMovableButton("litematica.verifier." + type.name(), x, y, width, 20, label);
+            button.place(gui, x, y);
             button.setEnabled(resultMode != type);
             gui.addButton(button, (clickedButton, mouseButton) -> {
                 resultMode = type;
@@ -115,7 +116,8 @@ public abstract class LitematicaGuiSchematicVerifierMixin {
 
     @Inject(method = "initGui", at = @At("TAIL"))
     private void quickcraft$addPagination(CallbackInfo ci) {
-        com.yiyihehe.quickcraft.litematica.QuickLitematicaListPagination.add((GuiSchematicVerifier) (Object) this);
+        com.yiyihehe.quickcraft.litematica.QuickLitematicaListPagination.add(
+                (GuiSchematicVerifier) (Object) this, "litematica.verifier");
     }
 
     @Inject(method = "onSelectionChange", at = @At("HEAD"), cancellable = true)

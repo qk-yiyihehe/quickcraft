@@ -1,5 +1,6 @@
 package com.yiyihehe.quickcraft.litematica;
 
+import com.yiyihehe.quickcraft.malilib.QuickCraftMovableButton;
 import com.mojang.blaze3d.platform.InputConstants;
 import com.yiyihehe.quickcraft.mixin.MalilibGuiListAccessor;
 import com.yiyihehe.quickcraft.mixin.MalilibWidgetContainerInvoker;
@@ -11,7 +12,6 @@ import com.yiyihehe.quickcraft.litematica.QuickLitematicaContainerMaterials;
 import com.yiyihehe.quickcraft.litematica.QuickLitematicaMaterialLists;
 import fi.dy.masa.litematica.materials.MaterialListEntry;
 import fi.dy.masa.litematica.gui.GuiMaterialList;
-import fi.dy.masa.malilib.gui.button.ButtonGeneric;
 import fi.dy.masa.litematica.gui.widgets.WidgetListMaterialList;
 import fi.dy.masa.litematica.materials.MaterialListBase;
 import fi.dy.masa.malilib.util.StringUtils;
@@ -75,7 +75,10 @@ public final class QuickLitematicaMaterialRow {
                 StringUtils.translate("litematica.gui.button.material_list.ignore")
         ) + 10;
         int replaceRight = x + width - ignoreWidth - 4;
-        ButtonGeneric button = new ButtonGeneric(replaceRight, y + 1, -1, true, label);
+        var view = isContainerList ? QuickLitematicaMaterialNavigation.View.CONTAINERS
+                : QuickLitematicaMaterialNavigation.View.BLOCKS;
+        String layoutKey = QuickLitematicaMaterialNavigation.layoutKey(materialList, view);
+        var button = new QuickCraftMovableButton(layoutKey + ".replaceRow", replaceRight, y + 1, -1, true, label);
         button.setHoverStrings(StringUtils.translate("quickcraft.litematica.tooltip.material_replace"),
                 StringUtils.translate("quickcraft.litematica.tooltip.batch_select"));
         this.owner.quickcraft$addButton(button, (clicked, mouseButton) -> {
@@ -90,18 +93,21 @@ public final class QuickLitematicaMaterialRow {
 
         if (this.quickcraft$hasReplacement(materialList)) {
             String clearLabel = StringUtils.translate("quickcraft.litematica.button.material_replace_clear_list");
-            ButtonGeneric clearButton = new ButtonGeneric(
+            var clearButton = new QuickCraftMovableButton(
+                    layoutKey + ".clearRow",
                     button.getX() - 4,
                     y + 1,
                     -1,
                     true,
                     clearLabel
             );
+            clearButton.placeInRow(x, y, width, height);
             clearButton.setHoverStrings(StringUtils.translate("quickcraft.litematica.tooltip.material_replace_clear_list"));
             this.owner.quickcraft$addButton(clearButton, (clicked, mouseButton) -> {
                 this.quickcraft$clearReplacement(materialList);
             });
         }
+        button.placeInRow(x, y, width, height);
     }
 
     public boolean select(int mouseX, int mouseY, int mouseButton) {

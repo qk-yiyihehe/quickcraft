@@ -5,19 +5,20 @@ import com.yiyihehe.quickcraft.mixin.LitematicaMaterialListPlacementAccessor;
 import com.yiyihehe.quickcraft.mixin.LitematicaMaterialListSchematicAccessor;
 import fi.dy.masa.litematica.data.DataManager;
 import fi.dy.masa.litematica.gui.GuiMaterialList;
+import fi.dy.masa.litematica.materials.MaterialListAreaAnalyzer;
 import fi.dy.masa.litematica.materials.MaterialListBase;
 import fi.dy.masa.litematica.materials.MaterialListPlacement;
 import fi.dy.masa.litematica.materials.MaterialListSchematic;
 import fi.dy.masa.litematica.schematic.LitematicaSchematic;
 import fi.dy.masa.litematica.schematic.placement.SchematicPlacement;
 import fi.dy.masa.malilib.gui.GuiBase;
-import fi.dy.masa.malilib.util.StringUtils;
 import net.minecraft.client.gui.screens.Screen;
 
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.EnumMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 /** 一次浏览持有自己的页面与来源；切换不重建材料表，也不累积 parent 返回链。 */
@@ -89,9 +90,18 @@ public final class QuickLitematicaMaterialNavigation {
         return navigation;
     }
 
-    String label(View view) {
-        String key = view == View.BLOCKS ? "file_blocks" : view.name().toLowerCase(java.util.Locale.ROOT);
-        return StringUtils.translate("quickcraft.litematica.nav." + key);
+    static String labelKey(View view) {
+        String key = view == View.BLOCKS ? "file_blocks" : view.name().toLowerCase(Locale.ROOT);
+        return "quickcraft.litematica.nav." + key;
+    }
+
+    static String layoutKey(MaterialListBase list, View view) {
+        if (view == View.BLOCKS && !(list instanceof MaterialListSchematic
+                || list instanceof MaterialListPlacement || list instanceof MaterialListAreaAnalyzer)) {
+            return "litematica.materials.other.blocks";
+        }
+        View group = view == View.DETAILS ? View.CONTAINERS : view;
+        return "litematica.materials." + group.name().toLowerCase(Locale.ROOT);
     }
 
     List<View> views(View current) {

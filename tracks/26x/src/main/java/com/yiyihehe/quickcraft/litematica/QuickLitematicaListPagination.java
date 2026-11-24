@@ -1,10 +1,10 @@
 package com.yiyihehe.quickcraft.litematica;
 
 import com.yiyihehe.quickcraft.config.QuickCraftConfigs;
+import com.yiyihehe.quickcraft.malilib.QuickCraftMovableButton;
 import com.yiyihehe.quickcraft.mixin.GuiBaseAccessor;
 import com.yiyihehe.quickcraft.mixin.MalilibGuiListAccessor;
 import fi.dy.masa.malilib.gui.GuiBase;
-import fi.dy.masa.malilib.gui.button.ButtonGeneric;
 import fi.dy.masa.malilib.gui.widgets.WidgetLabel;
 import fi.dy.masa.malilib.gui.widgets.WidgetListBase;
 import fi.dy.masa.malilib.util.StringUtils;
@@ -19,23 +19,22 @@ public final class QuickLitematicaListPagination {
         void quickcraft$setPagination(QuickLitematicaListPagination pagination);
     }
 
-    private final WidgetListBase<?, ?> list;
+    private WidgetListBase<?, ?> list;
     private final GuiBase gui;
     private final int right;
     private final int y;
-    private final ButtonGeneric previous;
-    private final ButtonGeneric next;
+    private final QuickCraftMovableButton previous;
+    private final QuickCraftMovableButton next;
     private final PageLabel label;
     private List<Integer> starts = List.of(0);
     private int page;
 
-    private QuickLitematicaListPagination(GuiBase gui, WidgetListBase<?, ?> list, int right, int y) {
-        this.list = list;
+    private QuickLitematicaListPagination(GuiBase gui, String layoutKey, int right, int y) {
         this.gui = gui;
         this.right = right;
         this.y = y;
-        this.previous = new ButtonGeneric(0, 0, 38, 20, "<", "quickcraft.litematica.pagination.previous");
-        this.next = new ButtonGeneric(0, 0, 38, 20, ">", "quickcraft.litematica.pagination.next");
+        this.previous = new QuickCraftMovableButton(layoutKey + ".previous", 0, 0, 38, 20, "<", "quickcraft.litematica.pagination.previous");
+        this.next = new QuickCraftMovableButton(layoutKey + ".next", 0, 0, 38, 20, ">", "quickcraft.litematica.pagination.next");
         this.label = new PageLabel();
         gui.addButton(this.previous, (button, mouse) -> this.move(-1));
         gui.addButton(this.next, (button, mouse) -> this.move(1));
@@ -46,7 +45,7 @@ public final class QuickLitematicaListPagination {
         return QuickCraftConfigs.ProjectionTools.ENABLE_LITEMATICA_LIST_PAGINATION.getBooleanValue();
     }
 
-    public static void add(GuiBase gui) {
+    public static void add(GuiBase gui, String layoutKey) {
         int right = gui.getScreenWidth() - 12;
         int y = gui.getScreenHeight() - 36;
         // 原生验证页右侧保留投影菜单，翻页紧挨其左侧。
@@ -55,14 +54,21 @@ public final class QuickLitematicaListPagination {
                 right = Math.min(right, button.getX() - 4);
             }
         }
-        add(gui, right, y);
+        add(gui, layoutKey, right, y);
     }
 
-    public static void add(GuiBase gui, int right, int y) {
-        if (!enabled()) { return; }
+    static QuickLitematicaListPagination add(GuiBase gui, String layoutKey, int right, int y) {
+        if (!enabled()) { return null; }
         var list = ((MalilibGuiListAccessor) gui).quickcraft$getListWidget();
-        ((PagedList) list).quickcraft$setPagination(new QuickLitematicaListPagination(gui, list, right, y));
+        var pagination = new QuickLitematicaListPagination(gui, layoutKey, right, y);
+        pagination.attach(list);
         list.refreshEntries();
+        return pagination;
+    }
+
+    void attach(WidgetListBase<?, ?> list) {
+        this.list = list;
+        ((PagedList) list).quickcraft$setPagination(this);
     }
 
     public int prepare(int requestedStart, int availableHeight, int[] heights) {
@@ -72,8 +78,8 @@ public final class QuickLitematicaListPagination {
         this.next.setEnabled(this.page + 1 < this.starts.size());
         this.label.update(this.page + 1, this.starts.size());
         int x = this.right - 92 - this.gui.getStringWidth(this.label.text());
-        this.previous.setPosition(x, this.y);
-        this.next.setPosition(x + 42, this.y);
+        this.previous.place(this.gui, x, this.y);
+        this.next.place(this.gui, x + 42, this.y);
         this.label.setPosition(x + 92, this.y);
         return this.starts.get(this.page);
     }

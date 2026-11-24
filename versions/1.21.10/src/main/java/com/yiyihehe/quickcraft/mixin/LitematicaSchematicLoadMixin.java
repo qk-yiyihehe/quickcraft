@@ -1,10 +1,10 @@
 package com.yiyihehe.quickcraft.mixin;
 
 import com.yiyihehe.quickcraft.litematica.QuickLitematicaContainerMaterials;
+import com.yiyihehe.quickcraft.malilib.QuickCraftMovableButton;
 import fi.dy.masa.litematica.gui.GuiSchematicBrowserBase;
 import fi.dy.masa.litematica.gui.GuiSchematicLoad;
 import fi.dy.masa.litematica.gui.widgets.WidgetSchematicBrowser;
-import fi.dy.masa.malilib.gui.button.ButtonGeneric;
 import fi.dy.masa.malilib.gui.widgets.WidgetFileBrowserBase.DirectoryEntry;
 import fi.dy.masa.malilib.util.StringUtils;
 import org.spongepowered.asm.mixin.Mixin;
@@ -52,7 +52,9 @@ public abstract class LitematicaSchematicLoadMixin extends GuiSchematicBrowserBa
         int buttonWidth = gui.getStringWidth(label) + 10;
         QuickLitematicaContainerMaterials.ButtonPlacement placement =
                 QuickLitematicaContainerMaterials.getButtonPlacement(gui, buttonWidth);
-        ButtonGeneric button = new ButtonGeneric(placement.x(), placement.y(), buttonWidth, 20, label);
+        var button = new QuickCraftMovableButton("litematica.schematicLoad.containerMaterials",
+                placement.x(), placement.y(), buttonWidth, 20, label);
+        button.place(gui, placement.x(), placement.y());
         button.setHoverStrings(StringUtils.translate(QuickLitematicaContainerMaterials.BUTTON_HOVER_KEY));
 
         gui.addButton(button, (clickedButton, mouseButton) -> {

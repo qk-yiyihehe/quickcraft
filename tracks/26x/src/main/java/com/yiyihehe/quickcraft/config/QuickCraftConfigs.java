@@ -1894,6 +1894,28 @@ public final class QuickCraftConfigs implements IConfigHandler {
                 BUTTON_OFFSETS.put(entry.getKey(), new ButtonOffset(x.getAsInt(), y.getAsInt()));
             }
         }
+        migrateMaterialButtonPositions(positions.keySet());
+    }
+
+    private static void migrateMaterialButtonPositions(Set<String> savedKeys) {
+        String prefix = "litematica.materials.";
+        // 同一按钮有多份旧偏移时，优先保留汇总页和文件入口的设置。
+        for (String page : List.of("blocks", "containers", "entities", "details")) {
+            String group = page.equals("details") ? "containers" : page;
+            for (String source : List.of("file", "placement", "area")) {
+                String oldPrefix = prefix + source + "." + page + ".";
+                for (String key : savedKeys) {
+                    if (!key.startsWith(oldPrefix)) { continue; }
+                    ButtonOffset offset = BUTTON_OFFSETS.remove(key);
+                    if (offset == null) { continue; }
+                    String role = key.substring(oldPrefix.length());
+                    if (role.equals("quickcraft.litematica.button.batch_replace")) {
+                        role = "quickcraft.litematica.button.batch_replace_materials";
+                    }
+                    BUTTON_OFFSETS.putIfAbsent(prefix + group + "." + role, offset);
+                }
+            }
+        }
     }
 
     private static void writeButtonPositions(JsonObject root) {

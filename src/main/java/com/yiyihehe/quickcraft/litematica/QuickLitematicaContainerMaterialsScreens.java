@@ -1,8 +1,8 @@
 package com.yiyihehe.quickcraft.litematica;
 
+import com.yiyihehe.quickcraft.malilib.QuickCraftMovableButton;
 import fi.dy.masa.litematica.gui.GuiMainMenu.ButtonListenerChangeMenu;
 import fi.dy.masa.malilib.gui.GuiBase;
-import fi.dy.masa.malilib.gui.button.ButtonGeneric;
 import fi.dy.masa.malilib.gui.widgets.WidgetListBase;
 import fi.dy.masa.litematica.gui.Icons;
 import fi.dy.masa.malilib.util.StringUtils;
@@ -63,17 +63,18 @@ final class QuickLitematicaContainerMaterialsScreens {
             ButtonListenerChangeMenu.ButtonType type = ButtonListenerChangeMenu.ButtonType.MAIN_MENU;
             String label = StringUtils.translate(type.getLabelKey());
             int buttonWidth = this.getStringWidth(label) + 20;
-            ButtonGeneric button = new ButtonGeneric(this.width - buttonWidth - 10, this.height - 36, buttonWidth, 20, label);
+            var button = new QuickCraftMovableButton(this.layoutKey() + ".mainMenu",
+                    this.width - buttonWidth - 10, this.height - 36, buttonWidth, 20, label);
             this.addButton(button, new ButtonListenerChangeMenu(type, this.getParent()));
             var actions = new ArrayList<QuickLitematicaMaterialButtons.Action>();
             if (QuickLitematicaContainerReplacements.enabled()) {
                 actions.add(QuickLitematicaMaterialButtons.action("quickcraft.litematica.button.clear_container_material_rules", this::clearAllRules));
                 actions.add(QuickLitematicaMaterialButtons.action("quickcraft.litematica.button.save_schematic_copy", () -> saveCopy(this.materialList)));
-                actions.add(new QuickLitematicaMaterialButtons.Action(StringUtils.translate("quickcraft.litematica.button.batch_replace", this.selectedSlots.size()), () -> {
+                actions.add(new QuickLitematicaMaterialButtons.Action("quickcraft.litematica.button.batch_replace", () -> {
                     var slots = List.copyOf(this.selectedSlots.values());
                     this.savedScroll = this.getListWidget().getScrollbar().getValue();
                     QuickLitematicaMaterialReplacementScreen.open(this, slots.getFirst().source(), this.data.createBatchSlotBinding(slots));
-                }, !this.selectedSlots.isEmpty()));
+                }, !this.selectedSlots.isEmpty(), this.selectedSlots.size()));
                 actions.add(QuickLitematicaMaterialButtons.action("quickcraft.litematica.button.clear_selection", () -> {
                     this.selectedSlots.clear();
                     this.savedScroll = this.getListWidget().getScrollbar().getValue();
@@ -83,6 +84,10 @@ final class QuickLitematicaContainerMaterialsScreens {
             this.bottomMargin = QuickLitematicaMaterialButtons.addDetails(this, this.materialList, actions);
             this.getListWidget().getScrollbar().setValue(this.savedScroll);
             this.getListWidget().refreshEntries();
+        }
+
+        private String layoutKey() {
+            return QuickLitematicaMaterialNavigation.layoutKey(this.materialList, QuickLitematicaMaterialNavigation.View.DETAILS);
         }
 
         @Override
@@ -288,13 +293,15 @@ final class QuickLitematicaContainerMaterialsScreens {
             this.showGroupInfo = showGroupInfo;
 
             if (entry != null && showGroupInfo) {
-                ButtonGeneric button = new ButtonGeneric(
+                var button = new QuickCraftMovableButton(
+                        gui.layoutKey() + ".ignoreContainer",
                         x + width - 4,
                         y + 1,
                         -1,
                         true,
                         "quickcraft.litematica.button.ignore_container"
                 );
+                button.placeInRow(x, y, width, height);
                 this.addButton(button, (clickedButton, mouseButton) -> this.gui.ignoreGroup(entry.group()));
             }
         }

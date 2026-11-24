@@ -1,12 +1,12 @@
 package com.yiyihehe.quickcraft.mixin;
 
+import com.yiyihehe.quickcraft.malilib.QuickCraftMovableButton;
 import com.yiyihehe.quickcraft.config.QuickCraftConfigs;
 import fi.dy.masa.litematica.data.DataManager;
 import fi.dy.masa.litematica.gui.GuiMainMenu;
 import fi.dy.masa.litematica.gui.GuiMainMenu.ButtonListenerChangeMenu.ButtonType;
 import fi.dy.masa.litematica.selection.SelectionMode;
 import fi.dy.masa.malilib.gui.GuiBase;
-import fi.dy.masa.malilib.gui.button.ButtonGeneric;
 import fi.dy.masa.malilib.util.StringUtils;
 import net.minecraft.util.Util;
 import org.spongepowered.asm.mixin.Mixin;
@@ -36,7 +36,8 @@ public abstract class LitematicaGuiMainMenuMixin extends GuiBase {
         int menuButtonWidth = this.quickcraft$getMenuButtonWidth();
         int x = 12 + menuButtonWidth + 20;
 
-        ButtonGeneric button = new ButtonGeneric(x, RIGHT_COLUMN_Y, menuButtonWidth, 20, label);
+        var button = new QuickCraftMovableButton("litematica.mainMenu.openSchematicFolder", x, RIGHT_COLUMN_Y, menuButtonWidth, 20, label);
+        button.place((GuiMainMenu) (Object) this, x, RIGHT_COLUMN_Y);
         this.addButton(button, (clickedButton, mouseButton) ->
                 Util.getOperatingSystem().open(DataManager.getSchematicsBaseDirectory()));
     }

@@ -374,7 +374,7 @@
   "quickcraft.config.hotkeys.comment.enableOpenConfigHotkey": "§6Function: §rAllows opening the §bQuickCraft§r config with a hotkey.\n§eNote: §rWhen off, the config opens only via §bMod Menu§r.",
   "quickcraft.config.hotkeys.prettyName.enableActionButtonDragging": "Allow Action Button Dragging",
   "quickcraft.config.hotkeys.name.enableActionButtonDragging": "Allow Action Button Dragging",
-  "quickcraft.config.hotkeys.comment.enableActionButtonDragging": "§6Function: §rLets you drag the container lock, deposit, sort and quick craft buttons.\n§eControls: §rHold §bShift + Left Click§r to drag; §bShift + Right Click§r to restore the default position.",
+  "quickcraft.config.hotkeys.comment.enableActionButtonDragging": "§6Function: §rLets you drag QuickCraft buttons on container, crafting, and Litematica material screens.\n§eControls: §rHold §bShift + Left Click§r to drag. Use §bShift + Right Click§r to restore the default position.",
   "quickcraft.config.hotkeys.prettyName.openConfigHotkey": "Open Config",
   "quickcraft.config.hotkeys.name.openConfigHotkey": "Open Config",
   "quickcraft.config.hotkeys.comment.openConfigHotkey": "§6Function: §rHotkey for opening the §bQuickCraft§r config screen.",
