@@ -1,16 +1,26 @@
 package com.yiyihehe.quickcraft.litematica;
 
 import com.yiyihehe.quickcraft.config.QuickCraftConfigs;
+import com.yiyihehe.quickcraft.mixin.LitematicaSchematicBlocksAccessor;
 import fi.dy.masa.litematica.data.DataManager;
 import fi.dy.masa.litematica.data.SchematicHolder;
 import fi.dy.masa.litematica.schematic.LitematicaSchematic;
+import fi.dy.masa.litematica.schematic.LitematicaSchematic.EntityInfo;
 import fi.dy.masa.litematica.schematic.container.LitematicaBlockStateContainer;
 import fi.dy.masa.litematica.schematic.placement.SchematicPlacement;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
 import java.util.WeakHashMap;
+import net.minecraft.nbt.CompoundTag;
+import net.minecraft.core.BlockPos;
+import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.block.state.BlockState;
 
 /** 原始对照与实际投影数据分开保存；分别应用容器 Items 规则和方块状态规则，随后统一重建投影。 */
@@ -22,8 +32,22 @@ public final class QuickLitematicaContainerMemory {
     private QuickLitematicaContainerMemory() { }
 
     public static LitematicaSchematic original(LitematicaSchematic schematic) {
+        return originalState(schematic).original;
+    }
+
+    private static State originalState(LitematicaSchematic schematic) {
         return STATES.computeIfAbsent(schematic, source -> new State(
-                QuickLitematicaContainerMaterialsAccess.copySchematic(source))).original;
+                QuickLitematicaContainerMaterialsAccess.copySchematic(source)));
+    }
+
+    static long originalVersion(LitematicaSchematic schematic) {
+        return originalState(schematic).sourceVersion;
+    }
+
+    static long[] originalBlockCounts(LitematicaSchematic schematic, String region) {
+        var state = originalState(schematic);
+        return state.blockCounts.computeIfAbsent(region, name ->
+                QuickLitematicaProjectionMaterials.countPaletteStates(state.original.getSubRegionContainer(name)));
     }
 
     public static long revision() { return revision; }
@@ -77,7 +101,8 @@ public final class QuickLitematicaContainerMemory {
                 var original = this.state.original.getMetadata();
                 original.setTotalBlocks(totalBlocks);
                 original.setTimeModifiedToNow();
-                revision++;
+                this.state.blockCounts.clear();
+                this.state.sourceVersion = ++revision;
             }
             if (this.state.materialized || this.state.projectionMaterialized) {
                 update(this.schematic, this.state.context, true);
@@ -132,20 +157,7 @@ public final class QuickLitematicaContainerMemory {
         if (!sourceEdited && context.equals(state.context) && selectedRegions.equals(state.regions) && configured.equals(state.configured) && projectionConfigured.equals(state.projectionConfigured) && state.enabled == QuickLitematicaContainerReplacements.enabled()) { return; }
         boolean rewrite = hasRules || state.materialized || state.projectionMaterialized;
         if (rewrite) {
-            var replaced = QuickLitematicaContainerMaterials.createContainerReplacementCopy(state.original, selectedRegions, context);
-            QuickLitematicaProjectionMaterials.replaceBlocks(replaced, context);
-            ((com.yiyihehe.quickcraft.mixin.LitematicaSchematicBlocksAccessor) schematic).quickcraft$getBlockContainers()
-                    .putAll(((com.yiyihehe.quickcraft.mixin.LitematicaSchematicBlocksAccessor) replaced).quickcraft$getBlockContainers());
-            for (String region : selectedRegions) {
-                var live = QuickLitematicaContainerMaterialsAccess.getBlockEntities(schematic, region);
-                var result = QuickLitematicaContainerMaterialsAccess.getBlockEntities(replaced, region);
-                if (live != null && result != null) {
-                    live.clear();
-                    result.forEach((pos, nbt) -> live.put(pos, nbt.copy()));
-                    QuickLitematicaContainerMaterialsAccess.setBlockEntities(schematic, region, live);
-                }
-            }
-            copyContainerItems(replaced, schematic);
+            applyReplacements(schematic, state, selectedRegions, context, hasContainerRules, hasProjectionRules, sourceEdited);
             revision++;
         }
         state.enabled = QuickLitematicaContainerReplacements.enabled();
@@ -166,6 +178,54 @@ public final class QuickLitematicaContainerMemory {
         }
     }
 
+    private static void applyReplacements(LitematicaSchematic schematic, State state, List<String> regions,
+                                          String context, boolean replaceItems, boolean replaceBlocks, boolean sourceEdited) {
+        Map<BlockState, Optional<ItemStack>> targets = new HashMap<>();
+        Map<String, RegionUpdate> updates = new LinkedHashMap<>();
+        Set<String> replacedRegions = new HashSet<>();
+        for (String region : regions) {
+            var original = state.original.getSubRegionContainer(region);
+            var blockEntities = QuickLitematicaContainerMaterialsAccess.getBlockEntities(state.original, region);
+            if (blockEntities != null) {
+                var copies = new HashMap<BlockPos, CompoundTag>();
+                blockEntities.forEach((pos, nbt) -> copies.put(pos, nbt.copy()));
+                blockEntities = copies;
+            }
+            var originalEntities = state.original.getEntityListForRegion(region);
+            var entities = replaceItems && originalEntities != null ? new ArrayList<>(originalEntities) : originalEntities;
+            if (replaceItems) {
+                QuickLitematicaContainerMaterials.replaceContainerItems(original, blockEntities, entities, context, false);
+            }
+            LitematicaBlockStateContainer blocks = null;
+            if (original != null) {
+                var mapped = replaceBlocks ? QuickLitematicaProjectionMaterials.replaceRegionBlocks(original, blockEntities,
+                        block -> targets.computeIfAbsent(block, key -> QuickLitematicaProjectionMaterials.projectionTarget(key, context)))
+                        : original;
+                if (mapped != original) {
+                    blocks = mapped;
+                    replacedRegions.add(region);
+                } else if (sourceEdited || state.replacedBlockRegions.contains(region)) {
+                    // 撤销规则时恢复独立的方块存储，避免投影编辑改写原始对照。
+                    blocks = QuickLitematicaProjectionMaterials.mapStates(original, block -> block);
+                }
+            }
+            updates.put(region, new RegionUpdate(blocks, blockEntities, entities));
+        }
+
+        var containers = ((LitematicaSchematicBlocksAccessor) schematic).quickcraft$getBlockContainers();
+        updates.forEach((region, update) -> {
+            if (update.blocks() != null) { containers.put(region, update.blocks()); }
+            if (update.blockEntities() != null) {
+                QuickLitematicaContainerMaterialsAccess.setBlockEntities(schematic, region, update.blockEntities());
+            }
+            copyEntityItems(update.entities(), schematic.getEntityListForRegion(region));
+        });
+        state.replacedBlockRegions = replacedRegions;
+    }
+
+    private record RegionUpdate(LitematicaBlockStateContainer blocks, Map<BlockPos, CompoundTag> blockEntities,
+                                List<EntityInfo> entities) { }
+
     static void copyContainerItems(LitematicaSchematic source, LitematicaSchematic target) {
         for (String region : source.getAreas().keySet()) {
             var originals = QuickLitematicaContainerMaterialsAccess.getBlockEntities(source, region);
@@ -179,17 +239,20 @@ public final class QuickLitematicaContainerMemory {
                 }
             }
             if (live != null) { QuickLitematicaContainerMaterialsAccess.setBlockEntities(target, region, live); }
-            var originalEntities = source.getEntityListForRegion(region);
-            var liveEntities = target.getEntityListForRegion(region);
-            if (originalEntities != null && liveEntities != null) {
-                for (int index = 0; index < Math.min(originalEntities.size(), liveEntities.size()); index++) {
-                    var nbt = QuickLitematicaContainerMaterialsAccess.getEntityNbt(originalEntities.get(index));
-                    if (nbt.contains("Items")) {
-                        var destination = QuickLitematicaContainerMaterialsAccess.getEntityNbt(liveEntities.get(index));
-                        destination.put("Items", nbt.get("Items").copy());
-                        QuickLitematicaContainerMaterialsAccess.setEntityNbt(liveEntities, index, destination);
-                    }
-                }
+            copyEntityItems(source.getEntityListForRegion(region), target.getEntityListForRegion(region));
+        }
+    }
+
+    private static void copyEntityItems(List<EntityInfo> source, List<EntityInfo> target) {
+        if (source == null || target == null) { return; }
+        for (int index = 0; index < Math.min(source.size(), target.size()); index++) {
+            var nbt = QuickLitematicaContainerMaterialsAccess.getEntityNbt(source.get(index));
+            if (!nbt.contains("Items")) { continue; }
+            var destination = QuickLitematicaContainerMaterialsAccess.getEntityNbt(target.get(index));
+            var items = nbt.get("Items");
+            if (!items.equals(destination.get("Items"))) {
+                destination.put("Items", items.copy());
+                QuickLitematicaContainerMaterialsAccess.setEntityNbt(target, index, destination);
             }
         }
     }
@@ -238,6 +301,9 @@ public final class QuickLitematicaContainerMemory {
 
     private static final class State {
         private final LitematicaSchematic original;
+        private final Map<String, long[]> blockCounts = new HashMap<>();
+        private long sourceVersion = revision;
+        private Set<String> replacedBlockRegions = Set.of();
         private String context = "";
         private List<String> regions = List.of();
         private List<String> configured;

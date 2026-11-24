@@ -752,7 +752,10 @@ public final class QuickLitematicaMaterialReplacementScreen extends QuickLitemat
 
     private void refreshParent() {
         if (this.parent instanceof fi.dy.masa.litematica.gui.GuiMaterialList gui) {
-            gui.getMaterialList().reCreateMaterialList();
+            var list = gui.getMaterialList();
+            if (!QuickLitematicaProjectionMaterials.refreshFileAfterReplacement(list)) {
+                list.reCreateMaterialList();
+            }
             gui.initGui();
         } else if (this.parent instanceof RefreshableParent refreshableParent) {
             refreshableParent.quickcraft$refreshAfterReplacement();

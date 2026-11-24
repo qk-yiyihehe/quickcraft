@@ -23,11 +23,13 @@ import net.minecraft.block.TallPlantBlock;
 import net.minecraft.block.enums.BedPart;
 import net.minecraft.block.enums.DoubleBlockHalf;
 import net.minecraft.client.MinecraftClient;
+import net.minecraft.nbt.NbtCompound;
 import net.minecraft.item.BlockItem;
 import net.minecraft.item.ItemStack;
 import net.minecraft.util.math.BlockPos;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -35,11 +37,14 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.WeakHashMap;
+import java.util.function.Function;
+import java.util.function.UnaryOperator;
 
 /** 普通方块编辑保留原始材料行；实际投影、HUD 和备货读取最终方块。 */
 public final class QuickLitematicaProjectionMaterials {
     private static final Map<MaterialListBase, Map<ItemType, ItemStack>> SELECTIONS = new WeakHashMap<>();
     private static final Map<MaterialListBase, Counts> COUNTS = new WeakHashMap<>();
+    private static final Map<MaterialListBase, Long> FILE_LIST_VERSIONS = new WeakHashMap<>();
     private record Counts(Object2IntOpenHashMap<BlockState> total, Object2IntOpenHashMap<BlockState> missing,
                           Object2IntOpenHashMap<BlockState> mismatch) { }
     private static final Map<MaterialListBase, List<MaterialListEntry>> PENDING = new WeakHashMap<>();
@@ -87,18 +92,18 @@ public final class QuickLitematicaProjectionMaterials {
         var sources = selected(list, source) ? List.copyOf(SELECTIONS.get(list).values()) : List.of(source.copy());
         String context = QuickLitematicaMaterialLists.getReplacementContextKey(list);
         LitematicaSchematic live = schematic(list);
-        QuickLitematicaContainerMemory.original(live);
-        Map<ItemType, List<BlockState>> states = new LinkedHashMap<>();
-        for (String region : QuickLitematicaContainerMemory.original(live).getAreas().keySet()) {
-            var container = QuickLitematicaContainerMemory.original(live).getSubRegionContainer(region);
+        var originalSchematic = QuickLitematicaContainerMemory.original(live);
+        Map<ItemType, Set<BlockState>> states = new LinkedHashMap<>();
+        for (String region : originalSchematic.getAreas().keySet()) {
+            var container = originalSchematic.getSubRegionContainer(region);
             if (container == null) { continue; }
-            long[] recordedCounts = countPaletteStates(container);
-            for (int index = 0; index < container.getPalette().getPaletteSize(); index++) {
-                if (index >= recordedCounts.length || recordedCounts[index] == 0) { continue; }
+            long[] recordedCounts = QuickLitematicaContainerMemory.originalBlockCounts(live, region);
+            for (int index = 0; index < recordedCounts.length; index++) {
+                if (recordedCounts[index] == 0) { continue; }
                 BlockState state = container.getPalette().getBlockState(index);
                 if (state == null || state.isAir()) { continue; }
                 ItemStack material = replacementSource(state);
-                states.computeIfAbsent(new ItemType(material, true, false), ignored -> new ArrayList<>()).add(state);
+                states.computeIfAbsent(new ItemType(material, true, false), ignored -> new HashSet<>()).add(state);
             }
         }
         return new QuickLitematicaMaterialReplacementScreen.ReplacementBinding() {
@@ -162,84 +167,108 @@ public final class QuickLitematicaProjectionMaterials {
 
     public static void replaceBlocks(LitematicaSchematic copy, String context) {
         if (!QuickLitematicaContainerReplacements.hasValidRules(QuickLitematicaContainerReplacements.Scope.PROJECTION, context)) { return; }
-        replaceBlocks(copy, state -> QuickLitematicaContainerReplacements.getReplacementTarget(
-                replacementSource(state),
-                QuickLitematicaContainerReplacements.Scope.PROJECTION, context));
+        replaceBlocks(copy, state -> projectionTarget(state, context));
     }
 
-    static void replaceBlocks(LitematicaSchematic copy, java.util.function.Function<BlockState, Optional<ItemStack>> targets) {
+    static Optional<ItemStack> projectionTarget(BlockState state, String context) {
+        return QuickLitematicaContainerReplacements.getReplacementTarget(replacementSource(state),
+                QuickLitematicaContainerReplacements.Scope.PROJECTION, context);
+    }
+
+    static void replaceBlocks(LitematicaSchematic copy, Function<BlockState, Optional<ItemStack>> targets) {
         var containers = ((LitematicaSchematicBlocksAccessor) copy).quickcraft$getBlockContainers();
+        Map<BlockState, Optional<ItemStack>> selected = new HashMap<>();
         long removedBlocks = 0;
         for (String region : copy.getAreas().keySet()) {
             var old = containers.get(region);
             if (old == null) { continue; }
-            var replacement = mapStates(old, state -> {
-                var target = targets.apply(state);
-                if (target.isEmpty()) { return state; }
-                var mapped = QuickLitematicaProjectionReplacementCompatibility.replacementState(state, target.get());
-                return mapped == null ? state : mapped;
-            });
-            containers.put(region, replacement);
-            boolean addsEntities = false;
-            long[] counts = null;
-            for (int index = 0; index < old.getPalette().getPaletteSize(); index++) {
-                BlockState before = old.getPalette().getBlockState(index);
-                BlockState after = replacement.getPalette().getBlockState(index);
-                addsEntities |= !before.hasBlockEntity() && after.hasBlockEntity();
-                if (!before.isAir() && after.isAir()) {
-                    if (counts == null) { counts = countPaletteStates(old); }
-                    removedBlocks += counts[index];
-                }
-            }
             var entities = QuickLitematicaContainerMaterialsAccess.getBlockEntities(copy, region);
-            if (entities == null) { continue; }
-            if (addsEntities) {
-                var size = old.getSize();
-                var lookup = MinecraftClient.getInstance().world.getRegistryManager();
-                for (int y = 0; y < size.getY(); y++) {
-                    for (int z = 0; z < size.getZ(); z++) {
-                        for (int x = 0; x < size.getX(); x++) {
-                            BlockState before = old.get(x, y, z);
-                            BlockState after = replacement.get(x, y, z);
-                            if (before.hasBlockEntity() || !after.hasBlockEntity()) { continue; }
-                            BlockPos pos = new BlockPos(x, y, z);
-                            var entity = ((BlockEntityProvider) after.getBlock()).createBlockEntity(pos, after);
-                            if (entity != null) {
-                                var target = targets.apply(before);
-                                target.ifPresent(entity::readComponents);
-                                entities.put(pos, QuickLitematicaContainerMaterialsAccess.blockEntityNbt(entity, lookup));
-                            }
-                        }
+            var replacement = replaceRegionBlocks(old, entities, state -> selected.computeIfAbsent(state, targets));
+            if (replacement != old) {
+                containers.put(region, replacement);
+                long[] counts = null;
+                for (int index = 0; index < old.getPalette().getPaletteSize(); index++) {
+                    BlockState before = old.getPalette().getBlockState(index);
+                    BlockState after = replacement.getPalette().getBlockState(index);
+                    if (!before.isAir() && after.isAir()) {
+                        if (counts == null) { counts = countPaletteStates(old); }
+                        removedBlocks += counts[index];
                     }
                 }
             }
-            for (var entry : new ArrayList<>(entities.entrySet())) {
-                BlockPos pos = entry.getKey();
-                BlockState previous = old.get(pos.getX(), pos.getY(), pos.getZ());
-                if (!previous.hasBlockEntity()) { continue; }
-                BlockState current = replacement.get(pos.getX(), pos.getY(), pos.getZ());
-                var selected = targets.apply(previous);
-                if (selected.isEmpty()) { continue; }
-                if (!current.hasBlockEntity()) { entities.remove(pos); continue; }
-                var entity = ((BlockEntityProvider) current.getBlock()).createBlockEntity(pos, current);
-                if (entity != null) {
-                    var lookup = MinecraftClient.getInstance().world.getRegistryManager();
-                    QuickLitematicaContainerMaterialsAccess.readBlockEntity(entity, entry.getValue().copy(), lookup);
-                    // 外壳替换只叠加目标显式组件，避免默认组件清空原有文字、图案等实体内容。
-                    entity.readComponents(entity.createComponentMap(), selected.get().getComponentChanges());
-                    var nbt = QuickLitematicaContainerMaterialsAccess.blockEntityNbt(entity, lookup);
-                    if (entry.getValue().contains("Items") && nbt.contains("Items")) {
-                        nbt.put("Items", entry.getValue().get("Items").copy());
-                    }
-                    entities.put(pos, nbt);
-                } else { entities.remove(pos); }
-            }
-            QuickLitematicaContainerMaterialsAccess.setBlockEntities(copy, region, entities);
+            if (entities != null) { QuickLitematicaContainerMaterialsAccess.setBlockEntities(copy, region, entities); }
         }
         if (removedBlocks > 0) {
             var metadata = copy.getMetadata();
             metadata.setTotalBlocks((int) Math.max(0, metadata.getTotalBlocks() - removedBlocks));
         }
+    }
+
+    static LitematicaBlockStateContainer replaceRegionBlocks(LitematicaBlockStateContainer original,
+            Map<BlockPos, NbtCompound> entities, Function<BlockState, Optional<ItemStack>> targets) {
+        var palette = original.getPalette();
+        List<BlockState> mapping = new ArrayList<>(palette.getPaletteSize());
+        Map<BlockState, BlockState> addedEntityStates = new HashMap<>();
+        boolean changed = false;
+        boolean updatesEntities = false;
+        for (int index = 0; index < palette.getPaletteSize(); index++) {
+            BlockState before = palette.getBlockState(index);
+            var target = targets.apply(before);
+            BlockState after = before;
+            if (target.isPresent()) {
+                BlockState mapped = QuickLitematicaProjectionReplacementCompatibility.replacementState(before, target.get());
+                if (mapped != null) { after = mapped; }
+                if (before.hasBlockEntity()) { updatesEntities = true; }
+                else if (after.hasBlockEntity()) { addedEntityStates.put(before, after); }
+            }
+            changed |= before != after;
+            mapping.add(after);
+        }
+
+        var replacement = changed ? copyMappedStates(original, mapping) : original;
+        if (entities == null || (!updatesEntities && addedEntityStates.isEmpty())) { return replacement; }
+        if (!addedEntityStates.isEmpty()) {
+            var size = original.getSize();
+            var lookup = MinecraftClient.getInstance().world.getRegistryManager();
+            for (int y = 0; y < size.getY(); y++) {
+                for (int z = 0; z < size.getZ(); z++) {
+                    for (int x = 0; x < size.getX(); x++) {
+                        BlockState before = original.get(x, y, z);
+                        BlockState after = addedEntityStates.get(before);
+                        if (after == null) { continue; }
+                        BlockPos pos = new BlockPos(x, y, z);
+                        var entity = ((BlockEntityProvider) after.getBlock()).createBlockEntity(pos, after);
+                        if (entity != null) {
+                            var target = targets.apply(before);
+                            target.ifPresent(entity::readComponents);
+                            entities.put(pos, QuickLitematicaContainerMaterialsAccess.blockEntityNbt(entity, lookup));
+                        }
+                    }
+                }
+            }
+        }
+        for (var entry : new ArrayList<>(entities.entrySet())) {
+            BlockPos pos = entry.getKey();
+            BlockState previous = original.get(pos.getX(), pos.getY(), pos.getZ());
+            if (!previous.hasBlockEntity()) { continue; }
+            BlockState current = replacement.get(pos.getX(), pos.getY(), pos.getZ());
+            var selected = targets.apply(previous);
+            if (selected.isEmpty()) { continue; }
+            if (!current.hasBlockEntity()) { entities.remove(pos); continue; }
+            var entity = ((BlockEntityProvider) current.getBlock()).createBlockEntity(pos, current);
+            if (entity != null) {
+                var lookup = MinecraftClient.getInstance().world.getRegistryManager();
+                QuickLitematicaContainerMaterialsAccess.readBlockEntity(entity, entry.getValue().copy(), lookup);
+                // 外壳替换只叠加目标显式组件，避免默认组件清空原有文字、图案等实体内容。
+                entity.readComponents(entity.createComponentMap(), selected.get().getComponentChanges());
+                var nbt = QuickLitematicaContainerMaterialsAccess.blockEntityNbt(entity, lookup);
+                if (entry.getValue().contains("Items") && nbt.contains("Items")) {
+                    nbt.put("Items", entry.getValue().get("Items").copy());
+                }
+                entities.put(pos, nbt);
+            } else { entities.remove(pos); }
+        }
+        return replacement;
     }
 
     static long[] countPaletteStates(LitematicaBlockStateContainer container) {
@@ -254,11 +283,15 @@ public final class QuickLitematicaProjectionMaterials {
     }
 
     static LitematicaBlockStateContainer mapStates(LitematicaBlockStateContainer original,
-                                                   java.util.function.UnaryOperator<BlockState> mapper) {
+                                                   UnaryOperator<BlockState> mapper) {
         List<BlockState> mapping = new ArrayList<>();
         for (int index = 0; index < original.getPalette().getPaletteSize(); index++) {
             mapping.add(mapper.apply(original.getPalette().getBlockState(index)));
         }
+        return copyMappedStates(original, mapping);
+    }
+
+    private static LitematicaBlockStateContainer copyMappedStates(LitematicaBlockStateContainer original, List<BlockState> mapping) {
         // 保留调色板索引，允许多个索引指向同一目标状态；不共享原始方块数组。
         var result = LitematicaBlockStateContainer.createFrom(original.getPalette().writeToNBT(),
                 original.getBackingLongArray().clone(), new BlockPos(original.getSize()));
@@ -269,24 +302,40 @@ public final class QuickLitematicaProjectionMaterials {
     public static void refreshFileList(MaterialListBase list) {
         LitematicaSchematic live = schematic(list);
         if (live == null || restoringEditor) { return; }
-        Object2IntOpenHashMap<BlockState> totals = new Object2IntOpenHashMap<>();
         var original = QuickLitematicaContainerMemory.original(live);
+        Object2IntOpenHashMap<BlockState> totals = new Object2IntOpenHashMap<>();
         for (String region : regions(list)) {
             var container = original.getSubRegionContainer(region);
             if (container == null) { continue; }
-            long[] counts = countPaletteStates(container);
+            long[] counts = QuickLitematicaContainerMemory.originalBlockCounts(live, region);
             for (int index = 0; index < counts.length; index++) {
                 if (counts[index] > 0) { totals.addTo(container.getPalette().getBlockState(index), Math.toIntExact(counts[index])); }
             }
         }
-        COUNTS.put(list, new Counts(totals, totals, new Object2IntOpenHashMap<>()));
+        var counts = new Counts(totals, totals, new Object2IntOpenHashMap<>());
+        COUNTS.put(list, counts);
+        FILE_LIST_VERSIONS.put(list, QuickLitematicaContainerMemory.originalVersion(live));
+        restoreFileRows(list, counts);
+    }
+
+    static boolean refreshFileAfterReplacement(MaterialListBase list) {
+        if (!(list instanceof LitematicaMaterialListSchematicAccessor accessor)) { return false; }
+        var counts = COUNTS.get(list);
+        var version = FILE_LIST_VERSIONS.get(list);
+        if (counts == null || version == null
+                || version != QuickLitematicaContainerMemory.originalVersion(accessor.quickcraft$getSchematic())) { return false; }
+        restoreFileRows(list, counts);
+        return true;
+    }
+
+    private static void restoreFileRows(MaterialListBase list, Counts counts) {
         restoringEditor = true;
         try {
-            var entries = MaterialListUtils.getMaterialList(totals, totals, new Object2IntOpenHashMap<>(), MinecraftClient.getInstance().player);
+            var entries = MaterialListUtils.getMaterialList(counts.total(), counts.missing(), counts.mismatch(),
+                    MinecraftClient.getInstance().player);
             updateEditorAvailability(list, entries);
             list.setMaterialListEntries(entries);
-        }
-        finally { restoringEditor = false; }
+        } finally { restoringEditor = false; }
     }
 
     public static void prepareEditor(MaterialListBase list, Object2IntOpenHashMap<BlockState> total,
