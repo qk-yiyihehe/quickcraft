@@ -17,6 +17,7 @@ import fi.dy.masa.malilib.hotkeys.KeybindMulti;
 import fi.dy.masa.malilib.util.InfoUtils;
 import org.slf4j.LoggerFactory;
 import net.minecraft.client.MinecraftClient;
+import net.minecraft.text.Text;
 import net.minecraft.client.gui.screen.ingame.AnvilScreen;
 import net.minecraft.client.gui.screen.ingame.CraftingScreen;
 import net.minecraft.client.gui.screen.ingame.InventoryScreen;
@@ -32,11 +33,13 @@ public final class QuickCraftHotkeyCallbacks {
     public static void bind() {
         QuickCraftConfigs.Developer.OPEN_PANEL.getKeybind()
                 .setCallback(QuickCraftHotkeyCallbacks::handleOpenDeveloperPanel);
-        QuickCraftConfigs.Developer.MOUSE_CRAFT_ACK_LOGS.setValueChangeCallback(config -> {
-            boolean enabled = config.getBooleanValue();
-            InfoUtils.printActionbarMessage(enabled
-                    ? "quickcraft.message.developer.ack_logs_enabled"
-                    : "quickcraft.message.developer.ack_logs_disabled");
+        QuickCraftConfigs.Developer.onToggleChanged(QuickCraftConfigs.Developer.MOUSE_CRAFT_ACK_LOGS, enabled -> {
+            MinecraftClient client = MinecraftClient.getInstance();
+            if (client.player != null) {
+                client.player.sendMessage(Text.translatable(enabled
+                        ? "quickcraft.message.developer.ack_logs_enabled"
+                        : "quickcraft.message.developer.ack_logs_disabled"), false);
+            }
             if (enabled) {
                 LoggerFactory.getLogger("QuickCraft/Developer")
                         .info("开发者调试：普通工作台/背包合成 ACK 详细日志已开启");

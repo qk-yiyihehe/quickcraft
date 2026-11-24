@@ -11,6 +11,7 @@ import fi.dy.masa.malilib.util.InfoUtils;
 import net.fabricmc.api.ModInitializer;
 import net.fabricmc.loader.api.FabricLoader;
 import net.minecraft.client.Minecraft;
+import net.minecraft.network.chat.Component;
 
 /**
  * QuickCraft 的 Fabric 主入口。
@@ -28,14 +29,17 @@ public class QuickCraft implements ModInitializer {
     }
 
     public static void bindOptionalHotkeys() {
-        QuickCraftConfigs.Developer.LITEMATICA_PREVIEW_3D_LOGS.setValueChangeCallback(config -> {
-            boolean enabled = config.getBooleanValue();
+        QuickCraftConfigs.Developer.onToggleChanged(QuickCraftConfigs.Developer.LITEMATICA_PREVIEW_3D_LOGS, enabled -> {
             QuickLitematicaPreviewLog.setEnabled(enabled);
-            InfoUtils.printActionbarMessage(!enabled
-                    ? "quickcraft.message.developer.preview_logs_disabled"
-                    : QuickLitematicaPreviewLog.logPath() == null
-                            ? "quickcraft.message.developer.preview_logs_failed"
-                            : "quickcraft.message.developer.preview_logs_enabled", QuickLitematicaPreviewLog.logPath());
+            Minecraft client = Minecraft.getInstance();
+            if (client.player != null) {
+                client.player.sendSystemMessage(Component.translatable(!enabled
+                        ? "quickcraft.message.developer.preview_logs_disabled"
+                        : QuickLitematicaPreviewLog.logPath() == null
+                                ? "quickcraft.message.developer.preview_logs_failed"
+                                : "quickcraft.message.developer.preview_logs_enabled",
+                        QuickLitematicaPreviewLog.logPath()));
+            }
         });
         if (FabricLoader.getInstance().isModLoaded("litematica")) {
             QuickCraftConfigs.ProjectionTools.PERSIST_PROJECTION_FEATURES.setValueChangeCallback(config ->

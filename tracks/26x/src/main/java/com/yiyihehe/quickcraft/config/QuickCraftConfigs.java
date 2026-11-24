@@ -21,6 +21,7 @@ import fi.dy.masa.malilib.hotkeys.IHotkey;
 import fi.dy.masa.malilib.hotkeys.IKeybind;
 import fi.dy.masa.malilib.hotkeys.KeyAction;
 import fi.dy.masa.malilib.hotkeys.KeybindSettings;
+import fi.dy.masa.malilib.interfaces.IValueChangeCallback;
 import fi.dy.masa.malilib.util.FileUtils;
 import fi.dy.masa.malilib.util.data.json.JsonUtils;
 import fi.dy.masa.malilib.util.StringUtils;
@@ -34,6 +35,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Consumer;
 
 /**
  * QuickCraft 的 malilib 配置定义与持久化。
@@ -918,6 +920,22 @@ public final class QuickCraftConfigs implements IConfigHandler {
         public static final List<IConfigBase> OPTIONS = List.of(MOUSE_CRAFT_ACK_LOGS, LITEMATICA_PREVIEW_3D_LOGS);
 
         private Developer() {
+        }
+
+        public static void onToggleChanged(ConfigBoolean option, Consumer<Boolean> callback) {
+            option.setValueChangeCallback(new IValueChangeCallback<ConfigBoolean>() {
+                private boolean previous = option.getBooleanValue();
+
+                @Override
+                public void onValueChanged(ConfigBoolean config) {
+                    boolean enabled = config.getBooleanValue();
+                    // MaLiLib 可能在写入和处理变更标记时各通知一次。
+                    if (enabled != previous) {
+                        previous = enabled;
+                        callback.accept(enabled);
+                    }
+                }
+            });
         }
     }
 

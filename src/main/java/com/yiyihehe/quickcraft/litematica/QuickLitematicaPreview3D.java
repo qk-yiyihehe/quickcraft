@@ -274,7 +274,12 @@ public final class QuickLitematicaPreview3D {
         if (!QuickCraftConfigs.shouldAutoDisableShadersFor3DPreview()
                 || !QuickLitematicaPreviewCompat.tryDisableShaders()) return false;
         boolean disabled = !isShaderPackActive();
-        if (disabled) InfoUtils.printActionbarMessage("quickcraft.message.litematica.preview_3d.shader_auto_disabled");
+        if (disabled) {
+            MinecraftClient client = MinecraftClient.getInstance();
+            if (client.player != null) {
+                client.player.sendMessage(Text.translatable("quickcraft.message.litematica.preview_3d.shader_auto_disabled"), false);
+            }
+        }
         return disabled;
     }
 
