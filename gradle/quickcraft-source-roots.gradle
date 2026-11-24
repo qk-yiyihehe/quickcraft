@@ -1,7 +1,19 @@
 def baseTarget = rootProject.file('versions/mainProject').getText('UTF-8').trim()
 def coreRoot = rootProject.file('src/main/java').canonicalFile
+def trackResourcesRoot = rootProject.file('src/main/resources').canonicalFile
+// 两轨共用同一份语言源文件，避免中英文文案在轨道之间漂移。
+def sharedLangRoot = new File(quickcraftRepositoryRoot, 'common/lang')
+if (!sharedLangRoot.isDirectory()) {
+	throw new GradleException("缺少共用语言资源目录: ${sharedLangRoot}")
+}
 
 afterEvaluate {
+	// 只挂到轨道基座项目的资源根；其余版本由 preprocess 资源链复制，避免各版本重复声明。
+	def isTrackBaseResources = sourceSets.main.resources.srcDirs.any { it.canonicalFile == trackResourcesRoot }
+	if (isTrackBaseResources) {
+		sourceSets.main.resources.srcDir(sharedLangRoot)
+	}
+
 	if (project.name == baseTarget) {
 		sourceSets.main.java.setSrcDirs([project.file('src/main/java'), coreRoot])
 	} else {

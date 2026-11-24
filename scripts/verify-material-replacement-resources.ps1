@@ -3,6 +3,7 @@ param([string]$BuildRoot)
 
 $ErrorActionPreference = 'Stop'
 $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
+$sharedLangRoot = Join-Path $repoRoot 'common\lang'
 if (-not $BuildRoot) { $BuildRoot = Join-Path $repoRoot 'build' }
 $matrix = Get-Content -LiteralPath (Join-Path $repoRoot 'version-matrix.json') -Raw -Encoding UTF8 | ConvertFrom-Json
 
@@ -30,7 +31,7 @@ foreach ($trackProperty in $matrix.tracks.PSObject.Properties) {
         }
         foreach ($language in @('zh_cn', 'en_us')) {
             $relativePath = "assets\quickcraft\lang\$language.json"
-            $coreLanguage = Get-Content -LiteralPath (Join-Path $resources $relativePath) -Raw -Encoding UTF8 | ConvertFrom-Json -AsHashtable
+            $coreLanguage = Get-Content -LiteralPath (Join-Path $sharedLangRoot $relativePath) -Raw -Encoding UTF8 | ConvertFrom-Json -AsHashtable
             $targetLanguage = Get-Content -LiteralPath (Join-Path $output $relativePath) -Raw -Encoding UTF8 | ConvertFrom-Json -AsHashtable
             $requiredKeys = @($coreLanguage.Keys | Where-Object {
                 $_ -match '^quickcraft\.litematica\.' -or
