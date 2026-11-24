@@ -1,5 +1,6 @@
 package com.yiyihehe.quickcraft;
 
+import com.yiyihehe.quickcraft.render.QuickCrossBoxSortStatus;
 import static com.yiyihehe.quickcraft.QuickContainerCopySources.*;
 
 import com.yiyihehe.quickcraft.compat.QuickShulkerConnection;
@@ -573,12 +574,13 @@ public final class QuickStashShulkerTransfer {
         }
         session = null;
         if (client.player != null) {
-            if (message != null) {
+            if (finished.temporarySlot >= 0 && client.world == finished.world) {
+                var statusScreen = !close && client.currentScreen instanceof HandledScreen<?> visible
+                        && visible.getScreenHandler() == finished.ownedHandler ? visible : null;
+                QuickCrossBoxSortStatus.show(statusScreen, Text.translatable("quickcraft.message.quick_stash.temporary_left",
+                        finished.temporarySlot + 1));
+            } else if (message != null) {
                 client.player.sendMessage(Text.translatable(message), true);
-            }
-            if (finished.temporarySlot >= 0) {
-                client.player.sendMessage(Text.translatable("quickcraft.message.quick_stash.temporary_left",
-                        finished.temporarySlot + 1), false);
             }
             if (close && client.currentScreen instanceof HandledScreen<?> screen
                     && screen.getScreenHandler() == finished.ownedHandler) {

@@ -130,7 +130,6 @@ public final class QuickContainerCopy implements ClientModInitializer {
         } else {
             return false;
         }
-        sendStatusMessage(client, Component.translatable("quickcraft.message.container_copy.recording", type.displayName()));
         return true;
     }
 
@@ -768,7 +767,6 @@ public final class QuickContainerCopy implements ClientModInitializer {
 
         pendingStashRecovery = null;
         if (restoreTemporaryContainerStash(handler, getContainerSlotIds(handler), client, pending.stash())) {
-            sendStatusMessage(client, stashMessage("quickcraft.message.container_copy.temporary_stash_recovered", pending.stash()));
         } else {
             pendingStashRecovery = pending;
             sendStatusMessage(client, stashMessage("quickcraft.message.container_copy.temporary_stash_recovery_failed", pending.stash()));

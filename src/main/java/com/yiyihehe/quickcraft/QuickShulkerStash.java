@@ -1,4 +1,5 @@
 package com.yiyihehe.quickcraft;
+import com.yiyihehe.quickcraft.render.QuickCrossBoxSortStatus;
 
 import static com.yiyihehe.quickcraft.QuickContainerCopySources.*;
 
@@ -46,12 +47,12 @@ public final class QuickShulkerStash {
             return;
         }
         if (!isAvailable()) {
-            client.player.sendMessage(Text.translatable("quickcraft.message.quick_stash.shulker_unavailable"), true);
+            QuickCrossBoxSortStatus.show(Text.translatable("quickcraft.message.quick_stash.shulker_unavailable"));
             return;
         }
         ScreenHandler handler = screen.getScreenHandler();
         if (!handler.getCursorStack().isEmpty()) {
-            client.player.sendMessage(Text.translatable("quickcraft.message.quick_stash.cursor_blocked"), true);
+            QuickCrossBoxSortStatus.show(Text.translatable("quickcraft.message.quick_stash.cursor_blocked"));
             return;
         }
         QuickContainerLock.bindCurrentScreen(screen);
@@ -75,13 +76,13 @@ public final class QuickShulkerStash {
                 String failure = handler.getCursorStack().isEmpty()
                         ? "quickcraft.message.quick_stash.shulker_insert_failed"
                         : "quickcraft.message.quick_stash.cursor_blocked";
-                client.player.sendMessage(Text.translatable(failure), true);
+                QuickCrossBoxSortStatus.show(Text.translatable(failure));
                 return;
             }
             moved |= source.getStack().getCount() < before;
         }
         if (!moved) {
-            client.player.sendMessage(Text.translatable("quickcraft.message.quick_stash.shulker_no_match"), true);
+            QuickCrossBoxSortStatus.show(Text.translatable("quickcraft.message.quick_stash.shulker_no_match"));
         }
     }
 

@@ -1,4 +1,5 @@
 package com.yiyihehe.quickcraft.portablestorage;
+import com.yiyihehe.quickcraft.render.QuickCrossBoxSortStatus;
 
 import com.yiyihehe.quickcraft.QuickContainerCopy;
 import com.yiyihehe.quickcraft.QuickContainerLock;
@@ -312,11 +313,11 @@ public final class QuickPortableStorageTransfer {
         }
         boolean store = isStore(request.mode);
         if (store && request.mode != Mode.STORE_CURSOR && locked(menu, inventorySlot(menu, request.inventorySlot))) {
-            message(client, request, "locked_slot");
+            message(request, "locked_slot");
             return;
         }
         if (request.mode == Mode.TAKE_ALL && findPlayerSlot(menu, request.stack, slot -> true) == null) {
-            message(client, request, "no_space");
+            message(request, "no_space");
             return;
         }
         if (request.source == Source.BUNDLE) {
@@ -327,24 +328,24 @@ public final class QuickPortableStorageTransfer {
             return;
         }
         if (request.source == Source.ENDER_CHEST && !preview && QuickContainerLock.isEnderChestLocked()) {
-            message(client, request, "locked_slot");
+            message(request, "locked_slot");
             return;
         }
         if (!QuickShulkerConnection.canOpen()) {
-            message(client, request, "unavailable");
+            message(request, "unavailable");
             return;
         }
         int carrier = selectCarrier(request, menu);
         Slot carrierSlot = inventorySlot(menu, carrier);
         if (carrierSlot == null || (!preview && inaccessibleCarrier(menu, carrierSlot, request.source))) {
-            message(client, request, "no_source");
+            message(request, "no_source");
             return;
         }
         int staging = -1;
         if (request.mode == Mode.STORE_CURSOR) {
             Slot buffer = findPlayerSlot(menu, request.stack, slot -> !slot.hasStack());
             if (buffer == null) {
-                message(client, request, "no_space");
+                message(request, "no_space");
                 return;
             }
             staging = buffer.getIndex();
@@ -359,7 +360,7 @@ public final class QuickPortableStorageTransfer {
             active = new Session(request, carrier, carrierSlot.getStack().copy(), staging, revision);
         } else {
             restoreCursor(client, request, staging, request.stack);
-            message(client, request, "unavailable");
+            message(request, "unavailable");
         }
     }
 
@@ -746,7 +747,7 @@ public final class QuickPortableStorageTransfer {
                 if (!owner.currentScreenHandler.getCursorStack().isEmpty()) {
                     requests.clear();
                     client.setScreen(session.opened);
-                    message(client, session.request, "cursor_busy");
+                    QuickCrossBoxSortStatus.show(session.opened, net.minecraft.text.Text.translatable("quickcraft.portable_storage.cursor_busy"));
                     return;
                 }
                 if (session.ready && session.request.source == Source.SHULKER) {
@@ -764,7 +765,7 @@ public final class QuickPortableStorageTransfer {
                 restoreCursor(client, session.request, session.staging, session.request.stack);
             }
             if (failure != null && validRequest(client, session.request, client.currentScreen)) {
-                message(client, session.request, failure);
+                message(session.request, failure);
             }
         } finally {
             active = null;
@@ -925,9 +926,9 @@ public final class QuickPortableStorageTransfer {
         client.interactionManager.clickSlot(menu.syncId, slot.id, button, SlotActionType.PICKUP, client.player);
     }
 
-    private static void message(MinecraftClient client, Request request, String name) {
+    private static void message(Request request, String name) {
         if (request.screen != null) {
-            fi.dy.masa.malilib.util.InfoUtils.printActionbarMessage("quickcraft.portable_storage." + name);
+            QuickCrossBoxSortStatus.show(request.screen, net.minecraft.text.Text.translatable("quickcraft.portable_storage." + name));
         }
     }
 

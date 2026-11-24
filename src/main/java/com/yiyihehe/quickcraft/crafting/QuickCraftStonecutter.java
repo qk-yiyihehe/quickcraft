@@ -1,4 +1,5 @@
 package com.yiyihehe.quickcraft.crafting;
+import com.yiyihehe.quickcraft.render.QuickCrossBoxSortStatus;
 
 import com.yiyihehe.quickcraft.QuickContainerLock;
 import com.yiyihehe.quickcraft.QuickCraftKeyBindings;
@@ -155,7 +156,6 @@ public class QuickCraftStonecutter implements ClientModInitializer {
         batchStartRevision = handler.getRevision();
         logCraft("会话开始：" + (rapid ? "持续合成" : "单次合成") + (fromButton ? "，按钮触发" : "，热键触发"));
         if (rapid) {
-            sendStatusMessage(client, Text.translatable("quickcraft.message.crafting.started"));
         }
         pump(client);
         return true;
@@ -693,7 +693,7 @@ public class QuickCraftStonecutter implements ClientModInitializer {
 
     void sendStatusMessage(MinecraftClient client, Text message) {
         if (client.player != null) {
-            client.player.sendMessage(message, true);
+            QuickCrossBoxSortStatus.show(message);
         }
     }
 

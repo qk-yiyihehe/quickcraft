@@ -1,4 +1,5 @@
 package com.yiyihehe.quickcraft.crafting;
+import com.yiyihehe.quickcraft.render.QuickCrossBoxSortStatus;
 
 import com.yiyihehe.quickcraft.QuickCraftKeyBindings;
 import com.yiyihehe.quickcraft.QuickClientScreenAccess;
@@ -1129,7 +1130,6 @@ public final class QuickCraftWorkbenchShulkerCraft implements ClientModInitializ
             return;
         }
         QuickCraftWorkbenchShulker.beginSession(sessionMode);
-        sendMessage(client, Component.translatable("quickcraft.message.crafting.started"));
     }
 
     private void handleServerStatistics(Minecraft client,
@@ -1981,7 +1981,7 @@ public final class QuickCraftWorkbenchShulkerCraft implements ClientModInitializ
 
     private void sendMessage(Minecraft client, Component message) {
         if (message != null && client != null && client.player != null) {
-            client.player.sendOverlayMessage(message);
+            QuickCrossBoxSortStatus.show(message);
         }
     }
 

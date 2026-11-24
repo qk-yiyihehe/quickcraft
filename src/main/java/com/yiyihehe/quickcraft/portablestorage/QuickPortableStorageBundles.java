@@ -1,4 +1,5 @@
 package com.yiyihehe.quickcraft.portablestorage;
+import com.yiyihehe.quickcraft.render.QuickCrossBoxSortStatus;
 
 import com.yiyihehe.quickcraft.QuickSlotTransfer;
 import net.minecraft.client.MinecraftClient;
@@ -165,6 +166,6 @@ final class QuickPortableStorageBundles {
     }
 
     private static void message(MinecraftClient client, String key) {
-        fi.dy.masa.malilib.util.InfoUtils.printActionbarMessage("quickcraft.portable_storage." + key);
+        QuickCrossBoxSortStatus.show(net.minecraft.text.Text.translatable("quickcraft.portable_storage." + key));
     }
 }

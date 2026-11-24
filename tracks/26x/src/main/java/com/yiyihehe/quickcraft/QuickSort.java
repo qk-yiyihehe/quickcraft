@@ -1,4 +1,5 @@
 package com.yiyihehe.quickcraft;
+import com.yiyihehe.quickcraft.render.QuickCrossBoxSortStatus;
 
 import com.yiyihehe.quickcraft.config.QuickCraftConfigs;
 import com.yiyihehe.quickcraft.config.QuickCraftItemAliases;
@@ -819,7 +820,7 @@ public class QuickSort implements ClientModInitializer {
 
     private static void notifySortIncomplete(Minecraft client) {
         if (client.player != null) {
-            client.player.sendOverlayMessage(Component.translatable("quickcraft.message.sort.incomplete"));
+            QuickCrossBoxSortStatus.show(Component.translatable("quickcraft.message.sort.incomplete"));
         }
     }
 

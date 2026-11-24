@@ -13,6 +13,7 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.gui.screens.inventory.InventoryScreen;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
+import net.minecraft.network.chat.Component;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -33,17 +34,23 @@ public final class QuickCrossBoxSort implements ClientModInitializer {
                 left.key().template().copyWithCount(left.count()), right.key().template().copyWithCount(right.count()));
     }
 
-    public static void message(net.minecraft.network.chat.Component text) {
-        com.yiyihehe.quickcraft.render.QuickCrossBoxSortStatus.show(text);
+    public static void message(Screen screen, Component text) {
+        com.yiyihehe.quickcraft.render.QuickCrossBoxSortStatus.show(screen, text);
     }
 
-    public static void reportPlan(int required, int available, boolean onePerBox) {
-        if (onePerBox && required > available) {
-            message(net.minecraft.network.chat.Component.translatable("quickcraft.message.cross_box_sort.boxes_insufficient", required, available));
-        } else {
-            com.yiyihehe.quickcraft.render.QuickCrossBoxSortStatus.showProgress(
-                    net.minecraft.network.chat.Component.translatable("quickcraft.message.cross_box_sort.started"));
-        }
+    public static boolean reportPlan(Screen screen, int required, int available, boolean onePerBox) {
+        boolean groupedFallback = onePerBox && required > available;
+        message(screen, groupedFallback
+                ? Component.translatable("quickcraft.message.cross_box_sort.boxes_insufficient", required, available)
+                : Component.translatable("quickcraft.message.cross_box_sort.started"));
+        return groupedFallback;
+    }
+
+    public static void reportCompletion(Screen screen, boolean groupedFallback, int emptied, int remaining, int moves) {
+        message(screen, groupedFallback
+                ? Component.translatableWithFallback("quickcraft.message.cross_box_sort.completed_grouped",
+                        "Too few boxes, grouped by type: %s freed, %s left, %s moves", emptied, remaining, moves)
+                : Component.translatable("quickcraft.message.cross_box_sort.completed", emptied, remaining, moves));
     }
 
     public static boolean isRunning() {
@@ -73,8 +80,7 @@ public final class QuickCrossBoxSort implements ClientModInitializer {
         if (playerInventory ? QuickContainerLock.handleLockedPlayerInventorySortAttempt(client)
                 : QuickContainerLock.handleLockedSortAttempt(client, screen)) { return; }
         var slots = QuickSort.crossBoxSortSlots(screen, playerInventory);
-        com.yiyihehe.quickcraft.render.QuickCrossBoxSortStatus.clear();
-        if (slots.isEmpty()) { message(net.minecraft.network.chat.Component.translatable("quickcraft.message.cross_box_sort.nothing_to_sort")); return; }
+        if (slots.isEmpty()) { message(screen, Component.translatable("quickcraft.message.cross_box_sort.nothing_to_sort")); return; }
         QuickCrossBoxSortSessions.INSTANCE.start(client, onePerBox, slots, playerInventory);
     }
 

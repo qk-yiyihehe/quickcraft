@@ -1,4 +1,5 @@
 package com.yiyihehe.quickcraft.crafting;
+import com.yiyihehe.quickcraft.render.QuickCrossBoxSortStatus;
 
 import com.yiyihehe.quickcraft.QuickClientScreenAccess;
 import com.yiyihehe.quickcraft.QuickContainerLock;
@@ -311,7 +312,6 @@ public final class QuickCraftAnvilRename implements ClientModInitializer {
 
         resetOutputPolicy(handler);
         rapidRenameActive = true;
-        sendStatusMessage(client, Component.translatable("quickcraft.message.crafting.started"));
     }
 
     private RenameSnapshot captureSnapshot(AnvilMenu handler) {
@@ -421,7 +421,7 @@ public final class QuickCraftAnvilRename implements ClientModInitializer {
 
     private void sendStatusMessage(Minecraft client, Component message) {
         if (client.player != null) {
-            client.player.sendOverlayMessage(message);
+            QuickCrossBoxSortStatus.show(message);
         }
     }
 

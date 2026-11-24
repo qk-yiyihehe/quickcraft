@@ -47,6 +47,7 @@ final class QuickCrossBoxSortContainer {
 
     boolean isBase(ScreenHandler handler) { return handler == menu; }
     boolean hasBorrowedBox() { return borrowed >= 0; }
+    boolean isScreen(Screen candidate) { return candidate == screen; }
     int temporarySlot() { return temporarySlot; }
     int slot(int index) { return slots.get(index); }
     ItemStack stack(int index) { return menu.getSlot(slot(index)).getStack(); }

@@ -1,4 +1,5 @@
 package com.yiyihehe.quickcraft.crafting;
+import com.yiyihehe.quickcraft.render.QuickCrossBoxSortStatus;
 
 import com.yiyihehe.quickcraft.QuickContainerLock;
 import com.yiyihehe.quickcraft.QuickClientScreenAccess;
@@ -1887,7 +1888,6 @@ final class QuickCraftMouseCrafting {
         clearRecipeGhosts.run();
         tryStartMouseCraftAck(client, handler);
 
-        sendStatusMessage(client, Component.translatable("quickcraft.message.crafting.started"));
         return true;
     }
 
@@ -1914,7 +1914,7 @@ final class QuickCraftMouseCrafting {
 
     private void sendStatusMessage(Minecraft client, Component message) {
         if (client != null && client.player != null && message != null) {
-            client.player.sendOverlayMessage(message);
+            QuickCrossBoxSortStatus.show(message);
         }
     }
 

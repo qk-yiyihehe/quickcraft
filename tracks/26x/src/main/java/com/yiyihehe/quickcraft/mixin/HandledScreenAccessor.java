@@ -18,4 +18,7 @@ public interface HandledScreenAccessor {
 
     @Accessor("topPos")
     int quickcraft$getGuiTop();
+
+    @Accessor("imageHeight")
+    int quickcraft$getGuiHeight();
 }

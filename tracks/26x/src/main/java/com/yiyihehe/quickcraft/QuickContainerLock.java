@@ -1,4 +1,5 @@
 package com.yiyihehe.quickcraft;
+import com.yiyihehe.quickcraft.render.QuickCrossBoxSortStatus;
 
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
@@ -259,12 +260,6 @@ public final class QuickContainerLock implements ClientModInitializer {
         setCurrentScreenHandler(handler, getContainerKey(originalHandler));
     }
 
-    public static Component getLockButtonText(AbstractContainerScreen<?> screen) {
-        return Component.translatable(isCurrentScreenLocked(screen)
-                ? "quickcraft.button.container_lock.unlock"
-                : "quickcraft.button.container_lock.lock");
-    }
-
     public static void toggleCurrentScreenLock(Minecraft client, AbstractContainerScreen<?> screen) {
         String key = getCurrentScreenContainerKey(screen);
         if (key == null) {
@@ -302,12 +297,10 @@ public final class QuickContainerLock implements ClientModInitializer {
         if (!LOCKED_CONTAINERS.add(key)) {
             LOCKED_CONTAINERS.remove(key);
             QuickPersistentState.saveCurrentProfileState();
-            sendStatusMessage(client, Component.translatable("quickcraft.message.container_lock.unlocked"));
             return;
         }
 
         QuickPersistentState.saveCurrentProfileState();
-        sendStatusMessage(client, Component.translatable("quickcraft.message.container_lock.locked"));
     }
 
     public static boolean isCurrentScreenLocked(AbstractContainerScreen<?> screen) {
@@ -1260,7 +1253,7 @@ public final class QuickContainerLock implements ClientModInitializer {
 
     private static void sendStatusMessage(Minecraft client, Component message) {
         if (client != null && client.player != null) {
-            client.player.sendOverlayMessage(message);
+            QuickCrossBoxSortStatus.show(message);
         }
     }
 

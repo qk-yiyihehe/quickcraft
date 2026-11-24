@@ -34,17 +34,23 @@ public final class QuickCrossBoxSort implements ClientModInitializer {
                 left.key().template().copyWithCount(left.count()), right.key().template().copyWithCount(right.count()));
     }
 
-    public static void message(Text text) {
-        com.yiyihehe.quickcraft.render.QuickCrossBoxSortStatus.show(text);
+    public static void message(Screen screen, Text text) {
+        com.yiyihehe.quickcraft.render.QuickCrossBoxSortStatus.show(screen, text);
     }
 
-    public static void reportPlan(int required, int available, boolean onePerBox) {
-        if (onePerBox && required > available) {
-            message(Text.translatable("quickcraft.message.cross_box_sort.boxes_insufficient", required, available));
-        } else {
-            com.yiyihehe.quickcraft.render.QuickCrossBoxSortStatus.showProgress(
-                    Text.translatable("quickcraft.message.cross_box_sort.started"));
-        }
+    public static boolean reportPlan(Screen screen, int required, int available, boolean onePerBox) {
+        boolean groupedFallback = onePerBox && required > available;
+        message(screen, groupedFallback
+                ? Text.translatable("quickcraft.message.cross_box_sort.boxes_insufficient", required, available)
+                : Text.translatable("quickcraft.message.cross_box_sort.started"));
+        return groupedFallback;
+    }
+
+    public static void reportCompletion(Screen screen, boolean groupedFallback, int emptied, int remaining, int moves) {
+        message(screen, groupedFallback
+                ? Text.translatableWithFallback("quickcraft.message.cross_box_sort.completed_grouped",
+                        "Too few boxes, grouped by type: %s freed, %s left, %s moves", emptied, remaining, moves)
+                : Text.translatable("quickcraft.message.cross_box_sort.completed", emptied, remaining, moves));
     }
 
     public static boolean isRunning() {
@@ -74,8 +80,7 @@ public final class QuickCrossBoxSort implements ClientModInitializer {
         if (playerInventory ? QuickContainerLock.handleLockedPlayerInventorySortAttempt(client)
                 : QuickContainerLock.handleLockedSortAttempt(client, screen)) { return; }
         var slots = QuickSort.crossBoxSortSlots(screen, playerInventory);
-        com.yiyihehe.quickcraft.render.QuickCrossBoxSortStatus.clear();
-        if (slots.isEmpty()) { message(Text.translatable("quickcraft.message.cross_box_sort.nothing_to_sort")); return; }
+        if (slots.isEmpty()) { message(screen, Text.translatable("quickcraft.message.cross_box_sort.nothing_to_sort")); return; }
         QuickCrossBoxSortSessions.INSTANCE.start(client, onePerBox, slots, playerInventory);
     }
 

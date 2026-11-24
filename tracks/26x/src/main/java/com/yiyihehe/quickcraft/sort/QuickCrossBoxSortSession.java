@@ -61,6 +61,7 @@ final class QuickCrossBoxSortSession {
     private int emptyMergeCount;
     private int emptyTargetBeforeCount;
     private Component abortMessage;
+    private boolean groupedFallback;
     private Batch batch;
     private int batchJobIndex;
     private int targetGroupIndex;
@@ -88,7 +89,7 @@ final class QuickCrossBoxSortSession {
         LocalPlayer player = client.player;
         if (player != null && QuickClientScreenAccess.currentScreen(client) instanceof AbstractContainerScreen<?> screen && (containerSlots != null || screen instanceof InventoryScreen) && player.containerMenu == screen.getMenu()) {
             if (!player.containerMenu.getCarried().isEmpty()) {
-                message(player, "quickcraft.message.cross_box_sort.cursor_not_empty");
+                message(screen, "quickcraft.message.cross_box_sort.cursor_not_empty");
                 return null;
             } else {
                 Inventory inventory = player.getInventory();
@@ -102,7 +103,7 @@ final class QuickCrossBoxSortSession {
                 }
 
                 if (emptySlot < 0) {
-                    message(player, "quickcraft.message.cross_box_sort.inventory_full");
+                    message(screen, "quickcraft.message.cross_box_sort.inventory_full");
                     return null;
                 } else {
                     int workspace = -1;
@@ -120,7 +121,7 @@ final class QuickCrossBoxSortSession {
                     boolean borrowedShulker = false;
                     if (workspace < 0) {
                         workspace = java.util.stream.IntStream.range(0, 9).filter(i -> !QuickCrossBoxSortProtection.isLocked(i)).findFirst().orElse(-1);
-                        if (workspace < 0) { message(player, "quickcraft.message.cross_box_sort.inventory_full"); return null; }
+                        if (workspace < 0) { message(screen, "quickcraft.message.cross_box_sort.inventory_full"); return null; }
                         borrowedDestination = emptySlot;
                         ItemStack borrowed = inventory.getItem(workspace);
                         borrowedKey = new QuickCrossBoxSortStackKey(borrowed);
@@ -134,15 +135,14 @@ final class QuickCrossBoxSortSession {
                         for (int slot = 0; slot < 36; slot++) {
                             if (slot != workspace && slot != borrowedDestination && !QuickCrossBoxSortProtection.isLocked(slot) && inventory.getItem(slot).isEmpty()) { temporary = slot; break; }
                         }
-                        if (temporary < 0) { message(player, "quickcraft.message.cross_box_sort.container_space"); return null; }
+                        if (temporary < 0) { message(screen, "quickcraft.message.cross_box_sort.container_space"); return null; }
                         container = QuickCrossBoxSortContainer.create(client, screen, containerSlots, temporary);
-                        if (container == null) { message(player, "quickcraft.message.cross_box_sort.container_unavailable"); return null; }
+                        if (container == null) { message(screen, "quickcraft.message.cross_box_sort.container_unavailable"); return null; }
                     }
                     return new QuickCrossBoxSortSession(container, onePerBox, workspace, borrowedDestination, borrowedKey, borrowedCount, borrowedShulker);
                 }
             }
         } else {
-            message(player, "quickcraft.message.cross_box_sort.inventory_only");
             return null;
         }
     }
@@ -380,7 +380,8 @@ final class QuickCrossBoxSortSession {
                     return;
                 }
 
-                QuickCrossBoxSort.reportPlan(QuickCrossBoxSortSpares.needed(scan.boxes()), plan.targets().size(), onePerBox);
+                groupedFallback = QuickCrossBoxSort.reportPlan(statusScreen(), QuickCrossBoxSortSpares.needed(scan.boxes()),
+                        plan.targets().size(), onePerBox);
                 this.stagingInventorySlots = staging;
 
                 this.transfers = plan.merges();
@@ -738,9 +739,9 @@ final class QuickCrossBoxSortSession {
         if (!player.containerMenu.getCarried().isEmpty()) {
             this.abort(Minecraft.getInstance(), Component.translatable("quickcraft.message.cross_box_sort.safe_abort"));
         } else {
-            QuickCrossBoxSort.message(Component.translatable("quickcraft.message.cross_box_sort.completed", this.emptiedBoxes, this.remainingBoxes, this.crossBoxMoves));
             this.state = State.STOPPED;
             if (container != null) { container.reveal(Minecraft.getInstance()); }
+            QuickCrossBoxSort.reportCompletion(statusScreen(), groupedFallback, emptiedBoxes, remainingBoxes, crossBoxMoves);
         }
     }
 
@@ -852,7 +853,7 @@ final class QuickCrossBoxSortSession {
                         this.sendClick(client, player.containerMenu, recoverySlot, 0, State.ABORT_RECOVERY_WAIT);
                     } else {
                         this.revealHiddenContainerForRecovery();
-                        QuickCrossBoxSort.message(Component.translatable("quickcraft.message.cross_box_sort.cursor_recovery_failed"));
+                        message(Component.translatable("quickcraft.message.cross_box_sort.cursor_recovery_failed"));
                         this.state = State.STOPPED;
                     }
                 }
@@ -867,7 +868,7 @@ final class QuickCrossBoxSortSession {
         } else {
             if (this.age >= this.deadline) {
                 this.revealHiddenContainerForRecovery();
-                QuickCrossBoxSort.message(Component.translatable("quickcraft.message.cross_box_sort.cursor_recovery_failed"));
+                message(Component.translatable("quickcraft.message.cross_box_sort.cursor_recovery_failed"));
                 this.state = State.STOPPED;
             }
 
@@ -885,7 +886,7 @@ final class QuickCrossBoxSortSession {
         boolean liveWorkspaceToken = !inventory.getItem(this.workspaceHotbarSlot).isEmpty() && (this.borrowedDestinationSlot < 0 || borrowOutstanding);
         if (liveWorkspaceToken || hasItemsInExtraSwapSlots(inventory)) {
             this.revealHiddenContainerForRecovery();
-            QuickCrossBoxSort.message(Component.translatable("quickcraft.message.cross_box_sort.hotbar_restore_failed"));
+            message(Component.translatable("quickcraft.message.cross_box_sort.hotbar_restore_failed"));
             this.state = State.STOPPED;
         } else if (borrowOutstanding) {
             if (player.containerMenu != player.inventoryMenu) {
@@ -901,7 +902,7 @@ final class QuickCrossBoxSortSession {
                 closeOwnedBox(player);
             }
 
-            QuickCrossBoxSort.message(this.abortMessage);
+            message(this.abortMessage);
             this.state = State.STOPPED;
         }
     }
@@ -910,7 +911,7 @@ final class QuickCrossBoxSortSession {
         if (player.containerMenu == player.inventoryMenu && player.containerMenu.getCarried().isEmpty()) {
             this.state = State.ABORT_RESTORE_HOTBAR;
         } else if (this.age >= this.deadline) {
-            QuickCrossBoxSort.message(Component.translatable("quickcraft.message.cross_box_sort.hotbar_restore_failed"));
+            message(Component.translatable("quickcraft.message.cross_box_sort.hotbar_restore_failed"));
             this.state = State.STOPPED;
         }
 
@@ -922,7 +923,7 @@ final class QuickCrossBoxSortSession {
             this.sendInventorySwap(client, this.borrowedDestinationSlot, this.workspaceHotbarSlot, State.ABORT_WAIT_HOTBAR_RESTORE);
         } else {
             if (player != null) {
-                QuickCrossBoxSort.message(Component.translatable("quickcraft.message.cross_box_sort.hotbar_restore_failed"));
+                message(Component.translatable("quickcraft.message.cross_box_sort.hotbar_restore_failed"));
             }
 
             this.state = State.STOPPED;
@@ -932,10 +933,10 @@ final class QuickCrossBoxSortSession {
     private void waitForAbortHotbarRestore(LocalPlayer player) {
         BooleanSupplier validation = () -> player.getInventory().getItem(this.borrowedDestinationSlot).isEmpty() && !player.getInventory().getItem(this.workspaceHotbarSlot).isEmpty() && player.containerMenu.getCarried().isEmpty();
         if (this.clickSettled(player, validation)) {
-            QuickCrossBoxSort.message(this.abortMessage);
+            message(this.abortMessage);
             this.state = State.STOPPED;
         } else if (this.age >= this.deadline) {
-            QuickCrossBoxSort.message(Component.translatable("quickcraft.message.cross_box_sort.hotbar_restore_failed"));
+            message(Component.translatable("quickcraft.message.cross_box_sort.hotbar_restore_failed"));
             this.state = State.STOPPED;
         }
 
@@ -994,8 +995,8 @@ final class QuickCrossBoxSortSession {
         if (ready > 0) { continueAbortWithEmptyCursor(client.player); }
         else if (ready < 0) {
             state = State.STOPPED;
-            message(client.player, "quickcraft.message.cross_box_sort.container_recovery_failed");
             container.reveal(client);
+            message(Component.translatable("quickcraft.message.cross_box_sort.container_recovery_failed"));
         }
     }
 
@@ -1032,11 +1033,19 @@ final class QuickCrossBoxSortSession {
         }
     }
 
-    private static void message(LocalPlayer player, String translationKey) {
-        if (player != null) {
-            QuickCrossBoxSort.message(Component.translatable(translationKey));
-        }
+    private Screen statusScreen() {
+        var client = Minecraft.getInstance();
+        Screen screen = QuickClientScreenAccess.currentScreen(client);
+        return screen == backgroundInventory || screen == hiddenContainerScreen || container != null && container.isScreen(screen)
+                ? screen : null;
+    }
 
+    private void message(Component text) {
+        QuickCrossBoxSort.message(statusScreen(), text);
+    }
+
+    private static void message(Screen screen, String translationKey) {
+        QuickCrossBoxSort.message(screen, Component.translatable(translationKey));
     }
 
     private enum State {

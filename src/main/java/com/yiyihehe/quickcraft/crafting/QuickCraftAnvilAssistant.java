@@ -1,4 +1,5 @@
 package com.yiyihehe.quickcraft.crafting;
+import com.yiyihehe.quickcraft.render.QuickCrossBoxSortStatus;
 
 import com.yiyihehe.quickcraft.QuickContainerLock;
 import com.yiyihehe.quickcraft.QuickCraftKeyBindings;
@@ -374,7 +375,7 @@ public final class QuickCraftAnvilAssistant {
         connection = null;
         status = message(reason);
         var player = MinecraftClient.getInstance().player;
-        if (player != null) player.sendMessage(status, true);
+        if (player != null) QuickCrossBoxSortStatus.show(status);
         refreshButtons();
     }
 

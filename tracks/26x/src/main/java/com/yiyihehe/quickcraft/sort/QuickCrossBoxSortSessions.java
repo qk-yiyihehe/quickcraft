@@ -24,6 +24,7 @@ public final class QuickCrossBoxSortSessions {
     private boolean onePerBox;
     private java.util.List<Integer> containerSlots;
     private net.minecraft.world.inventory.AbstractContainerMenu splitMenu;
+    private Screen splitScreen;
     private net.minecraft.client.player.LocalPlayer owner;
     private net.minecraft.client.multiplayer.ClientLevel world;
     private InventoryScreen inventoryView;
@@ -37,19 +38,19 @@ public final class QuickCrossBoxSortSessions {
         var player = client.player;
         if (isRunning() || player == null || !(QuickClientScreenAccess.currentScreen(client) instanceof AbstractContainerScreen<?> screen)
                 || screen.getMenu() != player.containerMenu) { return; }
-        if (!player.containerMenu.getCarried().isEmpty()) { message(client, "cursor_not_empty"); return; }
+        if (!player.containerMenu.getCarried().isEmpty()) { message(screen, "cursor_not_empty"); return; }
         this.onePerBox = onePerBox;
         owner = player;
         world = client.level;
         inventoryView = screen instanceof InventoryScreen inventory ? inventory : null;
         if (client.getSingleplayerServer() != null) {
-            remote = QuickCrossBoxSortIntegratedSession.create(client, onePerBox, menuSlots);
+            remote = QuickCrossBoxSortIntegratedSession.create(client, screen, onePerBox, menuSlots);
             return;
         }
-        if (!com.yiyihehe.quickcraft.compat.QuickShulkerConnection.canOpen()) { message(client, "quickshulker_unavailable"); return; }
+        if (!com.yiyihehe.quickcraft.compat.QuickShulkerConnection.canOpen()) { message(screen, "quickshulker_unavailable"); return; }
         if (playerInventory) {
             containerSlots = null;
-            if (QuickCrossBoxSortInventory.scan(player.getInventory()).boxes().isEmpty()) { message(client, "nothing_to_sort"); return; }
+            if (QuickCrossBoxSortInventory.scan(player.getInventory()).boxes().isEmpty()) { message(screen, "nothing_to_sort"); return; }
             if (player.containerMenu != player.inventoryMenu) {
                 player.closeContainer();
                 QuickClientScreenAccess.setScreen(client, new InventoryScreen(player));
@@ -63,13 +64,13 @@ public final class QuickCrossBoxSortSessions {
         } else {
             long free = java.util.stream.IntStream.range(0, 36).filter(slot -> !QuickCrossBoxSortProtection.isLocked(slot)
                     && player.getInventory().getItem(slot).isEmpty()).count();
-            if (free < 2) { message(client, "container_space"); return; }
+            if (free < 2) { message(screen, "container_space"); return; }
             containerSlots = java.util.List.copyOf(menuSlots);
             var menu = player.containerMenu;
             var inventory = new net.minecraft.world.SimpleContainer(menuSlots.stream()
                     .map(slot -> menu.getSlot(slot).getItem().copy()).toArray(ItemStack[]::new));
             var boxes = QuickCrossBoxSortInventory.scan(inventory).boxes();
-            if (boxes.isEmpty()) { message(client, "nothing_to_sort"); return; }
+            if (boxes.isEmpty()) { message(screen, "nothing_to_sort"); return; }
             int missing = Math.max(0, QuickCrossBoxSortSpares.needed(boxes) - boxes.size()
                     - QuickCrossBoxSortSpares.singles(inventory, slot -> false).size());
             splits = new ArrayDeque<>();
@@ -80,6 +81,7 @@ public final class QuickCrossBoxSortSessions {
             }
         }
         splitMenu = player.containerMenu;
+        splitScreen = QuickClientScreenAccess.currentScreen(client);
         if (splits.isEmpty()) { splits = null; begin(client); } else { settleTicks = 0; }
     }
 
@@ -102,7 +104,7 @@ public final class QuickCrossBoxSortSessions {
 
     public void clear() {
         active = null; remote = null; splits = null; settleTicks = 0; owner = null; world = null;
-        containerSlots = null; splitMenu = null;
+        containerSlots = null; splitMenu = null; splitScreen = null;
         inventoryView = null;
         cancelRequested = false;
         QuickCrossBoxSortSync.clear();
@@ -120,7 +122,7 @@ public final class QuickCrossBoxSortSessions {
             } else if (splits != null) {
                 if (cancelRequested) {
                     splits = null;
-                    message(client, "safe_abort");
+                    message(splitScreen, "safe_abort");
                 } else {
                     tickSplits(client);
                 }
@@ -130,6 +132,7 @@ public final class QuickCrossBoxSortSessions {
             if (!isRunning()) {
                 cancelRequested = false;
                 inventoryView = null;
+                splitScreen = null;
             }
         }
     }
@@ -140,7 +143,7 @@ public final class QuickCrossBoxSortSessions {
         if (!QuickCraftConfigs.isCrossBoxSortEnabled() || !(QuickClientScreenAccess.currentScreen(client) instanceof AbstractContainerScreen<?> screen)
                 || screen.getMenu() != menu || player.containerMenu != menu || !menu.getCarried().isEmpty()
                 || client.gameMode == null) {
-            splits = null; message(client, "safe_abort"); return;
+            splits = null; message(splitScreen, "safe_abort"); return;
         }
         if (settleTicks > 0) { settleTicks--; return; }
         if (splits.isEmpty()) { splits = null; begin(client); return; }
@@ -150,7 +153,7 @@ public final class QuickCrossBoxSortSessions {
         if (com.yiyihehe.quickcraft.QuickContainerLock.isLockedSlot(menu, split[0])
                 || com.yiyihehe.quickcraft.QuickContainerLock.isLockedSlot(menu, split[1]) || !target.isEmpty()
                 || !source.has(DataComponents.CONTAINER) || !QuickCrossBoxSortInventory.isOrdinaryEmptyShulker(source)) {
-            splits = null; message(client, "inventory_changed"); return;
+            splits = null; message(splitScreen, "inventory_changed"); return;
         }
         client.gameMode.handleContainerInput(menu.containerId, split[0], 0, ContainerInput.PICKUP, player);
         client.gameMode.handleContainerInput(menu.containerId, split[1], 1, ContainerInput.PICKUP, player);
@@ -165,7 +168,7 @@ public final class QuickCrossBoxSortSessions {
 
     public static int inventoryMenuSlot(int slot) { return slot < 9 ? slot + 36 : slot; }
 
-    private static void message(Minecraft client, String key) {
-        QuickCrossBoxSort.message(Component.translatable("quickcraft.message.cross_box_sort." + key));
+    private static void message(Screen screen, String key) {
+        QuickCrossBoxSort.message(screen, Component.translatable("quickcraft.message.cross_box_sort." + key));
     }
 }

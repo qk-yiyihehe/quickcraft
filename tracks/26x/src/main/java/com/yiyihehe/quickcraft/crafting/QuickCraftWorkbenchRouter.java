@@ -1,4 +1,5 @@
 package com.yiyihehe.quickcraft.crafting;
+import com.yiyihehe.quickcraft.render.QuickCrossBoxSortStatus;
 
 import com.yiyihehe.quickcraft.config.QuickCraftConfigs;
 import net.minecraft.client.Minecraft;
@@ -33,7 +34,7 @@ public final class QuickCraftWorkbenchRouter {
             QuickCraftConfigs.Crafting.ENABLE_WORKBENCH_QUICK_SHULKER.setBooleanValue(previousValue);
             Minecraft client = Minecraft.getInstance();
             if (client.player != null) {
-                client.player.sendOverlayMessage(Component.translatable("quickcraft.message.crafting.shulker_unavailable"));
+                QuickCrossBoxSortStatus.show(Component.translatable("quickcraft.message.crafting.shulker_unavailable"));
             }
             return;
         }

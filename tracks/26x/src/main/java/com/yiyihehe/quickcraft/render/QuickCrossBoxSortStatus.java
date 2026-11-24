@@ -1,22 +1,22 @@
 package com.yiyihehe.quickcraft.render;
 
-import java.util.ArrayDeque;
-import java.util.Deque;
+import com.yiyihehe.quickcraft.QuickClientScreenAccess;
+import com.yiyihehe.quickcraft.mixin.HandledScreenAccessor;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.fabric.api.client.screen.v1.ScreenEvents;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
+import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.network.chat.Component;
 
-/** 在容器界面绘制整理状态，结果可即时替换开始提示。 */
 public final class QuickCrossBoxSortStatus {
     private static final int DISPLAY_TICKS = 60;
-    private static final Deque<Component> pending = new ArrayDeque<>();
+    private static final int LINE_HEIGHT = 10;
+    private static AbstractContainerScreen<?> owner;
     private static Component current;
     private static int remaining;
-    private static boolean currentIsProgress;
     private static ClientLevel world;
 
     private QuickCrossBoxSortStatus() {}
@@ -24,63 +24,72 @@ public final class QuickCrossBoxSortStatus {
     public static void initialize() {
         ClientTickEvents.END_CLIENT_TICK.register(QuickCrossBoxSortStatus::tick);
         ScreenEvents.AFTER_INIT.register((client, screen, width, height) -> {
-            if (screen instanceof AbstractContainerScreen<?>) {
-                ScreenEvents.afterExtract(screen).register((shown, graphics, mouseX, mouseY, delta) -> render(graphics));
+            if (screen instanceof AbstractContainerScreen<?> container) {
+                ScreenEvents.afterExtract(screen).register((shown, graphics, mouseX, mouseY, delta) -> render(container, graphics));
+                ScreenEvents.remove(screen).register(removed -> {
+                    if (owner == removed) {
+                        clear();
+                    }
+                });
             }
         });
     }
 
-    public static void clear() {
-        pending.clear();
+    public static void show(Component text) {
+        var client = Minecraft.getInstance();
+        show(QuickClientScreenAccess.currentScreen(client), text);
+    }
+
+    public static void show(Screen screen, Component text) {
+        var client = Minecraft.getInstance();
+        if (client.player == null || client.level == null) {
+            return;
+        }
+        if (screen instanceof AbstractContainerScreen<?> container && screen == QuickClientScreenAccess.currentScreen(client)) {
+            owner = container;
+            world = client.level;
+            current = text.copy();
+            remaining = DISPLAY_TICKS;
+        } else {
+            client.player.sendOverlayMessage(text);
+        }
+    }
+
+    private static void clear() {
+        owner = null;
         current = null;
         remaining = 0;
-        currentIsProgress = false;
         world = null;
     }
 
-    public static void show(Component text) {
-        show(text, false);
+    private static void tick(Minecraft client) {
+        if (current != null && (client.player == null || client.level != world
+                || QuickClientScreenAccess.currentScreen(client) != owner || --remaining <= 0)) {
+            clear();
+        }
     }
 
-    public static void showProgress(Component text) {
-        show(text, true);
-    }
-
-    private static void show(Component text, boolean progress) {
+    private static void render(AbstractContainerScreen<?> screen, GuiGraphicsExtractor graphics) {
         var client = Minecraft.getInstance();
-        if (client.player == null || client.level == null) { return; }
-        if (world != client.level) { clear(); }
-        world = client.level;
-        if (progress) {
-            current = text.copy();
-            currentIsProgress = true;
-            remaining = DISPLAY_TICKS;
+        if (current == null || owner != screen || QuickClientScreenAccess.currentScreen(client) != screen
+                || client.player == null || client.level != world) {
             return;
         }
-        pending.addLast(text.copy());
-        if (current == null || currentIsProgress) { advance(); }
-    }
-
-    private static void tick(Minecraft client) {
-        if (client.player == null || client.level != world) { clear(); return; }
-        if (current != null && --remaining <= 0) { advance(); }
-    }
-
-    private static void advance() {
-        current = pending.pollFirst();
-        remaining = DISPLAY_TICKS;
-        currentIsProgress = false;
-    }
-
-    private static void render(GuiGraphicsExtractor graphics) {
-        var client = Minecraft.getInstance();
-        if (current == null || client.player == null || client.level != world) { return; }
-        var lines = client.font.split(current, Math.max(1, graphics.guiWidth() - 24));
-        int y = graphics.guiHeight() - 68 - (lines.size() - 1) * 10;
+        int width = graphics.guiWidth();
+        int height = graphics.guiHeight();
+        var lines = client.font.split(current, Math.max(1, width - 24));
+        int textHeight = lines.size() * LINE_HEIGHT;
+        var bounds = (HandledScreenAccessor) screen;
+        int top = bounds.quickcraft$getGuiTop();
+        int bottom = top + bounds.quickcraft$getGuiHeight();
+        int y = Math.min(bottom + 4, height - textHeight);
+        if (y < bottom) {
+            y = Math.max(0, top - textHeight - 4);
+        }
         for (var line : lines) {
-            int x = (graphics.guiWidth() - client.font.width(line)) / 2;
+            int x = (width - client.font.width(line)) / 2;
             graphics.text(client.font, line, x, y, 0xFFFFFFFF, true);
-            y += 10;
+            y += LINE_HEIGHT;
         }
     }
 }
