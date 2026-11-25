@@ -418,6 +418,11 @@ public final class QuickCraftConfigs implements IConfigHandler {
                 true,
                 ""
         ).apply(CONTAINER_TRANSLATION_PREFIX);
+        public static final ConfigBooleanHotkeyed DROP_FAVORITE_TRADE_RESULTS = new ConfigBooleanHotkeyed(
+                "dropFavoriteTradeResults",
+                false,
+                ""
+        ).apply(CONTAINER_TRANSLATION_PREFIX);
         public static final ConfigBooleanHotkeyed ENABLE_QUICK_SORT = new ConfigBooleanHotkeyed(
                 "enableQuickSort",
                 true,
@@ -558,6 +563,7 @@ public final class QuickCraftConfigs implements IConfigHandler {
                 QUICK_TRADE_RIGHT_CLICK,
                 ENABLE_CONTINUOUS_TRADE,
                 ENABLE_FAVORITE_TRADE,
+                DROP_FAVORITE_TRADE_RESULTS,
                 ENABLE_QUICK_SORT,
                 SHOW_QUICK_SORT_BUTTON,
                 ENABLE_CROSS_BOX_SORT,
@@ -1122,6 +1128,7 @@ public final class QuickCraftConfigs implements IConfigHandler {
                 ContainerTools.ENABLE_QUICK_TRADE,
                 ContainerTools.ENABLE_CONTINUOUS_TRADE,
                 ContainerTools.ENABLE_FAVORITE_TRADE,
+                ContainerTools.DROP_FAVORITE_TRADE_RESULTS,
                 ContainerTools.ENABLE_QUICK_SORT,
                 ContainerTools.SHOW_QUICK_SORT_BUTTON,
                 ContainerTools.ENABLE_CROSS_BOX_SORT,
@@ -1203,6 +1210,7 @@ public final class QuickCraftConfigs implements IConfigHandler {
                 ContainerTools.ENABLE_QUICK_TRADE,
                 ContainerTools.ENABLE_CONTINUOUS_TRADE,
                 ContainerTools.ENABLE_FAVORITE_TRADE,
+                ContainerTools.DROP_FAVORITE_TRADE_RESULTS,
                 ContainerTools.ENABLE_QUICK_SORT,
                 ContainerTools.SHOW_QUICK_SORT_BUTTON,
                 ContainerTools.ENABLE_CROSS_BOX_SORT,

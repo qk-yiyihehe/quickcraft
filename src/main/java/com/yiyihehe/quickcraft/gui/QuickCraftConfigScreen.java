@@ -171,17 +171,22 @@ public class QuickCraftConfigScreen extends GuiConfigsBase {
                                                 QuickCraftConfigs.ContainerTools.QUICK_STASH_WITH_QUICK_SHULKER,
                                                 QuickCraftConfigs.ContainerTools.QUICK_CLEAR_INVENTORY_SHULKERS,
                                                 QuickCraftConfigs.ContainerTools.QUICK_FILL_INVENTORY_SHULKERS),
-        QUICK_TRADE(QuickCraftConfigs.ContainerTools.ENABLE_QUICK_TRADE,
+        QUICK_TRADE(
+                QuickCraftConfigs.ContainerTools.ENABLE_QUICK_TRADE,
                 QuickCraftConfigs.ContainerTools.QUICK_TRADE_RIGHT_CLICK,
                 QuickCraftConfigs.ContainerTools.ENABLE_CONTINUOUS_TRADE,
-                QuickCraftConfigs.ContainerTools.ENABLE_FAVORITE_TRADE), QUICK_SORT(
-                        QuickCraftConfigs.ContainerTools.ENABLE_QUICK_SORT,
-                        QuickCraftConfigs.ContainerTools.SHOW_QUICK_SORT_BUTTON,
-                        QuickCraftConfigs.ContainerTools.ENABLE_CROSS_BOX_SORT,
-                        QuickCraftConfigs.ContainerTools.QUICK_SORT_TOP_PRIORITY_ITEMS,
-                        QuickCraftConfigs.ContainerTools.QUICK_SORT_BOTTOM_PRIORITY_ITEMS,
-                        QuickCraftConfigs.ContainerTools.QUICK_SORT_SHULKER_BOXES_AT_END,
-                        QuickCraftConfigs.ContainerTools.QUICK_SORT_BUNDLES_AT_END), QUICK_BEACON(
+                QuickCraftConfigs.ContainerTools.ENABLE_FAVORITE_TRADE,
+                QuickCraftConfigs.ContainerTools.DROP_FAVORITE_TRADE_RESULTS
+        ),
+        QUICK_SORT(
+                QuickCraftConfigs.ContainerTools.ENABLE_QUICK_SORT,
+                QuickCraftConfigs.ContainerTools.SHOW_QUICK_SORT_BUTTON,
+                QuickCraftConfigs.ContainerTools.ENABLE_CROSS_BOX_SORT,
+                QuickCraftConfigs.ContainerTools.QUICK_SORT_TOP_PRIORITY_ITEMS,
+                QuickCraftConfigs.ContainerTools.QUICK_SORT_BOTTOM_PRIORITY_ITEMS,
+                QuickCraftConfigs.ContainerTools.QUICK_SORT_SHULKER_BOXES_AT_END,
+                QuickCraftConfigs.ContainerTools.QUICK_SORT_BUNDLES_AT_END
+        ), QUICK_BEACON(
                                 QuickCraftConfigs.ContainerTools.ENABLE_QUICK_BEACON,
                                 QuickCraftConfigs.ContainerTools.BEACON_EFFECT_ORDER), CREATIVE_PACKING(
                                         QuickCraftConfigs.ContainerTools.ENABLE_CREATIVE_PACKING,

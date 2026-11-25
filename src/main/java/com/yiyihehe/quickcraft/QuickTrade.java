@@ -129,7 +129,7 @@ public final class QuickTrade implements ClientModInitializer {
 
         // 交易界面里的右键连续成交由独立开关控制；关闭时交还原版右键行为。
         if (button == GLFW.GLFW_MOUSE_BUTTON_RIGHT && QuickCraftConfigs.isQuickTradeRightClickEnabled()) {
-            showTradeResult(screen, tradeAllAvailable(screen, tradeIndex));
+            showTradeResult(screen, tradeAllAvailable(screen, tradeIndex, false));
             return true;
         }
 
@@ -276,6 +276,7 @@ public final class QuickTrade implements ClientModInitializer {
             return;
         }
 
+        boolean dropOutput = QuickCraftConfigs.ContainerTools.DROP_FAVORITE_TRADE_RESULTS.getBooleanValue();
         boolean foundFavorite = false;
         TradeResult result = TradeResult.COMPLETE;
         for (FavoriteTrade favoriteTrade : favoriteTrades) {
@@ -290,8 +291,9 @@ public final class QuickTrade implements ClientModInitializer {
                 continue;
             }
 
-            TradeResult trade = screen != null ? tradeAllAvailable(screen, favoriteIndex)
-                    : tradeAllAvailable(handler, favoriteIndex);
+            TradeResult trade = screen != null
+                    ? tradeAllAvailable(screen, favoriteIndex, dropOutput)
+                    : tradeAllAvailable(handler, favoriteIndex, dropOutput);
             if (result != TradeResult.LOCKED_PAYMENT_AMBIGUOUS && trade != TradeResult.COMPLETE) {
                 result = trade;
             }
@@ -423,18 +425,19 @@ public final class QuickTrade implements ClientModInitializer {
         return null;
     }
 
-    private static TradeResult tradeAllAvailable(MerchantScreen screen, int tradeIndex) {
-        return tradeAllAvailable(screen.getScreenHandler(), tradeIndex, () -> selectTrade(screen, tradeIndex));
+    private static TradeResult tradeAllAvailable(MerchantScreen screen, int tradeIndex, boolean dropOutput) {
+        return tradeAllAvailable(screen.getScreenHandler(), tradeIndex, () -> selectTrade(screen, tradeIndex), dropOutput);
     }
 
-    private static TradeResult tradeAllAvailable(MerchantScreenHandler handler, int tradeIndex) {
-        return tradeAllAvailable(handler, tradeIndex, () -> selectTrade(handler, tradeIndex));
+    private static TradeResult tradeAllAvailable(MerchantScreenHandler handler, int tradeIndex, boolean dropOutput) {
+        return tradeAllAvailable(handler, tradeIndex, () -> selectTrade(handler, tradeIndex), dropOutput);
     }
 
     private static TradeResult tradeAllAvailable(
             MerchantScreenHandler handler,
             int tradeIndex,
-            Runnable selectTradeAction
+            Runnable selectTradeAction,
+            boolean dropOutput
     ) {
         MinecraftClient client = MinecraftClient.getInstance();
         if (client.player == null || client.interactionManager == null) {
@@ -450,14 +453,14 @@ public final class QuickTrade implements ClientModInitializer {
         }
 
         if (needsExplicitPayments(handler, offer)) {
-            return tradeWithExplicitPayments(client, handler, tradeIndex, offer);
+            return tradeWithExplicitPayments(client, handler, tradeIndex, offer, dropOutput);
         }
         selectTradeAction.run();
 
         for (int attempt = 0; attempt < MAX_BATCH_TRADES; attempt++) {
             if (!handler.getSlot(OUTPUT_SLOT_ID).hasStack()) {
                 if (needsExplicitPayments(handler, offer)) {
-                    return tradeWithExplicitPayments(client, handler, tradeIndex, offer);
+                    return tradeWithExplicitPayments(client, handler, tradeIndex, offer, dropOutput);
                 }
                 selectTradeAction.run();
                 if (!handler.getSlot(OUTPUT_SLOT_ID).hasStack()) {
@@ -467,16 +470,36 @@ public final class QuickTrade implements ClientModInitializer {
                 }
             }
 
-            ItemStack resultTemplate = handler.getSlot(OUTPUT_SLOT_ID).getStack().copy();
-            int beforeCount = countMatchingItems(client.player.getInventory(), resultTemplate);
-            QuickSlotTransfer.quickMove(client, handler, OUTPUT_SLOT_ID, QuickSlotTransfer::isPlayerStorageSlot, true);
-            int afterCount = countMatchingItems(client.player.getInventory(), resultTemplate);
-            if (afterCount <= beforeCount) {
+            if (!takeTradeOutput(client, handler, offer, dropOutput)) {
                 return TradeResult.BLOCKED;
             }
         }
 
         return TradeResult.COMPLETE;
+    }
+
+    private static boolean takeTradeOutput(
+            MinecraftClient client,
+            MerchantScreenHandler handler,
+            TradeOffer offer,
+            boolean dropOutput
+    ) {
+        ItemStack output = handler.getSlot(OUTPUT_SLOT_ID).getStack();
+        if (dropOutput) {
+            if (!handler.getCursorStack().isEmpty() || !ItemStack.areEqual(output, offer.getSellItem())) {
+                return false;
+            }
+
+            // 丢弃后背包数量不变，用客户端配方的成交次数判断是否继续。
+            int previousUses = offer.getUses();
+            client.interactionManager.clickSlot(handler.syncId, OUTPUT_SLOT_ID, 1, SlotActionType.THROW, client.player);
+            return offer.getUses() > previousUses;
+        }
+
+        ItemStack resultTemplate = output.copy();
+        int beforeCount = countMatchingItems(client.player.getInventory(), resultTemplate);
+        QuickSlotTransfer.quickMove(client, handler, OUTPUT_SLOT_ID, QuickSlotTransfer::isPlayerStorageSlot, true);
+        return countMatchingItems(client.player.getInventory(), resultTemplate) > beforeCount;
     }
 
     private static boolean needsExplicitPayments(MerchantScreenHandler handler, TradeOffer offer) {
@@ -503,7 +526,8 @@ public final class QuickTrade implements ClientModInitializer {
             MinecraftClient client,
             MerchantScreenHandler handler,
             int tradeIndex,
-            TradeOffer offer
+            TradeOffer offer,
+            boolean dropOutput
     ) {
         ItemStack first = offer.getDisplayedFirstBuyItem();
         ItemStack second = offer.getDisplayedSecondBuyItem();
@@ -545,18 +569,7 @@ public final class QuickTrade implements ClientModInitializer {
                         .getCount()) {
                     return TradeResult.BLOCKED;
                 }
-                int before = countMatchingItems(client.player.getInventory(), expected);
-                QuickSlotTransfer.quickMove(
-                        client,
-                        handler,
-                        OUTPUT_SLOT_ID,
-                        QuickSlotTransfer::isPlayerStorageSlot,
-                        true
-                );
-                if (!handler.getCursorStack().isEmpty() || countMatchingItems(
-                        client.player.getInventory(),
-                        expected
-                ) <= before) {
+                if (!takeTradeOutput(client, handler, offer, dropOutput) || !handler.getCursorStack().isEmpty()) {
                     return TradeResult.BLOCKED;
                 }
             }
