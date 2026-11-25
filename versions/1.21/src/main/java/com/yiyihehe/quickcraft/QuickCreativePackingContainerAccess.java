@@ -7,8 +7,7 @@ import net.minecraft.item.ItemStack;
 
 /** 1.21 的容器物品写入 API：通过方块实体生成旧式物品 NBT。 */
 final class QuickCreativePackingContainerAccess {
-    private QuickCreativePackingContainerAccess() {
-    }
+    private QuickCreativePackingContainerAccess() {}
 
     static ItemStack fill(
             MinecraftClient client,

@@ -23,16 +23,20 @@ public class LitematicaPreparedRenderTypeMixin {
             method = "drawFromBuffer(Lcom/mojang/blaze3d/buffers/GpuBuffer;Lcom/mojang/blaze3d/buffers/GpuBuffer;Lcom/mojang/blaze3d/IndexType;III)V",
             at = @At(
                     value = "INVOKE",
-                    target = "Lcom/mojang/blaze3d/systems/RenderPass;setUniform(Ljava/lang/String;Lcom/mojang/blaze3d/buffers/GpuBufferSlice;)V"
-            )
-    )
-    private void quickcraft$refreshCachedDynamicTransforms(RenderPass pass, String name, GpuBufferSlice value, Operation<Void> original) {
-        if ("DynamicTransforms".equals(name) && QuickLitematicaPreview3D.shouldRefreshCachedPreviewDynamicTransforms()) {
+                    target = "Lcom/mojang/blaze3d/systems/RenderPass;setUniform(Ljava/lang/String;Lcom/mojang/blaze3d/buffers/GpuBufferSlice;)V"))
+    private void quickcraft$refreshCachedDynamicTransforms(
+            RenderPass pass,
+            String name,
+            GpuBufferSlice value,
+            Operation<Void> original
+    ) {
+        if ("DynamicTransforms".equals(name) && QuickLitematicaPreview3D
+                .shouldRefreshCachedPreviewDynamicTransforms()) {
             var material = QuickLitematicaPreviewRenderTypes.refreshed((PreparedRenderType) (Object) this);
             value = material != null ? material.dynamicTransforms()
                     : QuickLitematicaPreviewAccess.cachedDynamicTransforms != null
-                    ? QuickLitematicaPreviewAccess.cachedDynamicTransforms
-                    : RenderSystem.getDynamicUniforms().writeTransform(new Matrix4f());
+                            ? QuickLitematicaPreviewAccess.cachedDynamicTransforms
+                            : RenderSystem.getDynamicUniforms().writeTransform(new Matrix4f());
         }
         original.call(pass, name, value);
     }

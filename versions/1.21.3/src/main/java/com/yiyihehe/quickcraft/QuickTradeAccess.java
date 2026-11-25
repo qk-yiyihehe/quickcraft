@@ -23,8 +23,9 @@ public final class QuickTradeAccess {
             return ItemStack.EMPTY;
         }
         try {
-            return ItemStack.fromNbt(registryLookup, StringNbtReader.parse(element.getAsString()))
-                    .orElse(ItemStack.EMPTY);
+            return ItemStack.fromNbt(registryLookup, StringNbtReader.parse(element.getAsString())).orElse(
+                    ItemStack.EMPTY
+            );
         } catch (CommandSyntaxException ignored) {
             return ItemStack.EMPTY;
         }

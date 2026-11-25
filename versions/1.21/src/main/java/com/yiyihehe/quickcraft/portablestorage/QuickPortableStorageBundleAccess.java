@@ -14,19 +14,20 @@ final class QuickPortableStorageBundleAccess {
     private QuickPortableStorageBundleAccess() {}
 
     static List<ItemStack> contents(ItemStack stack) {
-        return stack.getOrDefault(DataComponentTypes.BUNDLE_CONTENTS, BundleContentsComponent.DEFAULT).stream().toList();
+        return stack.getOrDefault(DataComponentTypes.BUNDLE_CONTENTS, BundleContentsComponent.DEFAULT).stream()
+                .toList();
     }
 
     static int capacity(ItemStack bundle, ItemStack stack) {
-        return new BundleContentsComponent.Builder(bundle.getOrDefault(DataComponentTypes.BUNDLE_CONTENTS,
-                BundleContentsComponent.DEFAULT)).add(stack.copy());
+        return new BundleContentsComponent.Builder(
+                bundle.getOrDefault(DataComponentTypes.BUNDLE_CONTENTS, BundleContentsComponent.DEFAULT)
+        ).add(stack.copy());
     }
 
     static boolean canSelect(int index) {
         return index == 0;
     }
 
-    // Vanilla 1.21–1.21.1 always removes the first stack.
-    static void select(MinecraftClient client, Slot slot, int index) {
-    }
+    // 原版 1.21–1.21.1 总是取出第一组物品。
+    static void select(MinecraftClient client, Slot slot, int index) {}
 }

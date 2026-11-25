@@ -12,15 +12,17 @@ import org.joml.Vector2i;
 import java.util.ArrayList;
 import java.util.List;
 
-public final class QuickCraftAnvilButton extends QuickCraftAnvilButtonAccess implements QuickCraftAnvilAssistant.ButtonView {
+public final class QuickCraftAnvilButton extends QuickCraftAnvilButtonAccess implements
+        QuickCraftAnvilAssistant.ButtonView {
     private net.minecraft.text.Text planTooltip = net.minecraft.text.Text.empty();
     private List<OrderedText> lines = List.of();
     private int wrapWidth;
     private int offset;
     private int maxOffset;
-    private final TooltipPositioner positioner = (width, height, x, y, tooltipWidth, tooltipHeight) ->
-            new Vector2i(Math.max(4, Math.min((isHovered() ? x : getX()) + 12, width - tooltipWidth - 4)),
-                    (isHovered() ? y : getY() + getHeight()) + 8);
+    private final TooltipPositioner positioner = (width, height, x, y, tooltipWidth, tooltipHeight) -> new Vector2i(
+            Math.max(4, Math.min((isHovered() ? x : getX()) + 12, width - tooltipWidth - 4)),
+            (isHovered() ? y : getY() + getHeight()) + 8
+    );
 
     public QuickCraftAnvilButton(int x, int y, PressAction onPress) {
         super(x, y, onPress);
@@ -38,7 +40,9 @@ public final class QuickCraftAnvilButton extends QuickCraftAnvilButtonAccess imp
 
     @Override
     public void setPlanTooltip(net.minecraft.text.Text text) {
-        if (planTooltip.equals(text)) return;
+        if (planTooltip.equals(text)) {
+            return;
+        }
         planTooltip = text;
         wrapWidth = 0;
         offset = 0;
@@ -47,7 +51,9 @@ public final class QuickCraftAnvilButton extends QuickCraftAnvilButtonAccess imp
     @Override
     protected void renderPlanTooltip(DrawContext context, int mouseX, int mouseY) {
         var client = MinecraftClient.getInstance();
-        if (!isHovered() && !(isFocused() && client.getNavigationType().isKeyboard())) return;
+        if (!isHovered() && !(isFocused() && client.getNavigationType().isKeyboard())) {
+            return;
+        }
         int width = Math.max(1, Math.min(170, client.getWindow().getScaledWidth() - 16));
         if (width != wrapWidth) {
             lines = client.textRenderer.wrapLines(planTooltip, width);
@@ -61,16 +67,23 @@ public final class QuickCraftAnvilButton extends QuickCraftAnvilButtonAccess imp
         offset = Math.min(offset, maxOffset);
         var visible = new ArrayList<>(lines.subList(offset, Math.min(lines.size(), offset + visibleRows)));
         if (maxOffset > 0) {
-            visible.add(net.minecraft.text.Text.translatable("quickcraft.anvil.scroll_plan", offset + 1,
-                    Math.min(lines.size(), offset + visibleRows), lines.size()).asOrderedText());
+            visible.add(
+                    net.minecraft.text.Text.translatable(
+                            "quickcraft.anvil.scroll_plan",
+                            offset + 1,
+                            Math.min(lines.size(), offset + visibleRows),
+                            lines.size()
+                    ).asOrderedText()
+            );
         }
-        drawPlanTooltip(context, client.textRenderer, visible, positioner,
-                isHovered() ? mouseX : getX(), anchorY);
+        drawPlanTooltip(context, client.textRenderer, visible, positioner, isHovered() ? mouseX : getX(), anchorY);
     }
 
     @Override
     public boolean mouseScrolled(double mouseX, double mouseY, double horizontalAmount, double verticalAmount) {
-        if (!visible || !isMouseOver(mouseX, mouseY) || maxOffset == 0 || verticalAmount == 0) return false;
+        if (!visible || !isMouseOver(mouseX, mouseY) || maxOffset == 0 || verticalAmount == 0) {
+            return false;
+        }
         offset = Math.max(0, Math.min(maxOffset, offset + (verticalAmount > 0 ? -3 : 3)));
         return true;
     }

@@ -55,8 +55,11 @@ class QuickLitematicaContainerVerificationTest {
             mismatches.removeFirst();
             var remaining = QuickLitematicaContainerVerification.quickcraft$groupContainerMismatches(mismatches);
             assertThat(remaining).containsOnlyKeys(key);
-            assertThat(remaining.get(key)).extracting(ContainerMismatch::pos)
-                    .containsExactly(new BlockPos(1, 0, 0), new BlockPos(2, 0, 0), new BlockPos(3, 0, 0));
+            assertThat(remaining.get(key)).extracting(ContainerMismatch::pos).containsExactly(
+                    new BlockPos(1, 0, 0),
+                    new BlockPos(2, 0, 0),
+                    new BlockPos(3, 0, 0)
+            );
         }
     }
 
@@ -78,8 +81,11 @@ class QuickLitematicaContainerVerificationTest {
             matchingContents.foundInventory().setStack(2, new ItemStack(Items.STONE));
             var found = mismatch(7, state, 64, 0, Set.of());
             found.foundInventory().setStack(0, new ItemStack(Items.REDSTONE, 1));
-            assertThat(QuickLitematicaContainerVerification.quickcraft$groupContainerMismatches(
-                    List.of(base, count, slot, facing, locks, named, matchingContents, found))).hasSize(8);
+            assertThat(
+                    QuickLitematicaContainerVerification.quickcraft$groupContainerMismatches(
+                            List.of(base, count, slot, facing, locks, named, matchingContents, found)
+                    )
+            ).hasSize(8);
         }
     }
 
@@ -94,8 +100,7 @@ class QuickLitematicaContainerVerificationTest {
 
         SimpleInventory expectedInventory = new SimpleInventory(27);
         SimpleInventory foundInventory = new SimpleInventory(27);
-        BlockEntity foundBlockEntity = mock(BlockEntity.class,
-                withSettings().extraInterfaces(Inventory.class));
+        BlockEntity foundBlockEntity = mock(BlockEntity.class, withSettings().extraInterfaces(Inventory.class));
         when(((Inventory) foundBlockEntity).size()).thenReturn(27);
         when(world.getBlockEntity(pos)).thenReturn(foundBlockEntity);
 
@@ -103,24 +108,45 @@ class QuickLitematicaContainerVerificationTest {
         when(host.quickcraft$verificationWorldClient()).thenReturn(world);
         var verification = new QuickLitematicaContainerVerification(host);
         Method markPending = QuickLitematicaContainerVerification.class.getDeclaredMethod(
-                "quickcraft$markContainerPending", BlockPos.class);
+                "quickcraft$markContainerPending",
+                BlockPos.class
+        );
         markPending.setAccessible(true);
         markPending.invoke(verification, pos);
 
         try (var minecraft = mockStatic(MinecraftClient.class);
-             var worldUtils = mockStatic(WorldUtils.class);
-             var verifier = mockStatic(QuickLitematicaContainerVerifier.class, CALLS_REAL_METHODS)) {
+                var worldUtils = mockStatic(WorldUtils.class);
+                var verifier = mockStatic(QuickLitematicaContainerVerifier.class, CALLS_REAL_METHODS)) {
             minecraft.when(MinecraftClient::getInstance).thenReturn(client);
             worldUtils.when(() -> WorldUtils.getBestWorld(client)).thenReturn(world);
             verifier.when(QuickLitematicaContainerVerifier::isEnabled).thenReturn(true);
-            verifier.when(() -> QuickLitematicaContainerVerifier.getExpectedContainerAt(world, pos, null))
-                    .thenReturn(new ExpectedContainer(pos, Blocks.CHEST.getDefaultState(), null,
-                            expectedInventory, Set.of()));
-            verifier.when(() -> QuickLitematicaContainerVerifier.getActualInventory(
-                    world, pos, (Inventory) foundBlockEntity, expectedInventory)).thenReturn(foundInventory);
-            verifier.when(() -> QuickLitematicaContainerVerifier.getDisabledSlots(foundBlockEntity)).thenReturn(Set.of());
-            verifier.when(() -> QuickLitematicaContainerVerifier.findMismatches(
-                    any(), any(), any(), any(), any(), any(), any(), any(), any())).thenReturn(List.of());
+            verifier.when(() -> QuickLitematicaContainerVerifier.getExpectedContainerAt(world, pos, null)).thenReturn(
+                    new ExpectedContainer(pos, Blocks.CHEST.getDefaultState(), null, expectedInventory, Set.of())
+            );
+            verifier.when(
+                    () -> QuickLitematicaContainerVerifier.getActualInventory(
+                            world,
+                            pos,
+                            (Inventory) foundBlockEntity,
+                            expectedInventory
+                    )
+            ).thenReturn(foundInventory);
+            verifier.when(() -> QuickLitematicaContainerVerifier.getDisabledSlots(foundBlockEntity)).thenReturn(
+                    Set.of()
+            );
+            verifier.when(
+                    () -> QuickLitematicaContainerVerifier.findMismatches(
+                            any(),
+                            any(),
+                            any(),
+                            any(),
+                            any(),
+                            any(),
+                            any(),
+                            any(),
+                            any()
+                    )
+            ).thenReturn(List.of());
 
             verification.quickcraft$refreshContainerMismatches();
         }
@@ -140,10 +166,14 @@ class QuickLitematicaContainerVerificationTest {
         when(host.quickcraft$verificationMismatchBlockPositionsForRender()).thenReturn(blockPositions);
         var verification = new QuickLitematicaContainerVerification(host);
 
-        Field closest = QuickLitematicaContainerVerification.class.getDeclaredField("quickcraft$containerPositionsClosest");
+        Field closest = QuickLitematicaContainerVerification.class.getDeclaredField(
+                "quickcraft$containerPositionsClosest"
+        );
         closest.setAccessible(true);
-        closest.set(verification, new HashMap<>(Map.of(
-                QuickLitematicaContainerVerifier.WRONG_FILL, List.of(near, far))));
+        closest.set(
+                verification,
+                new HashMap<>(Map.of(QuickLitematicaContainerVerifier.WRONG_FILL, List.of(near, far)))
+        );
 
         try (var verifier = mockStatic(QuickLitematicaContainerVerifier.class, CALLS_REAL_METHODS)) {
             verifier.when(QuickLitematicaContainerVerifier::isEnabled).thenReturn(true);
@@ -164,11 +194,20 @@ class QuickLitematicaContainerVerificationTest {
         assertThat(QuickLitematicaContainerVerifier.isMatchingDoubleChest(left, right)).isTrue();
         assertThat(QuickLitematicaContainerVerifier.isMatchingDoubleChest(left, right, false)).isFalse();
         assertThat(QuickLitematicaContainerVerifier.isMatchingDoubleChest(left, left)).isFalse();
-        assertThat(QuickLitematicaContainerVerifier.isMatchingDoubleChest(
-                left, chest(Blocks.CHEST.getDefaultState(), ChestType.RIGHT, Direction.EAST))).isFalse();
-        assertThat(QuickLitematicaContainerVerifier.isMatchingDoubleChest(
-                left, chest(Blocks.TRAPPED_CHEST.getDefaultState(), ChestType.RIGHT, Direction.NORTH))).isFalse();
-        assertThat(QuickLitematicaContainerVerifier.isMatchingDoubleChest(left, Blocks.BARREL.getDefaultState())).isFalse();
+        assertThat(
+                QuickLitematicaContainerVerifier.isMatchingDoubleChest(
+                        left,
+                        chest(Blocks.CHEST.getDefaultState(), ChestType.RIGHT, Direction.EAST)
+                )
+        ).isFalse();
+        assertThat(
+                QuickLitematicaContainerVerifier.isMatchingDoubleChest(
+                        left,
+                        chest(Blocks.TRAPPED_CHEST.getDefaultState(), ChestType.RIGHT, Direction.NORTH)
+                )
+        ).isFalse();
+        assertThat(QuickLitematicaContainerVerifier.isMatchingDoubleChest(left, Blocks.BARREL.getDefaultState()))
+                .isFalse();
     }
 
     @Test
@@ -179,8 +218,9 @@ class QuickLitematicaContainerVerificationTest {
         SimpleInventory inventory = new SimpleInventory(27);
 
         try (var verifier = mockStatic(QuickLitematicaContainerVerifier.class, CALLS_REAL_METHODS)) {
-            verifier.when(() -> QuickLitematicaContainerVerifier.getExpectedContainerAt(world, pos))
-                    .thenReturn(new ExpectedContainer(pos, state, null, inventory, Set.of()));
+            verifier.when(() -> QuickLitematicaContainerVerifier.getExpectedContainerAt(world, pos)).thenReturn(
+                    new ExpectedContainer(pos, state, null, inventory, Set.of())
+            );
             assertThat(QuickLitematicaContainerVerifier.getTemplateSnapshotAt(world, pos)).isNull();
         }
     }
@@ -190,8 +230,12 @@ class QuickLitematicaContainerVerificationTest {
         BlockState left = chest(Blocks.CHEST.getDefaultState(), ChestType.LEFT, Direction.NORTH);
         BlockState right = chest(Blocks.CHEST.getDefaultState(), ChestType.RIGHT, Direction.NORTH);
         for (BlockRotation rotation : BlockRotation.values()) {
-            assertThat(QuickLitematicaContainerVerifier.isMatchingDoubleChest(
-                    left.rotate(rotation), right.rotate(rotation))).isTrue();
+            assertThat(
+                    QuickLitematicaContainerVerifier.isMatchingDoubleChest(
+                            left.rotate(rotation),
+                            right.rotate(rotation)
+                    )
+            ).isTrue();
         }
     }
 
@@ -204,8 +248,19 @@ class QuickLitematicaContainerVerificationTest {
         var found = new SimpleInventory(27);
         var stack = new ItemStack(Items.REDSTONE, count);
         expected.setStack(slot, stack);
-        return new ContainerMismatch(new BlockPos(x, 0, 0), state, state, slot, MismatchType.MISSING,
-                stack, ItemStack.EMPTY, expected, found, locks, Set.of(),
-                List.of(new SlotMismatch(slot, SlotMismatchStatus.MISSING, stack, ItemStack.EMPTY)));
+        return new ContainerMismatch(
+                new BlockPos(x, 0, 0),
+                state,
+                state,
+                slot,
+                MismatchType.MISSING,
+                stack,
+                ItemStack.EMPTY,
+                expected,
+                found,
+                locks,
+                Set.of(),
+                List.of(new SlotMismatch(slot, SlotMismatchStatus.MISSING, stack, ItemStack.EMPTY))
+        );
     }
 }

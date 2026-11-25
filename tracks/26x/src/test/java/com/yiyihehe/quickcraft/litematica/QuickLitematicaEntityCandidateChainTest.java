@@ -39,8 +39,14 @@ class QuickLitematicaEntityCandidateChainTest {
         expected.putString("id", "minecraft:armor_stand");
         expected.putBoolean("Small", false);
         var projected = new ArrayList<LitematicaSchematic.EntityInfo>();
-        for (int i = 0; i < 6; i++) projected.add(new LitematicaSchematic.EntityInfo(position,
-                fi.dy.masa.malilib.util.data.tag.converter.DataConverterNbt.fromVanillaCompound(expected)));
+        for (int i = 0; i < 6; i++) {
+            projected.add(
+                    new LitematicaSchematic.EntityInfo(
+                            position,
+                            fi.dy.masa.malilib.util.data.tag.converter.DataConverterNbt.fromVanillaCompound(expected)
+                    )
+            );
+        }
         var candidates = collect(projected, false);
         assertThat(candidates).hasSize(6);
         var client = mock(Minecraft.class);
@@ -49,11 +55,16 @@ class QuickLitematicaEntityCandidateChainTest {
         var entities = new ArrayList<net.minecraft.world.entity.Entity>();
         var changed = new java.util.concurrent.atomic.AtomicBoolean();
         var writes = new java.util.concurrent.atomic.AtomicInteger();
-        var lookup = net.minecraft.core.RegistryAccess.fromRegistryOfRegistries(net.minecraft.core.registries.BuiltInRegistries.REGISTRY);
+        var lookup = net.minecraft.core.RegistryAccess.fromRegistryOfRegistries(
+                net.minecraft.core.registries.BuiltInRegistries.REGISTRY
+        );
         for (int i = 0; i < 6; i++) {
             var entity = mock(net.minecraft.world.entity.Entity.class);
-            org.mockito.Mockito.doReturn(net.minecraft.core.registries.BuiltInRegistries.ENTITY_TYPE.getValue(
-                    candidates.getFirst().entityType())).when(entity).getType();
+            org.mockito.Mockito.doReturn(
+                    net.minecraft.core.registries.BuiltInRegistries.ENTITY_TYPE.getValue(
+                            candidates.getFirst().entityType()
+                    )
+            ).when(entity).getType();
             when(entity.getBoundingBox()).thenReturn(box);
             when(entity.position()).thenReturn(position);
             when(entity.registryAccess()).thenReturn(lookup);
@@ -67,8 +78,13 @@ class QuickLitematicaEntityCandidateChainTest {
             }).when(entity).saveWithoutId(any(net.minecraft.world.level.storage.ValueOutput.class));
             entities.add(entity);
         }
-        when(client.level.getEntities(org.mockito.ArgumentMatchers.<net.minecraft.world.entity.Entity>isNull(),
-                any(net.minecraft.world.phys.AABB.class), any())).thenReturn(entities);
+        when(
+                client.level.getEntities(
+                        org.mockito.ArgumentMatchers.<net.minecraft.world.entity.Entity>isNull(),
+                        any(net.minecraft.world.phys.AABB.class),
+                        any()
+                )
+        ).thenReturn(entities);
         var first = QuickLitematicaEntityPlacement.evaluatePlacement(client, candidates);
         assertThat(first.statuses().values()).containsOnly(QuickLitematicaEntityPlacement.PlacementStatus.MATCHED);
         assertThat(first.excessEntities()).isEmpty();
@@ -94,9 +110,10 @@ class QuickLitematicaEntityCandidateChainTest {
         }
         entities.add(itemEntity(new Vec3(0.5, 0.0, 0.5), "minecraft:diamond"));
         try (var access = mockStatic(QuickLitematicaDataCompat.class, org.mockito.Mockito.CALLS_REAL_METHODS);
-             var data = mockStatic(QuickLitematicaSchematicData.class)) {
-            data.when(() -> QuickLitematicaSchematicData.decodeItem(any(CompoundTag.class), any()))
-                    .thenReturn(new ItemStack(Items.DIAMOND));
+                var data = mockStatic(QuickLitematicaSchematicData.class)) {
+            data.when(() -> QuickLitematicaSchematicData.decodeItem(any(CompoundTag.class), any())).thenReturn(
+                    new ItemStack(Items.DIAMOND)
+            );
             List<QuickLitematicaEntityPlacement.Candidate> result = collect(entities, false);
             assertThat(result).hasSize(1);
             // 只有被射线命中的那个实体进入完整材料解码；4096 个准星外实体未触发解码。
@@ -112,8 +129,9 @@ class QuickLitematicaEntityCandidateChainTest {
             entities.add(itemEntity(new Vec3(0.5, 0.0, 0.5 + i * 0.001), "minecraft:air"));
         }
         try (var data = mockStatic(QuickLitematicaSchematicData.class)) {
-            data.when(() -> QuickLitematicaSchematicData.decodeItem(any(CompoundTag.class), any()))
-                    .thenReturn(ItemStack.EMPTY);
+            data.when(() -> QuickLitematicaSchematicData.decodeItem(any(CompoundTag.class), any())).thenReturn(
+                    ItemStack.EMPTY
+            );
             List<QuickLitematicaEntityPlacement.Candidate> result = collect(entities, true);
             assertThat(result).isEmpty();
             // 每次完整构建都消耗预算：4100 个候选只允许 4096 次材料解码。
@@ -133,11 +151,17 @@ class QuickLitematicaEntityCandidateChainTest {
     }
 
     private static List<QuickLitematicaEntityPlacement.Candidate> collect(
-            List<LitematicaSchematic.EntityInfo> entities, boolean rayEntry) throws Exception {
+            List<LitematicaSchematic.EntityInfo> entities,
+            boolean rayEntry
+    ) throws Exception {
         Minecraft client = mock(Minecraft.class);
         client.player = mock(LocalPlayer.class);
         client.level = mock(ClientLevel.class);
-        when(client.level.registryAccess()).thenReturn(net.minecraft.core.RegistryAccess.fromRegistryOfRegistries(net.minecraft.core.registries.BuiltInRegistries.REGISTRY));
+        when(client.level.registryAccess()).thenReturn(
+                net.minecraft.core.RegistryAccess.fromRegistryOfRegistries(
+                        net.minecraft.core.registries.BuiltInRegistries.REGISTRY
+                )
+        );
         when(client.player.getEyePosition(1.0F)).thenReturn(new Vec3(0.5, 0.125, -2.0));
         when(client.player.getViewVector(1.0F)).thenReturn(new Vec3(0.0, 0.0, 1.0));
         when(client.player.blockInteractionRange()).thenReturn(64.0D);
@@ -149,8 +173,9 @@ class QuickLitematicaEntityCandidateChainTest {
         when(placement.getOrigin()).thenReturn(BlockPos.ZERO);
         when(placement.getMirror()).thenReturn(net.minecraft.world.level.block.Mirror.NONE);
         when(placement.getRotation()).thenReturn(net.minecraft.world.level.block.Rotation.NONE);
-        when(placement.getEnabledRelativeSubRegionPlacements())
-                .thenReturn(com.google.common.collect.ImmutableMap.of("r", subRegion));
+        when(placement.getEnabledRelativeSubRegionPlacements()).thenReturn(
+                com.google.common.collect.ImmutableMap.of("r", subRegion)
+        );
         when(subRegion.getPos()).thenReturn(BlockPos.ZERO);
         when(subRegion.getMirror()).thenReturn(net.minecraft.world.level.block.Mirror.NONE);
         when(subRegion.getRotation()).thenReturn(net.minecraft.world.level.block.Rotation.NONE);
@@ -159,28 +184,40 @@ class QuickLitematicaEntityCandidateChainTest {
         var manager = mock(fi.dy.masa.litematica.schematic.placement.SchematicPlacementManager.class);
         when(manager.getSelectedSchematicPlacement()).thenReturn(placement);
         Class<?> rangeType = DataManager.class.getMethod("getRenderLayerRange").getReturnType();
-        Object range = mock(rangeType, invocation ->
-                invocation.getMethod().getReturnType() == boolean.class ? Boolean.TRUE : null);
+        Object range = mock(
+                rangeType,
+                invocation -> invocation.getMethod().getReturnType() == boolean.class ? Boolean.TRUE : null
+        );
 
         try (MockedStatic<Minecraft> minecraft = mockStatic(Minecraft.class);
-             MockedStatic<DataManager> data = mockStatic(DataManager.class);
-             MockedStatic<QuickCraftConfigs> configs = mockStatic(QuickCraftConfigs.class)) {
+                MockedStatic<DataManager> data = mockStatic(DataManager.class);
+                MockedStatic<QuickCraftConfigs> configs = mockStatic(QuickCraftConfigs.class)) {
             minecraft.when(Minecraft::getInstance).thenReturn(client);
             data.when(DataManager::getSchematicPlacementManager).thenReturn(manager);
             data.when(DataManager::getRenderLayerRange).thenAnswer(invocation -> range);
             configs.when(QuickCraftConfigs::isEasyPlaceEntitiesEnabled).thenReturn(true);
             configs.when(QuickCraftConfigs::areEasyPlaceEntityContainerContentMaterialsRequired).thenReturn(false);
             configs.when(QuickCraftConfigs::areEasyPlaceEntityPassengerMaterialsRequired).thenReturn(false);
-            Method method = rayEntry
-                    ? QuickLitematicaEntityPlacement.class.getDeclaredMethod("collectRayCandidates", Minecraft.class)
+            Method method = rayEntry ? QuickLitematicaEntityPlacement.class.getDeclaredMethod(
+                    "collectRayCandidates",
+                    Minecraft.class
+            )
                     : QuickLitematicaEntityPlacement.class.getDeclaredMethod(
-                            "collectCandidates", Minecraft.class, Vec3.class, Vec3.class);
+                            "collectCandidates",
+                            Minecraft.class,
+                            Vec3.class,
+                            Vec3.class
+                    );
             method.setAccessible(true);
             @SuppressWarnings("unchecked")
             List<QuickLitematicaEntityPlacement.Candidate> result = rayEntry
                     ? (List<QuickLitematicaEntityPlacement.Candidate>) method.invoke(null, client)
                     : (List<QuickLitematicaEntityPlacement.Candidate>) method.invoke(
-                            null, client, new Vec3(0.5, 0.125, -2.0), new Vec3(0.5, 0.125, 10.0));
+                            null,
+                            client,
+                            new Vec3(0.5, 0.125, -2.0),
+                            new Vec3(0.5, 0.125, 10.0)
+                    );
             return result;
         }
     }
@@ -211,6 +248,9 @@ class QuickLitematicaEntityCandidateChainTest {
         if (item != null) {
             nbt.put("Item", item);
         }
-        return new LitematicaSchematic.EntityInfo(pos, fi.dy.masa.malilib.util.data.tag.converter.DataConverterNbt.fromVanillaCompound(nbt));
+        return new LitematicaSchematic.EntityInfo(
+                pos,
+                fi.dy.masa.malilib.util.data.tag.converter.DataConverterNbt.fromVanillaCompound(nbt)
+        );
     }
 }

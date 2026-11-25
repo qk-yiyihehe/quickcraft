@@ -12,11 +12,14 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 @Mixin(targets = "net.minecraft.client.renderer.feature.RenderTypeFeatureRenderer$Group")
 public abstract class LitematicaPreviewGeometryGroupMixin implements QuickLitematicaPreviewFrameBuild.GeometryGroup {
-    @Shadow public abstract VertexConsumer getVertexBuilder(RenderType material);
+    @Shadow
+    public abstract VertexConsumer getVertexBuilder(RenderType material);
 
     @Inject(method = "<init>", at = @At("RETURN"))
     private void quickcraft$captureGroup(StagedVertexBuffer buffer, boolean canReorder, CallbackInfo ci) {
         var build = QuickLitematicaPreviewFrameBuild.current();
-        if (build != null) build.createdGroup(buffer, (QuickLitematicaPreviewFrameBuild.GeometryGroup) (Object) this);
+        if (build != null) {
+            build.createdGroup(buffer, (QuickLitematicaPreviewFrameBuild.GeometryGroup) (Object) this);
+        }
     }
 }

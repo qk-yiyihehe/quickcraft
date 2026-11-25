@@ -73,6 +73,7 @@ public final class QuickLitematicaPreview3D {
     static final QuickLitematicaPreviewLog LOGGER = QuickLitematicaPreviewLog.LOGGER;
     static final AtomicBoolean SHADER_API_ERROR_LOGGED = new AtomicBoolean();
     static final AtomicBoolean SHADER_DISABLE_ERROR_LOGGED = new AtomicBoolean();
+
     // Minecraft 1.21.x 的预览方块实体没有非弃用的公开状态更新 API。
     @SuppressWarnings("deprecation")
     static void setPreviewBlockEntityState(BlockEntity blockEntity, BlockState state) {
@@ -81,16 +82,26 @@ public final class QuickLitematicaPreview3D {
 
     static String inferPreviewBlockEntityId(String blockId, int sourceDataVersion) {
         // 704 之前使用旧式 TileEntity 名称；无法可靠恢复时保留原数据给上游处理。
-        if (sourceDataVersion < 704 || !blockId.startsWith("minecraft:")) return "";
+        if (sourceDataVersion < 704 || !blockId.startsWith("minecraft:")) {
+            return "";
+        }
         try {
             var block = Registries.BLOCK.get(Identifier.of(blockId));
-            if (block == null || !block.getClass().getName().startsWith("net.minecraft.")) return "";
+            if (block == null || !block.getClass().getName().startsWith("net.minecraft.")) {
+                return "";
+            }
             BlockState state = block.getDefaultState();
-            if (!(state.getBlock() instanceof BlockEntityProvider provider)) return "";
+            if (!(state.getBlock() instanceof BlockEntityProvider provider)) {
+                return "";
+            }
             BlockEntity blockEntity = provider.createBlockEntity(BlockPos.ORIGIN, state);
-            if (blockEntity == null || !blockEntity.getClass().getName().startsWith("net.minecraft.")) return "";
+            if (blockEntity == null || !blockEntity.getClass().getName().startsWith("net.minecraft.")) {
+                return "";
+            }
             var typeId = Registries.BLOCK_ENTITY_TYPE.getId(blockEntity.getType());
-            if (typeId == null || !typeId.toString().startsWith("minecraft:")) return "";
+            if (typeId == null || !typeId.toString().startsWith("minecraft:")) {
+                return "";
+            }
             String id = typeId.toString();
             // trapped_chest 在 schema 1451 才独立，此前必须按 chest 进入 DFU。
             return sourceDataVersion < 1451 && id.equals("minecraft:trapped_chest") ? "minecraft:chest" : id;
@@ -101,14 +112,24 @@ public final class QuickLitematicaPreview3D {
     }
 
     static boolean isPreviewInventoryHidden(String blockId) {
-        if (!QuickLitematicaPreviewSchematicFiles.isNonVisualInventory(blockId) && !blockId.equals("minecraft:ender_chest")) return false;
+        if (!QuickLitematicaPreviewSchematicFiles.isNonVisualInventory(blockId) && !blockId.equals(
+                "minecraft:ender_chest"
+        )) {
+            return false;
+        }
         try {
             var block = Registries.BLOCK.get(Identifier.of(blockId));
-            if (block == null || !block.getClass().getName().startsWith("net.minecraft.")) return false;
+            if (block == null || !block.getClass().getName().startsWith("net.minecraft.")) {
+                return false;
+            }
             BlockState state = block.getDefaultState();
-            if (!(state.getBlock() instanceof BlockEntityProvider provider)) return false;
+            if (!(state.getBlock() instanceof BlockEntityProvider provider)) {
+                return false;
+            }
             BlockEntity blockEntity = provider.createBlockEntity(BlockPos.ORIGIN, state);
-            if (blockEntity == null) return false;
+            if (blockEntity == null) {
+                return false;
+            }
             var renderer = MinecraftClient.getInstance().getBlockEntityRenderDispatcher().get(blockEntity);
             return renderer == null || renderer.getClass().getName().startsWith("net.minecraft.");
         } catch (Throwable failure) {
@@ -120,12 +141,18 @@ public final class QuickLitematicaPreview3D {
     static boolean hasPreviewRendererForBlockEntity(String id) {
         try {
             var blockKey = Identifier.of(id);
-            if (!Registries.BLOCK.containsId(blockKey)) return true;
+            if (!Registries.BLOCK.containsId(blockKey)) {
+                return true;
+            }
             var block = Registries.BLOCK.get(blockKey);
             // 模组替换原版方块类时，不假定其所有状态都使用同一种方块实体。
-            if (block == null || !block.getClass().getName().startsWith("net.minecraft.")) return true;
+            if (block == null || !block.getClass().getName().startsWith("net.minecraft.")) {
+                return true;
+            }
             BlockState state = block.getDefaultState();
-            if (!(state.getBlock() instanceof BlockEntityProvider provider)) return false;
+            if (!(state.getBlock() instanceof BlockEntityProvider provider)) {
+                return false;
+            }
             // 与网格构建使用相同的类型/渲染器检查，兼容为原版方块注册渲染器的模组。
             return QuickLitematicaPreviewMeshBuilder.hasPreviewBlockEntityRenderer(provider, state, BlockPos.ORIGIN);
         } catch (Throwable failure) {
@@ -134,7 +161,8 @@ public final class QuickLitematicaPreview3D {
         }
     }
 
-    static final Map<fi.dy.masa.litematica.gui.GuiSchematicBrowserBase, java.lang.ref.WeakReference<Manager>> MANAGERS = new WeakHashMap<>();
+    static final Map<fi.dy.masa.litematica.gui.GuiSchematicBrowserBase, java.lang.ref.WeakReference<Manager>> MANAGERS =
+            new WeakHashMap<>();
     // 客户端线程访问；强 set 只保留 Manager，不保留 GUI，使遗弃页面也能由 tick 主动终结。
     private static final java.util.Set<Manager> LIVE_MANAGERS = java.util.concurrent.ConcurrentHashMap.newKeySet();
     private static final AtomicBoolean PREVIEW_LIFECYCLE_REGISTERED = new AtomicBoolean();
@@ -179,7 +207,9 @@ public final class QuickLitematicaPreview3D {
         Manager existing = managerFor(gui);
         if (existing != null) {
             // 全屏返回和窗口尺寸变化会重新 initGui，同一页面仍拥有原来的预览任务。
-            if (existing.current != null) existing.current.trace.event("页面重新初始化：复用原管理器及预览任务，当前状态={}", existing.current.state);
+            if (existing.current != null) {
+                existing.current.trace.event("页面重新初始化：复用原管理器及预览任务，当前状态={}", existing.current.state);
+            }
             return existing;
         }
 
@@ -207,12 +237,7 @@ public final class QuickLitematicaPreview3D {
         manager.generatedName = displayName;
         manager.generatedSupplier = schematicSupplier;
         manager.current = Preview.createGenerated(displayName, schematicSupplier);
-        MinecraftClient.getInstance().setScreen(new QuickLitematicaPreview3DScreen(
-                parent,
-                displayName,
-                manager,
-                true
-        ));
+        MinecraftClient.getInstance().setScreen(new QuickLitematicaPreview3DScreen(parent, displayName, manager, true));
     }
 
     public static void render(
@@ -226,16 +251,15 @@ public final class QuickLitematicaPreview3D {
     ) {
         boolean previewEnabled = QuickCraftConfigs.isLitematica3DPreviewEnabled();
         boolean shaderPackActive = isShaderPackActive();
-        if (previewEnabled
-                && shaderPackActive
-                && entry != null
-                && isSupportedLitematic(entry)) {
+        if (previewEnabled && shaderPackActive && entry != null && isSupportedLitematic(entry)) {
             shaderPackActive = !prepare3DPreview();
         }
         if (!previewEnabled || shaderPackActive) {
             for (java.lang.ref.WeakReference<Manager> reference : MANAGERS.values()) {
                 Manager manager = reference.get();
-                if (manager != null) manager.releasePreview();
+                if (manager != null) {
+                    manager.releasePreview();
+                }
             }
             if (previewEnabled
                     && shaderPackActive
@@ -265,19 +289,28 @@ public final class QuickLitematicaPreview3D {
 
     static void resourcesReloaded() {
         for (Manager manager : LIVE_MANAGERS) {
-            if (manager.current != null) manager.current.close();
+            if (manager.current != null) {
+                manager.current.close();
+            }
         }
     }
 
     public static boolean prepare3DPreview() {
-        if (!isShaderPackActive()) return true;
-        if (!QuickCraftConfigs.shouldAutoDisableShadersFor3DPreview()
-                || !QuickLitematicaPreviewCompat.tryDisableShaders()) return false;
+        if (!isShaderPackActive()) {
+            return true;
+        }
+        if (!QuickCraftConfigs.shouldAutoDisableShadersFor3DPreview() || !QuickLitematicaPreviewCompat
+                .tryDisableShaders()) {
+            return false;
+        }
         boolean disabled = !isShaderPackActive();
         if (disabled) {
             MinecraftClient client = MinecraftClient.getInstance();
             if (client.player != null) {
-                client.player.sendMessage(Text.translatable("quickcraft.message.litematica.preview_3d.shader_auto_disabled"), false);
+                client.player.sendMessage(
+                        Text.translatable("quickcraft.message.litematica.preview_3d.shader_auto_disabled"),
+                        false
+                );
             }
         }
         return disabled;
@@ -316,7 +349,14 @@ public final class QuickLitematicaPreview3D {
             LIVE_MANAGERS.add(this);
         }
 
-        void render(@Nullable DirectoryEntry entry, boolean hasEmbeddedPreview, DrawContext drawContext, int x, int y, int size) {
+        void render(
+                @Nullable DirectoryEntry entry,
+                boolean hasEmbeddedPreview,
+                DrawContext drawContext,
+                int x,
+                int y,
+                int size
+        ) {
             if (entry == null || !isSupportedLitematic(entry)) {
                 this.clearCurrent();
                 return;
@@ -331,7 +371,14 @@ public final class QuickLitematicaPreview3D {
             this.renderCurrent(drawContext, x, y, size, true);
         }
 
-        void renderLauncher(@Nullable DirectoryEntry entry, boolean hasEmbeddedPreview, DrawContext drawContext, int x, int y, int size) {
+        void renderLauncher(
+                @Nullable DirectoryEntry entry,
+                boolean hasEmbeddedPreview,
+                DrawContext drawContext,
+                int x,
+                int y,
+                int size
+        ) {
             if (entry == null || !isSupportedLitematic(entry)) {
                 this.clearCurrent();
                 return;
@@ -353,7 +400,9 @@ public final class QuickLitematicaPreview3D {
         }
 
         void fullscreenClosed() {
-            if (this.current != null) this.current.trace.event("退出全屏：任务保留，当前状态={}", this.current.state);
+            if (this.current != null) {
+                this.current.trace.event("退出全屏：任务保留，当前状态={}", this.current.state);
+            }
         }
 
         void renderFullscreen(DrawContext drawContext, int x, int y, int size) {
@@ -375,7 +424,9 @@ public final class QuickLitematicaPreview3D {
             drawOutlinedBox(drawContext, this.viewX, this.viewY, this.viewSize, this.viewSize, 0xB0101010, 0xFF707070);
             if (this.current != null) {
                 this.current.render(drawContext, this.viewX, this.viewY, this.viewSize, this.drag);
-                if (this.canForceRender()) this.drawForceRenderButton(drawContext);
+                if (this.canForceRender()) {
+                    this.drawForceRenderButton(drawContext);
+                }
             }
             if (showExpandButton) {
                 this.drawExpandButton(drawContext);
@@ -412,7 +463,8 @@ public final class QuickLitematicaPreview3D {
                 return false;
             }
 
-            if (mouseButton == 0 && this.showExpandButton && this.isExpandButtonHovered(mouseX, mouseY) && this.currentEntry != null) {
+            if (mouseButton == 0 && this.showExpandButton && this.isExpandButtonHovered(mouseX, mouseY)
+                    && this.currentEntry != null) {
                 Screen owner = this.owner.get();
                 if (owner == null) {
                     return false;
@@ -424,8 +476,12 @@ public final class QuickLitematicaPreview3D {
                     this.currentEntry = entry;
                     this.hasEmbeddedPreviewImage = hasEmbeddedPreview;
                 }
-                if (this.current != null) this.current.trace.event("进入全屏：复用任务，当前状态={}", this.current.state);
-                MinecraftClient.getInstance().setScreen(new QuickLitematicaPreview3DScreen(owner, entry.getName(), this));
+                if (this.current != null) {
+                    this.current.trace.event("进入全屏：复用任务，当前状态={}", this.current.state);
+                }
+                MinecraftClient.getInstance().setScreen(
+                        new QuickLitematicaPreview3DScreen(owner, entry.getName(), this)
+                );
                 return true;
             }
 
@@ -480,11 +536,8 @@ public final class QuickLitematicaPreview3D {
         }
 
         boolean canEditPreviewImage() {
-            return QuickCraftConfigs.canAddLitematicaPreviewImages()
-                    && this.current != null
-                    && this.currentPath != null
-                    && this.currentEntry != null
-                    && !this.previewImageWriteInProgress.get();
+            return QuickCraftConfigs.canAddLitematicaPreviewImages() && this.current != null && this.currentPath != null
+                    && this.currentEntry != null && !this.previewImageWriteInProgress.get();
         }
 
         boolean hasFilePreviewTarget() {
@@ -581,8 +634,7 @@ public final class QuickLitematicaPreview3D {
             if (callback == null) {
                 return;
             }
-            if (this.pendingPreviewImageRestoreFullscreen
-                    && this.pendingPreviewImageWaitTicks > 0
+            if (this.pendingPreviewImageRestoreFullscreen && this.pendingPreviewImageWaitTicks > 0
                     && isExclusiveFullscreen()) {
                 this.pendingPreviewImageWaitTicks--;
                 return;
@@ -652,14 +704,21 @@ public final class QuickLitematicaPreview3D {
                 Util.getIoWorkerExecutor().execute(preview.trace.wrap("原理图预览图更新", () -> {
                     try {
                         int[] pixels = QuickLitematicaPreviewImageWriter.readImagePixels(selected);
-                        QuickLitematicaPreviewImageWriter.PreviewWriteResult result =
-                                QuickLitematicaPreviewImageWriter.writePreview(target, pixels);
+                        QuickLitematicaPreviewImageWriter.PreviewWriteResult result = QuickLitematicaPreviewImageWriter
+                                .writePreview(target, pixels);
                         QuickLitematicaPreviewLog.file("预览图更新后的源文件", target);
                         boolean structureChanged = preview.refreshCacheSourceHash(result);
-                        this.finishPreviewWrite(preview, true, structureChanged, generation, callback, Text.translatable(
-                                "quickcraft.litematica.preview_3d.preview_write_success",
-                                target.getFileName().toString()
-                        ));
+                        this.finishPreviewWrite(
+                                preview,
+                                true,
+                                structureChanged,
+                                generation,
+                                callback,
+                                Text.translatable(
+                                        "quickcraft.litematica.preview_3d.preview_write_success",
+                                        target.getFileName().toString()
+                                )
+                        );
                     } catch (Throwable throwable) {
                         LOGGER.error("Failed to set the Litematica preview image from {}", selected, throwable);
                         this.failPreviewWrite(generation, callback, throwable);
@@ -762,14 +821,21 @@ public final class QuickLitematicaPreview3D {
             try {
                 Util.getIoWorkerExecutor().execute(preview.trace.wrap("原理图预览图更新", () -> {
                     try {
-                        QuickLitematicaPreviewImageWriter.PreviewWriteResult result =
-                                QuickLitematicaPreviewImageWriter.removePreview(target);
+                        QuickLitematicaPreviewImageWriter.PreviewWriteResult result = QuickLitematicaPreviewImageWriter
+                                .removePreview(target);
                         QuickLitematicaPreviewLog.file("预览图更新后的源文件", target);
                         boolean structureChanged = preview.refreshCacheSourceHash(result);
-                        this.finishPreviewWrite(preview, false, structureChanged, generation, callback, Text.translatable(
-                                "quickcraft.litematica.preview_3d.preview_remove_success",
-                                target.getFileName().toString()
-                        ));
+                        this.finishPreviewWrite(
+                                preview,
+                                false,
+                                structureChanged,
+                                generation,
+                                callback,
+                                Text.translatable(
+                                        "quickcraft.litematica.preview_3d.preview_remove_success",
+                                        target.getFileName().toString()
+                                )
+                        );
                     } catch (Throwable throwable) {
                         LOGGER.error("Failed to remove the Litematica preview image from {}", target, throwable);
                         this.failPreviewWrite(generation, callback, throwable);
@@ -788,20 +854,30 @@ public final class QuickLitematicaPreview3D {
 
         void writePreviewAsync(Preview preview, Path target, int[] pixels, long generation, Consumer<Text> callback) {
             if (this.current != preview || !target.equals(this.currentPath)) {
-                this.failPreviewWrite(generation, callback,
-                        Text.translatable("quickcraft.litematica.preview_3d.preview_write_unavailable"));
+                this.failPreviewWrite(
+                        generation,
+                        callback,
+                        Text.translatable("quickcraft.litematica.preview_3d.preview_write_unavailable")
+                );
                 return;
             }
             try {
                 Util.getIoWorkerExecutor().execute(() -> {
                     try {
-                        QuickLitematicaPreviewImageWriter.PreviewWriteResult result =
-                                QuickLitematicaPreviewImageWriter.writePreview(target, pixels);
+                        QuickLitematicaPreviewImageWriter.PreviewWriteResult result = QuickLitematicaPreviewImageWriter
+                                .writePreview(target, pixels);
                         boolean structureChanged = preview.refreshCacheSourceHash(result);
-                        this.finishPreviewWrite(preview, true, structureChanged, generation, callback, Text.translatable(
-                                "quickcraft.litematica.preview_3d.preview_write_success",
-                                target.getFileName().toString()
-                        ));
+                        this.finishPreviewWrite(
+                                preview,
+                                true,
+                                structureChanged,
+                                generation,
+                                callback,
+                                Text.translatable(
+                                        "quickcraft.litematica.preview_3d.preview_write_success",
+                                        target.getFileName().toString()
+                                )
+                        );
                     } catch (Throwable throwable) {
                         LOGGER.error("Failed to set the Litematica preview image for {}", target, throwable);
                         this.failPreviewWrite(generation, callback, throwable);
@@ -813,8 +889,14 @@ public final class QuickLitematicaPreview3D {
             }
         }
 
-        void finishPreviewWrite(Preview preview, boolean hasEmbeddedPreview, boolean structureChanged,
-                                long generation, Consumer<Text> callback, Text message) {
+        void finishPreviewWrite(
+                Preview preview,
+                boolean hasEmbeddedPreview,
+                boolean structureChanged,
+                long generation,
+                Consumer<Text> callback,
+                Text message
+        ) {
             MinecraftClient.getInstance().execute(() -> {
                 if (!this.isCurrentPreviewImageWrite(generation)) {
                     return;
@@ -850,9 +932,11 @@ public final class QuickLitematicaPreview3D {
         }
 
         void failPreviewWrite(long generation, Consumer<Text> callback, Throwable throwable) {
-            this.failPreviewWrite(generation, callback, Text.translatable(
-                    QuickLitematicaPreviewImageWriter.failureTranslationKey(throwable)
-            ));
+            this.failPreviewWrite(
+                    generation,
+                    callback,
+                    Text.translatable(QuickLitematicaPreviewImageWriter.failureTranslationKey(throwable))
+            );
         }
 
         @Override
@@ -871,24 +955,28 @@ public final class QuickLitematicaPreview3D {
         }
 
         boolean canHandleMouse(double mouseX, double mouseY) {
-            return (this.current != null || this.currentEntry != null)
-                    && is3DPreviewAvailable()
-                    && this.drag.inViewport(mouseX, mouseY);
+            return (this.current != null || this.currentEntry != null) && is3DPreviewAvailable() && this.drag
+                    .inViewport(mouseX, mouseY);
         }
 
         private void checkCurrentSource(long now) {
-            if (QuickLitematicaPreviewResources.reloading()) return;
+            if (QuickLitematicaPreviewResources.reloading()) {
+                return;
+            }
             if (this.generatedSupplier != null) {
                 if (this.current != null && this.current.isCancelled()) {
                     this.current = Preview.createGenerated(this.generatedName, this.generatedSupplier);
                 }
                 return;
             }
-            if (this.current == null || this.currentPath == null || this.currentEntry == null) return;
-            boolean checkDue = this.nextSourceCheckNanos == Long.MIN_VALUE
-                    || now - this.nextSourceCheckNanos >= 0;
+            if (this.current == null || this.currentPath == null || this.currentEntry == null) {
+                return;
+            }
+            boolean checkDue = this.nextSourceCheckNanos == Long.MIN_VALUE || now - this.nextSourceCheckNanos >= 0;
             // 只有执行核验才推进截止时间，避免连续渲染把检查永久推迟。
-            if (checkDue) this.nextSourceCheckNanos = now + SOURCE_CHECK_INTERVAL_NANOS;
+            if (checkDue) {
+                this.nextSourceCheckNanos = now + SOURCE_CHECK_INTERVAL_NANOS;
+            }
             if (this.current.isCancelled() || (checkDue && this.current.sourceStampChanged())) {
                 boolean hasEmbeddedPreview = this.hasEmbeddedPreviewImage;
                 this.switchTo(this.currentPath, this.currentEntry);
@@ -921,8 +1009,12 @@ public final class QuickLitematicaPreview3D {
         }
 
         private int forceRenderButtonWidth() {
-            return Math.min(this.viewSize - 12, MinecraftClient.getInstance().textRenderer.getWidth(
-                    StringUtils.translate("quickcraft.litematica.preview_3d.force_render")) + 16);
+            return Math.min(
+                    this.viewSize - 12,
+                    MinecraftClient.getInstance().textRenderer.getWidth(
+                            StringUtils.translate("quickcraft.litematica.preview_3d.force_render")
+                    ) + 16
+            );
         }
 
         private boolean isForceRenderButtonHovered(double mouseX, double mouseY) {
@@ -942,9 +1034,20 @@ public final class QuickLitematicaPreview3D {
             boolean hovered = this.isForceRenderButtonHovered(mouseX, mouseY);
             drawOutlinedBox(context, x, y, width, 18, hovered ? 0xE0603020 : 0xD0302010, 0xFFCC8855);
             String label = StringUtils.translate("quickcraft.litematica.preview_3d.force_render");
-            context.drawCenteredTextWithShadow(client.textRenderer, label, this.viewX + this.viewSize / 2, y + 5, 0xFFFFCC77);
+            context.drawCenteredTextWithShadow(
+                    client.textRenderer,
+                    label,
+                    this.viewX + this.viewSize / 2,
+                    y + 5,
+                    0xFFFFCC77
+            );
             if (hovered) {
-                context.drawTooltip(client.textRenderer, Text.translatable("quickcraft.litematica.preview_3d.force_render_warning"), (int) mouseX, (int) mouseY);
+                context.drawTooltip(
+                        client.textRenderer,
+                        Text.translatable("quickcraft.litematica.preview_3d.force_render_warning"),
+                        (int) mouseX,
+                        (int) mouseY
+                );
             }
         }
 
@@ -1000,6 +1103,7 @@ public final class QuickLitematicaPreview3D {
             this.clearCurrent();
         }
     }
+
     static boolean shouldSwitchPreviewSource(@Nullable Path currentPath, Path requestedPath, boolean hasCurrent) {
         return !requestedPath.equals(currentPath) || !hasCurrent;
     }
@@ -1051,7 +1155,8 @@ public final class QuickLitematicaPreview3D {
 
         private final QuickLitematicaPreviewUploadQueue staticUploads = new QuickLitematicaPreviewUploadQueue();
         private final QuickLitematicaPreviewMeshStore staticMeshStore = new QuickLitematicaPreviewMeshStore();
-        @Nullable private volatile QuickLitematicaPreviewCache.MeshLease borrowedMesh;
+        @Nullable
+        private volatile QuickLitematicaPreviewCache.MeshLease borrowedMesh;
 
         @Nullable
         volatile PreviewDimensions dimensions;
@@ -1070,27 +1175,43 @@ public final class QuickLitematicaPreview3D {
 
         final AtomicBoolean snapshotInProgress = new AtomicBoolean();
 
-        Preview(
-                Path sourcePath,
-                Path cachePath,
-                Path tmpPath,
-                String cacheSlot,
-                String resourcePackSignature
-        ) {
+        Preview(Path sourcePath, Path cachePath, Path tmpPath, String cacheSlot, String resourcePackSignature) {
             this.sourcePath = sourcePath;
             this.cachePath = cachePath;
             this.tmpPath = tmpPath;
             this.cacheSlot = cacheSlot;
             this.resourcePackSignature = resourcePackSignature;
             this.trace = new QuickLitematicaPreviewLog.Trace(sourcePath, this.startedAtNanos);
-            this.trace.event("CPU 顶点策略：cpu-spill-v2，小网格驻留阈值={} B，待上传队列预算=64 MiB，大网格缓存副本暂存磁盘，进程退出自动删除；加载预览重画上限=4 Hz", QuickLitematicaPreviewMeshStore.MEMORY_BYTES);
+            this.trace.event(
+                    "CPU 顶点策略：cpu-spill-v2，小网格驻留阈值={} B，待上传队列预算=64 MiB，大网格缓存副本暂存磁盘，进程退出自动删除；加载预览重画上限=4 Hz",
+                    QuickLitematicaPreviewMeshStore.MEMORY_BYTES
+            );
             this.trace.event("预览正确性策略：resource-content-v1 / translucent-view-v3 / beacon-v1，透明材质合并，批内索引与跨批绘制顺序按视角重排");
-            if (QuickLitematicaPreviewLog.enabled()) this.trace.event("渲染环境：后端={}，资源包={}，源类型={}",
-                    this.getClass().getName(), MinecraftClient.getInstance().getResourcePackManager().getEnabledProfiles().stream().map(profile -> profile.getId()).toList(), cacheSlot.isBlank() ? "游戏内选区" : "文件");
+            if (QuickLitematicaPreviewLog.enabled()) {
+                this.trace.event(
+                        "渲染环境：后端={}，资源包={}，源类型={}",
+                        this.getClass().getName(),
+                        MinecraftClient.getInstance().getResourcePackManager().getEnabledProfiles().stream().map(
+                                profile -> profile.getId()
+                        ).toList(),
+                        cacheSlot.isBlank() ? "游戏内选区" : "文件"
+                );
+            }
             this.captureSourceStamp();
-            this.trace.event("任务创建：源={}，缓存={}，临时文件={}，缓存槽={}，资源签名={}，源大小={} B，修改时间={}，默认顶点/动态状态/方块实体/实体上限={}/{}/{}/{}",
-                    sourcePath, cachePath, tmpPath, cacheSlot, resourcePackSignature, this.sourceSize, this.sourceModifiedMillis,
-                    MAX_UPLOAD_VERTICES, MAX_DYNAMIC_BLOCK_STATES, MAX_DYNAMIC_BLOCK_ENTITIES, MAX_DYNAMIC_ENTITIES);
+            this.trace.event(
+                    "任务创建：源={}，缓存={}，临时文件={}，缓存槽={}，资源签名={}，源大小={} B，修改时间={}，默认顶点/动态状态/方块实体/实体上限={}/{}/{}/{}",
+                    sourcePath,
+                    cachePath,
+                    tmpPath,
+                    cacheSlot,
+                    resourcePackSignature,
+                    this.sourceSize,
+                    this.sourceModifiedMillis,
+                    MAX_UPLOAD_VERTICES,
+                    MAX_DYNAMIC_BLOCK_STATES,
+                    MAX_DYNAMIC_BLOCK_ENTITIES,
+                    MAX_DYNAMIC_ENTITIES
+            );
         }
 
         static Preview create(DirectoryEntry entry) {
@@ -1109,11 +1230,17 @@ public final class QuickLitematicaPreview3D {
                     currentCacheSignature()
             );
             preview.forceRender = forceRender;
-            preview.trace.event("预览预算：强制渲染={}，静态顶点上限={}，默认上限={}，强制时忽略动态数量/缓冲/NBT分配预算，仅当前任务生效",
-                    forceRender, forceRender ? Integer.MAX_VALUE : MAX_UPLOAD_VERTICES, MAX_UPLOAD_VERTICES);
+            preview.trace.event(
+                    "预览预算：强制渲染={}，静态顶点上限={}，默认上限={}，强制时忽略动态数量/缓冲/NBT分配预算，仅当前任务生效",
+                    forceRender,
+                    forceRender ? Integer.MAX_VALUE : MAX_UPLOAD_VERTICES,
+                    MAX_UPLOAD_VERTICES
+            );
             preview.progress = PROGRESS_START;
-            preview.startBuild("预览后台读取/构建",
-                    () -> QuickLitematicaPreviewVertexBudget.run(forceRender, preview::loadOrBuild));
+            preview.startBuild(
+                    "预览后台读取/构建",
+                    () -> QuickLitematicaPreviewVertexBudget.run(forceRender, preview::loadOrBuild)
+            );
             return preview;
         }
 
@@ -1122,14 +1249,10 @@ public final class QuickLitematicaPreview3D {
             if (safeName.isBlank()) {
                 safeName = "selection";
             }
-            Path transientPath = cacheDirectory().resolve("selection-" + Long.toUnsignedString(System.nanoTime()) + ".tmp");
-            Preview preview = new NativePreview(
-                    Path.of(safeName + ".litematic"),
-                    transientPath,
-                    transientPath,
-                    "",
-                    ""
+            Path transientPath = cacheDirectory().resolve(
+                    "selection-" + Long.toUnsignedString(System.nanoTime()) + ".tmp"
             );
+            Preview preview = new NativePreview(Path.of(safeName + ".litematic"), transientPath, transientPath, "", "");
             preview.progress = PROGRESS_START;
             preview.startBuild("选区捕获/构建", () -> preview.loadGenerated(schematicSupplier));
             return preview;
@@ -1137,7 +1260,9 @@ public final class QuickLitematicaPreview3D {
 
         private void startBuild(String phase, Runnable work) {
             Preview previous = PENDING_PREVIEW_BUILD.getAndSet(this);
-            if (previous != null && previous != this) previous.cancelPendingBuild();
+            if (previous != null && previous != this) {
+                previous.cancelPendingBuild();
+            }
             this.future = PREVIEW_EXECUTOR.submit(this.trace.wrap(phase, () -> {
                 try (var scope = QuickLitematicaPreviewCancellation.bind(this.cancelled)) {
                     runBuildTask(work, this::failBuild);
@@ -1149,7 +1274,9 @@ public final class QuickLitematicaPreview3D {
         }
 
         synchronized void failBuild(Throwable failure) {
-            if (this.state == State.FAILED) return;
+            if (this.state == State.FAILED) {
+                return;
+            }
             this.state = this.cancelled.get() ? State.CANCELLED : State.FAILED;
             this.progress = 1.0F;
             MeshData data = this.meshData;
@@ -1161,15 +1288,26 @@ public final class QuickLitematicaPreview3D {
             // 先归还半成品，再记录异常；内存不足时仍保留已有的有效磁盘缓存。
             this.discardPartialStatic();
             Future<?> task = this.future;
-            if (task != null) task.cancel(true);
+            if (task != null) {
+                task.cancel(true);
+            }
             Runtime runtime = Runtime.getRuntime();
-            LOGGER.error("3D 预览任务失败：源={}，状态={}，强制渲染={}，已用堆={} B，最大堆={} B，半成品已撤销，磁盘缓存保留",
-                    this.sourcePath, this.state, this.forceRender, runtime.totalMemory() - runtime.freeMemory(), runtime.maxMemory(), failure);
+            LOGGER.error(
+                    "3D 预览任务失败：源={}，状态={}，强制渲染={}，已用堆={} B，最大堆={} B，半成品已撤销，磁盘缓存保留",
+                    this.sourcePath,
+                    this.state,
+                    this.forceRender,
+                    runtime.totalMemory() - runtime.freeMemory(),
+                    runtime.maxMemory(),
+                    failure
+            );
             this.trace.event("预览状态改变：{}，失败类型={}", this.state, failure.getClass().getName());
         }
 
         private synchronized void rejectBuild(boolean vertexLimit) {
-            if (this.state == State.FAILED) return;
+            if (this.state == State.FAILED) {
+                return;
+            }
             this.vertexLimitExceeded = vertexLimit;
             this.state = State.TOO_LARGE;
             this.progress = 1.0F;
@@ -1225,7 +1363,14 @@ public final class QuickLitematicaPreview3D {
 
                 synchronized (this) {
                     this.throwIfCancelled();
-                    this.trace.milestone("CPU 模型构建完成：顶点={}，层批次={}，尺寸={}x{}x{}", built.vertexCount(), built.layers().size(), built.sizeX(), built.sizeY(), built.sizeZ());
+                    this.trace.milestone(
+                            "CPU 模型构建完成：顶点={}，层批次={}，尺寸={}x{}x{}",
+                            built.vertexCount(),
+                            built.layers().size(),
+                            built.sizeX(),
+                            built.sizeY(),
+                            built.sizeZ()
+                    );
                     this.meshData = built;
                     this.progress = 1.0F;
                     this.state = State.READY;
@@ -1254,16 +1399,21 @@ public final class QuickLitematicaPreview3D {
                 this.trace.event("后台任务开始：排队/调度等待={} us", (System.nanoTime() - this.startedAtNanos) / 1_000L);
                 long hashStart = QuickLitematicaPreviewLog.startTimer();
                 String sourceHash = hashFileCancellable(this.sourcePath, this.cancelled);
-                this.trace.event("源文件核验完成：SHA256={}，文件={}，大小={} B，耗时={} us", sourceHash, this.sourcePath,
-                        this.sourceSize, QuickLitematicaPreviewLog.microsSince(hashStart));
+                this.trace.event(
+                        "源文件核验完成：SHA256={}，文件={}，大小={} B，耗时={} us",
+                        sourceHash,
+                        this.sourcePath,
+                        this.sourceSize,
+                        QuickLitematicaPreviewLog.microsSince(hashStart)
+                );
                 Path cacheDirectory = this.cachePath.getParent();
                 if (cacheDirectory == null) {
                     throw new IOException("3D preview cache path has no parent directory");
                 }
                 Files.createDirectories(cacheDirectory);
                 Path runDirectory = cacheDirectory.getParent();
-                this.cachePersistenceAllowed = runDirectory != null
-                        && QuickLitematicaPreviewCache.ensureCacheDirectoryReady(runDirectory);
+                this.cachePersistenceAllowed = runDirectory != null && QuickLitematicaPreviewCache
+                        .ensureCacheDirectoryReady(runDirectory);
                 if (!this.cachePersistenceAllowed) {
                     this.trace.event("缓存持久化禁用：原因=directory_not_initialized，目录={}", cacheDirectory);
                 }
@@ -1291,22 +1441,39 @@ public final class QuickLitematicaPreview3D {
                 Path readCachePath = this.cachePath;
                 CacheIndexEntry indexEntry = readCacheIndexEntry(this.cacheSlot);
                 boolean sourceHashMatches = indexEntry != null && sourceHash.equals(indexEntry.sourceHash());
-                boolean cacheSignatureMatches = sourceHashMatches
-                        && this.resourcePackSignature.equals(indexEntry.resourcePackSignature());
-                this.trace.event("缓存判定：索引={}，源哈希匹配={}，资源签名匹配={}，读取路径={}，缓存版本/标记由文件头校验",
-                        indexEntry, sourceHashMatches, cacheSignatureMatches, readCachePath);
+                boolean cacheSignatureMatches = sourceHashMatches && this.resourcePackSignature.equals(
+                        indexEntry.resourcePackSignature()
+                );
+                this.trace.event(
+                        "缓存判定：索引={}，源哈希匹配={}，资源签名匹配={}，读取路径={}，缓存版本/标记由文件头校验",
+                        indexEntry,
+                        sourceHashMatches,
+                        cacheSignatureMatches,
+                        readCachePath
+                );
                 MeshData cached = pendingMesh != null ? pendingMesh
-                        : cacheSignatureMatches ? CacheFile.read(readCachePath, this.cancelled, this.staticMeshStore,
-                                indexEntry.structureFingerprint(), this.resourcePackSignature) : null;
+                        : cacheSignatureMatches ? CacheFile.read(
+                                readCachePath,
+                                this.cancelled,
+                                this.staticMeshStore,
+                                indexEntry.structureFingerprint(),
+                                this.resourcePackSignature
+                        ) : null;
                 if (cached != null) {
                     if (!sourceHash.equals(hashFile(this.sourcePath))) {
                         this.markSourceStampForRecheck();
                         throw new IOException("Source changed while loading preview cache");
                     }
-                    this.structureFingerprint = pendingMesh != null
-                            ? pendingStructureFingerprint : indexEntry.structureFingerprint();
-                    this.trace.event("静态网格缓存命中：层批次={}，顶点={}，动态状态/方块实体/实体={}/{}/{}，跳过原理图读取和模型构建",
-                            cached.layers().size(), cached.vertexCount(), cached.blockStates.size(), cached.blockEntities.size(), cached.entities.size());
+                    this.structureFingerprint = pendingMesh != null ? pendingStructureFingerprint
+                            : indexEntry.structureFingerprint();
+                    this.trace.event(
+                            "静态网格缓存命中：层批次={}，顶点={}，动态状态/方块实体/实体={}/{}/{}，跳过原理图读取和模型构建",
+                            cached.layers().size(),
+                            cached.vertexCount(),
+                            cached.blockStates.size(),
+                            cached.blockEntities.size(),
+                            cached.entities.size()
+                    );
                     this.throwIfCancelled();
                     synchronized (this) {
                         this.throwIfCancelled();
@@ -1330,20 +1497,34 @@ public final class QuickLitematicaPreview3D {
                 this.state = State.BUILDING;
                 this.trace.event("预览状态改变：BUILDING");
                 CacheIndexEntry convertedEntry = cleanAndReadConvertedCacheIndexEntry(cacheDirectory, sourceHash);
-                boolean convertedSignatureMatches = convertedCacheMatches(convertedEntry, sourceHash,
-                        this.resourcePackSignature);
-                Path convertedPath = convertedSignatureMatches
-                        ? convertedCachePath(cacheDirectory, this.cacheSlot, convertedEntry.structureFingerprint(),
-                        this.resourcePackSignature)
-                        : this.convertedSchematicPath();
-                LitematicaSchematic schematic = convertedSignatureMatches
-                        ? QuickLitematicaPreviewSchematicFiles.readSchematic(convertedPath, this.cancelled, false)
-                        : null;
+                boolean convertedSignatureMatches = convertedCacheMatches(
+                        convertedEntry,
+                        sourceHash,
+                        this.resourcePackSignature
+                );
+                Path convertedPath = convertedSignatureMatches ? convertedCachePath(
+                        cacheDirectory,
+                        this.cacheSlot,
+                        convertedEntry.structureFingerprint(),
+                        this.resourcePackSignature
+                ) : this.convertedSchematicPath();
+                LitematicaSchematic schematic = convertedSignatureMatches ? QuickLitematicaPreviewSchematicFiles
+                        .readSchematic(convertedPath, this.cancelled, false) : null;
                 boolean convertedCacheHit = schematic != null;
-                this.trace.event("转换原理图缓存判定：命中={}，路径={}，源哈希匹配={}，资源签名匹配={}", convertedCacheHit, convertedPath, sourceHashMatches, convertedSignatureMatches);
+                this.trace.event(
+                        "转换原理图缓存判定：命中={}，路径={}，源哈希匹配={}，资源签名匹配={}",
+                        convertedCacheHit,
+                        convertedPath,
+                        sourceHashMatches,
+                        convertedSignatureMatches
+                );
                 if (!convertedCacheHit) {
                     deleteQuietly(convertedPath);
-                    schematic = QuickLitematicaPreviewSchematicFiles.readSchematic(this.sourcePath, this.cancelled, true);
+                    schematic = QuickLitematicaPreviewSchematicFiles.readSchematic(
+                            this.sourcePath,
+                            this.cancelled,
+                            true
+                    );
                 }
                 if (!sourceHash.equals(hashFile(this.sourcePath))) {
                     this.markSourceStampForRecheck();
@@ -1360,9 +1541,15 @@ public final class QuickLitematicaPreview3D {
                 LitematicaSchematic convertedSchematic = !convertedCacheHit
                         && effectiveSourceVersion < LitematicaSchematic.MINECRAFT_DATA_VERSION
                         && fi.dy.masa.litematica.util.DataFixerMode.getEffectiveSchema(effectiveSourceVersion) != null
-                        ? schematic : null;
-                this.trace.event("转换原理图缓存保存判定：需要保存={}，有效源版本={}，目标版本={}，已命中转换缓存={}",
-                        convertedSchematic != null, effectiveSourceVersion, LitematicaSchematic.MINECRAFT_DATA_VERSION, convertedCacheHit);
+                                ? schematic
+                                : null;
+                this.trace.event(
+                        "转换原理图缓存保存判定：需要保存={}，有效源版本={}，目标版本={}，已命中转换缓存={}",
+                        convertedSchematic != null,
+                        effectiveSourceVersion,
+                        LitematicaSchematic.MINECRAFT_DATA_VERSION,
+                        convertedCacheHit
+                );
                 MeshData built;
                 try {
                     built = QuickLitematicaPreviewMeshBuilder.build(
@@ -1381,7 +1568,9 @@ public final class QuickLitematicaPreview3D {
                 }
                 this.throwIfCancelled();
                 if (!built.withinBudget()) {
-                    if (convertedSchematic != null) this.saveConvertedCache(convertedSchematic, sourceHash);
+                    if (convertedSchematic != null) {
+                        this.saveConvertedCache(convertedSchematic, sourceHash);
+                    }
                     built.closeDynamic();
                     this.rejectBuild(built.vertexCount() > QuickLitematicaPreviewVertexBudget.vertexLimit());
                     return;
@@ -1396,7 +1585,14 @@ public final class QuickLitematicaPreview3D {
                 synchronized (this) {
                     this.throwIfCancelled();
                     this.saveCacheAsync(built, sourceHash, this.structureFingerprint, convertedSchematic);
-                    this.trace.milestone("CPU 模型构建完成：顶点={}，层批次={}，尺寸={}x{}x{}", built.vertexCount(), built.layers().size(), built.sizeX(), built.sizeY(), built.sizeZ());
+                    this.trace.milestone(
+                            "CPU 模型构建完成：顶点={}，层批次={}，尺寸={}x{}x{}",
+                            built.vertexCount(),
+                            built.layers().size(),
+                            built.sizeX(),
+                            built.sizeY(),
+                            built.sizeZ()
+                    );
                     this.meshData = built;
                     this.progress = 1.0F;
                     this.state = State.READY;
@@ -1433,8 +1629,10 @@ public final class QuickLitematicaPreview3D {
         @Nullable
         private SourceStamp readSourceStamp() {
             try {
-                return new SourceStamp(Files.size(this.sourcePath),
-                        Files.getLastModifiedTime(this.sourcePath).toMillis());
+                return new SourceStamp(
+                        Files.size(this.sourcePath),
+                        Files.getLastModifiedTime(this.sourcePath).toMillis()
+                );
             } catch (IOException e) {
                 return null;
             }
@@ -1454,17 +1652,33 @@ public final class QuickLitematicaPreview3D {
             try {
                 long actualSize = Files.size(this.sourcePath);
                 if (actualSize != this.sourceSize) {
-                    this.trace.event("当前预览失效：原因=source_size_changed，源={}，大小={}->{}", this.sourcePath, this.sourceSize, actualSize);
+                    this.trace.event(
+                            "当前预览失效：原因=source_size_changed，源={}，大小={}->{}",
+                            this.sourcePath,
+                            this.sourceSize,
+                            actualSize
+                    );
                     return true;
                 }
                 long actualModified = Files.getLastModifiedTime(this.sourcePath).toMillis();
                 if (actualModified != this.sourceModifiedMillis) {
-                    this.trace.event("当前预览失效：原因=source_time_changed，源={}，时间={}->{}", this.sourcePath, this.sourceModifiedMillis, actualModified);
+                    this.trace.event(
+                            "当前预览失效：原因=source_time_changed，源={}，时间={}->{}",
+                            this.sourcePath,
+                            this.sourceModifiedMillis,
+                            actualModified
+                    );
                     return true;
                 }
                 String actualSignature = currentCacheSignature();
                 boolean changed = !actualSignature.equals(this.resourcePackSignature);
-                if (changed) this.trace.event("当前预览失效：原因=resource_signature_changed，签名={}->{}", this.resourcePackSignature, actualSignature);
+                if (changed) {
+                    this.trace.event(
+                            "当前预览失效：原因=resource_signature_changed，签名={}->{}",
+                            this.resourcePackSignature,
+                            actualSignature
+                    );
+                }
                 return changed;
             } catch (IOException e) {
                 this.trace.event("当前预览需重新核验：原因=source_stat_failed，源={}，异常={}", this.sourcePath, e.toString());
@@ -1484,9 +1698,11 @@ public final class QuickLitematicaPreview3D {
         @Nullable
         private CacheIndexEntry cleanAndReadConvertedCacheIndexEntry(Path cacheDirectory, String sourceHash) {
             CacheIndexEntry converted = readConvertedCacheIndexEntry(this.cacheSlot);
-            if (!this.cachePersistenceAllowed
-                    || converted == null
-                    || convertedCacheMatches(converted, sourceHash, this.resourcePackSignature)) {
+            if (!this.cachePersistenceAllowed || converted == null || convertedCacheMatches(
+                    converted,
+                    sourceHash,
+                    this.resourcePackSignature
+            )) {
                 return converted;
             }
             if (!removeConvertedCacheEntry(cacheDirectory, this.cacheSlot, converted)) {
@@ -1514,13 +1730,22 @@ public final class QuickLitematicaPreview3D {
                 }
                 String structureFingerprint = QuickLitematicaPreviewSchematicFiles.structureFingerprint(schematic);
                 Path convertedPath = this.convertedSchematicPath(structureFingerprint);
-                if (QuickLitematicaPreviewSchematicFiles.writeConvertedSchematic(schematic, convertedPath, this.cacheSlot)) {
+                if (QuickLitematicaPreviewSchematicFiles.writeConvertedSchematic(
+                        schematic,
+                        convertedPath,
+                        this.cacheSlot
+                )) {
                     if (!sourceHash.equals(hashFile(this.sourcePath))) {
                         this.trace.event("转换缓存索引提交跳过：原因=source_changed，源={}", this.sourcePath);
                         return;
                     }
-                    writeConvertedCacheIndexEntry(this.cacheSlot, this.sourcePath, sourceHash,
-                            this.resourcePackSignature, structureFingerprint);
+                    writeConvertedCacheIndexEntry(
+                            this.cacheSlot,
+                            this.sourcePath,
+                            sourceHash,
+                            this.resourcePackSignature,
+                            structureFingerprint
+                    );
                     this.trace.milestone("converted-cache-identity-v2：转换原理图按结构指纹命名并提交，索引不匹配时安全重建");
                 }
             } catch (RuntimeException | IOException failure) {
@@ -1528,8 +1753,12 @@ public final class QuickLitematicaPreview3D {
             }
         }
 
-        private void saveCacheAsync(MeshData built, String sourceHash, @Nullable String structureFingerprint,
-                                    @Nullable LitematicaSchematic schematic) {
+        private void saveCacheAsync(
+                MeshData built,
+                String sourceHash,
+                @Nullable String structureFingerprint,
+                @Nullable LitematicaSchematic schematic
+        ) {
             if (!this.cachePersistenceAllowed) {
                 this.trace.event("缓存保存跳过：原因=directory_not_initialized，路径={}", this.cachePath);
                 return;
@@ -1539,14 +1768,26 @@ public final class QuickLitematicaPreview3D {
                 return;
             }
             // 快照保留小网格顶点或大网格暂存引用；关闭预览不会打断独立的缓存保存。
-            MeshData snapshot = new MeshData(List.copyOf(built.layers()), built.blockStates, built.blockEntities,
-                    built.entities, built.sizeX(), built.sizeY(), built.sizeZ());
+            MeshData snapshot = new MeshData(
+                    List.copyOf(built.layers()),
+                    built.blockStates,
+                    built.blockEntities,
+                    built.entities,
+                    built.sizeX(),
+                    built.sizeY(),
+                    built.sizeZ()
+            );
             Path sourcePath = this.sourcePath;
             Path cachePath = this.cachePath;
             Path tmpPath = this.tmpPath;
             String cacheSlot = this.cacheSlot;
             String resourcePackSignature = this.resourcePackSignature;
-            this.trace.event("后台缓存保存排队：路径={}，快照层批次={}，顶点={}", cachePath, snapshot.layers().size(), snapshot.vertexCount());
+            this.trace.event(
+                    "后台缓存保存排队：路径={}，快照层批次={}，顶点={}",
+                    cachePath,
+                    snapshot.layers().size(),
+                    snapshot.vertexCount()
+            );
             long cacheQueued = QuickLitematicaPreviewLog.startTimer();
             Runnable cacheWrite = this.trace.wrap(() -> {
                 LOGGER.info("后台缓存保存开始：路径={}，排队={} us", cachePath, QuickLitematicaPreviewLog.microsSince(cacheQueued));
@@ -1557,10 +1798,19 @@ public final class QuickLitematicaPreview3D {
                         this.trace.event("缓存保存跳过：原因=source_changed，路径={}", cachePath);
                         return;
                     }
-                    if (schematic != null) this.saveConvertedCache(schematic, sourceHash);
-                    CacheFile.writeAtomically(tmpPath, cachePath, snapshot, snapshot.layers(),
-                            structureFingerprint, resourcePackSignature, new AtomicBoolean(),
-                            QuickLitematicaPreviewLog.progressSink("缓存压缩写入"));
+                    if (schematic != null) {
+                        this.saveConvertedCache(schematic, sourceHash);
+                    }
+                    CacheFile.writeAtomically(
+                            tmpPath,
+                            cachePath,
+                            snapshot,
+                            snapshot.layers(),
+                            structureFingerprint,
+                            resourcePackSignature,
+                            new AtomicBoolean(),
+                            QuickLitematicaPreviewLog.progressSink("缓存压缩写入")
+                    );
                     cacheWritten = true;
                     if (!sourceHash.equals(hashFile(sourcePath))) {
                         this.markSourceStampForRecheck();
@@ -1569,13 +1819,25 @@ public final class QuickLitematicaPreview3D {
                         return;
                     }
                     try (var phase = QuickLitematicaPreviewLog.phase("提交缓存索引")) {
-                        writeCacheIndexEntry(cacheSlot, sourcePath, sourceHash, resourcePackSignature, structureFingerprint);
+                        writeCacheIndexEntry(
+                                cacheSlot,
+                                sourcePath,
+                                sourceHash,
+                                resourcePackSignature,
+                                structureFingerprint
+                        );
                     }
-                    this.trace.milestone("缓存文件及索引提交成功：路径={}，源哈希={}，结构指纹={}",
-                            cachePath, sourceHash, structureFingerprint);
+                    this.trace.milestone(
+                            "缓存文件及索引提交成功：路径={}，源哈希={}，结构指纹={}",
+                            cachePath,
+                            sourceHash,
+                            structureFingerprint
+                    );
                     QuickLitematicaPreviewLog.file("缓存保存完成", cachePath);
                 } catch (Exception e) {
-                    if (cacheWritten) deleteQuietly(cachePath);
+                    if (cacheWritten) {
+                        deleteQuietly(cachePath);
+                    }
                     deleteTmpQuietly(tmpPath);
                     LOGGER.error("后台缓存保存失败：源={}，临时={}，最终={}，显示结果保留，临时文件清理", sourcePath, tmpPath, cachePath, e);
                 } finally {
@@ -1586,8 +1848,16 @@ public final class QuickLitematicaPreview3D {
             });
             this.staticMeshStore.retainForCache();
             try {
-                writeAsync(cachePath, cacheWrite, sourceHash, resourcePackSignature, structureFingerprint,
-                        snapshot.vertexCount(), snapshot, this.staticMeshStore);
+                writeAsync(
+                        cachePath,
+                        cacheWrite,
+                        sourceHash,
+                        resourcePackSignature,
+                        structureFingerprint,
+                        snapshot.vertexCount(),
+                        snapshot,
+                        this.staticMeshStore
+                );
             } catch (java.util.concurrent.RejectedExecutionException busy) {
                 snapshot.releaseStaticVertices();
                 this.staticMeshStore.releaseCache();
@@ -1619,17 +1889,26 @@ public final class QuickLitematicaPreview3D {
             for (LayerMesh layer : layers) {
                 this.throwIfCancelled();
                 // 透明层加载期间本就不绘制；等整层数量确定后再按批上传，避免合并时复制整层显存。
-                if (layer.needsTranslucentSorting() && this.meshData == null) continue;
+                if (layer.needsTranslucentSorting() && this.meshData == null) {
+                    continue;
+                }
                 this.staticUploads.publish(layer, this::throwIfCancelled);
-                this.trace.event("网格批次发布：层={}，顶点={}，量化={} B，上传队列剩余预算={} KiB",
-                        layer.layer(), layer.vertexCount(), layer.quantizedByteCount(), this.staticUploads.availableKiB());
+                this.trace.event(
+                        "网格批次发布：层={}，顶点={}，量化={} B，上传队列剩余预算={} KiB",
+                        layer.layer(),
+                        layer.vertexCount(),
+                        layer.quantizedByteCount(),
+                        this.staticUploads.availableKiB()
+                );
             }
         }
 
         private void releaseBorrowedMesh() {
             var lease = this.borrowedMesh;
             this.borrowedMesh = null;
-            if (lease != null) lease.close();
+            if (lease != null) {
+                lease.close();
+            }
         }
 
         void discardPartialStatic() {
@@ -1641,7 +1920,8 @@ public final class QuickLitematicaPreview3D {
         }
 
         void completeStaticUploadIfReady() {
-            if (this.cancelled.get() || this.staticUploadComplete || this.uploadScheduled || this.state != State.READY || !this.staticUploads.isEmpty()) {
+            if (this.cancelled.get() || this.staticUploadComplete || this.uploadScheduled || this.state != State.READY
+                    || !this.staticUploads.isEmpty()) {
                 return;
             }
 
@@ -1669,30 +1949,45 @@ public final class QuickLitematicaPreview3D {
                 if (stampAfterHash == null || !stampBefore.equals(stampAfterHash)) {
                     return this.invalidateCacheForRefresh(currentFingerprint, writtenFingerprint);
                 }
-                if (currentFingerprint == null || writtenFingerprint == null
-                        || !currentFingerprint.equals(writtenFingerprint)
-                        || !sourceHash.equals(result.contentHash())) {
+                if (currentFingerprint == null || writtenFingerprint == null || !currentFingerprint.equals(
+                        writtenFingerprint
+                ) || !sourceHash.equals(result.contentHash())) {
                     return this.invalidateCacheForRefresh(currentFingerprint, writtenFingerprint);
                 }
 
-                writeCacheIndexEntry(this.cacheSlot, this.sourcePath, sourceHash,
-                        this.resourcePackSignature, writtenFingerprint);
+                writeCacheIndexEntry(
+                        this.cacheSlot,
+                        this.sourcePath,
+                        sourceHash,
+                        this.resourcePackSignature,
+                        writtenFingerprint
+                );
                 CacheIndexEntry converted = readConvertedCacheIndexEntry(this.cacheSlot);
                 Path cacheDirectory = this.cachePath.getParent();
-                if (cacheDirectory != null && converted != null
-                        && writtenFingerprint.equals(converted.structureFingerprint())
-                        && this.resourcePackSignature.equals(converted.resourcePackSignature())) {
-                    Path convertedPath = convertedCachePath(cacheDirectory, this.cacheSlot,
-                            converted.structureFingerprint(), this.resourcePackSignature);
+                if (cacheDirectory != null && converted != null && writtenFingerprint.equals(
+                        converted.structureFingerprint()
+                ) && this.resourcePackSignature.equals(converted.resourcePackSignature())) {
+                    Path convertedPath = convertedCachePath(
+                            cacheDirectory,
+                            this.cacheSlot,
+                            converted.structureFingerprint(),
+                            this.resourcePackSignature
+                    );
                     if (Files.isRegularFile(convertedPath)) {
-                        writeConvertedCacheIndexEntry(this.cacheSlot, this.sourcePath, sourceHash,
-                                this.resourcePackSignature, writtenFingerprint);
+                        writeConvertedCacheIndexEntry(
+                                this.cacheSlot,
+                                this.sourcePath,
+                                sourceHash,
+                                this.resourcePackSignature,
+                                writtenFingerprint
+                        );
                     }
                 }
                 String verifiedHash = hashFile(this.sourcePath);
                 SourceStamp stampAfterIndex = this.readSourceStamp();
-                if (!sourceHash.equals(verifiedHash) || stampAfterIndex == null
-                        || !stampAfterHash.equals(stampAfterIndex)) {
+                if (!sourceHash.equals(verifiedHash) || stampAfterIndex == null || !stampAfterHash.equals(
+                        stampAfterIndex
+                )) {
                     return this.invalidateCacheForRefresh(currentFingerprint, writtenFingerprint);
                 }
                 this.structureFingerprint = writtenFingerprint;
@@ -1705,8 +2000,10 @@ public final class QuickLitematicaPreview3D {
             }
         }
 
-        private boolean invalidateCacheForRefresh(@Nullable String currentFingerprint,
-                                                  @Nullable String writtenFingerprint) {
+        private boolean invalidateCacheForRefresh(
+                @Nullable String currentFingerprint,
+                @Nullable String writtenFingerprint
+        ) {
             this.structureFingerprint = null;
             this.markSourceStampForRecheck();
             Path cacheDirectory = this.cachePath.getParent();
@@ -1718,8 +2015,7 @@ public final class QuickLitematicaPreview3D {
                     LOGGER.warn("预览缓存索引失效写回失败：目录={}", cacheDirectory, failure);
                 }
             }
-            this.trace.event("预览图更新后内容已变化：旧网格缓存失效，等待重建；当前结构={}，写入结构={}",
-                    currentFingerprint, writtenFingerprint);
+            this.trace.event("预览图更新后内容已变化：旧网格缓存失效，等待重建；当前结构={}，写入结构={}", currentFingerprint, writtenFingerprint);
             return true;
         }
 
@@ -1764,7 +2060,8 @@ public final class QuickLitematicaPreview3D {
         }
 
         float displayProgress() {
-            if (this.progress >= PROGRESS_MESHING_START || this.state == State.FAILED || this.state == State.TOO_LARGE) {
+            if (this.progress >= PROGRESS_MESHING_START || this.state == State.FAILED
+                    || this.state == State.TOO_LARGE) {
                 return this.progress;
             }
 
@@ -1785,20 +2082,35 @@ public final class QuickLitematicaPreview3D {
         }
 
         void uploadIfNeeded() {
-            if (this.uploadScheduled || this.cancelled.get() || (this.state != State.BUILDING && this.state != State.READY)) return;
+            if (this.uploadScheduled || this.cancelled.get() || (this.state != State.BUILDING
+                    && this.state != State.READY)) {
+                return;
+            }
             var uploadTicket = this.staticUploads.poll();
             if (uploadTicket == null) {
                 this.completeStaticUploadIfReady();
                 return;
             }
             LayerMesh layer = uploadTicket.layer;
-            this.trace.event("静态上传排队：层={}，顶点={}，量化大小={} B，剩余批次={}", layer.layer(), layer.vertexCount(), layer.quantizedByteCount(), this.staticUploads.size());
+            this.trace.event(
+                    "静态上传排队：层={}，顶点={}，量化大小={} B，剩余批次={}",
+                    layer.layer(),
+                    layer.vertexCount(),
+                    layer.quantizedByteCount(),
+                    this.staticUploads.size()
+            );
             long uploadQueued = QuickLitematicaPreviewLog.startTimer();
             this.uploadScheduled = true;
             Runnable upload = this.trace.wrap(() -> {
-                LOGGER.info("静态上传开始：层={}，调度等待={} us", layer.layer(), QuickLitematicaPreviewLog.microsSince(uploadQueued));
+                LOGGER.info(
+                        "静态上传开始：层={}，调度等待={} us",
+                        layer.layer(),
+                        QuickLitematicaPreviewLog.microsSince(uploadQueued)
+                );
                 try (var phase = QuickLitematicaPreviewLog.phase("静态批次解码/排序/上传 CPU 调用")) {
-                    if (!this.cancelled.get() && (this.state == State.BUILDING || this.state == State.READY)) this.uploadMesh(layer);
+                    if (!this.cancelled.get() && (this.state == State.BUILDING || this.state == State.READY)) {
+                        this.uploadMesh(layer);
+                    }
                     LOGGER.info("静态批次上传返回：层={}，已取消={}（后端失败另见明细）", layer.layer(), this.cancelled.get());
                 } catch (Throwable failure) {
                     LOGGER.error("Failed to upload a 3D preview batch for {}", this.sourceName(), failure);
@@ -1811,8 +2123,11 @@ public final class QuickLitematicaPreview3D {
             });
             boolean dispatched = false;
             try {
-                if (RenderSystem.isOnRenderThread()) upload.run();
-                else MinecraftClient.getInstance().execute(upload);
+                if (RenderSystem.isOnRenderThread()) {
+                    upload.run();
+                } else {
+                    MinecraftClient.getInstance().execute(upload);
+                }
                 dispatched = true;
             } catch (RuntimeException | Error failure) {
                 this.failBuild(failure);
@@ -1833,30 +2148,52 @@ public final class QuickLitematicaPreview3D {
                 Consumer<NativeImage> imageCallback
         ) {
             try (var scope = this.trace.bind()) {
-                this.trace.event("图像操作请求：操作=captureSnapshot，分辨率={}，背景={}，状态={}", resolution, Integer.toHexString(backgroundColor), this.state);
+                this.trace.event(
+                        "图像操作请求：操作=captureSnapshot，分辨率={}，背景={}，状态={}",
+                        resolution,
+                        Integer.toHexString(backgroundColor),
+                        this.state
+                );
                 if (isShaderPackActive()) {
-                    messageCallback.accept(Text.translatable("quickcraft.message.litematica.preview_3d.shader_disabled"));
+                    messageCallback.accept(
+                            Text.translatable("quickcraft.message.litematica.preview_3d.shader_disabled")
+                    );
                     return;
                 }
 
                 MeshData data = this.meshData;
-                if (this.state != State.READY || data == null || this.cancelled.get() || QuickLitematicaPreviewResources.reloading()) {
-                    this.trace.event("快照请求被拒绝：操作=captureSnapshot，状态={}，上传中={}，取消={}", this.state, this.uploadScheduled, this.cancelled.get());
+                if (this.state != State.READY || data == null || this.cancelled.get() || QuickLitematicaPreviewResources
+                        .reloading()) {
+                    this.trace.event(
+                            "快照请求被拒绝：操作=captureSnapshot，状态={}，上传中={}，取消={}",
+                            this.state,
+                            this.uploadScheduled,
+                            this.cancelled.get()
+                    );
                     messageCallback.accept(Text.translatable("quickcraft.litematica.preview_3d.export_not_ready"));
                     return;
                 }
 
                 this.uploadIfNeeded();
                 if (!this.staticUploadComplete || data.hasDynamicContent() && data.dynamicSceneProgress() < 1.0F) {
-                    this.trace.event("快照请求被拒绝：操作=captureSnapshot，状态={}，上传中={}，取消={}", this.state, this.uploadScheduled, this.cancelled.get());
+                    this.trace.event(
+                            "快照请求被拒绝：操作=captureSnapshot，状态={}，上传中={}，取消={}",
+                            this.state,
+                            this.uploadScheduled,
+                            this.cancelled.get()
+                    );
                     messageCallback.accept(Text.translatable("quickcraft.litematica.preview_3d.export_not_ready"));
                     return;
                 }
                 this.prepareDynamicBuffers(data);
                 if (data.hasDynamicContent() && !this.dynamicBuffersReady) {
-                    messageCallback.accept(Text.translatable(this.dynamicBufferFallback
-                            ? "quickcraft.litematica.preview_3d.export_dynamic_failed"
-                            : "quickcraft.litematica.preview_3d.export_not_ready"));
+                    messageCallback.accept(
+                            Text.translatable(
+                                    this.dynamicBufferFallback
+                                            ? "quickcraft.litematica.preview_3d.export_dynamic_failed"
+                                            : "quickcraft.litematica.preview_3d.export_not_ready"
+                            )
+                    );
                     return;
                 }
                 if (data.vertexCount() > 0 && !this.hasUploadedBuffers()) {
@@ -1864,15 +2201,20 @@ public final class QuickLitematicaPreview3D {
                     return;
                 }
                 if (!this.snapshotInProgress.compareAndSet(false, true)) {
-                    this.trace.event("快照请求被拒绝：操作=captureSnapshot，状态={}，上传中={}，取消={}", this.state, this.uploadScheduled, this.cancelled.get());
+                    this.trace.event(
+                            "快照请求被拒绝：操作=captureSnapshot，状态={}，上传中={}，取消={}",
+                            this.state,
+                            this.uploadScheduled,
+                            this.cancelled.get()
+                    );
                     messageCallback.accept(Text.translatable("quickcraft.litematica.preview_3d.exporting"));
                     return;
                 }
 
                 this.takeNativeSnapshot(resolution, backgroundColor, drag, data, this.trace.wrapConsumer(image -> {
-                this.trace.milestone("快照像素读回完成：分辨率={}，背景={}", resolution, Integer.toHexString(backgroundColor));
-                imageCallback.accept(image);
-            }), this.trace.wrapConsumer(failure -> {
+                    this.trace.milestone("快照像素读回完成：分辨率={}，背景={}", resolution, Integer.toHexString(backgroundColor));
+                    imageCallback.accept(image);
+                }), this.trace.wrapConsumer(failure -> {
                     LOGGER.error("快照渲染或像素读回失败：分辨率={}", resolution, failure);
                     this.snapshotInProgress.set(false);
                     messageCallback.accept(Text.translatable(failureTranslationKey));
@@ -1880,47 +2222,61 @@ public final class QuickLitematicaPreview3D {
             }
         }
 
-        void exportPng(int resolution, int backgroundColor, DragState drag, Path outputDirectory, Consumer<Text> callback) {
+        void exportPng(
+                int resolution,
+                int backgroundColor,
+                DragState drag,
+                Path outputDirectory,
+                Consumer<Text> callback
+        ) {
             try (var scope = this.trace.bind()) {
                 this.captureSnapshot(
                         resolution,
                         backgroundColor,
                         drag,
                         "quickcraft.litematica.preview_3d.export_failed",
-                        callback, image -> {
+                        callback,
+                        image -> {
 
-                Path outputPath;
-                try {
-                    Files.createDirectories(outputDirectory);
-                    outputPath = this.nextOutputPath(outputDirectory, resolution);
-                } catch (Throwable ignored) {
-                        LOGGER.warn("预览局部失败：入口=exportPng，继续原有回退", ignored);
-                        LOGGER.error("图像导出准备失败：目录={}", outputDirectory, ignored);
-                    image.close();
-                    this.snapshotInProgress.set(false);
-                    callback.accept(Text.translatable("quickcraft.litematica.preview_3d.export_failed"));
-                    return;
-                }
+                            Path outputPath;
+                            try {
+                                Files.createDirectories(outputDirectory);
+                                outputPath = this.nextOutputPath(outputDirectory, resolution);
+                            } catch (Throwable ignored) {
+                                LOGGER.warn("预览局部失败：入口=exportPng，继续原有回退", ignored);
+                                LOGGER.error("图像导出准备失败：目录={}", outputDirectory, ignored);
+                                image.close();
+                                this.snapshotInProgress.set(false);
+                                callback.accept(Text.translatable("quickcraft.litematica.preview_3d.export_failed"));
+                                return;
+                            }
 
-                Util.getIoWorkerExecutor().execute(this.trace.wrap("PNG编码/保存", () -> {
-                    try {
-                        image.writeTo(outputPath);
-                        QuickLitematicaPreviewLog.file("PNG保存完成", outputPath);
-                        MinecraftClient.getInstance().execute(() -> callback.accept(Text.translatable(
-                                "quickcraft.litematica.preview_3d.export_success",
-                                outputPath.getFileName().toString()
-                        )));
-                    } catch (Exception ignored) {
-                            LOGGER.error("PNG保存失败：路径={}", outputPath, ignored);
-                        MinecraftClient.getInstance().execute(() -> callback.accept(Text.translatable(
-                                "quickcraft.litematica.preview_3d.export_failed"
-                        )));
-                    } finally {
-                        image.close();
-                        this.snapshotInProgress.set(false);
-                    }
-                }));
-                });
+                            Util.getIoWorkerExecutor().execute(this.trace.wrap("PNG编码/保存", () -> {
+                                try {
+                                    image.writeTo(outputPath);
+                                    QuickLitematicaPreviewLog.file("PNG保存完成", outputPath);
+                                    MinecraftClient.getInstance().execute(
+                                            () -> callback.accept(
+                                                    Text.translatable(
+                                                            "quickcraft.litematica.preview_3d.export_success",
+                                                            outputPath.getFileName().toString()
+                                                    )
+                                            )
+                                    );
+                                } catch (Exception ignored) {
+                                    LOGGER.error("PNG保存失败：路径={}", outputPath, ignored);
+                                    MinecraftClient.getInstance().execute(
+                                            () -> callback.accept(
+                                                    Text.translatable("quickcraft.litematica.preview_3d.export_failed")
+                                            )
+                                    );
+                                } finally {
+                                    image.close();
+                                    this.snapshotInProgress.set(false);
+                                }
+                            }));
+                        }
+                );
             }
         }
 
@@ -1934,7 +2290,8 @@ public final class QuickLitematicaPreview3D {
                 long hwndValue;
                 try {
                     hwndValue = GLFWNativeWin32.glfwGetWin32Window(
-                            MinecraftClient.getInstance().getWindow().getHandle());
+                            MinecraftClient.getInstance().getWindow().getHandle()
+                    );
                 } catch (RuntimeException | LinkageError throwable) {
                     LOGGER.error("Failed to resolve the game window for the Windows clipboard", throwable);
                     callback.accept(Text.translatable("quickcraft.litematica.preview_3d.copy_failed"));
@@ -1951,29 +2308,38 @@ public final class QuickLitematicaPreview3D {
                         backgroundColor,
                         drag,
                         "quickcraft.litematica.preview_3d.copy_failed",
-                        callback, image -> {
+                        callback,
+                        image -> {
 
-                Util.getIoWorkerExecutor().execute(this.trace.wrap("剪贴板编码/写入", () -> {
-                    try {
-                        QuickLitematicaPreviewClipboard.copyImage(
-                                image,
-                                ((backgroundColor >>> 24) & 0xFF) != 0xFF,
-                                clipboardOwner
-                        );
-                        MinecraftClient.getInstance().execute(() -> callback.accept(Text.translatable(
-                                "quickcraft.litematica.preview_3d.copy_success"
-                        )));
-                    } catch (Throwable throwable) {
-                            LOGGER.error("Failed to copy the 3D preview image to the Windows clipboard", throwable);
-                        MinecraftClient.getInstance().execute(() -> callback.accept(Text.translatable(
-                                "quickcraft.litematica.preview_3d.copy_failed"
-                        )));
-                    } finally {
-                        image.close();
-                        this.snapshotInProgress.set(false);
-                    }
-                }));
-                });
+                            Util.getIoWorkerExecutor().execute(this.trace.wrap("剪贴板编码/写入", () -> {
+                                try {
+                                    QuickLitematicaPreviewClipboard.copyImage(
+                                            image,
+                                            ((backgroundColor >>> 24) & 0xFF) != 0xFF,
+                                            clipboardOwner
+                                    );
+                                    MinecraftClient.getInstance().execute(
+                                            () -> callback.accept(
+                                                    Text.translatable("quickcraft.litematica.preview_3d.copy_success")
+                                            )
+                                    );
+                                } catch (Throwable throwable) {
+                                    LOGGER.error(
+                                            "Failed to copy the 3D preview image to the Windows clipboard",
+                                            throwable
+                                    );
+                                    MinecraftClient.getInstance().execute(
+                                            () -> callback.accept(
+                                                    Text.translatable("quickcraft.litematica.preview_3d.copy_failed")
+                                            )
+                                    );
+                                } finally {
+                                    image.close();
+                                    this.snapshotInProgress.set(false);
+                                }
+                            }));
+                        }
+                );
             }
         }
 
@@ -2002,8 +2368,11 @@ public final class QuickLitematicaPreview3D {
         }
 
         void closeRendererOnRenderThread() {
-            if (RenderSystem.isOnRenderThread()) this.trace.wrap("GPU/动态资源释放", this::closeRenderer).run();
-            else MinecraftClient.getInstance().execute(this.trace.wrap("GPU/动态资源释放", this::closeRenderer));
+            if (RenderSystem.isOnRenderThread()) {
+                this.trace.wrap("GPU/动态资源释放", this::closeRenderer).run();
+            } else {
+                MinecraftClient.getInstance().execute(this.trace.wrap("GPU/动态资源释放", this::closeRenderer));
+            }
         }
 
         static int readImageArgb(NativeImage image, int x, int y) {
@@ -2011,8 +2380,17 @@ public final class QuickLitematicaPreview3D {
         }
 
         final void render(DrawContext context, int x, int y, int size, DragState drag) {
-            if (QuickLitematicaPreviewLog.enabled()) this.trace.milestone("预览任务状态快照：状态={}，缓存={}，源大小={} B，尺寸={}，待上传批次={}，上传调度中={}",
-                    this.state, this.cachePath, this.sourceSize, this.dimensions, this.staticUploads.size(), this.uploadScheduled);
+            if (QuickLitematicaPreviewLog.enabled()) {
+                this.trace.milestone(
+                        "预览任务状态快照：状态={}，缓存={}，源大小={} B，尺寸={}，待上传批次={}，上传调度中={}",
+                        this.state,
+                        this.cachePath,
+                        this.sourceSize,
+                        this.dimensions,
+                        this.staticUploads.size(),
+                        this.uploadScheduled
+                );
+            }
             State currentState = this.state;
             if ((currentState == State.BUILDING || currentState == State.READY) && this.dimensions != null) {
                 this.uploadIfNeeded();
@@ -2025,18 +2403,26 @@ public final class QuickLitematicaPreview3D {
                         return;
                     }
                 }
-                if (this.hasUploadedBuffers()
-                        || currentState == State.READY && data != null && (data.hasDynamicContent() || this.staticUploadComplete)) {
+                if (this.hasUploadedBuffers() || currentState == State.READY && data != null && (data
+                        .hasDynamicContent() || this.staticUploadComplete)) {
                     try {
                         this.drawPreview(context, x, y, size, drag);
                     } catch (RuntimeException | Error failure) {
                         this.failBuild(failure);
                         return;
                     }
-                    if (data != null && data.hasDynamicContent() && !this.dynamicBuffersReady && !this.dynamicBufferFallback) {
-                        context.drawCenteredTextWithShadow(MinecraftClient.getInstance().textRenderer,
-                                Text.translatable("quickcraft.litematica.preview_3d.dynamic_preparing", (int) (this.dynamicProgress * 100)),
-                                x + size / 2, y + size - 12, 0xFFDDDDDD);
+                    if (data != null && data.hasDynamicContent() && !this.dynamicBuffersReady
+                            && !this.dynamicBufferFallback) {
+                        context.drawCenteredTextWithShadow(
+                                MinecraftClient.getInstance().textRenderer,
+                                Text.translatable(
+                                        "quickcraft.litematica.preview_3d.dynamic_preparing",
+                                        (int) (this.dynamicProgress * 100)
+                                ),
+                                x + size / 2,
+                                y + size - 12,
+                                0xFFDDDDDD
+                        );
                     }
                     return;
                 }
@@ -2052,26 +2438,47 @@ public final class QuickLitematicaPreview3D {
             boolean failed = this.state == State.FAILED || this.state == State.TOO_LARGE;
             String text = switch (this.state) {
                 case FAILED -> StringUtils.translate("quickcraft.litematica.preview_3d.failed");
-                case TOO_LARGE -> StringUtils.translate(this.vertexLimitExceeded
-                        ? "quickcraft.litematica.preview_3d.vertex_limit" : "quickcraft.litematica.preview_3d.too_large");
+                case TOO_LARGE -> StringUtils.translate(
+                        this.vertexLimitExceeded ? "quickcraft.litematica.preview_3d.vertex_limit"
+                                : "quickcraft.litematica.preview_3d.too_large"
+                );
                 default -> StringUtils.translate("quickcraft.litematica.preview_3d.rendering");
             };
-            context.drawCenteredTextWithShadow(MinecraftClient.getInstance().textRenderer, text, x + size / 2, barY - 14,
-                    failed ? 0xFFFF7777 : 0xFFDDDDDD);
+            context.drawCenteredTextWithShadow(
+                    MinecraftClient.getInstance().textRenderer,
+                    text,
+                    x + size / 2,
+                    barY - 14,
+                    failed ? 0xFFFF7777 : 0xFFDDDDDD
+            );
             drawOutlinedBox(context, barX, barY, barWidth, 10, 0xB0000000, 0xFF707070);
-            if (fill > 0) context.fill(barX + 1, barY + 1, barX + 1 + fill, barY + 9, failed ? 0xFFAA3333 : 0xFF4DB36A);
+            if (fill > 0) {
+                context.fill(barX + 1, barY + 1, barX + 1 + fill, barY + 9, failed ? 0xFFAA3333 : 0xFF4DB36A);
+            }
         }
 
         abstract void drawPreview(DrawContext context, int x, int y, int size, DragState drag);
 
         abstract void uploadMesh(LayerMesh mesh);
+
         abstract boolean hasUploadedBuffers();
+
         abstract void mergeTransparentBuffers();
+
         abstract void prepareDynamicBuffers(MeshData data);
+
         abstract void closeBuffers();
+
         abstract void closeRenderer();
-        abstract void takeNativeSnapshot(int resolution, int backgroundColor, DragState drag, MeshData data,
-                                         Consumer<NativeImage> imageCallback, Consumer<Throwable> failureCallback);
+
+        abstract void takeNativeSnapshot(
+                int resolution,
+                int backgroundColor,
+                DragState drag,
+                MeshData data,
+                Consumer<NativeImage> imageCallback,
+                Consumer<Throwable> failureCallback
+        );
     }
 
     static final class DynamicBufferTooLargeException extends RuntimeException {
@@ -2083,14 +2490,20 @@ public final class QuickLitematicaPreview3D {
     static final class PreviewTooLargeException extends RuntimeException {
         final boolean vertexLimit;
 
-        PreviewTooLargeException() { this(false); }
+        PreviewTooLargeException() {
+            this(false);
+        }
 
-        PreviewTooLargeException(boolean vertexLimit) { this.vertexLimit = vertexLimit; }
+        PreviewTooLargeException(boolean vertexLimit) {
+            this.vertexLimit = vertexLimit;
+        }
     }
 
     static boolean isPreviewVertexLimit(Throwable failure) {
         for (Throwable cause = failure; cause != null; cause = cause.getCause()) {
-            if (cause instanceof PreviewTooLargeException tooLarge) return tooLarge.vertexLimit;
+            if (cause instanceof PreviewTooLargeException tooLarge) {
+                return tooLarge.vertexLimit;
+            }
         }
         return false;
     }
@@ -2107,12 +2520,7 @@ public final class QuickLitematicaPreview3D {
     }
 
     enum State {
-        LOADING,
-        BUILDING,
-        READY,
-        FAILED,
-        TOO_LARGE,
-        CANCELLED
+        LOADING, BUILDING, READY, FAILED, TOO_LARGE, CANCELLED
     }
 
     static final class DragState {
@@ -2182,7 +2590,10 @@ public final class QuickLitematicaPreview3D {
 
         void setPreset(double yawDegrees, double pitchDegrees) {
             this.angle = Math.toRadians(yawDegrees);
-            this.pitch = Math.max(-MAX_PITCH_RADIANS, Math.min(MAX_PITCH_RADIANS, (float) Math.toRadians(pitchDegrees)));
+            this.pitch = Math.max(
+                    -MAX_PITCH_RADIANS,
+                    Math.min(MAX_PITCH_RADIANS, (float) Math.toRadians(pitchDegrees))
+            );
             this.scale = 1.0F;
             this.dx = 0.0F;
             this.dy = 0.0F;
@@ -2193,8 +2604,13 @@ public final class QuickLitematicaPreview3D {
         }
     }
 
-    record LayerMesh(LayerKey layer, byte[] vertices,
-                     QuickLitematicaPreviewMeshStore store, long offset, int quantizedByteCount) {
+    record LayerMesh(
+            LayerKey layer,
+            byte[] vertices,
+            QuickLitematicaPreviewMeshStore store,
+            long offset,
+            int quantizedByteCount
+    ) {
         LayerMesh(LayerKey layer, byte[] quantizedVertices) {
             this(layer, quantizedVertices, null, 0, quantizedVertices.length);
         }
@@ -2218,11 +2634,13 @@ public final class QuickLitematicaPreview3D {
     record PreviewDimensions(int sizeX, int sizeY, int sizeZ) {
         float scaleFactor(int previewSize, int screenHeight) {
             double rotationSafeSize = Math.sqrt(
-                    (double) this.sizeX * this.sizeX
-                            + (double) this.sizeY * this.sizeY
-                            + (double) this.sizeZ * this.sizeZ
+                    (double) this.sizeX * this.sizeX + (double) this.sizeY * this.sizeY + (double) this.sizeZ
+                            * this.sizeZ
             );
-            return (float) ((previewSize * 2.0 * PREVIEW_FIT_PADDING) / (Math.max(1.0, rotationSafeSize) * Math.max(1, screenHeight)));
+            return (float) ((previewSize * 2.0 * PREVIEW_FIT_PADDING) / (Math.max(1.0, rotationSafeSize) * Math.max(
+                    1,
+                    screenHeight
+            )));
         }
     }
 
@@ -2239,9 +2657,18 @@ public final class QuickLitematicaPreview3D {
         @Nullable
         DynamicScene dynamicScene;
         private boolean dynamicSceneInitialized;
-        @Nullable private QuickLitematicaPreviewDynamicSceneBuilder dynamicSceneBuilder;
+        @Nullable
+        private QuickLitematicaPreviewDynamicSceneBuilder dynamicSceneBuilder;
 
-        MeshData(List<LayerMesh> layers, List<BlockStateData> blockStates, List<BlockEntityData> blockEntities, List<EntityData> entities, int sizeX, int sizeY, int sizeZ) {
+        MeshData(
+                List<LayerMesh> layers,
+                List<BlockStateData> blockStates,
+                List<BlockEntityData> blockEntities,
+                List<EntityData> entities,
+                int sizeX,
+                int sizeY,
+                int sizeZ
+        ) {
             this.layers = layers;
             this.blockStates = List.copyOf(blockStates);
             this.blockEntities = List.copyOf(blockEntities);
@@ -2284,8 +2711,9 @@ public final class QuickLitematicaPreview3D {
                 }
             }
             return this.blockStates.size() <= QuickLitematicaPreviewVertexBudget.countLimit(MAX_DYNAMIC_BLOCK_STATES)
-                    && this.blockEntities.size() <= QuickLitematicaPreviewVertexBudget.countLimit(MAX_DYNAMIC_BLOCK_ENTITIES)
-                    && this.entities.size() <= QuickLitematicaPreviewVertexBudget.countLimit(MAX_DYNAMIC_ENTITIES);
+                    && this.blockEntities.size() <= QuickLitematicaPreviewVertexBudget.countLimit(
+                            MAX_DYNAMIC_BLOCK_ENTITIES
+                    ) && this.entities.size() <= QuickLitematicaPreviewVertexBudget.countLimit(MAX_DYNAMIC_ENTITIES);
         }
 
         void releaseStaticVertices() {
@@ -2298,14 +2726,22 @@ public final class QuickLitematicaPreview3D {
 
         @Nullable
         synchronized DynamicScene dynamicSceneIfReady() {
-            if (this.dynamicScene == null) this.dynamicSceneInitialized = false;
+            if (this.dynamicScene == null) {
+                this.dynamicSceneInitialized = false;
+            }
             return this.dynamicScene;
         }
 
         synchronized void prepareDynamicScene() {
-            if (this.dynamicSceneInitialized || !this.hasDynamicContent()) return;
+            if (this.dynamicSceneInitialized || !this.hasDynamicContent()) {
+                return;
+            }
             if (this.dynamicSceneBuilder == null) {
-                this.dynamicSceneBuilder = new QuickLitematicaPreviewDynamicSceneBuilder(this.blockStates, this.blockEntities, this.entities);
+                this.dynamicSceneBuilder = new QuickLitematicaPreviewDynamicSceneBuilder(
+                        this.blockStates,
+                        this.blockEntities,
+                        this.entities
+                );
             }
             if (this.dynamicSceneBuilder.advance(QuickLitematicaPreviewBatchBudget.TARGET_NANOS)) {
                 this.dynamicScene = this.dynamicSceneBuilder.scene();
@@ -2390,9 +2826,8 @@ public final class QuickLitematicaPreview3D {
         }
 
         long volume() {
-            return (long) (this.max.getX() - this.min.getX() + 1)
-                    * (this.max.getY() - this.min.getY() + 1)
-                    * (this.max.getZ() - this.min.getZ() + 1);
+            return (long) (this.max.getX() - this.min.getX() + 1) * (this.max.getY() - this.min.getY() + 1) * (this.max
+                    .getZ() - this.min.getZ() + 1);
         }
 
         int sizeX() {
@@ -2449,8 +2884,11 @@ public final class QuickLitematicaPreview3D {
                 return LitematicaBlockStateContainer.AIR_BLOCK_STATE;
             }
 
-            return this.blockStateContainer.get(pos.getX() - this.bounds.min().getX(),
-                    pos.getY() - this.bounds.min().getY(), pos.getZ() - this.bounds.min().getZ());
+            return this.blockStateContainer.get(
+                    pos.getX() - this.bounds.min().getX(),
+                    pos.getY() - this.bounds.min().getY(),
+                    pos.getZ() - this.bounds.min().getZ()
+            );
         }
 
         @Override
@@ -2480,6 +2918,7 @@ public final class QuickLitematicaPreview3D {
     interface DimensionsSink {
         void set(int sizeX, int sizeY, int sizeZ);
     }
+
     public static void registerSpecialRenderer() {
         QuickLitematicaPreviewResources.initialize();
         QuickLitematicaPreviewAccess.registerSpecialRenderer();

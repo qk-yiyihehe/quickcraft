@@ -22,8 +22,8 @@ import java.nio.file.Path;
 /** 26.3 客户端屏幕与系统交互适配，窗口管理使用 SDL3。 */
 public final class QuickClientScreenAccess {
     private static final Logger LOGGER = LoggerFactory.getLogger(QuickClientScreenAccess.class);
-    private QuickClientScreenAccess() {
-    }
+
+    private QuickClientScreenAccess() {}
 
     public static Screen currentScreen(Minecraft client) {
         return client.gui.screen();
@@ -40,8 +40,14 @@ public final class QuickClientScreenAccess {
     public static void openPath(Path path) {
         if (Platform.isWindows()) {
             // SDL_OpenURL 按 URL 打开 file URI；本地路径交给 Windows Shell，兼容游戏的 AWT headless 模式。
-            var result = Shell32.INSTANCE.ShellExecute(null, "open", path.toAbsolutePath().normalize().toString(),
-                    null, null, WinUser.SW_SHOWNORMAL);
+            var result = Shell32.INSTANCE.ShellExecute(
+                    null,
+                    "open",
+                    path.toAbsolutePath().normalize().toString(),
+                    null,
+                    null,
+                    WinUser.SW_SHOWNORMAL
+            );
             if (result.longValue() <= 32L) {
                 LOGGER.warn("Could not open path {}: Windows Shell error {}", path, result.longValue());
             }
@@ -136,6 +142,7 @@ public final class QuickClientScreenAccess {
             LOGGER.debug("无法恢复并激活游戏窗口", exception);
         }
     }
+
     @Nullable
     public static Pointer getWin32Hwnd(long windowHandle) {
         if (windowHandle == 0L || !Platform.isWindows()) {

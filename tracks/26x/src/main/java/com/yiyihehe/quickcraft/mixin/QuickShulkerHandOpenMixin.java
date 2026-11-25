@@ -13,10 +13,14 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 @Pseudo
 @Mixin(targets = "net.kyrptonaught.quickshulker.QuickShulkerMod", remap = false)
 public abstract class QuickShulkerHandOpenMixin {
-    // The first return accepts the client's use; the other returns handle the server or pass.
+    // 第一个返回点用于接受客户端的使用操作，其他返回点处理服务端或交由后续逻辑处理。
     @Inject(method = "lambda$onInitialize$0", at = @At(value = "RETURN", ordinal = 0))
-    private static void quickcraft$prepareContainerLock(Player player, Level world, InteractionHand hand,
-                                                        CallbackInfoReturnable<?> cir) {
+    private static void quickcraft$prepareContainerLock(
+            Player player,
+            Level world,
+            InteractionHand hand,
+            CallbackInfoReturnable<?> cir
+    ) {
         QuickContainerLock.prepareQuickShulkerHandOpen(player, hand);
     }
 }

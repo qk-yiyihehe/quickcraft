@@ -11,8 +11,7 @@ import net.minecraft.screen.slot.SlotActionType;
  * 1.21 丢弃网络包与键盘输入处理器注册适配器。
  */
 public final class QuickThrowAccess {
-    private QuickThrowAccess() {
-    }
+    private QuickThrowAccess() {}
 
     public static void registerInputHandler() {
         InputEventHandler.getInputManager().registerKeyboardInputHandler(new IKeyboardInputHandler() {

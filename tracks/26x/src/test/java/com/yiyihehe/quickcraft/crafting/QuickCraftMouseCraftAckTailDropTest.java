@@ -48,34 +48,51 @@ class QuickCraftMouseCraftAckTailDropTest {
                 handler.getSlot(invocation.getArgument(1)).set(ItemStack.EMPTY);
             }
             return null;
-        }).when(gameMode).handleContainerInput(anyInt(), anyInt(), anyInt(),
-                any(ContainerInput.class), any(Player.class));
+        }).when(gameMode).handleContainerInput(
+                anyInt(),
+                anyInt(),
+                anyInt(),
+                any(ContainerInput.class),
+                any(Player.class)
+        );
         setField(client, "player", player);
         setField(client, "gameMode", gameMode);
 
         QuickCraftMouseCrafting crafting = new QuickCraftMouseCrafting(
-                QuickCraftMouseCraftLayout.WORKBENCH, () -> true, () -> { });
+                QuickCraftMouseCraftLayout.WORKBENCH,
+                () -> true,
+                () -> {}
+        );
         setField(crafting, "lockedResultTemplate", new ItemStack(Items.STICK, 3));
         Method finish = QuickCraftMouseCrafting.class.getDeclaredMethod(
-                "finishMouseCraftAck", Minecraft.class, Component.class, boolean.class);
+                "finishMouseCraftAck",
+                Minecraft.class,
+                Component.class,
+                boolean.class
+        );
         finish.setAccessible(true);
 
         try (MockedStatic<QuickCraftConfigs> configs = mockStatic(QuickCraftConfigs.class);
-             MockedStatic<QuickContainerLock> locks = mockStatic(QuickContainerLock.class)) {
+                MockedStatic<QuickContainerLock> locks = mockStatic(QuickContainerLock.class)) {
             configs.when(QuickCraftConfigs::isDropCraftResultsOnStopEnabled).thenReturn(true);
             configs.when(QuickCraftConfigs::isMouseCraftAckDebugEnabled).thenReturn(false);
-            locks.when(() -> QuickContainerLock.isLockedSlot(any(AbstractContainerMenu.class), anyInt()))
-                    .thenReturn(false);
+            locks.when(() -> QuickContainerLock.isLockedSlot(any(AbstractContainerMenu.class), anyInt())).thenReturn(
+                    false
+            );
 
             Component stopMessage = Component.translatable("quickcraft.message.crafting.stopped");
             finish.invoke(crafting, client, stopMessage, false);
-            verify(gameMode, never()).handleContainerInput(anyInt(), anyInt(), anyInt(),
-                    eq(ContainerInput.THROW), any());
+            verify(gameMode, never()).handleContainerInput(
+                    anyInt(),
+                    anyInt(),
+                    anyInt(),
+                    eq(ContainerInput.THROW),
+                    any()
+            );
             assertThat(handler.getSlot(10).getItem().getCount()).isEqualTo(3);
 
             finish.invoke(crafting, client, stopMessage, true);
-            verify(gameMode).handleContainerInput(anyInt(), eq(10), eq(1),
-                    eq(ContainerInput.THROW), any());
+            verify(gameMode).handleContainerInput(anyInt(), eq(10), eq(1), eq(ContainerInput.THROW), any());
             assertThat(handler.getSlot(10).hasItem()).isFalse();
         }
     }
@@ -94,14 +111,16 @@ class QuickCraftMouseCraftAckTailDropTest {
             if (parameters.length == 1 && parameters[0].isInstance(player)) {
                 return (Inventory) constructor.newInstance(player);
             }
-            if (parameters.length == 2 && parameters[0].isInstance(player)
-                    && parameters[1].getSimpleName().equals("EntityEquipment")) {
+            if (parameters.length == 2 && parameters[0].isInstance(player) && parameters[1].getSimpleName().equals(
+                    "EntityEquipment"
+            )) {
                 Object equipment = parameters[1].getConstructor().newInstance();
                 return (Inventory) constructor.newInstance(player, equipment);
             }
         }
         throw new AssertionError("unsupported Inventory constructor");
     }
+
     private static void setField(Object target, String name, Object value) throws Exception {
         Field field = findField(target.getClass(), name);
         field.setAccessible(true);
@@ -112,8 +131,7 @@ class QuickCraftMouseCraftAckTailDropTest {
         for (Class<?> current = type; current != null; current = current.getSuperclass()) {
             try {
                 return current.getDeclaredField(name);
-            } catch (NoSuchFieldException ignored) {
-            }
+            } catch (NoSuchFieldException ignored) {}
         }
         throw new NoSuchFieldException(name);
     }

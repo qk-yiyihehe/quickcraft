@@ -7,8 +7,7 @@ import java.util.List;
 
 /** 26.1.2 的 QuickSort Bundle API 访问：使用旧的 itemCopyStream 遍历方法。 */
 final class QuickSortBundleAccess {
-    private QuickSortBundleAccess() {
-    }
+    private QuickSortBundleAccess() {}
 
     static List<ItemStack> itemCopies(BundleContents contents) {
         return contents.itemCopyStream().toList();

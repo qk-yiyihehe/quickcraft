@@ -14,7 +14,9 @@ public final class QuickCrossBoxSortProtection {
 
     public static boolean isLocked(int inventorySlot) {
         var player = Minecraft.getInstance().player;
-        if (player == null) { return true; }
+        if (player == null) {
+            return true;
+        }
         for (var slot : player.inventoryMenu.slots) {
             if (slot.container == player.getInventory() && slot.getContainerSlot() == inventorySlot) {
                 return QuickContainerLock.isLockedSlot(player.inventoryMenu, slot);

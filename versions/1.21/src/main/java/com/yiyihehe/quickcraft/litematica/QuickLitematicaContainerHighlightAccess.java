@@ -24,12 +24,11 @@ import java.util.List;
 import java.util.Map;
 
 class QuickLitematicaContainerHighlightAccess {
-    QuickLitematicaContainerHighlightAccess() {
-    }
+    QuickLitematicaContainerHighlightAccess() {}
 
     static void registerWorldRenderer() {
-        WorldRenderEvents.LAST.register(context ->
-                QuickLitematicaContainerHighlight.renderWorld(
+        WorldRenderEvents.LAST.register(
+                context -> QuickLitematicaContainerHighlight.renderWorld(
                         MinecraftClient.getInstance(),
                         context.camera().getPos()
                 )
@@ -48,14 +47,19 @@ class QuickLitematicaContainerHighlightAccess {
         return nbt.getString("id");
     }
 
-    static void renderHighlights(MinecraftClient client,
-                                 List<QuickLitematicaContainerHighlight.ProjectedContainer> positions,
-                                 Vec3d cameraPos,
-                                 int maxDistance) {
+    static void renderHighlights(
+            MinecraftClient client,
+            List<QuickLitematicaContainerHighlight.ProjectedContainer> positions,
+            Vec3d cameraPos,
+            int maxDistance
+    ) {
         Color4f selectedColor = QuickCraftConfigs.ProjectionTools.PROJECTION_CONTAINER_HIGHLIGHT_COLOR.getColor();
         float verifierAlpha = (float) Configs.InfoOverlays.VERIFIER_ERROR_HILIGHT_ALPHA.getDoubleValue();
         Color4f color = new Color4f(
-                selectedColor.r, selectedColor.g, selectedColor.b, Math.min(selectedColor.a, verifierAlpha)
+                selectedColor.r,
+                selectedColor.g,
+                selectedColor.b,
+                Math.min(selectedColor.a, verifierAlpha)
         );
 
         RenderSystem.disableDepthTest();
@@ -65,9 +69,17 @@ class QuickLitematicaContainerHighlightAccess {
         RenderSystem.disableCull();
         RenderSystem.setShader(GameRenderer::getPositionColorProgram);
         try {
-            BufferBuilder buffer = Tessellator.getInstance().begin(VertexFormat.DrawMode.QUADS, VertexFormats.POSITION_COLOR);
+            BufferBuilder buffer = Tessellator.getInstance().begin(
+                    VertexFormat.DrawMode.QUADS,
+                    VertexFormats.POSITION_COLOR
+            );
             for (QuickLitematicaContainerHighlight.ProjectedContainer container : positions) {
-                if (!QuickLitematicaContainerHighlight.shouldRenderContainer(client, container, cameraPos, maxDistance)) {
+                if (!QuickLitematicaContainerHighlight.shouldRenderContainer(
+                        client,
+                        container,
+                        cameraPos,
+                        maxDistance
+                )) {
                     continue;
                 }
                 BlockPos pos = container.pos();

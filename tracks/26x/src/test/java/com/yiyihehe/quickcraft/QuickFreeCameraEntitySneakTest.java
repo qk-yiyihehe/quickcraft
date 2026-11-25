@@ -44,17 +44,18 @@ class QuickFreeCameraEntitySneakTest {
     void successfulUseSendsSneakThenRestoresOriginalInput() throws Exception {
         Fixture fixture = fixture(new Input(true, false, false, false, false, false, false));
         try (var configs = enabledConfig();
-             var keys = sneakKey(true);
-             var free = freeCamera(fixture.client, true);
-             var minecraft = mockStatic(Minecraft.class)) {
+                var keys = sneakKey(true);
+                var free = freeCamera(fixture.client, true);
+                var minecraft = mockStatic(Minecraft.class)) {
             minecraft.when(Minecraft::getInstance).thenReturn(fixture.client);
             assertThat(invokeUse(args -> {
                 assertThat(QuickFreeCameraInteractions.resolveEntitySneaking(fixture.client, false)).isTrue();
                 return InteractionResult.SUCCESS;
             })).isEqualTo(InteractionResult.SUCCESS);
 
-            ArgumentCaptor<ServerboundPlayerInputPacket> packets =
-                    ArgumentCaptor.forClass(ServerboundPlayerInputPacket.class);
+            ArgumentCaptor<ServerboundPlayerInputPacket> packets = ArgumentCaptor.forClass(
+                    ServerboundPlayerInputPacket.class
+            );
             verify(fixture.connection, times(2)).send(packets.capture());
             assertThat(packets.getAllValues().get(0).input().shift()).isTrue();
             assertThat(packets.getAllValues().get(1).input()).isEqualTo(fixture.original);
@@ -65,9 +66,9 @@ class QuickFreeCameraEntitySneakTest {
     void failurePathRestoresAndRepeatedEndDoesNotSendAgain() throws Exception {
         Fixture fixture = fixture(new Input(false, true, false, false, false, false, false));
         try (var configs = enabledConfig();
-             var keys = sneakKey(true);
-             var free = freeCamera(fixture.client, true);
-             var minecraft = mockStatic(Minecraft.class)) {
+                var keys = sneakKey(true);
+                var free = freeCamera(fixture.client, true);
+                var minecraft = mockStatic(Minecraft.class)) {
             minecraft.when(Minecraft::getInstance).thenReturn(fixture.client);
             assertThatThrownBy(() -> invokeUse(args -> {
                 assertThat(QuickFreeCameraInteractions.resolveEntitySneaking(fixture.client, false)).isTrue();
@@ -75,8 +76,9 @@ class QuickFreeCameraEntitySneakTest {
             })).isInstanceOf(IllegalStateException.class).hasMessage("entity interaction failed");
             QuickFreeCameraInteractions.endEntityUseFromFreeCamera(fixture.client);
 
-            ArgumentCaptor<ServerboundPlayerInputPacket> packets =
-                    ArgumentCaptor.forClass(ServerboundPlayerInputPacket.class);
+            ArgumentCaptor<ServerboundPlayerInputPacket> packets = ArgumentCaptor.forClass(
+                    ServerboundPlayerInputPacket.class
+            );
             verify(fixture.connection, times(2)).send(packets.capture());
             assertThat(packets.getAllValues().get(1).input()).isEqualTo(fixture.original);
         }
@@ -87,9 +89,9 @@ class QuickFreeCameraEntitySneakTest {
         Input sneaking = new Input(false, false, false, false, false, true, false);
         Fixture fixture = fixture(sneaking);
         try (var configs = enabledConfig();
-             var keys = sneakKey(true);
-             var free = freeCamera(fixture.client, true);
-             var minecraft = mockStatic(Minecraft.class)) {
+                var keys = sneakKey(true);
+                var free = freeCamera(fixture.client, true);
+                var minecraft = mockStatic(Minecraft.class)) {
             minecraft.when(Minecraft::getInstance).thenReturn(fixture.client);
             assertThat(QuickFreeCameraInteractions.resolveEntitySneaking(fixture.client, true)).isTrue();
             QuickFreeCameraInteractions.endEntityUseFromFreeCamera(fixture.client);
@@ -101,9 +103,9 @@ class QuickFreeCameraEntitySneakTest {
     void disabledFeatureKeepsOriginalFalseWithoutTemporaryPackets() throws Exception {
         Fixture fixture = fixture(new Input(false, false, false, false, false, false, false));
         try (var configs = enabledConfig();
-             var keys = sneakKey(true);
-             var free = freeCamera(fixture.client, true);
-             var minecraft = mockStatic(Minecraft.class)) {
+                var keys = sneakKey(true);
+                var free = freeCamera(fixture.client, true);
+                var minecraft = mockStatic(Minecraft.class)) {
             minecraft.when(Minecraft::getInstance).thenReturn(fixture.client);
             configs.when(QuickCraftConfigs::areFreeCameraEntityInteractionsEnabled).thenReturn(false);
             assertThat(QuickFreeCameraInteractions.resolveEntitySneaking(fixture.client, false)).isFalse();
@@ -115,8 +117,10 @@ class QuickFreeCameraEntitySneakTest {
     @Test
     void nestedEntityUseDoesNotRestoreTheOuterInputEarly() throws Exception {
         Fixture fixture = fixture(new Input(false, false, true, false, false, false, false));
-        try (var configs = enabledConfig(); var keys = sneakKey(true);
-             var free = freeCamera(fixture.client, true); var minecraft = mockStatic(Minecraft.class)) {
+        try (var configs = enabledConfig();
+                var keys = sneakKey(true);
+                var free = freeCamera(fixture.client, true);
+                var minecraft = mockStatic(Minecraft.class)) {
             minecraft.when(Minecraft::getInstance).thenReturn(fixture.client);
             invokeUse(args -> {
                 assertThat(QuickFreeCameraInteractions.resolveEntitySneaking(fixture.client, false)).isTrue();
@@ -138,8 +142,10 @@ class QuickFreeCameraEntitySneakTest {
     @Test
     void entityUseDoesNotReleaseAnOuterBlockUse() throws Exception {
         Fixture fixture = fixture(new Input(false, false, false, true, false, false, false));
-        try (var configs = enabledConfig(); var keys = sneakKey(true);
-             var free = freeCamera(fixture.client, true); var minecraft = mockStatic(Minecraft.class)) {
+        try (var configs = enabledConfig();
+                var keys = sneakKey(true);
+                var free = freeCamera(fixture.client, true);
+                var minecraft = mockStatic(Minecraft.class)) {
             minecraft.when(Minecraft::getInstance).thenReturn(fixture.client);
             configs.when(QuickCraftConfigs::areFreeCameraBlockInteractionsEnabled).thenReturn(true);
             QuickFreeCameraInteractions.beginBlockUseFromFreeCamera(fixture.client, InteractionHand.MAIN_HAND, null);
@@ -158,8 +164,10 @@ class QuickFreeCameraEntitySneakTest {
     void reconnectDoesNotSendTheOldInputToTheNewConnection() throws Exception {
         Fixture fixture = fixture(new Input(false, false, false, false, false, false, false));
         ClientPacketListener replacement = mock(ClientPacketListener.class);
-        try (var configs = enabledConfig(); var keys = sneakKey(true);
-             var free = freeCamera(fixture.client, true); var minecraft = mockStatic(Minecraft.class)) {
+        try (var configs = enabledConfig();
+                var keys = sneakKey(true);
+                var free = freeCamera(fixture.client, true);
+                var minecraft = mockStatic(Minecraft.class)) {
             minecraft.when(Minecraft::getInstance).thenReturn(fixture.client);
             invokeUse(args -> {
                 assertThat(QuickFreeCameraInteractions.resolveEntitySneaking(fixture.client, false)).isTrue();
@@ -177,8 +185,7 @@ class QuickFreeCameraEntitySneakTest {
     void beginningSneakUsesOneConnectionSnapshot() throws Exception {
         Fixture fixture = fixture(new Input(false, false, false, false, false, false, false));
         when(fixture.client.getConnection()).thenReturn(fixture.connection, null);
-        try (var configs = enabledConfig(); var keys = sneakKey(true);
-             var free = freeCamera(fixture.client, true)) {
+        try (var configs = enabledConfig(); var keys = sneakKey(true); var free = freeCamera(fixture.client, true)) {
             assertThat(QuickFreeCameraInteractions.resolveEntitySneaking(fixture.client, false)).isTrue();
             verify(fixture.client, times(1)).getConnection();
             verify(fixture.connection, times(1)).send(any(ServerboundPlayerInputPacket.class));
@@ -192,7 +199,9 @@ class QuickFreeCameraEntitySneakTest {
 
     private static InteractionResult invokeUse(Operation<InteractionResult> original) {
         return QuickFreeCameraInteractions.withEntityUseFromFreeCamera(
-                Minecraft.getInstance(), () -> original.call(null, null, null, InteractionHand.MAIN_HAND));
+                Minecraft.getInstance(),
+                () -> original.call(null, null, null, InteractionHand.MAIN_HAND)
+        );
     }
 
     private static Object read(String name) throws Exception {
@@ -225,8 +234,7 @@ class QuickFreeCameraEntitySneakTest {
         return keys;
     }
 
-    private static org.mockito.MockedStatic<QuickFreeCameraInteractions> freeCamera(
-            Minecraft client, boolean active) {
+    private static org.mockito.MockedStatic<QuickFreeCameraInteractions> freeCamera(Minecraft client, boolean active) {
         var free = mockStatic(QuickFreeCameraInteractions.class, CALLS_REAL_METHODS);
         free.when(() -> QuickFreeCameraInteractions.shouldOverrideCrosshair(client)).thenReturn(active);
         return free;

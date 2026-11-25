@@ -32,7 +32,8 @@ class QuickLitematicaEasyPlacePaleOakTest {
             configs.when(QuickCraftConfigs::areEasyPlaceToolInteractionsAllowed).thenReturn(true);
 
             assertThat(QuickLitematicaEasyPlaceInteractions.isToolInteraction(Blocks.OAK_LOG, axe)).isTrue();
-            assertThat(QuickLitematicaEasyPlaceInteractions.isToolInteraction(Blocks.STRIPPED_PALE_OAK_LOG, axe)).isFalse();
+            assertThat(QuickLitematicaEasyPlaceInteractions.isToolInteraction(Blocks.STRIPPED_PALE_OAK_LOG, axe))
+                    .isFalse();
             assertThat(QuickLitematicaEasyPlaceInteractions.isToolInteraction(Blocks.STONE, axe)).isFalse();
         }
     }

@@ -36,9 +36,7 @@ public class LitematicaWorldUtilsEasyPlaceMixin {
             MinecraftClient client,
             CallbackInfoReturnable<ActionResult> cir
     ) {
-        if (!QuickCraftConfigs.isEasyPlaceIceOverSourceWaterAllowed()
-                || client.player == null
-                || client.world == null
+        if (!QuickCraftConfigs.isEasyPlaceIceOverSourceWaterAllowed() || client.player == null || client.world == null
                 || client.interactionManager == null) {
             return;
         }
@@ -46,10 +44,15 @@ public class LitematicaWorldUtilsEasyPlaceMixin {
         Entity traceEntity = QuickFreeCameraInteractions.getEasyPlaceTraceEntity(client, client.player);
         double range = WorldUtils.getValidBlockRange(client);
         RayTraceUtils.RayTraceWrapper traceWrapper = RayTraceUtils.getGenericTrace(
-                client.world, traceEntity, range, true, true, false
+                client.world,
+                traceEntity,
+                range,
+                true,
+                true,
+                false
         );
-        if (traceWrapper == null
-                || traceWrapper.getHitType() != RayTraceUtils.RayTraceWrapper.HitType.SCHEMATIC_BLOCK) {
+        if (traceWrapper == null || traceWrapper
+                .getHitType() != RayTraceUtils.RayTraceWrapper.HitType.SCHEMATIC_BLOCK) {
             return;
         }
 
@@ -62,8 +65,7 @@ public class LitematicaWorldUtilsEasyPlaceMixin {
         BlockPos targetPos = schematicHit.getBlockPos();
         BlockState schematicState = schematicWorld.getBlockState(targetPos);
         BlockState worldState = client.world.getBlockState(targetPos);
-        if (!QuickLitematicaEasyPlaceInteractions.isSourceWater(schematicState)
-                || (!worldState.isAir()
+        if (!QuickLitematicaEasyPlaceInteractions.isSourceWater(schematicState) || (!worldState.isAir()
                 && !QuickLitematicaEasyPlaceInteractions.isSourceWater(worldState))) {
             return;
         }
@@ -78,9 +80,8 @@ public class LitematicaWorldUtilsEasyPlaceMixin {
 
         BlockHitResult placementHit = schematicHit;
         HitResult vanillaTrace = RayTraceUtils.getRayTraceFromEntity(client.world, traceEntity, false, range);
-        if (vanillaTrace instanceof BlockHitResult blockHit
-                && blockHit.getType() == HitResult.Type.BLOCK
-                && blockHit.getBlockPos().offset(blockHit.getSide()).equals(targetPos)) {
+        if (vanillaTrace instanceof BlockHitResult blockHit && blockHit.getType() == HitResult.Type.BLOCK && blockHit
+                .getBlockPos().offset(blockHit.getSide()).equals(targetPos)) {
             placementHit = blockHit;
         }
 

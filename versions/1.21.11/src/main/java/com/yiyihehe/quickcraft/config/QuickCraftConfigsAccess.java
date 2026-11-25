@@ -8,8 +8,7 @@ import fi.dy.masa.malilib.util.data.json.JsonUtils;
 import java.nio.file.Path;
 
 final class QuickCraftConfigsAccess {
-    private QuickCraftConfigsAccess() {
-    }
+    private QuickCraftConfigsAccess() {}
 
     static Path getConfigDirectory() {
         return FileUtils.getConfigDirectory();

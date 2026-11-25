@@ -28,12 +28,19 @@ class QuickLitematicaMaterialIgnoresTest {
         SchematicPlacement second = mock(SchematicPlacement.class);
         when(first.getHashId()).thenReturn(UUID.fromString("11111111-1111-1111-1111-111111111111"));
         when(second.getHashId()).thenReturn(UUID.fromString("22222222-2222-2222-2222-222222222222"));
-        var firstList = mock(MaterialListPlacement.class, withSettings().extraInterfaces(LitematicaMaterialListPlacementAccessor.class));
-        var secondList = mock(MaterialListPlacement.class, withSettings().extraInterfaces(LitematicaMaterialListPlacementAccessor.class));
+        var firstList = mock(
+                MaterialListPlacement.class,
+                withSettings().extraInterfaces(LitematicaMaterialListPlacementAccessor.class)
+        );
+        var secondList = mock(
+                MaterialListPlacement.class,
+                withSettings().extraInterfaces(LitematicaMaterialListPlacementAccessor.class)
+        );
         when(((LitematicaMaterialListPlacementAccessor) firstList).quickcraft$getPlacement()).thenReturn(first);
         when(((LitematicaMaterialListPlacementAccessor) secondList).quickcraft$getPlacement()).thenReturn(second);
-        assertThat(QuickLitematicaMaterialLists.getPersistentContextKey(firstList))
-                .isNotEqualTo(QuickLitematicaMaterialLists.getPersistentContextKey(secondList));
+        assertThat(QuickLitematicaMaterialLists.getPersistentContextKey(firstList)).isNotEqualTo(
+                QuickLitematicaMaterialLists.getPersistentContextKey(secondList)
+        );
     }
 
     @Test
@@ -103,7 +110,6 @@ class QuickLitematicaMaterialIgnoresTest {
         }
 
         @Override
-        public void reCreateMaterialList() {
-        }
+        public void reCreateMaterialList() {}
     }
 }

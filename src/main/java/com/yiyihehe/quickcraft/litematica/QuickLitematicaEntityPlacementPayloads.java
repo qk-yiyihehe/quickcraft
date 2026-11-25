@@ -16,8 +16,7 @@ public final class QuickLitematicaEntityPlacementPayloads {
     public static final int CLIENT_FEATURES = 0;
     public static final int MAX_CLIENT_NBT_BYTES = 262_144;
 
-    private QuickLitematicaEntityPlacementPayloads() {
-    }
+    private QuickLitematicaEntityPlacementPayloads() {}
 
     public record HelloPayload(int version, int features, int maxNbtBytes) implements CustomPayload {
         public static final Id<HelloPayload> ID = new Id<>(Identifier.of("quickcraft", "entity_place_hello"));
@@ -122,7 +121,8 @@ public final class QuickLitematicaEntityPlacementPayloads {
         }
     }
 
-    public record ResultPayload(long nonce, String status, String entityUuid, String messageKey) implements CustomPayload {
+    public record ResultPayload(long nonce, String status, String entityUuid, String messageKey) implements
+            CustomPayload {
         public static final Id<ResultPayload> ID = new Id<>(Identifier.of("quickcraft", "entity_place_result"));
         public static final PacketCodec<PacketByteBuf, ResultPayload> CODEC = CustomPayload.codecOf(
                 (payload, buffer) -> {

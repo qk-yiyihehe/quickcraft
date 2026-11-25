@@ -21,7 +21,7 @@ import static org.mockito.Mockito.mockStatic;
 @ExtendWith(QuickCraftMinecraftTestBootstrap.class)
 class QuickSortGcaCompatibilityTest {
     @ParameterizedTest
-    @ValueSource(booleans = {false, true})
+    @ValueSource(booleans = { false, true })
     void protectsEquipmentAndControlsButAllowsBothInventories(boolean hasButtonMarker) throws Exception {
         var handler = ChestMenu.sixRows(1, mock(Inventory.class));
         ItemStack marker = Items.STRUCTURE_VOID.getDefaultInstance();
@@ -33,15 +33,19 @@ class QuickSortGcaCompatibilityTest {
         marker.set(DataComponents.CUSTOM_DATA, CustomData.of(tag));
         handler.getSlot(0).set(marker);
 
-        var safe = QuickSort.class.getDeclaredMethod("isSafeVisibleStorageSlot",
-            AbstractContainerMenu.class, Slot.class, Minecraft.class);
+        var safe = QuickSort.class.getDeclaredMethod(
+                "isSafeVisibleStorageSlot",
+                AbstractContainerMenu.class,
+                Slot.class,
+                Minecraft.class
+        );
         safe.setAccessible(true);
         var client = mock(Minecraft.class);
         try (var screens = mockStatic(QuickClientScreenAccess.class)) {
             screens.when(() -> QuickClientScreenAccess.currentScreen(client)).thenReturn(null);
             for (int slot = 0; slot < 90; slot++) {
-                assertThat((boolean) safe.invoke(null, handler, handler.getSlot(slot), client))
-                    .as("slot %s", slot).isEqualTo(slot >= 18);
+                assertThat((boolean) safe.invoke(null, handler, handler.getSlot(slot), client)).as("slot %s", slot)
+                        .isEqualTo(slot >= 18);
             }
 
             // 普通大箱子里的结构空位物品不能触发 GCA 布局。

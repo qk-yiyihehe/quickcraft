@@ -12,8 +12,7 @@ import java.lang.ref.WeakReference;
 public final class QuickContainerToolSync {
     private static WeakReference<ScreenHandler> syncedMenu = new WeakReference<>(null);
 
-    private QuickContainerToolSync() {
-    }
+    private QuickContainerToolSync() {}
 
     public static void onServerInventoryUpdate(int containerId) {
         MinecraftClient client = MinecraftClient.getInstance();
@@ -52,8 +51,8 @@ public final class QuickContainerToolSync {
             }
             return client.currentScreen instanceof HandledScreen<?> screen
                     && client.player.currentScreenHandler == screen.getScreenHandler()
-                    && client.player.currentScreenHandler != client.player.playerScreenHandler
-                    && (opened == null || opened == screen);
+                    && client.player.currentScreenHandler != client.player.playerScreenHandler && (opened == null
+                            || opened == screen);
         }
 
         boolean inventoryReady(HandledScreen<?> screen) {

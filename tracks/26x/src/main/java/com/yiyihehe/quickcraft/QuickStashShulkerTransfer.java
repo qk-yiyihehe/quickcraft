@@ -33,8 +33,7 @@ public final class QuickStashShulkerTransfer {
     private static final QuickContainerCopy TRANSFER = new QuickContainerCopy();
     private static Session session;
 
-    private QuickStashShulkerTransfer() {
-    }
+    private QuickStashShulkerTransfer() {}
 
     public static boolean isRunning() {
         return session != null;
@@ -42,8 +41,8 @@ public final class QuickStashShulkerTransfer {
 
     private static boolean isEnabled() {
         return QuickCraftConfigs.ContainerTools.QUICK_STASH_WITH_QUICK_SHULKER.getBooleanValue()
-                && QuickCraftConfigs.ModSupport.ENABLE_QUICK_SHULKER.getBooleanValue()
-                && QuickShulkerConnection.canBundle() && QuickShulkerConnection.canOpen();
+                && QuickCraftConfigs.ModSupport.ENABLE_QUICK_SHULKER.getBooleanValue() && QuickShulkerConnection
+                        .canBundle() && QuickShulkerConnection.canOpen();
     }
 
     static boolean start(AbstractContainerScreen<?> screen, int inventorySlot, boolean closeAfter) {
@@ -53,8 +52,7 @@ public final class QuickStashShulkerTransfer {
         Minecraft client = Minecraft.getInstance();
         if (!isEnabled() || client.player == null || client.level == null || client.gameMode == null
                 || QuickClientScreenAccess.currentScreen(client) != screen || !screen.getMenu().getCarried().isEmpty()
-                || QuickPortableStorageTransfer.isRunning()
-                || QuickContainerCopy.shouldHideBackgroundHandledScreen()
+                || QuickPortableStorageTransfer.isRunning() || QuickContainerCopy.shouldHideBackgroundHandledScreen()
                 || QuickMaterialCollector.shouldHideBackgroundHandledScreen()) {
             return false;
         }
@@ -82,8 +80,8 @@ public final class QuickStashShulkerTransfer {
         if (session == null) {
             return;
         }
-        if (!isEnabled() || client.player == null || client.level != session.world
-                || client.gameMode == null || !targetStillExists(client)) {
+        if (!isEnabled() || client.player == null || client.level != session.world || client.gameMode == null
+                || !targetStillExists(client)) {
             stop(client, false, null);
             return;
         }
@@ -91,12 +89,14 @@ public final class QuickStashShulkerTransfer {
             reopenTarget(client);
             return;
         }
-        if (session.stage == Stage.WAIT_INITIAL && !(QuickClientScreenAccess.currentScreen(client) instanceof AbstractContainerScreen<?> screen
-                && screen.getMenu() == session.ownedHandler)) {
+        if (session.stage == Stage.WAIT_INITIAL && !(QuickClientScreenAccess.currentScreen(
+                client
+        ) instanceof AbstractContainerScreen<?> screen && screen.getMenu() == session.ownedHandler)) {
             stop(client, false, null);
             return;
         }
-        if (session.stage == Stage.WAIT_INITIAL || session.stage == Stage.WAIT_SOURCE || session.stage == Stage.WAIT_TARGET) {
+        if (session.stage == Stage.WAIT_INITIAL || session.stage == Stage.WAIT_SOURCE
+                || session.stage == Stage.WAIT_TARGET) {
             if (++session.waitTicks > OPEN_TIMEOUT_TICKS) {
                 stop(client, false, null);
                 return;
@@ -105,8 +105,8 @@ public final class QuickStashShulkerTransfer {
                 return;
             }
         }
-        if (!(QuickClientScreenAccess.currentScreen(client) instanceof AbstractContainerScreen<?> screen)
-                || screen.getMenu() != session.ownedHandler) {
+        if (!(QuickClientScreenAccess.currentScreen(client) instanceof AbstractContainerScreen<?> screen) || screen
+                .getMenu() != session.ownedHandler) {
             stop(client, false, null);
             return;
         }
@@ -126,7 +126,8 @@ public final class QuickStashShulkerTransfer {
         if (current == null) {
             return false;
         }
-        if (!(current instanceof AbstractContainerScreen<?> screen) || screen.getMenu() != client.player.containerMenu) {
+        if (!(current instanceof AbstractContainerScreen<?> screen) || screen
+                .getMenu() != client.player.containerMenu) {
             stop(client, false, null);
             return false;
         }
@@ -142,8 +143,7 @@ public final class QuickStashShulkerTransfer {
         } else if (session.stage == Stage.WAIT_SOURCE && handler instanceof ShulkerBoxMenu) {
             QuickContainerLock.bindInventoryShulkerScreen(screen, session.sourcePlayerIndex);
             session.stage = Stage.SOURCE;
-        } else if (session.stage == Stage.WAIT_TARGET
-                && handler.getClass() == session.originalHandler.getClass()
+        } else if (session.stage == Stage.WAIT_TARGET && handler.getClass() == session.originalHandler.getClass()
                 && handler.slots.size() == session.originalHandler.slots.size()) {
             QuickContainerLock.bindSameContainerScreen(handler, session.originalHandler);
             session.stage = Stage.TARGET;
@@ -250,22 +250,23 @@ public final class QuickStashShulkerTransfer {
     }
 
     private static List<Integer> targetSlots(AbstractContainerMenu handler) {
-        return getContainerSlotIds(handler).stream()
-                .filter(id -> id != session.temporarySlot && !QuickContainerLock.isLockedSlot(handler, id))
-                .toList();
+        return getContainerSlotIds(handler).stream().filter(
+                id -> id != session.temporarySlot && !QuickContainerLock.isLockedSlot(handler, id)
+        ).toList();
     }
 
     private static boolean depositOnePlayerStack(AbstractContainerMenu handler, Minecraft client) {
         for (int slotId : getPlayerStorageSlotIds(handler)) {
             Slot source = handler.getSlot(slotId);
-            if (source.getContainerSlot() == session.targetInventorySlot || !source.hasItem() || !source.mayPickup(client.player)) {
+            if (source.getContainerSlot() == session.targetInventorySlot || !source.hasItem() || !source.mayPickup(
+                    client.player
+            )) {
                 continue;
             }
             ItemStack stack = source.getItem();
             if (isShulkerBox(stack)) {
                 ItemStack pure = pureContent(stack);
-                if (!pure.isEmpty() && matchesAccepted(pure)
-                        && moveToContainerSlots(handler, slotId, client)) {
+                if (!pure.isEmpty() && matchesAccepted(pure) && moveToContainerSlots(handler, slotId, client)) {
                     return true;
                 }
             } else if (matchesAccepted(stack)) {
@@ -297,7 +298,13 @@ public final class QuickStashShulkerTransfer {
         for (int slotId : slots) {
             int capacity = capacity(handler.getSlot(slotId), source.getItem());
             if (capacity > 0) {
-                TRANSFER.moveItemsToTargetSlot(handler, sourceSlotId, slotId, Math.min(capacity, source.getItem().getCount()), client);
+                TRANSFER.moveItemsToTargetSlot(
+                        handler,
+                        sourceSlotId,
+                        slotId,
+                        Math.min(capacity, source.getItem().getCount()),
+                        client
+                );
             }
             if (!source.hasItem() || !handler.getCarried().isEmpty()) {
                 break;
@@ -307,18 +314,22 @@ public final class QuickStashShulkerTransfer {
     }
 
     private static int capacity(Slot slot, ItemStack stack) {
-        if (stack.isEmpty() || !slot.isActive() || !slot.mayPlace(stack)
-                || slot.hasItem() && !ItemStack.isSameItemSameComponents(slot.getItem(), stack)) {
+        if (stack.isEmpty() || !slot.isActive() || !slot.mayPlace(stack) || slot.hasItem() && !ItemStack
+                .isSameItemSameComponents(slot.getItem(), stack)) {
             return 0;
         }
-        return Math.max(0, Math.min(stack.getMaxStackSize(), slot.getMaxStackSize(stack))
-                - (slot.hasItem() ? slot.getItem().getCount() : 0));
+        return Math.max(
+                0,
+                Math.min(stack.getMaxStackSize(), slot.getMaxStackSize(stack)) - (slot.hasItem() ? slot.getItem()
+                        .getCount() : 0)
+        );
     }
 
     private static List<MissingDemand> remainingCapacity(AbstractContainerMenu handler) {
         List<MissingDemand> demands = new ArrayList<>();
-        List<Integer> emptySlots = new ArrayList<>(targetSlots(handler).stream()
-                .filter(id -> !handler.getSlot(id).hasItem()).toList());
+        List<Integer> emptySlots = new ArrayList<>(
+                targetSlots(handler).stream().filter(id -> !handler.getSlot(id).hasItem()).toList()
+        );
         java.util.Map<Integer, Integer> shulkerFreeSlots = new java.util.HashMap<>();
         for (int slotId : targetSlots(handler)) {
             ItemStack shulker = handler.getSlot(slotId).getItem();
@@ -340,9 +351,9 @@ public final class QuickStashShulkerTransfer {
             int available = 0;
             for (int playerId : getPlayerStorageSlotIds(handler)) {
                 Slot playerSlot = handler.getSlot(playerId);
-                if (playerSlot.getContainerSlot() == session.targetInventorySlot
-                        || session.exhaustedSources.contains(playerSlot.getContainerSlot())
-                        || !isShulkerBox(playerSlot.getItem())) {
+                if (playerSlot.getContainerSlot() == session.targetInventorySlot || session.exhaustedSources.contains(
+                        playerSlot.getContainerSlot()
+                ) || !isShulkerBox(playerSlot.getItem())) {
                     continue;
                 }
                 for (ItemStack stored : getStoredStacksBySlot(playerSlot.getItem())) {
@@ -400,10 +411,13 @@ public final class QuickStashShulkerTransfer {
         SourceShulker fallback = null;
         for (int slotId : getPlayerStorageSlotIds(handler)) {
             Slot slot = handler.getSlot(slotId);
-            if (slot.getContainerSlot() != session.targetInventorySlot && slot.getContainerSlot() != excludedPlayerIndex
+            if (slot.getContainerSlot() != session.targetInventorySlot
+                    && slot.getContainerSlot() != excludedPlayerIndex
                     && !session.exhaustedSources.contains(slot.getContainerSlot())
-                    && slot.hasItem() && slot.mayPickup(Minecraft.getInstance().player)
-                    && slot.getItem().getCount() == 1 && isShulkerBox(slot.getItem())
+                    && slot.hasItem()
+                    && slot.mayPickup(Minecraft.getInstance().player)
+                    && slot.getItem().getCount() == 1
+                    && isShulkerBox(slot.getItem())
                     && getSourceShulkerScore(slot.getItem(), session.demands).usefulItemCount() > 0) {
                 SourceShulker source = new SourceShulker(slotId, slot.getContainerSlot());
                 if (hasExtractionSpace(handler, slot.getItem())) {
@@ -419,8 +433,10 @@ public final class QuickStashShulkerTransfer {
 
     private static boolean hasExtractionSpace(AbstractContainerMenu handler, ItemStack source) {
         for (ItemStack stored : getStoredStacksBySlot(source)) {
-            if (findDemandForStack(session.demands, stored) != null
-                    && canStoreAnyStackInPlayerStorage(handler, stored)) {
+            if (findDemandForStack(session.demands, stored) != null && canStoreAnyStackInPlayerStorage(
+                    handler,
+                    stored
+            )) {
                 return true;
             }
         }
@@ -428,12 +444,13 @@ public final class QuickStashShulkerTransfer {
     }
 
     private static boolean makeWorkingSlot(AbstractContainerMenu handler, int sourcePlayerIndex, Minecraft client) {
-        int excludedShulkerSlot = getPlayerStorageSlotIds(handler).stream()
-                .filter(id -> handler.getSlot(id).getContainerSlot() == session.targetInventorySlot).findFirst().orElse(-1);
+        int excludedShulkerSlot = getPlayerStorageSlotIds(handler).stream().filter(
+                id -> handler.getSlot(id).getContainerSlot() == session.targetInventorySlot
+        ).findFirst().orElse(-1);
         for (int slotId : getPlayerStorageSlotIds(handler)) {
             Slot slot = handler.getSlot(slotId);
-            if (TRANSFER.canUsePlayerStackToFreeQuickShulkerSpace(slot.getItem())
-                    && TRANSFER.packSlotIntoQuickShulkerExcept(handler, slotId, excludedShulkerSlot, client)) {
+            if (TRANSFER.canUsePlayerStackToFreeQuickShulkerSpace(slot.getItem()) && TRANSFER
+                    .packSlotIntoQuickShulkerExcept(handler, slotId, excludedShulkerSlot, client)) {
                 return true;
             }
         }
@@ -442,10 +459,9 @@ public final class QuickStashShulkerTransfer {
         }
         for (int sourceId : getPlayerStorageSlotIds(handler)) {
             Slot source = handler.getSlot(sourceId);
-            if (!source.hasItem() || !source.mayPickup(client.player)
-                    || source.getContainerSlot() == sourcePlayerIndex || source.getContainerSlot() == session.targetInventorySlot
-                    || !isShulkerBox(source.getItem())
-                        && !TRANSFER.canUsePlayerStackToFreeQuickShulkerSpace(source.getItem())) {
+            if (!source.hasItem() || !source.mayPickup(client.player) || source.getContainerSlot() == sourcePlayerIndex
+                    || source.getContainerSlot() == session.targetInventorySlot || !isShulkerBox(source.getItem())
+                            && !TRANSFER.canUsePlayerStackToFreeQuickShulkerSpace(source.getItem())) {
                 continue;
             }
             for (int targetId : targetSlots(handler)) {
@@ -453,9 +469,10 @@ public final class QuickStashShulkerTransfer {
                 if (!target.hasItem() && capacity(target, source.getItem()) >= source.getItem().getCount()) {
                     ItemStack saved = source.getItem().copy();
                     TRANSFER.moveItemsToTargetSlot(handler, sourceId, targetId, saved.getCount(), client);
-                    if (!source.hasItem() && handler.getCarried().isEmpty()
-                            && ItemStack.isSameItemSameComponents(saved, target.getItem())
-                            && target.getItem().getCount() == saved.getCount()) {
+                    if (!source.hasItem() && handler.getCarried().isEmpty() && ItemStack.isSameItemSameComponents(
+                            saved,
+                            target.getItem()
+                    ) && target.getItem().getCount() == saved.getCount()) {
                         session.temporarySlot = targetId;
                         session.temporaryStack = saved;
                         return true;
@@ -472,16 +489,22 @@ public final class QuickStashShulkerTransfer {
             return true;
         }
         Slot source = handler.getSlot(session.temporarySlot);
-        if (!source.mayPickup(client.player) || QuickContainerLock.isLockedSlot(handler, source)
-                || !ItemStack.isSameItemSameComponents(source.getItem(), session.temporaryStack)
-                || source.getItem().getCount() != session.temporaryStack.getCount()) {
+        if (!source.mayPickup(client.player) || QuickContainerLock.isLockedSlot(handler, source) || !ItemStack
+                .isSameItemSameComponents(source.getItem(), session.temporaryStack) || source.getItem()
+                        .getCount() != session.temporaryStack.getCount()) {
             return false;
         }
         for (int slotId : getPlayerStorageSlotIds(handler)) {
             Slot target = handler.getSlot(slotId);
             int capacity = capacity(target, source.getItem());
             if (target.getContainerSlot() != session.targetInventorySlot && capacity > 0) {
-                TRANSFER.moveItemsToTargetSlot(handler, source.index, slotId, Math.min(capacity, source.getItem().getCount()), client);
+                TRANSFER.moveItemsToTargetSlot(
+                        handler,
+                        source.index,
+                        slotId,
+                        Math.min(capacity, source.getItem().getCount()),
+                        client
+                );
                 session.temporaryStack = source.getItem().copy();
             }
             if (!source.hasItem() && handler.getCarried().isEmpty()) {
@@ -496,7 +519,10 @@ public final class QuickStashShulkerTransfer {
         int moved = 0;
         if (!QuickContainerLock.isCurrentScreenLocked(screen)) {
             var result = TRANSFER.moveMatchingItemsFromOpenShulker(
-                    (ShulkerBoxMenu) session.ownedHandler, session.demands, client);
+                    (ShulkerBoxMenu) session.ownedHandler,
+                    session.demands,
+                    client
+            );
             moved = result.moved();
             session.demands = result.remainingDemands();
         }
@@ -512,7 +538,10 @@ public final class QuickStashShulkerTransfer {
 
     private static void openNextSourceOrReturn(Minecraft client) {
         SourceShulker next = findSource(session.ownedHandler, session.sourcePlayerIndex);
-        if (next != null && hasExtractionSpace(session.ownedHandler, session.ownedHandler.getSlot(next.slotId()).getItem())) {
+        if (next != null && hasExtractionSpace(
+                session.ownedHandler,
+                session.ownedHandler.getSlot(next.slotId()).getItem()
+        )) {
             session.sourcePlayerIndex = next.playerIndex();
             session.stage = Stage.WAIT_SOURCE;
             session.waitTicks = 0;
@@ -542,10 +571,10 @@ public final class QuickStashShulkerTransfer {
         }
         boolean opened;
         if (session.targetInventorySlot >= 0) {
-            int slotId = client.player.inventoryMenu.slots.stream()
-                    .filter(slot -> slot.container == client.player.getInventory()
-                            && slot.getContainerSlot() == session.targetInventorySlot)
-                    .map(slot -> slot.index).findFirst().orElse(-1);
+            int slotId = client.player.inventoryMenu.slots.stream().filter(
+                    slot -> slot.container == client.player.getInventory() && slot
+                            .getContainerSlot() == session.targetInventorySlot
+            ).map(slot -> slot.index).findFirst().orElse(-1);
             opened = slotId >= 0 && QuickShulkerConnection.sendOpen(slotId);
         } else if (session.targetHit instanceof BlockHitResult hit) {
             client.gameMode.useItemOn(client.player, InteractionHand.MAIN_HAND, hit);
@@ -565,9 +594,12 @@ public final class QuickStashShulkerTransfer {
 
     private static void stop(Minecraft client, boolean close, String message) {
         Session finished = session;
-        if (finished.temporarySlot >= 0 && client.player != null && client.level == finished.world
+        if (finished.temporarySlot >= 0
+                && client.player != null
+                && client.level == finished.world
                 && QuickClientScreenAccess.currentScreen(client) instanceof AbstractContainerScreen<?> screen
-                && screen.getMenu() == finished.ownedHandler && finished.stage == Stage.TARGET
+                && screen.getMenu() == finished.ownedHandler
+                && finished.stage == Stage.TARGET
                 && finished.ownedHandler.getCarried().isEmpty()) {
             restoreTemporaryStack(finished.ownedHandler, client);
             close &= finished.temporarySlot < 0;
@@ -575,10 +607,17 @@ public final class QuickStashShulkerTransfer {
         session = null;
         if (client.player != null) {
             if (finished.temporarySlot >= 0 && client.level == finished.world) {
-                var statusScreen = !close && QuickClientScreenAccess.currentScreen(client) instanceof AbstractContainerScreen<?> visible
-                        && visible.getMenu() == finished.ownedHandler ? visible : null;
-                QuickCrossBoxSortStatus.show(statusScreen, Component.translatable("quickcraft.message.quick_stash.temporary_left",
-                        finished.temporarySlot + 1));
+                var statusScreen = !close && QuickClientScreenAccess.currentScreen(
+                        client
+                ) instanceof AbstractContainerScreen<?> visible && visible.getMenu() == finished.ownedHandler ? visible
+                        : null;
+                QuickCrossBoxSortStatus.show(
+                        statusScreen,
+                        Component.translatable(
+                                "quickcraft.message.quick_stash.temporary_left",
+                                finished.temporarySlot + 1
+                        )
+                );
             } else if (message != null) {
                 client.player.sendOverlayMessage(Component.translatable(message));
             }
@@ -589,7 +628,9 @@ public final class QuickStashShulkerTransfer {
         }
     }
 
-    private enum Stage { WAIT_INITIAL, TARGET, WAIT_SOURCE, SOURCE, REOPEN, WAIT_TARGET }
+    private enum Stage {
+        WAIT_INITIAL, TARGET, WAIT_SOURCE, SOURCE, REOPEN, WAIT_TARGET
+    }
 
     private static final class Session {
         final ClientLevel world;
@@ -608,12 +649,19 @@ public final class QuickStashShulkerTransfer {
         ItemStack temporaryStack = ItemStack.EMPTY;
         int waitTicks;
 
-        Session(Minecraft client, AbstractContainerMenu handler, HitResult targetHit, int inventorySlot, boolean closeAfter) {
+        Session(
+                Minecraft client,
+                AbstractContainerMenu handler,
+                HitResult targetHit,
+                int inventorySlot,
+                boolean closeAfter
+        ) {
             world = client.level;
             originalHandler = handler;
             ownedHandler = handler;
             this.targetHit = targetHit;
-            targetBlock = targetHit instanceof BlockHitResult hit ? client.level.getBlockState(hit.getBlockPos()).getBlock() : null;
+            targetBlock = targetHit instanceof BlockHitResult hit ? client.level.getBlockState(hit.getBlockPos())
+                    .getBlock() : null;
             targetInventorySlot = inventorySlot;
             this.closeAfter = closeAfter;
         }

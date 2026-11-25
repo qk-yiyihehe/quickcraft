@@ -8,8 +8,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import static com.yiyihehe.quickcraft.litematica.QuickLitematicaPreview3D.*;
 
 final class QuickLitematicaPreviewMeshBatches {
-    private QuickLitematicaPreviewMeshBatches() {
-    }
+    private QuickLitematicaPreviewMeshBatches() {}
 
     static List<LayerMesh> split(LayerMesh mesh, AtomicBoolean cancelled) {
         checkCancelled(cancelled);
@@ -24,7 +23,7 @@ final class QuickLitematicaPreviewMeshBatches {
         // 排序由后端根据当前视角完成；这里只按完整四边形切批，避免固定相机的重复排序。
         int batchBytes = STATIC_BATCH_TARGET_VERTICES / 4 * quadBytes;
         List<LayerMesh> batches = new ArrayList<>();
-        for (int offset = 0; offset < vertices.length; ) {
+        for (int offset = 0; offset < vertices.length;) {
             checkCancelled(cancelled);
             int end = (int) Math.min((long) vertices.length, (long) offset + batchBytes);
             batches.add(new LayerMesh(mesh.layer(), Arrays.copyOfRange(vertices, offset, end)));

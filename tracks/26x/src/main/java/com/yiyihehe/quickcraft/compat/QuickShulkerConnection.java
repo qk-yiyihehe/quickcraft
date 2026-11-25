@@ -13,11 +13,16 @@ import org.slf4j.LoggerFactory;
 public final class QuickShulkerConnection {
     private static final Logger LOGGER = LoggerFactory.getLogger(QuickShulkerConnection.class);
     private static boolean failureLogged;
-    private static final Identifier BUNDLE_PACKET = Identifier.fromNamespaceAndPath("quickshulker", "quick_bundleheld_packet");
-    private static final Identifier OPEN_PACKET = Identifier.fromNamespaceAndPath("quickshulker", "open_shulker_packet");
+    private static final Identifier BUNDLE_PACKET = Identifier.fromNamespaceAndPath(
+            "quickshulker",
+            "quick_bundleheld_packet"
+    );
+    private static final Identifier OPEN_PACKET = Identifier.fromNamespaceAndPath(
+            "quickshulker",
+            "open_shulker_packet"
+    );
 
-    private QuickShulkerConnection() {
-    }
+    private QuickShulkerConnection() {}
 
     public static boolean canBundle() {
         return canSend(BUNDLE_PACKET);
@@ -39,8 +44,8 @@ public final class QuickShulkerConnection {
     }
 
     public static boolean sendOpen(int slotId) {
-        if (com.yiyihehe.quickcraft.portablestorage.QuickPortableStorageTransfer.isRunning()
-                || !canOpen() || OpenPacket.CONSTRUCTOR == null) {
+        if (com.yiyihehe.quickcraft.portablestorage.QuickPortableStorageTransfer.isRunning() || !canOpen()
+                || OpenPacket.CONSTRUCTOR == null) {
             return false;
         }
         try {
@@ -59,8 +64,9 @@ public final class QuickShulkerConnection {
 
         private static Constructor<? extends CustomPacketPayload> findConstructor() {
             try {
-                return Class.forName("net.kyrptonaught.quickshulker.network.OpenShulkerPacket")
-                        .asSubclass(CustomPacketPayload.class).getConstructor(int.class);
+                return Class.forName("net.kyrptonaught.quickshulker.network.OpenShulkerPacket").asSubclass(
+                        CustomPacketPayload.class
+                ).getConstructor(int.class);
             } catch (ReflectiveOperationException | RuntimeException | LinkageError failure) {
                 logFailure(failure);
                 return null;

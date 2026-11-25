@@ -42,15 +42,32 @@ class QuickLitematicaContainerScreenBindingTest {
     void barrelGhostsRequireAnActualBarrelEvenForOtherThreeRowMenus() {
         var barrel = Blocks.BARREL.defaultBlockState();
         var expected = new QuickLitematicaContainerVerifier.ExpectedContainer(
-                BlockPos.ZERO, barrel, null, new SimpleContainer(27), java.util.Set.of());
+                BlockPos.ZERO,
+                barrel,
+                null,
+                new SimpleContainer(27),
+                java.util.Set.of()
+        );
         var handler = mock(ChestMenu.class);
         when(handler.getRowCount()).thenReturn(3);
 
-        assertThat(QuickLitematicaContainerScreenBinding.isSupportedHandlerForExpectedContainer(handler, expected, barrel)).isTrue();
-        assertThat(QuickLitematicaContainerScreenBinding.isSupportedHandlerForExpectedContainer(
-                handler, expected, Blocks.CHEST.defaultBlockState())).isFalse();
-        assertThat(QuickLitematicaContainerScreenBinding.isSupportedHandlerForExpectedContainer(
-                handler, expected, Blocks.ENDER_CHEST.defaultBlockState())).isFalse();
+        assertThat(
+                QuickLitematicaContainerScreenBinding.isSupportedHandlerForExpectedContainer(handler, expected, barrel)
+        ).isTrue();
+        assertThat(
+                QuickLitematicaContainerScreenBinding.isSupportedHandlerForExpectedContainer(
+                        handler,
+                        expected,
+                        Blocks.CHEST.defaultBlockState()
+                )
+        ).isFalse();
+        assertThat(
+                QuickLitematicaContainerScreenBinding.isSupportedHandlerForExpectedContainer(
+                        handler,
+                        expected,
+                        Blocks.ENDER_CHEST.defaultBlockState()
+                )
+        ).isFalse();
     }
 
     @Test
@@ -67,11 +84,11 @@ class QuickLitematicaContainerScreenBindingTest {
         var currentScreen = new AtomicReference<Screen>(first);
 
         QuickLitematicaContainerScreenBinding.clearCurrentHandledScreenBinding();
-        try (var minecraft = mockStatic(Minecraft.class);
-             var screens = mockStatic(QuickClientScreenAccess.class)) {
+        try (var minecraft = mockStatic(Minecraft.class); var screens = mockStatic(QuickClientScreenAccess.class)) {
             minecraft.when(Minecraft::getInstance).thenReturn(client);
-            screens.when(() -> QuickClientScreenAccess.currentScreen(client))
-                    .thenAnswer(invocation -> currentScreen.get());
+            screens.when(() -> QuickClientScreenAccess.currentScreen(client)).thenAnswer(
+                    invocation -> currentScreen.get()
+            );
 
             QuickLitematicaContainerScreenBinding.bindCurrentScreen(first);
             assertThat(staticField("currentHandledScreen")).isSameAs(first);
@@ -85,7 +102,10 @@ class QuickLitematicaContainerScreenBindingTest {
             setStaticField("pendingContainerPos", BlockPos.ZERO);
             setStaticField("currentScreenContainerPos", new BlockPos(1, 2, 3));
             setStaticField("currentScreenContainerInventory", mock(net.minecraft.world.Container.class));
-            setStaticField("currentScreenSlotOverlays", java.util.List.of(mock(QuickLitematicaContainerVerifier.SlotOverlay.class)));
+            setStaticField(
+                    "currentScreenSlotOverlays",
+                    java.util.List.of(mock(QuickLitematicaContainerVerifier.SlotOverlay.class))
+            );
             // 聊天等临时子屏不是关屏，不应丢弃新绑定或下一次打开容器的目标。
             QuickLitematicaContainerScreenBinding.reconcileCurrentScreen(mock(Screen.class));
             assertThat(staticField("currentHandledScreen")).isSameAs(second);
@@ -118,7 +138,10 @@ class QuickLitematicaContainerScreenBindingTest {
         client.level = world;
         client.player = player;
         client.hitResult = null;
-        BlockEntity chest = mock(BlockEntity.class, org.mockito.Mockito.withSettings().extraInterfaces(Container.class));
+        BlockEntity chest = mock(
+                BlockEntity.class,
+                org.mockito.Mockito.withSettings().extraInterfaces(Container.class)
+        );
         when(world.getBlockEntity(chestPos)).thenReturn(chest);
         ChestMenu minecartHandler = ChestMenu.threeRows(3, new Inventory(player, new EntityEquipment()));
         AbstractContainerScreen<?> minecartScreen = mock(AbstractContainerScreen.class);
@@ -129,14 +152,17 @@ class QuickLitematicaContainerScreenBindingTest {
         QuickLitematicaContainerScreenBinding.clearCurrentHandledScreenBinding();
         var currentScreen = new AtomicReference<Screen>(null);
         try (var minecraft = mockStatic(Minecraft.class);
-             var screens = mockStatic(QuickClientScreenAccess.class);
-             var worldUtils = mockStatic(WorldUtils.class)) {
+                var screens = mockStatic(QuickClientScreenAccess.class);
+                var worldUtils = mockStatic(WorldUtils.class)) {
             minecraft.when(Minecraft::getInstance).thenReturn(client);
-            screens.when(() -> QuickClientScreenAccess.currentScreen(client))
-                    .thenAnswer(invocation -> currentScreen.get());
+            screens.when(() -> QuickClientScreenAccess.currentScreen(client)).thenAnswer(
+                    invocation -> currentScreen.get()
+            );
             worldUtils.when(() -> WorldUtils.getBestWorld(client)).thenReturn(world);
-            QuickLitematicaContainerScreenBinding.rememberContainerUse(client,
-                    new BlockHitResult(new Vec3(3.5, 64.5, 3.5), Direction.NORTH, chestPos, false));
+            QuickLitematicaContainerScreenBinding.rememberContainerUse(
+                    client,
+                    new BlockHitResult(new Vec3(3.5, 64.5, 3.5), Direction.NORTH, chestPos, false)
+            );
             assertThat(staticField("pendingContainerPos")).isEqualTo(chestPos);
 
             QuickLitematicaContainerVerifier.clearPendingContainerUses();

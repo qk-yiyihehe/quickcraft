@@ -24,7 +24,9 @@ public final class QuickCrossBoxSortStatus {
         ClientTickEvents.END_CLIENT_TICK.register(QuickCrossBoxSortStatus::tick);
         ScreenEvents.AFTER_INIT.register((client, screen, width, height) -> {
             if (screen instanceof HandledScreen<?> container) {
-                ScreenEvents.afterRender(screen).register((shown, graphics, mouseX, mouseY, delta) -> render(container, graphics));
+                ScreenEvents.afterRender(screen).register(
+                        (shown, graphics, mouseX, mouseY, delta) -> render(container, graphics)
+                );
                 ScreenEvents.remove(screen).register(removed -> {
                     if (owner == removed) {
                         clear();
@@ -62,16 +64,16 @@ public final class QuickCrossBoxSortStatus {
     }
 
     private static void tick(MinecraftClient client) {
-        if (current != null && (client.player == null || client.world != world
-                || client.currentScreen != owner || --remaining <= 0)) {
+        if (current != null && (client.player == null || client.world != world || client.currentScreen != owner
+                || --remaining <= 0)) {
             clear();
         }
     }
 
     private static void render(HandledScreen<?> screen, DrawContext graphics) {
         var client = MinecraftClient.getInstance();
-        if (current == null || owner != screen || client.currentScreen != screen
-                || client.player == null || client.world != world) {
+        if (current == null || owner != screen || client.currentScreen != screen || client.player == null
+                || client.world != world) {
             return;
         }
         int width = graphics.getScaledWindowWidth();

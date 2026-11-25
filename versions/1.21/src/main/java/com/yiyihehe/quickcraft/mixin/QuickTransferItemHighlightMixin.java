@@ -17,20 +17,31 @@ import org.spongepowered.asm.mixin.injection.At;
 @Mixin(HandledScreen.class)
 public abstract class QuickTransferItemHighlightMixin<T extends ScreenHandler> {
     // 悬停快照只属于本次槽位绘制调用；嵌套绘制、异常或取消不会遗留静态屏幕状态。
-    @WrapOperation(method = {"render", "drawSlots"}, at = @At(value = "INVOKE",
-            target = "Lnet/minecraft/client/gui/screen/ingame/HandledScreen;drawSlot(Lnet/minecraft/client/gui/DrawContext;Lnet/minecraft/screen/slot/Slot;)V"))
+    @WrapOperation(
+            method = { "render", "drawSlots" },
+            at = @At(
+                    value = "INVOKE",
+                    target = "Lnet/minecraft/client/gui/screen/ingame/HandledScreen;drawSlot(Lnet/minecraft/client/gui/DrawContext;Lnet/minecraft/screen/slot/Slot;)V"))
     private void quickcraft$drawMatchingTransferHighlight(
-            HandledScreen<?> screen, DrawContext context, Slot slot,
+            HandledScreen<?> screen,
+            DrawContext context,
+            Slot slot,
             Operation<Void> original,
             @Share("matchingTransferResolved") LocalBooleanRef resolved,
-            @Share("matchingTransferHovered") LocalRef<Slot> hovered) {
+            @Share("matchingTransferHovered") LocalRef<Slot> hovered
+    ) {
         if (!resolved.get()) {
             hovered.set(QuickTransfer.resolveHighlightSlot(screen));
             resolved.set(true);
         }
         if (QuickTransfer.shouldHighlightMatchingSlot(screen, slot, hovered.get())) {
-            context.fill(slot.x, slot.y, slot.x + 16, slot.y + 16,
-                    QuickCraftConfigs.ContainerTools.MATCHING_TRANSFER_HIGHLIGHT_COLOR.getIntegerValue());
+            context.fill(
+                    slot.x,
+                    slot.y,
+                    slot.x + 16,
+                    slot.y + 16,
+                    QuickCraftConfigs.ContainerTools.MATCHING_TRANSFER_HIGHLIGHT_COLOR.getIntegerValue()
+            );
         }
         original.call(screen, context, slot);
     }

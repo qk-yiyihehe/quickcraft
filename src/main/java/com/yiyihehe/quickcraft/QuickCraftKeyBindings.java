@@ -11,16 +11,14 @@ import org.lwjgl.glfw.GLFW;
  * 统一读取 QuickCraft 使用的原版按键、malilib 热键和物理修饰键状态。
  */
 public final class QuickCraftKeyBindings {
-    private QuickCraftKeyBindings() {
-    }
+    private QuickCraftKeyBindings() {}
 
     public static boolean isVanillaKeyDown(MinecraftClient client, KeyBinding keyBinding) {
         if (keyBinding == null || keyBinding.isUnbound()) {
             return false;
         }
 
-        return keyBinding.isPressed()
-                || client != null && isPhysicalKeyDown(client, keyBinding);
+        return keyBinding.isPressed() || client != null && isPhysicalKeyDown(client, keyBinding);
     }
 
     public static boolean isHotkeyDown(IKeybind keybind) {
@@ -40,8 +38,7 @@ public final class QuickCraftKeyBindings {
             return false;
         }
 
-        return keybind.matches(KeybindMulti.getKeyCode(vanillaFallback))
-                && isVanillaKeyDown(client, vanillaFallback);
+        return keybind.matches(KeybindMulti.getKeyCode(vanillaFallback)) && isVanillaKeyDown(client, vanillaFallback);
     }
 
     public static boolean isShiftDown() {
@@ -53,8 +50,7 @@ public final class QuickCraftKeyBindings {
     }
 
     public static boolean isMouseButtonDown(MinecraftClient client, int button) {
-        return client != null
-                && GLFW.glfwGetMouseButton(client.getWindow().getHandle(), button) == GLFW.GLFW_PRESS;
+        return client != null && GLFW.glfwGetMouseButton(client.getWindow().getHandle(), button) == GLFW.GLFW_PRESS;
     }
 
     public static boolean isLeftMouseButtonDown(MinecraftClient client) {

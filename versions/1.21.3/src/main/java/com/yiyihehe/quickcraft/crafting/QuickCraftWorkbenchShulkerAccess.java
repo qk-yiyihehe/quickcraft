@@ -11,25 +11,37 @@ import net.minecraft.screen.CraftingScreenHandler;
 import java.util.List;
 
 final class QuickCraftWorkbenchShulkerAccess {
-    private QuickCraftWorkbenchShulkerAccess() {
-    }
+    private QuickCraftWorkbenchShulkerAccess() {}
 
-    public static boolean shouldProbeReconciledRefill(QuickCraftWorkbenchShulkerCraft.AckBatchKind kind,
-                                                      int fullInventoryUpdates,
-                                                      boolean outputOnlyMismatch,
-                                                      boolean terminalStateSafe,
-                                                      boolean baselinePending,
-                                                      boolean baselineAvailable,
-                                                      boolean probePending) {
-        return QuickCraftWorkbenchShulkerCraft.shouldProbeReconciledRefill(kind, fullInventoryUpdates,
-                outputOnlyMismatch, terminalStateSafe, baselinePending, baselineAvailable, probePending);
+    public static boolean shouldProbeReconciledRefill(
+            QuickCraftWorkbenchShulkerCraft.AckBatchKind kind,
+            int fullInventoryUpdates,
+            boolean outputOnlyMismatch,
+            boolean terminalStateSafe,
+            boolean baselinePending,
+            boolean baselineAvailable,
+            boolean probePending
+    ) {
+        return QuickCraftWorkbenchShulkerCraft.shouldProbeReconciledRefill(
+                kind,
+                fullInventoryUpdates,
+                outputOnlyMismatch,
+                terminalStateSafe,
+                baselinePending,
+                baselineAvailable,
+                probePending
+        );
     }
 
     public static boolean isRecipeCaptured(RecipeEntry<CraftingRecipe> currentRecipe, boolean capturedVisibleRecipe) {
         return capturedVisibleRecipe;
     }
 
-    public static boolean isSnapshotComplete(RecipeEntry<CraftingRecipe> recipe, List<ItemStack> pattern, ItemStack resultTemplate) {
+    public static boolean isSnapshotComplete(
+            RecipeEntry<CraftingRecipe> recipe,
+            List<ItemStack> pattern,
+            ItemStack resultTemplate
+    ) {
         return !pattern.isEmpty() && !resultTemplate.isEmpty();
     }
 
@@ -37,18 +49,24 @@ final class QuickCraftWorkbenchShulkerAccess {
         return null;
     }
 
-    public static boolean isRemainderIncompatible(boolean recipeHasRemainder,
-                                                  boolean patternGridCompatible,
-                                                  RecipeEntry<CraftingRecipe> currentRecipe,
-                                                  CraftingRecipeInput input) {
-        return (recipeHasRemainder && !patternGridCompatible)
-                || (!recipeHasRemainder && hasRemainder(currentRecipe, input));
+    public static boolean isRemainderIncompatible(
+            boolean recipeHasRemainder,
+            boolean patternGridCompatible,
+            RecipeEntry<CraftingRecipe> currentRecipe,
+            CraftingRecipeInput input
+    ) {
+        return (recipeHasRemainder && !patternGridCompatible) || (!recipeHasRemainder && hasRemainder(
+                currentRecipe,
+                input
+        ));
     }
 
-    public static boolean isUnidentifiedRecipe(MinecraftClient client,
-                                               CraftingScreenHandler handler,
-                                               RecipeEntry<CraftingRecipe> recipe,
-                                               ItemStack resultTemplate) {
+    public static boolean isUnidentifiedRecipe(
+            MinecraftClient client,
+            CraftingScreenHandler handler,
+            RecipeEntry<CraftingRecipe> recipe,
+            ItemStack resultTemplate
+    ) {
         return QuickCraftClientRecipeMatcher.findUniqueRecipeId(client, handler, resultTemplate, 3, 3) == null;
     }
 
@@ -56,13 +74,11 @@ final class QuickCraftWorkbenchShulkerAccess {
         return false;
     }
 
-    public static RecipeEntry<CraftingRecipe> findCurrentRecipe(MinecraftClient client,
-                                                               CraftingRecipeInput input) {
+    public static RecipeEntry<CraftingRecipe> findCurrentRecipe(MinecraftClient client, CraftingRecipeInput input) {
         return null;
     }
 
-    public static boolean hasRemainder(RecipeEntry<CraftingRecipe> currentRecipe,
-                                       CraftingRecipeInput input) {
+    public static boolean hasRemainder(RecipeEntry<CraftingRecipe> currentRecipe, CraftingRecipeInput input) {
         try {
             List<ItemStack> remainders = CraftingRecipe.collectRecipeRemainders(input);
             for (ItemStack remainder : remainders) {
@@ -76,8 +92,10 @@ final class QuickCraftWorkbenchShulkerAccess {
         return false;
     }
 
-    public static List<ItemStack> snapshotRemainderPattern(RecipeEntry<CraftingRecipe> currentRecipe,
-                                                           CraftingRecipeInput input) {
+    public static List<ItemStack> snapshotRemainderPattern(
+            RecipeEntry<CraftingRecipe> currentRecipe,
+            CraftingRecipeInput input
+    ) {
         return CraftingRecipe.collectRecipeRemainders(input);
     }
 

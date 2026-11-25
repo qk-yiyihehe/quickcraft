@@ -23,8 +23,15 @@ public final class QuickCraftMovableButton extends ButtonGeneric {
     private int bottom;
     private Runnable positionChangeListener;
 
-    public QuickCraftMovableButton(String positionKey, int x, int y, int width, int height, String label,
-                                   String... hover) {
+    public QuickCraftMovableButton(
+            String positionKey,
+            int x,
+            int y,
+            int width,
+            int height,
+            String label,
+            String... hover
+    ) {
         super(x, y, width, height, label, hover);
         this.positionKey = positionKey;
     }
@@ -70,13 +77,13 @@ public final class QuickCraftMovableButton extends ButtonGeneric {
     private void moveTo(long x, long y) {
         this.setPosition(
                 (int) Math.clamp(x, this.minX, Math.max(this.minX, this.right - this.getWidth())),
-                (int) Math.clamp(y, this.minY, Math.max(this.minY, this.bottom - this.getHeight())));
+                (int) Math.clamp(y, this.minY, Math.max(this.minY, this.bottom - this.getHeight()))
+        );
     }
 
     private boolean isEditableAt(double x, double y) {
-        return this.visible && x >= this.getX() && x < this.getX() + this.getWidth()
-                && y >= this.getY() && y < this.getY() + this.getHeight()
-                && x < this.right && y < this.bottom;
+        return this.visible && x >= this.getX() && x < this.getX() + this.getWidth() && y >= this.getY() && y < this
+                .getY() + this.getHeight() && x < this.right && y < this.bottom;
     }
 
     private boolean isMoved() {
@@ -94,8 +101,13 @@ public final class QuickCraftMovableButton extends ButtonGeneric {
             this.gui = gui;
         }
 
-        boolean click(double x, double y, int mouseButton, boolean controlDown,
-                      Predicate<QuickCraftMovableButton> press) {
+        boolean click(
+                double x,
+                double y,
+                int mouseButton,
+                boolean controlDown,
+                Predicate<QuickCraftMovableButton> press
+        ) {
             if (mouseButton != 0 && mouseButton != 1) {
                 return false;
             }
@@ -164,8 +176,11 @@ public final class QuickCraftMovableButton extends ButtonGeneric {
             var buttons = this.buttons();
             if (QuickCraftConfigs.isActionButtonDraggingEnabled() && buttons.contains(button)) {
                 button.moveTo(Math.round(x - this.grabX), Math.round(y - this.grabY));
-                QuickCraftConfigs.setActionButtonOffset(button.positionKey,
-                        button.getX() - button.defaultX, button.getY() - button.defaultY);
+                QuickCraftConfigs.setActionButtonOffset(
+                        button.positionKey,
+                        button.getX() - button.defaultX,
+                        button.getY() - button.defaultY
+                );
                 this.restoreButtons(button.positionKey, buttons);
                 QuickCraftConfigs.saveToFile();
                 button.notifyPositionChanged();

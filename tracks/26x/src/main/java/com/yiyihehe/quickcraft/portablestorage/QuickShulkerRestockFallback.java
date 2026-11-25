@@ -30,7 +30,7 @@ import java.util.Set;
 public final class QuickShulkerRestockFallback {
     private static final int THRESHOLD = 6;
     private static final int RESTOCK_GRACE = 2;
-    // The entity event and the inventory update for a consumed item can arrive separately.
+    // 消耗物品触发的实体事件和物品栏更新可能分开到达。
     private static final int SPECIAL_GRACE = 3;
     private static final int CONSUMPTION_TIMEOUT = 20;
     private static final HandState main = new HandState();
@@ -61,9 +61,8 @@ public final class QuickShulkerRestockFallback {
 
     static void tick(Minecraft client) {
         LocalPlayer player = client.player;
-        if (!enabled() || player == null || client.level == null
-                || player.isCreative() || player.isSpectator() || !player.isAlive()
-                || QuickClientScreenAccess.currentScreen(client) != null) {
+        if (!enabled() || player == null || client.level == null || player.isCreative() || player.isSpectator()
+                || !player.isAlive() || QuickClientScreenAccess.currentScreen(client) != null) {
             reset();
             return;
         }
@@ -75,8 +74,8 @@ public final class QuickShulkerRestockFallback {
             main.clear();
         }
         boolean using = usedThisTick || client.options.keyUse.isDown() || player.isUsingItem();
-        boolean usedItem = (using || wasUsing) && !client.options.keyDrop.isDown()
-                && !client.options.keySwapOffhand.isDown();
+        boolean usedItem = (using || wasUsing) && !client.options.keyDrop.isDown() && !client.options.keySwapOffhand
+                .isDown();
         observe(main, player.getMainHandItem(), usedItem);
         observe(offhand, player.getOffhandItem(), usedItem);
         wasUsing = using;
@@ -93,8 +92,8 @@ public final class QuickShulkerRestockFallback {
     private static void observe(HandState state, ItemStack current, boolean using) {
         ItemStack previous = state.previous;
         if (!state.consumed.isEmpty()) {
-            if (tickNumber > state.consumedUntil || (!current.isEmpty()
-                    && (!matches(state.consumed, current) || current.getDamageValue() < state.consumed.getDamageValue()))) {
+            if (tickNumber > state.consumedUntil || (!current.isEmpty() && (!matches(state.consumed, current) || current
+                    .getDamageValue() < state.consumed.getDamageValue()))) {
                 state.consumed = ItemStack.EMPTY;
             } else if (current.isEmpty()) {
                 arm(state, state.consumed, current, SPECIAL_GRACE, false);
@@ -107,9 +106,10 @@ public final class QuickShulkerRestockFallback {
         }
         if (isRemainder(previous, current)) {
             arm(state, previous, current, SPECIAL_GRACE, false);
-        } else if ((current.isEmpty() && !previous.is(Items.TOTEM_OF_UNDYING))
-                || (ItemStack.isSameItemSameComponents(current, previous)
-                && current.getCount() < previous.getCount() && current.getCount() <= THRESHOLD)) {
+        } else if ((current.isEmpty() && !previous.is(Items.TOTEM_OF_UNDYING)) || (ItemStack.isSameItemSameComponents(
+                current,
+                previous
+        ) && current.getCount() < previous.getCount() && current.getCount() <= THRESHOLD)) {
             arm(state, previous, current, RESTOCK_GRACE, false);
         }
     }
@@ -118,12 +118,16 @@ public final class QuickShulkerRestockFallback {
         Candidate pending = state.armed;
         boolean continued = pending != null && ItemStack.isSameItemSameComponents(pending.template, template)
                 && ItemStack.isSameItemSameComponents(pending.observed, current);
-        // A remainder or an emptied slot is a new refill opportunity for the other mods.
+        // 出现余留物或槽位被清空时，其他模组又有机会补货。
         if (!continued) {
             state.waitStarted = -1;
         }
-        state.armed = new Candidate(template.copyWithCount(1), current.copy(), grace,
-                tweakerooTried || continued && pending.tweakerooTried);
+        state.armed = new Candidate(
+                template.copyWithCount(1),
+                current.copy(),
+                grace,
+                tweakerooTried || continued && pending.tweakerooTried
+        );
     }
 
     private static boolean submit(HandState state, LocalPlayer player, int slot, ItemStack current) {
@@ -142,8 +146,10 @@ public final class QuickShulkerRestockFallback {
             return false;
         }
         int ipnDelay = Ipn.refillDelay(slot, candidate.template, current);
-        if (ipnDelay < 0 || (!candidate.tweakerooTried
-                && ItemStack.isSameItemSameComponents(candidate.template, current) && Tweakeroo.active())) {
+        if (ipnDelay < 0 || (!candidate.tweakerooTried && ItemStack.isSameItemSameComponents(
+                candidate.template,
+                current
+        ) && Tweakeroo.active())) {
             state.waitStarted = -1;
             return false;
         }
@@ -165,8 +171,11 @@ public final class QuickShulkerRestockFallback {
         if (!QuickShulkerConnection.canOpen()) {
             return false;
         }
-        Attempt attempt = new Attempt(current.getCount(), new QuickCrossBoxSortStackKey(candidate.template),
-                shulkerContents(player.getInventory()));
+        Attempt attempt = new Attempt(
+                current.getCount(),
+                new QuickCrossBoxSortStackKey(candidate.template),
+                shulkerContents(player.getInventory())
+        );
         if (attempt.equals(state.attempt)) {
             return false;
         }
@@ -186,7 +195,7 @@ public final class QuickShulkerRestockFallback {
         }
         ItemStack comparable;
         if (reference.getItem() instanceof MobBucketItem) {
-            // Individually caught mobs carry different data, such as the tadpole's age.
+            // 分别捕获的生物可能携带不同数据，例如蝌蚪的年龄。
             comparable = replacement.copy();
             comparable.set(DataComponents.BUCKET_ENTITY_DATA, reference.get(DataComponents.BUCKET_ENTITY_DATA));
         } else if (reference.isDamageableItem() && replacement.isDamageableItem()) {
@@ -216,13 +225,19 @@ public final class QuickShulkerRestockFallback {
         bind(client);
         ItemStack first = client.player.getMainHandItem();
         if (first.is(Items.TOTEM_OF_UNDYING) || main.previous.is(Items.TOTEM_OF_UNDYING)) {
-            markConsumed(client.player, InteractionHand.MAIN_HAND,
-                    first.is(Items.TOTEM_OF_UNDYING) ? first : main.previous);
+            markConsumed(
+                    client.player,
+                    InteractionHand.MAIN_HAND,
+                    first.is(Items.TOTEM_OF_UNDYING) ? first : main.previous
+            );
         } else {
             ItemStack second = client.player.getOffhandItem();
             if (second.is(Items.TOTEM_OF_UNDYING) || offhand.previous.is(Items.TOTEM_OF_UNDYING)) {
-                markConsumed(client.player, InteractionHand.OFF_HAND,
-                        second.is(Items.TOTEM_OF_UNDYING) ? second : offhand.previous);
+                markConsumed(
+                        client.player,
+                        InteractionHand.OFF_HAND,
+                        second.is(Items.TOTEM_OF_UNDYING) ? second : offhand.previous
+                );
             }
         }
     }
@@ -253,10 +268,12 @@ public final class QuickShulkerRestockFallback {
         state.consumedUntil = tickNumber + CONSUMPTION_TIMEOUT;
     }
 
-    /** Called only after Tweakeroo reaches a qualified restock and leaves that hand untouched. */
+    /** 仅在 Tweakeroo 到达满足条件的补货流程且该手物品仍未被改变时调用。 */
     public static void afterTweakeroo(Player player, InteractionHand hand, ItemStack reference, ItemStack before) {
         Minecraft client = Minecraft.getInstance();
-        if (!enabled() || player != client.player || reference.isEmpty()
+        if (!enabled()
+                || player != client.player
+                || reference.isEmpty()
                 || QuickClientScreenAccess.currentScreen(client) != null
                 || hand != InteractionHand.MAIN_HAND && hand != InteractionHand.OFF_HAND) {
             return;
@@ -270,8 +287,10 @@ public final class QuickShulkerRestockFallback {
             state.consumed = ItemStack.EMPTY;
             return;
         }
-        if (!current.isEmpty() && !isRemainder(reference, current)
-                && (!ItemStack.isSameItemSameComponents(reference, current) || current.getCount() >= current.getMaxStackSize())) {
+        if (!current.isEmpty() && !isRemainder(reference, current) && (!ItemStack.isSameItemSameComponents(
+                reference,
+                current
+        ) || current.getCount() >= current.getMaxStackSize())) {
             return;
         }
         if (state == main) {
@@ -289,8 +308,8 @@ public final class QuickShulkerRestockFallback {
             return false;
         }
         if (current.is(Items.BUCKET)) {
-            return !reference.is(Items.BUCKET) && (reference.getItem() instanceof BucketItem
-                    || reference.getItem() instanceof SolidBucketItem || reference.is(Items.MILK_BUCKET));
+            return !reference.is(Items.BUCKET) && (reference.getItem() instanceof BucketItem || reference
+                    .getItem() instanceof SolidBucketItem || reference.is(Items.MILK_BUCKET));
         }
         if (current.is(Items.GLASS_BOTTLE)) {
             return reference.is(Items.POTION) || reference.is(Items.HONEY_BOTTLE);
@@ -336,9 +355,14 @@ public final class QuickShulkerRestockFallback {
         }
     }
 
-    private record Candidate(ItemStack template, ItemStack observed, int grace, boolean tweakerooTried) {}
-    private record Attempt(int count, QuickCrossBoxSortStackKey template, List<Box> contents) {}
-    private record Box(int slot, QuickCrossBoxSortStackKey key) {}
+    private record Candidate(ItemStack template, ItemStack observed, int grace, boolean tweakerooTried) {
+    }
+
+    private record Attempt(int count, QuickCrossBoxSortStackKey template, List<Box> contents) {
+    }
+
+    private record Box(int slot, QuickCrossBoxSortStackKey key) {
+    }
 
     private static final class Tweakeroo {
         private static final boolean LOADED = FabricLoader.getInstance().isModLoaded("tweakeroo");
@@ -356,8 +380,10 @@ public final class QuickShulkerRestockFallback {
                 Class<?> type = Class.forName("fi.dy.masa.tweakeroo.config.FeatureToggle");
                 return IConfigBoolean.class.cast(type.getField("TWEAK_HAND_RESTOCK").get(null));
             } catch (ReflectiveOperationException | LinkageError | ClassCastException failure) {
-                LoggerFactory.getLogger(QuickShulkerRestockFallback.class)
-                        .warn("Could not read the Tweakeroo hand restock setting", failure);
+                LoggerFactory.getLogger(QuickShulkerRestockFallback.class).warn(
+                        "Could not read the Tweakeroo hand restock setting",
+                        failure
+                );
                 return null;
             }
         }
@@ -369,12 +395,20 @@ public final class QuickShulkerRestockFallback {
         private static boolean logged;
         private static final Option ENABLED = option("ModSettings", "getENABLE_AUTO_REFILL", "getBooleanValue");
         private static final Option WAIT = option("AutoRefillSettings", "getAUTO_REFILL_WAIT_TICK", "getIntegerValue");
-        private static final Option THRESHOLD = option("AutoRefillSettings", "getSTACKABLE_THRESHOLD", "getIntegerValue");
+        private static final Option THRESHOLD = option(
+                "AutoRefillSettings",
+                "getSTACKABLE_THRESHOLD",
+                "getIntegerValue"
+        );
         private static final Option BLACKLIST = option("AutoRefillSettings", "getAUTOREFILL_BLACKLIST", "getValue");
-        private static final Option PER_SLOT = option("AutoRefillSettings", "getAUTO_REFILL_ENABLE_PER_SLOT_CONFIG", "getBooleanValue");
+        private static final Option PER_SLOT = option(
+                "AutoRefillSettings",
+                "getAUTO_REFILL_ENABLE_PER_SLOT_CONFIG",
+                "getBooleanValue"
+        );
         private static final Set<?> DISABLED_SLOTS = disabledSlots();
 
-        /** A negative delay means IPN's threshold has not yet been reached. */
+        /** 延迟为负数表示还没达到 IPN 的补货阈值。 */
         static int refillDelay(int slot, ItemStack template, ItemStack current) {
             if (!LOADED) {
                 return 0;
@@ -418,7 +452,9 @@ public final class QuickShulkerRestockFallback {
             if (LOADED) {
                 try {
                     Class<?> handler = Class.forName("org.anti_ad.mc.ipnext.event.autorefill.AutoRefillHandler");
-                    return (Set<?>) handler.getMethod("getDisabledSlots").invoke(handler.getField("INSTANCE").get(null));
+                    return (Set<?>) handler.getMethod("getDisabledSlots").invoke(
+                            handler.getField("INSTANCE").get(null)
+                    );
                 } catch (ReflectiveOperationException | LinkageError failure) {
                     log(failure);
                 }
@@ -444,8 +480,10 @@ public final class QuickShulkerRestockFallback {
         private static void log(Throwable failure) {
             if (!logged) {
                 logged = true;
-                LoggerFactory.getLogger(QuickShulkerRestockFallback.class)
-                        .warn("Could not read Inventory Profiles Next auto refill settings", failure);
+                LoggerFactory.getLogger(QuickShulkerRestockFallback.class).warn(
+                        "Could not read Inventory Profiles Next auto refill settings",
+                        failure
+                );
             }
         }
 

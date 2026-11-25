@@ -25,8 +25,7 @@ public final class QuickInventoryShulkerTools {
     private static int pendingTicks;
     private static boolean consumeRightRelease;
 
-    private QuickInventoryShulkerTools() {
-    }
+    private QuickInventoryShulkerTools() {}
 
     public static boolean handleMouseClick(double mouseX, double mouseY, int button, boolean pressed) {
         MinecraftClient client = MinecraftClient.getInstance();
@@ -62,9 +61,12 @@ public final class QuickInventoryShulkerTools {
             return true;
         }
         ContainerToolMode mode = QuickCraftConfigs.getContainerToolMode();
-        if (client.player == null || client.world == null || client.currentScreen != screen
+        if (client.player == null
+                || client.world == null
+                || client.currentScreen != screen
                 || !screen.getScreenHandler().getCursorStack().isEmpty()
-                || !isEnabled(mode) || !QuickShulkerConnection.canOpen()
+                || !isEnabled(mode)
+                || !QuickShulkerConnection.canOpen()
                 || QuickCraftWorkbenchShulker.shouldBlockWorkbenchInput()
                 || QuickContainerCopy.shouldHideBackgroundHandledScreen()
                 || QuickMaterialCollector.shouldHideBackgroundHandledScreen()) {
@@ -111,10 +113,10 @@ public final class QuickInventoryShulkerTools {
         if (current == sourceScreen && openedScreen == null) {
             return;
         }
-        if (!(current instanceof HandledScreen<?> screen)
-                || !(screen.getScreenHandler() instanceof ShulkerBoxScreenHandler)
-                || screen.getScreenHandler() != client.player.currentScreenHandler
-                || openedScreen != null && current != openedScreen) {
+        if (!(current instanceof HandledScreen<?> screen) || !(screen
+                .getScreenHandler() instanceof ShulkerBoxScreenHandler) || screen
+                        .getScreenHandler() != client.player.currentScreenHandler || openedScreen != null
+                                && current != openedScreen) {
             clearPending();
             return;
         }
@@ -148,13 +150,15 @@ public final class QuickInventoryShulkerTools {
             }
             case QUICK_CLEAR -> new QuickClearContainer().clearContainer(screen);
             case QUICK_FILL -> new QuickFillContainer().fillContainer(screen);
-            default -> { return; }
+            default -> {
+                return;
+            }
         }
     }
 
     private static boolean isEnabled(ContainerToolMode mode) {
-        if (!QuickCraftConfigs.isContainerToolModeEnabled()
-                || !QuickCraftConfigs.ModSupport.ENABLE_QUICK_SHULKER.getBooleanValue()) {
+        if (!QuickCraftConfigs.isContainerToolModeEnabled() || !QuickCraftConfigs.ModSupport.ENABLE_QUICK_SHULKER
+                .getBooleanValue()) {
             return false;
         }
         return switch (mode) {

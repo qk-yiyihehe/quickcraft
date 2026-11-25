@@ -26,10 +26,9 @@ final class QuickLitematicaPreviewImageWriter {
     private static final long MAX_SOURCE_FILE_BYTES = 128L * 1024L * 1024L;
     private static final int MAX_SOURCE_DIMENSION = 8192;
     private static final long MAX_SOURCE_PIXELS = (long) MAX_SOURCE_DIMENSION * MAX_SOURCE_DIMENSION;
-    private static final String[] SUPPORTED_EXTENSIONS = {"png", "jpg", "jpeg"};
+    private static final String[] SUPPORTED_EXTENSIONS = { "png", "jpg", "jpeg" };
 
-    private QuickLitematicaPreviewImageWriter() {
-    }
+    private QuickLitematicaPreviewImageWriter() {}
 
     @Nullable
     static Path chooseImage(Path schematicPath) {
@@ -111,12 +110,18 @@ final class QuickLitematicaPreviewImageWriter {
         Path temporary = Files.createTempFile(directory, ".quickcraft-preview-", LitematicaSchematic.FILE_EXTENSION);
         try {
             Path temporaryName = temporary.getFileName();
-            if (temporaryName == null
-                    || !QuickLitematicaPreviewImageWriterAccess.writeSchematic(schematic, directory, temporaryName.toString(), true)) {
+            if (temporaryName == null || !QuickLitematicaPreviewImageWriterAccess.writeSchematic(
+                    schematic,
+                    directory,
+                    temporaryName.toString(),
+                    true
+            )) {
                 throw new IOException("Failed to write temporary litematic file");
             }
             LitematicaSchematic written = QuickLitematicaPreviewImageWriterAccess.readSchematic(
-                    directory, temporaryName.toString());
+                    directory,
+                    temporaryName.toString()
+            );
             if (written == null) {
                 throw new IOException("Failed to verify temporary litematic file");
             }
@@ -156,8 +161,9 @@ final class QuickLitematicaPreviewImageWriter {
 
         boolean matches(Path target) {
             try {
-                return Files.isRegularFile(target)
-                        && this.contentHash.equals(QuickLitematicaPreviewCache.hashFile(target));
+                return Files.isRegularFile(target) && this.contentHash.equals(
+                        QuickLitematicaPreviewCache.hashFile(target)
+                );
             } catch (IOException failure) {
                 return false;
             }
@@ -249,12 +255,7 @@ final class QuickLitematicaPreviewImageWriter {
 
     private static void replaceFile(Path temporary, Path target) throws IOException {
         try {
-            Files.move(
-                    temporary,
-                    target,
-                    StandardCopyOption.ATOMIC_MOVE,
-                    StandardCopyOption.REPLACE_EXISTING
-            );
+            Files.move(temporary, target, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
         } catch (IOException atomicFailure) {
             try {
                 Files.move(temporary, target, StandardCopyOption.REPLACE_EXISTING);
@@ -265,12 +266,9 @@ final class QuickLitematicaPreviewImageWriter {
         }
     }
 
-    static final class ImageTooLargeException extends IOException {
-    }
+    static final class ImageTooLargeException extends IOException {}
 
-    static final class InvalidImageException extends IOException {
-    }
+    static final class InvalidImageException extends IOException {}
 
-    static final class TargetChangedException extends IOException {
-    }
+    static final class TargetChangedException extends IOException {}
 }

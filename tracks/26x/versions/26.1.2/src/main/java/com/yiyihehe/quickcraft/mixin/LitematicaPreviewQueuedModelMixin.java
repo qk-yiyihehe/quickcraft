@@ -21,13 +21,25 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 @Mixin(ModelFeatureRenderer.class)
 public abstract class LitematicaPreviewQueuedModelMixin {
     @Invoker("renderModel")
-    public abstract void quickcraft$renderModel(SubmitNodeStorage.ModelSubmit<?> model, RenderType layer,
-            VertexConsumer consumer, OutlineBufferSource outline, MultiBufferSource.BufferSource crumbling);
+    public abstract void quickcraft$renderModel(
+            SubmitNodeStorage.ModelSubmit<?> model,
+            RenderType layer,
+            VertexConsumer consumer,
+            OutlineBufferSource outline,
+            MultiBufferSource.BufferSource crumbling
+    );
 
     @Inject(method = "renderBatch", at = @At("HEAD"), cancellable = true)
-    private void quickcraft$deferModels(MultiBufferSource.BufferSource buffers, OutlineBufferSource outline,
-            Map<RenderType, List<SubmitNodeStorage.ModelSubmit<?>>> models, MultiBufferSource.BufferSource crumbling, CallbackInfo ci) {
-        if (!QuickLitematicaPreviewQueuedBuild.isCapturing(buffers)) return;
+    private void quickcraft$deferModels(
+            MultiBufferSource.BufferSource buffers,
+            OutlineBufferSource outline,
+            Map<RenderType, List<SubmitNodeStorage.ModelSubmit<?>>> models,
+            MultiBufferSource.BufferSource crumbling,
+            CallbackInfo ci
+    ) {
+        if (!QuickLitematicaPreviewQueuedBuild.isCapturing(buffers)) {
+            return;
+        }
         Iterable<Map.Entry<RenderType, List<SubmitNodeStorage.ModelSubmit<?>>>> entries = models.entrySet();
         if (SharedConstants.DEBUG_SHUFFLE_MODELS) {
             var shuffled = new ArrayList<>(models.entrySet());
@@ -42,10 +54,28 @@ public abstract class LitematicaPreviewQueuedModelMixin {
     }
 
     @Inject(method = "renderTranslucents", at = @At("HEAD"), cancellable = true)
-    private void quickcraft$deferBlended(MultiBufferSource.BufferSource buffers, OutlineBufferSource outline,
-            List<SubmitNodeStorage.TranslucentModelSubmit<?>> models, MultiBufferSource.BufferSource crumbling, CallbackInfo ci) {
-        if (!QuickLitematicaPreviewQueuedBuild.isCapturing(buffers)) return;
-        if (QuickLitematicaPreviewQueuedBuild.deferList(buffers, models, model -> this.quickcraft$renderModel(
-                model.modelSubmit(), model.renderType(), buffers.getBuffer(model.renderType()), outline, crumbling))) ci.cancel();
+    private void quickcraft$deferBlended(
+            MultiBufferSource.BufferSource buffers,
+            OutlineBufferSource outline,
+            List<SubmitNodeStorage.TranslucentModelSubmit<?>> models,
+            MultiBufferSource.BufferSource crumbling,
+            CallbackInfo ci
+    ) {
+        if (!QuickLitematicaPreviewQueuedBuild.isCapturing(buffers)) {
+            return;
+        }
+        if (QuickLitematicaPreviewQueuedBuild.deferList(
+                buffers,
+                models,
+                model -> this.quickcraft$renderModel(
+                        model.modelSubmit(),
+                        model.renderType(),
+                        buffers.getBuffer(model.renderType()),
+                        outline,
+                        crumbling
+                )
+        )) {
+            ci.cancel();
+        }
     }
 }

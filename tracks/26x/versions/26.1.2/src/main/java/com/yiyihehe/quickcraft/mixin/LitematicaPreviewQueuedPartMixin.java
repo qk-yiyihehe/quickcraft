@@ -22,53 +22,86 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 @Mixin(ModelPartFeatureRenderer.class)
 public abstract class LitematicaPreviewQueuedPartMixin {
-    @Shadow @Final private PoseStack poseStack;
+    @Shadow
+    @Final
+    private PoseStack poseStack;
 
     @Inject(method = "render", at = @At("HEAD"), cancellable = true)
-    private void quickcraft$deferParts(Map<RenderType, List<SubmitNodeStorage.ModelPartSubmit>> modelPartSubmitsMap,
-            MultiBufferSource.BufferSource bufferSource, OutlineBufferSource outlineBufferSource,
-            MultiBufferSource.BufferSource crumblingBufferSource, CallbackInfo ci) {
-        if (!QuickLitematicaPreviewQueuedBuild.isCapturing(bufferSource)) return;
+    private void quickcraft$deferParts(
+            Map<RenderType, List<SubmitNodeStorage.ModelPartSubmit>> modelPartSubmitsMap,
+            MultiBufferSource.BufferSource bufferSource,
+            OutlineBufferSource outlineBufferSource,
+            MultiBufferSource.BufferSource crumblingBufferSource,
+            CallbackInfo ci
+    ) {
+        if (!QuickLitematicaPreviewQueuedBuild.isCapturing(bufferSource)) {
+            return;
+        }
         QuickLitematicaPreviewQueuedBuild.deferEntries(bufferSource, modelPartSubmitsMap.entrySet(), renderType -> {
             VertexConsumer buffer = bufferSource.getBuffer(renderType);
             return modelPartSubmit -> {
                 VertexConsumer actualBuffer;
                 if (modelPartSubmit.sprite() != null) {
                     if (modelPartSubmit.hasFoil()) {
-                        actualBuffer = modelPartSubmit.sprite().wrap(ItemFeatureRenderer.getFoilBuffer(bufferSource, renderType, modelPartSubmit.sheeted(), true));
+                        actualBuffer = modelPartSubmit.sprite().wrap(
+                                ItemFeatureRenderer.getFoilBuffer(
+                                        bufferSource,
+                                        renderType,
+                                        modelPartSubmit.sheeted(),
+                                        true
+                                )
+                        );
                     } else {
                         actualBuffer = modelPartSubmit.sprite().wrap(buffer);
                     }
                 } else if (modelPartSubmit.hasFoil()) {
-                    actualBuffer = ItemFeatureRenderer.getFoilBuffer(bufferSource, renderType, modelPartSubmit.sheeted(), true);
+                    actualBuffer = ItemFeatureRenderer.getFoilBuffer(
+                            bufferSource,
+                            renderType,
+                            modelPartSubmit.sheeted(),
+                            true
+                    );
                 } else {
                     actualBuffer = buffer;
                 }
 
                 this.poseStack.last().set(modelPartSubmit.pose());
-                modelPartSubmit.modelPart()
-                    .render(this.poseStack, actualBuffer, modelPartSubmit.lightCoords(), modelPartSubmit.overlayCoords(), modelPartSubmit.tintedColor());
-                if (modelPartSubmit.outlineColor() != 0 && (renderType.outline().isPresent() || renderType.isOutline())) {
+                modelPartSubmit.modelPart().render(
+                        this.poseStack,
+                        actualBuffer,
+                        modelPartSubmit.lightCoords(),
+                        modelPartSubmit.overlayCoords(),
+                        modelPartSubmit.tintedColor()
+                );
+                if (modelPartSubmit.outlineColor() != 0 && (renderType.outline().isPresent() || renderType
+                        .isOutline())) {
                     outlineBufferSource.setColor(modelPartSubmit.outlineColor());
                     VertexConsumer outlineBuffer = outlineBufferSource.getBuffer(renderType);
-                    modelPartSubmit.modelPart()
-                        .render(
+                    modelPartSubmit.modelPart().render(
                             this.poseStack,
-                            modelPartSubmit.sprite() == null ? outlineBuffer : modelPartSubmit.sprite().wrap(outlineBuffer),
+                            modelPartSubmit.sprite() == null ? outlineBuffer
+                                    : modelPartSubmit.sprite().wrap(outlineBuffer),
                             modelPartSubmit.lightCoords(),
                             modelPartSubmit.overlayCoords(),
                             modelPartSubmit.tintedColor()
-                        );
+                    );
                 }
 
                 if (modelPartSubmit.crumblingOverlay() != null) {
                     VertexConsumer breakingBuffer = new SheetedDecalTextureGenerator(
-                        crumblingBufferSource.getBuffer(ModelBakery.DESTROY_TYPES.get(modelPartSubmit.crumblingOverlay().progress())),
-                        modelPartSubmit.crumblingOverlay().cameraPose(),
-                        1.0F
+                            crumblingBufferSource.getBuffer(
+                                    ModelBakery.DESTROY_TYPES.get(modelPartSubmit.crumblingOverlay().progress())
+                            ),
+                            modelPartSubmit.crumblingOverlay().cameraPose(),
+                            1.0F
                     );
-                    modelPartSubmit.modelPart()
-                        .render(this.poseStack, breakingBuffer, modelPartSubmit.lightCoords(), modelPartSubmit.overlayCoords(), modelPartSubmit.tintedColor());
+                    modelPartSubmit.modelPart().render(
+                            this.poseStack,
+                            breakingBuffer,
+                            modelPartSubmit.lightCoords(),
+                            modelPartSubmit.overlayCoords(),
+                            modelPartSubmit.tintedColor()
+                    );
                 }
 
             };

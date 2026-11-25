@@ -23,10 +23,22 @@ class QuickCraftAnvilCreativeTest {
     @Test
     void appliesTargetsWithoutBooksAndKeepsTheOriginalDataAndCompatibleEnchantments() {
         var ops = net.minecraft.registry.BuiltinRegistries.createWrapperLookup().getOps(JsonOps.INSTANCE);
-        var efficiency = withTags(Enchantment.ENTRY_CODEC.parse(ops, new JsonPrimitive("minecraft:efficiency")).getOrThrow(), false);
-        var silk = withTags(Enchantment.ENTRY_CODEC.parse(ops, new JsonPrimitive("minecraft:silk_touch")).getOrThrow(), true);
-        var fortune = withTags(Enchantment.ENTRY_CODEC.parse(ops, new JsonPrimitive("minecraft:fortune")).getOrThrow(), true);
-        var mending = withTags(Enchantment.ENTRY_CODEC.parse(ops, new JsonPrimitive("minecraft:mending")).getOrThrow(), false);
+        var efficiency = withTags(
+                Enchantment.ENTRY_CODEC.parse(ops, new JsonPrimitive("minecraft:efficiency")).getOrThrow(),
+                false
+        );
+        var silk = withTags(
+                Enchantment.ENTRY_CODEC.parse(ops, new JsonPrimitive("minecraft:silk_touch")).getOrThrow(),
+                true
+        );
+        var fortune = withTags(
+                Enchantment.ENTRY_CODEC.parse(ops, new JsonPrimitive("minecraft:fortune")).getOrThrow(),
+                true
+        );
+        var mending = withTags(
+                Enchantment.ENTRY_CODEC.parse(ops, new JsonPrimitive("minecraft:mending")).getOrThrow(),
+                false
+        );
         var seed = new ItemStack(Items.DIAMOND_PICKAXE);
         seed.set(DataComponentTypes.CUSTOM_NAME, Text.literal("My pickaxe"));
         seed.set(DataComponentTypes.REPAIR_COST, 9);
@@ -49,8 +61,9 @@ class QuickCraftAnvilCreativeTest {
     private static RegistryEntry<Enchantment> withTags(RegistryEntry<Enchantment> entry, boolean miningExclusive) {
         var tagged = spy(entry);
         // 数据生成注册表不绑定标签；只补充本用例需要的原版挖掘互斥组。
-        doAnswer(invocation -> miningExclusive && EnchantmentTags.MINING_EXCLUSIVE_SET.equals(invocation.getArgument(0)))
-                .when(tagged).isIn(org.mockito.ArgumentMatchers.<TagKey<Enchantment>>any());
+        doAnswer(
+                invocation -> miningExclusive && EnchantmentTags.MINING_EXCLUSIVE_SET.equals(invocation.getArgument(0))
+        ).when(tagged).isIn(org.mockito.ArgumentMatchers.<TagKey<Enchantment>>any());
         return tagged;
     }
 }

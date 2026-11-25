@@ -24,7 +24,16 @@ public abstract class QuickLitematicaEntityPlacementScreenBase extends Screen {
         context.drawTexture(RenderLayer::getGuiTextured, texture, x, y, 0, 0, w, h, 256, 256);
     }
 
-    protected void drawHopperTexture(DrawContext context, Identifier texture, int x, int y, int u, int v, int w, int h) {
+    protected void drawHopperTexture(
+            DrawContext context,
+            Identifier texture,
+            int x,
+            int y,
+            int u,
+            int v,
+            int w,
+            int h
+    ) {
         context.drawTexture(RenderLayer::getGuiTextured, texture, x, y, u, v, w, h, 256, 256);
     }
 

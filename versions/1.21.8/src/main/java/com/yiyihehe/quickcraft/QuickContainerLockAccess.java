@@ -9,16 +9,22 @@ import net.minecraft.util.Identifier;
  * 1.21.8 材质绘制管线迁移至 RenderPipelines.GUI_TEXTURED。
  */
 public final class QuickContainerLockAccess {
-    private QuickContainerLockAccess() {
-    }
+    private QuickContainerLockAccess() {}
 
     public static int getSelectedSlot(PlayerInventory inventory) {
         return inventory.getSelectedSlot();
     }
 
-    public static void renderSlotLockIcon(DrawContext context, Identifier texture,
-                                          int left, int top, int width, int height,
-                                          int textureWidth, int textureHeight) {
+    public static void renderSlotLockIcon(
+            DrawContext context,
+            Identifier texture,
+            int left,
+            int top,
+            int width,
+            int height,
+            int textureWidth,
+            int textureHeight
+    ) {
         context.drawTexture(
                 RenderPipelines.GUI_TEXTURED,
                 texture,

@@ -12,12 +12,21 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
-/** Forwards drag lifecycle events that AbstractContainerScreen otherwise reserves for slot dragging. */
+/** 转发拖拽各阶段的事件，因为 AbstractContainerScreen 默认会将其用于槽位拖拽。 */
 @Mixin(AbstractContainerScreen.class)
 public abstract class QuickDraggableButtonScreenMixin {
     @Inject(method = "mouseClicked", at = @At("HEAD"), cancellable = true)
-    private void quickcraft$clickPortableStorage(MouseButtonEvent event, boolean doubleClick, CallbackInfoReturnable<Boolean> cir) {
-        if (QuickPortableStoragePanel.click((AbstractContainerScreen<?>) (Object) this, event.x(), event.y(), event.button())) {
+    private void quickcraft$clickPortableStorage(
+            MouseButtonEvent event,
+            boolean doubleClick,
+            CallbackInfoReturnable<Boolean> cir
+    ) {
+        if (QuickPortableStoragePanel.click(
+                (AbstractContainerScreen<?>) (Object) this,
+                event.x(),
+                event.y(),
+                event.button()
+        )) {
             cir.setReturnValue(true);
         }
     }
@@ -30,11 +39,14 @@ public abstract class QuickDraggableButtonScreenMixin {
     }
 
     @Inject(method = "mouseDragged", at = @At("HEAD"), cancellable = true)
-    private void quickcraft$dragActionButton(MouseButtonEvent event, double deltaX, double deltaY,
-                                             CallbackInfoReturnable<Boolean> cir) {
+    private void quickcraft$dragActionButton(
+            MouseButtonEvent event,
+            double deltaX,
+            double deltaY,
+            CallbackInfoReturnable<Boolean> cir
+    ) {
         AbstractContainerScreen<?> screen = (AbstractContainerScreen<?>) (Object) this;
-        if (screen.getFocused() instanceof QuickDraggableButton actionButton
-                && actionButton.isPositionDragging()) {
+        if (screen.getFocused() instanceof QuickDraggableButton actionButton && actionButton.isPositionDragging()) {
             cir.setReturnValue(actionButton.mouseDragged(event, deltaX, deltaY));
         } else if (QuickPortableStoragePanel.drag(screen, event.x(), event.y(), event.button())) {
             cir.setReturnValue(true);
@@ -42,8 +54,7 @@ public abstract class QuickDraggableButtonScreenMixin {
     }
 
     @Inject(method = "mouseReleased", at = @At("HEAD"), cancellable = true)
-    private void quickcraft$releaseActionButton(MouseButtonEvent event,
-                                                CallbackInfoReturnable<Boolean> cir) {
+    private void quickcraft$releaseActionButton(MouseButtonEvent event, CallbackInfoReturnable<Boolean> cir) {
         AbstractContainerScreen<?> screen = (AbstractContainerScreen<?>) (Object) this;
         if (!(screen.getFocused() instanceof QuickDraggableButton actionButton)) {
             if (QuickPortableStoragePanel.release(screen, event.x(), event.y(), event.button())) {

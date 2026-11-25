@@ -62,24 +62,31 @@ class QuickLitematicaChestPairIdentityTest {
 
     @Test
     void materialInventoryDoesNotMergeHalfFromAnotherPlacement() throws Exception {
-        LitematicaSchematic schematicA = schematic(1, 1,
+        LitematicaSchematic schematicA = schematic(
+                1,
+                1,
                 Map.of(BlockPos.ORIGIN, chest(ChestType.LEFT)),
-                Map.of(BlockPos.ORIGIN, chestNbt(Items.STONE, 3)));
-        LitematicaSchematic schematicB = schematic(1, 1,
+                Map.of(BlockPos.ORIGIN, chestNbt(Items.STONE, 3))
+        );
+        LitematicaSchematic schematicB = schematic(
+                1,
+                1,
                 Map.of(BlockPos.ORIGIN, chest(ChestType.RIGHT)),
-                Map.of(BlockPos.ORIGIN, chestNbt(Items.GLASS, 2)));
+                Map.of(BlockPos.ORIGIN, chestNbt(Items.GLASS, 2))
+        );
         SchematicPlacement placementA = placement(schematicA, CURRENT);
         SchematicPlacement placementB = placement(schematicB, ADJACENT);
         ClientWorld world = world();
         MinecraftClient client = client(world);
 
         try (var minecraft = mockStatic(MinecraftClient.class);
-             var data = mockStatic(DataManager.class);
-             var globals = mockStatic(QuickLitematicaGlobalReplacements.class, CALLS_REAL_METHODS)) {
+                var data = mockStatic(DataManager.class);
+                var globals = mockStatic(QuickLitematicaGlobalReplacements.class, CALLS_REAL_METHODS)) {
             minecraft.when(MinecraftClient::getInstance).thenReturn(client);
             stubManager(data, List.of(part(placementA, CURRENT, CURRENT), part(placementB, ADJACENT, ADJACENT)));
-            globals.when(() -> QuickLitematicaGlobalReplacements.runtime(any(SchematicPlacement.class)))
-                    .thenAnswer(invocation -> ((SchematicPlacement) invocation.getArgument(0)).getSchematic());
+            globals.when(() -> QuickLitematicaGlobalReplacements.runtime(any(SchematicPlacement.class))).thenAnswer(
+                    invocation -> ((SchematicPlacement) invocation.getArgument(0)).getSchematic()
+            );
 
             // 当前半在 A、相邻半在 B：跨 placement 的 27+27 不能拼成 54。
             assertThat(QuickLitematicaContainerVerifier.getMaterialInventoryAt(world, CURRENT, 54)).isNull();
@@ -92,22 +99,24 @@ class QuickLitematicaChestPairIdentityTest {
 
     @Test
     void materialInventoryMergesLegalPairInsideOnePlacement() throws Exception {
-        LitematicaSchematic schematic = schematic(2, 1,
-                Map.of(new BlockPos(0, 0, 0), chest(ChestType.LEFT),
-                        new BlockPos(1, 0, 0), chest(ChestType.RIGHT)),
-                Map.of(new BlockPos(0, 0, 0), chestNbt(Items.STONE, 3),
-                        new BlockPos(1, 0, 0), chestNbt(Items.GLASS, 2)));
+        LitematicaSchematic schematic = schematic(
+                2,
+                1,
+                Map.of(new BlockPos(0, 0, 0), chest(ChestType.LEFT), new BlockPos(1, 0, 0), chest(ChestType.RIGHT)),
+                Map.of(new BlockPos(0, 0, 0), chestNbt(Items.STONE, 3), new BlockPos(1, 0, 0), chestNbt(Items.GLASS, 2))
+        );
         SchematicPlacement placement = placement(schematic, CURRENT);
         ClientWorld world = world();
         MinecraftClient client = client(world);
 
         try (var minecraft = mockStatic(MinecraftClient.class);
-             var data = mockStatic(DataManager.class);
-             var globals = mockStatic(QuickLitematicaGlobalReplacements.class, CALLS_REAL_METHODS)) {
+                var data = mockStatic(DataManager.class);
+                var globals = mockStatic(QuickLitematicaGlobalReplacements.class, CALLS_REAL_METHODS)) {
             minecraft.when(MinecraftClient::getInstance).thenReturn(client);
             stubManager(data, List.of(part(placement, CURRENT, ADJACENT)));
-            globals.when(() -> QuickLitematicaGlobalReplacements.runtime(any(SchematicPlacement.class)))
-                    .thenAnswer(invocation -> ((SchematicPlacement) invocation.getArgument(0)).getSchematic());
+            globals.when(() -> QuickLitematicaGlobalReplacements.runtime(any(SchematicPlacement.class))).thenAnswer(
+                    invocation -> ((SchematicPlacement) invocation.getArgument(0)).getSchematic()
+            );
 
             Inventory merged = QuickLitematicaContainerVerifier.getMaterialInventoryAt(world, CURRENT, 54);
             assertThat(merged).isNotNull();
@@ -120,22 +129,34 @@ class QuickLitematicaChestPairIdentityTest {
 
     @Test
     void materialInventoryRejectsSamePlacementUnpairedNeighbor() throws Exception {
-        LitematicaSchematic schematic = schematic(2, 1,
-                Map.of(new BlockPos(0, 0, 0), chest(ChestType.LEFT),
-                        new BlockPos(1, 0, 0), Blocks.BARREL.getDefaultState()),
-                Map.of(new BlockPos(0, 0, 0), chestNbt(Items.STONE, 3),
-                        new BlockPos(1, 0, 0), barrelNbt(Items.GLASS, 2)));
+        LitematicaSchematic schematic = schematic(
+                2,
+                1,
+                Map.of(
+                        new BlockPos(0, 0, 0),
+                        chest(ChestType.LEFT),
+                        new BlockPos(1, 0, 0),
+                        Blocks.BARREL.getDefaultState()
+                ),
+                Map.of(
+                        new BlockPos(0, 0, 0),
+                        chestNbt(Items.STONE, 3),
+                        new BlockPos(1, 0, 0),
+                        barrelNbt(Items.GLASS, 2)
+                )
+        );
         SchematicPlacement placement = placement(schematic, CURRENT);
         ClientWorld world = world();
         MinecraftClient client = client(world);
 
         try (var minecraft = mockStatic(MinecraftClient.class);
-             var data = mockStatic(DataManager.class);
-             var globals = mockStatic(QuickLitematicaGlobalReplacements.class, CALLS_REAL_METHODS)) {
+                var data = mockStatic(DataManager.class);
+                var globals = mockStatic(QuickLitematicaGlobalReplacements.class, CALLS_REAL_METHODS)) {
             minecraft.when(MinecraftClient::getInstance).thenReturn(client);
             stubManager(data, List.of(part(placement, CURRENT, ADJACENT)));
-            globals.when(() -> QuickLitematicaGlobalReplacements.runtime(any(SchematicPlacement.class)))
-                    .thenAnswer(invocation -> ((SchematicPlacement) invocation.getArgument(0)).getSchematic());
+            globals.when(() -> QuickLitematicaGlobalReplacements.runtime(any(SchematicPlacement.class))).thenAnswer(
+                    invocation -> ((SchematicPlacement) invocation.getArgument(0)).getSchematic()
+            );
 
             assertThat(QuickLitematicaContainerVerifier.getMaterialInventoryAt(world, CURRENT, 54)).isNull();
         }
@@ -143,24 +164,31 @@ class QuickLitematicaChestPairIdentityTest {
 
     @Test
     void unpairedUnreadableNeighborDoesNotInvalidateCurrentExpectedHalf() throws Exception {
-        LitematicaSchematic schematicA = schematic(1, 1,
+        LitematicaSchematic schematicA = schematic(
+                1,
+                1,
                 Map.of(BlockPos.ORIGIN, chest(ChestType.LEFT)),
-                Map.of(BlockPos.ORIGIN, emptyChestNbt()));
-        LitematicaSchematic schematicB = schematic(1, 1,
+                Map.of(BlockPos.ORIGIN, emptyChestNbt())
+        );
+        LitematicaSchematic schematicB = schematic(
+                1,
+                1,
                 Map.of(BlockPos.ORIGIN, Blocks.BARREL.getDefaultState()),
-                Map.of(BlockPos.ORIGIN, unreadableBarrelNbt()));
+                Map.of(BlockPos.ORIGIN, unreadableBarrelNbt())
+        );
         SchematicPlacement placementA = placement(schematicA, CURRENT);
         SchematicPlacement placementB = placement(schematicB, ADJACENT);
         ClientWorld world = world();
         MinecraftClient client = client(world);
 
         try (var minecraft = mockStatic(MinecraftClient.class);
-             var data = mockStatic(DataManager.class);
-             var globals = mockStatic(QuickLitematicaGlobalReplacements.class, CALLS_REAL_METHODS)) {
+                var data = mockStatic(DataManager.class);
+                var globals = mockStatic(QuickLitematicaGlobalReplacements.class, CALLS_REAL_METHODS)) {
             minecraft.when(MinecraftClient::getInstance).thenReturn(client);
             stubManager(data, List.of(part(placementA, CURRENT, CURRENT), part(placementB, ADJACENT, ADJACENT)));
-            globals.when(() -> QuickLitematicaGlobalReplacements.runtime(any(SchematicPlacement.class)))
-                    .thenAnswer(invocation -> ((SchematicPlacement) invocation.getArgument(0)).getSchematic());
+            globals.when(() -> QuickLitematicaGlobalReplacements.runtime(any(SchematicPlacement.class))).thenAnswer(
+                    invocation -> ((SchematicPlacement) invocation.getArgument(0)).getSchematic()
+            );
 
             var expected = QuickLitematicaContainerVerifier.getExpectedContainerAt(world, CURRENT, null);
             assertThat(expected).isNotNull();
@@ -171,22 +199,24 @@ class QuickLitematicaChestPairIdentityTest {
 
     @Test
     void pairedUnreadableNeighborStillFailsClosed() throws Exception {
-        LitematicaSchematic schematic = schematic(2, 1,
-                Map.of(new BlockPos(0, 0, 0), chest(ChestType.LEFT),
-                        new BlockPos(1, 0, 0), chest(ChestType.RIGHT)),
-                Map.of(new BlockPos(0, 0, 0), emptyChestNbt(),
-                        new BlockPos(1, 0, 0), unreadableChestNbt()));
+        LitematicaSchematic schematic = schematic(
+                2,
+                1,
+                Map.of(new BlockPos(0, 0, 0), chest(ChestType.LEFT), new BlockPos(1, 0, 0), chest(ChestType.RIGHT)),
+                Map.of(new BlockPos(0, 0, 0), emptyChestNbt(), new BlockPos(1, 0, 0), unreadableChestNbt())
+        );
         SchematicPlacement placement = placement(schematic, CURRENT);
         ClientWorld world = world();
         MinecraftClient client = client(world);
 
         try (var minecraft = mockStatic(MinecraftClient.class);
-             var data = mockStatic(DataManager.class);
-             var globals = mockStatic(QuickLitematicaGlobalReplacements.class, CALLS_REAL_METHODS)) {
+                var data = mockStatic(DataManager.class);
+                var globals = mockStatic(QuickLitematicaGlobalReplacements.class, CALLS_REAL_METHODS)) {
             minecraft.when(MinecraftClient::getInstance).thenReturn(client);
             stubManager(data, List.of(part(placement, CURRENT, ADJACENT)));
-            globals.when(() -> QuickLitematicaGlobalReplacements.runtime(any(SchematicPlacement.class)))
-                    .thenAnswer(invocation -> ((SchematicPlacement) invocation.getArgument(0)).getSchematic());
+            globals.when(() -> QuickLitematicaGlobalReplacements.runtime(any(SchematicPlacement.class))).thenAnswer(
+                    invocation -> ((SchematicPlacement) invocation.getArgument(0)).getSchematic()
+            );
 
             assertThat(QuickLitematicaContainerVerifier.getExpectedContainerAt(world, CURRENT, null)).isNull();
         }
@@ -194,22 +224,24 @@ class QuickLitematicaChestPairIdentityTest {
 
     @Test
     void pairedReadableNeighborMergesExpected54() throws Exception {
-        LitematicaSchematic schematic = schematic(2, 1,
-                Map.of(new BlockPos(0, 0, 0), chest(ChestType.LEFT),
-                        new BlockPos(1, 0, 0), chest(ChestType.RIGHT)),
-                Map.of(new BlockPos(0, 0, 0), emptyChestNbt(),
-                        new BlockPos(1, 0, 0), emptyChestNbt()));
+        LitematicaSchematic schematic = schematic(
+                2,
+                1,
+                Map.of(new BlockPos(0, 0, 0), chest(ChestType.LEFT), new BlockPos(1, 0, 0), chest(ChestType.RIGHT)),
+                Map.of(new BlockPos(0, 0, 0), emptyChestNbt(), new BlockPos(1, 0, 0), emptyChestNbt())
+        );
         SchematicPlacement placement = placement(schematic, CURRENT);
         ClientWorld world = world();
         MinecraftClient client = client(world);
 
         try (var minecraft = mockStatic(MinecraftClient.class);
-             var data = mockStatic(DataManager.class);
-             var globals = mockStatic(QuickLitematicaGlobalReplacements.class, CALLS_REAL_METHODS)) {
+                var data = mockStatic(DataManager.class);
+                var globals = mockStatic(QuickLitematicaGlobalReplacements.class, CALLS_REAL_METHODS)) {
             minecraft.when(MinecraftClient::getInstance).thenReturn(client);
             stubManager(data, List.of(part(placement, CURRENT, ADJACENT)));
-            globals.when(() -> QuickLitematicaGlobalReplacements.runtime(any(SchematicPlacement.class)))
-                    .thenAnswer(invocation -> ((SchematicPlacement) invocation.getArgument(0)).getSchematic());
+            globals.when(() -> QuickLitematicaGlobalReplacements.runtime(any(SchematicPlacement.class))).thenAnswer(
+                    invocation -> ((SchematicPlacement) invocation.getArgument(0)).getSchematic()
+            );
 
             var expected = QuickLitematicaContainerVerifier.getExpectedContainerAt(world, CURRENT, null);
             assertThat(expected).isNotNull();
@@ -233,21 +265,25 @@ class QuickLitematicaChestPairIdentityTest {
 
     private static org.mockito.MockedStatic<DataManager> stubManager(
             org.mockito.MockedStatic<DataManager> data,
-            List<SchematicPlacementManager.PlacementPart> parts) {
+            List<SchematicPlacementManager.PlacementPart> parts
+    ) {
         SchematicPlacementManager manager = mock(SchematicPlacementManager.class);
         when(manager.getAllPlacementsTouchingChunk(any())).thenReturn(parts);
         data.when(DataManager::getSchematicPlacementManager).thenReturn(manager);
         return data;
     }
+
     private static SchematicPlacementManager manager(List<SchematicPlacementManager.PlacementPart> parts) {
         SchematicPlacementManager manager = mock(SchematicPlacementManager.class);
         when(manager.getAllPlacementsTouchingChunk(any())).thenReturn(parts);
         return manager;
     }
 
-
-    private static SchematicPlacementManager.PlacementPart part(SchematicPlacement placement,
-                                                                BlockPos min, BlockPos max) throws Exception {
+    private static SchematicPlacementManager.PlacementPart part(
+            SchematicPlacement placement,
+            BlockPos min,
+            BlockPos max
+    ) throws Exception {
         Constructor<?> constructor = SchematicPlacementManager.PlacementPart.class.getConstructors()[0];
         Class<?> boxClass = constructor.getParameterTypes()[2];
         Object box = boxClass.getConstructor(int.class, int.class, int.class, int.class, int.class, int.class)
@@ -266,7 +302,9 @@ class QuickLitematicaChestPairIdentityTest {
         when(placement.getRotation()).thenReturn(BlockRotation.NONE);
         when(placement.getMirror()).thenReturn(BlockMirror.NONE);
         when(placement.isEnabled()).thenReturn(true);
-        when(placement.getEnabledRelativeSubRegionPlacements()).thenReturn(com.google.common.collect.ImmutableMap.of(REGION, subRegion));
+        when(placement.getEnabledRelativeSubRegionPlacements()).thenReturn(
+                com.google.common.collect.ImmutableMap.of(REGION, subRegion)
+        );
         when(placement.getRelativeSubRegionPlacement(REGION)).thenReturn(subRegion);
         return placement;
     }
@@ -288,9 +326,10 @@ class QuickLitematicaChestPairIdentityTest {
     }
 
     private static BlockState chest(ChestType type) {
-        return Blocks.CHEST.getDefaultState()
-                .with(ChestBlock.CHEST_TYPE, type)
-                .with(ChestBlock.FACING, Direction.NORTH);
+        return Blocks.CHEST.getDefaultState().with(ChestBlock.CHEST_TYPE, type).with(
+                ChestBlock.FACING,
+                Direction.NORTH
+        );
     }
 
     private static NbtCompound chestNbt(net.minecraft.item.Item item, int count) {

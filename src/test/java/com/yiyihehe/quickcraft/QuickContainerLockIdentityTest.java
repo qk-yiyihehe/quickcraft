@@ -52,25 +52,32 @@ class QuickContainerLockIdentityTest {
     @Test
     void independentWrongDirectionAndWrongTypeNeighborsKeepDifferentKeys() {
         BlockState left = chest(ChestType.LEFT, Direction.NORTH);
-        ClientWorld independent = world(pos -> pos.equals(FIRST)
-                ? Blocks.CHEST.getDefaultState().with(ChestBlock.CHEST_TYPE, ChestType.SINGLE)
-                : pos.equals(SECOND)
-                ? Blocks.CHEST.getDefaultState().with(ChestBlock.CHEST_TYPE, ChestType.SINGLE)
-                : Blocks.AIR.getDefaultState());
-        assertThat(QuickContainerLock.buildContainerKey(independent, FIRST))
-                .isNotEqualTo(QuickContainerLock.buildContainerKey(independent, SECOND));
+        ClientWorld independent = world(
+                pos -> pos.equals(FIRST) ? Blocks.CHEST.getDefaultState().with(ChestBlock.CHEST_TYPE, ChestType.SINGLE)
+                        : pos.equals(SECOND) ? Blocks.CHEST.getDefaultState().with(
+                                ChestBlock.CHEST_TYPE,
+                                ChestType.SINGLE
+                        ) : Blocks.AIR.getDefaultState()
+        );
+        assertThat(QuickContainerLock.buildContainerKey(independent, FIRST)).isNotEqualTo(
+                QuickContainerLock.buildContainerKey(independent, SECOND)
+        );
 
-        ClientWorld wrongDirection = world(pos -> pos.equals(FIRST)
-                ? left
-                : pos.equals(SECOND) ? chest(ChestType.RIGHT, Direction.SOUTH) : Blocks.AIR.getDefaultState());
-        assertThat(QuickContainerLock.buildContainerKey(wrongDirection, FIRST))
-                .isNotEqualTo(QuickContainerLock.buildContainerKey(wrongDirection, SECOND));
+        ClientWorld wrongDirection = world(
+                pos -> pos.equals(FIRST) ? left
+                        : pos.equals(SECOND) ? chest(ChestType.RIGHT, Direction.SOUTH) : Blocks.AIR.getDefaultState()
+        );
+        assertThat(QuickContainerLock.buildContainerKey(wrongDirection, FIRST)).isNotEqualTo(
+                QuickContainerLock.buildContainerKey(wrongDirection, SECOND)
+        );
 
-        ClientWorld wrongType = world(pos -> pos.equals(FIRST)
-                ? left
-                : pos.equals(SECOND) ? chest(ChestType.LEFT, Direction.NORTH) : Blocks.AIR.getDefaultState());
-        assertThat(QuickContainerLock.buildContainerKey(wrongType, FIRST))
-                .isNotEqualTo(QuickContainerLock.buildContainerKey(wrongType, SECOND));
+        ClientWorld wrongType = world(
+                pos -> pos.equals(FIRST) ? left
+                        : pos.equals(SECOND) ? chest(ChestType.LEFT, Direction.NORTH) : Blocks.AIR.getDefaultState()
+        );
+        assertThat(QuickContainerLock.buildContainerKey(wrongType, FIRST)).isNotEqualTo(
+                QuickContainerLock.buildContainerKey(wrongType, SECOND)
+        );
     }
 
     @Test
@@ -78,9 +85,9 @@ class QuickContainerLockIdentityTest {
         ClientWorld paired = pairWorld(Direction.NORTH);
         String pairedKey = QuickContainerLock.buildContainerKey(paired, FIRST);
 
-        ClientWorld split = world(pos -> pos.equals(SECOND)
-                ? Blocks.CHEST.getDefaultState()
-                : Blocks.AIR.getDefaultState());
+        ClientWorld split = world(
+                pos -> pos.equals(SECOND) ? Blocks.CHEST.getDefaultState() : Blocks.AIR.getDefaultState()
+        );
         assertThat(QuickContainerLock.buildContainerKey(split, SECOND)).isNotEqualTo(pairedKey);
         assertThat(QuickContainerLock.buildContainerKey(paired, SECOND)).isEqualTo(pairedKey);
     }
@@ -100,8 +107,7 @@ class QuickContainerLockIdentityTest {
         JsonObject saved = new JsonObject();
         QuickContainerLock.writePersistentState(saved);
         JsonObject lock = saved.getAsJsonObject("containerLock");
-        assertThat(lock.getAsJsonArray("lockedContainers"))
-                .extracting(JsonElement::getAsString)
+        assertThat(lock.getAsJsonArray("lockedContainers")).extracting(JsonElement::getAsString)
                 .containsExactlyInAnyOrder("minecraft:overworld#legacy-left", "minecraft:overworld#legacy-right");
         assertThat(lock.getAsJsonObject("lockedContainerSlots").getAsJsonArray("minecraft:overworld#legacy-left"))
                 .extracting(JsonElement::getAsInt).containsExactly(0);
@@ -150,7 +156,7 @@ class QuickContainerLockIdentityTest {
         client.world = world;
 
         try (var minecraft = mockStatic(MinecraftClient.class);
-             var persistent = mockStatic(QuickPersistentState.class)) {
+                var persistent = mockStatic(QuickPersistentState.class)) {
             minecraft.when(MinecraftClient::getInstance).thenReturn(client);
             QuickContainerLock lock = new QuickContainerLock();
             open(lock, client, screen, canonical);
@@ -174,10 +180,12 @@ class QuickContainerLockIdentityTest {
             JsonObject reloaded = new JsonObject();
             QuickContainerLock.writePersistentState(reloaded);
             JsonObject state = reloaded.getAsJsonObject("containerLock");
-            assertThat(state.getAsJsonArray("lockedContainers"))
-                    .extracting(JsonElement::getAsString).containsExactly(legacy);
-            assertThat(state.getAsJsonObject("lockedContainerSlots").getAsJsonArray(legacy))
-                    .extracting(JsonElement::getAsInt).containsExactly(27);
+            assertThat(state.getAsJsonArray("lockedContainers")).extracting(JsonElement::getAsString).containsExactly(
+                    legacy
+            );
+            assertThat(state.getAsJsonObject("lockedContainerSlots").getAsJsonArray(legacy)).extracting(
+                    JsonElement::getAsInt
+            ).containsExactly(27);
         }
     }
 
@@ -220,7 +228,7 @@ class QuickContainerLockIdentityTest {
         client.world = world;
 
         try (var minecraft = mockStatic(MinecraftClient.class);
-             var persistent = mockStatic(QuickPersistentState.class)) {
+                var persistent = mockStatic(QuickPersistentState.class)) {
             minecraft.when(MinecraftClient::getInstance).thenReturn(client);
             QuickContainerLock lock = new QuickContainerLock();
 
@@ -277,7 +285,7 @@ class QuickContainerLockIdentityTest {
         MinecraftClient client = mock(MinecraftClient.class);
         client.player = player;
         try (var minecraft = mockStatic(MinecraftClient.class);
-             var persistent = mockStatic(QuickPersistentState.class)) {
+                var persistent = mockStatic(QuickPersistentState.class)) {
             minecraft.when(MinecraftClient::getInstance).thenReturn(client);
             QuickContainerLock lock = new QuickContainerLock();
             client.currentScreen = null;
@@ -311,7 +319,7 @@ class QuickContainerLockIdentityTest {
         MinecraftClient client = mock(MinecraftClient.class);
         client.player = player;
         try (var minecraft = mockStatic(MinecraftClient.class);
-             var persistent = mockStatic(QuickPersistentState.class)) {
+                var persistent = mockStatic(QuickPersistentState.class)) {
             minecraft.when(MinecraftClient::getInstance).thenReturn(client);
             QuickContainerLock lock = new QuickContainerLock();
             client.currentScreen = currentScreen;
@@ -325,8 +333,8 @@ class QuickContainerLockIdentityTest {
         }
     }
 
-    private static void open(QuickContainerLock lock, MinecraftClient client, HandledScreen<?> screen,
-                             String key) throws Exception {
+    private static void open(QuickContainerLock lock, MinecraftClient client, HandledScreen<?> screen, String key)
+            throws Exception {
         client.currentScreen = screen;
         setStaticField("pendingContainerKey", key);
         Method process = QuickContainerLock.class.getDeclaredMethod("processPendingOpen", MinecraftClient.class);
@@ -334,17 +342,23 @@ class QuickContainerLockIdentityTest {
         process.invoke(lock, client);
     }
 
-    private static void invokeToggleSlotLock(Object lock, HandledScreen<?> screen,
-                                             net.minecraft.screen.slot.Slot slot) throws Exception {
+    private static void invokeToggleSlotLock(Object lock, HandledScreen<?> screen, net.minecraft.screen.slot.Slot slot)
+            throws Exception {
         Method toggle = QuickContainerLock.class.getDeclaredMethod(
-                "toggleSlotLock", HandledScreen.class, net.minecraft.screen.slot.Slot.class);
+                "toggleSlotLock",
+                HandledScreen.class,
+                net.minecraft.screen.slot.Slot.class
+        );
         toggle.setAccessible(true);
         toggle.invoke(lock, screen, slot);
     }
 
     private static void invokeRememberHandlerKey(ScreenHandler handler, String key) throws Exception {
         Method remember = QuickContainerLock.class.getDeclaredMethod(
-                "rememberHandlerKey", ScreenHandler.class, String.class);
+                "rememberHandlerKey",
+                ScreenHandler.class,
+                String.class
+        );
         remember.setAccessible(true);
         remember.invoke(null, handler, key);
     }
@@ -352,8 +366,9 @@ class QuickContainerLockIdentityTest {
     private static void assertSameKey(Direction facing) {
         BlockPos second = FIRST.offset(ChestBlock.getFacing(chest(ChestType.LEFT, facing)));
         ClientWorld world = pairWorld(facing, FIRST, second);
-        assertThat(QuickContainerLock.buildContainerKey(world, FIRST))
-                .isEqualTo(QuickContainerLock.buildContainerKey(world, second));
+        assertThat(QuickContainerLock.buildContainerKey(world, FIRST)).isEqualTo(
+                QuickContainerLock.buildContainerKey(world, second)
+        );
     }
 
     private static ClientWorld pairWorld(Direction facing) {
@@ -361,23 +376,23 @@ class QuickContainerLockIdentityTest {
     }
 
     private static ClientWorld pairWorld(Direction facing, BlockPos first, BlockPos second) {
-        return world(pos -> pos.equals(first)
-                ? chest(ChestType.LEFT, facing)
-                : pos.equals(second) ? chest(ChestType.RIGHT, facing) : Blocks.AIR.getDefaultState());
+        return world(
+                pos -> pos.equals(first) ? chest(ChestType.LEFT, facing)
+                        : pos.equals(second) ? chest(ChestType.RIGHT, facing) : Blocks.AIR.getDefaultState()
+        );
     }
 
     private static ClientWorld world(java.util.function.Function<BlockPos, BlockState> states) {
         ClientWorld world = mock(ClientWorld.class);
         when(world.getRegistryKey()).thenReturn(World.OVERWORLD);
-        when(world.getBlockState(any(BlockPos.class))).thenAnswer(invocation ->
-                states.apply(invocation.getArgument(0)));
+        when(world.getBlockState(any(BlockPos.class))).thenAnswer(
+                invocation -> states.apply(invocation.getArgument(0))
+        );
         return world;
     }
 
     private static BlockState chest(ChestType type, Direction facing) {
-        return Blocks.CHEST.getDefaultState()
-                .with(ChestBlock.CHEST_TYPE, type)
-                .with(ChestBlock.FACING, facing);
+        return Blocks.CHEST.getDefaultState().with(ChestBlock.CHEST_TYPE, type).with(ChestBlock.FACING, facing);
     }
 
     private static HandledScreen<?> screen(ScreenHandler handler) {

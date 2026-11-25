@@ -14,8 +14,7 @@ import net.minecraft.screen.slot.SlotActionType;
  * 1.21.3 丢弃网络包（创造模式发 ClickSlotC2SPacket 携带 ItemStack 修改表）。
  */
 public final class QuickThrowAccess {
-    private QuickThrowAccess() {
-    }
+    private QuickThrowAccess() {}
 
     public static void registerInputHandler() {
         InputEventHandler.getInputManager().registerKeyboardInputHandler(new IKeyboardInputHandler() {
@@ -48,14 +47,16 @@ public final class QuickThrowAccess {
         target.effectiveSlot().setStackNoCallbacks(ItemStack.EMPTY);
         Int2ObjectMap<ItemStack> modifiedStacks = new Int2ObjectOpenHashMap<>();
         modifiedStacks.put(target.clickSlotId(), ItemStack.EMPTY);
-        client.getNetworkHandler().sendPacket(new ClickSlotC2SPacket(
-                target.handler().syncId,
-                target.handler().getRevision(),
-                target.clickSlotId(),
-                1,
-                SlotActionType.THROW,
-                target.handler().getCursorStack().copy(),
-                modifiedStacks
-        ));
+        client.getNetworkHandler().sendPacket(
+                new ClickSlotC2SPacket(
+                        target.handler().syncId,
+                        target.handler().getRevision(),
+                        target.clickSlotId(),
+                        1,
+                        SlotActionType.THROW,
+                        target.handler().getCursorStack().copy(),
+                        modifiedStacks
+                )
+        );
     }
 }

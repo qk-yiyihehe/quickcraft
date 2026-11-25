@@ -15,7 +15,9 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 public class LitematicaWorldUtilsEasyPlaceMixin {
     @Inject(method = "doEasyPlaceAction", at = @At("HEAD"), cancellable = true, remap = false)
     private static void quickcraft$placeIceOverProjectedSourceWater(
-            Minecraft client, CallbackInfoReturnable<InteractionResult> cir) {
+            Minecraft client,
+            CallbackInfoReturnable<InteractionResult> cir
+    ) {
         InteractionResult result = QuickLitematicaEasyPlaceInteractions.placeIceOverProjectedSourceWater(client);
         if (result != null) {
             cir.setReturnValue(result);
@@ -38,7 +40,9 @@ public class LitematicaWorldUtilsEasyPlaceMixin {
 
     @Inject(method = "handlePlacementRestriction", at = @At("HEAD"), cancellable = true, remap = false)
     private static void quickcraft$letVanillaUseBypassPlacementRestriction(
-            Minecraft mc, CallbackInfoReturnable<Boolean> cir) {
+            Minecraft mc,
+            CallbackInfoReturnable<Boolean> cir
+    ) {
         if (QuickLitematicaEasyPlaceInteractions.shouldAllowVanillaUse(mc)) {
             cir.setReturnValue(false);
         }

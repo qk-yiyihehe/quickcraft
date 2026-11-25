@@ -17,8 +17,8 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 public abstract class LitematicaMinecraftClientShulkerRestockMixin {
     @Inject(method = "setScreen", at = @At("HEAD"), cancellable = true)
     private void quickcraft$keepRestockShulkerInBackground(Screen screen, CallbackInfo ci) {
-        if (screen instanceof AbstractContainerScreen<?>
-                && QuickLitematicaShulkerMaterialRestock.shouldSuppressShulkerScreenOpen()) {
+        if (screen instanceof AbstractContainerScreen<?> && QuickLitematicaShulkerMaterialRestock
+                .shouldSuppressShulkerScreenOpen()) {
             ci.cancel();
         }
     }

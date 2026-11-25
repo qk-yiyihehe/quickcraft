@@ -15,7 +15,11 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 @Mixin(Gui.class)
 public abstract class QuickContainerLockInGameHudMixin {
     @Inject(method = "extractItemHotbar", at = @At("TAIL"))
-    private void quickcraft$renderLockedHotbarSlots(GuiGraphicsExtractor context, DeltaTracker tickCounter, CallbackInfo ci) {
+    private void quickcraft$renderLockedHotbarSlots(
+            GuiGraphicsExtractor context,
+            DeltaTracker tickCounter,
+            CallbackInfo ci
+    ) {
         QuickContainerLock.renderHotbarLocks(context);
     }
 }

@@ -83,11 +83,13 @@ public final class QuickThrow implements ClientModInitializer {
         );
     }
 
-    private static boolean handleActiveThrowKeyEvent(IKeybind keybind,
-                                                     int keyCode,
-                                                     boolean repeatedEvent,
-                                                     ThrowMode mode,
-                                                     HandledScreen<?> screen) {
+    private static boolean handleActiveThrowKeyEvent(
+            IKeybind keybind,
+            int keyCode,
+            boolean repeatedEvent,
+            ThrowMode mode,
+            HandledScreen<?> screen
+    ) {
         if (!QuickCraftKeyBindings.isHotkeyDown(keybind) || !isRepeatTriggerKey(keybind, keyCode)) {
             return false;
         }
@@ -126,11 +128,9 @@ public final class QuickThrow implements ClientModInitializer {
 
     public static boolean shouldConsumeAnvilThrowHotkeyInput() {
         MinecraftClient client = MinecraftClient.getInstance();
-        return QuickCraftConfigs.isQuickThrowEnabled()
-                && client != null
-                && client.currentScreen instanceof AnvilScreen
+        return QuickCraftConfigs.isQuickThrowEnabled() && client != null && client.currentScreen instanceof AnvilScreen
                 && (QuickCraftKeyBindings.isHotkeyDown(QuickCraftConfigs.Hotkeys.DROP_MATCHING.getKeybind())
-                || QuickCraftKeyBindings.isHotkeyDown(QuickCraftConfigs.Hotkeys.DROP_WHOLE_STACK.getKeybind()));
+                        || QuickCraftKeyBindings.isHotkeyDown(QuickCraftConfigs.Hotkeys.DROP_WHOLE_STACK.getKeybind()));
     }
 
     private void onClientTick(MinecraftClient client) {
@@ -205,10 +205,8 @@ public final class QuickThrow implements ClientModInitializer {
     }
 
     private static boolean canUseQuickThrow(MinecraftClient client, HandledScreen<?> screen) {
-        return QuickCraftConfigs.isQuickThrowEnabled()
-                && !QuickCraftConfigScreen.isOpen(client)
-                && (!isTextInputFocused(screen) || screen instanceof AnvilScreen)
-                && client.player != null
+        return QuickCraftConfigs.isQuickThrowEnabled() && !QuickCraftConfigScreen.isOpen(client)
+                && (!isTextInputFocused(screen) || screen instanceof AnvilScreen) && client.player != null
                 && client.interactionManager != null;
     }
 
@@ -230,10 +228,12 @@ public final class QuickThrow implements ClientModInitializer {
         hasLastMousePosition = false;
     }
 
-    private static boolean processHoveredSlot(HandledScreen<?> screen,
-                                              Slot hoveredSlot,
-                                              ThrowMode mode,
-                                              boolean allowRepeatedSlot) {
+    private static boolean processHoveredSlot(
+            HandledScreen<?> screen,
+            Slot hoveredSlot,
+            ThrowMode mode,
+            boolean allowRepeatedSlot
+    ) {
         if (!allowRepeatedSlot && hoveredSlot == lastHoveredSlot) {
             return false;
         }
@@ -252,8 +252,7 @@ public final class QuickThrow implements ClientModInitializer {
         return true;
     }
 
-    private static boolean dropAllMatchingStacks(HandledScreen<?> screen,
-                                                 ThrowTarget hoveredTarget) {
+    private static boolean dropAllMatchingStacks(HandledScreen<?> screen, ThrowTarget hoveredTarget) {
         ItemStack template = hoveredTarget.visibleSlot().getStack();
         if (template.isEmpty()) {
             return false;
@@ -335,8 +334,7 @@ public final class QuickThrow implements ClientModInitializer {
         if (client.player == null) {
             return null;
         }
-        if (!isVisibleSlot(slot) || !slot.hasStack()
-                || !slot.canTakeItems(client.player)) {
+        if (!isVisibleSlot(slot) || !slot.hasStack() || !slot.canTakeItems(client.player)) {
             return null;
         }
 
@@ -344,7 +342,9 @@ public final class QuickThrow implements ClientModInitializer {
         ScreenHandler handler = screen.getScreenHandler();
         int clickSlotId;
         if (screen instanceof CreativeInventoryScreen) {
-            if (!(effectiveSlot.inventory instanceof PlayerInventory) || !isPlayerStorageIndex(effectiveSlot.getIndex())) {
+            if (!(effectiveSlot.inventory instanceof PlayerInventory) || !isPlayerStorageIndex(
+                    effectiveSlot.getIndex()
+            )) {
                 return null;
             }
             // 创造界面只允许处理解包后的玩家真实背包槽，避免误碰上方创造物品列表。
@@ -366,8 +366,7 @@ public final class QuickThrow implements ClientModInitializer {
         }
 
         Slot effectiveSlot = unwrapCreativeSlot(slot);
-        return !(effectiveSlot.inventory instanceof PlayerInventory)
-                || !isPlayerStorageIndex(effectiveSlot.getIndex());
+        return !(effectiveSlot.inventory instanceof PlayerInventory) || !isPlayerStorageIndex(effectiveSlot.getIndex());
     }
 
     private static int getClickSlotId(ScreenHandler handler, Slot slot) {
@@ -411,10 +410,7 @@ public final class QuickThrow implements ClientModInitializer {
     private static boolean isMouseOverSlot(Slot slot, int guiLeft, int guiTop, int mouseX, int mouseY) {
         int slotLeft = guiLeft + slot.x;
         int slotTop = guiTop + slot.y;
-        return mouseX >= slotLeft
-                && mouseX < slotLeft + SLOT_SIZE
-                && mouseY >= slotTop
-                && mouseY < slotTop + SLOT_SIZE;
+        return mouseX >= slotLeft && mouseX < slotLeft + SLOT_SIZE && mouseY >= slotTop && mouseY < slotTop + SLOT_SIZE;
     }
 
     private static int getMouseX(MinecraftClient client) {
@@ -426,15 +422,15 @@ public final class QuickThrow implements ClientModInitializer {
     }
 
     private enum ThrowMode {
-        NONE,
-        MATCHING,
-        WHOLE_STACK
+        NONE, MATCHING, WHOLE_STACK
     }
 
-    public record ThrowTarget(HandledScreen<?> screen,
-                               ScreenHandler handler,
-                               Slot visibleSlot,
-                               Slot effectiveSlot,
-                               int clickSlotId) {
+    public record ThrowTarget(
+            HandledScreen<?> screen,
+            ScreenHandler handler,
+            Slot visibleSlot,
+            Slot effectiveSlot,
+            int clickSlotId
+    ) {
     }
 }

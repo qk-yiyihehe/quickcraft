@@ -14,30 +14,18 @@ import net.minecraft.client.input.MouseButtonEvent;
 import net.minecraft.network.chat.Component;
 import net.minecraft.util.Mth;
 
-/** Button that preserves normal clicks while reserving Shift + mouse gestures for layout editing. */
+/** 保留正常点击，把 Shift 配合鼠标的操作用于调整布局。 */
 public class QuickDraggableButton extends Button {
     public enum PositionKey {
-        CONTAINER_LOCK("containerLock"),
-        INVENTORY_LOCK("inventoryLock"),
-        BACKPACK_LOCK("backpackLock"),
-        QUICK_STASH("quickStash"),
-        PORTABLE_STORAGE("portableStorage"),
-        INVENTORY_SHULKER_STASH("inventoryShulkerStash"),
-        CONTAINER_SORT("containerSort"),
-        INVENTORY_SORT("inventorySort"),
-        BACKPACK_SORT("backpackSort"),
-        BACKPACK_CROSS_BOX_SORT_PURE("backpackCrossBoxSortPure"),
-        BACKPACK_CROSS_BOX_SORT_COMPACT("backpackCrossBoxSortCompact"),
-        CONTAINER_CROSS_BOX_SORT_PURE("containerCrossBoxSortPure"),
-        CONTAINER_CROSS_BOX_SORT_COMPACT("containerCrossBoxSortCompact"),
-        INVENTORY_CROSS_BOX_SORT_PURE("inventoryCrossBoxSortPure"),
-        INVENTORY_CROSS_BOX_SORT_COMPACT("inventoryCrossBoxSortCompact"),
-        QUICK_RETRIEVE("quickRetrieve"),
-        WORKBENCH_CRAFT("workbenchCraft"),
-        WORKBENCH_MODE("workbenchMode"),
-        WORKBENCH_OUTPUT("workbenchOutput"),
-        BACKPACK_CRAFT("backpackCraft"),
-        STONECUTTER_CRAFT("stonecutterCraft");
+        CONTAINER_LOCK("containerLock"), INVENTORY_LOCK("inventoryLock"), BACKPACK_LOCK("backpackLock"), QUICK_STASH(
+                "quickStash"), PORTABLE_STORAGE("portableStorage"), INVENTORY_SHULKER_STASH("inventoryShulkerStash"),
+        CONTAINER_SORT("containerSort"), INVENTORY_SORT("inventorySort"), BACKPACK_SORT("backpackSort"),
+        BACKPACK_CROSS_BOX_SORT_PURE("backpackCrossBoxSortPure"), BACKPACK_CROSS_BOX_SORT_COMPACT(
+                "backpackCrossBoxSortCompact"), CONTAINER_CROSS_BOX_SORT_PURE("containerCrossBoxSortPure"),
+        CONTAINER_CROSS_BOX_SORT_COMPACT("containerCrossBoxSortCompact"), INVENTORY_CROSS_BOX_SORT_PURE(
+                "inventoryCrossBoxSortPure"), INVENTORY_CROSS_BOX_SORT_COMPACT("inventoryCrossBoxSortCompact"),
+        QUICK_RETRIEVE("quickRetrieve"), WORKBENCH_CRAFT("workbenchCraft"), WORKBENCH_MODE("workbenchMode"),
+        WORKBENCH_OUTPUT("workbenchOutput"), BACKPACK_CRAFT("backpackCraft"), STONECUTTER_CRAFT("stonecutterCraft");
 
         private final String configKey;
 
@@ -54,8 +42,15 @@ public class QuickDraggableButton extends Button {
     private boolean dragging;
     private boolean consumeRightRelease;
 
-    public QuickDraggableButton(int x, int y, int width, int height, Component message,
-                                OnPress onPress, PositionKey positionKey) {
+    public QuickDraggableButton(
+            int x,
+            int y,
+            int width,
+            int height,
+            Component message,
+            OnPress onPress,
+            PositionKey positionKey
+    ) {
         super(x, y, width, height, message, onPress, DEFAULT_NARRATION);
         this.positionKey = positionKey;
         this.setDefaultPosition(x, y);
@@ -74,8 +69,7 @@ public class QuickDraggableButton extends Button {
 
     public static boolean isEditGestureOverCurrentButton() {
         Minecraft client = Minecraft.getInstance();
-        if (!QuickCraftConfigs.isActionButtonDraggingEnabled()
-                || !QuickCraftKeyBindings.isShiftDown()
+        if (!QuickCraftConfigs.isActionButtonDraggingEnabled() || !QuickCraftKeyBindings.isShiftDown()
                 || !(currentScreen(client) instanceof AbstractContainerScreen<?> screen)) {
             return false;
         }
@@ -91,9 +85,8 @@ public class QuickDraggableButton extends Button {
 
     @Override
     public boolean mouseClicked(MouseButtonEvent event, boolean doubleClick) {
-        if (!QuickCraftConfigs.isActionButtonDraggingEnabled()
-                || !QuickCraftKeyBindings.isShiftDown()
-                || !this.isMouseOver(event.x(), event.y())) {
+        if (!QuickCraftConfigs.isActionButtonDraggingEnabled() || !QuickCraftKeyBindings.isShiftDown() || !this
+                .isMouseOver(event.x(), event.y())) {
             return super.mouseClicked(event, doubleClick);
         }
         if (event.button() == InputConstants.MOUSE_BUTTON_LEFT) {
@@ -115,8 +108,10 @@ public class QuickDraggableButton extends Button {
     @Override
     public boolean mouseDragged(MouseButtonEvent event, double deltaX, double deltaY) {
         if (this.dragging && event.button() == InputConstants.MOUSE_BUTTON_LEFT) {
-            this.setClampedPosition((int)Math.round(event.x() - this.grabOffsetX),
-                    (int)Math.round(event.y() - this.grabOffsetY));
+            this.setClampedPosition(
+                    (int) Math.round(event.x() - this.grabOffsetX),
+                    (int) Math.round(event.y() - this.grabOffsetY)
+            );
             return true;
         }
         return super.mouseDragged(event, deltaX, deltaY);
@@ -140,8 +135,7 @@ public class QuickDraggableButton extends Button {
     @Override
     protected void extractContents(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float delta) {
         this.extractDefaultSprite(graphics);
-        this.extractDefaultLabel(graphics.textRendererForWidget(
-                this, GuiGraphicsExtractor.HoveredTextEffects.NONE));
+        this.extractDefaultLabel(graphics.textRendererForWidget(this, GuiGraphicsExtractor.HoveredTextEffects.NONE));
     }
 
     public boolean isPositionDragging() {

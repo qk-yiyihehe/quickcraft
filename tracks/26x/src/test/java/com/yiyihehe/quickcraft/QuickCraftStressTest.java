@@ -41,8 +41,7 @@ class QuickCraftStressTest {
             String rawKey = randomString(RNG.nextInt(1, 100));
 
             String result = invokeBuildDirectoryName(displayName, rawKey);
-            assertThat(result).isNotNull().isNotEmpty()
-                    .doesNotContain("\\", "/", ":", "*", "?", "\"", "<", ">", "|");
+            assertThat(result).isNotNull().isNotEmpty().doesNotContain("\\", "/", ":", "*", "?", "\"", "<", ">", "|");
         }
     }
 
@@ -50,12 +49,11 @@ class QuickCraftStressTest {
     @DisplayName("buildDirectoryName: 100000个相同输入 → 结果一致")
     @Timeout(value = 30, unit = TimeUnit.SECONDS)
     void buildDirectoryName_deterministic() {
-        String[] inputs = {"My World", "Test Server", "C:\\Program Files\\Game"};
+        String[] inputs = { "My World", "Test Server", "C:\\Program Files\\Game" };
         for (String displayName : inputs) {
             String first = invokeBuildDirectoryName(displayName, "consistent-key");
             for (int i = 0; i < 100000; i++) {
-                assertThat(invokeBuildDirectoryName(displayName, "consistent-key"))
-                        .isEqualTo(first);
+                assertThat(invokeBuildDirectoryName(displayName, "consistent-key")).isEqualTo(first);
             }
         }
     }
@@ -85,22 +83,19 @@ class QuickCraftStressTest {
         for (int i = 0; i < 100000; i++) {
             String raw = randomString(RNG.nextInt(0, 200));
             String result = invokeNormalizeEffectName(raw);
-            assertThat(result).isNotNull()
-                    .doesNotContain("minecraft:")
-                    .doesNotContain(" ");
+            assertThat(result).isNotNull().doesNotContain("minecraft:").doesNotContain(" ");
         }
     }
 
     @Test
     @DisplayName("normalizeEffectName: MIDI 键盘效果名边界数组")
     void normalizeEffectName_unicode() {
-        String[] unicodeTests = {
-                "\u0000\u0001\u0002",        // 控制字符
-                "速度✨💥🎯",                // emoji + 中文
-                "Résistance",                // 重音字符
-                "日本語効果名",              // 日文
-                "한글효과이름",              // 韩文
-                "a".repeat(10000)            // 极长字符串
+        String[] unicodeTests = { "\u0000\u0001\u0002", // 控制字符
+                "速度✨💥🎯", // emoji + 中文
+                "Résistance", // 重音字符
+                "日本語効果名", // 日文
+                "한글효과이름", // 韩文
+                "a".repeat(10000) // 极长字符串
         };
 
         for (String test : unicodeTests) {
@@ -160,9 +155,7 @@ class QuickCraftStressTest {
             final int threadId = t;
             threads[t] = new Thread(() -> {
                 for (int i = 0; i < 1000; i++) {
-                    String result = invokeBuildDirectoryName(
-                            "Thread-" + threadId + "-" + i,
-                            "key-" + i);
+                    String result = invokeBuildDirectoryName("Thread-" + threadId + "-" + i, "key-" + i);
                     if (result == null || result.isEmpty()) {
                         failures[0] = new RuntimeException("Null/empty result");
                         return;
@@ -171,10 +164,16 @@ class QuickCraftStressTest {
             });
         }
 
-        for (Thread thread : threads) thread.start();
-        for (Thread thread : threads) thread.join();
+        for (Thread thread : threads) {
+            thread.start();
+        }
+        for (Thread thread : threads) {
+            thread.join();
+        }
 
-        if (failures[0] != null) throw failures[0];
+        if (failures[0] != null) {
+            throw failures[0];
+        }
     }
 
     // ===========================
@@ -184,14 +183,19 @@ class QuickCraftStressTest {
     private static String invokeBuildDirectoryName(String displayName, String rawKey) {
         try {
             Method method = QuickPersistentState.class.getDeclaredMethod(
-                    "buildDirectoryName", String.class, String.class);
+                    "buildDirectoryName",
+                    String.class,
+                    String.class
+            );
             method.setAccessible(true);
             return (String) method.invoke(null, displayName, rawKey);
         } catch (NoSuchMethodException | IllegalAccessException e) {
             throw new RuntimeException(e);
         } catch (InvocationTargetException e) {
             Throwable cause = e.getCause();
-            if (cause instanceof RuntimeException re) throw re;
+            if (cause instanceof RuntimeException re) {
+                throw re;
+            }
             throw new RuntimeException(cause);
         }
     }
@@ -199,14 +203,12 @@ class QuickCraftStressTest {
     private static String invokeNormalizeEffectName(String raw) {
         try {
             // 使用 QuickPersistentStateBuildDirTest 中的Unsafe方式创建实例
-            java.lang.reflect.Field unsafeField =
-                    sun.misc.Unsafe.class.getDeclaredField("theUnsafe");
+            java.lang.reflect.Field unsafeField = sun.misc.Unsafe.class.getDeclaredField("theUnsafe");
             unsafeField.setAccessible(true);
             sun.misc.Unsafe unsafe = (sun.misc.Unsafe) unsafeField.get(null);
             QuickBeacon instance = (QuickBeacon) unsafe.allocateInstance(QuickBeacon.class);
 
-            Method method = QuickBeacon.class.getDeclaredMethod(
-                    "normalizeEffectName", String.class);
+            Method method = QuickBeacon.class.getDeclaredMethod("normalizeEffectName", String.class);
             method.setAccessible(true);
             return (String) method.invoke(instance, raw);
         } catch (Exception e) {
@@ -216,8 +218,7 @@ class QuickCraftStressTest {
 
     private static com.google.gson.JsonArray invokeToIntArray(Set<Integer> values) {
         try {
-            Method method = QuickContainerLock.class.getDeclaredMethod(
-                    "toIntArray", Set.class);
+            Method method = QuickContainerLock.class.getDeclaredMethod("toIntArray", Set.class);
             method.setAccessible(true);
             return (com.google.gson.JsonArray) method.invoke(null, values);
         } catch (Exception e) {
@@ -225,11 +226,13 @@ class QuickCraftStressTest {
         }
     }
 
-    private static void invokeReadIntSet(
-            com.google.gson.JsonElement element, Set<Integer> target) {
+    private static void invokeReadIntSet(com.google.gson.JsonElement element, Set<Integer> target) {
         try {
             Method method = QuickContainerLock.class.getDeclaredMethod(
-                    "readIntSet", com.google.gson.JsonElement.class, Set.class);
+                    "readIntSet",
+                    com.google.gson.JsonElement.class,
+                    Set.class
+            );
             method.setAccessible(true);
             method.invoke(null, element, target);
         } catch (Exception e) {
@@ -242,9 +245,9 @@ class QuickCraftStressTest {
         for (int i = 0; i < length; i++) {
             // 混合 ASCII、Unicode、特殊字符
             char c = switch (RNG.nextInt(5)) {
-                case 0 -> (char) RNG.nextInt(32, 127);   // ASCII 可打印
+                case 0 -> (char) RNG.nextInt(32, 127); // ASCII 可打印
                 case 1 -> (char) RNG.nextInt(0x4E00, 0x9FFF); // 中文
-                case 2 -> (char) RNG.nextInt(0, 32);     // 控制字符
+                case 2 -> (char) RNG.nextInt(0, 32); // 控制字符
                 case 3 -> (char) RNG.nextInt(0x3040, 0x309F); // 平假名
                 default -> "<>:\"/\\|?*".charAt(RNG.nextInt(9)); // 非法文件名字符
             };

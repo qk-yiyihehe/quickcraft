@@ -41,8 +41,9 @@ class QuickCraftConfigsTypeSafetyTest {
 
         assertThat(QuickCraftConfigs.hasSeenNotice("type_safety_notice")).isTrue();
         assertThat(QuickCraftConfigs.ContainerTools.ENABLE_QUICK_TRADE.getBooleanValue()).isTrue();
-        assertThat(QuickCraftConfigs.getActionButtonOffset("demo"))
-                .isEqualTo(new QuickCraftConfigs.ButtonOffset(3, -4));
+        assertThat(QuickCraftConfigs.getActionButtonOffset("demo")).isEqualTo(
+                new QuickCraftConfigs.ButtonOffset(3, -4)
+        );
     }
 
     @Test
@@ -63,7 +64,8 @@ class QuickCraftConfigsTypeSafetyTest {
             QuickCraftConfigs.loadFromFile();
         }
 
-        assertThat(QuickCraftConfigs.getActionButtonOffset("missing"))
-                .isEqualTo(new QuickCraftConfigs.ButtonOffset(0, 0));
+        assertThat(QuickCraftConfigs.getActionButtonOffset("missing")).isEqualTo(
+                new QuickCraftConfigs.ButtonOffset(0, 0)
+        );
     }
 }

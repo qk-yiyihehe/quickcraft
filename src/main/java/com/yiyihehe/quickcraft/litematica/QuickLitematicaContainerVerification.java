@@ -1,6 +1,5 @@
 package com.yiyihehe.quickcraft.litematica;
 
-
 import com.google.common.collect.ArrayListMultimap;
 import com.google.common.collect.HashMultimap;
 import com.yiyihehe.quickcraft.litematica.QuickLitematicaContainerVerifier;
@@ -61,18 +60,31 @@ public final class QuickLitematicaContainerVerification implements VerifierExten
 
     public interface Host {
         ClientWorld quickcraft$verificationWorldClient();
+
         SchematicPlacement quickcraft$verificationSchematicPlacement();
+
         Set<ChunkPos> quickcraft$verificationRequiredChunks();
+
         List<MismatchRenderPos> quickcraft$verificationMismatchPositionsForRender();
+
         List<BlockPos> quickcraft$verificationMismatchBlockPositionsForRender();
+
         Set<MismatchType> quickcraft$verificationSelectedCategories();
+
         HashMultimap<MismatchType, BlockMismatch> quickcraft$verificationSelectedEntries();
+
         List<String> quickcraft$verificationInfoHudLines();
+
         boolean quickcraft$verificationFinished();
+
         void quickcraft$setTotalRequiredChunks(int count);
+
         void quickcraft$updateVerificationOverlays();
+
         boolean quickcraft$isVerificationEntrySelected(BlockMismatch mismatch);
+
         SchematicVerifier quickcraft$verifier();
+
         List<SchematicVerifier> quickcraft$activeVerifiers();
     }
 
@@ -108,11 +120,15 @@ public final class QuickLitematicaContainerVerification implements VerifierExten
     private final Set<ContainerMismatchKey> quickcraft$ignoredContainers = new HashSet<>();
     private final Set<ContainerMismatchKey> quickcraft$restoredContainerIgnores = new HashSet<>();
 
-    public int quickcraft$getIgnoredContainerCount() { return this.quickcraft$ignoredContainers.size(); }
+    public int quickcraft$getIgnoredContainerCount() {
+        return this.quickcraft$ignoredContainers.size();
+    }
 
     public void quickcraft$restoreIgnoredContainers(Set<ContainerMismatchKey> entries) {
         for (var key : entries) {
-            if (this.quickcraft$ignoredContainers.add(key)) { this.quickcraft$restoredContainerIgnores.add(key); }
+            if (this.quickcraft$ignoredContainers.add(key)) {
+                this.quickcraft$restoredContainerIgnores.add(key);
+            }
         }
     }
 
@@ -176,20 +192,30 @@ public final class QuickLitematicaContainerVerification implements VerifierExten
     }
 
     private void recordMaterialMissing(World world, BlockPos pos, Inventory found, int size) {
-        if (!QuickLitematicaGlobalReplacements.hasRuntimeRules()) { return; }
+        if (!QuickLitematicaGlobalReplacements.hasRuntimeRules()) {
+            return;
+        }
         this.quickcraft$removeMaterialMissingAt(world, pos, size);
         Inventory expected = QuickLitematicaContainerVerifier.getMaterialInventoryAt(world, pos, size);
-        if (expected == null) { return; }
+        if (expected == null) {
+            return;
+        }
         List<ItemStack> missing = new ArrayList<>();
         for (int slot = 0; slot < expected.size(); slot++) {
             ItemStack target = expected.getStack(slot);
             ItemStack actual = found == null ? ItemStack.EMPTY : found.getStack(slot);
-            int count = ItemStack.areItemsAndComponentsEqual(target, actual)
-                    ? Math.max(0, target.getCount() - actual.getCount()) : target.getCount();
-            if (!target.isEmpty() && count > 0) { missing.add(target.copyWithCount(count)); }
+            int count = ItemStack.areItemsAndComponentsEqual(target, actual) ? Math.max(
+                    0,
+                    target.getCount() - actual.getCount()
+            ) : target.getCount();
+            if (!target.isEmpty() && count > 0) {
+                missing.add(target.copyWithCount(count));
+            }
         }
-        this.materialMissing.put(new MaterialMissingKey(
-                quickcraft$materialMissingKey(world, pos, size), size == 54), missing);
+        this.materialMissing.put(
+                new MaterialMissingKey(quickcraft$materialMissingKey(world, pos, size), size == 54),
+                missing
+        );
     }
 
     private void quickcraft$removeMaterialMissingAt(World world, BlockPos pos, int size) {
@@ -288,17 +314,24 @@ public final class QuickLitematicaContainerVerification implements VerifierExten
 
     @Override
     public List<ContainerMismatch> quickcraft$refreshContainerMismatchAt(
-            BlockPos pos, Inventory foundInventory, Set<Integer> foundDisabledSlots, boolean confirmedLargeBarrelHalf
+            BlockPos pos,
+            Inventory foundInventory,
+            Set<Integer> foundDisabledSlots,
+            boolean confirmedLargeBarrelHalf
     ) {
         if (!QuickLitematicaContainerVerifier.isEnabled() || foundInventory == null) {
             return null;
         }
 
         World bestWorld = fi.dy.masa.malilib.util.WorldUtils.getBestWorld(MinecraftClient.getInstance());
-        List<ContainerMismatch> mismatches = bestWorld != null
-                ? this.quickcraft$collectContainerMismatchesFromInventory(
-                        bestWorld, pos, foundInventory, foundDisabledSlots, confirmedLargeBarrelHalf)
-                : null;
+        List<ContainerMismatch> mismatches = bestWorld != null ? this
+                .quickcraft$collectContainerMismatchesFromInventory(
+                        bestWorld,
+                        pos,
+                        foundInventory,
+                        foundDisabledSlots,
+                        confirmedLargeBarrelHalf
+                ) : null;
 
         if (mismatches != null) {
             this.quickcraft$markContainerChecked(pos);
@@ -313,18 +346,25 @@ public final class QuickLitematicaContainerVerification implements VerifierExten
         return mismatches;
     }
 
-    public WorldChunk quickcraft$useBestWorldForSinglePlayer(ClientWorld clientWorld, int chunkX, int chunkZ,
-                                                          java.util.function.Supplier<WorldChunk> original) {
+    public WorldChunk quickcraft$useBestWorldForSinglePlayer(
+            ClientWorld clientWorld,
+            int chunkX,
+            int chunkZ,
+            java.util.function.Supplier<WorldChunk> original
+    ) {
         World bestWorld = fi.dy.masa.malilib.util.WorldUtils.getBestWorld(MinecraftClient.getInstance());
         return bestWorld != null && bestWorld != clientWorld ? bestWorld.getChunk(chunkX, chunkZ) : original.get();
     }
 
     public boolean quickcraft$waitForContainerData(boolean chunkLoaded, int chunkX, int chunkZ) {
-        return chunkLoaded
-                && this.quickcraft$canProcessContainerDataChunk(new ChunkPos(chunkX, chunkZ));
+        return chunkLoaded && this.quickcraft$canProcessContainerDataChunk(new ChunkPos(chunkX, chunkZ));
     }
 
-    public Boolean quickcraft$skipBlockVolumeForContainerOnlyVerification(Chunk chunkClient, Chunk chunkSchematic, IntBoundingBox box) {
+    public Boolean quickcraft$skipBlockVolumeForContainerOnlyVerification(
+            Chunk chunkClient,
+            Chunk chunkSchematic,
+            IntBoundingBox box
+    ) {
         if (this.quickcraft$containerOnly) {
             this.quickcraft$collectContainerInventories(chunkClient, chunkSchematic, box);
             return true;
@@ -332,15 +372,15 @@ public final class QuickLitematicaContainerVerification implements VerifierExten
         return null;
     }
 
-    public void quickcraft$checkContainerInventoriesAfterBlockVerification(Chunk chunkClient, Chunk chunkSchematic, IntBoundingBox box) {
-        this.quickcraft$collectContainerInventories(chunkClient, chunkSchematic, box);
-    }
-
-    private void quickcraft$collectContainerInventories(
+    public void quickcraft$checkContainerInventoriesAfterBlockVerification(
             Chunk chunkClient,
             Chunk chunkSchematic,
             IntBoundingBox box
     ) {
+        this.quickcraft$collectContainerInventories(chunkClient, chunkSchematic, box);
+    }
+
+    private void quickcraft$collectContainerInventories(Chunk chunkClient, Chunk chunkSchematic, IntBoundingBox box) {
         if (!QuickLitematicaContainerVerifier.isEnabled()) {
             return;
         }
@@ -361,11 +401,13 @@ public final class QuickLitematicaContainerVerification implements VerifierExten
             return;
         }
 
-        boolean renderLayers = this.host.quickcraft$verificationSchematicPlacement().getSchematicVerifierType() == BlockInfoListType.RENDER_LAYERS;
+        boolean renderLayers = this.host.quickcraft$verificationSchematicPlacement()
+                .getSchematicVerifierType() == BlockInfoListType.RENDER_LAYERS;
 
         for (BlockPos candidate : chunkSchematic.getBlockEntityPositions()) {
-            if (!box.containsPos(candidate)
-                    || renderLayers && !DataManager.getRenderLayerRange().isPositionWithinRange(candidate)) {
+            if (!box.containsPos(candidate) || renderLayers && !DataManager.getRenderLayerRange().isPositionWithinRange(
+                    candidate
+            )) {
                 continue;
             }
 
@@ -373,19 +415,32 @@ public final class QuickLitematicaContainerVerification implements VerifierExten
         }
     }
 
-    private void quickcraft$collectContainerAt(World foundWorld, Chunk chunkClient, Chunk chunkSchematic, BlockPos pos) {
+    private void quickcraft$collectContainerAt(
+            World foundWorld,
+            Chunk chunkClient,
+            Chunk chunkSchematic,
+            BlockPos pos
+    ) {
         this.quickcraft$uncollectedContainers.remove(pos);
         BlockState schematicState = chunkSchematic.getBlockState(pos);
         BlockEntity expectedBlockEntity = chunkSchematic.getBlockEntity(pos);
         ExpectedContainer expectedContainer = QuickLitematicaContainerVerifier.getExpectedContainerPartAt(
-                this.host.quickcraft$verificationSchematicPlacement(), pos);
+                this.host.quickcraft$verificationSchematicPlacement(),
+                pos
+        );
         if (expectedContainer == null && !(expectedBlockEntity instanceof Inventory)) {
             return;
         }
 
         this.quickcraft$expectedContainerPositions.add(pos);
         List<ContainerMismatch> mismatches = this.quickcraft$collectContainerMismatchesDuringVerification(
-                foundWorld, chunkClient, pos, schematicState, expectedBlockEntity, expectedContainer);
+                foundWorld,
+                chunkClient,
+                pos,
+                schematicState,
+                expectedBlockEntity,
+                expectedContainer
+        );
         if (mismatches != null) {
             this.quickcraft$markContainerChecked(pos);
             this.quickcraft$removeContainerMismatchesAt(pos);
@@ -396,7 +451,10 @@ public final class QuickLitematicaContainerVerification implements VerifierExten
         }
     }
 
-    public boolean quickcraft$collectMissingContainerInventories(ClientWorld worldClient, WorldSchematic worldSchematic) {
+    public boolean quickcraft$collectMissingContainerInventories(
+            ClientWorld worldClient,
+            WorldSchematic worldSchematic
+    ) {
         if (!this.host.quickcraft$verificationFinished() || this.quickcraft$uncollectedContainers.isEmpty()
                 || !QuickLitematicaContainerVerifier.isEnabled()) {
             return false;
@@ -417,19 +475,29 @@ public final class QuickLitematicaContainerVerification implements VerifierExten
         int checks = Math.min(MAX_FALLBACK_CONTAINERS_PER_EXECUTE, this.quickcraft$uncollectedContainers.size());
         for (int i = 0; i < checks; i++) {
             BlockPos pos = this.quickcraft$uncollectedContainers.removeFirst();
-            if (renderLayers && !DataManager.getRenderLayerRange().isPositionWithinRange(pos)) { continue; }
-            int chunkX = pos.getX() >> 4;
-            int chunkZ = pos.getZ() >> 4;
-            if (!worldClient.getChunkManager().isChunkLoaded(chunkX, chunkZ)
-                    || !worldSchematic.getChunkManager().isChunkLoaded(chunkX, chunkZ)) {
-                if (!this.quickcraft$containerOnly) { this.quickcraft$uncollectedContainers.addLast(pos); }
+            if (renderLayers && !DataManager.getRenderLayerRange().isPositionWithinRange(pos)) {
                 continue;
             }
-            this.quickcraft$collectContainerAt(foundWorld, foundWorld.getChunk(chunkX, chunkZ),
-                    worldSchematic.getChunk(chunkX, chunkZ), pos);
+            int chunkX = pos.getX() >> 4;
+            int chunkZ = pos.getZ() >> 4;
+            if (!worldClient.getChunkManager().isChunkLoaded(chunkX, chunkZ) || !worldSchematic.getChunkManager()
+                    .isChunkLoaded(chunkX, chunkZ)) {
+                if (!this.quickcraft$containerOnly) {
+                    this.quickcraft$uncollectedContainers.addLast(pos);
+                }
+                continue;
+            }
+            this.quickcraft$collectContainerAt(
+                    foundWorld,
+                    foundWorld.getChunk(chunkX, chunkZ),
+                    worldSchematic.getChunk(chunkX, chunkZ),
+                    pos
+            );
             collected = true;
         }
-        if (collected) { this.host.quickcraft$updateVerificationOverlays(); }
+        if (collected) {
+            this.host.quickcraft$updateVerificationOverlays();
+        }
         return !this.quickcraft$uncollectedContainers.isEmpty();
     }
 
@@ -456,7 +524,9 @@ public final class QuickLitematicaContainerVerification implements VerifierExten
         Collections.sort(list);
     }
 
-    public ArrayListMultimap<Pair<BlockState, BlockState>, BlockPos> quickcraft$getInventoryMismatchMap(MismatchType type) {
+    public ArrayListMultimap<Pair<BlockState, BlockState>, BlockPos> quickcraft$getInventoryMismatchMap(
+            MismatchType type
+    ) {
         if (QuickLitematicaContainerVerifier.isContainerMismatchType(type)) {
             ArrayListMultimap<Pair<BlockState, BlockState>, BlockPos> map = ArrayListMultimap.create();
 
@@ -510,16 +580,16 @@ public final class QuickLitematicaContainerVerification implements VerifierExten
 
     public List<BlockPos> quickcraft$getClosestInventoryPositions(MismatchType type) {
         if (QuickLitematicaContainerVerifier.isContainerMismatchType(type)) {
-            return QuickLitematicaContainerVerifier.isEnabled()
-                    ? this.quickcraft$containerPositionsClosest.getOrDefault(type, List.of())
-                    : List.of();
+            return QuickLitematicaContainerVerifier.isEnabled() ? this.quickcraft$containerPositionsClosest
+                    .getOrDefault(type, List.of()) : List.of();
         }
         return null;
     }
 
     public void quickcraft$trackSelectedInventoryMismatch(BlockMismatch mismatch) {
-        if (!QuickLitematicaContainerVerifier.isEnabled()
-                || !QuickLitematicaContainerVerifier.isContainerMismatchType(mismatch.mismatchType)) {
+        if (!QuickLitematicaContainerVerifier.isEnabled() || !QuickLitematicaContainerVerifier.isContainerMismatchType(
+                mismatch.mismatchType
+        )) {
             return;
         }
 
@@ -533,22 +603,27 @@ public final class QuickLitematicaContainerVerification implements VerifierExten
     }
 
     public void quickcraft$removeSelectedInventoryMismatches(MismatchType type) {
-        if (QuickLitematicaContainerVerifier.isEnabled()
-                && QuickLitematicaContainerVerifier.isContainerMismatchType(type)) {
+        if (QuickLitematicaContainerVerifier.isEnabled() && QuickLitematicaContainerVerifier.isContainerMismatchType(
+                type
+        )) {
             this.quickcraft$selectedContainerMismatches.removeIf(mismatch -> mismatch.mismatchType == type);
         }
     }
 
     public boolean quickcraft$forgetIgnoredInventoryMismatch(BlockMismatch mismatch, boolean updateOverlay) {
-        if (!QuickLitematicaContainerVerifier.isEnabled()
-                || !QuickLitematicaContainerVerifier.isContainerMismatchType(mismatch.mismatchType)) {
+        if (!QuickLitematicaContainerVerifier.isEnabled() || !QuickLitematicaContainerVerifier.isContainerMismatchType(
+                mismatch.mismatchType
+        )) {
             return false;
         }
 
         ContainerMismatchKey key = ((BlockMismatchExtension) mismatch).quickcraft$getContainerMismatchKey();
         this.quickcraft$ignoredContainers.add(key);
-        QuickLitematicaVerifierIgnores.rememberContainer(this.host.quickcraft$verifier(),
-                this.host.quickcraft$verificationSchematicPlacement(), key);
+        QuickLitematicaVerifierIgnores.rememberContainer(
+                this.host.quickcraft$verifier(),
+                this.host.quickcraft$verificationSchematicPlacement(),
+                key
+        );
         this.quickcraft$containerMismatchesByKey.values().removeIf(entry -> quickcraft$groupKey(entry).equals(key));
         for (List<ContainerMismatch> entries : this.quickcraft$containerMismatches.values()) {
             entries.removeIf(entry -> quickcraft$groupKey(entry).equals(key));
@@ -572,7 +647,12 @@ public final class QuickLitematicaContainerVerification implements VerifierExten
         this.quickcraft$clearContainerData();
     }
 
-    public void quickcraft$requestContainerDataOnStart(ClientWorld worldClient, WorldSchematic worldSchematic, SchematicPlacement schematicPlacement, ICompletionListener completionListener) {
+    public void quickcraft$requestContainerDataOnStart(
+            ClientWorld worldClient,
+            WorldSchematic worldSchematic,
+            SchematicPlacement schematicPlacement,
+            ICompletionListener completionListener
+    ) {
         if (schematicPlacement == null) {
             return;
         }
@@ -606,12 +686,9 @@ public final class QuickLitematicaContainerVerification implements VerifierExten
         }
 
         this.quickcraft$diagnosticLogPending = false;
-        if (this.quickcraft$unsupportedExpectedContainers == 0
-                && this.quickcraft$missingActualBlockEntities == 0
-                && this.quickcraft$unsupportedActualContainers == 0
-                && this.quickcraft$unavailableWorldBoxes == 0
-                && this.quickcraft$unavailableFoundInventories == 0
-                && this.quickcraft$inventorySizeMismatches == 0
+        if (this.quickcraft$unsupportedExpectedContainers == 0 && this.quickcraft$missingActualBlockEntities == 0
+                && this.quickcraft$unsupportedActualContainers == 0 && this.quickcraft$unavailableWorldBoxes == 0
+                && this.quickcraft$unavailableFoundInventories == 0 && this.quickcraft$inventorySizeMismatches == 0
                 && this.quickcraft$pendingContainerPositions.isEmpty()) {
             return;
         }
@@ -690,34 +767,41 @@ public final class QuickLitematicaContainerVerification implements VerifierExten
         }
     }
 
-    public void quickcraft$splitInventoryHudLines(@Nullable MismatchType mismatchType, List<MismatchRenderPos> positionList) {
-        if (!QuickLitematicaContainerVerifier.isEnabled()
-                || positionList.stream().noneMatch(pos -> QuickLitematicaContainerVerifier.isContainerMismatchType(pos.type))) {
+    public void quickcraft$splitInventoryHudLines(
+            @Nullable MismatchType mismatchType,
+            List<MismatchRenderPos> positionList
+    ) {
+        if (!QuickLitematicaContainerVerifier.isEnabled() || positionList.stream().noneMatch(
+                pos -> QuickLitematicaContainerVerifier.isContainerMismatchType(pos.type)
+        )) {
             return;
         }
 
         this.host.quickcraft$verificationInfoHudLines().clear();
         String rst = GuiBase.TXT_RST;
-        List<MismatchRenderPos> vanilla = positionList.stream()
-                .filter(pos -> !QuickLitematicaContainerVerifier.isContainerMismatchType(pos.type))
-                .toList();
-        List<MismatchRenderPos> containers = positionList.stream()
-                .filter(pos -> QuickLitematicaContainerVerifier.isContainerMismatchType(pos.type))
-                .toList();
+        List<MismatchRenderPos> vanilla = positionList.stream().filter(
+                pos -> !QuickLitematicaContainerVerifier.isContainerMismatchType(pos.type)
+        ).toList();
+        List<MismatchRenderPos> containers = positionList.stream().filter(
+                pos -> QuickLitematicaContainerVerifier.isContainerMismatchType(pos.type)
+        ).toList();
         int maxLines = Configs.InfoOverlays.INFO_HUD_MAX_LINES.getIntegerValue();
 
         if (!vanilla.isEmpty()) {
-            String title = mismatchType != null && !QuickLitematicaContainerVerifier.isContainerMismatchType(mismatchType)
-                    ? mismatchType.getFormattingCode() + mismatchType.getDisplayname()
+            String title = mismatchType != null && !QuickLitematicaContainerVerifier.isContainerMismatchType(
+                    mismatchType
+            ) ? mismatchType.getFormattingCode() + mismatchType.getDisplayname()
                     : GuiBase.TXT_BOLD + StringUtils.translate("litematica.gui.title.schematic_verifier_errors");
             this.host.quickcraft$verificationInfoHudLines().add(title + rst);
             this.quickcraft$addHudPositions(vanilla, maxLines);
         }
 
         if (!containers.isEmpty()) {
-            this.host.quickcraft$verificationInfoHudLines().add(QuickLitematicaVerifierPalette.formatSectionTitle(
-                    StringUtils.translate("quickcraft.litematica.verifier.title.container_errors")
-            ));
+            this.host.quickcraft$verificationInfoHudLines().add(
+                    QuickLitematicaVerifierPalette.formatSectionTitle(
+                            StringUtils.translate("quickcraft.litematica.verifier.title.container_errors")
+                    )
+            );
             this.quickcraft$addHudPositions(containers, maxLines);
         }
     }
@@ -730,7 +814,10 @@ public final class QuickLitematicaContainerVerification implements VerifierExten
             BlockEntity expectedBlockEntity,
             ExpectedContainer expectedContainer
     ) {
-        if (QuickLitematicaContainerVerifier.hasUnreadableExpectedInventory(pos, this.host.quickcraft$verificationSchematicPlacement())) {
+        if (QuickLitematicaContainerVerifier.hasUnreadableExpectedInventory(
+                pos,
+                this.host.quickcraft$verificationSchematicPlacement()
+        )) {
             this.quickcraft$unsupportedExpectedContainers++;
             this.quickcraft$recordDiagnostic("unreadable_expected_inventory", pos, schematicState, schematicState);
             return List.of();
@@ -743,12 +830,9 @@ public final class QuickLitematicaContainerVerification implements VerifierExten
             return List.of();
         }
 
-        Inventory expected = expectedContainer != null
-                ? expectedContainer.inventory()
+        Inventory expected = expectedContainer != null ? expectedContainer.inventory()
                 : QuickLitematicaContainerVerifier.getExpectedInventory(expectedBlockEntity, directExpectedInventory);
-        BlockEntity expectedData = expectedContainer != null
-                ? expectedContainer.blockEntity()
-                : expectedBlockEntity;
+        BlockEntity expectedData = expectedContainer != null ? expectedContainer.blockEntity() : expectedBlockEntity;
         BlockState expectedState = expectedContainer != null ? expectedContainer.state() : schematicState;
         BlockState foundState = chunkClient.getBlockState(pos);
 
@@ -809,7 +893,10 @@ public final class QuickLitematicaContainerVerification implements VerifierExten
         }
 
         Set<Integer> foundDisabledSlots = QuickLitematicaContainerInventory.getActualDisabledSlots(
-                foundWorld, pos, foundBlockEntity);
+                foundWorld,
+                pos,
+                foundBlockEntity
+        );
         if (foundDisabledSlots == null) {
             this.quickcraft$requestContainerInventoryData(foundWorld, pos);
             return null;
@@ -821,8 +908,7 @@ public final class QuickLitematicaContainerVerification implements VerifierExten
                 foundState,
                 expectedData,
                 foundBlockEntity,
-                expectedContainer != null
-                        ? expectedContainer.disabledSlots()
+                expectedContainer != null ? expectedContainer.disabledSlots()
                         : QuickLitematicaContainerVerifier.getDisabledSlots(expectedBlockEntity),
                 foundDisabledSlots,
                 expected,
@@ -851,7 +937,10 @@ public final class QuickLitematicaContainerVerification implements VerifierExten
         }
 
         ExpectedContainer expected = QuickLitematicaContainerVerifier.getExpectedContainerAt(
-                foundWorld, pos, this.host.quickcraft$verificationSchematicPlacement());
+                foundWorld,
+                pos,
+                this.host.quickcraft$verificationSchematicPlacement()
+        );
         BlockEntity foundBlockEntity = foundWorld.getBlockEntity(pos);
 
         if (expected == null) {
@@ -891,7 +980,10 @@ public final class QuickLitematicaContainerVerification implements VerifierExten
         }
 
         Set<Integer> foundDisabledSlots = QuickLitematicaContainerInventory.getActualDisabledSlots(
-                foundWorld, pos, foundBlockEntity);
+                foundWorld,
+                pos,
+                foundBlockEntity
+        );
         if (foundDisabledSlots == null) {
             this.quickcraft$requestContainerInventoryData(foundWorld, pos);
             return null;
@@ -918,8 +1010,8 @@ public final class QuickLitematicaContainerVerification implements VerifierExten
             boolean confirmedLargeBarrelHalf
     ) {
         SchematicPlacement placement = this.host.quickcraft$verificationSchematicPlacement();
-        ExpectedContainer expected = confirmedLargeBarrelHalf
-                ? QuickLitematicaContainerVerifier.getExpectedContainerPartAt(placement, pos)
+        ExpectedContainer expected = confirmedLargeBarrelHalf ? QuickLitematicaContainerVerifier
+                .getExpectedContainerPartAt(placement, pos)
                 : QuickLitematicaContainerVerifier.getExpectedContainerAt(foundWorld, pos, placement);
         BlockEntity foundBlockEntity = foundWorld.getBlockEntity(pos);
 
@@ -935,7 +1027,10 @@ public final class QuickLitematicaContainerVerification implements VerifierExten
 
         if (foundDisabledSlots == null) {
             foundDisabledSlots = QuickLitematicaContainerInventory.getActualDisabledSlots(
-                    foundWorld, pos, foundBlockEntity);
+                    foundWorld,
+                    pos,
+                    foundBlockEntity
+            );
         }
         if (foundDisabledSlots == null) {
             return null;
@@ -955,31 +1050,32 @@ public final class QuickLitematicaContainerVerification implements VerifierExten
     }
 
     private void quickcraft$addContainerMismatch(ContainerMismatch mismatch) {
-        if (!this.quickcraft$ignoredContainers.isEmpty()
-                && this.quickcraft$ignoredContainers.contains(quickcraft$groupKey(mismatch))) { return; }
+        if (!this.quickcraft$ignoredContainers.isEmpty() && this.quickcraft$ignoredContainers.contains(
+                quickcraft$groupKey(mismatch)
+        )) {
+            return;
+        }
         this.quickcraft$containerMismatches.computeIfAbsent(mismatch.type(), type -> new ArrayList<>()).add(mismatch);
         this.quickcraft$containerMismatchesByKey.put(mismatch.key(), mismatch);
     }
 
     private boolean quickcraft$replaceContainerMismatchesAt(BlockPos pos, List<ContainerMismatch> mismatches) {
         if (!this.quickcraft$ignoredContainers.isEmpty()) {
-            mismatches = mismatches.stream().filter(entry -> !this.quickcraft$ignoredContainers.contains(quickcraft$groupKey(entry))).toList();
+            mismatches = mismatches.stream().filter(
+                    entry -> !this.quickcraft$ignoredContainers.contains(quickcraft$groupKey(entry))
+            ).toList();
         }
-        List<ContainerMismatchKey> oldKeys = this.quickcraft$containerMismatchesByKey.entrySet().stream()
-                .filter(entry -> entry.getValue().pos().equals(pos))
-                .map(Map.Entry::getKey)
-                .toList();
-        List<ContainerMismatchKey> newKeys = mismatches.stream()
-                .map(ContainerMismatch::key)
-                .toList();
+        List<ContainerMismatchKey> oldKeys = this.quickcraft$containerMismatchesByKey.entrySet().stream().filter(
+                entry -> entry.getValue().pos().equals(pos)
+        ).map(Map.Entry::getKey).toList();
+        List<ContainerMismatchKey> newKeys = mismatches.stream().map(ContainerMismatch::key).toList();
 
-        List<String> oldSignatures = this.quickcraft$containerMismatchesByKey.values().stream()
-                .filter(mismatch -> mismatch.pos().equals(pos))
-                .map(QuickLitematicaContainerVerification::quickcraft$getContainerMismatchSignature)
-                .toList();
-        List<String> newSignatures = mismatches.stream()
-                .map(QuickLitematicaContainerVerification::quickcraft$getContainerMismatchSignature)
-                .toList();
+        List<String> oldSignatures = this.quickcraft$containerMismatchesByKey.values().stream().filter(
+                mismatch -> mismatch.pos().equals(pos)
+        ).map(QuickLitematicaContainerVerification::quickcraft$getContainerMismatchSignature).toList();
+        List<String> newSignatures = mismatches.stream().map(
+                QuickLitematicaContainerVerification::quickcraft$getContainerMismatchSignature
+        ).toList();
 
         if (oldKeys.equals(newKeys) && oldSignatures.equals(newSignatures)) {
             return false;
@@ -1014,8 +1110,12 @@ public final class QuickLitematicaContainerVerification implements VerifierExten
         this.quickcraft$requestedContainerDataChunks.clear();
         this.quickcraft$containerDataChunks.clear();
         this.quickcraft$uncollectedContainers.clear();
-        this.host.quickcraft$verificationSelectedCategories().removeIf(QuickLitematicaContainerVerifier::isContainerMismatchType);
-        this.host.quickcraft$verificationSelectedEntries().keySet().removeIf(QuickLitematicaContainerVerifier::isContainerMismatchType);
+        this.host.quickcraft$verificationSelectedCategories().removeIf(
+                QuickLitematicaContainerVerifier::isContainerMismatchType
+        );
+        this.host.quickcraft$verificationSelectedEntries().keySet().removeIf(
+                QuickLitematicaContainerVerifier::isContainerMismatchType
+        );
     }
 
     private void quickcraft$requestContainerInventoryData(World world, BlockPos pos) {
@@ -1027,31 +1127,28 @@ public final class QuickLitematicaContainerVerification implements VerifierExten
 
         ChunkPos chunkPos = new ChunkPos(pos);
 
-        if (!this.quickcraft$requestedContainerDataChunks.contains(chunkPos)
-                && this.quickcraft$requestContainerInventoryDataChunk(world, chunkPos)) {
+        if (!this.quickcraft$requestedContainerDataChunks.contains(chunkPos) && this
+                .quickcraft$requestContainerInventoryDataChunk(world, chunkPos)) {
             this.quickcraft$requestedContainerDataChunks.add(chunkPos);
         }
     }
 
     private void quickcraft$requestContainerInventoryDataChunks(World world, Collection<ChunkPos> chunkPositions) {
-        if (world == null
-                || chunkPositions == null
-                || chunkPositions.isEmpty()
+        if (world == null || chunkPositions == null || chunkPositions.isEmpty()
                 || fi.dy.masa.litematica.data.DataManager.getInstance().hasIntegratedServer()) {
             return;
         }
 
         for (ChunkPos chunkPos : chunkPositions) {
-            if (!this.quickcraft$requestedContainerDataChunks.contains(chunkPos)
-                    && this.quickcraft$requestContainerInventoryDataChunk(world, chunkPos)) {
+            if (!this.quickcraft$requestedContainerDataChunks.contains(chunkPos) && this
+                    .quickcraft$requestContainerInventoryDataChunk(world, chunkPos)) {
                 this.quickcraft$requestedContainerDataChunks.add(chunkPos);
             }
         }
     }
 
     private boolean quickcraft$canProcessContainerDataChunk(ChunkPos chunkPos) {
-        if (!QuickLitematicaContainerVerifier.isEnabled()
-                || this.host.quickcraft$verificationWorldClient() == null
+        if (!QuickLitematicaContainerVerifier.isEnabled() || this.host.quickcraft$verificationWorldClient() == null
                 || this.host.quickcraft$verificationSchematicPlacement() == null
                 || fi.dy.masa.litematica.data.DataManager.getInstance().hasIntegratedServer()) {
             return true;
@@ -1061,7 +1158,8 @@ public final class QuickLitematicaContainerVerification implements VerifierExten
             return true;
         }
 
-        if (!QuickLitematicaVerifierAccess.hasServuxServer() && !QuickLitematicaVerifierAccess.getIfReceivedBackupPackets()) {
+        if (!QuickLitematicaVerifierAccess.hasServuxServer() && !QuickLitematicaVerifierAccess
+                .getIfReceivedBackupPackets()) {
             return true;
         }
         if (!QuickLitematicaVerifierAccess.isStorageWorldMatching(this.host.quickcraft$verificationWorldClient())) {
@@ -1074,7 +1172,10 @@ public final class QuickLitematicaContainerVerification implements VerifierExten
             return false;
         }
 
-        if (this.quickcraft$requestContainerInventoryDataChunk(this.host.quickcraft$verificationWorldClient(), chunkPos)) {
+        if (this.quickcraft$requestContainerInventoryDataChunk(
+                this.host.quickcraft$verificationWorldClient(),
+                chunkPos
+        )) {
             return false;
         }
 
@@ -1151,12 +1252,22 @@ public final class QuickLitematicaContainerVerification implements VerifierExten
 
         int defaultMinY = world.getBottomY();
         int defaultMaxY = QuickLitematicaVerifierAccess.getWorldMaxY(world);
-        int[] yRange = QuickLitematicaVerifierAccess.getPlacementChunkYRange(this.host.quickcraft$verificationSchematicPlacement(), chunkPos.x, chunkPos.z, defaultMinY, defaultMaxY);
+        int[] yRange = QuickLitematicaVerifierAccess.getPlacementChunkYRange(
+                this.host.quickcraft$verificationSchematicPlacement(),
+                chunkPos.x,
+                chunkPos.z,
+                defaultMinY,
+                defaultMaxY
+        );
 
         return QuickLitematicaContainerVerifier.requestInventoryDataChunk(world, chunkPos, yRange[0], yRange[1]);
     }
 
-    private boolean quickcraft$shouldWaitForMissingInventory(World world, BlockPos pos, @Nullable BlockEntity foundBlockEntity) {
+    private boolean quickcraft$shouldWaitForMissingInventory(
+            World world,
+            BlockPos pos,
+            @Nullable BlockEntity foundBlockEntity
+    ) {
         if (world == null) {
             return true;
         }
@@ -1181,7 +1292,9 @@ public final class QuickLitematicaContainerVerification implements VerifierExten
 
     private void quickcraft$rememberMissingContainer(BlockPos pos, Inventory expected) {
         World materialWorld = fi.dy.masa.malilib.util.WorldUtils.getBestWorld(MinecraftClient.getInstance());
-        if (materialWorld != null) { this.recordMaterialMissing(materialWorld, pos, null, expected.size()); }
+        if (materialWorld != null) {
+            this.recordMaterialMissing(materialWorld, pos, null, expected.size());
+        }
         List<ItemStack> stacks = new ArrayList<>();
         for (int slot = 0; slot < expected.size(); slot++) {
             ItemStack stack = expected.getStack(slot);
@@ -1192,7 +1305,9 @@ public final class QuickLitematicaContainerVerification implements VerifierExten
         this.quickcraft$missingContainerStacks.put(pos.toImmutable(), List.copyOf(stacks));
     }
 
-    static Map<ContainerMismatchKey, List<ContainerMismatch>> quickcraft$groupContainerMismatches(List<ContainerMismatch> mismatches) {
+    static Map<ContainerMismatchKey, List<ContainerMismatch>> quickcraft$groupContainerMismatches(
+            List<ContainerMismatch> mismatches
+    ) {
         Map<ContainerMismatchKey, List<ContainerMismatch>> groups = new LinkedHashMap<>();
         for (ContainerMismatch mismatch : mismatches) {
             groups.computeIfAbsent(quickcraft$groupKey(mismatch), key -> new ArrayList<>()).add(mismatch);
@@ -1208,7 +1323,8 @@ public final class QuickLitematicaContainerVerification implements VerifierExten
     private List<BlockMismatch> quickcraft$createBlockMismatchesFor(MismatchType type) {
         List<BlockMismatch> list = new ArrayList<>();
         for (List<ContainerMismatch> group : quickcraft$groupContainerMismatches(
-                this.quickcraft$containerMismatches.getOrDefault(type, List.of())).values()) {
+                this.quickcraft$containerMismatches.getOrDefault(type, List.of())
+        ).values()) {
             list.add(this.quickcraft$createBlockMismatch(group));
         }
         return list;
@@ -1232,10 +1348,8 @@ public final class QuickLitematicaContainerVerification implements VerifierExten
         List<BlockPos> positions = new ArrayList<>();
 
         if (this.host.quickcraft$verificationSelectedCategories().contains(type)) {
-            this.quickcraft$containerMismatches.getOrDefault(type, List.of()).stream()
-                    .map(ContainerMismatch::pos)
-                    .distinct()
-                    .forEach(positions::add);
+            this.quickcraft$containerMismatches.getOrDefault(type, List.of()).stream().map(ContainerMismatch::pos)
+                    .distinct().forEach(positions::add);
             return positions;
         }
 
@@ -1243,11 +1357,9 @@ public final class QuickLitematicaContainerVerification implements VerifierExten
         for (BlockMismatch mismatch : this.host.quickcraft$verificationSelectedEntries().get(type)) {
             selectedKeys.add(((BlockMismatchExtension) mismatch).quickcraft$getContainerMismatchKey());
         }
-        this.quickcraft$containerMismatches.getOrDefault(type, List.of()).stream()
-                .filter(mismatch -> selectedKeys.contains(quickcraft$groupKey(mismatch)))
-                .map(ContainerMismatch::pos)
-                .distinct()
-                .forEach(positions::add);
+        this.quickcraft$containerMismatches.getOrDefault(type, List.of()).stream().filter(
+                mismatch -> selectedKeys.contains(quickcraft$groupKey(mismatch))
+        ).map(ContainerMismatch::pos).distinct().forEach(positions::add);
 
         return positions;
     }
@@ -1260,7 +1372,9 @@ public final class QuickLitematicaContainerVerification implements VerifierExten
             MismatchRenderPos entry = positions.get(i);
             BlockPos pos = entry.pos;
             String pre = quickcraft$getHudColorCode(entry.type);
-            this.host.quickcraft$verificationInfoHudLines().add(String.format("%sx: %5d, y: %3d, z: %5d%s", pre, pos.getX(), pos.getY(), pos.getZ(), rst));
+            this.host.quickcraft$verificationInfoHudLines().add(
+                    String.format("%sx: %5d, y: %3d, z: %5d%s", pre, pos.getX(), pos.getY(), pos.getZ(), rst)
+            );
         }
     }
 
@@ -1273,10 +1387,14 @@ public final class QuickLitematicaContainerVerification implements VerifierExten
     }
 
     private boolean quickcraft$isContainerPosSelected(BlockPos pos) {
-        return this.quickcraft$containerMismatchesByKey.values().stream()
-                .filter(mismatch -> mismatch.pos().equals(pos))
-                .anyMatch(mismatch -> this.quickcraft$selectedContainerMismatches.stream().anyMatch(selected ->
-                        quickcraft$groupKey(mismatch).equals(((BlockMismatchExtension) selected).quickcraft$getContainerMismatchKey())));
+        return this.quickcraft$containerMismatchesByKey.values().stream().filter(mismatch -> mismatch.pos().equals(pos))
+                .anyMatch(
+                        mismatch -> this.quickcraft$selectedContainerMismatches.stream().anyMatch(
+                                selected -> quickcraft$groupKey(mismatch).equals(
+                                        ((BlockMismatchExtension) selected).quickcraft$getContainerMismatchKey()
+                                )
+                        )
+                );
     }
 
     private void quickcraft$restoreContainerSelection(BlockPos pos, boolean wasSelected) {
@@ -1285,17 +1403,19 @@ public final class QuickLitematicaContainerVerification implements VerifierExten
             selectedKeys.add(((BlockMismatchExtension) mismatch).quickcraft$getContainerMismatchKey());
         }
         if (wasSelected) {
-            this.quickcraft$containerMismatchesByKey.values().stream()
-                    .filter(mismatch -> mismatch.pos().equals(pos))
-                    .map(QuickLitematicaContainerVerification::quickcraft$groupKey)
-                    .forEach(selectedKeys::add);
+            this.quickcraft$containerMismatchesByKey.values().stream().filter(mismatch -> mismatch.pos().equals(pos))
+                    .map(QuickLitematicaContainerVerification::quickcraft$groupKey).forEach(selectedKeys::add);
         }
         if (selectedKeys.isEmpty()) {
             return;
         }
         this.quickcraft$selectedContainerMismatches.clear();
-        this.host.quickcraft$verificationSelectedEntries().keySet().removeIf(QuickLitematicaContainerVerifier::isContainerMismatchType);
-        for (var entry : quickcraft$groupContainerMismatches(new ArrayList<>(this.quickcraft$containerMismatchesByKey.values())).entrySet()) {
+        this.host.quickcraft$verificationSelectedEntries().keySet().removeIf(
+                QuickLitematicaContainerVerifier::isContainerMismatchType
+        );
+        for (var entry : quickcraft$groupContainerMismatches(
+                new ArrayList<>(this.quickcraft$containerMismatchesByKey.values())
+        ).entrySet()) {
             if (selectedKeys.contains(entry.getKey())) {
                 BlockMismatch blockMismatch = this.quickcraft$createBlockMismatch(entry.getValue());
                 this.quickcraft$selectedContainerMismatches.add(blockMismatch);
@@ -1307,24 +1427,19 @@ public final class QuickLitematicaContainerVerification implements VerifierExten
     private static String quickcraft$getContainerMismatchSignature(ContainerMismatch mismatch) {
         StringBuilder builder = new StringBuilder();
 
-        builder.append(mismatch.type().ordinal())
-                .append('|')
-                .append(mismatch.expectedState())
-                .append('|')
-                .append(mismatch.foundState())
-                .append('|')
-                .append(mismatch.expectedDisabledSlots().stream().sorted().toList())
-                .append('|')
-                .append(mismatch.foundDisabledSlots().stream().sorted().toList())
-                .append('|');
+        builder.append(mismatch.type().ordinal()).append('|').append(mismatch.expectedState()).append('|').append(
+                mismatch.foundState()
+        ).append('|').append(mismatch.expectedDisabledSlots().stream().sorted().toList()).append('|').append(
+                mismatch.foundDisabledSlots().stream().sorted().toList()
+        ).append('|');
 
         for (Inventory inventory : List.of(mismatch.expectedInventory(), mismatch.foundInventory())) {
             builder.append(inventory.size()).append('|');
             for (int slot = 0; slot < inventory.size(); slot++) {
                 ItemStack stack = inventory.getStack(slot);
                 String signature = QuickLitematicaContainerVerifier.getItemStackSignature(stack);
-                builder.append(stack.getCount()).append(':')
-                        .append(signature.length()).append(':').append(signature).append(';');
+                builder.append(stack.getCount()).append(':').append(signature.length()).append(':').append(signature)
+                        .append(';');
             }
         }
 

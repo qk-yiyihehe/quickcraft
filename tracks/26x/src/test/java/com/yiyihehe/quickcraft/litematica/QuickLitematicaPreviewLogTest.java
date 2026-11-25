@@ -25,7 +25,9 @@ class QuickLitematicaPreviewLogTest {
     void asynchronousPersistenceKeepsItsProjectionWithoutLeakingTheThreadContext() throws Exception {
         var owner = new QuickLitematicaPreviewLog.Trace(Path.of("projection.litematic"), System.nanoTime());
         CompletableFuture.runAsync(() -> {
-            owner.wrapConsumer(value -> assertThat(QuickLitematicaPreviewLog.current()).isSameAs(owner)).accept("saved");
+            owner.wrapConsumer(value -> assertThat(QuickLitematicaPreviewLog.current()).isSameAs(owner)).accept(
+                    "saved"
+            );
             assertThat(QuickLitematicaPreviewLog.current()).isNull();
         }).get();
     }

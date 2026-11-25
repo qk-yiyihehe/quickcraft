@@ -1,1 +1,1 @@
-// Intentionally empty in Minecraft 1.21.10; this type exists only in another supported version.
+// Minecraft 1.21.10 中故意留空。此类型仅在其他受支持版本中存在。

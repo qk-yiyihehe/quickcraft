@@ -13,7 +13,8 @@ import java.util.List;
 
 @Mixin(value = MaterialListEntry.class, remap = false)
 public abstract class LitematicaMaterialListEntryWarehouseMixin implements WarehouseAvailability {
-    @Unique private ItemStack quickcraft$warehouseTarget;
+    @Unique
+    private ItemStack quickcraft$warehouseTarget;
 
     @Override
     public void quickcraft$setWarehouseTarget(ItemStack target) {
@@ -30,6 +31,7 @@ public abstract class LitematicaMaterialListEntryWarehouseMixin implements Wareh
     @ModifyReturnValue(method = "getCountAvailable", at = @At("RETURN"))
     private int quickcraft$includeWarehouseStock(int available) {
         var target = this.quickcraft$warehouseTarget;
-        return target == null ? available : QuickLitematicaVoidWarehouseMaterials.addProjectionAvailable(available, target);
+        return target == null ? available
+                : QuickLitematicaVoidWarehouseMaterials.addProjectionAvailable(available, target);
     }
 }

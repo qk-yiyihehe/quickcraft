@@ -86,7 +86,6 @@ class QuickShulkerSplitSafetyTest {
         assertThat(fixture.takeovers).hasValue(0);
     }
 
-
     @Test
     void scrollSkipsFullAndIncompatibleSlotsBeforeUsingEmptyTarget() throws Exception {
         for (var blocked : List.of(new ItemStack(Items.ENDER_CHEST, 64), new ItemStack(Items.STONE))) {
@@ -133,7 +132,9 @@ class QuickShulkerSplitSafetyTest {
     void lockedBufferDoesNotParticipateInSplit() throws Exception {
         Fixture fixture = fixture(QuickShulkerKind.ENDER_CHEST, 64, 1, true);
         try (var locks = mockStatic(QuickContainerLock.class)) {
-            locks.when(() -> QuickContainerLock.isLockedSlot(fixture.handler, fixture.handler.getSlot(2))).thenReturn(true);
+            locks.when(() -> QuickContainerLock.isLockedSlot(fixture.handler, fixture.handler.getSlot(2))).thenReturn(
+                    true
+            );
             assertThat(invokeMoveItemsToTargetSlot(fixture, 0, 1, 2)).isZero();
             assertThat(fixture.handler.getSlot(0).getStack().getCount()).isEqualTo(64);
             assertThat(fixture.handler.getSlot(1).getStack().getCount()).isEqualTo(1);
@@ -178,53 +179,85 @@ class QuickShulkerSplitSafetyTest {
         return new Fixture(client, player, handler, takeovers);
     }
 
-    private static int invokeMoveItemsToTargetSlot(Fixture fixture, int source, int target, int needed) throws Exception {
+    private static int invokeMoveItemsToTargetSlot(Fixture fixture, int source, int target, int needed)
+            throws Exception {
         Method method = QuickContainerCopy.class.getDeclaredMethod(
-                "moveItemsToTargetSlot", ScreenHandler.class, int.class, int.class, int.class, MinecraftClient.class);
+                "moveItemsToTargetSlot",
+                ScreenHandler.class,
+                int.class,
+                int.class,
+                int.class,
+                MinecraftClient.class
+        );
         method.setAccessible(true);
-        try (var minecraft = mockStatic(MinecraftClient.class);
-             var fabric = mockStatic(FabricLoader.class)) {
+        try (var minecraft = mockStatic(MinecraftClient.class); var fabric = mockStatic(FabricLoader.class)) {
             minecraft.when(MinecraftClient::getInstance).thenReturn(fixture.client);
             FabricLoader loader = mock(FabricLoader.class);
             when(loader.isModLoaded("quickshulker")).thenReturn(true);
             fabric.when(FabricLoader::getInstance).thenReturn(loader);
-            return (Integer) method.invoke(new QuickContainerCopy(), fixture.handler, source, target, needed, fixture.client);
+            return (Integer) method.invoke(
+                    new QuickContainerCopy(),
+                    fixture.handler,
+                    source,
+                    target,
+                    needed,
+                    fixture.client
+            );
         }
     }
 
-    private static boolean invokeMoveOneSourceItemToTargetSlots(Fixture fixture, int source, List<Integer> targetIds) throws Exception {
+    private static boolean invokeMoveOneSourceItemToTargetSlots(Fixture fixture, int source, List<Integer> targetIds)
+            throws Exception {
         Method method = QuickTransfer.class.getDeclaredMethod(
-                "moveOneSourceItemToTargetSlots", HandledScreen.class, int.class, ItemStack.class, List.class);
+                "moveOneSourceItemToTargetSlots",
+                HandledScreen.class,
+                int.class,
+                ItemStack.class,
+                List.class
+        );
         method.setAccessible(true);
         HandledScreen<?> screen = mock(HandledScreen.class);
         when(screen.getScreenHandler()).thenReturn(fixture.handler);
-        try (var minecraft = mockStatic(MinecraftClient.class);
-             var fabric = mockStatic(FabricLoader.class)) {
+        try (var minecraft = mockStatic(MinecraftClient.class); var fabric = mockStatic(FabricLoader.class)) {
             minecraft.when(MinecraftClient::getInstance).thenReturn(fixture.client);
             FabricLoader loader = mock(FabricLoader.class);
             when(loader.isModLoaded("quickshulker")).thenReturn(true);
             fabric.when(FabricLoader::getInstance).thenReturn(loader);
-            return (Boolean) method.invoke(null, screen, source, fixture.handler.getSlot(source).getStack().copy(), targetIds);
+            return (Boolean) method.invoke(
+                    null,
+                    screen,
+                    source,
+                    fixture.handler.getSlot(source).getStack().copy(),
+                    targetIds
+            );
         }
     }
 
     private static void invokeTrim(Fixture fixture, int slotId, ItemStack template) throws Exception {
         Method method = QuickContainerCopy.class.getDeclaredMethod(
-                "trimMatchingContainerSlot", ScreenHandler.class, int.class, ItemStack.class, MinecraftClient.class);
+                "trimMatchingContainerSlot",
+                ScreenHandler.class,
+                int.class,
+                ItemStack.class,
+                MinecraftClient.class
+        );
         method.setAccessible(true);
-        try (var minecraft = mockStatic(MinecraftClient.class);
-             var fabric = mockStatic(FabricLoader.class)) {
+        try (var minecraft = mockStatic(MinecraftClient.class); var fabric = mockStatic(FabricLoader.class)) {
             minecraft.when(MinecraftClient::getInstance).thenReturn(fixture.client);
             FabricLoader loader = mock(FabricLoader.class);
             when(loader.isModLoaded("quickshulker")).thenReturn(true);
             fabric.when(FabricLoader::getInstance).thenReturn(loader);
-            assertThat((Boolean) method.invoke(new QuickContainerCopy(), fixture.handler, slotId, template, fixture.client)).isTrue();
+            assertThat(
+                    (Boolean) method.invoke(new QuickContainerCopy(), fixture.handler, slotId, template, fixture.client)
+            ).isTrue();
         }
     }
 
-    private static void installClickHandler(TestScreenHandler handler,
-                                            ClientPlayerInteractionManager interactionManager,
-                                            AtomicInteger takeovers) {
+    private static void installClickHandler(
+            TestScreenHandler handler,
+            ClientPlayerInteractionManager interactionManager,
+            AtomicInteger takeovers
+    ) {
         doAnswer(invocation -> {
             int slotId = invocation.getArgument(1);
             int button = invocation.getArgument(2);
@@ -236,8 +269,13 @@ class QuickShulkerSplitSafetyTest {
                 simulateRightClick(handler, slot, cursor, takeovers);
             }
             return null;
-        }).when(interactionManager).clickSlot(anyInt(), anyInt(), anyInt(),
-                any(SlotActionType.class), any(PlayerEntity.class));
+        }).when(interactionManager).clickSlot(
+                anyInt(),
+                anyInt(),
+                anyInt(),
+                any(SlotActionType.class),
+                any(PlayerEntity.class)
+        );
     }
 
     private static void simulateLeftClick(TestScreenHandler handler, Slot slot, ItemStack cursor) {
@@ -259,8 +297,12 @@ class QuickShulkerSplitSafetyTest {
         }
     }
 
-    private static void simulateRightClick(TestScreenHandler handler, Slot slot, ItemStack cursor,
-                                           AtomicInteger takeovers) {
+    private static void simulateRightClick(
+            TestScreenHandler handler,
+            Slot slot,
+            ItemStack cursor,
+            AtomicInteger takeovers
+    ) {
         if (cursor.isEmpty()) {
             ItemStack stack = slot.getStack();
             int taken = Math.max(1, (stack.getCount() + 1) / 2);
@@ -279,8 +321,8 @@ class QuickShulkerSplitSafetyTest {
         if (!slot.hasStack()) {
             slot.setStack(cursor.copyWithCount(1));
             handler.setCursorStack(cursor.copyWithCount(cursor.getCount() - 1));
-        } else if (ItemStack.areItemsAndComponentsEqual(slot.getStack(), cursor)
-                && slot.getStack().getCount() < slot.getMaxItemCount(cursor)) {
+        } else if (ItemStack.areItemsAndComponentsEqual(slot.getStack(), cursor) && slot.getStack().getCount() < slot
+                .getMaxItemCount(cursor)) {
             slot.setStack(slot.getStack().copyWithCount(slot.getStack().getCount() + 1));
             handler.setCursorStack(cursor.copyWithCount(cursor.getCount() - 1));
         }
@@ -293,8 +335,10 @@ class QuickShulkerSplitSafetyTest {
             try {
                 Class<?> equipmentType = Class.forName("net.minecraft.entity.EntityEquipment");
                 Object equipment = equipmentType.getConstructor().newInstance();
-                return PlayerInventory.class.getConstructor(PlayerEntity.class, equipmentType)
-                        .newInstance(player, equipment);
+                return PlayerInventory.class.getConstructor(PlayerEntity.class, equipmentType).newInstance(
+                        player,
+                        equipment
+                );
             } catch (ReflectiveOperationException e) {
                 throw new AssertionError(e);
             }
@@ -314,8 +358,7 @@ class QuickShulkerSplitSafetyTest {
     }
 
     private enum QuickShulkerKind {
-        ENDER_CHEST(Items.ENDER_CHEST),
-        STONE(Items.STONE);
+        ENDER_CHEST(Items.ENDER_CHEST), STONE(Items.STONE);
 
         private final net.minecraft.item.Item item;
 
@@ -324,10 +367,12 @@ class QuickShulkerSplitSafetyTest {
         }
     }
 
-    private record Fixture(MinecraftClient client,
-                           ClientPlayerEntity player,
-                           TestScreenHandler handler,
-                           AtomicInteger takeovers) {
+    private record Fixture(
+            MinecraftClient client,
+            ClientPlayerEntity player,
+            TestScreenHandler handler,
+            AtomicInteger takeovers
+    ) {
     }
 
     private static final class TestScreenHandler extends ScreenHandler {
@@ -354,4 +399,3 @@ class QuickShulkerSplitSafetyTest {
         }
     }
 }
-

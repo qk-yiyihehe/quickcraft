@@ -6,5 +6,6 @@ import org.spongepowered.asm.mixin.gen.Accessor;
 
 @Mixin(GlGpuBuffer.class)
 public interface LitematicaPreviewGlBufferAccessor {
-    @Accessor("id") int quickcraft$getId();
+    @Accessor("id")
+    int quickcraft$getId();
 }

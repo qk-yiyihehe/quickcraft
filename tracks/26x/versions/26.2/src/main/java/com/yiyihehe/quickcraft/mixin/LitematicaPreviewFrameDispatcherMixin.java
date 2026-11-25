@@ -12,15 +12,29 @@ import com.llamalad7.mixinextras.injector.wrapoperation.WrapOperation;
 
 @Mixin(FeatureRenderDispatcher.class)
 public abstract class LitematicaPreviewFrameDispatcherMixin {
-    @WrapOperation(method = "prepareFrameWithContext", at = @At(value = "INVOKE", target = "Lnet/minecraft/client/renderer/feature/FeatureRenderer;finishPrepare(Lnet/minecraft/client/renderer/feature/FeatureFrameContext;)V"))
-    private void quickcraft$deferFinish(FeatureRenderer<?> renderer, FeatureFrameContext context, Operation<Void> original) {
+    @WrapOperation(
+            method = "prepareFrameWithContext",
+            at = @At(
+                    value = "INVOKE",
+                    target = "Lnet/minecraft/client/renderer/feature/FeatureRenderer;finishPrepare(Lnet/minecraft/client/renderer/feature/FeatureFrameContext;)V"))
+    private void quickcraft$deferFinish(
+            FeatureRenderer<?> renderer,
+            FeatureFrameContext context,
+            Operation<Void> original
+    ) {
         var build = QuickLitematicaPreviewFrameBuild.current();
-        if (build == null || !build.deferFinish(renderer, context)) original.call(renderer, context);
+        if (build == null || !build.deferFinish(renderer, context)) {
+            original.call(renderer, context);
+        }
     }
 
-    @WrapOperation(method = "prepareFrameWithContext", at = @At(value = "INVOKE", target = "Lnet/minecraft/client/renderer/StagedVertexBuffer;upload()V"))
+    @WrapOperation(
+            method = "prepareFrameWithContext",
+            at = @At(value = "INVOKE", target = "Lnet/minecraft/client/renderer/StagedVertexBuffer;upload()V"))
     private void quickcraft$deferUpload(StagedVertexBuffer buffer, Operation<Void> original) {
         var build = QuickLitematicaPreviewFrameBuild.current();
-        if (build == null || !build.deferUpload(buffer)) original.call(buffer);
+        if (build == null || !build.deferUpload(buffer)) {
+            original.call(buffer);
+        }
     }
 }

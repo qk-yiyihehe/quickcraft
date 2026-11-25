@@ -1,4 +1,5 @@
 package com.yiyihehe.quickcraft.crafting;
+
 import com.yiyihehe.quickcraft.render.QuickCrossBoxSortStatus;
 
 import com.yiyihehe.quickcraft.QuickContainerLock;
@@ -61,17 +62,17 @@ final class QuickCraftMouseCrafting {
     private ItemStack lockedResultTemplate = ItemStack.EMPTY;
 
     private enum ManualPatternState {
-        COMPLETE,
-        MISSING,
-        INVALID
+        COMPLETE, MISSING, INVALID
     }
 
-    QuickCraftMouseCrafting(QuickCraftMouseCraftLayout.Layout layout,
-                                  BooleanSupplier enabled,
-                                  Runnable clearRecipeGhosts) {
+    QuickCraftMouseCrafting(
+            QuickCraftMouseCraftLayout.Layout layout,
+            BooleanSupplier enabled,
+            Runnable clearRecipeGhosts
+    ) {
         this.layout = layout;
         this.enabled = enabled;
-        this.clearRecipeGhosts = clearRecipeGhosts != null ? clearRecipeGhosts : () -> { };
+        this.clearRecipeGhosts = clearRecipeGhosts != null ? clearRecipeGhosts : () -> {};
         this.mouseCraftAckExecutor = new QuickCraftMouseCraftAckExecutor(
                 layout,
                 this::refillAckSnapshot,
@@ -135,16 +136,15 @@ final class QuickCraftMouseCrafting {
             return;
         }
 
-        if (rapidCraftingActive && hasLockedCraftingPlan()
-                && !mouseCraftAckExecutor.isActive()) {
+        if (rapidCraftingActive && hasLockedCraftingPlan() && !mouseCraftAckExecutor.isActive()) {
             if (QuickCraftConfigs.isMouseCraftAckDebugEnabled()) {
-                LOGGER.warn("手动补货ACK未能接管持续喷射，停止旧Tick回退：界面={}，配方={}，光标={}，输出={}",
+                LOGGER.warn(
+                        "手动补货ACK未能接管持续喷射，停止旧Tick回退：界面={}，配方={}，光标={}，输出={}",
                         layout.name(),
                         lockedRecipeId == null ? "none" : lockedRecipeId,
                         handler.getCarried().isEmpty() ? "空" : handler.getCarried(),
-                        handler.getSlot(OUTPUT_SLOT).hasItem()
-                                ? handler.getSlot(OUTPUT_SLOT).getItem()
-                                : "空");
+                        handler.getSlot(OUTPUT_SLOT).hasItem() ? handler.getSlot(OUTPUT_SLOT).getItem() : "空"
+                );
             }
             stopRapidCraft(client, Component.translatable("quickcraft.message.crafting.stopped"));
         }
@@ -156,8 +156,7 @@ final class QuickCraftMouseCrafting {
         }
 
         if (handler.getSlot(OUTPUT_SLOT).hasItem()) {
-            if (shouldManualRestock(lockedRecipe)
-                    && getManualPatternState(handler) != ManualPatternState.COMPLETE) {
+            if (shouldManualRestock(lockedRecipe) && getManualPatternState(handler) != ManualPatternState.COMPLETE) {
                 return false;
             }
             return takeOutputBatch(client, handler);
@@ -183,7 +182,12 @@ final class QuickCraftMouseCrafting {
         boolean success = runOneCraftSubLoop(client, handler);
         if (success && QuickCraftConfigs.isDropCraftResultsOnStopEnabled()) {
             QuickCraftMouseCraftInventory.dropMatchingUnlockedInventory(
-                    client, handler, layout, lockedResultTemplate, "单次合成结束丢出背包产物");
+                    client,
+                    handler,
+                    layout,
+                    lockedResultTemplate,
+                    "单次合成结束丢出背包产物"
+            );
         }
         if (!success) {
             sendStatusMessage(client, Component.translatable("quickcraft.message.crafting.no_ingredients"));
@@ -219,15 +223,17 @@ final class QuickCraftMouseCrafting {
         return restockCraftingGridFromPattern(client, handler);
     }
 
-    private boolean fillManualPatternStacks(Minecraft client,
-                                            AbstractContainerMenu handler) {
+    private boolean fillManualPatternStacks(Minecraft client, AbstractContainerMenu handler) {
         return fillFullStacksThenTail(client, handler, MAX_OUTPUT_THROW_BURST);
     }
 
-    private boolean refillAckSnapshot(Minecraft client,
-                                      AbstractContainerMenu handler,
-                                      int maxSourceStacksPerIngredient) {
-        if (!rapidCraftingActive || !hasLockedCraftingPlan()
+    private boolean refillAckSnapshot(
+            Minecraft client,
+            AbstractContainerMenu handler,
+            int maxSourceStacksPerIngredient
+    ) {
+        if (!rapidCraftingActive
+                || !hasLockedCraftingPlan()
                 || client.player == null
                 || client.player.containerMenu != handler
                 || QuickCraftMouseCraftLayout.fromHandler(handler) != layout) {
@@ -239,31 +245,34 @@ final class QuickCraftMouseCrafting {
             relocated += relocateMismatchedGridItems(client, handler);
         }
         ManualPatternState beforeFill = getManualPatternState(handler);
-        if (beforeFill == ManualPatternState.MISSING
-                && !hasTotalItemsForMissingPatternSlots(handler)
+        if (beforeFill == ManualPatternState.MISSING && !hasTotalItemsForMissingPatternSlots(handler)
                 && rebalanceGridTail(client, handler)) {
             return true;
         }
-        if (beforeFill == ManualPatternState.MISSING
-                && !hasTotalItemsForMissingPatternSlots(handler)) {
+        if (beforeFill == ManualPatternState.MISSING && !hasTotalItemsForMissingPatternSlots(handler)) {
             if (QuickCraftConfigs.isMouseCraftAckDebugEnabled()) {
-                LOGGER.info(QuickCraftMouseCraftAckExecutor.diagnosticContext() + "手动补货ACK没有完整一轮可用原料：界面={}，配方={}，格子={}，每格原料留样={}；不消耗样品，不发送半成品补料",
-                        layout.name(), lockedRecipeId == null ? "none" : lockedRecipeId,
-                        describeLiveGrid(handler), retainIngredientSamples());
+                LOGGER.info(
+                        QuickCraftMouseCraftAckExecutor.diagnosticContext()
+                                + "手动补货ACK没有完整一轮可用原料：界面={}，配方={}，格子={}，每格原料留样={}；不消耗样品，不发送半成品补料",
+                        layout.name(),
+                        lockedRecipeId == null ? "none" : lockedRecipeId,
+                        describeLiveGrid(handler),
+                        retainIngredientSamples()
+                );
             }
             return relocated > 0;
         }
 
-        // A duplicate ingredient only uses the 64-per-slot path when every
-        // fillable occurrence has its own full source stack. The final 1..N
-        // source stacks are distributed together, so 128 planks for three slab
-        // slots becomes 42/42/42 instead of the invalid 64/64/empty pattern.
-        boolean filled = fillFullStacksThenTail(
-                client, handler, maxSourceStacksPerIngredient);
+        // 同一种材料占用多个合成格时，只有每个待补的格子都有独立的一整组来源材料，
+        // 才能走每格补 64 个的流程。最后剩余的 1 到 N 组材料要一起分配。
+        // 例如把 128 块木板补到用于合成台阶的三个格子时，
+        // 应分成 42/42/42，才能避免出现 64/64/空格的无效结果。
+        boolean filled = fillFullStacksThenTail(client, handler, maxSourceStacksPerIngredient);
         ManualPatternState state = getManualPatternState(handler);
         boolean outputPresent = handler.getSlot(OUTPUT_SLOT).hasItem();
         if (QuickCraftConfigs.isMouseCraftAckDebugEnabled()) {
-            LOGGER.info(QuickCraftMouseCraftAckExecutor.diagnosticContext() + "手动补货ACK补料：界面={}，配方={}，挪走错位={}，补料={}，格状态={}，"
+            LOGGER.info(
+                    QuickCraftMouseCraftAckExecutor.diagnosticContext() + "手动补货ACK补料：界面={}，配方={}，挪走错位={}，补料={}，格状态={}，"
                             + "背包可补={}，空格={}，格子={}，光标={}，输出={}",
                     layout.name(),
                     lockedRecipeId == null ? "none" : lockedRecipeId,
@@ -274,42 +283,41 @@ final class QuickCraftMouseCrafting {
                     QuickCraftMouseCraftInventory.unlockedEmptySlots(handler, layout),
                     describeLiveGrid(handler),
                     handler.getCarried().isEmpty() ? "空" : handler.getCarried(),
-                    outputPresent ? handler.getSlot(OUTPUT_SLOT).getItem() : "空");
+                    outputPresent ? handler.getSlot(OUTPUT_SLOT).getItem() : "空"
+            );
         }
         return relocated > 0 || filled || (state == ManualPatternState.COMPLETE && outputPresent);
     }
 
-    private boolean fillFullStacksThenTail(Minecraft client,
-                                           AbstractContainerMenu handler,
-                                           int maxSourceStacksPerIngredient) {
+    private boolean fillFullStacksThenTail(
+            Minecraft client,
+            AbstractContainerMenu handler,
+            int maxSourceStacksPerIngredient
+    ) {
         if (retainIngredientSamples()) {
             // 留样模式的安全上限按整个 ACK 补货批次计算；不能先走“整栈”再走“尾料”，
             // 否则两次 refillWithSamples() 会分别认为同一配方格尚未在本批操作过。
             return refillWithSamples(client, handler);
         }
-        boolean filled = fillManualPatternStacks(
-                client, handler, maxSourceStacksPerIngredient, true, true);
+        boolean filled = fillManualPatternStacks(client, handler, maxSourceStacksPerIngredient, true, true);
         ManualPatternState stateAfterFullStacks = getManualPatternState(handler);
         if (stateAfterFullStacks == ManualPatternState.COMPLETE) {
             filled |= topUpCompletePattern(client, handler, maxSourceStacksPerIngredient);
-            filled |= fillManualPatternStacks(
-                    client, handler, maxSourceStacksPerIngredient, false, false);
-        } else if (stateAfterFullStacks == ManualPatternState.MISSING
-                && hasTotalItemsForMissingPatternSlots(handler)) {
-            filled |= fillManualPatternStacks(
-                    client, handler, maxSourceStacksPerIngredient, false, false);
+            filled |= fillManualPatternStacks(client, handler, maxSourceStacksPerIngredient, false, false);
+        } else if (stateAfterFullStacks == ManualPatternState.MISSING && hasTotalItemsForMissingPatternSlots(handler)) {
+            filled |= fillManualPatternStacks(client, handler, maxSourceStacksPerIngredient, false, false);
         }
         return filled;
     }
 
-    private boolean topUpCompletePattern(Minecraft client,
-                                         AbstractContainerMenu handler,
-                                         int maxSourceStacksPerIngredient) {
+    private boolean topUpCompletePattern(
+            Minecraft client,
+            AbstractContainerMenu handler,
+            int maxSourceStacksPerIngredient
+    ) {
         var player = client.player;
         var gameMode = client.gameMode;
-        if (player == null || gameMode == null
-                || retainIngredientSamples()
-                || !handler.getCarried().isEmpty()
+        if (player == null || gameMode == null || retainIngredientSamples() || !handler.getCarried().isEmpty()
                 || getManualPatternState(handler) != ManualPatternState.COMPLETE) {
             return false;
         }
@@ -329,22 +337,22 @@ final class QuickCraftMouseCrafting {
                 continue;
             }
             int occurrences = patternIngredientOccurrences(template);
-            int remainingCapacity = fillableSlots.stream()
-                    .mapToInt(slotId -> handler.getSlot(slotId).getMaxStackSize(template)
-                            - handler.getSlot(slotId).getItem().getCount())
-                    .sum();
+            int remainingCapacity = fillableSlots.stream().mapToInt(
+                    slotId -> handler.getSlot(slotId).getMaxStackSize(template) - handler.getSlot(slotId).getItem()
+                            .getCount()
+            ).sum();
             if (!QuickCraftMouseCraftInventory.canQuickTopUpCompleteGroup(
                     occurrences,
                     countMatchingUnlockedItems(handler, template),
-                    remainingCapacity)) {
+                    remainingCapacity
+            )) {
                 continue;
             }
 
             int attempts = 0;
             boolean movedIngredient = false;
             while (attempts < sourceBudget && hasFillablePatternSlot(handler, template)) {
-                int sourceSlot = findMatchingPlayerInventoryHandlerSlot(
-                        player.getInventory(), handler, template, 1);
+                int sourceSlot = findMatchingPlayerInventoryHandlerSlot(player.getInventory(), handler, template, 1);
                 if (sourceSlot == -1) {
                     break;
                 }
@@ -373,8 +381,15 @@ final class QuickCraftMouseCrafting {
         }
         if (movedAny) {
             if (QuickCraftConfigs.isMouseCraftAckDebugEnabled()) {
-                LOGGER.info(QuickCraftMouseCraftAckExecutor.diagnosticContext() + "普通配方书完整图案补至最大：界面={}，原料种类={}，来源栈={}，补前={}，补后={}",
-                        layout.name(), movedIngredientTypes, movedSources, before, describeLiveGrid(handler));
+                LOGGER.info(
+                        QuickCraftMouseCraftAckExecutor.diagnosticContext()
+                                + "普通配方书完整图案补至最大：界面={}，原料种类={}，来源栈={}，补前={}，补后={}",
+                        layout.name(),
+                        movedIngredientTypes,
+                        movedSources,
+                        before,
+                        describeLiveGrid(handler)
+                );
             }
         }
         return movedAny;
@@ -383,8 +398,7 @@ final class QuickCraftMouseCrafting {
     private int patternIngredientOccurrences(ItemStack template) {
         int occurrences = 0;
         for (ItemStack patternStack : lockedCraftingPattern) {
-            if (!patternStack.isEmpty()
-                    && ItemStack.isSameItemSameComponents(patternStack, template)) {
+            if (!patternStack.isEmpty() && ItemStack.isSameItemSameComponents(patternStack, template)) {
                 occurrences++;
             }
         }
@@ -409,8 +423,13 @@ final class QuickCraftMouseCrafting {
             }
             int[] counts = slots.stream().mapToInt(slot -> handler.getSlot(slot).getItem().getCount()).toArray();
             for (var move : QuickCraftMouseCraftInventory.planGridTailBalance(counts)) {
-                moves.add(new QuickCraftMouseCraftInventory.GridBalanceMove(
-                        slots.get(move.source()), slots.get(move.target()), move.count()));
+                moves.add(
+                        new QuickCraftMouseCraftInventory.GridBalanceMove(
+                                slots.get(move.source()),
+                                slots.get(move.target()),
+                                move.count()
+                        )
+                );
             }
         }
         return moves;
@@ -425,34 +444,67 @@ final class QuickCraftMouseCrafting {
         for (var move : moves) {
             int sourceCount = handler.getSlot(move.source()).getItem().getCount();
             int targetCount = handler.getSlot(move.target()).getItem().getCount();
-            client.gameMode.handleContainerInput(handler.containerId, move.source(), 0, ContainerInput.PICKUP, client.player);
-            if (handler.getCarried().getCount() != sourceCount
-                    || handler.getSlot(move.source()).hasItem()) {
+            client.gameMode.handleContainerInput(
+                    handler.containerId,
+                    move.source(),
+                    0,
+                    ContainerInput.PICKUP,
+                    client.player
+            );
+            if (handler.getCarried().getCount() != sourceCount || handler.getSlot(move.source()).hasItem()) {
                 if (QuickCraftConfigs.isMouseCraftAckDebugEnabled()) {
-                    LOGGER.warn("工作台尾料取料未确认：界面={}，来源={}，光标={}；停止本批后续点击",
-                            layout.name(), move.source(), handler.getCarried());
+                    LOGGER.warn(
+                            "工作台尾料取料未确认：界面={}，来源={}，光标={}；停止本批后续点击",
+                            layout.name(),
+                            move.source(),
+                            handler.getCarried()
+                    );
                 }
                 return true;
             }
             for (int placed = 0; placed < move.count(); placed++) {
-                client.gameMode.handleContainerInput(handler.containerId, move.target(), 1, ContainerInput.PICKUP, client.player);
+                client.gameMode.handleContainerInput(
+                        handler.containerId,
+                        move.target(),
+                        1,
+                        ContainerInput.PICKUP,
+                        client.player
+                );
             }
             if (!handler.getCarried().isEmpty()) {
-                client.gameMode.handleContainerInput(handler.containerId, move.source(), 0, ContainerInput.PICKUP, client.player);
+                client.gameMode.handleContainerInput(
+                        handler.containerId,
+                        move.source(),
+                        0,
+                        ContainerInput.PICKUP,
+                        client.player
+                );
             }
-            if (!handler.getCarried().isEmpty()
-                    || handler.getSlot(move.source()).getItem().getCount() != sourceCount - move.count()
-                    || handler.getSlot(move.target()).getItem().getCount() != targetCount + move.count()) {
+            if (!handler.getCarried().isEmpty() || handler.getSlot(move.source()).getItem().getCount() != sourceCount
+                    - move.count() || handler.getSlot(move.target()).getItem().getCount() != targetCount + move
+                            .count()) {
                 if (QuickCraftConfigs.isMouseCraftAckDebugEnabled()) {
-                    LOGGER.warn("工作台尾料均分未确认：界面={}，来源={}，目标={}，移动={}，光标={}；交给ACK确认",
-                            layout.name(), move.source(), move.target(), move.count(), handler.getCarried());
+                    LOGGER.warn(
+                            "工作台尾料均分未确认：界面={}，来源={}，目标={}，移动={}，光标={}；交给ACK确认",
+                            layout.name(),
+                            move.source(),
+                            move.target(),
+                            move.count(),
+                            handler.getCarried()
+                    );
                 }
                 return true;
             }
         }
         if (QuickCraftConfigs.isMouseCraftAckDebugEnabled()) {
-            LOGGER.info(QuickCraftMouseCraftAckExecutor.diagnosticContext() + "工作台尾料均分：界面={}，移动计划={}，均分前={}，均分后={}，背包原料留样不动=true；等待ACK后继续合成",
-                    layout.name(), moves, before, describeLiveGrid(handler));
+            LOGGER.info(
+                    QuickCraftMouseCraftAckExecutor.diagnosticContext()
+                            + "工作台尾料均分：界面={}，移动计划={}，均分前={}，均分后={}，背包原料留样不动=true；等待ACK后继续合成",
+                    layout.name(),
+                    moves,
+                    before,
+                    describeLiveGrid(handler)
+            );
         }
         return true;
     }
@@ -469,8 +521,7 @@ final class QuickCraftMouseCrafting {
             int missing = 0;
             for (int i = patternIndex; i < lockedCraftingPattern.size(); i++) {
                 ItemStack sameTemplate = lockedCraftingPattern.get(i);
-                if (sameTemplate.isEmpty()
-                        || !ItemStack.isSameItemSameComponents(sameTemplate, template)) {
+                if (sameTemplate.isEmpty() || !ItemStack.isSameItemSameComponents(sameTemplate, template)) {
                     continue;
                 }
                 if (!handler.getSlot(layout.gridSlotId(i)).hasItem()) {
@@ -482,16 +533,14 @@ final class QuickCraftMouseCrafting {
             }
 
             int available = 0;
-            for (int inventoryIndex = 0;
-                 inventoryIndex < QuickCraftMouseCraftLayout.PLAYER_INVENTORY_SIZE;
-                 inventoryIndex++) {
+            for (int inventoryIndex =
+                    0; inventoryIndex < QuickCraftMouseCraftLayout.PLAYER_INVENTORY_SIZE; inventoryIndex++) {
                 int handlerSlot = layout.handlerSlotForInventoryIndex(inventoryIndex);
                 if (handlerSlot < 0 || QuickContainerLock.isLockedSlot(handler, handlerSlot)) {
                     continue;
                 }
                 ItemStack source = handler.getSlot(handlerSlot).getItem();
-                if (!source.isEmpty()
-                        && ItemStack.isSameItemSameComponents(source, template)) {
+                if (!source.isEmpty() && ItemStack.isSameItemSameComponents(source, template)) {
                     available += source.getCount();
                 }
             }
@@ -502,18 +551,22 @@ final class QuickCraftMouseCrafting {
         return true;
     }
 
-    private boolean fillManualPatternStacks(Minecraft client,
-                                            AbstractContainerMenu handler,
-                                            int maxSourceStacksPerIngredient,
-                                            boolean moveWholeStackToSingleSlot,
-                                            boolean fullStacksOnly) {
-        if (client.player == null || client.gameMode == null
-                || !handler.getCarried().isEmpty()) {
+    private boolean fillManualPatternStacks(
+            Minecraft client,
+            AbstractContainerMenu handler,
+            int maxSourceStacksPerIngredient,
+            boolean moveWholeStackToSingleSlot,
+            boolean fullStacksOnly
+    ) {
+        if (client.player == null || client.gameMode == null || !handler.getCarried().isEmpty()) {
             return false;
         }
         if (getManualPatternState(handler) == ManualPatternState.INVALID) {
             if (QuickCraftConfigs.isMouseCraftAckDebugEnabled()) {
-                LOGGER.info(QuickCraftMouseCraftAckExecutor.diagnosticContext() + "手动补货跳过：合成格仍有无法匹配快照的物品，界面={}", layout.name());
+                LOGGER.info(
+                        QuickCraftMouseCraftAckExecutor.diagnosticContext() + "手动补货跳过：合成格仍有无法匹配快照的物品，界面={}",
+                        layout.name()
+                );
             }
             return false;
         }
@@ -539,22 +592,24 @@ final class QuickCraftMouseCrafting {
             boolean movedIngredient = false;
             // 普通阶段只把完整来源栈放进空配方格，不反复给半栈补到 64；
             // 尾料阶段才把所有剩余来源汇总到当前数量最低的同类格。
-            while (attempts < sourceStackBudget
-                    && (moveWholeStackToSingleSlot
-                    ? hasMissingPatternSlot(handler, template)
-                    : hasFillablePatternSlot(handler, template))) {
-                List<Integer> targetSlots = moveWholeStackToSingleSlot
-                        ? getMissingPatternSlots(handler, 0, template)
+            while (attempts < sourceStackBudget && (moveWholeStackToSingleSlot ? hasMissingPatternSlot(
+                    handler,
+                    template
+            ) : hasFillablePatternSlot(handler, template))) {
+                List<Integer> targetSlots = moveWholeStackToSingleSlot ? getMissingPatternSlots(handler, 0, template)
                         : getLowestFillablePatternSlots(handler, template);
                 if (targetSlots.isEmpty()) {
                     break;
                 }
 
-                int minimumSourceCount = fullStacksOnly
-                        ? usableIngredientCount(template.getMaxStackSize())
+                int minimumSourceCount = fullStacksOnly ? usableIngredientCount(template.getMaxStackSize())
                         : targetSlots.size();
                 int sourceSlot = findMatchingPlayerInventoryHandlerSlot(
-                        client.player.getInventory(), handler, template, minimumSourceCount);
+                        client.player.getInventory(),
+                        handler,
+                        template,
+                        minimumSourceCount
+                );
                 int beforeCount = countMatchingItemsInSlots(handler, targetSlots, template);
                 boolean movedStack;
                 if (sourceSlot != -1) {
@@ -567,8 +622,7 @@ final class QuickCraftMouseCrafting {
                             moveWholeStackToSingleSlot
                     );
                 } else if (!fullStacksOnly) {
-                    movedStack = distributeOneRoundFromMultipleSources(
-                            client, handler, targetSlots, template);
+                    movedStack = distributeOneRoundFromMultipleSources(client, handler, targetSlots, template);
                 } else {
                     movedStack = false;
                 }
@@ -591,19 +645,27 @@ final class QuickCraftMouseCrafting {
         }
 
         if (moveWholeStackToSingleSlot && (QuickCraftConfigs.isMouseCraftAckDebugEnabled() && LOGGER.isInfoEnabled())) {
-            LOGGER.info(QuickCraftMouseCraftAckExecutor.diagnosticContext() + "普通配方书快照整栈补料：界面={}，预算={}，原料种类={}，来源栈={}，"
+            LOGGER.info(
+                    QuickCraftMouseCraftAckExecutor.diagnosticContext() + "普通配方书快照整栈补料：界面={}，预算={}，原料种类={}，来源栈={}，"
                             + "已移动={}，耗时={} us",
-                    layout.name(), sourceStackBudget, movedIngredientTypes, movedSourceStacks,
-                    movedAny, (System.nanoTime() - refillStartedAtNanos) / 1_000L);
+                    layout.name(),
+                    sourceStackBudget,
+                    movedIngredientTypes,
+                    movedSourceStacks,
+                    movedAny,
+                    (System.nanoTime() - refillStartedAtNanos) / 1_000L
+            );
         }
 
         return movedAny;
     }
 
-    private boolean distributeOneRoundFromMultipleSources(Minecraft client,
-                                                           AbstractContainerMenu handler,
-                                                           List<Integer> targetSlots,
-                                                           ItemStack template) {
+    private boolean distributeOneRoundFromMultipleSources(
+            Minecraft client,
+            AbstractContainerMenu handler,
+            List<Integer> targetSlots,
+            ItemStack template
+    ) {
         if (targetSlots.isEmpty()) {
             return false;
         }
@@ -627,49 +689,47 @@ final class QuickCraftMouseCrafting {
         }
 
         for (int targetSlot : lowestTargets) {
-            int sourceSlot = findMatchingPlayerInventoryHandlerSlot(
-                    client.player.getInventory(), handler, template, 1);
-            if (sourceSlot == -1
-                    || !moveOneItemToGridSlot(client, handler, sourceSlot, targetSlot, template)) {
+            int sourceSlot = findMatchingPlayerInventoryHandlerSlot(client.player.getInventory(), handler, template, 1);
+            if (sourceSlot == -1 || !moveOneItemToGridSlot(client, handler, sourceSlot, targetSlot, template)) {
                 return false;
             }
         }
 
         for (int targetSlot : lowestTargets) {
             ItemStack target = handler.getSlot(targetSlot).getItem();
-            if (target.isEmpty()
-                    || !ItemStack.isSameItemSameComponents(target, template)
-                    || target.getCount() != minimumTargetCount + 1) {
+            if (target.isEmpty() || !ItemStack.isSameItemSameComponents(target, template) || target
+                    .getCount() != minimumTargetCount + 1) {
                 return false;
             }
         }
         if (QuickCraftConfigs.isMouseCraftAckDebugEnabled()) {
-            LOGGER.info(QuickCraftMouseCraftAckExecutor.diagnosticContext() + "普通配方书分散尾料补齐一轮：界面={}，目标槽={}，每槽={}，配方={}",
-                    layout.name(), lowestTargets, minimumTargetCount + 1,
-                    template.getHoverName().getString());
+            LOGGER.info(
+                    QuickCraftMouseCraftAckExecutor.diagnosticContext() + "普通配方书分散尾料补齐一轮：界面={}，目标槽={}，每槽={}，配方={}",
+                    layout.name(),
+                    lowestTargets,
+                    minimumTargetCount + 1,
+                    template.getHoverName().getString()
+            );
         }
         return true;
     }
 
-    private boolean hasEnoughFullStacksForMissingPatternSlots(AbstractContainerMenu handler,
-                                                               ItemStack template) {
+    private boolean hasEnoughFullStacksForMissingPatternSlots(AbstractContainerMenu handler, ItemStack template) {
         int missingSlots = getMissingPatternSlots(handler, 0, template).size();
         if (missingSlots == 0) {
             return true;
         }
 
         int fullSourceStacks = 0;
-        for (int inventoryIndex = 0;
-             inventoryIndex < QuickCraftMouseCraftLayout.PLAYER_INVENTORY_SIZE;
-             inventoryIndex++) {
+        for (int inventoryIndex =
+                0; inventoryIndex < QuickCraftMouseCraftLayout.PLAYER_INVENTORY_SIZE; inventoryIndex++) {
             int handlerSlot = layout.handlerSlotForInventoryIndex(inventoryIndex);
             if (handlerSlot < 0 || QuickContainerLock.isLockedSlot(handler, handlerSlot)) {
                 continue;
             }
             ItemStack source = handler.getSlot(handlerSlot).getItem();
-            if (!source.isEmpty()
-                    && ItemStack.isSameItemSameComponents(source, template)
-                    && source.getCount() >= template.getMaxStackSize()) {
+            if (!source.isEmpty() && ItemStack.isSameItemSameComponents(source, template) && source
+                    .getCount() >= template.getMaxStackSize()) {
                 fullSourceStacks++;
             }
         }
@@ -694,8 +754,7 @@ final class QuickCraftMouseCrafting {
         return false;
     }
 
-    private List<Integer> getFillablePatternSlots(AbstractContainerMenu handler,
-                                                  ItemStack template) {
+    private List<Integer> getFillablePatternSlots(AbstractContainerMenu handler, ItemStack template) {
         List<Integer> slots = new ArrayList<>();
         for (int i = 0; i < lockedCraftingPattern.size(); i++) {
             ItemStack patternStack = lockedCraftingPattern.get(i);
@@ -706,9 +765,8 @@ final class QuickCraftMouseCrafting {
             int slotId = layout.gridSlotId(i);
             Slot slot = handler.getSlot(slotId);
             ItemStack existing = slot.getItem();
-            if ((existing.isEmpty() || ItemStack.isSameItemSameComponents(existing, template))
-                    && existing.getCount() < slot.getMaxStackSize(template)
-                    && slot.mayPlace(template)) {
+            if ((existing.isEmpty() || ItemStack.isSameItemSameComponents(existing, template)) && existing
+                    .getCount() < slot.getMaxStackSize(template) && slot.mayPlace(template)) {
                 slots.add(slotId);
             }
         }
@@ -716,8 +774,7 @@ final class QuickCraftMouseCrafting {
         return slots;
     }
 
-    private List<Integer> getLowestFillablePatternSlots(AbstractContainerMenu handler,
-                                                         ItemStack template) {
+    private List<Integer> getLowestFillablePatternSlots(AbstractContainerMenu handler, ItemStack template) {
         List<Integer> fillable = getFillablePatternSlots(handler, template);
         if (fillable.size() < 2) {
             return fillable;
@@ -727,37 +784,39 @@ final class QuickCraftMouseCrafting {
         return fillable;
     }
 
-    private boolean distributeIngredientStackAcrossPatternSlots(Minecraft client,
-                                                                AbstractContainerMenu handler,
-                                                                int sourceSlot,
-                                                                List<Integer> targetSlots,
-                                                                ItemStack template,
-                                                                boolean moveWholeStackToSingleSlot) {
+    private boolean distributeIngredientStackAcrossPatternSlots(
+            Minecraft client,
+            AbstractContainerMenu handler,
+            int sourceSlot,
+            List<Integer> targetSlots,
+            ItemStack template,
+            boolean moveWholeStackToSingleSlot
+    ) {
         int sourceCount = usableIngredientCount(handler.getSlot(sourceSlot).getItem().getCount());
         if (sourceCount <= 0) {
             return false;
         }
 
-        // Full-stack ACK refills use one source stack per recipe slot. Only the
-        // final partial refill is allowed to distribute across duplicate slots;
-        // that path verifies the remainder before sending QUICK_CRAFT.
+        // ACK 流程按整组补料时，每个配方槽位使用一组独立的来源材料。
+        // 只有最后一次不足整组的补料才允许在同种材料的槽位间分配。
+        // 走这一流程时，发送 QUICK_CRAFT 前会核对余量。
         if (moveWholeStackToSingleSlot) {
-            return moveIngredientStackToSinglePatternSlot(
-                    client, handler, sourceSlot, targetSlots.get(0), template);
+            return moveIngredientStackToSinglePatternSlot(client, handler, sourceSlot, targetSlots.get(0), template);
         }
 
         if (targetSlots.size() == 1) {
-            return moveIngredientStackToSinglePatternSlot(
-                    client, handler, sourceSlot, targetSlots.get(0), template);
+            return moveIngredientStackToSinglePatternSlot(client, handler, sourceSlot, targetSlots.get(0), template);
         }
 
-        int remainingCapacity = targetSlots.stream()
-                .mapToInt(slotId -> handler.getSlot(slotId).getMaxStackSize(template)
-                        - handler.getSlot(slotId).getItem().getCount())
-                .min()
-                .orElse(0);
+        int remainingCapacity = targetSlots.stream().mapToInt(
+                slotId -> handler.getSlot(slotId).getMaxStackSize(template) - handler.getSlot(slotId).getItem()
+                        .getCount()
+        ).min().orElse(0);
         int itemsPerSlot = QuickCraftMouseCraftInventory.tailItemsPerSlot(
-                sourceCount, targetSlots.size(), remainingCapacity);
+                sourceCount,
+                targetSlots.size(),
+                remainingCapacity
+        );
         if (itemsPerSlot <= 0) {
             return false;
         }
@@ -768,30 +827,30 @@ final class QuickCraftMouseCrafting {
             return false;
         }
 
-        return distributeCursorStackToPatternSlots(
-                client,
-                handler,
-                sourceSlot,
-                targetSlots,
-                template,
-                itemsPerSlot
-        );
+        return distributeCursorStackToPatternSlots(client, handler, sourceSlot, targetSlots, template, itemsPerSlot);
     }
 
-    private boolean moveIngredientStackToSinglePatternSlot(Minecraft client,
-                                                            AbstractContainerMenu handler,
-                                                            int sourceSlot,
-                                                            int targetSlot,
-                                                            ItemStack template) {
+    private boolean moveIngredientStackToSinglePatternSlot(
+            Minecraft client,
+            AbstractContainerMenu handler,
+            int sourceSlot,
+            int targetSlot,
+            ItemStack template
+    ) {
         ItemStack before = handler.getSlot(targetSlot).getItem();
         int beforeCount = before.isEmpty() ? 0 : before.getCount();
         int sourceCount = usableIngredientCount(handler.getSlot(sourceSlot).getItem().getCount());
         int maxCount = handler.getSlot(targetSlot).getMaxStackSize(template);
         int firstAccepting = QuickCraftMouseCraftInventory.firstAcceptingGridSlot(handler, layout, template);
-        boolean remainingFits = QuickCraftMouseCraftInventory.wholeStackFitsInSlot(
-                sourceCount, beforeCount, maxCount);
+        boolean remainingFits = QuickCraftMouseCraftInventory.wholeStackFitsInSlot(sourceCount, beforeCount, maxCount);
         if (!retainIngredientSamples() && QuickCraftMouseCraftInventory.canQuickMoveWholeStackToGridSlot(
-                layout, sourceCount, beforeCount, maxCount, firstAccepting, targetSlot)) {
+                layout,
+                sourceCount,
+                beforeCount,
+                maxCount,
+                firstAccepting,
+                targetSlot
+        )) {
             client.gameMode.handleContainerInput(
                     handler.containerId,
                     sourceSlot,
@@ -800,9 +859,10 @@ final class QuickCraftMouseCrafting {
                     client.player
             );
             ItemStack afterQuickMove = handler.getSlot(targetSlot).getItem();
-            boolean movedQuick = !afterQuickMove.isEmpty()
-                    && ItemStack.isSameItemSameComponents(afterQuickMove, template)
-                    && afterQuickMove.getCount() > beforeCount;
+            boolean movedQuick = !afterQuickMove.isEmpty() && ItemStack.isSameItemSameComponents(
+                    afterQuickMove,
+                    template
+            ) && afterQuickMove.getCount() > beforeCount;
             boolean cursorClear = returnCursorStack(client, handler, sourceSlot);
             if (movedQuick && cursorClear) {
                 return true;
@@ -812,14 +872,19 @@ final class QuickCraftMouseCrafting {
             }
         } else if (!remainingFits) {
             if (QuickCraftConfigs.isMouseCraftAckDebugEnabled()) {
-                LOGGER.info(QuickCraftMouseCraftAckExecutor.diagnosticContext() + "整栈补货不用QUICK_MOVE：目标格装不下整组，避免摊到其他合成格。"
+                LOGGER.info(
+                        QuickCraftMouseCraftAckExecutor.diagnosticContext() + "整栈补货不用QUICK_MOVE：目标格装不下整组，避免摊到其他合成格。"
                                 + "界面={}，格={}，已有={}，来源={}，上限={}",
-                        layout.name(), targetSlot, beforeCount, sourceCount, maxCount);
+                        layout.name(),
+                        targetSlot,
+                        beforeCount,
+                        sourceCount,
+                        maxCount
+                );
             }
         }
 
-        if (!handler.getCarried().isEmpty()
-                && !returnCursorStack(client, handler, sourceSlot)) {
+        if (!handler.getCarried().isEmpty() && !returnCursorStack(client, handler, sourceSlot)) {
             return false;
         }
         if (!pickupIngredientStack(client, handler, sourceSlot)) {
@@ -829,24 +894,15 @@ final class QuickCraftMouseCrafting {
             return false;
         }
 
-        client.gameMode.handleContainerInput(
-                handler.containerId,
-                targetSlot,
-                0,
-                ContainerInput.PICKUP,
-                client.player
-        );
+        client.gameMode.handleContainerInput(handler.containerId, targetSlot, 0, ContainerInput.PICKUP, client.player);
 
         ItemStack after = handler.getSlot(targetSlot).getItem();
-        boolean moved = !after.isEmpty()
-                && ItemStack.isSameItemSameComponents(after, template)
-                && after.getCount() > beforeCount;
+        boolean moved = !after.isEmpty() && ItemStack.isSameItemSameComponents(after, template) && after
+                .getCount() > beforeCount;
         return closeIngredientTransfer(client, handler, sourceSlot) && moved;
     }
 
-    private int countMatchingItemsInSlots(AbstractContainerMenu handler,
-                                          List<Integer> slots,
-                                          ItemStack template) {
+    private int countMatchingItemsInSlots(AbstractContainerMenu handler, List<Integer> slots, ItemStack template) {
         int total = 0;
         for (int slotId : slots) {
             ItemStack stack = handler.getSlot(slotId).getItem();
@@ -857,8 +913,7 @@ final class QuickCraftMouseCrafting {
         return total;
     }
 
-    private boolean restockCraftingGridFromPattern(Minecraft client,
-                                                   AbstractContainerMenu handler) {
+    private boolean restockCraftingGridFromPattern(Minecraft client, AbstractContainerMenu handler) {
         if (client.player == null || client.gameMode == null) {
             return false;
         }
@@ -869,13 +924,14 @@ final class QuickCraftMouseCrafting {
         if (getManualPatternState(handler) == ManualPatternState.INVALID) {
             return false;
         }
-        if (getManualPatternState(handler) == ManualPatternState.MISSING
-                && !hasTotalItemsForMissingPatternSlots(handler)) {
+        if (getManualPatternState(handler) == ManualPatternState.MISSING && !hasTotalItemsForMissingPatternSlots(
+                handler
+        )) {
             return rebalanceGridTail(client, handler);
         }
         boolean filled = fillFullStacksThenTail(client, handler, MAX_OUTPUT_THROW_BURST);
-        return filled || (getManualPatternState(handler) == ManualPatternState.COMPLETE
-                && handler.getSlot(OUTPUT_SLOT).hasItem());
+        return filled || (getManualPatternState(handler) == ManualPatternState.COMPLETE && handler.getSlot(OUTPUT_SLOT)
+                .hasItem());
     }
 
     private boolean refillWithSamples(Minecraft client, AbstractContainerMenu handler) {
@@ -893,27 +949,35 @@ final class QuickCraftMouseCrafting {
                 }
 
                 int sourceSlot = findMatchingPlayerInventoryHandlerSlot(
-                        client.player.getInventory(), handler, template, 1);
+                        client.player.getInventory(),
+                        handler,
+                        template,
+                        1
+                );
                 if (sourceSlot == -1) {
                     if (QuickCraftConfigs.isMouseCraftAckDebugEnabled()) {
-                        LOGGER.info(QuickCraftMouseCraftAckExecutor.diagnosticContext() + "留样补料当前材料没有可用来源槽：界面={}，原料={}，权威可用={}，"
-                                        + "目标槽={}；每个来源槽均保留一个，继续检查后续材料",
-                                layout.name(), template.getHoverName().getString(),
-                                countMatchingUnlockedItems(handler, template), targets);
+                        LOGGER.info(
+                                QuickCraftMouseCraftAckExecutor.diagnosticContext()
+                                        + "留样补料当前材料没有可用来源槽：界面={}，原料={}，权威可用={}，" + "目标槽={}；每个来源槽均保留一个，继续检查后续材料",
+                                layout.name(),
+                                template.getHoverName().getString(),
+                                countMatchingUnlockedItems(handler, template),
+                                targets
+                        );
                     }
                     break;
                 }
 
-                int maximumServerPickup = QuickCraftMouseCraftInventory
-                        .maximumRetainedHalfPickup(template.getMaxStackSize());
+                int maximumServerPickup = QuickCraftMouseCraftInventory.maximumRetainedHalfPickup(
+                        template.getMaxStackSize()
+                );
                 int targetSlot = -1;
                 for (int candidate : targets) {
                     if (touchedTargets.contains(candidate)) {
                         continue;
                     }
                     Slot target = handler.getSlot(candidate);
-                    int targetCapacity = target.getMaxStackSize(template)
-                            - target.getItem().getCount();
+                    int targetCapacity = target.getMaxStackSize(template) - target.getItem().getCount();
                     if (targetCapacity >= maximumServerPickup) {
                         targetSlot = candidate;
                         break;
@@ -921,11 +985,15 @@ final class QuickCraftMouseCrafting {
                 }
                 if (targetSlot == -1) {
                     if (QuickCraftConfigs.isMouseCraftAckDebugEnabled()) {
-                        LOGGER.info(QuickCraftMouseCraftAckExecutor.diagnosticContext() + "留样单槽补料结束：界面={}，原料={}，最低目标槽={}，"
-                                        + "本批已补目标={}，服务端最大半组={}；"
-                                        + "同一目标格每批只补一次，尾量留到下一批",
-                                layout.name(), template.getHoverName().getString(), targets,
-                                touchedTargets, maximumServerPickup);
+                        LOGGER.info(
+                                QuickCraftMouseCraftAckExecutor.diagnosticContext() + "留样单槽补料结束：界面={}，原料={}，最低目标槽={}，"
+                                        + "本批已补目标={}，服务端最大半组={}；" + "同一目标格每批只补一次，尾量留到下一批",
+                                layout.name(),
+                                template.getHoverName().getString(),
+                                targets,
+                                touchedTargets,
+                                maximumServerPickup
+                        );
                     }
                     break;
                 }
@@ -937,38 +1005,57 @@ final class QuickCraftMouseCrafting {
 
                 int cursorCount = handler.getCarried().getCount();
                 client.gameMode.handleContainerInput(
-                        handler.containerId, targetSlot, 0, ContainerInput.PICKUP, client.player);
+                        handler.containerId,
+                        targetSlot,
+                        0,
+                        ContainerInput.PICKUP,
+                        client.player
+                );
                 ItemStack targetAfter = handler.getSlot(targetSlot).getItem();
-                boolean moved = handler.getCarried().isEmpty()
-                        && !targetAfter.isEmpty()
-                        && ItemStack.isSameItemSameComponents(targetAfter, template)
-                        && targetAfter.getCount() == targetCountBefore + cursorCount;
+                boolean moved = handler.getCarried().isEmpty() && !targetAfter.isEmpty() && ItemStack
+                        .isSameItemSameComponents(targetAfter, template) && targetAfter.getCount() == targetCountBefore
+                                + cursorCount;
                 if (!moved) {
                     if (QuickCraftConfigs.isMouseCraftAckDebugEnabled()) {
-                        LOGGER.warn("留样单槽补料未完成：界面={}，来源={}，目标={}，补前={}，"
-                                        + "拿取={}，补后={}，光标={}；停止本批并交给ACK确认",
-                                layout.name(), sourceSlot, targetSlot, targetCountBefore,
-                                cursorCount, targetAfter, handler.getCarried());
+                        LOGGER.warn(
+                                "留样单槽补料未完成：界面={}，来源={}，目标={}，补前={}，" + "拿取={}，补后={}，光标={}；停止本批并交给ACK确认",
+                                layout.name(),
+                                sourceSlot,
+                                targetSlot,
+                                targetCountBefore,
+                                cursorCount,
+                                targetAfter,
+                                handler.getCarried()
+                        );
                     }
                     return movedItems > 0;
                 }
                 touchedTargets.add(targetSlot);
                 movedItems += cursorCount;
                 if (QuickCraftConfigs.isMouseCraftAckDebugEnabled()) {
-                    LOGGER.info(QuickCraftMouseCraftAckExecutor.diagnosticContext() + "留样单槽安全补料：界面={}，来源槽={}，目标槽={}，原料={}，"
-                                    + "补前={}，增加={}，补后={}，权威最大半组={}，"
-                                    + "不拖拽=true，不点回来源=true",
-                            layout.name(), sourceSlot, targetSlot,
-                            template.getHoverName().getString(), targetCountBefore,
-                            cursorCount, targetAfter.getCount(), maximumServerPickup);
+                    LOGGER.info(
+                            QuickCraftMouseCraftAckExecutor.diagnosticContext() + "留样单槽安全补料：界面={}，来源槽={}，目标槽={}，原料={}，"
+                                    + "补前={}，增加={}，补后={}，权威最大半组={}，" + "不拖拽=true，不点回来源=true",
+                            layout.name(),
+                            sourceSlot,
+                            targetSlot,
+                            template.getHoverName().getString(),
+                            targetCountBefore,
+                            cursorCount,
+                            targetAfter.getCount(),
+                            maximumServerPickup
+                    );
                 }
             }
         }
         if (QuickCraftConfigs.isMouseCraftAckDebugEnabled()) {
-            LOGGER.info(QuickCraftMouseCraftAckExecutor.diagnosticContext() + "留样单槽安全补料：界面={}，搬运原料={}，同类格尽量补满=true，"
-                            + "来源槽按数量降序选择=true，每个来源槽至少保留一个=true，"
-                            + "权威光标无需点回来源=true，每目标每批最多一次=true，目标槽={}",
-                    layout.name(), movedItems, touchedTargets);
+            LOGGER.info(
+                    QuickCraftMouseCraftAckExecutor.diagnosticContext() + "留样单槽安全补料：界面={}，搬运原料={}，同类格尽量补满=true，"
+                            + "来源槽按数量降序选择=true，每个来源槽至少保留一个=true，" + "权威光标无需点回来源=true，每目标每批最多一次=true，目标槽={}",
+                    layout.name(),
+                    movedItems,
+                    touchedTargets
+            );
         }
         return movedItems > 0;
     }
@@ -985,9 +1072,8 @@ final class QuickCraftMouseCrafting {
             }
 
             int usableItems = 0;
-            for (int inventoryIndex = 0;
-                 inventoryIndex < QuickCraftMouseCraftLayout.PLAYER_INVENTORY_SIZE;
-                 inventoryIndex++) {
+            for (int inventoryIndex =
+                    0; inventoryIndex < QuickCraftMouseCraftLayout.PLAYER_INVENTORY_SIZE; inventoryIndex++) {
                 int slotId = layout.handlerSlotForInventoryIndex(inventoryIndex);
                 if (slotId < 0 || QuickContainerLock.isLockedSlot(handler, slotId)) {
                     continue;
@@ -1019,8 +1105,13 @@ final class QuickCraftMouseCrafting {
         }
         boolean retain = retainIngredientSamples();
         int beforeCount = source.getCount();
-        client.gameMode.handleContainerInput(handler.containerId, sourceSlot,
-                QuickCraftMouseCraftInventory.ingredientPickupButton(retain), ContainerInput.PICKUP, client.player);
+        client.gameMode.handleContainerInput(
+                handler.containerId,
+                sourceSlot,
+                QuickCraftMouseCraftInventory.ingredientPickupButton(retain),
+                ContainerInput.PICKUP,
+                client.player
+        );
         if (handler.getCarried().isEmpty()) {
             return false;
         }
@@ -1028,28 +1119,47 @@ final class QuickCraftMouseCrafting {
             ItemStack sample = handler.getSlot(sourceSlot).getItem();
             if (sample.isEmpty() || !ItemStack.isSameItemSameComponents(sample, handler.getCarried())) {
                 if (QuickCraftConfigs.isMouseCraftAckDebugEnabled()) {
-                    LOGGER.warn("原料留样失败：界面={}，槽={}，原数量={}，槽内={}，光标={}；停止本次补料",
-                            layout.name(), sourceSlot, beforeCount, sample, handler.getCarried());
+                    LOGGER.warn(
+                            "原料留样失败：界面={}，槽={}，原数量={}，槽内={}，光标={}；停止本次补料",
+                            layout.name(),
+                            sourceSlot,
+                            beforeCount,
+                            sample,
+                            handler.getCarried()
+                    );
                 }
                 returnCursorStack(client, handler, sourceSlot);
                 return false;
             }
             mouseCraftAckExecutor.recordRetainedSourcePrediction(
-                    handler, sourceSlot, sample, beforeCount,
-                    sample.getCount(), handler.getCarried().getCount());
+                    handler,
+                    sourceSlot,
+                    sample,
+                    beforeCount,
+                    sample.getCount(),
+                    handler.getCarried().getCount()
+            );
             if (QuickCraftConfigs.isMouseCraftAckDebugEnabled()) {
-                LOGGER.info(QuickCraftMouseCraftAckExecutor.diagnosticContext() + "原料逐组留样：界面={}，槽={}，原数量={}，保留={}，批量搬运={}",
-                        layout.name(), sourceSlot, beforeCount, sample.getCount(), handler.getCarried().getCount());
+                LOGGER.info(
+                        QuickCraftMouseCraftAckExecutor.diagnosticContext() + "原料逐组留样：界面={}，槽={}，原数量={}，保留={}，批量搬运={}",
+                        layout.name(),
+                        sourceSlot,
+                        beforeCount,
+                        sample.getCount(),
+                        handler.getCarried().getCount()
+                );
             }
         }
         return !handler.getCarried().isEmpty();
     }
 
-    private boolean moveOneItemToGridSlot(Minecraft client,
-                                          AbstractContainerMenu handler,
-                                          int sourceSlot,
-                                          int gridSlot,
-                                          ItemStack template) {
+    private boolean moveOneItemToGridSlot(
+            Minecraft client,
+            AbstractContainerMenu handler,
+            int sourceSlot,
+            int gridSlot,
+            ItemStack template
+    ) {
         if (!pickupIngredientStack(client, handler, sourceSlot)) {
             return false;
         }
@@ -1057,28 +1167,28 @@ final class QuickCraftMouseCrafting {
             return false;
         }
 
-        client.gameMode.handleContainerInput(
-                handler.containerId,
-                gridSlot,
-                1,
-                ContainerInput.PICKUP,
-                client.player
-        );
+        client.gameMode.handleContainerInput(handler.containerId, gridSlot, 1, ContainerInput.PICKUP, client.player);
 
-        boolean placed = handler.getSlot(gridSlot).hasItem()
-                && ItemStack.isSameItemSameComponents(handler.getSlot(gridSlot).getItem(), template);
-        boolean cursorReturned = retainIngredientSamples()
-                ? closeRetainedIngredientTransfer(client, handler, sourceSlot)
-                : closeIngredientTransfer(client, handler, sourceSlot);
+        boolean placed = handler.getSlot(gridSlot).hasItem() && ItemStack.isSameItemSameComponents(
+                handler.getSlot(gridSlot).getItem(),
+                template
+        );
+        boolean cursorReturned = retainIngredientSamples() ? closeRetainedIngredientTransfer(
+                client,
+                handler,
+                sourceSlot
+        ) : closeIngredientTransfer(client, handler, sourceSlot);
         return placed && cursorReturned;
     }
 
-    private boolean distributeCursorStackToPatternSlots(Minecraft client,
-                                                         AbstractContainerMenu handler,
-                                                         int sourceSlot,
-                                                         List<Integer> targetSlots,
-                                                         ItemStack template,
-                                                         int expectedIncreasePerSlot) {
+    private boolean distributeCursorStackToPatternSlots(
+            Minecraft client,
+            AbstractContainerMenu handler,
+            int sourceSlot,
+            List<Integer> targetSlots,
+            ItemStack template,
+            int expectedIncreasePerSlot
+    ) {
         if (handler.getCarried().isEmpty()) {
             return false;
         }
@@ -1117,9 +1227,11 @@ final class QuickCraftMouseCrafting {
                 client.player
         );
 
-        boolean cursorReturned = retainIngredientSamples()
-                ? closeRetainedIngredientTransfer(client, handler, sourceSlot)
-                : closeIngredientTransfer(client, handler, sourceSlot);
+        boolean cursorReturned = retainIngredientSamples() ? closeRetainedIngredientTransfer(
+                client,
+                handler,
+                sourceSlot
+        ) : closeIngredientTransfer(client, handler, sourceSlot);
         for (int i = 0; i < targetSlots.size(); i++) {
             int targetSlot = targetSlots.get(i);
             ItemStack placed = handler.getSlot(targetSlot).getItem();
@@ -1129,58 +1241,85 @@ final class QuickCraftMouseCrafting {
             int expectedCount = targetCountsBefore[i] + expectedIncreasePerSlot;
             if (placed.getCount() != expectedCount) {
                 if (QuickCraftConfigs.isMouseCraftAckDebugEnabled()) {
-                    LOGGER.warn("普通配方书尾料均分结果不一致，禁止继续发包：界面={}，槽={}，实际={}，期望={}，"
-                                    + "目标槽={}，来源余数={}，配方={}",
-                            layout.name(), targetSlot, placed.getCount(), expectedCount,
+                    LOGGER.warn(
+                            "普通配方书尾料均分结果不一致，禁止继续发包：界面={}，槽={}，实际={}，期望={}，" + "目标槽={}，来源余数={}，配方={}",
+                            layout.name(),
+                            targetSlot,
+                            placed.getCount(),
+                            expectedCount,
                             targetSlots,
                             cursorCountBeforeDrag - expectedIncreasePerSlot * targetSlots.size(),
-                            template.getHoverName().getString());
+                            template.getHoverName().getString()
+                    );
                 }
                 return false;
             }
         }
         int returned = cursorCountBeforeDrag - expectedIncreasePerSlot * targetSlots.size();
         if (QuickCraftConfigs.isMouseCraftAckDebugEnabled()) {
-            LOGGER.info(QuickCraftMouseCraftAckExecutor.diagnosticContext() + "普通配方书尾料快速拖拽：界面={}，来源={}，目标槽={}，每槽增加={}，"
+            LOGGER.info(
+                    QuickCraftMouseCraftAckExecutor.diagnosticContext() + "普通配方书尾料快速拖拽：界面={}，来源={}，目标槽={}，每槽增加={}，"
                             + "余数={}，来源闭合={}，基础槽位操作={}，配方={}",
-                    layout.name(), cursorCountBeforeDrag, targetSlots, expectedIncreasePerSlot,
-                    returned, cursorReturned, targetSlots.size() + 4,
-                    template.getHoverName().getString());
+                    layout.name(),
+                    cursorCountBeforeDrag,
+                    targetSlots,
+                    expectedIncreasePerSlot,
+                    returned,
+                    cursorReturned,
+                    targetSlots.size() + 4,
+                    template.getHoverName().getString()
+            );
         }
         return cursorReturned;
     }
 
-    private boolean closeIngredientTransfer(Minecraft client,
-                                            AbstractContainerMenu handler,
-                                            int sourceSlot) {
+    private boolean closeIngredientTransfer(Minecraft client, AbstractContainerMenu handler, int sourceSlot) {
         // 原来源槽可能被地面拾取重新填满；普通 PICKUP 在服务端光标已空时会再次取料。
         // 单槽拖拽只放回余料，服务端光标为空时三步均为空操作，仍须发送以修正预测差额。
         client.gameMode.handleContainerInput(
-                handler.containerId, -999, AbstractContainerMenu.getQuickcraftMask(0, 0), ContainerInput.QUICK_CRAFT, client.player);
+                handler.containerId,
+                -999,
+                AbstractContainerMenu.getQuickcraftMask(0, 0),
+                ContainerInput.QUICK_CRAFT,
+                client.player
+        );
         client.gameMode.handleContainerInput(
-                handler.containerId, sourceSlot, AbstractContainerMenu.getQuickcraftMask(1, 0), ContainerInput.QUICK_CRAFT, client.player);
+                handler.containerId,
+                sourceSlot,
+                AbstractContainerMenu.getQuickcraftMask(1, 0),
+                ContainerInput.QUICK_CRAFT,
+                client.player
+        );
         client.gameMode.handleContainerInput(
-                handler.containerId, -999, AbstractContainerMenu.getQuickcraftMask(2, 0), ContainerInput.QUICK_CRAFT, client.player);
+                handler.containerId,
+                -999,
+                AbstractContainerMenu.getQuickcraftMask(2, 0),
+                ContainerInput.QUICK_CRAFT,
+                client.player
+        );
         return handler.getCarried().isEmpty();
     }
 
-    private boolean closeRetainedIngredientTransfer(Minecraft client,
-                                                    AbstractContainerMenu handler,
-                                                    int sourceSlot) {
+    private boolean closeRetainedIngredientTransfer(Minecraft client, AbstractContainerMenu handler, int sourceSlot) {
         if (!handler.getCarried().isEmpty()) {
             if (QuickCraftConfigs.isMouseCraftAckDebugEnabled()) {
-                LOGGER.warn("留样补料禁止点回来源槽：界面={}，来源槽={}，光标={}；"
-                                + "客户端与服务端可能不同步，交给ACK处理",
-                        layout.name(), sourceSlot, handler.getCarried());
+                LOGGER.warn(
+                        "留样补料禁止点回来源槽：界面={}，来源槽={}，光标={}；" + "客户端与服务端可能不同步，交给ACK处理",
+                        layout.name(),
+                        sourceSlot,
+                        handler.getCarried()
+                );
             }
             return false;
         }
         return true;
     }
 
-    private List<Integer> getMissingPatternSlots(AbstractContainerMenu handler,
-                                                 int startPatternIndex,
-                                                 ItemStack template) {
+    private List<Integer> getMissingPatternSlots(
+            AbstractContainerMenu handler,
+            int startPatternIndex,
+            ItemStack template
+    ) {
         List<Integer> slots = new ArrayList<>();
         for (int i = startPatternIndex; i < lockedCraftingPattern.size(); i++) {
             ItemStack patternStack = lockedCraftingPattern.get(i);
@@ -1196,9 +1335,7 @@ final class QuickCraftMouseCrafting {
         return slots;
     }
 
-    private boolean returnCursorStack(Minecraft client,
-                                      AbstractContainerMenu handler,
-                                      int preferredSlot) {
+    private boolean returnCursorStack(Minecraft client, AbstractContainerMenu handler, int preferredSlot) {
         if (handler.getCarried().isEmpty()) {
             return true;
         }
@@ -1221,13 +1358,7 @@ final class QuickCraftMouseCrafting {
             return false;
         }
 
-        client.gameMode.handleContainerInput(
-                handler.containerId,
-                returnSlot,
-                0,
-                ContainerInput.PICKUP,
-                client.player
-        );
+        client.gameMode.handleContainerInput(handler.containerId, returnSlot, 0, ContainerInput.PICKUP, client.player);
         if (handler.getCarried().isEmpty()) {
             return true;
         }
@@ -1235,9 +1366,8 @@ final class QuickCraftMouseCrafting {
     }
 
     private boolean canAcceptStack(ItemStack targetStack, ItemStack cursorStack) {
-        return targetStack.isEmpty()
-                || (ItemStack.isSameItemSameComponents(targetStack, cursorStack)
-                && targetStack.getCount() + cursorStack.getCount() <= targetStack.getMaxStackSize());
+        return targetStack.isEmpty() || (ItemStack.isSameItemSameComponents(targetStack, cursorStack) && targetStack
+                .getCount() + cursorStack.getCount() <= targetStack.getMaxStackSize());
     }
 
     private boolean hasItemsForMissingPatternSlots(AbstractContainerMenu handler) {
@@ -1259,31 +1389,36 @@ final class QuickCraftMouseCrafting {
                 continue;
             }
             ItemStack handlerStack = handler.getSlot(handlerSlot).getItem();
-            ItemStack inventoryStack = playerInventory != null && invIndex < playerInventory.getNonEquipmentItems().size()
-                    ? playerInventory.getNonEquipmentItems().get(invIndex)
-                    : ItemStack.EMPTY;
+            ItemStack inventoryStack = playerInventory != null && invIndex < playerInventory.getNonEquipmentItems()
+                    .size() ? playerInventory.getNonEquipmentItems().get(invIndex) : ItemStack.EMPTY;
             boolean locked = QuickContainerLock.isLockedSlot(handler, handlerSlot);
             if (locked) {
                 if (!handlerStack.isEmpty() || !inventoryStack.isEmpty()) {
-                    excludedOrDesyncedDescriptions.add(describeInventoryCandidate(
-                            handlerSlot, invIndex, handlerStack, inventoryStack, true));
+                    excludedOrDesyncedDescriptions.add(
+                            describeInventoryCandidate(handlerSlot, invIndex, handlerStack, inventoryStack, true)
+                    );
                 }
                 continue;
             }
             if (handlerStack.isEmpty()) {
-                emptySlotDescriptions.add(handlerSlot + "(inventory=" + invIndex
-                        + ",player=" + describeStack(inventoryStack) + ",locked=false)");
+                emptySlotDescriptions.add(
+                        handlerSlot + "(inventory=" + invIndex + ",player=" + describeStack(inventoryStack)
+                                + ",locked=false)"
+                );
             }
             if (!sameStackState(handlerStack, inventoryStack)) {
-                excludedOrDesyncedDescriptions.add(describeInventoryCandidate(
-                        handlerSlot, invIndex, handlerStack, inventoryStack, false));
+                excludedOrDesyncedDescriptions.add(
+                        describeInventoryCandidate(handlerSlot, invIndex, handlerStack, inventoryStack, false)
+                );
             }
             if (!handlerStack.isEmpty()) {
                 ItemStack available = handlerStack.copy();
                 available.setCount(usableIngredientCount(handlerStack.getCount()));
                 availableStacks.add(available);
-                availableDescriptions.add(handlerSlot + ":" + handlerStack.getHoverName().getString()
-                        + "x" + handlerStack.getCount() + "(可用=" + available.getCount() + ")");
+                availableDescriptions.add(
+                        handlerSlot + ":" + handlerStack.getHoverName().getString() + "x" + handlerStack.getCount()
+                                + "(可用=" + available.getCount() + ")"
+                );
             }
         }
 
@@ -1312,64 +1447,74 @@ final class QuickCraftMouseCrafting {
                 continue;
             }
             matchedMissingSlots++;
-            // This availability check also permits the final tail to be split
-            // across duplicate slots; the refill method selects the safe
-            // quick-craft distribution path when whole source stacks are fewer.
+            // 可用量检查也允许把最后剩下的材料
+            // 分到同种材料的多个槽位。当来源的整组数量不足时，
+            // 补料方法会选用安全的快速拖拽分配流程。
             availableStacks.get(availableIndex).shrink(1);
         }
 
         boolean complete = missingSlots == 0;
-        // A partial match is still unsafe to start; the caller only reaches the
-        // refill path when every missing slot has at least one available item.
+        // 仅部分缺料槽位有材料可用时，开始补料仍不安全。
+        // 调用方只有在每个缺料的槽位都至少能分到一个物品时才会开始补料。
         boolean result = complete || matchedMissingSlots == missingSlots;
         if (!complete) {
             if (!result || !excludedOrDesyncedDescriptions.isEmpty()) {
                 if (QuickCraftConfigs.isMouseCraftAckDebugEnabled()) {
-                    LOGGER.info(QuickCraftMouseCraftAckExecutor.diagnosticContext() + "普通配方书材料扫描：界面={}，结果={}，缺格={}，可补缺格={}，"
+                    LOGGER.info(
+                            QuickCraftMouseCraftAckExecutor.diagnosticContext() + "普通配方书材料扫描：界面={}，结果={}，缺格={}，可补缺格={}，"
                                     + "未找到={}，背包材料={}，空槽={}，排除或不同步={}",
-                            layout.name(), result, missingSlots, matchedMissingSlots,
-                            missingDescriptions, availableDescriptions, emptySlotDescriptions,
-                            excludedOrDesyncedDescriptions);
+                            layout.name(),
+                            result,
+                            missingSlots,
+                            matchedMissingSlots,
+                            missingDescriptions,
+                            availableDescriptions,
+                            emptySlotDescriptions,
+                            excludedOrDesyncedDescriptions
+                    );
                 }
             } else {
                 if (QuickCraftConfigs.isMouseCraftAckDebugEnabled()) {
-                    LOGGER.info(QuickCraftMouseCraftAckExecutor.diagnosticContext() + "普通配方书材料齐全：界面={}，缺格={}，背包材料={}",
-                            layout.name(), missingSlots, availableDescriptions);
+                    LOGGER.info(
+                            QuickCraftMouseCraftAckExecutor.diagnosticContext() + "普通配方书材料齐全：界面={}，缺格={}，背包材料={}",
+                            layout.name(),
+                            missingSlots,
+                            availableDescriptions
+                    );
                 }
             }
         }
         return result;
     }
 
-    private String describeInventoryCandidate(int handlerSlot,
-                                              int inventoryIndex,
-                                              ItemStack handlerStack,
-                                              ItemStack inventoryStack,
-                                              boolean locked) {
-        return "handler=" + handlerSlot
-                + "/inventory=" + inventoryIndex
-                + "/screen=" + describeStack(handlerStack)
-                + "/player=" + describeStack(inventoryStack)
-                + "/locked=" + locked;
+    private String describeInventoryCandidate(
+            int handlerSlot,
+            int inventoryIndex,
+            ItemStack handlerStack,
+            ItemStack inventoryStack,
+            boolean locked
+    ) {
+        return "handler=" + handlerSlot + "/inventory=" + inventoryIndex + "/screen=" + describeStack(handlerStack)
+                + "/player=" + describeStack(inventoryStack) + "/locked=" + locked;
     }
 
     private boolean sameStackState(ItemStack left, ItemStack right) {
         if (left.isEmpty() || right.isEmpty()) {
             return left.isEmpty() && right.isEmpty();
         }
-        return left.getCount() == right.getCount()
-                && ItemStack.isSameItemSameComponents(left, right);
+        return left.getCount() == right.getCount() && ItemStack.isSameItemSameComponents(left, right);
     }
 
     private String describeStack(ItemStack stack) {
-        return stack == null || stack.isEmpty()
-                ? "空"
-                : stack.getHoverName().getString() + "x" + stack.getCount();
+        return stack == null || stack.isEmpty() ? "空" : stack.getHoverName().getString() + "x" + stack.getCount();
     }
 
     private int relocateMismatchedGridItems(Minecraft client, AbstractContainerMenu handler) {
-        if (client == null || client.player == null || client.gameMode == null
-                || handler == null || !handler.getCarried().isEmpty()
+        if (client == null
+                || client.player == null
+                || client.gameMode == null
+                || handler == null
+                || !handler.getCarried().isEmpty()
                 || lockedCraftingPattern.isEmpty()) {
             return 0;
         }
@@ -1382,23 +1527,25 @@ final class QuickCraftMouseCrafting {
             if (existing.isEmpty()) {
                 continue;
             }
-            boolean matchesPattern = !template.isEmpty()
-                    && ItemStack.isSameItemSameComponents(existing, template);
+            boolean matchesPattern = !template.isEmpty() && ItemStack.isSameItemSameComponents(existing, template);
             if (matchesPattern) {
                 continue;
             }
 
             ItemStack moving = existing.copy();
-            boolean isIngredient = matchesLockedPatternIngredient(moving)
-                    || matchesCurrentRecipeIngredient(moving);
+            boolean isIngredient = matchesLockedPatternIngredient(moving) || matchesCurrentRecipeIngredient(moving);
             if (!isIngredient) {
                 // 26.x 客户端只同步配方展示，无法核对真实 RecipeHolder；
                 // 默认返还推导不能作为 THROW/登记证据，统一安全收回背包，失败则明确中止。
                 if (recoverUnrelatedGridItem(client, handler, gridSlot, moving)) {
                     relocated++;
                     if (QuickCraftConfigs.isMouseCraftAckDebugEnabled()) {
-                        LOGGER.info(QuickCraftMouseCraftAckExecutor.diagnosticContext() + "手动补货收回合成格无关物品：界面={}，格={}，物品={}",
-                                layout.name(), gridSlot, moving);
+                        LOGGER.info(
+                                QuickCraftMouseCraftAckExecutor.diagnosticContext() + "手动补货收回合成格无关物品：界面={}，格={}，物品={}",
+                                layout.name(),
+                                gridSlot,
+                                moving
+                        );
                     }
                 } else {
                     noteUnrelatedGridItem(client);
@@ -1406,18 +1553,37 @@ final class QuickCraftMouseCrafting {
                 continue;
             }
             int patternDest = QuickCraftMouseCraftInventory.firstPatternSlotWithRoom(
-                    handler, layout, lockedCraftingPattern, moving);
+                    handler,
+                    layout,
+                    lockedCraftingPattern,
+                    moving
+            );
             if (patternDest >= 0 && patternDest != gridSlot) {
                 client.gameMode.handleContainerInput(
-                        handler.containerId, gridSlot, 0, ContainerInput.PICKUP, client.player);
+                        handler.containerId,
+                        gridSlot,
+                        0,
+                        ContainerInput.PICKUP,
+                        client.player
+                );
                 client.gameMode.handleContainerInput(
-                        handler.containerId, patternDest, 0, ContainerInput.PICKUP, client.player);
-                if (handler.getSlot(gridSlot).getItem().isEmpty()
-                        && handler.getCarried().isEmpty()) {
+                        handler.containerId,
+                        patternDest,
+                        0,
+                        ContainerInput.PICKUP,
+                        client.player
+                );
+                if (handler.getSlot(gridSlot).getItem().isEmpty() && handler.getCarried().isEmpty()) {
                     relocated++;
                     if (QuickCraftConfigs.isMouseCraftAckDebugEnabled()) {
-                        LOGGER.info(QuickCraftMouseCraftAckExecutor.diagnosticContext() + "手动补货把错位原料合并回配方格：界面={}，格={}，目标={}，物品={}",
-                                layout.name(), gridSlot, patternDest, moving);
+                        LOGGER.info(
+                                QuickCraftMouseCraftAckExecutor.diagnosticContext()
+                                        + "手动补货把错位原料合并回配方格：界面={}，格={}，目标={}，物品={}",
+                                layout.name(),
+                                gridSlot,
+                                patternDest,
+                                moving
+                        );
                     }
                     continue;
                 }
@@ -1436,17 +1602,23 @@ final class QuickCraftMouseCrafting {
             }
             if (QuickCraftMouseCraftInventory.findAcceptingUnlockedSlot(handler, layout, moving) < 0) {
                 if (QuickCraftConfigs.isMouseCraftAckDebugEnabled()) {
-                    LOGGER.warn("手动补货无法挪走合成格原料且不丢原料：界面={}，格={}，物品={}",
-                            layout.name(), gridSlot, moving);
+                    LOGGER.warn("手动补货无法挪走合成格原料且不丢原料：界面={}，格={}，物品={}", layout.name(), gridSlot, moving);
                 }
                 continue;
             }
 
-            com.yiyihehe.quickcraft.QuickSlotTransfer.quickMove(client, handler, gridSlot,
-                    com.yiyihehe.quickcraft.QuickSlotTransfer::isPlayerStorageSlot, true);
+            com.yiyihehe.quickcraft.QuickSlotTransfer.quickMove(
+                    client,
+                    handler,
+                    gridSlot,
+                    com.yiyihehe.quickcraft.QuickSlotTransfer::isPlayerStorageSlot,
+                    true
+            );
             existing = handler.getSlot(gridSlot).getItem();
-            if (!existing.isEmpty()
-                    && (template.isEmpty() || !ItemStack.isSameItemSameComponents(existing, template))) {
+            if (!existing.isEmpty() && (template.isEmpty() || !ItemStack.isSameItemSameComponents(
+                    existing,
+                    template
+            ))) {
                 client.gameMode.handleContainerInput(
                         handler.containerId,
                         gridSlot,
@@ -1455,7 +1627,10 @@ final class QuickCraftMouseCrafting {
                         client.player
                 );
                 int dest = QuickCraftMouseCraftInventory.findAcceptingUnlockedSlot(
-                        handler, layout, handler.getCarried());
+                        handler,
+                        layout,
+                        handler.getCarried()
+                );
                 if (dest >= 0 && !handler.getCarried().isEmpty()) {
                     client.gameMode.handleContainerInput(
                             handler.containerId,
@@ -1468,11 +1643,13 @@ final class QuickCraftMouseCrafting {
             }
             if (!handler.getCarried().isEmpty()) {
                 if (QuickCraftConfigs.isMouseCraftAckDebugEnabled()) {
-                    LOGGER.warn("手动补货挪走错位物品后光标非空：界面={}，格={}，光标={}",
-                            layout.name(), gridSlot, handler.getCarried());
+                    LOGGER.warn("手动补货挪走错位物品后光标非空：界面={}，格={}，光标={}", layout.name(), gridSlot, handler.getCarried());
                 }
                 int dest = QuickCraftMouseCraftInventory.findAcceptingUnlockedSlot(
-                        handler, layout, handler.getCarried());
+                        handler,
+                        layout,
+                        handler.getCarried()
+                );
                 if (dest >= 0) {
                     returnCursorStack(client, handler, dest);
                 }
@@ -1480,30 +1657,44 @@ final class QuickCraftMouseCrafting {
             }
 
             existing = handler.getSlot(gridSlot).getItem();
-            boolean cleared = existing.isEmpty()
-                    || (!template.isEmpty() && ItemStack.isSameItemSameComponents(existing, template));
+            boolean cleared = existing.isEmpty() || (!template.isEmpty() && ItemStack.isSameItemSameComponents(
+                    existing,
+                    template
+            ));
             if (cleared) {
                 relocated++;
                 if (QuickCraftConfigs.isMouseCraftAckDebugEnabled()) {
-                    LOGGER.info(QuickCraftMouseCraftAckExecutor.diagnosticContext() + "手动补货已挪走合成格错位物品：界面={}，格={}，原物品={}，是否原料={}",
-                            layout.name(), gridSlot, moving, isIngredient);
+                    LOGGER.info(
+                            QuickCraftMouseCraftAckExecutor.diagnosticContext()
+                                    + "手动补货已挪走合成格错位物品：界面={}，格={}，原物品={}，是否原料={}",
+                            layout.name(),
+                            gridSlot,
+                            moving,
+                            isIngredient
+                    );
                 }
             }
         }
         return relocated;
     }
 
-    private boolean recoverUnrelatedGridItem(Minecraft client,
-                                             AbstractContainerMenu handler,
-                                             int gridSlot,
-                                             ItemStack moving) {
+    private boolean recoverUnrelatedGridItem(
+            Minecraft client,
+            AbstractContainerMenu handler,
+            int gridSlot,
+            ItemStack moving
+    ) {
         if (QuickCraftMouseCraftInventory.findAcceptingUnlockedSlot(handler, layout, moving) < 0) {
             return false;
         }
-        com.yiyihehe.quickcraft.QuickSlotTransfer.quickMove(client, handler, gridSlot,
-                    com.yiyihehe.quickcraft.QuickSlotTransfer::isPlayerStorageSlot, true);
-        return handler.getSlot(gridSlot).getItem().isEmpty()
-                && handler.getCarried().isEmpty();
+        com.yiyihehe.quickcraft.QuickSlotTransfer.quickMove(
+                client,
+                handler,
+                gridSlot,
+                com.yiyihehe.quickcraft.QuickSlotTransfer::isPlayerStorageSlot,
+                true
+        );
+        return handler.getSlot(gridSlot).getItem().isEmpty() && handler.getCarried().isEmpty();
     }
 
     private void noteUnrelatedGridItem(Minecraft client) {
@@ -1555,10 +1746,12 @@ final class QuickCraftMouseCrafting {
         return -1;
     }
 
-    private int findMatchingPlayerInventoryHandlerSlot(Inventory inventory,
-                                                       AbstractContainerMenu handler,
-                                                       ItemStack template,
-                                                       int minimumCount) {
+    private int findMatchingPlayerInventoryHandlerSlot(
+            Inventory inventory,
+            AbstractContainerMenu handler,
+            ItemStack template,
+            int minimumCount
+    ) {
         if (!retainIngredientSamples()) {
             int bestSlot = -1;
             int bestCount = -1;
@@ -1568,10 +1761,9 @@ final class QuickCraftMouseCrafting {
                     continue;
                 }
                 int handlerSlot = playerInventoryIndexToHandlerSlot(inventoryIndex);
-                if (handlerSlot != -1
-                        && !QuickContainerLock.isLockedSlot(handler, handlerSlot)
-                        && handler.getSlot(handlerSlot).hasItem()
-                        && handler.getSlot(handlerSlot).getItem().getCount() >= minimumCount) {
+                if (handlerSlot != -1 && !QuickContainerLock.isLockedSlot(handler, handlerSlot) && handler.getSlot(
+                        handlerSlot
+                ).hasItem() && handler.getSlot(handlerSlot).getItem().getCount() >= minimumCount) {
                     int stackCount = handler.getSlot(handlerSlot).getItem().getCount();
                     if (stackCount > bestCount) {
                         bestCount = stackCount;
@@ -1584,17 +1776,16 @@ final class QuickCraftMouseCrafting {
 
         int bestSlot = -1;
         int bestCount = -1;
-        for (int inventoryIndex = 0;
-             inventoryIndex < QuickCraftMouseCraftLayout.PLAYER_INVENTORY_SIZE;
-             inventoryIndex++) {
+        for (int inventoryIndex =
+                0; inventoryIndex < QuickCraftMouseCraftLayout.PLAYER_INVENTORY_SIZE; inventoryIndex++) {
             int handlerSlot = layout.handlerSlotForInventoryIndex(inventoryIndex);
             if (handlerSlot < 0 || QuickContainerLock.isLockedSlot(handler, handlerSlot)) {
                 continue;
             }
             ItemStack stack = handler.getSlot(handlerSlot).getItem();
-            if (stack.isEmpty()
-                    || !ItemStack.isSameItemSameComponents(stack, template)
-                    || usableIngredientCount(stack.getCount()) < minimumCount) {
+            if (stack.isEmpty() || !ItemStack.isSameItemSameComponents(stack, template) || usableIngredientCount(
+                    stack.getCount()
+            ) < minimumCount) {
                 continue;
             }
             if (stack.getCount() > bestCount) {
@@ -1605,13 +1796,8 @@ final class QuickCraftMouseCrafting {
         return bestSlot;
     }
 
-    private int findAcceptingPlayerInventoryHandlerSlot(AbstractContainerMenu handler,
-                                                        ItemStack cursorStack) {
-        return QuickCraftMouseCraftInventory.findAcceptingUnlockedSlot(
-                handler,
-                layout,
-                cursorStack
-        );
+    private int findAcceptingPlayerInventoryHandlerSlot(AbstractContainerMenu handler, ItemStack cursorStack) {
+        return QuickCraftMouseCraftInventory.findAcceptingUnlockedSlot(handler, layout, cursorStack);
     }
 
     private boolean shouldManualRestock(RecipeHolder<CraftingRecipe> recipe) {
@@ -1625,8 +1811,7 @@ final class QuickCraftMouseCrafting {
         }
     }
 
-    private boolean hasRecipeRemainder(AbstractContainerMenu handler,
-                                       RecipeHolder<CraftingRecipe> recipe) {
+    private boolean hasRecipeRemainder(AbstractContainerMenu handler, RecipeHolder<CraftingRecipe> recipe) {
         if (handler == null || recipe == null) {
             return false;
         }
@@ -1643,19 +1828,18 @@ final class QuickCraftMouseCrafting {
     }
 
     private boolean isLockedResult(ItemStack stack) {
-        return !stack.isEmpty()
-                && !lockedResultTemplate.isEmpty()
-                && stack.getCount() == lockedResultTemplate.getCount()
-                && ItemStack.isSameItemSameComponents(stack, lockedResultTemplate);
+        return !stack.isEmpty() && !lockedResultTemplate.isEmpty() && stack.getCount() == lockedResultTemplate
+                .getCount() && ItemStack.isSameItemSameComponents(stack, lockedResultTemplate);
     }
 
-    private void lockCurrentRecipe(Minecraft client,
-                                   RecipeHolder<CraftingRecipe> recipe,
-                                   AbstractContainerMenu handler) {
+    private void lockCurrentRecipe(
+            Minecraft client,
+            RecipeHolder<CraftingRecipe> recipe,
+            AbstractContainerMenu handler
+    ) {
         lockedRecipe = recipe;
         lockedCraftingPattern = snapshotCraftingGrid(handler);
-        lockedResultTemplate = handler.getSlot(OUTPUT_SLOT).hasItem()
-                ? handler.getSlot(OUTPUT_SLOT).getItem().copy()
+        lockedResultTemplate = handler.getSlot(OUTPUT_SLOT).hasItem() ? handler.getSlot(OUTPUT_SLOT).getItem().copy()
                 : ItemStack.EMPTY;
         // 烟花等特殊配方不进入配方书；ACK 仍可凭服务端可见产物与合成格快照锁定。
         lockedRecipeId = QuickCraftClientRecipeMatcher.findUniqueRecipeId(
@@ -1724,31 +1908,47 @@ final class QuickCraftMouseCrafting {
             requiredSlots[i] = !template.isEmpty();
             gridCounts[i] = getPatternSlotCount(handler, i, template);
         }
-        int maximumOutputs = Math.min(MAX_OUTPUT_THROW_BURST,
-                QuickCraftMouseCraftAckRules.maximumCraftsFromGridCounts(gridCounts, requiredSlots));
+        int maximumOutputs = Math.min(
+                MAX_OUTPUT_THROW_BURST,
+                QuickCraftMouseCraftAckRules.maximumCraftsFromGridCounts(gridCounts, requiredSlots)
+        );
         if (maximumOutputs <= 0) {
             return false;
         }
 
         Runnable refreshOutput = () -> refreshSingleCraftOutput(handler);
         boolean spray = QuickCraftMouseCraftAckRules.shouldEnterOutputSprayMode(
-                false, QuickCraftMouseCraftInventory.unlockedEmptySlots(handler, layout),
-                QuickCraftMouseCraftInventory.canAcceptUnlocked(handler, layout, output));
+                false,
+                QuickCraftMouseCraftInventory.unlockedEmptySlots(handler, layout),
+                QuickCraftMouseCraftInventory.canAcceptUnlocked(handler, layout, output)
+        );
         if (!spray && QuickCraftMouseCraftInventory.moveOutputToUnlockedInventory(
-                client, handler, layout, maximumOutputs, refreshOutput,
-                QuickCraftMouseCraftAckRules.canBulkCraftGrid(gridCounts))) {
+                client,
+                handler,
+                layout,
+                maximumOutputs,
+                refreshOutput,
+                QuickCraftMouseCraftAckRules.canBulkCraftGrid(gridCounts)
+        )) {
             return true;
         }
         return QuickCraftMouseCraftInventory.throwOutputBatch(
-                client, handler, gridCounts, maximumOutputs,
-                lockedResultTemplate, refreshOutput) > 0;
+                client,
+                handler,
+                gridCounts,
+                maximumOutputs,
+                lockedResultTemplate,
+                refreshOutput
+        ) > 0;
     }
 
     private void refreshSingleCraftOutput(AbstractContainerMenu handler) {
         // 客户端不会自动重算连续 PICKUP 的结果；只在原配方完整时复用已确认产物。
         handler.getSlot(OUTPUT_SLOT).set(
                 QuickCraftMouseCraftInventory.isPatternComplete(handler, layout, lockedCraftingPattern)
-                        ? lockedResultTemplate.copy() : ItemStack.EMPTY);
+                        ? lockedResultTemplate.copy()
+                        : ItemStack.EMPTY
+        );
     }
 
     private int getPatternSlotCount(AbstractContainerMenu handler, int patternIndex, ItemStack template) {
@@ -1784,9 +1984,8 @@ final class QuickCraftMouseCrafting {
 
     private int countMatchingUnlockedItems(AbstractContainerMenu handler, ItemStack template) {
         int total = 0;
-        for (int inventoryIndex = 0;
-             inventoryIndex < QuickCraftMouseCraftLayout.PLAYER_INVENTORY_SIZE;
-             inventoryIndex++) {
+        for (int inventoryIndex =
+                0; inventoryIndex < QuickCraftMouseCraftLayout.PLAYER_INVENTORY_SIZE; inventoryIndex++) {
             int handlerSlot = layout.handlerSlotForInventoryIndex(inventoryIndex);
             if (handlerSlot < 0 || QuickContainerLock.isLockedSlot(handler, handlerSlot)) {
                 continue;
@@ -1857,19 +2056,20 @@ final class QuickCraftMouseCrafting {
 
     private void trackHotkeyStateWhileBlocked() {
         lastVDown = keepHotkeyLatchedWhileBlocked(
-                lastVDown, QuickCraftKeyBindings.isHotkeyDown(QuickCraftConfigs.getSingleCraftHotkey()));
+                lastVDown,
+                QuickCraftKeyBindings.isHotkeyDown(QuickCraftConfigs.getSingleCraftHotkey())
+        );
         lastAltCDown = keepHotkeyLatchedWhileBlocked(
-                lastAltCDown, QuickCraftKeyBindings.isHotkeyDown(QuickCraftConfigs.getRapidCraftHotkey()));
+                lastAltCDown,
+                QuickCraftKeyBindings.isHotkeyDown(QuickCraftConfigs.getRapidCraftHotkey())
+        );
     }
 
-    static boolean keepHotkeyLatchedWhileBlocked(boolean previouslyDown,
-                                                  boolean currentlyDown) {
+    static boolean keepHotkeyLatchedWhileBlocked(boolean previouslyDown, boolean currentlyDown) {
         return previouslyDown && currentlyDown;
     }
 
-    private boolean startRapidCraft(Minecraft client,
-                                    AbstractContainerMenu handler,
-                                    boolean fromButton) {
+    private boolean startRapidCraft(Minecraft client, AbstractContainerMenu handler, boolean fromButton) {
         unrelatedGridItemNotified = false;
         RecipeHolder<CraftingRecipe> currentRecipe = getCurrentCraftingRecipe(client, handler);
         if (currentRecipe != null || handler.getSlot(OUTPUT_SLOT).hasItem()) {
@@ -1892,9 +2092,9 @@ final class QuickCraftMouseCrafting {
     }
 
     private boolean isCraftingContextValid(Minecraft client) {
-        return client != null && client.player != null && client.level != null
-                && QuickCraftMouseCraftLayout.fromScreen(QuickClientScreenAccess.currentScreen(client)) == layout
-                && QuickCraftMouseCraftLayout.fromHandler(client.player.containerMenu) == layout;
+        return client != null && client.player != null && client.level != null && QuickCraftMouseCraftLayout.fromScreen(
+                QuickClientScreenAccess.currentScreen(client)
+        ) == layout && QuickCraftMouseCraftLayout.fromHandler(client.player.containerMenu) == layout;
     }
 
     private int countMatchingItems(Inventory inventory, ItemStack template) {
@@ -1904,7 +2104,9 @@ final class QuickCraftMouseCrafting {
 
         int total = 0;
         for (ItemStack stack : inventory.getNonEquipmentItems()) {
-            if (stack.isEmpty()) continue;
+            if (stack.isEmpty()) {
+                continue;
+            }
             if (ItemStack.isSameItemSameComponents(stack, template)) {
                 total += stack.getCount();
             }
@@ -1931,13 +2133,15 @@ final class QuickCraftMouseCrafting {
     }
 
     private void finishRapidCraft(Minecraft client, Component message, boolean allowTailDrop) {
-        if (allowTailDrop
-                && QuickCraftConfigs.isDropCraftResultsOnStopEnabled()
-                && client != null && client.player != null
-                && client.player.containerMenu != null) {
+        if (allowTailDrop && QuickCraftConfigs.isDropCraftResultsOnStopEnabled() && client != null
+                && client.player != null && client.player.containerMenu != null) {
             QuickCraftMouseCraftInventory.dropMatchingUnlockedInventory(
-                    client, client.player.containerMenu, layout,
-                    lockedResultTemplate, "连续合成结束丢出背包产物");
+                    client,
+                    client.player.containerMenu,
+                    layout,
+                    lockedResultTemplate,
+                    "连续合成结束丢出背包产物"
+            );
         }
         rapidCraftingActive = false;
         rapidCraftStartedByButton = false;
@@ -1959,9 +2163,8 @@ final class QuickCraftMouseCrafting {
     }
 
     private void resetAll() {
-        boolean hadCraftState = mouseCraftAckExecutor.isActive()
-                || rapidCraftingActive || lockedRecipe != null || lockedRecipeId != null
-                || !lockedCraftingPattern.isEmpty() || !lockedResultTemplate.isEmpty();
+        boolean hadCraftState = mouseCraftAckExecutor.isActive() || rapidCraftingActive || lockedRecipe != null
+                || lockedRecipeId != null || !lockedCraftingPattern.isEmpty() || !lockedResultTemplate.isEmpty();
         resetRapidCraft();
         craftingHandler = null;
         lockedRecipe = null;
@@ -1976,8 +2179,7 @@ final class QuickCraftMouseCrafting {
     }
 
     private boolean isCraftButtonRapidModeHeld(Minecraft client) {
-        return QuickCraftKeyBindings.isAltDown()
-                && QuickCraftKeyBindings.isLeftMouseButtonDown(client);
+        return QuickCraftKeyBindings.isAltDown() && QuickCraftKeyBindings.isLeftMouseButtonDown(client);
     }
 
     private boolean tryStartMouseCraftAck(Minecraft client, AbstractContainerMenu handler) {
@@ -1988,9 +2190,16 @@ final class QuickCraftMouseCrafting {
             return mouseCraftAckExecutor.owns(handler);
         }
         if (QuickCraftConfigs.isMouseCraftAckDebugEnabled()) {
-            LOGGER.info(QuickCraftMouseCraftAckExecutor.diagnosticContext() + "手动补货ACK尝试启动：界面={}，配方={}，产物={}，containerId={}，revision={}，格子={}",
-                    layout.name(), lockedRecipeId, lockedResultTemplate,
-                    handler.containerId, handler.getStateId(), describePattern(lockedCraftingPattern));
+            LOGGER.info(
+                    QuickCraftMouseCraftAckExecutor.diagnosticContext()
+                            + "手动补货ACK尝试启动：界面={}，配方={}，产物={}，containerId={}，revision={}，格子={}",
+                    layout.name(),
+                    lockedRecipeId,
+                    lockedResultTemplate,
+                    handler.containerId,
+                    handler.getStateId(),
+                    describePattern(lockedCraftingPattern)
+            );
         }
         boolean started = mouseCraftAckExecutor.start(
                 client,
@@ -1999,32 +2208,28 @@ final class QuickCraftMouseCrafting {
                 lockedResultTemplate,
                 lockedCraftingPattern,
                 () -> rapidCraftingActive && isRapidCraftInputHeld(client),
-                (message, allowTailDrop) -> finishMouseCraftAck(
-                        client, message, allowTailDrop)
+                (message, allowTailDrop) -> finishMouseCraftAck(client, message, allowTailDrop)
         );
         if (!started) {
             if (QuickCraftConfigs.isMouseCraftAckDebugEnabled()) {
-                LOGGER.warn("手动补货ACK启动返回false：界面={}，光标={}，输出={}，可启动={}",
+                LOGGER.warn(
+                        "手动补货ACK启动返回false：界面={}，光标={}，输出={}，可启动={}",
                         layout.name(),
                         handler.getCarried().isEmpty() ? "空" : handler.getCarried(),
-                        handler.getSlot(OUTPUT_SLOT).hasItem()
-                                ? handler.getSlot(OUTPUT_SLOT).getItem()
-                                : "空",
-                        mouseCraftAckExecutor.canStart(handler, lockedResultTemplate));
+                        handler.getSlot(OUTPUT_SLOT).hasItem() ? handler.getSlot(OUTPUT_SLOT).getItem() : "空",
+                        mouseCraftAckExecutor.canStart(handler, lockedResultTemplate)
+                );
             }
         }
         return started;
     }
 
     private boolean isRapidCraftInputHeld(Minecraft client) {
-        return rapidCraftStartedByButton
-                ? isCraftButtonRapidModeHeld(client)
+        return rapidCraftStartedByButton ? isCraftButtonRapidModeHeld(client)
                 : QuickCraftKeyBindings.isHotkeyDown(QuickCraftConfigs.getRapidCraftHotkey());
     }
 
-    private int finishMouseCraftAck(Minecraft client,
-                                    Component message,
-                                    boolean allowTailDrop) {
+    private int finishMouseCraftAck(Minecraft client, Component message, boolean allowTailDrop) {
         finishRapidCraft(client, message, allowTailDrop);
         return 0;
     }

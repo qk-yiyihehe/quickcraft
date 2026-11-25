@@ -48,11 +48,23 @@ class QuickLitematicaContainerReplacementsTest {
         var original = roundTrip(source, source.copy(), 4, false);
 
         for (var rules : List.of(List.of(bulk, original), List.of(original, bulk))) {
-            var selected = QuickLitematicaContainerReplacements.findRule(rules, source,
-                    QuickLitematicaContainerReplacements.Scope.CONTAINER, "context", "group", 4);
+            var selected = QuickLitematicaContainerReplacements.findRule(
+                    rules,
+                    source,
+                    QuickLitematicaContainerReplacements.Scope.CONTAINER,
+                    "context",
+                    "group",
+                    4
+            );
             assertThat(selected).isSameAs(original);
-            var following = QuickLitematicaContainerReplacements.findRule(rules, source,
-                    QuickLitematicaContainerReplacements.Scope.CONTAINER, "context", "group", 5);
+            var following = QuickLitematicaContainerReplacements.findRule(
+                    rules,
+                    source,
+                    QuickLitematicaContainerReplacements.Scope.CONTAINER,
+                    "context",
+                    "group",
+                    5
+            );
             assertThat(following).isSameAs(bulk);
             assertThat(QuickLitematicaContainerReplacements.resolveTarget(source, following).getCount()).isEqualTo(32);
         }
@@ -66,8 +78,16 @@ class QuickLitematicaContainerReplacementsTest {
         var scope = QuickLitematicaContainerReplacements.Scope.CONTAINER;
         var groupRule = roundTrip(source, new ItemStack(Items.GLASS), 4, true);
         String encoded = QuickLitematicaContainerReplacements.encodeContainerRule(
-                new QuickLitematicaContainerReplacements.ContainerReplacement(source, ItemStack.EMPTY,
-                        "context", targeted, 4, false), lookup);
+                new QuickLitematicaContainerReplacements.ContainerReplacement(
+                        source,
+                        ItemStack.EMPTY,
+                        "context",
+                        targeted,
+                        4,
+                        false
+                ),
+                lookup
+        );
         var individual = QuickLitematicaContainerReplacements.decodeContainerRule(encoded, lookup);
         assertThat(individual).isNotNull();
         var rules = List.of(groupRule, individual);
@@ -75,17 +95,26 @@ class QuickLitematicaContainerReplacementsTest {
                 .isSameAs(individual);
         assertThat(QuickLitematicaContainerReplacements.findRule(rules, source, scope, "context", neighboring, 4))
                 .isSameAs(groupRule);
-        assertThat(QuickLitematicaContainerReplacements.findRule(rules, source, scope, "context", "group", 4))
-                .isSameAs(groupRule);
+        assertThat(QuickLitematicaContainerReplacements.findRule(rules, source, scope, "context", "group", 4)).isSameAs(
+                groupRule
+        );
     }
 
     @Test
     void canFillEmptySlotAndKeepExplicitCount() {
         var rule = roundTrip(ItemStack.EMPTY, new ItemStack(Items.GLASS, 7), 8, false);
-        var selected = QuickLitematicaContainerReplacements.findRule(List.of(rule), ItemStack.EMPTY,
-                QuickLitematicaContainerReplacements.Scope.CONTAINER, "context", "group", 8);
+        var selected = QuickLitematicaContainerReplacements.findRule(
+                List.of(rule),
+                ItemStack.EMPTY,
+                QuickLitematicaContainerReplacements.Scope.CONTAINER,
+                "context",
+                "group",
+                8
+        );
         assertThat(selected).isSameAs(rule);
-        assertThat(QuickLitematicaContainerReplacements.resolveTarget(ItemStack.EMPTY, selected).getCount()).isEqualTo(7);
+        assertThat(QuickLitematicaContainerReplacements.resolveTarget(ItemStack.EMPTY, selected).getCount()).isEqualTo(
+                7
+        );
     }
 
     @Test
@@ -93,28 +122,61 @@ class QuickLitematicaContainerReplacementsTest {
         String fileContext = "schematic:C:/build/source.litematic#regions=a,b";
         ItemStack source = new ItemStack(Items.STONE, 32);
         String placementRule = QuickLitematicaContainerReplacements.encodeContainerRule(
-                new QuickLitematicaContainerReplacements.ContainerReplacement(source, new ItemStack(Items.GLASS),
-                        "placement:old", "group", -1, true), lookup);
+                new QuickLitematicaContainerReplacements.ContainerReplacement(
+                        source,
+                        new ItemStack(Items.GLASS),
+                        "placement:old",
+                        "group",
+                        -1,
+                        true
+                ),
+                lookup
+        );
         String fileRule = QuickLitematicaContainerReplacements.encodeContainerRule(
-                new QuickLitematicaContainerReplacements.ContainerReplacement(source.copyWithCount(64), new ItemStack(Items.OAK_PLANKS),
-                        "schematic:C:/build/source.litematic#regions=a", "group", -1, true), lookup);
+                new QuickLitematicaContainerReplacements.ContainerReplacement(
+                        source.copyWithCount(64),
+                        new ItemStack(Items.OAK_PLANKS),
+                        "schematic:C:/build/source.litematic#regions=a",
+                        "group",
+                        -1,
+                        true
+                ),
+                lookup
+        );
         String unrelated = QuickLitematicaContainerReplacements.encodeContainerRule(
-                new QuickLitematicaContainerReplacements.ContainerReplacement(source, new ItemStack(Items.DIRT),
-                        "schematic:C:/build/other.litematic#regions=a", "group", -1, true), lookup);
+                new QuickLitematicaContainerReplacements.ContainerReplacement(
+                        source,
+                        new ItemStack(Items.DIRT),
+                        "schematic:C:/build/other.litematic#regions=a",
+                        "group",
+                        -1,
+                        true
+                ),
+                lookup
+        );
         var migrated = QuickLitematicaContainerReplacements.migrateContainerEntries(
                 List.of(placementRule, unrelated, fileRule, "minecraft:stone->minecraft:glass"),
-                "placement:old", fileContext, lookup);
+                "placement:old",
+                fileContext,
+                lookup
+        );
         assertThat(migrated).contains(unrelated, "minecraft:stone->minecraft:glass").hasSize(3);
-        var selected = migrated.stream().map(entry -> QuickLitematicaContainerReplacements.decodeContainerRule(entry, lookup))
-                .filter(rule -> rule != null && fileContext.equals(rule.contextKey())).findFirst().orElseThrow();
+        var selected = migrated.stream().map(
+                entry -> QuickLitematicaContainerReplacements.decodeContainerRule(entry, lookup)
+        ).filter(rule -> rule != null && fileContext.equals(rule.contextKey())).findFirst().orElseThrow();
         assertThat(selected.target().isOf(Items.OAK_PLANKS)).isTrue();
         assertThat(selected.groupKey()).isEqualTo("group");
     }
 
     @Test
     void writingContainerMemoryPreservesBlocksOtherTagsAndIndependentSnapshot() throws ReflectiveOperationException {
-        try (var files = org.mockito.Mockito.mockStatic(fi.dy.masa.malilib.util.FileUtils.class, org.mockito.Mockito.CALLS_REAL_METHODS)) {
-            files.when(fi.dy.masa.malilib.util.FileUtils::getMinecraftDirectoryAsPath).thenReturn(java.nio.file.Path.of(System.getProperty("user.dir")));
+        try (var files = org.mockito.Mockito.mockStatic(
+                fi.dy.masa.malilib.util.FileUtils.class,
+                org.mockito.Mockito.CALLS_REAL_METHODS
+        )) {
+            files.when(fi.dy.masa.malilib.util.FileUtils::getMinecraftDirectoryAsPath).thenReturn(
+                    java.nio.file.Path.of(System.getProperty("user.dir"))
+            );
             var root = new net.minecraft.nbt.NbtCompound();
             root.putInt("Version", 6);
             // 1.21 文件格式夹具：同时检查后续版本读取旧原理图时的数据隔离。
@@ -138,7 +200,10 @@ class QuickLitematicaContainerReplacementsTest {
             chest.putString("id", "minecraft:chest");
             chest.putString("CustomName", "untouched");
             var items = new net.minecraft.nbt.NbtList();
-            var stack = (net.minecraft.nbt.NbtCompound) ItemStack.OPTIONAL_CODEC.encodeStart(lookup.getOps(net.minecraft.nbt.NbtOps.INSTANCE), new ItemStack(Items.STONE, 64)).getOrThrow();
+            var stack = (net.minecraft.nbt.NbtCompound) ItemStack.OPTIONAL_CODEC.encodeStart(
+                    lookup.getOps(net.minecraft.nbt.NbtOps.INSTANCE),
+                    new ItemStack(Items.STONE, 64)
+            ).getOrThrow();
             stack.putByte("Slot", (byte) 0);
             items.add(stack);
             chest.put("Items", items);
@@ -152,25 +217,50 @@ class QuickLitematicaContainerReplacementsTest {
             var original = schematicFixture(file, root.copy());
             var replaced = schematicFixture(file, root.copy());
             var replacementItems = new net.minecraft.nbt.NbtList();
-            replacementItems.add(ItemStack.OPTIONAL_CODEC.encodeStart(lookup.getOps(net.minecraft.nbt.NbtOps.INSTANCE), new ItemStack(Items.GLASS, 7)).getOrThrow());
+            replacementItems.add(
+                    ItemStack.OPTIONAL_CODEC.encodeStart(
+                            lookup.getOps(net.minecraft.nbt.NbtOps.INSTANCE),
+                            new ItemStack(Items.GLASS, 7)
+                    ).getOrThrow()
+            );
             var replacementEntities = QuickLitematicaContainerMaterialsAccess.getBlockEntities(replaced, "test");
             replacementEntities.get(net.minecraft.util.math.BlockPos.ORIGIN).put("Items", replacementItems);
             QuickLitematicaContainerMaterialsAccess.setBlockEntities(replaced, "test", replacementEntities);
             QuickLitematicaContainerMemory.copyContainerItems(replaced, original);
-            var actual = QuickLitematicaContainerMaterialsAccess.getBlockEntities(original, "test").get(net.minecraft.util.math.BlockPos.ORIGIN);
-            assertThat(QuickLitematicaContainerMaterialsAccess.itemStackFromNbt(lookup, QuickLitematicaContainerMaterialsAccess.readCompound(QuickLitematicaContainerMaterialsAccess.readCompoundList(actual, "Items"), 0)).getCount()).isEqualTo(7);
+            var actual = QuickLitematicaContainerMaterialsAccess.getBlockEntities(original, "test").get(
+                    net.minecraft.util.math.BlockPos.ORIGIN
+            );
+            assertThat(
+                    QuickLitematicaContainerMaterialsAccess.itemStackFromNbt(
+                            lookup,
+                            QuickLitematicaContainerMaterialsAccess.readCompound(
+                                    QuickLitematicaContainerMaterialsAccess.readCompoundList(actual, "Items"),
+                                    0
+                            )
+                    ).getCount()
+            ).isEqualTo(7);
             assertThat(QuickLitematicaContainerMaterialsAccess.readString(actual, "CustomName")).isEqualTo("untouched");
-            assertThat(original.getSubRegionContainer("test").get(0, 0, 0)).isEqualTo(net.minecraft.block.Blocks.CHEST.getDefaultState());
+            assertThat(original.getSubRegionContainer("test").get(0, 0, 0)).isEqualTo(
+                    net.minecraft.block.Blocks.CHEST.getDefaultState()
+            );
             QuickLitematicaContainerMaterialsAccess.readCompoundList(actual, "Items").clear();
             assertThat(replacementItems.size()).isEqualTo(1);
-            assertThat(QuickLitematicaContainerMaterialsAccess.itemStackFromNbt(lookup,
-                    QuickLitematicaContainerMaterialsAccess.readCompound(QuickLitematicaContainerMaterialsAccess.readCompoundList(chest, "Items"), 0)).getCount()).isEqualTo(64);
+            assertThat(
+                    QuickLitematicaContainerMaterialsAccess.itemStackFromNbt(
+                            lookup,
+                            QuickLitematicaContainerMaterialsAccess.readCompound(
+                                    QuickLitematicaContainerMaterialsAccess.readCompoundList(chest, "Items"),
+                                    0
+                            )
+                    ).getCount()
+            ).isEqualTo(64);
         }
     }
 
     @Test
     void copiesUseIncreasingNamesWithoutOverwritingExistingFiles(
-            @org.junit.jupiter.api.io.TempDir java.nio.file.Path directory) throws java.io.IOException {
+            @org.junit.jupiter.api.io.TempDir java.nio.file.Path directory
+    ) throws java.io.IOException {
         var source = directory.resolve("machine.litematic");
         java.nio.file.Files.writeString(source, "original");
         var existing = directory.resolve("machine_副本_1.litematic");
@@ -202,8 +292,14 @@ class QuickLitematicaContainerReplacementsTest {
         ItemStack source = new ItemStack(Items.STONE, 32);
         var bulk = roundTrip(source, new ItemStack(Items.GLASS), -1, true);
         var empty = roundTrip(source, ItemStack.EMPTY, 4, false);
-        var selected = QuickLitematicaContainerReplacements.findRule(List.of(bulk, empty), source,
-                QuickLitematicaContainerReplacements.Scope.CONTAINER, "context", "group", 4);
+        var selected = QuickLitematicaContainerReplacements.findRule(
+                List.of(bulk, empty),
+                source,
+                QuickLitematicaContainerReplacements.Scope.CONTAINER,
+                "context",
+                "group",
+                4
+        );
         assertThat(selected).isSameAs(empty);
         assertThat(QuickLitematicaContainerReplacements.resolveTarget(source, selected).isEmpty()).isTrue();
     }
@@ -212,10 +308,26 @@ class QuickLitematicaContainerReplacementsTest {
     void containerRulesCannotMatchProjectionOrAnotherContainerContext() {
         ItemStack source = new ItemStack(Items.OAK_STAIRS);
         var rule = roundTrip(source, new ItemStack(Items.STONE_STAIRS), -1, true);
-        assertThat(QuickLitematicaContainerReplacements.findRule(List.of(rule), source,
-                QuickLitematicaContainerReplacements.Scope.PROJECTION, "context", "group", 4)).isNull();
-        assertThat(QuickLitematicaContainerReplacements.findRule(List.of(rule), source,
-                QuickLitematicaContainerReplacements.Scope.CONTAINER, "other", "group", 4)).isNull();
+        assertThat(
+                QuickLitematicaContainerReplacements.findRule(
+                        List.of(rule),
+                        source,
+                        QuickLitematicaContainerReplacements.Scope.PROJECTION,
+                        "context",
+                        "group",
+                        4
+                )
+        ).isNull();
+        assertThat(
+                QuickLitematicaContainerReplacements.findRule(
+                        List.of(rule),
+                        source,
+                        QuickLitematicaContainerReplacements.Scope.CONTAINER,
+                        "other",
+                        "group",
+                        4
+                )
+        ).isNull();
     }
 
     @Test
@@ -223,28 +335,59 @@ class QuickLitematicaContainerReplacementsTest {
         ItemStack source = new ItemStack(Items.STONE, 64);
         var bulk = roundTrip(source, new ItemStack(Items.GLASS, 1), -1, true);
         var oversized = roundTrip(source, new ItemStack(Items.DIAMOND_AXE), 4, true);
-        assertThat(QuickLitematicaContainerReplacements.findRule(List.of(bulk, oversized), source,
-                QuickLitematicaContainerReplacements.Scope.CONTAINER, "context", "group", 4)).isNull();
-        assertThatThrownBy(() -> roundTrip(source, new ItemStack(Items.DIAMOND_AXE, 2), 4, false))
-                .isInstanceOf(IllegalArgumentException.class);
+        assertThat(
+                QuickLitematicaContainerReplacements.findRule(
+                        List.of(bulk, oversized),
+                        source,
+                        QuickLitematicaContainerReplacements.Scope.CONTAINER,
+                        "context",
+                        "group",
+                        4
+                )
+        ).isNull();
+        assertThatThrownBy(() -> roundTrip(source, new ItemStack(Items.DIAMOND_AXE, 2), 4, false)).isInstanceOf(
+                IllegalArgumentException.class
+        );
     }
 
     private static QuickLitematicaContainerReplacements.ReplacementRule roundTrip(
-            ItemStack source, ItemStack target, int slot, boolean preserveCount) {
+            ItemStack source,
+            ItemStack target,
+            int slot,
+            boolean preserveCount
+    ) {
         String encoded = QuickLitematicaContainerReplacements.encodeContainerRule(
                 new QuickLitematicaContainerReplacements.ContainerReplacement(
-                        source, target, "context", "group", slot, preserveCount), lookup);
+                        source,
+                        target,
+                        "context",
+                        "group",
+                        slot,
+                        preserveCount
+                ),
+                lookup
+        );
         return QuickLitematicaContainerReplacements.decodeContainerRule(encoded, lookup);
     }
+
     private static fi.dy.masa.litematica.schematic.LitematicaSchematic schematicFixture(
-            java.nio.file.Path file, net.minecraft.nbt.NbtCompound nbt) throws ReflectiveOperationException {
+            java.nio.file.Path file,
+            net.minecraft.nbt.NbtCompound nbt
+    ) throws ReflectiveOperationException {
         // 先完成原生 converter 初始化，再读取旧原理图数据。
         var constructor = fi.dy.masa.litematica.schematic.LitematicaSchematic.class.getDeclaredConstructor(
-                java.nio.file.Path.class, fi.dy.masa.litematica.util.FileType.class);
+                java.nio.file.Path.class,
+                fi.dy.masa.litematica.util.FileType.class
+        );
         constructor.setAccessible(true);
-        var schematic = (fi.dy.masa.litematica.schematic.LitematicaSchematic) constructor.newInstance(file,
-                fi.dy.masa.litematica.util.FileType.LITEMATICA_SCHEMATIC);
-        var read = fi.dy.masa.litematica.schematic.LitematicaSchematic.class.getDeclaredMethod("readFromNBT", net.minecraft.nbt.NbtCompound.class);
+        var schematic = (fi.dy.masa.litematica.schematic.LitematicaSchematic) constructor.newInstance(
+                file,
+                fi.dy.masa.litematica.util.FileType.LITEMATICA_SCHEMATIC
+        );
+        var read = fi.dy.masa.litematica.schematic.LitematicaSchematic.class.getDeclaredMethod(
+                "readFromNBT",
+                net.minecraft.nbt.NbtCompound.class
+        );
         read.setAccessible(true);
         assertThat((boolean) read.invoke(schematic, nbt)).isTrue();
         return schematic;

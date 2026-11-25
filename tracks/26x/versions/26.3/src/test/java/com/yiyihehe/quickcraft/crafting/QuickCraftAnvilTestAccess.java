@@ -5,5 +5,8 @@ import net.minecraft.data.registries.VanillaRegistries;
 
 final class QuickCraftAnvilTestAccess {
     private QuickCraftAnvilTestAccess() {}
-    static HolderLookup.Provider registries() { return VanillaRegistries.createWorldLookup(); }
+
+    static HolderLookup.Provider registries() {
+        return VanillaRegistries.createWorldLookup();
+    }
 }

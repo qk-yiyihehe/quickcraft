@@ -3,8 +3,7 @@ package com.yiyihehe.quickcraft.litematica;
 import net.minecraft.entity.player.PlayerInventory;
 
 final class QuickLitematicaMaterialAccess {
-    private QuickLitematicaMaterialAccess() {
-    }
+    private QuickLitematicaMaterialAccess() {}
 
     static int getSelectedSlot(PlayerInventory inventory) {
         return inventory.getSelectedSlot();

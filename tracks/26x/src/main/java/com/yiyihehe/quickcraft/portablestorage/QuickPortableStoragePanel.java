@@ -61,11 +61,13 @@ public final class QuickPortableStoragePanel {
     private static final int SELECTED = 0xC7355059;
     private static final int DIVIDER = 0x577D929F;
     private static final int ACCENT = 0xECABE3DD;
-    private static final Identifier BUTTON_ICON =
-            Identifier.fromNamespaceAndPath("quickcraft", "textures/gui/workbench_shulker_mode.png");
-    private static final ItemStack[] SOURCE_ICONS = {
-            new ItemStack(Items.SHULKER_BOX), new ItemStack(Items.ENDER_CHEST), new ItemStack(Items.BUNDLE)
-    };
+    private static final Identifier BUTTON_ICON = Identifier.fromNamespaceAndPath(
+            "quickcraft",
+            "textures/gui/workbench_shulker_mode.png"
+    );
+    private static final ItemStack[] SOURCE_ICONS = { new ItemStack(Items.SHULKER_BOX), new ItemStack(
+            Items.ENDER_CHEST
+    ), new ItemStack(Items.BUNDLE) };
 
     private final InventoryScreen screen;
     private boolean shown = QuickCraftConfigs.ContainerTools.PORTABLE_STORAGE_OPEN_BY_DEFAULT.getBooleanValue();
@@ -130,7 +132,7 @@ public final class QuickPortableStoragePanel {
         inventoryLeft = x;
         inventoryTop = y;
         Slot firstBackpackSlot = inventorySlot(screen.getMenu(), 9);
-        // Item icons are drawn one pixel inside their cells; anchor those pixels to the main inventory rows.
+        // 物品图标从各自格子向内偏移一个像素绘制，用该像素和主物品栏各行对齐。
         int firstRow = y + (firstBackpackSlot != null ? firstBackpackSlot.y : 0);
         int firstTop = VIEWPORT_MARGIN + Math.floorMod(firstRow - HEADER - 1 - VIEWPORT_MARGIN, CELL);
         int availableHeight = screen.height - VIEWPORT_MARGIN - firstTop;
@@ -180,7 +182,13 @@ public final class QuickPortableStoragePanel {
         return panel != null && panel.visible();
     }
 
-    public static void render(AbstractContainerScreen<?> screen, GuiGraphicsExtractor graphics, int x, int y, float delta) {
+    public static void render(
+            AbstractContainerScreen<?> screen,
+            GuiGraphicsExtractor graphics,
+            int x,
+            int y,
+            float delta
+    ) {
         var panel = panel(screen);
         if (panel != null) {
             panel.render(graphics, x, y, delta);
@@ -228,8 +236,13 @@ public final class QuickPortableStoragePanel {
         graphics.fill(left + 2, top + 3, gridLeft - 2, top + CATEGORY_RAIL_HEIGHT - 1, GLASS);
         graphics.fill(gridLeft - 3, top + 4, gridLeft - 2, top + CATEGORY_RAIL_HEIGHT - 2, DIVIDER);
         graphics.fill(gridLeft + 1, top + 3, gridRight - 1, top + HEADER - 3, search.isFocused() ? HOVERED : TILE);
-        graphics.fill(gridLeft + 2, top + HEADER - 4, gridRight - 2, top + HEADER - 3,
-                search.isFocused() ? ACCENT : DIVIDER);
+        graphics.fill(
+                gridLeft + 2,
+                top + HEADER - 4,
+                gridRight - 2,
+                top + HEADER - 3,
+                search.isFocused() ? ACCENT : DIVIDER
+        );
         graphics.fill(gridLeft, top + HEADER, gridRight, top + HEADER + rows * CELL, GLASS);
         graphics.fill(gridLeft, top + HEADER, gridRight, top + HEADER + 1, DIVIDER);
         for (Category tab : Category.values()) {
@@ -277,13 +290,15 @@ public final class QuickPortableStoragePanel {
             amounts.merge(key, entry.stack().getCount(), Integer::sum);
         }
         var sourceOrder = sourceOrders.computeIfAbsent(source, ignored -> new LinkedHashSet<>());
-        // Retain emptied slots until the inventory closes so stock changes cannot move a click target.
+        // 保留已经取空的槽位，直到关闭物品栏，避免库存变化导致点击目标移动。
         if (sourceOrder.isEmpty() && amounts.size() > 1) {
             QuickSort.prepareCrossBoxOrder();
-            amounts.keySet().stream()
-                    .sorted(Comparator.<QuickCrossBoxSortStackKey>comparingInt(amounts::get).reversed()
-                            .thenComparing(QuickCrossBoxSortStackKey::template, QuickSort::compareCrossBoxStacks))
-                    .forEachOrdered(sourceOrder::add);
+            amounts.keySet().stream().sorted(
+                    Comparator.<QuickCrossBoxSortStackKey>comparingInt(amounts::get).reversed().thenComparing(
+                            QuickCrossBoxSortStackKey::template,
+                            QuickSort::compareCrossBoxStacks
+                    )
+            ).forEachOrdered(sourceOrder::add);
         } else {
             sourceOrder.addAll(amounts.keySet());
         }
@@ -308,9 +323,11 @@ public final class QuickPortableStoragePanel {
         if (name.contains(query) || BuiltInRegistries.ITEM.getKey(stack.getItem()).toString().contains(query)) {
             return true;
         }
-        return name.codePoints().anyMatch(cp -> Character.UnicodeScript.of(cp) == Character.UnicodeScript.HAN)
-                && pinyin.computeIfAbsent(name, key -> Pinyin.TRANSLITERATOR.transliterate(key)
-                .toLowerCase(Locale.ROOT).replace(" ", "")).contains(query.replace(" ", ""));
+        return name.codePoints().anyMatch(cp -> Character.UnicodeScript.of(cp) == Character.UnicodeScript.HAN) && pinyin
+                .computeIfAbsent(
+                        name,
+                        key -> Pinyin.TRANSLITERATOR.transliterate(key).toLowerCase(Locale.ROOT).replace(" ", "")
+                ).contains(query.replace(" ", ""));
     }
 
     private void renderGrid(GuiGraphicsExtractor graphics, Minecraft client) {
@@ -404,8 +421,9 @@ public final class QuickPortableStoragePanel {
     }
 
     private boolean click(double x, double y, int button) {
-        if (screen.children().stream().anyMatch(child ->
-                child instanceof QuickDraggableButton widget && widget.isMouseOver(x, y))) {
+        if (screen.children().stream().anyMatch(
+                child -> child instanceof QuickDraggableButton widget && widget.isMouseOver(x, y)
+        )) {
             releaseControls();
             return blocksVanillaInput(screen);
         }
@@ -439,8 +457,8 @@ public final class QuickPortableStoragePanel {
             }
             return true;
         }
-        if ((leftClick || rightClick) && QuickPortableStorageUiAccess.spaceDown()
-                && screen.getMenu().getCarried().isEmpty() && storageSlotAt(x, y) != null) {
+        if ((leftClick || rightClick) && QuickPortableStorageUiAccess.spaceDown() && screen.getMenu().getCarried()
+                .isEmpty() && storageSlotAt(x, y) != null) {
             gesture = button;
             taking = false;
             storingFromSlots = true;
@@ -457,8 +475,8 @@ public final class QuickPortableStoragePanel {
         if (panel == null || panel.gesture != button || !panel.visible()) {
             return inUse(screen);
         }
-        if (panel.taking && button == InputConstants.MOUSE_BUTTON_LEFT && !QuickCraftKeyBindings.isAltDown()
-                && screen.getMenu().getCarried().isEmpty()) {
+        if (panel.taking && button == InputConstants.MOUSE_BUTTON_LEFT && !QuickCraftKeyBindings.isAltDown() && screen
+                .getMenu().getCarried().isEmpty()) {
             panel.takeAt(x, y, QuickCraftKeyBindings.isShiftDown() ? Mode.STACK : Mode.ONE);
         } else if (panel.storingFromSlots) {
             if (QuickPortableStorageUiAccess.spaceDown()) {
@@ -479,9 +497,8 @@ public final class QuickPortableStoragePanel {
         boolean owned = panel.gesture == button;
         boolean releasedAfterTaking = owned && panel.taking;
         panel.resetGesture();
-        if (!releasedAfterTaking && panel.insidePanel(x, y)
-                && (button == InputConstants.MOUSE_BUTTON_LEFT || button == InputConstants.MOUSE_BUTTON_RIGHT)
-                && !screen.getMenu().getCarried().isEmpty()) {
+        if (!releasedAfterTaking && panel.insidePanel(x, y) && (button == InputConstants.MOUSE_BUTTON_LEFT
+                || button == InputConstants.MOUSE_BUTTON_RIGHT) && !screen.getMenu().getCarried().isEmpty()) {
             QuickPortableStorageUiAccess.cancelQuickCraft(screen);
             request(panel.screen, panel.source, Mode.STORE_CURSOR, screen.getMenu().getCarried(), -1);
             return true;
@@ -501,8 +518,12 @@ public final class QuickPortableStoragePanel {
 
     public static boolean key(AbstractContainerScreen<?> screen, KeyEvent event) {
         var panel = panel(screen);
-        // The recipe book hides the panel while open, so reserve Space before testing visibility.
-        if (event.key() == InputConstants.KEY_SPACE && panel != null && panelEnabled() && panel.shown && panel.fitsViewport()
+        // 配方书打开时会遮住面板，因此要先保留 Space 键的处理权，再判断面板是否可见。
+        if (event.key() == InputConstants.KEY_SPACE
+                && panel != null
+                && panelEnabled()
+                && panel.shown
+                && panel.fitsViewport()
                 && !Minecraft.getInstance().getLastInputType().isKeyboard()
                 && screen.getFocused() instanceof RecipeBookToggleButtonAccessor button
                 && button.quickcraft$getRecipeBookToggleSprites() == RecipeBookComponent.RECIPE_BUTTON_SPRITES) {
@@ -519,7 +540,10 @@ public final class QuickPortableStoragePanel {
             }
             return true;
         }
-        if (Minecraft.getInstance().options.keySwapOffhand.matches(event) && panel.itemAt(panel.mouseX, panel.mouseY) != null) {
+        if (Minecraft.getInstance().options.keySwapOffhand.matches(event) && panel.itemAt(
+                panel.mouseX,
+                panel.mouseY
+        ) != null) {
             panel.takeAt(panel.mouseX, panel.mouseY, Mode.OFFHAND);
             panel.visitedItems.clear();
             return true;
@@ -564,16 +588,27 @@ public final class QuickPortableStoragePanel {
 
     private void storeAt(double x, double y, Mode mode) {
         Slot slot = storageSlotAt(x, y);
-        if (slot != null && slot.hasItem() && !visitedSlots.contains(slot.index)
-                && request(screen, source, mode, slot.getItem(), slot.getContainerSlot())) {
+        if (slot != null && slot.hasItem() && !visitedSlots.contains(slot.index) && request(
+                screen,
+                source,
+                mode,
+                slot.getItem(),
+                slot.getContainerSlot()
+        )) {
             visitedSlots.add(slot.index);
         }
     }
 
     private Slot storageSlotAt(double x, double y) {
         for (Slot slot : screen.getMenu().slots) {
-            if (QuickSlotTransfer.isPlayerStorageSlot(slot)
-                    && hit(x, y, inventoryLeft + slot.x - 1, inventoryTop + slot.y - 1, CELL, CELL)) {
+            if (QuickSlotTransfer.isPlayerStorageSlot(slot) && hit(
+                    x,
+                    y,
+                    inventoryLeft + slot.x - 1,
+                    inventoryTop + slot.y - 1,
+                    CELL,
+                    CELL
+            )) {
                 return slot;
             }
         }
@@ -606,8 +641,8 @@ public final class QuickPortableStoragePanel {
     }
 
     private enum Category {
-        ALL(Items.COMPASS), BLOCKS(Items.BRICKS), REDSTONE(Items.REDSTONE),
-        TOOLS(Items.IRON_PICKAXE), FOOD(Items.APPLE), OTHER(Items.STICK);
+        ALL(Items.COMPASS), BLOCKS(Items.BRICKS), REDSTONE(Items.REDSTONE), TOOLS(Items.IRON_PICKAXE), FOOD(
+                Items.APPLE), OTHER(Items.STICK);
 
         final ItemStack icon;
 
@@ -620,11 +655,12 @@ public final class QuickPortableStoragePanel {
                 return true;
             }
             boolean redstone = stack.is(Items.REDSTONE) || stack.is(Items.REPEATER) || stack.is(Items.COMPARATOR)
-                    || stack.is(Items.REDSTONE_TORCH) || stack.is(Items.REDSTONE_BLOCK)
-                    || stack.is(Items.PISTON) || stack.is(Items.STICKY_PISTON) || stack.is(Items.OBSERVER)
-                    || stack.is(Items.HOPPER) || stack.is(Items.DISPENSER) || stack.is(Items.DROPPER)
-                    || stack.is(Items.LEVER) || stack.is(Items.TARGET)
-                    || Block.byItem(stack.getItem()).defaultBlockState().isSignalSource();
+                    || stack.is(Items.REDSTONE_TORCH) || stack.is(Items.REDSTONE_BLOCK) || stack.is(Items.PISTON)
+                    || stack.is(Items.STICKY_PISTON) || stack.is(Items.OBSERVER) || stack.is(Items.HOPPER) || stack.is(
+                            Items.DISPENSER
+                    ) || stack.is(Items.DROPPER) || stack.is(Items.LEVER) || stack.is(Items.TARGET) || Block.byItem(
+                            stack.getItem()
+                    ).defaultBlockState().isSignalSource();
             boolean food = stack.has(DataComponents.FOOD);
             boolean tool = stack.has(DataComponents.TOOL) || stack.isDamageableItem();
             boolean block = stack.getItem() instanceof BlockItem;

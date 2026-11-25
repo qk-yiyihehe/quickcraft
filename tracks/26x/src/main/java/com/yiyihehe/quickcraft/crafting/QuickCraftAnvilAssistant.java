@@ -1,4 +1,5 @@
 package com.yiyihehe.quickcraft.crafting;
+
 import com.yiyihehe.quickcraft.render.QuickCrossBoxSortStatus;
 
 import com.yiyihehe.quickcraft.QuickContainerLock;
@@ -23,8 +24,11 @@ import java.util.*;
 public final class QuickCraftAnvilAssistant {
     public interface ButtonView {
         void setVisible(boolean visible);
+
         void setMessage(Component message);
+
         void setPlanTooltip(Component tooltip);
+
         boolean mouseScrolled(double mouseX, double mouseY, double horizontal, double vertical);
     }
 
@@ -59,14 +63,16 @@ public final class QuickCraftAnvilAssistant {
         ClientTickEvents.END_CLIENT_TICK.register(QuickCraftAnvilAssistant::tick);
     }
 
-    public static boolean ownsAnvil() { return planner != null || plan != null || executing; }
+    public static boolean ownsAnvil() {
+        return planner != null || plan != null || executing;
+    }
 
     public static boolean consumesHotkey(int key) {
         Minecraft client = Minecraft.getInstance();
         return QuickCraftConfigs.Crafting.ENABLE_ANVIL_ASSISTANT.getBooleanValue()
                 && com.yiyihehe.quickcraft.QuickClientScreenAccess.currentScreen(client) instanceof AnvilScreen
                 && ((key >= 0 && QuickCraftConfigs.Hotkeys.ANVIL_BUILD.getKeybind().matches(key))
-                || QuickCraftKeyBindings.isHotkeyDown(QuickCraftConfigs.Hotkeys.ANVIL_BUILD.getKeybind()));
+                        || QuickCraftKeyBindings.isHotkeyDown(QuickCraftConfigs.Hotkeys.ANVIL_BUILD.getKeybind()));
     }
 
     public static void attach(ButtonView action) {
@@ -82,15 +88,27 @@ public final class QuickCraftAnvilAssistant {
 
     public static void action(boolean hotkey) {
         Minecraft client = Minecraft.getInstance();
-        if (!valid(client)) return;
-        if (running || planner != null) { stop("stopped"); return; }
+        if (!valid(client)) {
+            return;
+        }
+        if (running || planner != null) {
+            stop("stopped");
+            return;
+        }
         if (plan != null) {
             for (int slot = 0; slot <= 2; slot++) {
-                if (QuickContainerLock.isLockedSlot(handler, slot)) { stop("locked"); return; }
+                if (QuickContainerLock.isLockedSlot(handler, slot)) {
+                    stop("locked");
+                    return;
+                }
             }
-            if (!matchesSnapshot()) { stop("changed"); return; }
-            int remainingCost = plan.state().steps().subList(stepIndex, plan.state().steps().size()).stream()
-                    .mapToInt(QuickCraftAnvilPlanner.Step::cost).sum();
+            if (!matchesSnapshot()) {
+                stop("changed");
+                return;
+            }
+            int remainingCost = plan.state().steps().subList(stepIndex, plan.state().steps().size()).stream().mapToInt(
+                    QuickCraftAnvilPlanner.Step::cost
+            ).sum();
             if (remainingCost > client.player.experienceLevel && !client.player.hasInfiniteMaterials()) {
                 status = message("experience", remainingCost);
                 refreshButtons();
@@ -108,10 +126,16 @@ public final class QuickCraftAnvilAssistant {
         }
         handler = (AnvilMenu) client.player.containerMenu;
         connection = client.getConnection();
-        if (!handler.getCarried().isEmpty() || !handler.getSlot(1).getItem().isEmpty()
-                || QuickCraftAnvilRename.isRapidRenameActive()) { stop("inputs"); return; }
+        if (!handler.getCarried().isEmpty() || !handler.getSlot(1).getItem().isEmpty() || QuickCraftAnvilRename
+                .isRapidRenameActive()) {
+            stop("inputs");
+            return;
+        }
         for (int slot = 0; slot <= 2; slot++) {
-            if (QuickContainerLock.isLockedSlot(handler, slot)) { stop("locked"); return; }
+            if (QuickContainerLock.isLockedSlot(handler, slot)) {
+                stop("locked");
+                return;
+            }
         }
         try {
             planner = new QuickCraftAnvilPlanner(client, handler);
@@ -129,18 +153,25 @@ public final class QuickCraftAnvilAssistant {
 
     private static void tick(Minecraft client) {
         if (!valid(client)) {
-            if (handler != null || ownsAnvil() || actionButton.get() != null) reset();
+            if (handler != null || ownsAnvil() || actionButton.get() != null) {
+                reset();
+            }
             lastHotkey = false;
             return;
         }
         boolean down = QuickCraftKeyBindings.isHotkeyDown(QuickCraftConfigs.Hotkeys.ANVIL_BUILD.getKeybind());
-        if (down && !lastHotkey) action(true);
+        if (down && !lastHotkey) {
+            action(true);
+        }
         lastHotkey = down;
         if (handler != null && (client.player.containerMenu != handler || client.getConnection() != connection)) {
             stop("changed");
         }
         if (planner != null) {
-            if (!matchesSnapshot()) { stop("changed"); return; }
+            if (!matchesSnapshot()) {
+                stop("changed");
+                return;
+            }
             try {
                 if (planner.advance()) {
                     plan = planner.result();
@@ -150,24 +181,38 @@ public final class QuickCraftAnvilAssistant {
                         stop("no_route");
                         targets = missing.stream().map(item -> message("missing", item)).toList();
                         refreshButtons();
-                    }
-                    else {
+                    } else {
                         skipped = missing;
-                        status = message(creative ? "creative_ready" : skipped.isEmpty() ? "ready" : "ready_partial",
-                                plan.state().steps().size(), plan.cost());
+                        status = message(
+                                creative ? "creative_ready" : skipped.isEmpty() ? "ready" : "ready_partial",
+                                plan.state().steps().size(),
+                                plan.cost()
+                        );
                         refreshButtons();
-                        if (autoStart) action(true);
+                        if (autoStart) {
+                            action(true);
+                        }
                     }
                 }
-            } catch (IllegalStateException tooLarge) { stop("too_large"); }
+            } catch (IllegalStateException tooLarge) {
+                stop("too_large");
+            }
         }
-        if (waiting && System.nanoTime() - sentAt > 10_000_000_000L) { stop("timeout"); return; }
-        if (running && !waiting) advance(client);
+        if (waiting && System.nanoTime() - sentAt > 10_000_000_000L) {
+            stop("timeout");
+            return;
+        }
+        if (running && !waiting) {
+            advance(client);
+        }
         refreshButtons();
     }
 
     private static void advance(Minecraft client) {
-        if (!matchesSnapshot()) { stop("changed"); return; }
+        if (!matchesSnapshot()) {
+            stop("changed");
+            return;
+        }
         if (stepIndex >= plan.state().steps().size()) {
             var missing = skipped;
             stop(missing.isEmpty() ? "complete" : "partial_complete");
@@ -176,23 +221,39 @@ public final class QuickCraftAnvilAssistant {
             return;
         }
         for (int slot = 0; slot <= 2; slot++) {
-            if (QuickContainerLock.isLockedSlot(handler, slot)) { stop("locked"); return; }
+            if (QuickContainerLock.isLockedSlot(handler, slot)) {
+                stop("locked");
+                return;
+            }
         }
         var step = plan.state().steps().get(stepIndex);
-        if (creative) { advanceCreative(client, step); return; }
-        int inputSlot = locations[step.inputSlot()];
-        if (inputSlot != 0) {
-            if (!same(handler.getSlot(inputSlot).getItem(), step.input())) { stop("changed"); return; }
-            boolean moved = handler.getSlot(0).getItem().isEmpty()
-                    ? transfer(client, inputSlot, 0)
-                    : transfer(client, inputSlot, 0, inputSlot);
-            if (moved) swapLocations(inputSlot, 0);
+        if (creative) {
+            advanceCreative(client, step);
             return;
         }
-        if (!same(handler.getSlot(0).getItem(), step.input())) { stop("changed"); return; }
+        int inputSlot = locations[step.inputSlot()];
+        if (inputSlot != 0) {
+            if (!same(handler.getSlot(inputSlot).getItem(), step.input())) {
+                stop("changed");
+                return;
+            }
+            boolean moved = handler.getSlot(0).getItem().isEmpty() ? transfer(client, inputSlot, 0)
+                    : transfer(client, inputSlot, 0, inputSlot);
+            if (moved) {
+                swapLocations(inputSlot, 0);
+            }
+            return;
+        }
+        if (!same(handler.getSlot(0).getItem(), step.input())) {
+            stop("changed");
+            return;
+        }
         if (handler.getSlot(1).getItem().isEmpty()) {
             int bookSlot = locations[step.bookSlot()];
-            if (bookSlot < 3 || !same(handler.getSlot(bookSlot).getItem(), step.book())) { stop("changed"); return; }
+            if (bookSlot < 3 || !same(handler.getSlot(bookSlot).getItem(), step.book())) {
+                stop("changed");
+                return;
+            }
             if (client.player.experienceLevel < step.cost() && !client.player.hasInfiniteMaterials()) {
                 running = false;
                 status = message("experience", step.cost());
@@ -200,7 +261,9 @@ public final class QuickCraftAnvilAssistant {
             }
             // 默认显示名随客户端语言变化，发给服务器会被当作额外改名。
             String name = step.input().has(DataComponents.CUSTOM_NAME) ? step.input().getHoverName().getString() : "";
-            if (handler.setItemName(name)) connection.send(new ServerboundRenameItemPacket(name));
+            if (handler.setItemName(name)) {
+                connection.send(new ServerboundRenameItemPacket(name));
+            }
             if (transfer(client, bookSlot, 1)) {
                 outputSlot = bookSlot;
                 swapLocations(bookSlot, 1);
@@ -208,16 +271,27 @@ public final class QuickCraftAnvilAssistant {
             return;
         }
         // 结果槽会被服务端和命名框多次刷新，只在实际领取前校验完整结果及费用。
-        if (!same(handler.getSlot(1).getItem(), step.book())
-                || !same(handler.getSlot(2).getItem(), step.output()) || handler.getCost() != step.cost()
-                || !handler.getSlot(2).mayPickup(client.player)) {
-            LOGGER.warn("铁砧结果不符：步骤={}，预计费用={}，实际费用={}，预计产物={}，实际产物={}",
-                    stepIndex + 1, step.cost(), handler.getCost(), step.output(), handler.getSlot(2).getItem());
+        if (!same(handler.getSlot(1).getItem(), step.book()) || !same(handler.getSlot(2).getItem(), step.output())
+                || handler.getCost() != step.cost() || !handler.getSlot(2).mayPickup(client.player)) {
+            LOGGER.warn(
+                    "铁砧结果不符：步骤={}，预计费用={}，实际费用={}，预计产物={}，实际产物={}",
+                    stepIndex + 1,
+                    step.cost(),
+                    handler.getCost(),
+                    step.output(),
+                    handler.getSlot(2).getItem()
+            );
             stop("changed");
             return;
         }
-        if (outputSlot < 3) { stop("changed"); return; }
-        if (!handler.getSlot(outputSlot).getItem().isEmpty()) { stop("full"); return; }
+        if (outputSlot < 3) {
+            stop("changed");
+            return;
+        }
+        if (!handler.getSlot(outputSlot).getItem().isEmpty()) {
+            stop("full");
+            return;
+        }
         if (transfer(client, 2, outputSlot)) {
             swapLocations(0, outputSlot);
             outputSlot = -1;
@@ -229,26 +303,43 @@ public final class QuickCraftAnvilAssistant {
     // 步骤引用原始材料编号；左槽换料可能暂存另一件装备，必须同步其实际位置。
     private static void swapLocations(int first, int second) {
         for (int index = 0; index < locations.length; index++) {
-            if (locations[index] == first) locations[index] = second;
-            else if (locations[index] == second) locations[index] = first;
+            if (locations[index] == first) {
+                locations[index] = second;
+            } else if (locations[index] == second) {
+                locations[index] = first;
+            }
         }
     }
 
     private static void advanceCreative(Minecraft client, QuickCraftAnvilPlanner.Step step) {
-        if (!client.player.hasInfiniteMaterials() || !QuickCraftConfigs.Crafting.ANVIL_CREATIVE_NO_BOOKS.getBooleanValue()) {
+        if (!client.player.hasInfiniteMaterials() || !QuickCraftConfigs.Crafting.ANVIL_CREATIVE_NO_BOOKS
+                .getBooleanValue()) {
             stop("changed");
             return;
         }
-        if (QuickContainerLock.isLockedSlot(handler, equipmentSlot)) { stop("locked"); return; }
-        if (!same(handler.getSlot(equipmentSlot).getItem(), step.input())) { stop("changed"); return; }
+        if (QuickContainerLock.isLockedSlot(handler, equipmentSlot)) {
+            stop("locked");
+            return;
+        }
+        if (!same(handler.getSlot(equipmentSlot).getItem(), step.input())) {
+            stop("changed");
+            return;
+        }
         if (equipmentSlot == 0) {
             for (int slot = 3; slot < handler.slots.size(); slot++) {
                 var destination = handler.getSlot(slot);
                 int index = destination.getContainerSlot();
-                if (destination.container != client.player.getInventory() || index < 0 || index >= 36
-                        || !destination.getItem().isEmpty() || QuickContainerLock.isLockedSlot(handler, slot)
-                        || !destination.mayPlace(step.output())) continue;
-                if (transfer(client, 0, slot)) equipmentSlot = slot;
+                if (destination.container != client.player.getInventory()
+                        || index < 0
+                        || index >= 36
+                        || !destination.getItem().isEmpty()
+                        || QuickContainerLock.isLockedSlot(handler, slot)
+                        || !destination.mayPlace(step.output())) {
+                    continue;
+                }
+                if (transfer(client, 0, slot)) {
+                    equipmentSlot = slot;
+                }
                 return;
             }
             stop("full");
@@ -264,9 +355,15 @@ public final class QuickCraftAnvilAssistant {
     }
 
     private static boolean transfer(Minecraft client, int... slots) {
-        if (!handler.getCarried().isEmpty()) { stop("changed"); return false; }
+        if (!handler.getCarried().isEmpty()) {
+            stop("changed");
+            return false;
+        }
         for (int slot : slots) {
-            if (QuickContainerLock.isLockedSlot(handler, slot)) { stop("locked"); return false; }
+            if (QuickContainerLock.isLockedSlot(handler, slot)) {
+                stop("locked");
+                return false;
+            }
         }
         for (int slot : slots) {
             ItemStack beforeSlot = handler.getSlot(slot).getItem().copy();
@@ -299,22 +396,30 @@ public final class QuickCraftAnvilAssistant {
     }
 
     private static void recoverCursor(Minecraft client, int preferredSlot) {
-        if (handler.getCarried().isEmpty()) return;
-        if (preferredSlot >= 3 && !QuickContainerLock.isLockedSlot(handler, preferredSlot)
-                && handler.getSlot(preferredSlot).getItem().isEmpty()
-                && handler.getSlot(preferredSlot).mayPlace(handler.getCarried())) {
+        if (handler.getCarried().isEmpty()) {
+            return;
+        }
+        if (preferredSlot >= 3 && !QuickContainerLock.isLockedSlot(handler, preferredSlot) && handler.getSlot(
+                preferredSlot
+        ).getItem().isEmpty() && handler.getSlot(preferredSlot).mayPlace(handler.getCarried())) {
             rawClick(client, preferredSlot);
         }
         for (int slot = 3; slot < handler.slots.size() && !handler.getCarried().isEmpty(); slot++) {
-            if (!QuickContainerLock.isLockedSlot(handler, slot) && handler.getSlot(slot).getItem().isEmpty()
-                    && handler.getSlot(slot).mayPlace(handler.getCarried())) rawClick(client, slot);
+            if (!QuickContainerLock.isLockedSlot(handler, slot) && handler.getSlot(slot).getItem().isEmpty() && handler
+                    .getSlot(slot).mayPlace(handler.getCarried())) {
+                rawClick(client, slot);
+            }
         }
     }
 
     public static void onStatistics(ClientPacketListener source) {
-        if (!waiting || source != connection) return;
+        if (!waiting || source != connection) {
+            return;
+        }
         waiting = false;
-        if (!matchesSnapshot()) stop("changed");
+        if (!matchesSnapshot()) {
+            stop("changed");
+        }
     }
 
     private static void snapshot() {
@@ -323,16 +428,25 @@ public final class QuickCraftAnvilAssistant {
     }
 
     private static boolean matchesSnapshot() {
-        if (handler == null || expected == null || handler.slots.size() != expected.size()) return false;
+        if (handler == null || expected == null || handler.slots.size() != expected.size()) {
+            return false;
+        }
         if (!same(handler.getCarried(), expectedCursor)) {
             LOGGER.warn("铁砧光标状态不符：步骤={}，预计={}，实际={}", stepIndex + 1, expectedCursor, handler.getCarried());
             return false;
         }
         for (int slot = 0; slot < expected.size(); slot++) {
-            if (slot == 2) continue;
+            if (slot == 2) {
+                continue;
+            }
             if (!same(handler.getSlot(slot).getItem(), expected.get(slot))) {
-                LOGGER.warn("铁砧材料状态不符：步骤={}，槽位={}，预计={}，实际={}",
-                        stepIndex + 1, slot, expected.get(slot), handler.getSlot(slot).getItem());
+                LOGGER.warn(
+                        "铁砧材料状态不符：步骤={}，槽位={}，预计={}，实际={}",
+                        stepIndex + 1,
+                        slot,
+                        expected.get(slot),
+                        handler.getSlot(slot).getItem()
+                );
                 return false;
             }
         }
@@ -344,9 +458,9 @@ public final class QuickCraftAnvilAssistant {
     }
 
     private static boolean valid(Minecraft client) {
-        return QuickCraftConfigs.Crafting.ENABLE_ANVIL_ASSISTANT.getBooleanValue()
-                && client.player != null && client.level != null && client.gameMode != null
-                && com.yiyihehe.quickcraft.QuickClientScreenAccess.currentScreen(client) instanceof AnvilScreen
+        return QuickCraftConfigs.Crafting.ENABLE_ANVIL_ASSISTANT.getBooleanValue() && client.player != null
+                && client.level != null && client.gameMode != null && com.yiyihehe.quickcraft.QuickClientScreenAccess
+                        .currentScreen(client) instanceof AnvilScreen
                 && client.player.containerMenu instanceof AnvilMenu;
     }
 
@@ -355,9 +469,12 @@ public final class QuickCraftAnvilAssistant {
         if (executing && handler != null && client.player != null && client.player.containerMenu == handler
                 && plan != null && !handler.getCarried().isEmpty()) {
             ItemStack carried = handler.getCarried();
-            boolean taskItem = plan.state().steps().stream().anyMatch(step -> same(carried, step.input())
-                    || same(carried, step.book()) || same(carried, step.output()));
-            if (taskItem) recoverCursor(client, locations == null ? equipmentSlot : locations[plan.state().equipmentSlot()]);
+            boolean taskItem = plan.state().steps().stream().anyMatch(
+                    step -> same(carried, step.input()) || same(carried, step.book()) || same(carried, step.output())
+            );
+            if (taskItem) {
+                recoverCursor(client, locations == null ? equipmentSlot : locations[plan.state().equipmentSlot()]);
+            }
         }
         planner = null;
         plan = null;
@@ -374,13 +491,17 @@ public final class QuickCraftAnvilAssistant {
         connection = null;
         status = message(reason);
         var player = Minecraft.getInstance().player;
-        if (player != null) QuickCrossBoxSortStatus.show(status);
+        if (player != null) {
+            QuickCrossBoxSortStatus.show(status);
+        }
         refreshButtons();
     }
 
     private static void reset() {
         var button = actionButton.get();
-        if (button != null) button.setVisible(false);
+        if (button != null) {
+            button.setVisible(false);
+        }
         planner = null;
         plan = null;
         handler = null;
@@ -400,21 +521,51 @@ public final class QuickCraftAnvilAssistant {
 
     private static void refreshButtons() {
         var button = actionButton.get();
-        if (button == null) return;
+        if (button == null) {
+            return;
+        }
         button.setVisible(QuickCraftConfigs.Crafting.ENABLE_ANVIL_ASSISTANT.getBooleanValue());
-        button.setMessage(message(running || planner != null ? "stop_button" : plan != null ? "start_button" : "preview_button"));
+        button.setMessage(
+                message(running || planner != null ? "stop_button" : plan != null ? "start_button" : "preview_button")
+        );
         List<Component> lines = new ArrayList<>();
         lines.add(status);
-        if (pickaxe) lines.add(message("selected_plan", QuickCraftConfigs.Crafting.ANVIL_PICKAXE_PLAN.getOptionListValue().getDisplayName()));
+        if (pickaxe) {
+            lines.add(
+                    message(
+                            "selected_plan",
+                            QuickCraftConfigs.Crafting.ANVIL_PICKAXE_PLAN.getOptionListValue().getDisplayName()
+                    )
+            );
+        }
         if (plan != null) {
-            lines.add(message("source", message(plan.state().equipmentSlot() == 0 ? "left_slot" : "inventory_slot",
-                    plan.state().equipmentSlot() - 2), plan.state().equipment().getHoverName()));
+            lines.add(
+                    message(
+                            "source",
+                            message(
+                                    plan.state().equipmentSlot() == 0 ? "left_slot" : "inventory_slot",
+                                    plan.state().equipmentSlot() - 2
+                            ),
+                            plan.state().equipment().getHoverName()
+                    )
+            );
             for (int index = 0; index < plan.state().steps().size(); index++) {
                 var step = plan.state().steps().get(index);
-                if (creative) { lines.add(message("creative_step")); continue; }
+                if (creative) {
+                    lines.add(message("creative_step"));
+                    continue;
+                }
                 var description = describeEnchantments(step.book());
                 if (step.input().is(Items.ENCHANTED_BOOK)) {
-                    lines.add(message("merge_step", index + 1, describeEnchantments(step.input()), description, step.cost()));
+                    lines.add(
+                            message(
+                                    "merge_step",
+                                    index + 1,
+                                    describeEnchantments(step.input()),
+                                    description,
+                                    step.cost()
+                            )
+                    );
                 } else {
                     lines.add(message("step", index + 1, description, step.cost()));
                 }
@@ -424,7 +575,9 @@ public final class QuickCraftAnvilAssistant {
         skipped.forEach(item -> lines.add(message("missing", item)));
         var tooltip = Component.empty();
         for (Component line : lines) {
-            if (!tooltip.getString().isEmpty()) tooltip.append("\n");
+            if (!tooltip.getString().isEmpty()) {
+                tooltip.append("\n");
+            }
             tooltip.append(line);
         }
         button.setPlanTooltip(tooltip);
@@ -434,7 +587,9 @@ public final class QuickCraftAnvilAssistant {
     private static Component describeEnchantments(ItemStack stack) {
         var description = Component.empty();
         for (var enchantment : QuickCraftAnvilPlanner.bookDescription(stack)) {
-            if (!description.getString().isEmpty()) description.append(", ");
+            if (!description.getString().isEmpty()) {
+                description.append(", ");
+            }
             description.append(enchantment);
         }
         return description;

@@ -14,13 +14,16 @@ import java.util.List;
 public final class QuickCrossBoxSortSpares {
     private QuickCrossBoxSortSpares() {}
 
-    public record Spare(int sourceSlot, int targetSlot) {}
+    public record Spare(int sourceSlot, int targetSlot) {
+    }
 
     public static int needed(List<QuickCrossBoxSortStacks.Box<QuickCrossBoxSortStackKey>> boxes) {
         Map<QuickCrossBoxSortStackKey, Integer> totals = new LinkedHashMap<>();
         for (var box : boxes) {
             for (var stack : box.slots()) {
-                if (stack != null) { totals.merge(stack.key(), stack.count(), Integer::sum); }
+                if (stack != null) {
+                    totals.merge(stack.key(), stack.count(), Integer::sum);
+                }
             }
         }
         int needed = 0;
@@ -35,11 +38,18 @@ public final class QuickCrossBoxSortSpares {
         return singles(inventory, QuickCrossBoxSortProtection::isLocked);
     }
 
-    public static List<Integer> singles(net.minecraft.world.Container inventory, java.util.function.IntPredicate locked) {
+    public static List<Integer> singles(
+            net.minecraft.world.Container inventory,
+            java.util.function.IntPredicate locked
+    ) {
         List<Integer> result = new ArrayList<>();
         for (int slot = 0; slot < inventory.getContainerSize(); slot++) {
             ItemStack stack = inventory.getItem(slot);
-            if (!locked.test(slot) && stack.getCount() == 1 && QuickCrossBoxSortInventory.isOrdinaryEmptyShulker(stack)) { result.add(slot); }
+            if (!locked.test(slot) && stack.getCount() == 1 && QuickCrossBoxSortInventory.isOrdinaryEmptyShulker(
+                    stack
+            )) {
+                result.add(slot);
+            }
         }
         return result;
     }
@@ -48,18 +58,30 @@ public final class QuickCrossBoxSortSpares {
         return splits(inventory, QuickCrossBoxSortProtection::isLocked, missing, reserveWorkspace);
     }
 
-    public static List<Spare> splits(net.minecraft.world.Container inventory, java.util.function.IntPredicate locked, int missing, boolean reserveWorkspace) {
+    public static List<Spare> splits(
+            net.minecraft.world.Container inventory,
+            java.util.function.IntPredicate locked,
+            int missing,
+            boolean reserveWorkspace
+    ) {
         List<Integer> free = new ArrayList<>();
         for (int slot = 0; slot < inventory.getContainerSize(); slot++) {
-            if (!locked.test(slot) && inventory.getItem(slot).isEmpty()) { free.add(slot); }
+            if (!locked.test(slot) && inventory.getItem(slot).isEmpty()) {
+                free.add(slot);
+            }
         }
-        if (reserveWorkspace && !free.isEmpty()) { free.removeLast(); }
+        if (reserveWorkspace && !free.isEmpty()) {
+            free.removeLast();
+        }
         List<Spare> result = new ArrayList<>();
         for (int slot = 0; slot < inventory.getContainerSize() && result.size() < missing; slot++) {
             ItemStack stack = inventory.getItem(slot);
             if (locked.test(slot) || stack.getCount() <= 1 || !QuickCrossBoxSortInventory.isOrdinaryEmptyShulker(stack)
-                    || reserveWorkspace && !stack.has(DataComponents.CONTAINER)) { continue; }
-            for (int count = 0; count < stack.getCount() && result.size() < missing && result.size() < free.size(); count++) {
+                    || reserveWorkspace && !stack.has(DataComponents.CONTAINER)) {
+                continue;
+            }
+            for (int count = 0; count < stack.getCount() && result.size() < missing && result.size() < free
+                    .size(); count++) {
                 result.add(new Spare(slot, free.get(result.size())));
             }
         }
@@ -70,7 +92,8 @@ public final class QuickCrossBoxSortSpares {
         Inventory inventory = Minecraft.getInstance().player.getInventory();
         var boxes = QuickCrossBoxSortInventory.scan(inventory).boxes();
         int missing = Math.max(0, needed(boxes) - boxes.size() - singles(inventory).size());
-        return splits(inventory, missing, true).stream().map(s -> new int[]{s.sourceSlot(), s.targetSlot()}).toList();
+        return splits(inventory, missing, true).stream().map(s -> new int[] { s.sourceSlot(), s.targetSlot() })
+                .toList();
     }
 
 }

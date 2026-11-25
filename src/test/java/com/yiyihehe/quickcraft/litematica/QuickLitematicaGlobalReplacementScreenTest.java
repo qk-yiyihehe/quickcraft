@@ -30,15 +30,23 @@ class QuickLitematicaGlobalReplacementScreenTest {
             configs.when(QuickCraftConfigs::saveToFile).thenAnswer(invocation -> null);
             config.setStrings(List.of("minecraft:stone->minecraft:glass"));
             var draft = new QuickLitematicaGlobalReplacementScreen.Draft(
-                    new ItemStack(Items.STONE), new ItemStack(Items.GLASS));
+                    new ItemStack(Items.STONE),
+                    new ItemStack(Items.GLASS)
+            );
 
-            assertThat(QuickLitematicaGlobalReplacementScreen.applyChoice(
-                    draft, true, new ItemStack(Items.STONE_SLAB), QuickLitematicaContainerReplacements.Scope.PROJECTION))
-                    .isTrue();
+            assertThat(
+                    QuickLitematicaGlobalReplacementScreen.applyChoice(
+                            draft,
+                            true,
+                            new ItemStack(Items.STONE_SLAB),
+                            QuickLitematicaContainerReplacements.Scope.PROJECTION
+                    )
+            ).isTrue();
             assertThat(draft.source.isOf(Items.STONE_SLAB)).isTrue();
             assertThat(draft.target).isNull();
             assertThat(config.getStrings()).isEmpty();
-            assertThat(QuickLitematicaGlobalReplacements.rules(QuickLitematicaContainerReplacements.Scope.PROJECTION)).isEmpty();
+            assertThat(QuickLitematicaGlobalReplacements.rules(QuickLitematicaContainerReplacements.Scope.PROJECTION))
+                    .isEmpty();
         } finally {
             config.setStrings(old);
         }
@@ -55,7 +63,8 @@ class QuickLitematicaGlobalReplacementScreenTest {
                 try {
                     config.setStrings(List.of());
                     var draft = new QuickLitematicaGlobalReplacementScreen.Draft(ItemStack.EMPTY, null);
-                    assertThat(QuickLitematicaGlobalReplacementScreen.applyChoice(draft, false, ItemStack.EMPTY, scope)).isFalse();
+                    assertThat(QuickLitematicaGlobalReplacementScreen.applyChoice(draft, false, ItemStack.EMPTY, scope))
+                            .isFalse();
                     assertThat(draft.target).isSameAs(ItemStack.EMPTY);
                     assertThat(config.getStrings()).isEmpty();
                     assertThat(QuickLitematicaGlobalReplacementScreen.applyChoice(draft, true, source, scope)).isTrue();
@@ -78,13 +87,24 @@ class QuickLitematicaGlobalReplacementScreenTest {
             configs.when(QuickCraftConfigs::saveToFile).thenAnswer(invocation -> null);
             config.setStrings(List.of("minecraft:stone->minecraft:glass"));
             var draft = new QuickLitematicaGlobalReplacementScreen.Draft(
-                    new ItemStack(Items.STONE), new ItemStack(Items.GLASS));
+                    new ItemStack(Items.STONE),
+                    new ItemStack(Items.GLASS)
+            );
 
             QuickLitematicaGlobalReplacementScreen.applyChoice(
-                    draft, true, new ItemStack(Items.STONE_SLAB), QuickLitematicaContainerReplacements.Scope.PROJECTION);
-            assertThat(QuickLitematicaGlobalReplacementScreen.applyChoice(
-                    draft, false, new ItemStack(Items.OAK_SLAB), QuickLitematicaContainerReplacements.Scope.PROJECTION))
-                    .isTrue();
+                    draft,
+                    true,
+                    new ItemStack(Items.STONE_SLAB),
+                    QuickLitematicaContainerReplacements.Scope.PROJECTION
+            );
+            assertThat(
+                    QuickLitematicaGlobalReplacementScreen.applyChoice(
+                            draft,
+                            false,
+                            new ItemStack(Items.OAK_SLAB),
+                            QuickLitematicaContainerReplacements.Scope.PROJECTION
+                    )
+            ).isTrue();
             var rules = QuickLitematicaGlobalReplacements.rules(QuickLitematicaContainerReplacements.Scope.PROJECTION);
             assertThat(rules).hasSize(1);
             assertThat(QuickLitematicaGlobalReplacements.source(rules.getFirst()).isOf(Items.STONE_SLAB)).isTrue();
@@ -105,17 +125,31 @@ class QuickLitematicaGlobalReplacementScreenTest {
             List<String> initial = List.of("minecraft:stone->minecraft:glass", "minecraft:dirt->minecraft:oak_planks");
             config.setStrings(initial);
             var draft = new QuickLitematicaGlobalReplacementScreen.Draft(
-                    new ItemStack(Items.STONE), new ItemStack(Items.GLASS));
+                    new ItemStack(Items.STONE),
+                    new ItemStack(Items.GLASS)
+            );
             var scope = QuickLitematicaContainerReplacements.Scope.PROJECTION;
-            assertThat(QuickLitematicaGlobalReplacementScreen.applyChoice(
-                    draft, false, new ItemStack(Items.OAK_SLAB), scope)).isFalse();
+            assertThat(
+                    QuickLitematicaGlobalReplacementScreen.applyChoice(
+                            draft,
+                            false,
+                            new ItemStack(Items.OAK_SLAB),
+                            scope
+                    )
+            ).isFalse();
             assertThat(draft.source.isOf(Items.STONE)).isTrue();
             assertThat(draft.target.isOf(Items.GLASS)).isTrue();
             assertThat(config.getStrings()).containsExactlyElementsOf(initial);
             configs.verify(QuickCraftConfigs::saveToFile, org.mockito.Mockito.never());
 
-            assertThat(QuickLitematicaGlobalReplacementScreen.applyChoice(
-                    draft, true, new ItemStack(Items.COBBLESTONE), scope)).isTrue();
+            assertThat(
+                    QuickLitematicaGlobalReplacementScreen.applyChoice(
+                            draft,
+                            true,
+                            new ItemStack(Items.COBBLESTONE),
+                            scope
+                    )
+            ).isTrue();
             var rules = QuickLitematicaGlobalReplacements.rules(scope);
             assertThat(rules).hasSize(2);
             assertThat(rules).anySatisfy(rule -> {

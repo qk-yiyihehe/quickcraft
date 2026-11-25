@@ -8,8 +8,7 @@ public final class QuickCrossBoxSortSync {
     private static final Map<Integer, Update> updates = new HashMap<>();
     private static final Map<Integer, Long> contentRevisions = new HashMap<>();
 
-    private QuickCrossBoxSortSync() {
-    }
+    private QuickCrossBoxSortSync() {}
 
     public static synchronized void recordSlot(int containerId, int stateId) {
         ++revision;
@@ -22,7 +21,11 @@ public final class QuickCrossBoxSortSync {
         contentRevisions.put(containerId, revision);
     }
 
-    public static synchronized void clear() { updates.clear(); contentRevisions.clear(); revision = 0; }
+    public static synchronized void clear() {
+        updates.clear();
+        contentRevisions.clear();
+        revision = 0;
+    }
 
     public static synchronized long revision() {
         return revision;
@@ -32,9 +35,15 @@ public final class QuickCrossBoxSortSync {
         return contentRevisions.getOrDefault(containerId, Long.MIN_VALUE) > previousRevision;
     }
 
-    public static synchronized boolean confirmedAfter(long previousRevision, int containerId, int previousStateId, int currentStateId) {
+    public static synchronized boolean confirmedAfter(
+            long previousRevision,
+            int containerId,
+            int previousStateId,
+            int currentStateId
+    ) {
         Update update = updates.get(containerId);
-        return update != null && update.revision() > previousRevision && update.stateId() != previousStateId && update.stateId() == currentStateId;
+        return update != null && update.revision() > previousRevision && update.stateId() != previousStateId && update
+                .stateId() == currentStateId;
     }
 
     private record Update(long revision, int stateId) {

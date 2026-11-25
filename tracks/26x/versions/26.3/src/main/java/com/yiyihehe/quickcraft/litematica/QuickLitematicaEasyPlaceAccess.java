@@ -14,8 +14,7 @@ import net.minecraft.world.item.component.SwingAnimation;
 
 /** 26.3 轻松放置与工具判定适配（ItemTags 与 Predicted 摆动）。 */
 public final class QuickLitematicaEasyPlaceAccess {
-    private QuickLitematicaEasyPlaceAccess() {
-    }
+    private QuickLitematicaEasyPlaceAccess() {}
 
     static boolean isAxe(ItemStack stack) {
         return stack.is(ItemTags.AXES);
@@ -43,13 +42,14 @@ public final class QuickLitematicaEasyPlaceAccess {
             }
         } else {
             QuickFreeCameraInteractions.callEasyPlaceAction(
-                    () -> LitematicaWorldUtilsInvoker.quickcraft$doEasyPlaceAction(client));
+                    () -> LitematicaWorldUtilsInvoker.quickcraft$doEasyPlaceAction(client)
+            );
         }
     }
 
     public static void swingHandIfSuccess(Minecraft client, InteractionHand hand, InteractionResult result) {
-        if (client.player != null && result instanceof InteractionResult.Success success
-                && success.swingSource() == InteractionResult.SwingSource.PREDICTED) {
+        if (client.player != null && result instanceof InteractionResult.Success success && success
+                .swingSource() == InteractionResult.SwingSource.PREDICTED) {
             client.player.swing(hand, SwingAnimation.DEFAULT, false);
         }
     }

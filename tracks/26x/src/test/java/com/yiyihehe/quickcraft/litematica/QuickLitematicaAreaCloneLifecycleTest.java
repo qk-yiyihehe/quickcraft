@@ -66,21 +66,27 @@ class QuickLitematicaAreaCloneLifecycleTest {
             holders.when(SchematicHolder::getInstance).thenReturn(holder);
             names.add(reserveName());
             assertThat(names.getFirst()).isEqualTo(prefix + 501);
-            for (var schematic : loaded) verify(schematic).getMetadata();
+            for (var schematic : loaded) {
+                verify(schematic).getMetadata();
+            }
             names.add(reserveName());
             assertThat(names.getLast()).isEqualTo(prefix + 502);
         } finally {
             var release = QuickLitematicaAreaClone.class.getDeclaredMethod("releaseTemporaryName", String.class);
             release.setAccessible(true);
-            for (String name : names) release.invoke(null, name);
+            for (String name : names) {
+                release.invoke(null, name);
+            }
         }
     }
 
     @Test
     void hotkeyScheduledTaskCancelsFromBothRealSchedulerQueuesWithoutRemovingOtherTasks() throws Exception {
-        for (boolean active : new boolean[]{false, true}) {
+        for (boolean active : new boolean[] { false, true }) {
             try (RealTaskFixture f = new RealTaskFixture(false)) {
-                if (active) f.scheduler.runTasks();
+                if (active) {
+                    f.scheduler.runTasks();
+                }
                 assertThat(active ? f.scheduler.getAllTasks() : f.queued).contains(f.task);
                 ITask unrelated = mock(ITask.class);
                 f.queued.add(unrelated);
@@ -134,7 +140,13 @@ class QuickLitematicaAreaCloneLifecycleTest {
         TaskSaveSchematic task = mock(TaskSaveSchematic.class);
         List<ITask> queued = queued(scheduler);
         queued.add(task);
-        Object pending = pending(task, "area-clone-test", mock(LitematicaSchematic.class), scheduler, mock(ClientLevel.class));
+        Object pending = pending(
+                task,
+                "area-clone-test",
+                mock(LitematicaSchematic.class),
+                scheduler,
+                mock(ClientLevel.class)
+        );
 
         SchematicPlacementManager manager = manager();
         try (var data = mockStatic(DataManager.class)) {
@@ -152,7 +164,13 @@ class QuickLitematicaAreaCloneLifecycleTest {
         TaskScheduler scheduler = scheduler();
         TaskSaveSchematic task = mock(TaskSaveSchematic.class);
         when(scheduler.getAllTasks()).thenReturn(com.google.common.collect.ImmutableList.of(task));
-        Object pending = pending(task, "area-clone-test", mock(LitematicaSchematic.class), scheduler, mock(ClientLevel.class));
+        Object pending = pending(
+                task,
+                "area-clone-test",
+                mock(LitematicaSchematic.class),
+                scheduler,
+                mock(ClientLevel.class)
+        );
 
         SchematicPlacementManager manager = manager();
         try (var data = mockStatic(DataManager.class)) {
@@ -176,8 +194,8 @@ class QuickLitematicaAreaCloneLifecycleTest {
         SchematicPlacementManager manager = manager();
 
         try (var minecraft = mockStatic(Minecraft.class);
-             var placements = mockStatic(SchematicPlacement.class);
-             var data = mockStatic(DataManager.class)) {
+                var placements = mockStatic(SchematicPlacement.class);
+                var data = mockStatic(DataManager.class)) {
             minecraft.when(Minecraft::getInstance).thenReturn(client);
             placements.when(() -> SchematicPlacement.createFor(schematic, BlockPos.ZERO, "area-clone-test", true, true))
                     .thenReturn(placement);
@@ -207,7 +225,10 @@ class QuickLitematicaAreaCloneLifecycleTest {
         }
 
         assertThat(SchematicHolder.getInstance().getAllSchematics()).doesNotContain(schematic);
-        verify(manager, org.mockito.Mockito.never()).addSchematicPlacement(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.anyBoolean());
+        verify(manager, org.mockito.Mockito.never()).addSchematicPlacement(
+                org.mockito.ArgumentMatchers.any(),
+                org.mockito.ArgumentMatchers.anyBoolean()
+        );
     }
 
     @Test
@@ -220,19 +241,24 @@ class QuickLitematicaAreaCloneLifecycleTest {
         SchematicPlacementManager manager = manager();
         Minecraft client = client(world);
 
-        try (var minecraft = mockStatic(Minecraft.class);
-             var data = mockStatic(DataManager.class)) {
+        try (var minecraft = mockStatic(Minecraft.class); var data = mockStatic(DataManager.class)) {
             minecraft.when(Minecraft::getInstance).thenReturn(client);
             data.when(DataManager::getSchematicPlacementManager).thenReturn(manager);
             invokePending("abort", pending);
         }
 
         assertThat(SchematicHolder.getInstance().getAllSchematics()).doesNotContain(schematic);
-        verify(manager, org.mockito.Mockito.never()).addSchematicPlacement(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.anyBoolean());
+        verify(manager, org.mockito.Mockito.never()).addSchematicPlacement(
+                org.mockito.ArgumentMatchers.any(),
+                org.mockito.ArgumentMatchers.anyBoolean()
+        );
     }
 
     private static TaskScheduler scheduler() {
-        TaskScheduler scheduler = mock(TaskScheduler.class, withSettings().extraInterfaces(LitematicaTaskSchedulerAccessor.class));
+        TaskScheduler scheduler = mock(
+                TaskScheduler.class,
+                withSettings().extraInterfaces(LitematicaTaskSchedulerAccessor.class)
+        );
         when(((LitematicaTaskSchedulerAccessor) scheduler).quickcraft$getQueuedTasks()).thenReturn(new ArrayList<>());
         when(scheduler.getAllTasks()).thenReturn(com.google.common.collect.ImmutableList.of());
         return scheduler;
@@ -248,8 +274,10 @@ class QuickLitematicaAreaCloneLifecycleTest {
     private static final class RealTaskFixture implements AutoCloseable {
         final List<ITask> queued = new ArrayList<>();
         final List<Runnable> callbacks = new ArrayList<>();
-        final TaskScheduler scheduler = mock(TaskScheduler.class, withSettings()
-                .defaultAnswer(CALLS_REAL_METHODS).extraInterfaces(LitematicaTaskSchedulerAccessor.class));
+        final TaskScheduler scheduler = mock(
+                TaskScheduler.class,
+                withSettings().defaultAnswer(CALLS_REAL_METHODS).extraInterfaces(LitematicaTaskSchedulerAccessor.class)
+        );
         final LitematicaSchematic schematic = mock(LitematicaSchematic.class);
         final SchematicPlacementManager manager = manager();
         final SchematicPlacement placement = mock(SchematicPlacement.class);
@@ -270,10 +298,13 @@ class QuickLitematicaAreaCloneLifecycleTest {
                 ClientLevel source = mock(ClientLevel.class);
                 Minecraft client = client(source);
                 minecraft.when(Minecraft::getInstance).thenReturn(client);
-                doAnswer(call -> { callbacks.add(call.getArgument(0)); return null; })
-                        .when(client).execute(any(Runnable.class));
-                worlds.when(() -> WorldUtils.getBestWorld(client))
-                        .thenReturn(integratedServer ? mock(net.minecraft.world.level.Level.class) : source);
+                doAnswer(call -> {
+                    callbacks.add(call.getArgument(0));
+                    return null;
+                }).when(client).execute(any(Runnable.class));
+                worlds.when(() -> WorldUtils.getBestWorld(client)).thenReturn(
+                        integratedServer ? mock(net.minecraft.world.level.Level.class) : source
+                );
                 setField(scheduler, "tasks", new ArrayList<ITask>());
                 setField(scheduler, "tasksToAdd", queued);
                 when(((LitematicaTaskSchedulerAccessor) scheduler).quickcraft$getQueuedTasks()).thenReturn(queued);
@@ -290,17 +321,31 @@ class QuickLitematicaAreaCloneLifecycleTest {
                 data.when(DataManager::getToolMode).thenReturn(ToolMode.AREA_SELECTION);
                 data.when(DataManager::getSchematicPlacementManager).thenReturn(manager);
                 when(schematic.getMetadata()).thenReturn(new SchematicMetadata());
-                schematics.when(() -> LitematicaSchematic.createEmptySchematic(selection, "tester")).thenReturn(schematic);
+                schematics.when(() -> LitematicaSchematic.createEmptySchematic(selection, "tester")).thenReturn(
+                        schematic
+                );
                 configs.when(QuickCraftConfigs::isLitematicaAreaCloneEnabled).thenReturn(true);
-                placements.when(() -> SchematicPlacement.createFor(eq(schematic), eq(BlockPos.ZERO), anyString(), eq(true), eq(true)))
-                        .thenReturn(placement);
+                placements.when(
+                        () -> SchematicPlacement.createFor(
+                                eq(schematic),
+                                eq(BlockPos.ZERO),
+                                anyString(),
+                                eq(true),
+                                eq(true)
+                        )
+                ).thenReturn(placement);
                 // 正常热键要求有完整选区；单格盒只在入口校验中出现，复制快照保持空块以隔离生命周期。
                 AreaSelection initial = mock(AreaSelection.class);
-                when(initial.getAllSubRegionBoxes()).thenReturn(List.of(
-                        new fi.dy.masa.litematica.selection.Box(BlockPos.ZERO, BlockPos.ZERO, "test")));
+                when(initial.getAllSubRegionBoxes()).thenReturn(
+                        List.of(new fi.dy.masa.litematica.selection.Box(BlockPos.ZERO, BlockPos.ZERO, "test"))
+                );
                 when(initial.copy()).thenReturn(selection);
                 when(selections.getCurrentSelection()).thenReturn(initial);
-                Method hotkey = QuickLitematicaAreaClone.class.getDeclaredMethod("handleHotkey", KeyAction.class, IKeybind.class);
+                Method hotkey = QuickLitematicaAreaClone.class.getDeclaredMethod(
+                        "handleHotkey",
+                        KeyAction.class,
+                        IKeybind.class
+                );
                 hotkey.setAccessible(true);
                 assertThat(hotkey.invoke(null, KeyAction.PRESS, mock(IKeybind.class))).isEqualTo(true);
                 assertThat(queued).hasSize(1);
@@ -313,7 +358,9 @@ class QuickLitematicaAreaCloneLifecycleTest {
         }
 
         void drainCallbacks() {
-            while (!callbacks.isEmpty()) callbacks.removeFirst().run();
+            while (!callbacks.isEmpty()) {
+                callbacks.removeFirst().run();
+            }
         }
 
         @Override
@@ -321,8 +368,15 @@ class QuickLitematicaAreaCloneLifecycleTest {
             QuickLitematicaAreaClone.beforeWorldChange();
             drainCallbacks();
             SchematicHolder.getInstance().removeSchematic(schematic);
-            placements.close(); messages.close(); configs.close(); schematicWorlds.close(); worlds.close();
-            schematics.close(); schedulers.close(); data.close(); minecraft.close();
+            placements.close();
+            messages.close();
+            configs.close();
+            schematicWorlds.close();
+            worlds.close();
+            schematics.close();
+            schedulers.close();
+            data.close();
+            minecraft.close();
         }
     }
 
@@ -346,8 +400,7 @@ class QuickLitematicaAreaCloneLifecycleTest {
         Gui gui = mock(Gui.class);
         try {
             setField(gui, "hud", mock(findField(Gui.class, "hud").getType()));
-        } catch (NoSuchFieldException ignored) {
-        }
+        } catch (NoSuchFieldException ignored) {}
         setField(client, "gui", gui);
         return client;
     }
@@ -358,11 +411,22 @@ class QuickLitematicaAreaCloneLifecycleTest {
         return (String) method.invoke(null);
     }
 
-    private static Object pending(TaskSaveSchematic task, String name, LitematicaSchematic schematic,
-                                  TaskScheduler scheduler, ClientLevel world) throws Exception {
+    private static Object pending(
+            TaskSaveSchematic task,
+            String name,
+            LitematicaSchematic schematic,
+            TaskScheduler scheduler,
+            ClientLevel world
+    ) throws Exception {
         Class<?> type = Class.forName(QuickLitematicaAreaClone.class.getName() + "$PendingClone");
-        Constructor<?> constructor = type.getDeclaredConstructor(TaskSaveSchematic.class, ClientLevel.class,
-                String.class, LitematicaSchematic.class, TaskScheduler.class, BlockPos.class);
+        Constructor<?> constructor = type.getDeclaredConstructor(
+                TaskSaveSchematic.class,
+                ClientLevel.class,
+                String.class,
+                LitematicaSchematic.class,
+                TaskScheduler.class,
+                BlockPos.class
+        );
         constructor.setAccessible(true);
         Object pending = constructor.newInstance(task, world, name, schematic, scheduler, BlockPos.ZERO);
         pendingSet().add(pending);
@@ -377,15 +441,16 @@ class QuickLitematicaAreaCloneLifecycleTest {
     }
 
     private static void invokePending(String name, Object pending) throws Exception {
-        Method method = QuickLitematicaAreaClone.class.getDeclaredMethod(name,
-                Class.forName(QuickLitematicaAreaClone.class.getName() + "$PendingClone"));
+        Method method = QuickLitematicaAreaClone.class.getDeclaredMethod(
+                name,
+                Class.forName(QuickLitematicaAreaClone.class.getName() + "$PendingClone")
+        );
         method.setAccessible(true);
         method.invoke(null, pending);
     }
 
     private static void setField(Object target, String name, Object value) throws Exception {
-        Field field = target.getClass().getSuperclass() == null
-                ? target.getClass().getDeclaredField(name)
+        Field field = target.getClass().getSuperclass() == null ? target.getClass().getDeclaredField(name)
                 : findField(target.getClass(), name);
         field.setAccessible(true);
         field.set(target, value);
@@ -395,8 +460,7 @@ class QuickLitematicaAreaCloneLifecycleTest {
         for (Class<?> current = type; current != null; current = current.getSuperclass()) {
             try {
                 return current.getDeclaredField(name);
-            } catch (NoSuchFieldException ignored) {
-            }
+            } catch (NoSuchFieldException ignored) {}
         }
         throw new NoSuchFieldException(name);
     }

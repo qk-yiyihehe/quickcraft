@@ -22,19 +22,17 @@ class QuickLitematicaPreviewStructureIdentityTest {
     @Test
     void adapterUsesTheSameContainerNormalizationAsPreviewLoading() {
         try (var preview = mockStatic(QuickLitematicaPreview3D.class)) {
-            preview.when(() -> QuickLitematicaPreview3D.isPreviewInventoryHidden("minecraft:chest"))
-                    .thenReturn(true);
-            preview.when(() -> QuickLitematicaPreview3D.hasPreviewRendererForBlockEntity("minecraft:chest"))
-                    .thenReturn(true);
-            preview.when(() -> QuickLitematicaPreview3D.inferPreviewBlockEntityId("minecraft:chest", 3955))
-                    .thenReturn("minecraft:chest");
+            preview.when(() -> QuickLitematicaPreview3D.isPreviewInventoryHidden("minecraft:chest")).thenReturn(true);
+            preview.when(() -> QuickLitematicaPreview3D.hasPreviewRendererForBlockEntity("minecraft:chest")).thenReturn(
+                    true
+            );
+            preview.when(() -> QuickLitematicaPreview3D.inferPreviewBlockEntityId("minecraft:chest", 3955)).thenReturn(
+                    "minecraft:chest"
+            );
 
-            String complete = QuickLitematicaPreviewAccess.structureFingerprint(
-                    schematic(fixture(true, 1L)));
-            String preprocessed = QuickLitematicaPreviewAccess.structureFingerprint(
-                    schematic(fixture(false, 1L)));
-            String changedStructure = QuickLitematicaPreviewAccess.structureFingerprint(
-                    schematic(fixture(false, 0L)));
+            String complete = QuickLitematicaPreviewAccess.structureFingerprint(schematic(fixture(true, 1L)));
+            String preprocessed = QuickLitematicaPreviewAccess.structureFingerprint(schematic(fixture(false, 1L)));
+            String changedStructure = QuickLitematicaPreviewAccess.structureFingerprint(schematic(fixture(false, 0L)));
 
             assertThat(complete).isEqualTo(preprocessed);
             assertThat(changedStructure).isNotEqualTo(preprocessed);
@@ -59,7 +57,7 @@ class QuickLitematicaPreviewStructureIdentityTest {
         palette.add(state("minecraft:air"));
         palette.add(state("minecraft:chest"));
         region.put("BlockStatePalette", palette);
-        region.putLongArray("BlockStates", new long[]{blockState});
+        region.putLongArray("BlockStates", new long[] { blockState });
         ListTag tileEntities = new ListTag();
         if (withContainerItems) {
             CompoundTag chest = new CompoundTag();

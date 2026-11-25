@@ -31,7 +31,7 @@ public final class QuickLitematicaEnderChestMaterials {
     private static ChestMenu activeHandler;
     private static int pendingTicks;
 
-    private QuickLitematicaEnderChestMaterials() { }
+    private QuickLitematicaEnderChestMaterials() {}
 
     public static void initialize() {
         ClientTickEvents.END_CLIENT_TICK.register(QuickLitematicaEnderChestMaterials::tick);
@@ -40,8 +40,8 @@ public final class QuickLitematicaEnderChestMaterials {
 
     public static void rememberContainerUse(Minecraft client, BlockHitResult hit) {
         // 通过真实末影箱交互认领菜单，容量不能用来区分末影箱与普通容器。
-        pendingTicks = client.level != null
-                && client.level.getBlockState(hit.getBlockPos()).getBlock() instanceof EnderChestBlock ? OPEN_TIMEOUT_TICKS : 0;
+        pendingTicks = client.level != null && client.level.getBlockState(hit.getBlockPos())
+                .getBlock() instanceof EnderChestBlock ? OPEN_TIMEOUT_TICKS : 0;
     }
 
     public static void clearPendingUse() {
@@ -50,28 +50,41 @@ public final class QuickLitematicaEnderChestMaterials {
 
     public static void onContentsReceived(int syncId) {
         var client = Minecraft.getInstance();
-        if (client.player == null || client.player.containerMenu.containerId != syncId) { return; }
+        if (client.player == null || client.player.containerMenu.containerId != syncId) {
+            return;
+        }
         if (pendingTicks > 0 && client.player.containerMenu instanceof ChestMenu handler) {
             activeHandler = handler;
             pendingTicks = 0;
         }
         // 完整内容包可能触发其他功能立即关箱，必须在它们执行前保存。
-        if (activeHandler == client.player.containerMenu) { capture(activeHandler.getContainer()); }
+        if (activeHandler == client.player.containerMenu) {
+            capture(activeHandler.getContainer());
+        }
     }
 
     static void tick(Minecraft client) {
-        if (client.player == null || client.level == null) { clear(); return; }
-        if (pendingTicks > 0) { pendingTicks--; }
+        if (client.player == null || client.level == null) {
+            clear();
+            return;
+        }
+        if (pendingTicks > 0) {
+            pendingTicks--;
+        }
         if (activeHandler != null) {
             // 即使本 tick 已关箱，处理器仍保留最后一次存取后的槽位。
             capture(activeHandler.getContainer());
-            if (client.player.containerMenu != activeHandler) { activeHandler = null; }
+            if (client.player.containerMenu != activeHandler) {
+                activeHandler = null;
+            }
             return;
         }
         if (QuickShulkerConnection.canOpen()) {
             var synced = client.player.getEnderChestInventory();
             // 原版玩家库存可能只同步前 27 格，不能覆盖已打开菜单取得的完整扩容快照。
-            if (synced.getContainerSize() >= snapshot.size()) { capture(synced); }
+            if (synced.getContainerSize() >= snapshot.size()) {
+                capture(synced);
+            }
         }
     }
 
@@ -81,7 +94,9 @@ public final class QuickLitematicaEnderChestMaterials {
         for (int slot = 0; !changed && slot < size; slot++) {
             changed = !ItemStack.matches(snapshot.get(slot), inventory.getItem(slot));
         }
-        if (!changed) { return; }
+        if (!changed) {
+            return;
+        }
         List<ItemStack> stacks = new ArrayList<>();
         COUNTS.clear();
         for (int slot = 0; slot < size; slot++) {
@@ -93,46 +108,83 @@ public final class QuickLitematicaEnderChestMaterials {
     }
 
     private static void addStack(ItemStack stack, int multiplier, int depth) {
-        if (stack.isEmpty()) { return; }
+        if (stack.isEmpty()) {
+            return;
+        }
         int count = stack.getCount() * multiplier;
         COUNTS.addTo(new ItemType(stack, true, true), count);
         // 与容器材料解析保持相同的嵌套上限，兼容服务器提供的嵌套潜影盒。
-        if (depth >= 4 || !(stack.getItem() instanceof BlockItem item)
-                || !(item.getBlock() instanceof ShulkerBoxBlock)) { return; }
+        if (depth >= 4 || !(stack.getItem() instanceof BlockItem item) || !(item
+                .getBlock() instanceof ShulkerBoxBlock)) {
+            return;
+        }
         var stored = InventoryUtils.getStoredItems(stack);
         if (stored != null) {
-            for (ItemStack nested : stored) { addStack(nested, count, depth + 1); }
+            for (ItemStack nested : stored) {
+                addStack(nested, count, depth + 1);
+            }
         }
     }
 
     public static List<MaterialListEntry> hud(MaterialListBase list, List<MaterialListEntry> entries, boolean refresh) {
         EnderHudCache cached = HUD_CACHE.get(list);
-        if (!QuickCraftConfigs.ProjectionTools.INCLUDE_ENDER_CHEST_IN_MATERIAL_HUD.getBooleanValue()
-                || (COUNTS.isEmpty() && (cached == null || !list.getHideAvailable() || cached.hidden().isEmpty()))) {
+        if (!QuickCraftConfigs.ProjectionTools.INCLUDE_ENDER_CHEST_IN_MATERIAL_HUD.getBooleanValue() || (COUNTS
+                .isEmpty() && (cached == null || !list.getHideAvailable() || cached.hidden().isEmpty()))) {
             HUD_CACHE.remove(list);
             return entries;
         }
-        if (!refresh && cached != null && cached.source() == entries
-                && cached.hideAvailable() == list.getHideAvailable() && cached.multiplier() == list.getMultiplier()) {
+        if (!refresh
+                && cached != null
+                && cached.source() == entries
+                && cached.hideAvailable() == list.getHideAvailable()
+                && cached.multiplier() == list.getMultiplier()) {
             return cached.result();
         }
         List<MaterialListEntry> augmented = new ArrayList<>();
         for (MaterialListEntry entry : entries) {
             int available = entry.getCountAvailable() + COUNTS.getInt(new ItemType(entry.getStack(), true, true));
             // HUD 使用副本，不把末影箱计数写回背包材料表。
-            augmented.add(new MaterialListEntry(entry.getStack(), entry.getCountTotal(), entry.getCountMissing(),
-                    entry.getCountMismatched(), available));
+            augmented.add(
+                    new MaterialListEntry(
+                            entry.getStack(),
+                            entry.getCountTotal(),
+                            entry.getCountMissing(),
+                            entry.getCountMismatched(),
+                            available
+                    )
+            );
         }
-        var hidden = QuickLitematicaProjectionMaterials.hiddenSnapshot(list, augmented,
-                cached == null ? java.util.Set.of() : cached.hidden(), true);
-        List<MaterialListEntry> result = QuickLitematicaProjectionMaterials.buildMissingEntries(list, augmented, hidden);
-        HUD_CACHE.put(list, new EnderHudCache(entries, list.getHideAvailable(), list.getMultiplier(),
-                java.util.Set.copyOf(hidden), result));
+        var hidden = QuickLitematicaProjectionMaterials.hiddenSnapshot(
+                list,
+                augmented,
+                cached == null ? java.util.Set.of() : cached.hidden(),
+                true
+        );
+        List<MaterialListEntry> result = QuickLitematicaProjectionMaterials.buildMissingEntries(
+                list,
+                augmented,
+                hidden
+        );
+        HUD_CACHE.put(
+                list,
+                new EnderHudCache(
+                        entries,
+                        list.getHideAvailable(),
+                        list.getMultiplier(),
+                        java.util.Set.copyOf(hidden),
+                        result
+                )
+        );
         return result;
     }
 
-    private record EnderHudCache(List<MaterialListEntry> source, boolean hideAvailable, int multiplier,
-                                java.util.Set<String> hidden, List<MaterialListEntry> result) {
+    private record EnderHudCache(
+            List<MaterialListEntry> source,
+            boolean hideAvailable,
+            int multiplier,
+            java.util.Set<String> hidden,
+            List<MaterialListEntry> result
+    ) {
     }
 
     static void resetHud(MaterialListBase list) {

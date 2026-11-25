@@ -34,8 +34,7 @@ public final class QuickLitematicaVerifierPalette {
     // 幽灵物品透明度，值越大，缺失物品虚影越不透明。
     private static final float GHOST_ITEM_ALPHA = 0.80F;
 
-    private QuickLitematicaVerifierPalette() {
-    }
+    private QuickLitematicaVerifierPalette() {}
 
     public static int wrongFillRgb() {
         return WRONG_FILL.rgb();

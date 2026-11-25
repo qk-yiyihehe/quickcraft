@@ -301,17 +301,23 @@ public final class QuickBeacon implements ClientModInitializer {
             return false;
         }
 
-        QuickSlotTransfer.quickMove(client, handler, PLAYER_CRAFT_RESULT_SLOT_ID, QuickSlotTransfer::isPlayerStorageSlot, true);
+        QuickSlotTransfer.quickMove(
+                client,
+                handler,
+                PLAYER_CRAFT_RESULT_SLOT_ID,
+                QuickSlotTransfer::isPlayerStorageSlot,
+                true
+        );
 
         ItemStack after = handler.getSlot(PLAYER_CRAFT_RESULT_SLOT_ID).getStack();
-        return after.isEmpty()
-                || after.getCount() != before.getCount()
-                || !ItemStack.areItemsAndComponentsEqual(before, after);
+        return after.isEmpty() || after.getCount() != before.getCount() || !ItemStack.areItemsAndComponentsEqual(
+                before,
+                after
+        );
     }
 
     private boolean isPlayerCraftingHandlerReady(MinecraftClient client) {
-        return client.player != null
-                && client.currentScreen == null
+        return client.player != null && client.currentScreen == null
                 && client.player.currentScreenHandler == client.player.playerScreenHandler;
     }
 
@@ -391,12 +397,10 @@ public final class QuickBeacon implements ClientModInitializer {
         if (raw == null) {
             return "";
         }
-        return raw.trim()
-                .toLowerCase(Locale.ROOT)
-                .replace("minecraft:", "")
-                .replace(" ", "")
-                .replace("_", "")
-                .replace("-", "");
+        return raw.trim().toLowerCase(Locale.ROOT).replace("minecraft:", "").replace(" ", "").replace("_", "").replace(
+                "-",
+                ""
+        );
     }
 
     private boolean playerHasTargetEffect(MinecraftClient client, BeaconEffectTarget target) {
@@ -533,8 +537,8 @@ public final class QuickBeacon implements ClientModInitializer {
             if (!slot.hasStack()) {
                 return slotId;
             }
-            if (ItemStack.areItemsAndComponentsEqual(slot.getStack(), stack)
-                    && slot.getStack().getCount() + stack.getCount() <= slot.getStack().getMaxCount()) {
+            if (ItemStack.areItemsAndComponentsEqual(slot.getStack(), stack) && slot.getStack().getCount() + stack
+                    .getCount() <= slot.getStack().getMaxCount()) {
                 return slotId;
             }
         }
@@ -559,20 +563,16 @@ public final class QuickBeacon implements ClientModInitializer {
             playerSlots.add(slot);
         }
 
-        playerSlots.sort(Comparator
-                .comparingInt((Slot slot) -> slot.getIndex() >= 9 ? 0 : 1)
-                .thenComparingInt(Slot::getIndex)
-                .thenComparingInt(slot -> slot.id));
+        playerSlots.sort(
+                Comparator.comparingInt((Slot slot) -> slot.getIndex() >= 9 ? 0 : 1).thenComparingInt(Slot::getIndex)
+                        .thenComparingInt(slot -> slot.id)
+        );
 
-        return playerSlots.stream()
-                .map(slot -> slot.id)
-                .toList();
+        return playerSlots.stream().map(slot -> slot.id).toList();
     }
 
     private boolean isPlayerStorageSlot(Slot slot) {
-        return slot.inventory instanceof PlayerInventory
-                && slot.getIndex() >= 0
-                && slot.getIndex() < 36;
+        return slot.inventory instanceof PlayerInventory && slot.getIndex() >= 0 && slot.getIndex() < 36;
     }
 
     private boolean isVisibleSlot(Slot slot) {
@@ -595,24 +595,26 @@ public final class QuickBeacon implements ClientModInitializer {
             );
         }
 
-        client.getNetworkHandler().sendPacket(new UpdateBeaconC2SPacket(
-                Optional.ofNullable(target.primary()),
-                Optional.ofNullable(target.secondary())
-        ));
+        client.getNetworkHandler().sendPacket(
+                new UpdateBeaconC2SPacket(
+                        Optional.ofNullable(target.primary()),
+                        Optional.ofNullable(target.secondary())
+                )
+        );
     }
 
-    private void clickSlot(ScreenHandler handler, int slotId, int button, SlotActionType actionType, MinecraftClient client) {
+    private void clickSlot(
+            ScreenHandler handler,
+            int slotId,
+            int button,
+            SlotActionType actionType,
+            MinecraftClient client
+    ) {
         if (client.player == null || client.interactionManager == null) {
             return;
         }
 
-        client.interactionManager.clickSlot(
-                handler.syncId,
-                slotId,
-                button,
-                actionType,
-                client.player
-        );
+        client.interactionManager.clickSlot(handler.syncId, slotId, button, actionType, client.player);
     }
 
     private BlockHitResult getLookedAtBeaconHitResult(MinecraftClient client) {
@@ -639,10 +641,7 @@ public final class QuickBeacon implements ClientModInitializer {
             return null;
         }
 
-        return new BeaconConfiguredState(
-                getLevelTwoEffectName(primary),
-                "quickcraft.message.beacon.already_selected"
-        );
+        return new BeaconConfiguredState(getLevelTwoEffectName(primary), "quickcraft.message.beacon.already_selected");
     }
 
     private Set<BeaconEffectTarget> getReservedTargets(MinecraftClient client) {
@@ -658,10 +657,16 @@ public final class QuickBeacon implements ClientModInitializer {
     }
 
     private void pruneRecentAssignments(MinecraftClient client) {
-        RECENT_BEACON_ASSIGNMENTS.entrySet().removeIf(entry -> !isRecentAssignmentValid(client, entry.getKey(), entry.getValue()));
+        RECENT_BEACON_ASSIGNMENTS.entrySet().removeIf(
+                entry -> !isRecentAssignmentValid(client, entry.getKey(), entry.getValue())
+        );
     }
 
-    private boolean isRecentAssignmentValid(MinecraftClient client, BlockPos beaconPos, RecentBeaconAssignment assignment) {
+    private boolean isRecentAssignmentValid(
+            MinecraftClient client,
+            BlockPos beaconPos,
+            RecentBeaconAssignment assignment
+    ) {
         if (client.world == null) {
             return false;
         }
@@ -696,7 +701,10 @@ public final class QuickBeacon implements ClientModInitializer {
 
     private void sendConfiguredStateMessage(MinecraftClient client, BeaconConfiguredState configuredState) {
         if (configuredState.displayName() != null) {
-            sendStatusMessage(client, Text.translatable(configuredState.translationKey(), configuredState.displayName()));
+            sendStatusMessage(
+                    client,
+                    Text.translatable(configuredState.translationKey(), configuredState.displayName())
+            );
             return;
         }
 
@@ -757,9 +765,8 @@ public final class QuickBeacon implements ClientModInitializer {
     }
 
     private enum PendingFailureReason {
-        NONE(""),
-        NO_VALID_ORDER("quickcraft.message.beacon.invalid_order"),
-        ALL_ACTIVE("quickcraft.message.beacon.all_active");
+        NONE(""), NO_VALID_ORDER("quickcraft.message.beacon.invalid_order"), ALL_ACTIVE(
+                "quickcraft.message.beacon.all_active");
 
         private final String translationKey;
 
@@ -769,10 +776,8 @@ public final class QuickBeacon implements ClientModInitializer {
     }
 
     private enum PaymentMaterial {
-        IRON(Items.IRON_INGOT, Items.IRON_BLOCK),
-        EMERALD(Items.EMERALD, Items.EMERALD_BLOCK),
-        GOLD(Items.GOLD_INGOT, Items.GOLD_BLOCK),
-        DIAMOND(Items.DIAMOND, Items.DIAMOND_BLOCK);
+        IRON(Items.IRON_INGOT, Items.IRON_BLOCK), EMERALD(Items.EMERALD, Items.EMERALD_BLOCK), GOLD(Items.GOLD_INGOT,
+                Items.GOLD_BLOCK), DIAMOND(Items.DIAMOND, Items.DIAMOND_BLOCK);
 
         private final Item paymentItem;
         private final Item blockItem;
@@ -784,18 +789,10 @@ public final class QuickBeacon implements ClientModInitializer {
     }
 
     private enum PendingStage {
-        NONE,
-        WAIT_INITIAL_OPEN,
-        DECOMPOSE_START,
-        DECOMPOSE_WAIT_RESULT,
-        DECOMPOSE_TAKE_RESULT,
-        WAIT_REOPEN
+        NONE, WAIT_INITIAL_OPEN, DECOMPOSE_START, DECOMPOSE_WAIT_RESULT, DECOMPOSE_TAKE_RESULT, WAIT_REOPEN
     }
 
-    private record BeaconEffectTarget(
-            RegistryEntry<StatusEffect> primary,
-            RegistryEntry<StatusEffect> secondary
-    ) {
+    private record BeaconEffectTarget(RegistryEntry<StatusEffect> primary, RegistryEntry<StatusEffect> secondary) {
         private static BeaconEffectTarget levelTwo(RegistryEntry<StatusEffect> effect) {
             return new BeaconEffectTarget(effect, effect);
         }
@@ -804,11 +801,7 @@ public final class QuickBeacon implements ClientModInitializer {
     private record BeaconConfiguredState(Text displayName, String translationKey) {
     }
 
-    private record RecentBeaconAssignment(
-            BeaconEffectTarget target,
-            long expiresAt,
-            int blockEntityIdentity
-    ) {
+    private record RecentBeaconAssignment(BeaconEffectTarget target, long expiresAt, int blockEntityIdentity) {
     }
 
     private record TargetSelectionResult(BeaconEffectTarget target, PendingFailureReason failureReason) {

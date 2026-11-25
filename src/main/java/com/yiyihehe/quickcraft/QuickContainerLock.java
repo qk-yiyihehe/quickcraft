@@ -1,4 +1,5 @@
 package com.yiyihehe.quickcraft;
+
 import com.yiyihehe.quickcraft.render.QuickCrossBoxSortStatus;
 
 import com.google.gson.JsonArray;
@@ -80,7 +81,8 @@ public final class QuickContainerLock implements ClientModInitializer {
     private static final String TWEAKEROO_EQUIP_BEST_ELYTRA_METHOD = "equipBestElytra";
     private static final String TWEAKEROO_SWAP_ITEM_TO_EQUIPMENT_SLOT_METHOD = "swapItemToEquipmentSlot";
     private static final String TWEAKEROO_SWAP_SLOTS_METHOD = "swapSlots";
-    private static final String OMMC_ELYTRA_SWAP_CLASS = "com.plusls.ommc.feature.autoSwitchElytra.AutoSwitchElytraUtil";
+    private static final String OMMC_ELYTRA_SWAP_CLASS =
+            "com.plusls.ommc.feature.autoSwitchElytra.AutoSwitchElytraUtil";
     private static final String OMMC_ELYTRA_SWAP_METHOD = "autoSwitch";
     private static final Identifier SLOT_LOCK_TEXTURE = Identifier.of("quickcraft", "textures/gui/slot_lock.png");
 
@@ -131,15 +133,14 @@ public final class QuickContainerLock implements ClientModInitializer {
     }
 
     public static boolean shouldShowLockButton(HandledScreen<?> screen) {
-        return QuickCraftConfigs.isContainerLockButtonVisible()
-                && !(screen instanceof CreativeInventoryScreen)
-                && isLockButtonSupportedHandler(screen.getScreenHandler())
-                && getCurrentScreenContainerKey(screen) != null;
+        return QuickCraftConfigs.isContainerLockButtonVisible() && !(screen instanceof CreativeInventoryScreen)
+                && isLockButtonSupportedHandler(screen.getScreenHandler()) && getCurrentScreenContainerKey(
+                        screen
+                ) != null;
     }
 
     public static boolean shouldShowSlotLocks(HandledScreen<?> screen) {
-        return QuickCraftConfigs.isSlotLockOverlayVisible()
-                && hasAnyLockableSlot(screen);
+        return QuickCraftConfigs.isSlotLockOverlayVisible() && hasAnyLockableSlot(screen);
     }
 
     public static void bindCurrentScreen(HandledScreen<?> screen) {
@@ -149,8 +150,7 @@ public final class QuickContainerLock implements ClientModInitializer {
         }
 
         ScreenHandler handler = screen.getScreenHandler();
-        if (isCreativePlayerInventoryScreen(screen)
-                || handler instanceof PlayerScreenHandler) {
+        if (isCreativePlayerInventoryScreen(screen) || handler instanceof PlayerScreenHandler) {
             setCurrentScreenHandler(handler, PLAYER_CONTAINER_KEY);
             // 开盒响应到达前来源背包仍会渲染，不能清掉这次 QuickShulker 绑定。
             if (handler != pendingSourceHandler) {
@@ -164,7 +164,7 @@ public final class QuickContainerLock implements ClientModInitializer {
             return;
         }
 
-        // Using a held ender chest bypasses QuickShulker's custom open request.
+        // 使用手持的末影箱时，会绕过 QuickShulker 自定义的打开请求。
         String key = HANDLER_CONTAINER_KEYS.get(handler);
         if (key == null && isEnderChestScreen(screen)) {
             bindEnderChestScreen(screen);
@@ -181,15 +181,16 @@ public final class QuickContainerLock implements ClientModInitializer {
         }
 
         ScreenHandler handler = client.currentScreen instanceof CreativeInventoryScreen
-                ? client.player.playerScreenHandler : client.player.currentScreenHandler;
+                ? client.player.playerScreenHandler
+                : client.player.currentScreenHandler;
         Slot slot = getSlot(handler, handlerSlotId);
-        if (slot == null || slot.inventory != client.player.getInventory()
-                || (!isPlayerStorageSlot(slot) && slot.getIndex() != PlayerInventory.OFF_HAND_SLOT)) {
+        if (slot == null || slot.inventory != client.player.getInventory() || (!isPlayerStorageSlot(slot) && slot
+                .getIndex() != PlayerInventory.OFF_HAND_SLOT)) {
             return;
         }
 
-        ScreenHandler sourceHandler = client.currentScreen instanceof HandledScreen<?> screen
-                ? screen.getScreenHandler() : handler;
+        ScreenHandler sourceHandler = client.currentScreen instanceof HandledScreen<?> screen ? screen
+                .getScreenHandler() : handler;
         prepareQuickShulkerOpen(slot.getStack(), slot.getIndex(), sourceHandler);
     }
 
@@ -199,7 +200,8 @@ public final class QuickContainerLock implements ClientModInitializer {
             return;
         }
         clearPendingContainerOpen();
-        int slot = hand == Hand.MAIN_HAND ? QuickContainerLockAccess.getSelectedSlot(player.getInventory()) : PlayerInventory.OFF_HAND_SLOT;
+        int slot = hand == Hand.MAIN_HAND ? QuickContainerLockAccess.getSelectedSlot(player.getInventory())
+                : PlayerInventory.OFF_HAND_SLOT;
         prepareQuickShulkerOpen(player.getStackInHand(hand), slot, player.currentScreenHandler);
     }
 
@@ -222,11 +224,13 @@ public final class QuickContainerLock implements ClientModInitializer {
         }
         for (Slot slot : screen.getScreenHandler().slots) {
             Slot effectiveSlot = unwrapCreativeSlot(slot);
-            if (slot.isEnabled() && slot.x >= 0 && slot.y >= 0
-                    && isPlayerStorageSlot(effectiveSlot)
-                    && isMouseOverSlot(slot, getGuiLeft(screen), getGuiTop(screen), mouseX, mouseY)
-                    && isShulkerBoxItem(effectiveSlot.getStack())
-                    && effectiveSlot.getStack().getCount() == 1) {
+            if (slot.isEnabled() && slot.x >= 0 && slot.y >= 0 && isPlayerStorageSlot(effectiveSlot) && isMouseOverSlot(
+                    slot,
+                    getGuiLeft(screen),
+                    getGuiTop(screen),
+                    mouseX,
+                    mouseY
+            ) && isShulkerBoxItem(effectiveSlot.getStack()) && effectiveSlot.getStack().getCount() == 1) {
                 return QuickInventoryShulkerTools.tryOpen(screen, effectiveSlot);
             }
         }
@@ -240,13 +244,14 @@ public final class QuickContainerLock implements ClientModInitializer {
 
     static int getInventoryShulkerSlot(HandledScreen<?> screen) {
         String key = getCurrentScreenContainerKey(screen);
-        return key != null && key.startsWith(QUICK_SHULKER_CONTAINER_KEY_PREFIX)
-                ? Integer.parseInt(key.substring(QUICK_SHULKER_CONTAINER_KEY_PREFIX.length())) : -1;
+        return key != null && key.startsWith(QUICK_SHULKER_CONTAINER_KEY_PREFIX) ? Integer.parseInt(
+                key.substring(QUICK_SHULKER_CONTAINER_KEY_PREFIX.length())
+        ) : -1;
     }
 
     public static boolean isEnderChestScreen(HandledScreen<?> screen) {
-        return screen.getScreenHandler() instanceof GenericContainerScreenHandler chest && chest.getRows() == 3
-                && Text.translatable("container.enderchest").equals(screen.getTitle());
+        return screen.getScreenHandler() instanceof GenericContainerScreenHandler chest && chest.getRows() == 3 && Text
+                .translatable("container.enderchest").equals(screen.getTitle());
     }
 
     public static void bindEnderChestScreen(HandledScreen<?> screen) {
@@ -306,7 +311,11 @@ public final class QuickContainerLock implements ClientModInitializer {
         return key != null && LOCKED_CONTAINERS.contains(key);
     }
 
-    public static boolean handleLockedAutomationAttempt(MinecraftClient client, HandledScreen<?> screen, Text actionName) {
+    public static boolean handleLockedAutomationAttempt(
+            MinecraftClient client,
+            HandledScreen<?> screen,
+            Text actionName
+    ) {
         if (!isCurrentScreenLocked(screen)) {
             return false;
         }
@@ -332,7 +341,13 @@ public final class QuickContainerLock implements ClientModInitializer {
         return true;
     }
 
-    public static boolean handleSlotLockClick(HandledScreen<?> screen, double mouseX, double mouseY, int guiLeft, int guiTop) {
+    public static boolean handleSlotLockClick(
+            HandledScreen<?> screen,
+            double mouseX,
+            double mouseY,
+            int guiLeft,
+            int guiTop
+    ) {
         if (!shouldShowSlotLocks(screen)) {
             return false;
         }
@@ -360,7 +375,13 @@ public final class QuickContainerLock implements ClientModInitializer {
         return handleSlotLockHotkey(screen, mouseX, mouseY, getGuiLeft(screen), getGuiTop(screen));
     }
 
-    public static boolean handleSlotLockHotkey(HandledScreen<?> screen, double mouseX, double mouseY, int guiLeft, int guiTop) {
+    public static boolean handleSlotLockHotkey(
+            HandledScreen<?> screen,
+            double mouseX,
+            double mouseY,
+            int guiLeft,
+            int guiTop
+    ) {
         clearSlotLockDrag();
         if (!shouldShowSlotLocks(screen)) {
             return false;
@@ -373,8 +394,13 @@ public final class QuickContainerLock implements ClientModInitializer {
 
     public static void handleSlotLockDrag(MinecraftClient client, double mouseX, double mouseY) {
         if (validateSlotLockDrag(client)) {
-            toggleHoveredSlotLock(slotLockDragScreen, mouseX, mouseY,
-                    getGuiLeft(slotLockDragScreen), getGuiTop(slotLockDragScreen));
+            toggleHoveredSlotLock(
+                    slotLockDragScreen,
+                    mouseX,
+                    mouseY,
+                    getGuiLeft(slotLockDragScreen),
+                    getGuiTop(slotLockDragScreen)
+            );
         }
     }
 
@@ -382,9 +408,9 @@ public final class QuickContainerLock implements ClientModInitializer {
         if (slotLockDragScreen == null) {
             return false;
         }
-        if (client.currentScreen != slotLockDragScreen
-                || !QuickCraftKeyBindings.isHotkeyDown(QuickCraftConfigs.Hotkeys.SLOT_LOCK.getKeybind())
-                || !shouldShowSlotLocks(slotLockDragScreen)) {
+        if (client.currentScreen != slotLockDragScreen || !QuickCraftKeyBindings.isHotkeyDown(
+                QuickCraftConfigs.Hotkeys.SLOT_LOCK.getKeybind()
+        ) || !shouldShowSlotLocks(slotLockDragScreen)) {
             clearSlotLockDrag();
             return false;
         }
@@ -396,7 +422,13 @@ public final class QuickContainerLock implements ClientModInitializer {
         DRAGGED_LOCK_SLOTS.clear();
     }
 
-    private static void toggleHoveredSlotLock(HandledScreen<?> screen, double mouseX, double mouseY, int guiLeft, int guiTop) {
+    private static void toggleHoveredSlotLock(
+            HandledScreen<?> screen,
+            double mouseX,
+            double mouseY,
+            int guiLeft,
+            int guiTop
+    ) {
         for (Slot slot : screen.getScreenHandler().slots) {
             if (isLockableSlot(screen, slot) && isMouseOverSlot(slot, guiLeft, guiTop, mouseX, mouseY)) {
                 // 创造背包的包装槽位也按真实槽位去重，避免同次滑动反复切换。
@@ -498,22 +530,26 @@ public final class QuickContainerLock implements ClientModInitializer {
     }
 
     public static boolean isLockedPlayerInventorySlot(int inventoryIndex) {
-        return inventoryIndex >= 0 && inventoryIndex < PLAYER_STORAGE_SLOT_COUNT
-                && LOCKED_PLAYER_SLOTS.contains(inventoryIndex);
+        return inventoryIndex >= 0 && inventoryIndex < PLAYER_STORAGE_SLOT_COUNT && LOCKED_PLAYER_SLOTS.contains(
+                inventoryIndex
+        );
     }
 
     public static boolean isLockedPlayerHotbarSlot(int hotbarIndex) {
-        return hotbarIndex >= 0
-                && hotbarIndex < HOTBAR_SLOT_COUNT
-                && LOCKED_PLAYER_SLOTS.contains(hotbarIndex);
+        return hotbarIndex >= 0 && hotbarIndex < HOTBAR_SLOT_COUNT && LOCKED_PLAYER_SLOTS.contains(hotbarIndex);
     }
 
-    public static void dispatchManualSlotClick(HandledScreen<?> screen, int slotId, int button,
-                                              SlotActionType actionType, Runnable click) {
+    public static void dispatchManualSlotClick(
+            HandledScreen<?> screen,
+            int slotId,
+            int button,
+            SlotActionType actionType,
+            Runnable click
+    ) {
         ManualSlotClick previousClick = pendingManualClick;
         Boolean previousPermission = manualSlotTakePermission;
-        boolean manual = MinecraftClient.getInstance().currentScreen == screen
-                && QuickCraftConfigs.areManualLockedSlotInteractionsAllowed();
+        boolean manual = MinecraftClient.getInstance().currentScreen == screen && QuickCraftConfigs
+                .areManualLockedSlotInteractionsAllowed();
         pendingManualClick = manual ? new ManualSlotClick(screen.getScreenHandler(), slotId, button, actionType) : null;
         // 创造界面直接操作菜单，只有普通容器点击会进入客户端交互管理器。
         manualSlotTakePermission = screen instanceof CreativeInventoryScreen ? manual : null;
@@ -525,10 +561,18 @@ public final class QuickContainerLock implements ClientModInitializer {
         }
     }
 
-    public static boolean consumeManualSlotClick(ScreenHandler handler, int slotId, int button, SlotActionType actionType) {
+    public static boolean consumeManualSlotClick(
+            ScreenHandler handler,
+            int slotId,
+            int button,
+            SlotActionType actionType
+    ) {
         ManualSlotClick click = pendingManualClick;
-        if (click == null || click.handler() != handler || click.slotId() != slotId
-                || click.button() != button || click.actionType() != actionType) {
+        if (click == null
+                || click.handler() != handler
+                || click.slotId() != slotId
+                || click.button() != button
+                || click.actionType() != actionType) {
             return false;
         }
         pendingManualClick = null;
@@ -545,8 +589,14 @@ public final class QuickContainerLock implements ClientModInitializer {
         }
     }
 
-    public static void runMenuSlotClick(ScreenHandler handler, int slotId, int button,
-                                        SlotActionType actionType, PlayerEntity player, Runnable click) {
+    public static void runMenuSlotClick(
+            ScreenHandler handler,
+            int slotId,
+            int button,
+            SlotActionType actionType,
+            PlayerEntity player,
+            Runnable click
+    ) {
         // 直接调用客户端菜单的操作没有经过交互管理器，仍然需要判锁。
         if (player instanceof ClientPlayerEntity && manualSlotTakePermission == null) {
             if (!shouldBlockClick(handler, slotId, button, actionType, false)) {
@@ -559,12 +609,18 @@ public final class QuickContainerLock implements ClientModInitializer {
 
     public static boolean shouldBlockSlotTake(Slot slot, PlayerEntity player) {
         boolean allowed = player instanceof ClientPlayerEntity && manualSlotTakePermission != null
-                ? manualSlotTakePermission : QuickCraftConfigs.areManualLockedSlotInteractionsAllowed();
+                ? manualSlotTakePermission
+                : QuickCraftConfigs.areManualLockedSlotInteractionsAllowed();
         return !allowed && isLockedSlot(slot);
     }
 
-    public static boolean shouldBlockClick(ScreenHandler handler, Slot slot, int button,
-                                           SlotActionType actionType, boolean manual) {
+    public static boolean shouldBlockClick(
+            ScreenHandler handler,
+            Slot slot,
+            int button,
+            SlotActionType actionType,
+            boolean manual
+    ) {
         if (isLockedSlot(handler, slot)) {
             return !manual || actionType == SlotActionType.THROW;
         }
@@ -572,8 +628,13 @@ public final class QuickContainerLock implements ClientModInitializer {
         return !manual && actionType == SlotActionType.SWAP && isLockedHotbarSwapTarget(handler, button);
     }
 
-    public static boolean shouldBlockClick(ScreenHandler handler, int slotId, int button,
-                                           SlotActionType actionType, boolean manual) {
+    public static boolean shouldBlockClick(
+            ScreenHandler handler,
+            int slotId,
+            int button,
+            SlotActionType actionType,
+            boolean manual
+    ) {
         return shouldBlockClick(handler, getSlot(handler, slotId), button, actionType, manual);
     }
 
@@ -679,30 +740,21 @@ public final class QuickContainerLock implements ClientModInitializer {
         Slot effectiveSlot = unwrapCreativeSlot(slot);
         ScreenHandler handler = screen.getScreenHandler();
         if (isCreativePlayerInventoryScreen(screen)) {
-            return slot.isEnabled()
-                    && slot.x >= 0
-                    && slot.y >= 0
-                    && handler.slots.indexOf(slot) >= 0
+            return slot.isEnabled() && slot.x >= 0 && slot.y >= 0 && handler.slots.indexOf(slot) >= 0
                     && isPlayerStorageSlot(effectiveSlot);
         }
 
-        return slot.isEnabled()
-                && slot.x >= 0
-                && slot.y >= 0
-                && handler.slots.indexOf(slot) >= 0
+        return slot.isEnabled() && slot.x >= 0 && slot.y >= 0 && handler.slots.indexOf(slot) >= 0
                 && (isPlayerStorageSlot(effectiveSlot) || isContainerSlotLockable(handler, effectiveSlot));
     }
 
     private static boolean isContainerSlotLockable(ScreenHandler handler, Slot slot) {
-        return isContainerSlotLockSupportedHandler(handler)
-                && !isPlayerStorageSlot(slot)
-                && slot.getIndex() >= 0;
+        return isContainerSlotLockSupportedHandler(handler) && !isPlayerStorageSlot(slot) && slot.getIndex() >= 0;
     }
 
     private static boolean isPlayerStorageSlot(Slot slot) {
-        return slot.inventory instanceof PlayerInventory
-                && slot.getIndex() >= 0
-                && slot.getIndex() < PLAYER_STORAGE_SLOT_COUNT;
+        return slot.inventory instanceof PlayerInventory && slot.getIndex() >= 0 && slot
+                .getIndex() < PLAYER_STORAGE_SLOT_COUNT;
     }
 
     private static boolean hasPlayerSlotLock(Slot slot) {
@@ -713,9 +765,8 @@ public final class QuickContainerLock implements ClientModInitializer {
         ClientPlayerEntity localPlayer = client == null ? null : client.player;
         PlayerEntity owner = ((PlayerInventory) slot.inventory).player;
         // 保持房主的本地预测与集成端一致，LAN 客机使用自己的库存。
-        return localPlayer != null
-                && (owner == localPlayer || (owner instanceof ServerPlayerEntity && owner.getUuid().equals(localPlayer.getUuid())))
-                && !shouldBypassPlayerSlotLock(slot);
+        return localPlayer != null && (owner == localPlayer || (owner instanceof ServerPlayerEntity && owner.getUuid()
+                .equals(localPlayer.getUuid()))) && !shouldBypassPlayerSlotLock(slot);
     }
 
     private static boolean isPlayerHotbarSlot(Slot slot) {
@@ -726,15 +777,18 @@ public final class QuickContainerLock implements ClientModInitializer {
      * tweakeroo / OMMC 的自动穿脱鞘翅都会连续发 3 次 clickSlot。
      * 这里只给这一小段确定的点击序列开后门，平时锁格子仍然完全生效。
      */
-    private static boolean startTrustedAutoElytraSession(ScreenHandler handler, int slotId, int button, SlotActionType actionType) {
+    private static boolean startTrustedAutoElytraSession(
+            ScreenHandler handler,
+            int slotId,
+            int button,
+            SlotActionType actionType
+    ) {
         if (!(handler instanceof PlayerScreenHandler)) {
             return false;
         }
 
         MinecraftClient client = MinecraftClient.getInstance();
-        if (client == null
-                || client.player == null
-                || client.currentScreen != null
+        if (client == null || client.player == null || client.currentScreen != null
                 || client.player.currentScreenHandler != handler) {
             return false;
         }
@@ -782,11 +836,10 @@ public final class QuickContainerLock implements ClientModInitializer {
         for (StackTraceElement element : Thread.currentThread().getStackTrace()) {
             String className = element.getClassName();
             String methodName = element.getMethodName();
-            if ((TWEAKEROO_ELYTRA_SWAP_CLASS.equals(className)
-                    && (TWEAKEROO_ELYTRA_SWAP_METHOD.equals(methodName)
+            if ((TWEAKEROO_ELYTRA_SWAP_CLASS.equals(className) && (TWEAKEROO_ELYTRA_SWAP_METHOD.equals(methodName)
                     || TWEAKEROO_EQUIP_BEST_ELYTRA_METHOD.equals(methodName)
-                    || TWEAKEROO_SWAP_ITEM_TO_EQUIPMENT_SLOT_METHOD.equals(methodName)
-                    || TWEAKEROO_SWAP_SLOTS_METHOD.equals(methodName)))) {
+                    || TWEAKEROO_SWAP_ITEM_TO_EQUIPMENT_SLOT_METHOD.equals(methodName) || TWEAKEROO_SWAP_SLOTS_METHOD
+                            .equals(methodName)))) {
                 return AUTO_ELYTRA_CALLER_TWEAKEROO;
             }
 
@@ -797,11 +850,13 @@ public final class QuickContainerLock implements ClientModInitializer {
         return AUTO_ELYTRA_CALLER_NONE;
     }
 
-    private static boolean continueTrustedAutoElytraSession(ScreenHandler handler, int button, SlotActionType actionType) {
-        if (!(handler instanceof PlayerScreenHandler)
-                || pendingAutoElytraCaller == AUTO_ELYTRA_CALLER_NONE
-                || pendingAutoElytraActionType != actionType
-                || pendingAutoElytraButton != button
+    private static boolean continueTrustedAutoElytraSession(
+            ScreenHandler handler,
+            int button,
+            SlotActionType actionType
+    ) {
+        if (!(handler instanceof PlayerScreenHandler) || pendingAutoElytraCaller == AUTO_ELYTRA_CALLER_NONE
+                || pendingAutoElytraActionType != actionType || pendingAutoElytraButton != button
                 || getTrustedAutoElytraCaller() != pendingAutoElytraCaller) {
             return false;
         }
@@ -859,8 +914,7 @@ public final class QuickContainerLock implements ClientModInitializer {
     }
 
     private static boolean shouldBypassPlayerSlotLock(Slot slot) {
-        return isPlayerStorageSlot(slot)
-                && (bypassPlayerSlotLocks || isAutoElytraSessionSlot(slot.getIndex()));
+        return isPlayerStorageSlot(slot) && (bypassPlayerSlotLocks || isAutoElytraSessionSlot(slot.getIndex()));
     }
 
     /**
@@ -868,32 +922,25 @@ public final class QuickContainerLock implements ClientModInitializer {
      * 这里继续认这次自动鞘翅会话涉及的玩家格，避免只放行前半段点击导致回落失败。
      */
     private static boolean isAutoElytraSessionSlot(int inventoryIndex) {
-        return activeAutoElytraPlayerSlots.contains(inventoryIndex)
-                || pendingAutoElytraPlayerSlots.contains(inventoryIndex)
-                || lingeringAutoElytraPlayerSlots.contains(inventoryIndex);
+        return activeAutoElytraPlayerSlots.contains(inventoryIndex) || pendingAutoElytraPlayerSlots.contains(
+                inventoryIndex
+        ) || lingeringAutoElytraPlayerSlots.contains(inventoryIndex);
     }
 
     private static boolean isMouseOverSlotLock(Slot slot, int guiLeft, int guiTop, double mouseX, double mouseY) {
         int left = guiLeft + slot.x + SLOT_LOCK_X_OFFSET;
         int top = guiTop + slot.y + SLOT_LOCK_Y_OFFSET;
-        return mouseX >= left
-                && mouseX < left + SLOT_LOCK_WIDTH
-                && mouseY >= top
-                && mouseY < top + SLOT_LOCK_HEIGHT;
+        return mouseX >= left && mouseX < left + SLOT_LOCK_WIDTH && mouseY >= top && mouseY < top + SLOT_LOCK_HEIGHT;
     }
 
     private static boolean isMouseOverSlot(Slot slot, int guiLeft, int guiTop, double mouseX, double mouseY) {
         int slotLeft = guiLeft + slot.x;
         int slotTop = guiTop + slot.y;
-        return mouseX >= slotLeft
-                && mouseX < slotLeft + SLOT_SIZE
-                && mouseY >= slotTop
-                && mouseY < slotTop + SLOT_SIZE;
+        return mouseX >= slotLeft && mouseX < slotLeft + SLOT_SIZE && mouseY >= slotTop && mouseY < slotTop + SLOT_SIZE;
     }
 
     private static boolean isShulkerBoxItem(ItemStack stack) {
-        return stack.getItem() instanceof BlockItem blockItem
-                && blockItem.getBlock() instanceof ShulkerBoxBlock;
+        return stack.getItem() instanceof BlockItem blockItem && blockItem.getBlock() instanceof ShulkerBoxBlock;
     }
 
     public static void renderHotbarLocks(DrawContext context) {
@@ -949,7 +996,7 @@ public final class QuickContainerLock implements ClientModInitializer {
         }
 
         boolean useDown = QuickCraftKeyBindings.isVanillaKeyDown(client, client.options.useKey);
-        // A hand-open accepted this tick is more precise than the crosshair target.
+        // 本刻已接受的手持打开操作比准星指向更能准确识别目标。
         if (useDown && !lastUseDown && !(pendingSourceHandler != null && pendingTicks == 0)
                 && client.crosshairTarget instanceof BlockHitResult blockHitResult) {
             String containerKey = getSupportedContainerKey(client, blockHitResult);
@@ -1052,7 +1099,8 @@ public final class QuickContainerLock implements ClientModInitializer {
         }
 
         MinecraftClient client = MinecraftClient.getInstance();
-        if (client != null && client.currentScreen instanceof HandledScreen<?> screen && screen.getScreenHandler() == handler) {
+        if (client != null && client.currentScreen instanceof HandledScreen<?> screen && screen
+                .getScreenHandler() == handler) {
             String currentKey = getCurrentScreenContainerKey(screen);
             if (currentKey != null) {
                 rememberHandlerKey(handler, currentKey);
@@ -1107,17 +1155,14 @@ public final class QuickContainerLock implements ClientModInitializer {
     }
 
     private static boolean isContainerSlotLockSupportedHandler(ScreenHandler handler) {
-        return handler instanceof GenericContainerScreenHandler
-                || handler instanceof ShulkerBoxScreenHandler;
+        return handler instanceof GenericContainerScreenHandler || handler instanceof ShulkerBoxScreenHandler;
     }
 
     private static boolean isPendingContainerScreen(HandledScreen<?> screen) {
         ScreenHandler handler = screen.getScreenHandler();
-        return pendingContainerKey != null
-                && isContainerSlotLockSupportedHandler(handler)
-                && (!pendingShulkerBoxOpen || handler instanceof ShulkerBoxScreenHandler)
-                && handler != pendingSourceHandler
-                && (ENDER_CHEST_KEY.equals(pendingContainerKey) == isEnderChestScreen(screen));
+        return pendingContainerKey != null && isContainerSlotLockSupportedHandler(handler) && (!pendingShulkerBoxOpen
+                || handler instanceof ShulkerBoxScreenHandler) && handler != pendingSourceHandler && (ENDER_CHEST_KEY
+                        .equals(pendingContainerKey) == isEnderChestScreen(screen));
     }
 
     private static void clearPendingContainerOpen() {
@@ -1150,9 +1195,7 @@ public final class QuickContainerLock implements ClientModInitializer {
         }
 
         Block block = world.getBlockState(blockHitResult.getBlockPos()).getBlock();
-        if (!(block instanceof ChestBlock)
-                && !(block instanceof BarrelBlock)
-                && !(block instanceof EnderChestBlock)
+        if (!(block instanceof ChestBlock) && !(block instanceof BarrelBlock) && !(block instanceof EnderChestBlock)
                 && !(block instanceof ShulkerBoxBlock)) {
             return null;
         }
@@ -1162,7 +1205,7 @@ public final class QuickContainerLock implements ClientModInitializer {
             return positionKey;
         }
 
-        // Old ender chest locks used block coordinates. The block type is known when the player opens it.
+        // 旧版末影箱锁使用方块坐标作为标识，玩家打开箱子时才能确认方块类型。
         Set<Integer> legacySlots = LOCKED_CONTAINER_SLOTS.remove(positionKey);
         boolean legacyContainerLock = LOCKED_CONTAINERS.remove(positionKey);
         if (legacySlots != null) {
@@ -1180,16 +1223,15 @@ public final class QuickContainerLock implements ClientModInitializer {
     static String buildContainerKey(World world, BlockPos pos) {
         BlockState state = world.getBlockState(pos);
         String dimension = world.getRegistryKey().getValue().toString();
-        if (!(state.getBlock() instanceof ChestBlock)
-                || state.get(ChestBlock.CHEST_TYPE) == ChestType.SINGLE) {
+        if (!(state.getBlock() instanceof ChestBlock) || state.get(ChestBlock.CHEST_TYPE) == ChestType.SINGLE) {
             return dimension + "#" + pos.asLong();
         }
 
         BlockPos pairedPos = pos.offset(ChestBlock.getFacing(state));
         BlockState pairedState = world.getBlockState(pairedPos);
-        if (pairedState.getBlock() != state.getBlock()
-                || pairedState.get(ChestBlock.FACING) != state.get(ChestBlock.FACING)
-                || pairedState.get(ChestBlock.CHEST_TYPE) != state.get(ChestBlock.CHEST_TYPE).getOpposite()) {
+        if (pairedState.getBlock() != state.getBlock() || pairedState.get(ChestBlock.FACING) != state.get(
+                ChestBlock.FACING
+        ) || pairedState.get(ChestBlock.CHEST_TYPE) != state.get(ChestBlock.CHEST_TYPE).getOpposite()) {
             return dimension + "#" + pos.asLong();
         }
 
@@ -1199,12 +1241,17 @@ public final class QuickContainerLock implements ClientModInitializer {
         return canonical;
     }
 
-    private static void migrateLegacyPairedContainerLocks(String dimension, BlockPos first, BlockPos second,
-                                                          String canonical, boolean preserveWholeBarrelLocks) {
+    private static void migrateLegacyPairedContainerLocks(
+            String dimension,
+            BlockPos first,
+            BlockPos second,
+            String canonical,
+            boolean preserveWholeBarrelLocks
+    ) {
         if (MIGRATED_DOUBLE_CHESTS.contains(canonical)) {
             return;
         }
-        for (BlockPos half : new BlockPos[]{first, second}) {
+        for (BlockPos half : new BlockPos[] { first, second }) {
             String legacy = dimension + "#" + half.asLong();
             Set<Integer> slots = LOCKED_CONTAINER_SLOTS.get(legacy);
             // 旧坐标键只有出现下半区索引时，才能确认曾按 54 格菜单锁定。
@@ -1336,8 +1383,7 @@ public final class QuickContainerLock implements ClientModInitializer {
                 // 单项类型损坏只丢弃该项，保留其余锁格，避免整份档案加载中断后被后续保存覆盖。
                 try {
                     target.add(value.getAsInt());
-                } catch (RuntimeException ignored) {
-                }
+                } catch (RuntimeException ignored) {}
             }
         }
     }

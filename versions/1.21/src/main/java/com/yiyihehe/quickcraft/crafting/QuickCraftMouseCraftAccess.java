@@ -15,8 +15,7 @@ import net.minecraft.world.World;
 import java.util.List;
 
 final class QuickCraftMouseCraftAccess {
-    private QuickCraftMouseCraftAccess() {
-    }
+    private QuickCraftMouseCraftAccess() {}
 
     public static boolean isClientWorld(World world) {
         return world != null && world.isClient;
@@ -42,16 +41,21 @@ final class QuickCraftMouseCraftAccess {
         return false;
     }
 
-    public static RecipeEntry<CraftingRecipe> findCraftingRecipe(MinecraftClient client,
-                                                                 CraftingRecipeInput input,
-                                                                 ItemStack expectedResult) {
-        if (client == null || client.world == null || input == null || input.isEmpty()
-                || expectedResult == null || expectedResult.isEmpty()) {
+    public static RecipeEntry<CraftingRecipe> findCraftingRecipe(
+            MinecraftClient client,
+            CraftingRecipeInput input,
+            ItemStack expectedResult
+    ) {
+        if (client == null || client.world == null || input == null || input.isEmpty() || expectedResult == null
+                || expectedResult.isEmpty()) {
             return null;
         }
         try {
-            List<RecipeEntry<CraftingRecipe>> matches = client.world.getRecipeManager()
-                    .getAllMatches(RecipeType.CRAFTING, input, client.world);
+            List<RecipeEntry<CraftingRecipe>> matches = client.world.getRecipeManager().getAllMatches(
+                    RecipeType.CRAFTING,
+                    input,
+                    client.world
+            );
             // 只有唯一匹配且产物与锁定结果一致时才把该实例当作返还物证据，
             // 避免同输入多配方时把另一配方的返还语义当成真实返还。
             if (matches.size() != 1) {
@@ -59,8 +63,7 @@ final class QuickCraftMouseCraftAccess {
             }
             RecipeEntry<CraftingRecipe> match = matches.get(0);
             ItemStack result = match.value().craft(input, client.world.getRegistryManager());
-            return result != null && !result.isEmpty()
-                    && ItemStack.areItemsAndComponentsEqual(result, expectedResult)
+            return result != null && !result.isEmpty() && ItemStack.areItemsAndComponentsEqual(result, expectedResult)
                     ? match
                     : null;
         } catch (RuntimeException exception) {
@@ -69,8 +72,7 @@ final class QuickCraftMouseCraftAccess {
         }
     }
 
-    public static List<ItemStack> getRecipeRemainders(RecipeEntry<CraftingRecipe> recipe,
-                                                      CraftingRecipeInput input) {
+    public static List<ItemStack> getRecipeRemainders(RecipeEntry<CraftingRecipe> recipe, CraftingRecipeInput input) {
         if (recipe == null || input == null) {
             return null;
         }
@@ -81,21 +83,25 @@ final class QuickCraftMouseCraftAccess {
         }
     }
 
-    public static boolean hasMatchingLockedRecipe(MinecraftClient client,
-                                               ScreenHandler handler,
-                                               RecipeEntry<CraftingRecipe> recipe,
-                                               ItemStack lockedResultTemplate,
-                                               int gridWidth,
-                                               int gridHeight) {
+    public static boolean hasMatchingLockedRecipe(
+            MinecraftClient client,
+            ScreenHandler handler,
+            RecipeEntry<CraftingRecipe> recipe,
+            ItemStack lockedResultTemplate,
+            int gridWidth,
+            int gridHeight
+    ) {
         return recipe != null;
     }
 
-    public static int throwOutput(ClientPlayerInteractionManager interactionManager,
-                                  MinecraftClient client,
-                                  ScreenHandler handler,
-                                  List<ItemStack> pattern,
-                                  int[] gridBeforeOutput,
-                                  Runnable onEachThrow) {
+    public static int throwOutput(
+            ClientPlayerInteractionManager interactionManager,
+            MinecraftClient client,
+            ScreenHandler handler,
+            List<ItemStack> pattern,
+            int[] gridBeforeOutput,
+            Runnable onEachThrow
+    ) {
         boolean[] requiredSlots = new boolean[pattern.size()];
         for (int i = 0; i < requiredSlots.length; i++) {
             requiredSlots[i] = !pattern.get(i).isEmpty();
@@ -122,7 +128,10 @@ final class QuickCraftMouseCraftAccess {
         return actualOperations;
     }
 
-    public static boolean isFastOutputDrainAck(QuickCraftMouseCraftAckExecutor.BatchPath path, int batchOutputSlotClicks) {
+    public static boolean isFastOutputDrainAck(
+            QuickCraftMouseCraftAckExecutor.BatchPath path,
+            int batchOutputSlotClicks
+    ) {
         return path == QuickCraftMouseCraftAckExecutor.BatchPath.OUTPUT_DRAIN && batchOutputSlotClicks == 1;
     }
 

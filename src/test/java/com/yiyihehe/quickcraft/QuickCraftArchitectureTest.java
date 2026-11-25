@@ -24,8 +24,9 @@ class QuickCraftArchitectureTest {
     @BeforeAll
     static void setUp() {
         // 使用实际编译目录；Fabric ASM 的 magic-at 资源 URL 不是可扫描的归档。
-        var paths = java.util.Arrays.stream(System.getProperty("quickcraft.mainClasses").split(java.io.File.pathSeparator))
-                .map(path -> java.nio.file.Path.of(path).resolve(ROOT.replace('.', '/'))).toArray(java.nio.file.Path[]::new);
+        var paths = java.util.Arrays.stream(
+                System.getProperty("quickcraft.mainClasses").split(java.io.File.pathSeparator)
+        ).map(path -> java.nio.file.Path.of(path).resolve(ROOT.replace('.', '/'))).toArray(java.nio.file.Path[]::new);
         // 约束生产包依赖；跨模块集成测试不属于生产层，不能制造依赖边或循环。
         classes = new ClassFileImporter().importPaths(paths);
     }
@@ -52,10 +53,8 @@ class QuickCraftArchitectureTest {
     @Test
     @DisplayName("litematica 包只能被根包或自身引用")
     void litematicaPackageDependency() {
-        ArchRule rule = classes()
-                .that().resideInAPackage(ROOT + ".litematica..")
-                .should().onlyHaveDependentClassesThat()
-                .resideInAnyPackage(
+        ArchRule rule = classes().that().resideInAPackage(ROOT + ".litematica..").should()
+                .onlyHaveDependentClassesThat().resideInAnyPackage(
                         ROOT + ".litematica..",
                         ROOT,
                         ROOT + ".config..",
@@ -63,8 +62,8 @@ class QuickCraftArchitectureTest {
                         "java..",
                         "net.fabricmc..",
                         "net.minecraft..",
-                        "fi.dy.masa..")
-                .because("litematica 子包不应被其他子包（如 crafting）强依赖");
+                        "fi.dy.masa.."
+                ).because("litematica 子包不应被其他子包（如 crafting）强依赖");
 
         rule.check(classes);
     }
@@ -74,11 +73,8 @@ class QuickCraftArchitectureTest {
     @Test
     @DisplayName("crafting 包中的类应以 QuickCraft 开头")
     void craftingClasses_shouldBeNamedQuickCraft() {
-        ArchRule rule = classes()
-                .that().resideInAPackage(ROOT + ".crafting..")
-                .and().areTopLevelClasses()
-                .should().haveSimpleNameStartingWith("QuickCraft")
-                .because("crafting 包按规范使用 QuickCraftXxx 命名");
+        ArchRule rule = classes().that().resideInAPackage(ROOT + ".crafting..").and().areTopLevelClasses().should()
+                .haveSimpleNameStartingWith("QuickCraft").because("crafting 包按规范使用 QuickCraftXxx 命名");
 
         rule.check(classes);
     }
@@ -86,11 +82,8 @@ class QuickCraftArchitectureTest {
     @Test
     @DisplayName("litematica 包中的类应以 QuickLitematica 开头")
     void litematicaClasses_shouldBeNamedQuickLitematica() {
-        ArchRule rule = classes()
-                .that().resideInAPackage(ROOT + ".litematica..")
-                .and().areTopLevelClasses()
-                .should().haveSimpleNameStartingWith("QuickLitematica")
-                .because("litematica 包按规范使用 QuickLitematicaXxx 命名");
+        ArchRule rule = classes().that().resideInAPackage(ROOT + ".litematica..").and().areTopLevelClasses().should()
+                .haveSimpleNameStartingWith("QuickLitematica").because("litematica 包按规范使用 QuickLitematicaXxx 命名");
 
         rule.check(classes);
     }
@@ -98,12 +91,10 @@ class QuickCraftArchitectureTest {
     @Test
     @DisplayName("根包独立小功能应以 Quick 开头")
     void rootPackageUtilityClasses_shouldBeNamedQuick() {
-        ArchRule rule = classes()
-                .that().resideInAPackage(ROOT)
-                .and().areTopLevelClasses()
-                .and().haveSimpleNameNotStartingWith("QuickCraft")
-                .should().haveSimpleNameStartingWith("Quick")
-                .because("根包独立功能类按规范使用 QuickXxx 命名");
+        ArchRule rule = classes().that().resideInAPackage(ROOT).and().areTopLevelClasses().and()
+                .haveSimpleNameNotStartingWith("QuickCraft").should().haveSimpleNameStartingWith("Quick").because(
+                        "根包独立功能类按规范使用 QuickXxx 命名"
+                );
 
         rule.check(classes);
     }
@@ -111,14 +102,11 @@ class QuickCraftArchitectureTest {
     @Test
     @DisplayName("mixin 包中的类应以 Mixin 结尾或以 Accessor/Invoker 命名")
     void mixinClasses_namingConvention() {
-        ArchRule rule = classes()
-                .that().resideInAPackage(ROOT + ".mixin..")
-                .and().areTopLevelClasses()
-                .should().haveSimpleNameContaining("Mixin")
-                .orShould().haveSimpleNameContaining("Accessor")
-                .orShould().haveSimpleNameContaining("Invoker")
-                .orShould().haveSimpleNameContaining("Plugin")
-                .because("mixin 包按规范命名");
+        ArchRule rule = classes().that().resideInAPackage(ROOT + ".mixin..").and().areTopLevelClasses().should()
+                .haveSimpleNameContaining("Mixin").orShould().haveSimpleNameContaining("Accessor").orShould()
+                .haveSimpleNameContaining("Invoker").orShould().haveSimpleNameContaining("Plugin").because(
+                        "mixin 包按规范命名"
+                );
 
         rule.check(classes);
     }
@@ -128,13 +116,8 @@ class QuickCraftArchitectureTest {
     @Test
     @DisplayName("config 包不应依赖业务包（crafting/litematica）")
     void configPackage_shouldNotDependOnBusinessLogic() {
-        ArchRule rule = noClasses()
-                .that().resideInAPackage(ROOT + ".config..")
-                .should().dependOnClassesThat()
-                .resideInAnyPackage(
-                        ROOT + ".crafting..",
-                        ROOT + ".litematica..")
-                .because("config 包应该只定义配置，不依赖具体业务逻辑");
+        ArchRule rule = noClasses().that().resideInAPackage(ROOT + ".config..").should().dependOnClassesThat()
+                .resideInAnyPackage(ROOT + ".crafting..", ROOT + ".litematica..").because("config 包应该只定义配置，不依赖具体业务逻辑");
 
         rule.check(classes);
     }
@@ -142,17 +125,15 @@ class QuickCraftArchitectureTest {
     @Test
     @DisplayName("业务包不应依赖 gui，Mixin 可以组装界面")
     void guiPackage_dependencies() {
-        ArchRule rule = classes()
-                .that().resideInAPackage(ROOT + ".gui..")
-                .should().onlyHaveDependentClassesThat()
+        ArchRule rule = classes().that().resideInAPackage(ROOT + ".gui..").should().onlyHaveDependentClassesThat()
                 .resideInAnyPackage(
                         ROOT + ".gui..",
                         ROOT + ".malilib..",
                         ROOT + ".mixin..",
                         ROOT,
                         "java..",
-                        "com.terraformersmc..")
-                .because("gui 作为表现层，不应被业务模块强依赖");
+                        "com.terraformersmc.."
+                ).because("gui 作为表现层，不应被业务模块强依赖");
 
         rule.check(classes);
     }
@@ -164,9 +145,7 @@ class QuickCraftArchitectureTest {
     void noCyclicDependencies() {
         // Mixin 是游戏与业务的双向桥接，按其余版本的边界检查业务包。
         JavaClasses nonMixinClasses = classes.that(JavaClass.Predicates.resideOutsideOfPackage(ROOT + ".mixin.."));
-        ArchRule rule = slices()
-                .matching(ROOT + ".(*)..")
-                .should().beFreeOfCycles();
+        ArchRule rule = slices().matching(ROOT + ".(*)..").should().beFreeOfCycles();
 
         rule.check(nonMixinClasses);
     }
@@ -181,11 +160,7 @@ class QuickCraftArchitectureTest {
     @Test
     @DisplayName("所有 main 类都应在 com.yiyihehe.quickcraft 包下")
     void allClasses_inCorrectPackage() {
-        ArchRule rule = classes()
-                .should().resideInAnyPackage(
-                        ROOT,
-                        ROOT + "..")
-                .because("所有源代码应在正确的包结构下");
+        ArchRule rule = classes().should().resideInAnyPackage(ROOT, ROOT + "..").because("所有源代码应在正确的包结构下");
 
         rule.check(classes);
     }

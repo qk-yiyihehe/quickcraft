@@ -19,12 +19,24 @@ public abstract class GenericContainerScreenMixin extends HandledScreen<GenericC
     @Unique
     private final QuickContainerButtons quickcraft$buttons = new QuickContainerButtons();
 
-    protected GenericContainerScreenMixin(GenericContainerScreenHandler handler, PlayerInventory inventory, Text title) {
+    protected GenericContainerScreenMixin(
+            GenericContainerScreenHandler handler,
+            PlayerInventory inventory,
+            Text title
+    ) {
         super(handler, inventory, title);
     }
 
     @Inject(method = "render", at = @At("HEAD"))
     private void quickcraft$addLockButton(DrawContext context, int mouseX, int mouseY, float delta, CallbackInfo ci) {
-        this.quickcraft$buttons.sync(this, this.client, this.x, this.y, this.backgroundWidth, this.backgroundHeight, this::addDrawableChild);
+        this.quickcraft$buttons.sync(
+                this,
+                this.client,
+                this.x,
+                this.y,
+                this.backgroundWidth,
+                this.backgroundHeight,
+                this::addDrawableChild
+        );
     }
 }

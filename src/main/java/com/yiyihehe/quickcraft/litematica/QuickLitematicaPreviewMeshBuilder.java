@@ -52,7 +52,12 @@ final class QuickLitematicaPreviewMeshBuilder {
             Bounds bounds = Bounds.from(schematic.getAreas().values());
             dimensionsSink.set(bounds.sizeX(), bounds.sizeY(), bounds.sizeZ());
             MeshCollector collector = new MeshCollector();
-            if (QuickLitematicaPreviewLog.enabled()) LOGGER.info("transparent-build-stream-v1：静态网格在完整方块后分批发布，目标单批={} 顶点，透明记录器引用保留", STATIC_BATCH_TARGET_VERTICES);
+            if (QuickLitematicaPreviewLog.enabled()) {
+                LOGGER.info(
+                        "transparent-build-stream-v1：静态网格在完整方块后分批发布，目标单批={} 顶点，透明记录器引用保留",
+                        STATIC_BATCH_TARGET_VERTICES
+                );
+            }
             final List<LayerMesh> layers = new ArrayList<>();
             Map<BlockPos, BlockStateData> blockStates = new HashMap<>();
             List<BlockEntityData> blockEntities = new ArrayList<>();
@@ -72,7 +77,12 @@ final class QuickLitematicaPreviewMeshBuilder {
                 LitematicaBlockStateContainer container = schematic.getSubRegionContainer(regionName);
                 Box area = schematic.getAreas().get(regionName);
                 if (container == null || area == null) {
-                    LOGGER.warn("跳过区域：名称={}，原因=missing_container_or_area，容器存在={}，区域存在={}", regionName, container != null, area != null);
+                    LOGGER.warn(
+                            "跳过区域：名称={}，原因=missing_container_or_area，容器存在={}，区域存在={}",
+                            regionName,
+                            container != null,
+                            area != null
+                    );
                     continue;
                 }
 
@@ -84,42 +94,81 @@ final class QuickLitematicaPreviewMeshBuilder {
                 long regionVolume = regionBounds.volume();
                 long regionStart = scannedVolume;
                 QuickLitematicaPreviewLog.RegionStats regionStats = QuickLitematicaPreviewLog.enabled()
-                        ? new QuickLitematicaPreviewLog.RegionStats(regionName, regionVolume) : null;
+                        ? new QuickLitematicaPreviewLog.RegionStats(regionName, regionVolume)
+                        : null;
                 try {
-                    visitNonAirBlocks(container, regionBounds, cancelled, wordProgress -> progressSink.set(
-                            PROGRESS_MESHING_START + (PROGRESS_MESHING_END - PROGRESS_MESHING_START)
-                                    * ((regionStart + wordProgress * regionVolume) / (float) Math.max(1L, total))
-                    ), (pos, state) -> {
-                        try {
-                            BlockPos renderPos = pos.subtract(bounds.min());
-                            long entityStart = regionStats == null ? 0L : System.nanoTime();
-                            recordBlockEntity(blockStates, blockEntities, blockEntityRendererCache, view, state, schematic, regionName, pos, renderPos, bounds);
-                            long fluidStart = regionStats == null ? 0L : System.nanoTime();
-                            renderer.renderFluid(view, state, pos, renderPos);
-                            long modelStart = regionStats == null ? 0L : System.nanoTime();
-                            renderer.renderBlock(view, state, pos, renderPos);
-                            if (regionStats != null) regionStats.record(state, fluidStart - entityStart,
-                                    modelStart - fluidStart, System.nanoTime() - modelStart);
+                    visitNonAirBlocks(
+                            container,
+                            regionBounds,
+                            cancelled,
+                            wordProgress -> progressSink.set(
+                                    PROGRESS_MESHING_START + (PROGRESS_MESHING_END - PROGRESS_MESHING_START)
+                                            * ((regionStart + wordProgress * regionVolume) / (float) Math.max(
+                                                    1L,
+                                                    total
+                                            ))
+                            ),
+                            (pos, state) -> {
+                                try {
+                                    BlockPos renderPos = pos.subtract(bounds.min());
+                                    long entityStart = regionStats == null ? 0L : System.nanoTime();
+                                    recordBlockEntity(
+                                            blockStates,
+                                            blockEntities,
+                                            blockEntityRendererCache,
+                                            view,
+                                            state,
+                                            schematic,
+                                            regionName,
+                                            pos,
+                                            renderPos,
+                                            bounds
+                                    );
+                                    long fluidStart = regionStats == null ? 0L : System.nanoTime();
+                                    renderer.renderFluid(view, state, pos, renderPos);
+                                    long modelStart = regionStats == null ? 0L : System.nanoTime();
+                                    renderer.renderBlock(view, state, pos, renderPos);
+                                    if (regionStats != null) {
+                                        regionStats.record(
+                                                state,
+                                                fluidStart - entityStart,
+                                                modelStart - fluidStart,
+                                                System.nanoTime() - modelStart
+                                        );
+                                    }
 
-                        } catch (RuntimeException | Error failure) {
-                            LOGGER.error("方块模型记录失败：区域={}，位置={}，状态={}", regionName, pos, state, failure);
-                            throw failure;
-                        }
-                        if (collector.shouldPublishBatch()) {
-                            for (LayerMesh mesh : collector.drainReadyMeshes()) {
-                                for (LayerMesh split : QuickLitematicaPreviewMeshBatches.split(mesh, cancelled)) {
-                                    List<LayerMesh> batch = List.of(split);
-                                    meshStore.addBatch(layers, batch,
-                                            (long) collector.vertexCount * QUANTIZED_VERTEX_BYTES, cancelled);
-                                    batchSink.accept(batch);
+                                } catch (RuntimeException | Error failure) {
+                                    LOGGER.error("方块模型记录失败：区域={}，位置={}，状态={}", regionName, pos, state, failure);
+                                    throw failure;
+                                }
+                                if (collector.shouldPublishBatch()) {
+                                    for (LayerMesh mesh : collector.drainReadyMeshes()) {
+                                        for (LayerMesh split : QuickLitematicaPreviewMeshBatches.split(
+                                                mesh,
+                                                cancelled
+                                        )) {
+                                            List<LayerMesh> batch = List.of(split);
+                                            meshStore.addBatch(
+                                                    layers,
+                                                    batch,
+                                                    (long) collector.vertexCount * QUANTIZED_VERTEX_BYTES,
+                                                    cancelled
+                                            );
+                                            batchSink.accept(batch);
+                                        }
+                                    }
                                 }
                             }
-                        }
-                    });
+                    );
                 } finally {
                     if (regionStats != null) {
-                        LOGGER.info("fluid-enclosed-cull-v1：区域={}，流体={}，内部跳过={}，自定义处理器保留={}",
-                                regionName, view.fluidVisibility.examined, view.fluidVisibility.skipped, view.fluidVisibility.custom);
+                        LOGGER.info(
+                                "fluid-enclosed-cull-v1：区域={}，流体={}，内部跳过={}，自定义处理器保留={}",
+                                regionName,
+                                view.fluidVisibility.examined,
+                                view.fluidVisibility.skipped,
+                                view.fluidVisibility.custom
+                        );
                         regionStats.close();
                     }
                 }
@@ -135,22 +184,41 @@ final class QuickLitematicaPreviewMeshBuilder {
             for (int index = 0; index < finalBatch.size(); index++) {
                 LayerMesh mesh = finalBatch.set(index, null);
                 List<LayerMesh> batch = List.of(mesh);
-                meshStore.addBatch(layers, batch,
-                        (long) collector.vertexCount * QUANTIZED_VERTEX_BYTES, cancelled);
+                meshStore.addBatch(layers, batch, (long) collector.vertexCount * QUANTIZED_VERTEX_BYTES, cancelled);
                 batchSink.accept(batch);
             }
             List<LayerMesh> completeLayers = List.copyOf(layers);
             int vertices = vertexCount(completeLayers);
-            if (QuickLitematicaPreviewLog.enabled()) LOGGER.info("模型构建统计：顶点={}/{}，层批次={}，动态状态={}/{}，方块实体={}/{}，实体={}/{}，扫描体积={}",
-                    vertices, QuickLitematicaPreviewVertexBudget.vertexLimit(), completeLayers.size(), blockStates.size(), QuickLitematicaPreviewVertexBudget.countLimit(MAX_DYNAMIC_BLOCK_STATES),
-                    blockEntities.size(), QuickLitematicaPreviewVertexBudget.countLimit(MAX_DYNAMIC_BLOCK_ENTITIES), entities.size(), QuickLitematicaPreviewVertexBudget.countLimit(MAX_DYNAMIC_ENTITIES), scannedVolume);
-            if (vertices > QuickLitematicaPreviewVertexBudget.vertexLimit()
-                    || blockStates.size() > QuickLitematicaPreviewVertexBudget.countLimit(MAX_DYNAMIC_BLOCK_STATES)
-                    || blockEntities.size() > QuickLitematicaPreviewVertexBudget.countLimit(MAX_DYNAMIC_BLOCK_ENTITIES)
+            if (QuickLitematicaPreviewLog.enabled()) {
+                LOGGER.info(
+                        "模型构建统计：顶点={}/{}，层批次={}，动态状态={}/{}，方块实体={}/{}，实体={}/{}，扫描体积={}",
+                        vertices,
+                        QuickLitematicaPreviewVertexBudget.vertexLimit(),
+                        completeLayers.size(),
+                        blockStates.size(),
+                        QuickLitematicaPreviewVertexBudget.countLimit(MAX_DYNAMIC_BLOCK_STATES),
+                        blockEntities.size(),
+                        QuickLitematicaPreviewVertexBudget.countLimit(MAX_DYNAMIC_BLOCK_ENTITIES),
+                        entities.size(),
+                        QuickLitematicaPreviewVertexBudget.countLimit(MAX_DYNAMIC_ENTITIES),
+                        scannedVolume
+                );
+            }
+            if (vertices > QuickLitematicaPreviewVertexBudget.vertexLimit() || blockStates
+                    .size() > QuickLitematicaPreviewVertexBudget.countLimit(MAX_DYNAMIC_BLOCK_STATES) || blockEntities
+                            .size() > QuickLitematicaPreviewVertexBudget.countLimit(MAX_DYNAMIC_BLOCK_ENTITIES)
                     || entities.size() > QuickLitematicaPreviewVertexBudget.countLimit(MAX_DYNAMIC_ENTITIES)) {
                 throw new PreviewTooLargeException(vertices > QuickLitematicaPreviewVertexBudget.vertexLimit());
             }
-            return new MeshData(completeLayers, new ArrayList<>(blockStates.values()), blockEntities, entities, bounds.sizeX(), bounds.sizeY(), bounds.sizeZ());
+            return new MeshData(
+                    completeLayers,
+                    new ArrayList<>(blockStates.values()),
+                    blockEntities,
+                    entities,
+                    bounds.sizeX(),
+                    bounds.sizeY(),
+                    bounds.sizeZ()
+            );
         }
     }
 
@@ -230,11 +298,10 @@ final class QuickLitematicaPreviewMeshBuilder {
                         }
 
                         int x = (int) (index - rowStart);
-                        consumer.accept(new BlockPos(
-                                bounds.min().getX() + x,
-                                bounds.min().getY() + y,
-                                bounds.min().getZ() + z
-                        ), state);
+                        consumer.accept(
+                                new BlockPos(bounds.min().getX() + x, bounds.min().getY() + y, bounds.min().getZ() + z),
+                                state
+                        );
                     }
                 }
                 rowNumber++;
@@ -252,12 +319,19 @@ final class QuickLitematicaPreviewMeshBuilder {
         return total;
     }
 
-    private static void recordBeaconBlockStates(Map<BlockPos, BlockStateData> states,
-            List<BlockEntityData> entities, List<RegionBlockView> views, Bounds bounds, AtomicBoolean cancelled) {
+    private static void recordBeaconBlockStates(
+            Map<BlockPos, BlockStateData> states,
+            List<BlockEntityData> entities,
+            List<RegionBlockView> views,
+            Bounds bounds,
+            AtomicBoolean cancelled
+    ) {
         Map<BlockPos, Integer> scannedColumns = new HashMap<>();
         for (BlockEntityData data : entities) {
             throwIfCancelled(cancelled);
-            if (!"minecraft:beacon".equals(readString(data.stateNbt(), "Name"))) continue;
+            if (!"minecraft:beacon".equals(readString(data.stateNbt(), "Name"))) {
+                continue;
+            }
             BlockPos beacon = new BlockPos(data.x(), data.y(), data.z()).add(bounds.min());
             for (int depth = 1; depth <= 4; depth++) {
                 for (int x = -depth; x <= depth; x++) {
@@ -271,15 +345,23 @@ final class QuickLitematicaPreviewMeshBuilder {
             int start = beacon.getY() + 1;
             int end = previousStart == null ? bounds.max().getY() : Math.min(bounds.max().getY(), previousStart - 1);
             for (int y = start; y <= end; y++) {
-                if ((y & 0xFF) == 0) throwIfCancelled(cancelled);
+                if ((y & 0xFF) == 0) {
+                    throwIfCancelled(cancelled);
+                }
                 recordBeaconState(states, views, new BlockPos(beacon.getX(), y, beacon.getZ()), bounds);
             }
-            if (previousStart == null || start < previousStart) scannedColumns.put(column, start);
+            if (previousStart == null || start < previousStart) {
+                scannedColumns.put(column, start);
+            }
         }
     }
 
-    private static void recordBeaconState(Map<BlockPos, BlockStateData> states,
-            List<RegionBlockView> views, BlockPos pos, Bounds bounds) {
+    private static void recordBeaconState(
+            Map<BlockPos, BlockStateData> states,
+            List<RegionBlockView> views,
+            BlockPos pos,
+            Bounds bounds
+    ) {
         for (int i = views.size() - 1; i >= 0; i--) {
             BlockState state = views.get(i).getBlockState(pos);
             if (!state.isAir()) {
@@ -305,7 +387,10 @@ final class QuickLitematicaPreviewMeshBuilder {
             return;
         }
 
-        if (!blockEntityRendererCache.computeIfAbsent(state, key -> hasPreviewBlockEntityRenderer(provider, key, renderPos))) {
+        if (!blockEntityRendererCache.computeIfAbsent(
+                state,
+                key -> hasPreviewBlockEntityRenderer(provider, key, renderPos)
+        )) {
             return;
         }
 
@@ -324,7 +409,9 @@ final class QuickLitematicaPreviewMeshBuilder {
         entityNbt.putInt("x", renderPos.getX());
         entityNbt.putInt("y", renderPos.getY());
         entityNbt.putInt("z", renderPos.getZ());
-        blockEntities.add(new BlockEntityData(renderPos.getX(), renderPos.getY(), renderPos.getZ(), blockStateNbt, entityNbt));
+        blockEntities.add(
+                new BlockEntityData(renderPos.getX(), renderPos.getY(), renderPos.getZ(), blockStateNbt, entityNbt)
+        );
         if (blockEntities.size() > QuickLitematicaPreviewVertexBudget.countLimit(MAX_DYNAMIC_BLOCK_ENTITIES)) {
             throw new PreviewTooLargeException();
         }
@@ -344,20 +431,34 @@ final class QuickLitematicaPreviewMeshBuilder {
         NbtCompound sanitized = nbt.copy();
         // 火堆食物等可见物品必须保留，只有已知普通容器可以删减库存。
         String id = readString(sanitized, "id");
-        if ((sanitized.contains("Items") || sanitized.contains("Inventory"))
-                && isNonVisualInventory(id.isEmpty() ? blockId : id) && isPreviewInventoryHidden(blockId)) {
+        if ((sanitized.contains("Items") || sanitized.contains("Inventory")) && isNonVisualInventory(
+                id.isEmpty() ? blockId : id
+        ) && isPreviewInventoryHidden(blockId)) {
             sanitized.remove("Items");
             sanitized.remove("Inventory");
         }
         return sanitized;
     }
 
-    static void recordDynamicBlockState(Map<BlockPos, BlockStateData> blockStates, BlockState state, BlockPos renderPos) {
-        if (blockStates.size() >= QuickLitematicaPreviewVertexBudget.countLimit(MAX_DYNAMIC_BLOCK_STATES) && !blockStates.containsKey(renderPos)) {
+    static void recordDynamicBlockState(
+            Map<BlockPos, BlockStateData> blockStates,
+            BlockState state,
+            BlockPos renderPos
+    ) {
+        if (blockStates.size() >= QuickLitematicaPreviewVertexBudget.countLimit(MAX_DYNAMIC_BLOCK_STATES)
+                && !blockStates.containsKey(renderPos)) {
             throw new PreviewTooLargeException();
         }
 
-        blockStates.put(renderPos.toImmutable(), new BlockStateData(renderPos.getX(), renderPos.getY(), renderPos.getZ(), NbtHelper.fromBlockState(state)));
+        blockStates.put(
+                renderPos.toImmutable(),
+                new BlockStateData(
+                        renderPos.getX(),
+                        renderPos.getY(),
+                        renderPos.getZ(),
+                        NbtHelper.fromBlockState(state)
+                )
+        );
     }
 
     static void recordEntities(
@@ -391,7 +492,14 @@ final class QuickLitematicaPreviewMeshBuilder {
         }
     }
 
-    static void recordEntityNearbyBlockStates(Map<BlockPos, BlockStateData> blockStates, RegionBlockView view, Bounds bounds, double x, double y, double z) {
+    static void recordEntityNearbyBlockStates(
+            Map<BlockPos, BlockStateData> blockStates,
+            RegionBlockView view,
+            Bounds bounds,
+            double x,
+            double y,
+            double z
+    ) {
         BlockPos center = BlockPos.ofFloored(x, y, z);
         // 矿车渲染会读取所在位置的铁轨，假世界需要保留中心方块。
         BlockState centerState = view.getBlockState(center.add(bounds.min()));
@@ -412,21 +520,18 @@ final class QuickLitematicaPreviewMeshBuilder {
 
     static NbtCompound copyEntityNbtAt(NbtCompound source, double x, double y, double z) {
         NbtCompound copy = source.copy();
-        if (source.get("Pos") instanceof NbtList oldPos && oldPos.size() == 3
-                && oldPos.get(0) instanceof NbtDouble oldX
-                && oldPos.get(1) instanceof NbtDouble oldY
-                && oldPos.get(2) instanceof NbtDouble oldZ) {
+        if (source.get("Pos") instanceof NbtList oldPos && oldPos.size() == 3 && oldPos.get(0) instanceof NbtDouble oldX
+                && oldPos.get(1) instanceof NbtDouble oldY && oldPos.get(2) instanceof NbtDouble oldZ) {
             int dx = (int) Math.floor(x) - (int) Math.floor(oldX.doubleValue());
             int dy = (int) Math.floor(y) - (int) Math.floor(oldY.doubleValue());
             int dz = (int) Math.floor(z) - (int) Math.floor(oldZ.doubleValue());
             // 挂载位置与 Pos 必须处于同一坐标系，否则原版读取会拒绝挂载点。
             if (source.get("block_pos") instanceof NbtIntArray attached && attached.getIntArray().length == 3) {
                 int[] anchor = attached.getIntArray();
-                copy.put("block_pos", new NbtIntArray(new int[]{anchor[0] + dx, anchor[1] + dy, anchor[2] + dz}));
+                copy.put("block_pos", new NbtIntArray(new int[] { anchor[0] + dx, anchor[1] + dy, anchor[2] + dz }));
             }
-            if (source.get("TileX") instanceof NbtInt tileX
-                    && source.get("TileY") instanceof NbtInt tileY
-                    && source.get("TileZ") instanceof NbtInt tileZ) {
+            if (source.get("TileX") instanceof NbtInt tileX && source.get("TileY") instanceof NbtInt tileY && source
+                    .get("TileZ") instanceof NbtInt tileZ) {
                 copy.putInt("TileX", tileX.intValue() + dx);
                 copy.putInt("TileY", tileY.intValue() + dy);
                 copy.putInt("TileZ", tileZ.intValue() + dz);

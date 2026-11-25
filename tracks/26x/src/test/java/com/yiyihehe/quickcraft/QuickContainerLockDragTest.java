@@ -28,8 +28,8 @@ class QuickContainerLockDragTest {
         QuickContainerLock.clearPersistentState();
 
         try (var screens = mockStatic(QuickClientScreenAccess.class);
-             var persistence = mockStatic(QuickPersistentState.class);
-             var input = mockStatic(QuickCraftKeyBindings.class)) {
+                var persistence = mockStatic(QuickPersistentState.class);
+                var input = mockStatic(QuickCraftKeyBindings.class)) {
             screens.when(() -> QuickClientScreenAccess.currentScreen(client)).thenReturn(screen);
             input.when(() -> QuickCraftKeyBindings.isHotkeyDown(QuickCraftConfigs.Hotkeys.SLOT_LOCK.getKeybind()))
                     .thenReturn(true);

@@ -32,7 +32,9 @@ class QuickLitematicaPreviewUploadQueueTest {
         var queue = new QuickLitematicaPreviewUploadQueue();
         var checks = new AtomicInteger();
         assertThatThrownBy(() -> queue.publish(new LayerMesh(LayerKey.SOLID, new byte[32]), () -> {
-            if (checks.incrementAndGet() == 3) throw new CancellationException();
+            if (checks.incrementAndGet() == 3) {
+                throw new CancellationException();
+            }
         })).isInstanceOf(CancellationException.class);
         assertThat(queue.isEmpty()).isTrue();
         assertThat(queue.availableKiB()).isEqualTo(65_536);

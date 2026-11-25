@@ -31,13 +31,10 @@ public final class QuickCreativePacking {
     // 输入深度为 1 时生成结果最多两层；更深层会按容器槽位数指数放大物品组件数据。
     private static final int MAX_SAFE_INPUT_NESTING_DEPTH = 1;
 
-    private QuickCreativePacking() {
-    }
+    private QuickCreativePacking() {}
 
     public static boolean handleHotkey(MinecraftClient client) {
-        if (!QuickCraftConfigs.isCreativePackingEnabled()
-                || client == null
-                || client.player == null
+        if (!QuickCraftConfigs.isCreativePackingEnabled() || client == null || client.player == null
                 || client.interactionManager == null) {
             return false;
         }
@@ -93,9 +90,12 @@ public final class QuickCreativePacking {
         if (offHand.getItem() instanceof BundleItem) {
             return fillBundle(contents);
         }
-        if (offHand.getItem() instanceof BlockItem blockItem
-                && blockItem.getBlock() instanceof BlockEntityProvider provider) {
-            BlockEntity blockEntity = provider.createBlockEntity(BlockPos.ORIGIN, blockItem.getBlock().getDefaultState());
+        if (offHand.getItem() instanceof BlockItem blockItem && blockItem
+                .getBlock() instanceof BlockEntityProvider provider) {
+            BlockEntity blockEntity = provider.createBlockEntity(
+                    BlockPos.ORIGIN,
+                    blockItem.getBlock().getDefaultState()
+            );
             if (blockEntity instanceof LootableContainerBlockEntity container) {
                 return fillContainer(client, contents, blockItem, container);
             }
@@ -152,8 +152,10 @@ public final class QuickCreativePacking {
     }
 
     private static boolean hasContents(ItemStack stack) {
-        return hasContainerContents(stack)
-                || !stack.getOrDefault(DataComponentTypes.BUNDLE_CONTENTS, BundleContentsComponent.DEFAULT).isEmpty();
+        return hasContainerContents(stack) || !stack.getOrDefault(
+                DataComponentTypes.BUNDLE_CONTENTS,
+                BundleContentsComponent.DEFAULT
+        ).isEmpty();
     }
 
     private static boolean hasContainerContents(ItemStack stack) {
@@ -188,7 +190,10 @@ public final class QuickCreativePacking {
     }
 
     private static void sendError(ClientPlayerEntity player, String key) {
-        player.sendMessage(Text.translatable("quickcraft.message.creative_packing." + key).formatted(Formatting.RED), true);
+        player.sendMessage(
+                Text.translatable("quickcraft.message.creative_packing." + key).formatted(Formatting.RED),
+                true
+        );
     }
 
     @FunctionalInterface

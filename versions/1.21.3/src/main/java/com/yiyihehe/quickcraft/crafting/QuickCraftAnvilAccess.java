@@ -8,6 +8,7 @@ import java.util.List;
 
 final class QuickCraftAnvilAccess {
     private QuickCraftAnvilAccess() {}
+
     static List<RegistryEntry.Reference<Enchantment>> enchantments(MinecraftClient client) {
         return client.world.getRegistryManager().getOrThrow(RegistryKeys.ENCHANTMENT).streamEntries().toList();
     }

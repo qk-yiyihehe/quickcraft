@@ -48,8 +48,7 @@ class QuickCraftWorkbenchShulkerAckStopTest {
         fixture.set("startedByButton", true);
         fixture.set("ackBatchAwaiting", true);
         fixture.set("ackStatsProbePending", true);
-        fixture.set("ackStatsProbeSentAtNanos",
-                System.nanoTime() - 20_000_000_000L);
+        fixture.set("ackStatsProbeSentAtNanos", System.nanoTime() - 20_000_000_000L);
         fixture.set("ackStatsProbeNetworkHandler", fixture.networkHandler);
 
         try (StaticMocks mocks = new StaticMocks(fixture)) {
@@ -58,8 +57,13 @@ class QuickCraftWorkbenchShulkerAckStopTest {
 
         assertThat((Boolean) fixture.field("active")).isFalse();
         verify(fixture.player).sendMessage(any(Text.class), anyBoolean());
-        verify(fixture.interactionManager, never()).clickSlot(anyInt(), anyInt(), anyInt(),
-                any(SlotActionType.class), any());
+        verify(fixture.interactionManager, never()).clickSlot(
+                anyInt(),
+                anyInt(),
+                anyInt(),
+                any(SlotActionType.class),
+                any()
+        );
     }
 
     @Test
@@ -74,20 +78,23 @@ class QuickCraftWorkbenchShulkerAckStopTest {
         }
 
         assertThat((Boolean) fixture.field("active")).isFalse();
-        verify(fixture.interactionManager, never()).clickSlot(anyInt(), anyInt(), anyInt(),
-                any(SlotActionType.class), any());
+        verify(fixture.interactionManager, never()).clickSlot(
+                anyInt(),
+                anyInt(),
+                anyInt(),
+                any(SlotActionType.class),
+                any()
+        );
     }
 
     private static final class Fixture {
         private final MinecraftClient client = mock(MinecraftClient.class);
         private final ClientPlayerEntity player = mock(ClientPlayerEntity.class);
-        private final ClientPlayerInteractionManager interactionManager =
-                mock(ClientPlayerInteractionManager.class);
+        private final ClientPlayerInteractionManager interactionManager = mock(ClientPlayerInteractionManager.class);
         private final ClientWorld world = mock(ClientWorld.class);
         private final ClientPlayNetworkHandler networkHandler = mock(ClientPlayNetworkHandler.class);
         private final CraftingScreenHandler screenHandler;
-        private final QuickCraftWorkbenchShulkerCraft shulker =
-                new QuickCraftWorkbenchShulkerCraft();
+        private final QuickCraftWorkbenchShulkerCraft shulker = new QuickCraftWorkbenchShulkerCraft();
 
         private Fixture() throws Exception {
             PlayerInventory inventory = newPlayerInventory(player);
@@ -106,7 +113,9 @@ class QuickCraftWorkbenchShulkerAckStopTest {
 
         private void tick() throws Exception {
             Method onTick = QuickCraftWorkbenchShulkerCraft.class.getDeclaredMethod(
-                    "onClientTick", MinecraftClient.class);
+                    "onClientTick",
+                    MinecraftClient.class
+            );
             onTick.setAccessible(true);
             onTick.invoke(shulker, client);
         }
@@ -154,14 +163,16 @@ class QuickCraftWorkbenchShulkerAckStopTest {
             if (parameters.length == 1 && parameters[0].isInstance(player)) {
                 return (PlayerInventory) constructor.newInstance(player);
             }
-            if (parameters.length == 2 && parameters[0].isInstance(player)
-                    && parameters[1].getSimpleName().equals("EntityEquipment")) {
+            if (parameters.length == 2 && parameters[0].isInstance(player) && parameters[1].getSimpleName().equals(
+                    "EntityEquipment"
+            )) {
                 Object equipment = parameters[1].getConstructor().newInstance();
                 return (PlayerInventory) constructor.newInstance(player, equipment);
             }
         }
         throw new AssertionError("unsupported PlayerInventory constructor");
     }
+
     private static void setField(Object target, String name, Object value) throws Exception {
         Field field = findField(target.getClass(), name);
         field.setAccessible(true);
@@ -178,8 +189,7 @@ class QuickCraftWorkbenchShulkerAckStopTest {
         for (Class<?> current = type; current != null; current = current.getSuperclass()) {
             try {
                 return current.getDeclaredField(name);
-            } catch (NoSuchFieldException ignored) {
-            }
+            } catch (NoSuchFieldException ignored) {}
         }
         throw new NoSuchFieldException(name);
     }

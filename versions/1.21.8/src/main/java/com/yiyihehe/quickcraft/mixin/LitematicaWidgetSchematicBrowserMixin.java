@@ -56,24 +56,41 @@ public abstract class LitematicaWidgetSchematicBrowserMixin extends WidgetFileBr
             Path defaultDirectory,
             @Nullable ISelectionListener<DirectoryEntry> selectionListener
     ) {
-        super(x, y, width, height, cache, browserContext, defaultDirectory, selectionListener, Icons.FILE_ICON_LITEMATIC);
+        super(
+                x,
+                y,
+                width,
+                height,
+                cache,
+                browserContext,
+                defaultDirectory,
+                selectionListener,
+                Icons.FILE_ICON_LITEMATIC
+        );
     }
 
     @Inject(
             method = "drawSelectedSchematicInfo",
-            at = @At(value = "FIELD",
+            at = @At(
+                    value = "FIELD",
                     target = "Lfi/dy/masa/litematica/gui/widgets/WidgetSchematicBrowser;cachedPreviewImages:Ljava/util/Map;"),
-            remap = false
-    )
-    private void quickcraft$captureInfoTextBottom(CallbackInfo ci, @Local(ordinal = 1) int y,
-                                                 @Share("infoTextBottom") LocalIntRef infoTextBottom) {
+            remap = false)
+    private void quickcraft$captureInfoTextBottom(
+            CallbackInfo ci,
+            @Local(ordinal = 1) int y,
+            @Share("infoTextBottom") LocalIntRef infoTextBottom
+    ) {
         // 信息行数随界面高度和元数据变化，使用原生文字绘制完成后的坐标。
         infoTextBottom.set(y);
     }
 
     @Inject(method = "drawSelectedSchematicInfo", at = @At("TAIL"), remap = false)
-    private void quickcraft$draw3DPreview(DrawContext drawContext, @Nullable DirectoryEntry entry, CallbackInfo ci,
-                                        @Share("infoTextBottom") LocalIntRef infoTextBottom) {
+    private void quickcraft$draw3DPreview(
+            DrawContext drawContext,
+            @Nullable DirectoryEntry entry,
+            CallbackInfo ci,
+            @Share("infoTextBottom") LocalIntRef infoTextBottom
+    ) {
         int infoX = this.posX + this.totalWidth - this.infoWidth;
         int infoY = this.posY;
         int height = Math.min(this.infoHeight, this.parent.getMaxInfoHeight());
@@ -85,9 +102,8 @@ public abstract class LitematicaWidgetSchematicBrowserMixin extends WidgetFileBr
         SchematicMetadata metadata = entry == null ? null : this.cachedMetadata.get(entry.getFullPath());
         int[] previewPixels = metadata == null ? null : metadata.getPreviewImagePixelData();
         int previewSize = previewPixels == null ? 0 : (int) Math.sqrt(previewPixels.length);
-        boolean hasEmbeddedPreview = previewPixels != null
-                && previewPixels.length > 0
-                && previewSize * previewSize == previewPixels.length;
+        boolean hasEmbeddedPreview = previewPixels != null && previewPixels.length > 0 && previewSize
+                * previewSize == previewPixels.length;
         QuickLitematicaPreview3D.render(this.parent, entry, hasEmbeddedPreview, drawContext, x, y, size);
     }
 
@@ -95,9 +111,7 @@ public abstract class LitematicaWidgetSchematicBrowserMixin extends WidgetFileBr
             method = "drawSelectedSchematicInfo",
             at = @At(
                     value = "INVOKE",
-                    target = "Lnet/minecraft/client/gui/DrawContext;drawTexture(Lcom/mojang/blaze3d/pipeline/RenderPipeline;Lnet/minecraft/util/Identifier;IIFFIIII)V"
-            )
-    )
+                    target = "Lnet/minecraft/client/gui/DrawContext;drawTexture(Lcom/mojang/blaze3d/pipeline/RenderPipeline;Lnet/minecraft/util/Identifier;IIFFIIII)V"))
     private void quickcraft$skipVanillaPreviewWhen3DEnabled(
             DrawContext drawContext,
             RenderPipeline renderPipeline,
@@ -112,8 +126,8 @@ public abstract class LitematicaWidgetSchematicBrowserMixin extends WidgetFileBr
             int textureHeight,
             Operation<Void> original
     ) {
-        if (QuickLitematicaPreview3D.is3DPreviewAvailable()
-                && QuickCraftConfigs.shouldReplaceLitematicaPreviewWith3D()) {
+        if (QuickLitematicaPreview3D.is3DPreviewAvailable() && QuickCraftConfigs
+                .shouldReplaceLitematicaPreviewWith3D()) {
             return;
         }
 
@@ -125,10 +139,8 @@ public abstract class LitematicaWidgetSchematicBrowserMixin extends WidgetFileBr
             at = @At(
                     value = "INVOKE",
                     target = "Lfi/dy/masa/malilib/render/RenderUtils;drawOutlinedBox(Lnet/minecraft/client/gui/DrawContext;IIIIII)V",
-                    ordinal = 1
-            ),
-            remap = false
-    )
+                    ordinal = 1),
+            remap = false)
     private void quickcraft$skipVanillaPreviewBoxWhen3DEnabled(
             DrawContext drawContext,
             int x,
@@ -139,8 +151,8 @@ public abstract class LitematicaWidgetSchematicBrowserMixin extends WidgetFileBr
             int borderColor,
             Operation<Void> original
     ) {
-        if (QuickLitematicaPreview3D.is3DPreviewAvailable()
-                && QuickCraftConfigs.shouldReplaceLitematicaPreviewWith3D()) {
+        if (QuickLitematicaPreview3D.is3DPreviewAvailable() && QuickCraftConfigs
+                .shouldReplaceLitematicaPreviewWith3D()) {
             return;
         }
 

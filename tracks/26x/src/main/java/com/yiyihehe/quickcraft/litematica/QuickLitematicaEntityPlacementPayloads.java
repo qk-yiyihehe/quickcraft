@@ -16,11 +16,12 @@ public final class QuickLitematicaEntityPlacementPayloads {
     public static final int CLIENT_FEATURES = 0;
     public static final int MAX_CLIENT_NBT_BYTES = 262_144;
 
-    private QuickLitematicaEntityPlacementPayloads() {
-    }
+    private QuickLitematicaEntityPlacementPayloads() {}
 
     public record HelloPayload(int version, int features, int maxNbtBytes) implements CustomPacketPayload {
-        public static final Type<HelloPayload> ID = new Type<>(Identifier.fromNamespaceAndPath("quickcraft", "entity_place_hello"));
+        public static final Type<HelloPayload> ID = new Type<>(
+                Identifier.fromNamespaceAndPath("quickcraft", "entity_place_hello")
+        );
         public static final StreamCodec<RegistryFriendlyByteBuf, HelloPayload> CODEC = CustomPacketPayload.codec(
                 (payload, buffer) -> {
                     buffer.writeVarInt(payload.version);
@@ -44,7 +45,9 @@ public final class QuickLitematicaEntityPlacementPayloads {
             int features,
             String sessionToken
     ) implements CustomPacketPayload {
-        public static final Type<CapabilityPayload> ID = new Type<>(Identifier.fromNamespaceAndPath("quickcraft", "entity_place_capability"));
+        public static final Type<CapabilityPayload> ID = new Type<>(
+                Identifier.fromNamespaceAndPath("quickcraft", "entity_place_capability")
+        );
         public static final StreamCodec<RegistryFriendlyByteBuf, CapabilityPayload> CODEC = CustomPacketPayload.codec(
                 (payload, buffer) -> {
                     buffer.writeVarInt(payload.version);
@@ -84,7 +87,9 @@ public final class QuickLitematicaEntityPlacementPayloads {
             boolean creativeMaterialBypass,
             CompoundTag entityNbt
     ) implements CustomPacketPayload {
-        public static final Type<RequestPayload> ID = new Type<>(Identifier.fromNamespaceAndPath("quickcraft", "entity_place_request"));
+        public static final Type<RequestPayload> ID = new Type<>(
+                Identifier.fromNamespaceAndPath("quickcraft", "entity_place_request")
+        );
         public static final StreamCodec<RegistryFriendlyByteBuf, RequestPayload> CODEC = CustomPacketPayload.codec(
                 (payload, buffer) -> {
                     buffer.writeUtf(payload.sessionToken, 128);
@@ -122,8 +127,11 @@ public final class QuickLitematicaEntityPlacementPayloads {
         }
     }
 
-    public record ResultPayload(long nonce, String status, String entityUuid, String messageKey) implements CustomPacketPayload {
-        public static final Type<ResultPayload> ID = new Type<>(Identifier.fromNamespaceAndPath("quickcraft", "entity_place_result"));
+    public record ResultPayload(long nonce, String status, String entityUuid, String messageKey) implements
+            CustomPacketPayload {
+        public static final Type<ResultPayload> ID = new Type<>(
+                Identifier.fromNamespaceAndPath("quickcraft", "entity_place_result")
+        );
         public static final StreamCodec<RegistryFriendlyByteBuf, ResultPayload> CODEC = CustomPacketPayload.codec(
                 (payload, buffer) -> {
                     buffer.writeLong(payload.nonce);

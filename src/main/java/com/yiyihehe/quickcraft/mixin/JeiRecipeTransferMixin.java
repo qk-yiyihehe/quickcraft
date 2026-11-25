@@ -23,12 +23,10 @@ public abstract class JeiRecipeTransferMixin {
             argsOnly = true,
             ordinal = 1,
             require = 0,
-            remap = false
-    )
+            remap = false)
     private static Collection<Slot> quickcraft$excludeLockedPlayerSlots(Collection<Slot> inventorySlots) {
-        return inventorySlots.stream()
-                .filter(slot -> !(slot.inventory instanceof PlayerInventory)
-                        || !QuickContainerLock.isLockedSlot(slot))
-                .toList();
+        return inventorySlots.stream().filter(
+                slot -> !(slot.inventory instanceof PlayerInventory) || !QuickContainerLock.isLockedSlot(slot)
+        ).toList();
     }
 }

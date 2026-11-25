@@ -16,10 +16,15 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 @Mixin(Screen.class)
 public abstract class QuickContainerBackgroundFillScreenMixin {
     @Inject(method = "extractRenderStateWithTooltipAndSubtitles", at = @At("HEAD"), cancellable = true)
-    private void quickcraft$hideBackgroundFillScreen(GuiGraphicsExtractor context, int mouseX, int mouseY, float delta, CallbackInfo ci) {
-        if ((Object) this instanceof AbstractContainerScreen<?>
-                && (QuickContainerCopy.shouldHideBackgroundHandledScreen()
-                || QuickMaterialCollector.shouldHideBackgroundHandledScreen())) {
+    private void quickcraft$hideBackgroundFillScreen(
+            GuiGraphicsExtractor context,
+            int mouseX,
+            int mouseY,
+            float delta,
+            CallbackInfo ci
+    ) {
+        if ((Object) this instanceof AbstractContainerScreen<?> && (QuickContainerCopy
+                .shouldHideBackgroundHandledScreen() || QuickMaterialCollector.shouldHideBackgroundHandledScreen())) {
             ci.cancel();
         }
     }

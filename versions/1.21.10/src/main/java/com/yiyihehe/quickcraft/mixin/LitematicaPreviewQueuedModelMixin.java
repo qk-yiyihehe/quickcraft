@@ -21,14 +21,27 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 @Mixin(ModelCommandRenderer.class)
 public abstract class LitematicaPreviewQueuedModelMixin {
     @Invoker("render")
-    public abstract void quickcraft$renderModel(OrderedRenderCommandQueueImpl.ModelCommand<?> model, RenderLayer layer,
-            VertexConsumer consumer, OutlineVertexConsumerProvider outline, VertexConsumerProvider.Immediate crumbling);
+    public abstract void quickcraft$renderModel(
+            OrderedRenderCommandQueueImpl.ModelCommand<?> model,
+            RenderLayer layer,
+            VertexConsumer consumer,
+            OutlineVertexConsumerProvider outline,
+            VertexConsumerProvider.Immediate crumbling
+    );
 
     @Inject(method = "renderAll", at = @At("HEAD"), cancellable = true)
-    private void quickcraft$deferModels(VertexConsumerProvider.Immediate buffers, OutlineVertexConsumerProvider outline,
-            Map<RenderLayer, List<OrderedRenderCommandQueueImpl.ModelCommand<?>>> models, VertexConsumerProvider.Immediate crumbling, CallbackInfo ci) {
-        if (!QuickLitematicaPreviewQueuedBuild.isCapturing(buffers)) return;
-        Iterable<Map.Entry<RenderLayer, List<OrderedRenderCommandQueueImpl.ModelCommand<?>>>> entries = models.entrySet();
+    private void quickcraft$deferModels(
+            VertexConsumerProvider.Immediate buffers,
+            OutlineVertexConsumerProvider outline,
+            Map<RenderLayer, List<OrderedRenderCommandQueueImpl.ModelCommand<?>>> models,
+            VertexConsumerProvider.Immediate crumbling,
+            CallbackInfo ci
+    ) {
+        if (!QuickLitematicaPreviewQueuedBuild.isCapturing(buffers)) {
+            return;
+        }
+        Iterable<Map.Entry<RenderLayer, List<OrderedRenderCommandQueueImpl.ModelCommand<?>>>> entries = models
+                .entrySet();
         if (SharedConstants.SHUFFLE_MODELS) {
             var shuffled = new ArrayList<>(models.entrySet());
             Collections.shuffle(shuffled);
@@ -42,10 +55,28 @@ public abstract class LitematicaPreviewQueuedModelMixin {
     }
 
     @Inject(method = "renderAllBlended", at = @At("HEAD"), cancellable = true)
-    private void quickcraft$deferBlended(VertexConsumerProvider.Immediate buffers, OutlineVertexConsumerProvider outline,
-            List<OrderedRenderCommandQueueImpl.BlendedModelCommand<?>> models, VertexConsumerProvider.Immediate crumbling, CallbackInfo ci) {
-        if (!QuickLitematicaPreviewQueuedBuild.isCapturing(buffers)) return;
-        if (QuickLitematicaPreviewQueuedBuild.deferList(buffers, models, model -> this.quickcraft$renderModel(
-                model.model(), model.renderType(), buffers.getBuffer(model.renderType()), outline, crumbling))) ci.cancel();
+    private void quickcraft$deferBlended(
+            VertexConsumerProvider.Immediate buffers,
+            OutlineVertexConsumerProvider outline,
+            List<OrderedRenderCommandQueueImpl.BlendedModelCommand<?>> models,
+            VertexConsumerProvider.Immediate crumbling,
+            CallbackInfo ci
+    ) {
+        if (!QuickLitematicaPreviewQueuedBuild.isCapturing(buffers)) {
+            return;
+        }
+        if (QuickLitematicaPreviewQueuedBuild.deferList(
+                buffers,
+                models,
+                model -> this.quickcraft$renderModel(
+                        model.model(),
+                        model.renderType(),
+                        buffers.getBuffer(model.renderType()),
+                        outline,
+                        crumbling
+                )
+        )) {
+            ci.cancel();
+        }
     }
 }

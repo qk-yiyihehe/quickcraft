@@ -4,8 +4,7 @@ final class QuickLitematicaPreviewVertexBudget {
     static final int DEFAULT_VERTEX_LIMIT = 16_000_000;
     private static final ThreadLocal<Boolean> FORCED = new ThreadLocal<>();
 
-    private QuickLitematicaPreviewVertexBudget() {
-    }
+    private QuickLitematicaPreviewVertexBudget() {}
 
     static int vertexLimit() {
         return countLimit(DEFAULT_VERTEX_LIMIT);
@@ -21,7 +20,8 @@ final class QuickLitematicaPreviewVertexBudget {
 
     static int layerByteLimit() {
         // 静态层在完整方块之后分批；保留单块模型与动态缓冲的安全容量上限，强制也不能突破 int 长度。
-        return isForced() ? ((Integer.MAX_VALUE - 8) / 44) * QuickLitematicaPreviewAccess.QUANTIZED_VERTEX_BYTES : DEFAULT_VERTEX_LIMIT * 32;
+        return isForced() ? ((Integer.MAX_VALUE - 8) / 44) * QuickLitematicaPreviewAccess.QUANTIZED_VERTEX_BYTES
+                : DEFAULT_VERTEX_LIMIT * 32;
     }
 
     static boolean isForced() {
@@ -35,8 +35,11 @@ final class QuickLitematicaPreviewVertexBudget {
             action.run();
         } finally {
             // 工作线程复用，强制预算不能泄漏到下一份投影。
-            if (previous == null) FORCED.remove();
-            else FORCED.set(previous);
+            if (previous == null) {
+                FORCED.remove();
+            } else {
+                FORCED.set(previous);
+            }
         }
     }
 
@@ -46,8 +49,12 @@ final class QuickLitematicaPreviewVertexBudget {
 
     static void checkVertexCount(int recordedVertices, int limit) {
         if (recordedVertices >= limit) {
-            QuickLitematicaPreviewLog.LOGGER.warn("网格顶点预算超限：实际={}，上限={}，强制={}，拒绝继续记录",
-                    recordedVertices, limit, isForced());
+            QuickLitematicaPreviewLog.LOGGER.warn(
+                    "网格顶点预算超限：实际={}，上限={}，强制={}，拒绝继续记录",
+                    recordedVertices,
+                    limit,
+                    isForced()
+            );
             throw new QuickLitematicaPreview3D.PreviewTooLargeException(!isForced());
         }
     }

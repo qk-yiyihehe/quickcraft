@@ -22,20 +22,24 @@ public abstract class MerchantScreenMixin {
     }
 
     @Inject(method = "extractContents", at = @At("TAIL"))
-    private void quickcraft$renderFavoriteStar(GuiGraphicsExtractor context,
-                                               int mouseX,
-                                               int mouseY,
-                                               float delta,
-                                               CallbackInfo ci) {
+    private void quickcraft$renderFavoriteStar(
+            GuiGraphicsExtractor context,
+            int mouseX,
+            int mouseY,
+            float delta,
+            CallbackInfo ci
+    ) {
         QuickTrade.renderFavoriteStar((MerchantScreen) (Object) this, context);
     }
 
     @Inject(method = "extractContents", at = @At("HEAD"), cancellable = true)
-    private void quickcraft$hideContinuousTradeScreen(GuiGraphicsExtractor context,
-                                                      int mouseX,
-                                                      int mouseY,
-                                                      float delta,
-                                                      CallbackInfo ci) {
+    private void quickcraft$hideContinuousTradeScreen(
+            GuiGraphicsExtractor context,
+            int mouseX,
+            int mouseY,
+            float delta,
+            CallbackInfo ci
+    ) {
         // 26.1 的 MerchantScreen 不覆写 render；取消其 extractContents 可保留界面实例和网络同步，同时避免扫描闪屏。
         if (QuickTrade.shouldHideContinuousTradeScreen((MerchantScreen) (Object) this)) {
             ci.cancel();
@@ -43,9 +47,11 @@ public abstract class MerchantScreenMixin {
     }
 
     @Inject(method = "mouseClicked", at = @At("HEAD"), cancellable = true)
-    private void quickcraft$handleTradeMouseClick(MouseButtonEvent click,
-                                                  boolean doubled,
-                                                  CallbackInfoReturnable<Boolean> cir) {
+    private void quickcraft$handleTradeMouseClick(
+            MouseButtonEvent click,
+            boolean doubled,
+            CallbackInfoReturnable<Boolean> cir
+    ) {
         if (QuickTrade.handleMerchantMouseClicked(
                 (MerchantScreen) (Object) this,
                 click.x(),

@@ -8,31 +8,30 @@ final class QuickCraftMouseCraftAckRules {
     private static final long MIN_ACK_TIMEOUT_MILLIS = 3_000L;
     static final long MAX_ACK_TIMEOUT_MILLIS = 15_000L;
 
-    private QuickCraftMouseCraftAckRules() {
-    }
+    private QuickCraftMouseCraftAckRules() {}
 
-    static boolean isMissingLockedRecipeTerminal(boolean patternComplete,
-                                                  boolean ingredientsAvailable,
-                                                  boolean intermediateOutput) {
+    static boolean isMissingLockedRecipeTerminal(
+            boolean patternComplete,
+            boolean ingredientsAvailable,
+            boolean intermediateOutput
+    ) {
         return !patternComplete && !ingredientsAvailable && intermediateOutput;
     }
 
-    static boolean isAllowedCraftRemainder(boolean outputActionSent,
-                                           boolean occupiedPatternSlot,
-                                           boolean matchesPatternIngredient) {
+    static boolean isAllowedCraftRemainder(
+            boolean outputActionSent,
+            boolean occupiedPatternSlot,
+            boolean matchesPatternIngredient
+    ) {
         return outputActionSent && occupiedPatternSlot && !matchesPatternIngredient;
     }
 
-    static boolean materialConsumptionExceedsBatchLimit(int before,
-                                                        int after,
-                                                        int occurrences,
-                                                        int maximumCrafts) {
+    static boolean materialConsumptionExceedsBatchLimit(int before, int after, int occurrences, int maximumCrafts) {
         return (long) before - after > (long) occurrences * maximumCrafts;
     }
 
     static int maximumCraftsFromGridCounts(int[] gridCounts, boolean[] requiredSlots) {
-        if (gridCounts == null || requiredSlots == null
-                || gridCounts.length < requiredSlots.length) {
+        if (gridCounts == null || requiredSlots == null || gridCounts.length < requiredSlots.length) {
             return 0;
         }
         int maximum = Integer.MAX_VALUE;
@@ -47,10 +46,12 @@ final class QuickCraftMouseCraftAckRules {
         return hasIngredient && maximum != Integer.MAX_VALUE ? maximum : 0;
     }
 
-    static boolean canFinishBatch(boolean authoritativeFullState,
-                                  boolean statsProbeSent,
-                                  boolean statsProbePending,
-                                  boolean pathConfirmable) {
+    static boolean canFinishBatch(
+            boolean authoritativeFullState,
+            boolean statsProbeSent,
+            boolean statsProbePending,
+            boolean pathConfirmable
+    ) {
         if (!pathConfirmable) {
             return false;
         }
@@ -58,14 +59,15 @@ final class QuickCraftMouseCraftAckRules {
         return statsProbeSent ? !statsProbePending : authoritativeFullState;
     }
 
-    static boolean shouldSendDeferredStatsProbe(boolean awaiting,
-                                                boolean statsProbeDeferred,
-                                                boolean statsProbePending) {
+    static boolean shouldSendDeferredStatsProbe(
+            boolean awaiting,
+            boolean statsProbeDeferred,
+            boolean statsProbePending
+    ) {
         return awaiting && statsProbeDeferred && !statsProbePending;
     }
 
-    static boolean shouldResumePickupWait(boolean ingredientsAvailable,
-                                          int remainingTicks) {
+    static boolean shouldResumePickupWait(boolean ingredientsAvailable, int remainingTicks) {
         return ingredientsAvailable || remainingTicks <= 0;
     }
 
@@ -75,19 +77,23 @@ final class QuickCraftMouseCraftAckRules {
         return distance > 0 && distance < 16384;
     }
 
-    static boolean canConfirmManualBatch(boolean authoritativeStateReceived,
-                                         boolean cursorEmpty,
-                                         boolean patternReady,
-                                         boolean expectedOutputPresent) {
+    static boolean canConfirmManualBatch(
+            boolean authoritativeStateReceived,
+            boolean cursorEmpty,
+            boolean patternReady,
+            boolean expectedOutputPresent
+    ) {
         return authoritativeStateReceived && cursorEmpty && patternReady && expectedOutputPresent;
     }
 
-    static boolean canConfirmOutputDrain(boolean authoritativeStateReceived,
-                                         boolean cursorEmpty,
-                                         boolean outputEmpty,
-                                         boolean ingredientsDecreased,
-                                         boolean expectedOutputPresent,
-                                         boolean authoritativeExpectedOutput) {
+    static boolean canConfirmOutputDrain(
+            boolean authoritativeStateReceived,
+            boolean cursorEmpty,
+            boolean outputEmpty,
+            boolean ingredientsDecreased,
+            boolean expectedOutputPresent,
+            boolean authoritativeExpectedOutput
+    ) {
         if (!authoritativeStateReceived || !cursorEmpty) {
             return false;
         }
@@ -97,13 +103,15 @@ final class QuickCraftMouseCraftAckRules {
         return ingredientsDecreased && expectedOutputPresent && authoritativeExpectedOutput;
     }
 
-    static boolean shouldContinueOutputDrain(boolean cursorEmpty,
-                                             boolean outputEmpty,
-                                             boolean expectedOutputPresent,
-                                             boolean authoritativeExpectedOutput,
-                                             boolean ingredientsDecreased,
-                                             int drainRetries,
-                                             int maxDrainRetries) {
+    static boolean shouldContinueOutputDrain(
+            boolean cursorEmpty,
+            boolean outputEmpty,
+            boolean expectedOutputPresent,
+            boolean authoritativeExpectedOutput,
+            boolean ingredientsDecreased,
+            int drainRetries,
+            int maxDrainRetries
+    ) {
         if (!cursorEmpty) {
             return false;
         }
@@ -119,12 +127,13 @@ final class QuickCraftMouseCraftAckRules {
         return drainRetries < Math.max(0, maxDrainRetries);
     }
 
-    static boolean canContinueOutputDrainWithIntermediate(boolean cursorEmpty,
-                                                          boolean expectedOutputAtDispatch,
-                                                          boolean ingredientsDecreased,
-                                                          boolean compatibleIntermediateOutput) {
-        return cursorEmpty && expectedOutputAtDispatch
-                && ingredientsDecreased && compatibleIntermediateOutput;
+    static boolean canContinueOutputDrainWithIntermediate(
+            boolean cursorEmpty,
+            boolean expectedOutputAtDispatch,
+            boolean ingredientsDecreased,
+            boolean compatibleIntermediateOutput
+    ) {
+        return cursorEmpty && expectedOutputAtDispatch && ingredientsDecreased && compatibleIntermediateOutput;
     }
 
     static boolean ingredientsDecreased(int[] before, int[] after) {
@@ -143,13 +152,15 @@ final class QuickCraftMouseCraftAckRules {
         return decreased;
     }
 
-    static boolean canConfirmCombinedBatch(boolean authoritativeStateReceived,
-                                           boolean cursorEmpty,
-                                           boolean terminalOutputCompatible,
-                                           boolean authoritativeExpectedOutput,
-                                           boolean patternCompatible) {
-        return authoritativeStateReceived && cursorEmpty && terminalOutputCompatible
-                && authoritativeExpectedOutput && patternCompatible;
+    static boolean canConfirmCombinedBatch(
+            boolean authoritativeStateReceived,
+            boolean cursorEmpty,
+            boolean terminalOutputCompatible,
+            boolean authoritativeExpectedOutput,
+            boolean patternCompatible
+    ) {
+        return authoritativeStateReceived && cursorEmpty && terminalOutputCompatible && authoritativeExpectedOutput
+                && patternCompatible;
     }
 
     static boolean canBulkCraftGrid(int[] counts) {
@@ -176,18 +187,13 @@ final class QuickCraftMouseCraftAckRules {
         return expectedOutput && patternComplete ? 1 : 0;
     }
 
-    static boolean shouldEnterOutputSprayMode(boolean alreadySpraying,
-                                              int currentEmptySlots,
-                                              boolean canAcceptOutput) {
+    static boolean shouldEnterOutputSprayMode(boolean alreadySpraying, int currentEmptySlots, boolean canAcceptOutput) {
         // 原料消耗会腾出背包格，不能按启动时的空格数限制填包。
         return alreadySpraying || currentEmptySlots <= 0 || !canAcceptOutput;
     }
 
     static long ackTimeoutMillis(long observedMaxAckNanos) {
-        long adaptive = Math.max(
-                MIN_ACK_TIMEOUT_MILLIS,
-                nanosToMillis(observedMaxAckNanos) * 8L
-        );
+        long adaptive = Math.max(MIN_ACK_TIMEOUT_MILLIS, nanosToMillis(observedMaxAckNanos) * 8L);
         return Math.min(MAX_ACK_TIMEOUT_MILLIS, adaptive);
     }
 
@@ -195,9 +201,7 @@ final class QuickCraftMouseCraftAckRules {
         return !awaiting && cursorEmpty;
     }
 
-    static boolean needsCanceledBatchDrain(boolean awaiting,
-                                           boolean cursorEmpty,
-                                           boolean statsProbePending) {
+    static boolean needsCanceledBatchDrain(boolean awaiting, boolean cursorEmpty, boolean statsProbePending) {
         return awaiting && cursorEmpty && statsProbePending;
     }
 

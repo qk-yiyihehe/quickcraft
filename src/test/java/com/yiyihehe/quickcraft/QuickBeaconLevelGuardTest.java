@@ -179,7 +179,7 @@ class QuickBeaconLevelGuardTest {
         return String.valueOf(field.get(null));
     }
 
-    @SuppressWarnings({"unchecked", "rawtypes"})
+    @SuppressWarnings({ "unchecked", "rawtypes" })
     private static void setPendingStage(String name) throws Exception {
         Field field = QuickBeacon.class.getDeclaredField("pendingStage");
         field.setAccessible(true);

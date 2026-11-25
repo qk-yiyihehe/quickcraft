@@ -27,55 +27,80 @@ import net.minecraft.client.gui.screen.ingame.StonecutterScreen;
  * 给 malilib 热键挂接业务回调。
  */
 public final class QuickCraftHotkeyCallbacks {
-    private QuickCraftHotkeyCallbacks() {
-    }
+    private QuickCraftHotkeyCallbacks() {}
 
     public static void bind() {
-        QuickCraftConfigs.Developer.OPEN_PANEL.getKeybind()
-                .setCallback(QuickCraftHotkeyCallbacks::handleOpenDeveloperPanel);
+        QuickCraftConfigs.Developer.OPEN_PANEL.getKeybind().setCallback(
+                QuickCraftHotkeyCallbacks::handleOpenDeveloperPanel
+        );
         QuickCraftConfigs.Developer.onToggleChanged(QuickCraftConfigs.Developer.MOUSE_CRAFT_ACK_LOGS, enabled -> {
             MinecraftClient client = MinecraftClient.getInstance();
             if (client.player != null) {
-                client.player.sendMessage(Text.translatable(enabled
-                        ? "quickcraft.message.developer.ack_logs_enabled"
-                        : "quickcraft.message.developer.ack_logs_disabled"), false);
+                client.player.sendMessage(
+                        Text.translatable(
+                                enabled ? "quickcraft.message.developer.ack_logs_enabled"
+                                        : "quickcraft.message.developer.ack_logs_disabled"
+                        ),
+                        false
+                );
             }
             if (enabled) {
-                LoggerFactory.getLogger("QuickCraft/Developer")
-                        .info("开发者调试：普通工作台/背包合成 ACK 详细日志已开启");
+                LoggerFactory.getLogger("QuickCraft/Developer").info("开发者调试：普通工作台/背包合成 ACK 详细日志已开启");
             }
         });
-        QuickCraftConfigs.getBooleanHotkeyConfigs().forEach(config ->
-                config.getKeybind().setCallback(new QuickCraftLocalizedToggleCallback(config))
+        QuickCraftConfigs.getBooleanHotkeyConfigs().forEach(
+                config -> config.getKeybind().setCallback(new QuickCraftLocalizedToggleCallback(config))
         );
-        QuickCraftConfigs.ContainerTools.ENABLE_CONTAINER_TOOL_MODE.getKeybind()
-                .setCallback(QuickCraftHotkeyCallbacks::handleContainerToolSwitch);
+        QuickCraftConfigs.ContainerTools.ENABLE_CONTAINER_TOOL_MODE.getKeybind().setCallback(
+                QuickCraftHotkeyCallbacks::handleContainerToolSwitch
+        );
         QuickCraftConfigs.Hotkeys.OPEN_CONFIG.getKeybind().setCallback(QuickCraftHotkeyCallbacks::handleOpenConfig);
         QuickCraftConfigs.Hotkeys.SINGLE_CRAFT.getKeybind().setCallback(QuickCraftHotkeyCallbacks::consumeCraftHotkey);
-        QuickCraftConfigs.Hotkeys.RAPID_CRAFT.getKeybind().setCallback(QuickCraftHotkeyCallbacks::consumeRapidCraftHotkey);
+        QuickCraftConfigs.Hotkeys.RAPID_CRAFT.getKeybind().setCallback(
+                QuickCraftHotkeyCallbacks::consumeRapidCraftHotkey
+        );
         QuickCraftConfigs.Hotkeys.DROP_MATCHING.getKeybind().setCallback((action, key) -> handleThrow(action, true));
-        QuickCraftConfigs.Hotkeys.DROP_WHOLE_STACK.getKeybind().setCallback((action, key) -> handleThrow(action, false));
-        QuickCraftConfigs.Hotkeys.QUICK_TRANSFER.getKeybind().setCallback(QuickCraftHotkeyCallbacks::handleQuickTransfer);
-        QuickCraftConfigs.Hotkeys.QUICK_TRANSFER_RETAIN_ONE.getKeybind().setCallback(QuickCraftHotkeyCallbacks::handleQuickTransferRetainOne);
-        QuickCraftConfigs.Hotkeys.SLOT_QUICK_TRANSFER.getKeybind().setCallback(QuickCraftHotkeyCallbacks::handleSlotQuickTransfer);
+        QuickCraftConfigs.Hotkeys.DROP_WHOLE_STACK.getKeybind().setCallback(
+                (action, key) -> handleThrow(action, false)
+        );
+        QuickCraftConfigs.Hotkeys.QUICK_TRANSFER.getKeybind().setCallback(
+                QuickCraftHotkeyCallbacks::handleQuickTransfer
+        );
+        QuickCraftConfigs.Hotkeys.QUICK_TRANSFER_RETAIN_ONE.getKeybind().setCallback(
+                QuickCraftHotkeyCallbacks::handleQuickTransferRetainOne
+        );
+        QuickCraftConfigs.Hotkeys.SLOT_QUICK_TRANSFER.getKeybind().setCallback(
+                QuickCraftHotkeyCallbacks::handleSlotQuickTransfer
+        );
         QuickCraftConfigs.Hotkeys.SLOT_LOCK.getKeybind().setCallback(QuickCraftHotkeyCallbacks::handleSlotLock);
-        QuickCraftConfigs.Hotkeys.COPY_CONTAINER_TEMPLATE.getKeybind().setCallback(QuickCraftHotkeyCallbacks::handleCopyContainerTemplate);
-        QuickCraftConfigs.Hotkeys.CONTINUOUS_CONTAINER_FILL.getKeybind().setCallback(QuickCraftHotkeyCallbacks::handleContinuousContainerFill);
-        QuickCraftConfigs.Hotkeys.TOGGLE_CONTAINER_TOOL_MODE.getKeybind().setCallback(QuickCraftHotkeyCallbacks::handleToggleContainerToolMode);
-        QuickCraftConfigs.Hotkeys.CREATIVE_PACKING.getKeybind().setCallback(QuickCraftHotkeyCallbacks::handleCreativePacking);
-        QuickCraftConfigs.Hotkeys.OPEN_EASY_PLACE_ENTITY_SELECTOR.getKeybind().setCallback(QuickCraftHotkeyCallbacks::handleEntitySelector);
-        QuickCraftConfigs.Hotkeys.ANVIL_BUILD.getKeybind().setCallback((action, key) ->
-                MinecraftClient.getInstance().currentScreen instanceof AnvilScreen
-                        && QuickCraftConfigs.Crafting.ENABLE_ANVIL_ASSISTANT.getBooleanValue());
-        QuickCraftConfigs.Hotkeys.CROSS_BOX_SORT.getKeybind().setCallback((action, key) ->
-                action == KeyAction.PRESS && com.yiyihehe.quickcraft.QuickCrossBoxSort.handleHotkey());
+        QuickCraftConfigs.Hotkeys.COPY_CONTAINER_TEMPLATE.getKeybind().setCallback(
+                QuickCraftHotkeyCallbacks::handleCopyContainerTemplate
+        );
+        QuickCraftConfigs.Hotkeys.CONTINUOUS_CONTAINER_FILL.getKeybind().setCallback(
+                QuickCraftHotkeyCallbacks::handleContinuousContainerFill
+        );
+        QuickCraftConfigs.Hotkeys.TOGGLE_CONTAINER_TOOL_MODE.getKeybind().setCallback(
+                QuickCraftHotkeyCallbacks::handleToggleContainerToolMode
+        );
+        QuickCraftConfigs.Hotkeys.CREATIVE_PACKING.getKeybind().setCallback(
+                QuickCraftHotkeyCallbacks::handleCreativePacking
+        );
+        QuickCraftConfigs.Hotkeys.OPEN_EASY_PLACE_ENTITY_SELECTOR.getKeybind().setCallback(
+                QuickCraftHotkeyCallbacks::handleEntitySelector
+        );
+        QuickCraftConfigs.Hotkeys.ANVIL_BUILD.getKeybind().setCallback(
+                (action, key) -> MinecraftClient.getInstance().currentScreen instanceof AnvilScreen
+                        && QuickCraftConfigs.Crafting.ENABLE_ANVIL_ASSISTANT.getBooleanValue()
+        );
+        QuickCraftConfigs.Hotkeys.CROSS_BOX_SORT.getKeybind().setCallback(
+                (action, key) -> action == KeyAction.PRESS && com.yiyihehe.quickcraft.QuickCrossBoxSort.handleHotkey()
+        );
         QuickCraft.bindOptionalHotkeys();
     }
 
     private static boolean handleOpenDeveloperPanel(KeyAction action, IKeybind keybind) {
         MinecraftClient client = MinecraftClient.getInstance();
-        if (action != KeyAction.PRESS || client == null
-                || !keybind.getKeys().stream().allMatch(KeybindMulti::isKeyDown)
+        if (action != KeyAction.PRESS || client == null || !keybind.getKeys().stream().allMatch(KeybindMulti::isKeyDown)
                 || client.currentScreen instanceof QuickCraftDeveloperScreen) {
             return false;
         }
@@ -85,10 +110,7 @@ public final class QuickCraftHotkeyCallbacks {
 
     private static boolean handleOpenConfig(KeyAction action, IKeybind keybind) {
         MinecraftClient client = MinecraftClient.getInstance();
-        if (action != KeyAction.PRESS
-                || client == null
-                || client.player == null
-                || client.currentScreen != null
+        if (action != KeyAction.PRESS || client == null || client.player == null || client.currentScreen != null
                 || !QuickCraftConfigs.isOpenConfigHotkeyEnabled()) {
             return false;
         }
@@ -114,26 +136,22 @@ public final class QuickCraftHotkeyCallbacks {
     }
 
     private static boolean handleQuickTransfer(KeyAction action, IKeybind keybind) {
-        return action == KeyAction.PRESS
-                && !QuickDraggableButton.isEditGestureOverCurrentButton()
-                && QuickTransfer.handleQuickTransferHotkey();
+        return action == KeyAction.PRESS && !QuickDraggableButton.isEditGestureOverCurrentButton() && QuickTransfer
+                .handleQuickTransferHotkey();
     }
 
     private static boolean handleQuickTransferRetainOne(KeyAction action, IKeybind keybind) {
-        return action == KeyAction.PRESS
-                && !QuickDraggableButton.isEditGestureOverCurrentButton()
-                && QuickTransfer.handleQuickTransferRetainOneHotkey();
+        return action == KeyAction.PRESS && !QuickDraggableButton.isEditGestureOverCurrentButton() && QuickTransfer
+                .handleQuickTransferRetainOneHotkey();
     }
 
     private static boolean handleSlotQuickTransfer(KeyAction action, IKeybind keybind) {
-        return action == KeyAction.PRESS
-                && !QuickDraggableButton.isEditGestureOverCurrentButton()
-                && QuickTransfer.handleSlotQuickTransferHotkey();
+        return action == KeyAction.PRESS && !QuickDraggableButton.isEditGestureOverCurrentButton() && QuickTransfer
+                .handleSlotQuickTransferHotkey();
     }
 
     private static boolean handleSlotLock(KeyAction action, IKeybind keybind) {
-        return action == KeyAction.PRESS
-                && QuickContainerLock.handleSlotLockHotkey(MinecraftClient.getInstance());
+        return action == KeyAction.PRESS && QuickContainerLock.handleSlotLockHotkey(MinecraftClient.getInstance());
     }
 
     private static boolean handleCopyContainerTemplate(KeyAction action, IKeybind keybind) {
@@ -141,8 +159,8 @@ public final class QuickCraftHotkeyCallbacks {
     }
 
     private static boolean handleContinuousContainerFill(KeyAction action, IKeybind keybind) {
-        return (action == KeyAction.PRESS || action == KeyAction.RELEASE)
-                && QuickContainerCopy.canHandleContinuousContainerFillHotkey(MinecraftClient.getInstance());
+        return (action == KeyAction.PRESS || action == KeyAction.RELEASE) && QuickContainerCopy
+                .canHandleContinuousContainerFillHotkey(MinecraftClient.getInstance());
     }
 
     private static boolean handleContainerToolSwitch(KeyAction action, IKeybind keybind) {
@@ -178,10 +196,10 @@ public final class QuickCraftHotkeyCallbacks {
     }
 
     private static boolean handleEntitySelector(KeyAction action, IKeybind keybind) {
-        return action == KeyAction.PRESS
-                && keybind.getKeys().stream().allMatch(KeybindMulti::isKeyDown)
-                && QuickCraftConfigs.isEasyPlaceEntitiesEnabled()
-                && QuickCraft.openEasyPlaceEntitySelector(MinecraftClient.getInstance());
+        return action == KeyAction.PRESS && keybind.getKeys().stream().allMatch(KeybindMulti::isKeyDown)
+                && QuickCraftConfigs.isEasyPlaceEntitiesEnabled() && QuickCraft.openEasyPlaceEntitySelector(
+                        MinecraftClient.getInstance()
+                );
     }
 
     private static boolean isCraftingHotkeyContext(MinecraftClient client) {

@@ -24,20 +24,26 @@ public abstract class WorkbenchShulkerNetworkMixin {
     @Inject(method = "onScreenHandlerSlotUpdate", at = @At("RETURN"))
     private void quickcraft$onSlotUpdate(ScreenHandlerSlotUpdateS2CPacket packet, CallbackInfo ci) {
         QuickCraftAnvilRename.onServerContainerUpdate(packet.getSyncId(), packet.getSlot());
-        QuickCraftWorkbenchShulkerCraft.onServerContainerUpdate(
-                packet.getSyncId(), packet.getRevision(), false);
+        QuickCraftWorkbenchShulkerCraft.onServerContainerUpdate(packet.getSyncId(), packet.getRevision(), false);
         QuickCraftMouseCraftAckExecutor.onServerSlotUpdate(
-                packet.getSyncId(), packet.getRevision(), packet.getSlot(), packet.getStack());
+                packet.getSyncId(),
+                packet.getRevision(),
+                packet.getSlot(),
+                packet.getStack()
+        );
         com.yiyihehe.quickcraft.sort.QuickCrossBoxSortSync.recordSlot(packet.getSyncId(), packet.getRevision());
     }
 
     @Inject(method = "onInventory", at = @At("RETURN"))
     private void quickcraft$onInventoryUpdate(InventoryS2CPacket packet, CallbackInfo ci) {
         QuickCraftAnvilRename.onServerContainerUpdate(packet.syncId(), -1);
-        QuickCraftWorkbenchShulkerCraft.onServerContainerUpdate(
-                packet.syncId(), packet.revision(), true);
+        QuickCraftWorkbenchShulkerCraft.onServerContainerUpdate(packet.syncId(), packet.revision(), true);
         QuickCraftMouseCraftAckExecutor.onServerInventoryUpdate(
-                packet.syncId(), packet.revision(), packet.contents(), packet.cursorStack());
+                packet.syncId(),
+                packet.revision(),
+                packet.contents(),
+                packet.cursorStack()
+        );
         QuickContainerToolSync.onServerInventoryUpdate(packet.syncId());
         com.yiyihehe.quickcraft.sort.QuickCrossBoxSortSync.recordContent(packet.syncId(), packet.revision());
     }
@@ -47,8 +53,8 @@ public abstract class WorkbenchShulkerNetworkMixin {
         MinecraftClient client = MinecraftClient.getInstance();
         int status = packet.getStatus();
         if ((status == EntityStatuses.USE_TOTEM_OF_UNDYING || status == EntityStatuses.BREAK_MAINHAND
-                || status == EntityStatuses.BREAK_OFFHAND) && client.player != null && client.world != null
-                && packet.getEntity(client.world) == client.player) {
+                || status == EntityStatuses.BREAK_OFFHAND) && client.player != null && client.world != null && packet
+                        .getEntity(client.world) == client.player) {
             switch (status) {
                 case EntityStatuses.USE_TOTEM_OF_UNDYING -> QuickShulkerRestockFallback.totemUsed(client);
                 case EntityStatuses.BREAK_MAINHAND -> QuickShulkerRestockFallback.itemBroken(client, Hand.MAIN_HAND);
@@ -61,10 +67,9 @@ public abstract class WorkbenchShulkerNetworkMixin {
     @Inject(method = "onStatistics", at = @At("RETURN"))
     private void quickcraft$onServerCraftStats(StatisticsS2CPacket packet, CallbackInfo ci) {
         com.yiyihehe.quickcraft.crafting.QuickCraftAnvilAssistant.onStatistics(
-                (ClientPlayNetworkHandler) (Object) this);
-        QuickCraftWorkbenchShulkerCraft.onServerStatistics(
-                (ClientPlayNetworkHandler) (Object) this);
-        QuickCraftMouseCraftAckExecutor.onServerStatistics(
-                (ClientPlayNetworkHandler) (Object) this);
+                (ClientPlayNetworkHandler) (Object) this
+        );
+        QuickCraftWorkbenchShulkerCraft.onServerStatistics((ClientPlayNetworkHandler) (Object) this);
+        QuickCraftMouseCraftAckExecutor.onServerStatistics((ClientPlayNetworkHandler) (Object) this);
     }
 }

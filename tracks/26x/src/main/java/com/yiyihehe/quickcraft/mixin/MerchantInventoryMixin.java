@@ -20,14 +20,20 @@ public abstract class MerchantInventoryMixin {
             method = "updateSellItem",
             at = @At(
                     value = "INVOKE",
-                    target = "Lnet/minecraft/world/item/trading/MerchantOffers;getRecipeFor(Lnet/minecraft/world/item/ItemStack;Lnet/minecraft/world/item/ItemStack;I)Lnet/minecraft/world/item/trading/MerchantOffer;"
-            )
-    )
-    private MerchantOffer quickcraft$keepPinnedTradeSelected(MerchantOffers offers,
-                                                              ItemStack firstBuyItem,
-                                                              ItemStack secondBuyItem,
-                                                              int tradeIndex, Operation<MerchantOffer> original) {
-        return QuickTrade.getValidOfferForCurrentOrder(offers, firstBuyItem, secondBuyItem, tradeIndex,
-                () -> original.call(offers, firstBuyItem, secondBuyItem, tradeIndex));
+                    target = "Lnet/minecraft/world/item/trading/MerchantOffers;getRecipeFor(Lnet/minecraft/world/item/ItemStack;Lnet/minecraft/world/item/ItemStack;I)Lnet/minecraft/world/item/trading/MerchantOffer;"))
+    private MerchantOffer quickcraft$keepPinnedTradeSelected(
+            MerchantOffers offers,
+            ItemStack firstBuyItem,
+            ItemStack secondBuyItem,
+            int tradeIndex,
+            Operation<MerchantOffer> original
+    ) {
+        return QuickTrade.getValidOfferForCurrentOrder(
+                offers,
+                firstBuyItem,
+                secondBuyItem,
+                tradeIndex,
+                () -> original.call(offers, firstBuyItem, secondBuyItem, tradeIndex)
+        );
     }
 }

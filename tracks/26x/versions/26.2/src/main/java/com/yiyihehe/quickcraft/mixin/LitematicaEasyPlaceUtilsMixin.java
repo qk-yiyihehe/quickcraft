@@ -48,8 +48,7 @@ public abstract class LitematicaEasyPlaceUtilsMixin {
             method = "handlePlacementRestriction(Lnet/minecraft/client/Minecraft;)Z",
             at = @At("HEAD"),
             cancellable = true,
-            remap = false
-    )
+            remap = false)
     private static void quickcraft$letVanillaUseBypassLegacyPlacementRestriction(
             Minecraft client,
             CallbackInfoReturnable<Boolean> cir
@@ -71,11 +70,9 @@ public abstract class LitematicaEasyPlaceUtilsMixin {
             at = @At(
                     value = "INVOKE",
                     target = "Lfi/dy/masa/litematica/util/RayTraceUtils;getFurthestSchematicWorldTraceBeforeVanilla(Lnet/minecraft/world/level/Level;Lnet/minecraft/world/entity/Entity;D)Lfi/dy/masa/litematica/util/RayTraceUtils$RayTraceWrapper;",
-                    remap = false
-            ),
+                    remap = false),
             index = 1,
-            remap = false
-    )
+            remap = false)
     private static Entity quickcraft$useFreeCameraForFurthestSchematicTrace(Entity originalEntity) {
         return QuickFreeCameraInteractions.getEasyPlaceTraceEntity(Minecraft.getInstance(), originalEntity);
     }
@@ -85,23 +82,16 @@ public abstract class LitematicaEasyPlaceUtilsMixin {
             at = @At(
                     value = "INVOKE",
                     target = "Lfi/dy/masa/litematica/util/RayTraceUtils;getRayTraceFromEntity(Lnet/minecraft/world/level/Level;Lnet/minecraft/world/entity/Entity;ZD)Lnet/minecraft/world/phys/HitResult;",
-                    remap = false
-            ),
+                    remap = false),
             index = 1,
-            remap = false
-    )
+            remap = false)
     private static Entity quickcraft$useFreeCameraForVanillaTrace(Entity originalEntity) {
         return QuickFreeCameraInteractions.getEasyPlaceTraceEntity(Minecraft.getInstance(), originalEntity);
     }
 
-    @ModifyConstant(
-            method = "cacheEasyPlacePosition",
-            constant = @Constant(longValue = 2_000_000_000L),
-            remap = false
-    )
+    @ModifyConstant(method = "cacheEasyPlacePosition", constant = @Constant(longValue = 2_000_000_000L), remap = false)
     private static long quickcraft$useConfiguredCacheTime(long timeout) {
-        return QuickCraftConfigs.isHoldEasyPlaceEnabled()
-                ? 1_000_000L * QuickCraftConfigs.getHoldEasyPlaceCacheTimeMs()
+        return QuickCraftConfigs.isHoldEasyPlaceEnabled() ? 1_000_000L * QuickCraftConfigs.getHoldEasyPlaceCacheTimeMs()
                 : timeout;
     }
 }

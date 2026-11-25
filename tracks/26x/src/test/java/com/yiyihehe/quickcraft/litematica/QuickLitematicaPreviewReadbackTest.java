@@ -36,7 +36,10 @@ class QuickLitematicaPreviewReadbackTest {
         var submission = new IllegalStateException("submission");
         var cleanup = new IllegalStateException("buffer close");
         var resources = new QuickLitematicaPreviewReadback(() -> events.add("target"));
-        resources.buffer(() -> { events.add("buffer"); throw cleanup; });
+        resources.buffer(() -> {
+            events.add("buffer");
+            throw cleanup;
+        });
         resources.failed(submission, reported -> {
             assertThat(reported).isSameAs(submission);
             assertThat(reported.getSuppressed()).containsExactly(cleanup);

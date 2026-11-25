@@ -22,16 +22,36 @@ class QuickLitematicaGlobalReplacementsTest {
 
     @Test
     void restoresStackLimitRatiosAndUnstackableTargets() {
-        assertThat(QuickLitematicaGlobalReplacements.proportionalTarget(new ItemStack(item("minecraft:shears")),
-                new ItemStack(item("minecraft:oak_planks"))).getCount()).isEqualTo(64);
-        assertThat(QuickLitematicaGlobalReplacements.proportionalTarget(new ItemStack(item("minecraft:oak_planks"), 64),
-                new ItemStack(item("minecraft:shears"))).getCount()).isEqualTo(1);
-        assertThat(QuickLitematicaGlobalReplacements.proportionalTarget(new ItemStack(item("minecraft:oak_planks"), 16),
-                new ItemStack(item("minecraft:ender_pearl"))).getCount()).isEqualTo(4);
-        assertThat(QuickLitematicaGlobalReplacements.proportionalTarget(new ItemStack(item("minecraft:ender_pearl"), 4),
-                new ItemStack(item("minecraft:oak_planks"))).getCount()).isEqualTo(16);
-        assertThat(QuickLitematicaGlobalReplacements.proportionalTarget(new ItemStack(item("minecraft:oak_planks")),
-                new ItemStack(item("minecraft:ender_pearl"))).getCount()).isEqualTo(1);
+        assertThat(
+                QuickLitematicaGlobalReplacements.proportionalTarget(
+                        new ItemStack(item("minecraft:shears")),
+                        new ItemStack(item("minecraft:oak_planks"))
+                ).getCount()
+        ).isEqualTo(64);
+        assertThat(
+                QuickLitematicaGlobalReplacements.proportionalTarget(
+                        new ItemStack(item("minecraft:oak_planks"), 64),
+                        new ItemStack(item("minecraft:shears"))
+                ).getCount()
+        ).isEqualTo(1);
+        assertThat(
+                QuickLitematicaGlobalReplacements.proportionalTarget(
+                        new ItemStack(item("minecraft:oak_planks"), 16),
+                        new ItemStack(item("minecraft:ender_pearl"))
+                ).getCount()
+        ).isEqualTo(4);
+        assertThat(
+                QuickLitematicaGlobalReplacements.proportionalTarget(
+                        new ItemStack(item("minecraft:ender_pearl"), 4),
+                        new ItemStack(item("minecraft:oak_planks"))
+                ).getCount()
+        ).isEqualTo(16);
+        assertThat(
+                QuickLitematicaGlobalReplacements.proportionalTarget(
+                        new ItemStack(item("minecraft:oak_planks")),
+                        new ItemStack(item("minecraft:ender_pearl"))
+                ).getCount()
+        ).isEqualTo(1);
     }
 
     @Test
@@ -45,9 +65,21 @@ class QuickLitematicaGlobalReplacementsTest {
         var lookup = RegistryAccess.fromRegistryOfRegistries(BuiltInRegistries.REGISTRY);
         try {
             master.setBooleanValue(true);
-            manualConfig.setStrings(List.of(QuickLitematicaContainerReplacements.encodeContainerRule(
-                    new QuickLitematicaContainerReplacements.ContainerReplacement(new ItemStack(item("minecraft:stone")),
-                            new ItemStack(item("minecraft:stone"), 17), "test", "group", 0, false), lookup)));
+            manualConfig.setStrings(
+                    List.of(
+                            QuickLitematicaContainerReplacements.encodeContainerRule(
+                                    new QuickLitematicaContainerReplacements.ContainerReplacement(
+                                            new ItemStack(item("minecraft:stone")),
+                                            new ItemStack(item("minecraft:stone"), 17),
+                                            "test",
+                                            "group",
+                                            0,
+                                            false
+                                    ),
+                                    lookup
+                            )
+                    )
+            );
             globalConfig.setStrings(List.of("minecraft:stone->minecraft:glass", "minecraft:glass->minecraft:dirt"));
             var slots = List.of(new ItemStack(item("minecraft:stone"), 17), new ItemStack(item("minecraft:stone"), 32));
             var result = QuickLitematicaGlobalReplacements.containerSlots(slots, "test", "group");
@@ -65,12 +97,17 @@ class QuickLitematicaGlobalReplacementsTest {
             master.setBooleanValue(oldEnabled);
         }
     }
+
     private static net.minecraft.world.item.Item item(String id) {
-        return net.minecraft.core.registries.BuiltInRegistries.ITEM.getValue(net.minecraft.resources.Identifier.parse(id));
+        return net.minecraft.core.registries.BuiltInRegistries.ITEM.getValue(
+                net.minecraft.resources.Identifier.parse(id)
+        );
     }
 
     private static net.minecraft.world.level.block.Block block(String id) {
-        return net.minecraft.core.registries.BuiltInRegistries.BLOCK.getValue(net.minecraft.resources.Identifier.parse(id));
+        return net.minecraft.core.registries.BuiltInRegistries.BLOCK.getValue(
+                net.minecraft.resources.Identifier.parse(id)
+        );
     }
 
 }

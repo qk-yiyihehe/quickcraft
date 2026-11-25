@@ -34,9 +34,22 @@ class QuickLitematicaShulkerSlotExportTest {
         ItemStack outer = new ItemStack(Items.CHEST);
         List<ItemStack> outerSlots = emptySlots();
         outerSlots.set(0, shulker);
-        String group = QuickLitematicaContainerReplacements.containerGroupSignature(shulker, slot(26, new ItemStack(Items.STONE, 64)));
-        setRules(List.of(new QuickLitematicaContainerReplacements.ContainerReplacement(
-                new ItemStack(Items.STONE, 64), new ItemStack(Items.DIRT, 64), "test", group, 26, true)));
+        String group = QuickLitematicaContainerReplacements.containerGroupSignature(
+                shulker,
+                slot(26, new ItemStack(Items.STONE, 64))
+        );
+        setRules(
+                List.of(
+                        new QuickLitematicaContainerReplacements.ContainerReplacement(
+                                new ItemStack(Items.STONE, 64),
+                                new ItemStack(Items.DIRT, 64),
+                                "test",
+                                group,
+                                26,
+                                true
+                        )
+                )
+        );
 
         List<ItemStack> exported = export(outer, outerSlots);
         assertThat(exported.get(0).get(DataComponentTypes.CONTAINER)).isNotNull();
@@ -57,12 +70,34 @@ class QuickLitematicaShulkerSlotExportTest {
         List<ItemStack> outerSlots = emptySlots();
         outerSlots.set(0, shulker);
         String group = QuickLitematicaContainerReplacements.containerGroupSignature(shulker, nestedSlots);
-        setRules(List.of(new QuickLitematicaContainerReplacements.ContainerReplacement(
-                        new ItemStack(Items.STONE, 64), new ItemStack(Items.DIRT, 64), "test", group, 2, true),
-                new QuickLitematicaContainerReplacements.ContainerReplacement(
-                        new ItemStack(Items.STONE, 64), new ItemStack(Items.DIRT, 64), "test", group, 19, true),
-                new QuickLitematicaContainerReplacements.ContainerReplacement(
-                        new ItemStack(Items.STONE, 64), new ItemStack(Items.DIRT, 64), "test", group, 26, true)));
+        setRules(
+                List.of(
+                        new QuickLitematicaContainerReplacements.ContainerReplacement(
+                                new ItemStack(Items.STONE, 64),
+                                new ItemStack(Items.DIRT, 64),
+                                "test",
+                                group,
+                                2,
+                                true
+                        ),
+                        new QuickLitematicaContainerReplacements.ContainerReplacement(
+                                new ItemStack(Items.STONE, 64),
+                                new ItemStack(Items.DIRT, 64),
+                                "test",
+                                group,
+                                19,
+                                true
+                        ),
+                        new QuickLitematicaContainerReplacements.ContainerReplacement(
+                                new ItemStack(Items.STONE, 64),
+                                new ItemStack(Items.DIRT, 64),
+                                "test",
+                                group,
+                                26,
+                                true
+                        )
+                )
+        );
 
         List<ItemStack> exported = export(new ItemStack(Items.CHEST), outerSlots);
         DefaultedList<ItemStack> result = DefaultedList.ofSize(27, ItemStack.EMPTY);
@@ -115,8 +150,14 @@ class QuickLitematicaShulkerSlotExportTest {
     @SuppressWarnings("unchecked")
     private List<ItemStack> export(ItemStack container, List<ItemStack> slots) throws Exception {
         Method method = QuickLitematicaContainerMaterials.class.getDeclaredMethod(
-                "exportSlotStacks", ItemStack.class, List.class, String.class,
-                RegistryWrapper.WrapperLookup.class, int.class, boolean.class);
+                "exportSlotStacks",
+                ItemStack.class,
+                List.class,
+                String.class,
+                RegistryWrapper.WrapperLookup.class,
+                int.class,
+                boolean.class
+        );
         method.setAccessible(true);
         return (List<ItemStack>) method.invoke(null, container, slots, "test", lookup, 0, false);
     }
@@ -129,7 +170,10 @@ class QuickLitematicaShulkerSlotExportTest {
             }
         }
         Method method = QuickLitematicaContainerReplacements.class.getDeclaredMethod(
-                "setConfiguredRules", QuickLitematicaContainerReplacements.Scope.class, List.class);
+                "setConfiguredRules",
+                QuickLitematicaContainerReplacements.Scope.class,
+                List.class
+        );
         method.setAccessible(true);
         method.invoke(null, QuickLitematicaContainerReplacements.Scope.CONTAINER, entries);
     }

@@ -37,7 +37,9 @@ class QuickLitematicaSaveContextTest {
                 }).isInstanceOf(IllegalStateException.class);
                 assertThat(QuickLitematicaSaveContext.contains(world, outerPos)).isTrue();
                 AtomicBoolean otherThreadRead = new AtomicBoolean(true);
-                Thread worker = new Thread(() -> otherThreadRead.set(QuickLitematicaSaveContext.contains(world, outerPos)));
+                Thread worker = new Thread(
+                        () -> otherThreadRead.set(QuickLitematicaSaveContext.contains(world, outerPos))
+                );
                 worker.start();
                 worker.join(2_000);
                 assertThat(worker.isAlive()).isFalse();
@@ -74,16 +76,16 @@ class QuickLitematicaSaveContextTest {
         SchematicPlacementManager manager = mock(SchematicPlacementManager.class);
         when(manager.getAllPlacementsTouchingChunk(pos)).thenReturn(List.of());
 
-        try (var handler = mockStatic(SchematicWorldHandler.class);
-             var data = mockStatic(DataManager.class)) {
+        try (var handler = mockStatic(SchematicWorldHandler.class); var data = mockStatic(DataManager.class)) {
             handler.when(SchematicWorldHandler::getSchematicWorld).thenReturn(active);
             data.when(DataManager::getSchematicPlacementManager).thenReturn(manager);
 
             var previous = QuickLitematicaSaveContext.begin(active, pos);
             try {
                 assertThat(QuickLitematicaSaveContext.contains(active, pos)).isTrue();
-                assertThat(QuickLitematicaGlobalReplacements.baselineWorldState(pos))
-                        .isEqualTo(net.minecraft.world.level.block.Blocks.AIR.defaultBlockState());
+                assertThat(QuickLitematicaGlobalReplacements.baselineWorldState(pos)).isEqualTo(
+                        net.minecraft.world.level.block.Blocks.AIR.defaultBlockState()
+                );
             } finally {
                 QuickLitematicaSaveContext.end(previous);
             }

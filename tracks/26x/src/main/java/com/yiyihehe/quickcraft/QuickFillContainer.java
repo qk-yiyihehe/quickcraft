@@ -26,7 +26,7 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 
-/** Fills the clicked container with the most abundant transferable item in the player inventory. */
+/** 用玩家物品栏中可转移数量最多的那种物品填充点选的容器。 */
 public final class QuickFillContainer implements ClientModInitializer {
 
     private static boolean lastUseDown;
@@ -131,22 +131,27 @@ public final class QuickFillContainer implements ClientModInitializer {
         boolean movedAny = false;
         for (int playerSlotId : playerSlotIds) {
             Slot slot = handler.getSlot(playerSlotId);
-            if (!slot.hasItem()
-                    || !slot.mayPickup(client.player)
-                    || !ItemStack.isSameItemSameComponents(slot.getItem(), mostAbundant)) {
+            if (!slot.hasItem() || !slot.mayPickup(client.player) || !ItemStack.isSameItemSameComponents(
+                    slot.getItem(),
+                    mostAbundant
+            )) {
                 continue;
             }
 
             int sourceCount = slot.getItem().getCount();
             int beforeContainer = countMatchingInContainer(handler, containerSlotIds, mostAbundant);
-            QuickSlotTransfer.quickMove(client, handler, playerSlotId,
-                    target -> !isPlayerStorageSlot(target) && isVisibleSlot(target), false);
+            QuickSlotTransfer.quickMove(
+                    client,
+                    handler,
+                    playerSlotId,
+                    target -> !isPlayerStorageSlot(target) && isVisibleSlot(target),
+                    false
+            );
             int afterContainer = countMatchingInContainer(handler, containerSlotIds, mostAbundant);
             int afterSource = handler.getSlot(playerSlotId).getItem().getCount();
             int movedToContainer = afterContainer - beforeContainer;
-            if (movedToContainer <= 0
-                    || movedToContainer > remainingCapacity
-                    || afterSource != sourceCount - movedToContainer) {
+            if (movedToContainer <= 0 || movedToContainer > remainingCapacity || afterSource != sourceCount
+                    - movedToContainer) {
                 notifyFillSkipped(client);
                 return;
             }
@@ -164,26 +169,28 @@ public final class QuickFillContainer implements ClientModInitializer {
     private List<Integer> getContainerSlotIds(AbstractContainerMenu handler) {
         List<Slot> containerSlots = new ArrayList<>();
         for (Slot slot : handler.slots) {
-            if (!isVisibleSlot(slot)
-                    || isPlayerStorageSlot(slot)
-                    || QuickContainerLock.isLockedSlot(handler, slot)) {
+            if (!isVisibleSlot(slot) || isPlayerStorageSlot(slot) || QuickContainerLock.isLockedSlot(handler, slot)) {
                 continue;
             }
             containerSlots.add(slot);
         }
-        return containerSlots.stream()
-                .map(slot -> handler.slots.indexOf(slot))
-                .toList();
+        return containerSlots.stream().map(slot -> handler.slots.indexOf(slot)).toList();
     }
 
-    private int getContainerCapacity(Minecraft client, AbstractContainerMenu handler,
-                                     List<Integer> containerSlotIds, ItemStack stack) {
+    private int getContainerCapacity(
+            Minecraft client,
+            AbstractContainerMenu handler,
+            List<Integer> containerSlotIds,
+            ItemStack stack
+    ) {
         int capacity = 0;
         for (int slotId : containerSlotIds) {
             Slot slot = handler.getSlot(slotId);
-            if (handler instanceof AbstractFurnaceMenu
-                    && slot == handler.slots.get(0)
-                    && !isFurnaceInputAccepted(client, handler, stack)) {
+            if (handler instanceof AbstractFurnaceMenu && slot == handler.slots.get(0) && !isFurnaceInputAccepted(
+                    client,
+                    handler,
+                    stack
+            )) {
                 continue;
             }
             capacity += getSlotCapacity(slot, stack);
@@ -218,7 +225,11 @@ public final class QuickFillContainer implements ClientModInitializer {
         return client.level.recipeAccess().propertySet(RecipePropertySet.FURNACE_INPUT).test(stack);
     }
 
-    private int countMatchingInContainer(AbstractContainerMenu handler, List<Integer> containerSlotIds, ItemStack expected) {
+    private int countMatchingInContainer(
+            AbstractContainerMenu handler,
+            List<Integer> containerSlotIds,
+            ItemStack expected
+    ) {
         int count = 0;
         for (int slotId : containerSlotIds) {
             ItemStack stack = handler.getSlot(slotId).getItem();
@@ -231,7 +242,9 @@ public final class QuickFillContainer implements ClientModInitializer {
 
     private void notifyFillSkipped(Minecraft client) {
         if (client.player != null) {
-            client.player.sendOverlayMessage(Component.translatable("quickcraft.message.fill_container.not_insertable"));
+            client.player.sendOverlayMessage(
+                    Component.translatable("quickcraft.message.fill_container.not_insertable")
+            );
         }
     }
 
@@ -274,22 +287,19 @@ public final class QuickFillContainer implements ClientModInitializer {
     private List<Integer> getPlayerStorageSlotIds(AbstractContainerMenu handler) {
         List<Slot> playerSlots = new ArrayList<>();
         for (Slot slot : handler.slots) {
-            if (!isVisibleSlot(slot)
-                    || !isPlayerStorageSlot(slot)
-                    || QuickContainerLock.isLockedSlot(handler, slot)) {
+            if (!isVisibleSlot(slot) || !isPlayerStorageSlot(slot) || QuickContainerLock.isLockedSlot(handler, slot)) {
                 continue;
             }
             playerSlots.add(slot);
         }
 
-        playerSlots.sort(Comparator
-                .comparingInt((Slot slot) -> slot.getContainerSlot() >= 9 ? 0 : 1)
-                .thenComparingInt(Slot::getContainerSlot)
-                .thenComparingInt(slot -> slot.index));
+        playerSlots.sort(
+                Comparator.comparingInt((Slot slot) -> slot.getContainerSlot() >= 9 ? 0 : 1).thenComparingInt(
+                        Slot::getContainerSlot
+                ).thenComparingInt(slot -> slot.index)
+        );
 
-        return playerSlots.stream()
-                .map(slot -> slot.index)
-                .toList();
+        return playerSlots.stream().map(slot -> slot.index).toList();
     }
 
     private boolean isPlayerStorageSlot(Slot slot) {

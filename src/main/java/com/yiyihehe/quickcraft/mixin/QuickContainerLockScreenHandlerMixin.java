@@ -22,12 +22,27 @@ public abstract class QuickContainerLockScreenHandlerMixin {
     @Unique
     private static final ItemStack QUICKCRAFT_LOCKED_SLOT_PLACEHOLDER = new ItemStack(Items.BARRIER);
 
-    @WrapOperation(method = "onSlotClick", at = @At(value = "INVOKE",
-            target = "Lnet/minecraft/screen/ScreenHandler;internalOnSlotClick(IILnet/minecraft/screen/slot/SlotActionType;Lnet/minecraft/entity/player/PlayerEntity;)V"))
-    private void quickcraft$applySlotTakePermission(ScreenHandler handler, int slotId, int button,
-                                                    SlotActionType actionType, PlayerEntity player, Operation<Void> original) {
-        QuickContainerLock.runMenuSlotClick(handler, slotId, button, actionType, player,
-                () -> original.call(handler, slotId, button, actionType, player));
+    @WrapOperation(
+            method = "onSlotClick",
+            at = @At(
+                    value = "INVOKE",
+                    target = "Lnet/minecraft/screen/ScreenHandler;internalOnSlotClick(IILnet/minecraft/screen/slot/SlotActionType;Lnet/minecraft/entity/player/PlayerEntity;)V"))
+    private void quickcraft$applySlotTakePermission(
+            ScreenHandler handler,
+            int slotId,
+            int button,
+            SlotActionType actionType,
+            PlayerEntity player,
+            Operation<Void> original
+    ) {
+        QuickContainerLock.runMenuSlotClick(
+                handler,
+                slotId,
+                button,
+                actionType,
+                player,
+                () -> original.call(handler, slotId, button, actionType, player)
+        );
     }
 
     @WrapOperation(
@@ -35,9 +50,7 @@ public abstract class QuickContainerLockScreenHandlerMixin {
             at = @At(
                     value = "INVOKE",
                     target = "Lnet/minecraft/screen/slot/Slot;getStack()Lnet/minecraft/item/ItemStack;",
-                    ordinal = 0
-            )
-    )
+                    ordinal = 0))
     private ItemStack quickcraft$skipLockedSlotMerge(Slot slot, Operation<ItemStack> original) {
         if (QuickContainerLock.isLockedSlot((ScreenHandler) (Object) this, slot)) {
             return ItemStack.EMPTY;
@@ -51,9 +64,7 @@ public abstract class QuickContainerLockScreenHandlerMixin {
             at = @At(
                     value = "INVOKE",
                     target = "Lnet/minecraft/screen/slot/Slot;getStack()Lnet/minecraft/item/ItemStack;",
-                    ordinal = 1
-            )
-    )
+                    ordinal = 1))
     private ItemStack quickcraft$skipLockedSlotFill(Slot slot, Operation<ItemStack> original) {
         if (QuickContainerLock.isLockedSlot((ScreenHandler) (Object) this, slot)) {
             return QUICKCRAFT_LOCKED_SLOT_PLACEHOLDER;

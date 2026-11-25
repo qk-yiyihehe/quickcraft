@@ -71,7 +71,15 @@ final class QuickCrossBoxSortSession {
     private QuickCrossBoxSortStacks.Transfer<QuickCrossBoxSortStackKey> batchTransfer;
     private int batchTargetBeforeCount;
 
-    private QuickCrossBoxSortSession(QuickCrossBoxSortContainer container, boolean onePerBox, int workspaceHotbarSlot, int borrowedDestinationSlot, QuickCrossBoxSortStackKey borrowedOriginalKey, int borrowedOriginalCount, boolean borrowedEligibleShulker) {
+    private QuickCrossBoxSortSession(
+            QuickCrossBoxSortContainer container,
+            boolean onePerBox,
+            int workspaceHotbarSlot,
+            int borrowedDestinationSlot,
+            QuickCrossBoxSortStackKey borrowedOriginalKey,
+            int borrowedOriginalCount,
+            boolean borrowedEligibleShulker
+    ) {
         this.state = State.BEGIN_OPERATION;
         this.openContainerId = Integer.MIN_VALUE;
         this.emptyMerges = List.of();
@@ -87,7 +95,9 @@ final class QuickCrossBoxSortSession {
 
     static QuickCrossBoxSortSession create(Minecraft client, boolean onePerBox, List<Integer> containerSlots) {
         LocalPlayer player = client.player;
-        if (player != null && QuickClientScreenAccess.currentScreen(client) instanceof AbstractContainerScreen<?> screen && (containerSlots != null || screen instanceof InventoryScreen) && player.containerMenu == screen.getMenu()) {
+        if (player != null && QuickClientScreenAccess.currentScreen(client) instanceof AbstractContainerScreen<?> screen
+                && (containerSlots != null || screen instanceof InventoryScreen) && player.containerMenu == screen
+                        .getMenu()) {
             if (!player.containerMenu.getCarried().isEmpty()) {
                 message(screen, "quickcraft.message.cross_box_sort.cursor_not_empty");
                 return null;
@@ -95,7 +105,7 @@ final class QuickCrossBoxSortSession {
                 Inventory inventory = player.getInventory();
                 int emptySlot = -1;
 
-                for(int slot = 0; slot < 36; ++slot) {
+                for (int slot = 0; slot < 36; ++slot) {
                     if (!QuickCrossBoxSortProtection.isLocked(slot) && inventory.getItem(slot).isEmpty()) {
                         emptySlot = slot;
                         break;
@@ -108,7 +118,7 @@ final class QuickCrossBoxSortSession {
                 } else {
                     int workspace = -1;
 
-                    for(int slot = 0; slot < 9; ++slot) {
+                    for (int slot = 0; slot < 9; ++slot) {
                         if (!QuickCrossBoxSortProtection.isLocked(slot) && inventory.getItem(slot).isEmpty()) {
                             workspace = slot;
                             break;
@@ -120,26 +130,50 @@ final class QuickCrossBoxSortSession {
                     int borrowedCount = 0;
                     boolean borrowedShulker = false;
                     if (workspace < 0) {
-                        workspace = java.util.stream.IntStream.range(0, 9).filter(i -> !QuickCrossBoxSortProtection.isLocked(i)).findFirst().orElse(-1);
-                        if (workspace < 0) { message(screen, "quickcraft.message.cross_box_sort.inventory_full"); return null; }
+                        workspace = java.util.stream.IntStream.range(0, 9).filter(
+                                i -> !QuickCrossBoxSortProtection.isLocked(i)
+                        ).findFirst().orElse(-1);
+                        if (workspace < 0) {
+                            message(screen, "quickcraft.message.cross_box_sort.inventory_full");
+                            return null;
+                        }
                         borrowedDestination = emptySlot;
                         ItemStack borrowed = inventory.getItem(workspace);
                         borrowedKey = new QuickCrossBoxSortStackKey(borrowed);
                         borrowedCount = borrowed.getCount();
-                        borrowedShulker = QuickCrossBoxSortInventory.isVanillaShulkerBox(borrowed) && !QuickCrossBoxSortInventory.isNamedOrSpecial(borrowed) && borrowed.getCount() == 1;
+                        borrowedShulker = QuickCrossBoxSortInventory.isVanillaShulkerBox(borrowed)
+                                && !QuickCrossBoxSortInventory.isNamedOrSpecial(borrowed) && borrowed.getCount() == 1;
                     }
 
                     QuickCrossBoxSortContainer container = null;
                     if (containerSlots != null) {
                         int temporary = -1;
                         for (int slot = 0; slot < 36; slot++) {
-                            if (slot != workspace && slot != borrowedDestination && !QuickCrossBoxSortProtection.isLocked(slot) && inventory.getItem(slot).isEmpty()) { temporary = slot; break; }
+                            if (slot != workspace && slot != borrowedDestination && !QuickCrossBoxSortProtection
+                                    .isLocked(slot) && inventory.getItem(slot).isEmpty()) {
+                                temporary = slot;
+                                break;
+                            }
                         }
-                        if (temporary < 0) { message(screen, "quickcraft.message.cross_box_sort.container_space"); return null; }
+                        if (temporary < 0) {
+                            message(screen, "quickcraft.message.cross_box_sort.container_space");
+                            return null;
+                        }
                         container = QuickCrossBoxSortContainer.create(client, screen, containerSlots, temporary);
-                        if (container == null) { message(screen, "quickcraft.message.cross_box_sort.container_unavailable"); return null; }
+                        if (container == null) {
+                            message(screen, "quickcraft.message.cross_box_sort.container_unavailable");
+                            return null;
+                        }
                     }
-                    return new QuickCrossBoxSortSession(container, onePerBox, workspace, borrowedDestination, borrowedKey, borrowedCount, borrowedShulker);
+                    return new QuickCrossBoxSortSession(
+                            container,
+                            onePerBox,
+                            workspace,
+                            borrowedDestination,
+                            borrowedKey,
+                            borrowedCount,
+                            borrowedShulker
+                    );
                 }
             }
         } else {
@@ -151,7 +185,7 @@ final class QuickCrossBoxSortSession {
         this.backgroundMode = true;
         this.backgroundInventory = inventory;
         if (inventory == null) {
-            QuickClientScreenAccess.setScreen(client, (Screen)null);
+            QuickClientScreenAccess.setScreen(client, (Screen) null);
         }
     }
 
@@ -161,14 +195,21 @@ final class QuickCrossBoxSortSession {
             return QuickClientScreenAccess.currentScreen(client) == backgroundInventory && client.player != null
                     && client.player.containerMenu == client.player.inventoryMenu;
         }
-        if (container != null && container.consume(screen)) { return true; }
-        if (this.backgroundMode && this.expectingHiddenContainerScreen && screen instanceof AbstractContainerScreen<?> containerScreen) {
+        if (container != null && container.consume(screen)) {
+            return true;
+        }
+        if (this.backgroundMode && this.expectingHiddenContainerScreen
+                && screen instanceof AbstractContainerScreen<?> containerScreen) {
             if (!(screen instanceof InventoryScreen)) {
                 Minecraft client = Minecraft.getInstance();
-                if (client.player != null && containerScreen.getMenu() == client.player.containerMenu && containerScreen.getMenu() instanceof net.minecraft.world.inventory.ShulkerBoxMenu) {
+                if (client.player != null && containerScreen.getMenu() == client.player.containerMenu && containerScreen
+                        .getMenu() instanceof net.minecraft.world.inventory.ShulkerBoxMenu) {
                     this.expectingHiddenContainerScreen = false;
                     this.hiddenContainerScreen = containerScreen;
-                    com.yiyihehe.quickcraft.QuickContainerLock.bindInventoryShulkerScreen(containerScreen, openingInventorySlot);
+                    com.yiyihehe.quickcraft.QuickContainerLock.bindInventoryShulkerScreen(
+                            containerScreen,
+                            openingInventorySlot
+                    );
                     return true;
                 }
 
@@ -181,11 +222,12 @@ final class QuickCrossBoxSortSession {
 
     void cancel(Minecraft client) {
         if (expectingHiddenContainerScreen) {
-            // Let the in-flight open arrive under this session's ownership before recovering.
+            // 等已发出的打开请求由当前会话接收后，再恢复操作。
             return;
         }
         if (state != State.STOPPED && state != State.ABORT_RECOVERY_WAIT && state != State.ABORT_WAIT_INVENTORY
-        && state != State.ABORT_RETURN_CONTAINER && state != State.ABORT_RESTORE_HOTBAR && state != State.ABORT_WAIT_HOTBAR_RESTORE) {
+                && state != State.ABORT_RETURN_CONTAINER && state != State.ABORT_RESTORE_HOTBAR
+                && state != State.ABORT_WAIT_HOTBAR_RESTORE) {
             abort(client, Component.translatable("quickcraft.message.cross_box_sort.safe_abort"));
         }
     }
@@ -215,41 +257,115 @@ final class QuickCrossBoxSortSession {
                     this.abort(client, Component.translatable("quickcraft.message.cross_box_sort.safe_abort"));
                     return this.state != State.STOPPED;
                 } else {
-                    for(int immediateSteps = 0; immediateSteps < 64 && this.state != State.STOPPED; ++immediateSteps) {
+                    for (int immediateSteps = 0; immediateSteps < 64 && this.state != State.STOPPED; ++immediateSteps) {
                         State stateBeforeStep = this.state;
                         switch (this.state) {
                             case RESERVE_HOTBAR -> this.reserveHotbar(client);
-                            case WAIT_RESERVE_HOTBAR -> this.waitForClick(client, () -> player.getInventory().getItem(this.workspaceHotbarSlot).isEmpty() && inventoryStackMatches(player, this.borrowedDestinationSlot, this.borrowedOriginalKey, this.borrowedOriginalCount), State.PLAN_OPERATION);
+                            case WAIT_RESERVE_HOTBAR -> this.waitForClick(
+                                    client,
+                                    () -> player.getInventory().getItem(this.workspaceHotbarSlot).isEmpty()
+                                            && inventoryStackMatches(
+                                                    player,
+                                                    this.borrowedDestinationSlot,
+                                                    this.borrowedOriginalKey,
+                                                    this.borrowedOriginalCount
+                                            ),
+                                    State.PLAN_OPERATION
+                            );
                             case PLAN_OPERATION -> this.planOperation(client);
                             case BEGIN_OPERATION -> this.beginBatch();
-                            case BATCH_OPEN_SOURCE -> this.openBox(client, this.batch.sourceInventorySlot(), State.BATCH_WAIT_SOURCE_OPEN);
+                            case BATCH_OPEN_SOURCE -> this.openBox(
+                                    client,
+                                    this.batch.sourceInventorySlot(),
+                                    State.BATCH_WAIT_SOURCE_OPEN
+                            );
                             case BATCH_WAIT_SOURCE_OPEN -> this.waitForOpenContainer(client, State.BATCH_PICK_SOURCE);
                             case BATCH_PICK_SOURCE -> this.batchPickSource(client);
-                            case BATCH_WAIT_PICK_SOURCE -> this.waitForClick(client, () -> carriedMatches(player, this.activeJob.key, this.activeJob.originalCount), State.BATCH_STAGE_SOURCE);
+                            case BATCH_WAIT_PICK_SOURCE -> this.waitForClick(
+                                    client,
+                                    () -> carriedMatches(player, this.activeJob.key, this.activeJob.originalCount),
+                                    State.BATCH_STAGE_SOURCE
+                            );
                             case BATCH_STAGE_SOURCE -> this.batchStageSource(client);
-                            case BATCH_WAIT_STAGE_SOURCE -> this.waitForClick(client, () -> player.containerMenu.getCarried().isEmpty() && inventoryStackMatches(player, this.activeJob.stagingSlot, this.activeJob.key, this.activeJob.originalCount), State.BATCH_PICK_SOURCE);
+                            case BATCH_WAIT_STAGE_SOURCE -> this.waitForClick(
+                                    client,
+                                    () -> player.containerMenu.getCarried().isEmpty() && inventoryStackMatches(
+                                            player,
+                                            this.activeJob.stagingSlot,
+                                            this.activeJob.key,
+                                            this.activeJob.originalCount
+                                    ),
+                                    State.BATCH_PICK_SOURCE
+                            );
                             case BATCH_CLOSE_SOURCE -> this.closeContainer(player, State.BATCH_WAIT_SOURCE_CLOSE);
                             case BATCH_WAIT_SOURCE_CLOSE -> this.waitForClosed(player, State.BATCH_BEGIN_TARGET);
                             case BATCH_BEGIN_TARGET -> this.batchBeginTarget();
-                            case BATCH_OPEN_TARGET -> this.openBox(client, (this.batch.targets().get(this.targetGroupIndex)).targetInventorySlot(), State.BATCH_WAIT_TARGET_OPEN);
+                            case BATCH_OPEN_TARGET -> this.openBox(
+                                    client,
+                                    (this.batch.targets().get(this.targetGroupIndex)).targetInventorySlot(),
+                                    State.BATCH_WAIT_TARGET_OPEN
+                            );
                             case BATCH_WAIT_TARGET_OPEN -> this.waitForOpenContainer(client, State.BATCH_PICK_STAGE);
                             case BATCH_PICK_STAGE -> this.batchPickStage(client);
-                            case BATCH_WAIT_PICK_STAGE -> this.waitForClick(client, () -> carriedMatches(player, this.activeJob.key, this.activeJob.stagedCount) && player.getInventory().getItem(this.activeJob.stagingSlot).isEmpty(), State.BATCH_PLACE_TARGET);
+                            case BATCH_WAIT_PICK_STAGE -> this.waitForClick(
+                                    client,
+                                    () -> carriedMatches(player, this.activeJob.key, this.activeJob.stagedCount)
+                                            && player.getInventory().getItem(this.activeJob.stagingSlot).isEmpty(),
+                                    State.BATCH_PLACE_TARGET
+                            );
                             case BATCH_PLACE_TARGET -> this.batchPlaceTarget(client);
                             case BATCH_WAIT_PLACE_TARGET -> this.waitForBatchTarget(player, client);
-                            case BATCH_STORE_REMAINDER -> this.clickInventorySlot(client, this.activeJob.stagingSlot, 0, State.BATCH_WAIT_STORE_REMAINDER);
-                            case BATCH_WAIT_STORE_REMAINDER -> this.waitForClick(client, () -> player.containerMenu.getCarried().isEmpty() && inventoryStackMatches(player, this.activeJob.stagingSlot, this.activeJob.key, this.activeJob.stagedCount), State.BATCH_ADVANCE_TARGET);
+                            case BATCH_STORE_REMAINDER -> this.clickInventorySlot(
+                                    client,
+                                    this.activeJob.stagingSlot,
+                                    0,
+                                    State.BATCH_WAIT_STORE_REMAINDER
+                            );
+                            case BATCH_WAIT_STORE_REMAINDER -> this.waitForClick(
+                                    client,
+                                    () -> player.containerMenu.getCarried().isEmpty() && inventoryStackMatches(
+                                            player,
+                                            this.activeJob.stagingSlot,
+                                            this.activeJob.key,
+                                            this.activeJob.stagedCount
+                                    ),
+                                    State.BATCH_ADVANCE_TARGET
+                            );
                             case BATCH_ADVANCE_TARGET -> this.batchAdvanceTarget();
                             case BATCH_CLOSE_TARGET -> this.closeContainer(player, State.BATCH_WAIT_TARGET_CLOSE);
                             case BATCH_WAIT_TARGET_CLOSE -> this.waitForClosed(player, State.BATCH_BEGIN_TARGET);
                             case BATCH_BEGIN_RETURN -> this.batchBeginReturn();
-                            case BATCH_OPEN_RETURN_SOURCE -> this.openBox(client, this.batch.sourceInventorySlot(), State.BATCH_WAIT_RETURN_SOURCE_OPEN);
-                            case BATCH_WAIT_RETURN_SOURCE_OPEN -> this.waitForOpenContainer(client, State.BATCH_PICK_RETURN);
+                            case BATCH_OPEN_RETURN_SOURCE -> this.openBox(
+                                    client,
+                                    this.batch.sourceInventorySlot(),
+                                    State.BATCH_WAIT_RETURN_SOURCE_OPEN
+                            );
+                            case BATCH_WAIT_RETURN_SOURCE_OPEN -> this.waitForOpenContainer(
+                                    client,
+                                    State.BATCH_PICK_RETURN
+                            );
                             case BATCH_PICK_RETURN -> this.batchPickReturn(client);
-                            case BATCH_WAIT_PICK_RETURN -> this.waitForClick(client, () -> carriedMatches(player, this.activeJob.key, this.activeJob.stagedCount) && player.getInventory().getItem(this.activeJob.stagingSlot).isEmpty(), State.BATCH_PLACE_RETURN);
+                            case BATCH_WAIT_PICK_RETURN -> this.waitForClick(
+                                    client,
+                                    () -> carriedMatches(player, this.activeJob.key, this.activeJob.stagedCount)
+                                            && player.getInventory().getItem(this.activeJob.stagingSlot).isEmpty(),
+                                    State.BATCH_PLACE_RETURN
+                            );
                             case BATCH_PLACE_RETURN -> this.batchPlaceReturn(client);
-                            case BATCH_WAIT_PLACE_RETURN -> this.waitForClick(client, () -> player.containerMenu.getCarried().isEmpty() && containerStackMatches(player.containerMenu, this.activeJob.sourceBoxSlot, this.activeJob.key, this.activeJob.stagedCount), State.BATCH_PICK_RETURN);
-                            case BATCH_CLOSE_RETURN_SOURCE -> this.closeContainer(player, State.BATCH_WAIT_RETURN_SOURCE_CLOSE);
+                            case BATCH_WAIT_PLACE_RETURN -> this.waitForClick(
+                                    client,
+                                    () -> player.containerMenu.getCarried().isEmpty() && containerStackMatches(
+                                            player.containerMenu,
+                                            this.activeJob.sourceBoxSlot,
+                                            this.activeJob.key,
+                                            this.activeJob.stagedCount
+                                    ),
+                                    State.BATCH_PICK_RETURN
+                            );
+                            case BATCH_CLOSE_RETURN_SOURCE -> this.closeContainer(
+                                    player,
+                                    State.BATCH_WAIT_RETURN_SOURCE_CLOSE
+                            );
                             case BATCH_WAIT_RETURN_SOURCE_CLOSE -> this.waitForClosed(player, State.BATCH_COMPLETE);
                             case BATCH_COMPLETE -> this.completeBatch();
                             case BEGIN_SWAP_CYCLE -> this.beginSwaps(client);
@@ -260,15 +376,49 @@ final class QuickCrossBoxSortSession {
                             case CLOSE_SWAP_BOX -> this.closeContainer(player, State.WAIT_SWAP_CLOSE);
                             case WAIT_SWAP_CLOSE -> this.waitForClosed(player, this.afterSwapCloseState);
                             case RESTORE_HOTBAR -> this.restoreHotbar(client);
-                            case WAIT_RESTORE_HOTBAR -> this.waitForClick(client, () -> player.getInventory().getItem(this.borrowedDestinationSlot).isEmpty() && !player.getInventory().getItem(this.workspaceHotbarSlot).isEmpty() && player.containerMenu.getCarried().isEmpty(), State.PREPARE_EMPTY_MERGES);
+                            case WAIT_RESTORE_HOTBAR -> this.waitForClick(
+                                    client,
+                                    () -> player.getInventory().getItem(this.borrowedDestinationSlot).isEmpty()
+                                            && !player.getInventory().getItem(this.workspaceHotbarSlot).isEmpty()
+                                            && player.containerMenu.getCarried().isEmpty(),
+                                    State.PREPARE_EMPTY_MERGES
+                            );
                             case PREPARE_EMPTY_MERGES -> this.prepareEmptyMerges(player);
                             case BEGIN_EMPTY_MERGE -> this.beginEmptyMerge(player);
                             case PICK_EMPTY_SOURCE -> this.pickEmptySource(client);
-                            case WAIT_PICK_EMPTY_SOURCE -> this.waitForClick(client, () -> carriedMatches(player, this.emptyMerge.key(), this.emptyMergeCount) && emptyMergeStack(player, this.emptyMerge.sourceInventorySlot()).isEmpty(), State.PLACE_EMPTY_TARGET);
+                            case WAIT_PICK_EMPTY_SOURCE -> this.waitForClick(
+                                    client,
+                                    () -> carriedMatches(player, this.emptyMerge.key(), this.emptyMergeCount)
+                                            && emptyMergeStack(player, this.emptyMerge.sourceInventorySlot()).isEmpty(),
+                                    State.PLACE_EMPTY_TARGET
+                            );
                             case PLACE_EMPTY_TARGET -> this.placeEmptyTarget(client);
-                            case WAIT_PLACE_EMPTY_TARGET -> this.waitForClick(client, () -> carriedMatches(player, this.emptyMerge.key(), this.emptyMergeCount - this.emptyMerge.amount()) && emptyMergeStackMatches(player, this.emptyMerge.targetInventorySlot(), this.emptyMerge.key(), this.emptyTargetBeforeCount + this.emptyMerge.amount()), this.emptyMergeCount == this.emptyMerge.amount() ? State.BEGIN_EMPTY_MERGE : State.RETURN_EMPTY_REMAINDER);
+                            case WAIT_PLACE_EMPTY_TARGET -> this.waitForClick(
+                                    client,
+                                    () -> carriedMatches(
+                                            player,
+                                            this.emptyMerge.key(),
+                                            this.emptyMergeCount - this.emptyMerge.amount()
+                                    ) && emptyMergeStackMatches(
+                                            player,
+                                            this.emptyMerge.targetInventorySlot(),
+                                            this.emptyMerge.key(),
+                                            this.emptyTargetBeforeCount + this.emptyMerge.amount()
+                                    ),
+                                    this.emptyMergeCount == this.emptyMerge.amount() ? State.BEGIN_EMPTY_MERGE
+                                            : State.RETURN_EMPTY_REMAINDER
+                            );
                             case RETURN_EMPTY_REMAINDER -> this.returnEmptyRemainder(client);
-                            case WAIT_RETURN_EMPTY_REMAINDER -> this.waitForClick(client, () -> player.containerMenu.getCarried().isEmpty() && emptyMergeStackMatches(player, this.emptyMerge.sourceInventorySlot(), this.emptyMerge.key(), this.emptyMergeCount - this.emptyMerge.amount()), State.BEGIN_EMPTY_MERGE);
+                            case WAIT_RETURN_EMPTY_REMAINDER -> this.waitForClick(
+                                    client,
+                                    () -> player.containerMenu.getCarried().isEmpty() && emptyMergeStackMatches(
+                                            player,
+                                            this.emptyMerge.sourceInventorySlot(),
+                                            this.emptyMerge.key(),
+                                            this.emptyMergeCount - this.emptyMerge.amount()
+                                    ),
+                                    State.BEGIN_EMPTY_MERGE
+                            );
                             case ABORT_RETURN_CONTAINER -> this.recoverContainer(client);
                             case ABORT_RECOVERY_WAIT -> this.finishAbortRecovery(player);
                             case ABORT_WAIT_INVENTORY -> this.waitForAbortInventory(player);
@@ -303,7 +453,7 @@ final class QuickCrossBoxSortSession {
             Set<Integer> localTargetSlots = new HashSet<>();
 
             int end;
-            for(end = this.transferIndex; end < this.transfers.size(); ++end) {
+            for (end = this.transferIndex; end < this.transfers.size(); ++end) {
                 QuickCrossBoxSortStacks.Transfer<QuickCrossBoxSortStackKey> move = this.transfers.get(end);
                 if (move.sourceInventorySlot() != sourceInventorySlot) {
                     break;
@@ -337,15 +487,20 @@ final class QuickCrossBoxSortSession {
                 localTargetSlots = nextTargets;
             }
 
-            Map<Integer, List<QuickCrossBoxSortStacks.Transfer<QuickCrossBoxSortStackKey>>> groupedTargets = new LinkedHashMap<>();
+            Map<Integer, List<QuickCrossBoxSortStacks.Transfer<QuickCrossBoxSortStackKey>>> groupedTargets =
+                    new LinkedHashMap<>();
 
-            for(BatchJob job : jobs.values()) {
-                for(QuickCrossBoxSortStacks.Transfer<QuickCrossBoxSortStackKey> move : job.moves) {
-                    (groupedTargets.computeIfAbsent(move.targetInventorySlot(), (ignored) -> new ArrayList<>())).add(move);
+            for (BatchJob job : jobs.values()) {
+                for (QuickCrossBoxSortStacks.Transfer<QuickCrossBoxSortStackKey> move : job.moves) {
+                    (groupedTargets.computeIfAbsent(move.targetInventorySlot(), (ignored) -> new ArrayList<>())).add(
+                            move
+                    );
                 }
             }
 
-            List<TargetGroup> targets = groupedTargets.entrySet().stream().map((entry) -> new TargetGroup(entry.getKey(), List.copyOf(entry.getValue()))).toList();
+            List<TargetGroup> targets = groupedTargets.entrySet().stream().map(
+                    (entry) -> new TargetGroup(entry.getKey(), List.copyOf(entry.getValue()))
+            ).toList();
             this.batch = new Batch(sourceInventorySlot, end, List.copyOf(jobs.values()), targets, Map.copyOf(jobs));
             this.batchJobIndex = 0;
             this.targetGroupIndex = 0;
@@ -355,8 +510,19 @@ final class QuickCrossBoxSortSession {
 
     private void reserveHotbar(Minecraft client) {
         LocalPlayer player = client.player;
-        if (player != null && isBaseMenu(player.containerMenu) && this.borrowedDestinationSlot >= 0 && inventoryStackMatches(player, this.workspaceHotbarSlot, this.borrowedOriginalKey, this.borrowedOriginalCount) && player.getInventory().getItem(this.borrowedDestinationSlot).isEmpty()) {
-            this.sendInventorySwap(client, this.borrowedDestinationSlot, this.workspaceHotbarSlot, State.WAIT_RESERVE_HOTBAR);
+        if (player != null && isBaseMenu(player.containerMenu) && this.borrowedDestinationSlot >= 0
+                && inventoryStackMatches(
+                        player,
+                        this.workspaceHotbarSlot,
+                        this.borrowedOriginalKey,
+                        this.borrowedOriginalCount
+                ) && player.getInventory().getItem(this.borrowedDestinationSlot).isEmpty()) {
+            this.sendInventorySwap(
+                    client,
+                    this.borrowedDestinationSlot,
+                    this.workspaceHotbarSlot,
+                    State.WAIT_RESERVE_HOTBAR
+            );
         } else {
             this.abort(client, Component.translatable("quickcraft.message.cross_box_sort.hotbar_staging_failed"));
         }
@@ -364,8 +530,12 @@ final class QuickCrossBoxSortSession {
 
     private void planOperation(Minecraft client) {
         LocalPlayer player = client.player;
-        if (player != null && isBaseMenu(player.containerMenu) && player.getInventory().getItem(this.workspaceHotbarSlot).isEmpty()) {
-            QuickCrossBoxSortInventory.ScanResult scan = container == null ? QuickCrossBoxSortInventory.scan(player.getInventory()) : QuickCrossBoxSortInventory.scan(container.snapshot());
+        if (player != null && isBaseMenu(player.containerMenu) && player.getInventory().getItem(
+                this.workspaceHotbarSlot
+        ).isEmpty()) {
+            QuickCrossBoxSortInventory.ScanResult scan = container == null ? QuickCrossBoxSortInventory.scan(
+                    player.getInventory()
+            ) : QuickCrossBoxSortInventory.scan(container.snapshot());
             var staging = QuickCrossBoxSortInventory.scan(player.getInventory()).stagingInventorySlots().stream()
                     .filter(slot -> container == null || slot != container.temporarySlot()).toList();
             if (!staging.contains(this.workspaceHotbarSlot)) {
@@ -373,15 +543,25 @@ final class QuickCrossBoxSortSession {
             } else {
                 QuickCrossBoxSortPlanner.Plan<QuickCrossBoxSortStackKey> plan;
                 try {
-                    plan = QuickCrossBoxSortPlanner.plan(scan.boxes(), container == null ? QuickCrossBoxSortSpares.singles(player.getInventory()) : QuickCrossBoxSortSpares.singles(container.snapshot(), slot -> false), QuickCrossBoxSort.comparator(), onePerBox);
+                    plan = QuickCrossBoxSortPlanner.plan(
+                            scan.boxes(),
+                            container == null ? QuickCrossBoxSortSpares.singles(player.getInventory())
+                                    : QuickCrossBoxSortSpares.singles(container.snapshot(), slot -> false),
+                            QuickCrossBoxSort.comparator(),
+                            onePerBox
+                    );
                 } catch (RuntimeException exception) {
                     QuickCrossBoxSort.LOGGER.error("Failed to build global shulker sort plan", exception);
                     this.abort(client, Component.translatable("quickcraft.message.cross_box_sort.plan_failed"));
                     return;
                 }
 
-                groupedFallback = QuickCrossBoxSort.reportPlan(statusScreen(), QuickCrossBoxSortSpares.needed(scan.boxes()),
-                        plan.targets().size(), onePerBox);
+                groupedFallback = QuickCrossBoxSort.reportPlan(
+                        statusScreen(),
+                        QuickCrossBoxSortSpares.needed(scan.boxes()),
+                        plan.targets().size(),
+                        onePerBox
+                );
                 this.stagingInventorySlots = staging;
 
                 this.transfers = plan.merges();
@@ -406,18 +586,18 @@ final class QuickCrossBoxSortSession {
         var inventory = client.player.getInventory();
         List<Integer> hotbarSlots = new ArrayList<>();
         hotbarSlots.add(this.workspaceHotbarSlot);
-        // The external-container path reserves its own temporary slot and keeps one swap register.
+        // 外部容器流程会保留专用的临时槽位，并只使用一个交换暂存槽。
         if (container == null) {
             for (int slot = 0; slot < 9; slot++) {
-                if (slot != this.workspaceHotbarSlot && !QuickCrossBoxSortProtection.isLocked(slot)
-                        && inventory.getItem(slot).isEmpty()) {
+                if (slot != this.workspaceHotbarSlot && !QuickCrossBoxSortProtection.isLocked(slot) && inventory
+                        .getItem(slot).isEmpty()) {
                     hotbarSlots.add(slot);
                 }
             }
         }
         this.scheduledSwaps = QuickCrossBoxSortPlanner.scheduleSwaps(this.swapCycles, hotbarSlots.size());
-        int usedRegisters = scheduledSwaps.stream()
-                .mapToInt(QuickCrossBoxSortPlanner.ScheduledSwap::register).max().orElse(0) + 1;
+        int usedRegisters = scheduledSwaps.stream().mapToInt(QuickCrossBoxSortPlanner.ScheduledSwap::register).max()
+                .orElse(0) + 1;
         this.swapHotbarSlots = List.copyOf(hotbarSlots.subList(0, usedRegisters));
         this.swapStepIndex = 0;
         this.state = State.OPEN_SWAP_BOX;
@@ -436,7 +616,8 @@ final class QuickCrossBoxSortSession {
         var swap = this.currentSwap();
         var step = swap.step();
         int hotbarSlot = this.swapHotbarSlots.get(swap.register());
-        if (player != null && this.validOpenBoxMenu(player.containerMenu)
+        if (player != null
+                && this.validOpenBoxMenu(player.containerMenu)
                 && stackMatches(player.containerMenu.getSlot(step.slot().boxSlot()).getItem(), step.slotBefore())
                 && stackMatches(player.getInventory().getItem(hotbarSlot), step.registerBefore())
                 && player.containerMenu.getCarried().isEmpty()) {
@@ -451,9 +632,11 @@ final class QuickCrossBoxSortSession {
         var swap = this.currentSwap();
         var step = swap.step();
         int hotbarSlot = this.swapHotbarSlots.get(swap.register());
-        BooleanSupplier validation = () -> stackMatches(player.containerMenu.getSlot(step.slot().boxSlot()).getItem(), step.slotAfter())
-                && stackMatches(player.getInventory().getItem(hotbarSlot), step.registerAfter())
-                && player.containerMenu.getCarried().isEmpty();
+        BooleanSupplier validation = () -> stackMatches(
+                player.containerMenu.getSlot(step.slot().boxSlot()).getItem(),
+                step.slotAfter()
+        ) && stackMatches(player.getInventory().getItem(hotbarSlot), step.registerAfter()) && player.containerMenu
+                .getCarried().isEmpty();
         if (!this.clickSettled(player, validation)) {
             this.abortIfClickTimedOut(client, player, State.EXECUTE_SWAP);
             return;
@@ -477,8 +660,15 @@ final class QuickCrossBoxSortSession {
         }
         if (this.borrowedDestinationSlot < 0) {
             this.state = State.PREPARE_EMPTY_MERGES;
-        } else if (player != null && isBaseMenu(player.containerMenu) && player.getInventory().getItem(this.workspaceHotbarSlot).isEmpty() && this.borrowedStackMatches(player.getInventory().getItem(this.borrowedDestinationSlot))) {
-            this.sendInventorySwap(client, this.borrowedDestinationSlot, this.workspaceHotbarSlot, State.WAIT_RESTORE_HOTBAR);
+        } else if (player != null && isBaseMenu(player.containerMenu) && player.getInventory().getItem(
+                this.workspaceHotbarSlot
+        ).isEmpty() && this.borrowedStackMatches(player.getInventory().getItem(this.borrowedDestinationSlot))) {
+            this.sendInventorySwap(
+                    client,
+                    this.borrowedDestinationSlot,
+                    this.workspaceHotbarSlot,
+                    State.WAIT_RESTORE_HOTBAR
+            );
         } else {
             this.abort(client, Component.translatable("quickcraft.message.cross_box_sort.hotbar_restore_failed"));
         }
@@ -491,7 +681,10 @@ final class QuickCrossBoxSortSession {
             LocalPlayer player = client.player;
             this.activeJob = this.batch.jobs().get(this.batchJobIndex);
             ItemStack source = player.containerMenu.getSlot(this.activeJob.sourceBoxSlot).getItem();
-            if (this.validOpenBoxMenu(player.containerMenu) && this.activeJob.key.matches(source) && source.getCount() >= this.activeJob.plannedAmount() && player.getInventory().getItem(this.activeJob.stagingSlot).isEmpty()) {
+            if (this.validOpenBoxMenu(player.containerMenu) && this.activeJob.key.matches(source) && source
+                    .getCount() >= this.activeJob.plannedAmount() && player.getInventory().getItem(
+                            this.activeJob.stagingSlot
+                    ).isEmpty()) {
                 this.activeJob.originalCount = source.getCount();
                 this.activeJob.stagedCount = source.getCount();
                 this.clickContainerSlot(client, this.activeJob.sourceBoxSlot, 0, State.BATCH_WAIT_PICK_SOURCE);
@@ -523,7 +716,13 @@ final class QuickCrossBoxSortSession {
         } else {
             this.batchTransfer = group.moves().get(this.targetTransferIndex);
             this.activeJob = this.batch.jobsBySourceSlot().get(this.batchTransfer.sourceBoxSlot());
-            if (this.activeJob != null && this.activeJob.stagedCount >= this.batchTransfer.amount() && inventoryStackMatches(client.player, this.activeJob.stagingSlot, this.activeJob.key, this.activeJob.stagedCount)) {
+            if (this.activeJob != null && this.activeJob.stagedCount >= this.batchTransfer.amount()
+                    && inventoryStackMatches(
+                            client.player,
+                            this.activeJob.stagingSlot,
+                            this.activeJob.key,
+                            this.activeJob.stagedCount
+                    )) {
                 this.clickInventorySlot(client, this.activeJob.stagingSlot, 0, State.BATCH_WAIT_PICK_STAGE);
             } else {
                 this.abort(client, Component.translatable("quickcraft.message.cross_box_sort.inventory_changed"));
@@ -534,9 +733,12 @@ final class QuickCrossBoxSortSession {
     private void batchPlaceTarget(Minecraft client) {
         LocalPlayer player = client.player;
         ItemStack target = player.containerMenu.getSlot(this.batchTransfer.targetBoxSlot()).getItem();
-        if (this.validOpenBoxMenu(player.containerMenu) && (target.isEmpty() || (this.batchTransfer.key()).matches(target))) {
+        if (this.validOpenBoxMenu(player.containerMenu) && (target.isEmpty() || (this.batchTransfer.key()).matches(
+                target
+        ))) {
             this.batchTargetBeforeCount = target.isEmpty() ? 0 : target.getCount();
-            if (this.batchTargetBeforeCount + this.batchTransfer.amount() > (this.batchTransfer.key()).template().getMaxStackSize()) {
+            if (this.batchTargetBeforeCount + this.batchTransfer.amount() > (this.batchTransfer.key()).template()
+                    .getMaxStackSize()) {
                 this.abort(client, Component.translatable("quickcraft.message.cross_box_sort.inventory_changed"));
             } else {
                 this.clickContainerSlot(client, this.batchTransfer.targetBoxSlot(), 0, State.BATCH_WAIT_PLACE_TARGET);
@@ -548,7 +750,13 @@ final class QuickCrossBoxSortSession {
 
     private void waitForBatchTarget(LocalPlayer player, Minecraft client) {
         int remaining = this.activeJob.stagedCount - this.batchTransfer.amount();
-        BooleanSupplier validation = () -> carriedMatches(player, this.activeJob.key, remaining) && containerStackMatches(player.containerMenu, this.batchTransfer.targetBoxSlot(), this.batchTransfer.key(), this.batchTargetBeforeCount + this.batchTransfer.amount());
+        BooleanSupplier validation = () -> carriedMatches(player, this.activeJob.key, remaining)
+                && containerStackMatches(
+                        player.containerMenu,
+                        this.batchTransfer.targetBoxSlot(),
+                        this.batchTransfer.key(),
+                        this.batchTargetBeforeCount + this.batchTransfer.amount()
+                );
         if (this.clickSettled(player, validation)) {
             this.activeJob.stagedCount = remaining;
             this.state = remaining == 0 ? State.BATCH_ADVANCE_TARGET : State.BATCH_STORE_REMAINDER;
@@ -573,7 +781,9 @@ final class QuickCrossBoxSortSession {
     }
 
     private void batchPickReturn(Minecraft client) {
-        while(this.returnJobIndex < this.batch.jobs().size() && (this.batch.jobs().get(this.returnJobIndex)).stagedCount == 0) {
+        while (this.returnJobIndex < this.batch.jobs().size() && (this.batch.jobs().get(
+                this.returnJobIndex
+        )).stagedCount == 0) {
             ++this.returnJobIndex;
         }
 
@@ -581,7 +791,12 @@ final class QuickCrossBoxSortSession {
             this.state = State.BATCH_CLOSE_RETURN_SOURCE;
         } else {
             this.activeJob = this.batch.jobs().get(this.returnJobIndex);
-            if (!inventoryStackMatches(client.player, this.activeJob.stagingSlot, this.activeJob.key, this.activeJob.stagedCount)) {
+            if (!inventoryStackMatches(
+                    client.player,
+                    this.activeJob.stagingSlot,
+                    this.activeJob.key,
+                    this.activeJob.stagedCount
+            )) {
                 this.abort(client, Component.translatable("quickcraft.message.cross_box_sort.inventory_changed"));
             } else {
                 this.clickInventorySlot(client, this.activeJob.stagingSlot, 0, State.BATCH_WAIT_PICK_RETURN);
@@ -591,7 +806,8 @@ final class QuickCrossBoxSortSession {
 
     private void batchPlaceReturn(Minecraft client) {
         LocalPlayer player = client.player;
-        if (this.validOpenBoxMenu(player.containerMenu) && player.containerMenu.getSlot(this.activeJob.sourceBoxSlot).getItem().isEmpty()) {
+        if (this.validOpenBoxMenu(player.containerMenu) && player.containerMenu.getSlot(this.activeJob.sourceBoxSlot)
+                .getItem().isEmpty()) {
             this.clickContainerSlot(client, this.activeJob.sourceBoxSlot, 0, State.BATCH_WAIT_PLACE_RETURN);
             ++this.returnJobIndex;
         } else {
@@ -609,14 +825,21 @@ final class QuickCrossBoxSortSession {
         LocalPlayer player = client.player;
         if (container != null) {
             int ready = container.prepareOpen(client, inventorySlot, age);
-            if (ready < 0) { this.abort(client, Component.translatable("quickcraft.message.cross_box_sort.inventory_changed")); return; }
-            if (ready == 0) { return; }
+            if (ready < 0) {
+                this.abort(client, Component.translatable("quickcraft.message.cross_box_sort.inventory_changed"));
+                return;
+            }
+            if (ready == 0) {
+                return;
+            }
             inventorySlot = container.temporarySlot();
         }
         openingInventorySlot = inventorySlot;
-        if (player != null && player.containerMenu == player.inventoryMenu && player.containerMenu.getCarried().isEmpty()) {
+        if (player != null && player.containerMenu == player.inventoryMenu && player.containerMenu.getCarried()
+                .isEmpty()) {
             ItemStack box = player.getInventory().getItem(inventorySlot);
-            if (QuickCrossBoxSortInventory.isVanillaShulkerBox(box) && box.getCount() == 1 && !QuickCrossBoxSortInventory.isNamedOrSpecial(box)) {
+            if (QuickCrossBoxSortInventory.isVanillaShulkerBox(box) && box.getCount() == 1
+                    && !QuickCrossBoxSortInventory.isNamedOrSpecial(box)) {
                 this.waitRevision = QuickCrossBoxSortSync.revision();
                 this.deadline = this.age + 100;
                 int menuSlot = QuickCrossBoxSortProtection.menuSlot(player.inventoryMenu, inventorySlot);
@@ -625,7 +848,10 @@ final class QuickCrossBoxSortSession {
                     this.state = waitState;
                 } else {
                     this.expectingHiddenContainerScreen = false;
-                    this.abort(client, Component.translatable("quickcraft.message.cross_box_sort.quickshulker_unavailable"));
+                    this.abort(
+                            client,
+                            Component.translatable("quickcraft.message.cross_box_sort.quickshulker_unavailable")
+                    );
                 }
             } else {
                 this.abort(client, Component.translatable("quickcraft.message.cross_box_sort.inventory_changed"));
@@ -641,13 +867,22 @@ final class QuickCrossBoxSortSession {
             this.state = State.STOPPED;
         } else {
             AbstractContainerMenu menu = player.containerMenu;
-            if (menu != player.inventoryMenu && menu instanceof net.minecraft.world.inventory.ShulkerBoxMenu && menu.slots.size() == 63 && QuickCrossBoxSortSync.contentAdvancedFor(this.waitRevision, menu.containerId)) {
+            if (menu != player.inventoryMenu && menu instanceof net.minecraft.world.inventory.ShulkerBoxMenu
+                    && menu.slots.size() == 63 && QuickCrossBoxSortSync.contentAdvancedFor(
+                            this.waitRevision,
+                            menu.containerId
+                    )) {
                 this.openContainerId = menu.containerId;
                 this.expectingHiddenContainerScreen = false;
                 this.state = next;
             } else {
                 if (this.age >= this.deadline) {
-                    QuickCrossBoxSort.LOGGER.warn("Click timed out: state={}, next={}, expectedContainer={}, actualContainer={}, expectedStateId={}, actualStateId={}, cursor={}", new Object[]{this.state, next, this.waitContainerId, player.containerMenu.containerId, this.waitStateId, player.containerMenu.getStateId(), player.containerMenu.getCarried()});
+                    QuickCrossBoxSort.LOGGER.warn(
+                            "Click timed out: state={}, next={}, expectedContainer={}, actualContainer={}, expectedStateId={}, actualStateId={}, cursor={}",
+                            new Object[] { this.state, next, this.waitContainerId, player.containerMenu.containerId,
+                                    this.waitStateId, player.containerMenu.getStateId(), player.containerMenu
+                                            .getCarried() }
+                    );
                     this.abort(client, Component.translatable("quickcraft.message.cross_box_sort.sync_timeout"));
                 }
 
@@ -668,7 +903,7 @@ final class QuickCrossBoxSortSession {
     }
 
     private void closeOwnedBox(LocalPlayer player) {
-        // Keep the inventory view while vanilla closes and resets the real, hidden menu.
+        // 原版关闭并重置实际的隐藏菜单时，保留玩家看到的物品栏界面。
         closingOwnedBox = true;
         try {
             player.closeContainer();
@@ -680,15 +915,24 @@ final class QuickCrossBoxSortSession {
     private void waitForClosed(LocalPlayer player, State next) {
         if (container != null) {
             int ready = container.finishClose(Minecraft.getInstance(), age);
-            if (ready > 0) { this.state = next; }
-            else if (ready < 0 || age >= deadline) { this.abort(Minecraft.getInstance(), Component.translatable("quickcraft.message.cross_box_sort.inventory_changed")); }
+            if (ready > 0) {
+                this.state = next;
+            } else if (ready < 0 || age >= deadline) {
+                this.abort(
+                        Minecraft.getInstance(),
+                        Component.translatable("quickcraft.message.cross_box_sort.inventory_changed")
+                );
+            }
             return;
         }
         if (player.containerMenu == player.inventoryMenu && player.containerMenu.getCarried().isEmpty()) {
             this.state = next;
         } else {
             if (this.age >= this.deadline) {
-                this.abort(Minecraft.getInstance(), Component.translatable("quickcraft.message.cross_box_sort.sync_timeout"));
+                this.abort(
+                        Minecraft.getInstance(),
+                        Component.translatable("quickcraft.message.cross_box_sort.sync_timeout")
+                );
             }
 
         }
@@ -696,7 +940,8 @@ final class QuickCrossBoxSortSession {
 
     private void prepareEmptyMerges(LocalPlayer player) {
         if (isBaseMenu(player.containerMenu) && player.containerMenu.getCarried().isEmpty()) {
-            this.emptyMerges = container == null ? QuickCrossBoxSortEmptyMerges.plan(player.getInventory()) : QuickCrossBoxSortEmptyMerges.plan(container.snapshot());
+            this.emptyMerges = container == null ? QuickCrossBoxSortEmptyMerges.plan(player.getInventory())
+                    : QuickCrossBoxSortEmptyMerges.plan(container.snapshot());
             this.emptyMergeIndex = 0;
             this.state = State.BEGIN_EMPTY_MERGE;
         } else {
@@ -717,7 +962,9 @@ final class QuickCrossBoxSortSession {
         LocalPlayer player = client.player;
         ItemStack source = emptyMergeStack(player, this.emptyMerge.sourceInventorySlot());
         ItemStack target = emptyMergeStack(player, this.emptyMerge.targetInventorySlot());
-        if (this.emptyMerge.key().matches(source) && this.emptyMerge.key().matches(target) && source.getCount() >= this.emptyMerge.amount() && target.getCount() + this.emptyMerge.amount() <= target.getMaxStackSize()) {
+        if (this.emptyMerge.key().matches(source) && this.emptyMerge.key().matches(target) && source
+                .getCount() >= this.emptyMerge.amount() && target.getCount() + this.emptyMerge.amount() <= target
+                        .getMaxStackSize()) {
             this.emptyMergeCount = source.getCount();
             this.emptyTargetBeforeCount = target.getCount();
             this.clickInventoryMenuSlot(client, this.emptyMerge.sourceInventorySlot(), 0, State.WAIT_PICK_EMPTY_SOURCE);
@@ -732,7 +979,12 @@ final class QuickCrossBoxSortSession {
     }
 
     private void returnEmptyRemainder(Minecraft client) {
-        this.clickInventoryMenuSlot(client, this.emptyMerge.sourceInventorySlot(), 0, State.WAIT_RETURN_EMPTY_REMAINDER);
+        this.clickInventoryMenuSlot(
+                client,
+                this.emptyMerge.sourceInventorySlot(),
+                0,
+                State.WAIT_RETURN_EMPTY_REMAINDER
+        );
     }
 
     private void finish(LocalPlayer player) {
@@ -740,8 +992,16 @@ final class QuickCrossBoxSortSession {
             this.abort(Minecraft.getInstance(), Component.translatable("quickcraft.message.cross_box_sort.safe_abort"));
         } else {
             this.state = State.STOPPED;
-            if (container != null) { container.reveal(Minecraft.getInstance()); }
-            QuickCrossBoxSort.reportCompletion(statusScreen(), groupedFallback, emptiedBoxes, remainingBoxes, crossBoxMoves);
+            if (container != null) {
+                container.reveal(Minecraft.getInstance());
+            }
+            QuickCrossBoxSort.reportCompletion(
+                    statusScreen(),
+                    groupedFallback,
+                    emptiedBoxes,
+                    remainingBoxes,
+                    crossBoxMoves
+            );
         }
     }
 
@@ -764,8 +1024,11 @@ final class QuickCrossBoxSortSession {
         if (!isBaseMenu(player.containerMenu)) {
             this.abort(client, Component.translatable("quickcraft.message.cross_box_sort.safe_abort"));
         } else {
-            if (container == null) { this.clickInventorySlot(client, inventorySlot, button, waitState); }
-            else { this.sendClick(client, player.containerMenu, container.slot(inventorySlot), button, waitState); }
+            if (container == null) {
+                this.clickInventorySlot(client, inventorySlot, button, waitState);
+            } else {
+                this.sendClick(client, player.containerMenu, container.slot(inventorySlot), button, waitState);
+            }
         }
     }
 
@@ -787,10 +1050,17 @@ final class QuickCrossBoxSortSession {
         this.sendInput(client, menu, menuSlot, button, ContainerInput.PICKUP, waitState);
     }
 
-    private void sendInput(Minecraft client, AbstractContainerMenu menu, int menuSlot, int button, ContainerInput input, State waitState) {
+    private void sendInput(
+            Minecraft client,
+            AbstractContainerMenu menu,
+            int menuSlot,
+            int button,
+            ContainerInput input,
+            State waitState
+    ) {
         if (client.gameMode != null && client.player != null && menuSlot >= 0 && menuSlot < menu.slots.size()) {
-            if (com.yiyihehe.quickcraft.QuickContainerLock.isLockedSlot(menu, menuSlot)
-            || input == ContainerInput.SWAP && QuickCrossBoxSortProtection.isLocked(button)) {
+            if (com.yiyihehe.quickcraft.QuickContainerLock.isLockedSlot(menu, menuSlot) || input == ContainerInput.SWAP
+                    && QuickCrossBoxSortProtection.isLocked(button)) {
                 this.abort(client, Component.translatable("quickcraft.message.cross_box_sort.safe_abort"));
                 return;
             }
@@ -821,7 +1091,12 @@ final class QuickCrossBoxSortSession {
 
     private boolean clickSettled(LocalPlayer player, BooleanSupplier validation) {
         if (player.containerMenu.containerId == this.waitContainerId && validation.getAsBoolean()) {
-            boolean serverConfirmed = QuickCrossBoxSortSync.confirmedAfter(this.waitRevision, this.waitContainerId, this.waitStateId, player.containerMenu.getStateId());
+            boolean serverConfirmed = QuickCrossBoxSortSync.confirmedAfter(
+                    this.waitRevision,
+                    this.waitContainerId,
+                    this.waitStateId,
+                    player.containerMenu.getStateId()
+            );
             return serverConfirmed || this.age >= this.clickSentAt + 2;
         } else {
             return false;
@@ -830,18 +1105,28 @@ final class QuickCrossBoxSortSession {
 
     private void abortIfClickTimedOut(Minecraft client, LocalPlayer player, State next) {
         if (this.age >= this.deadline) {
-            QuickCrossBoxSort.LOGGER.warn("Click timed out: state={}, next={}, expectedContainer={}, actualContainer={}, expectedStateId={}, actualStateId={}, cursor={}", new Object[]{this.state, next, this.waitContainerId, player.containerMenu.containerId, this.waitStateId, player.containerMenu.getStateId(), player.containerMenu.getCarried()});
+            QuickCrossBoxSort.LOGGER.warn(
+                    "Click timed out: state={}, next={}, expectedContainer={}, actualContainer={}, expectedStateId={}, actualStateId={}, cursor={}",
+                    new Object[] { this.state, next, this.waitContainerId, player.containerMenu.containerId,
+                            this.waitStateId, player.containerMenu.getStateId(), player.containerMenu.getCarried() }
+            );
             this.abort(client, Component.translatable("quickcraft.message.cross_box_sort.sync_timeout"));
         }
     }
 
     private void abort(Minecraft client, Component reason) {
-        if (this.state != State.STOPPED && this.state != State.ABORT_RECOVERY_WAIT && this.state != State.ABORT_WAIT_INVENTORY && this.state != State.ABORT_RETURN_CONTAINER && this.state != State.ABORT_RESTORE_HOTBAR && this.state != State.ABORT_WAIT_HOTBAR_RESTORE) {
+        if (this.state != State.STOPPED && this.state != State.ABORT_RECOVERY_WAIT
+                && this.state != State.ABORT_WAIT_INVENTORY && this.state != State.ABORT_RETURN_CONTAINER
+                && this.state != State.ABORT_RESTORE_HOTBAR && this.state != State.ABORT_WAIT_HOTBAR_RESTORE) {
             LocalPlayer player = client.player;
             if (player == null) {
                 this.state = State.STOPPED;
             } else {
-                QuickCrossBoxSort.LOGGER.warn("Cross-box sorting aborted: state={}, reason={}", state, reason.getString());
+                QuickCrossBoxSort.LOGGER.warn(
+                        "Cross-box sorting aborted: state={}, reason={}",
+                        state,
+                        reason.getString()
+                );
                 this.abortMessage = reason;
                 this.expectingHiddenContainerScreen = false;
                 ItemStack carried = player.containerMenu.getCarried();
@@ -862,7 +1147,12 @@ final class QuickCrossBoxSortSession {
     }
 
     private void finishAbortRecovery(LocalPlayer player) {
-        boolean serverConfirmed = QuickCrossBoxSortSync.confirmedAfter(this.waitRevision, this.waitContainerId, this.waitStateId, player.containerMenu.getStateId());
+        boolean serverConfirmed = QuickCrossBoxSortSync.confirmedAfter(
+                this.waitRevision,
+                this.waitContainerId,
+                this.waitStateId,
+                player.containerMenu.getStateId()
+        );
         if ((serverConfirmed || this.age >= this.clickSentAt + 4) && player.containerMenu.getCarried().isEmpty()) {
             this.continueAbortWithEmptyCursor(player);
         } else {
@@ -877,13 +1167,20 @@ final class QuickCrossBoxSortSession {
 
     private void continueAbortWithEmptyCursor(LocalPlayer player) {
         if (container != null && container.hasBorrowedBox()) {
-            if (validOpenBoxMenu(player.containerMenu) || this.hiddenContainerScreen instanceof AbstractContainerScreen<?> hidden && hidden.getMenu() == player.containerMenu) { closeOwnedBox(player); }
+            if (validOpenBoxMenu(player.containerMenu)
+                    || this.hiddenContainerScreen instanceof AbstractContainerScreen<?> hidden && hidden
+                            .getMenu() == player.containerMenu) {
+                closeOwnedBox(player);
+            }
             this.state = State.ABORT_RETURN_CONTAINER;
             return;
         }
         Inventory inventory = player.getInventory();
-        boolean borrowOutstanding = this.borrowedDestinationSlot >= 0 && !inventory.getItem(this.borrowedDestinationSlot).isEmpty();
-        boolean liveWorkspaceToken = !inventory.getItem(this.workspaceHotbarSlot).isEmpty() && (this.borrowedDestinationSlot < 0 || borrowOutstanding);
+        boolean borrowOutstanding = this.borrowedDestinationSlot >= 0 && !inventory.getItem(
+                this.borrowedDestinationSlot
+        ).isEmpty();
+        boolean liveWorkspaceToken = !inventory.getItem(this.workspaceHotbarSlot).isEmpty()
+                && (this.borrowedDestinationSlot < 0 || borrowOutstanding);
         if (liveWorkspaceToken || hasItemsInExtraSwapSlots(inventory)) {
             this.revealHiddenContainerForRecovery();
             message(Component.translatable("quickcraft.message.cross_box_sort.hotbar_restore_failed"));
@@ -919,8 +1216,17 @@ final class QuickCrossBoxSortSession {
 
     private void restoreHotbarAfterAbort(Minecraft client) {
         LocalPlayer player = client.player;
-        if (player != null && player.containerMenu == player.inventoryMenu && this.borrowedDestinationSlot >= 0 && player.getInventory().getItem(this.workspaceHotbarSlot).isEmpty() && this.borrowedStackMatches(player.getInventory().getItem(this.borrowedDestinationSlot))) {
-            this.sendInventorySwap(client, this.borrowedDestinationSlot, this.workspaceHotbarSlot, State.ABORT_WAIT_HOTBAR_RESTORE);
+        if (player != null
+                && player.containerMenu == player.inventoryMenu
+                && this.borrowedDestinationSlot >= 0
+                && player.getInventory().getItem(this.workspaceHotbarSlot).isEmpty()
+                && this.borrowedStackMatches(player.getInventory().getItem(this.borrowedDestinationSlot))) {
+            this.sendInventorySwap(
+                    client,
+                    this.borrowedDestinationSlot,
+                    this.workspaceHotbarSlot,
+                    State.ABORT_WAIT_HOTBAR_RESTORE
+            );
         } else {
             if (player != null) {
                 message(Component.translatable("quickcraft.message.cross_box_sort.hotbar_restore_failed"));
@@ -931,7 +1237,9 @@ final class QuickCrossBoxSortSession {
     }
 
     private void waitForAbortHotbarRestore(LocalPlayer player) {
-        BooleanSupplier validation = () -> player.getInventory().getItem(this.borrowedDestinationSlot).isEmpty() && !player.getInventory().getItem(this.workspaceHotbarSlot).isEmpty() && player.containerMenu.getCarried().isEmpty();
+        BooleanSupplier validation = () -> player.getInventory().getItem(this.borrowedDestinationSlot).isEmpty()
+                && !player.getInventory().getItem(this.workspaceHotbarSlot).isEmpty() && player.containerMenu
+                        .getCarried().isEmpty();
         if (this.clickSettled(player, validation)) {
             message(this.abortMessage);
             this.state = State.STOPPED;
@@ -953,7 +1261,8 @@ final class QuickCrossBoxSortSession {
 
     private void revealHiddenContainerForRecovery() {
         Minecraft client = Minecraft.getInstance();
-        if (client.player != null && client.player.containerMenu != client.player.inventoryMenu && this.hiddenContainerScreen != null) {
+        if (client.player != null && client.player.containerMenu != client.player.inventoryMenu
+                && this.hiddenContainerScreen != null) {
             QuickClientScreenAccess.setScreen(client, this.hiddenContainerScreen);
         }
 
@@ -962,10 +1271,13 @@ final class QuickCrossBoxSortSession {
     private int findRecoveryMenuSlot(LocalPlayer player, ItemStack carried) {
         Inventory inventory = player.getInventory();
 
-        for(int i = 0; i < 36; ++i) {
-            if (QuickCrossBoxSortProtection.isLocked(i)) { continue; }
+        for (int i = 0; i < 36; ++i) {
+            if (QuickCrossBoxSortProtection.isLocked(i)) {
+                continue;
+            }
             ItemStack target = inventory.getItem(i);
-            if (target.isEmpty() || ItemStack.isSameItemSameComponents(target, carried) && target.getCount() + carried.getCount() <= target.getMaxStackSize()) {
+            if (target.isEmpty() || ItemStack.isSameItemSameComponents(target, carried) && target.getCount() + carried
+                    .getCount() <= target.getMaxStackSize()) {
                 int menuSlot = QuickCrossBoxSortProtection.menuSlot(player.containerMenu, i);
                 if (menuSlot >= 0) {
                     return menuSlot;
@@ -992,8 +1304,9 @@ final class QuickCrossBoxSortSession {
 
     private void recoverContainer(Minecraft client) {
         int ready = container.finishClose(client, age);
-        if (ready > 0) { continueAbortWithEmptyCursor(client.player); }
-        else if (ready < 0) {
+        if (ready > 0) {
+            continueAbortWithEmptyCursor(client.player);
+        } else if (ready < 0) {
             state = State.STOPPED;
             container.reveal(client);
             message(Component.translatable("quickcraft.message.cross_box_sort.container_recovery_failed"));
@@ -1001,7 +1314,8 @@ final class QuickCrossBoxSortSession {
     }
 
     private boolean validOpenBoxMenu(AbstractContainerMenu menu) {
-        return menu.containerId == this.openContainerId && menu instanceof net.minecraft.world.inventory.ShulkerBoxMenu && menu.slots.size() == 63;
+        return menu.containerId == this.openContainerId && menu instanceof net.minecraft.world.inventory.ShulkerBoxMenu
+                && menu.slots.size() == 63;
     }
 
     private static boolean carriedMatches(LocalPlayer player, QuickCrossBoxSortStackKey key, int count) {
@@ -1009,35 +1323,51 @@ final class QuickCrossBoxSortSession {
         return count == 0 ? carried.isEmpty() : key.matches(carried) && carried.getCount() == count;
     }
 
-    private static boolean inventoryStackMatches(LocalPlayer player, int inventorySlot, QuickCrossBoxSortStackKey key, int count) {
+    private static boolean inventoryStackMatches(
+            LocalPlayer player,
+            int inventorySlot,
+            QuickCrossBoxSortStackKey key,
+            int count
+    ) {
         ItemStack stack = player.getInventory().getItem(inventorySlot);
         return count == 0 ? stack.isEmpty() : key.matches(stack) && stack.getCount() == count;
     }
 
-    private static boolean containerStackMatches(AbstractContainerMenu menu, int slot, QuickCrossBoxSortStackKey key, int count) {
+    private static boolean containerStackMatches(
+            AbstractContainerMenu menu,
+            int slot,
+            QuickCrossBoxSortStackKey key,
+            int count
+    ) {
         ItemStack stack = menu.getSlot(slot).getItem();
         return count == 0 ? stack.isEmpty() : key.matches(stack) && stack.getCount() == count;
     }
 
-    private static boolean stackMatches(ItemStack actual, QuickCrossBoxSortStacks.Stack<QuickCrossBoxSortStackKey> expected) {
-        return expected == null ? actual.isEmpty() : (expected.key()).matches(actual) && actual.getCount() == expected.count();
+    private static boolean stackMatches(
+            ItemStack actual,
+            QuickCrossBoxSortStacks.Stack<QuickCrossBoxSortStackKey> expected
+    ) {
+        return expected == null ? actual.isEmpty()
+                : (expected.key()).matches(actual) && actual.getCount() == expected.count();
     }
 
     private boolean borrowedStackMatches(ItemStack stack) {
         if (stack.isEmpty()) {
             return false;
         } else if (this.borrowedEligibleShulker) {
-            return QuickCrossBoxSortInventory.isVanillaShulkerBox(stack) && !QuickCrossBoxSortInventory.isNamedOrSpecial(stack) && stack.getCount() == 1;
+            return QuickCrossBoxSortInventory.isVanillaShulkerBox(stack) && !QuickCrossBoxSortInventory
+                    .isNamedOrSpecial(stack) && stack.getCount() == 1;
         } else {
-            return this.borrowedOriginalKey != null && this.borrowedOriginalKey.matches(stack) && stack.getCount() == this.borrowedOriginalCount;
+            return this.borrowedOriginalKey != null && this.borrowedOriginalKey.matches(stack) && stack
+                    .getCount() == this.borrowedOriginalCount;
         }
     }
 
     private Screen statusScreen() {
         var client = Minecraft.getInstance();
         Screen screen = QuickClientScreenAccess.currentScreen(client);
-        return screen == backgroundInventory || screen == hiddenContainerScreen || container != null && container.isScreen(screen)
-                ? screen : null;
+        return screen == backgroundInventory || screen == hiddenContainerScreen || container != null && container
+                .isScreen(screen) ? screen : null;
     }
 
     private void message(Component text) {
@@ -1049,65 +1379,20 @@ final class QuickCrossBoxSortSession {
     }
 
     private enum State {
-        RESERVE_HOTBAR,
-        WAIT_RESERVE_HOTBAR,
-        PLAN_OPERATION,
-        BEGIN_OPERATION,
-        BATCH_OPEN_SOURCE,
-        BATCH_WAIT_SOURCE_OPEN,
-        BATCH_PICK_SOURCE,
-        BATCH_WAIT_PICK_SOURCE,
-        BATCH_STAGE_SOURCE,
-        BATCH_WAIT_STAGE_SOURCE,
-        BATCH_CLOSE_SOURCE,
-        BATCH_WAIT_SOURCE_CLOSE,
-        BATCH_BEGIN_TARGET,
-        BATCH_OPEN_TARGET,
-        BATCH_WAIT_TARGET_OPEN,
-        BATCH_PICK_STAGE,
-        BATCH_WAIT_PICK_STAGE,
-        BATCH_PLACE_TARGET,
-        BATCH_WAIT_PLACE_TARGET,
-        BATCH_STORE_REMAINDER,
-        BATCH_WAIT_STORE_REMAINDER,
-        BATCH_ADVANCE_TARGET,
-        BATCH_CLOSE_TARGET,
-        BATCH_WAIT_TARGET_CLOSE,
-        BATCH_BEGIN_RETURN,
-        BATCH_OPEN_RETURN_SOURCE,
-        BATCH_WAIT_RETURN_SOURCE_OPEN,
-        BATCH_PICK_RETURN,
-        BATCH_WAIT_PICK_RETURN,
-        BATCH_PLACE_RETURN,
-        BATCH_WAIT_PLACE_RETURN,
-        BATCH_CLOSE_RETURN_SOURCE,
-        BATCH_WAIT_RETURN_SOURCE_CLOSE,
-        BATCH_COMPLETE,
-        BEGIN_SWAP_CYCLE,
-        OPEN_SWAP_BOX,
-        WAIT_SWAP_OPEN,
-        EXECUTE_SWAP,
-        WAIT_SWAP,
-        CLOSE_SWAP_BOX,
-        WAIT_SWAP_CLOSE,
-        RESTORE_HOTBAR,
-        WAIT_RESTORE_HOTBAR,
-        PREPARE_EMPTY_MERGES,
-        BEGIN_EMPTY_MERGE,
-        PICK_EMPTY_SOURCE,
-        WAIT_PICK_EMPTY_SOURCE,
-        PLACE_EMPTY_TARGET,
-        WAIT_PLACE_EMPTY_TARGET,
-        RETURN_EMPTY_REMAINDER,
-        WAIT_RETURN_EMPTY_REMAINDER,
-        ABORT_RETURN_CONTAINER,
-        ABORT_RECOVERY_WAIT,
-        ABORT_WAIT_INVENTORY,
-        ABORT_RESTORE_HOTBAR,
-        ABORT_WAIT_HOTBAR_RESTORE,
-        STOPPED;
+        RESERVE_HOTBAR, WAIT_RESERVE_HOTBAR, PLAN_OPERATION, BEGIN_OPERATION, BATCH_OPEN_SOURCE, BATCH_WAIT_SOURCE_OPEN,
+        BATCH_PICK_SOURCE, BATCH_WAIT_PICK_SOURCE, BATCH_STAGE_SOURCE, BATCH_WAIT_STAGE_SOURCE, BATCH_CLOSE_SOURCE,
+        BATCH_WAIT_SOURCE_CLOSE, BATCH_BEGIN_TARGET, BATCH_OPEN_TARGET, BATCH_WAIT_TARGET_OPEN, BATCH_PICK_STAGE,
+        BATCH_WAIT_PICK_STAGE, BATCH_PLACE_TARGET, BATCH_WAIT_PLACE_TARGET, BATCH_STORE_REMAINDER,
+        BATCH_WAIT_STORE_REMAINDER, BATCH_ADVANCE_TARGET, BATCH_CLOSE_TARGET, BATCH_WAIT_TARGET_CLOSE,
+        BATCH_BEGIN_RETURN, BATCH_OPEN_RETURN_SOURCE, BATCH_WAIT_RETURN_SOURCE_OPEN, BATCH_PICK_RETURN,
+        BATCH_WAIT_PICK_RETURN, BATCH_PLACE_RETURN, BATCH_WAIT_PLACE_RETURN, BATCH_CLOSE_RETURN_SOURCE,
+        BATCH_WAIT_RETURN_SOURCE_CLOSE, BATCH_COMPLETE, BEGIN_SWAP_CYCLE, OPEN_SWAP_BOX, WAIT_SWAP_OPEN, EXECUTE_SWAP,
+        WAIT_SWAP, CLOSE_SWAP_BOX, WAIT_SWAP_CLOSE, RESTORE_HOTBAR, WAIT_RESTORE_HOTBAR, PREPARE_EMPTY_MERGES,
+        BEGIN_EMPTY_MERGE, PICK_EMPTY_SOURCE, WAIT_PICK_EMPTY_SOURCE, PLACE_EMPTY_TARGET, WAIT_PLACE_EMPTY_TARGET,
+        RETURN_EMPTY_REMAINDER, WAIT_RETURN_EMPTY_REMAINDER, ABORT_RETURN_CONTAINER, ABORT_RECOVERY_WAIT,
+        ABORT_WAIT_INVENTORY, ABORT_RESTORE_HOTBAR, ABORT_WAIT_HOTBAR_RESTORE, STOPPED;
 
-        // $FF: synthetic method
+        // $FF: 合成方法
 
     }
 
@@ -1130,9 +1415,18 @@ final class QuickCrossBoxSortSession {
         }
     }
 
-    private record TargetGroup(int targetInventorySlot, List<QuickCrossBoxSortStacks.Transfer<QuickCrossBoxSortStackKey>> moves) {
+    private record TargetGroup(
+            int targetInventorySlot,
+            List<QuickCrossBoxSortStacks.Transfer<QuickCrossBoxSortStackKey>> moves
+    ) {
     }
 
-    private record Batch(int sourceInventorySlot, int endTransferIndex, List<BatchJob> jobs, List<TargetGroup> targets, Map<Integer, BatchJob> jobsBySourceSlot) {
+    private record Batch(
+            int sourceInventorySlot,
+            int endTransferIndex,
+            List<BatchJob> jobs,
+            List<TargetGroup> targets,
+            Map<Integer, BatchJob> jobsBySourceSlot
+    ) {
     }
 }

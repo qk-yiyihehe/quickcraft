@@ -9,13 +9,25 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.resources.Identifier;
 
 public final class QuickCrossBoxSortButton extends QuickCompactIconButton {
-    private static final Identifier ICON =
-            Identifier.fromNamespaceAndPath("quickcraft", "textures/gui/cross_box_sort_compact.png");
+    private static final Identifier ICON = Identifier.fromNamespaceAndPath(
+            "quickcraft",
+            "textures/gui/cross_box_sort_compact.png"
+    );
 
-    public QuickCrossBoxSortButton(int x, int y, AbstractContainerScreen<?> screen, boolean playerInventory,
-                                   PositionKey positionKey) {
-        super(x, y, Component.translatable("quickcraft.button.cross_box_sort"),
-                button -> QuickCrossBoxSort.start(screen, playerInventory, QuickCraftKeyBindings.isAltDown()), positionKey);
+    public QuickCrossBoxSortButton(
+            int x,
+            int y,
+            AbstractContainerScreen<?> screen,
+            boolean playerInventory,
+            PositionKey positionKey
+    ) {
+        super(
+                x,
+                y,
+                Component.translatable("quickcraft.button.cross_box_sort"),
+                button -> QuickCrossBoxSort.start(screen, playerInventory, QuickCraftKeyBindings.isAltDown()),
+                positionKey
+        );
     }
 
     @Override

@@ -27,8 +27,7 @@ import java.util.List;
 final class QuickCraftClientRecipeMatcher {
     private static final int FIRST_CRAFTING_GRID_SLOT = 1;
 
-    private QuickCraftClientRecipeMatcher() {
-    }
+    private QuickCraftClientRecipeMatcher() {}
 
     @Nullable
     static NetworkRecipeId findUniqueRecipeId(
@@ -38,10 +37,7 @@ final class QuickCraftClientRecipeMatcher {
             int gridWidth,
             int gridHeight
     ) {
-        if (client == null
-                || client.player == null
-                || client.world == null
-                || resultTemplate.isEmpty()) {
+        if (client == null || client.player == null || client.world == null || resultTemplate.isEmpty()) {
             return null;
         }
 
@@ -57,8 +53,14 @@ final class QuickCraftClientRecipeMatcher {
         }
         ContextParameterMap context = SlotDisplayContexts.createParameters(client.world);
         return findUniqueRecipeIdInCollections(
-                client.player.getRecipeBook().getOrderedResults(), finder, grid, resultTemplate,
-                gridWidth, gridHeight, context);
+                client.player.getRecipeBook().getOrderedResults(),
+                finder,
+                grid,
+                resultTemplate,
+                gridWidth,
+                gridHeight,
+                context
+        );
     }
 
     static NetworkRecipeId findUniqueRecipeIdInCollections(
@@ -74,8 +76,7 @@ final class QuickCraftClientRecipeMatcher {
 
         for (RecipeResultCollection collection : collections) {
             for (RecipeDisplayEntry entry : collection.getAllRecipes()) {
-                if (!entry.isCraftable(finder)
-                        || !matchesResult(entry, resultTemplate, context)
+                if (!entry.isCraftable(finder) || !matchesResult(entry, resultTemplate, context)
                         || !matchesCraftingGrid(entry.display(), grid, gridWidth, gridHeight, context)) {
                     continue;
                 }
@@ -97,8 +98,9 @@ final class QuickCraftClientRecipeMatcher {
             ItemStack resultTemplate,
             ContextParameterMap context
     ) {
-        return entry.getStacks(context).stream()
-                .anyMatch(displayed -> ItemStack.areItemsAndComponentsEqual(displayed, resultTemplate));
+        return entry.getStacks(context).stream().anyMatch(
+                displayed -> ItemStack.areItemsAndComponentsEqual(displayed, resultTemplate)
+        );
     }
 
     private static boolean matchesCraftingGrid(
@@ -140,10 +142,7 @@ final class QuickCraftClientRecipeMatcher {
         return stacks;
     }
 
-    private static List<List<ItemStack>> getCandidateStacks(
-            List<SlotDisplay> displays,
-            ContextParameterMap context
-    ) {
+    private static List<List<ItemStack>> getCandidateStacks(List<SlotDisplay> displays, ContextParameterMap context) {
         return displays.stream().map(display -> display.getStacks(context)).toList();
     }
 

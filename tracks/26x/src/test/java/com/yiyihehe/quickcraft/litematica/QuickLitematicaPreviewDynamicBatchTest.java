@@ -14,9 +14,13 @@ class QuickLitematicaPreviewDynamicBatchTest {
     @Test
     void fullCollectionKeepsBlockAndEntityOrderAcrossSlices() {
         Map<BlockPos, BlockEntity> source = new LinkedHashMap<>();
-        for (int i = 0; i < 35; i++) source.put(new BlockPos(i, 0, 0), null);
+        for (int i = 0; i < 35; i++) {
+            source.put(new BlockPos(i, 0, 0), null);
+        }
         var entities = new java.util.ArrayList<QuickLitematicaPreview3D.RenderedEntity>();
-        for (int i = 0; i < 20; i++) entities.add(new QuickLitematicaPreview3D.RenderedEntity(null, i, 0, 0, 0));
+        for (int i = 0; i < 20; i++) {
+            entities.add(new QuickLitematicaPreview3D.RenderedEntity(null, i, 0, 0, 0));
+        }
         var scene = new QuickLitematicaPreview3D.DynamicScene(null, source, entities);
         var batch = new QuickLitematicaPreviewDynamicBatch<String>(scene, QuickLitematicaPreviewBatchBudget.MIN_SIZE);
         var positions = new java.util.ArrayList<BlockPos>();
@@ -25,8 +29,12 @@ class QuickLitematicaPreviewDynamicBatchTest {
         boolean done;
         do {
             var current = batch.nextScene();
-            if (slices++ == 0) assertThat(current.blockEntities()).hasSize(16);
-            if (!current.blockEntities().isEmpty()) assertThat(collectedEntities).isEmpty();
+            if (slices++ == 0) {
+                assertThat(current.blockEntities()).hasSize(16);
+            }
+            if (!current.blockEntities().isEmpty()) {
+                assertThat(collectedEntities).isEmpty();
+            }
             positions.addAll(current.blockEntities().keySet());
             collectedEntities.addAll(current.entities());
             done = batch.finishCollected(QuickLitematicaPreviewBatchBudget.TARGET_NANOS);
@@ -42,7 +50,9 @@ class QuickLitematicaPreviewDynamicBatchTest {
     @Test
     void batchesVisitEveryPositionOnceAndKeepLateMaterialFailureVisible() {
         Map<BlockPos, BlockEntity> source = new LinkedHashMap<>();
-        for (int i = 0; i < 1200; i++) source.put(new BlockPos(i, 0, 0), null);
+        for (int i = 0; i < 1200; i++) {
+            source.put(new BlockPos(i, 0, 0), null);
+        }
         var scene = new QuickLitematicaPreview3D.DynamicScene(null, source, List.of());
         var batch = new QuickLitematicaPreviewDynamicBatch<String>(scene);
         var visited = new HashSet<BlockPos>();
@@ -54,13 +64,17 @@ class QuickLitematicaPreviewDynamicBatchTest {
             current.blockEntities().keySet().forEach(pos -> assertThat(visited.add(pos)).isTrue());
             batch.checkLayer(layer, true);
             done = batch.finish(visited.size() * 44L, QuickLitematicaPreviewBatchBudget.TARGET_NANOS);
-            if (!done) assertThat(batch.progress()).isLessThan(1.0F);
+            if (!done) {
+                assertThat(batch.progress()).isLessThan(1.0F);
+            }
         } while (!done);
         assertThat(visited).containsExactlyInAnyOrderElementsOf(source.keySet());
         assertThat(source).hasSize(1200);
-        assertThatThrownBy(() -> batch.checkLayer(new String(layer), true))
-                .isInstanceOf(QuickLitematicaPreviewDynamicBatch.IncompatibleException.class);
-        assertThatThrownBy(() -> batch.checkLayer(layer, false))
-                .isInstanceOf(QuickLitematicaPreviewDynamicBatch.IncompatibleException.class);
+        assertThatThrownBy(() -> batch.checkLayer(new String(layer), true)).isInstanceOf(
+                QuickLitematicaPreviewDynamicBatch.IncompatibleException.class
+        );
+        assertThatThrownBy(() -> batch.checkLayer(layer, false)).isInstanceOf(
+                QuickLitematicaPreviewDynamicBatch.IncompatibleException.class
+        );
     }
 }

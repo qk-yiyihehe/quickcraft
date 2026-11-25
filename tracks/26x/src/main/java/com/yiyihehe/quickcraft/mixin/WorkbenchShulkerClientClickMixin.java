@@ -14,26 +14,28 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 public abstract class WorkbenchShulkerClientClickMixin {
     // HEAD 记录普通鼠标合成 ACK 判定批次路径所需的点击计数。
     @Inject(method = "handleContainerInput", at = @At("HEAD"))
-    private void quickcraft$recordMouseCraftClickStart(int containerId,
-                                                       int slotId,
-                                                       int button,
-                                                       ContainerInput actionType,
-                                                       Player player,
-                                                       CallbackInfo ci) {
-        QuickCraftMouseCraftAckExecutor.onClientClickStart(
-                containerId, slotId, button, actionType, player);
+    private void quickcraft$recordMouseCraftClickStart(
+            int containerId,
+            int slotId,
+            int button,
+            ContainerInput actionType,
+            Player player,
+            CallbackInfo ci
+    ) {
+        QuickCraftMouseCraftAckExecutor.onClientClickStart(containerId, slotId, button, actionType, player);
     }
 
     // RETURN 表示本次原版点击已经完成，供潜影盒工作台推进确认状态。
     @Inject(method = "handleContainerInput", at = @At("RETURN"))
-    private void quickcraft$recordWorkbenchClick(int containerId,
-                                                 int slotId,
-                                                 int button,
-                                                 ContainerInput actionType,
-                                                 Player player,
-                                                 CallbackInfo ci) {
-        QuickCraftMouseCraftAckExecutor.onClientClickEnd(
-                containerId, slotId, button, actionType, player);
+    private void quickcraft$recordWorkbenchClick(
+            int containerId,
+            int slotId,
+            int button,
+            ContainerInput actionType,
+            Player player,
+            CallbackInfo ci
+    ) {
+        QuickCraftMouseCraftAckExecutor.onClientClickEnd(containerId, slotId, button, actionType, player);
         QuickCraftWorkbenchShulkerCraft.onWorkbenchClickSent(containerId);
     }
 }

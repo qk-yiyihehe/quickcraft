@@ -304,19 +304,24 @@ public final class QuickBeacon implements ClientModInitializer {
             return false;
         }
 
-        QuickSlotTransfer.quickMove(client, handler, PLAYER_CRAFT_RESULT_SLOT_ID, QuickSlotTransfer::isPlayerStorageSlot, true);
+        QuickSlotTransfer.quickMove(
+                client,
+                handler,
+                PLAYER_CRAFT_RESULT_SLOT_ID,
+                QuickSlotTransfer::isPlayerStorageSlot,
+                true
+        );
 
         ItemStack after = handler.getSlot(PLAYER_CRAFT_RESULT_SLOT_ID).getItem();
-        return after.isEmpty()
-                || after.getCount() != before.getCount()
-                || !ItemStack.isSameItemSameComponents(before, after);
+        return after.isEmpty() || after.getCount() != before.getCount() || !ItemStack.isSameItemSameComponents(
+                before,
+                after
+        );
     }
 
     private boolean isPlayerCraftingHandlerReady(Minecraft client) {
         boolean noScreenOpen = QuickClientScreenAccess.currentScreen(client) == null;
-        return client.player != null
-                && noScreenOpen
-                && client.player.containerMenu == client.player.inventoryMenu;
+        return client.player != null && noScreenOpen && client.player.containerMenu == client.player.inventoryMenu;
     }
 
     private void preparePendingTarget(Minecraft client) {
@@ -388,8 +393,9 @@ public final class QuickBeacon implements ClientModInitializer {
         return switch (normalized) {
             case "haste", "急迫", "挖掘急迫" -> BeaconEffectTarget.levelTwo(MobEffects.HASTE);
             case "strength", "力量" -> BeaconEffectTarget.levelTwo(MobEffects.STRENGTH);
-            case "regeneration", "regen", "生命恢复", "恢复" ->
-                    QuickBeaconEffectAccess.regenerationTarget(allowRegenerationTwo);
+            case "regeneration", "regen", "生命恢复", "恢复" -> QuickBeaconEffectAccess.regenerationTarget(
+                    allowRegenerationTwo
+            );
             case "jumpboost", "jump", "跳跃提升", "跳跃" -> BeaconEffectTarget.levelTwo(MobEffects.JUMP_BOOST);
             case "speed", "迅捷" -> BeaconEffectTarget.levelTwo(MobEffects.SPEED);
             case "resistance", "抗性", "抗性提升" -> BeaconEffectTarget.levelTwo(MobEffects.RESISTANCE);
@@ -401,12 +407,10 @@ public final class QuickBeacon implements ClientModInitializer {
         if (raw == null) {
             return "";
         }
-        return raw.trim()
-                .toLowerCase(Locale.ROOT)
-                .replace("minecraft:", "")
-                .replace(" ", "")
-                .replace("_", "")
-                .replace("-", "");
+        return raw.trim().toLowerCase(Locale.ROOT).replace("minecraft:", "").replace(" ", "").replace("_", "").replace(
+                "-",
+                ""
+        );
     }
 
     private boolean playerHasTargetEffect(Minecraft client, BeaconEffectTarget target) {
@@ -543,8 +547,8 @@ public final class QuickBeacon implements ClientModInitializer {
             if (!slot.hasItem()) {
                 return slotId;
             }
-            if (ItemStack.isSameItemSameComponents(slot.getItem(), stack)
-                    && slot.getItem().getCount() + stack.getCount() <= slot.getItem().getMaxStackSize()) {
+            if (ItemStack.isSameItemSameComponents(slot.getItem(), stack) && slot.getItem().getCount() + stack
+                    .getCount() <= slot.getItem().getMaxStackSize()) {
                 return slotId;
             }
         }
@@ -569,20 +573,17 @@ public final class QuickBeacon implements ClientModInitializer {
             playerSlots.add(slot);
         }
 
-        playerSlots.sort(Comparator
-                .comparingInt((Slot slot) -> slot.getContainerSlot() >= 9 ? 0 : 1)
-                .thenComparingInt(Slot::getContainerSlot)
-                .thenComparingInt(slot -> slot.index));
+        playerSlots.sort(
+                Comparator.comparingInt((Slot slot) -> slot.getContainerSlot() >= 9 ? 0 : 1).thenComparingInt(
+                        Slot::getContainerSlot
+                ).thenComparingInt(slot -> slot.index)
+        );
 
-        return playerSlots.stream()
-                .map(slot -> slot.index)
-                .toList();
+        return playerSlots.stream().map(slot -> slot.index).toList();
     }
 
     private boolean isPlayerStorageSlot(Slot slot) {
-        return slot.container instanceof Inventory
-                && slot.getContainerSlot() >= 0
-                && slot.getContainerSlot() < 36;
+        return slot.container instanceof Inventory && slot.getContainerSlot() >= 0 && slot.getContainerSlot() < 36;
     }
 
     private boolean isVisibleSlot(Slot slot) {
@@ -605,24 +606,26 @@ public final class QuickBeacon implements ClientModInitializer {
             );
         }
 
-        client.getConnection().send(new ServerboundSetBeaconPacket(
-                Optional.ofNullable(target.primary()),
-                Optional.ofNullable(target.secondary())
-        ));
+        client.getConnection().send(
+                new ServerboundSetBeaconPacket(
+                        Optional.ofNullable(target.primary()),
+                        Optional.ofNullable(target.secondary())
+                )
+        );
     }
 
-    private void clickSlot(AbstractContainerMenu handler, int slotId, int button, ContainerInput actionType, Minecraft client) {
+    private void clickSlot(
+            AbstractContainerMenu handler,
+            int slotId,
+            int button,
+            ContainerInput actionType,
+            Minecraft client
+    ) {
         if (client.player == null || client.gameMode == null) {
             return;
         }
 
-        client.gameMode.handleContainerInput(
-                handler.containerId,
-                slotId,
-                button,
-                actionType,
-                client.player
-        );
+        client.gameMode.handleContainerInput(handler.containerId, slotId, button, actionType, client.player);
     }
 
     private BlockHitResult getLookedAtBeaconHitResult(Minecraft client) {
@@ -644,10 +647,9 @@ public final class QuickBeacon implements ClientModInitializer {
         }
 
         // 以打开信标后同步到界面的数据为准，只保护当前配置列表内的已选效果。
-        BeaconEffectTarget currentTarget = parseConfiguredTargets(client).stream()
-                .filter(target -> target.matchesSelection(primary, secondary))
-                .findFirst()
-                .orElse(null);
+        BeaconEffectTarget currentTarget = parseConfiguredTargets(client).stream().filter(
+                target -> target.matchesSelection(primary, secondary)
+        ).findFirst().orElse(null);
         if (currentTarget == null) {
             return null;
         }
@@ -671,7 +673,9 @@ public final class QuickBeacon implements ClientModInitializer {
     }
 
     private void pruneRecentAssignments(Minecraft client) {
-        RECENT_BEACON_ASSIGNMENTS.entrySet().removeIf(entry -> !isRecentAssignmentValid(client, entry.getKey(), entry.getValue()));
+        RECENT_BEACON_ASSIGNMENTS.entrySet().removeIf(
+                entry -> !isRecentAssignmentValid(client, entry.getKey(), entry.getValue())
+        );
     }
 
     private boolean isRecentAssignmentValid(Minecraft client, BlockPos beaconPos, RecentBeaconAssignment assignment) {
@@ -709,7 +713,10 @@ public final class QuickBeacon implements ClientModInitializer {
 
     private void sendConfiguredStateMessage(Minecraft client, BeaconConfiguredState configuredState) {
         if (configuredState.displayName() != null) {
-            sendStatusMessage(client, Component.translatable(configuredState.translationKey(), configuredState.displayName()));
+            sendStatusMessage(
+                    client,
+                    Component.translatable(configuredState.translationKey(), configuredState.displayName())
+            );
             return;
         }
 
@@ -729,8 +736,7 @@ public final class QuickBeacon implements ClientModInitializer {
             return "quickcraft.beacon.effect.strength2";
         }
         if (effect.equals(MobEffects.REGENERATION)) {
-            return target.minimumAmplifier() >= 1
-                    ? "quickcraft.beacon.effect.regeneration2"
+            return target.minimumAmplifier() >= 1 ? "quickcraft.beacon.effect.regeneration2"
                     : "quickcraft.beacon.effect.regeneration1";
         }
         if (effect.equals(MobEffects.JUMP_BOOST)) {
@@ -773,9 +779,8 @@ public final class QuickBeacon implements ClientModInitializer {
     }
 
     private enum PendingFailureReason {
-        NONE(""),
-        NO_VALID_ORDER("quickcraft.message.beacon.invalid_order"),
-        ALL_ACTIVE("quickcraft.message.beacon.all_active");
+        NONE(""), NO_VALID_ORDER("quickcraft.message.beacon.invalid_order"), ALL_ACTIVE(
+                "quickcraft.message.beacon.all_active");
 
         private final String translationKey;
 
@@ -785,10 +790,8 @@ public final class QuickBeacon implements ClientModInitializer {
     }
 
     private enum PaymentMaterial {
-        IRON(Items.IRON_INGOT, Items.IRON_BLOCK),
-        EMERALD(Items.EMERALD, Items.EMERALD_BLOCK),
-        GOLD(Items.GOLD_INGOT, Items.GOLD_BLOCK),
-        DIAMOND(Items.DIAMOND, Items.DIAMOND_BLOCK);
+        IRON(Items.IRON_INGOT, Items.IRON_BLOCK), EMERALD(Items.EMERALD, Items.EMERALD_BLOCK), GOLD(Items.GOLD_INGOT,
+                Items.GOLD_BLOCK), DIAMOND(Items.DIAMOND, Items.DIAMOND_BLOCK);
 
         private final Item paymentItem;
         private final Item blockItem;
@@ -800,12 +803,7 @@ public final class QuickBeacon implements ClientModInitializer {
     }
 
     private enum PendingStage {
-        NONE,
-        WAIT_INITIAL_OPEN,
-        DECOMPOSE_START,
-        DECOMPOSE_WAIT_RESULT,
-        DECOMPOSE_TAKE_RESULT,
-        WAIT_REOPEN
+        NONE, WAIT_INITIAL_OPEN, DECOMPOSE_START, DECOMPOSE_WAIT_RESULT, DECOMPOSE_TAKE_RESULT, WAIT_REOPEN
     }
 
     record BeaconEffectTarget(
@@ -819,8 +817,7 @@ public final class QuickBeacon implements ClientModInitializer {
         }
 
         static BeaconEffectTarget regeneration(boolean levelTwo) {
-            return levelTwo
-                    ? levelTwo(MobEffects.REGENERATION)
+            return levelTwo ? levelTwo(MobEffects.REGENERATION)
                     : new BeaconEffectTarget(MobEffects.HASTE, MobEffects.REGENERATION, MobEffects.REGENERATION, 0);
         }
 
@@ -832,11 +829,7 @@ public final class QuickBeacon implements ClientModInitializer {
     private record BeaconConfiguredState(Component displayName, String translationKey) {
     }
 
-    private record RecentBeaconAssignment(
-            BeaconEffectTarget target,
-            long expiresAt,
-            int blockEntityIdentity
-    ) {
+    private record RecentBeaconAssignment(BeaconEffectTarget target, long expiresAt, int blockEntityIdentity) {
     }
 
     private record TargetSelectionResult(BeaconEffectTarget target, PendingFailureReason failureReason) {

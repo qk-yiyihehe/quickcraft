@@ -105,8 +105,7 @@ public final class QuickClearContainer implements ClientModInitializer {
         if (client.level == null || pendingPos == null) {
             return false;
         }
-        return client.level.getBlockEntity(pendingPos) != null
-                && !client.level.getBlockState(pendingPos).isAir();
+        return client.level.getBlockEntity(pendingPos) != null && !client.level.getBlockState(pendingPos).isAir();
     }
 
     private boolean isConfirmedTargetScreen(Minecraft client, AbstractContainerScreen<?> screen) {
@@ -115,8 +114,7 @@ public final class QuickClearContainer implements ClientModInitializer {
         }
         // 客户端菜单由 MenuType 工厂新建独立 SimpleContainer，不与世界方块实体共享对象；
         // 这里只能按“开屏源自对 pendingPos 的实际交互”和“菜单容量与目标容器一致”做关联。
-        if (!(client.hitResult instanceof BlockHitResult hit)
-                || !hit.getBlockPos().equals(pendingPos)) {
+        if (!(client.hitResult instanceof BlockHitResult hit) || !hit.getBlockPos().equals(pendingPos)) {
             return false;
         }
 
@@ -132,8 +130,7 @@ public final class QuickClearContainer implements ClientModInitializer {
         var state = client.level.getBlockState(pendingPos);
         BlockEntity blockEntity = client.level.getBlockEntity(pendingPos);
         if (blockEntity instanceof Container container) {
-            if (state.getBlock() instanceof ChestBlock
-                    && state.getValue(ChestBlock.TYPE) != ChestType.SINGLE) {
+            if (state.getBlock() instanceof ChestBlock && state.getValue(ChestBlock.TYPE) != ChestType.SINGLE) {
                 // 双箱菜单两半合计 54 格；客户端半侧方块实体自身仍是 27 格。
                 return container.getContainerSize() * 2;
             }
@@ -188,43 +185,31 @@ public final class QuickClearContainer implements ClientModInitializer {
 
         for (int slotId : getContainerSlotIds(handler)) {
             Slot slot = handler.getSlot(slotId);
-            if (!isVisibleSlot(slot)
-                    || isPlayerStorageSlot(slot)
-                    || QuickContainerLock.isLockedSlot(handler, slot)
-                    || !slot.hasItem()
-                    || !slot.mayPickup(client.player)) {
+            if (!isVisibleSlot(slot) || isPlayerStorageSlot(slot) || QuickContainerLock.isLockedSlot(handler, slot)
+                    || !slot.hasItem() || !slot.mayPickup(client.player)) {
                 continue;
             }
 
-            client.gameMode.handleContainerInput(
-                    handler.containerId,
-                    slotId,
-                    1,
-                    ContainerInput.THROW,
-                    client.player
-            );
+            client.gameMode.handleContainerInput(handler.containerId, slotId, 1, ContainerInput.THROW, client.player);
         }
     }
 
     private List<Integer> getContainerSlotIds(AbstractContainerMenu handler) {
         List<Slot> containerSlots = new ArrayList<>();
         for (Slot slot : handler.slots) {
-            if (!isVisibleSlot(slot)
-                    || isPlayerStorageSlot(slot)
-                    || QuickContainerLock.isLockedSlot(handler, slot)) {
+            if (!isVisibleSlot(slot) || isPlayerStorageSlot(slot) || QuickContainerLock.isLockedSlot(handler, slot)) {
                 continue;
             }
             containerSlots.add(slot);
         }
 
-        containerSlots.sort(Comparator
-                .comparingInt((Slot slot) -> slot.y)
-                .thenComparingInt(slot -> slot.x)
-                .thenComparingInt(slot -> slot.index));
+        containerSlots.sort(
+                Comparator.comparingInt((Slot slot) -> slot.y).thenComparingInt(slot -> slot.x).thenComparingInt(
+                        slot -> slot.index
+                )
+        );
 
-        return containerSlots.stream()
-                .map(slot -> slot.index)
-                .toList();
+        return containerSlots.stream().map(slot -> slot.index).toList();
     }
 
     private boolean isPlayerStorageSlot(Slot slot) {

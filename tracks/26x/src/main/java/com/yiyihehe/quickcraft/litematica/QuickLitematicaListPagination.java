@@ -33,8 +33,24 @@ public final class QuickLitematicaListPagination {
         this.gui = gui;
         this.right = right;
         this.y = y;
-        this.previous = new QuickCraftMovableButton(layoutKey + ".previous", 0, 0, 38, 20, "<", "quickcraft.litematica.pagination.previous");
-        this.next = new QuickCraftMovableButton(layoutKey + ".next", 0, 0, 38, 20, ">", "quickcraft.litematica.pagination.next");
+        this.previous = new QuickCraftMovableButton(
+                layoutKey + ".previous",
+                0,
+                0,
+                38,
+                20,
+                "<",
+                "quickcraft.litematica.pagination.previous"
+        );
+        this.next = new QuickCraftMovableButton(
+                layoutKey + ".next",
+                0,
+                0,
+                38,
+                20,
+                ">",
+                "quickcraft.litematica.pagination.next"
+        );
         this.label = new PageLabel();
         gui.addButton(this.previous, (button, mouse) -> this.move(-1));
         gui.addButton(this.next, (button, mouse) -> this.move(1));
@@ -58,7 +74,9 @@ public final class QuickLitematicaListPagination {
     }
 
     static QuickLitematicaListPagination add(GuiBase gui, String layoutKey, int right, int y) {
-        if (!enabled()) { return null; }
+        if (!enabled()) {
+            return null;
+        }
         var list = ((MalilibGuiListAccessor) gui).quickcraft$getListWidget();
         var pagination = new QuickLitematicaListPagination(gui, layoutKey, right, y);
         pagination.attach(list);
@@ -84,7 +102,9 @@ public final class QuickLitematicaListPagination {
         return this.starts.get(this.page);
     }
 
-    public int lastStart() { return this.starts.getLast(); }
+    public int lastStart() {
+        return this.starts.getLast();
+    }
 
     public void move(int direction) {
         int target = Math.clamp(this.page + direction, 0, this.starts.size() - 1);
@@ -113,9 +133,13 @@ public final class QuickLitematicaListPagination {
     }
 
     private static final class PageLabel extends WidgetLabel {
-        private PageLabel() { super(0, 0, 100, 20, 0xFFFFFFFF); }
+        private PageLabel() {
+            super(0, 0, 100, 20, 0xFFFFFFFF);
+        }
 
-        private String text() { return this.labels.getFirst(); }
+        private String text() {
+            return this.labels.getFirst();
+        }
 
         private void update(int page, int total) {
             this.labels.clear();

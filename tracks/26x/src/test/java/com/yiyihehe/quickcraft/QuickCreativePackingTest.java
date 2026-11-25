@@ -68,7 +68,9 @@ class QuickCreativePackingTest {
         java.util.List<ItemStack> items = new java.util.ArrayList<>();
         var contents = stack.get(net.minecraft.core.component.DataComponents.BUNDLE_CONTENTS);
         assertThat(contents).isNotNull();
-        for (ItemStack item : QuickCreativePackingBundleAccess.itemCopies(contents)) items.add(item);
+        for (ItemStack item : QuickCreativePackingBundleAccess.itemCopies(contents)) {
+            items.add(item);
+        }
         assertThat(items).hasSize(1);
         assertThat(items.getFirst().getItem()).isEqualTo(Items.DIRT);
         assertThat(items.getFirst().getCount()).isEqualTo(64);

@@ -39,12 +39,13 @@ class QuickLitematicaEntitySaveSourceTest {
 
         SchematicPlacementManager manager = manager();
         try (var handler = mockStatic(SchematicWorldHandler.class);
-             var data = mockStatic(DataManager.class);
-             var access = mockStatic(QuickLitematicaContainerMaterialsAccess.class, CALLS_REAL_METHODS)) {
+                var data = mockStatic(DataManager.class);
+                var access = mockStatic(QuickLitematicaContainerMaterialsAccess.class, CALLS_REAL_METHODS)) {
             handler.when(SchematicWorldHandler::getSchematicWorld).thenReturn(active);
             data.when(DataManager::getSchematicPlacementManager).thenReturn(manager);
-            access.when(() -> QuickLitematicaContainerMaterialsAccess.entityPosition(any()))
-                    .thenReturn(new Vec3d(0.5, 0.0, 0.5));
+            access.when(() -> QuickLitematicaContainerMaterialsAccess.entityPosition(any())).thenReturn(
+                    new Vec3d(0.5, 0.0, 0.5)
+            );
 
             QuickLitematicaGlobalReplacements.restoreSavedEntityItems(entity, output, temporary);
 
@@ -60,12 +61,13 @@ class QuickLitematicaEntitySaveSourceTest {
 
         SchematicPlacementManager manager = manager();
         try (var handler = mockStatic(SchematicWorldHandler.class);
-             var data = mockStatic(DataManager.class);
-             var access = mockStatic(QuickLitematicaContainerMaterialsAccess.class, CALLS_REAL_METHODS)) {
+                var data = mockStatic(DataManager.class);
+                var access = mockStatic(QuickLitematicaContainerMaterialsAccess.class, CALLS_REAL_METHODS)) {
             handler.when(SchematicWorldHandler::getSchematicWorld).thenReturn(active);
             data.when(DataManager::getSchematicPlacementManager).thenReturn(manager);
-            access.when(() -> QuickLitematicaContainerMaterialsAccess.entityPosition(any()))
-                    .thenReturn(new Vec3d(0.5, 0.0, 0.5));
+            access.when(() -> QuickLitematicaContainerMaterialsAccess.entityPosition(any())).thenReturn(
+                    new Vec3d(0.5, 0.0, 0.5)
+            );
 
             QuickLitematicaGlobalReplacements.restoreSavedEntityItems(entity, output, active);
 
@@ -80,8 +82,9 @@ class QuickLitematicaEntitySaveSourceTest {
         when(sub.getMirror()).thenReturn(BlockMirror.NONE);
 
         LitematicaSchematic schematic = mock(LitematicaSchematic.class);
-        when(schematic.getEntityListForRegion(REGION)).thenReturn(List.of(
-                entityInfo(chestMinecart("minecraft:glass"))));
+        when(schematic.getEntityListForRegion(REGION)).thenReturn(
+                List.of(entityInfo(chestMinecart("minecraft:glass")))
+        );
 
         SchematicPlacement placement = mock(SchematicPlacement.class);
         when(placement.isEnabled()).thenReturn(true);
@@ -100,7 +103,9 @@ class QuickLitematicaEntitySaveSourceTest {
     private static LitematicaSchematic.EntityInfo entityInfo(NbtCompound nbt) throws Exception {
         for (var constructor : LitematicaSchematic.EntityInfo.class.getConstructors()) {
             Class<?>[] parameters = constructor.getParameterTypes();
-            if (parameters.length != 2 || parameters[0] != Vec3d.class) { continue; }
+            if (parameters.length != 2 || parameters[0] != Vec3d.class) {
+                continue;
+            }
             Object data = nbt;
             if (parameters[1] != NbtCompound.class) {
                 Class<?> converter = Class.forName("fi.dy.masa.malilib.util.data.tag.converter.DataConverterNbt");
@@ -127,6 +132,10 @@ class QuickLitematicaEntitySaveSourceTest {
     private static String firstItemId(NbtCompound nbt) {
         return QuickLitematicaContainerMaterialsAccess.readString(
                 QuickLitematicaContainerMaterialsAccess.readCompound(
-                        QuickLitematicaContainerMaterialsAccess.readCompoundList(nbt, "Items"), 0), "id");
+                        QuickLitematicaContainerMaterialsAccess.readCompoundList(nbt, "Items"),
+                        0
+                ),
+                "id"
+        );
     }
 }

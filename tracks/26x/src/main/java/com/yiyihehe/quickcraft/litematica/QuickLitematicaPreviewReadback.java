@@ -21,7 +21,9 @@ final class QuickLitematicaPreviewReadback implements AutoCloseable {
         try {
             this.close();
         } catch (Throwable cleanup) {
-            if (cleanup != failure) failure.addSuppressed(cleanup);
+            if (cleanup != failure) {
+                failure.addSuppressed(cleanup);
+            }
         }
         callback.accept(failure);
     }
@@ -30,7 +32,9 @@ final class QuickLitematicaPreviewReadback implements AutoCloseable {
     public void close() {
         if (this.closed.compareAndSet(false, true)) {
             try {
-                if (this.closeBuffer != null) this.closeBuffer.run();
+                if (this.closeBuffer != null) {
+                    this.closeBuffer.run();
+                }
             } finally {
                 this.closeTarget.run();
             }

@@ -19,12 +19,21 @@ class QuickLitematicaContainerHighlightTest {
         var client = org.mockito.Mockito.mock(net.minecraft.client.Minecraft.class);
         var world = org.mockito.Mockito.mock(net.minecraft.client.multiplayer.ClientLevel.class);
         client.level = world;
-        var registries = net.minecraft.core.RegistryAccess.fromRegistryOfRegistries(net.minecraft.core.registries.BuiltInRegistries.REGISTRY);
+        var registries = net.minecraft.core.RegistryAccess.fromRegistryOfRegistries(
+                net.minecraft.core.registries.BuiltInRegistries.REGISTRY
+        );
         org.mockito.Mockito.when(world.registryAccess()).thenReturn(registries);
         var schematic = org.mockito.Mockito.mock(fi.dy.masa.litematica.schematic.LitematicaSchematic.class);
-        var blocks = org.mockito.Mockito.mock(fi.dy.masa.litematica.schematic.container.LitematicaBlockStateContainer.class);
-        org.mockito.Mockito.when(blocks.get(org.mockito.ArgumentMatchers.anyInt(), org.mockito.ArgumentMatchers.anyInt(),
-                org.mockito.ArgumentMatchers.anyInt())).thenReturn(Blocks.CHEST.defaultBlockState());
+        var blocks = org.mockito.Mockito.mock(
+                fi.dy.masa.litematica.schematic.container.LitematicaBlockStateContainer.class
+        );
+        org.mockito.Mockito.when(
+                blocks.get(
+                        org.mockito.ArgumentMatchers.anyInt(),
+                        org.mockito.ArgumentMatchers.anyInt(),
+                        org.mockito.ArgumentMatchers.anyInt()
+                )
+        ).thenReturn(Blocks.CHEST.defaultBlockState());
         org.mockito.Mockito.when(schematic.getSubRegionContainer("test")).thenReturn(blocks);
         org.mockito.Mockito.when(schematic.getAreaSize("test")).thenReturn(new BlockPos(2, 1, 1));
         var placement = org.mockito.Mockito.mock(fi.dy.masa.litematica.schematic.placement.SchematicPlacement.class);
@@ -41,7 +50,9 @@ class QuickLitematicaContainerHighlightTest {
         org.mockito.Mockito.when(region.getPos()).thenReturn(BlockPos.ZERO);
         org.mockito.Mockito.when(region.getMirror()).thenReturn(net.minecraft.world.level.block.Mirror.NONE);
         org.mockito.Mockito.when(region.getRotation()).thenReturn(net.minecraft.world.level.block.Rotation.NONE);
-        var manager = org.mockito.Mockito.mock(fi.dy.masa.litematica.schematic.placement.SchematicPlacementManager.class);
+        var manager = org.mockito.Mockito.mock(
+                fi.dy.masa.litematica.schematic.placement.SchematicPlacementManager.class
+        );
         org.mockito.Mockito.when(manager.getAllSchematicsPlacements()).thenReturn(java.util.List.of(placement));
         var entries = new java.util.LinkedHashMap<BlockPos, net.minecraft.nbt.CompoundTag>();
         var broken = chestWithStone();
@@ -52,25 +63,38 @@ class QuickLitematicaContainerHighlightTest {
         failed.setAccessible(true);
         var failures = (java.util.Set<?>) failed.get(null);
         failures.clear();
-        var method = QuickLitematicaContainerHighlight.class.getDeclaredMethod("collectContainerPositions", net.minecraft.client.Minecraft.class);
+        var method = QuickLitematicaContainerHighlight.class.getDeclaredMethod(
+                "collectContainerPositions",
+                net.minecraft.client.Minecraft.class
+        );
         method.setAccessible(true);
         var attempts = new java.util.concurrent.atomic.AtomicInteger();
         try (var data = org.mockito.Mockito.mockStatic(fi.dy.masa.litematica.data.DataManager.class);
-             var access = org.mockito.Mockito.mockStatic(QuickLitematicaDataCompat.class);
-             var loading = org.mockito.Mockito.mockStatic(BlockEntity.class, org.mockito.Mockito.CALLS_REAL_METHODS)) {
+                var access = org.mockito.Mockito.mockStatic(QuickLitematicaDataCompat.class);
+                var loading = org.mockito.Mockito.mockStatic(
+                        BlockEntity.class,
+                        org.mockito.Mockito.CALLS_REAL_METHODS
+                )) {
             data.when(fi.dy.masa.litematica.data.DataManager::getSchematicPlacementManager).thenReturn(manager);
             org.mockito.Mockito.doReturn(entries).when(schematic).getBlockEntityMapForRegion("test");
-            access.when(() -> QuickLitematicaDataCompat.toVanillaNbt(org.mockito.ArgumentMatchers.any())).thenAnswer(call -> call.getArgument(0));
-            loading.when(() -> BlockEntity.loadStatic(org.mockito.ArgumentMatchers.any(),
-                    org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any()))
-                    .thenAnswer(call -> {
-                        net.minecraft.nbt.CompoundTag nbt = call.getArgument(2);
-                        if (nbt.contains("Broken")) {
-                            attempts.incrementAndGet();
-                            return null;
-                        }
-                        return call.callRealMethod();
-                    });
+            access.when(() -> QuickLitematicaDataCompat.toVanillaNbt(org.mockito.ArgumentMatchers.any())).thenAnswer(
+                    call -> call.getArgument(0)
+            );
+            loading.when(
+                    () -> BlockEntity.loadStatic(
+                            org.mockito.ArgumentMatchers.any(),
+                            org.mockito.ArgumentMatchers.any(),
+                            org.mockito.ArgumentMatchers.any(),
+                            org.mockito.ArgumentMatchers.any()
+                    )
+            ).thenAnswer(call -> {
+                net.minecraft.nbt.CompoundTag nbt = call.getArgument(2);
+                if (nbt.contains("Broken")) {
+                    attempts.incrementAndGet();
+                    return null;
+                }
+                return call.callRealMethod();
+            });
             assertThat((java.util.List<?>) method.invoke(null, client)).hasSize(1);
             assertThat((java.util.List<?>) method.invoke(null, client)).hasSize(1);
             assertThat(attempts).hasValue(1);
@@ -80,16 +104,26 @@ class QuickLitematicaContainerHighlightTest {
             assertThat(failures).isEmpty();
             entries.put(BlockPos.ZERO, chestWithStone());
             assertThat((java.util.List<?>) method.invoke(null, client)).hasSize(2);
-            var second = org.mockito.Mockito.mock(fi.dy.masa.litematica.schematic.placement.SchematicPlacement.class,
-                    org.mockito.AdditionalAnswers.delegatesTo(placement));
+            var second = org.mockito.Mockito.mock(
+                    fi.dy.masa.litematica.schematic.placement.SchematicPlacement.class,
+                    org.mockito.AdditionalAnswers.delegatesTo(placement)
+            );
             org.mockito.Mockito.when(second.getOrigin()).thenReturn(new BlockPos(10, 0, 0));
-            org.mockito.Mockito.when(manager.getAllSchematicsPlacements()).thenReturn(java.util.List.of(placement, second));
+            org.mockito.Mockito.when(manager.getAllSchematicsPlacements()).thenReturn(
+                    java.util.List.of(placement, second)
+            );
             entries.remove(BlockPos.ZERO);
             loading.clearInvocations();
             assertThat((java.util.List<?>) method.invoke(null, client)).hasSize(2);
-            loading.verify(() -> BlockEntity.loadStatic(org.mockito.ArgumentMatchers.any(),
-                    org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any()),
-                    org.mockito.Mockito.times(1));
+            loading.verify(
+                    () -> BlockEntity.loadStatic(
+                            org.mockito.ArgumentMatchers.any(),
+                            org.mockito.ArgumentMatchers.any(),
+                            org.mockito.ArgumentMatchers.any(),
+                            org.mockito.ArgumentMatchers.any()
+                    ),
+                    org.mockito.Mockito.times(1)
+            );
             entries.get(new BlockPos(1, 0, 0)).put("Items", new net.minecraft.nbt.ListTag());
             assertThat((java.util.List<?>) method.invoke(null, client)).isEmpty();
         } finally {
@@ -109,27 +143,40 @@ class QuickLitematicaContainerHighlightTest {
         chest.put("Items", items);
         return chest;
     }
+
     @Test
     void unresolvedNbtIsNotTreatedAsNonInventoryType() {
         RegistryAccess registries = RegistryAccess.fromRegistryOfRegistries(BuiltInRegistries.REGISTRY);
         CompoundTag unresolved = new CompoundTag();
         unresolved.putString("id", "minecraft:not_a_registered_block_entity");
         BlockEntity failed = BlockEntity.loadStatic(
-                BlockPos.ZERO, Blocks.CHEST.defaultBlockState(), unresolved, registries);
+                BlockPos.ZERO,
+                Blocks.CHEST.defaultBlockState(),
+                unresolved,
+                registries
+        );
         assertThat(failed).isNull();
         assertThat(QuickLitematicaContainerHighlight.isConfirmedNonInventory(failed)).isFalse();
 
         CompoundTag chestNbt = new CompoundTag();
         chestNbt.putString("id", "minecraft:chest");
         BlockEntity chest = BlockEntity.loadStatic(
-                BlockPos.ZERO, Blocks.CHEST.defaultBlockState(), chestNbt, registries);
+                BlockPos.ZERO,
+                Blocks.CHEST.defaultBlockState(),
+                chestNbt,
+                registries
+        );
         assertThat(chest).isInstanceOf(Container.class);
         assertThat(QuickLitematicaContainerHighlight.isConfirmedNonInventory(chest)).isFalse();
 
         CompoundTag signNbt = new CompoundTag();
         signNbt.putString("id", "minecraft:sign");
         BlockEntity sign = BlockEntity.loadStatic(
-                BlockPos.ZERO, Blocks.OAK_SIGN.defaultBlockState(), signNbt, registries);
+                BlockPos.ZERO,
+                Blocks.OAK_SIGN.defaultBlockState(),
+                signNbt,
+                registries
+        );
         assertThat(sign).isNotNull();
         assertThat(QuickLitematicaContainerHighlight.isConfirmedNonInventory(sign)).isTrue();
     }

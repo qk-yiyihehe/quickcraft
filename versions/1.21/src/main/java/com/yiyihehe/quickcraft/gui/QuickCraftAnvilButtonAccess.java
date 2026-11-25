@@ -22,8 +22,14 @@ public abstract class QuickCraftAnvilButtonAccess extends ButtonWidget {
 
     protected abstract void renderPlanTooltip(DrawContext context, int mouseX, int mouseY);
 
-    protected static void drawPlanTooltip(DrawContext context, TextRenderer font, List<OrderedText> lines,
-                                          TooltipPositioner positioner, int x, int y) {
+    protected static void drawPlanTooltip(
+            DrawContext context,
+            TextRenderer font,
+            List<OrderedText> lines,
+            TooltipPositioner positioner,
+            int x,
+            int y
+    ) {
         MinecraftClient.getInstance().currentScreen.setTooltip(lines, positioner, true);
     }
 }

@@ -13,8 +13,7 @@ import org.jetbrains.annotations.Nullable;
  * 1.21.3 自由相机 LookAndOnGround 增加 horizontalCollision，Property 类型判断更新。
  */
 public final class QuickFreeCameraAccess {
-    private QuickFreeCameraAccess() {
-    }
+    private QuickFreeCameraAccess() {}
 
     public static void sendLookPacket(ClientPlayerEntity player, float yaw, float pitch) {
         player.networkHandler.sendPacket(
@@ -66,10 +65,9 @@ public final class QuickFreeCameraAccess {
     @Nullable
     @SuppressWarnings("unchecked")
     public static Property<Direction> getDirectionProperty(BlockState state) {
-        return (Property<Direction>) state.getProperties().stream()
-                .filter(property -> property.getType() == Direction.class)
-                .findFirst()
-                .orElse(null);
+        return (Property<Direction>) state.getProperties().stream().filter(
+                property -> property.getType() == Direction.class
+        ).findFirst().orElse(null);
     }
 
     public static int getDirectionIndex(Direction direction) {

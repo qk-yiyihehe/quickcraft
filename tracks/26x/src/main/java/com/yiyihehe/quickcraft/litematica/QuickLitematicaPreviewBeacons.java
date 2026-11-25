@@ -11,8 +11,7 @@ final class QuickLitematicaPreviewBeacons {
     // 原版 tick 每次扫描十层；只在独立假世界中初始化，时间固定为 80 的倍数以重算基座。
     private static final ThreadLocal<Integer> INITIALIZATION_TOP = new ThreadLocal<>();
 
-    private QuickLitematicaPreviewBeacons() {
-    }
+    private QuickLitematicaPreviewBeacons() {}
 
     static boolean isInitializing() {
         return INITIALIZATION_TOP.get() != null;
@@ -33,7 +32,8 @@ final class QuickLitematicaPreviewBeacons {
         private final java.util.Iterator<BlockEntity> candidates;
         private final java.util.Iterator<BlockPos> positions;
         private final java.util.List<BeaconBlockEntity> beacons = new java.util.ArrayList<>();
-        private final it.unimi.dsi.fastutil.longs.Long2IntOpenHashMap tops = new it.unimi.dsi.fastutil.longs.Long2IntOpenHashMap();
+        private final it.unimi.dsi.fastutil.longs.Long2IntOpenHashMap tops =
+                new it.unimi.dsi.fastutil.longs.Long2IntOpenHashMap();
         private int stage;
         private int index;
         private int ticksRemaining;
@@ -45,8 +45,12 @@ final class QuickLitematicaPreviewBeacons {
             this(world, states, entities, System::nanoTime);
         }
 
-        Initializer(Level world, Map<BlockPos, BlockState> states, Map<BlockPos, BlockEntity> entities,
-                    java.util.function.LongSupplier clock) {
+        Initializer(
+                Level world,
+                Map<BlockPos, BlockState> states,
+                Map<BlockPos, BlockEntity> entities,
+                java.util.function.LongSupplier clock
+        ) {
             this.world = world;
             this.clock = clock;
             this.candidates = entities.values().iterator();
@@ -55,12 +59,16 @@ final class QuickLitematicaPreviewBeacons {
         }
 
         boolean advance(long start, long budgetNanos) {
-            if (this.done) return true;
+            if (this.done) {
+                return true;
+            }
             try (var phase = QuickLitematicaPreviewLog.phase("预览信标光柱初始化")) {
                 while (this.clock.getAsLong() - start < budgetNanos) {
                     if (this.stage == 0) {
                         if (this.candidates.hasNext()) {
-                            if (this.candidates.next() instanceof BeaconBlockEntity beacon) this.beacons.add(beacon);
+                            if (this.candidates.next() instanceof BeaconBlockEntity beacon) {
+                                this.beacons.add(beacon);
+                            }
                             continue;
                         }
                         if (this.beacons.isEmpty()) {
@@ -79,8 +87,12 @@ final class QuickLitematicaPreviewBeacons {
                     } else {
                         if (this.index == this.beacons.size()) {
                             this.done = true;
-                            QuickLitematicaPreviewLog.LOGGER.info("预览信标光柱统计：信标={}，原版判定有光柱={}，无光柱={}（缺少有效基座或上方遮挡）",
-                                    this.beacons.size(), this.visible, this.beacons.size() - this.visible);
+                            QuickLitematicaPreviewLog.LOGGER.info(
+                                    "预览信标光柱统计：信标={}，原版判定有光柱={}，无光柱={}（缺少有效基座或上方遮挡）",
+                                    this.beacons.size(),
+                                    this.visible,
+                                    this.beacons.size() - this.visible
+                            );
                             return true;
                         }
                         BeaconBlockEntity beacon = this.beacons.get(this.index);
@@ -97,7 +109,9 @@ final class QuickLitematicaPreviewBeacons {
                             INITIALIZATION_TOP.remove();
                         }
                         if (--this.ticksRemaining == 0) {
-                            if (!beacon.getBeamSections().isEmpty()) this.visible++;
+                            if (!beacon.getBeamSections().isEmpty()) {
+                                this.visible++;
+                            }
                             this.index++;
                         }
                     }

@@ -27,12 +27,22 @@ class QuickLitematicaEntityMaterialsTest {
     void freshRequestEvaluationReplacesStaleCacheAndClosesCompletedLastCandidate() {
         QuickLitematicaEntityPlacement.Candidate candidate = mock(QuickLitematicaEntityPlacement.Candidate.class);
         QuickLitematicaEntityPlacementScreen screen = testScreen(List.of(candidate));
-        screen.applyEvaluation(new QuickLitematicaEntityPlacement.PlacementEvaluation(
-                java.util.Map.of(candidate, QuickLitematicaEntityPlacement.PlacementStatus.UNPLACED), List.of()));
-        QuickLitematicaEntityPlacement.PlacementEvaluation fresh = new QuickLitematicaEntityPlacement.PlacementEvaluation(
-                java.util.Map.of(candidate, QuickLitematicaEntityPlacement.PlacementStatus.MATCHED), List.of());
-        QuickLitematicaEntityPlacement.PlacementRequestResult result = new QuickLitematicaEntityPlacement.PlacementRequestResult(
-                QuickLitematicaEntityPlacement.PlacementRequestOutcome.ALREADY_HANDLED, fresh);
+        screen.applyEvaluation(
+                new QuickLitematicaEntityPlacement.PlacementEvaluation(
+                        java.util.Map.of(candidate, QuickLitematicaEntityPlacement.PlacementStatus.UNPLACED),
+                        List.of()
+                )
+        );
+        QuickLitematicaEntityPlacement.PlacementEvaluation fresh =
+                new QuickLitematicaEntityPlacement.PlacementEvaluation(
+                        java.util.Map.of(candidate, QuickLitematicaEntityPlacement.PlacementStatus.MATCHED),
+                        List.of()
+                );
+        QuickLitematicaEntityPlacement.PlacementRequestResult result =
+                new QuickLitematicaEntityPlacement.PlacementRequestResult(
+                        QuickLitematicaEntityPlacement.PlacementRequestOutcome.ALREADY_HANDLED,
+                        fresh
+                );
 
         assertThat(screen.handlePlacementResult(result)).isTrue();
     }
@@ -42,14 +52,32 @@ class QuickLitematicaEntityMaterialsTest {
         QuickLitematicaEntityPlacement.Candidate completed = mock(QuickLitematicaEntityPlacement.Candidate.class);
         QuickLitematicaEntityPlacement.Candidate pending = mock(QuickLitematicaEntityPlacement.Candidate.class);
         QuickLitematicaEntityPlacementScreen screen = testScreen(List.of(completed, pending));
-        screen.applyEvaluation(new QuickLitematicaEntityPlacement.PlacementEvaluation(
-                java.util.Map.of(completed, QuickLitematicaEntityPlacement.PlacementStatus.UNPLACED,
-                        pending, QuickLitematicaEntityPlacement.PlacementStatus.UNPLACED), List.of()));
-        QuickLitematicaEntityPlacement.PlacementEvaluation fresh = new QuickLitematicaEntityPlacement.PlacementEvaluation(
-                java.util.Map.of(completed, QuickLitematicaEntityPlacement.PlacementStatus.MATCHED,
-                        pending, QuickLitematicaEntityPlacement.PlacementStatus.UNPLACED), List.of());
-        QuickLitematicaEntityPlacement.PlacementRequestResult result = new QuickLitematicaEntityPlacement.PlacementRequestResult(
-                QuickLitematicaEntityPlacement.PlacementRequestOutcome.ALREADY_HANDLED, fresh);
+        screen.applyEvaluation(
+                new QuickLitematicaEntityPlacement.PlacementEvaluation(
+                        java.util.Map.of(
+                                completed,
+                                QuickLitematicaEntityPlacement.PlacementStatus.UNPLACED,
+                                pending,
+                                QuickLitematicaEntityPlacement.PlacementStatus.UNPLACED
+                        ),
+                        List.of()
+                )
+        );
+        QuickLitematicaEntityPlacement.PlacementEvaluation fresh =
+                new QuickLitematicaEntityPlacement.PlacementEvaluation(
+                        java.util.Map.of(
+                                completed,
+                                QuickLitematicaEntityPlacement.PlacementStatus.MATCHED,
+                                pending,
+                                QuickLitematicaEntityPlacement.PlacementStatus.UNPLACED
+                        ),
+                        List.of()
+                );
+        QuickLitematicaEntityPlacement.PlacementRequestResult result =
+                new QuickLitematicaEntityPlacement.PlacementRequestResult(
+                        QuickLitematicaEntityPlacement.PlacementRequestOutcome.ALREADY_HANDLED,
+                        fresh
+                );
 
         assertThat(screen.handlePlacementResult(result)).isFalse();
     }
@@ -58,12 +86,22 @@ class QuickLitematicaEntityMaterialsTest {
     void rejectedRequestKeepsScreenOpen() {
         QuickLitematicaEntityPlacement.Candidate candidate = mock(QuickLitematicaEntityPlacement.Candidate.class);
         QuickLitematicaEntityPlacementScreen screen = testScreen(List.of(candidate));
-        screen.applyEvaluation(new QuickLitematicaEntityPlacement.PlacementEvaluation(
-                java.util.Map.of(candidate, QuickLitematicaEntityPlacement.PlacementStatus.UNPLACED), List.of()));
-        QuickLitematicaEntityPlacement.PlacementEvaluation fresh = new QuickLitematicaEntityPlacement.PlacementEvaluation(
-                java.util.Map.of(candidate, QuickLitematicaEntityPlacement.PlacementStatus.MATCHED), List.of());
-        QuickLitematicaEntityPlacement.PlacementRequestResult result = new QuickLitematicaEntityPlacement.PlacementRequestResult(
-                QuickLitematicaEntityPlacement.PlacementRequestOutcome.REJECTED, fresh);
+        screen.applyEvaluation(
+                new QuickLitematicaEntityPlacement.PlacementEvaluation(
+                        java.util.Map.of(candidate, QuickLitematicaEntityPlacement.PlacementStatus.UNPLACED),
+                        List.of()
+                )
+        );
+        QuickLitematicaEntityPlacement.PlacementEvaluation fresh =
+                new QuickLitematicaEntityPlacement.PlacementEvaluation(
+                        java.util.Map.of(candidate, QuickLitematicaEntityPlacement.PlacementStatus.MATCHED),
+                        List.of()
+                );
+        QuickLitematicaEntityPlacement.PlacementRequestResult result =
+                new QuickLitematicaEntityPlacement.PlacementRequestResult(
+                        QuickLitematicaEntityPlacement.PlacementRequestOutcome.REJECTED,
+                        fresh
+                );
 
         assertThat(screen.handlePlacementResult(result)).isFalse();
     }
@@ -77,8 +115,7 @@ class QuickLitematicaEntityMaterialsTest {
             ignores.when(() -> QuickLitematicaMaterialIgnores.effective(list)).thenReturn(java.util.Set.of());
             for (var source : List.of(List.of(first, second), List.<MaterialListEntry>of())) {
                 var hud = QuickLitematicaProjectionMaterials.hud(list, true, true, () -> source);
-                java.util.Collections.sort(hud, java.util.Comparator.comparingInt(
-                        MaterialListEntry::getCountTotal));
+                java.util.Collections.sort(hud, java.util.Comparator.comparingInt(MaterialListEntry::getCountTotal));
                 assertThat(hud).containsExactlyElementsOf(source.isEmpty() ? source : List.of(second, first));
                 assertThat(source).containsExactlyElementsOf(source.isEmpty() ? source : List.of(first, second));
             }
@@ -108,12 +145,28 @@ class QuickLitematicaEntityMaterialsTest {
     @Test
     void constructsGolemsAndWithersWithoutSpawnEggs() {
         var result = materials(entity("iron_golem"), entity("snow_golem"), entity("copper_golem"), entity("wither"));
-        assertThat(result.stream().filter(stack -> stack.getItem() == Items.CARVED_PUMPKIN).mapToInt(ItemStack::getCount).sum()).isEqualTo(3);
-        assertThat(result.stream().filter(stack -> stack.getItem() == Items.IRON_BLOCK).mapToInt(ItemStack::getCount).sum()).isEqualTo(4);
-        assertThat(result.stream().filter(stack -> stack.getItem() == Items.SNOW_BLOCK).mapToInt(ItemStack::getCount).sum()).isEqualTo(2);
-        assertThat(result.stream().filter(stack -> stack.getItem() == Items.COPPER_BLOCK).mapToInt(ItemStack::getCount).sum()).isEqualTo(1);
-        assertThat(result.stream().filter(stack -> stack.getItem() == Items.SOUL_SAND).mapToInt(ItemStack::getCount).sum()).isEqualTo(4);
-        assertThat(result.stream().filter(stack -> stack.getItem() == Items.WITHER_SKELETON_SKULL).mapToInt(ItemStack::getCount).sum()).isEqualTo(3);
+        assertThat(
+                result.stream().filter(stack -> stack.getItem() == Items.CARVED_PUMPKIN).mapToInt(ItemStack::getCount)
+                        .sum()
+        ).isEqualTo(3);
+        assertThat(
+                result.stream().filter(stack -> stack.getItem() == Items.IRON_BLOCK).mapToInt(ItemStack::getCount).sum()
+        ).isEqualTo(4);
+        assertThat(
+                result.stream().filter(stack -> stack.getItem() == Items.SNOW_BLOCK).mapToInt(ItemStack::getCount).sum()
+        ).isEqualTo(2);
+        assertThat(
+                result.stream().filter(stack -> stack.getItem() == Items.COPPER_BLOCK).mapToInt(ItemStack::getCount)
+                        .sum()
+        ).isEqualTo(1);
+        assertThat(
+                result.stream().filter(stack -> stack.getItem() == Items.SOUL_SAND).mapToInt(ItemStack::getCount).sum()
+        ).isEqualTo(4);
+        assertThat(
+                result.stream().filter(stack -> stack.getItem() == Items.WITHER_SKELETON_SKULL).mapToInt(
+                        ItemStack::getCount
+                ).sum()
+        ).isEqualTo(3);
         assertThat(result).hasSize(8);
     }
 
@@ -141,7 +194,9 @@ class QuickLitematicaEntityMaterialsTest {
         var lookup = mock(RegistryWrapper.WrapperLookup.class);
         List<ItemStack> result = new ArrayList<>();
         try (var data = mockStatic(QuickLitematicaSchematicData.class)) {
-            data.when(() -> QuickLitematicaSchematicData.decodeItem(item, lookup)).thenReturn(new ItemStack(Items.DIAMOND));
+            data.when(() -> QuickLitematicaSchematicData.decodeItem(item, lookup)).thenReturn(
+                    new ItemStack(Items.DIAMOND)
+            );
             for (var nbt : List.of(frame, legacy, current, mob)) {
                 QuickLitematicaEntityMaterials.appendMaterials(nbt, lookup, result, 0);
             }
@@ -150,7 +205,9 @@ class QuickLitematicaEntityMaterialsTest {
         // 低版本由 ArmorItems/HandItems 加载，equipment 不生效；1.21.5+ 只认 equipment。
         // 旧目标：展示物 1 + legacy 3 + current 遗留字段 1；新目标：展示物 1 + 两组 equipment 各 2。
         int expectedDiamonds = 5;
-        assertThat(result.stream().filter(stack -> stack.getItem() == Items.DIAMOND).count()).isEqualTo(expectedDiamonds);
+        assertThat(result.stream().filter(stack -> stack.getItem() == Items.DIAMOND).count()).isEqualTo(
+                expectedDiamonds
+        );
         assertThat(result).hasSize(expectedDiamonds + 3);
     }
 
@@ -160,15 +217,21 @@ class QuickLitematicaEntityMaterialsTest {
         var passengers = new NbtList();
         passengers.add(entity("minecart"));
         mob.put("Passengers", passengers);
-        assertThat(materials(mob)).singleElement().satisfies(stack -> assertThat(stack.getItem()).isEqualTo(Items.MINECART));
+        assertThat(materials(mob)).singleElement().satisfies(
+                stack -> assertThat(stack.getItem()).isEqualTo(Items.MINECART)
+        );
         var result = new ArrayList<ItemStack>();
         QuickLitematicaEntityMaterials.appendMaterials(mob, null, result, 9);
         assertThat(result).isEmpty();
     }
 
-    private static QuickLitematicaEntityPlacementScreen testScreen(List<QuickLitematicaEntityPlacement.Candidate> candidates) {
-        QuickLitematicaEntityPlacementScreen screen = mock(QuickLitematicaEntityPlacementScreen.class,
-                withSettings().defaultAnswer(CALLS_REAL_METHODS));
+    private static QuickLitematicaEntityPlacementScreen testScreen(
+            List<QuickLitematicaEntityPlacement.Candidate> candidates
+    ) {
+        QuickLitematicaEntityPlacementScreen screen = mock(
+                QuickLitematicaEntityPlacementScreen.class,
+                withSettings().defaultAnswer(CALLS_REAL_METHODS)
+        );
         try {
             setField(screen, "candidates", candidates);
             setField(screen, "excessDisplays", new java.util.IdentityHashMap<>());
@@ -186,7 +249,9 @@ class QuickLitematicaEntityMaterialsTest {
 
     private static List<ItemStack> materials(NbtCompound... entities) {
         var result = new ArrayList<ItemStack>();
-        for (var entity : entities) { QuickLitematicaEntityMaterials.appendMaterials(entity, null, result, 0); }
+        for (var entity : entities) {
+            QuickLitematicaEntityMaterials.appendMaterials(entity, null, result, 0);
+        }
         return result;
     }
 

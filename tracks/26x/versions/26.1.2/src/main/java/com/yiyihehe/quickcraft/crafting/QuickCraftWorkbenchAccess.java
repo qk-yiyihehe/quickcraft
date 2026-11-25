@@ -6,15 +6,14 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.inventory.CraftingScreen;
 
 final class QuickCraftWorkbenchAccess {
-    private QuickCraftWorkbenchAccess() {
-    }
+    private QuickCraftWorkbenchAccess() {}
 
     static void clearRecipeGhostSlots() {
         Minecraft client = Minecraft.getInstance();
         if (QuickClientScreenAccess.currentScreen(client) instanceof CraftingScreen screen) {
-            ((RecipeBookScreenAccessor) (Object) screen)
-                    .quickcraft$getRecipeBook()
-                    .slotClicked(screen.getMenu().getSlot(QuickCraftMouseCraftLayout.OUTPUT_SLOT));
+            ((RecipeBookScreenAccessor) (Object) screen).quickcraft$getRecipeBook().slotClicked(
+                    screen.getMenu().getSlot(QuickCraftMouseCraftLayout.OUTPUT_SLOT)
+            );
         }
     }
 }

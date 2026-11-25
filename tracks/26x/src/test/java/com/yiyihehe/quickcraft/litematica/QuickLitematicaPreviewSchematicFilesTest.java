@@ -36,23 +36,35 @@ class QuickLitematicaPreviewSchematicFilesTest {
             palette.add(state);
         }
         region.put("BlockStatePalette", palette);
-        region.putLongArray("BlockStates", new long[] {1L});
+        region.putLongArray("BlockStates", new long[] { 1L });
         var regions = new CompoundTag();
         regions.put("region", region);
         root.put("Regions", regions);
         Path file = temporary.resolve("current.litematic");
-        try (var output = new DataOutputStream(new GZIPOutputStream(Files.newOutputStream(file)))) { NbtIo.write(root, output); }
-        try (var files = org.mockito.Mockito.mockStatic(fi.dy.masa.malilib.util.FileUtils.class, org.mockito.Mockito.CALLS_REAL_METHODS);
-             var upstream = org.mockito.Mockito.mockStatic(fi.dy.masa.litematica.schematic.LitematicaSchematic.class,
-                org.mockito.Mockito.CALLS_REAL_METHODS)) {
+        try (var output = new DataOutputStream(new GZIPOutputStream(Files.newOutputStream(file)))) {
+            NbtIo.write(root, output);
+        }
+        try (var files = org.mockito.Mockito.mockStatic(
+                fi.dy.masa.malilib.util.FileUtils.class,
+                org.mockito.Mockito.CALLS_REAL_METHODS
+        );
+                var upstream = org.mockito.Mockito.mockStatic(
+                        fi.dy.masa.litematica.schematic.LitematicaSchematic.class,
+                        org.mockito.Mockito.CALLS_REAL_METHODS
+                )) {
             files.when(fi.dy.masa.malilib.util.FileUtils::getMinecraftDirectory).thenReturn(temporary);
-            upstream.when(() -> fi.dy.masa.litematica.schematic.LitematicaSchematic.createFromFile(
-                    org.mockito.ArgumentMatchers.any(Path.class), org.mockito.ArgumentMatchers.anyString(),
-                    org.mockito.ArgumentMatchers.any(fi.dy.masa.litematica.util.FileType.class)))
-                    .thenThrow(new AssertionError("unchanged native data must not be decompressed again"));
+            upstream.when(
+                    () -> fi.dy.masa.litematica.schematic.LitematicaSchematic.createFromFile(
+                            org.mockito.ArgumentMatchers.any(Path.class),
+                            org.mockito.ArgumentMatchers.anyString(),
+                            org.mockito.ArgumentMatchers.any(fi.dy.masa.litematica.util.FileType.class)
+                    )
+            ).thenThrow(new AssertionError("unchanged native data must not be decompressed again"));
             var schematic = readSchematic(file, new AtomicBoolean(), true);
             assertThat(schematic).isNotNull();
-            assertThat(schematic.getSubRegionContainer("region").get(0, 0, 0).getBlock()).isEqualTo(net.minecraft.world.level.block.Blocks.STONE);
+            assertThat(schematic.getSubRegionContainer("region").get(0, 0, 0).getBlock()).isEqualTo(
+                    net.minecraft.world.level.block.Blocks.STONE
+            );
             assertThat(schematic.getMetadata().getName()).isEqualTo("single-read");
         }
     }
@@ -75,7 +87,9 @@ class QuickLitematicaPreviewSchematicFilesTest {
     void gzipSizeHintOnlySelectsTheReaderAndLeavesPlainFilesAlone(@TempDir Path temporary) throws Exception {
         Path gzip = temporary.resolve("size.litematic");
         byte[] payload = new byte[65_537];
-        try (var output = new GZIPOutputStream(Files.newOutputStream(gzip))) { output.write(payload); }
+        try (var output = new GZIPOutputStream(Files.newOutputStream(gzip))) {
+            output.write(payload);
+        }
         assertThat(gzipExpandedSizeHint(gzip)).isEqualTo(payload.length);
         Path plain = temporary.resolve("plain.litematic");
         Files.write(plain, payload);
@@ -124,9 +138,9 @@ class QuickLitematicaPreviewSchematicFilesTest {
         CompoundTag chest = entity("minecraft:chest", true);
         CompoundTag unknown = entity("other:machine", true);
         ListTag palette = new ListTag();
-        String[] blockIds = {"minecraft:furnace", "minecraft:comparator", "minecraft:hopper", "minecraft:campfire",
-                "minecraft:wither_skeleton_wall_skull", "minecraft:chest", "other:machine"};
-        CompoundTag[] records = {furnace, comparator, customHopper, campfire, skull, chest, unknown};
+        String[] blockIds = { "minecraft:furnace", "minecraft:comparator", "minecraft:hopper", "minecraft:campfire",
+                "minecraft:wither_skeleton_wall_skull", "minecraft:chest", "other:machine" };
+        CompoundTag[] records = { furnace, comparator, customHopper, campfire, skull, chest, unknown };
         for (int i = 0; i < records.length; i++) {
             CompoundTag state = new CompoundTag();
             state.putString("Name", blockIds[i]);
@@ -138,7 +152,10 @@ class QuickLitematicaPreviewSchematicFilesTest {
         }
         chest.putString("CustomName", "kept payload");
         region.put("BlockStatePalette", palette);
-        region.putLongArray("BlockStates", new long[]{(1L << 3) | (2L << 6) | (3L << 9) | (4L << 12) | (5L << 15) | (6L << 18), 0, 0, 0});
+        region.putLongArray(
+                "BlockStates",
+                new long[] { (1L << 3) | (2L << 6) | (3L << 9) | (4L << 12) | (5L << 15) | (6L << 18), 0, 0, 0 }
+        );
         region.put("TileEntities", entries);
         var campfireBefore = campfire.copy();
         var skullBefore = skull.copy();
@@ -149,11 +166,20 @@ class QuickLitematicaPreviewSchematicFilesTest {
         region.put("Entities", entities);
         var entitiesBefore = entities.copy();
 
-        PreparationStats stats = preparePreviewNbt(root, new AtomicBoolean(), id -> id.equals("minecraft:hopper"), QuickLitematicaPreviewSchematicFilesTest::inferredType, id -> true);
+        PreparationStats stats = preparePreviewNbt(
+                root,
+                new AtomicBoolean(),
+                id -> id.equals("minecraft:hopper"),
+                QuickLitematicaPreviewSchematicFilesTest::inferredType,
+                id -> true
+        );
 
         assertThat(stats.blockEntities()).isEqualTo(7);
         assertThat(stats.skippedBlockEntities()).isEqualTo(2);
-        assertThat(stats.skippedByType()).containsEntry("minecraft:furnace", 1).containsEntry("minecraft:comparator", 1);
+        assertThat(stats.skippedByType()).containsEntry("minecraft:furnace", 1).containsEntry(
+                "minecraft:comparator",
+                1
+        );
         assertThat(entries).containsExactly(customHopper, campfire, skull, chest, unknown);
         assertThat(campfire).isEqualTo(campfireBefore);
         assertThat(skull).isEqualTo(skullBefore);
@@ -182,12 +208,20 @@ class QuickLitematicaPreviewSchematicFilesTest {
         CompoundTag chestNbt = entity("Chest", true);
         chestNbt.putString("CustomName", "legacy name");
         chest.put("TileNBT", chestNbt);
-        for (CompoundTag entry : new CompoundTag[]{hopper, furnace, campfire, chest}) entries.add(entry);
+        for (CompoundTag entry : new CompoundTag[] { hopper, furnace, campfire, chest }) {
+            entries.add(entry);
+        }
         regionOf(root).put("TileEntities", entries);
         var visibleBefore = visibleNbt.copy();
         visibleBefore.putString("id", "minecraft:campfire");
 
-        PreparationStats stats = preparePreviewNbt(root, new AtomicBoolean(), id -> false, QuickLitematicaPreviewSchematicFilesTest::inferredType, id -> true);
+        PreparationStats stats = preparePreviewNbt(
+                root,
+                new AtomicBoolean(),
+                id -> false,
+                QuickLitematicaPreviewSchematicFilesTest::inferredType,
+                id -> true
+        );
 
         assertThat(stats.skippedByType()).containsEntry("minecraft:hopper", 1).containsEntry("minecraft:furnace", 1);
         assertThat(entries).containsExactly(campfire, chest);
@@ -203,7 +237,15 @@ class QuickLitematicaPreviewSchematicFilesTest {
         entries.add(entity("minecraft:furnace", true));
         regionOf(root).put("TileEntities", entries);
         var before = root.copy();
-        assertThat(preparePreviewNbt(root, new AtomicBoolean(), id -> false, QuickLitematicaPreviewSchematicFilesTest::inferredType, id -> true).modified()).isFalse();
+        assertThat(
+                preparePreviewNbt(
+                        root,
+                        new AtomicBoolean(),
+                        id -> false,
+                        QuickLitematicaPreviewSchematicFilesTest::inferredType,
+                        id -> true
+                ).modified()
+        ).isFalse();
         assertThat(root).isEqualTo(before);
     }
 
@@ -221,11 +263,18 @@ class QuickLitematicaPreviewSchematicFilesTest {
         shulker.put("components", components);
         CompoundTag skull = position(4, 0, 1);
         skull.putString("SkullOwner", "profile data");
-        for (CompoundTag entry : new CompoundTag[]{chest, shulker, skull}) entries.add(entry);
+        for (CompoundTag entry : new CompoundTag[] { chest, shulker, skull }) {
+            entries.add(entry);
+        }
         regionOf(root).put("TileEntities", entries);
 
-        PreparationStats stats = preparePreviewNbt(root, new AtomicBoolean(), id -> true,
-                QuickLitematicaPreviewSchematicFilesTest::inferredType, id -> true);
+        PreparationStats stats = preparePreviewNbt(
+                root,
+                new AtomicBoolean(),
+                id -> true,
+                QuickLitematicaPreviewSchematicFilesTest::inferredType,
+                id -> true
+        );
 
         assertThat(stats.restoredBlockEntityIds()).isEqualTo(3);
         assertThat(stats.inferredInventoryIds()).isEqualTo(2);
@@ -252,8 +301,13 @@ class QuickLitematicaPreviewSchematicFilesTest {
         entries.add(unresolved);
         regionOf(root).put("TileEntities", entries);
 
-        PreparationStats stats = preparePreviewNbt(root, new AtomicBoolean(), id -> false,
-                QuickLitematicaPreviewSchematicFilesTest::inferredType, id -> true);
+        PreparationStats stats = preparePreviewNbt(
+                root,
+                new AtomicBoolean(),
+                id -> false,
+                QuickLitematicaPreviewSchematicFilesTest::inferredType,
+                id -> true
+        );
 
         assertThat(stats.restoredBlockEntityIds()).isEqualTo(1);
         assertThat(stats.removedInventories()).isZero();
@@ -286,11 +340,19 @@ class QuickLitematicaPreviewSchematicFilesTest {
         unknown.put("Items", entity("", true).get("Items").copy());
         var unknownBefore = unknown.copy();
         var statesBefore = regionOf(root).get("BlockStates").copy();
-        for (CompoundTag entry : new CompoundTag[]{chest, shulker, emptyComponents, named, components, malformedComponents, unknown}) entries.add(entry);
+        for (CompoundTag entry : new CompoundTag[] { chest, shulker, emptyComponents, named, components,
+                malformedComponents, unknown }) {
+            entries.add(entry);
+        }
         regionOf(root).put("TileEntities", entries);
 
-        PreparationStats stats = preparePreviewNbt(root, new AtomicBoolean(), id -> true,
-                QuickLitematicaPreviewSchematicFilesTest::inferredType, id -> true);
+        PreparationStats stats = preparePreviewNbt(
+                root,
+                new AtomicBoolean(),
+                id -> true,
+                QuickLitematicaPreviewSchematicFilesTest::inferredType,
+                id -> true
+        );
 
         assertThat(stats.defaultContainerNbt()).isEqualTo(3);
         assertThat(stats.skippedByType()).containsEntry("minecraft:chest", 1).containsEntry("minecraft:shulker_box", 2);
@@ -317,13 +379,23 @@ class QuickLitematicaPreviewSchematicFilesTest {
         regionOf(root).put("TileEntities", entries);
         var source = root.copy();
 
-        PreparationStats retained = preparePreviewNbt(source, new AtomicBoolean(), id -> true,
-                QuickLitematicaPreviewSchematicFilesTest::inferredType, id -> true);
+        PreparationStats retained = preparePreviewNbt(
+                source,
+                new AtomicBoolean(),
+                id -> true,
+                QuickLitematicaPreviewSchematicFilesTest::inferredType,
+                id -> true
+        );
         assertThat(retained.skippedBlockEntities()).isZero();
         assertThat(source).isEqualTo(root);
 
-        PreparationStats pruned = preparePreviewNbt(root, new AtomicBoolean(), id -> !id.equals("minecraft:red_bed"),
-                QuickLitematicaPreviewSchematicFilesTest::inferredType, id -> true);
+        PreparationStats pruned = preparePreviewNbt(
+                root,
+                new AtomicBoolean(),
+                id -> !id.equals("minecraft:red_bed"),
+                QuickLitematicaPreviewSchematicFilesTest::inferredType,
+                id -> true
+        );
         assertThat(pruned.skippedByType()).containsEntry("minecraft:bed", 1);
         assertThat(entries).containsExactly(legacyBed);
         assertThat(legacyBed).isEqualTo(legacyBefore);
@@ -353,8 +425,13 @@ class QuickLitematicaPreviewSchematicFilesTest {
         entries.add(defaultChest);
         regionOf(root).put("TileEntities", entries);
 
-        PreparationStats stats = preparePreviewNbt(root, new AtomicBoolean(), id -> true,
-                QuickLitematicaPreviewSchematicFilesTest::inferredType, id -> false);
+        PreparationStats stats = preparePreviewNbt(
+                root,
+                new AtomicBoolean(),
+                id -> true,
+                QuickLitematicaPreviewSchematicFilesTest::inferredType,
+                id -> false
+        );
 
         assertThat(stats.modified()).isFalse();
         assertThat(reusedId).isEqualTo(reusedBefore);
@@ -374,8 +451,13 @@ class QuickLitematicaPreviewSchematicFilesTest {
         regionOf(root).put("TileEntities", entries);
         var before = root.copy();
 
-        PreparationStats stats = preparePreviewNbt(root, new AtomicBoolean(), id -> false,
-                QuickLitematicaPreviewSchematicFilesTest::inferredType, id -> true);
+        PreparationStats stats = preparePreviewNbt(
+                root,
+                new AtomicBoolean(),
+                id -> false,
+                QuickLitematicaPreviewSchematicFilesTest::inferredType,
+                id -> true
+        );
 
         assertThat(stats.modified()).isFalse();
         assertThat(root).isEqualTo(before);
@@ -409,7 +491,9 @@ class QuickLitematicaPreviewSchematicFilesTest {
         wrongBlock.putInt("x", 1);
         wrongBlock.putInt("y", 1);
         ListTag entries = new ListTag();
-        for (CompoundTag entry : new CompoundTag[]{hive, extra, nonemptyComponents, wrongBlock}) entries.add(entry);
+        for (CompoundTag entry : new CompoundTag[] { hive, extra, nonemptyComponents, wrongBlock }) {
+            entries.add(entry);
+        }
         region.put("TileEntities", entries);
         ListTag entities = new ListTag();
         entities.add(entity("minecraft:bee", false));
@@ -419,11 +503,23 @@ class QuickLitematicaPreviewSchematicFilesTest {
         var statesBefore = region.get("BlockStates").copy();
         var paletteBefore = region.get("BlockStatePalette").copy();
 
-        assertThat(preparePreviewNbt(root, new AtomicBoolean(), id -> true,
-                QuickLitematicaPreviewSchematicFilesTest::inferredType, id -> true).modified()).isFalse();
+        assertThat(
+                preparePreviewNbt(
+                        root,
+                        new AtomicBoolean(),
+                        id -> true,
+                        QuickLitematicaPreviewSchematicFilesTest::inferredType,
+                        id -> true
+                ).modified()
+        ).isFalse();
         assertThat(root).isEqualTo(before);
-        PreparationStats stats = preparePreviewNbt(root, new AtomicBoolean(), id -> false,
-                QuickLitematicaPreviewSchematicFilesTest::inferredType, id -> true);
+        PreparationStats stats = preparePreviewNbt(
+                root,
+                new AtomicBoolean(),
+                id -> false,
+                QuickLitematicaPreviewSchematicFilesTest::inferredType,
+                id -> true
+        );
         assertThat(stats.skippedByType()).containsEntry("minecraft:beehive", 1);
         assertThat(entries).containsExactly(extra, nonemptyComponents, wrongBlock);
         assertThat(entities).isEqualTo(entitiesBefore);
@@ -450,14 +546,21 @@ class QuickLitematicaPreviewSchematicFilesTest {
         CompoundTag unknown = position(2, 0, 1);
         unknown.putString("id", "other:chest");
         unknown.put("Items", entity("", true).get("Items").copy());
-        for (CompoundTag entry : new CompoundTag[]{hopper, skull, named, unknown}) entries.add(entry);
+        for (CompoundTag entry : new CompoundTag[] { hopper, skull, named, unknown }) {
+            entries.add(entry);
+        }
         region.put("TileEntities", entries);
         ListTag entities = new ListTag();
         entities.add(entity("other:visible_entity", true));
         region.put("Entities", entities);
         var expected = source.copy();
-        var expectedStats = preparePreviewNbt(expected, new AtomicBoolean(), id -> true,
-                QuickLitematicaPreviewSchematicFilesTest::inferredType, id -> true);
+        var expectedStats = preparePreviewNbt(
+                expected,
+                new AtomicBoolean(),
+                id -> true,
+                QuickLitematicaPreviewSchematicFilesTest::inferredType,
+                id -> true
+        );
         Path file = temporary.resolve("streaming.litematic");
         writeWithEntitiesFirst(source, file);
         byte[] original = Files.readAllBytes(file);
@@ -484,12 +587,23 @@ class QuickLitematicaPreviewSchematicFilesTest {
         entries.add(wrapped);
         regionOf(source).put("TileEntities", entries);
         var expected = source.copy();
-        preparePreviewNbt(expected, new AtomicBoolean(), id -> true,
-                QuickLitematicaPreviewSchematicFilesTest::inferredType, id -> true);
+        preparePreviewNbt(
+                expected,
+                new AtomicBoolean(),
+                id -> true,
+                QuickLitematicaPreviewSchematicFilesTest::inferredType,
+                id -> true
+        );
         Path file = temporary.resolve("wrapped.litematic");
         writeWithEntitiesFirst(source, file);
-        var actual = readStreamingPreviewNbt(file, new AtomicBoolean(), 0, id -> true,
-                (block, version) -> inferredType(block), id -> true);
+        var actual = readStreamingPreviewNbt(
+                file,
+                new AtomicBoolean(),
+                0,
+                id -> true,
+                (block, version) -> inferredType(block),
+                id -> true
+        );
         assertThat(actual.root()).isEqualTo(expected);
         assertThat(actual.stats().restoredBlockEntityIds()).isEqualTo(1);
     }
@@ -500,10 +614,26 @@ class QuickLitematicaPreviewSchematicFilesTest {
         regionOf(source).put("TileEntities", new ListTag());
         Path file = temporary.resolve("future.litematic");
         writeWithEntitiesFirst(source, file);
-        assertThat(readStreamingPreviewNbt(file, new AtomicBoolean(), 0, id -> false,
-                (block, version) -> inferredType(block), id -> true)).isNotNull();
-        assertThatThrownBy(() -> readStreamingPreviewNbt(file, new AtomicBoolean(true), 0, id -> false,
-                (block, version) -> inferredType(block), id -> true)).isInstanceOf(CancellationException.class);
+        assertThat(
+                readStreamingPreviewNbt(
+                        file,
+                        new AtomicBoolean(),
+                        0,
+                        id -> false,
+                        (block, version) -> inferredType(block),
+                        id -> true
+                )
+        ).isNotNull();
+        assertThatThrownBy(
+                () -> readStreamingPreviewNbt(
+                        file,
+                        new AtomicBoolean(true),
+                        0,
+                        id -> false,
+                        (block, version) -> inferredType(block),
+                        id -> true
+                )
+        ).isInstanceOf(CancellationException.class);
     }
 
     @Test
@@ -512,15 +642,16 @@ class QuickLitematicaPreviewSchematicFilesTest {
         CompoundTag payload = root(7);
         payload.putString("LargePayload", "x".repeat(20_000));
         assertThat(payload.sizeInBytes()).isGreaterThan(20_000);
-        assertThatThrownBy(() -> checkPreviewNbtBudget(payload.sizeInBytes(), 64L))
-                .isInstanceOf(PreviewNbtBudgetExceededException.class);
-        QuickLitematicaPreviewVertexBudget.run(true,
-                () -> checkPreviewNbtBudget(payload.sizeInBytes(), 64L));
+        assertThatThrownBy(() -> checkPreviewNbtBudget(payload.sizeInBytes(), 64L)).isInstanceOf(
+                PreviewNbtBudgetExceededException.class
+        );
+        QuickLitematicaPreviewVertexBudget.run(true, () -> checkPreviewNbtBudget(payload.sizeInBytes(), 64L));
         try (DataOutputStream output = new DataOutputStream(new GZIPOutputStream(Files.newOutputStream(file)))) {
             NbtIo.write(payload, output);
         }
-        assertThatThrownBy(() -> readSchematic(file, new AtomicBoolean(), true, 64L))
-                .isInstanceOf(PreviewNbtBudgetExceededException.class);
+        assertThatThrownBy(() -> readSchematic(file, new AtomicBoolean(), true, 64L)).isInstanceOf(
+                PreviewNbtBudgetExceededException.class
+        );
         assertThat(readSchematic(file, new AtomicBoolean(), false, 64L)).isNull();
     }
 
@@ -537,13 +668,17 @@ class QuickLitematicaPreviewSchematicFilesTest {
                 output.writeUTF(key);
                 writeField(output, "TileEntities", region.get("TileEntities"));
                 for (String field : region.keySet()) {
-                    if (!field.equals("TileEntities")) writeField(output, field, region.get(field));
+                    if (!field.equals("TileEntities")) {
+                        writeField(output, field, region.get(field));
+                    }
                 }
                 output.writeByte(0);
             }
             output.writeByte(0);
             for (String key : root.keySet()) {
-                if (!key.equals("Regions")) writeField(output, key, root.get(key));
+                if (!key.equals("Regions")) {
+                    writeField(output, key, root.get(key));
+                }
             }
             output.writeByte(0);
         }
@@ -559,14 +694,17 @@ class QuickLitematicaPreviewSchematicFilesTest {
         return switch (blockId) {
             case "minecraft:white_shulker_box" -> "minecraft:shulker_box";
             case "minecraft:wither_skeleton_wall_skull" -> "minecraft:skull";
-            case "minecraft:chest", "minecraft:campfire", "minecraft:hopper", "minecraft:furnace", "minecraft:comparator", "minecraft:beehive" -> blockId;
+            case "minecraft:chest", "minecraft:campfire", "minecraft:hopper", "minecraft:furnace",
+                    "minecraft:comparator", "minecraft:beehive" -> blockId;
             default -> "";
         };
     }
 
     private static CompoundTag entity(String id, boolean inventory) {
         CompoundTag entry = new CompoundTag();
-        if (!id.isEmpty()) entry.putString("id", id);
+        if (!id.isEmpty()) {
+            entry.putString("id", id);
+        }
         if (inventory) {
             ListTag items = new ListTag();
             CompoundTag item = new CompoundTag();
@@ -586,22 +724,28 @@ class QuickLitematicaPreviewSchematicFilesTest {
         return root;
     }
 
-    private static CompoundTag regionOf(CompoundTag root) { return root.getCompoundOrEmpty("Regions").getCompoundOrEmpty("region"); }
+    private static CompoundTag regionOf(CompoundTag root) {
+        return root.getCompoundOrEmpty("Regions").getCompoundOrEmpty("region");
+    }
 
     private static CompoundTag region() {
         CompoundTag region = new CompoundTag();
         CompoundTag size = position(-20, -2, -2);
         region.put("Size", size);
         ListTag palette = new ListTag();
-        for (String id : new String[]{"minecraft:air", "minecraft:hopper", "minecraft:campfire",
-                "minecraft:white_shulker_box", "minecraft:chest", "minecraft:wither_skeleton_wall_skull", "minecraft:red_bed", "minecraft:bed"}) {
+        for (String id : new String[] { "minecraft:air", "minecraft:hopper", "minecraft:campfire",
+                "minecraft:white_shulker_box", "minecraft:chest", "minecraft:wither_skeleton_wall_skull",
+                "minecraft:red_bed", "minecraft:bed" }) {
             CompoundTag state = new CompoundTag();
             state.putString("Name", id);
             palette.add(state);
         }
         region.put("BlockStatePalette", palette);
         // 3 位调色板索引：21 跨第一个 long 边界，41/43 区分 Y/Z 排列。
-        region.putLongArray("BlockStates", new long[]{Long.MIN_VALUE, (2L << 59) | 16L | (5L << 8) | (6L << 11) | (7L << 14), 6L, 0L});
+        region.putLongArray(
+                "BlockStates",
+                new long[] { Long.MIN_VALUE, (2L << 59) | 16L | (5L << 8) | (6L << 11) | (7L << 14), 6L, 0L }
+        );
         return region;
     }
 

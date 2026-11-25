@@ -41,20 +41,17 @@ public final class QuickLitematicaContainerReplacements {
     private static List<ReplacementRule> cachedRules = List.of();
     private static HolderLookup.Provider cachedRegistryLookup;
 
-    private QuickLitematicaContainerReplacements() {
-    }
+    private QuickLitematicaContainerReplacements() {}
 
     public enum Scope {
-        CONTAINER,
-        PROJECTION
+        CONTAINER, PROJECTION
     }
 
     public static boolean isReplacementAllowed(ItemStack source, ItemStack target, Scope scope) {
         if (source == null || target == null || source.isEmpty()) {
             return false;
         }
-        return scope != Scope.PROJECTION
-                || QuickLitematicaProjectionReplacementCompatibility.isAllowed(source, target);
+        return scope != Scope.PROJECTION || QuickLitematicaProjectionReplacementCompatibility.isAllowed(source, target);
     }
 
     public static boolean hasValidRules(Scope scope, String contextKey) {
@@ -62,7 +59,9 @@ public final class QuickLitematicaContainerReplacements {
     }
 
     public static QuickContainerCopy.TemplateSnapshot applyToSnapshot(QuickContainerCopy.TemplateSnapshot snapshot) {
-        if (snapshot == null) { return null; }
+        if (snapshot == null) {
+            return null;
+        }
         if (net.fabricmc.loader.api.FabricLoader.getInstance().isModLoaded("litematica")
                 && QuickLitematicaContainerMemory.isMaterialized(snapshot.replacementContextKey())) {
             return snapshot;
@@ -71,13 +70,15 @@ public final class QuickLitematicaContainerReplacements {
         List<ItemStack> replacedTemplates = new ArrayList<>(snapshot.slotTemplates().size());
         for (int slotIndex = 0; slotIndex < snapshot.slotTemplates().size(); slotIndex++) {
             ItemStack template = snapshot.slotTemplates().get(slotIndex);
-            replacedTemplates.add(applyToStack(
-                    template,
-                    Scope.CONTAINER,
-                    snapshot.replacementContextKey(),
-                    snapshot.containerGroupKey(),
-                    slotIndex
-            ));
+            replacedTemplates.add(
+                    applyToStack(
+                            template,
+                            Scope.CONTAINER,
+                            snapshot.replacementContextKey(),
+                            snapshot.containerGroupKey(),
+                            slotIndex
+                    )
+            );
         }
 
         return new QuickContainerCopy.TemplateSnapshot(
@@ -123,14 +124,21 @@ public final class QuickLitematicaContainerReplacements {
 
     public static boolean hasSlotOverride(ItemStack source, String contextKey, String groupKey, int slotIndex) {
         String base = baseContainerGroup(groupKey);
-        return getRules(Scope.CONTAINER, contextKey).stream().anyMatch(rule ->
-                (matchesLocation(rule, Scope.CONTAINER, contextKey, groupKey, slotIndex)
-                        || matchesLocation(rule, Scope.CONTAINER, contextKey, base, slotIndex))
-                        && matchesSource(source, rule));
+        return getRules(Scope.CONTAINER, contextKey).stream().anyMatch(
+                rule -> (matchesLocation(rule, Scope.CONTAINER, contextKey, groupKey, slotIndex) || matchesLocation(
+                        rule,
+                        Scope.CONTAINER,
+                        contextKey,
+                        base,
+                        slotIndex
+                )) && matchesSource(source, rule)
+        );
     }
 
     static String baseContainerGroup(String groupKey) {
-        if (groupKey == null) { return ""; }
+        if (groupKey == null) {
+            return "";
+        }
         int separator = groupKey.indexOf('@');
         return separator < 0 ? groupKey : groupKey.substring(0, separator);
     }
@@ -148,7 +156,9 @@ public final class QuickLitematicaContainerReplacements {
     private static final java.util.Set<String> migratedContexts = new java.util.HashSet<>();
 
     public static void migrateContainerContext(String oldContext, String fileContext) {
-        if (fileContext.isBlank() || !migratedContexts.add(oldContext + "->" + fileContext)) { return; }
+        if (fileContext.isBlank() || !migratedContexts.add(oldContext + "->" + fileContext)) {
+            return;
+        }
         List<String> configured = getConfiguredRules(Scope.CONTAINER);
         List<String> migrated = migrateContainerEntries(configured, oldContext, fileContext, registryLookup());
         if (!migrated.equals(configured)) {
@@ -157,16 +167,20 @@ public final class QuickLitematicaContainerReplacements {
         }
     }
 
-    static List<String> migrateContainerEntries(List<String> entries, String oldContext, String fileContext,
-                                                HolderLookup.Provider lookup) {
+    static List<String> migrateContainerEntries(
+            List<String> entries,
+            String oldContext,
+            String fileContext,
+            HolderLookup.Provider lookup
+    ) {
         int suffix = fileContext.lastIndexOf("#regions=");
         String filePrefix = suffix >= 0 ? fileContext.substring(0, suffix) + "#regions=" : fileContext;
         List<String> unrelated = new ArrayList<>();
         java.util.Map<String, String> related = new java.util.LinkedHashMap<>();
         for (String entry : entries) {
             ScopedRule scoped = parseScopedRule(entry, Scope.CONTAINER);
-            if (scoped == null || !(!oldContext.isBlank() && scoped.contextKey().equals(oldContext)
-                    || scoped.contextKey().startsWith(filePrefix))) {
+            if (scoped == null || !(!oldContext.isBlank() && scoped.contextKey().equals(oldContext) || scoped
+                    .contextKey().startsWith(filePrefix))) {
                 unrelated.add(entry);
                 continue;
             }
@@ -178,9 +192,18 @@ public final class QuickLitematicaContainerReplacements {
             } else {
                 renamed = fileContext + entry.substring(scoped.contextKey().length());
             }
-            ReplacementRule rule = parseRule(scoped.ruleText(), Scope.CONTAINER, scoped.contextKey(),
-                    scoped.groupKey(), scoped.slotIndex(), lookup);
-            if (rule == null) { unrelated.add(renamed); continue; }
+            ReplacementRule rule = parseRule(
+                    scoped.ruleText(),
+                    Scope.CONTAINER,
+                    scoped.contextKey(),
+                    scoped.groupKey(),
+                    scoped.slotIndex(),
+                    lookup
+            );
+            if (rule == null) {
+                unrelated.add(renamed);
+                continue;
+            }
             ItemStack source = rule.exactSource() != null ? rule.exactSource() : resolveConfiguredItem(rule.source());
             String identity = scoped.groupKey() + "||" + scoped.slotIndex() + "||" + itemSignature(source);
             related.remove(identity);
@@ -190,8 +213,14 @@ public final class QuickLitematicaContainerReplacements {
         return unrelated;
     }
 
-    public record ContainerReplacement(ItemStack source, ItemStack target, String contextKey,
-                                       String groupKey, int slotIndex, boolean preserveCount) {
+    public record ContainerReplacement(
+            ItemStack source,
+            ItemStack target,
+            String contextKey,
+            String groupKey,
+            int slotIndex,
+            boolean preserveCount
+    ) {
     }
 
     public static void setContainerReplacementRules(List<ContainerReplacement> replacements) {
@@ -200,13 +229,23 @@ public final class QuickLitematicaContainerReplacements {
         List<String> encoded = replacements.stream().map(rule -> encodeContainerRule(rule, lookup)).toList();
         for (int index = 0; index < replacements.size(); index++) {
             ContainerReplacement replacement = replacements.get(index);
-            configured.removeIf(entry -> matchesConfiguredSource(entry, replacement.source(), Scope.CONTAINER,
-                    replacement.contextKey(), replacement.groupKey(), replacement.slotIndex()));
+            configured.removeIf(
+                    entry -> matchesConfiguredSource(
+                            entry,
+                            replacement.source(),
+                            Scope.CONTAINER,
+                            replacement.contextKey(),
+                            replacement.groupKey(),
+                            replacement.slotIndex()
+                    )
+            );
             configured.add(encoded.get(index));
         }
         setConfiguredRules(Scope.CONTAINER, configured);
         QuickCraftConfigs.saveToFile();
-        replacements.stream().map(ContainerReplacement::contextKey).distinct().forEach(QuickLitematicaContainerMemory::rulesChanged);
+        replacements.stream().map(ContainerReplacement::contextKey).distinct().forEach(
+                QuickLitematicaContainerMemory::rulesChanged
+        );
     }
 
     static String encodeContainerRule(ContainerReplacement rule, HolderLookup.Provider lookup) {
@@ -218,8 +257,20 @@ public final class QuickLitematicaContainerReplacements {
         json.addProperty("context", rule.contextKey());
         json.addProperty("group", rule.groupKey());
         json.addProperty("slot", rule.slotIndex());
-        json.addProperty("source", ItemStack.OPTIONAL_CODEC.encodeStart(lookup.createSerializationContext(net.minecraft.nbt.NbtOps.INSTANCE), rule.source()).getOrThrow().toString());
-        json.addProperty("target", ItemStack.OPTIONAL_CODEC.encodeStart(lookup.createSerializationContext(net.minecraft.nbt.NbtOps.INSTANCE), rule.target()).getOrThrow().toString());
+        json.addProperty(
+                "source",
+                ItemStack.OPTIONAL_CODEC.encodeStart(
+                        lookup.createSerializationContext(net.minecraft.nbt.NbtOps.INSTANCE),
+                        rule.source()
+                ).getOrThrow().toString()
+        );
+        json.addProperty(
+                "target",
+                ItemStack.OPTIONAL_CODEC.encodeStart(
+                        lookup.createSerializationContext(net.minecraft.nbt.NbtOps.INSTANCE),
+                        rule.target()
+                ).getOrThrow().toString()
+        );
         json.addProperty("preserveCount", rule.preserveCount());
         return json.toString();
     }
@@ -231,7 +282,9 @@ public final class QuickLitematicaContainerReplacements {
     }
 
     public static void migrateProjectionContext(String oldContext, String fileContext) {
-        if (isBlank(fileContext)) { return; }
+        if (isBlank(fileContext)) {
+            return;
+        }
         List<String> configured = getConfiguredRules(Scope.PROJECTION);
         int separator = fileContext.indexOf("#regions=");
         String filePrefix = separator < 0 ? "" : fileContext.substring(0, separator + 9);
@@ -244,8 +297,12 @@ public final class QuickLitematicaContainerReplacements {
                     JsonObject json = JsonParser.parseString(entry).getAsJsonObject();
                     json.addProperty("context", fileContext);
                     migrated.add(json.toString());
-                } else { migrated.add(fileContext + CONTEXT_SEPARATOR + rule.ruleText()); }
-            } else { migrated.add(entry); }
+                } else {
+                    migrated.add(fileContext + CONTEXT_SEPARATOR + rule.ruleText());
+                }
+            } else {
+                migrated.add(entry);
+            }
         }
         if (!configured.equals(migrated)) {
             setConfiguredRules(Scope.PROJECTION, migrated);
@@ -254,14 +311,23 @@ public final class QuickLitematicaContainerReplacements {
     }
 
     public static void setProjectionReplacementRules(List<ItemStack> sources, ItemStack target, String context) {
-        if (isBlank(context) || sources.isEmpty() || sources.stream().anyMatch(source -> !isReplacementAllowed(source, target, Scope.PROJECTION))) { return; }
+        if (isBlank(context) || sources.isEmpty() || sources.stream().anyMatch(
+                source -> !isReplacementAllowed(source, target, Scope.PROJECTION)
+        )) {
+            return;
+        }
         List<String> rules = new ArrayList<>(getConfiguredRules(Scope.PROJECTION));
         for (ItemStack source : sources) {
             rules.removeIf(entry -> matchesConfiguredSource(entry, source, Scope.PROJECTION, context, "", -1));
             if (!ItemStack.isSameItemSameComponents(source, target)) {
                 ItemStack sourceCopy = source.copyWithCount(1);
                 ItemStack targetCopy = target.copyWithCount(1);
-                rules.add(encodeContainerRule(new ContainerReplacement(sourceCopy, targetCopy, context, "", -1, true), registryLookup()));
+                rules.add(
+                        encodeContainerRule(
+                                new ContainerReplacement(sourceCopy, targetCopy, context, "", -1, true),
+                                registryLookup()
+                        )
+                );
             }
         }
         setConfiguredRules(Scope.PROJECTION, rules);
@@ -277,12 +343,7 @@ public final class QuickLitematicaContainerReplacements {
         setReplacementRule(source, target, scope, "");
     }
 
-    public static void setReplacementRule(
-            ItemStack source,
-            ItemStack target,
-            Scope scope,
-            String contextKey
-    ) {
+    public static void setReplacementRule(ItemStack source, ItemStack target, Scope scope, String contextKey) {
         setReplacementRule(source, target, scope, contextKey, "", -1);
     }
 
@@ -298,8 +359,9 @@ public final class QuickLitematicaContainerReplacements {
             if (!isReplacementAllowed(source, target, scope)) {
                 return;
             }
-            setContainerReplacementRules(List.of(new ContainerReplacement(source, target, contextKey,
-                    groupKey, slotIndex, true)));
+            setContainerReplacementRules(
+                    List.of(new ContainerReplacement(source, target, contextKey, groupKey, slotIndex, true))
+            );
             return;
         }
         if (!isReplacementAllowed(source, target, scope)) {
@@ -325,13 +387,10 @@ public final class QuickLitematicaContainerReplacements {
         } else if (isBlank(contextKey)) {
             rules.add(rule);
         } else {
-            rules.add(sanitizeContextPart(contextKey)
-                    + CONTEXT_SEPARATOR
-                    + sanitizeContextPart(groupKey)
-                    + CONTEXT_SEPARATOR
-                    + slotIndex
-                    + CONTEXT_SEPARATOR
-                    + rule);
+            rules.add(
+                    sanitizeContextPart(contextKey) + CONTEXT_SEPARATOR + sanitizeContextPart(groupKey)
+                            + CONTEXT_SEPARATOR + slotIndex + CONTEXT_SEPARATOR + rule
+            );
         }
 
         setConfiguredRules(scope, rules);
@@ -449,13 +508,21 @@ public final class QuickLitematicaContainerReplacements {
         return rule == null ? stack.copy() : resolveTarget(stack, rule);
     }
 
-    static ReplacementRule findRule(List<ReplacementRule> rules, ItemStack source, Scope scope,
-                                    String contextKey, String groupKey, int slotIndex) {
+    static ReplacementRule findRule(
+            List<ReplacementRule> rules,
+            ItemStack source,
+            Scope scope,
+            String contextKey,
+            String groupKey,
+            int slotIndex
+    ) {
         String base = baseContainerGroup(groupKey);
         if (scope == Scope.CONTAINER && !base.equals(groupKey)) {
             if (slotIndex >= 0) {
                 ReplacementRule individual = findRuleAt(rules, source, scope, contextKey, groupKey, slotIndex);
-                if (individual != null) { return validRule(source, scope, individual); }
+                if (individual != null) {
+                    return validRule(source, scope, individual);
+                }
             }
             groupKey = base;
         }
@@ -466,13 +533,21 @@ public final class QuickLitematicaContainerReplacements {
                 break;
             }
             ReplacementRule rule = findRuleAt(rules, source, scope, contextKey, groupKey, wantedSlot);
-            if (rule != null) { return validRule(source, scope, rule); }
+            if (rule != null) {
+                return validRule(source, scope, rule);
+            }
         }
         return null;
     }
 
-    private static ReplacementRule findRuleAt(List<ReplacementRule> rules, ItemStack source, Scope scope,
-                                              String contextKey, String groupKey, int slotIndex) {
+    private static ReplacementRule findRuleAt(
+            List<ReplacementRule> rules,
+            ItemStack source,
+            Scope scope,
+            String contextKey,
+            String groupKey,
+            int slotIndex
+    ) {
         for (ReplacementRule rule : rules) {
             if (matchesLocation(rule, scope, contextKey, groupKey, slotIndex) && matchesSource(source, rule)) {
                 return rule;
@@ -483,22 +558,24 @@ public final class QuickLitematicaContainerReplacements {
 
     private static ReplacementRule validRule(ItemStack source, Scope scope, ReplacementRule rule) {
         ItemStack target = resolveTarget(source, rule);
-        return (target.isEmpty() || target.getCount() <= target.getMaxStackSize())
-                && (scope == Scope.CONTAINER || isReplacementAllowed(source, target, scope)) ? rule : null;
+        return (target.isEmpty() || target.getCount() <= target.getMaxStackSize()) && (scope == Scope.CONTAINER
+                || isReplacementAllowed(source, target, scope)) ? rule : null;
     }
 
     static ItemStack resolveTarget(ItemStack source, ReplacementRule rule) {
         ItemStack target = rule.target().copy();
-        if (target.isEmpty()) { return ItemStack.EMPTY; }
-        target.setCount(rule.scope() == Scope.CONTAINER
-                ? (rule.preserveCount() ? source.getCount() : target.getCount())
-                : getReplacementCount(source, target));
+        if (target.isEmpty()) {
+            return ItemStack.EMPTY;
+        }
+        target.setCount(
+                rule.scope() == Scope.CONTAINER ? (rule.preserveCount() ? source.getCount() : target.getCount())
+                        : getReplacementCount(source, target)
+        );
         return target;
     }
 
     static boolean matchesSource(ItemStack source, ReplacementRule rule) {
-        return rule.exactSource() != null
-                ? ItemStack.isSameItemSameComponents(source, rule.exactSource())
+        return rule.exactSource() != null ? ItemStack.isSameItemSameComponents(source, rule.exactSource())
                 : matchesConfiguredItem(source, rule.source());
     }
 
@@ -524,14 +601,16 @@ public final class QuickLitematicaContainerReplacements {
     }
 
     private static synchronized List<ReplacementRule> getRules(Scope scope, String contextKey) {
-        if (!enabled()) { return List.of(); }
+        if (!enabled()) {
+            return List.of();
+        }
         String effectiveContextKey = contextKey == null ? "" : contextKey;
-        if (effectiveContextKey.isBlank()) { return List.of(); }
+        if (effectiveContextKey.isBlank()) {
+            return List.of();
+        }
         List<String> configuredEntries = getConfiguredRules(scope);
         HolderLookup.Provider lookup = registryLookup();
-        if (scope == cachedScope
-                && lookup == cachedRegistryLookup
-                && effectiveContextKey.equals(cachedContextKey)
+        if (scope == cachedScope && lookup == cachedRegistryLookup && effectiveContextKey.equals(cachedContextKey)
                 && configuredEntries.equals(cachedConfiguredEntries)) {
             return cachedRules;
         }
@@ -552,7 +631,8 @@ public final class QuickLitematicaContainerReplacements {
                     scope,
                     scopedRule.contextKey(),
                     scopedRule.groupKey(),
-                    scopedRule.slotIndex(), lookup
+                    scopedRule.slotIndex(),
+                    lookup
             );
             if (rule != null) {
                 rules.add(rule);
@@ -590,8 +670,10 @@ public final class QuickLitematicaContainerReplacements {
         }
 
         int separatorIndex = scopedRule.ruleText().indexOf(SEPARATOR);
-        return separatorIndex >= 0
-                && matchesConfiguredItem(source, parseConfiguredItem(scopedRule.ruleText().substring(0, separatorIndex)));
+        return separatorIndex >= 0 && matchesConfiguredItem(
+                source,
+                parseConfiguredItem(scopedRule.ruleText().substring(0, separatorIndex))
+        );
     }
 
     private static boolean matchesLocation(
@@ -613,9 +695,8 @@ public final class QuickLitematicaContainerReplacements {
             return rule.contextKey().isEmpty() && rule.groupKey().isEmpty() && rule.slotIndex() < 0;
         }
 
-        return rule.contextKey().equals(contextKey)
-                && rule.groupKey().equals(groupKey == null ? "" : groupKey)
-                && rule.slotIndex() == slotIndex;
+        return rule.contextKey().equals(contextKey) && rule.groupKey().equals(groupKey == null ? "" : groupKey) && rule
+                .slotIndex() == slotIndex;
     }
 
     private static boolean matchesLocation(
@@ -633,9 +714,8 @@ public final class QuickLitematicaContainerReplacements {
             return rule.contextKey().isEmpty() && rule.groupKey().isEmpty() && rule.slotIndex() < 0;
         }
 
-        return rule.contextKey().equals(contextKey)
-                && rule.groupKey().equals(groupKey == null ? "" : groupKey)
-                && rule.slotIndex() == slotIndex;
+        return rule.contextKey().equals(contextKey) && rule.groupKey().equals(groupKey == null ? "" : groupKey) && rule
+                .slotIndex() == slotIndex;
     }
 
     private static ScopedRule parseScopedRule(String entry, Scope scope) {
@@ -649,8 +729,12 @@ public final class QuickLitematicaContainerReplacements {
                 if (json.get("version").getAsInt() != 2) {
                     return null;
                 }
-                return new ScopedRule(json.get("context").getAsString(), json.get("group").getAsString(),
-                        json.get("slot").getAsInt(), entry);
+                return new ScopedRule(
+                        json.get("context").getAsString(),
+                        json.get("group").getAsString(),
+                        json.get("slot").getAsInt(),
+                        entry
+                );
             } catch (RuntimeException exception) {
                 return null;
             }
@@ -717,8 +801,17 @@ public final class QuickLitematicaContainerReplacements {
         }
         if (entry.trim().startsWith("{")) {
             ReplacementRule decoded = decodeContainerRule(entry, lookup);
-            return decoded == null ? null : new ReplacementRule(scope, decoded.contextKey(), decoded.groupKey(), decoded.slotIndex(),
-                    decoded.source(), decoded.target(), decoded.exactSource(), decoded.preserveCount());
+            return decoded == null ? null
+                    : new ReplacementRule(
+                            scope,
+                            decoded.contextKey(),
+                            decoded.groupKey(),
+                            decoded.slotIndex(),
+                            decoded.source(),
+                            decoded.target(),
+                            decoded.exactSource(),
+                            decoded.preserveCount()
+                    );
         }
 
         int separatorIndex = entry.indexOf(SEPARATOR);
@@ -733,7 +826,8 @@ public final class QuickLitematicaContainerReplacements {
         }
 
         ItemStack target = resolveConfiguredItem(targetText);
-        return target.isEmpty() ? null : new ReplacementRule(scope, contextKey, groupKey, slotIndex, source, target, null, true);
+        return target.isEmpty() ? null
+                : new ReplacementRule(scope, contextKey, groupKey, slotIndex, source, target, null, true);
     }
 
     static ReplacementRule decodeContainerRule(String entry, HolderLookup.Provider lookup) {
@@ -745,7 +839,10 @@ public final class QuickLitematicaContainerReplacements {
             var sourceNbt = QuickLitematicaContainerMaterialsAccess.parseNbt(json.get("source").getAsString());
             ItemStack source = ItemStack.EMPTY;
             if (!sourceNbt.isEmpty()) {
-                var decodedSource = ItemStack.OPTIONAL_CODEC.parse(lookup.createSerializationContext(net.minecraft.nbt.NbtOps.INSTANCE), sourceNbt).result();
+                var decodedSource = ItemStack.OPTIONAL_CODEC.parse(
+                        lookup.createSerializationContext(net.minecraft.nbt.NbtOps.INSTANCE),
+                        sourceNbt
+                ).result();
                 if (decodedSource.isEmpty()) {
                     return null;
                 }
@@ -754,14 +851,28 @@ public final class QuickLitematicaContainerReplacements {
             var targetNbt = QuickLitematicaContainerMaterialsAccess.parseNbt(json.get("target").getAsString());
             ItemStack target = ItemStack.EMPTY;
             if (!targetNbt.isEmpty()) {
-                var decodedTarget = ItemStack.OPTIONAL_CODEC.parse(lookup.createSerializationContext(net.minecraft.nbt.NbtOps.INSTANCE), targetNbt).result();
-                if (decodedTarget.isEmpty()) { return null; }
+                var decodedTarget = ItemStack.OPTIONAL_CODEC.parse(
+                        lookup.createSerializationContext(net.minecraft.nbt.NbtOps.INSTANCE),
+                        targetNbt
+                ).result();
+                if (decodedTarget.isEmpty()) {
+                    return null;
+                }
                 target = decodedTarget.get();
-                if (target.getCount() > target.getMaxStackSize()) { return null; }
+                if (target.getCount() > target.getMaxStackSize()) {
+                    return null;
+                }
             }
-            return new ReplacementRule(Scope.CONTAINER, json.get("context").getAsString(),
-                    json.get("group").getAsString(), json.get("slot").getAsInt(), null, target,
-                    source, json.get("preserveCount").getAsBoolean());
+            return new ReplacementRule(
+                    Scope.CONTAINER,
+                    json.get("context").getAsString(),
+                    json.get("group").getAsString(),
+                    json.get("slot").getAsInt(),
+                    null,
+                    target,
+                    source,
+                    json.get("preserveCount").getAsBoolean()
+            );
         } catch (Exception exception) {
             return null;
         }
@@ -794,8 +905,9 @@ public final class QuickLitematicaContainerReplacements {
 
         // 写了“物品#名字”时，必须匹配投影物品栈上的自定义名。
         Component customName = stack.get(DataComponents.CUSTOM_NAME);
-        return value.customName() == null
-                || (customName != null && value.customName().equals(customName.getString().trim()));
+        return value.customName() == null || (customName != null && value.customName().equals(
+                customName.getString().trim()
+        ));
     }
 
     private static boolean matchesConfiguredItemName(ItemStack stack, String value) {
@@ -808,10 +920,10 @@ public final class QuickLitematicaContainerReplacements {
         String pathId = normalizeConfiguredItem(itemId.getPath());
         String displayName = normalizeConfiguredItem(stack.getItem().getDefaultInstance().getHoverName().getString());
 
-        return value.equals(displayName)
-                || value.equals(fullId)
-                || value.equals(pathId)
-                || isKnownChineseAlias(value, fullId);
+        return value.equals(displayName) || value.equals(fullId) || value.equals(pathId) || isKnownChineseAlias(
+                value,
+                fullId
+        );
     }
 
     private static boolean isKnownChineseAlias(String value, String fullId) {
@@ -843,7 +955,8 @@ public final class QuickLitematicaContainerReplacements {
         String rule = id == null ? "minecraft:air" : id.toString();
         Component customName = stack.get(DataComponents.CUSTOM_NAME);
         if (customName != null && !customName.getString().isBlank()) {
-            rule += CUSTOM_NAME_SEPARATOR + customName.getString().replace(SEPARATOR, "").replace(CONTEXT_SEPARATOR, "").trim();
+            rule += CUSTOM_NAME_SEPARATOR + customName.getString().replace(SEPARATOR, "").replace(CONTEXT_SEPARATOR, "")
+                    .trim();
         }
         return rule;
     }
@@ -853,14 +966,12 @@ public final class QuickLitematicaContainerReplacements {
     }
 
     private static List<String> getConfiguredRules(Scope scope) {
-        return scope == Scope.PROJECTION
-                ? QuickCraftConfigs.getProjectionMaterialReplacements()
+        return scope == Scope.PROJECTION ? QuickCraftConfigs.getProjectionMaterialReplacements()
                 : QuickCraftConfigs.getContainerFillReplacements();
     }
 
     private static fi.dy.masa.malilib.config.options.ConfigStringList getConfig(Scope scope) {
-        return scope == Scope.PROJECTION
-                ? QuickCraftConfigs.ProjectionTools.PROJECTION_MATERIAL_REPLACEMENTS
+        return scope == Scope.PROJECTION ? QuickCraftConfigs.ProjectionTools.PROJECTION_MATERIAL_REPLACEMENTS
                 : QuickCraftConfigs.ProjectionTools.CONTAINER_FILL_REPLACEMENTS;
     }
 

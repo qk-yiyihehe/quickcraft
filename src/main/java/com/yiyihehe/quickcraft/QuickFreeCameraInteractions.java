@@ -71,16 +71,14 @@ public final class QuickFreeCameraInteractions {
     private static float restoredHeadYaw;
     private static float restoredBodyYaw;
 
-    private QuickFreeCameraInteractions() {
-    }
+    private QuickFreeCameraInteractions() {}
 
     public static boolean shouldOverrideCrosshair(MinecraftClient client) {
         return QuickCraftConfigs.isFreeCameraEnhancementEnabled() && isTweakerooFreeCameraActive(client);
     }
 
     public static Entity getEasyPlaceTraceEntity(MinecraftClient client, Entity originalEntity) {
-        if (!QuickCraftConfigs.isFreeCameraEnhancementEnabled()
-                || !QuickCraftConfigs.isFreeCameraEasyPlaceEnabled()
+        if (!QuickCraftConfigs.isFreeCameraEnhancementEnabled() || !QuickCraftConfigs.isFreeCameraEasyPlaceEnabled()
                 || !isTweakerooFreeCameraActive(client)) {
             return originalEntity;
         }
@@ -94,9 +92,8 @@ public final class QuickFreeCameraInteractions {
             return createMiss(camera, target.getPos());
         }
 
-        if (target instanceof EntityHitResult entityHitResult
-                && (!QuickCraftConfigs.areFreeCameraEntityInteractionsEnabled()
-                || entityHitResult.getEntity() == client.player)) {
+        if (target instanceof EntityHitResult entityHitResult && (!QuickCraftConfigs
+                .areFreeCameraEntityInteractionsEnabled() || entityHitResult.getEntity() == client.player)) {
             return createMiss(camera, target.getPos());
         }
 
@@ -104,13 +101,11 @@ public final class QuickFreeCameraInteractions {
     }
 
     public static boolean isBlockOutsideServerInteractionRange(MinecraftClient client, BlockPos position) {
-        return shouldOverrideCrosshair(client)
-                && !client.player.canInteractWithBlockAt(position, 1.0);
+        return shouldOverrideCrosshair(client) && !client.player.canInteractWithBlockAt(position, 1.0);
     }
 
     public static boolean isEntityOutsideServerInteractionRange(MinecraftClient client, Entity entity) {
-        return shouldOverrideCrosshair(client)
-                && !client.player.canInteractWithEntityIn(entity.getBoundingBox(), 1.0);
+        return shouldOverrideCrosshair(client) && !client.player.canInteractWithEntityIn(entity.getBoundingBox(), 1.0);
     }
 
     /**
@@ -118,8 +113,7 @@ public final class QuickFreeCameraInteractions {
      * {@code player.isSneaking()} 仍为 false。这里改读潜行键，让客户端按原版规则取消方块交互并走放置。
      */
     public static boolean shouldSneakPlaceFromFreeCamera(MinecraftClient client) {
-        return shouldOverrideCrosshair(client)
-                && QuickCraftConfigs.areFreeCameraBlockInteractionsEnabled()
+        return shouldOverrideCrosshair(client) && QuickCraftConfigs.areFreeCameraBlockInteractionsEnabled()
                 && isSneakKeyPressed(client);
     }
 
@@ -128,19 +122,16 @@ public final class QuickFreeCameraInteractions {
             return false;
         }
 
-        return client.crosshairTarget instanceof EntityHitResult
-                ? QuickCraftConfigs.areFreeCameraEntityInteractionsEnabled()
-                : QuickCraftConfigs.areFreeCameraBlockInteractionsEnabled();
+        return client.crosshairTarget instanceof EntityHitResult ? QuickCraftConfigs
+                .areFreeCameraEntityInteractionsEnabled() : QuickCraftConfigs.areFreeCameraBlockInteractionsEnabled();
     }
 
     /**
      * 1.21 的实体交互包会用自身的布尔值覆盖服务端潜行状态，单独发送 SHIFT 命令不足以生效。
      */
     public static boolean resolveEntitySneaking(MinecraftClient client, boolean originalSneaking) {
-        if (originalSneaking
-                || !shouldOverrideCrosshair(client)
-                || !QuickCraftConfigs.areFreeCameraEntityInteractionsEnabled()
-                || !isSneakKeyPressed(client)) {
+        if (originalSneaking || !shouldOverrideCrosshair(client) || !QuickCraftConfigs
+                .areFreeCameraEntityInteractionsEnabled() || !isSneakKeyPressed(client)) {
             return originalSneaking;
         }
 
@@ -175,43 +166,45 @@ public final class QuickFreeCameraInteractions {
     }
 
     public static boolean beginItemUseFromFreeCamera(MinecraftClient client, Hand hand) {
-        if (shouldOverrideCrosshair(client)
-                && client.player.getStackInHand(hand).getItem() instanceof BucketItem bucket) {
+        if (shouldOverrideCrosshair(client) && client.player.getStackInHand(hand)
+                .getItem() instanceof BucketItem bucket) {
             if (!beginBucketUseFromFreeCamera(client, bucket == Items.BUCKET)) {
                 return false;
             }
         } else {
-            beginCameraFacing(client, client != null && client.crosshairTarget instanceof BlockHitResult hit ? hit : null);
+            beginCameraFacing(
+                    client,
+                    client != null && client.crosshairTarget instanceof BlockHitResult hit ? hit : null
+            );
         }
         beginSneakPlacement(client);
         return true;
     }
 
     private static boolean beginBucketUseFromFreeCamera(MinecraftClient client, boolean collectFluid) {
-        if (!QuickCraftConfigs.areFreeCameraBlockInteractionsEnabled()
-                || easyPlaceActionDepth > 0
-                || cameraFacingApplied
-                || client.world == null
-                || client.player == null
+        if (!QuickCraftConfigs.areFreeCameraBlockInteractionsEnabled() || easyPlaceActionDepth > 0
+                || cameraFacingApplied || client.world == null || client.player == null
                 || client.player.networkHandler == null) {
             return false;
         }
 
         ClientPlayerEntity player = client.player;
-        RaycastContext.FluidHandling fluidHandling = collectFluid
-                ? RaycastContext.FluidHandling.SOURCE_ONLY : RaycastContext.FluidHandling.NONE;
+        RaycastContext.FluidHandling fluidHandling = collectFluid ? RaycastContext.FluidHandling.SOURCE_ONLY
+                : RaycastContext.FluidHandling.NONE;
         BlockHitResult target;
         if (collectFluid) {
             // 普通准星忽略液体，空桶按原版规则从相机单独追踪液体源。
             Entity camera = client.getCameraEntity();
             Vec3d cameraEye = camera.getEyePos();
-            target = client.world.raycast(new RaycastContext(
-                    cameraEye,
-                    cameraEye.add(camera.getRotationVec(1.0F).multiply(player.getBlockInteractionRange())),
-                    RaycastContext.ShapeType.OUTLINE,
-                    fluidHandling,
-                    camera
-            ));
+            target = client.world.raycast(
+                    new RaycastContext(
+                            cameraEye,
+                            cameraEye.add(camera.getRotationVec(1.0F).multiply(player.getBlockInteractionRange())),
+                            RaycastContext.ShapeType.OUTLINE,
+                            fluidHandling,
+                            camera
+                    )
+            );
         } else if (client.crosshairTarget instanceof BlockHitResult hitResult) {
             target = hitResult;
         } else {
@@ -238,15 +231,16 @@ public final class QuickFreeCameraInteractions {
         float yaw = (float) Math.toDegrees(Math.atan2(-direction.x, direction.z));
         float pitch = (float) -Math.toDegrees(Math.atan2(direction.y, horizontal));
         // 使用物品包没有方块坐标，倒桶需命中同一方块的同一面，空桶收集只取决于方块。
-        BlockHitResult bodyHit = client.world.raycast(new RaycastContext(
-                eye,
-                eye.add(direction.normalize().multiply(player.getBlockInteractionRange())),
-                RaycastContext.ShapeType.OUTLINE,
-                fluidHandling,
-                player
-        ));
-        if (bodyHit.getType() != HitResult.Type.BLOCK
-                || !bodyHit.getBlockPos().equals(target.getBlockPos())
+        BlockHitResult bodyHit = client.world.raycast(
+                new RaycastContext(
+                        eye,
+                        eye.add(direction.normalize().multiply(player.getBlockInteractionRange())),
+                        RaycastContext.ShapeType.OUTLINE,
+                        fluidHandling,
+                        player
+                )
+        );
+        if (bodyHit.getType() != HitResult.Type.BLOCK || !bodyHit.getBlockPos().equals(target.getBlockPos())
                 || (!collectFluid && bodyHit.getSide() != side)) {
             return false;
         }
@@ -289,10 +283,7 @@ public final class QuickFreeCameraInteractions {
         }
     }
 
-    public static BlockHitResult encodeFreeCameraPlacementState(
-            MinecraftClient client,
-            BlockHitResult hitResult
-    ) {
+    public static BlockHitResult encodeFreeCameraPlacementState(MinecraftClient client, BlockHitResult hitResult) {
         return encodeFreeCameraPlacementState(client, hitResult, isV3PlacementProtocolActive());
     }
 
@@ -301,13 +292,8 @@ public final class QuickFreeCameraInteractions {
             BlockHitResult hitResult,
             boolean v3Protocol
     ) {
-        if (!v3Protocol
-                || isProtocolEncoded(hitResult)
-                || !cameraFacingApplied
-                || easyPlaceActionDepth > 0
-                || activeBlockUseHand == null
-                || client == null
-                || client.player == null) {
+        if (!v3Protocol || isProtocolEncoded(hitResult) || !cameraFacingApplied || easyPlaceActionDepth > 0
+                || activeBlockUseHand == null || client == null || client.player == null) {
             return hitResult;
         }
 
@@ -316,12 +302,7 @@ public final class QuickFreeCameraInteractions {
             return hitResult;
         }
 
-        ItemPlacementContext context = new ItemPlacementContext(
-                client.player,
-                activeBlockUseHand,
-                stack,
-                hitResult
-        );
+        ItemPlacementContext context = new ItemPlacementContext(client.player, activeBlockUseHand, stack, hitResult);
         BlockState targetState = blockItem.getBlock().getPlacementState(context);
         if (targetState == null) {
             return hitResult;
@@ -338,18 +319,12 @@ public final class QuickFreeCameraInteractions {
                 hitResult.getPos().y,
                 hitResult.getPos().z
         );
-        return new BlockHitResult(
-                encodedPos,
-                hitResult.getSide(),
-                hitResult.getBlockPos(),
-                hitResult.isInsideBlock()
-        );
+        return new BlockHitResult(encodedPos, hitResult.getSide(), hitResult.getBlockPos(), hitResult.isInsideBlock());
     }
 
     private static void beginSneakPlacement(MinecraftClient client) {
-        if (sneakPlacementCommandSent
-                || !shouldSneakPlaceFromFreeCamera(client)
-                || !QuickFreeCameraAccess.canSneakPlace(client)) {
+        if (sneakPlacementCommandSent || !shouldSneakPlaceFromFreeCamera(client) || !QuickFreeCameraAccess
+                .canSneakPlace(client)) {
             return;
         }
 
@@ -372,11 +347,8 @@ public final class QuickFreeCameraInteractions {
      * 1.21.2+ 的 LookAndOnGround 必须带上 horizontalCollision。
      */
     private static void beginCameraFacing(MinecraftClient client, BlockHitResult hitResult) {
-        if (!shouldOverrideCrosshair(client)
-                || !QuickCraftConfigs.areFreeCameraBlockInteractionsEnabled()
-                || easyPlaceActionDepth > 0
-                || client.player == null
-                || client.player.networkHandler == null) {
+        if (!shouldOverrideCrosshair(client) || !QuickCraftConfigs.areFreeCameraBlockInteractionsEnabled()
+                || easyPlaceActionDepth > 0 || client.player == null || client.player.networkHandler == null) {
             return;
         }
 
@@ -496,9 +468,10 @@ public final class QuickFreeCameraInteractions {
     }
 
     private static boolean isSneakKeyPressed(MinecraftClient client) {
-        return client != null
-                && client.options != null
-                && QuickCraftKeyBindings.isVanillaKeyDown(client, client.options.sneakKey);
+        return client != null && client.options != null && QuickCraftKeyBindings.isVanillaKeyDown(
+                client,
+                client.options.sneakKey
+        );
     }
 
     private static boolean isTweakerooFreeCameraActive(MinecraftClient client) {
@@ -507,9 +480,7 @@ public final class QuickFreeCameraInteractions {
         }
 
         Entity camera = client.getCameraEntity();
-        return camera != null
-                && camera != client.player
-                && TWEAKEROO_CAMERA_CLASS.equals(camera.getClass().getName());
+        return camera != null && camera != client.player && TWEAKEROO_CAMERA_CLASS.equals(camera.getClass().getName());
     }
 
     private static BlockHitResult createMiss(Entity camera, Vec3d position) {

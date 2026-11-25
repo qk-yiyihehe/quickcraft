@@ -16,10 +16,22 @@ import org.spongepowered.asm.mixin.injection.At;
 
 @Mixin(value = SchematicPlacingUtils.class, remap = false)
 public abstract class LitematicaGlobalPlacementMixin {
-    @WrapOperation(method = "placeToWorldWithinChunk", at = @At(value = "INVOKE",
-            target = "Lfi/dy/masa/litematica/schematic/placement/SchematicPlacement;getSchematic()Lfi/dy/masa/litematica/schematic/LitematicaSchematic;"))
-    private static LitematicaSchematic quickcraft$runtimeCopy(SchematicPlacement owner, Operation<LitematicaSchematic> original, Level world, ChunkPos chunk,
-            SchematicPlacement placement, ReplaceBehavior replace, PasteLayerBehavior layers, boolean notify) {
-        return world instanceof WorldSchematic ? QuickLitematicaGlobalReplacements.runtime(owner, original.call(owner)) : original.call(owner);
+    @WrapOperation(
+            method = "placeToWorldWithinChunk",
+            at = @At(
+                    value = "INVOKE",
+                    target = "Lfi/dy/masa/litematica/schematic/placement/SchematicPlacement;getSchematic()Lfi/dy/masa/litematica/schematic/LitematicaSchematic;"))
+    private static LitematicaSchematic quickcraft$runtimeCopy(
+            SchematicPlacement owner,
+            Operation<LitematicaSchematic> original,
+            Level world,
+            ChunkPos chunk,
+            SchematicPlacement placement,
+            ReplaceBehavior replace,
+            PasteLayerBehavior layers,
+            boolean notify
+    ) {
+        return world instanceof WorldSchematic ? QuickLitematicaGlobalReplacements.runtime(owner, original.call(owner))
+                : original.call(owner);
     }
 }

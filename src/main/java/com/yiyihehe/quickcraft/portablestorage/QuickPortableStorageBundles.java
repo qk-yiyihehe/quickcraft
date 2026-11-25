@@ -1,4 +1,5 @@
 package com.yiyihehe.quickcraft.portablestorage;
+
 import com.yiyihehe.quickcraft.render.QuickCrossBoxSortStatus;
 
 import com.yiyihehe.quickcraft.QuickSlotTransfer;
@@ -29,8 +30,8 @@ final class QuickPortableStorageBundles {
         Slot bundle = inventorySlot(menu, entry.carrier());
         ItemStack before = mode == Mode.TAKE_ALL ? bundle.getStack().copy() : ItemStack.EMPTY;
         take(client, menu, mode, bundle, entry);
-        return mode == Mode.TAKE_ALL && menu.getCursorStack().isEmpty()
-                && !same(bundle.getStack(), before) && findTakeEntry(client, stack) != null;
+        return mode == Mode.TAKE_ALL && menu.getCursorStack().isEmpty() && !same(bundle.getStack(), before)
+                && findTakeEntry(client, stack) != null;
     }
 
     private static Entry findTakeEntry(MinecraftClient client, ItemStack stack) {
@@ -49,13 +50,15 @@ final class QuickPortableStorageBundles {
         ItemStack stack = entry.stack();
         boolean splitConflict = mode == Mode.ONE && stack.isOf(Items.ENDER_CHEST) && stack.getCount() > 1;
         boolean offhand = mode == Mode.OFFHAND;
-        Slot target = offhand
-                ? findPlayerSlot(menu, stack, slot -> slot != bundle && !slot.hasStack())
+        Slot target = offhand ? findPlayerSlot(menu, stack, slot -> slot != bundle && !slot.hasStack())
                 : findPlayerTakeSlot(menu, stack, slot -> slot != bundle);
         Slot buffer = splitConflict ? findPlayerSlot(menu, stack, slot -> slot != target && !slot.hasStack()) : null;
-        if (target == null || splitConflict && buffer == null
-                || offhand && !client.player.getOffHandStack().isEmpty()
-                && findPlayerSlot(menu, client.player.getOffHandStack(), slot -> slot != target && !slot.hasStack()) == null) {
+        if (target == null || splitConflict && buffer == null || offhand && !client.player.getOffHandStack().isEmpty()
+                && findPlayerSlot(
+                        menu,
+                        client.player.getOffHandStack(),
+                        slot -> slot != target && !slot.hasStack()
+                ) == null) {
             message(client, "no_space");
             return;
         }
@@ -82,14 +85,17 @@ final class QuickPortableStorageBundles {
         } else if (mode == Mode.ONE) {
             click(client, menu, target, stack.getCount() == 1 ? 0 : 1);
         } else {
-            for (boolean empty : new boolean[]{false, true}) {
+            for (boolean empty : new boolean[] { false, true }) {
                 for (Slot slot : menu.slots.reversed()) {
                     ItemStack cursor = menu.getCursorStack();
                     if (cursor.isEmpty()) {
                         return;
                     }
-                    if (QuickSlotTransfer.isPlayerStorageSlot(slot) && slot != bundle
-                            && !locked(menu, slot) && slot.hasStack() != empty && slot.canInsert(cursor)
+                    if (QuickSlotTransfer.isPlayerStorageSlot(slot)
+                            && slot != bundle
+                            && !locked(menu, slot)
+                            && slot.hasStack() != empty
+                            && slot.canInsert(cursor)
                             && (empty || ItemStack.areItemsAndComponentsEqual(slot.getStack(), cursor))) {
                         click(client, menu, slot, 0);
                     }
@@ -109,8 +115,8 @@ final class QuickPortableStorageBundles {
         Slot bundle = null;
         int count = 0;
         for (Slot candidate : menu.slots) {
-            if (candidate == origin || !QuickSlotTransfer.isPlayerStorageSlot(candidate)
-                    || locked(menu, candidate) || !candidate.getStack().contains(DataComponentTypes.BUNDLE_CONTENTS)) {
+            if (candidate == origin || !QuickSlotTransfer.isPlayerStorageSlot(candidate) || locked(menu, candidate)
+                    || !candidate.getStack().contains(DataComponentTypes.BUNDLE_CONTENTS)) {
                 continue;
             }
             int capacity = QuickPortableStorageBundleAccess.capacity(candidate.getStack(), stack);
@@ -150,7 +156,7 @@ final class QuickPortableStorageBundles {
             return;
         }
 
-        // Carry the destination bundle so nested bundles are inserted in the intended direction.
+        // 保留目标收纳袋的信息，以确定嵌套收纳袋的放入方向。
         click(client, menu, bundle, 0);
         if (menu.getCursorStack().contains(DataComponentTypes.BUNDLE_CONTENTS)) {
             click(client, menu, origin, QuickPortableStorageBundleAccess.DEPOSIT_BUTTON);

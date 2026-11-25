@@ -17,14 +17,22 @@ public abstract class QuickLitematicaEntityPlacementScreenBase extends Screen {
         super(title);
     }
 
-    protected void renderScreenBackground(DrawContext context, int mouseX, int mouseY, float delta) {
-    }
+    protected void renderScreenBackground(DrawContext context, int mouseX, int mouseY, float delta) {}
 
     protected void drawChestTexture(DrawContext context, Identifier texture, int x, int y, int w, int h) {
         context.drawTexture(RenderPipelines.GUI_TEXTURED, texture, x, y, 0, 0, w, h, 256, 256);
     }
 
-    protected void drawHopperTexture(DrawContext context, Identifier texture, int x, int y, int u, int v, int w, int h) {
+    protected void drawHopperTexture(
+            DrawContext context,
+            Identifier texture,
+            int x,
+            int y,
+            int u,
+            int v,
+            int w,
+            int h
+    ) {
         context.drawTexture(RenderPipelines.GUI_TEXTURED, texture, x, y, u, v, w, h, 256, 256);
     }
 

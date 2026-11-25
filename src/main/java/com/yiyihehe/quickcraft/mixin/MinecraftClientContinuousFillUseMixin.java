@@ -19,17 +19,16 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 public abstract class MinecraftClientContinuousFillUseMixin {
     @Inject(method = "setScreen", at = @At("HEAD"), cancellable = true)
     private void quickcraft$suppressBackgroundHandledScreen(Screen screen, CallbackInfo ci) {
-        if (screen instanceof HandledScreen<?> containerScreen
-                && (QuickContainerCopy.shouldSuppressBackgroundHandledScreenOpen(containerScreen.getScreenHandler())
-                || QuickMaterialCollector.shouldSuppressBackgroundHandledScreenOpen())) {
+        if (screen instanceof HandledScreen<?> containerScreen && (QuickContainerCopy
+                .shouldSuppressBackgroundHandledScreenOpen(containerScreen.getScreenHandler()) || QuickMaterialCollector
+                        .shouldSuppressBackgroundHandledScreenOpen())) {
             ci.cancel();
         }
     }
 
     @Inject(method = "doItemUse", at = @At("HEAD"), cancellable = true)
     private void quickcraft$suppressContinuousFillUse(CallbackInfo ci) {
-        if (QuickContainerCopy.shouldSuppressContinuousFillUseInput()
-                || QuickMaterialCollector.shouldSuppressUseInput()
+        if (QuickContainerCopy.shouldSuppressContinuousFillUseInput() || QuickMaterialCollector.shouldSuppressUseInput()
                 || QuickPortableStorageTransfer.blocksItemUse()) {
             ci.cancel();
         } else {

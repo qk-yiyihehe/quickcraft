@@ -11,9 +11,9 @@ import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Unique;
 
 @Mixin(value = GuiSchematicBrowserBase.class, remap = false)
-public abstract class LitematicaGuiSchematicBrowserBaseMixin
-        extends GuiListBase<WidgetFileBrowserBase.DirectoryEntry, WidgetDirectoryEntry, WidgetSchematicBrowser>
-        implements QuickLitematicaPreviewMetadataRefresh {
+public abstract class LitematicaGuiSchematicBrowserBaseMixin extends
+        GuiListBase<WidgetFileBrowserBase.DirectoryEntry, WidgetDirectoryEntry, WidgetSchematicBrowser> implements
+        QuickLitematicaPreviewMetadataRefresh {
     @Unique
     private QuickLitematicaPreview3D.Manager quickcraft$preview3DManager;
 
@@ -23,9 +23,7 @@ public abstract class LitematicaGuiSchematicBrowserBaseMixin
 
     @Override
     public void initGui() {
-        this.quickcraft$preview3DManager = QuickLitematicaPreview3D.init(
-                (GuiSchematicBrowserBase) (Object) this
-        );
+        this.quickcraft$preview3DManager = QuickLitematicaPreview3D.init((GuiSchematicBrowserBase) (Object) this);
         super.initGui();
     }
 
@@ -45,8 +43,12 @@ public abstract class LitematicaGuiSchematicBrowserBaseMixin
 
     @Override
     public boolean mouseScrolled(double mouseX, double mouseY, double horizontalAmount, double verticalAmount) {
-        if (this.quickcraft$preview3DManager != null
-                && this.quickcraft$preview3DManager.mouseScrolled(mouseX, mouseY, horizontalAmount, verticalAmount)) {
+        if (this.quickcraft$preview3DManager != null && this.quickcraft$preview3DManager.mouseScrolled(
+                mouseX,
+                mouseY,
+                horizontalAmount,
+                verticalAmount
+        )) {
             return true;
         }
 
@@ -55,8 +57,13 @@ public abstract class LitematicaGuiSchematicBrowserBaseMixin
 
     @Override
     public boolean mouseDragged(double mouseX, double mouseY, int button, double deltaX, double deltaY) {
-        if (this.quickcraft$preview3DManager != null
-                && this.quickcraft$preview3DManager.mouseDragged(mouseX, mouseY, button, deltaX, deltaY)) {
+        if (this.quickcraft$preview3DManager != null && this.quickcraft$preview3DManager.mouseDragged(
+                mouseX,
+                mouseY,
+                button,
+                deltaX,
+                deltaY
+        )) {
             return true;
         }
 
@@ -65,8 +72,11 @@ public abstract class LitematicaGuiSchematicBrowserBaseMixin
 
     @Override
     public boolean mouseReleased(double mouseX, double mouseY, int mouseButton) {
-        if (this.quickcraft$preview3DManager != null
-                && this.quickcraft$preview3DManager.mouseReleased(mouseX, mouseY, mouseButton)) {
+        if (this.quickcraft$preview3DManager != null && this.quickcraft$preview3DManager.mouseReleased(
+                mouseX,
+                mouseY,
+                mouseButton
+        )) {
             return true;
         }
 
@@ -75,8 +85,11 @@ public abstract class LitematicaGuiSchematicBrowserBaseMixin
 
     @Override
     public boolean mouseClicked(double mouseX, double mouseY, int mouseButton) {
-        if (this.quickcraft$preview3DManager != null
-                && this.quickcraft$preview3DManager.mouseClicked(mouseX, mouseY, mouseButton)) {
+        if (this.quickcraft$preview3DManager != null && this.quickcraft$preview3DManager.mouseClicked(
+                mouseX,
+                mouseY,
+                mouseButton
+        )) {
             return true;
         }
 

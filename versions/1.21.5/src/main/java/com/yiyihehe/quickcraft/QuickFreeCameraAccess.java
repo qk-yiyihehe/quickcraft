@@ -13,8 +13,7 @@ import org.jetbrains.annotations.Nullable;
  * 1.21.5 玩家实体旋转历史变量更名（lastYaw/lastPitch），Direction.getId 改为 getIndex。
  */
 public final class QuickFreeCameraAccess {
-    private QuickFreeCameraAccess() {
-    }
+    private QuickFreeCameraAccess() {}
 
     public static void sendLookPacket(ClientPlayerEntity player, float yaw, float pitch) {
         player.networkHandler.sendPacket(
@@ -66,10 +65,9 @@ public final class QuickFreeCameraAccess {
     @Nullable
     @SuppressWarnings("unchecked")
     public static Property<Direction> getDirectionProperty(BlockState state) {
-        return (Property<Direction>) state.getProperties().stream()
-                .filter(property -> property.getType() == Direction.class)
-                .findFirst()
-                .orElse(null);
+        return (Property<Direction>) state.getProperties().stream().filter(
+                property -> property.getType() == Direction.class
+        ).findFirst().orElse(null);
     }
 
     public static int getDirectionIndex(Direction direction) {

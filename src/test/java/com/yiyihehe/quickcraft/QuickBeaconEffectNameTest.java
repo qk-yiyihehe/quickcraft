@@ -21,15 +21,16 @@ class QuickBeaconEffectNameTest {
 
     private static String normalizeEffectName(String raw) {
         try {
-            Method method = QuickBeacon.class.getDeclaredMethod(
-                    "normalizeEffectName", String.class);
+            Method method = QuickBeacon.class.getDeclaredMethod("normalizeEffectName", String.class);
             method.setAccessible(true);
             return (String) method.invoke(allocateUnsafe(QuickBeacon.class), raw);
         } catch (NoSuchMethodException | IllegalAccessException e) {
             throw new RuntimeException("无法反射访问 normalizeEffectName", e);
         } catch (InvocationTargetException e) {
             Throwable cause = e.getCause();
-            if (cause instanceof RuntimeException re) throw re;
+            if (cause instanceof RuntimeException re) {
+                throw re;
+            }
             throw new RuntimeException(cause);
         }
     }
@@ -90,8 +91,7 @@ class QuickBeaconEffectNameTest {
     @Test
     @DisplayName("混合所有需要规范化的元素")
     void combinesAllNormalizations() {
-        assertThat(normalizeEffectName("  Minecraft:Haste_II  "))
-                .isEqualTo("hasteii");
+        assertThat(normalizeEffectName("  Minecraft:Haste_II  ")).isEqualTo("hasteii");
     }
 
     @Test
@@ -105,7 +105,7 @@ class QuickBeaconEffectNameTest {
     // ---- 边界值 ----
 
     @ParameterizedTest(name = "空白输入: \"{0}\"")
-    @ValueSource(strings = {"", "   ", "\t  \n  "})
+    @ValueSource(strings = { "", "   ", "\t  \n  " })
     @DisplayName("空白输入不抛异常")
     void blankInput_doesNotThrow(String blank) {
         String result = normalizeEffectName(blank);
@@ -122,16 +122,9 @@ class QuickBeaconEffectNameTest {
     // ---- 参数化：规范化结果一致性 ----
 
     @ParameterizedTest(name = "\"{0}\" → \"{1}\"")
-    @CsvSource({
-            "HASTE,           haste",
-            "  Speed  ,       speed",
-            "minecraft:regeneration, regeneration",
-            "Jump Boost,      jumpboost",
-            "jump_boost,      jumpboost",
-            "jump-boost,      jumpboost",
-            "Resistance,      resistance",
-            "MINECRAFT:STRENGTH, strength",
-    })
+    @CsvSource({ "HASTE,           haste", "  Speed  ,       speed", "minecraft:regeneration, regeneration",
+            "Jump Boost,      jumpboost", "jump_boost,      jumpboost", "jump-boost,      jumpboost",
+            "Resistance,      resistance", "MINECRAFT:STRENGTH, strength", })
     @DisplayName("多种输入格式规范化到相同输出")
     void normalizesVariousFormats(String input, String expected) {
         assertThat(normalizeEffectName(input)).isEqualTo(expected);

@@ -28,11 +28,30 @@ import static org.mockito.Mockito.*;
 
 @ExtendWith(QuickCraftMinecraftTestBootstrap.class)
 class QuickLitematicaEntityPlacementServerTest {
-    @Test void spectatorIsDeniedWithoutPaymentOrSpawn() { request(true, true, false, false); }
-    @Test void adventureIsDeniedWithoutPaymentOrSpawn() { request(false, false, false, false); }
-    @Test void survivalPaysAndSpawns() { request(false, true, false, false); }
-    @Test void creativeBypassKeepsPaymentAndSpawns() { request(false, true, true, true); }
-    @Test void creativeWithoutBypassStillPays() { request(false, true, true, false); }
+    @Test
+    void spectatorIsDeniedWithoutPaymentOrSpawn() {
+        request(true, true, false, false);
+    }
+
+    @Test
+    void adventureIsDeniedWithoutPaymentOrSpawn() {
+        request(false, false, false, false);
+    }
+
+    @Test
+    void survivalPaysAndSpawns() {
+        request(false, true, false, false);
+    }
+
+    @Test
+    void creativeBypassKeepsPaymentAndSpawns() {
+        request(false, true, true, true);
+    }
+
+    @Test
+    void creativeWithoutBypassStillPays() {
+        request(false, true, true, false);
+    }
 
     private void request(boolean spectator, boolean mayBuild, boolean creative, boolean bypass) {
         ServerPlayerEntity player = mock(ServerPlayerEntity.class);
@@ -61,28 +80,48 @@ class QuickLitematicaEntityPlacementServerTest {
 
         // 只替换世界/实体工厂边界；权限、材料计算、扣料和结果分支由 handleRequest 执行。
         try (var access = mockStatic(QuickLitematicaEntityPlacementAccess.class, CALLS_REAL_METHODS);
-             var config = mockStatic(QuickCraftConfigs.class);
-             var network = mockStatic(ServerPlayNetworking.class)) {
+                var config = mockStatic(QuickCraftConfigs.class);
+                var network = mockStatic(ServerPlayNetworking.class)) {
             access.when(() -> QuickLitematicaEntityPlacementAccess.getPlayerServerWorld(player)).thenReturn(world);
-            access.when(() -> QuickLitematicaEntityPlacementAccess.canModifyAt(eq(world), eq(player), any())).thenReturn(true);
-            access.when(() -> QuickLitematicaEntityPlacementAccess.getMainStacks(inventory)).thenReturn(List.of(payment));
+            access.when(() -> QuickLitematicaEntityPlacementAccess.canModifyAt(eq(world), eq(player), any()))
+                    .thenReturn(true);
+            access.when(() -> QuickLitematicaEntityPlacementAccess.getMainStacks(inventory)).thenReturn(
+                    List.of(payment)
+            );
             access.when(() -> QuickLitematicaEntityPlacementAccess.createEntity(any(), eq(world))).thenReturn(entity);
             access.when(() -> QuickLitematicaEntityPlacementAccess.getEntityPos(entity)).thenReturn(Vec3d.ZERO);
-            access.when(() -> QuickLitematicaEntityPlacementAccess.readEntityData(eq(entity), eq(world), any())).thenAnswer(call -> null);
+            access.when(() -> QuickLitematicaEntityPlacementAccess.readEntityData(eq(entity), eq(world), any()))
+                    .thenAnswer(call -> null);
             when(world.spawnNewEntityAndPassengers(entity)).thenReturn(true);
             config.when(QuickCraftConfigs::isEasyPlaceEntitiesEnabled).thenReturn(true);
             NbtCompound nbt = new NbtCompound();
             nbt.putString("id", "minecraft:armor_stand");
             var payload = new QuickLitematicaEntityPlacementPayloads.RequestPayload(
-                    QuickLitematicaEntityPlacementServer.ensureSession(player), 1L,
-                    Identifier.of("minecraft", "overworld"), new Vec3d(0.5, 0, 0.5),
-                    Identifier.of("minecraft", "armor_stand"), "r", 0, 0, 0, Vec3d.ZERO, bypass, nbt);
+                    QuickLitematicaEntityPlacementServer.ensureSession(player),
+                    1L,
+                    Identifier.of("minecraft", "overworld"),
+                    new Vec3d(0.5, 0, 0.5),
+                    Identifier.of("minecraft", "armor_stand"),
+                    "r",
+                    0,
+                    0,
+                    0,
+                    Vec3d.ZERO,
+                    bypass,
+                    nbt
+            );
             try {
                 QuickLitematicaEntityPlacementServer.handleRequest(player, payload);
                 boolean allowed = !spectator && mayBuild;
-                network.verify(() -> ServerPlayNetworking.send(eq(player), argThat(
-                        value -> value instanceof QuickLitematicaEntityPlacementPayloads.ResultPayload result
-                                && result.status().equals(allowed ? "SUCCESS" : "PERMISSION_DENIED"))));
+                network.verify(
+                        () -> ServerPlayNetworking.send(
+                                eq(player),
+                                argThat(
+                                        value -> value instanceof QuickLitematicaEntityPlacementPayloads.ResultPayload result
+                                                && result.status().equals(allowed ? "SUCCESS" : "PERMISSION_DENIED")
+                                )
+                        )
+                );
                 assertThat(payment.getCount()).isEqualTo(allowed && !(creative && bypass) ? 0 : 1);
                 verify(world, times(allowed ? 1 : 0)).spawnNewEntityAndPassengers(entity);
                 if (!allowed) {
@@ -94,4 +133,3 @@ class QuickLitematicaEntityPlacementServerTest {
         }
     }
 }
-

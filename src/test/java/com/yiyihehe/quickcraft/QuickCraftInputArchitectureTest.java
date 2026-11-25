@@ -17,14 +17,18 @@ import static org.assertj.core.api.Assertions.assertThat;
  */
 class QuickCraftInputArchitectureTest {
 
-    private static final Path MAIN_JAVA = Path.of(System.getProperty(
-            "quickcraft.sourceRoot", Path.of("src", "main", "java").toString()));
-    private static final Path INPUT_HELPER = MAIN_JAVA.resolve(Path.of(
-            "com", "yiyihehe", "quickcraft", "QuickCraftKeyBindings.java"));
-    private static final Path HOTKEY_CALLBACKS = MAIN_JAVA.resolve(Path.of(
-            "com", "yiyihehe", "quickcraft", "malilib", "QuickCraftHotkeyCallbacks.java"));
-    private static final Path SLOT_LOCK_SCREEN_MIXIN = MAIN_JAVA.resolve(Path.of(
-            "com", "yiyihehe", "quickcraft", "mixin", "QuickContainerLockScreenMixin.java"));
+    private static final Path MAIN_JAVA = Path.of(
+            System.getProperty("quickcraft.sourceRoot", Path.of("src", "main", "java").toString())
+    );
+    private static final Path INPUT_HELPER = MAIN_JAVA.resolve(
+            Path.of("com", "yiyihehe", "quickcraft", "QuickCraftKeyBindings.java")
+    );
+    private static final Path HOTKEY_CALLBACKS = MAIN_JAVA.resolve(
+            Path.of("com", "yiyihehe", "quickcraft", "malilib", "QuickCraftHotkeyCallbacks.java")
+    );
+    private static final Path SLOT_LOCK_SCREEN_MIXIN = MAIN_JAVA.resolve(
+            Path.of("com", "yiyihehe", "quickcraft", "mixin", "QuickContainerLockScreenMixin.java")
+    );
 
     private static final List<String> DIRECT_INPUT_READS = List.of(
             ".isKeybindHeld()",
@@ -33,7 +37,8 @@ class QuickCraftInputArchitectureTest {
             "Screen.hasShiftDown()",
             "Screen.hasAltDown()",
             "client.options.useKey.isPressed()",
-            "client.options.sneakKey.isPressed()");
+            "client.options.sneakKey.isPressed()"
+    );
 
     @Test
     @DisplayName("输入状态只能由 QuickCraftKeyBindings 统一读取")
@@ -41,10 +46,9 @@ class QuickCraftInputArchitectureTest {
         List<String> violations = new ArrayList<>();
 
         try (Stream<Path> paths = Files.walk(MAIN_JAVA)) {
-            for (Path path : paths.filter(Files::isRegularFile)
-                    .filter(candidate -> candidate.toString().endsWith(".java"))
-                    .filter(candidate -> !candidate.equals(INPUT_HELPER))
-                    .toList()) {
+            for (Path path : paths.filter(Files::isRegularFile).filter(
+                    candidate -> candidate.toString().endsWith(".java")
+            ).filter(candidate -> !candidate.equals(INPUT_HELPER)).toList()) {
                 String source = Files.readString(path);
                 for (String directRead : DIRECT_INPUT_READS) {
                     if (source.contains(directRead)) {
@@ -54,9 +58,7 @@ class QuickCraftInputArchitectureTest {
             }
         }
 
-        assertThat(violations)
-                .as("新增输入读取时应扩展 QuickCraftKeyBindings，而不是散落在业务类中")
-                .isEmpty();
+        assertThat(violations).as("新增输入读取时应扩展 QuickCraftKeyBindings，而不是散落在业务类中").isEmpty();
     }
 
     @Test
@@ -64,15 +66,24 @@ class QuickCraftInputArchitectureTest {
     void slotLockUsesConfiguredHotkeyCallback() throws IOException {
         String callbacks = Files.readString(HOTKEY_CALLBACKS);
         Path repoRoot = MAIN_JAVA.getParent().getParent().getParent();
-        Path screenMixinPath = Files.exists(SLOT_LOCK_SCREEN_MIXIN)
-                ? SLOT_LOCK_SCREEN_MIXIN
-                : repoRoot.resolve(Path.of("versions", "1.21", "src", "main", "java", "com", "yiyihehe", "quickcraft", "mixin", "QuickContainerLockScreenMixin.java"));
+        Path screenMixinPath = Files.exists(SLOT_LOCK_SCREEN_MIXIN) ? SLOT_LOCK_SCREEN_MIXIN
+                : repoRoot.resolve(
+                        Path.of(
+                                "versions",
+                                "1.21",
+                                "src",
+                                "main",
+                                "java",
+                                "com",
+                                "yiyihehe",
+                                "quickcraft",
+                                "mixin",
+                                "QuickContainerLockScreenMixin.java"
+                        )
+                );
         String screenMixin = Files.readString(screenMixinPath);
 
-        assertThat(callbacks)
-                .contains("QuickContainerLock.handleSlotLockHotkey(MinecraftClient.getInstance())");
-        assertThat(screenMixin)
-                .doesNotContain("handleSlotLockHotkey(")
-                .doesNotContain("isAltDown()");
+        assertThat(callbacks).contains("QuickContainerLock.handleSlotLockHotkey(MinecraftClient.getInstance())");
+        assertThat(screenMixin).doesNotContain("handleSlotLockHotkey(").doesNotContain("isAltDown()");
     }
 }

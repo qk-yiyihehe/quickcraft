@@ -20,8 +20,13 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 public abstract class TweakerooPlacementTweaksFreeCameraMixin {
     @Inject(method = "onProcessRightClickBlock", at = @At("HEAD"), remap = false)
     private static void quickcraft$beginBlockUseFromFreeCamera(
-            MultiPlayerGameMode controller, LocalPlayer player, ClientLevel world,
-            InteractionHand hand, BlockHitResult hitResult, CallbackInfoReturnable<?> cir) {
+            MultiPlayerGameMode controller,
+            LocalPlayer player,
+            ClientLevel world,
+            InteractionHand hand,
+            BlockHitResult hitResult,
+            CallbackInfoReturnable<?> cir
+    ) {
         Minecraft client = Minecraft.getInstance();
         QuickFreeCameraInteractions.beginBlockUseFromFreeCamera(client, hand, hitResult);
     }

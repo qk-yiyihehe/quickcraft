@@ -39,7 +39,9 @@ class QuickLitematicaEntityCandidateChainTest {
         expected.putString("id", "minecraft:armor_stand");
         expected.putBoolean("Small", false);
         var projected = new ArrayList<LitematicaSchematic.EntityInfo>();
-        for (int i = 0; i < 6; i++) projected.add(entityInfo(position, expected.copy()));
+        for (int i = 0; i < 6; i++) {
+            projected.add(entityInfo(position, expected.copy()));
+        }
         var candidates = collect(projected, false);
         assertThat(candidates).hasSize(6);
         var client = mock(MinecraftClient.class);
@@ -53,10 +55,18 @@ class QuickLitematicaEntityCandidateChainTest {
             when(entity.streamSelfAndPassengers()).thenAnswer(call -> java.util.stream.Stream.of(entity));
             entities.add(entity);
         }
-        when(client.world.getOtherEntities(org.mockito.ArgumentMatchers.<net.minecraft.entity.Entity>isNull(), any(net.minecraft.util.math.Box.class), any()))
-                .thenReturn(entities);
+        when(
+                client.world.getOtherEntities(
+                        org.mockito.ArgumentMatchers.<net.minecraft.entity.Entity>isNull(),
+                        any(net.minecraft.util.math.Box.class),
+                        any()
+                )
+        ).thenReturn(entities);
         var changed = new java.util.concurrent.atomic.AtomicBoolean();
-        try (var access = mockStatic(QuickLitematicaEntityPlacementAccess.class, org.mockito.Mockito.CALLS_REAL_METHODS)) {
+        try (var access = mockStatic(
+                QuickLitematicaEntityPlacementAccess.class,
+                org.mockito.Mockito.CALLS_REAL_METHODS
+        )) {
             access.when(() -> QuickLitematicaEntityPlacementAccess.getEntityPos(any())).thenReturn(position);
             access.when(() -> QuickLitematicaEntityPlacementAccess.writeEntityNbt(any())).thenAnswer(call -> {
                 var actual = expected.copy();
@@ -69,7 +79,9 @@ class QuickLitematicaEntityCandidateChainTest {
             access.verify(() -> QuickLitematicaEntityPlacementAccess.writeEntityNbt(any()), times(36));
             changed.set(true);
             var next = QuickLitematicaEntityPlacement.evaluatePlacement(client, candidates);
-            assertThat(next.statuses().values()).containsOnly(QuickLitematicaEntityPlacement.PlacementStatus.MISMATCHED);
+            assertThat(next.statuses().values()).containsOnly(
+                    QuickLitematicaEntityPlacement.PlacementStatus.MISMATCHED
+            );
             access.verify(() -> QuickLitematicaEntityPlacementAccess.writeEntityNbt(any()), times(72));
         }
     }
@@ -93,12 +105,14 @@ class QuickLitematicaEntityCandidateChainTest {
 
     @Test
     void unknownPassengerRejectsTheWholeTreeWhenPassengerMaterialsAreRequired() throws Exception {
-        var unknownPassenger = entityWithPassenger("minecraft:armor_stand", "unknownmod:missing",
-                new Vec3d(0.5, 0, 0.5));
+        var unknownPassenger = entityWithPassenger(
+                "minecraft:armor_stand",
+                "unknownmod:missing",
+                new Vec3d(0.5, 0, 0.5)
+        );
         assertThat(collect(List.of(unknownPassenger), true, true)).isEmpty();
 
-        var knownPassenger = entityWithPassenger("minecraft:armor_stand", "minecraft:pig",
-                new Vec3d(0.5, 0, 0.5));
+        var knownPassenger = entityWithPassenger("minecraft:armor_stand", "minecraft:pig", new Vec3d(0.5, 0, 0.5));
         assertThat(collect(List.of(knownPassenger), true, true)).hasSize(1);
     }
 
@@ -109,10 +123,13 @@ class QuickLitematicaEntityCandidateChainTest {
             entities.add(itemEntity(new Vec3d(5000.0 + i, 0.0, 5000.0), "minecraft:stone"));
         }
         entities.add(itemEntity(new Vec3d(0.5, 0.0, 0.5), "minecraft:diamond"));
-        try (var access = mockStatic(QuickLitematicaEntityPlacementAccess.class, org.mockito.Mockito.CALLS_REAL_METHODS);
-             var data = mockStatic(QuickLitematicaSchematicData.class)) {
-            data.when(() -> QuickLitematicaSchematicData.decodeItem(any(NbtCompound.class), any()))
-                    .thenReturn(new ItemStack(Items.DIAMOND));
+        try (var access = mockStatic(
+                QuickLitematicaEntityPlacementAccess.class,
+                org.mockito.Mockito.CALLS_REAL_METHODS
+        ); var data = mockStatic(QuickLitematicaSchematicData.class)) {
+            data.when(() -> QuickLitematicaSchematicData.decodeItem(any(NbtCompound.class), any())).thenReturn(
+                    new ItemStack(Items.DIAMOND)
+            );
             List<QuickLitematicaEntityPlacement.Candidate> result = collect(entities, false);
             assertThat(result).hasSize(1);
             // 只有被射线命中的那个实体进入完整材料解码；4096 个准星外实体未触发解码。
@@ -128,8 +145,9 @@ class QuickLitematicaEntityCandidateChainTest {
             entities.add(itemEntity(new Vec3d(0.5, 0.0, 0.5 + i * 0.001), "minecraft:air"));
         }
         try (var data = mockStatic(QuickLitematicaSchematicData.class)) {
-            data.when(() -> QuickLitematicaSchematicData.decodeItem(any(NbtCompound.class), any()))
-                    .thenReturn(ItemStack.EMPTY);
+            data.when(() -> QuickLitematicaSchematicData.decodeItem(any(NbtCompound.class), any())).thenReturn(
+                    ItemStack.EMPTY
+            );
             List<QuickLitematicaEntityPlacement.Candidate> result = collect(entities, true);
             assertThat(result).isEmpty();
             // 每次完整构建都消耗预算：4100 个候选只允许 4096 次材料解码。
@@ -149,17 +167,26 @@ class QuickLitematicaEntityCandidateChainTest {
     }
 
     private static List<QuickLitematicaEntityPlacement.Candidate> collect(
-            List<LitematicaSchematic.EntityInfo> entities, boolean rayEntry) throws Exception {
+            List<LitematicaSchematic.EntityInfo> entities,
+            boolean rayEntry
+    ) throws Exception {
         return collect(entities, rayEntry, false);
     }
 
     private static List<QuickLitematicaEntityPlacement.Candidate> collect(
-            List<LitematicaSchematic.EntityInfo> entities, boolean rayEntry, boolean requirePassengerMaterials) throws Exception {
+            List<LitematicaSchematic.EntityInfo> entities,
+            boolean rayEntry,
+            boolean requirePassengerMaterials
+    ) throws Exception {
         MinecraftClient client = mock(MinecraftClient.class);
         client.player = mock(ClientPlayerEntity.class);
         client.world = mock(ClientWorld.class);
-        when(client.world.getRegistryManager()).thenReturn(net.minecraft.registry.DynamicRegistryManager.of(net.minecraft.registry.Registries.REGISTRIES));
-        when(client.player.getInventory()).thenReturn(com.yiyihehe.quickcraft.QuickCraftTestInventories.newPlayerInventory(client.player));
+        when(client.world.getRegistryManager()).thenReturn(
+                net.minecraft.registry.DynamicRegistryManager.of(net.minecraft.registry.Registries.REGISTRIES)
+        );
+        when(client.player.getInventory()).thenReturn(
+                com.yiyihehe.quickcraft.QuickCraftTestInventories.newPlayerInventory(client.player)
+        );
         when(client.player.getCameraPosVec(1.0F)).thenReturn(new Vec3d(0.5, 0.125, -2.0));
         when(client.player.getRotationVec(1.0F)).thenReturn(new Vec3d(0.0, 0.0, 1.0));
         when(client.player.getBlockInteractionRange()).thenReturn(64.0D);
@@ -171,8 +198,9 @@ class QuickLitematicaEntityCandidateChainTest {
         when(placement.getOrigin()).thenReturn(BlockPos.ORIGIN);
         when(placement.getMirror()).thenReturn(net.minecraft.util.BlockMirror.NONE);
         when(placement.getRotation()).thenReturn(net.minecraft.util.BlockRotation.NONE);
-        when(placement.getEnabledRelativeSubRegionPlacements())
-                .thenReturn(com.google.common.collect.ImmutableMap.of("r", subRegion));
+        when(placement.getEnabledRelativeSubRegionPlacements()).thenReturn(
+                com.google.common.collect.ImmutableMap.of("r", subRegion)
+        );
         when(subRegion.getPos()).thenReturn(BlockPos.ORIGIN);
         when(subRegion.getMirror()).thenReturn(net.minecraft.util.BlockMirror.NONE);
         when(subRegion.getRotation()).thenReturn(net.minecraft.util.BlockRotation.NONE);
@@ -181,29 +209,42 @@ class QuickLitematicaEntityCandidateChainTest {
         var manager = mock(fi.dy.masa.litematica.schematic.placement.SchematicPlacementManager.class);
         when(manager.getSelectedSchematicPlacement()).thenReturn(placement);
         Class<?> rangeType = DataManager.class.getMethod("getRenderLayerRange").getReturnType();
-        Object range = mock(rangeType, invocation ->
-                invocation.getMethod().getReturnType() == boolean.class ? Boolean.TRUE : null);
+        Object range = mock(
+                rangeType,
+                invocation -> invocation.getMethod().getReturnType() == boolean.class ? Boolean.TRUE : null
+        );
 
         try (MockedStatic<MinecraftClient> minecraft = mockStatic(MinecraftClient.class);
-             MockedStatic<DataManager> data = mockStatic(DataManager.class);
-             MockedStatic<QuickCraftConfigs> configs = mockStatic(QuickCraftConfigs.class)) {
+                MockedStatic<DataManager> data = mockStatic(DataManager.class);
+                MockedStatic<QuickCraftConfigs> configs = mockStatic(QuickCraftConfigs.class)) {
             minecraft.when(MinecraftClient::getInstance).thenReturn(client);
             data.when(DataManager::getSchematicPlacementManager).thenReturn(manager);
             data.when(DataManager::getRenderLayerRange).thenAnswer(invocation -> range);
             configs.when(QuickCraftConfigs::isEasyPlaceEntitiesEnabled).thenReturn(true);
             configs.when(QuickCraftConfigs::areEasyPlaceEntityContainerContentMaterialsRequired).thenReturn(false);
-            configs.when(QuickCraftConfigs::areEasyPlaceEntityPassengerMaterialsRequired)
-                    .thenReturn(requirePassengerMaterials);
-            Method method = rayEntry
-                    ? QuickLitematicaEntityPlacement.class.getDeclaredMethod("collectRayCandidates", MinecraftClient.class)
+            configs.when(QuickCraftConfigs::areEasyPlaceEntityPassengerMaterialsRequired).thenReturn(
+                    requirePassengerMaterials
+            );
+            Method method = rayEntry ? QuickLitematicaEntityPlacement.class.getDeclaredMethod(
+                    "collectRayCandidates",
+                    MinecraftClient.class
+            )
                     : QuickLitematicaEntityPlacement.class.getDeclaredMethod(
-                            "collectCandidates", MinecraftClient.class, Vec3d.class, Vec3d.class);
+                            "collectCandidates",
+                            MinecraftClient.class,
+                            Vec3d.class,
+                            Vec3d.class
+                    );
             method.setAccessible(true);
             @SuppressWarnings("unchecked")
             List<QuickLitematicaEntityPlacement.Candidate> result = rayEntry
                     ? (List<QuickLitematicaEntityPlacement.Candidate>) method.invoke(null, client)
                     : (List<QuickLitematicaEntityPlacement.Candidate>) method.invoke(
-                            null, client, new Vec3d(0.5, 0.125, -2.0), new Vec3d(0.5, 0.125, 10.0));
+                            null,
+                            client,
+                            new Vec3d(0.5, 0.125, -2.0),
+                            new Vec3d(0.5, 0.125, 10.0)
+                    );
             return result;
         }
     }
@@ -254,8 +295,10 @@ class QuickLitematicaEntityCandidateChainTest {
             for (var constructor : LitematicaSchematic.EntityInfo.class.getConstructors()) {
                 if (constructor.getParameterCount() == 2 && constructor.getParameterTypes()[0] == Vec3d.class) {
                     Object data = constructor.getParameterTypes()[1] == NbtCompound.class ? nbt
-                            : Class.forName("fi.dy.masa.malilib.util.data.tag.converter.DataConverterNbt")
-                            .getMethod("fromVanillaCompound", NbtCompound.class).invoke(null, nbt);
+                            : Class.forName("fi.dy.masa.malilib.util.data.tag.converter.DataConverterNbt").getMethod(
+                                    "fromVanillaCompound",
+                                    NbtCompound.class
+                            ).invoke(null, nbt);
                     return (LitematicaSchematic.EntityInfo) constructor.newInstance(pos, data);
                 }
             }

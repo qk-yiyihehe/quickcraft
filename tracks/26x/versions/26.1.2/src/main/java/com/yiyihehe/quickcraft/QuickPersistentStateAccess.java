@@ -7,8 +7,7 @@ import net.minecraft.client.Minecraft;
  * isSingleplayer 在“对局域网开放”后会变为 false，不能用于档案身份。
  */
 final class QuickPersistentStateAccess {
-    private QuickPersistentStateAccess() {
-    }
+    private QuickPersistentStateAccess() {}
 
     static boolean hasSingleplayerServer(Minecraft client) {
         return client.hasSingleplayerServer();

@@ -13,7 +13,7 @@ import net.minecraft.client.gui.screen.ingame.HandledScreen;
 import java.util.ArrayDeque;
 import java.util.Deque;
 
-/** Owns one sort and its split preparation; the session owns click recovery and empty-box merging. */
+/** 统一管理一次排序及其拆分准备。排序会话负责点击恢复和空盒合并。 */
 public final class QuickCrossBoxSortSessions {
     public static final QuickCrossBoxSortSessions INSTANCE = new QuickCrossBoxSortSessions();
     private QuickCrossBoxSortSession active;
@@ -31,13 +31,26 @@ public final class QuickCrossBoxSortSessions {
     private boolean cancelRequested;
 
     private QuickCrossBoxSortSessions() {}
-    public boolean isRunning() { return active != null || remote != null || splits != null; }
 
-    public void start(MinecraftClient client, boolean onePerBox, java.util.List<Integer> menuSlots, boolean playerInventory) {
+    public boolean isRunning() {
+        return active != null || remote != null || splits != null;
+    }
+
+    public void start(
+            MinecraftClient client,
+            boolean onePerBox,
+            java.util.List<Integer> menuSlots,
+            boolean playerInventory
+    ) {
         var player = client.player;
-        if (isRunning() || player == null || !(client.currentScreen instanceof HandledScreen<?> screen)
-                || screen.getScreenHandler() != player.currentScreenHandler) { return; }
-        if (!player.currentScreenHandler.getCursorStack().isEmpty()) { message(screen, "cursor_not_empty"); return; }
+        if (isRunning() || player == null || !(client.currentScreen instanceof HandledScreen<?> screen) || screen
+                .getScreenHandler() != player.currentScreenHandler) {
+            return;
+        }
+        if (!player.currentScreenHandler.getCursorStack().isEmpty()) {
+            message(screen, "cursor_not_empty");
+            return;
+        }
         this.onePerBox = onePerBox;
         owner = player;
         world = client.world;
@@ -46,10 +59,16 @@ public final class QuickCrossBoxSortSessions {
             remote = QuickCrossBoxSortIntegratedSession.create(client, screen, onePerBox, menuSlots);
             return;
         }
-        if (!com.yiyihehe.quickcraft.compat.QuickShulkerConnection.canOpen()) { message(screen, "quickshulker_unavailable"); return; }
+        if (!com.yiyihehe.quickcraft.compat.QuickShulkerConnection.canOpen()) {
+            message(screen, "quickshulker_unavailable");
+            return;
+        }
         if (playerInventory) {
             containerSlots = null;
-            if (QuickCrossBoxSortInventory.scan(player.getInventory()).boxes().isEmpty()) { message(screen, "nothing_to_sort"); return; }
+            if (QuickCrossBoxSortInventory.scan(player.getInventory()).boxes().isEmpty()) {
+                message(screen, "nothing_to_sort");
+                return;
+            }
             if (player.currentScreenHandler != player.playerScreenHandler) {
                 player.closeHandledScreen();
                 client.setScreen(new InventoryScreen(player));
@@ -57,31 +76,50 @@ public final class QuickCrossBoxSortSessions {
             splits = new ArrayDeque<>();
             if (onePerBox) {
                 for (int[] split : QuickCrossBoxSortSpares.planSplits()) {
-                    splits.add(new int[]{inventoryMenuSlot(split[0]), inventoryMenuSlot(split[1])});
+                    splits.add(new int[] { inventoryMenuSlot(split[0]), inventoryMenuSlot(split[1]) });
                 }
             }
         } else {
-            long free = java.util.stream.IntStream.range(0, 36).filter(slot -> !QuickCrossBoxSortProtection.isLocked(slot)
-                    && player.getInventory().getStack(slot).isEmpty()).count();
-            if (free < 2) { message(screen, "container_space"); return; }
+            long free = java.util.stream.IntStream.range(0, 36).filter(
+                    slot -> !QuickCrossBoxSortProtection.isLocked(slot) && player.getInventory().getStack(slot)
+                            .isEmpty()
+            ).count();
+            if (free < 2) {
+                message(screen, "container_space");
+                return;
+            }
             containerSlots = java.util.List.copyOf(menuSlots);
             var menu = player.currentScreenHandler;
-            var inventory = new net.minecraft.inventory.SimpleInventory(menuSlots.stream()
-                    .map(slot -> menu.getSlot(slot).getStack().copy()).toArray(ItemStack[]::new));
+            var inventory = new net.minecraft.inventory.SimpleInventory(
+                    menuSlots.stream().map(slot -> menu.getSlot(slot).getStack().copy()).toArray(ItemStack[]::new)
+            );
             var boxes = QuickCrossBoxSortInventory.scan(inventory).boxes();
-            if (boxes.isEmpty()) { message(screen, "nothing_to_sort"); return; }
-            int missing = Math.max(0, QuickCrossBoxSortSpares.needed(boxes) - boxes.size()
-                    - QuickCrossBoxSortSpares.singles(inventory, slot -> false).size());
+            if (boxes.isEmpty()) {
+                message(screen, "nothing_to_sort");
+                return;
+            }
+            int missing = Math.max(
+                    0,
+                    QuickCrossBoxSortSpares.needed(boxes) - boxes.size() - QuickCrossBoxSortSpares.singles(
+                            inventory,
+                            slot -> false
+                    ).size()
+            );
             splits = new ArrayDeque<>();
             if (onePerBox) {
                 for (var split : QuickCrossBoxSortSpares.splits(inventory, slot -> false, missing, false)) {
-                    splits.add(new int[]{menuSlots.get(split.sourceSlot()), menuSlots.get(split.targetSlot())});
+                    splits.add(new int[] { menuSlots.get(split.sourceSlot()), menuSlots.get(split.targetSlot()) });
                 }
             }
         }
         splitMenu = player.currentScreenHandler;
         splitScreen = client.currentScreen;
-        if (splits.isEmpty()) { splits = null; begin(client); } else { settleTicks = 0; }
+        if (splits.isEmpty()) {
+            splits = null;
+            begin(client);
+        } else {
+            settleTicks = 0;
+        }
     }
 
     public boolean consumeScreen(Screen screen) {
@@ -102,22 +140,39 @@ public final class QuickCrossBoxSortSessions {
     }
 
     public void clear() {
-        active = null; remote = null; splits = null; settleTicks = 0; owner = null; world = null;
-        containerSlots = null; splitMenu = null; splitScreen = null;
+        active = null;
+        remote = null;
+        splits = null;
+        settleTicks = 0;
+        owner = null;
+        world = null;
+        containerSlots = null;
+        splitMenu = null;
+        splitScreen = null;
         inventoryView = null;
         cancelRequested = false;
         QuickCrossBoxSortSync.clear();
     }
 
     public void tick(MinecraftClient client) {
-        if (client.player == null || client.getNetworkHandler() == null || isRunning() && (client.player != owner || client.world != world)) { clear(); return; }
+        if (client.player == null || client.getNetworkHandler() == null || isRunning() && (client.player != owner
+                || client.world != world)) {
+            clear();
+            return;
+        }
         dispatchingSort = true;
         try {
             if (active != null) {
-                if (cancelRequested || !QuickCraftConfigs.isCrossBoxSortEnabled()) { active.cancel(client); }
-                if (!active.tick(client)) { active = null; }
+                if (cancelRequested || !QuickCraftConfigs.isCrossBoxSortEnabled()) {
+                    active.cancel(client);
+                }
+                if (!active.tick(client)) {
+                    active = null;
+                }
             } else if (remote != null) {
-                if (!remote.tick(client)) { remote = null; }
+                if (!remote.tick(client)) {
+                    remote = null;
+                }
             } else if (splits != null) {
                 if (cancelRequested) {
                     splits = null;
@@ -139,20 +194,36 @@ public final class QuickCrossBoxSortSessions {
     private void tickSplits(MinecraftClient client) {
         var player = client.player;
         var menu = splitMenu;
-        if (!QuickCraftConfigs.isCrossBoxSortEnabled() || !(client.currentScreen instanceof HandledScreen<?> screen)
-                || screen.getScreenHandler() != menu || player.currentScreenHandler != menu || !menu.getCursorStack().isEmpty()
+        if (!QuickCraftConfigs.isCrossBoxSortEnabled()
+                || !(client.currentScreen instanceof HandledScreen<?> screen)
+                || screen.getScreenHandler() != menu
+                || player.currentScreenHandler != menu
+                || !menu.getCursorStack().isEmpty()
                 || client.interactionManager == null) {
-            splits = null; message(splitScreen, "safe_abort"); return;
+            splits = null;
+            message(splitScreen, "safe_abort");
+            return;
         }
-        if (settleTicks > 0) { settleTicks--; return; }
-        if (splits.isEmpty()) { splits = null; begin(client); return; }
+        if (settleTicks > 0) {
+            settleTicks--;
+            return;
+        }
+        if (splits.isEmpty()) {
+            splits = null;
+            begin(client);
+            return;
+        }
         int[] split = splits.removeFirst();
         ItemStack source = menu.getSlot(split[0]).getStack();
         ItemStack target = menu.getSlot(split[1]).getStack();
         if (com.yiyihehe.quickcraft.QuickContainerLock.isLockedSlot(menu, split[0])
-                || com.yiyihehe.quickcraft.QuickContainerLock.isLockedSlot(menu, split[1]) || !target.isEmpty()
-                || !source.contains(DataComponentTypes.CONTAINER) || !QuickCrossBoxSortInventory.isOrdinaryEmptyShulker(source)) {
-            splits = null; message(splitScreen, "inventory_changed"); return;
+                || com.yiyihehe.quickcraft.QuickContainerLock.isLockedSlot(menu, split[1])
+                || !target.isEmpty()
+                || !source.contains(DataComponentTypes.CONTAINER)
+                || !QuickCrossBoxSortInventory.isOrdinaryEmptyShulker(source)) {
+            splits = null;
+            message(splitScreen, "inventory_changed");
+            return;
         }
         client.interactionManager.clickSlot(menu.syncId, split[0], 0, SlotActionType.PICKUP, player);
         client.interactionManager.clickSlot(menu.syncId, split[1], 1, SlotActionType.PICKUP, player);
@@ -162,10 +233,14 @@ public final class QuickCrossBoxSortSessions {
 
     private void begin(MinecraftClient client) {
         active = QuickCrossBoxSortSession.create(client, onePerBox, containerSlots);
-        if (active != null) { active.enterBackgroundMode(client, inventoryView); }
+        if (active != null) {
+            active.enterBackgroundMode(client, inventoryView);
+        }
     }
 
-    public static int inventoryMenuSlot(int slot) { return slot < 9 ? slot + 36 : slot; }
+    public static int inventoryMenuSlot(int slot) {
+        return slot < 9 ? slot + 36 : slot;
+    }
 
     private static void message(Screen screen, String key) {
         QuickCrossBoxSort.message(screen, Text.translatable("quickcraft.message.cross_box_sort." + key));

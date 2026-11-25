@@ -70,20 +70,25 @@ public class QuickCraftConfigScreen extends GuiConfigsBase {
 
         for (IConfigBase config : currentTab.getOptions()) {
             if (config == com.yiyihehe.quickcraft.config.QuickCraftAnvilPresets.SPEAR
-                    && !com.yiyihehe.quickcraft.crafting.QuickCraftAnvilPlanner.supportsSpear()) continue;
+                    && !com.yiyihehe.quickcraft.crafting.QuickCraftAnvilPlanner.supportsSpear()) {
+                continue;
+            }
             if (config == QuickCraftConfigs.ProjectionTools.PROJECTION_MATERIAL_REPLACEMENTS
-                    || config == QuickCraftConfigs.ProjectionTools.CONTAINER_FILL_REPLACEMENTS) { continue; }
+                    || config == QuickCraftConfigs.ProjectionTools.CONTAINER_FILL_REPLACEMENTS) {
+                continue;
+            }
             if (config == QuickCraftConfigs.ProjectionTools.USE_VOID_WAREHOUSE_MATERIALS
-                    && !QuickLitematicaVoidWarehouseMaterials.isInstalled()) { continue; }
+                    && !QuickLitematicaVoidWarehouseMaterials.isInstalled()) {
+                continue;
+            }
             ConfigGroup parentGroup = ConfigGroup.findByParent(config);
 
             if (parentGroup != null) {
                 wrappers.add(new GroupedConfigOptionWrapper(config, parentGroup, false));
-                parentGroup.children.stream().filter(child ->
-                        child != com.yiyihehe.quickcraft.config.QuickCraftAnvilPresets.SPEAR
-                                || com.yiyihehe.quickcraft.crafting.QuickCraftAnvilPlanner.supportsSpear()).forEach(child ->
-                        wrappers.add(new GroupedConfigOptionWrapper(child, parentGroup, true))
-                );
+                parentGroup.children.stream().filter(
+                        child -> child != com.yiyihehe.quickcraft.config.QuickCraftAnvilPresets.SPEAR
+                                || com.yiyihehe.quickcraft.crafting.QuickCraftAnvilPlanner.supportsSpear()
+                ).forEach(child -> wrappers.add(new GroupedConfigOptionWrapper(child, parentGroup, true)));
             } else if (ConfigGroup.findByChild(config) == null) {
                 wrappers.add(new ConfigOptionWrapper(config));
             }
@@ -113,11 +118,11 @@ public class QuickCraftConfigScreen extends GuiConfigsBase {
     }
 
     private enum Tab {
-        CRAFTING("screen.quickcraft.tab.crafting", "Crafting Tools", QuickCraftConfigs.Crafting.OPTIONS),
-        CONTAINERS("screen.quickcraft.tab.containers", "Container Tools", QuickCraftConfigs.ContainerTools.OPTIONS),
+        CRAFTING("screen.quickcraft.tab.crafting", "Crafting Tools", QuickCraftConfigs.Crafting.OPTIONS), CONTAINERS(
+                "screen.quickcraft.tab.containers", "Container Tools", QuickCraftConfigs.ContainerTools.OPTIONS),
         PROJECTION("screen.quickcraft.tab.projection", "Projection Tools", QuickCraftConfigs.ProjectionTools.OPTIONS),
-        MOD_SUPPORT("screen.quickcraft.tab.mod_support", "Mod Support", QuickCraftConfigs.ModSupport.OPTIONS),
-        HOTKEYS("screen.quickcraft.tab.hotkeys", "Hotkeys", QuickCraftConfigs.Hotkeys.OPTIONS);
+        MOD_SUPPORT("screen.quickcraft.tab.mod_support", "Mod Support", QuickCraftConfigs.ModSupport.OPTIONS), HOTKEYS(
+                "screen.quickcraft.tab.hotkeys", "Hotkeys", QuickCraftConfigs.Hotkeys.OPTIONS);
 
         private final String translationKey;
         private final String fallback;
@@ -139,96 +144,68 @@ public class QuickCraftConfigScreen extends GuiConfigsBase {
     }
 
     private enum ConfigGroup {
-        WORKBENCH_CRAFTING(
-                QuickCraftConfigs.Crafting.ENABLE_WORKBENCH,
+        WORKBENCH_CRAFTING(QuickCraftConfigs.Crafting.ENABLE_WORKBENCH,
                 QuickCraftConfigs.Crafting.ENABLE_WORKBENCH_QUICK_SHULKER,
                 QuickCraftConfigs.Crafting.WORKBENCH_QUICK_SHULKER_PIPELINE_MODE,
-                QuickCraftConfigs.Crafting.ENABLE_WORKBENCH_QUICK_SHULKER_OUTPUT
-        ),
-        ANVIL_ASSISTANT(QuickCraftConfigs.Crafting.ENABLE_ANVIL_ASSISTANT,
-                java.util.stream.Stream.concat(
-                        java.util.stream.Stream.of(QuickCraftConfigs.Crafting.ENABLE_ANVIL_RENAME,
-                                QuickCraftConfigs.Crafting.ANVIL_CREATIVE_NO_BOOKS,
-                                QuickCraftConfigs.Crafting.ANVIL_PICKAXE_PLAN),
-                        com.yiyihehe.quickcraft.config.QuickCraftAnvilPresets.OPTIONS.stream())
-                        .toArray(IConfigBase[]::new)),
-        QUICK_TRANSFER(
-                QuickCraftConfigs.ContainerTools.ENABLE_QUICK_TRANSFER,
-                QuickCraftConfigs.ContainerTools.SHOW_MATCHING_TRANSFER_HIGHLIGHT,
-                QuickCraftConfigs.ContainerTools.MATCHING_TRANSFER_HIGHLIGHT_COLOR,
-                QuickCraftConfigs.ContainerTools.ENABLE_SCROLL_TRANSFER,
-                QuickCraftConfigs.ContainerTools.QUICK_TRANSFER_RETAIN_ONE,
-                QuickCraftConfigs.ContainerTools.SHOW_QUICK_STASH_BUTTON
-        ),
-        PORTABLE_STORAGE(
-                QuickCraftConfigs.ContainerTools.ENABLE_PORTABLE_STORAGE,
-                QuickCraftConfigs.ContainerTools.PORTABLE_STORAGE_OPEN_BY_DEFAULT,
-                QuickCraftConfigs.ContainerTools.PORTABLE_STORAGE_COLUMNS,
-                QuickCraftConfigs.ContainerTools.PORTABLE_STORAGE_ROWS
-        ),
-        CONTAINER_TOOL_MODE(
-                QuickCraftConfigs.ContainerTools.CONTAINER_TOOL_MODE,
-                QuickCraftConfigs.ContainerTools.QUICK_STASH_INVENTORY_SHULKERS,
-                QuickCraftConfigs.ContainerTools.QUICK_STASH_WITH_QUICK_SHULKER,
-                QuickCraftConfigs.ContainerTools.QUICK_CLEAR_INVENTORY_SHULKERS,
-                QuickCraftConfigs.ContainerTools.QUICK_FILL_INVENTORY_SHULKERS
-        ),
-        QUICK_TRADE(
-                QuickCraftConfigs.ContainerTools.ENABLE_QUICK_TRADE,
+                QuickCraftConfigs.Crafting.ENABLE_WORKBENCH_QUICK_SHULKER_OUTPUT), ANVIL_ASSISTANT(
+                        QuickCraftConfigs.Crafting.ENABLE_ANVIL_ASSISTANT, java.util.stream.Stream.concat(
+                                java.util.stream.Stream.of(
+                                        QuickCraftConfigs.Crafting.ENABLE_ANVIL_RENAME,
+                                        QuickCraftConfigs.Crafting.ANVIL_CREATIVE_NO_BOOKS,
+                                        QuickCraftConfigs.Crafting.ANVIL_PICKAXE_PLAN
+                                ),
+                                com.yiyihehe.quickcraft.config.QuickCraftAnvilPresets.OPTIONS.stream()
+                        ).toArray(IConfigBase[]::new)), QUICK_TRANSFER(
+                                QuickCraftConfigs.ContainerTools.ENABLE_QUICK_TRANSFER,
+                                QuickCraftConfigs.ContainerTools.SHOW_MATCHING_TRANSFER_HIGHLIGHT,
+                                QuickCraftConfigs.ContainerTools.MATCHING_TRANSFER_HIGHLIGHT_COLOR,
+                                QuickCraftConfigs.ContainerTools.ENABLE_SCROLL_TRANSFER,
+                                QuickCraftConfigs.ContainerTools.QUICK_TRANSFER_RETAIN_ONE,
+                                QuickCraftConfigs.ContainerTools.SHOW_QUICK_STASH_BUTTON), PORTABLE_STORAGE(
+                                        QuickCraftConfigs.ContainerTools.ENABLE_PORTABLE_STORAGE,
+                                        QuickCraftConfigs.ContainerTools.PORTABLE_STORAGE_OPEN_BY_DEFAULT,
+                                        QuickCraftConfigs.ContainerTools.PORTABLE_STORAGE_COLUMNS,
+                                        QuickCraftConfigs.ContainerTools.PORTABLE_STORAGE_ROWS), CONTAINER_TOOL_MODE(
+                                                QuickCraftConfigs.ContainerTools.CONTAINER_TOOL_MODE,
+                                                QuickCraftConfigs.ContainerTools.QUICK_STASH_INVENTORY_SHULKERS,
+                                                QuickCraftConfigs.ContainerTools.QUICK_STASH_WITH_QUICK_SHULKER,
+                                                QuickCraftConfigs.ContainerTools.QUICK_CLEAR_INVENTORY_SHULKERS,
+                                                QuickCraftConfigs.ContainerTools.QUICK_FILL_INVENTORY_SHULKERS),
+        QUICK_TRADE(QuickCraftConfigs.ContainerTools.ENABLE_QUICK_TRADE,
                 QuickCraftConfigs.ContainerTools.QUICK_TRADE_RIGHT_CLICK,
                 QuickCraftConfigs.ContainerTools.ENABLE_CONTINUOUS_TRADE,
-                QuickCraftConfigs.ContainerTools.ENABLE_FAVORITE_TRADE
-        ),
-        QUICK_SORT(
-                QuickCraftConfigs.ContainerTools.ENABLE_QUICK_SORT,
-                QuickCraftConfigs.ContainerTools.SHOW_QUICK_SORT_BUTTON,
-                QuickCraftConfigs.ContainerTools.ENABLE_CROSS_BOX_SORT,
-                QuickCraftConfigs.ContainerTools.QUICK_SORT_TOP_PRIORITY_ITEMS,
-                QuickCraftConfigs.ContainerTools.QUICK_SORT_BOTTOM_PRIORITY_ITEMS,
-                QuickCraftConfigs.ContainerTools.QUICK_SORT_SHULKER_BOXES_AT_END,
-                QuickCraftConfigs.ContainerTools.QUICK_SORT_BUNDLES_AT_END
-        ),
-        QUICK_BEACON(
-                QuickCraftConfigs.ContainerTools.ENABLE_QUICK_BEACON,
-                QuickCraftConfigs.ContainerTools.BEACON_EFFECT_ORDER
-        ),
-        CREATIVE_PACKING(
-                QuickCraftConfigs.ContainerTools.ENABLE_CREATIVE_PACKING,
-                QuickCraftConfigs.ContainerTools.CREATIVE_PACKING_BUNDLE_STACKS,
-                QuickCraftConfigs.ContainerTools.ALLOW_CREATIVE_PACKING_NESTED_CONTAINERS
-        ),
-        FREE_CAMERA_ENHANCEMENT(
-                QuickCraftConfigs.ContainerTools.ENABLE_FREE_CAMERA_ENHANCEMENT,
+                QuickCraftConfigs.ContainerTools.ENABLE_FAVORITE_TRADE), QUICK_SORT(
+                        QuickCraftConfigs.ContainerTools.ENABLE_QUICK_SORT,
+                        QuickCraftConfigs.ContainerTools.SHOW_QUICK_SORT_BUTTON,
+                        QuickCraftConfigs.ContainerTools.ENABLE_CROSS_BOX_SORT,
+                        QuickCraftConfigs.ContainerTools.QUICK_SORT_TOP_PRIORITY_ITEMS,
+                        QuickCraftConfigs.ContainerTools.QUICK_SORT_BOTTOM_PRIORITY_ITEMS,
+                        QuickCraftConfigs.ContainerTools.QUICK_SORT_SHULKER_BOXES_AT_END,
+                        QuickCraftConfigs.ContainerTools.QUICK_SORT_BUNDLES_AT_END), QUICK_BEACON(
+                                QuickCraftConfigs.ContainerTools.ENABLE_QUICK_BEACON,
+                                QuickCraftConfigs.ContainerTools.BEACON_EFFECT_ORDER), CREATIVE_PACKING(
+                                        QuickCraftConfigs.ContainerTools.ENABLE_CREATIVE_PACKING,
+                                        QuickCraftConfigs.ContainerTools.CREATIVE_PACKING_BUNDLE_STACKS,
+                                        QuickCraftConfigs.ContainerTools.ALLOW_CREATIVE_PACKING_NESTED_CONTAINERS),
+        FREE_CAMERA_ENHANCEMENT(QuickCraftConfigs.ContainerTools.ENABLE_FREE_CAMERA_ENHANCEMENT,
                 QuickCraftConfigs.ContainerTools.FREE_CAMERA_BLOCK_INTERACTIONS,
                 QuickCraftConfigs.ContainerTools.FREE_CAMERA_ENTITY_INTERACTIONS,
-                QuickCraftConfigs.ContainerTools.FREE_CAMERA_EASY_PLACE
-        ),
-        SLOT_LOCK(
-                QuickCraftConfigs.ContainerTools.SHOW_SLOT_LOCK_OVERLAY,
-                QuickCraftConfigs.ContainerTools.ALLOW_MANUAL_LOCKED_SLOT_INTERACTION
-        ),
-        CONTAINER_FILL_STATUS(
-                QuickCraftConfigs.ContainerTools.SHOW_CONTAINER_FILL_STATUS_OUTLINES,
-                QuickCraftConfigs.ContainerTools.CONTAINER_FILL_OUTLINE_DURATION_SECONDS
-        ),
-        LITEMATICA_3D_PREVIEW(
-                QuickCraftConfigs.ProjectionTools.SHOW_LITEMATICA_3D_PREVIEW,
+                QuickCraftConfigs.ContainerTools.FREE_CAMERA_EASY_PLACE), SLOT_LOCK(
+                        QuickCraftConfigs.ContainerTools.SHOW_SLOT_LOCK_OVERLAY,
+                        QuickCraftConfigs.ContainerTools.ALLOW_MANUAL_LOCKED_SLOT_INTERACTION), CONTAINER_FILL_STATUS(
+                                QuickCraftConfigs.ContainerTools.SHOW_CONTAINER_FILL_STATUS_OUTLINES,
+                                QuickCraftConfigs.ContainerTools.CONTAINER_FILL_OUTLINE_DURATION_SECONDS),
+        LITEMATICA_3D_PREVIEW(QuickCraftConfigs.ProjectionTools.SHOW_LITEMATICA_3D_PREVIEW,
                 QuickCraftConfigs.ProjectionTools.AUTO_DISABLE_SHADERS_FOR_3D_PREVIEW,
                 QuickCraftConfigs.ProjectionTools.ALLOW_ADDING_LITEMATICA_PREVIEW_IMAGES,
-                QuickCraftConfigs.ProjectionTools.REPLACE_LITEMATICA_PREVIEW_WITH_3D
-        ),
-        HOLD_EASY_PLACE(
-                QuickCraftConfigs.ProjectionTools.HOLD_EASY_PLACE,
-                QuickCraftConfigs.ProjectionTools.HOLD_EASY_PLACE_CACHE_TIME_MS
-        ),
-        EASY_PLACE_ENTITIES(
-                QuickCraftConfigs.ProjectionTools.ENABLE_EASY_PLACE_ENTITIES,
-                QuickCraftConfigs.ProjectionTools.ALLOW_CREATIVE_ENTITY_PLACEMENT,
-                QuickCraftConfigs.ProjectionTools.REQUIRE_EASY_PLACE_ENTITY_PASSENGER_MATERIALS,
-                QuickCraftConfigs.ProjectionTools.REQUIRE_EASY_PLACE_ENTITY_CONTAINER_CONTENT_MATERIALS
-        ),
-        EASY_PLACE_VANILLA_INTERACTIONS(
-                QuickCraftConfigs.ProjectionTools.ALLOW_EASY_PLACE_VANILLA_INTERACTIONS,
+                QuickCraftConfigs.ProjectionTools.REPLACE_LITEMATICA_PREVIEW_WITH_3D), HOLD_EASY_PLACE(
+                        QuickCraftConfigs.ProjectionTools.HOLD_EASY_PLACE,
+                        QuickCraftConfigs.ProjectionTools.HOLD_EASY_PLACE_CACHE_TIME_MS), EASY_PLACE_ENTITIES(
+                                QuickCraftConfigs.ProjectionTools.ENABLE_EASY_PLACE_ENTITIES,
+                                QuickCraftConfigs.ProjectionTools.ALLOW_CREATIVE_ENTITY_PLACEMENT,
+                                QuickCraftConfigs.ProjectionTools.REQUIRE_EASY_PLACE_ENTITY_PASSENGER_MATERIALS,
+                                QuickCraftConfigs.ProjectionTools.REQUIRE_EASY_PLACE_ENTITY_CONTAINER_CONTENT_MATERIALS),
+        EASY_PLACE_VANILLA_INTERACTIONS(QuickCraftConfigs.ProjectionTools.ALLOW_EASY_PLACE_VANILLA_INTERACTIONS,
                 QuickCraftConfigs.ProjectionTools.ALLOW_EASY_PLACE_ICE_OVER_SOURCE_WATER,
                 QuickCraftConfigs.ProjectionTools.ALLOW_EASY_PLACE_INTERACTION_SCREENS,
                 QuickCraftConfigs.ProjectionTools.ALLOW_EASY_PLACE_REDSTONE_INTERACTIONS,
@@ -239,43 +216,31 @@ public class QuickCraftConfigScreen extends GuiConfigsBase {
                 QuickCraftConfigs.ProjectionTools.ALLOW_EASY_PLACE_SURVIVAL_INTERACTIONS,
                 QuickCraftConfigs.ProjectionTools.ALLOW_EASY_PLACE_SPECIAL_INTERACTIONS,
                 QuickCraftConfigs.ProjectionTools.ALLOW_EASY_PLACE_DANGEROUS_INTERACTIONS,
-                QuickCraftConfigs.ProjectionTools.ALLOW_EASY_PLACE_ADMIN_INTERACTIONS
-        ),
-        AUTO_COLLECT_MATERIALS(
-                QuickCraftConfigs.ProjectionTools.ENABLE_AUTO_COLLECT_MATERIALS,
-                QuickCraftConfigs.ProjectionTools.MATERIAL_COLLECT_EXTRA_0_TO_10,
-                QuickCraftConfigs.ProjectionTools.MATERIAL_COLLECT_EXTRA_10_TO_20,
-                QuickCraftConfigs.ProjectionTools.MATERIAL_COLLECT_EXTRA_20_TO_50,
-                QuickCraftConfigs.ProjectionTools.MATERIAL_COLLECT_EXTRA_50_TO_100,
-                QuickCraftConfigs.ProjectionTools.MATERIAL_COLLECT_EXTRA_100_TO_500,
-                QuickCraftConfigs.ProjectionTools.MATERIAL_COLLECT_EXTRA_OVER_500
-        ),
-        MATERIAL_REPLACEMENTS(
-                QuickCraftConfigs.ProjectionTools.SHOW_LITEMATICA_MATERIAL_REPLACEMENTS,
-                QuickCraftConfigs.ProjectionTools.GLOBAL_CONTAINER_REPLACEMENTS,
-                QuickCraftConfigs.ProjectionTools.GLOBAL_PROJECTION_MATERIAL_REPLACEMENTS
-        ),
-        PROJECTION_PERSISTENCE(
-                QuickCraftConfigs.ProjectionTools.PERSIST_PROJECTION_FEATURES,
+                QuickCraftConfigs.ProjectionTools.ALLOW_EASY_PLACE_ADMIN_INTERACTIONS), AUTO_COLLECT_MATERIALS(
+                        QuickCraftConfigs.ProjectionTools.ENABLE_AUTO_COLLECT_MATERIALS,
+                        QuickCraftConfigs.ProjectionTools.MATERIAL_COLLECT_EXTRA_0_TO_10,
+                        QuickCraftConfigs.ProjectionTools.MATERIAL_COLLECT_EXTRA_10_TO_20,
+                        QuickCraftConfigs.ProjectionTools.MATERIAL_COLLECT_EXTRA_20_TO_50,
+                        QuickCraftConfigs.ProjectionTools.MATERIAL_COLLECT_EXTRA_50_TO_100,
+                        QuickCraftConfigs.ProjectionTools.MATERIAL_COLLECT_EXTRA_100_TO_500,
+                        QuickCraftConfigs.ProjectionTools.MATERIAL_COLLECT_EXTRA_OVER_500), MATERIAL_REPLACEMENTS(
+                                QuickCraftConfigs.ProjectionTools.SHOW_LITEMATICA_MATERIAL_REPLACEMENTS,
+                                QuickCraftConfigs.ProjectionTools.GLOBAL_CONTAINER_REPLACEMENTS,
+                                QuickCraftConfigs.ProjectionTools.GLOBAL_PROJECTION_MATERIAL_REPLACEMENTS),
+        PROJECTION_PERSISTENCE(QuickCraftConfigs.ProjectionTools.PERSIST_PROJECTION_FEATURES,
                 QuickCraftConfigs.ProjectionTools.ALLOW_PERSISTENT_MATERIAL_IGNORES,
                 QuickCraftConfigs.ProjectionTools.ALLOW_PERSISTENT_VERIFIER_IGNORES,
-                QuickCraftConfigs.ProjectionTools.PERSIST_SCHEMATIC_VERIFIER
-        ),
-        NONEMPTY_PROJECTION_CONTAINERS(
-                QuickCraftConfigs.ProjectionTools.HIGHLIGHT_NONEMPTY_PROJECTION_CONTAINERS,
-                QuickCraftConfigs.ProjectionTools.PROJECTION_CONTAINER_HIGHLIGHT_COLOR
-        ),
-        CONTAINER_AUTOFILL(
-                QuickCraftConfigs.ProjectionTools.ENABLE_LITEMATICA_CONTAINER_AUTOFILL,
-                QuickCraftConfigs.ProjectionTools.ENABLE_CREATIVE_CONTAINER_FILL,
-                QuickCraftConfigs.ProjectionTools.ENABLE_CONTAINER_FILL_OVERFLOW_DROP,
-                QuickCraftConfigs.ProjectionTools.CONTAINER_FILL_FREE_SLOTS_LIMIT,
-                QuickCraftConfigs.ProjectionTools.CONTAINER_FILL_PROTECTED_ITEMS
-        ),
+                QuickCraftConfigs.ProjectionTools.PERSIST_SCHEMATIC_VERIFIER), NONEMPTY_PROJECTION_CONTAINERS(
+                        QuickCraftConfigs.ProjectionTools.HIGHLIGHT_NONEMPTY_PROJECTION_CONTAINERS,
+                        QuickCraftConfigs.ProjectionTools.PROJECTION_CONTAINER_HIGHLIGHT_COLOR), CONTAINER_AUTOFILL(
+                                QuickCraftConfigs.ProjectionTools.ENABLE_LITEMATICA_CONTAINER_AUTOFILL,
+                                QuickCraftConfigs.ProjectionTools.ENABLE_CREATIVE_CONTAINER_FILL,
+                                QuickCraftConfigs.ProjectionTools.ENABLE_CONTAINER_FILL_OVERFLOW_DROP,
+                                QuickCraftConfigs.ProjectionTools.CONTAINER_FILL_FREE_SLOTS_LIMIT,
+                                QuickCraftConfigs.ProjectionTools.CONTAINER_FILL_PROTECTED_ITEMS),
         LITEMATICA_SHULKER_MATERIAL_RESTOCK(
                 QuickCraftConfigs.ProjectionTools.ENABLE_LITEMATICA_SHULKER_MATERIAL_RESTOCK,
-                QuickCraftConfigs.ProjectionTools.LITEMATICA_SHULKER_MATERIAL_ORDERLY_STORAGE
-        );
+                QuickCraftConfigs.ProjectionTools.LITEMATICA_SHULKER_MATERIAL_ORDERLY_STORAGE);
 
         private final IConfigBase parent;
         private final List<IConfigBase> children;
@@ -333,9 +298,9 @@ public class QuickCraftConfigScreen extends GuiConfigsBase {
         @Override
         protected void addNonFilteredContents(Collection<ConfigOptionWrapper> entries) {
             for (ConfigOptionWrapper entry : entries) {
-                if (entry instanceof GroupedConfigOptionWrapper grouped
-                        && grouped.child
-                        && !EXPANDED_GROUPS.contains(grouped.group)) {
+                if (entry instanceof GroupedConfigOptionWrapper grouped && grouped.child && !EXPANDED_GROUPS.contains(
+                        grouped.group
+                )) {
                     continue;
                 }
 
@@ -351,8 +316,8 @@ public class QuickCraftConfigScreen extends GuiConfigsBase {
                 IConfigBase config = wrapper.getConfig();
 
                 if (config != null) {
-                    int indent = wrapper instanceof GroupedConfigOptionWrapper grouped && grouped.child
-                            ? CHILD_INDENT : EXPAND_BUTTON_WIDTH;
+                    int indent = wrapper instanceof GroupedConfigOptionWrapper grouped && grouped.child ? CHILD_INDENT
+                            : EXPAND_BUTTON_WIDTH;
                     width = Math.max(
                             width,
                             this.getStringWidth(config.getConfigGuiDisplayName()) + indent + NAME_COLUMN_PADDING
@@ -401,8 +366,10 @@ public class QuickCraftConfigScreen extends GuiConfigsBase {
         ) {
             super(x, y, width, height, labelWidth, configWidth, wrapper, listIndex, host, parent);
 
-            this.indentLabelArea(wrapper instanceof GroupedConfigOptionWrapper grouped && grouped.child
-                    ? CHILD_INDENT : EXPAND_BUTTON_WIDTH);
+            this.indentLabelArea(
+                    wrapper instanceof GroupedConfigOptionWrapper grouped && grouped.child ? CHILD_INDENT
+                            : EXPAND_BUTTON_WIDTH
+            );
 
             if (wrapper instanceof GroupedConfigOptionWrapper grouped) {
                 if (!grouped.child) {
@@ -428,10 +395,19 @@ public class QuickCraftConfigScreen extends GuiConfigsBase {
             if (com.yiyihehe.quickcraft.config.QuickCraftAnvilPresets.OPTIONS.contains(config)) {
                 this.addLabel(x, y + 8, labelWidth, 8, 0xFFFFFFFF, config.getConfigGuiDisplayName());
                 this.addConfigComment(x, y + 5, labelWidth, 12, config.getComment());
-                var edit = new QuickCraftAnvilConfigButton(x + labelWidth + 10, y + 1, configWidth,
-                        (fi.dy.masa.malilib.config.options.ConfigStringList) config, this.host);
-                this.addConfigButtonEntry(x + labelWidth + configWidth + 12, y + 1,
-                        (fi.dy.masa.malilib.config.IConfigResettable) config, edit);
+                var edit = new QuickCraftAnvilConfigButton(
+                        x + labelWidth + 10,
+                        y + 1,
+                        configWidth,
+                        (fi.dy.masa.malilib.config.options.ConfigStringList) config,
+                        this.host
+                );
+                this.addConfigButtonEntry(
+                        x + labelWidth + configWidth + 12,
+                        y + 1,
+                        (fi.dy.masa.malilib.config.IConfigResettable) config,
+                        edit
+                );
                 edit.setActionListener((button, mouse) -> edit.openEditor());
                 return;
             }
@@ -443,11 +419,21 @@ public class QuickCraftConfigScreen extends GuiConfigsBase {
             }
             this.addLabel(x, y + 8, labelWidth, 8, 0xFFFFFFFF, config.getConfigGuiDisplayName());
             this.addConfigComment(x, y + 5, labelWidth, 12, config.getComment());
-            var edit = new ButtonGeneric(x + labelWidth + 10, y + 1, configWidth, 20,
-                    StringUtils.translate("quickcraft.litematica.global.edit_rules"));
+            var edit = new ButtonGeneric(
+                    x + labelWidth + 10,
+                    y + 1,
+                    configWidth,
+                    20,
+                    StringUtils.translate("quickcraft.litematica.global.edit_rules")
+            );
             edit.setEnabled(net.fabricmc.loader.api.FabricLoader.getInstance().isModLoaded("litematica"));
-            this.addButton(edit, (button, mouse) ->
-                    com.yiyihehe.quickcraft.QuickCraft.openGlobalProjectionReplacements((Screen) this.host, container));
+            this.addButton(
+                    edit,
+                    (button, mouse) -> com.yiyihehe.quickcraft.QuickCraft.openGlobalProjectionReplacements(
+                            (Screen) this.host,
+                            container
+                    )
+            );
         }
 
         private void indentLabelArea(int indent) {

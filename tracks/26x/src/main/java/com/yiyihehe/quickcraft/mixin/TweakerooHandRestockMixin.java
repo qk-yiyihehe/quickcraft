@@ -13,36 +13,56 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 @Mixin(targets = "fi.dy.masa.tweakeroo.util.InventoryUtils", remap = false)
 public abstract class TweakerooHandRestockMixin {
-    // This point follows Tweakeroo's own toggle, threshold, filter and cursor checks.
+    // 此处位于 Tweakeroo 自身的开关、阈值、过滤条件和光标检查之后。
     @Inject(method = "preRestockHand", at = @At(value = "CONSTANT", args = "intValue=9"))
-    private static void quickcraft$beforePreRestock(Player player, InteractionHand hand, boolean allowHotbar,
-                                                    CallbackInfo ci, @Share("pre") LocalRef<ItemStack> before) {
+    private static void quickcraft$beforePreRestock(
+            Player player,
+            InteractionHand hand,
+            boolean allowHotbar,
+            CallbackInfo ci,
+            @Share("pre") LocalRef<ItemStack> before
+    ) {
         if (QuickShulkerRestockFallback.enabled()) {
             before.set(player.getItemInHand(hand).copy());
         }
     }
 
     @Inject(method = "preRestockHand", at = @At("RETURN"))
-    private static void quickcraft$afterPreRestock(Player player, InteractionHand hand, boolean allowHotbar,
-                                                   CallbackInfo ci, @Share("pre") LocalRef<ItemStack> before) {
+    private static void quickcraft$afterPreRestock(
+            Player player,
+            InteractionHand hand,
+            boolean allowHotbar,
+            CallbackInfo ci,
+            @Share("pre") LocalRef<ItemStack> before
+    ) {
         if (before.get() != null) {
             QuickShulkerRestockFallback.afterTweakeroo(player, hand, before.get(), before.get());
         }
     }
 
     @Inject(method = "restockNewStackToHand", at = @At("HEAD"))
-    private static void quickcraft$beforeRestock(Player player, InteractionHand hand, ItemStack reference,
-                                                boolean allowHotbar, CallbackInfo ci,
-                                                @Share("replacement") LocalRef<ItemStack> before) {
+    private static void quickcraft$beforeRestock(
+            Player player,
+            InteractionHand hand,
+            ItemStack reference,
+            boolean allowHotbar,
+            CallbackInfo ci,
+            @Share("replacement") LocalRef<ItemStack> before
+    ) {
         if (QuickShulkerRestockFallback.enabled()) {
             before.set(player.getItemInHand(hand).copy());
         }
     }
 
     @Inject(method = "restockNewStackToHand", at = @At("RETURN"))
-    private static void quickcraft$afterRestock(Player player, InteractionHand hand, ItemStack reference,
-                                               boolean allowHotbar, CallbackInfo ci,
-                                               @Share("replacement") LocalRef<ItemStack> before) {
+    private static void quickcraft$afterRestock(
+            Player player,
+            InteractionHand hand,
+            ItemStack reference,
+            boolean allowHotbar,
+            CallbackInfo ci,
+            @Share("replacement") LocalRef<ItemStack> before
+    ) {
         if (before.get() != null) {
             QuickShulkerRestockFallback.afterTweakeroo(player, hand, reference, before.get());
         }

@@ -12,17 +12,18 @@ import net.minecraft.screen.SmokerScreenHandler;
 
 /** 1.21.0-1.21.1 的工作站输入判定。 */
 public final class QuickFillContainerRecipeAccess {
-    private QuickFillContainerRecipeAccess() {
-    }
+    private QuickFillContainerRecipeAccess() {}
 
     static boolean isFurnaceFuel(MinecraftClient client, ItemStack stack) {
         return AbstractFurnaceBlockEntity.canUseAsFuel(stack);
     }
 
     static boolean isStonecutterInput(MinecraftClient client, ItemStack stack) {
-        return client.world != null && client.world.getRecipeManager()
-                .getFirstMatch(RecipeType.STONECUTTING, new SingleStackRecipeInput(stack), client.world)
-                .isPresent();
+        return client.world != null && client.world.getRecipeManager().getFirstMatch(
+                RecipeType.STONECUTTING,
+                new SingleStackRecipeInput(stack),
+                client.world
+        ).isPresent();
     }
 
     public static boolean isAccepted(MinecraftClient client, ScreenHandler handler, ItemStack stack) {
@@ -39,9 +40,14 @@ public final class QuickFillContainerRecipeAccess {
     }
 
     private static <T extends AbstractCookingRecipe> boolean hasRecipe(
-            MinecraftClient client, RecipeType<T> recipeType, ItemStack stack) {
-        return client.world.getRecipeManager()
-                .getFirstMatch(recipeType, new SingleStackRecipeInput(stack), client.world)
-                .isPresent();
+            MinecraftClient client,
+            RecipeType<T> recipeType,
+            ItemStack stack
+    ) {
+        return client.world.getRecipeManager().getFirstMatch(
+                recipeType,
+                new SingleStackRecipeInput(stack),
+                client.world
+        ).isPresent();
     }
 }

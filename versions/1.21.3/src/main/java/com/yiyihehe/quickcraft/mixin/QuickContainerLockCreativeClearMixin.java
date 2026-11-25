@@ -12,8 +12,11 @@ import org.spongepowered.asm.mixin.injection.At;
 @Mixin(CreativeInventoryScreen.class)
 public abstract class QuickContainerLockCreativeClearMixin {
     // 从 1.21.3 目标起，垃圾桶发包前还会在客户端清空这格。
-    @WrapOperation(method = "onMouseClick", at = @At(value = "INVOKE",
-            target = "Lnet/minecraft/screen/slot/Slot;setStackNoCallbacks(Lnet/minecraft/item/ItemStack;)V"))
+    @WrapOperation(
+            method = "onMouseClick",
+            at = @At(
+                    value = "INVOKE",
+                    target = "Lnet/minecraft/screen/slot/Slot;setStackNoCallbacks(Lnet/minecraft/item/ItemStack;)V"))
     private void quickcraft$keepLockedSlotDuringCreativeClear(Slot slot, ItemStack stack, Operation<Void> original) {
         if (!QuickContainerLock.isLockedSlot(slot)) {
             original.call(slot, stack);

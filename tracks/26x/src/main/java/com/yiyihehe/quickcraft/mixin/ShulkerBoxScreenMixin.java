@@ -24,7 +24,21 @@ public abstract class ShulkerBoxScreenMixin extends AbstractContainerScreen<Shul
     }
 
     @Inject(method = "extractBackground", at = @At("HEAD"))
-    private void quickcraft$addLockButton(GuiGraphicsExtractor context, int mouseX, int mouseY, float delta, CallbackInfo ci) {
-        this.quickcraft$buttons.sync(this, this.minecraft, this.leftPos, this.topPos, this.imageWidth, this.imageHeight, this::addRenderableWidget);
+    private void quickcraft$addLockButton(
+            GuiGraphicsExtractor context,
+            int mouseX,
+            int mouseY,
+            float delta,
+            CallbackInfo ci
+    ) {
+        this.quickcraft$buttons.sync(
+                this,
+                this.minecraft,
+                this.leftPos,
+                this.topPos,
+                this.imageWidth,
+                this.imageHeight,
+                this::addRenderableWidget
+        );
     }
 }

@@ -20,8 +20,7 @@ import java.util.List;
 
 /** 容器复制的来源选择、需求计算和槽位布局；不发送点击或维护填充会话。 */
 final class QuickContainerCopySources {
-    private QuickContainerCopySources() {
-    }
+    private QuickContainerCopySources() {}
 
     private static final int VANILLA_SHULKER_SLOTS = 27;
 
@@ -55,9 +54,11 @@ final class QuickContainerCopySources {
         return bestUnderSlotId != -1 ? bestUnderSlotId : bestOverSlotId;
     }
 
-    static SourceShulker findSourceShulkerForDemandsExcept(AbstractContainerMenu handler,
-                                                            List<MissingDemand> demands,
-                                                            int excludedPlayerIndex) {
+    static SourceShulker findSourceShulkerForDemandsExcept(
+            AbstractContainerMenu handler,
+            List<MissingDemand> demands,
+            int excludedPlayerIndex
+    ) {
         if (demands.isEmpty()) {
             return null;
         }
@@ -70,15 +71,14 @@ final class QuickContainerCopySources {
                 continue;
             }
 
-            if (!shulkerSlot.hasItem()
-                    || shulkerSlot.getItem().getCount() != 1
-                    || !isShulkerBox(shulkerSlot.getItem())) {
+            if (!shulkerSlot.hasItem() || shulkerSlot.getItem().getCount() != 1 || !isShulkerBox(
+                    shulkerSlot.getItem()
+            )) {
                 continue;
             }
 
             SourceShulkerScore score = getSourceShulkerScore(shulkerSlot.getItem(), demands);
-            if (score.usefulItemCount() <= 0
-                    || bestScore != null && !score.isBetterThan(bestScore)) {
+            if (score.usefulItemCount() <= 0 || bestScore != null && !score.isBetterThan(bestScore)) {
                 continue;
             }
 
@@ -117,19 +117,20 @@ final class QuickContainerCopySources {
         return new SourceShulkerScore(coverageScore, usefulItemCount, coveredDemandCount);
     }
 
-    static int findBestSourceContainerSlotId(ShulkerBoxMenu handler,
-                                               List<Integer> sourceSlotIds,
-                                               List<MissingDemand> demands) {
+    static int findBestSourceContainerSlotId(
+            ShulkerBoxMenu handler,
+            List<Integer> sourceSlotIds,
+            List<MissingDemand> demands
+    ) {
         int bestSlotId = -1;
         SourceStackScore bestScore = null;
 
         for (int slotId : sourceSlotIds) {
             Slot slot = handler.getSlot(slotId);
             MissingDemand demand = slot.hasItem() ? findDemandForStack(demands, slot.getItem()) : null;
-            if (demand == null
-                    || QuickContainerLock.isLockedSlot(handler, slot)
-                    || !slot.mayPickup(Minecraft.getInstance().player)
-                    || !canStoreAnyStackInPlayerStorage(handler, slot.getItem())) {
+            if (demand == null || QuickContainerLock.isLockedSlot(handler, slot) || !slot.mayPickup(
+                    Minecraft.getInstance().player
+            ) || !canStoreAnyStackInPlayerStorage(handler, slot.getItem())) {
                 continue;
             }
 
@@ -233,8 +234,10 @@ final class QuickContainerCopySources {
             }
 
             ItemStack existing = slot.getItem();
-            if (ItemStack.isSameItemSameComponents(existing, stack)
-                    && existing.getCount() < Math.min(existing.getMaxStackSize(), slot.getMaxStackSize(stack))) {
+            if (ItemStack.isSameItemSameComponents(existing, stack) && existing.getCount() < Math.min(
+                    existing.getMaxStackSize(),
+                    slot.getMaxStackSize(stack)
+            )) {
                 return true;
             }
         }
@@ -264,8 +267,7 @@ final class QuickContainerCopySources {
     }
 
     static List<Integer> getContainerSlotIds(AbstractContainerMenu handler) {
-        if (handler instanceof AbstractFurnaceMenu
-                || handler instanceof BrewingStandMenu) {
+        if (handler instanceof AbstractFurnaceMenu || handler instanceof BrewingStandMenu) {
             return getContainerSlotIdsByInventoryIndex(handler);
         }
         if (handler instanceof CrafterMenu crafterHandler) {
@@ -277,14 +279,13 @@ final class QuickContainerCopySources {
                 crafterSlots.add(slot);
             }
 
-            crafterSlots.sort(Comparator
-                    .comparingInt((Slot slot) -> slot.y)
-                    .thenComparingInt(slot -> slot.x)
-                    .thenComparingInt(slot -> slot.index));
+            crafterSlots.sort(
+                    Comparator.comparingInt((Slot slot) -> slot.y).thenComparingInt(slot -> slot.x).thenComparingInt(
+                            slot -> slot.index
+                    )
+            );
 
-            return crafterSlots.stream()
-                    .map(slot -> slot.index)
-                    .toList();
+            return crafterSlots.stream().map(slot -> slot.index).toList();
         }
 
         List<Slot> containerSlots = new ArrayList<>();
@@ -295,14 +296,13 @@ final class QuickContainerCopySources {
             containerSlots.add(slot);
         }
 
-        containerSlots.sort(Comparator
-                .comparingInt((Slot slot) -> slot.y)
-                .thenComparingInt(slot -> slot.x)
-                .thenComparingInt(slot -> slot.index));
+        containerSlots.sort(
+                Comparator.comparingInt((Slot slot) -> slot.y).thenComparingInt(slot -> slot.x).thenComparingInt(
+                        slot -> slot.index
+                )
+        );
 
-        return containerSlots.stream()
-                .map(slot -> slot.index)
-                .toList();
+        return containerSlots.stream().map(slot -> slot.index).toList();
     }
 
     static List<Integer> getContainerSlotIdsByInventoryIndex(AbstractContainerMenu handler) {
@@ -314,40 +314,31 @@ final class QuickContainerCopySources {
             containerSlots.add(slot);
         }
 
-        containerSlots.sort(Comparator
-                .comparingInt(Slot::getContainerSlot)
-                .thenComparingInt(slot -> slot.index));
+        containerSlots.sort(Comparator.comparingInt(Slot::getContainerSlot).thenComparingInt(slot -> slot.index));
 
-        return containerSlots.stream()
-                .map(slot -> slot.index)
-                .toList();
+        return containerSlots.stream().map(slot -> slot.index).toList();
     }
 
     static List<Integer> getPlayerStorageSlotIds(AbstractContainerMenu handler) {
         List<Slot> playerSlots = new ArrayList<>();
         for (Slot slot : handler.slots) {
-            if (!isVisibleSlot(slot)
-                    || !isPlayerStorageSlot(slot)
-                    || QuickContainerLock.isLockedSlot(handler, slot)) {
+            if (!isVisibleSlot(slot) || !isPlayerStorageSlot(slot) || QuickContainerLock.isLockedSlot(handler, slot)) {
                 continue;
             }
             playerSlots.add(slot);
         }
 
-        playerSlots.sort(Comparator
-                .comparingInt((Slot slot) -> slot.getContainerSlot() >= 9 ? 0 : 1)
-                .thenComparingInt(Slot::getContainerSlot)
-                .thenComparingInt(slot -> slot.index));
+        playerSlots.sort(
+                Comparator.comparingInt((Slot slot) -> slot.getContainerSlot() >= 9 ? 0 : 1).thenComparingInt(
+                        Slot::getContainerSlot
+                ).thenComparingInt(slot -> slot.index)
+        );
 
-        return playerSlots.stream()
-                .map(slot -> slot.index)
-                .toList();
+        return playerSlots.stream().map(slot -> slot.index).toList();
     }
 
     static boolean isPlayerStorageSlot(Slot slot) {
-        return slot.container instanceof Inventory
-                && slot.getContainerSlot() >= 0
-                && slot.getContainerSlot() < 36;
+        return slot.container instanceof Inventory && slot.getContainerSlot() >= 0 && slot.getContainerSlot() < 36;
     }
 
     static boolean isVisibleSlot(Slot slot) {
@@ -363,21 +354,18 @@ final class QuickContainerCopySources {
 
     record SourceShulkerScore(long coverageScore, int usefulItemCount, int coveredDemandCount) {
         private boolean isBetterThan(SourceShulkerScore other) {
-            return coverageScore > other.coverageScore
-                    || coverageScore == other.coverageScore && usefulItemCount > other.usefulItemCount
-                    || coverageScore == other.coverageScore
-                    && usefulItemCount == other.usefulItemCount
-                    && coveredDemandCount > other.coveredDemandCount;
+            return coverageScore > other.coverageScore || coverageScore == other.coverageScore
+                    && usefulItemCount > other.usefulItemCount || coverageScore == other.coverageScore
+                            && usefulItemCount == other.usefulItemCount
+                            && coveredDemandCount > other.coveredDemandCount;
         }
     }
 
     record SourceStackScore(boolean canMerge, int excessCount, int usefulCount) {
         private boolean isBetterThan(SourceStackScore other) {
-            return canMerge && !other.canMerge
-                    || canMerge == other.canMerge && excessCount < other.excessCount
-                    || canMerge == other.canMerge
-                    && excessCount == other.excessCount
-                    && usefulCount > other.usefulCount;
+            return canMerge && !other.canMerge || canMerge == other.canMerge && excessCount < other.excessCount
+                    || canMerge == other.canMerge && excessCount == other.excessCount
+                            && usefulCount > other.usefulCount;
         }
     }
 

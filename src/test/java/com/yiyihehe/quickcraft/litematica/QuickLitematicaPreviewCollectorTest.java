@@ -8,7 +8,8 @@ import static com.yiyihehe.quickcraft.litematica.QuickLitematicaPreviewAccess.La
 import static org.assertj.core.api.Assertions.assertThat;
 
 class QuickLitematicaPreviewCollectorTest {
-    @Test void streamsTransparentQuadsWithoutDiscardingCachedConsumersOrSmallOpaqueLayers() {
+    @Test
+    void streamsTransparentQuadsWithoutDiscardingCachedConsumersOrSmallOpaqueLayers() {
         var collector = new QuickLitematicaPreviewAccess.MeshCollector();
         VertexConsumer transparent = collector.consumerFor(LayerKey.FLUID);
         VertexConsumer opaque = collector.consumerFor(LayerKey.SOLID);
@@ -23,8 +24,10 @@ class QuickLitematicaPreviewCollectorTest {
         assertThat(ready.getFirst().layer()).isEqualTo(LayerKey.TRANSLUCENT);
         assertThat(ready.getFirst().vertexCount()).isEqualTo(STATIC_BATCH_TARGET_VERTICES + 4);
         var batches = QuickLitematicaPreviewMeshBatches.split(ready.getFirst(), new AtomicBoolean());
-        assertThat(batches).extracting(QuickLitematicaPreview3D.LayerMesh::vertexCount)
-                .containsExactly(STATIC_BATCH_TARGET_VERTICES, 4);
+        assertThat(batches).extracting(QuickLitematicaPreview3D.LayerMesh::vertexCount).containsExactly(
+                STATIC_BATCH_TARGET_VERTICES,
+                4
+        );
         assertThat(collector.consumerFor(LayerKey.TRANSLUCENT)).isSameAs(transparent);
         assertThat(collector.shouldPublishBatch()).isFalse();
 
@@ -35,12 +38,15 @@ class QuickLitematicaPreviewCollectorTest {
         assertThat(collector.vertexCount).isEqualTo(STATIC_BATCH_TARGET_VERTICES + 12);
     }
 
-    @Test void opaqueFlushLeavesAnIncompleteTransparentBatchForLater() {
+    @Test
+    void opaqueFlushLeavesAnIncompleteTransparentBatchForLater() {
         var collector = new QuickLitematicaPreviewAccess.MeshCollector();
         record(collector.consumerFor(LayerKey.PORTAL), 4);
         record(collector.consumerFor(LayerKey.SOLID), STATIC_BATCH_TARGET_VERTICES);
         assertThat(collector.shouldPublishBatch()).isTrue();
-        assertThat(collector.drainReadyMeshes()).hasSize(1).allSatisfy(mesh -> assertThat(mesh.layer()).isEqualTo(LayerKey.SOLID));
+        assertThat(collector.drainReadyMeshes()).hasSize(1).allSatisfy(
+                mesh -> assertThat(mesh.layer()).isEqualTo(LayerKey.SOLID)
+        );
         assertThat(collector.drainAllMeshes()).hasSize(1).allSatisfy(mesh -> {
             assertThat(mesh.layer()).isEqualTo(LayerKey.TRANSLUCENT);
             assertThat(mesh.vertexCount()).isEqualTo(4);

@@ -13,17 +13,30 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 @Mixin(value = WorldLoadListener.class, remap = false)
 public abstract class LitematicaWorldLoadListenerMixin {
     @Inject(method = "onWorldLoadPre", at = @At("RETURN"))
-    private void quickcraft$saveSessionHuds(ClientWorld before, ClientWorld after, MinecraftClient client, CallbackInfo ci) {
+    private void quickcraft$saveSessionHuds(
+            ClientWorld before,
+            ClientWorld after,
+            MinecraftClient client,
+            CallbackInfo ci
+    ) {
         if (before != after) {
             QuickLitematicaAreaClone.beforeWorldChange();
             if (before != null) {
-                QuickLitematicaProjectionPersistence.beforeWorldChange(before.getRegistryKey().toString(), after == null);
+                QuickLitematicaProjectionPersistence.beforeWorldChange(
+                        before.getRegistryKey().toString(),
+                        after == null
+                );
             }
         }
     }
 
     @Inject(method = "onWorldLoadPost", at = @At("RETURN"))
-    private void quickcraft$restoreSessionHuds(ClientWorld before, ClientWorld after, MinecraftClient client, CallbackInfo ci) {
+    private void quickcraft$restoreSessionHuds(
+            ClientWorld before,
+            ClientWorld after,
+            MinecraftClient client,
+            CallbackInfo ci
+    ) {
         if (after != null && before != after) {
             QuickLitematicaProjectionPersistence.afterWorldChange(after.getRegistryKey().toString());
         }

@@ -70,19 +70,25 @@ class QuickContainerSafetyTest {
         handler.addTestSlot(inventory, 0);
         handler.addTestSlot(inventory, 1);
         handler.setCursorStack(new ItemStack(Items.STONE, 3));
-        net.minecraft.client.gui.screen.ingame.HandledScreen<?> screen = mock(net.minecraft.client.gui.screen.ingame.HandledScreen.class);
+        net.minecraft.client.gui.screen.ingame.HandledScreen<?> screen = mock(
+                net.minecraft.client.gui.screen.ingame.HandledScreen.class
+        );
         doReturn(handler).when(screen).getScreenHandler();
-        org.mockito.Mockito.doThrow(new IllegalStateException("simulated third-party menu failure"))
-                .when(manager).clickSlot(anyInt(), anyInt(), anyInt(), any(SlotActionType.class), any(PlayerEntity.class));
-        Class<?> targetType = java.util.Arrays.stream(QuickSort.class.getDeclaredClasses())
-                .filter(type -> type.getSimpleName().equals("SortTarget")).findFirst().orElseThrow();
+        org.mockito.Mockito.doThrow(new IllegalStateException("simulated third-party menu failure")).when(manager)
+                .clickSlot(anyInt(), anyInt(), anyInt(), any(SlotActionType.class), any(PlayerEntity.class));
+        Class<?> targetType = java.util.Arrays.stream(QuickSort.class.getDeclaredClasses()).filter(
+                type -> type.getSimpleName().equals("SortTarget")
+        ).findFirst().orElseThrow();
         var constructor = targetType.getDeclaredConstructors()[0];
         constructor.setAccessible(true);
         Object target = constructor.newInstance("container", List.of(0, 1), null, handler);
-        Method sort = QuickSort.class.getDeclaredMethod("sortInventory", net.minecraft.client.gui.screen.ingame.HandledScreen.class, targetType);
+        Method sort = QuickSort.class.getDeclaredMethod(
+                "sortInventory",
+                net.minecraft.client.gui.screen.ingame.HandledScreen.class,
+                targetType
+        );
         sort.setAccessible(true);
-        try (var minecraft = mockStatic(MinecraftClient.class);
-             var locks = mockStatic(QuickContainerLock.class)) {
+        try (var minecraft = mockStatic(MinecraftClient.class); var locks = mockStatic(QuickContainerLock.class)) {
             minecraft.when(MinecraftClient::getInstance).thenReturn(client);
             sort.invoke(null, screen, target);
         }
@@ -112,13 +118,15 @@ class QuickContainerSafetyTest {
 
         try (var minecraft = mockStatic(MinecraftClient.class)) {
             minecraft.when(MinecraftClient::getInstance).thenReturn(client);
-            Method swap = QuickSort.class.getDeclaredMethod(
-                    "swapSlots", ScreenHandler.class, int.class, int.class);
+            Method swap = QuickSort.class.getDeclaredMethod("swapSlots", ScreenHandler.class, int.class, int.class);
             swap.setAccessible(true);
             Boolean swapped = (Boolean) swap.invoke(null, handler, 0, 1);
-            assertThat(swapped)
-                    .withFailMessage("cursor=%s, a=%s, b=%s", handler.getCursorStack(), handler.getSlot(0).getStack(), handler.getSlot(1).getStack())
-                    .isTrue();
+            assertThat(swapped).withFailMessage(
+                    "cursor=%s, a=%s, b=%s",
+                    handler.getCursorStack(),
+                    handler.getSlot(0).getStack(),
+                    handler.getSlot(1).getStack()
+            ).isTrue();
         }
 
         assertThat(handler.getSlot(0).getStack().getCount()).isEqualTo(64);
@@ -174,8 +182,11 @@ class QuickContainerSafetyTest {
         setField(client, "player", player);
         setField(client, "interactionManager", interactionManager);
         setField(client, "world", world);
-        setField(client, "crosshairTarget", new BlockHitResult(
-                Vec3d.ofCenter(targetPos), Direction.NORTH, targetPos, false));
+        setField(
+                client,
+                "crosshairTarget",
+                new BlockHitResult(Vec3d.ofCenter(targetPos), Direction.NORTH, targetPos, false)
+        );
 
         TestScreenHandler inventoryHandler = new TestScreenHandler();
         SimpleInventory crafting = new SimpleInventory(9);
@@ -215,11 +226,16 @@ class QuickContainerSafetyTest {
         setField(client, "player", player);
         setField(client, "interactionManager", interactionManager);
         setField(client, "world", world);
-        setField(client, "crosshairTarget", new BlockHitResult(
-                Vec3d.ofCenter(otherPos), Direction.NORTH, otherPos, false));
+        setField(
+                client,
+                "crosshairTarget",
+                new BlockHitResult(Vec3d.ofCenter(otherPos), Direction.NORTH, otherPos, false)
+        );
 
         GenericContainerScreenHandler handler = GenericContainerScreenHandler.createGeneric9x3(
-                1, newPlayerInventory(player));
+                1,
+                newPlayerInventory(player)
+        );
         handler.getSlot(0).setStack(new ItemStack(Items.STONE, 3));
         installClickHandler(handler, interactionManager);
         HandledScreen<?> screen = mock(HandledScreen.class);
@@ -260,8 +276,12 @@ class QuickContainerSafetyTest {
         ChestBlockEntity target = new ChestBlockEntity(targetPos, Blocks.CHEST.getDefaultState());
         GenericContainerScreenHandler menu = GenericContainerScreenHandler.createGeneric9x6(1, playerInventory);
         assertThat(menu.getInventory()).isNotSameAs(target);
-        assertPendingClearRuns(target,
-                Blocks.CHEST.getDefaultState().with(ChestBlock.CHEST_TYPE, ChestType.LEFT), menu, 53);
+        assertPendingClearRuns(
+                target,
+                Blocks.CHEST.getDefaultState().with(ChestBlock.CHEST_TYPE, ChestType.LEFT),
+                menu,
+                53
+        );
     }
 
     @Test
@@ -269,8 +289,7 @@ class QuickContainerSafetyTest {
         BlockPos targetPos = new BlockPos(1, 64, 1);
         ClientPlayerEntity player = mock(ClientPlayerEntity.class);
         PlayerInventory playerInventory = newPlayerInventory(player);
-        ShulkerBoxBlockEntity target = new ShulkerBoxBlockEntity(
-                targetPos, Blocks.SHULKER_BOX.getDefaultState());
+        ShulkerBoxBlockEntity target = new ShulkerBoxBlockEntity(targetPos, Blocks.SHULKER_BOX.getDefaultState());
         ShulkerBoxScreenHandler menu = new ShulkerBoxScreenHandler(1, playerInventory);
         assertThat(getField(menu, "inventory")).isNotSameAs(target);
         assertPendingClearRuns(target, Blocks.SHULKER_BOX.getDefaultState(), menu, 0);
@@ -291,11 +310,16 @@ class QuickContainerSafetyTest {
         setField(client, "player", player);
         setField(client, "interactionManager", interactionManager);
         setField(client, "world", world);
-        setField(client, "crosshairTarget", new BlockHitResult(
-                Vec3d.ofCenter(targetPos), Direction.NORTH, targetPos, false));
+        setField(
+                client,
+                "crosshairTarget",
+                new BlockHitResult(Vec3d.ofCenter(targetPos), Direction.NORTH, targetPos, false)
+        );
 
         GenericContainerScreenHandler menu = GenericContainerScreenHandler.createGeneric9x1(
-                1, newPlayerInventory(player));
+                1,
+                newPlayerInventory(player)
+        );
         menu.getSlot(0).setStack(new ItemStack(Items.STONE, 3));
         installClickHandler(menu, interactionManager);
         HandledScreen<?> screen = mock(HandledScreen.class);
@@ -316,10 +340,12 @@ class QuickContainerSafetyTest {
         assertThat(getField(clear, "pendingPos")).isNull();
     }
 
-    private static void assertPendingClearRuns(BlockEntity targetEntity,
-                                               BlockState targetState,
-                                               ScreenHandler menu,
-                                               int itemSlot) throws Exception {
+    private static void assertPendingClearRuns(
+            BlockEntity targetEntity,
+            BlockState targetState,
+            ScreenHandler menu,
+            int itemSlot
+    ) throws Exception {
         BlockPos targetPos = new BlockPos(1, 64, 1);
         MinecraftClient client = mock(MinecraftClient.class);
         ClientPlayerEntity player = mock(ClientPlayerEntity.class);
@@ -331,8 +357,11 @@ class QuickContainerSafetyTest {
         setField(client, "player", player);
         setField(client, "interactionManager", interactionManager);
         setField(client, "world", world);
-        setField(client, "crosshairTarget", new BlockHitResult(
-                Vec3d.ofCenter(targetPos), Direction.NORTH, targetPos, false));
+        setField(
+                client,
+                "crosshairTarget",
+                new BlockHitResult(Vec3d.ofCenter(targetPos), Direction.NORTH, targetPos, false)
+        );
 
         menu.getSlot(itemSlot).setStack(new ItemStack(Items.STONE, 3));
         installClickHandler(menu, interactionManager);
@@ -349,8 +378,13 @@ class QuickContainerSafetyTest {
             process.invoke(clear, client);
         }
 
-        verify(interactionManager, atLeastOnce()).clickSlot(anyInt(), eq(itemSlot), eq(1),
-                eq(SlotActionType.THROW), any());
+        verify(interactionManager, atLeastOnce()).clickSlot(
+                anyInt(),
+                eq(itemSlot),
+                eq(1),
+                eq(SlotActionType.THROW),
+                any()
+        );
         assertThat(menu.getSlot(itemSlot).getStack().isEmpty()).isTrue();
         assertThat(getField(clear, "pendingPos")).isNull();
     }
@@ -387,7 +421,11 @@ class QuickContainerSafetyTest {
         }
 
         FurnaceScreenHandler furnace = new FurnaceScreenHandler(
-                1, playerInventory, new SimpleInventory(3), new ArrayPropertyDelegate(4));
+                1,
+                playerInventory,
+                new SimpleInventory(3),
+                new ArrayPropertyDelegate(4)
+        );
         HandledScreen<?> screen = mock(HandledScreen.class);
         doReturn(furnace).when(screen).getScreenHandler();
 
@@ -417,7 +455,10 @@ class QuickContainerSafetyTest {
         }
         container.setStack(26, new ItemStack(Items.STONE, 32));
         GenericContainerScreenHandler handler = GenericContainerScreenHandler.createGeneric9x3(
-                1, playerInventory, container);
+                1,
+                playerInventory,
+                container
+        );
         installClickHandler(handler, interactionManager);
         MinecraftClient client = mock(MinecraftClient.class);
         setField(client, "player", player);
@@ -451,12 +492,19 @@ class QuickContainerSafetyTest {
         HandledScreen<?> targetScreen = mock(HandledScreen.class);
         doReturn(fixture.targetMenu()).when(targetScreen).getScreenHandler();
         setField(fixture.client(), "currentScreen", targetScreen);
-        setField(fixture.client(), "crosshairTarget", new BlockHitResult(
-                Vec3d.ofCenter(fixture.targetPos()), Direction.NORTH, fixture.targetPos(), false));
-        installClickHandler(fixture.targetMenu(),
-                (ClientPlayerInteractionManager) getField(fixture.client(), "interactionManager"));
+        setField(
+                fixture.client(),
+                "crosshairTarget",
+                new BlockHitResult(Vec3d.ofCenter(fixture.targetPos()), Direction.NORTH, fixture.targetPos(), false)
+        );
+        installClickHandler(
+                fixture.targetMenu(),
+                (ClientPlayerInteractionManager) getField(fixture.client(), "interactionManager")
+        );
         Method processPending = QuickContainerCopy.class.getDeclaredMethod(
-                "processPendingStashRecovery", MinecraftClient.class);
+                "processPendingStashRecovery",
+                MinecraftClient.class
+        );
         processPending.setAccessible(true);
         processPending.invoke(copy, fixture.client());
 
@@ -476,19 +524,28 @@ class QuickContainerSafetyTest {
         // 原小箱被拆掉，同坐标换成木桶；两者都是三行菜单，保存的 type 不足以识别。
         when(fixture.client().world.getBlockState(targetPos)).thenReturn(Blocks.BARREL.getDefaultState());
         GenericContainerScreenHandler barrelMenu = GenericContainerScreenHandler.createGeneric9x3(
-                9, fixture.playerInventory());
+                9,
+                fixture.playerInventory()
+        );
         barrelMenu.getSlot(0).setStack(new ItemStack(Items.SHULKER_BOX));
-        ClientPlayerInteractionManager interactionManager =
-                (ClientPlayerInteractionManager) getField(fixture.client(), "interactionManager");
+        ClientPlayerInteractionManager interactionManager = (ClientPlayerInteractionManager) getField(
+                fixture.client(),
+                "interactionManager"
+        );
         installClickHandler(barrelMenu, interactionManager);
         HandledScreen<?> barrelScreen = mock(HandledScreen.class);
         doReturn(barrelMenu).when(barrelScreen).getScreenHandler();
         setField(fixture.client(), "currentScreen", barrelScreen);
-        setField(fixture.client(), "crosshairTarget", new BlockHitResult(
-                Vec3d.ofCenter(targetPos), Direction.NORTH, targetPos, false));
+        setField(
+                fixture.client(),
+                "crosshairTarget",
+                new BlockHitResult(Vec3d.ofCenter(targetPos), Direction.NORTH, targetPos, false)
+        );
 
         Method processPending = QuickContainerCopy.class.getDeclaredMethod(
-                "processPendingStashRecovery", MinecraftClient.class);
+                "processPendingStashRecovery",
+                MinecraftClient.class
+        );
         processPending.setAccessible(true);
         processPending.invoke(copy, fixture.client());
 
@@ -507,25 +564,37 @@ class QuickContainerSafetyTest {
 
         // 重新打开原目标：独立的客户端菜单，不是 pending 创建时的那一份。
         GenericContainerScreenHandler reopenedMenu = GenericContainerScreenHandler.createGeneric9x3(
-                7, fixture.playerInventory());
+                7,
+                fixture.playerInventory()
+        );
         reopenedMenu.getSlot(0).setStack(new ItemStack(Items.SHULKER_BOX));
-        ClientPlayerInteractionManager interactionManager =
-                (ClientPlayerInteractionManager) getField(fixture.client(), "interactionManager");
+        ClientPlayerInteractionManager interactionManager = (ClientPlayerInteractionManager) getField(
+                fixture.client(),
+                "interactionManager"
+        );
         installClickHandler(reopenedMenu, interactionManager);
         HandledScreen<?> reopenedScreen = mock(HandledScreen.class);
         doReturn(reopenedMenu).when(reopenedScreen).getScreenHandler();
         setField(fixture.client(), "currentScreen", reopenedScreen);
-        setField(fixture.client(), "crosshairTarget", new BlockHitResult(
-                Vec3d.ofCenter(targetPos), Direction.NORTH, targetPos, false));
+        setField(
+                fixture.client(),
+                "crosshairTarget",
+                new BlockHitResult(Vec3d.ofCenter(targetPos), Direction.NORTH, targetPos, false)
+        );
 
         Method processPending = QuickContainerCopy.class.getDeclaredMethod(
-                "processPendingStashRecovery", MinecraftClient.class);
+                "processPendingStashRecovery",
+                MinecraftClient.class
+        );
         processPending.setAccessible(true);
         processPending.invoke(copy, fixture.client());
 
         assertThat(reopenedMenu.getSlot(0).getStack().isEmpty()).isTrue();
-        assertThat(mainStacks(fixture.playerInventory()).stream()
-                .anyMatch(stack -> !stack.isEmpty() && stack.isOf(Items.SHULKER_BOX))).isTrue();
+        assertThat(
+                mainStacks(fixture.playerInventory()).stream().anyMatch(
+                        stack -> !stack.isEmpty() && stack.isOf(Items.SHULKER_BOX)
+                )
+        ).isTrue();
         assertThat(getStaticField(QuickContainerCopy.class, "pendingStashRecovery")).isNull();
     }
 
@@ -535,10 +604,14 @@ class QuickContainerSafetyTest {
         StashFixture fixture = stashFixture(targetPos, targetPos);
         when(fixture.client().world.getBlockState(targetPos)).thenReturn(Blocks.BARREL.getDefaultState());
         GenericContainerScreenHandler barrelMenu = GenericContainerScreenHandler.createGeneric9x3(
-                9, fixture.playerInventory());
+                9,
+                fixture.playerInventory()
+        );
         barrelMenu.getSlot(0).setStack(new ItemStack(Items.SHULKER_BOX));
-        ClientPlayerInteractionManager interactionManager =
-                (ClientPlayerInteractionManager) getField(fixture.client(), "interactionManager");
+        ClientPlayerInteractionManager interactionManager = (ClientPlayerInteractionManager) getField(
+                fixture.client(),
+                "interactionManager"
+        );
         installClickHandler(barrelMenu, interactionManager);
         HandledScreen<?> barrelScreen = mock(HandledScreen.class);
         doReturn(barrelMenu).when(barrelScreen).getScreenHandler();
@@ -566,26 +639,38 @@ class QuickContainerSafetyTest {
         }
         installContinuousTask(targetPos, "SMALL_CHEST", fixture.client().world);
 
-        try (var minecraft = mockStatic(MinecraftClient.class);
-             var configs = mockStatic(QuickCraftConfigs.class)) {
+        try (var minecraft = mockStatic(MinecraftClient.class); var configs = mockStatic(QuickCraftConfigs.class)) {
             minecraft.when(MinecraftClient::getInstance).thenReturn(fixture.client());
             configs.when(QuickCraftConfigs::isContainerFillOverflowDropEnabled).thenReturn(true);
             Method fillTarget = QuickContainerCopy.class.getDeclaredMethod(
-                    "fillContinuousTarget", MinecraftClient.class);
+                    "fillContinuousTarget",
+                    MinecraftClient.class
+            );
             fillTarget.setAccessible(true);
             fillTarget.invoke(copy, fixture.client());
         }
 
         assertThat(fixture.menu().getSlot(0).getStack().isOf(Items.SHULKER_BOX)).isTrue();
         assertThat(getStaticField(QuickContainerCopy.class, "pendingStashRecovery")).isNotNull();
-        ClientPlayerInteractionManager interactionManager =
-                (ClientPlayerInteractionManager) getField(fixture.client(), "interactionManager");
-        verify(interactionManager, atLeastOnce()).clickSlot(anyInt(), anyInt(), anyInt(),
-                eq(SlotActionType.PICKUP), any());
-        verify(interactionManager, never()).clickSlot(anyInt(), anyInt(), anyInt(),
-                eq(SlotActionType.THROW), any());
-        verify(interactionManager, never()).clickSlot(anyInt(), anyInt(), anyInt(),
-                eq(SlotActionType.QUICK_MOVE), any());
+        ClientPlayerInteractionManager interactionManager = (ClientPlayerInteractionManager) getField(
+                fixture.client(),
+                "interactionManager"
+        );
+        verify(interactionManager, atLeastOnce()).clickSlot(
+                anyInt(),
+                anyInt(),
+                anyInt(),
+                eq(SlotActionType.PICKUP),
+                any()
+        );
+        verify(interactionManager, never()).clickSlot(anyInt(), anyInt(), anyInt(), eq(SlotActionType.THROW), any());
+        verify(interactionManager, never()).clickSlot(
+                anyInt(),
+                anyInt(),
+                anyInt(),
+                eq(SlotActionType.QUICK_MOVE),
+                any()
+        );
     }
 
     @Test
@@ -593,9 +678,11 @@ class QuickContainerSafetyTest {
         BlockPos targetPos = new BlockPos(1, 64, 1);
         GuardEnv env = guardEnv(6);
         when(env.world().getBlockState(targetPos)).thenReturn(
-                Blocks.CHEST.getDefaultState().with(ChestBlock.CHEST_TYPE, ChestType.LEFT));
-        when(env.world().getBlockEntity(targetPos))
-                .thenReturn(new ChestBlockEntity(targetPos, Blocks.CHEST.getDefaultState()));
+                Blocks.CHEST.getDefaultState().with(ChestBlock.CHEST_TYPE, ChestType.LEFT)
+        );
+        when(env.world().getBlockEntity(targetPos)).thenReturn(
+                new ChestBlockEntity(targetPos, Blocks.CHEST.getDefaultState())
+        );
         env.menu().getSlot(0).setStack(new ItemStack(Items.SHULKER_BOX));
         installPendingStash(targetPos, "SMALL_CHEST", new ItemStack(Items.SHULKER_BOX), env.world());
         installContinuousTask(targetPos, "LARGE_CHEST", env.world());
@@ -614,8 +701,9 @@ class QuickContainerSafetyTest {
         GuardEnv env = guardEnv(3);
         when(env.world().getBlockState(stashedPos)).thenReturn(Blocks.CHEST.getDefaultState());
         when(env.world().getBlockState(targetPos)).thenReturn(Blocks.CHEST.getDefaultState());
-        when(env.world().getBlockEntity(targetPos))
-                .thenReturn(new ChestBlockEntity(targetPos, Blocks.CHEST.getDefaultState()));
+        when(env.world().getBlockEntity(targetPos)).thenReturn(
+                new ChestBlockEntity(targetPos, Blocks.CHEST.getDefaultState())
+        );
         env.menu().getSlot(0).setStack(new ItemStack(Items.DIRT, 3));
         installPendingStash(stashedPos, "SMALL_CHEST", new ItemStack(Items.SHULKER_BOX), env.world());
         installContinuousTask(targetPos, "SMALL_CHEST", env.world());
@@ -623,11 +711,15 @@ class QuickContainerSafetyTest {
         invokeFillContinuousTask(env);
 
         assertThat(env.menu().getSlot(0).getStack().isEmpty()).isTrue();
-        assertThat(mainStacks(env.playerInventory()).stream()
-                .anyMatch(stack -> stack.isOf(Items.DIRT))).isTrue();
+        assertThat(mainStacks(env.playerInventory()).stream().anyMatch(stack -> stack.isOf(Items.DIRT))).isTrue();
         assertThat(getStaticField(QuickContainerCopy.class, "pendingStashRecovery")).isNotNull();
-        verify(env.interactionManager(), atLeastOnce()).clickSlot(anyInt(), anyInt(), anyInt(),
-                eq(SlotActionType.QUICK_MOVE), any());
+        verify(env.interactionManager(), atLeastOnce()).clickSlot(
+                anyInt(),
+                anyInt(),
+                anyInt(),
+                eq(SlotActionType.QUICK_MOVE),
+                any()
+        );
     }
 
     @Test
@@ -637,8 +729,11 @@ class QuickContainerSafetyTest {
         invokeStop(copy, fixture.client(), true, null);
 
         assertThat(fixture.menu().getSlot(0).getStack().isEmpty()).isTrue();
-        assertThat(mainStacks(fixture.playerInventory()).stream()
-                .anyMatch(stack -> !stack.isEmpty() && stack.isOf(Items.SHULKER_BOX))).isTrue();
+        assertThat(
+                mainStacks(fixture.playerInventory()).stream().anyMatch(
+                        stack -> !stack.isEmpty() && stack.isOf(Items.SHULKER_BOX)
+                )
+        ).isTrue();
         assertThat(fixture.clientSideEntity().getStack(0).isEmpty()).isTrue();
         assertThat(getStaticField(QuickContainerCopy.class, "continuousTask")).isNull();
         assertThat(getStaticField(QuickContainerCopy.class, "pendingStashRecovery")).isNull();
@@ -661,19 +756,27 @@ class QuickContainerSafetyTest {
         assertThat(stashed.isOf(Items.SHULKER_BOX)).isTrue();
         assertThat(stashed.getCount()).isEqualTo(1);
 
-        setField(fixture.client(), "crosshairTarget", new BlockHitResult(
-                Vec3d.ofCenter(targetPos), Direction.NORTH, targetPos, false));
+        setField(
+                fixture.client(),
+                "crosshairTarget",
+                new BlockHitResult(Vec3d.ofCenter(targetPos), Direction.NORTH, targetPos, false)
+        );
         HandledScreen<?> targetScreen = mock(HandledScreen.class);
         doReturn(fixture.menu()).when(targetScreen).getScreenHandler();
         setField(fixture.client(), "currentScreen", targetScreen);
         Method processPending = QuickContainerCopy.class.getDeclaredMethod(
-                "processPendingStashRecovery", MinecraftClient.class);
+                "processPendingStashRecovery",
+                MinecraftClient.class
+        );
         processPending.setAccessible(true);
         processPending.invoke(copy, fixture.client());
 
         assertThat(fixture.menu().getSlot(0).getStack().isEmpty()).isTrue();
-        assertThat(mainStacks(fixture.playerInventory()).stream()
-                .anyMatch(stack -> !stack.isEmpty() && stack.isOf(Items.SHULKER_BOX))).isTrue();
+        assertThat(
+                mainStacks(fixture.playerInventory()).stream().anyMatch(
+                        stack -> !stack.isEmpty() && stack.isOf(Items.SHULKER_BOX)
+                )
+        ).isTrue();
         assertThat(getStaticField(QuickContainerCopy.class, "pendingStashRecovery")).isNull();
     }
 
@@ -687,8 +790,7 @@ class QuickContainerSafetyTest {
         PlayerInventory playerInventory = newPlayerInventory(player);
         when(player.getInventory()).thenReturn(playerInventory);
         when(player.getAbilities()).thenReturn(new PlayerAbilities());
-        ShulkerBoxBlockEntity clientCopy = new ShulkerBoxBlockEntity(
-                targetPos, Blocks.SHULKER_BOX.getDefaultState());
+        ShulkerBoxBlockEntity clientCopy = new ShulkerBoxBlockEntity(targetPos, Blocks.SHULKER_BOX.getDefaultState());
         when(world.getBlockEntity(targetPos)).thenReturn(clientCopy);
 
         ShulkerBoxScreenHandler targetMenu = new ShulkerBoxScreenHandler(7, playerInventory);
@@ -706,11 +808,13 @@ class QuickContainerSafetyTest {
         HandledScreen<?> sourceScreen = mock(HandledScreen.class);
         doReturn(sourceMenu).when(sourceScreen).getScreenHandler();
         setField(client, "currentScreen", sourceScreen);
-        setField(client, "crosshairTarget", new BlockHitResult(
-                Vec3d.ofCenter(targetPos), Direction.NORTH, targetPos, false));
+        setField(
+                client,
+                "crosshairTarget",
+                new BlockHitResult(Vec3d.ofCenter(targetPos), Direction.NORTH, targetPos, false)
+        );
 
-        Object task = continuousTask(blockTarget(targetPos, "SHULKER_BOX"),
-                emptyTemplate("SHULKER_BOX"), world);
+        Object task = continuousTask(blockTarget(targetPos, "SHULKER_BOX"), emptyTemplate("SHULKER_BOX"), world);
         setField(task, "temporaryStash", temporaryStash(0, 0, new ItemStack(Items.SHULKER_BOX)));
         setStage(task, "EXTRACT_SOURCE");
         setField(task, "previousSyncId", 7);
@@ -746,11 +850,13 @@ class QuickContainerSafetyTest {
         HandledScreen<?> screen = mock(HandledScreen.class);
         doReturn(menu).when(screen).getScreenHandler();
         setField(client, "currentScreen", screen);
-        setField(client, "crosshairTarget", new BlockHitResult(
-                Vec3d.ofCenter(crosshairPos), Direction.NORTH, crosshairPos, false));
+        setField(
+                client,
+                "crosshairTarget",
+                new BlockHitResult(Vec3d.ofCenter(crosshairPos), Direction.NORTH, crosshairPos, false)
+        );
 
-        Object task = continuousTask(blockTarget(targetPos, "SMALL_CHEST"),
-                emptyTemplate("SMALL_CHEST"), world);
+        Object task = continuousTask(blockTarget(targetPos, "SMALL_CHEST"), emptyTemplate("SMALL_CHEST"), world);
         setField(task, "temporaryStash", temporaryStash(0, 0, new ItemStack(Items.SHULKER_BOX)));
         setStage(task, "FILL_TARGET");
         setField(task, "worldRef", new WeakReference<>(world));
@@ -768,9 +874,10 @@ class QuickContainerSafetyTest {
         when(player.getInventory()).thenReturn(playerInventory);
         when(player.getAbilities()).thenReturn(new PlayerAbilities());
         when(world.getRegistryKey()).thenReturn(World.OVERWORLD);
-        GenericContainerScreenHandler menu = rows == 6
-                ? GenericContainerScreenHandler.createGeneric9x6(1, playerInventory)
-                : GenericContainerScreenHandler.createGeneric9x3(1, playerInventory);
+        GenericContainerScreenHandler menu = rows == 6 ? GenericContainerScreenHandler.createGeneric9x6(
+                1,
+                playerInventory
+        ) : GenericContainerScreenHandler.createGeneric9x3(1, playerInventory);
         installClickHandler(menu, interactionManager);
         setField(player, "currentScreenHandler", menu);
         MinecraftClient client = mock(MinecraftClient.class);
@@ -785,11 +892,9 @@ class QuickContainerSafetyTest {
 
     private static void invokeFillContinuousTask(GuardEnv env) throws Exception {
         QuickContainerCopy copy = new QuickContainerCopy();
-        Method fillTarget = QuickContainerCopy.class.getDeclaredMethod(
-                "fillContinuousTarget", MinecraftClient.class);
+        Method fillTarget = QuickContainerCopy.class.getDeclaredMethod("fillContinuousTarget", MinecraftClient.class);
         fillTarget.setAccessible(true);
-        try (var minecraft = mockStatic(MinecraftClient.class);
-             var configs = mockStatic(QuickCraftConfigs.class)) {
+        try (var minecraft = mockStatic(MinecraftClient.class); var configs = mockStatic(QuickCraftConfigs.class)) {
             minecraft.when(MinecraftClient::getInstance).thenReturn(env.client());
             configs.when(QuickCraftConfigs::isContainerFillOverflowDropEnabled).thenReturn(true);
             fillTarget.invoke(copy, env.client());
@@ -798,9 +903,11 @@ class QuickContainerSafetyTest {
 
     private static void installPendingStash(BlockPos pos, String typeName, ItemStack stack, World world)
             throws Exception {
-        setStaticField(QuickContainerCopy.class, "pendingStashRecovery",
-                pendingRecovery(blockTarget(pos, typeName), new WeakReference<>(world),
-                        temporaryStash(0, 0, stack)));
+        setStaticField(
+                QuickContainerCopy.class,
+                "pendingStashRecovery",
+                pendingRecovery(blockTarget(pos, typeName), new WeakReference<>(world), temporaryStash(0, 0, stack))
+        );
         setStaticField(QuickContainerCopy.class, "lastPendingStashScreen", null);
     }
 
@@ -815,7 +922,7 @@ class QuickContainerSafetyTest {
         return Class.forName("com.yiyihehe.quickcraft.QuickContainerCopy$" + name);
     }
 
-    @SuppressWarnings({"unchecked", "rawtypes"})
+    @SuppressWarnings({ "unchecked", "rawtypes" })
     private static Object supportedType(String typeName) throws Exception {
         Class<?> typeClass = copyNested("SupportedContainerType");
         return Enum.valueOf((Class<? extends Enum>) typeClass, typeName);
@@ -826,8 +933,10 @@ class QuickContainerSafetyTest {
         Class<?> targetClass = copyNested("TargetInteraction");
         var constructor = targetClass.getDeclaredConstructor(HitResult.class, typeClass);
         constructor.setAccessible(true);
-        return constructor.newInstance(new BlockHitResult(
-                Vec3d.ofCenter(pos), Direction.NORTH, pos, false), supportedType(typeName));
+        return constructor.newInstance(
+                new BlockHitResult(Vec3d.ofCenter(pos), Direction.NORTH, pos, false),
+                supportedType(typeName)
+        );
     }
 
     private static Object emptyTemplate(String typeName) throws Exception {
@@ -836,10 +945,16 @@ class QuickContainerSafetyTest {
         var recordedConstructor = recordedClass.getDeclaredConstructor(typeClass, List.class, List.class);
         recordedConstructor.setAccessible(true);
         Object recorded = recordedConstructor.newInstance(
-                supportedType(typeName), List.of(ItemStack.EMPTY), List.of(false));
+                supportedType(typeName),
+                List.of(ItemStack.EMPTY),
+                List.of(false)
+        );
         Class<?> templateClass = copyNested("ContinuousTemplate");
         var templateConstructor = templateClass.getDeclaredConstructor(
-                recordedClass, boolean.class, copyNested("SuccessMessage"));
+                recordedClass,
+                boolean.class,
+                copyNested("SuccessMessage")
+        );
         templateConstructor.setAccessible(true);
         return templateConstructor.newInstance(recorded, false, successMessage("quickcraft.message.test"));
     }
@@ -847,8 +962,11 @@ class QuickContainerSafetyTest {
     private static Object continuousTask(Object target, Object template, World world) throws Exception {
         Class<?> taskClass = copyNested("ContinuousFillTask");
         var constructor = taskClass.getDeclaredConstructor(
-                copyNested("TargetInteraction"), copyNested("ContinuousTemplate"), RegistryKey.class,
-                com.yiyihehe.quickcraft.render.QuickContainerFillStatus.Handle.class);
+                copyNested("TargetInteraction"),
+                copyNested("ContinuousTemplate"),
+                RegistryKey.class,
+                com.yiyihehe.quickcraft.render.QuickContainerFillStatus.Handle.class
+        );
         constructor.setAccessible(true);
         return constructor.newInstance(target, template, World.OVERWORLD, null);
     }
@@ -860,12 +978,13 @@ class QuickContainerSafetyTest {
         return constructor.newInstance(templateIndex, slotId, stack);
     }
 
-    private static Object pendingRecovery(Object target, WeakReference<World> worldRef, Object stash)
-            throws Exception {
+    private static Object pendingRecovery(Object target, WeakReference<World> worldRef, Object stash) throws Exception {
         Class<?> pendingClass = copyNested("PendingStashRecovery");
         var constructor = pendingClass.getDeclaredConstructor(
-                copyNested("TargetInteraction"), WeakReference.class,
-                copyNested("TemporaryContainerStash"));
+                copyNested("TargetInteraction"),
+                WeakReference.class,
+                copyNested("TemporaryContainerStash")
+        );
         constructor.setAccessible(true);
         return constructor.newInstance(target, worldRef, stash);
     }
@@ -878,39 +997,47 @@ class QuickContainerSafetyTest {
     }
 
     private static void setStage(Object task, String stageName) throws Exception {
-        @SuppressWarnings({"unchecked", "rawtypes"})
+        @SuppressWarnings({ "unchecked", "rawtypes" })
         Object stage = Enum.valueOf((Class<? extends Enum>) copyNested("ContinuousStage"), stageName);
         setField(task, "stage", stage);
     }
 
-    private static void invokeStop(QuickContainerCopy copy,
-                                   MinecraftClient client,
-                                   boolean closeScreen,
-                                   Text message) throws Exception {
+    private static void invokeStop(QuickContainerCopy copy, MinecraftClient client, boolean closeScreen, Text message)
+            throws Exception {
         Method stop = QuickContainerCopy.class.getDeclaredMethod(
-                "stopContinuousTask", MinecraftClient.class, boolean.class, Text.class);
+                "stopContinuousTask",
+                MinecraftClient.class,
+                boolean.class,
+                Text.class
+        );
         stop.setAccessible(true);
         stop.invoke(copy, client, closeScreen, message);
     }
 
-    private record StashFixture(MinecraftClient client,
-                                PlayerInventory playerInventory,
-                                GenericContainerScreenHandler menu,
-                                ChestBlockEntity clientSideEntity) {
+    private record StashFixture(
+            MinecraftClient client,
+            PlayerInventory playerInventory,
+            GenericContainerScreenHandler menu,
+            ChestBlockEntity clientSideEntity
+    ) {
     }
 
-    private record ShulkerStashFixture(MinecraftClient client,
-                                       ShulkerBoxBlockEntity clientSideEntity,
-                                       ShulkerBoxScreenHandler targetMenu,
-                                       ShulkerBoxScreenHandler sourceMenu,
-                                       BlockPos targetPos) {
+    private record ShulkerStashFixture(
+            MinecraftClient client,
+            ShulkerBoxBlockEntity clientSideEntity,
+            ShulkerBoxScreenHandler targetMenu,
+            ShulkerBoxScreenHandler sourceMenu,
+            BlockPos targetPos
+    ) {
     }
 
-    private record GuardEnv(MinecraftClient client,
-                            PlayerInventory playerInventory,
-                            ClientPlayerInteractionManager interactionManager,
-                            ClientWorld world,
-                            GenericContainerScreenHandler menu) {
+    private record GuardEnv(
+            MinecraftClient client,
+            PlayerInventory playerInventory,
+            ClientPlayerInteractionManager interactionManager,
+            ClientWorld world,
+            GenericContainerScreenHandler menu
+    ) {
     }
 
     private static void runCursorFill(TestScreenHandler handler, Slot lockedSlot) throws Exception {
@@ -922,19 +1049,18 @@ class QuickContainerSafetyTest {
         setField(client, "interactionManager", interactionManager);
         installClickHandler(handler, interactionManager);
 
-        try (var minecraft = mockStatic(MinecraftClient.class);
-             var locks = mockStatic(QuickContainerLock.class)) {
+        try (var minecraft = mockStatic(MinecraftClient.class); var locks = mockStatic(QuickContainerLock.class)) {
             minecraft.when(MinecraftClient::getInstance).thenReturn(client);
-            locks.when(() -> QuickContainerLock.isLockedSlot(any(ScreenHandler.class), any(Slot.class)))
-                    .thenAnswer(invocation -> invocation.getArgument(1) == lockedSlot);
+            locks.when(() -> QuickContainerLock.isLockedSlot(any(ScreenHandler.class), any(Slot.class))).thenAnswer(
+                    invocation -> invocation.getArgument(1) == lockedSlot
+            );
             Method store = QuickSort.class.getDeclaredMethod("storeCursorStackInVisibleSlots", ScreenHandler.class);
             store.setAccessible(true);
             assertThat((Boolean) store.invoke(null, handler)).isTrue();
         }
     }
 
-    private static void installClickHandler(ScreenHandler handler,
-                                            ClientPlayerInteractionManager interactionManager) {
+    private static void installClickHandler(ScreenHandler handler, ClientPlayerInteractionManager interactionManager) {
         doAnswer(invocation -> {
             if (invocation.getArgument(3) == SlotActionType.PICKUP) {
                 simulatePickup(handler, invocation.getArgument(1));
@@ -945,8 +1071,13 @@ class QuickContainerSafetyTest {
                 handler.getSlot(invocation.getArgument(1)).setStack(ItemStack.EMPTY);
             }
             return null;
-        }).when(interactionManager).clickSlot(anyInt(), anyInt(), anyInt(),
-                any(SlotActionType.class), any(PlayerEntity.class));
+        }).when(interactionManager).clickSlot(
+                anyInt(),
+                anyInt(),
+                anyInt(),
+                any(SlotActionType.class),
+                any(PlayerEntity.class)
+        );
     }
 
     private static void simulatePickup(ScreenHandler handler, int slotId) {
@@ -974,11 +1105,8 @@ class QuickContainerSafetyTest {
         slot.markDirty();
     }
 
-    private static void setPending(QuickClearContainer clear,
-                                   boolean open,
-                                   int ticks,
-                                   ClientWorld world,
-                                   BlockPos pos) throws Exception {
+    private static void setPending(QuickClearContainer clear, boolean open, int ticks, ClientWorld world, BlockPos pos)
+            throws Exception {
         setField(clear, "pendingOpen", open);
         setField(clear, "pendingTicks", ticks);
         setField(clear, "pendingWorld", world);
@@ -991,8 +1119,7 @@ class QuickContainerSafetyTest {
                 Method method = player.getClass().getMethod(methodName);
                 when(method.invoke(player)).thenReturn(world);
                 return;
-            } catch (NoSuchMethodException ignored) {
-            }
+            } catch (NoSuchMethodException ignored) {}
         }
         throw new AssertionError("ClientPlayerEntity world accessor not found");
     }
@@ -1002,14 +1129,15 @@ class QuickContainerSafetyTest {
             Method getFuelRegistry = world.getClass().getMethod("getFuelRegistry");
             Object fuelRegistry = mock(getFuelRegistry.getReturnType());
             when(getFuelRegistry.invoke(world)).thenReturn(fuelRegistry);
-        } catch (NoSuchMethodException ignored) {
-        }
+        } catch (NoSuchMethodException ignored) {}
     }
 
     private static boolean hasRecipePropertySet() {
         try {
             Class.forName("net.minecraft.recipe.RecipeManager").getMethod(
-                    "getPropertySet", Class.forName("net.minecraft.registry.RegistryKey"));
+                    "getPropertySet",
+                    Class.forName("net.minecraft.registry.RegistryKey")
+            );
             return true;
         } catch (ReflectiveOperationException ignored) {
             return false;
@@ -1029,15 +1157,12 @@ class QuickContainerSafetyTest {
 
     private static PlayerInventory newPlayerInventory(ClientPlayerEntity player) {
         try {
-            return (PlayerInventory) PlayerInventory.class
-                    .getConstructor(PlayerEntity.class)
-                    .newInstance(player);
+            return (PlayerInventory) PlayerInventory.class.getConstructor(PlayerEntity.class).newInstance(player);
         } catch (NoSuchMethodException ignored) {
             try {
                 Class<?> equipmentType = Class.forName("net.minecraft.entity.EntityEquipment");
                 Object equipment = equipmentType.getConstructor().newInstance();
-                return (PlayerInventory) PlayerInventory.class
-                        .getConstructor(PlayerEntity.class, equipmentType)
+                return (PlayerInventory) PlayerInventory.class.getConstructor(PlayerEntity.class, equipmentType)
                         .newInstance(player, equipment);
             } catch (ReflectiveOperationException e) {
                 throw new AssertionError(e);
@@ -1063,8 +1188,7 @@ class QuickContainerSafetyTest {
         for (Class<?> current = type; current != null; current = current.getSuperclass()) {
             try {
                 return current.getDeclaredField(name);
-            } catch (NoSuchFieldException ignored) {
-            }
+            } catch (NoSuchFieldException ignored) {}
         }
         throw new NoSuchFieldException(name);
     }

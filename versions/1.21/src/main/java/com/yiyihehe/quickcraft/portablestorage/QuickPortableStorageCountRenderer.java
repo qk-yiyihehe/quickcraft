@@ -10,7 +10,7 @@ final class QuickPortableStorageCountRenderer {
         var matrices = graphics.getMatrices();
         matrices.push();
         try {
-            // Match the vanilla stack count depth so the item at Z=150 cannot cover the text.
+            // 与原版堆叠数量文字的渲染深度一致，避免 Z=150 处的物品遮住文字。
             matrices.translate(0.0F, 0.0F, 200.0F);
             graphics.drawTextWithShadow(textRenderer, count, x, y, 0xFFFFFFFF);
         } finally {

@@ -9,8 +9,7 @@ import net.minecraft.block.HopperBlock;
 import net.minecraft.inventory.Inventory;
 
 final class QuickLitematicaContainerOverlayLayout {
-    private QuickLitematicaContainerOverlayLayout() {
-    }
+    private QuickLitematicaContainerOverlayLayout() {}
 
     static InventoryOverlayKind getInventoryType(Inventory inventory, BlockState state) {
         if (state != null) {
@@ -72,21 +71,11 @@ final class QuickLitematicaContainerOverlayLayout {
     }
 
     private static SlotPosition getGridSlotPosition(int xSlots, int ySlots, int slotsPerRow, int slot) {
-        return new SlotPosition(
-                xSlots + (slot % slotsPerRow) * 18,
-                ySlots + (slot / slotsPerRow) * 18
-        );
+        return new SlotPosition(xSlots + (slot % slotsPerRow) * 18, ySlots + (slot / slotsPerRow) * 18);
     }
 
     enum InventoryOverlayKind {
-        FURNACE,
-        BREWING_STAND,
-        CRAFTER,
-        DISPENSER,
-        HOPPER,
-        FIXED_27,
-        FIXED_54,
-        GENERIC
+        FURNACE, BREWING_STAND, CRAFTER, DISPENSER, HOPPER, FIXED_27, FIXED_54, GENERIC
     }
 
     record SlotPosition(int x, int y) {

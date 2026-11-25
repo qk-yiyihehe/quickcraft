@@ -7,7 +7,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 /** 用满级、互不重复的附魔费用模型验证合成树搜索，不依赖客户端或服务器。 */
 class QuickCraftAnvilCombinationSearchTest {
-    private record Item(Map<String, Integer> enchantments, int repairCost, boolean equipment) {}
+    private record Item(Map<String, Integer> enchantments, int repairCost, boolean equipment) {
+    }
 
     @Test
     void threeBooksCanBeCheaperWhenMergedBeforeApplying() {
@@ -59,16 +60,23 @@ class QuickCraftAnvilCombinationSearchTest {
 
     @Test
     void aFirstCompleteRouteDoesNotHideALaterCheaperRoute() {
-        var materials = List.of(new QuickCraftAnvilCombinationSearch.Material<>(0, 0, true),
+        var materials = List.of(
+                new QuickCraftAnvilCombinationSearch.Material<>(0, 0, true),
                 new QuickCraftAnvilCombinationSearch.Material<>(3, 1, false),
-                new QuickCraftAnvilCombinationSearch.Material<>(4, 2, false));
-        var search = new QuickCraftAnvilCombinationSearch<>(materials, item -> item,
-                (Integer left, Integer right) -> {
-                    if (left == 0 && right == 1) return new QuickCraftAnvilCombinationSearch.Merge<>(3, 20);
-                    if (left == 0 && right == 2) return new QuickCraftAnvilCombinationSearch.Merge<>(4, 1);
-                    if (left == 4 && right == 1) return new QuickCraftAnvilCombinationSearch.Merge<>(3, 1);
-                    return null;
-                }, item -> item == 3, item -> item == 3 ? 2 : item == 4 ? 1 : 0);
+                new QuickCraftAnvilCombinationSearch.Material<>(4, 2, false)
+        );
+        var search = new QuickCraftAnvilCombinationSearch<>(materials, item -> item, (Integer left, Integer right) -> {
+            if (left == 0 && right == 1) {
+                return new QuickCraftAnvilCombinationSearch.Merge<>(3, 20);
+            }
+            if (left == 0 && right == 2) {
+                return new QuickCraftAnvilCombinationSearch.Merge<>(4, 1);
+            }
+            if (left == 4 && right == 1) {
+                return new QuickCraftAnvilCombinationSearch.Merge<>(3, 1);
+            }
+            return null;
+        }, item -> item == 3, item -> item == 3 ? 2 : item == 4 ? 1 : 0);
         var result = finish(search);
         assertThat(result.cost()).isEqualTo(2);
         assertThat(result.steps()).hasSize(2);
@@ -94,14 +102,15 @@ class QuickCraftAnvilCombinationSearchTest {
 
     @Test
     void equalLowLevelBooksRemainTwoIndependentConsumableMaterials() {
-        var materials = List.of(new QuickCraftAnvilCombinationSearch.Material<>(0, 0, true),
+        var materials = List.of(
+                new QuickCraftAnvilCombinationSearch.Material<>(0, 0, true),
                 new QuickCraftAnvilCombinationSearch.Material<>(3, 1, false),
-                new QuickCraftAnvilCombinationSearch.Material<>(4, 1, false));
-        var search = new QuickCraftAnvilCombinationSearch<>(materials, item -> item,
-                (Integer left, Integer right) -> {
-                    int level = left.equals(right) ? Math.min(2, left + 1) : Math.max(left, right);
-                    return level > left ? new QuickCraftAnvilCombinationSearch.Merge<>(level, 1) : null;
-                }, item -> item == 2, item -> item);
+                new QuickCraftAnvilCombinationSearch.Material<>(4, 1, false)
+        );
+        var search = new QuickCraftAnvilCombinationSearch<>(materials, item -> item, (Integer left, Integer right) -> {
+            int level = left.equals(right) ? Math.min(2, left + 1) : Math.max(left, right);
+            return level > left ? new QuickCraftAnvilCombinationSearch.Merge<>(level, 1) : null;
+        }, item -> item == 2, item -> item);
         var result = finish(search);
         assertThat(result.item()).isEqualTo(2);
         assertThat(result.cost()).isEqualTo(2);
@@ -121,44 +130,70 @@ class QuickCraftAnvilCombinationSearchTest {
         var materials = new ArrayList<QuickCraftAnvilCombinationSearch.Material<Item>>();
         materials.add(new QuickCraftAnvilCombinationSearch.Material<>(0, new Item(Map.of(), 0, true), true));
         for (int index = 0; index < costs.length; index++) {
-            materials.add(new QuickCraftAnvilCombinationSearch.Material<>(index + 3,
-                    new Item(Map.of("enchantment" + index, costs[index]), 0, false), false));
+            materials.add(
+                    new QuickCraftAnvilCombinationSearch.Material<>(
+                            index + 3,
+                            new Item(Map.of("enchantment" + index, costs[index]), 0, false),
+                            false
+                    )
+            );
         }
         return materials;
     }
 
     private static QuickCraftAnvilCombinationSearch.Plan<Item> solve(
-            List<QuickCraftAnvilCombinationSearch.Material<Item>> materials, int goal) {
+            List<QuickCraftAnvilCombinationSearch.Material<Item>> materials,
+            int goal
+    ) {
         return solve(materials, goal, QuickCraftAnvilCombinationSearchTest::combine);
     }
 
     private static QuickCraftAnvilCombinationSearch.Merge<Item> combine(Item left, Item right) {
         var enchantments = new HashMap<>(left.enchantments);
         enchantments.putAll(right.enchantments);
-        if (enchantments.size() <= left.enchantments.size()) return null;
-        int cost = left.repairCost + right.repairCost
-                + right.enchantments.values().stream().mapToInt(Integer::intValue).sum();
-        if (cost >= 40) return null;
+        if (enchantments.size() <= left.enchantments.size()) {
+            return null;
+        }
+        int cost = left.repairCost + right.repairCost + right.enchantments.values().stream().mapToInt(Integer::intValue)
+                .sum();
+        if (cost >= 40) {
+            return null;
+        }
         return new QuickCraftAnvilCombinationSearch.Merge<>(
-                new Item(Map.copyOf(enchantments), Math.max(left.repairCost, right.repairCost) * 2 + 1, left.equipment), cost);
+                new Item(Map.copyOf(enchantments), Math.max(left.repairCost, right.repairCost) * 2 + 1, left.equipment),
+                cost
+        );
     }
 
     private static QuickCraftAnvilCombinationSearch.Plan<Item> solve(
-            List<QuickCraftAnvilCombinationSearch.Material<Item>> materials, int goal,
-            BiFunction<Item, Item, QuickCraftAnvilCombinationSearch.Merge<Item>> combine) {
-        var search = new QuickCraftAnvilCombinationSearch<>(materials, item -> item,
-                combine, item -> item.enchantments.size() >= goal, item -> item.enchantments.size());
+            List<QuickCraftAnvilCombinationSearch.Material<Item>> materials,
+            int goal,
+            BiFunction<Item, Item, QuickCraftAnvilCombinationSearch.Merge<Item>> combine
+    ) {
+        var search = new QuickCraftAnvilCombinationSearch<>(
+                materials,
+                item -> item,
+                combine,
+                item -> item.enchantments.size() >= goal,
+                item -> item.enchantments.size()
+        );
         return finish(search);
     }
 
-    private static <T, K> QuickCraftAnvilCombinationSearch.Plan<T> finish(QuickCraftAnvilCombinationSearch<T, K> search) {
-        for (int frame = 0; !search.advance(1_000_000); frame++) assertThat(frame).isLessThan(20_000);
+    private static <T, K> QuickCraftAnvilCombinationSearch.Plan<T> finish(
+            QuickCraftAnvilCombinationSearch<T, K> search
+    ) {
+        for (int frame = 0; !search.advance(1_000_000); frame++) {
+            assertThat(frame).isLessThan(20_000);
+        }
         assertThat(search.result()).isNotNull();
         return search.result();
     }
 
-    private static void assertExecutable(List<QuickCraftAnvilCombinationSearch.Material<Item>> materials,
-                                         QuickCraftAnvilCombinationSearch.Plan<Item> plan) {
+    private static void assertExecutable(
+            List<QuickCraftAnvilCombinationSearch.Material<Item>> materials,
+            QuickCraftAnvilCombinationSearch.Plan<Item> plan
+    ) {
         var available = new HashMap<Integer, Item>();
         materials.forEach(material -> available.put(material.slot(), material.item()));
         int cost = 0;

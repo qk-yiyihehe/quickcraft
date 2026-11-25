@@ -13,16 +13,26 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 @Mixin(value = DataFixerUpper.class, remap = false)
 public abstract class LitematicaPreviewDataFixerMixin {
     @Inject(method = "update", at = @At("HEAD"), remap = false)
-    private void quickcraft$beginPreviewDfu(DSL.TypeReference type, Dynamic<?> input, int from, int to,
-                                          CallbackInfoReturnable<Dynamic<?>> cir) {
+    private void quickcraft$beginPreviewDfu(
+            DSL.TypeReference type,
+            Dynamic<?> input,
+            int from,
+            int to,
+            CallbackInfoReturnable<Dynamic<?>> cir
+    ) {
         if (QuickLitematicaPreviewLog.enabled() && QuickLitematicaPreviewLog.current() != null) {
             QuickLitematicaPreviewLog.beginDfu(type.typeName(), from, to);
         }
     }
 
     @Inject(method = "update", at = @At("RETURN"), remap = false)
-    private void quickcraft$endPreviewDfu(DSL.TypeReference type, Dynamic<?> input, int from, int to,
-                                        CallbackInfoReturnable<Dynamic<?>> cir) {
+    private void quickcraft$endPreviewDfu(
+            DSL.TypeReference type,
+            Dynamic<?> input,
+            int from,
+            int to,
+            CallbackInfoReturnable<Dynamic<?>> cir
+    ) {
         QuickLitematicaPreviewLog.endDfu();
     }
 }

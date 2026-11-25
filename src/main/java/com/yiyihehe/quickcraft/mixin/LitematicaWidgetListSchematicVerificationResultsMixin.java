@@ -12,8 +12,8 @@ import org.spongepowered.asm.mixin.Mixin;
  * 让原理图验证结果列表支持渲染容器错填条目的悬停详情。
  */
 @Mixin(value = WidgetListSchematicVerificationResults.class, remap = false)
-public abstract class LitematicaWidgetListSchematicVerificationResultsMixin
-        extends WidgetListBase<BlockMismatchEntry, WidgetSchematicVerificationResult> {
+public abstract class LitematicaWidgetListSchematicVerificationResultsMixin extends
+        WidgetListBase<BlockMismatchEntry, WidgetSchematicVerificationResult> {
     public LitematicaWidgetListSchematicVerificationResultsMixin(
             int x,
             int y,

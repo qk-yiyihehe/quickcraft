@@ -56,6 +56,7 @@ class QuickLitematicaEnderChestMaterialsTest {
             config.setBooleanValue(previous);
         }
     }
+
     @Test
     void largeEnderChestTailSurvivesSmallerQuickShulkerSync() throws Exception {
         clearMaterialState();
@@ -66,8 +67,9 @@ class QuickLitematicaEnderChestMaterialsTest {
         when(handler.getRows()).thenReturn(6);
         var largeInventory = mock(EnderChestInventory.class);
         when(largeInventory.size()).thenReturn(54);
-        when(largeInventory.getStack(anyInt())).thenAnswer(call ->
-                call.getArgument(0, Integer.class) == 53 ? new ItemStack(Items.STONE, 12) : ItemStack.EMPTY);
+        when(largeInventory.getStack(anyInt())).thenAnswer(
+                call -> call.getArgument(0, Integer.class) == 53 ? new ItemStack(Items.STONE, 12) : ItemStack.EMPTY
+        );
         when(handler.getInventory()).thenReturn(largeInventory);
         client.player.currentScreenHandler = handler;
         when(client.player.getEnderChestInventory()).thenReturn(new EnderChestInventory());
@@ -80,17 +82,20 @@ class QuickLitematicaEnderChestMaterialsTest {
         var config = QuickCraftConfigs.ProjectionTools.INCLUDE_ENDER_CHEST_IN_MATERIAL_HUD;
         boolean previous = config.getBooleanValue();
         config.setBooleanValue(true);
-        try (var minecraft = mockStatic(MinecraftClient.class); var connection = mockStatic(QuickShulkerConnection.class)) {
+        try (var minecraft = mockStatic(MinecraftClient.class);
+                var connection = mockStatic(QuickShulkerConnection.class)) {
             minecraft.when(MinecraftClient::getInstance).thenReturn(client);
             connection.when(QuickShulkerConnection::canOpen).thenReturn(true);
             QuickLitematicaEnderChestMaterials.rememberContainerUse(client, hit);
             QuickLitematicaEnderChestMaterials.tick(client);
             QuickLitematicaEnderChestMaterials.onContentsReceived(handler.syncId);
-            assertThat(QuickLitematicaEnderChestMaterials.hud(list, entries, true).getFirst().getCountAvailable()).isEqualTo(12);
+            assertThat(QuickLitematicaEnderChestMaterials.hud(list, entries, true).getFirst().getCountAvailable())
+                    .isEqualTo(12);
             client.player.currentScreenHandler = null;
             QuickLitematicaEnderChestMaterials.tick(client);
             QuickLitematicaEnderChestMaterials.tick(client);
-            assertThat(QuickLitematicaEnderChestMaterials.hud(list, entries, true).getFirst().getCountAvailable()).isEqualTo(12);
+            assertThat(QuickLitematicaEnderChestMaterials.hud(list, entries, true).getFirst().getCountAvailable())
+                    .isEqualTo(12);
         } finally {
             client.player = null;
             QuickLitematicaEnderChestMaterials.tick(client);
@@ -117,7 +122,10 @@ class QuickLitematicaEnderChestMaterialsTest {
         var contents = new java.util.ArrayList<ItemStack>(java.util.Collections.nCopies(27, ItemStack.EMPTY));
         contents.set(0, new ItemStack(Items.STONE, 12));
         var shulker = new ItemStack(Items.SHULKER_BOX);
-        shulker.set(DataComponentTypes.CONTAINER, ContainerComponent.fromStacks(List.of(new ItemStack(Items.STONE, 20))));
+        shulker.set(
+                DataComponentTypes.CONTAINER,
+                ContainerComponent.fromStacks(List.of(new ItemStack(Items.STONE, 20)))
+        );
         contents.set(1, shulker);
         var inventory = mock(EnderChestInventory.class);
         when(inventory.size()).thenReturn(27);
@@ -141,7 +149,8 @@ class QuickLitematicaEnderChestMaterialsTest {
             QuickLitematicaEnderChestMaterials.rememberContainerUse(client, hit);
             QuickLitematicaEnderChestMaterials.onContentsReceived(handler.syncId);
             for (int pass = 0; pass < 2; pass++) {
-                assertThat(QuickLitematicaEnderChestMaterials.hud(list, entries, true).getFirst().getCountAvailable()).isEqualTo(36);
+                assertThat(QuickLitematicaEnderChestMaterials.hud(list, entries, true).getFirst().getCountAvailable())
+                        .isEqualTo(36);
                 assertThat(source.getCountAvailable()).isEqualTo(4);
             }
             config.setBooleanValue(false);
@@ -178,7 +187,9 @@ class QuickLitematicaEnderChestMaterialsTest {
         var hit = mock(BlockHitResult.class);
         when(hit.getBlockPos()).thenReturn(pos);
         var handler = GenericContainerScreenHandler.createGeneric9x3(
-                9, QuickCraftTestInventories.newPlayerInventory(client.player));
+                9,
+                QuickCraftTestInventories.newPlayerInventory(client.player)
+        );
         handler.getSlot(0).setStack(new ItemStack(Items.STONE, 12));
         client.player.currentScreenHandler = handler;
         var list = mock(MaterialListBase.class);
@@ -220,10 +231,12 @@ class QuickLitematicaEnderChestMaterialsTest {
         try (var quickShulker = mockStatic(QuickShulkerConnection.class)) {
             quickShulker.when(QuickShulkerConnection::canOpen).thenReturn(true);
             QuickLitematicaEnderChestMaterials.tick(client);
-            assertThat(QuickLitematicaEnderChestMaterials.hud(list, entries, true).getFirst().getCountAvailable()).isEqualTo(36);
+            assertThat(QuickLitematicaEnderChestMaterials.hud(list, entries, true).getFirst().getCountAvailable())
+                    .isEqualTo(36);
             inventory.setStack(0, new ItemStack(Items.STONE, 8));
             QuickLitematicaEnderChestMaterials.tick(client);
-            assertThat(QuickLitematicaEnderChestMaterials.hud(list, entries, true).getFirst().getCountAvailable()).isEqualTo(12);
+            assertThat(QuickLitematicaEnderChestMaterials.hud(list, entries, true).getFirst().getCountAvailable())
+                    .isEqualTo(12);
             client.player = null;
             QuickLitematicaEnderChestMaterials.tick(client);
             assertThat(QuickLitematicaEnderChestMaterials.hud(list, entries, true)).isSameAs(entries);

@@ -9,17 +9,26 @@ final class QuickLitematicaPreviewIndexBuffers implements AutoCloseable {
     private int current = -1;
     private boolean rotationDisabled;
 
-    QuickLitematicaPreviewIndexBuffers(GpuBuffer first) { this.buffers[0] = first; }
+    QuickLitematicaPreviewIndexBuffers(GpuBuffer first) {
+        this.buffers[0] = first;
+    }
 
-    GpuBuffer current() { return this.buffers[Math.max(0, this.current)]; }
+    GpuBuffer current() {
+        return this.buffers[Math.max(0, this.current)];
+    }
 
     void advance() {
-        if (this.rotationDisabled) return;
+        if (this.rotationDisabled) {
+            return;
+        }
         int next = (this.current + 1) % this.buffers.length;
         if (this.buffers[next] == null) {
             try {
-                this.buffers[next] = RenderSystem.getDevice().createBuffer(() -> "QuickCraft rotating transparent indices",
-                        GpuBuffer.USAGE_INDEX | GpuBuffer.USAGE_COPY_DST, this.buffers[0].size());
+                this.buffers[next] = RenderSystem.getDevice().createBuffer(
+                        () -> "QuickCraft rotating transparent indices",
+                        GpuBuffer.USAGE_INDEX | GpuBuffer.USAGE_COPY_DST,
+                        this.buffers[0].size()
+                );
             } catch (RuntimeException | OutOfMemoryError failure) {
                 this.rotationDisabled = true;
                 this.current = 0;
@@ -33,6 +42,10 @@ final class QuickLitematicaPreviewIndexBuffers implements AutoCloseable {
 
     @Override
     public void close() {
-        for (GpuBuffer buffer : this.buffers) if (buffer != null) buffer.close();
+        for (GpuBuffer buffer : this.buffers) {
+            if (buffer != null) {
+                buffer.close();
+            }
+        }
     }
 }

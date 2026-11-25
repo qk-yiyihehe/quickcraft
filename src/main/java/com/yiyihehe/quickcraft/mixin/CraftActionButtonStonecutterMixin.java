@@ -26,14 +26,17 @@ public abstract class CraftActionButtonStonecutterMixin extends HandledScreen<St
     @Unique
     private QuickCraftActionButton quickcraft$craftButton;
 
-    protected CraftActionButtonStonecutterMixin(StonecutterScreenHandler handler, PlayerInventory inventory, Text title) {
+    protected CraftActionButtonStonecutterMixin(
+            StonecutterScreenHandler handler,
+            PlayerInventory inventory,
+            Text title
+    ) {
         super(handler, inventory, title);
     }
 
     @Inject(method = "render", at = @At("HEAD"))
     private void quickcraft$addCraftButton(DrawContext context, int mouseX, int mouseY, float delta, CallbackInfo ci) {
-        if (!QuickCraftConfigs.isStonecutterQuickCraftEnabled()
-                || !QuickCraftConfigs.isCraftActionButtonVisible()) {
+        if (!QuickCraftConfigs.isStonecutterQuickCraftEnabled() || !QuickCraftConfigs.isCraftActionButtonVisible()) {
             if (this.quickcraft$craftButton != null) {
                 this.quickcraft$craftButton.visible = false;
             }
@@ -49,12 +52,15 @@ public abstract class CraftActionButtonStonecutterMixin extends HandledScreen<St
         // 按钮放到产物槽右下外侧，尽量不遮挡产物图标。
         int buttonX = this.x + this.getScreenHandler().getSlot(1).x + 13;
         int buttonY = this.y + this.getScreenHandler().getSlot(1).y + 13;
-        this.quickcraft$craftButton = this.addDrawableChild(new QuickCraftActionButton(
-                buttonX, buttonY,
-                button -> QuickCraftStonecutter.handleStonecutterCraftButton(QuickCraftKeyBindings.isAltDown()),
-                QuickDraggableButton.PositionKey.STONECUTTER_CRAFT,
-                Text.translatable("quickcraft.button.craft_action")
-        ));
+        this.quickcraft$craftButton = this.addDrawableChild(
+                new QuickCraftActionButton(
+                        buttonX,
+                        buttonY,
+                        button -> QuickCraftStonecutter.handleStonecutterCraftButton(QuickCraftKeyBindings.isAltDown()),
+                        QuickDraggableButton.PositionKey.STONECUTTER_CRAFT,
+                        Text.translatable("quickcraft.button.craft_action")
+                )
+        );
         this.quickcraft$syncCraftButtonPosition();
     }
 

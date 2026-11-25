@@ -11,6 +11,8 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 public abstract class LitematicaProjectionCountFinishMixin {
     @Inject(method = "onStop", at = @At("HEAD"))
     private void quickcraft$prepareEditor(CallbackInfo ci) {
-        if ((Object) this instanceof QuickLitematicaProjectionMaterials.OriginalCountSource source) { source.quickcraft$prepareOriginalRows(); }
+        if ((Object) this instanceof QuickLitematicaProjectionMaterials.OriginalCountSource source) {
+            source.quickcraft$prepareOriginalRows();
+        }
     }
 }

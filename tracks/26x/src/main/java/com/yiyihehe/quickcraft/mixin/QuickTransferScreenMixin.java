@@ -16,15 +16,20 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 @Mixin(AbstractContainerScreen.class)
 public abstract class QuickTransferScreenMixin {
     @Inject(method = "mouseScrolled", at = @At("HEAD"), cancellable = true)
-    private void quickcraft$handleScrollTransfer(double mouseX,
-                                                 double mouseY,
-                                                 double horizontalAmount,
-                                                 double verticalAmount,
-                                                 CallbackInfoReturnable<Boolean> cir) {
+    private void quickcraft$handleScrollTransfer(
+            double mouseX,
+            double mouseY,
+            double horizontalAmount,
+            double verticalAmount,
+            CallbackInfoReturnable<Boolean> cir
+    ) {
         AbstractContainerScreen<?> screen = (AbstractContainerScreen<?>) (Object) this;
-        if (QuickCrossBoxSort.blocksInventoryInput(screen)
-                || QuickPortableStoragePanel.scroll(screen, mouseX, mouseY, verticalAmount)
-                || QuickTransfer.handleScrollTransfer(screen, mouseX, mouseY, verticalAmount)) {
+        if (QuickCrossBoxSort.blocksInventoryInput(screen) || QuickPortableStoragePanel.scroll(
+                screen,
+                mouseX,
+                mouseY,
+                verticalAmount
+        ) || QuickTransfer.handleScrollTransfer(screen, mouseX, mouseY, verticalAmount)) {
             cir.setReturnValue(true);
         }
     }

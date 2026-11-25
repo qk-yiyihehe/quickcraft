@@ -29,7 +29,8 @@ class QuickLitematicaPreviewPositionsTest {
         assertThat(snapshot.get(new BlockPos(0, 0, 0))).isEqualTo(0);
         assertThat(snapshot).hasSize(65_536);
         assertThatThrownBy(() -> snapshot.clear()).isInstanceOf(UnsupportedOperationException.class);
-        assertThatThrownBy(() -> snapshot.entrySet().iterator().next().setValue(-1))
-                .isInstanceOf(UnsupportedOperationException.class);
+        assertThatThrownBy(() -> snapshot.entrySet().iterator().next().setValue(-1)).isInstanceOf(
+                UnsupportedOperationException.class
+        );
     }
 }

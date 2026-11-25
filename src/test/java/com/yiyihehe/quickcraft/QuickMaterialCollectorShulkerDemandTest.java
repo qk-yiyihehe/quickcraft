@@ -41,16 +41,28 @@ class QuickMaterialCollectorShulkerDemandTest {
 
         assertThat(QuickMaterialCollectorShulkerSelection.matchesDemandTemplate(empty, empty)).isTrue();
         assertThat(QuickMaterialCollectorShulkerSelection.matchesDemandTemplate(filled, empty)).isFalse();
-        assertThat(QuickMaterialCollectorShulkerSelection.matchesDemandTemplate(
-                new ItemStack(Items.RED_SHULKER_BOX), empty)).isFalse();
+        assertThat(
+                QuickMaterialCollectorShulkerSelection.matchesDemandTemplate(
+                        new ItemStack(Items.RED_SHULKER_BOX),
+                        empty
+                )
+        ).isFalse();
     }
 
     @Test
     void normalMaterialDemandStillMatchesByItemType() {
-        assertThat(QuickMaterialCollectorShulkerSelection.matchesDemandTemplate(
-                new ItemStack(Items.DIRT, 1), new ItemStack(Items.DIRT, 64))).isTrue();
-        assertThat(QuickMaterialCollectorShulkerSelection.matchesDemandTemplate(
-                new ItemStack(Items.STONE), new ItemStack(Items.DIRT))).isFalse();
+        assertThat(
+                QuickMaterialCollectorShulkerSelection.matchesDemandTemplate(
+                        new ItemStack(Items.DIRT, 1),
+                        new ItemStack(Items.DIRT, 64)
+                )
+        ).isTrue();
+        assertThat(
+                QuickMaterialCollectorShulkerSelection.matchesDemandTemplate(
+                        new ItemStack(Items.STONE),
+                        new ItemStack(Items.DIRT)
+                )
+        ).isFalse();
     }
 
     @Test
@@ -60,16 +72,21 @@ class QuickMaterialCollectorShulkerDemandTest {
             ItemStack b = namedBox("B");
             f.inventory.setStack(0, b.copy());
             ItemStack filled = a.copy();
-            filled.set(DataComponentTypes.CONTAINER, ContainerComponent.fromStacks(List.of(new ItemStack(Items.STONE))));
+            filled.set(
+                    DataComponentTypes.CONTAINER,
+                    ContainerComponent.fromStacks(List.of(new ItemStack(Items.STONE)))
+            );
             f.inventory.setStack(1, filled);
             Plan plan = f.plan(a, b, new ItemStack(Items.RED_SHULKER_BOX));
             assertThat(plan.targets()).hasSize(3);
             assertThat(plan.demands()).hasSize(2);
             assertThat(plan.demands()).allSatisfy(d -> assertThat(d.remaining()).isEqualTo(1));
-            assertThat(plan.demands()).anySatisfy(d ->
-                    assertThat(ItemStack.areItemsAndComponentsEqual(d.template(), a)).isTrue());
-            assertThat(plan.demands()).noneSatisfy(d ->
-                    assertThat(ItemStack.areItemsAndComponentsEqual(d.template(), b)).isTrue());
+            assertThat(plan.demands()).anySatisfy(
+                    d -> assertThat(ItemStack.areItemsAndComponentsEqual(d.template(), a)).isTrue()
+            );
+            assertThat(plan.demands()).noneSatisfy(
+                    d -> assertThat(ItemStack.areItemsAndComponentsEqual(d.template(), b)).isTrue()
+            );
         }
     }
 
@@ -87,7 +104,10 @@ class QuickMaterialCollectorShulkerDemandTest {
         try (Fixture f = new Fixture()) {
             ItemStack target = namedBox("A");
             ItemStack filled = target.copy();
-            filled.set(DataComponentTypes.CONTAINER, ContainerComponent.fromStacks(List.of(new ItemStack(Items.STONE))));
+            filled.set(
+                    DataComponentTypes.CONTAINER,
+                    ContainerComponent.fromStacks(List.of(new ItemStack(Items.STONE)))
+            );
             f.inventory.setStack(0, namedBox("B"));
             f.menu.getSlot(0).setStack(filled.copy());
             f.menu.getSlot(1).setStack(namedBox("B"));
@@ -123,8 +143,14 @@ class QuickMaterialCollectorShulkerDemandTest {
             JsonObject root = new JsonObject();
             root.add("containerLock", state);
             QuickContainerLock.loadPersistentState(root);
-            invoke(QuickContainerLock.class, null, "rememberHandlerKey",
-                    new Class<?>[]{ScreenHandler.class, String.class}, f.menu, "test:source");
+            invoke(
+                    QuickContainerLock.class,
+                    null,
+                    "rememberHandlerKey",
+                    new Class<?>[] { ScreenHandler.class, String.class },
+                    f.menu,
+                    "test:source"
+            );
             assertThat(QuickContainerLock.isLockedSlot(f.menu, 0)).isTrue();
             Plan plan = f.plan(target);
             f.collect("collectToPlayer", plan);
@@ -133,7 +159,9 @@ class QuickMaterialCollectorShulkerDemandTest {
             verifyNoInteractions(f.interaction);
 
             QuickContainerLock.clearPersistentState();
-            for (int i = 0; i < 36; i++) f.inventory.setStack(i, new ItemStack(Items.DIRT, 64));
+            for (int i = 0; i < 36; i++) {
+                f.inventory.setStack(i, new ItemStack(Items.DIRT, 64));
+            }
             f.collect("collectToPlayer", plan);
             assertThat(plan.demands().getFirst().remaining()).isEqualTo(1);
             assertThat(f.menu.getSlot(0).hasStack()).isTrue();
@@ -161,7 +189,8 @@ class QuickMaterialCollectorShulkerDemandTest {
         return stack;
     }
 
-    private record Plan(List<QuickMaterialCollector.Demand> demands, List<ItemStack> targets) { }
+    private record Plan(List<QuickMaterialCollector.Demand> demands, List<ItemStack> targets) {
+    }
 
     private static Object invoke(Class<?> owner, Object receiver, String name, Class<?>[] types, Object... args)
             throws Exception {
@@ -175,8 +204,10 @@ class QuickMaterialCollectorShulkerDemandTest {
             return PlayerInventory.class.getConstructor(PlayerEntity.class).newInstance(player);
         } catch (NoSuchMethodException ignored) {
             Class<?> equipment = Class.forName("net.minecraft.entity.EntityEquipment");
-            return PlayerInventory.class.getConstructor(PlayerEntity.class, equipment)
-                    .newInstance(player, equipment.getConstructor().newInstance());
+            return PlayerInventory.class.getConstructor(PlayerEntity.class, equipment).newInstance(
+                    player,
+                    equipment.getConstructor().newInstance()
+            );
         }
     }
 
@@ -209,23 +240,44 @@ class QuickMaterialCollectorShulkerDemandTest {
                 assertThat((SlotActionType) call.getArgument(3)).isEqualTo(SlotActionType.QUICK_MOVE);
                 menu.quickMove(player, call.getArgument(1));
                 return null;
-            }).when(interaction).clickSlot(anyInt(), anyInt(), anyInt(), any(SlotActionType.class), any(PlayerEntity.class));
+            }).when(interaction).clickSlot(
+                    anyInt(),
+                    anyInt(),
+                    anyInt(),
+                    any(SlotActionType.class),
+                    any(PlayerEntity.class)
+            );
         }
 
         @SuppressWarnings("unchecked")
         Plan plan(ItemStack... templates) throws Exception {
-            var requests = java.util.Arrays.stream(templates)
-                    .map(stack -> new QuickMaterialCollector.MaterialRequest(stack, 1)).toList();
+            var requests = java.util.Arrays.stream(templates).map(
+                    stack -> new QuickMaterialCollector.MaterialRequest(stack, 1)
+            ).toList();
             lists.when(() -> QuickLitematicaMaterialLists.getVisibleMaterialRequests(player)).thenReturn(requests);
-            Object plan = invoke(QuickMaterialCollector.class, collector, "buildMaterialPlan",
-                    new Class<?>[]{PlayerEntity.class}, player);
-            return new Plan((List<QuickMaterialCollector.Demand>) invoke(plan.getClass(), plan, "demands", new Class<?>[0]),
-                    (List<ItemStack>) invoke(plan.getClass(), plan, "targetTemplates", new Class<?>[0]));
+            Object plan = invoke(
+                    QuickMaterialCollector.class,
+                    collector,
+                    "buildMaterialPlan",
+                    new Class<?>[] { PlayerEntity.class },
+                    player
+            );
+            return new Plan(
+                    (List<QuickMaterialCollector.Demand>) invoke(plan.getClass(), plan, "demands", new Class<?>[0]),
+                    (List<ItemStack>) invoke(plan.getClass(), plan, "targetTemplates", new Class<?>[0])
+            );
         }
 
         void collect(String entry, Plan plan) throws Exception {
-            invoke(QuickMaterialCollector.class, collector, entry,
-                    new Class<?>[]{ScreenHandler.class, List.class, List.class}, menu, plan.demands(), plan.targets());
+            invoke(
+                    QuickMaterialCollector.class,
+                    collector,
+                    entry,
+                    new Class<?>[] { ScreenHandler.class, List.class, List.class },
+                    menu,
+                    plan.demands(),
+                    plan.targets()
+            );
         }
 
         int count(ItemStack template) {
@@ -240,7 +292,10 @@ class QuickMaterialCollectorShulkerDemandTest {
 
         @Override
         public void close() {
-            configs.close(); lists.close(); fabric.close(); minecraft.close();
+            configs.close();
+            lists.close();
+            fabric.close();
+            minecraft.close();
             QuickContainerLock.clearPersistentState();
         }
     }

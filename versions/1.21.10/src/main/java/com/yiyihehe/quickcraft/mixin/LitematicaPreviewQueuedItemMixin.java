@@ -18,38 +18,46 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 @Mixin(ItemCommandRenderer.class)
 public abstract class LitematicaPreviewQueuedItemMixin {
-    @Shadow @Final private MatrixStack matrices;
+    @Shadow
+    @Final
+    private MatrixStack matrices;
 
     @Inject(method = "render", at = @At("HEAD"), cancellable = true)
-    private void quickcraft$deferItems(BatchingRenderCommandQueue queue, VertexConsumerProvider.Immediate vertexConsumers,
-            OutlineVertexConsumerProvider outlineVertexConsumers, CallbackInfo ci) {
-        if (!QuickLitematicaPreviewQueuedBuild.isCapturing(vertexConsumers)) return;
+    private void quickcraft$deferItems(
+            BatchingRenderCommandQueue queue,
+            VertexConsumerProvider.Immediate vertexConsumers,
+            OutlineVertexConsumerProvider outlineVertexConsumers,
+            CallbackInfo ci
+    ) {
+        if (!QuickLitematicaPreviewQueuedBuild.isCapturing(vertexConsumers)) {
+            return;
+        }
         QuickLitematicaPreviewQueuedBuild.deferList(vertexConsumers, queue.getItemCommands(), itemCommand -> {
             this.matrices.push();
             this.matrices.peek().copy(itemCommand.positionMatrix());
             ItemRenderer.renderItem(
-                itemCommand.displayContext(),
-                this.matrices,
-                vertexConsumers,
-                itemCommand.lightCoords(),
-                itemCommand.overlayCoords(),
-                itemCommand.tintLayers(),
-                itemCommand.quads(),
-                itemCommand.renderLayer(),
-                itemCommand.glintType()
-            );
-            if (itemCommand.outlineColor() != 0) {
-                outlineVertexConsumers.setColor(itemCommand.outlineColor());
-                ItemRenderer.renderItem(
                     itemCommand.displayContext(),
                     this.matrices,
-                    outlineVertexConsumers,
+                    vertexConsumers,
                     itemCommand.lightCoords(),
                     itemCommand.overlayCoords(),
                     itemCommand.tintLayers(),
                     itemCommand.quads(),
                     itemCommand.renderLayer(),
-                    ItemRenderState.Glint.NONE
+                    itemCommand.glintType()
+            );
+            if (itemCommand.outlineColor() != 0) {
+                outlineVertexConsumers.setColor(itemCommand.outlineColor());
+                ItemRenderer.renderItem(
+                        itemCommand.displayContext(),
+                        this.matrices,
+                        outlineVertexConsumers,
+                        itemCommand.lightCoords(),
+                        itemCommand.overlayCoords(),
+                        itemCommand.tintLayers(),
+                        itemCommand.quads(),
+                        itemCommand.renderLayer(),
+                        ItemRenderState.Glint.NONE
                 );
             }
 

@@ -5,13 +5,18 @@ import net.minecraft.client.gui.tooltip.Tooltip;
 import net.minecraft.text.Text;
 import net.minecraft.util.Identifier;
 
-/** Compact icon button used on the title bars of vanilla container screens. */
+/** 用在原版容器界面标题栏上的紧凑图标按钮。 */
 public abstract class QuickCompactIconButton extends QuickDraggableButton {
     public static final int SIZE = 14;
-    private static final Identifier BACKGROUND_TEXTURE =
-            Identifier.of("quickcraft", "textures/gui/compact_button.png");
+    private static final Identifier BACKGROUND_TEXTURE = Identifier.of("quickcraft", "textures/gui/compact_button.png");
 
-    protected QuickCompactIconButton(int x, int y, net.minecraft.text.Text label, PressAction onPress, PositionKey positionKey) {
+    protected QuickCompactIconButton(
+            int x,
+            int y,
+            net.minecraft.text.Text label,
+            PressAction onPress,
+            PositionKey positionKey
+    ) {
         super(x, y, SIZE, SIZE, label, onPress, positionKey);
         this.setTooltip(Tooltip.of(label));
     }
@@ -20,8 +25,7 @@ public abstract class QuickCompactIconButton extends QuickDraggableButton {
     protected final void renderButtonContent(DrawContext context, int mouseX, int mouseY, float delta) {
         boolean hovered = this.active && this.isMouseOver(mouseX, mouseY);
         boolean selected = this.isToggleSelected();
-        int textureV = this.isPositionDragging() || (hovered && selected)
-                ? SIZE * 2 : hovered || selected ? SIZE : 0;
+        int textureV = this.isPositionDragging() || (hovered && selected) ? SIZE * 2 : hovered || selected ? SIZE : 0;
         QuickButtonAccess.drawButtonTexture(
                 context,
                 BACKGROUND_TEXTURE,

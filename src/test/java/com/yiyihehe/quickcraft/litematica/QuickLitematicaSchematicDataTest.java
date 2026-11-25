@@ -84,10 +84,20 @@ class QuickLitematicaSchematicDataTest {
     @Test
     void missingBlockEntityIdUsesItsBlockTypeAndPreservesInput() {
         NbtCompound original = new NbtCompound();
-        NbtCompound prepared = QuickLitematicaSchematicData.prepareBlockEntity(original, net.minecraft.block.Blocks.HOPPER.getDefaultState(), net.minecraft.util.math.BlockPos.ORIGIN);
+        NbtCompound prepared = QuickLitematicaSchematicData.prepareBlockEntity(
+                original,
+                net.minecraft.block.Blocks.HOPPER.getDefaultState(),
+                net.minecraft.util.math.BlockPos.ORIGIN
+        );
         assertThat(QuickLitematicaContainerMaterialsAccess.readString(prepared, "id")).isEqualTo("minecraft:hopper");
         assertThat(original.contains("id")).isFalse();
-        assertThat(QuickLitematicaSchematicData.prepareBlockEntity(prepared, net.minecraft.block.Blocks.HOPPER.getDefaultState(), net.minecraft.util.math.BlockPos.ORIGIN)).isSameAs(prepared);
+        assertThat(
+                QuickLitematicaSchematicData.prepareBlockEntity(
+                        prepared,
+                        net.minecraft.block.Blocks.HOPPER.getDefaultState(),
+                        net.minecraft.util.math.BlockPos.ORIGIN
+                )
+        ).isSameAs(prepared);
     }
 
     @Test
@@ -107,10 +117,12 @@ class QuickLitematicaSchematicDataTest {
         container.put("Items", items);
         var lookup = mock(RegistryWrapper.WrapperLookup.class);
         try (var access = mockStatic(QuickLitematicaContainerMaterialsAccess.class, CALLS_REAL_METHODS)) {
-            access.when(() -> QuickLitematicaContainerMaterialsAccess.decodeCurrentItem(lookup, good))
-                    .thenReturn(new ItemStack(Items.STONE, 64));
-            access.when(() -> QuickLitematicaContainerMaterialsAccess.decodeCurrentItem(lookup, unknown))
-                    .thenReturn(ItemStack.EMPTY);
+            access.when(() -> QuickLitematicaContainerMaterialsAccess.decodeCurrentItem(lookup, good)).thenReturn(
+                    new ItemStack(Items.STONE, 64)
+            );
+            access.when(() -> QuickLitematicaContainerMaterialsAccess.decodeCurrentItem(lookup, unknown)).thenReturn(
+                    ItemStack.EMPTY
+            );
             assertThat(QuickLitematicaContainerMaterials.readItems(container, lookup)).isNull();
             var partial = QuickLitematicaContainerMaterials.readItemsForStatistics(container, lookup);
             assertThat(partial.get(0).getCount()).isEqualTo(64);

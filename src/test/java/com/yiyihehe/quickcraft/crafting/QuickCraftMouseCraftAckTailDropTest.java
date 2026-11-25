@@ -52,34 +52,49 @@ class QuickCraftMouseCraftAckTailDropTest {
                 handler.getSlot(invocation.getArgument(1)).setStack(ItemStack.EMPTY);
             }
             return null;
-        }).when(interactionManager).clickSlot(anyInt(), anyInt(), anyInt(),
-                any(SlotActionType.class), any(PlayerEntity.class));
+        }).when(interactionManager).clickSlot(
+                anyInt(),
+                anyInt(),
+                anyInt(),
+                any(SlotActionType.class),
+                any(PlayerEntity.class)
+        );
         setField(client, "player", player);
         setField(client, "interactionManager", interactionManager);
 
         QuickCraftMouseCrafting crafting = new QuickCraftMouseCrafting(
-                QuickCraftMouseCraftLayout.WORKBENCH, () -> true, () -> { });
+                QuickCraftMouseCraftLayout.WORKBENCH,
+                () -> true,
+                () -> {}
+        );
         setField(crafting, "lockedResultTemplate", new ItemStack(Items.STICK, 3));
         Method finish = QuickCraftMouseCrafting.class.getDeclaredMethod(
-                "finishMouseCraftAck", MinecraftClient.class, Text.class, boolean.class);
+                "finishMouseCraftAck",
+                MinecraftClient.class,
+                Text.class,
+                boolean.class
+        );
         finish.setAccessible(true);
 
         try (MockedStatic<QuickCraftConfigs> configs = mockStatic(QuickCraftConfigs.class);
-             MockedStatic<QuickContainerLock> locks = mockStatic(QuickContainerLock.class)) {
+                MockedStatic<QuickContainerLock> locks = mockStatic(QuickContainerLock.class)) {
             configs.when(QuickCraftConfigs::isDropCraftResultsOnStopEnabled).thenReturn(true);
             configs.when(QuickCraftConfigs::isMouseCraftAckDebugEnabled).thenReturn(false);
-            locks.when(() -> QuickContainerLock.isLockedSlot(any(ScreenHandler.class), anyInt()))
-                    .thenReturn(false);
+            locks.when(() -> QuickContainerLock.isLockedSlot(any(ScreenHandler.class), anyInt())).thenReturn(false);
 
             Text stopMessage = Text.translatable("quickcraft.message.crafting.stopped");
             finish.invoke(crafting, client, stopMessage, false);
-            verify(interactionManager, never()).clickSlot(anyInt(), anyInt(), anyInt(),
-                    eq(SlotActionType.THROW), any());
+            verify(interactionManager, never()).clickSlot(
+                    anyInt(),
+                    anyInt(),
+                    anyInt(),
+                    eq(SlotActionType.THROW),
+                    any()
+            );
             assertThat(handler.getSlot(10).getStack().getCount()).isEqualTo(3);
 
             finish.invoke(crafting, client, stopMessage, true);
-            verify(interactionManager).clickSlot(anyInt(), eq(10), eq(1),
-                    eq(SlotActionType.THROW), any());
+            verify(interactionManager).clickSlot(anyInt(), eq(10), eq(1), eq(SlotActionType.THROW), any());
             assertThat(handler.getSlot(10).hasStack()).isFalse();
         }
     }
@@ -98,8 +113,9 @@ class QuickCraftMouseCraftAckTailDropTest {
             if (parameters.length == 1 && parameters[0].isInstance(player)) {
                 return (PlayerInventory) constructor.newInstance(player);
             }
-            if (parameters.length == 2 && parameters[0].isInstance(player)
-                    && parameters[1].getSimpleName().equals("EntityEquipment")) {
+            if (parameters.length == 2 && parameters[0].isInstance(player) && parameters[1].getSimpleName().equals(
+                    "EntityEquipment"
+            )) {
                 Object equipment = parameters[1].getConstructor().newInstance();
                 return (PlayerInventory) constructor.newInstance(player, equipment);
             }
@@ -117,8 +133,7 @@ class QuickCraftMouseCraftAckTailDropTest {
         for (Class<?> current = type; current != null; current = current.getSuperclass()) {
             try {
                 return current.getDeclaredField(name);
-            } catch (NoSuchFieldException ignored) {
-            }
+            } catch (NoSuchFieldException ignored) {}
         }
         throw new NoSuchFieldException(name);
     }

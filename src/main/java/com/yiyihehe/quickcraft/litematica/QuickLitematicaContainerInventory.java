@@ -26,8 +26,7 @@ import static com.yiyihehe.quickcraft.litematica.QuickLitematicaContainerVerifie
 
 /** 容器库存读取、数据请求和可信缓存；缓存随世界切换失效。 */
 final class QuickLitematicaContainerInventory {
-    private QuickLitematicaContainerInventory() {
-    }
+    private QuickLitematicaContainerInventory() {}
 
     private static ActualInventoryReadStatus lastActualInventoryReadStatus = ActualInventoryReadStatus.NOT_READ;
     private static WeakReference<World> trustedCacheWorld = new WeakReference<>(null);
@@ -38,6 +37,7 @@ final class QuickLitematicaContainerInventory {
 
     private static final class ReceivedDataReference extends WeakReference<Object> {
         private final BlockPos pos;
+
         private ReceivedDataReference(BlockPos pos, Object data) {
             super(data, collectedBlockEntityData);
             this.pos = pos;
@@ -112,9 +112,7 @@ final class QuickLitematicaContainerInventory {
 
         resetDataWorld(world);
 
-        if (directInventory != null
-                && expected != null
-                && directInventory.size() == expected.size()
+        if (directInventory != null && expected != null && directInventory.size() == expected.size()
                 && !isInventoryEmpty(directInventory)) {
             lastActualInventoryReadStatus = ActualInventoryReadStatus.DIRECT_INVENTORY;
             return directInventory;
@@ -148,8 +146,10 @@ final class QuickLitematicaContainerInventory {
             return null;
         }
         // 54 格合并期望必须同时核验两侧；单侧空记录不能代替双箱合并。
-        if (expected != null && expected.size() <= 27
-                && QuickLitematicaVerifierAccess.isServerEmptyContainerNbt(cachedNbt, expected)) {
+        if (expected != null && expected.size() <= 27 && QuickLitematicaVerifierAccess.isServerEmptyContainerNbt(
+                cachedNbt,
+                expected
+        )) {
             trustedInventoryCache.put(pos.toImmutable(), new SimpleInventory(expected.size()));
             lastActualInventoryReadStatus = ActualInventoryReadStatus.CACHE_INVENTORY;
             return new SimpleInventory(expected.size());
@@ -163,15 +163,13 @@ final class QuickLitematicaContainerInventory {
                 return cachedInventory;
             }
 
-            lastActualInventoryReadStatus = cachedInventory != null
-                    ? ActualInventoryReadStatus.CACHE_WITHOUT_ITEMS
+            lastActualInventoryReadStatus = cachedInventory != null ? ActualInventoryReadStatus.CACHE_WITHOUT_ITEMS
                     : ActualInventoryReadStatus.CACHE_PARSE_FAILED;
         } else {
             lastActualInventoryReadStatus = ActualInventoryReadStatus.NO_CACHE_NBT;
         }
 
-        if (!QuickLitematicaVerifierAccess.hasServuxServer()
-                && !QuickLitematicaVerifierAccess.hasBackupStatus()
+        if (!QuickLitematicaVerifierAccess.hasServuxServer() && !QuickLitematicaVerifierAccess.hasBackupStatus()
                 && expected != null) {
             SimpleInventory trusted = trustedInventoryCache.get(pos);
             if (trusted != null && trusted.size() == expected.size()) {
@@ -196,8 +194,10 @@ final class QuickLitematicaContainerInventory {
         }
 
         NbtCompound cachedNbt = QuickLitematicaVerifierAccess.getReceivedBlockEntityNbtFromStorage(pos);
-        if (cachedNbt != null && cachedNbt.contains("Items")
-                && QuickLitematicaContainerMaterials.readItems(cachedNbt, world.getRegistryManager()) == null) {
+        if (cachedNbt != null && cachedNbt.contains("Items") && QuickLitematicaContainerMaterials.readItems(
+                cachedNbt,
+                world.getRegistryManager()
+        ) == null) {
             return null;
         }
         Inventory special = getCachedSpecialInventory(world, cachedNbt, expectedSize);
@@ -206,18 +206,16 @@ final class QuickLitematicaContainerInventory {
         }
         BlockEntity cachedBlockEntity = QuickLitematicaVerifierAccess.getBlockEntityFromStorage(pos);
 
-        if (cachedBlockEntity instanceof Inventory inventory
-                && (expectedSize <= 0 || inventory.size() == expectedSize)) {
+        if (cachedBlockEntity instanceof Inventory inventory && (expectedSize <= 0 || inventory
+                .size() == expectedSize)) {
             return copyInventory(inventory);
         }
 
-        return cachedNbt != null
-                ? getNbtInventoryPreservingComponents(
-                        cachedNbt,
-                        expectedSize,
-                        world.getRegistryManager()
-                )
-                : null;
+        return cachedNbt != null ? getNbtInventoryPreservingComponents(
+                cachedNbt,
+                expectedSize,
+                world.getRegistryManager()
+        ) : null;
     }
 
     static Inventory getCachedSpecialInventory(World world, NbtCompound cachedNbt, int expectedSize) {
@@ -249,8 +247,8 @@ final class QuickLitematicaContainerInventory {
         }
 
         // 无物品字段既可能表示服务器确认的空容器，也可能只是客户端空壳；仅在整区块数据已回齐时信任为空。
-        return (QuickLitematicaVerifierAccess.hasServuxServer() || QuickLitematicaVerifierAccess.getIfReceivedBackupPackets())
-                && QuickLitematicaVerifierAccess.hasCompletedChunk(new ChunkPos(pos));
+        return (QuickLitematicaVerifierAccess.hasServuxServer() || QuickLitematicaVerifierAccess
+                .getIfReceivedBackupPackets()) && QuickLitematicaVerifierAccess.hasCompletedChunk(new ChunkPos(pos));
     }
 
     static Inventory getMergedCachedDoubleChestInventory(World world, BlockPos pos, int expectedSize) {
@@ -274,7 +272,9 @@ final class QuickLitematicaContainerInventory {
 
         if (currentNbt == null || adjacentNbt == null) {
             // 邻半可能不在本次校验/批量请求的区块中，不能只刷新当前半后永久等待。
-            if (adjacentNbt == null) QuickLitematicaVerifierAccess.requestBlockEntity(world, adjacentPos);
+            if (adjacentNbt == null) {
+                QuickLitematicaVerifierAccess.requestBlockEntity(world, adjacentPos);
+            }
             return null;
         }
 
@@ -285,8 +285,7 @@ final class QuickLitematicaContainerInventory {
             return null;
         }
 
-        return chestType == ChestType.RIGHT
-                ? mergeInventories(currentInventory, adjacentInventory)
+        return chestType == ChestType.RIGHT ? mergeInventories(currentInventory, adjacentInventory)
                 : mergeInventories(adjacentInventory, currentInventory);
     }
 
@@ -295,8 +294,7 @@ final class QuickLitematicaContainerInventory {
             return null;
         }
         // 服务端返回的半箱记录可以不带 Items，此时该半箱已确认是 27 格空库存。
-        return nbt.contains("Items")
-                ? getNbtInventoryPreservingComponents(nbt, 27, registryLookup)
+        return nbt.contains("Items") ? getNbtInventoryPreservingComponents(nbt, 27, registryLookup)
                 : new SimpleInventory(27);
     }
 
@@ -309,10 +307,14 @@ final class QuickLitematicaContainerInventory {
             return null;
         }
         var stacks = QuickLitematicaContainerMaterials.readItems(nbt, registryLookup);
-        if (stacks == null) { return null; }
+        if (stacks == null) {
+            return null;
+        }
         int size = expectedSize > 0 ? expectedSize : stacks.size();
         if (size <= 0 || stacks.size() > size) {
-            if (stacks.size() > size) { QuickLitematicaSchematicData.unreadableInventory(nbt); }
+            if (stacks.size() > size) {
+                QuickLitematicaSchematicData.unreadableInventory(nbt);
+            }
             return null;
         }
         SimpleInventory inventory = new SimpleInventory(size);
@@ -419,13 +421,11 @@ final class QuickLitematicaContainerInventory {
         BlockEntity current = world.getBlockEntity(pos);
         BlockEntity adjacent = world.getBlockEntity(adjacentPos);
 
-        if (!(current instanceof Inventory currentInventory)
-                || !(adjacent instanceof Inventory adjacentInventory)) {
+        if (!(current instanceof Inventory currentInventory) || !(adjacent instanceof Inventory adjacentInventory)) {
             return null;
         }
 
-        return chestType == ChestType.RIGHT
-                ? mergeInventories(currentInventory, adjacentInventory)
+        return chestType == ChestType.RIGHT ? mergeInventories(currentInventory, adjacentInventory)
                 : mergeInventories(adjacentInventory, currentInventory);
     }
 

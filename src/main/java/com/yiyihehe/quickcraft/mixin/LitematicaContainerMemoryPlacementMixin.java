@@ -10,7 +10,9 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 @Mixin(value = SchematicPlacementManager.class, remap = false)
 public abstract class LitematicaContainerMemoryPlacementMixin {
-    @Inject(method = "markChunksForRebuild(Lfi/dy/masa/litematica/schematic/placement/SchematicPlacement;)V", at = @At("HEAD"))
+    @Inject(
+            method = "markChunksForRebuild(Lfi/dy/masa/litematica/schematic/placement/SchematicPlacement;)V",
+            at = @At("HEAD"))
     private void quickcraft$refreshContainersBeforeRebuild(SchematicPlacement placement, CallbackInfo ci) {
         QuickLitematicaContainerMemory.update(placement);
     }

@@ -23,7 +23,9 @@ final class QuickLitematicaPreviewLoadingFramebuffer implements AutoCloseable {
     private Framebuffer framebuffer;
     private GpuBuffer quad;
 
-    boolean hasSize(int size) { return this.framebuffer != null && this.framebuffer.textureWidth == size; }
+    boolean hasSize(int size) {
+        return this.framebuffer != null && this.framebuffer.textureWidth == size;
+    }
 
     Framebuffer prepare(int size) {
         if (!this.hasSize(size)) {
@@ -31,7 +33,11 @@ final class QuickLitematicaPreviewLoadingFramebuffer implements AutoCloseable {
             this.framebuffer = new SimpleFramebuffer("QuickCraft loading preview", size, size, true);
         }
         RenderSystem.getDevice().createCommandEncoder().clearColorAndDepthTextures(
-                this.framebuffer.getColorAttachment(), 0, this.framebuffer.getDepthAttachment(), 1.0);
+                this.framebuffer.getColorAttachment(),
+                0,
+                this.framebuffer.getDepthAttachment(),
+                1.0
+        );
         return this.framebuffer;
     }
 
@@ -46,8 +52,12 @@ final class QuickLitematicaPreviewLoadingFramebuffer implements AutoCloseable {
                 builder.vertex(1, 1, 0).texture(1, 0).color(-1);
                 builder.vertex(1, 0, 0).texture(1, 1).color(-1);
                 try (var built = builder.end()) {
-                    this.quad = RenderSystem.getDevice().createBuffer(() -> "QuickCraft loading preview quad",
-                            BufferType.VERTICES, BufferUsage.STATIC_WRITE, built.getBuffer());
+                    this.quad = RenderSystem.getDevice().createBuffer(
+                            () -> "QuickCraft loading preview quad",
+                            BufferType.VERTICES,
+                            BufferUsage.STATIC_WRITE,
+                            built.getBuffer()
+                    );
                 }
             }
         }
@@ -57,14 +67,17 @@ final class QuickLitematicaPreviewLoadingFramebuffer implements AutoCloseable {
         modelView.pushMatrix();
         try {
             // 1.21.5 在 draw 前用全局状态重写预定义 uniform，pass.setUniform 的变换会被覆盖。
-            modelView.mul(context.getMatrices().peek().getPositionMatrix())
-                    .translate(x, y, 0).scale(size, size, 1);
+            modelView.mul(context.getMatrices().peek().getPositionMatrix()).translate(x, y, 0).scale(size, size, 1);
             RenderSystem.setShaderColor(1.0F, 1.0F, 1.0F, 1.0F);
             var main = MinecraftClient.getInstance().getFramebuffer();
             var sequential = RenderSystem.getSequentialBuffer(BLIT.getVertexFormatMode());
             var indices = sequential.getIndexBuffer(6);
             try (var pass = RenderSystem.getDevice().createCommandEncoder().createRenderPass(
-                    main.getColorAttachment(), OptionalInt.empty(), main.getDepthAttachment(), OptionalDouble.empty())) {
+                    main.getColorAttachment(),
+                    OptionalInt.empty(),
+                    main.getDepthAttachment(),
+                    OptionalDouble.empty()
+            )) {
                 pass.setPipeline(BLIT);
                 pass.setVertexBuffer(0, this.quad);
                 pass.setIndexBuffer(indices, sequential.getIndexType());
@@ -79,20 +92,41 @@ final class QuickLitematicaPreviewLoadingFramebuffer implements AutoCloseable {
         }
     }
 
-    @Override public void close() {
-        if (this.quad != null) { this.quad.close(); this.quad = null; }
-        if (this.framebuffer != null) { this.framebuffer.delete(); this.framebuffer = null; }
+    @Override
+    public void close() {
+        if (this.quad != null) {
+            this.quad.close();
+            this.quad = null;
+        }
+        if (this.framebuffer != null) {
+            this.framebuffer.delete();
+            this.framebuffer = null;
+        }
     }
 
     private static final class OpaqueGuiPipeline extends RenderPipeline {
         OpaqueGuiPipeline(RenderPipeline gui) {
             // 加载期不包含透明层；丢弃空像素后直接覆盖，保持原生裁切层的颜色。
-            super(Identifier.of("quickcraft", "pipeline/preview_loading_blit"), gui.getVertexShader(), gui.getFragmentShader(),
-                    gui.getShaderDefines(), gui.getSamplers(), gui.getUniforms(),
+            super(
+                    Identifier.of("quickcraft", "pipeline/preview_loading_blit"),
+                    gui.getVertexShader(),
+                    gui.getFragmentShader(),
+                    gui.getShaderDefines(),
+                    gui.getSamplers(),
+                    gui.getUniforms(),
                     Optional.empty(),
-                    gui.getDepthTestFunction(), gui.getPolygonMode(), gui.isCull(), gui.isWriteColor(), gui.isWriteAlpha(),
-                    gui.isWriteDepth(), gui.getColorLogic(), gui.getVertexFormat(), gui.getVertexFormatMode(),
-                    gui.getDepthBiasScaleFactor(), gui.getDepthBiasConstant());
+                    gui.getDepthTestFunction(),
+                    gui.getPolygonMode(),
+                    gui.isCull(),
+                    gui.isWriteColor(),
+                    gui.isWriteAlpha(),
+                    gui.isWriteDepth(),
+                    gui.getColorLogic(),
+                    gui.getVertexFormat(),
+                    gui.getVertexFormatMode(),
+                    gui.getDepthBiasScaleFactor(),
+                    gui.getDepthBiasConstant()
+            );
         }
     }
 }

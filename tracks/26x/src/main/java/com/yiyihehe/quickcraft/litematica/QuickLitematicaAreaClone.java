@@ -33,20 +33,17 @@ public final class QuickLitematicaAreaClone {
     private static final Set<String> RESERVED_NAMES = new HashSet<>();
     private static final Set<PendingClone> PENDING = new HashSet<>();
 
-    private QuickLitematicaAreaClone() {
-    }
+    private QuickLitematicaAreaClone() {}
 
     public static void bindHotkey() {
-        QuickCraftConfigs.Hotkeys.CLONE_LITEMATICA_AREA.getKeybind()
-                .setCallback(QuickLitematicaAreaClone::handleHotkey);
+        QuickCraftConfigs.Hotkeys.CLONE_LITEMATICA_AREA.getKeybind().setCallback(
+                QuickLitematicaAreaClone::handleHotkey
+        );
     }
 
     private static boolean handleHotkey(KeyAction action, IKeybind keybind) {
         Minecraft client = Minecraft.getInstance();
-        if (action != KeyAction.PRESS
-                || client.player == null
-                || client.level == null
-                || hasOpenScreen(client)) {
+        if (action != KeyAction.PRESS || client.player == null || client.level == null || hasOpenScreen(client)) {
             return false;
         }
 
@@ -77,11 +74,17 @@ public final class QuickLitematicaAreaClone {
 
         String name = reserveTemporaryName();
         schematic.getMetadata().setName(name);
-        LitematicaSchematic.SchematicSaveInfo saveInfo =
-                new LitematicaSchematic.SchematicSaveInfo(false, false);
+        LitematicaSchematic.SchematicSaveInfo saveInfo = new LitematicaSchematic.SchematicSaveInfo(false, false);
         TaskSaveSchematic task = new CloneSaveTask(schematic, snapshot, saveInfo, sourceLevel);
         TaskScheduler scheduler = TaskScheduler.getServerInstanceIfExistsOrClient();
-        PendingClone pending = new PendingClone(task, sourceLevel, name, schematic, scheduler, snapshot.getEffectiveOrigin());
+        PendingClone pending = new PendingClone(
+                task,
+                sourceLevel,
+                name,
+                schematic,
+                scheduler,
+                snapshot.getEffectiveOrigin()
+        );
         task.disableCompletionMessage();
         task.setCompletionListener(new ICompletionListener() {
             @Override
@@ -122,7 +125,9 @@ public final class QuickLitematicaAreaClone {
     private static void complete(PendingClone pending) {
         boolean current;
         synchronized (PENDING) {
-            if (pending.finished) { return; }
+            if (pending.finished) {
+                return;
+            }
             pending.finished = true;
             current = !pending.cancelled && PENDING.remove(pending);
         }
@@ -144,16 +149,15 @@ public final class QuickLitematicaAreaClone {
 
         DataManager.getSchematicPlacementManager().addSchematicPlacement(placement, false);
         DataManager.getSchematicPlacementManager().setSelectedSchematicPlacement(placement);
-        InfoUtils.printActionbarMessage(
-                "quickcraft.message.litematica.area_clone.created",
-                pending.name
-        );
+        InfoUtils.printActionbarMessage("quickcraft.message.litematica.area_clone.created", pending.name);
     }
 
     private static void abort(PendingClone pending) {
         boolean cancelled;
         synchronized (PENDING) {
-            if (pending.finished) { return; }
+            if (pending.finished) {
+                return;
+            }
             pending.finished = true;
             cancelled = pending.cancelled;
             PENDING.remove(pending);
@@ -166,7 +170,9 @@ public final class QuickLitematicaAreaClone {
     }
 
     private static void cancelTask(PendingClone pending) {
-        if (pending.task instanceof CloneSaveTask cloneTask) { cloneTask.cancel(); }
+        if (pending.task instanceof CloneSaveTask cloneTask) {
+            cloneTask.cancel();
+        }
         TaskScheduler scheduler = pending.scheduler;
         var queued = ((LitematicaTaskSchedulerAccessor) scheduler).quickcraft$getQueuedTasks();
         synchronized (scheduler) {
@@ -188,7 +194,9 @@ public final class QuickLitematicaAreaClone {
 
     private static void releaseName(PendingClone pending) {
         synchronized (PENDING) {
-            if (pending.nameReleased) { return; }
+            if (pending.nameReleased) {
+                return;
+            }
             pending.nameReleased = true;
         }
         releaseTemporaryName(pending.name);
@@ -198,8 +206,12 @@ public final class QuickLitematicaAreaClone {
         private final ClientLevel sourceWorld;
         private volatile boolean cancelled;
 
-        private CloneSaveTask(LitematicaSchematic schematic, AreaSelection area,
-                              LitematicaSchematic.SchematicSaveInfo info, ClientLevel sourceWorld) {
+        private CloneSaveTask(
+                LitematicaSchematic schematic,
+                AreaSelection area,
+                LitematicaSchematic.SchematicSaveInfo info,
+                ClientLevel sourceWorld
+        ) {
             super(schematic, area, info);
             this.sourceWorld = sourceWorld;
         }
@@ -229,9 +241,14 @@ public final class QuickLitematicaAreaClone {
         private boolean finished;
         private boolean nameReleased;
 
-        private PendingClone(TaskSaveSchematic task, ClientLevel world, String name,
-                             LitematicaSchematic schematic, TaskScheduler scheduler,
-                             net.minecraft.core.BlockPos selectionOrigin) {
+        private PendingClone(
+                TaskSaveSchematic task,
+                ClientLevel world,
+                String name,
+                LitematicaSchematic schematic,
+                TaskScheduler scheduler,
+                net.minecraft.core.BlockPos selectionOrigin
+        ) {
             this.task = task;
             this.world = world;
             this.name = name;
@@ -283,5 +300,3 @@ public final class QuickLitematicaAreaClone {
         return true;
     }
 }
-
-

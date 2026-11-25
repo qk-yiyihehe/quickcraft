@@ -29,7 +29,11 @@ import static org.mockito.Mockito.when;
 class QuickFreeCameraPlacementProtocolTest {
     private static final BlockPos POS = new BlockPos(10, 64, 10);
     private static final BlockHitResult HIT = new BlockHitResult(
-            new Vec3d(10.5D, 65.0D, 10.5D), Direction.UP, POS, false);
+            new Vec3d(10.5D, 65.0D, 10.5D),
+            Direction.UP,
+            POS,
+            false
+    );
 
     @AfterEach
     void resetFreeCameraState() throws Exception {
@@ -47,13 +51,14 @@ class QuickFreeCameraPlacementProtocolTest {
 
     @Test
     void v3EncodesOnlyWhitelistedProperties() throws Exception {
-        var state = Blocks.OAK_FENCE_GATE.getDefaultState()
-                .with(FenceGateBlock.FACING, Direction.NORTH)
-                .with(FenceGateBlock.OPEN, true)
-                .with(FenceGateBlock.IN_WALL, false)
-                .with(FenceGateBlock.POWERED, false);
-        var method = QuickFreeCameraInteractions.class.getDeclaredMethod("encodeV3PlacementState",
-                net.minecraft.block.BlockState.class);
+        var state = Blocks.OAK_FENCE_GATE.getDefaultState().with(FenceGateBlock.FACING, Direction.NORTH).with(
+                FenceGateBlock.OPEN,
+                true
+        ).with(FenceGateBlock.IN_WALL, false).with(FenceGateBlock.POWERED, false);
+        var method = QuickFreeCameraInteractions.class.getDeclaredMethod(
+                "encodeV3PlacementState",
+                net.minecraft.block.BlockState.class
+        );
         method.setAccessible(true);
         // NORTH 方向 2<<1，OPEN=true 的位在 4；IN_WALL/POWERED 不属于 V3 白名单。
         assertThat((Integer) method.invoke(null, state)).isEqualTo(20);
@@ -62,8 +67,9 @@ class QuickFreeCameraPlacementProtocolTest {
     @Test
     void missingOptionalProtocolProviderKeepsThePublicEntryUnencoded() throws Exception {
         var client = placementClient();
-        assertThatThrownBy(() -> Class.forName("fi.dy.masa.tweakeroo.tweaks.PlacementHandler"))
-                .isInstanceOf(ClassNotFoundException.class);
+        assertThatThrownBy(() -> Class.forName("fi.dy.masa.tweakeroo.tweaks.PlacementHandler")).isInstanceOf(
+                ClassNotFoundException.class
+        );
         assertThat(QuickFreeCameraInteractions.encodeFreeCameraPlacementState(client, HIT)).isSameAs(HIT);
     }
 
@@ -82,7 +88,9 @@ class QuickFreeCameraPlacementProtocolTest {
         ClientWorld world = mock(ClientWorld.class);
         when(world.getBlockState(any(BlockPos.class))).thenReturn(Blocks.AIR.getDefaultState());
         ClientPlayerEntity player = mock(ClientPlayerEntity.class, invocation -> {
-            if (net.minecraft.world.World.class.isAssignableFrom(invocation.getMethod().getReturnType())) return world;
+            if (net.minecraft.world.World.class.isAssignableFrom(invocation.getMethod().getReturnType())) {
+                return world;
+            }
             return org.mockito.Answers.RETURNS_DEFAULTS.answer(invocation);
         });
         when(player.getStackInHand(Hand.MAIN_HAND)).thenReturn(new ItemStack(Items.FURNACE));

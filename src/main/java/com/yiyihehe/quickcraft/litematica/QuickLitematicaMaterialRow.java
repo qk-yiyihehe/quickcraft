@@ -54,16 +54,15 @@ public final class QuickLitematicaMaterialRow {
         this.quickcraft$rowWidth = width;
         this.quickcraft$rowHeight = height;
         this.quickcraft$listWidget = listWidget;
-        boolean isContainerList = materialList instanceof QuickLitematicaContainerMaterials.ContainerMaterialRequestSource;
+        boolean isContainerList =
+                materialList instanceof QuickLitematicaContainerMaterials.ContainerMaterialRequestSource;
         boolean isProjectionList = materialList instanceof fi.dy.masa.litematica.materials.MaterialListPlacement
                 || materialList instanceof fi.dy.masa.litematica.materials.MaterialListSchematic;
-        this.quickcraft$scope = isContainerList
-                ? QuickLitematicaContainerReplacements.Scope.CONTAINER
+        this.quickcraft$scope = isContainerList ? QuickLitematicaContainerReplacements.Scope.CONTAINER
                 : isProjectionList ? QuickLitematicaContainerReplacements.Scope.PROJECTION : null;
         this.quickcraft$contextKey = QuickLitematicaMaterialLists.getReplacementContextKey(materialList);
-        this.quickcraft$replacementSupported = isContainerList
-                || (isProjectionList && !this.quickcraft$contextKey.isBlank()
-                && (entry == null || entry.getStack().getItem() instanceof BlockItem));
+        this.quickcraft$replacementSupported = isContainerList || (isProjectionList && !this.quickcraft$contextKey
+                .isBlank() && (entry == null || entry.getStack().getItem() instanceof BlockItem));
 
         if (!QuickLitematicaContainerReplacements.enabled() || entry == null || !this.quickcraft$replacementSupported) {
             return;
@@ -78,8 +77,10 @@ public final class QuickLitematicaMaterialRow {
                 : QuickLitematicaMaterialNavigation.View.BLOCKS;
         String layoutKey = QuickLitematicaMaterialNavigation.layoutKey(materialList, view);
         var button = new QuickCraftMovableButton(layoutKey + ".replaceRow", replaceRight, y + 1, -1, true, label);
-        button.setHoverStrings(StringUtils.translate("quickcraft.litematica.tooltip.material_replace"),
-                StringUtils.translate("quickcraft.litematica.tooltip.batch_select"));
+        button.setHoverStrings(
+                StringUtils.translate("quickcraft.litematica.tooltip.material_replace"),
+                StringUtils.translate("quickcraft.litematica.tooltip.batch_select")
+        );
         this.owner.quickcraft$addButton(button, (clicked, mouseButton) -> {
             if (MinecraftClient.getInstance().currentScreen != null) {
                 QuickLitematicaMaterialReplacementScreen.open(
@@ -101,7 +102,9 @@ public final class QuickLitematicaMaterialRow {
                     clearLabel
             );
             clearButton.placeInRow(x, y, width, height);
-            clearButton.setHoverStrings(StringUtils.translate("quickcraft.litematica.tooltip.material_replace_clear_list"));
+            clearButton.setHoverStrings(
+                    StringUtils.translate("quickcraft.litematica.tooltip.material_replace_clear_list")
+            );
             this.owner.quickcraft$addButton(clearButton, (clicked, mouseButton) -> {
                 this.quickcraft$clearReplacement(materialList);
             });
@@ -116,7 +119,8 @@ public final class QuickLitematicaMaterialRow {
         }
         MaterialListBase list = this.quickcraft$materialList;
         if (!(list instanceof QuickLitematicaContainerMaterials.ContainerReplacementBindingSource)
-                && !(this.quickcraft$replacementSupported && this.quickcraft$scope == QuickLitematicaContainerReplacements.Scope.PROJECTION)) {
+                && !(this.quickcraft$replacementSupported
+                        && this.quickcraft$scope == QuickLitematicaContainerReplacements.Scope.PROJECTION)) {
             return false;
         }
 
@@ -124,8 +128,14 @@ public final class QuickLitematicaMaterialRow {
         boolean selected = !isSelected(list, stack);
         toggleSelection(list, stack);
         if (MinecraftClient.getInstance().currentScreen instanceof GuiMaterialList gui) {
-            QuickLitematicaSelectionDrag.start(gui, mouseX, mouseY, selected,
-                    (x, y, select) -> setSelectionAt(gui, x, y, select), () -> refreshSelection(gui));
+            QuickLitematicaSelectionDrag.start(
+                    gui,
+                    mouseX,
+                    mouseY,
+                    selected,
+                    (x, y, select) -> setSelectionAt(gui, x, y, select),
+                    () -> refreshSelection(gui)
+            );
             refreshSelection(gui);
         } else {
             this.quickcraft$listWidget.refreshEntries();
@@ -139,11 +149,13 @@ public final class QuickLitematicaMaterialRow {
         for (var row : ((MalilibWidgetListAccessor) widget).quickcraft$getVisibleEntries()) {
             if (row.isMouseOver(mouseX, mouseY) && row.getEntry() instanceof MaterialListEntry entry) {
                 ItemStack stack = entry.getStack();
-                if (!(list instanceof QuickLitematicaContainerMaterials.ContainerReplacementBindingSource)
-                        && !(stack.getItem() instanceof BlockItem)) {
+                if (!(list instanceof QuickLitematicaContainerMaterials.ContainerReplacementBindingSource) && !(stack
+                        .getItem() instanceof BlockItem)) {
                     return false;
                 }
-                if (isSelected(list, stack) == selected) { return false; }
+                if (isSelected(list, stack) == selected) {
+                    return false;
+                }
                 toggleSelection(list, stack);
                 return true;
             }
@@ -177,19 +189,20 @@ public final class QuickLitematicaMaterialRow {
         }
     }
 
-    public void draw(
-            int mouseX,
-            int mouseY,
-            boolean selected,
-            Context drawContext
-    ) {
-        if (!QuickLitematicaContainerReplacements.enabled() || this.entry == null || !this.quickcraft$replacementSupported) {
+    public void draw(int mouseX, int mouseY, boolean selected, Context drawContext) {
+        if (!QuickLitematicaContainerReplacements.enabled() || this.entry == null
+                || !this.quickcraft$replacementSupported) {
             return;
         }
 
         if (isSelected(this.quickcraft$materialList, this.entry.getStack())) {
-            drawContext.outline(this.quickcraft$rowX, this.quickcraft$rowY,
-                    this.quickcraft$rowWidth, this.quickcraft$rowHeight, 0xFFFFD54F);
+            drawContext.outline(
+                    this.quickcraft$rowX,
+                    this.quickcraft$rowY,
+                    this.quickcraft$rowWidth,
+                    this.quickcraft$rowHeight,
+                    0xFFFFD54F
+            );
         }
 
         java.util.Optional<ItemStack> target;
@@ -200,10 +213,15 @@ public final class QuickLitematicaMaterialRow {
             targetLabel = summary.label();
         } else {
             target = QuickLitematicaContainerReplacements.getReplacementTarget(
-                    this.entry.getStack(), this.quickcraft$scope, this.quickcraft$contextKey);
-            targetLabel = target.map(stack -> stack.isEmpty()
-                    ? QuickLitematicaMaterialReplacementScreen.emptyTargetLabel(this.quickcraft$scope)
-                    : stack.getName().getString()).orElse("");
+                    this.entry.getStack(),
+                    this.quickcraft$scope,
+                    this.quickcraft$contextKey
+            );
+            targetLabel = target.map(
+                    stack -> stack.isEmpty() ? QuickLitematicaMaterialReplacementScreen.emptyTargetLabel(
+                            this.quickcraft$scope
+                    ) : stack.getName().getString()
+            ).orElse("");
         }
         if (target.isEmpty()) {
             return;
@@ -240,14 +258,7 @@ public final class QuickLitematicaMaterialRow {
                 0xFFE8F4FF,
                 false
         );
-        drawContext.drawText(
-                MinecraftClient.getInstance().textRenderer,
-                ">",
-                arrowX,
-                statusY + 5,
-                0xFF8FD7FF,
-                false
-        );
+        drawContext.drawText(MinecraftClient.getInstance().textRenderer, ">", arrowX, statusY + 5, 0xFF8FD7FF, false);
         drawContext.drawItem(target.get(), targetX, statusY);
         drawContext.drawText(
                 MinecraftClient.getInstance().textRenderer,
@@ -274,12 +285,17 @@ public final class QuickLitematicaMaterialRow {
         return end <= 1 ? "..." : text.substring(0, end) + "...";
     }
 
-    private QuickLitematicaMaterialReplacementScreen.ReplacementBinding quickcraft$createReplacementBinding(MaterialListBase materialList) {
+    private QuickLitematicaMaterialReplacementScreen.ReplacementBinding quickcraft$createReplacementBinding(
+            MaterialListBase materialList
+    ) {
         if (materialList instanceof QuickLitematicaContainerMaterials.ContainerReplacementBindingSource source) {
             return source.quickcraft$createSummaryReplacementBinding(this.entry.getStack());
         }
 
-        return com.yiyihehe.quickcraft.litematica.QuickLitematicaProjectionMaterials.binding(materialList, this.entry.getStack());
+        return com.yiyihehe.quickcraft.litematica.QuickLitematicaProjectionMaterials.binding(
+                materialList,
+                this.entry.getStack()
+        );
     }
 
     private boolean quickcraft$hasReplacement(MaterialListBase materialList) {

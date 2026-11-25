@@ -32,8 +32,7 @@ class QuickLitematicaPreviewLifecycleTest {
 
     @Test
     void browserMetadataRefreshUsesTheWeakOwnerImmediately() throws Exception {
-        var owner = mock(Screen.class,
-                withSettings().extraInterfaces(QuickLitematicaPreviewMetadataRefresh.class));
+        var owner = mock(Screen.class, withSettings().extraInterfaces(QuickLitematicaPreviewMetadataRefresh.class));
         var refresh = (QuickLitematicaPreviewMetadataRefresh) owner;
         var preview = mock(QuickLitematicaPreview3D.Preview.class);
         var manager = new QuickLitematicaPreview3D.Manager(owner);
@@ -48,8 +47,14 @@ class QuickLitematicaPreviewLifecycleTest {
                 return null;
             }).when(client).execute(any(Runnable.class));
 
-            manager.finishPreviewWrite(preview, false, false, generation, message -> {},
-                    net.minecraft.network.chat.Component.empty());
+            manager.finishPreviewWrite(
+                    preview,
+                    false,
+                    false,
+                    generation,
+                    message -> {},
+                    net.minecraft.network.chat.Component.empty()
+            );
         }
 
         verify(refresh, times(1)).quickcraft$clearPreviewMetadataCache();
@@ -204,7 +209,9 @@ class QuickLitematicaPreviewLifecycleTest {
     }
 
     private static QuickLitematicaPreview3DScreen newScreen(
-            QuickLitematicaPreview3D.Manager manager, boolean closeManagerOnExit) {
+            QuickLitematicaPreview3D.Manager manager,
+            boolean closeManagerOnExit
+    ) {
         var client = mock(Minecraft.class);
         try {
             setField(client, "font", mock(Font.class));

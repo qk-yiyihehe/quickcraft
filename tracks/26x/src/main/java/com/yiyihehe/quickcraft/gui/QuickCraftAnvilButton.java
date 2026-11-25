@@ -20,9 +20,16 @@ public final class QuickCraftAnvilButton extends Button.Plain implements QuickCr
     private int wrapWidth;
     private int offset;
     private int maxOffset;
-    private final ClientTooltipPositioner positioner = (width, height, x, y, tooltipWidth, tooltipHeight) ->
-            new Vector2i(Math.max(4, Math.min((isHovered() ? x : getX()) + 12, width - tooltipWidth - 4)),
-                    (isHovered() ? y : getY() + getHeight()) + 8);
+    private final ClientTooltipPositioner positioner = (
+            width,
+            height,
+            x,
+            y,
+            tooltipWidth,
+            tooltipHeight) -> new Vector2i(
+                    Math.max(4, Math.min((isHovered() ? x : getX()) + 12, width - tooltipWidth - 4)),
+                    (isHovered() ? y : getY() + getHeight()) + 8
+            );
 
     public QuickCraftAnvilButton(int x, int y, OnPress onPress) {
         super(x, y, 176, 20, Component.empty(), onPress, DEFAULT_NARRATION);
@@ -35,7 +42,9 @@ public final class QuickCraftAnvilButton extends Button.Plain implements QuickCr
 
     @Override
     public void setPlanTooltip(Component text) {
-        if (planTooltip.equals(text)) return;
+        if (planTooltip.equals(text)) {
+            return;
+        }
         planTooltip = text;
         wrapWidth = 0;
         offset = 0;
@@ -45,7 +54,9 @@ public final class QuickCraftAnvilButton extends Button.Plain implements QuickCr
     protected void extractContents(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float delta) {
         super.extractContents(graphics, mouseX, mouseY, delta);
         var client = Minecraft.getInstance();
-        if (!isHovered() && !(isFocused() && client.getLastInputType().isKeyboard())) return;
+        if (!isHovered() && !(isFocused() && client.getLastInputType().isKeyboard())) {
+            return;
+        }
         int width = Math.max(1, Math.min(170, client.getWindow().getGuiScaledWidth() - 16));
         if (width != wrapWidth) {
             lines = client.font.split(planTooltip, width);
@@ -59,16 +70,23 @@ public final class QuickCraftAnvilButton extends Button.Plain implements QuickCr
         offset = Math.min(offset, maxOffset);
         var visible = new ArrayList<>(lines.subList(offset, Math.min(lines.size(), offset + visibleRows)));
         if (maxOffset > 0) {
-            visible.add(Component.translatable("quickcraft.anvil.scroll_plan", offset + 1,
-                    Math.min(lines.size(), offset + visibleRows), lines.size()).getVisualOrderText());
+            visible.add(
+                    Component.translatable(
+                            "quickcraft.anvil.scroll_plan",
+                            offset + 1,
+                            Math.min(lines.size(), offset + visibleRows),
+                            lines.size()
+                    ).getVisualOrderText()
+            );
         }
-        graphics.setTooltipForNextFrame(client.font, visible, positioner,
-                isHovered() ? mouseX : getX(), anchorY, true);
+        graphics.setTooltipForNextFrame(client.font, visible, positioner, isHovered() ? mouseX : getX(), anchorY, true);
     }
 
     @Override
     public boolean mouseScrolled(double mouseX, double mouseY, double horizontalAmount, double verticalAmount) {
-        if (!visible || !isMouseOver(mouseX, mouseY) || maxOffset == 0 || verticalAmount == 0) return false;
+        if (!visible || !isMouseOver(mouseX, mouseY) || maxOffset == 0 || verticalAmount == 0) {
+            return false;
+        }
         offset = Math.max(0, Math.min(maxOffset, offset + (verticalAmount > 0 ? -3 : 3)));
         return true;
     }

@@ -67,12 +67,17 @@ public class LitematicaClientPlayerInteractionManagerMixin {
         ActionResult result = cir.getReturnValue();
 
         if (result != null && result.isAccepted()) {
-            com.yiyihehe.quickcraft.litematica.QuickLitematicaContainerFillState.rememberContainerUse(MinecraftClient.getInstance(), hitResult);
-            com.yiyihehe.quickcraft.litematica.QuickLitematicaEnderChestMaterials.rememberContainerUse(MinecraftClient.getInstance(), hitResult);
+            com.yiyihehe.quickcraft.litematica.QuickLitematicaContainerFillState.rememberContainerUse(
+                    MinecraftClient.getInstance(),
+                    hitResult
+            );
+            com.yiyihehe.quickcraft.litematica.QuickLitematicaEnderChestMaterials.rememberContainerUse(
+                    MinecraftClient.getInstance(),
+                    hitResult
+            );
         }
 
-        if (result != null && result.isAccepted()
-                && !QuickContainerCopy.shouldSuppressContainerVerifierRemember()) {
+        if (result != null && result.isAccepted() && !QuickContainerCopy.shouldSuppressContainerVerifierRemember()) {
             QuickLitematicaContainerVerifier.rememberContainerUse(MinecraftClient.getInstance(), hitResult);
         }
     }

@@ -27,8 +27,7 @@ public final class QuickPersistentState {
     private static String currentProfileId;
     private static Path currentStateFile;
 
-    private QuickPersistentState() {
-    }
+    private QuickPersistentState() {}
 
     public static void onClientTick(Minecraft client) {
         ProfileContext profile = resolveProfileContext(client);
@@ -114,7 +113,8 @@ public final class QuickPersistentState {
             }
 
             Path saveRoot = server.getWorldPath(LevelResource.ROOT).toAbsolutePath().normalize();
-            String displayName = saveRoot.getFileName() != null ? saveRoot.getFileName().toString() : saveRoot.toString();
+            String displayName = saveRoot.getFileName() != null ? saveRoot.getFileName().toString()
+                    : saveRoot.toString();
             return createProfileContext(SINGLEPLAYER_DIR, saveRoot.toString(), displayName);
         }
 
@@ -133,12 +133,9 @@ public final class QuickPersistentState {
 
     private static ProfileContext createProfileContext(String scope, String rawKey, String displayName) {
         String profileId = scope + ":" + rawKey;
-        Path stateFile = FileUtils.getConfigDirectory()
-                .resolve(QuickCraft.MOD_ID)
-                .resolve(STATE_DIR_NAME)
-                .resolve(scope)
-                .resolve(buildDirectoryName(displayName, rawKey))
-                .resolve(STATE_FILE_NAME);
+        Path stateFile = FileUtils.getConfigDirectory().resolve(QuickCraft.MOD_ID).resolve(STATE_DIR_NAME).resolve(
+                scope
+        ).resolve(buildDirectoryName(displayName, rawKey)).resolve(STATE_FILE_NAME);
         return new ProfileContext(profileId, stateFile);
     }
 
@@ -146,10 +143,10 @@ public final class QuickPersistentState {
         if (displayName == null || displayName.isBlank()) {
             displayName = "profile";
         }
-        String sanitized = displayName
-                .replaceAll("[\\\\/:*?\"<>|]", "_")
-                .replaceAll("\\s+", "_")
-                .replaceAll("[. ]+$", "");
+        String sanitized = displayName.replaceAll("[\\\\/:*?\"<>|]", "_").replaceAll("\\s+", "_").replaceAll(
+                "[. ]+$",
+                ""
+        );
         if (sanitized.isBlank()) {
             sanitized = "profile";
         }
@@ -157,9 +154,7 @@ public final class QuickPersistentState {
             sanitized = sanitized.substring(0, 64);
         }
 
-        String suffix = UUID.nameUUIDFromBytes(rawKey.getBytes(StandardCharsets.UTF_8))
-                .toString()
-                .substring(0, 8);
+        String suffix = UUID.nameUUIDFromBytes(rawKey.getBytes(StandardCharsets.UTF_8)).toString().substring(0, 8);
         return sanitized + "-" + suffix;
     }
 

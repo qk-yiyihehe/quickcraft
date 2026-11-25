@@ -20,8 +20,10 @@ class QuickLitematicaMaterialCountsTest {
 
     @Test
     void keepsEntityContributionWhenAnEntityAndBlocksRequireTheSameItem() {
-        var nativeRows = List.of(new MaterialListEntry(new ItemStack(Items.OAK_PLANKS), 12, 7, 3, 4),
-                new MaterialListEntry(new ItemStack(Items.ITEM_FRAME), 2, 1, 0, 0));
+        var nativeRows = List.of(
+                new MaterialListEntry(new ItemStack(Items.OAK_PLANKS), 12, 7, 3, 4),
+                new MaterialListEntry(new ItemStack(Items.ITEM_FRAME), 2, 1, 0, 0)
+        );
         var blockRows = List.of(new MaterialListEntry(new ItemStack(Items.OAK_PLANKS), 10, 6, 2, 4));
         var entities = QuickLitematicaProjectionMaterials.combineEntries(nativeRows, blockRows, -1);
         assertThat(entities).hasSize(2);
@@ -31,7 +33,10 @@ class QuickLitematicaMaterialCountsTest {
         assertThat(planks.getCountMismatched()).isEqualTo(1);
 
         var replaced = QuickLitematicaProjectionMaterials.combineEntries(
-                List.of(new MaterialListEntry(new ItemStack(Items.GLASS), 10, 6, 2, 0)), entities, 1);
+                List.of(new MaterialListEntry(new ItemStack(Items.GLASS), 10, 6, 2, 0)),
+                entities,
+                1
+        );
         assertThat(replaced).hasSize(3);
         assertThat(replaced.stream().mapToInt(MaterialListEntry::getCountTotal).sum()).isEqualTo(14);
     }

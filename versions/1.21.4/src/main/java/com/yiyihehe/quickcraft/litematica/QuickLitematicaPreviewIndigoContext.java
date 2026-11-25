@@ -33,7 +33,10 @@ public final class QuickLitematicaPreviewIndigoContext extends AbstractBlockRend
     private final LitematicaPreviewIndigoBlockInfoAccessor blockInfoAccess;
     private final Function<RenderLayer, VertexConsumer> bufferFunc;
 
-    public QuickLitematicaPreviewIndigoContext(BlockRenderView blockView, Function<RenderLayer, VertexConsumer> bufferFunc) {
+    public QuickLitematicaPreviewIndigoContext(
+            BlockRenderView blockView,
+            Function<RenderLayer, VertexConsumer> bufferFunc
+    ) {
         if (!(this.blockInfo instanceof LitematicaPreviewIndigoBlockInfoAccessor access)) {
             throw new IllegalStateException("QuickCraft Indigo preview accessor was not applied");
         }
@@ -46,7 +49,13 @@ public final class QuickLitematicaPreviewIndigoContext extends AbstractBlockRend
         this.blockInfoAccess.quickcraft$setRandom(Random.create());
     }
 
-    public void tessellateBlock(BlockRenderView blockView, BlockState blockState, BlockPos blockPos, BakedModel model, MatrixStack matrixStack) {
+    public void tessellateBlock(
+            BlockRenderView blockView,
+            BlockState blockState,
+            BlockPos blockPos,
+            BakedModel model,
+            MatrixStack matrixStack
+    ) {
         try {
             this.blockView = blockView;
             this.blockInfo.prepareForWorld(blockView, true);
@@ -62,10 +71,19 @@ public final class QuickLitematicaPreviewIndigoContext extends AbstractBlockRend
 
             this.aoCalc.clear();
             this.blockInfo.prepareForBlock(blockState, blockPos, model.useAmbientOcclusion());
-            model.emitBlockQuads(this.getEmitter(), this.blockInfo.blockView, this.blockInfo.blockState,
-                    this.blockInfo.blockPos, this.blockInfo.randomSupplier, this.blockInfoAccess::quickcraft$shouldCullSide);
+            model.emitBlockQuads(
+                    this.getEmitter(),
+                    this.blockInfo.blockView,
+                    this.blockInfo.blockState,
+                    this.blockInfo.blockPos,
+                    this.blockInfo.randomSupplier,
+                    this.blockInfoAccess::quickcraft$shouldCullSide
+            );
         } catch (Throwable throwable) {
-            CrashReport report = CrashReport.create(throwable, "Tessellating block in QuickCraft Litematica preview mesh");
+            CrashReport report = CrashReport.create(
+                    throwable,
+                    "Tessellating block in QuickCraft Litematica preview mesh"
+            );
             CrashReportSection section = report.addElement("Block being tessellated");
             CrashReportSection.addBlockInfo(section, blockView, blockPos, blockState);
             throw new CrashException(report);
@@ -77,7 +95,11 @@ public final class QuickLitematicaPreviewIndigoContext extends AbstractBlockRend
         return new AoCalculator(blockInfo) {
             @Override
             public int light(BlockPos pos, BlockState state) {
-                return WorldRenderer.getLightmapCoordinates(QuickLitematicaPreviewIndigoContext.this.blockView, state, pos);
+                return WorldRenderer.getLightmapCoordinates(
+                        QuickLitematicaPreviewIndigoContext.this.blockView,
+                        state,
+                        pos
+                );
             }
 
             @Override

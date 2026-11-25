@@ -8,11 +8,18 @@ import java.lang.reflect.Method;
 import java.util.List;
 
 /** Fabric 按通道选编解码器，发送和接收都必须使用 Neko 已注册的包类型。 */
-record VoidWarehouseQuery(Constructor<? extends CustomPayload> request, Class<?> resultClass,
-                          Method nonce, Method status, Method itemIds, Method amounts) {
+record VoidWarehouseQuery(
+        Constructor<? extends CustomPayload> request,
+        Class<?> resultClass,
+        Method nonce,
+        Method status,
+        Method itemIds,
+        Method amounts
+) {
     static final Identifier REQUEST_ID = Identifier.of("carpet_neko_addition", "printer_query");
     static final CustomPayload.Id<CustomPayload> RESULT_TYPE = new CustomPayload.Id<>(
-            Identifier.of("carpet_neko_addition", "printer_query_result"));
+            Identifier.of("carpet_neko_addition", "printer_query_result")
+    );
     static final int MAX_IDS = 1024;
     static final int OK = 0;
     static final int RULE_OFF = 1;
@@ -22,9 +29,14 @@ record VoidWarehouseQuery(Constructor<? extends CustomPayload> request, Class<?>
         String payloadPackage = "neko.voidwarehouse.restock.";
         var requestClass = Class.forName(payloadPackage + "PrinterQueryPayload").asSubclass(CustomPayload.class);
         var resultClass = Class.forName(payloadPackage + "PrinterQueryResultPayload").asSubclass(CustomPayload.class);
-        return new VoidWarehouseQuery(requestClass.getConstructor(int.class, List.class), resultClass,
-                resultClass.getMethod("nonce"), resultClass.getMethod("status"),
-                resultClass.getMethod("itemIds"), resultClass.getMethod("amounts"));
+        return new VoidWarehouseQuery(
+                requestClass.getConstructor(int.class, List.class),
+                resultClass,
+                resultClass.getMethod("nonce"),
+                resultClass.getMethod("status"),
+                resultClass.getMethod("itemIds"),
+                resultClass.getMethod("amounts")
+        );
     }
 
     CustomPayload createRequest(int requestNonce, List<String> ids) throws ReflectiveOperationException {
@@ -33,9 +45,14 @@ record VoidWarehouseQuery(Constructor<? extends CustomPayload> request, Class<?>
 
     Result readResult(CustomPayload payload) throws ReflectiveOperationException {
         this.resultClass.cast(payload);
-        return new Result((int) this.nonce.invoke(payload), (int) this.status.invoke(payload),
-                (List<?>) this.itemIds.invoke(payload), (List<?>) this.amounts.invoke(payload));
+        return new Result(
+                (int) this.nonce.invoke(payload),
+                (int) this.status.invoke(payload),
+                (List<?>) this.itemIds.invoke(payload),
+                (List<?>) this.amounts.invoke(payload)
+        );
     }
 
-    record Result(int nonce, int status, List<?> itemIds, List<?> amounts) { }
+    record Result(int nonce, int status, List<?> itemIds, List<?> amounts) {
+    }
 }

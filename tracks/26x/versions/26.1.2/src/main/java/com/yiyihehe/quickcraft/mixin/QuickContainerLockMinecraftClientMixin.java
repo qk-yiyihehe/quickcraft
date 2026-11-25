@@ -20,12 +20,12 @@ import org.spongepowered.asm.mixin.injection.At;
 public abstract class QuickContainerLockMinecraftClientMixin {
     @WrapOperation(
             method = "handleKeybinds",
-            at = @At(
-                    value = "INVOKE",
-                    target = "Lnet/minecraft/client/player/LocalPlayer;drop(Z)Z"
-            )
-    )
-    private boolean quickcraft$blockLockedHotbarDrop(LocalPlayer player, boolean entireStack, Operation<Boolean> original) {
+            at = @At(value = "INVOKE", target = "Lnet/minecraft/client/player/LocalPlayer;drop(Z)Z"))
+    private boolean quickcraft$blockLockedHotbarDrop(
+            LocalPlayer player,
+            boolean entireStack,
+            Operation<Boolean> original
+    ) {
         if (QuickContainerLock.isLockedPlayerHotbarSlot(player.getInventory().getSelectedSlot())) {
             return false;
         }
@@ -33,11 +33,19 @@ public abstract class QuickContainerLockMinecraftClientMixin {
         return original.call(player, entireStack);
     }
 
-    @WrapOperation(method = "handleKeybinds", at = @At(value = "INVOKE",
-            target = "Lnet/minecraft/client/multiplayer/ClientPacketListener;send(Lnet/minecraft/network/protocol/Packet;)V"))
-    private void quickcraft$blockLockedOffhandSwap(ClientPacketListener connection, Packet<?> packet, Operation<Void> original) {
+    @WrapOperation(
+            method = "handleKeybinds",
+            at = @At(
+                    value = "INVOKE",
+                    target = "Lnet/minecraft/client/multiplayer/ClientPacketListener;send(Lnet/minecraft/network/protocol/Packet;)V"))
+    private void quickcraft$blockLockedOffhandSwap(
+            ClientPacketListener connection,
+            Packet<?> packet,
+            Operation<Void> original
+    ) {
         LocalPlayer player = Minecraft.getInstance().player;
-        if (player != null && packet instanceof ServerboundPlayerActionPacket action
+        if (player != null
+                && packet instanceof ServerboundPlayerActionPacket action
                 && action.getAction() == ServerboundPlayerActionPacket.Action.SWAP_ITEM_WITH_OFFHAND
                 && !QuickCraftConfigs.areManualLockedSlotInteractionsAllowed()
                 && QuickContainerLock.isLockedPlayerHotbarSlot(player.getInventory().getSelectedSlot())) {

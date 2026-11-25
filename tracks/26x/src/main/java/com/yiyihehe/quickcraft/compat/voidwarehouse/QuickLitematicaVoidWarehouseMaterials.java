@@ -45,14 +45,16 @@ public final class QuickLitematicaVoidWarehouseMaterials {
     private static Request pending;
     private static long nextRequestTick;
 
-    private QuickLitematicaVoidWarehouseMaterials() { }
+    private QuickLitematicaVoidWarehouseMaterials() {}
 
     public static boolean isInstalled() {
         return FabricLoader.getInstance().isModLoaded("carpet_neko_addition");
     }
 
     public static void initialize() {
-        if (!isInstalled()) { return; }
+        if (!isInstalled()) {
+            return;
+        }
         // 等所有客户端入口运行完再认领接收器，让 printer 先注册自己的处理器。
         ClientLifecycleEvents.CLIENT_STARTED.register(client -> {
             try {
@@ -60,14 +62,17 @@ public final class QuickLitematicaVoidWarehouseMaterials {
                     loadPrinterCache();
                 } else {
                     var protocol = VoidWarehouseQuery.load();
-                    if (ClientPlayNetworking.registerGlobalReceiver(VoidWarehouseQuery.RESULT_TYPE,
-                            (payload, context) -> receive(protocol, payload))) {
+                    if (ClientPlayNetworking.registerGlobalReceiver(
+                            VoidWarehouseQuery.RESULT_TYPE,
+                            (payload, context) -> receive(protocol, payload)
+                    )) {
                         query = protocol;
                     } else {
                         loadPrinterCache();
                     }
                 }
-            } catch (ReflectiveOperationException | IllegalArgumentException | ClassCastException | LinkageError exception) {
+            } catch (ReflectiveOperationException | IllegalArgumentException | ClassCastException
+                    | LinkageError exception) {
                 LOGGER.warn("无法接入虚空仓库库存查询", exception);
             }
         });
@@ -76,7 +81,9 @@ public final class QuickLitematicaVoidWarehouseMaterials {
     }
 
     private static void loadPrinterCache() throws ReflectiveOperationException {
-        if (!FabricLoader.getInstance().isModLoaded("litematica-printer")) { return; }
+        if (!FabricLoader.getInstance().isModLoaded("litematica-printer")) {
+            return;
+        }
         Class<?> type = Class.forName(PRINTER_CACHE_CLASS);
         Object cache = type.getMethod("get").invoke(null);
         if (cache != null) {
@@ -91,18 +98,26 @@ public final class QuickLitematicaVoidWarehouseMaterials {
 
     public static int addProjectionAvailable(int inventory, ItemStack stack) {
         // printer 持有通道时会自行修改原生材料行，只有容器汇总行需要另读它的缓存。
-        if (query == null || !canUseSource()) { return inventory; }
+        if (query == null || !canUseSource()) {
+            return inventory;
+        }
         return addStack(inventory, stack);
     }
 
     public static int addAvailable(int inventory, List<ItemStack> targets) {
-        if (!canUseSource() || targets.isEmpty()) { return inventory; }
-        if (targets.size() == 1) { return addStack(inventory, targets.getFirst()); }
+        if (!canUseSource() || targets.isEmpty()) {
+            return inventory;
+        }
+        if (targets.size() == 1) {
+            return addStack(inventory, targets.getFirst());
+        }
 
         Set<String> seen = new LinkedHashSet<>();
         int total = inventory;
         for (ItemStack stack : targets) {
-            if (stack.isEmpty()) { continue; }
+            if (stack.isEmpty()) {
+                continue;
+            }
             String id = BuiltInRegistries.ITEM.getKey(stack.getItem()).toString();
             if (seen.add(id)) {
                 total = VoidWarehouseMaterialCounts.merge(total, amountFor(id));
@@ -112,7 +127,9 @@ public final class QuickLitematicaVoidWarehouseMaterials {
     }
 
     private static int addStack(int inventory, ItemStack stack) {
-        if (stack.isEmpty()) { return inventory; }
+        if (stack.isEmpty()) {
+            return inventory;
+        }
         String id = BuiltInRegistries.ITEM.getKey(stack.getItem()).toString();
         return VoidWarehouseMaterialCounts.merge(inventory, amountFor(id));
     }
@@ -121,8 +138,10 @@ public final class QuickLitematicaVoidWarehouseMaterials {
         var cache = printerCache;
         if (cache != null) {
             try {
-                return (boolean) cache.isReady().invoke(cache.instance())
-                        ? (long) cache.amountOf().invoke(cache.instance(), id) : 0;
+                return (boolean) cache.isReady().invoke(cache.instance()) ? (long) cache.amountOf().invoke(
+                        cache.instance(),
+                        id
+                ) : 0;
             } catch (ReflectiveOperationException | ClassCastException exception) {
                 printerCache = null;
                 LOGGER.warn("读取 litematica-printer 的虚空仓库缓存失败", exception);
@@ -143,7 +162,9 @@ public final class QuickLitematicaVoidWarehouseMaterials {
     private static void tick(Minecraft client) {
         tick++;
         var protocol = query;
-        if (protocol == null) { return; }
+        if (protocol == null) {
+            return;
+        }
         if (client.player == null || !canUseSource()) {
             clear();
             return;
@@ -151,7 +172,9 @@ public final class QuickLitematicaVoidWarehouseMaterials {
         if (pending != null && tick >= pending.sentAt() + RESPONSE_TIMEOUT_TICKS) {
             pending = null;
         }
-        if (pending != null || tick < nextRequestTick) { return; }
+        if (pending != null || tick < nextRequestTick) {
+            return;
+        }
 
         noteOpenMaterialList(client);
         List<String> ids;
@@ -161,7 +184,9 @@ public final class QuickLitematicaVoidWarehouseMaterials {
                 AMOUNTS.clear();
                 return;
             }
-            if (DEMAND.isEmpty()) { return; }
+            if (DEMAND.isEmpty()) {
+                return;
+            }
             var iterator = DEMAND.iterator();
             ids = new ArrayList<>(Math.min(DEMAND.size(), VoidWarehouseQuery.MAX_IDS));
             while (ids.size() < VoidWarehouseQuery.MAX_IDS && iterator.hasNext()) {
@@ -182,7 +207,9 @@ public final class QuickLitematicaVoidWarehouseMaterials {
 
     private static void receive(VoidWarehouseQuery protocol, CustomPacketPayload payload) {
         var request = pending;
-        if (request == null || !canUseSource()) { return; }
+        if (request == null || !canUseSource()) {
+            return;
+        }
 
         VoidWarehouseQuery.Result result;
         try {
@@ -192,7 +219,9 @@ public final class QuickLitematicaVoidWarehouseMaterials {
             return;
         }
         // 迟到回执不能结束更新一次查询的等待。
-        if (result.nonce() != request.nonce()) { return; }
+        if (result.nonce() != request.nonce()) {
+            return;
+        }
         pending = null;
 
         if (result.status() == VoidWarehouseQuery.OK) {
@@ -200,7 +229,9 @@ public final class QuickLitematicaVoidWarehouseMaterials {
         } else if (result.status() == VoidWarehouseQuery.RULE_OFF || result.status() == VoidWarehouseQuery.THROTTLED) {
             nextRequestTick = tick + REJECT_BACKOFF_TICKS;
             if (result.status() == VoidWarehouseQuery.RULE_OFF) {
-                synchronized (DEMAND) { AMOUNTS.clear(); }
+                synchronized (DEMAND) {
+                    AMOUNTS.clear();
+                }
                 refreshOpenMaterialList();
             }
         }
@@ -209,11 +240,13 @@ public final class QuickLitematicaVoidWarehouseMaterials {
     private static void apply(Request request, VoidWarehouseQuery.Result result) {
         var ids = result.itemIds();
         var amounts = result.amounts();
-        if (ids.size() != amounts.size()) { return; }
+        if (ids.size() != amounts.size()) {
+            return;
+        }
         Map<String, Long> received = new HashMap<>();
         for (int i = 0; i < ids.size(); i++) {
-            if (ids.get(i) instanceof String id && request.ids().contains(id)
-                    && amounts.get(i) instanceof Long amount && amount > 0) {
+            if (ids.get(i) instanceof String id && request.ids().contains(id) && amounts.get(i) instanceof Long amount
+                    && amount > 0) {
                 received.put(id, amount);
             }
         }
@@ -226,7 +259,9 @@ public final class QuickLitematicaVoidWarehouseMaterials {
                 changed |= !Objects.equals(amount, previous);
             }
         }
-        if (changed) { refreshOpenMaterialList(); }
+        if (changed) {
+            refreshOpenMaterialList();
+        }
     }
 
     private static void refreshOpenMaterialList() {
@@ -238,7 +273,9 @@ public final class QuickLitematicaVoidWarehouseMaterials {
     }
 
     private static void noteOpenMaterialList(Minecraft client) {
-        if (!(QuickClientScreenAccess.currentScreen(client) instanceof GuiMaterialList gui)) { return; }
+        if (!(QuickClientScreenAccess.currentScreen(client) instanceof GuiMaterialList gui)) {
+            return;
+        }
         synchronized (DEMAND) {
             // 仍需查询已被「隐藏已有材料」移出界面的条目，否则库存下降时不能恢复它们。
             for (var entry : gui.getMaterialList().getMaterialsAll()) {
@@ -264,8 +301,11 @@ public final class QuickLitematicaVoidWarehouseMaterials {
         nextRequestTick = 0;
     }
 
-    private record Request(int nonce, long sentAt, Set<String> ids) { }
-    private record PrinterCache(Object instance, Method amountOf, Method isReady) { }
+    private record Request(int nonce, long sentAt, Set<String> ids) {
+    }
+
+    private record PrinterCache(Object instance, Method amountOf, Method isReady) {
+    }
 
     public interface MaterialTargets {
         List<ItemStack> quickcraft$getWarehouseTargets();

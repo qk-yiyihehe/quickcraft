@@ -27,8 +27,7 @@ public abstract class QuickFreeCameraGameRendererMixin {
         HitResult target = client.player.raycastHitResult(tickDelta, camera);
         target = QuickFreeCameraInteractions.filterCrosshairTarget(client, camera, target);
         client.hitResult = target;
-        client.crosshairPickEntity = target instanceof EntityHitResult entityHitResult
-                ? entityHitResult.getEntity()
+        client.crosshairPickEntity = target instanceof EntityHitResult entityHitResult ? entityHitResult.getEntity()
                 : null;
     }
 }

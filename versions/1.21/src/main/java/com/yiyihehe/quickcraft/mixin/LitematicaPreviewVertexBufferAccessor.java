@@ -7,9 +7,18 @@ import org.spongepowered.asm.mixin.gen.Accessor;
 
 @Mixin(VertexBuffer.class)
 public interface LitematicaPreviewVertexBufferAccessor {
-    @Accessor("vertexBufferId") int quickcraft$getVertexBufferId();
-    @Accessor("indexBufferId") int quickcraft$getIndexBufferId();
-    @Accessor("indexBufferId") void quickcraft$setIndexBufferId(int id);
-    @Accessor("indexType") void quickcraft$setIndexType(VertexFormat.IndexType type);
-    @Accessor("indexCount") void quickcraft$setIndexCount(int count);
+    @Accessor("vertexBufferId")
+    int quickcraft$getVertexBufferId();
+
+    @Accessor("indexBufferId")
+    int quickcraft$getIndexBufferId();
+
+    @Accessor("indexBufferId")
+    void quickcraft$setIndexBufferId(int id);
+
+    @Accessor("indexType")
+    void quickcraft$setIndexType(VertexFormat.IndexType type);
+
+    @Accessor("indexCount")
+    void quickcraft$setIndexCount(int count);
 }

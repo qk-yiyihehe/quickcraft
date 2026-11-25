@@ -70,8 +70,9 @@ class QuickLitematicaVerifierIgnoresTest {
     private static SchematicVerifier verifier() {
         var verifier = mock(SchematicVerifier.class, withSettings().extraInterfaces(PersistentVerifier.class));
         when(verifier.getIgnoredMismatches()).thenReturn(new HashSet<>());
-        when(((PersistentVerifier) verifier).quickcraft$containerVerification())
-                .thenReturn(new QuickLitematicaContainerVerification(mock(QuickLitematicaContainerVerification.Host.class)));
+        when(((PersistentVerifier) verifier).quickcraft$containerVerification()).thenReturn(
+                new QuickLitematicaContainerVerification(mock(QuickLitematicaContainerVerification.Host.class))
+        );
         return verifier;
     }
 

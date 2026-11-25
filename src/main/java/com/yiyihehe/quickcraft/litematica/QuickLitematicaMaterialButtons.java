@@ -20,8 +20,10 @@ import java.util.List;
 import com.yiyihehe.quickcraft.litematica.QuickLitematicaMaterialNavigation.View;
 
 public final class QuickLitematicaMaterialButtons {
-    record Action(String key, Runnable click, boolean enabled, Object... arguments) { }
-    private QuickLitematicaMaterialButtons() { }
+    record Action(String key, Runnable click, boolean enabled, Object... arguments) {
+    }
+
+    private QuickLitematicaMaterialButtons() {}
 
     public static void add(GuiMaterialList gui) {
         var list = gui.getMaterialList();
@@ -36,28 +38,66 @@ public final class QuickLitematicaMaterialButtons {
         var buttons = ((QuickCraftGuiButtonAccess) gui).quickcraft$getButtons();
         if (current == View.ENTITIES) {
             String refreshLabel = translate("litematica.gui.button.material_list.refresh_list");
-            buttons.removeIf(button -> ((LitematicaMaterialButtonAccessor) button).quickcraft$getLabel().equals(refreshLabel));
+            buttons.removeIf(
+                    button -> ((LitematicaMaterialButtonAccessor) button).quickcraft$getLabel().equals(refreshLabel)
+            );
         }
         var operations = new ArrayList<>(buttons);
         var editing = new ArrayList<ButtonBase>();
         if (QuickLitematicaContainerReplacements.enabled() && current != View.ENTITIES) {
             var container = list instanceof QuickLitematicaContainerMaterials.ContainerMaterialList c ? c : null;
-            editing.add(addAction(gui, layoutKey, action("quickcraft.litematica.button.save_schematic_copy", () -> QuickLitematicaContainerMaterials.saveCopy(list))));
-            editing.add(addAction(gui, layoutKey, action("quickcraft.litematica.button.clear_container_material_rules", () -> {
-                if (container != null) { container.quickcraft$clearAllContainerRulesForContext(); }
-                else { QuickLitematicaContainerReplacements.removeReplacementRulesForContext(
-                        QuickLitematicaContainerReplacements.Scope.PROJECTION, QuickLitematicaMaterialLists.getReplacementContextKey(list)); }
-                list.reCreateMaterialList();
-                gui.initGui();
-            })));
+            editing.add(
+                    addAction(
+                            gui,
+                            layoutKey,
+                            action(
+                                    "quickcraft.litematica.button.save_schematic_copy",
+                                    () -> QuickLitematicaContainerMaterials.saveCopy(list)
+                            )
+                    )
+            );
+            editing.add(
+                    addAction(
+                            gui,
+                            layoutKey,
+                            action("quickcraft.litematica.button.clear_container_material_rules", () -> {
+                                if (container != null) {
+                                    container.quickcraft$clearAllContainerRulesForContext();
+                                } else {
+                                    QuickLitematicaContainerReplacements.removeReplacementRulesForContext(
+                                            QuickLitematicaContainerReplacements.Scope.PROJECTION,
+                                            QuickLitematicaMaterialLists.getReplacementContextKey(list)
+                                    );
+                                }
+                                list.reCreateMaterialList();
+                                gui.initGui();
+                            })
+                    )
+            );
             ItemStack first = container == null ? QuickLitematicaProjectionMaterials.firstSelected(list)
                     : container.selectedMaterials.values().stream().findFirst().orElse(ItemStack.EMPTY);
-            editing.add(addAction(gui, layoutKey, new Action("quickcraft.litematica.button.batch_replace_materials", () ->
-                    QuickLitematicaMaterialReplacementScreen.open(gui, first, container == null
-                            ? QuickLitematicaProjectionMaterials.binding(list, first) : container.quickcraft$createSummaryReplacementBinding(first)), !first.isEmpty())));
+            editing.add(
+                    addAction(
+                            gui,
+                            layoutKey,
+                            new Action(
+                                    "quickcraft.litematica.button.batch_replace_materials",
+                                    () -> QuickLitematicaMaterialReplacementScreen.open(
+                                            gui,
+                                            first,
+                                            container == null ? QuickLitematicaProjectionMaterials.binding(list, first)
+                                                    : container.quickcraft$createSummaryReplacementBinding(first)
+                                    ),
+                                    !first.isEmpty()
+                            )
+                    )
+            );
             editing.add(addAction(gui, layoutKey, new Action("quickcraft.litematica.button.clear_selection", () -> {
-                if (container == null) { QuickLitematicaProjectionMaterials.clearSelection(list); }
-                else { container.selectedMaterials.clear(); }
+                if (container == null) {
+                    QuickLitematicaProjectionMaterials.clearSelection(list);
+                } else {
+                    container.selectedMaterials.clear();
+                }
                 gui.initGui();
             }, !first.isEmpty())));
         }
@@ -65,30 +105,62 @@ public final class QuickLitematicaMaterialButtons {
         layout(gui, navigation, current, layoutKey, operations, editing, reserved);
     }
 
-    static int addDetails(GuiBase gui, QuickLitematicaContainerMaterials.ContainerMaterialList list,
-                           List<Action> actions) {
+    static int addDetails(
+            GuiBase gui,
+            QuickLitematicaContainerMaterials.ContainerMaterialList list,
+            List<Action> actions
+    ) {
         String layoutKey = QuickLitematicaMaterialNavigation.layoutKey(list, View.DETAILS);
         var operations = new ArrayList<>(((QuickCraftGuiButtonAccess) gui).quickcraft$getButtons());
         var editing = new ArrayList<ButtonBase>();
-        for (var action : actions) { editing.add(addAction(gui, layoutKey, action)); }
-        return layout(gui, QuickLitematicaMaterialNavigation.forContainers(list), View.DETAILS, layoutKey, operations, editing, 0);
+        for (var action : actions) {
+            editing.add(addAction(gui, layoutKey, action));
+        }
+        return layout(
+                gui,
+                QuickLitematicaMaterialNavigation.forContainers(list),
+                View.DETAILS,
+                layoutKey,
+                operations,
+                editing,
+                0
+        );
     }
 
-    static Action action(String key, Runnable click) { return new Action(key, click, true); }
-    private static String translate(String key) { return StringUtils.translate(key); }
+    static Action action(String key, Runnable click) {
+        return new Action(key, click, true);
+    }
+
+    private static String translate(String key) {
+        return StringUtils.translate(key);
+    }
 
     private static ButtonBase addAction(GuiBase gui, String layoutKey, Action action) {
         String positionKey = action.key().equals("quickcraft.litematica.button.batch_replace")
-                ? "quickcraft.litematica.button.batch_replace_materials" : action.key();
-        var button = new QuickCraftMovableButton(layoutKey + "." + positionKey, 0, 0, -1, 20,
-                StringUtils.translate(action.key(), action.arguments()));
+                ? "quickcraft.litematica.button.batch_replace_materials"
+                : action.key();
+        var button = new QuickCraftMovableButton(
+                layoutKey + "." + positionKey,
+                0,
+                0,
+                -1,
+                20,
+                StringUtils.translate(action.key(), action.arguments())
+        );
         button.setEnabled(action.enabled());
         gui.addButton(button, (clicked, mouseButton) -> action.click().run());
         return button;
     }
 
-    private static int layout(GuiBase gui, QuickLitematicaMaterialNavigation navigation, View current, String layoutKey,
-                               List<ButtonBase> operations, List<ButtonBase> editing, int reserved) {
+    private static int layout(
+            GuiBase gui,
+            QuickLitematicaMaterialNavigation navigation,
+            View current,
+            String layoutKey,
+            List<ButtonBase> operations,
+            List<ButtonBase> editing,
+            int reserved
+    ) {
         var tabs = new ArrayList<ButtonBase>();
         String menuLabel = translate(ButtonListenerChangeMenu.ButtonType.MAIN_MENU.getLabelKey());
         // 沿用原生投影菜单回调，移到材料导航最前面。
@@ -100,19 +172,31 @@ public final class QuickLitematicaMaterialButtons {
             }
         }
         for (var view : navigation.views(current)) {
-            var button = addAction(gui, layoutKey,
-                    new Action(QuickLitematicaMaterialNavigation.labelKey(view), () -> navigation.show(view), view != current));
+            var button = addAction(
+                    gui,
+                    layoutKey,
+                    new Action(
+                            QuickLitematicaMaterialNavigation.labelKey(view),
+                            () -> navigation.show(view),
+                            view != current
+                    )
+            );
             tabs.add(button);
         }
         int available = Math.max(1, gui.getScreenWidth() - 24);
         // 原生一排能放下时保留原位置、宽度及间距；窄窗口的原生底部溢出行移到顶部，避开导航。
-        boolean nativeRowFits = current != View.ENTITIES && operations.stream().allMatch(button -> button.getY() == 24
-                && button.getX() + button.getWidth() <= gui.getScreenWidth() - 12 - reserved);
-        int editingY = operations.isEmpty() ? 24 : nativeRowFits ? 48
-                : position(gui, operations, 24, available, reserved, false);
+        boolean nativeRowFits = current != View.ENTITIES && operations.stream().allMatch(
+                button -> button.getY() == 24 && button.getX() + button.getWidth() <= gui.getScreenWidth() - 12
+                        - reserved
+        );
+        int editingY = operations.isEmpty() ? 24
+                : nativeRowFits ? 48 : position(gui, operations, 24, available, reserved, false);
         int defaultListY = position(gui, editing, editingY, available, 0, true);
-        var footer = QuickLitematicaMaterialLayout.footer(gui.getScreenHeight(), available,
-                tabs.stream().mapToInt(ButtonBase::getWidth).toArray());
+        var footer = QuickLitematicaMaterialLayout.footer(
+                gui.getScreenHeight(),
+                available,
+                tabs.stream().mapToInt(ButtonBase::getWidth).toArray()
+        );
         position(gui, tabs, footer.buttonsY(), available, 0, false);
         // 原生总计标签在 initGui 中重新生成；多行导航时随预留区域一起上移。
         for (var widget : ((GuiBaseAccessor) gui).quickcraft$getWidgets()) {
@@ -126,7 +210,12 @@ public final class QuickLitematicaMaterialButtons {
         }
         int listY = listTop(editing, editingY, defaultListY);
         resizeList(gui, listY, footer.listBottom(), null);
-        var pagination = QuickLitematicaListPagination.add(gui, layoutKey, gui.getScreenWidth() - 12, gui.getScreenHeight() - 24);
+        var pagination = QuickLitematicaListPagination.add(
+                gui,
+                layoutKey,
+                gui.getScreenWidth() - 12,
+                gui.getScreenHeight() - 24
+        );
         Runnable reflow = () -> {
             int updatedY = listTop(editing, editingY, defaultListY);
             if (((MalilibGuiListAccessor) gui).quickcraft$getListY() != updatedY) {
@@ -152,11 +241,19 @@ public final class QuickLitematicaMaterialButtons {
         return listY;
     }
 
-    private static int position(GuiBase gui, List<ButtonBase> buttons, int y, int available, int reserved, boolean keepSelectionTogether) {
+    private static int position(
+            GuiBase gui,
+            List<ButtonBase> buttons,
+            int y,
+            int available,
+            int reserved,
+            boolean keepSelectionTogether
+    ) {
         int[] widths = buttons.stream().mapToInt(ButtonBase::getWidth).toArray();
         boolean selectionPair = keepSelectionTogether && buttons.size() >= 2
-                && ((LitematicaMaterialButtonAccessor) buttons.getLast()).quickcraft$getLabel()
-                .equals(translate("quickcraft.litematica.button.clear_selection"));
+                && ((LitematicaMaterialButtonAccessor) buttons.getLast()).quickcraft$getLabel().equals(
+                        translate("quickcraft.litematica.button.clear_selection")
+                );
         var layout = QuickLitematicaMaterialLayout.rows(available, reserved, widths, selectionPair ? 2 : 0);
         for (int i = 0; i < buttons.size(); i++) {
             var button = buttons.get(i);
@@ -164,7 +261,9 @@ public final class QuickLitematicaMaterialButtons {
             // 超长译文只缩短文字；所有操作仍保留独立按钮和原鼠标回调。
             if (button.getWidth() > slot.width()) {
                 var label = ((LitematicaMaterialButtonAccessor) button).quickcraft$getLabel();
-                if (gui.getStringWidth(label) > slot.width() - 6) { button.setDisplayString(fit(gui, label, slot.width())); }
+                if (gui.getStringWidth(label) > slot.width() - 6) {
+                    button.setDisplayString(fit(gui, label, slot.width()));
+                }
                 button.setWidth(slot.width());
             }
             if (button instanceof QuickCraftMovableButton movable) {
@@ -205,7 +304,8 @@ public final class QuickLitematicaMaterialButtons {
 
     static String fit(GuiBase gui, String label, int width) {
         int end = label.length();
-        while (end > 0 && gui.getStringWidth(label.substring(0, end) + (end == label.length() ? "" : "…")) > width - 10) {
+        while (end > 0 && gui.getStringWidth(label.substring(0, end) + (end == label.length() ? "" : "…")) > width
+                - 10) {
             end = label.offsetByCodePoints(end, -1);
         }
         return label.substring(0, end) + (end < label.length() ? "…" : "");

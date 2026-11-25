@@ -23,10 +23,11 @@ import static com.yiyihehe.quickcraft.litematica.QuickLitematicaContainerReplace
 public final class QuickLitematicaGlobalReplacements {
     private static final Map<LitematicaSchematic, RuntimeCopy> COPIES = new WeakHashMap<>();
     private static final Map<Scope, ParsedRules> RULES = new EnumMap<>(Scope.class);
-    private static final Map<QuickLitematicaContainerReplacements.ReplacementRule, ItemStack> SOURCES = new WeakHashMap<>();
+    private static final Map<QuickLitematicaContainerReplacements.ReplacementRule, ItemStack> SOURCES =
+            new WeakHashMap<>();
     private static ReplacementSettings appliedSettings;
 
-    private QuickLitematicaGlobalReplacements() { }
+    private QuickLitematicaGlobalReplacements() {}
 
     public static ConfigStringList config(Scope scope) {
         return scope == Scope.CONTAINER ? QuickCraftConfigs.ProjectionTools.GLOBAL_CONTAINER_REPLACEMENTS
@@ -37,7 +38,9 @@ public final class QuickLitematicaGlobalReplacements {
         var entries = config(scope).getStrings();
         var lookup = QuickLitematicaContainerReplacements.registryLookup();
         var cached = RULES.get(scope);
-        if (cached != null && cached.entries.equals(entries) && cached.lookup == lookup) { return cached.rules; }
+        if (cached != null && cached.entries.equals(entries) && cached.lookup == lookup) {
+            return cached.rules;
+        }
         var parsed = new ArrayList<QuickLitematicaContainerReplacements.ReplacementRule>();
         for (String entry : entries) {
             var rule = QuickLitematicaContainerReplacements.parseRule(entry, scope, "", "", -1, lookup);
@@ -52,15 +55,26 @@ public final class QuickLitematicaGlobalReplacements {
 
     public static synchronized ItemStack source(QuickLitematicaContainerReplacements.ReplacementRule rule) {
         return rule.exactSource() != null ? rule.exactSource().copy()
-                : SOURCES.computeIfAbsent(rule, entry -> QuickLitematicaContainerReplacements.resolveConfiguredItem(entry.source())).copy();
+                : SOURCES.computeIfAbsent(
+                        rule,
+                        entry -> QuickLitematicaContainerReplacements.resolveConfiguredItem(entry.source())
+                ).copy();
     }
 
     public static Optional<ItemStack> target(ItemStack source, Scope scope) {
-        if (!QuickLitematicaContainerReplacements.enabled() || source.isEmpty()) { return Optional.empty(); }
+        if (!QuickLitematicaContainerReplacements.enabled() || source.isEmpty()) {
+            return Optional.empty();
+        }
         for (var rule : rules(scope)) {
-            if (!QuickLitematicaContainerReplacements.matchesSource(source, rule)) { continue; }
+            if (!QuickLitematicaContainerReplacements.matchesSource(source, rule)) {
+                continue;
+            }
             ItemStack result = proportionalTarget(source, rule.target());
-            if (scope == Scope.PROJECTION && !QuickLitematicaContainerReplacements.isReplacementAllowed(source, result, scope)) {
+            if (scope == Scope.PROJECTION && !QuickLitematicaContainerReplacements.isReplacementAllowed(
+                    source,
+                    result,
+                    scope
+            )) {
                 return Optional.empty();
             }
             return Optional.of(result);
@@ -70,7 +84,9 @@ public final class QuickLitematicaGlobalReplacements {
 
     static ItemStack proportionalTarget(ItemStack source, ItemStack target) {
         ItemStack result = target.copy();
-        if (!result.isEmpty()) { result.setCount(QuickLitematicaContainerReplacements.getReplacementCount(source, result)); }
+        if (!result.isEmpty()) {
+            result.setCount(QuickLitematicaContainerReplacements.getReplacementCount(source, result));
+        }
         return result;
     }
 
@@ -81,15 +97,31 @@ public final class QuickLitematicaGlobalReplacements {
     public static void set(ItemStack source, ItemStack target, Scope scope, ItemStack previousSource) {
         var entries = new ArrayList<>(config(scope).getStrings());
         entries.removeIf(entry -> {
-            var rule = QuickLitematicaContainerReplacements.parseRule(entry, scope, "", "", -1,
-                    QuickLitematicaContainerReplacements.registryLookup());
-            return rule != null && (QuickLitematicaContainerReplacements.matchesSource(source, rule)
-                    || (!previousSource.isEmpty() && QuickLitematicaContainerReplacements.matchesSource(previousSource, rule)));
+            var rule = QuickLitematicaContainerReplacements.parseRule(
+                    entry,
+                    scope,
+                    "",
+                    "",
+                    -1,
+                    QuickLitematicaContainerReplacements.registryLookup()
+            );
+            return rule != null && (QuickLitematicaContainerReplacements.matchesSource(source, rule) || (!previousSource
+                    .isEmpty() && QuickLitematicaContainerReplacements.matchesSource(previousSource, rule)));
         });
         if (target != null && !ItemStack.isSameItemSameComponents(source, target)) {
-            entries.add(QuickLitematicaContainerReplacements.encodeContainerRule(
-                    new QuickLitematicaContainerReplacements.ContainerReplacement(source.copyWithCount(1),
-                            target.copyWithCount(1), "", "", -1, true), QuickLitematicaContainerReplacements.registryLookup()));
+            entries.add(
+                    QuickLitematicaContainerReplacements.encodeContainerRule(
+                            new QuickLitematicaContainerReplacements.ContainerReplacement(
+                                    source.copyWithCount(1),
+                                    target.copyWithCount(1),
+                                    "",
+                                    "",
+                                    -1,
+                                    true
+                            ),
+                            QuickLitematicaContainerReplacements.registryLookup()
+                    )
+            );
         }
         synchronized (QuickLitematicaGlobalReplacements.class) {
             config(scope).setStrings(entries);
@@ -103,7 +135,13 @@ public final class QuickLitematicaGlobalReplacements {
         List<ItemStack> result = new ArrayList<>();
         for (int slot = 0; slot < slots.size(); slot++) {
             ItemStack source = slots.get(slot);
-            var manual = QuickLitematicaContainerReplacements.getReplacementTarget(source, Scope.CONTAINER, context, group, slot);
+            var manual = QuickLitematicaContainerReplacements.getReplacementTarget(
+                    source,
+                    Scope.CONTAINER,
+                    context,
+                    group,
+                    slot
+            );
             // 手动保持原始的规则同样优先；每次都匹配原始来源，禁止 A→B→C 连锁。
             result.add(manual.or(() -> target(source, Scope.CONTAINER)).orElseGet(source::copy));
         }
@@ -112,8 +150,9 @@ public final class QuickLitematicaGlobalReplacements {
 
     private static Optional<ItemStack> blockTarget(BlockState source, String context) {
         ItemStack material = QuickLitematicaProjectionMaterials.replacementSource(source);
-        return QuickLitematicaContainerReplacements.getReplacementTarget(material, Scope.PROJECTION, context)
-                .or(() -> target(material, Scope.PROJECTION));
+        return QuickLitematicaContainerReplacements.getReplacementTarget(material, Scope.PROJECTION, context).or(
+                () -> target(material, Scope.PROJECTION)
+        );
     }
 
     public static synchronized LitematicaSchematic runtime(SchematicPlacement placement) {
@@ -121,15 +160,17 @@ public final class QuickLitematicaGlobalReplacements {
     }
 
     public static synchronized LitematicaSchematic runtime(SchematicPlacement placement, LitematicaSchematic baseline) {
-        return hasRuntimeRules()
-                ? runtime(baseline, QuickLitematicaMaterialLists.getContainerReplacementContextKey(placement))
-                : baseline;
+        return hasRuntimeRules() ? runtime(
+                baseline,
+                QuickLitematicaMaterialLists.getContainerReplacementContextKey(placement)
+        ) : baseline;
     }
 
     static synchronized LitematicaSchematic runtime(LitematicaSchematic baseline) {
-        return hasRuntimeRules()
-                ? runtime(baseline, QuickLitematicaMaterialLists.getContainerReplacementContextKey(baseline))
-                : baseline;
+        return hasRuntimeRules() ? runtime(
+                baseline,
+                QuickLitematicaMaterialLists.getContainerReplacementContextKey(baseline)
+        ) : baseline;
     }
 
     private static LitematicaSchematic runtime(LitematicaSchematic baseline, String context) {
@@ -137,8 +178,13 @@ public final class QuickLitematicaGlobalReplacements {
         var blockRules = List.copyOf(config(Scope.PROJECTION).getStrings());
         long revision = QuickLitematicaContainerMemory.revision();
         var cached = COPIES.get(baseline);
-        if (cached != null && cached.revision == revision && cached.context.equals(context)
-                && cached.containerRules.equals(containerRules) && cached.blockRules.equals(blockRules)) { return cached.schematic; }
+        if (cached != null
+                && cached.revision == revision
+                && cached.context.equals(context)
+                && cached.containerRules.equals(containerRules)
+                && cached.blockRules.equals(blockRules)) {
+            return cached.schematic;
+        }
         var copy = createReplacementCopy(QuickLitematicaContainerMemory.original(baseline), context, true);
         COPIES.put(baseline, new RuntimeCopy(copy, context, revision, containerRules, blockRules));
         return copy;
@@ -148,9 +194,17 @@ public final class QuickLitematicaGlobalReplacements {
         return createReplacementCopy(source, context, hasRuntimeRules());
     }
 
-    private static LitematicaSchematic createReplacementCopy(LitematicaSchematic source, String context, boolean useGlobals) {
+    private static LitematicaSchematic createReplacementCopy(
+            LitematicaSchematic source,
+            String context,
+            boolean useGlobals
+    ) {
         var copy = QuickLitematicaContainerMaterials.createContainerReplacementCopy(
-                source, source.getAreas().keySet(), context, useGlobals);
+                source,
+                source.getAreas().keySet(),
+                context,
+                useGlobals
+        );
         if (useGlobals) {
             QuickLitematicaProjectionMaterials.replaceBlocks(copy, state -> blockTarget(state, context));
         } else {
@@ -160,37 +214,52 @@ public final class QuickLitematicaGlobalReplacements {
     }
 
     public static boolean hasRuntimeRules() {
-        return QuickLitematicaContainerReplacements.enabled()
-                && (!rules(Scope.CONTAINER).isEmpty() || !rules(Scope.PROJECTION).isEmpty());
+        return QuickLitematicaContainerReplacements.enabled() && (!rules(Scope.CONTAINER).isEmpty() || !rules(
+                Scope.PROJECTION
+        ).isEmpty());
     }
 
     public static void changed() {
         synchronized (QuickLitematicaGlobalReplacements.class) {
-            var settings = new ReplacementSettings(QuickLitematicaContainerReplacements.enabled(),
+            var settings = new ReplacementSettings(
+                    QuickLitematicaContainerReplacements.enabled(),
                     List.copyOf(QuickCraftConfigs.ProjectionTools.CONTAINER_FILL_REPLACEMENTS.getStrings()),
                     List.copyOf(QuickCraftConfigs.ProjectionTools.PROJECTION_MATERIAL_REPLACEMENTS.getStrings()),
                     List.copyOf(config(Scope.CONTAINER).getStrings()),
-                    List.copyOf(config(Scope.PROJECTION).getStrings()));
+                    List.copyOf(config(Scope.PROJECTION).getStrings())
+            );
             // 配置界面会保存后重载；无关设置变化不能清除已有验证结果。
-            if (settings.equals(appliedSettings)) { return; }
+            if (settings.equals(appliedSettings)) {
+                return;
+            }
             appliedSettings = settings;
             COPIES.clear();
             RULES.clear();
             SOURCES.clear();
         }
         var client = net.minecraft.client.Minecraft.getInstance();
-        if (client == null || client.level == null) { return; }
+        if (client == null || client.level == null) {
+            return;
+        }
         QuickLitematicaContainerMemory.refreshAll();
         for (var placement : DataManager.getSchematicPlacementManager().getAllSchematicsPlacements()) {
             QuickLitematicaContainerMemory.update(placement);
-            if (placement.hasVerifier()) { placement.getSchematicVerifier().reset(); }
+            if (placement.hasVerifier()) {
+                placement.getSchematicVerifier().reset();
+            }
         }
-        for (var schematic : DataManager.getSchematicPlacementManager().getAllSchematicsPlacements().stream()
-                .map(SchematicPlacement::getSchematic).distinct().toList()) {
+        for (var schematic : DataManager.getSchematicPlacementManager().getAllSchematicsPlacements().stream().map(
+                SchematicPlacement::getSchematic
+        ).distinct().toList()) {
             DataManager.getSchematicPlacementManager().markAllPlacementsOfSchematicForRebuild(schematic);
         }
-        if (com.yiyihehe.quickcraft.QuickClientScreenAccess.currentScreen(client) instanceof fi.dy.masa.litematica.gui.GuiMaterialList list) { list.initGui(); }
-        else if (com.yiyihehe.quickcraft.QuickClientScreenAccess.currentScreen(client) instanceof QuickLitematicaMaterialReplacementScreen.RefreshableParent screen) {
+        if (com.yiyihehe.quickcraft.QuickClientScreenAccess.currentScreen(
+                client
+        ) instanceof fi.dy.masa.litematica.gui.GuiMaterialList list) {
+            list.initGui();
+        } else if (com.yiyihehe.quickcraft.QuickClientScreenAccess.currentScreen(
+                client
+        ) instanceof QuickLitematicaMaterialReplacementScreen.RefreshableParent screen) {
             screen.quickcraft$refreshAfterReplacement();
         }
     }
@@ -202,8 +271,12 @@ public final class QuickLitematicaGlobalReplacements {
 
     public static BlockState originalState(SchematicPlacement placement, BlockPos pos) {
         var location = baselineLocation(placement, pos);
-        if (location == null) { return net.minecraft.world.level.block.Blocks.AIR.defaultBlockState(); }
-        var container = QuickLitematicaContainerMemory.original(placement.getSchematic()).getSubRegionContainer(location.region);
+        if (location == null) {
+            return net.minecraft.world.level.block.Blocks.AIR.defaultBlockState();
+        }
+        var container = QuickLitematicaContainerMemory.original(placement.getSchematic()).getSubRegionContainer(
+                location.region
+        );
         return container.get(location.local.getX(), location.local.getY(), location.local.getZ());
     }
 
@@ -220,42 +293,79 @@ public final class QuickLitematicaGlobalReplacements {
     static Location baselineLocation(BlockPos pos) {
         Location result = null;
         for (var part : DataManager.getSchematicPlacementManager().getAllPlacementsTouchingChunk(pos)) {
-            if (!QuickLitematicaPlacementAccess.contains(part, pos) || !part.getPlacement().isEnabled()) { continue; }
+            if (!QuickLitematicaPlacementAccess.contains(part, pos) || !part.getPlacement().isEnabled()) {
+                continue;
+            }
             var location = baselineLocation(part.getPlacement(), pos);
-            if (location != null && !location.state.isAir()) { result = location; }
+            if (location != null && !location.state.isAir()) {
+                result = location;
+            }
         }
         return result;
     }
 
     static BlockEntity baselineEntity(Location location, BlockPos worldPos, net.minecraft.world.level.Level world) {
-        var entities = QuickLitematicaContainerMaterialsAccess.getBlockEntities(location.placement.getSchematic(), location.region);
+        var entities = QuickLitematicaContainerMaterialsAccess.getBlockEntities(
+                location.placement.getSchematic(),
+                location.region
+        );
         var nbt = entities == null ? null : entities.get(location.local);
-        if (nbt == null) { return null; }
+        if (nbt == null) {
+            return null;
+        }
         return BlockEntity.loadStatic(worldPos, location.state, nbt.copy(), world.registryAccess());
     }
 
-    public static void restoreSavedEntityItems(net.minecraft.world.entity.Entity entity, net.minecraft.nbt.CompoundTag output,
-                                               net.minecraft.world.level.Level world) {
-        if (!output.contains("Items")) { return; }
-        if (!QuickLitematicaSaveContext.isCurrentSchematicWorld(world)) { return; }
+    public static void restoreSavedEntityItems(
+            net.minecraft.world.entity.Entity entity,
+            net.minecraft.nbt.CompoundTag output,
+            net.minecraft.world.level.Level world
+    ) {
+        if (!output.contains("Items")) {
+            return;
+        }
+        if (!QuickLitematicaSaveContext.isCurrentSchematicWorld(world)) {
+            return;
+        }
         String entityId = QuickLitematicaContainerMaterialsAccess.readString(output, "id");
-        if (entityId.isBlank()) { entityId = net.minecraft.core.registries.BuiltInRegistries.ENTITY_TYPE.getKey(entity.getType()).toString(); }
+        if (entityId.isBlank()) {
+            entityId = net.minecraft.core.registries.BuiltInRegistries.ENTITY_TYPE.getKey(entity.getType()).toString();
+        }
         var placements = DataManager.getSchematicPlacementManager().getAllSchematicsPlacements();
         for (var placement : placements) {
-            if (!placement.isEnabled() || placement.ignoreEntities()) { continue; }
+            if (!placement.isEnabled() || placement.ignoreEntities()) {
+                continue;
+            }
             for (var sub : placement.getEnabledRelativeSubRegionPlacements().entrySet()) {
-                if (sub.getValue().ignoreEntities()) { continue; }
+                if (sub.getValue().ignoreEntities()) {
+                    continue;
+                }
                 var entities = placement.getSchematic().getEntityListForRegion(sub.getKey());
-                if (entities == null) { continue; }
+                if (entities == null) {
+                    continue;
+                }
                 var offset = fi.dy.masa.litematica.util.PositionUtils.getTransformedBlockPos(
-                        sub.getValue().getPos(), placement.getMirror(), placement.getRotation()).offset(placement.getOrigin());
+                        sub.getValue().getPos(),
+                        placement.getMirror(),
+                        placement.getRotation()
+                ).offset(placement.getOrigin());
                 for (var info : entities) {
                     var nbt = QuickLitematicaContainerMaterialsAccess.getEntityNbt(info);
-                    if (!nbt.contains("Items") || !QuickLitematicaContainerMaterialsAccess.readString(nbt, "id").equals(entityId)) { continue; }
-                    var pos = fi.dy.masa.litematica.util.PositionUtils.getTransformedPosition(QuickLitematicaContainerMaterialsAccess.getEntityPos(info),
-                            placement.getMirror(), placement.getRotation());
-                    pos = fi.dy.masa.litematica.util.PositionUtils.getTransformedPosition(pos,
-                            sub.getValue().getMirror(), sub.getValue().getRotation()).add(offset.getX(), offset.getY(), offset.getZ());
+                    if (!nbt.contains("Items") || !QuickLitematicaContainerMaterialsAccess.readString(nbt, "id").equals(
+                            entityId
+                    )) {
+                        continue;
+                    }
+                    var pos = fi.dy.masa.litematica.util.PositionUtils.getTransformedPosition(
+                            QuickLitematicaContainerMaterialsAccess.getEntityPos(info),
+                            placement.getMirror(),
+                            placement.getRotation()
+                    );
+                    pos = fi.dy.masa.litematica.util.PositionUtils.getTransformedPosition(
+                            pos,
+                            sub.getValue().getMirror(),
+                            sub.getValue().getRotation()
+                    ).add(offset.getX(), offset.getY(), offset.getZ());
                     if (pos.distanceToSqr(QuickLitematicaContainerMaterialsAccess.entityPosition(entity)) < 0.000001) {
                         output.put("Items", nbt.get("Items").copy());
                         return;
@@ -274,11 +384,8 @@ public final class QuickLitematicaGlobalReplacements {
             var placement = part.getPlacement();
             String region = part.getSubRegionName();
             var sub = placement.getRelativeSubRegionPlacement(region);
-            if (!QuickLitematicaPlacementAccess.contains(part, pos)
-                    || !placement.isRenderingEnabled()
-                    || sub == null
-                    || !sub.isEnabled()
-                    || !sub.isRenderingEnabled()) {
+            if (!QuickLitematicaPlacementAccess.contains(part, pos) || !placement.isRenderingEnabled() || sub == null
+                    || !sub.isEnabled() || !sub.isRenderingEnabled()) {
                 continue;
             }
             var location = locationAt(placement, pos, runtime(placement), region, sub);
@@ -320,42 +427,66 @@ public final class QuickLitematicaGlobalReplacements {
             return null;
         }
 
-        var offset = PositionUtils.getTransformedBlockPos(
-                sub.getPos(), placement.getMirror(), placement.getRotation()
-        ).offset(placement.getOrigin());
+        var offset = PositionUtils.getTransformedBlockPos(sub.getPos(), placement.getMirror(), placement.getRotation())
+                .offset(placement.getOrigin());
         var local = PositionUtils.getReverseTransformedBlockPos(
-                pos.subtract(offset), sub.getMirror(), sub.getRotation()
+                pos.subtract(offset),
+                sub.getMirror(),
+                sub.getRotation()
         );
         local = PositionUtils.getReverseTransformedBlockPos(local, placement.getMirror(), placement.getRotation());
         var min = PositionUtils.getMinCorner(
                 sub.getPos(),
-                sub.getPos().offset(
-                        PositionUtils.getRelativeEndPositionFromAreaSize(schematic.getAreaSize(region))
-                )
+                sub.getPos().offset(PositionUtils.getRelativeEndPositionFromAreaSize(schematic.getAreaSize(region)))
         );
         local = local.subtract(min.subtract(sub.getPos()));
         var size = container.getSize();
 
         // 原生坐标工具会把区域外坐标夹到边缘；材料统计和保存必须先检查真正的区域边界。
-        if (local.getX() < 0 || local.getY() < 0 || local.getZ() < 0
-                || local.getX() >= size.getX() || local.getY() >= size.getY() || local.getZ() >= size.getZ()) {
+        if (local.getX() < 0
+                || local.getY() < 0
+                || local.getZ() < 0
+                || local.getX() >= size.getX()
+                || local.getY() >= size.getY()
+                || local.getZ() >= size.getZ()) {
             return null;
         }
 
         var state = container.get(local.getX(), local.getY(), local.getZ());
-        return state.isAir() ? null : new Location(
-                placement, region, local,
-                QuickLitematicaContainerVerifier.getTransformedWorldState(state, placement, region)
-        );
+        return state.isAir() ? null
+                : new Location(
+                        placement,
+                        region,
+                        local,
+                        QuickLitematicaContainerVerifier.getTransformedWorldState(state, placement, region)
+                );
     }
 
-    record Location(SchematicPlacement placement, String region, BlockPos local, BlockState state) { }
+    record Location(SchematicPlacement placement, String region, BlockPos local, BlockState state) {
+    }
 
-    private record ReplacementSettings(boolean enabled, List<String> containerRules, List<String> blockRules,
-                                       List<String> globalContainerRules, List<String> globalBlockRules) { }
+    private record ReplacementSettings(
+            boolean enabled,
+            List<String> containerRules,
+            List<String> blockRules,
+            List<String> globalContainerRules,
+            List<String> globalBlockRules
+    ) {
+    }
 
-    private record RuntimeCopy(LitematicaSchematic schematic, String context, long revision,
-                               List<String> containerRules, List<String> blockRules) { }
-    private record ParsedRules(List<String> entries, net.minecraft.core.HolderLookup.Provider lookup,
-                               List<QuickLitematicaContainerReplacements.ReplacementRule> rules) { }
+    private record RuntimeCopy(
+            LitematicaSchematic schematic,
+            String context,
+            long revision,
+            List<String> containerRules,
+            List<String> blockRules
+    ) {
+    }
+
+    private record ParsedRules(
+            List<String> entries,
+            net.minecraft.core.HolderLookup.Provider lookup,
+            List<QuickLitematicaContainerReplacements.ReplacementRule> rules
+    ) {
+    }
 }

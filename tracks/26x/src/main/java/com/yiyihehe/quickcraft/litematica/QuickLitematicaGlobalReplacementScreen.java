@@ -12,8 +12,8 @@ import java.util.List;
 import java.util.Optional;
 import static com.yiyihehe.quickcraft.litematica.QuickLitematicaContainerReplacements.Scope;
 
-public final class QuickLitematicaGlobalReplacementScreen extends QuickLitematicaMaterialGui.BaseScreen
-        implements QuickLitematicaMaterialReplacementScreen.RefreshableParent {
+public final class QuickLitematicaGlobalReplacementScreen extends QuickLitematicaMaterialGui.BaseScreen implements
+        QuickLitematicaMaterialReplacementScreen.RefreshableParent {
     private final Scope scope;
     private int first;
     private final List<Draft> rows = new ArrayList<>();
@@ -22,20 +22,36 @@ public final class QuickLitematicaGlobalReplacementScreen extends QuickLitematic
     public QuickLitematicaGlobalReplacementScreen(Screen parent, Scope scope) {
         this.setParent(parent);
         this.scope = scope;
-        this.title = StringUtils.translate(scope == Scope.CONTAINER
-                ? "quickcraft.litematica.global.container_title" : "quickcraft.litematica.global.block_title");
+        this.title = StringUtils.translate(
+                scope == Scope.CONTAINER ? "quickcraft.litematica.global.container_title"
+                        : "quickcraft.litematica.global.block_title"
+        );
     }
 
-    private int visibleRows() { return Math.max(1, (this.height - 124) / 30); }
+    private int visibleRows() {
+        return Math.max(1, (this.height - 124) / 30);
+    }
 
     static int pageStart(int requestedStart, int rowCount, int pageSize) {
         int lastStart = Math.max(0, rowCount - 1) / pageSize * pageSize;
         return Math.min(Math.max(0, requestedStart) / pageSize * pageSize, lastStart);
     }
-    private int panelWidth() { return Math.min(600, this.width - 24); }
-    private int panelX() { return (this.width - this.panelWidth()) / 2; }
-    private int columnWidth() { return (this.panelWidth() - 78) / 2; }
-    private int targetX() { return this.panelX() + this.columnWidth() + 24; }
+
+    private int panelWidth() {
+        return Math.min(600, this.width - 24);
+    }
+
+    private int panelX() {
+        return (this.width - this.panelWidth()) / 2;
+    }
+
+    private int columnWidth() {
+        return (this.panelWidth() - 78) / 2;
+    }
+
+    private int targetX() {
+        return this.panelX() + this.columnWidth() + 24;
+    }
 
     @Override
     public void initGui() {
@@ -47,7 +63,13 @@ public final class QuickLitematicaGlobalReplacementScreen extends QuickLitematic
             this.loaded = true;
         }
         this.first = pageStart(this.first, this.rows.size(), this.visibleRows());
-        var add = new ButtonGeneric(this.panelX(), 30, -1, 20, StringUtils.translate("quickcraft.litematica.global.add"));
+        var add = new ButtonGeneric(
+                this.panelX(),
+                30,
+                -1,
+                20,
+                StringUtils.translate("quickcraft.litematica.global.add")
+        );
         this.addButton(add, (button, mouse) -> {
             this.rows.add(new Draft(ItemStack.EMPTY, null));
             this.first = pageStart(this.rows.size() - 1, this.rows.size(), this.visibleRows());
@@ -58,22 +80,40 @@ public final class QuickLitematicaGlobalReplacementScreen extends QuickLitematic
             int y = 68 + (index - this.first) * 30;
             this.addChoiceButton(row, true, this.panelX(), y);
             this.addChoiceButton(row, false, this.targetX(), y);
-            var remove = new ButtonGeneric(this.panelX() + this.panelWidth() - 50, y, 50, 22,
-                    StringUtils.translate("quickcraft.litematica.global.delete"));
+            var remove = new ButtonGeneric(
+                    this.panelX() + this.panelWidth() - 50,
+                    y,
+                    50,
+                    22,
+                    StringUtils.translate("quickcraft.litematica.global.delete")
+            );
             this.addButton(remove, (button, mouse) -> {
-                if (!row.savedSource.isEmpty()) { QuickLitematicaGlobalReplacements.set(row.savedSource, null, this.scope); }
+                if (!row.savedSource.isEmpty()) {
+                    QuickLitematicaGlobalReplacements.set(row.savedSource, null, this.scope);
+                }
                 this.rows.remove(row);
                 this.initGui();
             });
         }
         var previous = new ButtonGeneric(this.panelX(), this.height - 30, 38, 20, "<");
         previous.setEnabled(this.first > 0);
-        this.addButton(previous, (button, mouse) -> { this.first -= this.visibleRows(); this.initGui(); });
+        this.addButton(previous, (button, mouse) -> {
+            this.first -= this.visibleRows();
+            this.initGui();
+        });
         var next = new ButtonGeneric(this.panelX() + 42, this.height - 30, 38, 20, ">");
         next.setEnabled(this.first + this.visibleRows() < this.rows.size());
-        this.addButton(next, (button, mouse) -> { this.first += this.visibleRows(); this.initGui(); });
-        var back = new ButtonGeneric(this.panelX() + this.panelWidth() - 70, this.height - 30, 70, 20,
-                StringUtils.translate("quickcraft.litematica.global.back"));
+        this.addButton(next, (button, mouse) -> {
+            this.first += this.visibleRows();
+            this.initGui();
+        });
+        var back = new ButtonGeneric(
+                this.panelX() + this.panelWidth() - 70,
+                this.height - 30,
+                70,
+                20,
+                StringUtils.translate("quickcraft.litematica.global.back")
+        );
         this.addButton(back, (button, mouse) -> GuiBase.openGui(this.getParent()));
     }
 
@@ -81,8 +121,9 @@ public final class QuickLitematicaGlobalReplacementScreen extends QuickLitematic
         var stack = source ? row.source : row.target;
         String label;
         if (stack == null || (source && stack.isEmpty())) {
-            label = StringUtils.translate(source ? "quickcraft.litematica.global.choose_source"
-                    : "quickcraft.litematica.global.choose_target");
+            label = StringUtils.translate(
+                    source ? "quickcraft.litematica.global.choose_source" : "quickcraft.litematica.global.choose_target"
+            );
         } else if (stack.isEmpty()) {
             label = QuickLitematicaMaterialReplacementScreen.emptyTargetLabel(this.scope);
         } else {
@@ -93,67 +134,149 @@ public final class QuickLitematicaGlobalReplacementScreen extends QuickLitematic
     }
 
     @Override
-    protected void drawMaterialButtons(int mouseX, int mouseY, float partialTicks, Context context) { }
+    protected void drawMaterialButtons(int mouseX, int mouseY, float partialTicks, Context context) {}
 
     @Override
     protected void drawMaterialContents(Context context, int mouseX, int mouseY, float partialTicks) {
         int x = this.panelX();
-        context.rect(x - 6, 54, this.panelWidth() + 12, Math.min(this.rows.size(), this.visibleRows()) * 30 + 18, 0xA0181C22);
-        context.drawText(this.font, StringUtils.translate("quickcraft.litematica.global.source_heading"), x + 4, 56, 0xFFAEB5BF, false);
-        context.drawText(this.font, StringUtils.translate("quickcraft.litematica.global.target_heading"), this.targetX() + 4, 56, 0xFFAEB5BF, false);
-        context.drawText(this.font, this.font.plainSubstrByWidth(StringUtils.translate("quickcraft.litematica.global.runtime_only"),
-                this.panelWidth()), x, this.height - 44, 0xFFFFD54F, false);
-        String page = (this.first / this.visibleRows() + 1) + " / "
-                + Math.max(1, (this.rows.size() + this.visibleRows() - 1) / this.visibleRows());
+        context.rect(
+                x - 6,
+                54,
+                this.panelWidth() + 12,
+                Math.min(this.rows.size(), this.visibleRows()) * 30 + 18,
+                0xA0181C22
+        );
+        context.drawText(
+                this.font,
+                StringUtils.translate("quickcraft.litematica.global.source_heading"),
+                x + 4,
+                56,
+                0xFFAEB5BF,
+                false
+        );
+        context.drawText(
+                this.font,
+                StringUtils.translate("quickcraft.litematica.global.target_heading"),
+                this.targetX() + 4,
+                56,
+                0xFFAEB5BF,
+                false
+        );
+        context.drawText(
+                this.font,
+                this.font.plainSubstrByWidth(
+                        StringUtils.translate("quickcraft.litematica.global.runtime_only"),
+                        this.panelWidth()
+                ),
+                x,
+                this.height - 44,
+                0xFFFFD54F,
+                false
+        );
+        String page = (this.first / this.visibleRows() + 1) + " / " + Math.max(
+                1,
+                (this.rows.size() + this.visibleRows() - 1) / this.visibleRows()
+        );
         context.drawText(this.font, page, x + 92, this.height - 24, 0xFFFFFFFF, false);
         super.drawMaterialButtons(mouseX, mouseY, partialTicks, context);
         for (int index = this.first; index < Math.min(this.rows.size(), this.first + this.visibleRows()); index++) {
             var row = this.rows.get(index);
             int y = 68 + (index - this.first) * 30;
             context.drawText(this.font, ">", x + this.columnWidth() + 9, y + 7, 0xFFFFD54F, false);
-            if (!row.source.isEmpty()) { context.drawItem(row.source, x + 4, y + 3); }
-            if (row.target != null && !row.target.isEmpty()) { context.drawItem(row.target, this.targetX() + 4, y + 3); }
+            if (!row.source.isEmpty()) {
+                context.drawItem(row.source, x + 4, y + 3);
+            }
+            if (row.target != null && !row.target.isEmpty()) {
+                context.drawItem(row.target, this.targetX() + 4, y + 3);
+            }
         }
     }
 
     private void pick(Draft row, boolean sourceSide) {
         ItemStack current = sourceSide ? row.source : row.target;
-        QuickLitematicaMaterialReplacementScreen.open(this, ItemStack.EMPTY,
+        QuickLitematicaMaterialReplacementScreen.open(
+                this,
+                ItemStack.EMPTY,
                 new QuickLitematicaMaterialReplacementScreen.ReplacementBinding() {
-            @Override public boolean selectionOnly() { return true; }
-            @Override public String selectionTitle() { return StringUtils.translate(sourceSide
-                    ? "quickcraft.litematica.global.choose_source" : "quickcraft.litematica.global.choose_target"); }
-            @Override public String emptyTargetLabel() { return QuickLitematicaMaterialReplacementScreen.emptyTargetLabel(scope); }
-            @Override public boolean isTargetAllowed(ItemStack ignored, ItemStack selected) {
-                if (selected.isEmpty()) { return !sourceSide; }
-                if (scope == Scope.CONTAINER) { return true; }
-                return sourceSide || row.source.isEmpty() ? selected.getItem() instanceof net.minecraft.world.item.BlockItem
-                        : QuickLitematicaContainerReplacements.isReplacementAllowed(row.source, selected, scope);
-            }
-            @Override public String scopeDescription() {
-                return StringUtils.translate("quickcraft.litematica.global.choose_both");
-            }
-            @Override public Optional<ItemStack> getCurrentTarget(ItemStack ignored) {
-                return sourceSide && current.isEmpty() ? Optional.empty() : Optional.ofNullable(current);
-            }
-            @Override public void apply(ItemStack ignored, ItemStack selected) {
-                if (applyChoice(row, sourceSide, selected, scope)) {
-                    rows.removeIf(other -> other != row
-                            && ItemStack.isSameItemSameComponents(other.source, row.source));
+                    @Override
+                    public boolean selectionOnly() {
+                        return true;
+                    }
+
+                    @Override
+                    public String selectionTitle() {
+                        return StringUtils.translate(
+                                sourceSide ? "quickcraft.litematica.global.choose_source"
+                                        : "quickcraft.litematica.global.choose_target"
+                        );
+                    }
+
+                    @Override
+                    public String emptyTargetLabel() {
+                        return QuickLitematicaMaterialReplacementScreen.emptyTargetLabel(scope);
+                    }
+
+                    @Override
+                    public boolean isTargetAllowed(ItemStack ignored, ItemStack selected) {
+                        if (selected.isEmpty()) {
+                            return !sourceSide;
+                        }
+                        if (scope == Scope.CONTAINER) {
+                            return true;
+                        }
+                        return sourceSide || row.source.isEmpty() ? selected
+                                .getItem() instanceof net.minecraft.world.item.BlockItem
+                                : QuickLitematicaContainerReplacements.isReplacementAllowed(
+                                        row.source,
+                                        selected,
+                                        scope
+                                );
+                    }
+
+                    @Override
+                    public String scopeDescription() {
+                        return StringUtils.translate("quickcraft.litematica.global.choose_both");
+                    }
+
+                    @Override
+                    public Optional<ItemStack> getCurrentTarget(ItemStack ignored) {
+                        return sourceSide && current.isEmpty() ? Optional.empty() : Optional.ofNullable(current);
+                    }
+
+                    @Override
+                    public void apply(ItemStack ignored, ItemStack selected) {
+                        if (applyChoice(row, sourceSide, selected, scope)) {
+                            rows.removeIf(
+                                    other -> other != row && ItemStack.isSameItemSameComponents(
+                                            other.source,
+                                            row.source
+                                    )
+                            );
+                        }
+                    }
+
+                    @Override
+                    public void clear(ItemStack ignored) {}
                 }
-            }
-            @Override public void clear(ItemStack ignored) { }
-        });
+        );
     }
 
-    @Override public void quickcraft$refreshAfterReplacement() { this.initGui(); }
+    @Override
+    public void quickcraft$refreshAfterReplacement() {
+        this.initGui();
+    }
 
     static boolean applyChoice(Draft row, boolean sourceSide, ItemStack selected, Scope scope) {
-        if (sourceSide && selected.isEmpty()) { return false; }
+        if (sourceSide && selected.isEmpty()) {
+            return false;
+        }
         ItemStack candidate = selected.copyWithCount(1);
         if (sourceSide) {
-            if (row.target != null
-                    && !QuickLitematicaContainerReplacements.isReplacementAllowed(candidate, row.target, scope)) {
+            if (row.target != null && !QuickLitematicaContainerReplacements.isReplacementAllowed(
+                    candidate,
+                    row.target,
+                    scope
+            )) {
                 // 新来源无法沿用旧目标：同步移除旧规则，避免界面显示新来源而旧规则仍生效。
                 row.source = candidate;
                 row.target = null;
@@ -163,13 +286,18 @@ public final class QuickLitematicaGlobalReplacementScreen extends QuickLitematic
             }
             row.source = candidate;
         } else {
-            if (!row.source.isEmpty()
-                    && !QuickLitematicaContainerReplacements.isReplacementAllowed(row.source, candidate, scope)) {
+            if (!row.source.isEmpty() && !QuickLitematicaContainerReplacements.isReplacementAllowed(
+                    row.source,
+                    candidate,
+                    scope
+            )) {
                 return false;
             }
             row.target = candidate;
         }
-        if (row.source.isEmpty() || row.target == null) { return false; }
+        if (row.source.isEmpty() || row.target == null) {
+            return false;
+        }
         QuickLitematicaGlobalReplacements.set(row.source, row.target, scope, row.savedSource);
         if (ItemStack.isSameItemSameComponents(row.source, row.target)) {
             row.target = null;
@@ -185,6 +313,7 @@ public final class QuickLitematicaGlobalReplacementScreen extends QuickLitematic
         // null 表示尚未选择目标，EMPTY 表示清空匹配的方块或槽位。
         ItemStack target;
         ItemStack savedSource;
+
         Draft(ItemStack source, ItemStack target) {
             this.source = source.copy();
             this.target = target == null ? null : target.copy();

@@ -12,12 +12,12 @@ class QuickLitematicaPreviewBuildFailureTest {
         OutOfMemoryError expected = new OutOfMemoryError("simulated preview mesh allocation failure");
         AtomicReference<Throwable> reported = new AtomicReference<>();
         AtomicBoolean partialMeshPresent = new AtomicBoolean(true);
-        FutureTask<Void> task = new FutureTask<>(() -> QuickLitematicaPreview3D.runBuildTask(
-                () -> { throw expected; },
-                failure -> {
-                    partialMeshPresent.set(false);
-                    reported.set(failure);
-                }), null);
+        FutureTask<Void> task = new FutureTask<>(() -> QuickLitematicaPreview3D.runBuildTask(() -> {
+            throw expected;
+        }, failure -> {
+            partialMeshPresent.set(false);
+            reported.set(failure);
+        }), null);
         task.run();
         task.get();
         assertThat(reported.get()).isSameAs(expected);

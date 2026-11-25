@@ -30,8 +30,7 @@ import java.util.Map;
 import java.util.Objects;
 
 public final class QuickLitematicaVerifierAccess {
-    private QuickLitematicaVerifierAccess() {
-    }
+    private QuickLitematicaVerifierAccess() {}
 
     public static MismatchType getMismatchType(BlockMismatch mismatch) {
         return mismatch.mismatchType;
@@ -65,7 +64,12 @@ public final class QuickLitematicaVerifierAccess {
         return box.containsPos(pos);
     }
 
-    public static boolean isPositionWithinPlacementChunk(SchematicPlacement placement, int chunkX, int chunkZ, BlockPos pos) {
+    public static boolean isPositionWithinPlacementChunk(
+            SchematicPlacement placement,
+            int chunkX,
+            int chunkZ,
+            BlockPos pos
+    ) {
         if (placement == null) {
             return false;
         }
@@ -81,13 +85,19 @@ public final class QuickLitematicaVerifierAccess {
         return world.getBottomY() + world.getHeight();
     }
 
-    public static int[] getPlacementChunkYRange(SchematicPlacement placement, int chunkX, int chunkZ, int defaultMinY, int defaultMaxY) {
+    public static int[] getPlacementChunkYRange(
+            SchematicPlacement placement,
+            int chunkX,
+            int chunkZ,
+            int defaultMinY,
+            int defaultMaxY
+    ) {
         if (placement == null) {
-            return new int[] {defaultMinY, defaultMaxY};
+            return new int[] { defaultMinY, defaultMaxY };
         }
         Map<String, IntBoundingBox> boxes = placement.getBoxesWithinChunk(chunkX, chunkZ);
         if (boxes == null || boxes.isEmpty()) {
-            return new int[] {defaultMinY, defaultMaxY};
+            return new int[] { defaultMinY, defaultMaxY };
         }
         int minY = Integer.MAX_VALUE;
         int maxY = Integer.MIN_VALUE;
@@ -95,7 +105,7 @@ public final class QuickLitematicaVerifierAccess {
             minY = Math.min(minY, box.minY);
             maxY = Math.max(maxY, box.maxY);
         }
-        return new int[] {minY, maxY};
+        return new int[] { minY, maxY };
     }
 
     public static boolean hasServuxServer() {
@@ -128,8 +138,11 @@ public final class QuickLitematicaVerifierAccess {
 
     public static NbtCompound getReceivedBlockEntityNbtFromStorage(BlockPos pos) {
         NbtCompound data = getBlockEntityNbtFromStorage(pos);
-        return QuickLitematicaContainerInventory.wasReceivedBlockEntityData(MinecraftClient.getInstance().world, pos, data)
-                ? data : null;
+        return QuickLitematicaContainerInventory.wasReceivedBlockEntityData(
+                MinecraftClient.getInstance().world,
+                pos,
+                data
+        ) ? data : null;
     }
 
     public static BlockEntity getBlockEntityFromStorage(BlockPos pos) {
@@ -244,8 +257,8 @@ public final class QuickLitematicaVerifierAccess {
 
     public static boolean isServerEmptyContainerNbt(NbtCompound cachedNbt, Inventory expected) {
         // 旧版缓存缺键返回 null；非 null 且无任何物品/战利品字段的记录来自服务端响应，可确认空库存。
-        return cachedNbt != null && !cachedNbt.contains("Items") && !cachedNbt.contains("RecordItem")
-                && !cachedNbt.contains("item") && !cachedNbt.contains("LootTable");
+        return cachedNbt != null && !cachedNbt.contains("Items") && !cachedNbt.contains("RecordItem") && !cachedNbt
+                .contains("item") && !cachedNbt.contains("LootTable");
     }
 
     public static boolean hasCachedContainerData(NbtCompound cachedNbt, Inventory expected) {

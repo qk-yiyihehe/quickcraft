@@ -20,8 +20,10 @@ public interface LitematicaStagedVertexBufferAccessor {
     ByteBufferBuilder quickcraft$getStagingBuffer();
 
     @Accessor("currentVertexBuffer")
-    @Nullable GpuBuffer quickcraft$getCurrentVertexBuffer();
+    @Nullable
+    GpuBuffer quickcraft$getCurrentVertexBuffer();
 
     @Accessor("currentIndexBuffer")
-    @Nullable GpuBuffer quickcraft$getCurrentIndexBuffer();
+    @Nullable
+    GpuBuffer quickcraft$getCurrentIndexBuffer();
 }

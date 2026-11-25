@@ -58,16 +58,15 @@ final class QuickCraftStonecutterAccess {
             return ItemStack.EMPTY;
         }
         try {
-            return handler.getAvailableRecipes()
-                    .entries()
-                    .get(recipeIndex)
-                    .recipe()
-                    .optionDisplay()
-                    .getFirst(SlotDisplayContexts.createParameters(client.world))
-                    .copy();
+            return handler.getAvailableRecipes().entries().get(recipeIndex).recipe().optionDisplay().getFirst(
+                    SlotDisplayContexts.createParameters(client.world)
+            ).copy();
         } catch (RuntimeException exception) {
             org.slf4j.LoggerFactory.getLogger("QuickCraft/StonecutterCraft").debug(
-                    "无法解析切石机展示结果：配方索引={}", recipeIndex, exception);
+                    "无法解析切石机展示结果：配方索引={}",
+                    recipeIndex,
+                    exception
+            );
             return ItemStack.EMPTY;
         }
     }
@@ -78,6 +77,12 @@ final class QuickCraftStonecutterAccess {
 
     void throwOutput(MinecraftClient client, StonecutterScreenHandler handler, ItemStack template) {
         // 1.21.2+ 原版 Ctrl+Q 连续取出同种产物，一包即可耗尽当前输入。
-        client.interactionManager.clickSlot(handler.syncId, 1, 1, net.minecraft.screen.slot.SlotActionType.THROW, client.player);
+        client.interactionManager.clickSlot(
+                handler.syncId,
+                1,
+                1,
+                net.minecraft.screen.slot.SlotActionType.THROW,
+                client.player
+        );
     }
 }

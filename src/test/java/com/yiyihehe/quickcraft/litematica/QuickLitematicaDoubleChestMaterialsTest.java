@@ -65,8 +65,7 @@ class QuickLitematicaDoubleChestMaterialsTest {
 
         try (var minecraft = mockStatic(MinecraftClient.class)) {
             minecraft.when(MinecraftClient::getInstance).thenReturn(client(world));
-            var data = QuickLitematicaContainerMaterials.ContainerMaterialsData.create(
-                    schematic, List.of(REGION), "");
+            var data = QuickLitematicaContainerMaterials.ContainerMaterialsData.create(schematic, List.of(REGION), "");
 
             assertThat(data.groups).hasSize(2);
             var first = group(data.groups, Items.DIAMOND);
@@ -94,20 +93,38 @@ class QuickLitematicaDoubleChestMaterialsTest {
         List<ItemStack> secondSlots = emptySlots(54);
         secondSlots.set(0, new ItemStack(Items.GLASS));
         secondSlots.set(27, new ItemStack(Items.DIRT));
-        setRules(List.of(
-                new QuickLitematicaContainerReplacements.ContainerReplacement(
-                        new ItemStack(Items.DIAMOND), new ItemStack(Items.EMERALD),
-                        "test", groupSignature(firstSlots), 0, true),
-                new QuickLitematicaContainerReplacements.ContainerReplacement(
-                        new ItemStack(Items.DIRT), new ItemStack(Items.GOLD_INGOT),
-                        "test", groupSignature(secondSlots), 27, true)
-        ));
+        setRules(
+                List.of(
+                        new QuickLitematicaContainerReplacements.ContainerReplacement(
+                                new ItemStack(Items.DIAMOND),
+                                new ItemStack(Items.EMERALD),
+                                "test",
+                                groupSignature(firstSlots),
+                                0,
+                                true
+                        ),
+                        new QuickLitematicaContainerReplacements.ContainerReplacement(
+                                new ItemStack(Items.DIRT),
+                                new ItemStack(Items.GOLD_INGOT),
+                                "test",
+                                groupSignature(secondSlots),
+                                27,
+                                true
+                        )
+                )
+        );
 
         try (var minecraft = mockStatic(MinecraftClient.class)) {
             minecraft.when(MinecraftClient::getInstance).thenReturn(client(world));
             LitematicaSchematic replaced = QuickLitematicaContainerMaterials.createContainerReplacementCopy(
-                    schematic, List.of(REGION), "test");
-            Map<BlockPos, NbtCompound> entities = QuickLitematicaContainerMaterialsAccess.getBlockEntities(replaced, REGION);
+                    schematic,
+                    List.of(REGION),
+                    "test"
+            );
+            Map<BlockPos, NbtCompound> entities = QuickLitematicaContainerMaterialsAccess.getBlockEntities(
+                    replaced,
+                    REGION
+            );
 
             assertThat(itemAt(entities.get(RIGHT_ONE), 0)).isEqualTo(Items.EMERALD);
             assertThat(itemAt(entities.get(LEFT_ONE), 0)).isEqualTo(Items.STONE);
@@ -118,8 +135,9 @@ class QuickLitematicaDoubleChestMaterialsTest {
 
     private LitematicaSchematic schematic() throws Exception {
         try (var files = mockStatic(fi.dy.masa.malilib.util.FileUtils.class, org.mockito.Mockito.CALLS_REAL_METHODS)) {
-            files.when(fi.dy.masa.malilib.util.FileUtils::getMinecraftDirectoryAsPath)
-                    .thenReturn(java.nio.file.Path.of(System.getProperty("user.dir")));
+            files.when(fi.dy.masa.malilib.util.FileUtils::getMinecraftDirectoryAsPath).thenReturn(
+                    java.nio.file.Path.of(System.getProperty("user.dir"))
+            );
             return schematicFixture(java.nio.file.Path.of("double-chest-test.litematic"), fixture());
         }
     }
@@ -167,7 +185,9 @@ class QuickLitematicaDoubleChestMaterialsTest {
         chest.putString("id", "minecraft:chest");
         NbtList items = new NbtList();
         NbtCompound stack = (NbtCompound) ItemStack.OPTIONAL_CODEC.encodeStart(
-                lookup.getOps(net.minecraft.nbt.NbtOps.INSTANCE), new ItemStack(item)).getOrThrow();
+                lookup.getOps(net.minecraft.nbt.NbtOps.INSTANCE),
+                new ItemStack(item)
+        ).getOrThrow();
         stack.putByte("Slot", (byte) 0);
         items.add(stack);
         chest.put("Items", items);
@@ -182,15 +202,17 @@ class QuickLitematicaDoubleChestMaterialsTest {
     }
 
     private static BlockState chest(ChestType type) {
-        return Blocks.CHEST.getDefaultState()
-                .with(ChestBlock.CHEST_TYPE, type)
-                .with(ChestBlock.FACING, Direction.NORTH);
+        return Blocks.CHEST.getDefaultState().with(ChestBlock.CHEST_TYPE, type).with(
+                ChestBlock.FACING,
+                Direction.NORTH
+        );
     }
 
     private static QuickLitematicaContainerMaterials.ContainerGroup group(
-            List<QuickLitematicaContainerMaterials.ContainerGroup> groups, net.minecraft.item.Item item) {
-        return groups.stream()
-                .filter(group -> !group.slotStacks().isEmpty() && group.slotStacks().get(0).isOf(item))
+            List<QuickLitematicaContainerMaterials.ContainerGroup> groups,
+            net.minecraft.item.Item item
+    ) {
+        return groups.stream().filter(group -> !group.slotStacks().isEmpty() && group.slotStacks().get(0).isOf(item))
                 .findFirst().orElseThrow();
     }
 
@@ -200,7 +222,9 @@ class QuickLitematicaDoubleChestMaterialsTest {
 
     private static List<ItemStack> emptySlots(int size) {
         List<ItemStack> slots = new ArrayList<>(size);
-        for (int index = 0; index < size; index++) slots.add(ItemStack.EMPTY);
+        for (int index = 0; index < size; index++) {
+            slots.add(ItemStack.EMPTY);
+        }
         return slots;
     }
 
@@ -209,8 +233,8 @@ class QuickLitematicaDoubleChestMaterialsTest {
         for (int index = 0; index < items.size(); index++) {
             NbtCompound item = QuickLitematicaContainerMaterialsAccess.readCompound(items, index);
             if ((QuickLitematicaContainerMaterialsAccess.readByte(item, "Slot") & 255) == slot) {
-                return QuickLitematicaSchematicData.decodeItem(item,
-                        DynamicRegistryManager.of(Registries.REGISTRIES)).getItem();
+                return QuickLitematicaSchematicData.decodeItem(item, DynamicRegistryManager.of(Registries.REGISTRIES))
+                        .getItem();
             }
         }
         return Items.AIR;
@@ -219,10 +243,14 @@ class QuickLitematicaDoubleChestMaterialsTest {
     private static LitematicaSchematic schematicFixture(java.nio.file.Path file, NbtCompound nbt)
             throws ReflectiveOperationException {
         var constructor = LitematicaSchematic.class.getDeclaredConstructor(
-                java.nio.file.Path.class, fi.dy.masa.litematica.util.FileType.class);
+                java.nio.file.Path.class,
+                fi.dy.masa.litematica.util.FileType.class
+        );
         constructor.setAccessible(true);
-        var schematic = (LitematicaSchematic) constructor.newInstance(file,
-                fi.dy.masa.litematica.util.FileType.LITEMATICA_SCHEMATIC);
+        var schematic = (LitematicaSchematic) constructor.newInstance(
+                file,
+                fi.dy.masa.litematica.util.FileType.LITEMATICA_SCHEMATIC
+        );
         var read = LitematicaSchematic.class.getDeclaredMethod("readFromNBT", NbtCompound.class);
         read.setAccessible(true);
         assertThat((boolean) read.invoke(schematic, nbt)).isTrue();
@@ -235,7 +263,10 @@ class QuickLitematicaDoubleChestMaterialsTest {
             entries.add(QuickLitematicaContainerReplacements.encodeContainerRule(rule, lookup));
         }
         Method method = QuickLitematicaContainerReplacements.class.getDeclaredMethod(
-                "setConfiguredRules", QuickLitematicaContainerReplacements.Scope.class, List.class);
+                "setConfiguredRules",
+                QuickLitematicaContainerReplacements.Scope.class,
+                List.class
+        );
         method.setAccessible(true);
         method.invoke(null, QuickLitematicaContainerReplacements.Scope.CONTAINER, entries);
     }

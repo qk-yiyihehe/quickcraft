@@ -211,7 +211,9 @@ class QuickLitematicaPreviewClipboardTest {
         public Pointer SetClipboardData(int format, Pointer memoryHandle) {
             this.setCalls++;
             this.formats.add(format);
-            if (this.failFormats.contains(format)) return null;
+            if (this.failFormats.contains(format)) {
+                return null;
+            }
             this.accepted.add(memoryHandle);
             return memoryHandle;
         }

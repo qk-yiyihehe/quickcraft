@@ -18,9 +18,17 @@ import net.minecraft.util.ActionResult;
 @Mixin(value = WorldUtils.class, remap = false, priority = 1100)
 public final class LitematicaWorldUtilsFreeCameraMixin {
     // 包住实际调用，覆盖目标内部的取消回调及异常；0.15.0 Loader 无需额外引入 WrapMethod。
-    @WrapOperation(method = {"handleEasyPlace", "easyPlaceOnUseTick"}, at = @At(value = "INVOKE",
-            target = "Lfi/dy/masa/litematica/util/WorldUtils;doEasyPlaceAction(Lnet/minecraft/client/MinecraftClient;)Lnet/minecraft/util/ActionResult;"), remap = false, require = 2)
-    private static ActionResult quickcraft$withEasyPlaceContext(MinecraftClient client, Operation<ActionResult> original) {
+    @WrapOperation(
+            method = { "handleEasyPlace", "easyPlaceOnUseTick" },
+            at = @At(
+                    value = "INVOKE",
+                    target = "Lfi/dy/masa/litematica/util/WorldUtils;doEasyPlaceAction(Lnet/minecraft/client/MinecraftClient;)Lnet/minecraft/util/ActionResult;"),
+            remap = false,
+            require = 2)
+    private static ActionResult quickcraft$withEasyPlaceContext(
+            MinecraftClient client,
+            Operation<ActionResult> original
+    ) {
         return QuickFreeCameraInteractions.callEasyPlaceAction(() -> original.call(client));
     }
 
@@ -29,11 +37,9 @@ public final class LitematicaWorldUtilsFreeCameraMixin {
             at = @At(
                     value = "INVOKE",
                     target = "Lfi/dy/masa/litematica/util/RayTraceUtils;getGenericTrace(Lnet/minecraft/world/World;Lnet/minecraft/entity/Entity;DZZZ)Lfi/dy/masa/litematica/util/RayTraceUtils$RayTraceWrapper;",
-                    remap = false
-            ),
+                    remap = false),
             index = 1,
-            remap = false
-    )
+            remap = false)
     private static Entity quickcraft$useFreeCameraForNearestSchematicTrace(Entity originalEntity) {
         return QuickFreeCameraInteractions.getEasyPlaceTraceEntity(MinecraftClient.getInstance(), originalEntity);
     }
@@ -43,11 +49,9 @@ public final class LitematicaWorldUtilsFreeCameraMixin {
             at = @At(
                     value = "INVOKE",
                     target = "Lfi/dy/masa/litematica/util/RayTraceUtils;getFurthestSchematicWorldTraceBeforeVanilla(Lnet/minecraft/world/World;Lnet/minecraft/entity/Entity;D)Lfi/dy/masa/litematica/util/RayTraceUtils$RayTraceWrapper;",
-                    remap = false
-            ),
+                    remap = false),
             index = 1,
-            remap = false
-    )
+            remap = false)
     private static Entity quickcraft$useFreeCameraForFurthestSchematicTrace(Entity originalEntity) {
         return QuickFreeCameraInteractions.getEasyPlaceTraceEntity(MinecraftClient.getInstance(), originalEntity);
     }
@@ -57,11 +61,9 @@ public final class LitematicaWorldUtilsFreeCameraMixin {
             at = @At(
                     value = "INVOKE",
                     target = "Lfi/dy/masa/litematica/util/RayTraceUtils;getRayTraceFromEntity(Lnet/minecraft/world/World;Lnet/minecraft/entity/Entity;ZD)Lnet/minecraft/util/hit/HitResult;",
-                    remap = false
-            ),
+                    remap = false),
             index = 1,
-            remap = false
-    )
+            remap = false)
     private static Entity quickcraft$useFreeCameraForVanillaTrace(Entity originalEntity) {
         return QuickFreeCameraInteractions.getEasyPlaceTraceEntity(MinecraftClient.getInstance(), originalEntity);
     }

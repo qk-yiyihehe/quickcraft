@@ -8,7 +8,7 @@ import net.minecraft.world.level.Level;
 public final class QuickLitematicaSaveContext {
     private static final ThreadLocal<Read> CURRENT = new ThreadLocal<>();
 
-    private QuickLitematicaSaveContext() { }
+    private QuickLitematicaSaveContext() {}
 
     public static Read begin(Level world, BlockPos pos) {
         Read previous = CURRENT.get();
@@ -17,19 +17,22 @@ public final class QuickLitematicaSaveContext {
     }
 
     public static void end(Read previous) {
-        if (previous == null) { CURRENT.remove(); }
-        else { CURRENT.set(previous); }
+        if (previous == null) {
+            CURRENT.remove();
+        } else {
+            CURRENT.set(previous);
+        }
     }
 
     public static boolean contains(Level world, BlockPos pos) {
         Read read = CURRENT.get();
-        return read != null && read.world() == world && read.pos().equals(pos)
-                && isCurrentSchematicWorld(world);
+        return read != null && read.world() == world && read.pos().equals(pos) && isCurrentSchematicWorld(world);
     }
 
     public static boolean isCurrentSchematicWorld(Level world) {
         return world != null && world == SchematicWorldHandler.getSchematicWorld();
     }
 
-    public record Read(Level world, BlockPos pos) { }
+    public record Read(Level world, BlockPos pos) {
+    }
 }

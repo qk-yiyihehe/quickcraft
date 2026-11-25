@@ -48,8 +48,7 @@ public abstract class QuickFreeCameraGameRendererMixin {
         );
         target = QuickFreeCameraInteractions.filterCrosshairTarget(this.client, camera, target);
         this.client.crosshairTarget = target;
-        this.client.targetedEntity = target instanceof EntityHitResult entityHitResult
-                ? entityHitResult.getEntity()
+        this.client.targetedEntity = target instanceof EntityHitResult entityHitResult ? entityHitResult.getEntity()
                 : null;
     }
 }

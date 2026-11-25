@@ -31,7 +31,11 @@ class QuickLitematicaPreviewQueuedBuildTest {
                     events.add("consumer:" + material);
                     return record -> events.add(material + record);
                 });
-                QuickLitematicaPreviewQueuedBuild.deferList(owner, List.of(3, 4), record -> events.add("blended" + record));
+                QuickLitematicaPreviewQueuedBuild.deferList(
+                        owner,
+                        List.of(3, 4),
+                        record -> events.add("blended" + record)
+                );
             });
             submit.accept(() -> events.add("item"));
             submit.accept(() -> events.add("clear"));
@@ -43,8 +47,16 @@ class QuickLitematicaPreviewQueuedBuildTest {
             assertThat(events).doesNotContain("clear");
         }
         assertThat(slices).isGreaterThan(3);
-        assertThat(events).containsExactly("consumer:empty", "consumer:opaque", "opaque1", "opaque2",
-                "blended3", "blended4", "item", "clear");
+        assertThat(events).containsExactly(
+                "consumer:empty",
+                "consumer:opaque",
+                "opaque1",
+                "opaque2",
+                "blended3",
+                "blended4",
+                "item",
+                "clear"
+        );
         assertThat(QuickLitematicaPreviewQueuedBuild.defer(owner, () -> true)).isFalse();
         build.close();
     }

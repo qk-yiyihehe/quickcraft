@@ -36,10 +36,16 @@ public abstract class LitematicaSchematicLoadMixin extends GuiSchematicBrowserBa
         GuiSchematicLoad gui = (GuiSchematicLoad) (Object) this;
         String label = StringUtils.translate(QuickLitematicaContainerMaterials.BUTTON_KEY);
         int buttonWidth = gui.getStringWidth(label) + 10;
-        QuickLitematicaContainerMaterials.ButtonPlacement placement =
-                QuickLitematicaContainerMaterials.getButtonPlacement(gui, buttonWidth);
-        var button = new QuickCraftMovableButton("litematica.schematicLoad.containerMaterials",
-                placement.x(), placement.y(), buttonWidth, 20, label);
+        QuickLitematicaContainerMaterials.ButtonPlacement placement = QuickLitematicaContainerMaterials
+                .getButtonPlacement(gui, buttonWidth);
+        var button = new QuickCraftMovableButton(
+                "litematica.schematicLoad.containerMaterials",
+                placement.x(),
+                placement.y(),
+                buttonWidth,
+                20,
+                label
+        );
         button.place(gui, placement.x(), placement.y());
         button.setHoverStrings(StringUtils.translate(QuickLitematicaContainerMaterials.BUTTON_HOVER_KEY));
 

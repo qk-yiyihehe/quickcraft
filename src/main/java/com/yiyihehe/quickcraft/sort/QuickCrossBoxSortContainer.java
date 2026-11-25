@@ -31,34 +31,73 @@ final class QuickCrossBoxSortContainer {
     private long openRevision;
     private QuickCrossBoxSortStackKey boxKey;
 
-    private QuickCrossBoxSortContainer(MinecraftClient client, HandledScreen<?> screen, List<Integer> slots, int temporarySlot) {
+    private QuickCrossBoxSortContainer(
+            MinecraftClient client,
+            HandledScreen<?> screen,
+            List<Integer> slots,
+            int temporarySlot
+    ) {
         this.screen = screen;
         menu = originalMenu = screen.getScreenHandler();
         this.slots = List.copyOf(slots);
         this.temporarySlot = temporarySlot;
-        target = client.crosshairTarget instanceof BlockHitResult hit ? hit.withBlockPos(hit.getBlockPos().toImmutable()) : client.crosshairTarget;
+        target = client.crosshairTarget instanceof BlockHitResult hit ? hit.withBlockPos(
+                hit.getBlockPos().toImmutable()
+        ) : client.crosshairTarget;
         block = target instanceof BlockHitResult hit ? client.world.getBlockState(hit.getBlockPos()).getBlock() : null;
     }
 
-    static QuickCrossBoxSortContainer create(MinecraftClient client, HandledScreen<?> screen, List<Integer> slots, int temporarySlot) {
-        if (!(client.crosshairTarget instanceof BlockHitResult) && !(client.crosshairTarget instanceof EntityHitResult)) { return null; }
+    static QuickCrossBoxSortContainer create(
+            MinecraftClient client,
+            HandledScreen<?> screen,
+            List<Integer> slots,
+            int temporarySlot
+    ) {
+        if (!(client.crosshairTarget instanceof BlockHitResult)
+                && !(client.crosshairTarget instanceof EntityHitResult)) {
+            return null;
+        }
         return new QuickCrossBoxSortContainer(client, screen, slots, temporarySlot);
     }
 
-    boolean isBase(ScreenHandler handler) { return handler == menu; }
-    boolean hasBorrowedBox() { return borrowed >= 0; }
-    boolean isScreen(Screen candidate) { return candidate == screen; }
-    int temporarySlot() { return temporarySlot; }
-    int slot(int index) { return slots.get(index); }
-    ItemStack stack(int index) { return menu.getSlot(slot(index)).getStack(); }
+    boolean isBase(ScreenHandler handler) {
+        return handler == menu;
+    }
+
+    boolean hasBorrowedBox() {
+        return borrowed >= 0;
+    }
+
+    boolean isScreen(Screen candidate) {
+        return candidate == screen;
+    }
+
+    int temporarySlot() {
+        return temporarySlot;
+    }
+
+    int slot(int index) {
+        return slots.get(index);
+    }
+
+    ItemStack stack(int index) {
+        return menu.getSlot(slot(index)).getStack();
+    }
+
     SimpleInventory snapshot() {
-        return new SimpleInventory(slots.stream().map(id -> menu.getSlot(id).getStack().copy()).toArray(ItemStack[]::new));
+        return new SimpleInventory(
+                slots.stream().map(id -> menu.getSlot(id).getStack().copy()).toArray(ItemStack[]::new)
+        );
     }
 
     boolean consume(Screen candidate) {
-        if (phase != 3 || !(candidate instanceof HandledScreen<?> opened)) { return false; }
+        if (phase != 3 || !(candidate instanceof HandledScreen<?> opened)) {
+            return false;
+        }
         var handler = opened.getScreenHandler();
-        if (handler.getType() != originalMenu.getType() || handler.slots.size() != originalMenu.slots.size()) { return false; }
+        if (handler.getType() != originalMenu.getType() || handler.slots.size() != originalMenu.slots.size()) {
+            return false;
+        }
         menu = handler;
         screen = opened;
         QuickContainerLock.bindSameContainerScreen(handler, originalMenu);
@@ -69,13 +108,19 @@ final class QuickCrossBoxSortContainer {
     int prepareOpen(MinecraftClient client, int index, int age) {
         var player = client.player;
         if (borrowed < 0) {
-            if (!isBase(player.currentScreenHandler) || !menu.getCursorStack().isEmpty()
-                    || !player.getInventory().getStack(temporarySlot).isEmpty()) { return -1; }
+            if (!isBase(player.currentScreenHandler) || !menu.getCursorStack().isEmpty() || !player.getInventory()
+                    .getStack(temporarySlot).isEmpty()) {
+                return -1;
+            }
             ItemStack box = stack(index);
             if (box.getCount() != 1 || !QuickCrossBoxSortInventory.isVanillaShulkerBox(box)
-                    || QuickCrossBoxSortInventory.isNamedOrSpecial(box)) { return -1; }
+                    || QuickCrossBoxSortInventory.isNamedOrSpecial(box)) {
+                return -1;
+            }
             int destination = QuickCrossBoxSortProtection.menuSlot(menu, temporarySlot);
-            if (!movable(client, slot(index), destination, box)) { return -1; }
+            if (!movable(client, slot(index), destination, box)) {
+                return -1;
+            }
             borrowed = index;
             boxKey = new QuickCrossBoxSortStackKey(box);
             click(client, slot(index));
@@ -84,9 +129,14 @@ final class QuickCrossBoxSortContainer {
             clickedAt = age;
             deadline = age + 100;
         }
-        if (age >= deadline) { return -1; }
-        if (phase == 1 && age >= clickedAt + 4 && stack(borrowed).isEmpty()
-                && boxKey.matches(player.getInventory().getStack(temporarySlot)) && menu.getCursorStack().isEmpty()) {
+        if (age >= deadline) {
+            return -1;
+        }
+        if (phase == 1
+                && age >= clickedAt + 4
+                && stack(borrowed).isEmpty()
+                && boxKey.matches(player.getInventory().getStack(temporarySlot))
+                && menu.getCursorStack().isEmpty()) {
             player.closeHandledScreen();
             phase = 2;
         }
@@ -95,26 +145,49 @@ final class QuickCrossBoxSortContainer {
 
     int finishClose(MinecraftClient client, int age) {
         var player = client.player;
-        if (borrowed < 0) { return isBase(player.currentScreenHandler) ? 1 : -1; }
-        if (!targetExists(client)) { return -1; }
-        if (phase == 1 && age >= clickedAt + 4 && stack(borrowed).isEmpty()
-                && boxKey.matches(player.getInventory().getStack(temporarySlot)) && menu.getCursorStack().isEmpty()) { phase = 2; }
+        if (borrowed < 0) {
+            return isBase(player.currentScreenHandler) ? 1 : -1;
+        }
+        if (!targetExists(client)) {
+            return -1;
+        }
+        if (phase == 1
+                && age >= clickedAt + 4
+                && stack(borrowed).isEmpty()
+                && boxKey.matches(player.getInventory().getStack(temporarySlot))
+                && menu.getCursorStack().isEmpty()) {
+            phase = 2;
+        }
         if (phase == 2) {
-            if (isBase(player.currentScreenHandler)) { phase = 4; }
-            else if (player.currentScreenHandler == player.playerScreenHandler) {
+            if (isBase(player.currentScreenHandler)) {
+                phase = 4;
+            } else if (player.currentScreenHandler == player.playerScreenHandler) {
                 openRevision = QuickCrossBoxSortSync.revision();
                 phase = 3;
                 deadline = age + 100;
-                if (target instanceof BlockHitResult hit) { client.interactionManager.interactBlock(player, Hand.MAIN_HAND, hit); }
-                else if (target instanceof EntityHitResult hit) { client.interactionManager.interactEntity(player, hit.getEntity(), Hand.MAIN_HAND); }
+                if (target instanceof BlockHitResult hit) {
+                    client.interactionManager.interactBlock(player, Hand.MAIN_HAND, hit);
+                } else if (target instanceof EntityHitResult hit) {
+                    client.interactionManager.interactEntity(player, hit.getEntity(), Hand.MAIN_HAND);
+                }
             }
         }
-        if (phase == 3 && isBase(player.currentScreenHandler) && QuickCrossBoxSortSync.contentAdvancedFor(openRevision, menu.syncId)) { phase = 4; }
+        if (phase == 3 && isBase(player.currentScreenHandler) && QuickCrossBoxSortSync.contentAdvancedFor(
+                openRevision,
+                menu.syncId
+        )) {
+            phase = 4;
+        }
         if (phase == 4) {
             ItemStack box = player.getInventory().getStack(temporarySlot);
             int source = QuickCrossBoxSortProtection.menuSlot(menu, temporarySlot);
-            if (!stack(borrowed).isEmpty() || box.getCount() != 1 || !QuickCrossBoxSortInventory.isVanillaShulkerBox(box)
-                    || !menu.getCursorStack().isEmpty() || !movable(client, source, slot(borrowed), box)) { return -1; }
+            if (!stack(borrowed).isEmpty()
+                    || box.getCount() != 1
+                    || !QuickCrossBoxSortInventory.isVanillaShulkerBox(box)
+                    || !menu.getCursorStack().isEmpty()
+                    || !movable(client, source, slot(borrowed), box)) {
+                return -1;
+            }
             boxKey = new QuickCrossBoxSortStackKey(box);
             click(client, source);
             click(client, slot(borrowed));
@@ -122,8 +195,12 @@ final class QuickCrossBoxSortContainer {
             clickedAt = age;
             deadline = age + 100;
         }
-        if (phase == 5 && age >= clickedAt + 4 && isBase(player.currentScreenHandler)
-                && player.getInventory().getStack(temporarySlot).isEmpty() && boxKey.matches(stack(borrowed)) && menu.getCursorStack().isEmpty()) {
+        if (phase == 5
+                && age >= clickedAt + 4
+                && isBase(player.currentScreenHandler)
+                && player.getInventory().getStack(temporarySlot).isEmpty()
+                && boxKey.matches(stack(borrowed))
+                && menu.getCursorStack().isEmpty()) {
             borrowed = -1;
             phase = 0;
             return 1;
@@ -132,7 +209,9 @@ final class QuickCrossBoxSortContainer {
     }
 
     void reveal(MinecraftClient client) {
-        if (isBase(client.player.currentScreenHandler)) { client.setScreen(screen); }
+        if (isBase(client.player.currentScreenHandler)) {
+            client.setScreen(screen);
+        }
     }
 
     private boolean targetExists(MinecraftClient client) {

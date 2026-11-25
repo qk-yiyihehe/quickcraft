@@ -4,7 +4,8 @@ import org.junit.jupiter.api.Test;
 import static org.assertj.core.api.Assertions.assertThat;
 
 class QuickLitematicaPreviewLoadingTextureTest {
-    @Test void reusesOnlyDuringUploadAndInvalidatesViewAndCompletionImmediately() {
+    @Test
+    void reusesOnlyDuringUploadAndInvalidatesViewAndCompletionImmediately() {
         var cache = new QuickLitematicaPreviewLoadingTexture();
         var view = new QuickLitematicaPreviewLoadingTexture.View(null, 20, 40, 256, 0, 0, 1, 0.5F, 1);
         assertThat(cache.canReuse(view, true, 0)).isFalse();

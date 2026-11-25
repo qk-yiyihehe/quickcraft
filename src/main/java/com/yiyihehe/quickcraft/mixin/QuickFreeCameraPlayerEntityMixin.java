@@ -17,8 +17,8 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 public abstract class QuickFreeCameraPlayerEntityMixin {
     @Inject(method = "shouldCancelInteraction", at = @At("HEAD"), cancellable = true)
     private void quickcraft$cancelInteractionFromFreeCamera(CallbackInfoReturnable<Boolean> cir) {
-        if ((Object) this instanceof ClientPlayerEntity
-                && QuickFreeCameraInteractions.shouldCancelInteractionFromFreeCamera(MinecraftClient.getInstance())) {
+        if ((Object) this instanceof ClientPlayerEntity && QuickFreeCameraInteractions
+                .shouldCancelInteractionFromFreeCamera(MinecraftClient.getInstance())) {
             cir.setReturnValue(true);
         }
     }

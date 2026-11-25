@@ -15,12 +15,9 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 @Mixin(TextFieldWidget.class)
 public abstract class AnvilRenameTextFieldMixin {
     @Inject(method = "charTyped", at = @At("HEAD"), cancellable = true)
-    private void quickcraft$consumeRenameHotkeyChar(char chr,
-                                                   int modifiers,
-                                                   CallbackInfoReturnable<Boolean> cir) {
-        if (QuickCraftAnvilRename.shouldConsumeRenameHotkeyInput()
-                || QuickCraftAnvilRename.consumePendingRenameHotkeyChar()
-                || QuickThrow.shouldConsumeAnvilThrowHotkeyInput()) {
+    private void quickcraft$consumeRenameHotkeyChar(char chr, int modifiers, CallbackInfoReturnable<Boolean> cir) {
+        if (QuickCraftAnvilRename.shouldConsumeRenameHotkeyInput() || QuickCraftAnvilRename
+                .consumePendingRenameHotkeyChar() || QuickThrow.shouldConsumeAnvilThrowHotkeyInput()) {
             cir.setReturnValue(true);
         }
     }

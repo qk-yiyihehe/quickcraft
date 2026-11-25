@@ -29,20 +29,19 @@ public final class QuickLitematicaSelectionPreview {
     // 选区快照需要逐方块读取客户端世界，先限制总体积以免误圈超大范围长期占用预览线程。
     private static final long MAX_SELECTION_CAPTURE_VOLUME = 8_000_000L;
 
-    private QuickLitematicaSelectionPreview() {
-    }
+    private QuickLitematicaSelectionPreview() {}
 
     public static void bindHotkey() {
-        QuickCraftConfigs.Hotkeys.OPEN_LITEMATICA_AREA_3D_PREVIEW.getKeybind()
-                .setCallback(QuickLitematicaSelectionPreview::handleHotkey);
+        QuickCraftConfigs.Hotkeys.OPEN_LITEMATICA_AREA_3D_PREVIEW.getKeybind().setCallback(
+                QuickLitematicaSelectionPreview::handleHotkey
+        );
     }
 
     private static boolean handleHotkey(KeyAction action, IKeybind keybind) {
         Minecraft client = Minecraft.getInstance();
-        if (action != KeyAction.PRESS
-                || client.player == null
-                || client.level == null
-                || currentScreen(client) != null) {
+        if (action != KeyAction.PRESS || client.player == null || client.level == null || currentScreen(
+                client
+        ) != null) {
             return false;
         }
         if (!QuickCraftConfigs.isLitematica3DPreviewEnabled()) {
@@ -63,7 +62,9 @@ public final class QuickLitematicaSelectionPreview {
 
     private static boolean openAreaSelection(Minecraft client) {
         AreaSelection selection = DataManager.getSelectionManager().getCurrentSelection();
-        if (selection == null || selection.getAllSubRegionBoxes().stream().noneMatch(QuickLitematicaSelectionPreview::isComplete)) {
+        if (selection == null || selection.getAllSubRegionBoxes().stream().noneMatch(
+                QuickLitematicaSelectionPreview::isComplete
+        )) {
             InfoUtils.printActionbarMessage("quickcraft.message.litematica.preview_3d.no_selection");
             return true;
         }
@@ -75,8 +76,10 @@ public final class QuickLitematicaSelectionPreview {
         AreaSelection selectionSnapshot = selection.copy();
         String displayName = StringUtils.translate("quickcraft.litematica.preview_3d.area_title");
         String author = client.player.getName().getString();
-        QuickLitematicaPreview3D.openGenerated(currentScreen(client), displayName, () ->
-                captureSelection(client.level, selectionSnapshot, author)
+        QuickLitematicaPreview3D.openGenerated(
+                currentScreen(client),
+                displayName,
+                () -> captureSelection(client.level, selectionSnapshot, author)
         );
         return true;
     }
@@ -85,19 +88,19 @@ public final class QuickLitematicaSelectionPreview {
         return QuickClientScreenAccess.currentScreen(client);
     }
 
-    private static LitematicaSchematic captureSelection(
-            ClientLevel world,
-            AreaSelection selection,
-            String author
-    ) {
+    private static LitematicaSchematic captureSelection(ClientLevel world, AreaSelection selection, String author) {
         LitematicaSchematic schematic = LitematicaSchematic.createEmptySchematic(selection, author);
         if (schematic == null) {
             return null;
         }
 
         var boxes = selection.getAllSubRegions();
-        LitematicaSchematic.SchematicSaveInfo saveInfo =
-                new LitematicaSchematic.SchematicSaveInfo(false, false, false, false);
+        LitematicaSchematic.SchematicSaveInfo saveInfo = new LitematicaSchematic.SchematicSaveInfo(
+                false,
+                false,
+                false,
+                false
+        );
         var existingEntities = new HashSet<UUID>();
         BlockPos origin = selection.getEffectiveOrigin();
         for (ChunkPos chunkPos : PositionUtils.getTouchedChunks(boxes)) {

@@ -52,8 +52,7 @@ class QuickCraftStonecutterTailDropTest {
         fixture.pump();
 
         assertThat((Boolean) fixture.field("singleCraftPending")).isFalse();
-        verify(fixture.gameMode).handleContainerInput(anyInt(), eq(2), eq(1),
-                eq(ContainerInput.THROW), any());
+        verify(fixture.gameMode).handleContainerInput(anyInt(), eq(2), eq(1), eq(ContainerInput.THROW), any());
         assertThat(fixture.stack(2).isEmpty()).isTrue();
         assertThat(fixture.stack(0).getCount()).isEqualTo(1);
     }
@@ -65,8 +64,13 @@ class QuickCraftStonecutterTailDropTest {
         fixture.pump();
 
         assertThat((Boolean) fixture.field("singleCraftPending")).isFalse();
-        verify(fixture.gameMode, never()).handleContainerInput(anyInt(), anyInt(), anyInt(),
-                eq(ContainerInput.THROW), any());
+        verify(fixture.gameMode, never()).handleContainerInput(
+                anyInt(),
+                anyInt(),
+                anyInt(),
+                eq(ContainerInput.THROW),
+                any()
+        );
         assertThat(fixture.stack(2).is(Items.STONE_SLAB)).isTrue();
     }
 
@@ -78,8 +82,13 @@ class QuickCraftStonecutterTailDropTest {
         fixture.pump();
 
         assertThat((Boolean) fixture.field("singleCraftPending")).isFalse();
-        verify(fixture.gameMode, never()).handleContainerInput(anyInt(), anyInt(), anyInt(),
-                eq(ContainerInput.THROW), any());
+        verify(fixture.gameMode, never()).handleContainerInput(
+                anyInt(),
+                anyInt(),
+                anyInt(),
+                eq(ContainerInput.THROW),
+                any()
+        );
     }
 
     @Test
@@ -171,8 +180,7 @@ class QuickCraftStonecutterTailDropTest {
             } catch (Exception exception) {
                 throw new AssertionError(exception);
             }
-            when(menu.getSlot(anyInt())).thenAnswer(
-                    invocation -> slots.get(invocation.getArgument(0)));
+            when(menu.getSlot(anyInt())).thenAnswer(invocation -> slots.get(invocation.getArgument(0)));
             when(menu.getCarried()).thenReturn(ItemStack.EMPTY);
             when(menu.getSelectedRecipeIndex()).thenReturn(-1);
             stacks.get(0).set(new ItemStack(Items.STONE, 2));
@@ -191,7 +199,9 @@ class QuickCraftStonecutterTailDropTest {
                 } else if (action == ContainerInput.THROW) {
                     stacks.get(slotId).set(ItemStack.EMPTY);
                 } else if (action == ContainerInput.QUICK_MOVE && slotId == 1) {
-                    if (++outputClicks > 128) throw new AssertionError("pump did not yield");
+                    if (++outputClicks > 128) {
+                        throw new AssertionError("pump did not yield");
+                    }
                     ItemStack result = stacks.get(1).get().copy();
                     stacks.get(1).set(ItemStack.EMPTY);
                     ItemStack input = stacks.get(0).get();
@@ -201,14 +211,21 @@ class QuickCraftStonecutterTailDropTest {
                     for (int slot = 2; slot < SLOT_COUNT; slot++) {
                         if (stacks.get(slot).get().isEmpty()) {
                             stacks.get(slot).set(result);
-                            if (recycleOutput) inventory.setItem(9, result);
+                            if (recycleOutput) {
+                                inventory.setItem(9, result);
+                            }
                             break;
                         }
                     }
                 }
                 return null;
-            }).when(gameMode).handleContainerInput(anyInt(), anyInt(), anyInt(),
-                    any(ContainerInput.class), any(Player.class));
+            }).when(gameMode).handleContainerInput(
+                    anyInt(),
+                    anyInt(),
+                    anyInt(),
+                    any(ContainerInput.class),
+                    any(Player.class)
+            );
         }
 
         private void installState(Inventory inventory) throws Exception {
@@ -229,13 +246,11 @@ class QuickCraftStonecutterTailDropTest {
 
         private void run(String entry) throws Exception {
             try (MockedStatic<QuickCraftConfigs> configs = mockStatic(QuickCraftConfigs.class);
-                 MockedStatic<QuickContainerLock> locks = mockStatic(QuickContainerLock.class);
-                 MockedStatic<QuickCraftKeyBindings> keys = mockStatic(QuickCraftKeyBindings.class);
-                 MockedStatic<QuickClientScreenAccess> screens =
-                         mockStatic(QuickClientScreenAccess.class)) {
+                    MockedStatic<QuickContainerLock> locks = mockStatic(QuickContainerLock.class);
+                    MockedStatic<QuickCraftKeyBindings> keys = mockStatic(QuickCraftKeyBindings.class);
+                    MockedStatic<QuickClientScreenAccess> screens = mockStatic(QuickClientScreenAccess.class)) {
                 configs.when(QuickCraftConfigs::isStonecutterQuickCraftEnabled).thenReturn(true);
-                configs.when(QuickCraftConfigs::isDropCraftResultsOnStopEnabled)
-                        .thenReturn(tailDropEnabled);
+                configs.when(QuickCraftConfigs::isDropCraftResultsOnStopEnabled).thenReturn(tailDropEnabled);
                 configs.when(QuickCraftConfigs::isMouseCraftAckDebugEnabled).thenReturn(false);
                 configs.when(QuickCraftConfigs::getCraftsPerSecond).thenReturn(rate);
                 locks.when(() -> QuickContainerLock.isLockedSlot(any(AbstractContainerMenu.class), anyInt()))
@@ -267,14 +282,16 @@ class QuickCraftStonecutterTailDropTest {
             if (parameters.length == 1 && parameters[0].isInstance(player)) {
                 return (Inventory) constructor.newInstance(player);
             }
-            if (parameters.length == 2 && parameters[0].isInstance(player)
-                    && parameters[1].getSimpleName().equals("EntityEquipment")) {
+            if (parameters.length == 2 && parameters[0].isInstance(player) && parameters[1].getSimpleName().equals(
+                    "EntityEquipment"
+            )) {
                 Object equipment = parameters[1].getConstructor().newInstance();
                 return (Inventory) constructor.newInstance(player, equipment);
             }
         }
         throw new AssertionError("unsupported Inventory constructor");
     }
+
     private static void setField(Object target, String name, Object value) throws Exception {
         Field field = findField(target.getClass(), name);
         field.setAccessible(true);
@@ -291,8 +308,7 @@ class QuickCraftStonecutterTailDropTest {
         for (Class<?> current = type; current != null; current = current.getSuperclass()) {
             try {
                 return current.getDeclaredField(name);
-            } catch (NoSuchFieldException ignored) {
-            }
+            } catch (NoSuchFieldException ignored) {}
         }
         throw new NoSuchFieldException(name);
     }

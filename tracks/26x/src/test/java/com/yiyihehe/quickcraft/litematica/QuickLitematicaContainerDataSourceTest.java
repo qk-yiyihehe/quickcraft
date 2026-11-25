@@ -49,23 +49,33 @@ class QuickLitematicaContainerDataSourceTest {
         }
     }
 
-
     @Test
     void missingCacheEntryIsUnknownButReliableEmptyIsAccepted() {
         try (var fixture = fixture()) {
             fixture.respond(null);
-            assertThat(QuickLitematicaContainerInventory.getActualInventory(
-                    fixture.world, POS, new SimpleContainer(27), new SimpleContainer(27))).isNull();
+            assertThat(
+                    QuickLitematicaContainerInventory.getActualInventory(
+                            fixture.world,
+                            POS,
+                            new SimpleContainer(27),
+                            new SimpleContainer(27)
+                    )
+            ).isNull();
 
             CompoundTag empty = new CompoundTag();
             empty.putString("id", "minecraft:chest");
             fixture.respond(empty);
             Container actual = QuickLitematicaContainerInventory.getActualInventory(
-                    fixture.world, POS, new SimpleContainer(27), new SimpleContainer(27));
+                    fixture.world,
+                    POS,
+                    new SimpleContainer(27),
+                    new SimpleContainer(27)
+            );
             assertThat(actual).isNotNull();
             assertThat(actual.isEmpty()).isTrue();
-            assertThat(QuickLitematicaContainerInventory.getLastActualInventoryReadStatus())
-                    .isEqualTo(QuickLitematicaContainerVerifier.ActualInventoryReadStatus.CACHE_INVENTORY);
+            assertThat(QuickLitematicaContainerInventory.getLastActualInventoryReadStatus()).isEqualTo(
+                    QuickLitematicaContainerVerifier.ActualInventoryReadStatus.CACHE_INVENTORY
+            );
         }
     }
 
@@ -76,13 +86,21 @@ class QuickLitematicaContainerDataSourceTest {
             empty.putString("id", "minecraft:chest");
             fixture.respond(empty);
             Container emptyActual = QuickLitematicaContainerInventory.getActualInventory(
-                    fixture.world, POS, new SimpleContainer(27), new SimpleContainer(27));
+                    fixture.world,
+                    POS,
+                    new SimpleContainer(27),
+                    new SimpleContainer(27)
+            );
             assertThat(emptyActual).isNotNull();
             assertThat(emptyActual.isEmpty()).isTrue();
 
             fixture.respond(items("minecraft:stone", 1));
             Container actual = QuickLitematicaContainerInventory.getActualInventory(
-                    fixture.world, POS, new SimpleContainer(27), new SimpleContainer(27));
+                    fixture.world,
+                    POS,
+                    new SimpleContainer(27),
+                    new SimpleContainer(27)
+            );
             assertThat(actual).isNotNull();
             assertThat(actual.getItem(0).is(Items.STONE)).isTrue();
         }
@@ -90,9 +108,10 @@ class QuickLitematicaContainerDataSourceTest {
 
     @Test
     void doubleChestEmptyShortcutRequiresBothReliableHalvesAndKeepsSlotOrder() {
-        var state = Blocks.CHEST.defaultBlockState()
-                .setValue(ChestBlock.TYPE, ChestType.LEFT)
-                .setValue(ChestBlock.FACING, Direction.NORTH);
+        var state = Blocks.CHEST.defaultBlockState().setValue(ChestBlock.TYPE, ChestType.LEFT).setValue(
+                ChestBlock.FACING,
+                Direction.NORTH
+        );
         SimpleContainer expected = new SimpleContainer(54);
         SimpleContainer direct = new SimpleContainer(54);
 
@@ -103,14 +122,20 @@ class QuickLitematicaContainerDataSourceTest {
 
             fixture.respond(new CompoundTag());
             fixture.respondPaired(null);
-            assertThat(QuickLitematicaContainerInventory.getActualInventory(
-                    fixture.world, POS, direct, expected)).isNull();
-            org.mockito.Mockito.verify(EntityDataManager.getInstance())
-                    .requestBlockEntityWrapped(fixture.world, paired);
+            assertThat(QuickLitematicaContainerInventory.getActualInventory(fixture.world, POS, direct, expected))
+                    .isNull();
+            org.mockito.Mockito.verify(EntityDataManager.getInstance()).requestBlockEntityWrapped(
+                    fixture.world,
+                    paired
+            );
 
             fixture.respondPaired(new CompoundTag());
             Container bothEmpty = QuickLitematicaContainerInventory.getActualInventory(
-                    fixture.world, POS, direct, expected);
+                    fixture.world,
+                    POS,
+                    direct,
+                    expected
+            );
             assertThat(bothEmpty).isNotNull();
             assertThat(bothEmpty.getContainerSize()).isEqualTo(54);
             assertThat(bothEmpty.isEmpty()).isTrue();
@@ -118,14 +143,22 @@ class QuickLitematicaContainerDataSourceTest {
             fixture.respond(new CompoundTag());
             fixture.respondPaired(items("minecraft:stone", 1));
             Container adjacentNonEmpty = QuickLitematicaContainerInventory.getActualInventory(
-                    fixture.world, POS, direct, expected);
+                    fixture.world,
+                    POS,
+                    direct,
+                    expected
+            );
             assertThat(adjacentNonEmpty).isNotNull();
             assertThat(adjacentNonEmpty.getItem(0).is(Items.STONE)).isTrue();
 
             fixture.respond(items("minecraft:stone", 1));
             fixture.respondPaired(new CompoundTag());
             Container oneNonEmpty = QuickLitematicaContainerInventory.getActualInventory(
-                    fixture.world, POS, direct, expected);
+                    fixture.world,
+                    POS,
+                    direct,
+                    expected
+            );
             assertThat(oneNonEmpty).isNotNull();
             assertThat(oneNonEmpty.getContainerSize()).isEqualTo(54);
             assertThat(oneNonEmpty.getItem(27).is(Items.STONE)).isTrue();
@@ -138,15 +171,28 @@ class QuickLitematicaContainerDataSourceTest {
     void ungeneratedLootDoesNotReuseAnEmptySnapshotOrAnEmptyCachedEntity() {
         try (var fixture = fixture()) {
             fixture.respond(new CompoundTag());
-            assertThat(QuickLitematicaContainerInventory.getActualInventory(fixture.world, POS,
-                    new SimpleContainer(27), new SimpleContainer(27))).isNotNull();
+            assertThat(
+                    QuickLitematicaContainerInventory.getActualInventory(
+                            fixture.world,
+                            POS,
+                            new SimpleContainer(27),
+                            new SimpleContainer(27)
+                    )
+            ).isNotNull();
             CompoundTag loot = new CompoundTag();
             loot.putString("LootTable", "minecraft:chests/simple_dungeon");
             fixture.respond(loot);
             when(EntityDataManager.getInstance().getFromBlockEntityCache(POS)).thenReturn(
-                    new net.minecraft.world.level.block.entity.ChestBlockEntity(POS, Blocks.CHEST.defaultBlockState()));
-            assertThat(QuickLitematicaContainerInventory.getActualInventory(fixture.world, POS,
-                    new SimpleContainer(27), new SimpleContainer(27))).isNull();
+                    new net.minecraft.world.level.block.entity.ChestBlockEntity(POS, Blocks.CHEST.defaultBlockState())
+            );
+            assertThat(
+                    QuickLitematicaContainerInventory.getActualInventory(
+                            fixture.world,
+                            POS,
+                            new SimpleContainer(27),
+                            new SimpleContainer(27)
+                    )
+            ).isNull();
         }
     }
 
@@ -160,7 +206,11 @@ class QuickLitematicaContainerDataSourceTest {
             assertThat(QuickLitematicaContainerInventory.getCachedBlockEntityNbt(storage, POS)).isNull();
             CompoundTag empty = new CompoundTag();
             empty.putString("id", "minecraft:chest");
-            cache.addToCache(POS, null, fi.dy.masa.malilib.util.data.tag.converter.DataConverterNbt.fromVanillaCompound(empty));
+            cache.addToCache(
+                    POS,
+                    null,
+                    fi.dy.masa.malilib.util.data.tag.converter.DataConverterNbt.fromVanillaCompound(empty)
+            );
             assertThat(QuickLitematicaContainerInventory.getCachedBlockEntityNbt(storage, POS)).isNull();
             fixture.respond(empty);
             assertThat(QuickLitematicaContainerInventory.getCachedBlockEntityNbt(storage, POS)).isEqualTo(empty);
@@ -169,20 +219,30 @@ class QuickLitematicaContainerDataSourceTest {
 
     @Test
     void cachedHalvesMustBelongToARealDoubleChestPair() {
-        var state = Blocks.CHEST.defaultBlockState()
-                .setValue(ChestBlock.TYPE, ChestType.LEFT)
-                .setValue(ChestBlock.FACING, Direction.NORTH);
+        var state = Blocks.CHEST.defaultBlockState().setValue(ChestBlock.TYPE, ChestType.LEFT).setValue(
+                ChestBlock.FACING,
+                Direction.NORTH
+        );
         BlockPos paired = ChestBlock.getConnectedBlockPos(POS, state);
         try (var fixture = fixture()) {
             when(fixture.world.getBlockState(POS)).thenReturn(state);
             fixture.respond(items("minecraft:stone", 1));
             fixture.respondPaired(items("minecraft:diamond", 1));
-            for (var unrelated : List.of(Blocks.BARREL.defaultBlockState(),
-                    Blocks.CHEST.defaultBlockState(), state,
-                    state.setValue(ChestBlock.TYPE, ChestType.RIGHT).setValue(ChestBlock.FACING, Direction.EAST))) {
+            for (var unrelated : List.of(
+                    Blocks.BARREL.defaultBlockState(),
+                    Blocks.CHEST.defaultBlockState(),
+                    state,
+                    state.setValue(ChestBlock.TYPE, ChestType.RIGHT).setValue(ChestBlock.FACING, Direction.EAST)
+            )) {
                 when(fixture.world.getBlockState(paired)).thenReturn(unrelated);
-                assertThat(QuickLitematicaContainerInventory.getActualInventory(fixture.world, POS,
-                        new SimpleContainer(54), new SimpleContainer(54))).isNull();
+                assertThat(
+                        QuickLitematicaContainerInventory.getActualInventory(
+                                fixture.world,
+                                POS,
+                                new SimpleContainer(54),
+                                new SimpleContainer(54)
+                        )
+                ).isNull();
             }
         }
     }
@@ -202,15 +262,18 @@ class QuickLitematicaContainerDataSourceTest {
             assertThat(QuickLitematicaContainerInventory.getActualDisabledSlots(serverWorld, POS, clientShell))
                     .containsExactly(0);
             when(serverWorld.getBlockEntity(POS)).thenReturn(null);
-            assertThat(QuickLitematicaContainerInventory.getActualDisabledSlots(serverWorld, POS, clientShell)).isNull();
-            assertThat(QuickLitematicaContainerInventory.getActualDisabledSlots(mock(ClientLevel.class), POS, clientShell)).isNull();
+            assertThat(QuickLitematicaContainerInventory.getActualDisabledSlots(serverWorld, POS, clientShell))
+                    .isNull();
+            assertThat(
+                    QuickLitematicaContainerInventory.getActualDisabledSlots(mock(ClientLevel.class), POS, clientShell)
+            ).isNull();
         }
     }
 
     @Test
     void unsyncedCrafterDisabledSlotsStayPendingWhileReliableAndScreenValuesCompare() throws Exception {
         try (var fixture = fixture();
-             var verifier = mockStatic(QuickLitematicaContainerVerifier.class, CALLS_REAL_METHODS)) {
+                var verifier = mockStatic(QuickLitematicaContainerVerifier.class, CALLS_REAL_METHODS)) {
             var world = fixture.world;
             CrafterBlockEntity crafter = new CrafterBlockEntity(POS, Blocks.CRAFTER.defaultBlockState());
             when(world.getBlockState(POS)).thenReturn(Blocks.CRAFTER.defaultBlockState());
@@ -219,39 +282,61 @@ class QuickLitematicaContainerDataSourceTest {
             when(host.quickcraft$verificationWorldClient()).thenReturn(world);
             var verification = new QuickLitematicaContainerVerification(host);
             var expected = new QuickLitematicaContainerVerifier.ExpectedContainer(
-                    POS, Blocks.CRAFTER.defaultBlockState(), null, new SimpleContainer(9), Set.of(0));
-            verifier.when(() -> QuickLitematicaContainerVerifier.getExpectedContainerAt(world, POS, null)).thenReturn(expected);
+                    POS,
+                    Blocks.CRAFTER.defaultBlockState(),
+                    null,
+                    new SimpleContainer(9),
+                    Set.of(0)
+            );
+            verifier.when(() -> QuickLitematicaContainerVerifier.getExpectedContainerAt(world, POS, null)).thenReturn(
+                    expected
+            );
             Method collect = QuickLitematicaContainerVerification.class.getDeclaredMethod(
-                    "quickcraft$collectContainerMismatchesFromWorld", Level.class, BlockPos.class);
+                    "quickcraft$collectContainerMismatchesFromWorld",
+                    Level.class,
+                    BlockPos.class
+            );
             collect.setAccessible(true);
             CompoundTag unsynced = new CompoundTag();
             unsynced.putString("id", "minecraft:crafter");
             // 客户端序列化也写 disabled_slots 空数组，字段存在不能单独证明收包。
             unsynced.put("disabled_slots", new IntArrayTag(new int[0]));
-            fixture.cache.addToCache(POS, crafter,
-                    fi.dy.masa.malilib.util.data.tag.converter.DataConverterNbt.fromVanillaCompound(unsynced));
+            fixture.cache.addToCache(
+                    POS,
+                    crafter,
+                    fi.dy.masa.malilib.util.data.tag.converter.DataConverterNbt.fromVanillaCompound(unsynced)
+            );
             assertThat(collect.invoke(verification, world, POS)).isNull();
             CompoundTag reliable = unsynced.copy();
-            reliable.put("disabled_slots", new IntArrayTag(new int[]{0}));
+            reliable.put("disabled_slots", new IntArrayTag(new int[] { 0 }));
             fixture.respond(reliable);
             assertThat((List<?>) collect.invoke(verification, world, POS)).isEmpty();
             CompoundTag different = unsynced.copy();
-            different.put("disabled_slots", new IntArrayTag(new int[]{1}));
+            different.put("disabled_slots", new IntArrayTag(new int[] { 1 }));
             fixture.respond(different);
             assertThat(((List<?>) collect.invoke(verification, world, POS)).toString()).contains("LOCK_STATE");
             Method fromInventory = QuickLitematicaContainerVerification.class.getDeclaredMethod(
-                    "quickcraft$collectContainerMismatchesFromInventory", Level.class, BlockPos.class, Container.class, Set.class);
+                    "quickcraft$collectContainerMismatchesFromInventory",
+                    Level.class,
+                    BlockPos.class,
+                    Container.class,
+                    Set.class
+            );
             fromInventory.setAccessible(true);
             fixture.respond(new CompoundTag());
-            assertThat((List<?>) fromInventory.invoke(verification, world, POS, new SimpleContainer(9), Set.of(0))).isEmpty();
+            assertThat((List<?>) fromInventory.invoke(verification, world, POS, new SimpleContainer(9), Set.of(0)))
+                    .isEmpty();
         }
     }
 
     @Test
     void receiptHookRequiresSuccessAndScopesProofToWorldPositionAndPayload() throws Exception {
         var world = mock(ClientLevel.class);
-        when(world.registryAccess()).thenReturn(net.minecraft.core.RegistryAccess.fromRegistryOfRegistries(
-                net.minecraft.core.registries.BuiltInRegistries.REGISTRY));
+        when(world.registryAccess()).thenReturn(
+                net.minecraft.core.RegistryAccess.fromRegistryOfRegistries(
+                        net.minecraft.core.registries.BuiltInRegistries.REGISTRY
+                )
+        );
         try (var minecraft = mockStatic(net.minecraft.client.Minecraft.class)) {
             var client = clientWithDirectory();
             client.level = world;
@@ -264,11 +349,16 @@ class QuickLitematicaContainerDataSourceTest {
             assertThat(QuickLitematicaContainerInventory.wasReceivedBlockEntityData(world, POS, payload)).isFalse();
             invokeReceiptHook(payload, new CrafterBlockEntity(POS, Blocks.CRAFTER.defaultBlockState()));
             assertThat(QuickLitematicaContainerInventory.wasReceivedBlockEntityData(world, POS, payload)).isTrue();
-            assertThat(QuickLitematicaContainerInventory.wasReceivedBlockEntityData(world, POS.above(), payload)).isFalse();
+            assertThat(QuickLitematicaContainerInventory.wasReceivedBlockEntityData(world, POS.above(), payload))
+                    .isFalse();
             CompoundTag clientOnly = nbt.copy();
             clientOnly.putInt("clientOnly", 1);
-            assertThat(QuickLitematicaContainerInventory.wasReceivedBlockEntityData(world, POS, receiptPayload(clientOnly))).isFalse();
-            assertThat(QuickLitematicaContainerInventory.wasReceivedBlockEntityData(mock(ClientLevel.class), POS, payload)).isFalse();
+            assertThat(
+                    QuickLitematicaContainerInventory.wasReceivedBlockEntityData(world, POS, receiptPayload(clientOnly))
+            ).isFalse();
+            assertThat(
+                    QuickLitematicaContainerInventory.wasReceivedBlockEntityData(mock(ClientLevel.class), POS, payload)
+            ).isFalse();
             assertThat(QuickLitematicaContainerInventory.wasReceivedBlockEntityData(world, POS, payload)).isFalse();
         } finally {
             QuickLitematicaContainerInventory.wasReceivedBlockEntityData(null, POS, null);
@@ -281,7 +371,9 @@ class QuickLitematicaContainerDataSourceTest {
             var directory = net.minecraft.client.Minecraft.class.getDeclaredField("gameDirectory");
             directory.setAccessible(true);
             directory.set(client, fixtureDirectory.toFile());
-        } catch (ReflectiveOperationException failure) { throw new AssertionError(failure); }
+        } catch (ReflectiveOperationException failure) {
+            throw new AssertionError(failure);
+        }
         return client;
     }
 
@@ -290,17 +382,23 @@ class QuickLitematicaContainerDataSourceTest {
     }
 
     private static Method receiptMethod() throws ClassNotFoundException {
-        return java.util.Arrays.stream(receiptStorageType().getDeclaredMethods())
-                .filter(candidate -> candidate.getName().equals("handleBlockEntityData")).findFirst().orElseThrow();
+        return java.util.Arrays.stream(receiptStorageType().getDeclaredMethods()).filter(
+                candidate -> candidate.getName().equals("handleBlockEntityData")
+        ).findFirst().orElseThrow();
     }
 
     private static Object receiptPayload(CompoundTag nbt) throws Exception {
-        if (receiptMethod().getParameterTypes()[1] == CompoundTag.class) return nbt;
-        return Class.forName("fi.dy.masa.malilib.util.data.tag.converter.DataConverterNbt")
-                .getMethod("fromVanillaCompound", CompoundTag.class).invoke(null, nbt);
+        if (receiptMethod().getParameterTypes()[1] == CompoundTag.class) {
+            return nbt;
+        }
+        return Class.forName("fi.dy.masa.malilib.util.data.tag.converter.DataConverterNbt").getMethod(
+                "fromVanillaCompound",
+                CompoundTag.class
+        ).invoke(null, nbt);
     }
 
-    private static void invokeReceiptHook(Object payload, net.minecraft.world.level.block.entity.BlockEntity result) throws Exception {
+    private static void invokeReceiptHook(Object payload, net.minecraft.world.level.block.entity.BlockEntity result)
+            throws Exception {
         var constructor = receiptStorageType().getDeclaredConstructor();
         constructor.setAccessible(true);
         Object storage = org.mockito.Mockito.spy(constructor.newInstance());
@@ -317,8 +415,11 @@ class QuickLitematicaContainerDataSourceTest {
 
     private static Fixture fixture() {
         ClientLevel world = mock(ClientLevel.class);
-        when(world.registryAccess()).thenReturn(net.minecraft.core.RegistryAccess.fromRegistryOfRegistries(
-                net.minecraft.core.registries.BuiltInRegistries.REGISTRY));
+        when(world.registryAccess()).thenReturn(
+                net.minecraft.core.RegistryAccess.fromRegistryOfRegistries(
+                        net.minecraft.core.registries.BuiltInRegistries.REGISTRY
+                )
+        );
         var minecraft = mockStatic(net.minecraft.client.Minecraft.class);
         var client = clientWithDirectory();
         client.level = world;
@@ -349,20 +450,31 @@ class QuickLitematicaContainerDataSourceTest {
         return nbt;
     }
 
-    private record Fixture(ClientLevel world, fi.dy.masa.malilib.util.data_syncer.EntityDataCache cache,
-                           org.mockito.MockedStatic<DataManager> data,
-                           org.mockito.MockedStatic<EntityDataManager> entityData,
-                           org.mockito.MockedStatic<net.minecraft.client.Minecraft> minecraft) implements AutoCloseable {
-        void respond(CompoundTag nbt) { respondAt(POS, nbt); }
+    private record Fixture(
+            ClientLevel world,
+            fi.dy.masa.malilib.util.data_syncer.EntityDataCache cache,
+            org.mockito.MockedStatic<DataManager> data,
+            org.mockito.MockedStatic<EntityDataManager> entityData,
+            org.mockito.MockedStatic<net.minecraft.client.Minecraft> minecraft
+    ) implements AutoCloseable {
+        void respond(CompoundTag nbt) {
+            respondAt(POS, nbt);
+        }
+
         void respondPaired(CompoundTag nbt) {
             respondAt(ChestBlock.getConnectedBlockPos(POS, world.getBlockState(POS)), nbt);
         }
+
         private void respondAt(BlockPos pos, CompoundTag nbt) {
-            if (nbt == null) { cache.removeFromCache(pos); return; }
+            if (nbt == null) {
+                cache.removeFromCache(pos);
+                return;
+            }
             var payload = fi.dy.masa.malilib.util.data.tag.converter.DataConverterNbt.fromVanillaCompound(nbt);
             cache.addToCache(pos, null, payload);
             QuickLitematicaContainerVerifier.rememberReceivedBlockEntityData(world, pos, payload);
         }
+
         @Override
         public void close() {
             QuickLitematicaContainerInventory.wasReceivedBlockEntityData(null, POS, null);

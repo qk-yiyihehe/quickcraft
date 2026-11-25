@@ -17,8 +17,7 @@ import static com.yiyihehe.quickcraft.litematica.QuickLitematicaContainerVerifie
 
 /** 容器物品、组件与禁用槽位比较；不维护屏幕绑定或发送数据请求。 */
 final class QuickLitematicaContainerComparison {
-    private QuickLitematicaContainerComparison() {
-    }
+    private QuickLitematicaContainerComparison() {}
 
     static List<ContainerMismatch> findMismatches(
             BlockPos pos,
@@ -90,7 +89,13 @@ final class QuickLitematicaContainerComparison {
         if (!expectedDisabledSlots.equals(foundDisabledSlots)) {
             for (int slot : unionSlots(expectedDisabledSlots, foundDisabledSlots)) {
                 if (expectedDisabledSlots.contains(slot) != foundDisabledSlots.contains(slot)) {
-                    addSlotStatusIfEmpty(slotMismatches, slot, SlotMismatchStatus.LOCK_STATE, expected.getStack(slot), found.getStack(slot));
+                    addSlotStatusIfEmpty(
+                            slotMismatches,
+                            slot,
+                            SlotMismatchStatus.LOCK_STATE,
+                            expected.getStack(slot),
+                            found.getStack(slot)
+                    );
                 }
             }
 
@@ -116,20 +121,22 @@ final class QuickLitematicaContainerComparison {
             type = WRONG_FILL;
         }
 
-        return List.of(new ContainerMismatch(
-                pos,
-                expectedState,
-                foundState,
-                first.slot(),
-                type,
-                first.expectedStack(),
-                first.foundStack(),
-                expectedCopy,
-                foundCopy,
-                expectedDisabledSlots,
-                foundDisabledSlots,
-                List.copyOf(slotMismatches)
-        ));
+        return List.of(
+                new ContainerMismatch(
+                        pos,
+                        expectedState,
+                        foundState,
+                        first.slot(),
+                        type,
+                        first.expectedStack(),
+                        first.foundStack(),
+                        expectedCopy,
+                        foundCopy,
+                        expectedDisabledSlots,
+                        foundDisabledSlots,
+                        List.copyOf(slotMismatches)
+                )
+        );
     }
 
     static SlotMismatchStatus getSlotMismatchStatus(ItemStack expectedStack, ItemStack foundStack) {
@@ -160,9 +167,11 @@ final class QuickLitematicaContainerComparison {
             return true;
         }
 
-        if (!expectedStack.isOf(foundStack.getItem())
-                || !sameEnchantments(expectedStack, foundStack, DataComponentTypes.ENCHANTMENTS)
-                || !sameEnchantments(expectedStack, foundStack, DataComponentTypes.STORED_ENCHANTMENTS)) {
+        if (!expectedStack.isOf(foundStack.getItem()) || !sameEnchantments(
+                expectedStack,
+                foundStack,
+                DataComponentTypes.ENCHANTMENTS
+        ) || !sameEnchantments(expectedStack, foundStack, DataComponentTypes.STORED_ENCHANTMENTS)) {
             return false;
         }
 

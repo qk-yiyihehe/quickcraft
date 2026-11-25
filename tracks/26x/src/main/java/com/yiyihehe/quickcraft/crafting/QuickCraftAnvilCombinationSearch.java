@@ -9,11 +9,20 @@ import java.util.function.ToIntFunction;
 
 /** 按累计费用搜索合成树；左右子树消耗的原始材料必须互不重叠。 */
 public final class QuickCraftAnvilCombinationSearch<T, K> {
-    public record Material<T>(int slot, T item, boolean equipment) {}
-    public record Merge<T>(T item, int cost) {}
-    public record Step<T>(int leftSlot, int rightSlot, T left, T right, T output, int cost) {}
-    public record Plan<T>(int sourceSlot, T item, boolean equipment, long used, List<Step<T>> steps, int cost) {}
-    private record ValueKey<K>(K item, boolean equipment) {}
+    public record Material<T>(int slot, T item, boolean equipment) {
+    }
+
+    public record Merge<T>(T item, int cost) {
+    }
+
+    public record Step<T>(int leftSlot, int rightSlot, T left, T right, T output, int cost) {
+    }
+
+    public record Plan<T>(int sourceSlot, T item, boolean equipment, long used, List<Step<T>> steps, int cost) {
+    }
+
+    private record ValueKey<K>(K item, boolean equipment) {
+    }
 
     private static final class Value<T> {
         final int id;
@@ -64,8 +73,7 @@ public final class QuickCraftAnvilCombinationSearch<T, K> {
         final int mergeCost;
         boolean discarded;
 
-        Node(Value<T> value, long used, int cost,
-             Node<T> left, Node<T> right, int mergeCost) {
+        Node(Value<T> value, long used, int cost, Node<T> left, Node<T> right, int mergeCost) {
             this.value = value;
             this.used = used;
             this.cost = cost;
@@ -86,7 +94,9 @@ public final class QuickCraftAnvilCombinationSearch<T, K> {
         }
     }
 
-    private record CachedMerge<T>(T item, int cost) {}
+    private record CachedMerge<T>(T item, int cost) {
+    }
+
     private final Function<T, K> key;
     private final Function<T, K> dominanceKey;
     private final BiPredicate<T, T> noWorse;
@@ -115,24 +125,41 @@ public final class QuickCraftAnvilCombinationSearch<T, K> {
     private long pairUsage;
     private long comparedMaterialMask;
 
-    public QuickCraftAnvilCombinationSearch(List<Material<T>> materials, Function<T, K> key,
-                                           BiFunction<T, T, Merge<T>> combine, Predicate<T> goal,
-                                           ToIntFunction<T> progress) {
+    public QuickCraftAnvilCombinationSearch(
+            List<Material<T>> materials,
+            Function<T, K> key,
+            BiFunction<T, T, Merge<T>> combine,
+            Predicate<T> goal,
+            ToIntFunction<T> progress
+    ) {
         this(materials, key, combine, goal, progress, key, (left, right) -> true);
     }
 
-    public QuickCraftAnvilCombinationSearch(List<Material<T>> materials, Function<T, K> key,
-                                           BiFunction<T, T, Merge<T>> combine, Predicate<T> goal,
-                                           ToIntFunction<T> progress, Function<T, K> dominanceKey,
-                                           BiPredicate<T, T> noWorse) {
+    public QuickCraftAnvilCombinationSearch(
+            List<Material<T>> materials,
+            Function<T, K> key,
+            BiFunction<T, T, Merge<T>> combine,
+            Predicate<T> goal,
+            ToIntFunction<T> progress,
+            Function<T, K> dominanceKey,
+            BiPredicate<T, T> noWorse
+    ) {
         this(materials, key, combine, goal, progress, dominanceKey, noWorse, item -> false);
     }
 
-    public QuickCraftAnvilCombinationSearch(List<Material<T>> materials, Function<T, K> key,
-                                           BiFunction<T, T, Merge<T>> combine, Predicate<T> goal,
-                                           ToIntFunction<T> progress, Function<T, K> dominanceKey,
-                                           BiPredicate<T, T> noWorse, Predicate<T> redundantStock) {
-        if (materials.size() > Long.SIZE) throw new IllegalStateException("Anvil search too large");
+    public QuickCraftAnvilCombinationSearch(
+            List<Material<T>> materials,
+            Function<T, K> key,
+            BiFunction<T, T, Merge<T>> combine,
+            Predicate<T> goal,
+            ToIntFunction<T> progress,
+            Function<T, K> dominanceKey,
+            BiPredicate<T, T> noWorse,
+            Predicate<T> redundantStock
+    ) {
+        if (materials.size() > Long.SIZE) {
+            throw new IllegalStateException("Anvil search too large");
+        }
         this.key = key;
         this.dominanceKey = dominanceKey;
         this.noWorse = noWorse;
@@ -142,7 +169,9 @@ public final class QuickCraftAnvilCombinationSearch<T, K> {
         var byValue = new HashMap<Integer, Resource<T>>();
         for (int index = 0; index < materials.size(); index++) {
             var material = materials.get(index);
-            if (!redundantStock.test(material.item)) comparedMaterialMask |= 1L << index;
+            if (!redundantStock.test(material.item)) {
+                comparedMaterialMask |= 1L << index;
+            }
             var value = value(material.item, material.equipment);
             var resource = byValue.computeIfAbsent(value.id, ignored -> {
                 var added = new Resource<>(resources.size(), value);
@@ -161,26 +190,45 @@ public final class QuickCraftAnvilCombinationSearch<T, K> {
 
     private Value<T> value(T item, boolean equipment) {
         var valueKey = new ValueKey<>(key.apply(item), equipment);
-        return values.computeIfAbsent(valueKey, ignored -> new Value<>(values.size(), item, equipment,
-                equipment && goal.test(item), progress.applyAsInt(item), alternatives.computeIfAbsent(
-                        new ValueKey<>(dominanceKey.apply(item), equipment), unused -> new ArrayList<>())));
+        return values.computeIfAbsent(
+                valueKey,
+                ignored -> new Value<>(
+                        values.size(),
+                        item,
+                        equipment,
+                        equipment && goal.test(item),
+                        progress.applyAsInt(item),
+                        alternatives.computeIfAbsent(
+                                new ValueKey<>(dominanceKey.apply(item), equipment),
+                                unused -> new ArrayList<>()
+                        )
+                )
+        );
     }
 
     private void offer(Node<T> node) {
-        if (incumbent != null && node.cost >= incumbent.cost) return;
+        if (incumbent != null && node.cost >= incumbent.cost) {
+            return;
+        }
         var alternatives = node.value.alternatives;
         long nodeUse = node.used & comparedMaterialMask;
         // 相同物品若有更便宜、占用材料更少的路线，可以替代其所有后续操作。
         for (var previous : alternatives) {
             long previousUse = previous.used & comparedMaterialMask;
-            if ((previousUse & nodeUse) == previousUse && previous.cost <= node.cost
-                    && noWorse.test(previous.value.item, node.value.item)) return;
+            if ((previousUse & nodeUse) == previousUse && previous.cost <= node.cost && noWorse.test(
+                    previous.value.item,
+                    node.value.item
+            )) {
+                return;
+            }
         }
         int previousCount = alternatives.size();
         alternatives.removeIf(previous -> {
             long previousUse = previous.used & comparedMaterialMask;
-            if ((previousUse & nodeUse) == nodeUse && node.cost <= previous.cost
-                    && noWorse.test(node.value.item, previous.value.item)) {
+            if ((previousUse & nodeUse) == nodeUse && node.cost <= previous.cost && noWorse.test(
+                    node.value.item,
+                    previous.value.item
+            )) {
                 previous.discarded = true;
                 return true;
             }
@@ -188,21 +236,34 @@ public final class QuickCraftAnvilCombinationSearch<T, K> {
         });
         states -= previousCount - alternatives.size();
         alternatives.add(node);
-        if (++states > 200_000) throw new IllegalStateException("Anvil search too large");
-        if (node.value.complete) incumbent = node;
-        else pending.add(node);
+        if (++states > 200_000) {
+            throw new IllegalStateException("Anvil search too large");
+        }
+        if (node.value.complete) {
+            incumbent = node;
+        } else {
+            pending.add(node);
+        }
     }
 
     public boolean advance(long budgetNanos) {
         long end = System.nanoTime() + budgetNanos;
         do {
-            if (finished) return true;
+            if (finished) {
+                return true;
+            }
             if (active == null) {
-                if (pending.isEmpty()) return finish(incumbent != null ? incumbent : bestPartial);
+                if (pending.isEmpty()) {
+                    return finish(incumbent != null ? incumbent : bestPartial);
+                }
                 var next = pending.remove();
-                if (next.discarded) continue;
+                if (next.discarded) {
+                    continue;
+                }
                 // 未展开子树的费用已不低于可行完整路线时，更贵的组合不可能改进答案。
-                if (incumbent != null && next.cost >= incumbent.cost) return finish(incumbent);
+                if (incumbent != null && next.cost >= incumbent.cost) {
+                    return finish(incumbent);
+                }
                 if (next.value.equipment && next.left != null && (bestPartial == null
                         || next.value.progress > bestPartial.value.progress
                         || (next.value.progress == bestPartial.value.progress && next.cost < bestPartial.cost))) {
@@ -216,26 +277,39 @@ public final class QuickCraftAnvilCombinationSearch<T, K> {
             } else if (pendingSelf) {
                 pendingSelf = false;
                 long used = combinedUsage(active.used, active.used);
-                if (!active.value.equipment && used != 0) merge(active, active, used);
+                if (!active.value.equipment && used != 0) {
+                    merge(active, active, used);
+                }
             } else if (groupIndex < settled.size()) {
                 var group = settled.get(groupIndex);
                 if (partnerIndex == 0) {
-                    if (++groupsVisited > 5_000_000) throw new IllegalStateException("Anvil search too large");
+                    if (++groupsVisited > 5_000_000) {
+                        throw new IllegalStateException("Anvil search too large");
+                    }
                     pairUsage = combinedUsage(active.used, group.used);
                 }
                 // 组内按出队费用递增，可整组跳过重叠材料、两件装备和超过费用上限的余项。
-                if (pairUsage == 0 || (active.value.equipment && group.equipment)
-                        || partnerIndex >= group.nodes.size()
-                        || (incumbent != null && (long) active.cost + group.nodes.get(partnerIndex).cost >= incumbent.cost)) {
+                if (pairUsage == 0 || (active.value.equipment && group.equipment) || partnerIndex >= group.nodes.size()
+                        || (incumbent != null && (long) active.cost + group.nodes.get(
+                                partnerIndex
+                        ).cost >= incumbent.cost)) {
                     groupIndex++;
                     partnerIndex = 0;
                     continue;
                 }
                 var other = group.nodes.get(partnerIndex++);
-                if (other.discarded) continue;
-                if (++pairs > 5_000_000) throw new IllegalStateException("Anvil search too large");
-                if (!other.value.equipment) merge(active, other, pairUsage);
-                if (!active.value.equipment) merge(other, active, pairUsage);
+                if (other.discarded) {
+                    continue;
+                }
+                if (++pairs > 5_000_000) {
+                    throw new IllegalStateException("Anvil search too large");
+                }
+                if (!other.value.equipment) {
+                    merge(active, other, pairUsage);
+                }
+                if (!active.value.equipment) {
+                    merge(other, active, pairUsage);
+                }
             } else {
                 var group = settledByMask.computeIfAbsent(active.used, ignored -> {
                     var added = new Group<>(active);
@@ -255,7 +329,9 @@ public final class QuickCraftAnvilCombinationSearch<T, K> {
         while (shared != 0) {
             var resource = materialResources.get(Long.numberOfTrailingZeros(shared));
             int count = Long.bitCount(left & resource.mask) + Long.bitCount(right & resource.mask);
-            if (count >= resource.prefixes.length) return 0;
+            if (count >= resource.prefixes.length) {
+                return 0;
+            }
             // 每类书只记录用了几本；槽位在最终回溯时分配，避免枚举同类书的排列组合。
             used = (used & ~resource.mask) | resource.prefixes[count];
             shared &= ~resource.mask;
@@ -265,20 +341,32 @@ public final class QuickCraftAnvilCombinationSearch<T, K> {
 
     private void merge(Node<T> left, Node<T> right, long used) {
         long subtotal = (long) left.cost + right.cost;
-        if (incumbent != null && subtotal >= incumbent.cost) return;
+        if (incumbent != null && subtotal >= incumbent.cost) {
+            return;
+        }
         long pairKey = ((long) left.value.id << 32) | (right.value.id & 0xffffffffL);
         var cached = merges.get(pairKey);
         if (cached == null) {
             var merged = combine.apply(left.value.item, right.value.item);
-            if (merged != null && merged.cost < 0) throw new IllegalArgumentException("Negative anvil cost");
+            if (merged != null && merged.cost < 0) {
+                throw new IllegalArgumentException("Negative anvil cost");
+            }
             cached = merged == null ? new CachedMerge<>(null, 0) : new CachedMerge<>(merged.item, merged.cost);
             // 无效组合也缓存；限制额外缓存内存，达到上限后仍照常精确搜索。
-            if (merges.size() < 65_536) merges.put(pairKey, cached);
+            if (merges.size() < 65_536) {
+                merges.put(pairKey, cached);
+            }
         }
-        if (cached.item == null) return;
+        if (cached.item == null) {
+            return;
+        }
         long cost = subtotal + cached.cost;
-        if (cost > Integer.MAX_VALUE) throw new IllegalStateException("Anvil search too large");
-        if (incumbent != null && cost >= incumbent.cost) return;
+        if (cost > Integer.MAX_VALUE) {
+            throw new IllegalStateException("Anvil search too large");
+        }
+        if (incumbent != null && cost >= incumbent.cost) {
+            return;
+        }
         offer(new Node<>(value(cached.item, left.value.equipment), used, (int) cost, left, right, cached.cost));
     }
 
@@ -286,8 +374,14 @@ public final class QuickCraftAnvilCombinationSearch<T, K> {
         if (node != null) {
             var steps = new ArrayList<Step<T>>();
             int sourceSlot = appendSteps(node, steps, new int[resources.size()]);
-            result = new Plan<>(sourceSlot, node.value.item, node.value.equipment, node.used,
-                    List.copyOf(steps), node.cost);
+            result = new Plan<>(
+                    sourceSlot,
+                    node.value.item,
+                    node.value.equipment,
+                    node.used,
+                    List.copyOf(steps),
+                    node.cost
+            );
         }
         finished = true;
         return true;
@@ -300,10 +394,20 @@ public final class QuickCraftAnvilCombinationSearch<T, K> {
         }
         int leftSlot = appendSteps(node.left, steps, nextSlots);
         int rightSlot = appendSteps(node.right, steps, nextSlots);
-        steps.add(new Step<>(leftSlot, rightSlot,
-                node.left.value.item, node.right.value.item, node.value.item, node.mergeCost));
+        steps.add(
+                new Step<>(
+                        leftSlot,
+                        rightSlot,
+                        node.left.value.item,
+                        node.right.value.item,
+                        node.value.item,
+                        node.mergeCost
+                )
+        );
         return leftSlot;
     }
 
-    public Plan<T> result() { return result; }
+    public Plan<T> result() {
+        return result;
+    }
 }

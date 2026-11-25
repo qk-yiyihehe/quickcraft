@@ -75,7 +75,10 @@ public final class QuickThrow implements ClientModInitializer, IKeyboardInputHan
         }
 
         Minecraft client = Minecraft.getInstance();
-        if (!(getCurrentScreen(client) instanceof AbstractContainerScreen<?> screen) || !canUseQuickThrow(client, screen)) {
+        if (!(getCurrentScreen(client) instanceof AbstractContainerScreen<?> screen) || !canUseQuickThrow(
+                client,
+                screen
+        )) {
             return false;
         }
 
@@ -94,11 +97,13 @@ public final class QuickThrow implements ClientModInitializer, IKeyboardInputHan
         );
     }
 
-    private static boolean handleActiveThrowKeyEvent(IKeybind keybind,
-                                                     int keyCode,
-                                                     boolean repeatedEvent,
-                                                     ThrowMode mode,
-                                                     AbstractContainerScreen<?> screen) {
+    private static boolean handleActiveThrowKeyEvent(
+            IKeybind keybind,
+            int keyCode,
+            boolean repeatedEvent,
+            ThrowMode mode,
+            AbstractContainerScreen<?> screen
+    ) {
         if (!QuickCraftKeyBindings.isHotkeyDown(keybind) || !isRepeatTriggerKey(keybind, keyCode)) {
             return false;
         }
@@ -137,11 +142,11 @@ public final class QuickThrow implements ClientModInitializer, IKeyboardInputHan
 
     public static boolean shouldConsumeAnvilThrowHotkeyInput() {
         Minecraft client = Minecraft.getInstance();
-        return QuickCraftConfigs.isQuickThrowEnabled()
-                && client != null
-                && getCurrentScreen(client) instanceof AnvilScreen
-                && (QuickCraftKeyBindings.isHotkeyDown(QuickCraftConfigs.Hotkeys.DROP_MATCHING.getKeybind())
-                || QuickCraftKeyBindings.isHotkeyDown(QuickCraftConfigs.Hotkeys.DROP_WHOLE_STACK.getKeybind()));
+        return QuickCraftConfigs.isQuickThrowEnabled() && client != null && getCurrentScreen(
+                client
+        ) instanceof AnvilScreen && (QuickCraftKeyBindings.isHotkeyDown(
+                QuickCraftConfigs.Hotkeys.DROP_MATCHING.getKeybind()
+        ) || QuickCraftKeyBindings.isHotkeyDown(QuickCraftConfigs.Hotkeys.DROP_WHOLE_STACK.getKeybind()));
     }
 
     private void onClientTick(Minecraft client) {
@@ -157,7 +162,10 @@ public final class QuickThrow implements ClientModInitializer, IKeyboardInputHan
             return;
         }
 
-        if (!(getCurrentScreen(client) instanceof AbstractContainerScreen<?> screen) || !canUseQuickThrow(client, screen)) {
+        if (!(getCurrentScreen(client) instanceof AbstractContainerScreen<?> screen) || !canUseQuickThrow(
+                client,
+                screen
+        )) {
             resetHoldGesture();
             return;
         }
@@ -194,7 +202,10 @@ public final class QuickThrow implements ClientModInitializer, IKeyboardInputHan
 
     private static boolean handleBoundThrow(ThrowMode mode) {
         Minecraft client = Minecraft.getInstance();
-        if (!(getCurrentScreen(client) instanceof AbstractContainerScreen<?> screen) || !canUseQuickThrow(client, screen)) {
+        if (!(getCurrentScreen(client) instanceof AbstractContainerScreen<?> screen) || !canUseQuickThrow(
+                client,
+                screen
+        )) {
             return false;
         }
 
@@ -220,10 +231,8 @@ public final class QuickThrow implements ClientModInitializer, IKeyboardInputHan
     }
 
     private static boolean canUseQuickThrow(Minecraft client, AbstractContainerScreen<?> screen) {
-        return QuickCraftConfigs.isQuickThrowEnabled()
-                && !QuickCraftConfigScreen.isOpen(client)
-                && (!isTextInputFocused(screen) || screen instanceof AnvilScreen)
-                && client.player != null
+        return QuickCraftConfigs.isQuickThrowEnabled() && !QuickCraftConfigScreen.isOpen(client)
+                && (!isTextInputFocused(screen) || screen instanceof AnvilScreen) && client.player != null
                 && client.gameMode != null;
     }
 
@@ -245,10 +254,12 @@ public final class QuickThrow implements ClientModInitializer, IKeyboardInputHan
         hasLastMousePosition = false;
     }
 
-    private static boolean processHoveredSlot(AbstractContainerScreen<?> screen,
-                                              Slot hoveredSlot,
-                                              ThrowMode mode,
-                                              boolean allowRepeatedSlot) {
+    private static boolean processHoveredSlot(
+            AbstractContainerScreen<?> screen,
+            Slot hoveredSlot,
+            ThrowMode mode,
+            boolean allowRepeatedSlot
+    ) {
         if (!allowRepeatedSlot && hoveredSlot == lastHoveredSlot) {
             return false;
         }
@@ -267,8 +278,7 @@ public final class QuickThrow implements ClientModInitializer, IKeyboardInputHan
         return true;
     }
 
-    private static boolean dropAllMatchingStacks(AbstractContainerScreen<?> screen,
-                                                 ThrowTarget hoveredTarget) {
+    private static boolean dropAllMatchingStacks(AbstractContainerScreen<?> screen, ThrowTarget hoveredTarget) {
         ItemStack template = hoveredTarget.visibleSlot().getItem();
         if (template.isEmpty()) {
             return false;
@@ -327,15 +337,17 @@ public final class QuickThrow implements ClientModInitializer, IKeyboardInputHan
         target.effectiveSlot().set(ItemStack.EMPTY);
         Int2ObjectMap<HashedStack> modifiedStacks = new Int2ObjectOpenHashMap<>();
         modifiedStacks.put(target.clickSlotId(), HashedStack.EMPTY);
-        client.getConnection().send(new ServerboundContainerClickPacket(
-                target.handler().containerId,
-                target.handler().getStateId(),
-                (short) target.clickSlotId(),
-                (byte) 1,
-                ContainerInput.THROW,
-                modifiedStacks,
-                HashedStack.EMPTY
-        ));
+        client.getConnection().send(
+                new ServerboundContainerClickPacket(
+                        target.handler().containerId,
+                        target.handler().getStateId(),
+                        (short) target.clickSlotId(),
+                        (byte) 1,
+                        ContainerInput.THROW,
+                        modifiedStacks,
+                        HashedStack.EMPTY
+                )
+        );
     }
 
     private static List<Slot> findHoveredSlotsAlongPath(AbstractContainerScreen<?> screen, int mouseX, int mouseY) {
@@ -383,8 +395,7 @@ public final class QuickThrow implements ClientModInitializer, IKeyboardInputHan
         if (client.player == null) {
             return null;
         }
-        if (!isVisibleSlot(slot) || !slot.hasItem()
-                || !slot.mayPickup(client.player)) {
+        if (!isVisibleSlot(slot) || !slot.hasItem() || !slot.mayPickup(client.player)) {
             return null;
         }
 
@@ -392,7 +403,9 @@ public final class QuickThrow implements ClientModInitializer, IKeyboardInputHan
         AbstractContainerMenu handler = screen.getMenu();
         int clickSlotId;
         if (screen instanceof CreativeModeInventoryScreen) {
-            if (!(effectiveSlot.container instanceof Inventory) || !isPlayerStorageIndex(effectiveSlot.getContainerSlot())) {
+            if (!(effectiveSlot.container instanceof Inventory) || !isPlayerStorageIndex(
+                    effectiveSlot.getContainerSlot()
+            )) {
                 return null;
             }
             // 创造界面只允许处理解包后的玩家真实背包槽，避免误碰上方创造物品列表。
@@ -414,8 +427,9 @@ public final class QuickThrow implements ClientModInitializer, IKeyboardInputHan
         }
 
         Slot effectiveSlot = unwrapCreativeSlot(slot);
-        return !(effectiveSlot.container instanceof Inventory)
-                || !isPlayerStorageIndex(effectiveSlot.getContainerSlot());
+        return !(effectiveSlot.container instanceof Inventory) || !isPlayerStorageIndex(
+                effectiveSlot.getContainerSlot()
+        );
     }
 
     private static int getClickSlotId(AbstractContainerMenu handler, Slot slot) {
@@ -459,10 +473,7 @@ public final class QuickThrow implements ClientModInitializer, IKeyboardInputHan
     private static boolean isMouseOverSlot(Slot slot, int guiLeft, int guiTop, int mouseX, int mouseY) {
         int slotLeft = guiLeft + slot.x;
         int slotTop = guiTop + slot.y;
-        return mouseX >= slotLeft
-                && mouseX < slotLeft + SLOT_SIZE
-                && mouseY >= slotTop
-                && mouseY < slotTop + SLOT_SIZE;
+        return mouseX >= slotLeft && mouseX < slotLeft + SLOT_SIZE && mouseY >= slotTop && mouseY < slotTop + SLOT_SIZE;
     }
 
     private static int getMouseX(Minecraft client) {
@@ -474,15 +485,15 @@ public final class QuickThrow implements ClientModInitializer, IKeyboardInputHan
     }
 
     private enum ThrowMode {
-        NONE,
-        MATCHING,
-        WHOLE_STACK
+        NONE, MATCHING, WHOLE_STACK
     }
 
-    private record ThrowTarget(AbstractContainerScreen<?> screen,
-                               AbstractContainerMenu handler,
-                               Slot visibleSlot,
-                               Slot effectiveSlot,
-                               int clickSlotId) {
+    private record ThrowTarget(
+            AbstractContainerScreen<?> screen,
+            AbstractContainerMenu handler,
+            Slot visibleSlot,
+            Slot effectiveSlot,
+            int clickSlotId
+    ) {
     }
 }

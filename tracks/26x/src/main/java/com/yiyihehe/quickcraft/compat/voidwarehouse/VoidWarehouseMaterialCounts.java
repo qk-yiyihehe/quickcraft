@@ -1,7 +1,7 @@
 package com.yiyihehe.quickcraft.compat.voidwarehouse;
 
 final class VoidWarehouseMaterialCounts {
-    private VoidWarehouseMaterialCounts() { }
+    private VoidWarehouseMaterialCounts() {}
 
     static int merge(int inventoryCount, long warehouseAmount) {
         int base = Math.max(0, inventoryCount);

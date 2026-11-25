@@ -21,12 +21,15 @@ class QuickLitematicaSelectionVolumeTest {
 
     @Test
     void accumulatedRegionsCannotExceedTheCaptureLimit() {
-        AreaSelection selection = selection(List.of(
-                box(0, 0, 0, 1_999, 999, 0),
-                box(0, 0, 2, 1_999, 999, 2),
-                box(0, 0, 4, 1_999, 999, 4),
-                box(0, 0, 6, 1_999, 999, 6),
-                box(0, 0, 8, 1_999, 999, 8)));
+        AreaSelection selection = selection(
+                List.of(
+                        box(0, 0, 0, 1_999, 999, 0),
+                        box(0, 0, 2, 1_999, 999, 2),
+                        box(0, 0, 4, 1_999, 999, 4),
+                        box(0, 0, 6, 1_999, 999, 6),
+                        box(0, 0, 8, 1_999, 999, 8)
+                )
+        );
 
         assertThat(QuickLitematicaSelectionPreview.selectionVolume(selection)).isEqualTo(8_000_001L);
     }

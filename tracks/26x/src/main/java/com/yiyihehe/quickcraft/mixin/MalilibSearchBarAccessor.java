@@ -7,5 +7,6 @@ import org.spongepowered.asm.mixin.gen.Accessor;
 
 @Mixin(value = WidgetSearchBar.class, remap = false)
 public interface MalilibSearchBarAccessor {
-    @Accessor("searchBox") GuiTextFieldGeneric quickcraft$getSearchBox();
+    @Accessor("searchBox")
+    GuiTextFieldGeneric quickcraft$getSearchBox();
 }

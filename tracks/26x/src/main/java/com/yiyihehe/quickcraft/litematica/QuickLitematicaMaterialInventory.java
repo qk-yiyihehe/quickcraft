@@ -14,14 +14,18 @@ import java.util.Map;
 
 final class QuickLitematicaMaterialInventory {
     private record StackKey(Item item, DataComponentMap components) {
-        static StackKey of(ItemStack stack) { return new StackKey(stack.getItem(), stack.getComponents()); }
+        static StackKey of(ItemStack stack) {
+            return new StackKey(stack.getItem(), stack.getComponents());
+        }
     }
 
-    private QuickLitematicaMaterialInventory() { }
+    private QuickLitematicaMaterialInventory() {}
 
     static int countAvailable(List<ItemStack> targets) {
         var player = Minecraft.getInstance().player;
-        if (player == null) { return 0; }
+        if (player == null) {
+            return 0;
+        }
         int count = 0;
         var inventory = player.getInventory();
         for (int slot = 0; slot < inventory.getContainerSize(); slot++) {
@@ -32,9 +36,13 @@ final class QuickLitematicaMaterialInventory {
 
     static int[] countAvailableFor(List<ItemStack> targets) {
         int[] result = new int[targets.size()];
-        if (targets.isEmpty()) { return result; }
+        if (targets.isEmpty()) {
+            return result;
+        }
         var player = Minecraft.getInstance().player;
-        if (player == null) { return result; }
+        if (player == null) {
+            return result;
+        }
         Map<StackKey, Integer> counts = new HashMap<>();
         var inventory = player.getInventory();
         for (int slot = 0; slot < inventory.getContainerSize(); slot++) {
@@ -47,13 +55,17 @@ final class QuickLitematicaMaterialInventory {
     }
 
     private static void countStack(ItemStack stack, Map<StackKey, Integer> counts, int depth, int multiplier) {
-        if (stack.isEmpty()) { return; }
+        if (stack.isEmpty()) {
+            return;
+        }
         int amount = multiplier * stack.getCount();
         counts.merge(StackKey.of(stack), amount, Integer::sum);
         if (depth < 4 && stack.getItem() instanceof BlockItem item && item.getBlock() instanceof ShulkerBoxBlock) {
             var stored = InventoryUtils.getStoredItems(stack);
             if (stored != null) {
-                for (ItemStack nested : stored) { countStack(nested, counts, depth + 1, amount); }
+                for (ItemStack nested : stored) {
+                    countStack(nested, counts, depth + 1, amount);
+                }
             }
         }
     }
@@ -63,14 +75,18 @@ final class QuickLitematicaMaterialInventory {
     }
 
     private static int countStack(ItemStack stack, List<ItemStack> targets, int depth) {
-        if (stack.isEmpty()) { return 0; }
-        int count = targets.stream().anyMatch(target -> ItemStack.isSameItemSameComponents(target, stack))
-                ? stack.getCount() : 0;
+        if (stack.isEmpty()) {
+            return 0;
+        }
+        int count = targets.stream().anyMatch(target -> ItemStack.isSameItemSameComponents(target, stack)) ? stack
+                .getCount() : 0;
         // 与容器材料和末影箱统计保持相同上限，兼容服务器提供的嵌套潜影盒。
         if (depth < 4 && stack.getItem() instanceof BlockItem item && item.getBlock() instanceof ShulkerBoxBlock) {
             var stored = InventoryUtils.getStoredItems(stack);
             if (stored != null) {
-                for (ItemStack nested : stored) { count += stack.getCount() * countStack(nested, targets, depth + 1); }
+                for (ItemStack nested : stored) {
+                    count += stack.getCount() * countStack(nested, targets, depth + 1);
+                }
             }
         }
         return count;

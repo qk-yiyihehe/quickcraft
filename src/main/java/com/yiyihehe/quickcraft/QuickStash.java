@@ -107,9 +107,7 @@ public final class QuickStash implements ClientModInitializer {
         }
 
         Block block = client.world.getBlockState(blockHitResult.getBlockPos()).getBlock();
-        return block instanceof ChestBlock
-                || block instanceof BarrelBlock
-                || block instanceof EnderChestBlock
+        return block instanceof ChestBlock || block instanceof BarrelBlock || block instanceof EnderChestBlock
                 || block instanceof ShulkerBoxBlock;
     }
 
@@ -117,14 +115,14 @@ public final class QuickStash implements ClientModInitializer {
         return handler instanceof GenericContainerScreenHandler || handler instanceof ShulkerBoxScreenHandler;
     }
 
-    /** Runs the stash transfer without closing the current container screen. */
+    /** 保持当前容器界面打开，将物品存入容器。 */
     public static void stashFromButton(HandledScreen<?> screen) {
         if (!QuickStashShulkerTransfer.start(screen, -1, false)) {
             new QuickStash().stashMatchingPlayerItems(screen);
         }
     }
 
-    /** Runs the reverse transfer without closing the current container screen. */
+    /** 保持当前容器界面打开，将物品反向转回玩家物品栏。 */
     public static void retrieveFromButton(HandledScreen<?> screen) {
         new QuickStash().retrieveContainerItems(screen);
     }
@@ -147,9 +145,7 @@ public final class QuickStash implements ClientModInitializer {
 
         for (int playerSlotId : getPlayerStorageSlotIds(handler)) {
             Slot slot = handler.getSlot(playerSlotId);
-            if (!isPlayerStorageSlot(slot)
-                    || QuickContainerLock.isLockedSlot(handler, slot)
-                    || !slot.hasStack()
+            if (!isPlayerStorageSlot(slot) || QuickContainerLock.isLockedSlot(handler, slot) || !slot.hasStack()
                     || !slot.canTakeItems(client.player)) {
                 continue;
             }
@@ -157,8 +153,13 @@ public final class QuickStash implements ClientModInitializer {
                 continue;
             }
 
-            QuickSlotTransfer.quickMove(client, handler, playerSlotId,
-                    target -> !isPlayerStorageSlot(target) && isVisibleSlot(target), false);
+            QuickSlotTransfer.quickMove(
+                    client,
+                    handler,
+                    playerSlotId,
+                    target -> !isPlayerStorageSlot(target) && isVisibleSlot(target),
+                    false
+            );
         }
     }
 
@@ -206,9 +207,7 @@ public final class QuickStash implements ClientModInitializer {
     private List<ItemStack> snapshotContainerTemplates(ScreenHandler handler) {
         List<ItemStack> templates = new ArrayList<>();
         for (Slot slot : handler.slots) {
-            if (!isVisibleSlot(slot)
-                    || isPlayerStorageSlot(slot)
-                    || QuickContainerLock.isLockedSlot(handler, slot)
+            if (!isVisibleSlot(slot) || isPlayerStorageSlot(slot) || QuickContainerLock.isLockedSlot(handler, slot)
                     || !slot.hasStack()) {
                 continue;
             }
@@ -221,22 +220,18 @@ public final class QuickStash implements ClientModInitializer {
     private List<Integer> getPlayerStorageSlotIds(ScreenHandler handler) {
         List<Slot> playerSlots = new ArrayList<>();
         for (Slot slot : handler.slots) {
-            if (!isVisibleSlot(slot)
-                    || !isPlayerStorageSlot(slot)
-                    || QuickContainerLock.isLockedSlot(handler, slot)) {
+            if (!isVisibleSlot(slot) || !isPlayerStorageSlot(slot) || QuickContainerLock.isLockedSlot(handler, slot)) {
                 continue;
             }
             playerSlots.add(slot);
         }
 
-        playerSlots.sort(Comparator
-                .comparingInt((Slot slot) -> slot.getIndex() >= 9 ? 0 : 1)
-                .thenComparingInt(Slot::getIndex)
-                .thenComparingInt(slot -> slot.id));
+        playerSlots.sort(
+                Comparator.comparingInt((Slot slot) -> slot.getIndex() >= 9 ? 0 : 1).thenComparingInt(Slot::getIndex)
+                        .thenComparingInt(slot -> slot.id)
+        );
 
-        return playerSlots.stream()
-                .map(slot -> slot.id)
-                .toList();
+        return playerSlots.stream().map(slot -> slot.id).toList();
     }
 
     private boolean matchesAnyTemplate(ItemStack stack, List<ItemStack> templates) {
@@ -249,9 +244,8 @@ public final class QuickStash implements ClientModInitializer {
     }
 
     private boolean isPlayerStorageSlot(Slot slot) {
-        return slot.inventory instanceof net.minecraft.entity.player.PlayerInventory
-                && slot.getIndex() >= 0
-                && slot.getIndex() < 36;
+        return slot.inventory instanceof net.minecraft.entity.player.PlayerInventory && slot.getIndex() >= 0 && slot
+                .getIndex() < 36;
     }
 
     private boolean isVisibleSlot(Slot slot) {

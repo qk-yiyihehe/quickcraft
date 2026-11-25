@@ -31,7 +31,9 @@ public final class QuickCrossBoxSort implements ClientModInitializer {
     public static Comparator<QuickCrossBoxSortStacks.Stack<QuickCrossBoxSortStackKey>> comparator() {
         QuickSort.prepareCrossBoxOrder();
         return (left, right) -> QuickSort.compareCrossBoxStacks(
-                left.key().template().copyWithCount(left.count()), right.key().template().copyWithCount(right.count()));
+                left.key().template().copyWithCount(left.count()),
+                right.key().template().copyWithCount(right.count())
+        );
     }
 
     public static void message(Screen screen, Component text) {
@@ -40,17 +42,28 @@ public final class QuickCrossBoxSort implements ClientModInitializer {
 
     public static boolean reportPlan(Screen screen, int required, int available, boolean onePerBox) {
         boolean groupedFallback = onePerBox && required > available;
-        message(screen, groupedFallback
-                ? Component.translatable("quickcraft.message.cross_box_sort.boxes_insufficient", required, available)
-                : Component.translatable("quickcraft.message.cross_box_sort.started"));
+        message(
+                screen,
+                groupedFallback ? Component.translatable(
+                        "quickcraft.message.cross_box_sort.boxes_insufficient",
+                        required,
+                        available
+                ) : Component.translatable("quickcraft.message.cross_box_sort.started")
+        );
         return groupedFallback;
     }
 
     public static void reportCompletion(Screen screen, boolean groupedFallback, int emptied, int remaining, int moves) {
-        message(screen, groupedFallback
-                ? Component.translatableWithFallback("quickcraft.message.cross_box_sort.completed_grouped",
-                        "Too few boxes, grouped by type: %s freed, %s left, %s moves", emptied, remaining, moves)
-                : Component.translatable("quickcraft.message.cross_box_sort.completed", emptied, remaining, moves));
+        message(
+                screen,
+                groupedFallback ? Component.translatableWithFallback(
+                        "quickcraft.message.cross_box_sort.completed_grouped",
+                        "Too few boxes, grouped by type: %s freed, %s left, %s moves",
+                        emptied,
+                        remaining,
+                        moves
+                ) : Component.translatable("quickcraft.message.cross_box_sort.completed", emptied, remaining, moves)
+        );
     }
 
     public static boolean isRunning() {
@@ -59,9 +72,9 @@ public final class QuickCrossBoxSort implements ClientModInitializer {
 
     public static boolean handleHotkey() {
         Minecraft client = Minecraft.getInstance();
-        if (!QuickCraftConfigs.isCrossBoxSortEnabled()
-                || !(QuickClientScreenAccess.currentScreen(client) instanceof AbstractContainerScreen<?> screen)
-                || QuickSort.isTextInputFocused(screen)) {
+        if (!QuickCraftConfigs.isCrossBoxSortEnabled() || !(QuickClientScreenAccess.currentScreen(
+                client
+        ) instanceof AbstractContainerScreen<?> screen) || QuickSort.isTextInputFocused(screen)) {
             return false;
         }
         start(screen, !QuickSort.isContainerSortArea(screen), false);
@@ -70,22 +83,34 @@ public final class QuickCrossBoxSort implements ClientModInitializer {
 
     public static void start(AbstractContainerScreen<?> screen, boolean playerInventory, boolean onePerBox) {
         Minecraft client = Minecraft.getInstance();
-        if (!QuickCraftConfigs.isCrossBoxSortEnabled() || isRunning() || client.player == null
-                || QuickClientScreenAccess.currentScreen(client) != screen || screen.getMenu() != client.player.containerMenu
+        if (!QuickCraftConfigs.isCrossBoxSortEnabled()
+                || isRunning()
+                || client.player == null
+                || QuickClientScreenAccess.currentScreen(client) != screen
+                || screen.getMenu() != client.player.containerMenu
                 || QuickPortableStorageTransfer.isRunning()
                 || QuickStashShulkerTransfer.isRunning()
                 || QuickContainerCopy.shouldHideBackgroundHandledScreen()
-                || QuickMaterialCollector.shouldHideBackgroundHandledScreen()) { return; }
+                || QuickMaterialCollector.shouldHideBackgroundHandledScreen()) {
+            return;
+        }
         QuickContainerLock.bindCurrentScreen(screen);
         if (playerInventory ? QuickContainerLock.handleLockedPlayerInventorySortAttempt(client)
-                : QuickContainerLock.handleLockedSortAttempt(client, screen)) { return; }
+                : QuickContainerLock.handleLockedSortAttempt(client, screen)) {
+            return;
+        }
         var slots = QuickSort.crossBoxSortSlots(screen, playerInventory);
-        if (slots.isEmpty()) { message(screen, Component.translatable("quickcraft.message.cross_box_sort.nothing_to_sort")); return; }
+        if (slots.isEmpty()) {
+            message(screen, Component.translatable("quickcraft.message.cross_box_sort.nothing_to_sort"));
+            return;
+        }
         QuickCrossBoxSortSessions.INSTANCE.start(client, onePerBox, slots, playerInventory);
     }
 
     public static boolean consumeScreen(Screen screen) {
-        return isRunning() && (screen instanceof InventoryScreen || QuickCrossBoxSortSessions.INSTANCE.consumeScreen(screen));
+        return isRunning() && (screen instanceof InventoryScreen || QuickCrossBoxSortSessions.INSTANCE.consumeScreen(
+                screen
+        ));
     }
 
     public static boolean blocksInventoryInput(Screen screen) {

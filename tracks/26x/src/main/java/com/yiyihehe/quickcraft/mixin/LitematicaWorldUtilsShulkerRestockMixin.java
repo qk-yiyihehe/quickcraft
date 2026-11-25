@@ -19,11 +19,9 @@ public final class LitematicaWorldUtilsShulkerRestockMixin {
             method = "handleEasyPlace",
             at = @At(
                     value = "INVOKE",
-                    target = "Lfi/dy/masa/litematica/util/WorldUtils;doEasyPlaceAction(Lnet/minecraft/client/Minecraft;)Lnet/minecraft/world/InteractionResult;"
-            ),
+                    target = "Lfi/dy/masa/litematica/util/WorldUtils;doEasyPlaceAction(Lnet/minecraft/client/Minecraft;)Lnet/minecraft/world/InteractionResult;"),
             cancellable = true,
-            remap = false
-    )
+            remap = false)
     private static void quickcraft$restockBeforeClickEasyPlace(Minecraft client, CallbackInfoReturnable<Boolean> cir) {
         if (QuickLitematicaShulkerMaterialRestock.requestMaterialForEasyPlaceTarget(client)) {
             cir.setReturnValue(true);

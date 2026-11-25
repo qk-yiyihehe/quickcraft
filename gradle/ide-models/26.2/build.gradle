@@ -1,1 +1,1 @@
-// VS Code model proxy; root build.gradle delegates every lifecycle task to the isolated 26.x build.
+// 此项目用于向 VS Code 提供项目模型。根 build.gradle 会把所有生命周期任务委托给独立的 26.x 构建。

@@ -18,8 +18,7 @@ import net.minecraft.util.hit.HitResult;
 import net.minecraft.util.math.BlockPos;
 
 public final class QuickLitematicaTargetReplacement {
-    private QuickLitematicaTargetReplacement() {
-    }
+    private QuickLitematicaTargetReplacement() {}
 
     public static void bindHotkey() {
         QuickCraftConfigs.Hotkeys.OPEN_TARGET_MATERIAL_REPLACEMENT.getKeybind().setCallback(
@@ -73,8 +72,7 @@ public final class QuickLitematicaTargetReplacement {
         var original = QuickLitematicaContainerMemory.original(schematic);
         var local = location.local();
         var region = location.region();
-        var originalState = original.getSubRegionContainer(region)
-                .get(local.getX(), local.getY(), local.getZ());
+        var originalState = original.getSubRegionContainer(region).get(local.getX(), local.getY(), local.getZ());
         var context = QuickLitematicaMaterialLists.getContainerReplacementContextKey(placement);
         var container = QuickLitematicaContainerMaterials.readBlockContainer(original, region, local);
         var group = container == null ? null : container.editableGroup(region);
@@ -84,12 +82,11 @@ public final class QuickLitematicaTargetReplacement {
             if (!placed && container != null && container.second() != null) {
                 var other = local.equals(container.first()) ? container.second() : container.first();
                 var sub = placement.getRelativeSubRegionPlacement(region);
-                var offset = PositionUtils.getTransformedPlacementPosition(
-                        other.subtract(local), placement, sub
-                );
+                var offset = PositionUtils.getTransformedPlacementPosition(other.subtract(local), placement, sub);
                 var otherPos = pos.add(offset);
                 var otherState = world.getBlockState(otherPos);
-                placed = !otherState.isAir() && client.world.getBlockState(otherPos).getBlock() == otherState.getBlock();
+                placed = !otherState.isAir()
+                        && client.world.getBlockState(otherPos).getBlock() == otherState.getBlock();
             }
 
             if (placed) {

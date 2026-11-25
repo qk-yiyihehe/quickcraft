@@ -26,7 +26,9 @@ final class QuickLitematicaPreviewFluids {
         for (Direction side : SIDES) {
             this.neighbor.set(pos, side);
             // 与原生 isSameFluid 保持相同调用方向，包含静止/流动流体配对。
-            if (!view.getFluidState(this.neighbor).getFluid().matchesType(fluid)) return false;
+            if (!view.getFluidState(this.neighbor).getFluid().matchesType(fluid)) {
+                return false;
+            }
         }
         this.skipped++;
         return true;
@@ -34,8 +36,10 @@ final class QuickLitematicaPreviewFluids {
 
     static boolean hasDefaultGeometry(Fluid fluid, FluidRenderHandler override) {
         // 自定义处理器可能绘制内部几何；Simple 的子类也可能重写 renderFluid。
-        if (override != null) return override.getClass() == SimpleFluidRenderHandler.class;
-        return fluid == Fluids.WATER || fluid == Fluids.FLOWING_WATER
-                || fluid == Fluids.LAVA || fluid == Fluids.FLOWING_LAVA;
+        if (override != null) {
+            return override.getClass() == SimpleFluidRenderHandler.class;
+        }
+        return fluid == Fluids.WATER || fluid == Fluids.FLOWING_WATER || fluid == Fluids.LAVA
+                || fluid == Fluids.FLOWING_LAVA;
     }
 }

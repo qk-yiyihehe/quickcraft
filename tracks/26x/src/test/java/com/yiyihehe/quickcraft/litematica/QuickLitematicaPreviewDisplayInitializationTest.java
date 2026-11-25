@@ -24,14 +24,24 @@ class QuickLitematicaPreviewDisplayInitializationTest {
         var world = mock(QuickLitematicaPreview3D.DummyWorld.class);
         when(world.isClientSide()).thenReturn(true);
         when(world.enabledFeatures()).thenReturn(net.minecraft.world.flag.FeatureFlags.DEFAULT_FLAGS);
-        when(world.registryAccess()).thenReturn(net.minecraft.core.RegistryAccess.fromRegistryOfRegistries(
-                net.minecraft.core.registries.BuiltInRegistries.REGISTRY));
+        when(world.registryAccess()).thenReturn(
+                net.minecraft.core.RegistryAccess.fromRegistryOfRegistries(
+                        net.minecraft.core.registries.BuiltInRegistries.REGISTRY
+                )
+        );
         var client = mock(net.minecraft.client.Minecraft.class);
-        when(client.getEntityRenderDispatcher()).thenReturn(mock(
-                net.minecraft.client.renderer.entity.EntityRenderDispatcher.class));
+        when(client.getEntityRenderDispatcher()).thenReturn(
+                mock(net.minecraft.client.renderer.entity.EntityRenderDispatcher.class)
+        );
         var nbt = new net.minecraft.nbt.CompoundTag();
         nbt.putString("id", "minecraft:block_display");
-        nbt.put("block_state", net.minecraft.world.level.block.state.BlockState.CODEC.encodeStart(net.minecraft.nbt.NbtOps.INSTANCE, Blocks.STONE.defaultBlockState()).getOrThrow());
+        nbt.put(
+                "block_state",
+                net.minecraft.world.level.block.state.BlockState.CODEC.encodeStart(
+                        net.minecraft.nbt.NbtOps.INSTANCE,
+                        Blocks.STONE.defaultBlockState()
+                ).getOrThrow()
+        );
         var pos = new net.minecraft.nbt.ListTag();
         var motion = new net.minecraft.nbt.ListTag();
         var rotation = new net.minecraft.nbt.ListTag();
@@ -82,8 +92,7 @@ class QuickLitematicaPreviewDisplayInitializationTest {
                 return (EntityType<Display.BlockDisplay>) EntityType.class.getField("BLOCK_DISPLAY").get(null);
             } catch (NoSuchFieldException ignored) {
                 return (EntityType<Display.BlockDisplay>) Class.forName("net.minecraft.world.entity.EntityTypes")
-                        .getField("BLOCK_DISPLAY")
-                        .get(null);
+                        .getField("BLOCK_DISPLAY").get(null);
             }
         } catch (ReflectiveOperationException exception) {
             throw new AssertionError(exception);

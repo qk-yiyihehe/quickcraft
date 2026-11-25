@@ -23,11 +23,15 @@ import java.util.Map;
 
 /** 一次浏览持有自己的页面与来源；切换不重建材料表，也不累积 parent 返回链。 */
 public final class QuickLitematicaMaterialNavigation {
-    enum View { BLOCKS, CONTAINERS, DETAILS, ENTITIES }
+    enum View {
+        BLOCKS, CONTAINERS, DETAILS, ENTITIES
+    }
 
     public interface NavigationScreen {
         void quickcraft$setBottomMargin(int margin);
+
         QuickLitematicaMaterialNavigation quickcraft$getNavigation();
+
         void quickcraft$setNavigation(QuickLitematicaMaterialNavigation navigation);
     }
 
@@ -41,8 +45,13 @@ public final class QuickLitematicaMaterialNavigation {
     private QuickLitematicaEntityMaterials.EntityMaterialList entities;
     private final Map<View, Screen> screens = new EnumMap<>(View.class);
 
-    private QuickLitematicaMaterialNavigation(LitematicaSchematic schematic, Collection<String> regions,
-                                               SchematicPlacement placement, Screen parent, boolean world) {
+    private QuickLitematicaMaterialNavigation(
+            LitematicaSchematic schematic,
+            Collection<String> regions,
+            SchematicPlacement placement,
+            Screen parent,
+            boolean world
+    ) {
         this.schematic = schematic;
         this.regions = List.copyOf(regions);
         this.placement = placement;
@@ -50,11 +59,18 @@ public final class QuickLitematicaMaterialNavigation {
         this.world = world;
     }
 
-    static QuickLitematicaMaterialNavigation forContainers(QuickLitematicaContainerMaterials.ContainerMaterialList list) {
+    static QuickLitematicaMaterialNavigation forContainers(
+            QuickLitematicaContainerMaterials.ContainerMaterialList list
+    ) {
         if (list.navigation == null) {
             var data = list.data;
-            var navigation = new QuickLitematicaMaterialNavigation(data.liveSchematic, data.regions, data.placement,
-                    list.parent, data.placement != null);
+            var navigation = new QuickLitematicaMaterialNavigation(
+                    data.liveSchematic,
+                    data.regions,
+                    data.placement,
+                    list.parent,
+                    data.placement != null
+            );
             navigation.containers = list;
             list.navigation = navigation;
         }
@@ -63,7 +79,9 @@ public final class QuickLitematicaMaterialNavigation {
 
     static QuickLitematicaMaterialNavigation bind(GuiMaterialList gui) {
         var screen = (NavigationScreen) gui;
-        if (screen.quickcraft$getNavigation() != null) { return screen.quickcraft$getNavigation(); }
+        if (screen.quickcraft$getNavigation() != null) {
+            return screen.quickcraft$getNavigation();
+        }
         var list = gui.getMaterialList();
         QuickLitematicaMaterialNavigation navigation;
         View view;
@@ -75,16 +93,28 @@ public final class QuickLitematicaMaterialNavigation {
             view = View.ENTITIES;
         } else if (list instanceof LitematicaMaterialListPlacementAccessor source) {
             var placement = source.quickcraft$getPlacement();
-            navigation = new QuickLitematicaMaterialNavigation(placement.getSchematic(),
-                    placement.getEnabledRelativeSubRegionPlacements().keySet(), placement, gui.getParent(), true);
+            navigation = new QuickLitematicaMaterialNavigation(
+                    placement.getSchematic(),
+                    placement.getEnabledRelativeSubRegionPlacements().keySet(),
+                    placement,
+                    gui.getParent(),
+                    true
+            );
             navigation.blocks = list;
             view = View.BLOCKS;
         } else if (list instanceof LitematicaMaterialListSchematicAccessor source) {
-            navigation = new QuickLitematicaMaterialNavigation(source.quickcraft$getSchematic(), source.quickcraft$getRegions(),
-                    null, gui.getParent(), false);
+            navigation = new QuickLitematicaMaterialNavigation(
+                    source.quickcraft$getSchematic(),
+                    source.quickcraft$getRegions(),
+                    null,
+                    gui.getParent(),
+                    false
+            );
             navigation.blocks = list;
             view = View.BLOCKS;
-        } else { return null; }
+        } else {
+            return null;
+        }
         screen.quickcraft$setNavigation(navigation);
         navigation.screens.put(view, gui);
         return navigation;
@@ -96,8 +126,8 @@ public final class QuickLitematicaMaterialNavigation {
     }
 
     static String layoutKey(MaterialListBase list, View view) {
-        if (view == View.BLOCKS && !(list instanceof MaterialListSchematic
-                || list instanceof MaterialListPlacement || list instanceof MaterialListAreaAnalyzer)) {
+        if (view == View.BLOCKS && !(list instanceof MaterialListSchematic || list instanceof MaterialListPlacement
+                || list instanceof MaterialListAreaAnalyzer)) {
             return "litematica.materials.other.blocks";
         }
         View group = view == View.DETAILS ? View.CONTAINERS : view;
@@ -107,17 +137,22 @@ public final class QuickLitematicaMaterialNavigation {
     List<View> views(View current) {
         var views = new ArrayList<View>();
         views.add(View.BLOCKS);
-        if (QuickLitematicaContainerMaterials.shouldShowButton() || current == View.CONTAINERS || current == View.DETAILS) {
+        if (QuickLitematicaContainerMaterials.shouldShowButton() || current == View.CONTAINERS
+                || current == View.DETAILS) {
             views.add(View.CONTAINERS);
             views.add(View.DETAILS);
         }
         if (!this.world && (QuickCraftConfigs.ProjectionTools.SHOW_LITEMATICA_ENTITY_MATERIAL_BUTTON.getBooleanValue()
-                || current == View.ENTITIES)) { views.add(View.ENTITIES); }
+                || current == View.ENTITIES)) {
+            views.add(View.ENTITIES);
+        }
         return views;
     }
 
     void show(View view) {
-        if (view == View.ENTITIES && this.world) { return; }
+        if (view == View.ENTITIES && this.world) {
+            return;
+        }
         MaterialListBase list;
         if (view == View.BLOCKS) {
             if (this.blocks == null) {
@@ -134,8 +169,15 @@ public final class QuickLitematicaMaterialNavigation {
         } else {
             if (this.containers == null) {
                 var context = QuickLitematicaMaterialLists.getContainerReplacementContextKey(this.schematic);
-                var data = this.world ? QuickLitematicaContainerMaterials.ContainerMaterialsData.create(this.placement, context)
-                        : QuickLitematicaContainerMaterials.ContainerMaterialsData.create(this.schematic, this.regions, context);
+                var data = this.world ? QuickLitematicaContainerMaterials.ContainerMaterialsData.create(
+                        this.placement,
+                        context
+                )
+                        : QuickLitematicaContainerMaterials.ContainerMaterialsData.create(
+                                this.schematic,
+                                this.regions,
+                                context
+                        );
                 this.containers = new QuickLitematicaContainerMaterials.ContainerMaterialList(data, this.parent);
                 this.containers.navigation = this;
             }
@@ -147,8 +189,9 @@ public final class QuickLitematicaMaterialNavigation {
             list.reCreateMaterialList();
         }
         if (screen == null) {
-            if (view == View.DETAILS) { screen = QuickLitematicaContainerMaterialsScreens.createDetailScreen(this.containers); }
-            else {
+            if (view == View.DETAILS) {
+                screen = QuickLitematicaContainerMaterialsScreens.createDetailScreen(this.containers);
+            } else {
                 var gui = new GuiMaterialList(list);
                 ((NavigationScreen) gui).quickcraft$setNavigation(this);
                 gui.setParent(this.parent);

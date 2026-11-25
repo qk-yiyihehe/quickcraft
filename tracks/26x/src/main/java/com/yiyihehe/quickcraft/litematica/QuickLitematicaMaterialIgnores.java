@@ -15,9 +15,10 @@ import java.util.WeakHashMap;
 public final class QuickLitematicaMaterialIgnores {
     private static final Map<String, Set<String>> IGNORED = new HashMap<>();
     private static final Map<MaterialListBase, Set<MaterialListEntry>> RESTORED = new WeakHashMap<>();
-    private static final Map<QuickLitematicaContainerMaterials.ContainerMaterialsData, Set<String>> RESTORED_GROUPS = new WeakHashMap<>();
+    private static final Map<QuickLitematicaContainerMaterials.ContainerMaterialsData, Set<String>> RESTORED_GROUPS =
+            new WeakHashMap<>();
 
-    private QuickLitematicaMaterialIgnores() { }
+    private QuickLitematicaMaterialIgnores() {}
 
     public interface IgnoredMaterials {
         Set<MaterialListEntry> quickcraft$getIgnoredMaterials();
@@ -29,7 +30,8 @@ public final class QuickLitematicaMaterialIgnores {
     }
 
     public static Set<String> effective(MaterialListBase list) {
-        Set<String> values = enabled() ? get(QuickLitematicaMaterialLists.getPersistentContextKey(list)) : new HashSet<>();
+        Set<String> values = enabled() ? get(QuickLitematicaMaterialLists.getPersistentContextKey(list))
+                : new HashSet<>();
         for (MaterialListEntry entry : ((IgnoredMaterials) list).quickcraft$getIgnoredMaterials()) {
             values.add(new ItemType(entry.getStack(), true, true).toString());
         }
@@ -41,15 +43,23 @@ public final class QuickLitematicaMaterialIgnores {
     }
 
     public static void add(String context, String value) {
-        if (enabled() && !context.isBlank()) { IGNORED.computeIfAbsent(context, key -> new HashSet<>()).add(value); }
+        if (enabled() && !context.isBlank()) {
+            IGNORED.computeIfAbsent(context, key -> new HashSet<>()).add(value);
+        }
     }
 
-    public static void clear(String context) { IGNORED.remove(context); }
+    public static void clear(String context) {
+        IGNORED.remove(context);
+    }
 
     public static void restore(MaterialListBase list, List<MaterialListEntry> entries) {
-        if (!enabled()) { return; }
+        if (!enabled()) {
+            return;
+        }
         var saved = get(QuickLitematicaMaterialLists.getPersistentContextKey(list));
-        if (saved.isEmpty()) { return; }
+        if (saved.isEmpty()) {
+            return;
+        }
         var nativeIgnored = ((IgnoredMaterials) list).quickcraft$getIgnoredMaterials();
         for (MaterialListEntry entry : entries) {
             if (saved.contains(new ItemType(entry.getStack(), true, true).toString()) && nativeIgnored.add(entry)) {
@@ -68,7 +78,9 @@ public final class QuickLitematicaMaterialIgnores {
     }
 
     public static void settingsChanged() {
-        if (enabled()) { return; }
+        if (enabled()) {
+            return;
+        }
         IGNORED.clear();
         // 只撤销扩展恢复的条目，当前页面由玩家手动忽略的原生状态照常保留。
         RESTORED.forEach((list, entries) -> {

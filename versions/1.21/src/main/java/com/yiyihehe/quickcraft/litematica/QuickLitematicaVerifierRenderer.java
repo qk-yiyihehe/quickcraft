@@ -41,8 +41,7 @@ import java.util.List;
 import java.util.Set;
 
 public final class QuickLitematicaVerifierRenderer {
-    private QuickLitematicaVerifierRenderer() {
-    }
+    private QuickLitematicaVerifierRenderer() {}
 
     public static void renderInventoryPair(
             ContainerMismatch mismatch,
@@ -63,8 +62,36 @@ public final class QuickLitematicaVerifierRenderer {
             return;
         }
 
-        renderInventoryOverlay(BlockInfoAlignment.CENTER, LeftRight.LEFT, 0, mismatch.type(), inventories.getLeft(), expectedState, expectedDisabledSlots, List.of(), false, mouseX, mouseY, mc, drawContext);
-        renderInventoryOverlay(BlockInfoAlignment.CENTER, LeftRight.RIGHT, 0, mismatch.type(), inventories.getRight(), foundState, foundDisabledSlots, mismatch.slotMismatches(), true, mouseX, mouseY, mc, drawContext);
+        renderInventoryOverlay(
+                BlockInfoAlignment.CENTER,
+                LeftRight.LEFT,
+                0,
+                mismatch.type(),
+                inventories.getLeft(),
+                expectedState,
+                expectedDisabledSlots,
+                List.of(),
+                false,
+                mouseX,
+                mouseY,
+                mc,
+                drawContext
+        );
+        renderInventoryOverlay(
+                BlockInfoAlignment.CENTER,
+                LeftRight.RIGHT,
+                0,
+                mismatch.type(),
+                inventories.getRight(),
+                foundState,
+                foundDisabledSlots,
+                mismatch.slotMismatches(),
+                true,
+                mouseX,
+                mouseY,
+                mc,
+                drawContext
+        );
     }
 
     private static void renderInventoryOverlay(
@@ -109,12 +136,35 @@ public final class QuickLitematicaVerifierRenderer {
         }
 
         renderInventoryBackground(drawContext, type, xInv, yInv, props.slotsPerRow, props.totalSlots, mc);
-        drawSlotHighlights(drawContext, type, xInv + props.slotOffsetX, yInv + props.slotOffsetY, props.slotsPerRow, slotMismatches);
-        renderInventoryStacks(drawContext, type, inventory, xInv + props.slotOffsetX, yInv + props.slotOffsetY,
-                props.slotsPerRow, disabledSlots, mc);
+        drawSlotHighlights(
+                drawContext,
+                type,
+                xInv + props.slotOffsetX,
+                yInv + props.slotOffsetY,
+                props.slotsPerRow,
+                slotMismatches
+        );
+        renderInventoryStacks(
+                drawContext,
+                type,
+                inventory,
+                xInv + props.slotOffsetX,
+                yInv + props.slotOffsetY,
+                props.slotsPerRow,
+                disabledSlots,
+                mc
+        );
 
         if (renderGhostStacks) {
-            drawMissingGhostStacks(drawContext, mc, type, xInv + props.slotOffsetX, yInv + props.slotOffsetY, props.slotsPerRow, slotMismatches);
+            drawMissingGhostStacks(
+                    drawContext,
+                    mc,
+                    type,
+                    xInv + props.slotOffsetX,
+                    yInv + props.slotOffsetY,
+                    props.slotsPerRow,
+                    slotMismatches
+            );
         }
     }
 
@@ -190,7 +240,14 @@ public final class QuickLitematicaVerifierRenderer {
             int guiTop,
             float alpha
     ) {
-        GhostItemBuffer.drawGhostItems(context, client, List.of(new GhostItemDraw(stack, x, y)), guiLeft, guiTop, alpha);
+        GhostItemBuffer.drawGhostItems(
+                context,
+                client,
+                List.of(new GhostItemDraw(stack, x, y)),
+                guiLeft,
+                guiTop,
+                alpha
+        );
     }
 
     public static boolean beginHandledScreenGhostRender(DrawContext context, MinecraftClient client) {
@@ -222,8 +279,14 @@ public final class QuickLitematicaVerifierRenderer {
             MinecraftClient client
     ) {
         RenderUtils.color(1f, 1f, 1f, 1f);
-        InventoryOverlay.renderInventoryBackground(InventoryOverlay.InventoryRenderType.valueOf(type.name()),
-                x, y, slotsPerRow, totalSlots, client);
+        InventoryOverlay.renderInventoryBackground(
+                InventoryOverlay.InventoryRenderType.valueOf(type.name()),
+                x,
+                y,
+                slotsPerRow,
+                totalSlots,
+                client
+        );
     }
 
     private static void renderInventoryStacks(
@@ -236,16 +299,25 @@ public final class QuickLitematicaVerifierRenderer {
             Set<Integer> disabledSlots,
             MinecraftClient client
     ) {
-        InventoryOverlay.renderInventoryStacks(InventoryOverlay.InventoryRenderType.valueOf(type.name()),
-                inventory, x, y, slotsPerRow, 0, inventory.size(), disabledSlots, client, context);
+        InventoryOverlay.renderInventoryStacks(
+                InventoryOverlay.InventoryRenderType.valueOf(type.name()),
+                inventory,
+                x,
+                y,
+                slotsPerRow,
+                0,
+                inventory.size(),
+                disabledSlots,
+                client,
+                context
+        );
     }
 
     private static final class GhostItemBuffer {
         private static Framebuffer framebuffer;
         private static int previousFramebuffer;
 
-        private GhostItemBuffer() {
-        }
+        private GhostItemBuffer() {}
 
         private static void drawGhostItems(
                 DrawContext context,
@@ -286,12 +358,7 @@ public final class QuickLitematicaVerifierRenderer {
             return true;
         }
 
-        private static void endHandledScreenGhostRender(
-                DrawContext context,
-                int guiLeft,
-                int guiTop,
-                float alpha
-        ) {
+        private static void endHandledScreenGhostRender(DrawContext context, int guiLeft, int guiTop, float alpha) {
             context.draw();
             GlStateManager._glBindFramebuffer(GL30.GL_FRAMEBUFFER, previousFramebuffer);
             RenderSystem.enableBlend();
@@ -315,7 +382,12 @@ public final class QuickLitematicaVerifierRenderer {
             int framebufferHeight = window.getFramebufferHeight();
 
             if (framebuffer == null) {
-                framebuffer = new SimpleFramebuffer(framebufferWidth, framebufferHeight, true, MinecraftClient.IS_SYSTEM_MAC);
+                framebuffer = new SimpleFramebuffer(
+                        framebufferWidth,
+                        framebufferHeight,
+                        true,
+                        MinecraftClient.IS_SYSTEM_MAC
+                );
                 framebuffer.setClearColor(0.0F, 0.0F, 0.0F, 0.0F);
             } else if (framebuffer.textureWidth != framebufferWidth || framebuffer.textureHeight != framebufferHeight) {
                 framebuffer.resize(framebufferWidth, framebufferHeight, MinecraftClient.IS_SYSTEM_MAC);
@@ -329,19 +401,21 @@ public final class QuickLitematicaVerifierRenderer {
             RenderSystem.setShaderTexture(0, ghostFramebuffer.getColorAttachment());
             RenderSystem.backupProjectionMatrix();
             RenderSystem.setShader(GameRenderer::getPositionTexProgram);
-            Matrix4f projection = new Matrix4f()
-                    .setOrtho(
-                            0.0F,
-                            context.getScaledWindowWidth(),
-                            context.getScaledWindowHeight(),
-                            0.0F,
-                            1000.0F,
-                            21000.0F
-                    );
+            Matrix4f projection = new Matrix4f().setOrtho(
+                    0.0F,
+                    context.getScaledWindowWidth(),
+                    context.getScaledWindowHeight(),
+                    0.0F,
+                    1000.0F,
+                    21000.0F
+            );
             RenderSystem.setProjectionMatrix(projection, VertexSorter.BY_Z);
 
             Matrix4f positionMatrix = context.getMatrices().peek().getPositionMatrix();
-            BufferBuilder bufferBuilder = Tessellator.getInstance().begin(VertexFormat.DrawMode.QUADS, VertexFormats.POSITION_TEXTURE);
+            BufferBuilder bufferBuilder = Tessellator.getInstance().begin(
+                    VertexFormat.DrawMode.QUADS,
+                    VertexFormats.POSITION_TEXTURE
+            );
             float width = context.getScaledWindowWidth();
             float height = context.getScaledWindowHeight();
             bufferBuilder.vertex(positionMatrix, 0.0F, 0.0F, 0.0F).texture(0.0F, 1.0F);

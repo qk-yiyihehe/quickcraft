@@ -7,7 +7,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 class QuickCraftRateLimiterTest {
     @Test
     void configuredRateLimitsDispatchesOverASecond() {
-        for (int rate : new int[]{1, 20, 40, 50, 100}) {
+        for (int rate : new int[] { 1, 20, 40, 50, 100 }) {
             QuickCraftRateLimiter limiter = new QuickCraftRateLimiter();
             int dispatched = 0;
             for (long now = 0L; now < 1_000_000_000L; now += 1_000_000L) {

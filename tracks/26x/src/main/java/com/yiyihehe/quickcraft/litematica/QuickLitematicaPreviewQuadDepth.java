@@ -10,9 +10,13 @@ final class QuickLitematicaPreviewQuadDepth {
     private boolean initialized;
     private float x, y, z;
 
-    QuickLitematicaPreviewQuadDepth() { this(null); }
+    QuickLitematicaPreviewQuadDepth() {
+        this(null);
+    }
 
-    QuickLitematicaPreviewQuadDepth(java.util.function.BooleanSupplier cancelled) { this.cancelled = cancelled; }
+    QuickLitematicaPreviewQuadDepth(java.util.function.BooleanSupplier cancelled) {
+        this.cancelled = cancelled;
+    }
 
     private void checkCancelled(int index) {
         if ((index & 0x7FF) == 0 && this.cancelled != null && this.cancelled.getAsBoolean()) {
@@ -20,7 +24,9 @@ final class QuickLitematicaPreviewQuadDepth {
         }
     }
 
-    boolean initialized() { return this.initialized; }
+    boolean initialized() {
+        return this.initialized;
+    }
 
     QuickLitematicaPreviewQuadDepth copy() {
         var copy = new QuickLitematicaPreviewQuadDepth();
@@ -33,7 +39,9 @@ final class QuickLitematicaPreviewQuadDepth {
 
     boolean update(Matrix4fc view) {
         float nextX = view.m02(), nextY = view.m12(), nextZ = view.m22();
-        if (this.initialized && this.x == nextX && this.y == nextY && this.z == nextZ) return false;
+        if (this.initialized && this.x == nextX && this.y == nextY && this.z == nextZ) {
+            return false;
+        }
         this.initialized = true;
         this.x = nextX;
         this.y = nextY;
@@ -42,7 +50,9 @@ final class QuickLitematicaPreviewQuadDepth {
     }
 
     // 正交预览按视空间深度排序；平移不改变面片之间的顺序。
-    float depth(Vector3fc point) { return this.x * point.x() + this.y * point.y() + this.z * point.z(); }
+    float depth(Vector3fc point) {
+        return this.x * point.x() + this.y * point.y() + this.z * point.z();
+    }
 
     int[] sort(CompactVectorArray points) {
         return this.sort(points, new int[points.size()], new int[points.size()]);
@@ -63,9 +73,13 @@ final class QuickLitematicaPreviewQuadDepth {
             order[i] = i;
         }
         // 小批次使用串行排序，避免争用公共线程池；大网格交给已有 fastutil 并行排序。
-        if (this.cancelled != null) this.sortCancellable(order, keys);
-        else if (order.length >= 262_144) IntArrays.parallelRadixSortIndirect(order, keys, true);
-        else IntArrays.radixSortIndirect(order, keys, true);
+        if (this.cancelled != null) {
+            this.sortCancellable(order, keys);
+        } else if (order.length >= 262_144) {
+            IntArrays.parallelRadixSortIndirect(order, keys, true);
+        } else {
+            IntArrays.radixSortIndirect(order, keys, true);
+        }
         return order;
     }
 

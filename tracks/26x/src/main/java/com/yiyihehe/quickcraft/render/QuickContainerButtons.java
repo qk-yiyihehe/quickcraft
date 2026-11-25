@@ -24,104 +24,148 @@ public final class QuickContainerButtons {
     private QuickContainerLockButton inventoryLock;
     private QuickContainerLockButton containerLock;
 
-    public void sync(AbstractContainerScreen<?> screen, Minecraft client,
-                     int left, int top, int width, int height, Consumer<QuickDraggableButton> add) {
+    public void sync(
+            AbstractContainerScreen<?> screen,
+            Minecraft client,
+            int left,
+            int top,
+            int width,
+            int height,
+            Consumer<QuickDraggableButton> add
+    ) {
         QuickContainerLock.bindCurrentScreen(screen);
         int right = left + width;
         int bottom = top + height - 96;
         boolean stashVisible = QuickCraftConfigs.isQuickStashButtonVisible();
         if (stashVisible && (stash == null || !screen.children().contains(stash))) {
-            stash = new QuickStashButton(right - 50, top + 4,
-                    button -> {
-                        if (QuickCraftKeyBindings.isAltDown()) {
-                            QuickShulkerStash.stashContainer(screen);
-                        } else {
-                            QuickStash.stashFromButton(screen);
-                        }
-                    },
+            stash = new QuickStashButton(right - 50, top + 4, button -> {
+                if (QuickCraftKeyBindings.isAltDown()) {
+                    QuickShulkerStash.stashContainer(screen);
+                } else {
+                    QuickStash.stashFromButton(screen);
+                }
+            },
                     QuickDraggableButton.PositionKey.QUICK_STASH,
-                    stashTooltip("quickcraft.button.quick_stash", "quickcraft.button.container_shulker_stash.alt"));
+                    stashTooltip("quickcraft.button.quick_stash", "quickcraft.button.container_shulker_stash.alt")
+            );
             add.accept(stash);
         }
         position(stash, stashVisible, right - 50, top + 4);
         if (stashVisible && (retrieve == null || !screen.children().contains(retrieve))) {
-            retrieve = new QuickRetrieveButton(right - 50, bottom,
-                    button -> {
-                        if (QuickCraftKeyBindings.isAltDown()) {
-                            QuickShulkerStash.stashInventory(screen);
-                        } else {
-                            QuickStash.retrieveFromButton(screen);
-                        }
-                    },
+            retrieve = new QuickRetrieveButton(right - 50, bottom, button -> {
+                if (QuickCraftKeyBindings.isAltDown()) {
+                    QuickShulkerStash.stashInventory(screen);
+                } else {
+                    QuickStash.retrieveFromButton(screen);
+                }
+            },
                     QuickDraggableButton.PositionKey.QUICK_RETRIEVE,
-                    stashTooltip("quickcraft.button.quick_retrieve", "quickcraft.button.inventory_shulker_stash.alt"));
+                    stashTooltip("quickcraft.button.quick_retrieve", "quickcraft.button.inventory_shulker_stash.alt")
+            );
             add.accept(retrieve);
         }
         position(retrieve, stashVisible, right - 50, bottom);
 
         boolean sortVisible = QuickCraftConfigs.isQuickSortButtonVisible();
         if (sortVisible && (containerSort == null || !screen.children().contains(containerSort))) {
-            containerSort = new QuickSortButton(right - 34, top + 4,
+            containerSort = new QuickSortButton(
+                    right - 34,
+                    top + 4,
                     button -> QuickSort.sortFromButton(screen, false),
                     QuickDraggableButton.PositionKey.CONTAINER_SORT,
-                    Component.translatable("quickcraft.button.sort_container"));
+                    Component.translatable("quickcraft.button.sort_container")
+            );
             add.accept(containerSort);
         }
         if (sortVisible && (inventorySort == null || !screen.children().contains(inventorySort))) {
-            inventorySort = new QuickSortButton(right - 34, bottom,
+            inventorySort = new QuickSortButton(
+                    right - 34,
+                    bottom,
                     button -> QuickSort.sortFromButton(screen, true),
                     QuickDraggableButton.PositionKey.INVENTORY_SORT,
-                    Component.translatable("quickcraft.button.sort_inventory"));
+                    Component.translatable("quickcraft.button.sort_inventory")
+            );
             add.accept(inventorySort);
         }
         position(containerSort, sortVisible, right - 34, top + 4);
         position(inventorySort, sortVisible, right - 34, bottom);
 
         boolean crossVisible = sortVisible && QuickCraftConfigs.isCrossBoxSortEnabled();
-        containerCrossSort = crossSort(screen, containerCrossSort, right - 66, top + 4, false,
-                QuickDraggableButton.PositionKey.CONTAINER_CROSS_BOX_SORT_COMPACT, crossVisible, add);
-        inventoryCrossSort = crossSort(screen, inventoryCrossSort, right - 66, bottom, true,
-                QuickDraggableButton.PositionKey.INVENTORY_CROSS_BOX_SORT_COMPACT, crossVisible, add);
+        containerCrossSort = crossSort(
+                screen,
+                containerCrossSort,
+                right - 66,
+                top + 4,
+                false,
+                QuickDraggableButton.PositionKey.CONTAINER_CROSS_BOX_SORT_COMPACT,
+                crossVisible,
+                add
+        );
+        inventoryCrossSort = crossSort(
+                screen,
+                inventoryCrossSort,
+                right - 66,
+                bottom,
+                true,
+                QuickDraggableButton.PositionKey.INVENTORY_CROSS_BOX_SORT_COMPACT,
+                crossVisible,
+                add
+        );
 
         boolean inventoryLockVisible = QuickCraftConfigs.isContainerLockButtonVisible();
         if (inventoryLockVisible && (inventoryLock == null || !screen.children().contains(inventoryLock))) {
-            inventoryLock = new QuickContainerLockButton(right - 18, bottom,
+            inventoryLock = new QuickContainerLockButton(
+                    right - 18,
+                    bottom,
                     button -> QuickContainerLock.togglePlayerInventoryLock(client),
                     QuickContainerLock::isPlayerInventoryLocked,
                     QuickDraggableButton.PositionKey.INVENTORY_LOCK,
-                    Component.translatable("quickcraft.button.inventory_lock.tooltip"));
+                    Component.translatable("quickcraft.button.inventory_lock.tooltip")
+            );
             add.accept(inventoryLock);
         }
         position(inventoryLock, inventoryLockVisible, right - 18, bottom);
 
         boolean containerLockVisible = QuickContainerLock.shouldShowLockButton(screen);
-        if (containerLockVisible && client != null
-                && (containerLock == null || !screen.children().contains(containerLock))) {
-            containerLock = new QuickContainerLockButton(right - 18, top + 4,
+        if (containerLockVisible && client != null && (containerLock == null || !screen.children().contains(
+                containerLock
+        ))) {
+            containerLock = new QuickContainerLockButton(
+                    right - 18,
+                    top + 4,
                     button -> QuickContainerLock.toggleCurrentScreenLock(client, screen),
                     () -> QuickContainerLock.isCurrentScreenLocked(screen),
                     QuickDraggableButton.PositionKey.CONTAINER_LOCK,
-                    Component.translatable("quickcraft.button.container_lock.tooltip"));
+                    Component.translatable("quickcraft.button.container_lock.tooltip")
+            );
             add.accept(containerLock);
         }
         position(containerLock, containerLockVisible, right - 18, top + 4);
     }
 
-    private static QuickCrossBoxSortButton crossSort(AbstractContainerScreen<?> screen, QuickCrossBoxSortButton button,
-            int x, int y, boolean playerInventory, QuickDraggableButton.PositionKey key,
-            boolean visible, Consumer<QuickDraggableButton> add) {
+    private static QuickCrossBoxSortButton crossSort(
+            AbstractContainerScreen<?> screen,
+            QuickCrossBoxSortButton button,
+            int x,
+            int y,
+            boolean playerInventory,
+            QuickDraggableButton.PositionKey key,
+            boolean visible,
+            Consumer<QuickDraggableButton> add
+    ) {
         if (visible && (button == null || !screen.children().contains(button))) {
             button = new QuickCrossBoxSortButton(x, y, screen, playerInventory, key);
             add.accept(button);
         }
         position(button, visible, x, y);
-        if (button != null) { button.active = !QuickCrossBoxSort.isRunning(); }
+        if (button != null) {
+            button.active = !QuickCrossBoxSort.isRunning();
+        }
         return button;
     }
 
     private static Component stashTooltip(String actionKey, String altActionKey) {
-        return Component.translatable(actionKey).append("\n")
-                .append(Component.translatable(altActionKey));
+        return Component.translatable(actionKey).append("\n").append(Component.translatable(altActionKey));
     }
 
     private static void position(QuickDraggableButton button, boolean visible, int x, int y) {

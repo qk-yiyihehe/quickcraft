@@ -30,8 +30,7 @@ public final class QuickLitematicaVerifierPalette {
     private static final float MASK_LIGHTEN = 0.78F;
     private static final float GHOST_ITEM_ALPHA = 0.80F;
 
-    private QuickLitematicaVerifierPalette() {
-    }
+    private QuickLitematicaVerifierPalette() {}
 
     public static int wrongFillRgb() {
         return WRONG_FILL.rgb();

@@ -12,8 +12,14 @@ public final class QuickLitematicaSelectionDrag {
     private int lastX;
     private int lastY;
 
-    private QuickLitematicaSelectionDrag(Screen screen, int mouseX, int mouseY, boolean selected,
-                                        SelectionTarget target, Runnable refresh) {
+    private QuickLitematicaSelectionDrag(
+            Screen screen,
+            int mouseX,
+            int mouseY,
+            boolean selected,
+            SelectionTarget target,
+            Runnable refresh
+    ) {
         this.screen = screen;
         this.lastX = mouseX;
         this.lastY = mouseY;
@@ -22,8 +28,14 @@ public final class QuickLitematicaSelectionDrag {
         this.refresh = refresh;
     }
 
-    static void start(Screen screen, int mouseX, int mouseY, boolean selected,
-                      SelectionTarget target, Runnable refresh) {
+    static void start(
+            Screen screen,
+            int mouseX,
+            int mouseY,
+            boolean selected,
+            SelectionTarget target,
+            Runnable refresh
+    ) {
         active = new QuickLitematicaSelectionDrag(screen, mouseX, mouseY, selected, target, refresh);
     }
 
@@ -33,9 +45,11 @@ public final class QuickLitematicaSelectionDrag {
 
     public static void move(Screen screen, double mouseX, double mouseY) {
         var drag = active;
-        if (drag == null) { return; }
-        if (drag.screen != screen || !QuickLitematicaMaterialGui.controlDown()
-                || !QuickLitematicaContainerReplacements.enabled()) {
+        if (drag == null) {
+            return;
+        }
+        if (drag.screen != screen || !QuickLitematicaMaterialGui.controlDown() || !QuickLitematicaContainerReplacements
+                .enabled()) {
             stop();
             return;
         }

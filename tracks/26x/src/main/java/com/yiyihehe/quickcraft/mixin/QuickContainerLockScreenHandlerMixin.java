@@ -18,12 +18,27 @@ import org.spongepowered.asm.mixin.injection.At;
  */
 @Mixin(AbstractContainerMenu.class)
 public abstract class QuickContainerLockScreenHandlerMixin {
-    @WrapOperation(method = "clicked", at = @At(value = "INVOKE",
-            target = "Lnet/minecraft/world/inventory/AbstractContainerMenu;doClick(IILnet/minecraft/world/inventory/ContainerInput;Lnet/minecraft/world/entity/player/Player;)V"))
-    private void quickcraft$applySlotTakePermission(AbstractContainerMenu handler, int slotId, int button,
-                                                    ContainerInput actionType, Player player, Operation<Void> original) {
-        QuickContainerLock.runMenuSlotClick(handler, slotId, button, actionType, player,
-                () -> original.call(handler, slotId, button, actionType, player));
+    @WrapOperation(
+            method = "clicked",
+            at = @At(
+                    value = "INVOKE",
+                    target = "Lnet/minecraft/world/inventory/AbstractContainerMenu;doClick(IILnet/minecraft/world/inventory/ContainerInput;Lnet/minecraft/world/entity/player/Player;)V"))
+    private void quickcraft$applySlotTakePermission(
+            AbstractContainerMenu handler,
+            int slotId,
+            int button,
+            ContainerInput actionType,
+            Player player,
+            Operation<Void> original
+    ) {
+        QuickContainerLock.runMenuSlotClick(
+                handler,
+                slotId,
+                button,
+                actionType,
+                player,
+                () -> original.call(handler, slotId, button, actionType, player)
+        );
     }
 
     @WrapOperation(
@@ -31,9 +46,7 @@ public abstract class QuickContainerLockScreenHandlerMixin {
             at = @At(
                     value = "INVOKE",
                     target = "Lnet/minecraft/world/inventory/Slot;getItem()Lnet/minecraft/world/item/ItemStack;",
-                    ordinal = 0
-            )
-    )
+                    ordinal = 0))
     private ItemStack quickcraft$skipLockedSlotMerge(Slot slot, Operation<ItemStack> original) {
         if (QuickContainerLock.isLockedSlot((AbstractContainerMenu) (Object) this, slot)) {
             return ItemStack.EMPTY;
@@ -47,9 +60,7 @@ public abstract class QuickContainerLockScreenHandlerMixin {
             at = @At(
                     value = "INVOKE",
                     target = "Lnet/minecraft/world/inventory/Slot;getItem()Lnet/minecraft/world/item/ItemStack;",
-                    ordinal = 1
-            )
-    )
+                    ordinal = 1))
     private ItemStack quickcraft$skipLockedSlotFill(Slot slot, Operation<ItemStack> original) {
         if (QuickContainerLock.isLockedSlot((AbstractContainerMenu) (Object) this, slot)) {
             return Items.BARRIER.getDefaultInstance();

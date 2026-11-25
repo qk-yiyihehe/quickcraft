@@ -4,6 +4,7 @@ import org.junit.jupiter.api.Test;
 import org.joml.Matrix4f;
 import static org.assertj.core.api.Assertions.assertThat;
 import static com.yiyihehe.quickcraft.litematica.QuickLitematicaPreviewTransparentOrder.Run;
+
 class QuickLitematicaPreviewTransparentOrderTest {
     @Test
     void keepsNativeNanFirstOrderingAcrossBatchBoundaries() {
@@ -20,12 +21,15 @@ class QuickLitematicaPreviewTransparentOrderTest {
         order.add(centers(5, 15));
         Matrix4f view = new Matrix4f();
         var first = order.runs(view);
-        assertThat(first).containsExactly(new Run(0, 0, 6), new Run(1, 0, 6),
-                new Run(0, 6, 6), new Run(1, 6, 6));
+        assertThat(first).containsExactly(new Run(0, 0, 6), new Run(1, 0, 6), new Run(0, 6, 6), new Run(1, 6, 6));
         assertThat(order.runs(new Matrix4f(view).translate(20, 30, 40))).isSameAs(first);
         view.rotateY((float) Math.PI);
-        assertThat(order.runs(view)).containsExactly(new Run(1, 0, 6), new Run(0, 0, 6),
-                new Run(1, 6, 6), new Run(0, 6, 6));
+        assertThat(order.runs(view)).containsExactly(
+                new Run(1, 0, 6),
+                new Run(0, 0, 6),
+                new Run(1, 6, 6),
+                new Run(0, 6, 6)
+        );
     }
 
     @Test
@@ -44,7 +48,9 @@ class QuickLitematicaPreviewTransparentOrderTest {
 
     private static org.joml.Vector3f[] centers(float... depths) {
         var points = new org.joml.Vector3f[depths.length];
-        for (int i = 0; i < depths.length; i++) points[i] = new org.joml.Vector3f(0, 0, depths[i]);
+        for (int i = 0; i < depths.length; i++) {
+            points[i] = new org.joml.Vector3f(0, 0, depths[i]);
+        }
         return points;
     }
 }

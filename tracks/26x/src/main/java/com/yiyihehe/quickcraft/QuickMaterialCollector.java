@@ -77,8 +77,8 @@ public final class QuickMaterialCollector implements ClientModInitializer {
 
     private void onClientTick(Minecraft client) {
         if (pendingReturn != null) {
-            if (client.level != pendingReturn.world || client.player == null
-                    || client.player.getInventory() != pendingReturn.inventory) {
+            if (client.level != pendingReturn.world || client.player == null || client.player
+                    .getInventory() != pendingReturn.inventory) {
                 pendingReturn = null;
             } else {
                 int index = findPendingSourceIndex(pendingReturn);
@@ -105,9 +105,10 @@ public final class QuickMaterialCollector implements ClientModInitializer {
             return;
         }
 
-        boolean useDown = client.player != null
-                && client.level != null
-                && QuickCraftKeyBindings.isVanillaKeyDown(client, client.options.keyUse);
+        boolean useDown = client.player != null && client.level != null && QuickCraftKeyBindings.isVanillaKeyDown(
+                client,
+                client.options.keyUse
+        );
         if (!useDown) {
             if (activeTask != null) {
                 activeTask.stopRequested = true;
@@ -124,8 +125,9 @@ public final class QuickMaterialCollector implements ClientModInitializer {
             if (!useDown) {
                 sendStatusMessage(
                         client,
-                        Component.translatable("quickcraft.message.material_collector.hold_to_collect")
-                                .withStyle(ChatFormatting.RED)
+                        Component.translatable("quickcraft.message.material_collector.hold_to_collect").withStyle(
+                                ChatFormatting.RED
+                        )
                 );
                 stopTask(client, true);
                 return;
@@ -142,11 +144,8 @@ public final class QuickMaterialCollector implements ClientModInitializer {
     private void tryStartTask(Minecraft client) {
         var player = client.player;
         var interactionManager = client.gameMode;
-        if (player == null
-                || client.level == null
-                || interactionManager == null
-                || !(client.hitResult instanceof BlockHitResult hitResult)
-                || !isLookingAtSupportedBlock(client)) {
+        if (player == null || client.level == null || interactionManager == null
+                || !(client.hitResult instanceof BlockHitResult hitResult) || !isLookingAtSupportedBlock(client)) {
             return;
         }
 
@@ -161,7 +160,8 @@ public final class QuickMaterialCollector implements ClientModInitializer {
             if (!isSupportedHandler(openHandler) || !openHandler.getCarried().isEmpty()) {
                 return;
             }
-            activeTask = returning ? resumePendingReturn() : new CollectionTask(client, hitResult, target, CollectionStage.COLLECT_TARGET);
+            activeTask = returning ? resumePendingReturn()
+                    : new CollectionTask(client, hitResult, target, CollectionStage.COLLECT_TARGET);
             activeTask.longPressActivated = longPressSessionActive;
             return;
         }
@@ -170,7 +170,8 @@ public final class QuickMaterialCollector implements ClientModInitializer {
             return;
         }
 
-        activeTask = returning ? resumePendingReturn() : new CollectionTask(client, hitResult, target, CollectionStage.WAIT_TARGET);
+        activeTask = returning ? resumePendingReturn()
+                : new CollectionTask(client, hitResult, target, CollectionStage.WAIT_TARGET);
         if (returning) {
             activeTask.stage = CollectionStage.WAIT_REOPEN;
         }
@@ -182,8 +183,8 @@ public final class QuickMaterialCollector implements ClientModInitializer {
         if (activeTask == null) {
             return;
         }
-        if (client.player == null || client.level != activeTask.world
-                || client.player.getInventory() != activeTask.inventory || client.gameMode == null) {
+        if (client.player == null || client.level != activeTask.world || client.player
+                .getInventory() != activeTask.inventory || client.gameMode == null) {
             stopTask(client, false);
             return;
         }
@@ -246,7 +247,9 @@ public final class QuickMaterialCollector implements ClientModInitializer {
             collectToPlayer(handler, activeTask.plan.demands(), activeTask.plan.targetTemplates());
         }
 
-        if (activeTask.stopRequested || activeTask.plan.demands().stream().noneMatch(demand -> demand.remaining() > 0)) {
+        if (activeTask.stopRequested || activeTask.plan.demands().stream().noneMatch(
+                demand -> demand.remaining() > 0
+        )) {
             finishTarget(client);
             return;
         }
@@ -256,9 +259,10 @@ public final class QuickMaterialCollector implements ClientModInitializer {
         }
 
         // 最后一格需留给来源盒临时开盒；不能等它也被占满才收空盒。
-        if (shouldUseQuickShulker()
-                && countEmptyPlayerStorageSlots(handler) <= 1
-                && takeEmptyContainerShulker(handler, activeTask.plan.targetTemplates())) {
+        if (shouldUseQuickShulker() && countEmptyPlayerStorageSlots(handler) <= 1 && takeEmptyContainerShulker(
+                handler,
+                activeTask.plan.targetTemplates()
+        )) {
             activeTask.processedSourceSlots.clear();
             return;
         }
@@ -333,13 +337,9 @@ public final class QuickMaterialCollector implements ClientModInitializer {
 
         // 满包时先用空盒换出一组投影材料，再把光标材料塞回刚进入背包的盒子。
         clickSlot(handler, materialSlot.index, 0, ContainerInput.PICKUP);
-        if (!materialSlot.hasItem()
-                || !isShulkerBox(materialSlot.getItem())
-                || handler.getCarried().isEmpty()
+        if (!materialSlot.hasItem() || !isShulkerBox(materialSlot.getItem()) || handler.getCarried().isEmpty()
                 || !stacksExactlyMatch(handler.getCarried(), material)) {
-            if (materialSlot.hasItem()
-                    && isShulkerBox(materialSlot.getItem())
-                    && !handler.getCarried().isEmpty()
+            if (materialSlot.hasItem() && isShulkerBox(materialSlot.getItem()) && !handler.getCarried().isEmpty()
                     && !isShulkerBox(handler.getCarried())) {
                 clickSlot(handler, materialSlot.index, 0, ContainerInput.PICKUP);
             }
@@ -353,8 +353,7 @@ public final class QuickMaterialCollector implements ClientModInitializer {
         do {
             previousCount = handler.getCarried().getCount();
             clickSlot(handler, materialSlot.index, 1, ContainerInput.PICKUP);
-        } while (!handler.getCarried().isEmpty()
-                && handler.getCarried().getCount() < previousCount);
+        } while (!handler.getCarried().isEmpty() && handler.getCarried().getCount() < previousCount);
 
         if (!handler.getCarried().isEmpty()) {
             // Quick Shulker 未接管插入时恢复交换，避免材料或盒子留在光标上。
@@ -367,14 +366,14 @@ public final class QuickMaterialCollector implements ClientModInitializer {
         return materialSlot.hasItem() && isShulkerBox(materialSlot.getItem());
     }
 
-    private Slot findPlayerTargetMaterialSlot(AbstractContainerMenu handler,
-                                              List<ItemStack> targetTemplates,
-                                              ItemStack shulker) {
+    private Slot findPlayerTargetMaterialSlot(
+            AbstractContainerMenu handler,
+            List<ItemStack> targetTemplates,
+            ItemStack shulker
+    ) {
         Slot best = null;
         for (Slot slot : getPlayerStorageSlots(handler)) {
-            if (!slot.hasItem()
-                    || isShulkerBox(slot.getItem())
-                    || !containsTarget(targetTemplates, slot.getItem())
+            if (!slot.hasItem() || isShulkerBox(slot.getItem()) || !containsTarget(targetTemplates, slot.getItem())
                     || !slot.mayPlace(shulker)) {
                 continue;
             }
@@ -387,10 +386,9 @@ public final class QuickMaterialCollector implements ClientModInitializer {
 
     private Slot findEmptyContainerShulker(AbstractContainerMenu handler) {
         for (Slot slot : getContainerSlots(handler)) {
-            if (slot.hasItem()
-                    && slot.getItem().getCount() == 1
-                    && isShulkerBox(slot.getItem())
-                    && !hasStoredItems(slot.getItem())) {
+            if (slot.hasItem() && slot.getItem().getCount() == 1 && isShulkerBox(slot.getItem()) && !hasStoredItems(
+                    slot.getItem()
+            )) {
                 return slot;
             }
         }
@@ -490,8 +488,11 @@ public final class QuickMaterialCollector implements ClientModInitializer {
             return;
         }
 
-        Slot target = source.mayPickup(client.player)
-                ? getReturnContainerSlot(handler, activeTask.sourceContainerSlotId, source.getItem()) : null;
+        Slot target = source.mayPickup(client.player) ? getReturnContainerSlot(
+                handler,
+                activeTask.sourceContainerSlotId,
+                source.getItem()
+        ) : null;
         if (target == null) {
             if (++activeTask.returnTicks > OPEN_TIMEOUT_TICKS) {
                 // 容器满时保留盒子在玩家背包，不丢弃也不清除未完成追踪。
@@ -645,9 +646,9 @@ public final class QuickMaterialCollector implements ClientModInitializer {
             if (totalCollected > collected) {
                 details.append(Component.literal(" "));
             }
-            MutableComponent entry = Component.literal(demand.template().getHoverName().getString())
-                    .append(Component.literal("×" + formatCollectedAmount(collected, demand.template())))
-                    .withStyle(style -> style.withColor(TextColor.fromRgb(color)));
+            MutableComponent entry = Component.literal(demand.template().getHoverName().getString()).append(
+                    Component.literal("×" + formatCollectedAmount(collected, demand.template()))
+            ).withStyle(style -> style.withColor(TextColor.fromRgb(color)));
             details.append(entry);
         }
 
@@ -664,9 +665,7 @@ public final class QuickMaterialCollector implements ClientModInitializer {
 
         int groups = count / stackSize;
         int remainder = count % stackSize;
-        return remainder == 0
-                ? stackSize + "*" + groups
-                : stackSize + "*" + groups + "+" + remainder;
+        return remainder == 0 ? stackSize + "*" + groups : stackSize + "*" + groups + "+" + remainder;
     }
 
     private int getMaterialStatusColor(boolean shortage) {
@@ -702,15 +701,17 @@ public final class QuickMaterialCollector implements ClientModInitializer {
         if (closeScreen || hasOpenHandler) {
             closeCurrentScreen(client);
         }
-        if (activeTask != null && activeTask.sourcePlayerIndex >= 0
-                && client.level == activeTask.world && client.player != null
-                && client.player.getInventory() == activeTask.inventory) {
+        if (activeTask != null && activeTask.sourcePlayerIndex >= 0 && client.level == activeTask.world
+                && client.player != null && client.player.getInventory() == activeTask.inventory) {
             ItemStack source = activeTask.inventory.getItem(activeTask.sourcePlayerIndex);
             if (isShulkerBox(source) && stacksMatch(source, activeTask.sourceStack)) {
                 activeTask.sourceStack = source.copy();
                 pendingReturn = activeTask;
                 completedTarget = activeTask.target;
-                sendStatusMessage(client, Component.translatable("quickcraft.message.material_collector.return_pending"));
+                sendStatusMessage(
+                        client,
+                        Component.translatable("quickcraft.message.material_collector.return_pending")
+                );
             }
         }
         suppressUseUntilRelease |= activeTask != null;
@@ -759,18 +760,17 @@ public final class QuickMaterialCollector implements ClientModInitializer {
     }
 
     public static boolean shouldHandleCurrentTarget(Minecraft client) {
-        if (!QuickCraftConfigs.isAutoCollectMaterialsEnabled()
-                || client == null
-                || client.player == null
+        if (!QuickCraftConfigs.isAutoCollectMaterialsEnabled() || client == null || client.player == null
                 || client.level == null) {
             return false;
         }
 
         QuickMaterialCollector collector = new QuickMaterialCollector();
-        return collector.isLookingAtSupportedBlock(client)
-                && (collector.hasVisibleMaterialLists(client.player)
+        return collector.isLookingAtSupportedBlock(client) && (collector.hasVisibleMaterialLists(client.player)
                 || (pendingReturn != null && client.level == pendingReturn.world
-                && client.hitResult instanceof BlockHitResult hit && hit.getBlockPos().equals(pendingReturn.target)));
+                        && client.hitResult instanceof BlockHitResult hit && hit.getBlockPos().equals(
+                                pendingReturn.target
+                        )));
     }
 
     private boolean isLookingAtSupportedBlock(Minecraft client) {
@@ -780,9 +780,7 @@ public final class QuickMaterialCollector implements ClientModInitializer {
         }
 
         Block block = client.level.getBlockState(blockHitResult.getBlockPos()).getBlock();
-        return block instanceof ChestBlock
-                || block instanceof BarrelBlock
-                || block instanceof EnderChestBlock
+        return block instanceof ChestBlock || block instanceof BarrelBlock || block instanceof EnderChestBlock
                 || block instanceof ShulkerBoxBlock;
     }
 
@@ -835,9 +833,11 @@ public final class QuickMaterialCollector implements ClientModInitializer {
             demand.setRemaining(remaining);
         }
 
-        demands.sort(Comparator
-                .comparingInt(Demand::remaining).reversed()
-                .thenComparing(demand -> demand.template().getHoverName().getString()));
+        demands.sort(
+                Comparator.comparingInt(Demand::remaining).reversed().thenComparing(
+                        demand -> demand.template().getHoverName().getString()
+                )
+        );
         return new MaterialPlan(demands, targetTemplates, packDemands);
     }
 
@@ -857,9 +857,11 @@ public final class QuickMaterialCollector implements ClientModInitializer {
             packDemands.add(new PackDemand(template, remaining));
         }
 
-        packDemands.sort(Comparator
-                .comparingInt(PackDemand::remaining).reversed()
-                .thenComparing(demand -> demand.template().getHoverName().getString()));
+        packDemands.sort(
+                Comparator.comparingInt(PackDemand::remaining).reversed().thenComparing(
+                        demand -> demand.template().getHoverName().getString()
+                )
+        );
         return packDemands;
     }
 
@@ -954,7 +956,11 @@ public final class QuickMaterialCollector implements ClientModInitializer {
         }
     }
 
-    private void collectToShulkersOrPlayer(AbstractContainerMenu handler, List<Demand> demands, List<ItemStack> targetTemplates) {
+    private void collectToShulkersOrPlayer(
+            AbstractContainerMenu handler,
+            List<Demand> demands,
+            List<ItemStack> targetTemplates
+    ) {
         if (!handler.getCarried().isEmpty()) {
             return;
         }
@@ -996,7 +1002,13 @@ public final class QuickMaterialCollector implements ClientModInitializer {
                     demand.decrease(moveFromContainerToPlayer(handler, source.index, demand.template(), amount));
                     continue;
                 }
-                int moved = moveSlotAmountIntoShulkers(handler, source.index, demand.template(), amount, targetTemplates);
+                int moved = moveSlotAmountIntoShulkers(
+                        handler,
+                        source.index,
+                        demand.template(),
+                        amount,
+                        targetTemplates
+                );
                 demand.decrease(moved);
 
                 int remainingAmount = amount - moved;
@@ -1008,30 +1020,30 @@ public final class QuickMaterialCollector implements ClientModInitializer {
         }
     }
 
-    private int moveSlotAmountIntoShulkers(AbstractContainerMenu handler,
-                                           int sourceSlotId,
-                                           ItemStack template,
-                                           int amount,
-                                           List<ItemStack> targetTemplates) {
+    private int moveSlotAmountIntoShulkers(
+            AbstractContainerMenu handler,
+            int sourceSlotId,
+            ItemStack template,
+            int amount,
+            List<ItemStack> targetTemplates
+    ) {
         Slot source = handler.getSlot(sourceSlotId);
-        if (amount <= 0 || !handler.getCarried().isEmpty()
-                || !source.hasItem() || isShulkerBox(source.getItem()) || !matchesDemandTemplate(source.getItem(), template)) {
+        if (amount <= 0 || !handler.getCarried().isEmpty() || !source.hasItem() || isShulkerBox(source.getItem())
+                || !matchesDemandTemplate(source.getItem(), template)) {
             return 0;
         }
 
         int amountToPack = Math.min(amount, source.getItem().getCount());
-        if (findDestinationShulkerSlot(handler, source.getItem(), targetTemplates, getTemporarySourcePlayerIndex()) == null) {
+        if (findDestinationShulkerSlot(
+                handler,
+                source.getItem(),
+                targetTemplates,
+                getTemporarySourcePlayerIndex()
+        ) == null) {
             return 0;
         }
         if (amountToPack < source.getItem().getCount() && QuickShulkerClickSafety.isBundlingConflict(template)) {
-            return moveQuickShulkerConflictAmount(
-                    handler,
-                    sourceSlotId,
-                    template,
-                    amountToPack,
-                    targetTemplates,
-                    true
-            );
+            return moveQuickShulkerConflictAmount(handler, sourceSlotId, template, amountToPack, targetTemplates, true);
         }
 
         clickSlot(handler, sourceSlotId, 0, ContainerInput.PICKUP);
@@ -1055,7 +1067,12 @@ public final class QuickMaterialCollector implements ClientModInitializer {
         return moved;
     }
 
-    private int moveFromContainerToPlayer(AbstractContainerMenu handler, int sourceSlotId, ItemStack template, int amount) {
+    private int moveFromContainerToPlayer(
+            AbstractContainerMenu handler,
+            int sourceSlotId,
+            ItemStack template,
+            int amount
+    ) {
         if (amount <= 0 || !handler.getCarried().isEmpty()) {
             return 0;
         }
@@ -1074,21 +1091,19 @@ public final class QuickMaterialCollector implements ClientModInitializer {
         }
 
         if (moveAmount == sourceCount) {
-            QuickSlotTransfer.quickMove(Minecraft.getInstance(), handler, sourceSlotId,
-                    QuickSlotTransfer::isPlayerStorageSlot, true);
-            int remaining = source.hasItem() && stacksExactlyMatch(source.getItem(), sourceTemplate)
-                    ? source.getItem().getCount() : 0;
+            QuickSlotTransfer.quickMove(
+                    Minecraft.getInstance(),
+                    handler,
+                    sourceSlotId,
+                    QuickSlotTransfer::isPlayerStorageSlot,
+                    true
+            );
+            int remaining = source.hasItem() && stacksExactlyMatch(source.getItem(), sourceTemplate) ? source.getItem()
+                    .getCount() : 0;
             return Math.max(0, sourceCount - remaining);
         }
         if (QuickShulkerClickSafety.isBundlingConflict(sourceTemplate)) {
-            return moveQuickShulkerConflictAmount(
-                    handler,
-                    sourceSlotId,
-                    sourceTemplate,
-                    moveAmount,
-                    List.of(),
-                    false
-            );
+            return moveQuickShulkerConflictAmount(handler, sourceSlotId, sourceTemplate, moveAmount, List.of(), false);
         }
 
         clickSlot(handler, sourceSlotId, 0, ContainerInput.PICKUP);
@@ -1101,12 +1116,14 @@ public final class QuickMaterialCollector implements ClientModInitializer {
         return deposited;
     }
 
-    private int moveQuickShulkerConflictAmount(AbstractContainerMenu handler,
-                                                int sourceSlotId,
-                                                ItemStack template,
-                                                int amount,
-                                                List<ItemStack> targetTemplates,
-                                                boolean intoShulkers) {
+    private int moveQuickShulkerConflictAmount(
+            AbstractContainerMenu handler,
+            int sourceSlotId,
+            ItemStack template,
+            int amount,
+            List<ItemStack> targetTemplates,
+            boolean intoShulkers
+    ) {
         if (!handler.getCarried().isEmpty()) {
             return 0;
         }
@@ -1152,8 +1169,7 @@ public final class QuickMaterialCollector implements ClientModInitializer {
             }
 
             int before = handler.getCarried().getCount();
-            int deposited = intoShulkers
-                    ? packCursorIntoShulkers(handler, targetTemplates)
+            int deposited = intoShulkers ? packCursorIntoShulkers(handler, targetTemplates)
                     : depositCursorToPlayerWithLeftClicks(handler, template, buffer.index);
             moved += Math.min(before, Math.max(0, deposited));
 
@@ -1167,9 +1183,11 @@ public final class QuickMaterialCollector implements ClientModInitializer {
         return moved;
     }
 
-    private int depositCursorToPlayerWithLeftClicks(AbstractContainerMenu handler,
-                                                     ItemStack template,
-                                                     int excludedSlotId) {
+    private int depositCursorToPlayerWithLeftClicks(
+            AbstractContainerMenu handler,
+            ItemStack template,
+            int excludedSlotId
+    ) {
         int deposited = 0;
         while (!handler.getCarried().isEmpty()) {
             Slot target = findPlayerDepositSlot(handler, template, excludedSlotId);
@@ -1225,10 +1243,12 @@ public final class QuickMaterialCollector implements ClientModInitializer {
         return deposited;
     }
 
-    private void moveWholeCleanShulkerIfUseful(AbstractContainerMenu handler,
-                                               Slot source,
-                                               List<Demand> demands,
-                                               List<ItemStack> targetTemplates) {
+    private void moveWholeCleanShulkerIfUseful(
+            AbstractContainerMenu handler,
+            Slot source,
+            List<Demand> demands,
+            List<ItemStack> targetTemplates
+    ) {
         ItemStack shulker = source.getItem();
         List<StoredCount> contents = getStoredTargetCounts(shulker, demands);
         if (contents.isEmpty() || !containsOnlyTargetMaterials(shulker, targetTemplates)) {
@@ -1244,8 +1264,13 @@ public final class QuickMaterialCollector implements ClientModInitializer {
             return;
         }
 
-        QuickSlotTransfer.quickMove(Minecraft.getInstance(), handler, source.index,
-                    QuickSlotTransfer::isPlayerStorageSlot, true);
+        QuickSlotTransfer.quickMove(
+                Minecraft.getInstance(),
+                handler,
+                source.index,
+                QuickSlotTransfer::isPlayerStorageSlot,
+                true
+        );
         if (source.hasItem()) {
             return;
         }
@@ -1259,14 +1284,20 @@ public final class QuickMaterialCollector implements ClientModInitializer {
             return;
         }
         MaterialPlan packingPlan = buildMaterialPlan(client.player);
-        if (packPlayerTargetMaterialsIntoShulkers(handler, packingPlan.packDemands(), packingPlan.targetTemplates()) > 0) {
+        if (packPlayerTargetMaterialsIntoShulkers(
+                handler,
+                packingPlan.packDemands(),
+                packingPlan.targetTemplates()
+        ) > 0) {
             activeTask.processedSourceSlots.clear();
         }
     }
 
-    private int packPlayerTargetMaterialsIntoShulkers(AbstractContainerMenu handler,
-                                                       List<PackDemand> packDemands,
-                                                       List<ItemStack> targetTemplates) {
+    private int packPlayerTargetMaterialsIntoShulkers(
+            AbstractContainerMenu handler,
+            List<PackDemand> packDemands,
+            List<ItemStack> targetTemplates
+    ) {
         if (!handler.getCarried().isEmpty()) {
             return 0;
         }
@@ -1281,12 +1312,21 @@ public final class QuickMaterialCollector implements ClientModInitializer {
                 if (demand.remaining() <= 0) {
                     break;
                 }
-                if (!source.hasItem() || isShulkerBox(source.getItem()) || !stacksMatch(source.getItem(), demand.template())) {
+                if (!source.hasItem() || isShulkerBox(source.getItem()) || !stacksMatch(
+                        source.getItem(),
+                        demand.template()
+                )) {
                     continue;
                 }
 
                 int amount = Math.min(source.getItem().getCount(), demand.remaining());
-                int moved = moveSlotAmountIntoShulkers(handler, source.index, demand.template(), amount, targetTemplates);
+                int moved = moveSlotAmountIntoShulkers(
+                        handler,
+                        source.index,
+                        demand.template(),
+                        amount,
+                        targetTemplates
+                );
                 demand.decrease(moved);
                 packed += moved;
             }
@@ -1298,7 +1338,12 @@ public final class QuickMaterialCollector implements ClientModInitializer {
         int moved = 0;
 
         while (!handler.getCarried().isEmpty()) {
-            Slot shulkerSlot = findDestinationShulkerSlot(handler, handler.getCarried(), targetTemplates, getTemporarySourcePlayerIndex());
+            Slot shulkerSlot = findDestinationShulkerSlot(
+                    handler,
+                    handler.getCarried(),
+                    targetTemplates,
+                    getTemporarySourcePlayerIndex()
+            );
             if (shulkerSlot == null) {
                 break;
             }
@@ -1323,8 +1368,7 @@ public final class QuickMaterialCollector implements ClientModInitializer {
     }
 
     private boolean shouldUseQuickShulker() {
-        return QuickCraftConfigs.isAutoCollectMaterialsWithQuickShulkerEnabled()
-                && QuickShulkerConnection.canBundle();
+        return QuickCraftConfigs.isAutoCollectMaterialsWithQuickShulkerEnabled() && QuickShulkerConnection.canBundle();
     }
 
     private int countAvailableForDemand(Inventory inventory, InventoryCounts counts, ItemStack template) {
@@ -1378,7 +1422,8 @@ public final class QuickMaterialCollector implements ClientModInitializer {
             if (slot.index == excludedSlotId || !slot.hasItem() || !slot.mayPlace(template)) {
                 continue;
             }
-            if (stacksExactlyMatch(slot.getItem(), template) && slot.getItem().getCount() < slot.getItem().getMaxStackSize()) {
+            if (stacksExactlyMatch(slot.getItem(), template) && slot.getItem().getCount() < slot.getItem()
+                    .getMaxStackSize()) {
                 return slot;
             }
         }
@@ -1412,13 +1457,7 @@ public final class QuickMaterialCollector implements ClientModInitializer {
             return;
         }
 
-        client.gameMode.handleContainerInput(
-                handler.containerId,
-                slotId,
-                button,
-                actionType,
-                client.player
-        );
+        client.gameMode.handleContainerInput(handler.containerId, slotId, button, actionType, client.player);
     }
 
     private void closeCurrentScreen(Minecraft client) {
@@ -1439,13 +1478,7 @@ public final class QuickMaterialCollector implements ClientModInitializer {
     }
 
     private enum CollectionStage {
-        WAIT_TARGET,
-        COLLECT_TARGET,
-        WAIT_SHULKER,
-        EXTRACT_SHULKER,
-        REOPEN_DELAY,
-        WAIT_REOPEN,
-        RETURN_SHULKER
+        WAIT_TARGET, COLLECT_TARGET, WAIT_SHULKER, EXTRACT_SHULKER, REOPEN_DELAY, WAIT_REOPEN, RETURN_SHULKER
     }
 
     private static final class CollectionTask {

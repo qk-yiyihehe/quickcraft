@@ -6,8 +6,7 @@ import net.minecraft.client.Minecraft;
 import org.lwjgl.glfw.GLFW;
 
 public final class QuickCraftKeyBindingsAccess {
-    private QuickCraftKeyBindingsAccess() {
-    }
+    private QuickCraftKeyBindingsAccess() {}
 
     public static int rightMouseButton() {
         return GLFW.GLFW_MOUSE_BUTTON_RIGHT;
@@ -18,8 +17,7 @@ public final class QuickCraftKeyBindingsAccess {
     }
 
     static boolean isMouseButtonDown(Minecraft client, int button) {
-        return client != null
-                && GLFW.glfwGetMouseButton(client.getWindow().handle(), button) == GLFW.GLFW_PRESS;
+        return client != null && GLFW.glfwGetMouseButton(client.getWindow().handle(), button) == GLFW.GLFW_PRESS;
     }
 
     static boolean isLeftMouseButtonDown(Minecraft client) {

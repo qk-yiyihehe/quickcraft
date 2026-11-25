@@ -15,9 +15,15 @@ import java.util.Objects;
 public final class QuickCrossBoxSortPlanner {
     private QuickCrossBoxSortPlanner() {}
 
-    public static <K> Plan<K> plan(List<QuickCrossBoxSortStacks.Box<K>> boxes, List<Integer> spareSlots,
-    Comparator<QuickCrossBoxSortStacks.Stack<K>> comparator, boolean onePerBox) {
-        if (boxes.isEmpty()) { return new Plan<>(List.of(), List.of(), List.of(), 0, 0, 0); }
+    public static <K> Plan<K> plan(
+            List<QuickCrossBoxSortStacks.Box<K>> boxes,
+            List<Integer> spareSlots,
+            Comparator<QuickCrossBoxSortStacks.Stack<K>> comparator,
+            boolean onePerBox
+    ) {
+        if (boxes.isEmpty()) {
+            return new Plan<>(List.of(), List.of(), List.of(), 0, 0, 0);
+        }
         var merged = mergeToCanonicalStacks(boxes, 27);
         List<QuickCrossBoxSortStacks.Box<K>> extended = new ArrayList<>(merged.boxes());
         if (onePerBox) {
@@ -32,14 +38,21 @@ public final class QuickCrossBoxSortPlanner {
         for (int i = 0; i < extended.size(); i++) {
             boolean wasEmpty = i >= boxes.size() || boxes.get(i).slots().stream().allMatch(Objects::isNull);
             boolean nowEmpty = targets.get(i).slots().stream().allMatch(Objects::isNull);
-            if (!wasEmpty && nowEmpty) { emptied++; }
-            if (!nowEmpty) { remaining++; }
+            if (!wasEmpty && nowEmpty) {
+                emptied++;
+            }
+            if (!nowEmpty) {
+                remaining++;
+            }
         }
-        int moves = (int) merged.merges().stream().filter(m -> m.sourceInventorySlot() != m.targetInventorySlot()).count();
+        int moves = (int) merged.merges().stream().filter(m -> m.sourceInventorySlot() != m.targetInventorySlot())
+                .count();
         for (var cycle : cycles) {
             SlotRef source = null;
             for (var step : cycle.steps()) {
-                if (step.registerBefore() != null && source != null && !sameBox(source, step.slot())) { moves++; }
+                if (step.registerBefore() != null && source != null && !sameBox(source, step.slot())) {
+                    moves++;
+                }
                 source = step.slotBefore() == null ? null : step.slot();
             }
         }
@@ -52,24 +65,34 @@ public final class QuickCrossBoxSortPlanner {
         List<QuickCrossBoxSortStacks.Transfer<K>> merges = new ArrayList<>();
         LinkedHashMap<K, List<Position>> byKey = new LinkedHashMap<>();
 
-        for(Position position : positions) {
+        for (Position position : positions) {
             MutableStack<K> stack = (boxes.get(position.box())).slots.get(position.slot());
             if (stack != null) {
                 (byKey.computeIfAbsent(stack.key, (ignored) -> new ArrayList<>())).add(position);
             }
         }
 
-        for(List<Position> keyPositions : byKey.values()) {
-            for(int targetIndex = 0; targetIndex < keyPositions.size(); ++targetIndex) {
+        for (List<Position> keyPositions : byKey.values()) {
+            for (int targetIndex = 0; targetIndex < keyPositions.size(); ++targetIndex) {
                 Position targetPosition = keyPositions.get(targetIndex);
                 MutableStack<K> target = (boxes.get(targetPosition.box())).slots.get(targetPosition.slot());
                 if (target != null) {
-                    for(int sourceIndex = keyPositions.size() - 1; sourceIndex > targetIndex && target.count < target.maxCount; --sourceIndex) {
+                    for (int sourceIndex = keyPositions.size() - 1; sourceIndex > targetIndex
+                            && target.count < target.maxCount; --sourceIndex) {
                         Position sourcePosition = keyPositions.get(sourceIndex);
                         MutableStack<K> source = (boxes.get(sourcePosition.box())).slots.get(sourcePosition.slot());
                         if (source != null) {
                             int amount = Math.min(target.maxCount - target.count, source.count);
-                            merges.add(new QuickCrossBoxSortStacks.Transfer<>((boxes.get(sourcePosition.box())).inventorySlot, sourcePosition.slot(), (boxes.get(targetPosition.box())).inventorySlot, targetPosition.slot(), source.key, amount));
+                            merges.add(
+                                    new QuickCrossBoxSortStacks.Transfer<>(
+                                            (boxes.get(sourcePosition.box())).inventorySlot,
+                                            sourcePosition.slot(),
+                                            (boxes.get(targetPosition.box())).inventorySlot,
+                                            targetPosition.slot(),
+                                            source.key,
+                                            amount
+                                    )
+                            );
                             target.count += amount;
                             source.count -= amount;
                             if (source.count == 0) {
@@ -85,13 +108,17 @@ public final class QuickCrossBoxSortPlanner {
         return new MergeResult<K>(List.copyOf(merges), immutableCopy(boxes));
     }
 
-    private static <K> List<SwapCycle<K>> buildSwapCycles(List<QuickCrossBoxSortStacks.Box<K>> current, List<QuickCrossBoxSortStacks.Box<K>> targets, int boxSize) {
+    private static <K> List<SwapCycle<K>> buildSwapCycles(
+            List<QuickCrossBoxSortStacks.Box<K>> current,
+            List<QuickCrossBoxSortStacks.Box<K>> targets,
+            int boxSize
+    ) {
         List<SlotRef> refs = new ArrayList<>();
         List<QuickCrossBoxSortStacks.Stack<K>> source = new ArrayList<>();
         List<QuickCrossBoxSortStacks.Stack<K>> target = new ArrayList<>();
 
-        for(int box = 0; box < current.size(); ++box) {
-            for(int slot = 0; slot < boxSize; ++slot) {
+        for (int box = 0; box < current.size(); ++box) {
+            for (int slot = 0; slot < boxSize; ++slot) {
                 refs.add(new SlotRef((current.get(box)).inventorySlot(), slot));
                 source.add((current.get(box)).slots().get(slot));
                 target.add((targets.get(box)).slots().get(slot));
@@ -103,14 +130,14 @@ public final class QuickCrossBoxSortPlanner {
         Arrays.fill(destination, -1);
         boolean[] targetUsed = new boolean[size];
 
-        for(int i = 0; i < size; ++i) {
+        for (int i = 0; i < size; ++i) {
             if (Objects.equals(source.get(i), target.get(i))) {
                 destination[i] = i;
                 targetUsed[i] = true;
             }
         }
 
-        // Reserve local matches in every box before an earlier box can claim them.
+        // 先给每个箱子保留本箱匹配项，防止排序靠前的箱子抢占它们。
         for (int start = 0; start < size; start += boxSize) {
             matchSlots(source, target, destination, targetUsed, start, start + boxSize);
         }
@@ -125,7 +152,7 @@ public final class QuickCrossBoxSortPlanner {
         List<SwapCycle<K>> cycles = new ArrayList<>();
         List<QuickCrossBoxSortStacks.Stack<K>> simulation = new ArrayList<>(source);
 
-        for(int seed = 0; seed < size; ++seed) {
+        for (int seed = 0; seed < size; ++seed) {
             if (!visited[seed] && destination[seed] != seed) {
                 List<Integer> cycle = new ArrayList<>();
                 int cursor = seed;
@@ -134,11 +161,11 @@ public final class QuickCrossBoxSortPlanner {
                     cycle.add(cursor);
                     visited[cursor] = true;
                     cursor = destination[cursor];
-                } while(cursor != seed);
+                } while (cursor != seed);
 
                 int emptyIndex = -1;
 
-                for(int i = 0; i < cycle.size(); ++i) {
+                for (int i = 0; i < cycle.size(); ++i) {
                     if (source.get(cycle.get(i)) == null) {
                         emptyIndex = i;
                         break;
@@ -147,7 +174,7 @@ public final class QuickCrossBoxSortPlanner {
 
                 List<Integer> swapPositions = new ArrayList<>();
                 if (emptyIndex >= 0) {
-                    for(int offset = 1; offset < cycle.size(); ++offset) {
+                    for (int offset = 1; offset < cycle.size(); ++offset) {
                         swapPositions.add(cycle.get((emptyIndex + offset) % cycle.size()));
                     }
 
@@ -160,7 +187,7 @@ public final class QuickCrossBoxSortPlanner {
                 QuickCrossBoxSortStacks.Stack<K> register = null;
                 List<SwapStep<K>> steps = new ArrayList<>();
 
-                for(int position : swapPositions) {
+                for (int position : swapPositions) {
                     QuickCrossBoxSortStacks.Stack<K> slotBefore = simulation.get(position);
                     if (Objects.equals(slotBefore, register)) {
                         continue;
@@ -168,7 +195,15 @@ public final class QuickCrossBoxSortPlanner {
                     QuickCrossBoxSortStacks.Stack<K> registerBefore = register;
                     simulation.set(position, register);
                     register = slotBefore;
-                    steps.add(new SwapStep<>(refs.get(position), slotBefore, registerBefore, simulation.get(position), slotBefore));
+                    steps.add(
+                            new SwapStep<>(
+                                    refs.get(position),
+                                    slotBefore,
+                                    registerBefore,
+                                    simulation.get(position),
+                                    slotBefore
+                            )
+                    );
                 }
 
                 if (register != null) {
@@ -186,9 +221,14 @@ public final class QuickCrossBoxSortPlanner {
         return left.inventorySlot() == right.inventorySlot();
     }
 
-    private static <K> void matchSlots(List<QuickCrossBoxSortStacks.Stack<K>> source,
-                                       List<QuickCrossBoxSortStacks.Stack<K>> target,
-                                       int[] destination, boolean[] targetUsed, int start, int end) {
+    private static <K> void matchSlots(
+            List<QuickCrossBoxSortStacks.Stack<K>> source,
+            List<QuickCrossBoxSortStacks.Stack<K>> target,
+            int[] destination,
+            boolean[] targetUsed,
+            int start,
+            int end
+    ) {
         Map<QuickCrossBoxSortStacks.Stack<K>, ArrayDeque<Integer>> available = new HashMap<>();
         for (int i = start; i < end; i++) {
             if (!targetUsed[i]) {
@@ -210,8 +250,8 @@ public final class QuickCrossBoxSortPlanner {
     private static List<Position> allPositions(int boxCount, int boxSize) {
         List<Position> result = new ArrayList<>(boxCount * boxSize);
 
-        for(int box = 0; box < boxCount; ++box) {
-            for(int slot = 0; slot < boxSize; ++slot) {
+        for (int box = 0; box < boxCount; ++box) {
+            for (int slot = 0; slot < boxSize; ++slot) {
                 result.add(new Position(box, slot));
             }
         }
@@ -222,7 +262,7 @@ public final class QuickCrossBoxSortPlanner {
     private static <K> List<MutableBox<K>> mutableCopy(List<QuickCrossBoxSortStacks.Box<K>> boxes) {
         List<MutableBox<K>> result = new ArrayList<>();
 
-        for(QuickCrossBoxSortStacks.Box<K> box : boxes) {
+        for (QuickCrossBoxSortStacks.Box<K> box : boxes) {
             result.add(new MutableBox<>(box));
         }
 
@@ -232,11 +272,14 @@ public final class QuickCrossBoxSortPlanner {
     private static <K> List<QuickCrossBoxSortStacks.Box<K>> immutableCopy(List<MutableBox<K>> boxes) {
         List<QuickCrossBoxSortStacks.Box<K>> result = new ArrayList<>();
 
-        for(MutableBox<K> box : boxes) {
+        for (MutableBox<K> box : boxes) {
             List<QuickCrossBoxSortStacks.Stack<K>> slots = new ArrayList<>();
 
-            for(MutableStack<K> stack : box.slots) {
-                slots.add(stack == null ? null : new QuickCrossBoxSortStacks.Stack<>(stack.key, stack.count, stack.maxCount));
+            for (MutableStack<K> stack : box.slots) {
+                slots.add(
+                        stack == null ? null
+                                : new QuickCrossBoxSortStacks.Stack<>(stack.key, stack.count, stack.maxCount)
+                );
             }
 
             result.add(new QuickCrossBoxSortStacks.Box<>(box.inventorySlot, slots));
@@ -245,8 +288,11 @@ public final class QuickCrossBoxSortPlanner {
         return List.copyOf(result);
     }
 
-    private static <K> List<QuickCrossBoxSortStacks.Box<K>> layout(List<QuickCrossBoxSortStacks.Box<K>> boxes,
-    Comparator<QuickCrossBoxSortStacks.Stack<K>> comparator, boolean onePerBox) {
+    private static <K> List<QuickCrossBoxSortStacks.Box<K>> layout(
+            List<QuickCrossBoxSortStacks.Box<K>> boxes,
+            Comparator<QuickCrossBoxSortStacks.Stack<K>> comparator,
+            boolean onePerBox
+    ) {
         Map<K, List<QuickCrossBoxSortStacks.Stack<K>>> byKey = new LinkedHashMap<>();
         for (QuickCrossBoxSortStacks.Box<K> box : boxes) {
             for (QuickCrossBoxSortStacks.Stack<K> stack : box.slots()) {
@@ -286,9 +332,11 @@ public final class QuickCrossBoxSortPlanner {
         return targets;
     }
 
-    private static <K> void assignExclusive(List<List<QuickCrossBoxSortStacks.Stack<K>>> groups,
-                                             List<List<QuickCrossBoxSortStacks.Stack<K>>> contents,
-                                             List<QuickCrossBoxSortStacks.Box<K>> boxes) {
+    private static <K> void assignExclusive(
+            List<List<QuickCrossBoxSortStacks.Stack<K>>> groups,
+            List<List<QuickCrossBoxSortStacks.Stack<K>>> contents,
+            List<QuickCrossBoxSortStacks.Box<K>> boxes
+    ) {
         List<List<QuickCrossBoxSortStacks.Stack<K>>> chunks = new ArrayList<>();
         for (var group : groups) {
             for (int start = 0; start < group.size(); start += 27) {
@@ -314,9 +362,11 @@ public final class QuickCrossBoxSortPlanner {
         }
     }
 
-    private static <K> void assignGrouped(List<List<QuickCrossBoxSortStacks.Stack<K>>> groups,
-    List<List<QuickCrossBoxSortStacks.Stack<K>>> contents,
-    int boxCount) {
+    private static <K> void assignGrouped(
+            List<List<QuickCrossBoxSortStacks.Stack<K>>> groups,
+            List<List<QuickCrossBoxSortStacks.Stack<K>>> contents,
+            int boxCount
+    ) {
         int box = 0;
         int slot = 0;
         for (List<QuickCrossBoxSortStacks.Stack<K>> group : groups) {
@@ -334,7 +384,8 @@ public final class QuickCrossBoxSortPlanner {
     }
 
     private static <K> Map<QuickCrossBoxSortStacks.Stack<K>, Integer> stackCounts(
-            List<QuickCrossBoxSortStacks.Stack<K>> stacks) {
+            List<QuickCrossBoxSortStacks.Stack<K>> stacks
+    ) {
         Map<QuickCrossBoxSortStacks.Stack<K>, Integer> counts = new HashMap<>();
         for (var stack : stacks) {
             if (stack != null) {
@@ -344,7 +395,7 @@ public final class QuickCrossBoxSortPlanner {
         return counts;
     }
 
-    // Rectangular Hungarian algorithm. Each chunk needs one distinct box; spare boxes may stay unmatched.
+    // 使用匈牙利算法求解矩形分配。每组物品需要一个不同的箱子，多余箱子可不参与分配。
     private static int[] maximumRetentionAssignment(int[][] retained) {
         int chunkCount = retained.length;
         int boxCount = retained[0].length;
@@ -354,7 +405,7 @@ public final class QuickCrossBoxSortPlanner {
         int[] previousBox = new int[boxCount + 1];
 
         for (int chunk = 1; chunk <= chunkCount; chunk++) {
-            // Column zero is a temporary root for the alternating path.
+            // 第 0 列作为交替路径的临时起点。
             chunkByBox[0] = chunk;
             int box = 0;
             int[] slack = new int[boxCount + 1];
@@ -369,8 +420,8 @@ public final class QuickCrossBoxSortPlanner {
                     if (visited[candidate]) {
                         continue;
                     }
-                    int cost = -retained[assignedChunk - 1][candidate - 1]
-                            - chunkPotential[assignedChunk] - boxPotential[candidate];
+                    int cost = -retained[assignedChunk - 1][candidate - 1] - chunkPotential[assignedChunk]
+                            - boxPotential[candidate];
                     if (cost < slack[candidate]) {
                         slack[candidate] = cost;
                         previousBox[candidate] = box;
@@ -407,11 +458,22 @@ public final class QuickCrossBoxSortPlanner {
         return assignedBoxes;
     }
 
-    public record SlotRef(int inventorySlot, int boxSlot) {}
-    public record SwapStep<K>(SlotRef slot, QuickCrossBoxSortStacks.Stack<K> slotBefore, QuickCrossBoxSortStacks.Stack<K> registerBefore,
-    QuickCrossBoxSortStacks.Stack<K> slotAfter, QuickCrossBoxSortStacks.Stack<K> registerAfter) {}
+    public record SlotRef(int inventorySlot, int boxSlot) {
+    }
+
+    public record SwapStep<K>(
+            SlotRef slot,
+            QuickCrossBoxSortStacks.Stack<K> slotBefore,
+            QuickCrossBoxSortStacks.Stack<K> registerBefore,
+            QuickCrossBoxSortStacks.Stack<K> slotAfter,
+            QuickCrossBoxSortStacks.Stack<K> registerAfter
+    ) {
+    }
+
     public record SwapCycle<K>(List<SwapStep<K>> steps) {
-        public SwapCycle { steps = List.copyOf(steps); }
+        public SwapCycle {
+            steps = List.copyOf(steps);
+        }
     }
 
     static <K> List<ScheduledSwap<K>> scheduleSwaps(List<SwapCycle<K>> cycles, int registerCount) {
@@ -425,7 +487,7 @@ public final class QuickCrossBoxSortPlanner {
             return original;
         }
 
-        // The cycles touch disjoint slots. Advance each using its own empty hotbar slot.
+        // 各个循环涉及的槽位互不重叠，可以分别使用各自的快捷栏空槽推进。
         List<SwapCycle<K>> pending = new ArrayList<>(cycles);
         List<ArrayDeque<SwapStep<K>>> registers = new ArrayList<>(Collections.nCopies(registerCount, null));
         List<ScheduledSwap<K>> grouped = new ArrayList<>(original.size());
@@ -491,26 +553,49 @@ public final class QuickCrossBoxSortPlanner {
         return opens;
     }
 
-    record ScheduledSwap<K>(int register, SwapStep<K> step) {}
+    record ScheduledSwap<K>(int register, SwapStep<K> step) {
+    }
 
-    public record Plan<K>(List<QuickCrossBoxSortStacks.Transfer<K>> merges, List<QuickCrossBoxSortStacks.Box<K>> targets, List<SwapCycle<K>> swapCycles,
-    int emptiedBoxes, int remainingNonEmptyBoxes, int crossBoxMoves) {}
-    private record Position(int box, int slot) {}
-    private record MergeResult<K>(List<QuickCrossBoxSortStacks.Transfer<K>> merges, List<QuickCrossBoxSortStacks.Box<K>> boxes) {}
+    public record Plan<K>(
+            List<QuickCrossBoxSortStacks.Transfer<K>> merges,
+            List<QuickCrossBoxSortStacks.Box<K>> targets,
+            List<SwapCycle<K>> swapCycles,
+            int emptiedBoxes,
+            int remainingNonEmptyBoxes,
+            int crossBoxMoves
+    ) {
+    }
+
+    private record Position(int box, int slot) {
+    }
+
+    private record MergeResult<K>(
+            List<QuickCrossBoxSortStacks.Transfer<K>> merges,
+            List<QuickCrossBoxSortStacks.Box<K>> boxes
+    ) {
+    }
+
     private static final class MutableBox<K> {
         final int inventorySlot;
         final List<MutableStack<K>> slots = new ArrayList<>();
+
         MutableBox(QuickCrossBoxSortStacks.Box<K> box) {
             inventorySlot = box.inventorySlot();
-            for (var stack : box.slots()) { slots.add(stack == null ? null : new MutableStack<>(stack)); }
+            for (var stack : box.slots()) {
+                slots.add(stack == null ? null : new MutableStack<>(stack));
+            }
         }
     }
+
     private static final class MutableStack<K> {
         final K key;
         int count;
         final int maxCount;
+
         MutableStack(QuickCrossBoxSortStacks.Stack<K> stack) {
-            key = stack.key(); count = stack.count(); maxCount = stack.maxCount();
+            key = stack.key();
+            count = stack.count();
+            maxCount = stack.maxCount();
         }
     }
 }

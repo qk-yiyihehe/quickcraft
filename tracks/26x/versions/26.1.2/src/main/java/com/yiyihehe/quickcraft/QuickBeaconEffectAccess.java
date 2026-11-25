@@ -5,8 +5,7 @@ import net.minecraft.world.effect.MobEffects;
 
 /** 26.1.2 的信标效果能力：生命恢复始终使用二级信标组合。 */
 final class QuickBeaconEffectAccess {
-    private QuickBeaconEffectAccess() {
-    }
+    private QuickBeaconEffectAccess() {}
 
     static boolean allowRegenerationTwo(Minecraft client) {
         return true;

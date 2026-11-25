@@ -37,12 +37,17 @@ public class QuickFreeCameraInteractionManagerMixin {
 
     @Inject(method = "useItemOn", at = @At("HEAD"), cancellable = true)
     private void quickcraft$rejectOutOfRangeBlockUse(
-            LocalPlayer player, InteractionHand hand, BlockHitResult hitResult,
-            CallbackInfoReturnable<InteractionResult> cir) {
+            LocalPlayer player,
+            InteractionHand hand,
+            BlockHitResult hitResult,
+            CallbackInfoReturnable<InteractionResult> cir
+    ) {
         Minecraft client = Minecraft.getInstance();
         if (QuickFreeCameraInteractions.isBlockOutsideServerInteractionRange(client, hitResult.getBlockPos())) {
             // 准星会穿过水源命中远处方块；空桶继续走物品使用，由桶射线校验真正的收水目标。
-            cir.setReturnValue(player.getItemInHand(hand).is(Items.BUCKET) ? InteractionResult.PASS : InteractionResult.FAIL);
+            cir.setReturnValue(
+                    player.getItemInHand(hand).is(Items.BUCKET) ? InteractionResult.PASS : InteractionResult.FAIL
+            );
             return;
         }
         QuickFreeCameraInteractions.beginBlockUseFromFreeCamera(client, hand, hitResult);
@@ -50,14 +55,20 @@ public class QuickFreeCameraInteractionManagerMixin {
 
     @Inject(method = "useItemOn", at = @At("RETURN"))
     private void quickcraft$endBlockUseFromFreeCamera(
-            LocalPlayer player, InteractionHand hand, BlockHitResult hitResult,
-            CallbackInfoReturnable<InteractionResult> cir) {
+            LocalPlayer player,
+            InteractionHand hand,
+            BlockHitResult hitResult,
+            CallbackInfoReturnable<InteractionResult> cir
+    ) {
         QuickFreeCameraInteractions.endBlockUseFromFreeCamera(Minecraft.getInstance());
     }
 
     @Inject(method = "useItem", at = @At("HEAD"), cancellable = true)
     private void quickcraft$beginItemUseFromFreeCamera(
-            Player player, InteractionHand hand, CallbackInfoReturnable<InteractionResult> cir) {
+            Player player,
+            InteractionHand hand,
+            CallbackInfoReturnable<InteractionResult> cir
+    ) {
         if (!QuickFreeCameraInteractions.beginItemUseFromFreeCamera(Minecraft.getInstance(), hand)) {
             cir.setReturnValue(InteractionResult.FAIL);
         }
@@ -65,13 +76,19 @@ public class QuickFreeCameraInteractionManagerMixin {
 
     @Inject(method = "useItem", at = @At("RETURN"))
     private void quickcraft$endItemUseFromFreeCamera(
-            Player player, InteractionHand hand, CallbackInfoReturnable<InteractionResult> cir) {
+            Player player,
+            InteractionHand hand,
+            CallbackInfoReturnable<InteractionResult> cir
+    ) {
         QuickFreeCameraInteractions.endBlockUseFromFreeCamera(Minecraft.getInstance());
     }
 
     @Inject(method = "startDestroyBlock", at = @At("HEAD"), cancellable = true)
     private void quickcraft$rejectOutOfRangeBlockAttack(
-            BlockPos position, Direction direction, CallbackInfoReturnable<Boolean> cir) {
+            BlockPos position,
+            Direction direction,
+            CallbackInfoReturnable<Boolean> cir
+    ) {
         if (QuickFreeCameraInteractions.isBlockOutsideServerInteractionRange(Minecraft.getInstance(), position)) {
             cir.setReturnValue(false);
         }
@@ -79,7 +96,10 @@ public class QuickFreeCameraInteractionManagerMixin {
 
     @Inject(method = "continueDestroyBlock", at = @At("HEAD"), cancellable = true)
     private void quickcraft$rejectOutOfRangeBlockBreaking(
-            BlockPos position, Direction direction, CallbackInfoReturnable<Boolean> cir) {
+            BlockPos position,
+            Direction direction,
+            CallbackInfoReturnable<Boolean> cir
+    ) {
         if (QuickFreeCameraInteractions.isBlockOutsideServerInteractionRange(Minecraft.getInstance(), position)) {
             ((MultiPlayerGameMode) (Object) this).stopDestroyBlock();
             cir.setReturnValue(false);
@@ -88,15 +108,23 @@ public class QuickFreeCameraInteractionManagerMixin {
 
     @Inject(method = "interact", at = @At("HEAD"), cancellable = true)
     private void quickcraft$rejectOutOfRangeEntityUse(
-            Player player, Entity entity, EntityHitResult hitResult, InteractionHand hand,
-            CallbackInfoReturnable<InteractionResult> cir) {
+            Player player,
+            Entity entity,
+            EntityHitResult hitResult,
+            InteractionHand hand,
+            CallbackInfoReturnable<InteractionResult> cir
+    ) {
         if (QuickFreeCameraInteractions.isEntityOutsideServerInteractionRange(Minecraft.getInstance(), entity)) {
             cir.setReturnValue(InteractionResult.FAIL);
         }
     }
 
-    @ModifyArg(method = "interact", at = @At(value = "INVOKE",
-            target = "Lnet/minecraft/network/protocol/game/ServerboundInteractPacket;<init>(ILnet/minecraft/world/InteractionHand;Lnet/minecraft/world/phys/Vec3;Z)V"), index = 3)
+    @ModifyArg(
+            method = "interact",
+            at = @At(
+                    value = "INVOKE",
+                    target = "Lnet/minecraft/network/protocol/game/ServerboundInteractPacket;<init>(ILnet/minecraft/world/InteractionHand;Lnet/minecraft/world/phys/Vec3;Z)V"),
+            index = 3)
     private boolean quickcraft$useFreeCameraSneakingForEntityUse(boolean originalSneaking) {
         return QuickFreeCameraInteractions.resolveEntitySneaking(Minecraft.getInstance(), originalSneaking);
     }
@@ -110,7 +138,9 @@ public class QuickFreeCameraInteractionManagerMixin {
             Operation<InteractionResult> original
     ) {
         return QuickFreeCameraInteractions.withEntityUseFromFreeCamera(
-                Minecraft.getInstance(), () -> original.call(player, entity, hitResult, hand));
+                Minecraft.getInstance(),
+                () -> original.call(player, entity, hitResult, hand)
+        );
     }
 
     @Inject(method = "attack", at = @At("HEAD"), cancellable = true)

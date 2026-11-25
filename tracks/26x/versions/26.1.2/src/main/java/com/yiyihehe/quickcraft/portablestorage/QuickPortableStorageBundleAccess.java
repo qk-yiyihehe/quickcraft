@@ -33,7 +33,7 @@ final class QuickPortableStorageBundleAccess {
         if (contents.getSelectedItemIndex() != index) {
             BundleItem.toggleSelectedItem(slot.getItem(), index);
         }
-        // The protocol toggles selection, including when the server already has this index selected.
+        // 该协议会切换选中状态。如果服务端已选中目标索引，再发送一次会取消选中。
         client.getConnection().send(new ServerboundSelectBundleItemPacket(slot.index, -1));
         client.getConnection().send(new ServerboundSelectBundleItemPacket(slot.index, index));
     }

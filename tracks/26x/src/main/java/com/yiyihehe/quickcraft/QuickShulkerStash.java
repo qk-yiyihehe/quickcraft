@@ -1,4 +1,5 @@
 package com.yiyihehe.quickcraft;
+
 import com.yiyihehe.quickcraft.render.QuickCrossBoxSortStatus;
 
 import static com.yiyihehe.quickcraft.QuickContainerCopySources.*;
@@ -20,12 +21,11 @@ import java.util.List;
 
 /** 背包收纳和容器回存共用的快盒装入规则；不打开盒子，也不改变盒子所在槽位。 */
 public final class QuickShulkerStash {
-    private QuickShulkerStash() {
-    }
+    private QuickShulkerStash() {}
 
     public static boolean isAvailable() {
-        return QuickCraftConfigs.ModSupport.ENABLE_QUICK_SHULKER.getBooleanValue()
-                && QuickShulkerConnection.canBundle();
+        return QuickCraftConfigs.ModSupport.ENABLE_QUICK_SHULKER.getBooleanValue() && QuickShulkerConnection
+                .canBundle();
     }
 
     public static void stashInventory(AbstractContainerScreen<?> screen) {
@@ -38,9 +38,13 @@ public final class QuickShulkerStash {
 
     private static void stash(AbstractContainerScreen<?> screen, boolean playerInventory) {
         Minecraft client = Minecraft.getInstance();
-        if (!QuickCraftConfigs.isQuickStashButtonVisible() || client.player == null || client.gameMode == null
-                || QuickClientScreenAccess.currentScreen(client) != screen || screen.getMenu() != client.player.containerMenu
-                || QuickStashShulkerTransfer.isRunning() || QuickCrossBoxSort.isRunning()
+        if (!QuickCraftConfigs.isQuickStashButtonVisible()
+                || client.player == null
+                || client.gameMode == null
+                || QuickClientScreenAccess.currentScreen(client) != screen
+                || screen.getMenu() != client.player.containerMenu
+                || QuickStashShulkerTransfer.isRunning()
+                || QuickCrossBoxSort.isRunning()
                 || QuickCraftWorkbenchShulker.shouldBlockWorkbenchInput()
                 || QuickContainerCopy.shouldHideBackgroundHandledScreen()
                 || QuickMaterialCollector.shouldHideBackgroundHandledScreen()) {
@@ -57,9 +61,10 @@ public final class QuickShulkerStash {
         }
         QuickContainerLock.bindCurrentScreen(screen);
         var actionName = Component.translatable("quickcraft.button.inventory_shulker_stash");
-        boolean locked = playerInventory
-                ? QuickContainerLock.handleLockedPlayerInventoryAutomationAttempt(client, actionName)
-                : QuickContainerLock.handleLockedAutomationAttempt(client, screen, actionName);
+        boolean locked = playerInventory ? QuickContainerLock.handleLockedPlayerInventoryAutomationAttempt(
+                client,
+                actionName
+        ) : QuickContainerLock.handleLockedAutomationAttempt(client, screen, actionName);
         if (locked) {
             return;
         }
@@ -73,8 +78,7 @@ public final class QuickShulkerStash {
             }
             int before = source.getItem().getCount();
             if (!packMatching(handler, sourceId, slots, client)) {
-                String failure = handler.getCarried().isEmpty()
-                        ? "quickcraft.message.quick_stash.shulker_insert_failed"
+                String failure = handler.getCarried().isEmpty() ? "quickcraft.message.quick_stash.shulker_insert_failed"
                         : "quickcraft.message.quick_stash.cursor_blocked";
                 QuickCrossBoxSortStatus.show(Component.translatable(failure));
                 return;
@@ -110,22 +114,28 @@ public final class QuickShulkerStash {
 
     static boolean canReceive(AbstractContainerMenu handler, int slotId, ItemStack template, Minecraft client) {
         Slot slot = handler.getSlot(slotId);
-        return isVisibleSlot(slot) && !QuickContainerLock.isLockedSlot(handler, slot)
-                && slot.getItem().getCount() == 1 && slot.mayPickup(client.player)
-                && slot.mayPlace(slot.getItem()) && contains(slot.getItem(), template)
+        return isVisibleSlot(slot) && !QuickContainerLock.isLockedSlot(handler, slot) && slot.getItem().getCount() == 1
+                && slot.mayPickup(client.player) && slot.mayPlace(slot.getItem()) && contains(slot.getItem(), template)
                 && getShulkerCapacityFor(slot.getItem(), template) > 0;
     }
 
-    static boolean packMatching(AbstractContainerMenu handler, int sourceId,
-                                List<Integer> destinationIds, Minecraft client) {
+    static boolean packMatching(
+            AbstractContainerMenu handler,
+            int sourceId,
+            List<Integer> destinationIds,
+            Minecraft client
+    ) {
         Slot source = handler.getSlot(sourceId);
-        if (!handler.getCarried().isEmpty() || QuickContainerLock.isLockedSlot(handler, source)
-                || !source.mayPickup(client.player) || isShulkerBox(source.getItem())) {
+        if (!handler.getCarried().isEmpty() || QuickContainerLock.isLockedSlot(handler, source) || !source.mayPickup(
+                client.player
+        ) || isShulkerBox(source.getItem())) {
             return false;
         }
         ItemStack template = source.getItem().copyWithCount(1);
-        List<Integer> targets = new ArrayList<>(destinationIds.stream()
-                .filter(id -> id != sourceId && canReceive(handler, id, template, client)).toList());
+        List<Integer> targets = new ArrayList<>(
+                destinationIds.stream().filter(id -> id != sourceId && canReceive(handler, id, template, client))
+                        .toList()
+        );
         // 先选可补同类半组的盒子；同级保持传入槽位顺序，避免两个匹配盒之间反复跳转。
         targets.sort(Comparator.comparing(id -> matchingPartialCapacity(handler.getSlot(id).getItem(), template) == 0));
         for (int targetId : targets) {
@@ -138,8 +148,10 @@ public final class QuickShulkerStash {
             Slot target = handler.getSlot(targetId);
             int before = source.getItem().getCount();
             click(client, handler, sourceId, 0);
-            if (handler.getCarried().getCount() != before
-                    || !ItemStack.isSameItemSameComponents(handler.getCarried(), template)) {
+            if (handler.getCarried().getCount() != before || !ItemStack.isSameItemSameComponents(
+                    handler.getCarried(),
+                    template
+            )) {
                 return false;
             }
             click(client, handler, targetId, 1);

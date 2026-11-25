@@ -48,9 +48,7 @@ public abstract class LitematicaHandledScreenSlotOverlayMixin<T extends ScreenHa
             method = "render",
             at = @At(
                     value = "INVOKE",
-                    target = "Lnet/minecraft/client/gui/screen/ingame/HandledScreen;drawSlotHighlightFront(Lnet/minecraft/client/gui/DrawContext;)V"
-            )
-    )
+                    target = "Lnet/minecraft/client/gui/screen/ingame/HandledScreen;drawSlotHighlightFront(Lnet/minecraft/client/gui/DrawContext;)V"))
     private void quickcraft$drawContainerVerifierGhostBatch(
             DrawContext context,
             int mouseX,
@@ -68,9 +66,7 @@ public abstract class LitematicaHandledScreenSlotOverlayMixin<T extends ScreenHa
             }
 
             SlotOverlay overlay = QuickLitematicaContainerVerifier.getSlotOverlayForScreen(screen, slot);
-            if (overlay == null
-                    || overlay.status() != SlotMismatchStatus.MISSING
-                    || !slot.getStack().isEmpty()
+            if (overlay == null || overlay.status() != SlotMismatchStatus.MISSING || !slot.getStack().isEmpty()
                     || overlay.expectedStack().isEmpty()) {
                 continue;
             }
@@ -114,25 +110,16 @@ public abstract class LitematicaHandledScreenSlotOverlayMixin<T extends ScreenHa
     ) {
         HandledScreen<?> screen = (HandledScreen<?>) (Object) this;
         Slot slot = this.focusedSlot;
-        if (slot == null
-                || !screen.getScreenHandler().getCursorStack().isEmpty()
-                || !slot.getStack().isEmpty()) {
+        if (slot == null || !screen.getScreenHandler().getCursorStack().isEmpty() || !slot.getStack().isEmpty()) {
             return;
         }
 
         SlotOverlay overlay = QuickLitematicaContainerVerifier.getSlotOverlayForScreen(screen, slot);
-        if (overlay == null
-                || overlay.status() != SlotMismatchStatus.MISSING
-                || overlay.expectedStack().isEmpty()) {
+        if (overlay == null || overlay.status() != SlotMismatchStatus.MISSING || overlay.expectedStack().isEmpty()) {
             return;
         }
 
-        context.drawItemTooltip(
-                MinecraftClient.getInstance().textRenderer,
-                overlay.expectedStack(),
-                mouseX,
-                mouseY
-        );
+        context.drawItemTooltip(MinecraftClient.getInstance().textRenderer, overlay.expectedStack(), mouseX, mouseY);
     }
 
     private static void quickcraft$drawSlotOutline(DrawContext context, Slot slot, int color) {

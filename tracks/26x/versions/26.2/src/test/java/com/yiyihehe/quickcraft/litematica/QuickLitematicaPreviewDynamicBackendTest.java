@@ -13,7 +13,9 @@ class QuickLitematicaPreviewDynamicBackendTest {
         var backend = new QuickLitematicaPreviewDynamicBackend() {};
         var data = mock(QuickLitematicaPreview3D.MeshData.class);
         when(data.hasDynamicContent()).thenReturn(true);
-        when(data.dynamicSceneIfReady()).thenReturn(new QuickLitematicaPreview3D.DynamicScene(null, Map.of(), List.of()));
+        when(data.dynamicSceneIfReady()).thenReturn(
+                new QuickLitematicaPreview3D.DynamicScene(null, Map.of(), List.of())
+        );
 
         backend.prepareDynamicFrame(data);
         assertThat(backend.dynamicFrameProgress()).isEqualTo(1.0F);

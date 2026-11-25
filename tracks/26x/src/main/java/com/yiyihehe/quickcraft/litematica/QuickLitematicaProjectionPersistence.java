@@ -25,31 +25,42 @@ public final class QuickLitematicaProjectionPersistence {
     private static final int VERIFIER_INTERVAL_TICKS = 10;
     private static final Map<String, Map<UUID, VerifierState>> VERIFIERS = new HashMap<>();
 
-    private QuickLitematicaProjectionPersistence() { }
+    private QuickLitematicaProjectionPersistence() {}
 
     public static ICompletionListener persistentCompletionListener(ICompletionListener listener) {
         return listener instanceof GuiSchematicVerifier ? new GuiCompletion(new WeakReference<>(listener)) : listener;
     }
 
     private record GuiCompletion(WeakReference<ICompletionListener> target) implements ICompletionListener {
-        @Override public void onTaskCompleted() {
+        @Override
+        public void onTaskCompleted() {
             var listener = this.target.get();
-            if (listener != null) listener.onTaskCompleted();
+            if (listener != null) {
+                listener.onTaskCompleted();
+            }
         }
-        @Override public void onTaskAborted() {
+
+        @Override
+        public void onTaskAborted() {
             var listener = this.target.get();
-            if (listener != null) listener.onTaskAborted();
+            if (listener != null) {
+                listener.onTaskAborted();
+            }
         }
     }
 
     public interface PersistentVerifier {
         SchematicPlacement quickcraft$persistentPlacement();
+
         void quickcraft$detachVerificationWorld();
+
         void quickcraft$attachVerificationWorld(SchematicPlacement placement);
+
         QuickLitematicaContainerVerification quickcraft$containerVerification();
     }
 
-    private record VerifierState(SchematicVerifier verifier, boolean scheduled, boolean hud) { }
+    private record VerifierState(SchematicVerifier verifier, boolean scheduled, boolean hud) {
+    }
 
     private static boolean keepVerifier() {
         return QuickCraftConfigs.ProjectionTools.PERSIST_PROJECTION_FEATURES.getBooleanValue()
@@ -57,7 +68,9 @@ public final class QuickLitematicaProjectionPersistence {
     }
 
     public static void settingsChanged() {
-        if (!keepVerifier()) { VERIFIERS.clear(); }
+        if (!keepVerifier()) {
+            VERIFIERS.clear();
+        }
         QuickLitematicaMaterialIgnores.settingsChanged();
         QuickLitematicaVerifierIgnores.settingsChanged();
     }
@@ -70,10 +83,14 @@ public final class QuickLitematicaProjectionPersistence {
         var queued = ((LitematicaTaskSchedulerAccessor) scheduler).quickcraft$getQueuedTasks();
         var verifiers = new LinkedHashSet<SchematicVerifier>();
         for (SchematicPlacement placement : DataManager.getSchematicPlacementManager().getAllSchematicsPlacements()) {
-            if (placement.hasVerifier()) { verifiers.add(placement.getSchematicVerifier()); }
+            if (placement.hasVerifier()) {
+                verifiers.add(placement.getSchematicVerifier());
+            }
         }
         for (var renderer : renderers) {
-            if (renderer instanceof SchematicVerifier verifier) { verifiers.add(verifier); }
+            if (renderer instanceof SchematicVerifier verifier) {
+                verifiers.add(verifier);
+            }
         }
         var tasks = new HashSet<ITask>();
         synchronized (scheduler) {
@@ -82,7 +99,9 @@ public final class QuickLitematicaProjectionPersistence {
         }
         var visibleRenderers = new HashSet<>(renderers);
         for (var task : tasks) {
-            if (task instanceof SchematicVerifier verifier) { verifiers.add(verifier); }
+            if (task instanceof SchematicVerifier verifier) {
+                verifiers.add(verifier);
+            }
         }
         var materials = DataManager.getMaterialList();
         if (materials instanceof QuickLitematicaContainerMaterials.ContainerMaterialList containers
@@ -93,10 +112,15 @@ public final class QuickLitematicaProjectionPersistence {
         for (SchematicVerifier verifier : verifiers) {
             var persistent = (PersistentVerifier) verifier;
             SchematicPlacement placement = persistent.quickcraft$persistentPlacement();
-            if (placement == null) { continue; }
+            if (placement == null) {
+                continue;
+            }
             boolean scheduled = tasks.contains(verifier);
             if (!logout && keepVerifier()) {
-                saved.putIfAbsent(placement.getHashId(), new VerifierState(verifier, scheduled, visibleRenderers.contains(verifier)));
+                saved.putIfAbsent(
+                        placement.getHashId(),
+                        new VerifierState(verifier, scheduled, visibleRenderers.contains(verifier))
+                );
             }
             // 原生 removeTask 不处理待加入队列；两处都移除，避免返回后重复调度。
             synchronized (scheduler) {
@@ -111,19 +135,26 @@ public final class QuickLitematicaProjectionPersistence {
             QuickLitematicaMaterialIgnores.clearSession();
             QuickLitematicaVerifierIgnores.clearSession();
         } else {
-            if (keepVerifier() && !saved.isEmpty()) { VERIFIERS.put(dimension, saved); }
-            else { VERIFIERS.remove(dimension); }
+            if (keepVerifier() && !saved.isEmpty()) {
+                VERIFIERS.put(dimension, saved);
+            } else {
+                VERIFIERS.remove(dimension);
+            }
         }
     }
 
     public static void afterWorldChange(String dimension) {
         settingsChanged();
         var saved = VERIFIERS.remove(dimension);
-        if (!keepVerifier() || saved == null) { return; }
+        if (!keepVerifier() || saved == null) {
+            return;
+        }
         int resumed = 0;
         for (SchematicPlacement placement : DataManager.getSchematicPlacementManager().getAllSchematicsPlacements()) {
             VerifierState state = saved.get(placement.getHashId());
-            if (state == null) { continue; }
+            if (state == null) {
+                continue;
+            }
             ((LitematicaSchematicPlacementAccessor) placement).quickcraft$setVerifier(state.verifier());
             ((PersistentVerifier) state.verifier()).quickcraft$attachVerificationWorld(placement);
             QuickLitematicaVerifierIgnores.restore(state.verifier(), placement);
@@ -132,7 +163,9 @@ public final class QuickLitematicaProjectionPersistence {
                 // 按原版 10 tick 验证周期错开首次执行，避免恢复任务挤在传送后的第一帧。
                 state.verifier().getTimer().setNextDelay(1 + resumed++ % VERIFIER_INTERVAL_TICKS);
             }
-            if (state.hud()) { InfoHud.getInstance().addInfoHudRenderer(state.verifier(), false); }
+            if (state.hud()) {
+                InfoHud.getInstance().addInfoHudRenderer(state.verifier(), false);
+            }
         }
     }
 }

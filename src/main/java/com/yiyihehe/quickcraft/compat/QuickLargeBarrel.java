@@ -23,14 +23,14 @@ public record QuickLargeBarrel(BlockPos first, BlockPos second) {
         Direction towardOther = facing.getOpposite();
         BlockPos otherPos = pos.offset(towardOther);
         var otherState = world.getBlockState(otherPos);
-        if (!(otherState.getBlock() instanceof BarrelBlock)
-                || otherState.get(BarrelBlock.FACING) != towardOther) {
+        if (!(otherState.getBlock() instanceof BarrelBlock) || otherState.get(BarrelBlock.FACING) != towardOther) {
             return null;
         }
         // TIS 将桶口朝轴负方向的半桶放在前 27 格。
-        return facing.getDirection() == Direction.AxisDirection.NEGATIVE
-                ? new QuickLargeBarrel(pos.toImmutable(), otherPos)
-                : new QuickLargeBarrel(otherPos, pos.toImmutable());
+        return facing.getDirection() == Direction.AxisDirection.NEGATIVE ? new QuickLargeBarrel(
+                pos.toImmutable(),
+                otherPos
+        ) : new QuickLargeBarrel(otherPos, pos.toImmutable());
     }
 
     public static boolean hasSixRows(ScreenHandler handler) {

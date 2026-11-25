@@ -10,8 +10,9 @@ class QuickLitematicaPreviewVertexBudgetTest {
         assertThat(QuickLitematicaPreviewVertexBudget.vertexLimit()).isEqualTo(16_000_000);
         assertThat(QuickLitematicaPreviewVertexBudget.countLimit(32_768)).isEqualTo(32_768);
         assertThat(QuickLitematicaPreviewVertexBudget.nbtByteLimit(256L << 20)).isEqualTo(256L << 20);
-        assertThatThrownBy(() -> QuickLitematicaPreviewVertexBudget.checkVertexCount(16_000_000))
-                .isInstanceOf(QuickLitematicaPreview3D.PreviewTooLargeException.class);
+        assertThatThrownBy(() -> QuickLitematicaPreviewVertexBudget.checkVertexCount(16_000_000)).isInstanceOf(
+                QuickLitematicaPreview3D.PreviewTooLargeException.class
+        );
         assertThatThrownBy(() -> QuickLitematicaPreviewVertexBudget.run(true, () -> {
             QuickLitematicaPreviewVertexBudget.checkVertexCount(32_000_000);
             assertThat(QuickLitematicaPreviewVertexBudget.countLimit(32_768)).isEqualTo(Integer.MAX_VALUE);
@@ -19,9 +20,13 @@ class QuickLitematicaPreviewVertexBudgetTest {
             assertThat(QuickLitematicaPreviewVertexBudget.vertexLimit()).isEqualTo(Integer.MAX_VALUE);
             int grown = QuickLitematicaPreviewVertexBudget.growCapacity(1 << 30, (1 << 30) + 32);
             assertThat(grown).isEqualTo(QuickLitematicaPreviewVertexBudget.layerByteLimit()).isPositive();
-            assertThat((long) grown / QuickLitematicaPreview3D.QUANTIZED_VERTEX_BYTES * 44).isLessThan(Integer.MAX_VALUE);
-            QuickLitematicaPreviewVertexBudget.run(false, () ->
-                    assertThat(QuickLitematicaPreviewVertexBudget.vertexLimit()).isEqualTo(16_000_000));
+            assertThat((long) grown / QuickLitematicaPreview3D.QUANTIZED_VERTEX_BYTES * 44).isLessThan(
+                    Integer.MAX_VALUE
+            );
+            QuickLitematicaPreviewVertexBudget.run(
+                    false,
+                    () -> assertThat(QuickLitematicaPreviewVertexBudget.vertexLimit()).isEqualTo(16_000_000)
+            );
             assertThat(QuickLitematicaPreviewVertexBudget.vertexLimit()).isEqualTo(Integer.MAX_VALUE);
             throw new IllegalStateException("restore even on failure");
         })).isInstanceOf(IllegalStateException.class);

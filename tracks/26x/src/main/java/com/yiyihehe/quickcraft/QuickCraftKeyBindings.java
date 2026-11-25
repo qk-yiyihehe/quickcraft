@@ -7,8 +7,7 @@ import net.minecraft.client.Minecraft;
 
 /** 统一读取原版按键、malilib 热键和物理修饰键状态。 */
 public final class QuickCraftKeyBindings {
-    private QuickCraftKeyBindings() {
-    }
+    private QuickCraftKeyBindings() {}
 
     public static boolean isVanillaKeyDown(Minecraft client, KeyMapping keyBinding) {
         if (keyBinding == null || keyBinding.isUnbound()) {
@@ -29,8 +28,7 @@ public final class QuickCraftKeyBindings {
         if (keybind == null || vanillaFallback == null || vanillaFallback.isUnbound()) {
             return false;
         }
-        return keybind.matches(KeybindMulti.getKeyCode(vanillaFallback))
-                && isVanillaKeyDown(client, vanillaFallback);
+        return keybind.matches(KeybindMulti.getKeyCode(vanillaFallback)) && isVanillaKeyDown(client, vanillaFallback);
     }
 
     public static boolean isShiftDown() {

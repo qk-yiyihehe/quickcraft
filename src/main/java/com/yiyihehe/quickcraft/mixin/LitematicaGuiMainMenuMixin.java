@@ -36,10 +36,19 @@ public abstract class LitematicaGuiMainMenuMixin extends GuiBase {
         int menuButtonWidth = this.quickcraft$getMenuButtonWidth();
         int x = 12 + menuButtonWidth + 20;
 
-        var button = new QuickCraftMovableButton("litematica.mainMenu.openSchematicFolder", x, RIGHT_COLUMN_Y, menuButtonWidth, 20, label);
+        var button = new QuickCraftMovableButton(
+                "litematica.mainMenu.openSchematicFolder",
+                x,
+                RIGHT_COLUMN_Y,
+                menuButtonWidth,
+                20,
+                label
+        );
         button.place((GuiMainMenu) (Object) this, x, RIGHT_COLUMN_Y);
-        this.addButton(button, (clickedButton, mouseButton) ->
-                Util.getOperatingSystem().open(DataManager.getSchematicsBaseDirectory()));
+        this.addButton(
+                button,
+                (clickedButton, mouseButton) -> Util.getOperatingSystem().open(DataManager.getSchematicsBaseDirectory())
+        );
     }
 
     private int quickcraft$getMenuButtonWidth() {

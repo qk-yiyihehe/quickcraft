@@ -25,6 +25,14 @@ public abstract class ShulkerBoxScreenMixin extends HandledScreen<ShulkerBoxScre
 
     @Inject(method = "render", at = @At("HEAD"))
     private void quickcraft$addLockButton(DrawContext context, int mouseX, int mouseY, float delta, CallbackInfo ci) {
-        this.quickcraft$buttons.sync(this, this.client, this.x, this.y, this.backgroundWidth, this.backgroundHeight, this::addDrawableChild);
+        this.quickcraft$buttons.sync(
+                this,
+                this.client,
+                this.x,
+                this.y,
+                this.backgroundWidth,
+                this.backgroundHeight,
+                this::addDrawableChild
+        );
     }
 }

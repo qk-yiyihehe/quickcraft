@@ -15,9 +15,17 @@ public final class QuickCraftWorkbenchOptionButton extends QuickCompactIconButto
     private final BooleanSupplier iconState;
     private final BooleanSupplier selectedState;
 
-    public QuickCraftWorkbenchOptionButton(int x, int y, Component label, OnPress onPress,
-                                           PositionKey positionKey, Identifier offIcon, Identifier onIcon,
-                                           BooleanSupplier iconState, BooleanSupplier selectedState) {
+    public QuickCraftWorkbenchOptionButton(
+            int x,
+            int y,
+            Component label,
+            OnPress onPress,
+            PositionKey positionKey,
+            Identifier offIcon,
+            Identifier onIcon,
+            BooleanSupplier iconState,
+            BooleanSupplier selectedState
+    ) {
         super(x, y, label, onPress, positionKey);
         this.offIcon = offIcon;
         this.onIcon = onIcon;

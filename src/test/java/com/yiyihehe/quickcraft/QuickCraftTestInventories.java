@@ -4,22 +4,18 @@ import net.minecraft.client.network.ClientPlayerEntity;
 import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.entity.player.PlayerInventory;
 
-/** 1.21.5+ changes PlayerInventory's constructor; tests use the exact runtime signature. */
+/** 1.21.5 起 PlayerInventory 的构造方法发生变化，测试使用对应运行版本的准确签名。 */
 public final class QuickCraftTestInventories {
-    private QuickCraftTestInventories() {
-    }
+    private QuickCraftTestInventories() {}
 
     public static PlayerInventory newPlayerInventory(ClientPlayerEntity player) {
         try {
-            return (PlayerInventory) PlayerInventory.class
-                    .getConstructor(PlayerEntity.class)
-                    .newInstance(player);
+            return (PlayerInventory) PlayerInventory.class.getConstructor(PlayerEntity.class).newInstance(player);
         } catch (NoSuchMethodException ignored) {
             try {
                 Class<?> equipmentType = Class.forName("net.minecraft.entity.EntityEquipment");
                 Object equipment = equipmentType.getConstructor().newInstance();
-                return (PlayerInventory) PlayerInventory.class
-                        .getConstructor(PlayerEntity.class, equipmentType)
+                return (PlayerInventory) PlayerInventory.class.getConstructor(PlayerEntity.class, equipmentType)
                         .newInstance(player, equipment);
             } catch (ReflectiveOperationException e) {
                 throw new AssertionError(e);

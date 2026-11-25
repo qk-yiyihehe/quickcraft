@@ -7,21 +7,20 @@ import static org.assertj.core.api.Assertions.assertThat;
 class QuickCraftMouseCraftAckExecutorTest {
     @Test
     void unevenFireworkGridCannotUseVanillaBulkOutput() {
-        int[] counts = {0, 0, 0, 31, 32, 0, 32, 1, 0};
-        boolean[] required = {false, false, false, true, true, false, true, true, false};
+        int[] counts = { 0, 0, 0, 31, 32, 0, 32, 1, 0 };
+        boolean[] required = { false, false, false, true, true, false, true, true, false };
         assertThat(QuickCraftMouseCraftAckRules.canBulkCraftGrid(counts)).isFalse();
         assertThat(QuickCraftMouseCraftAckRules.maximumCraftsFromGridCounts(counts, required)).isEqualTo(1);
-        assertThat(QuickCraftMouseCraftAckRules.canBulkCraftGrid(
-                new int[]{0, 0, 0, 21, 21, 0, 64, 22, 0})).isFalse();
-        assertThat(QuickCraftMouseCraftAckRules.canBulkCraftGrid(
-                new int[]{0, 0, 0, 64, 64, 0, 64, 64, 0})).isTrue();
+        assertThat(QuickCraftMouseCraftAckRules.canBulkCraftGrid(new int[] { 0, 0, 0, 21, 21, 0, 64, 22, 0 }))
+                .isFalse();
+        assertThat(QuickCraftMouseCraftAckRules.canBulkCraftGrid(new int[] { 0, 0, 0, 64, 64, 0, 64, 64, 0 })).isTrue();
     }
 
     @Test
     void optionalIngredientsMustExpireTogetherForBulkOutput() {
-        assertThat(QuickCraftMouseCraftAckRules.canBulkCraftGrid(new int[]{64, 32, 0})).isFalse();
-        assertThat(QuickCraftMouseCraftAckRules.canBulkCraftGrid(new int[]{16, 16, 0})).isTrue();
-        assertThat(QuickCraftMouseCraftAckRules.canBulkCraftGrid(new int[]{0, 0})).isFalse();
+        assertThat(QuickCraftMouseCraftAckRules.canBulkCraftGrid(new int[] { 64, 32, 0 })).isFalse();
+        assertThat(QuickCraftMouseCraftAckRules.canBulkCraftGrid(new int[] { 16, 16, 0 })).isTrue();
+        assertThat(QuickCraftMouseCraftAckRules.canBulkCraftGrid(new int[] { 0, 0 })).isFalse();
     }
 
     @Test
@@ -38,13 +37,10 @@ class QuickCraftMouseCraftAckExecutorTest {
 
     @Test
     void legacyOutputBurstUsesPostRefillGridCountsAndCapsAtOneStack() {
-        boolean[] required = {true, true, false};
-        assertThat(QuickCraftMouseCraftAckExecutor.plannedOutputBurst(
-                new int[]{32, 17, 0}, required)).isEqualTo(17);
-        assertThat(QuickCraftMouseCraftAckExecutor.plannedOutputBurst(
-                new int[]{64, 64, 0}, required)).isEqualTo(64);
-        assertThat(QuickCraftMouseCraftAckExecutor.plannedOutputBurst(
-                new int[]{1, 0, 0}, required)).isEqualTo(1);
+        boolean[] required = { true, true, false };
+        assertThat(QuickCraftMouseCraftAckExecutor.plannedOutputBurst(new int[] { 32, 17, 0 }, required)).isEqualTo(17);
+        assertThat(QuickCraftMouseCraftAckExecutor.plannedOutputBurst(new int[] { 64, 64, 0 }, required)).isEqualTo(64);
+        assertThat(QuickCraftMouseCraftAckExecutor.plannedOutputBurst(new int[] { 1, 0, 0 }, required)).isEqualTo(1);
 //#else
 //#endif
     }
@@ -52,36 +48,27 @@ class QuickCraftMouseCraftAckExecutorTest {
     @Test
     void ingredientConsumptionCanFreeSlotsWithoutStartingOutputSpray() {
         // 初始 15 个空格填入 15 组后，原料消耗腾出的 14 个空格仍可继续使用。
-        assertThat(QuickCraftMouseCraftAckRules.shouldEnterOutputSprayMode(
-                false, 14, true)).isFalse();
-        assertThat(QuickCraftMouseCraftAckRules.shouldEnterOutputSprayMode(
-                false, 1, true)).isFalse();
+        assertThat(QuickCraftMouseCraftAckRules.shouldEnterOutputSprayMode(false, 14, true)).isFalse();
+        assertThat(QuickCraftMouseCraftAckRules.shouldEnterOutputSprayMode(false, 1, true)).isFalse();
     }
 
     @Test
     void outputSprayModeStaysLatchedAfterInventoryWasActuallyFull() {
-        assertThat(QuickCraftMouseCraftAckRules.shouldEnterOutputSprayMode(
-                false, 0, true)).isTrue();
-        assertThat(QuickCraftMouseCraftAckRules.shouldEnterOutputSprayMode(
-                true, 14, true)).isTrue();
+        assertThat(QuickCraftMouseCraftAckRules.shouldEnterOutputSprayMode(false, 0, true)).isTrue();
+        assertThat(QuickCraftMouseCraftAckRules.shouldEnterOutputSprayMode(true, 14, true)).isTrue();
     }
 
     @Test
     void outputThatCannotFitStartsSprayDespiteEmptySlots() {
-        assertThat(QuickCraftMouseCraftAckRules.shouldEnterOutputSprayMode(
-                false, 2, false)).isTrue();
+        assertThat(QuickCraftMouseCraftAckRules.shouldEnterOutputSprayMode(false, 2, false)).isTrue();
     }
 
     @Test
     void intermediateRecipeOutputStillStopsAsMissingLockedRecipeIngredients() {
-        assertThat(QuickCraftMouseCraftAckRules.isMissingLockedRecipeTerminal(
-                false, false, true)).isTrue();
-        assertThat(QuickCraftMouseCraftAckRules.isMissingLockedRecipeTerminal(
-                false, true, true)).isFalse();
-        assertThat(QuickCraftMouseCraftAckRules.isMissingLockedRecipeTerminal(
-                true, false, true)).isFalse();
-        assertThat(QuickCraftMouseCraftAckRules.isMissingLockedRecipeTerminal(
-                false, false, false)).isFalse();
+        assertThat(QuickCraftMouseCraftAckRules.isMissingLockedRecipeTerminal(false, false, true)).isTrue();
+        assertThat(QuickCraftMouseCraftAckRules.isMissingLockedRecipeTerminal(false, true, true)).isFalse();
+        assertThat(QuickCraftMouseCraftAckRules.isMissingLockedRecipeTerminal(true, false, true)).isFalse();
+        assertThat(QuickCraftMouseCraftAckRules.isMissingLockedRecipeTerminal(false, false, false)).isFalse();
     }
 
     @Test
@@ -119,121 +106,175 @@ class QuickCraftMouseCraftAckExecutorTest {
 
     @Test
     void fullSourceStackCannotQuickMoveIntoPartiallyFilledGridSlot() {
-        assertThat(QuickCraftMouseCraftInventory.canQuickMoveWholeStackToGridSlot(
-                QuickCraftMouseCraftLayout.WORKBENCH, 64, 1, 64, 1, 1)).isFalse();
-        assertThat(QuickCraftMouseCraftInventory.canQuickMoveWholeStackToGridSlot(
-                QuickCraftMouseCraftLayout.WORKBENCH, 63, 1, 64, 1, 1)).isTrue();
-        assertThat(QuickCraftMouseCraftInventory.canQuickMoveWholeStackToGridSlot(
-                QuickCraftMouseCraftLayout.BACKPACK, 64, 0, 64, 1, 1)).isFalse();
+        assertThat(
+                QuickCraftMouseCraftInventory.canQuickMoveWholeStackToGridSlot(
+                        QuickCraftMouseCraftLayout.WORKBENCH,
+                        64,
+                        1,
+                        64,
+                        1,
+                        1
+                )
+        ).isFalse();
+        assertThat(
+                QuickCraftMouseCraftInventory.canQuickMoveWholeStackToGridSlot(
+                        QuickCraftMouseCraftLayout.WORKBENCH,
+                        63,
+                        1,
+                        64,
+                        1,
+                        1
+                )
+        ).isTrue();
+        assertThat(
+                QuickCraftMouseCraftInventory.canQuickMoveWholeStackToGridSlot(
+                        QuickCraftMouseCraftLayout.BACKPACK,
+                        64,
+                        0,
+                        64,
+                        1,
+                        1
+                )
+        ).isFalse();
     }
 
     @Test
     void repeatedIngredientRemainderIsRebalancedAfterOneSlotRunsOut() {
-        var moves = QuickCraftMouseCraftInventory.planGridTailBalance(new int[]{32, 32, 0});
+        var moves = QuickCraftMouseCraftInventory.planGridTailBalance(new int[] { 32, 32, 0 });
         assertThat(moves).containsExactly(
                 new QuickCraftMouseCraftInventory.GridBalanceMove(0, 2, 10),
-                new QuickCraftMouseCraftInventory.GridBalanceMove(1, 2, 11));
+                new QuickCraftMouseCraftInventory.GridBalanceMove(1, 2, 11)
+        );
     }
 
     @Test
     void materialLedgerUsesRefilledGridAsCtrlThrowCraftLimit() {
-        boolean[] honeyBottleSlots = {
-                true, true, false,
-                true, true, false,
-                false, false, false
-        };
+        boolean[] honeyBottleSlots = { true, true, false, true, true, false, false, false, false };
 
-        assertThat(QuickCraftMouseCraftAckRules.maximumCraftsFromGridCounts(
-                new int[]{1, 1, 0, 1, 1, 0, 0, 0, 0}, honeyBottleSlots)).isEqualTo(1);
-        assertThat(QuickCraftMouseCraftAckRules.maximumCraftsFromGridCounts(
-                new int[]{16, 16, 0, 16, 16, 0, 0, 0, 0}, honeyBottleSlots)).isEqualTo(16);
+        assertThat(
+                QuickCraftMouseCraftAckRules.maximumCraftsFromGridCounts(
+                        new int[] { 1, 1, 0, 1, 1, 0, 0, 0, 0 },
+                        honeyBottleSlots
+                )
+        ).isEqualTo(1);
+        assertThat(
+                QuickCraftMouseCraftAckRules.maximumCraftsFromGridCounts(
+                        new int[] { 16, 16, 0, 16, 16, 0, 0, 0, 0 },
+                        honeyBottleSlots
+                )
+        ).isEqualTo(16);
     }
 
     @Test
     void materialLedgerUsesActualPreClickCountInsteadOfStaleAuthoritativeCount() {
-        assertThat(QuickCraftMouseCraftAckRules.materialConsumptionExceedsBatchLimit(
-                273, 231, 1, 26)).isTrue();
-        assertThat(QuickCraftMouseCraftAckRules.materialConsumptionExceedsBatchLimit(
-                257, 231, 1, 26)).isFalse();
+        assertThat(QuickCraftMouseCraftAckRules.materialConsumptionExceedsBatchLimit(273, 231, 1, 26)).isTrue();
+        assertThat(QuickCraftMouseCraftAckRules.materialConsumptionExceedsBatchLimit(257, 231, 1, 26)).isFalse();
     }
 
     @Test
     void materialLedgerStillRejectsRealOverconsumptionAndAllowsPickup() {
-        assertThat(QuickCraftMouseCraftAckRules.materialConsumptionExceedsBatchLimit(
-                258, 231, 1, 26)).isTrue();
-        assertThat(QuickCraftMouseCraftAckRules.materialConsumptionExceedsBatchLimit(
-                231, 273, 1, 26)).isFalse();
+        assertThat(QuickCraftMouseCraftAckRules.materialConsumptionExceedsBatchLimit(258, 231, 1, 26)).isTrue();
+        assertThat(QuickCraftMouseCraftAckRules.materialConsumptionExceedsBatchLimit(231, 273, 1, 26)).isFalse();
     }
 
     @Test
     void completedOutputBatchAcceptsOnlyRemainderInUsedRecipeSlot() {
-        assertThat(QuickCraftMouseCraftAckRules.isAllowedCraftRemainder(
-                true, true, false)).isTrue();
-        assertThat(QuickCraftMouseCraftAckRules.isAllowedCraftRemainder(
-                false, true, false)).isFalse();
-        assertThat(QuickCraftMouseCraftAckRules.isAllowedCraftRemainder(
-                true, false, false)).isFalse();
-        assertThat(QuickCraftMouseCraftAckRules.isAllowedCraftRemainder(
-                true, true, true)).isFalse();
+        assertThat(QuickCraftMouseCraftAckRules.isAllowedCraftRemainder(true, true, false)).isTrue();
+        assertThat(QuickCraftMouseCraftAckRules.isAllowedCraftRemainder(false, true, false)).isFalse();
+        assertThat(QuickCraftMouseCraftAckRules.isAllowedCraftRemainder(true, false, false)).isFalse();
+        assertThat(QuickCraftMouseCraftAckRules.isAllowedCraftRemainder(true, true, true)).isFalse();
     }
 
     @Test
     void authoritativeFullStateCanFinishBeforeDeferredProbeIsSent() {
-        assertThat(QuickCraftMouseCraftAckRules.canFinishBatch(
-                true, false, false, true)).isTrue();
-        assertThat(QuickCraftMouseCraftAckRules.canFinishBatch(
-                false, false, false, true)).isFalse();
-        assertThat(QuickCraftMouseCraftAckRules.canFinishBatch(
-                true, false, false, false)).isFalse();
+        assertThat(QuickCraftMouseCraftAckRules.canFinishBatch(true, false, false, true)).isTrue();
+        assertThat(QuickCraftMouseCraftAckRules.canFinishBatch(false, false, false, true)).isFalse();
+        assertThat(QuickCraftMouseCraftAckRules.canFinishBatch(true, false, false, false)).isFalse();
     }
 
     @Test
     void sentStatisticsProbeCannotBeBypassedByLaterFullUpdate() {
-        assertThat(QuickCraftMouseCraftAckRules.canFinishBatch(
-                true, true, true, true)).isFalse();
-        assertThat(QuickCraftMouseCraftAckRules.canFinishBatch(
-                false, true, false, true)).isTrue();
+        assertThat(QuickCraftMouseCraftAckRules.canFinishBatch(true, true, true, true)).isFalse();
+        assertThat(QuickCraftMouseCraftAckRules.canFinishBatch(false, true, false, true)).isTrue();
     }
 
     @Test
     void deferredStatisticsProbeIsSentOnlyWhileBatchStillWaits() {
-        assertThat(QuickCraftMouseCraftAckRules.shouldSendDeferredStatsProbe(
-                true, true, false)).isTrue();
-        assertThat(QuickCraftMouseCraftAckRules.shouldSendDeferredStatsProbe(
-                false, true, false)).isFalse();
-        assertThat(QuickCraftMouseCraftAckRules.shouldSendDeferredStatsProbe(
-                true, false, false)).isFalse();
-        assertThat(QuickCraftMouseCraftAckRules.shouldSendDeferredStatsProbe(
-                true, true, true)).isFalse();
+        assertThat(QuickCraftMouseCraftAckRules.shouldSendDeferredStatsProbe(true, true, false)).isTrue();
+        assertThat(QuickCraftMouseCraftAckRules.shouldSendDeferredStatsProbe(false, true, false)).isFalse();
+        assertThat(QuickCraftMouseCraftAckRules.shouldSendDeferredStatsProbe(true, false, false)).isFalse();
+        assertThat(QuickCraftMouseCraftAckRules.shouldSendDeferredStatsProbe(true, true, true)).isFalse();
     }
 
     @Test
     void authoritativeFullAckRequiresStrictFinalOutputDrainState() {
-        assertThat(QuickCraftMouseCraftAckExecutor.canUseAuthoritativeFullAck(
-                QuickCraftMouseCraftAckExecutor.BatchPath.OUTPUT_DRAIN,
-                true, true, true, true, true, true, true)).isTrue();
-        assertThat(QuickCraftMouseCraftAckExecutor.canUseAuthoritativeFullAck(
-                QuickCraftMouseCraftAckExecutor.BatchPath.MANUAL_COMBINED,
-                true, true, true, true, true, true, true)).isFalse();
-        assertThat(QuickCraftMouseCraftAckExecutor.canUseAuthoritativeFullAck(
-                QuickCraftMouseCraftAckExecutor.BatchPath.MANUAL_REFILL,
-                true, true, true, true, true, true, true)).isFalse();
-        assertThat(QuickCraftMouseCraftAckExecutor.canUseAuthoritativeFullAck(
-                QuickCraftMouseCraftAckExecutor.BatchPath.OUTPUT_DRAIN,
-                true, true, true, false, true, true, true)).isFalse();
-        assertThat(QuickCraftMouseCraftAckExecutor.canUseAuthoritativeFullAck(
-                QuickCraftMouseCraftAckExecutor.BatchPath.OUTPUT_DRAIN,
-                true, true, true, true, false, true, true)).isFalse();
+        assertThat(
+                QuickCraftMouseCraftAckExecutor.canUseAuthoritativeFullAck(
+                        QuickCraftMouseCraftAckExecutor.BatchPath.OUTPUT_DRAIN,
+                        true,
+                        true,
+                        true,
+                        true,
+                        true,
+                        true,
+                        true
+                )
+        ).isTrue();
+        assertThat(
+                QuickCraftMouseCraftAckExecutor.canUseAuthoritativeFullAck(
+                        QuickCraftMouseCraftAckExecutor.BatchPath.MANUAL_COMBINED,
+                        true,
+                        true,
+                        true,
+                        true,
+                        true,
+                        true,
+                        true
+                )
+        ).isFalse();
+        assertThat(
+                QuickCraftMouseCraftAckExecutor.canUseAuthoritativeFullAck(
+                        QuickCraftMouseCraftAckExecutor.BatchPath.MANUAL_REFILL,
+                        true,
+                        true,
+                        true,
+                        true,
+                        true,
+                        true,
+                        true
+                )
+        ).isFalse();
+        assertThat(
+                QuickCraftMouseCraftAckExecutor.canUseAuthoritativeFullAck(
+                        QuickCraftMouseCraftAckExecutor.BatchPath.OUTPUT_DRAIN,
+                        true,
+                        true,
+                        true,
+                        false,
+                        true,
+                        true,
+                        true
+                )
+        ).isFalse();
+        assertThat(
+                QuickCraftMouseCraftAckExecutor.canUseAuthoritativeFullAck(
+                        QuickCraftMouseCraftAckExecutor.BatchPath.OUTPUT_DRAIN,
+                        true,
+                        true,
+                        true,
+                        true,
+                        false,
+                        true,
+                        true
+                )
+        ).isFalse();
     }
 
     @Test
     void statisticsOrderedAckMakesCurrentHandlerStateAuthoritative() {
-        assertThat(QuickCraftMouseCraftAckRules.canConfirmManualBatch(
-                true, true, true, true)).isTrue();
-        assertThat(QuickCraftMouseCraftAckRules.canConfirmManualBatch(
-                false, true, true, true)).isFalse();
-        assertThat(QuickCraftMouseCraftAckRules.canConfirmCombinedBatch(
-                true, true, true, true, true)).isTrue();
+        assertThat(QuickCraftMouseCraftAckRules.canConfirmManualBatch(true, true, true, true)).isTrue();
+        assertThat(QuickCraftMouseCraftAckRules.canConfirmManualBatch(false, true, true, true)).isFalse();
+        assertThat(QuickCraftMouseCraftAckRules.canConfirmCombinedBatch(true, true, true, true, true)).isTrue();
     }
 
     @Test

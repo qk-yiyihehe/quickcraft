@@ -29,9 +29,14 @@ class QuickLitematicaPreviewFrameBuildTest {
         var b = mock(ItemFeatureRenderer.Submit.class);
         var item = spy(new ItemRenderer(build, buffer, events, List.of(a, b)));
         // 用显式夹具交接替代原生 final 方法上的 Mixin，避免真实注入绕过夹具。
-        doAnswer(call -> { item.buildGroup(context, List.of(a, b)); return null; })
-                .when(item).prepareGroup(context, List.of(a, b), true);
-        doAnswer(call -> { events.add("upload"); return null; }).when(buffer).upload();
+        doAnswer(call -> {
+            item.buildGroup(context, List.of(a, b));
+            return null;
+        }).when(item).prepareGroup(context, List.of(a, b), true);
+        doAnswer(call -> {
+            events.add("upload");
+            return null;
+        }).when(buffer).upload();
         build.capture(() -> {
             assertThat(build.deferGroup(item, context, List.of(a, b), true)).isTrue();
             assertThat(build.deferFinish(item, context)).isTrue();
@@ -47,7 +52,9 @@ class QuickLitematicaPreviewFrameBuildTest {
             assertThat(++slices).isLessThan(20);
         }
         var expected = new ArrayList<String>(List.of("prepare", "main0", "main1"));
-        if (QuickLitematicaPreviewItemBuildAccess.passes() == 2) expected.addAll(List.of("foil0", "foil1"));
+        if (QuickLitematicaPreviewItemBuildAccess.passes() == 2) {
+            expected.addAll(List.of("foil0", "foil1"));
+        }
         expected.addAll(List.of("group-finish", "finish", "upload"));
         assertThat(events).containsExactlyElementsOf(expected);
         assertThat(QuickLitematicaPreviewFrameBuild.current()).isNull();
@@ -85,7 +92,9 @@ class QuickLitematicaPreviewFrameBuildTest {
         var build = new QuickLitematicaPreviewFrameBuild(buffer);
         build.capture(() -> assertThat(build.deferUpload(context.stagedVertexBuffer())).isFalse());
         try {
-            build.capture(() -> { throw new IllegalStateException("failure"); });
+            build.capture(() -> {
+                throw new IllegalStateException("failure");
+            });
         } catch (IllegalStateException expected) {
             assertThat(expected).hasMessage("failure");
         }
@@ -95,49 +104,89 @@ class QuickLitematicaPreviewFrameBuildTest {
     }
 
     // 模拟原生 Mixin 的交接点，检查续跑顺序；注入是否生效另由游戏验证。
-    private static final class ItemRenderer extends ItemFeatureRenderer
-            implements QuickLitematicaPreviewFrameBuild.GeometryRenderer, LitematicaPreviewItemFeatureInvoker {
+    private static final class ItemRenderer extends ItemFeatureRenderer implements
+            QuickLitematicaPreviewFrameBuild.GeometryRenderer, LitematicaPreviewItemFeatureInvoker {
         private final QuickLitematicaPreviewFrameBuild build;
         private final StagedVertexBuffer buffer;
         private final List<String> events;
         private final List<Submit> records;
 
-        ItemRenderer(QuickLitematicaPreviewFrameBuild build, StagedVertexBuffer buffer, List<String> events, List<Submit> records) {
+        ItemRenderer(
+                QuickLitematicaPreviewFrameBuild build,
+                StagedVertexBuffer buffer,
+                List<String> events,
+                List<Submit> records
+        ) {
             this.build = build;
             this.buffer = buffer;
             this.events = events;
             this.records = records;
         }
-        @Override protected void buildGroup(FeatureFrameContext context, List<Submit> submits) {
+
+        @Override
+        protected void buildGroup(FeatureFrameContext context, List<Submit> submits) {
             this.events.add("prepare");
             this.build.createdGroup(this.buffer, new QuickLitematicaPreviewFrameBuild.GeometryGroup() {
-                @Override public com.mojang.blaze3d.vertex.VertexConsumer getVertexBuilder(net.minecraft.client.renderer.rendertype.RenderType material) { throw new AssertionError(); }
-                @Override public void quickcraft$finish(StagedVertexBuffer buffer) { events.add("group-finish"); }
+                @Override
+                public com.mojang.blaze3d.vertex.VertexConsumer getVertexBuilder(
+                        net.minecraft.client.renderer.rendertype.RenderType material
+                ) {
+                    throw new AssertionError();
+                }
+
+                @Override
+                public void quickcraft$finish(StagedVertexBuffer buffer) {
+                    events.add("group-finish");
+                }
             });
-            this.build.createdGroup(this.buffer, material -> { throw new AssertionError("Nested group replaced the active group"); });
+            this.build.createdGroup(this.buffer, material -> {
+                throw new AssertionError("Nested group replaced the active group");
+            });
             assertThat(this.build.deferBuild(this, context)).isTrue();
         }
-        @Override public void quickcraft$buildGroup(FeatureFrameContext context, List<? extends SubmitNode> submits) { throw new AssertionError(); }
+
+        @Override
+        public void quickcraft$buildGroup(FeatureFrameContext context, List<? extends SubmitNode> submits) {
+            throw new AssertionError();
+        }
+
         public void quickcraft$prepareSubmit(Submit submit, boolean foil) {
             this.events.add((foil ? "foil" : "main") + this.records.indexOf(submit));
         }
-        public void quickcraft$prepareSubmit(Submit submit) { this.quickcraft$prepareSubmit(submit, false); }
-        @Override public void finishPrepare(FeatureFrameContext context) { this.events.add("finish"); }
+
+        public void quickcraft$prepareSubmit(Submit submit) {
+            this.quickcraft$prepareSubmit(submit, false);
+        }
+
+        @Override
+        public void finishPrepare(FeatureFrameContext context) {
+            this.events.add("finish");
+        }
     }
 
-    private static final class ModelRenderer extends ModelFeatureRenderer implements QuickLitematicaPreviewFrameBuild.GeometryRenderer {
+    private static final class ModelRenderer extends ModelFeatureRenderer implements
+            QuickLitematicaPreviewFrameBuild.GeometryRenderer {
         private final QuickLitematicaPreviewFrameBuild build;
         private final StagedVertexBuffer buffer;
         private final List<SubmitNode> visited;
+
         ModelRenderer(QuickLitematicaPreviewFrameBuild build, StagedVertexBuffer buffer, List<SubmitNode> visited) {
             this.build = build;
             this.buffer = buffer;
             this.visited = visited;
         }
-        @Override protected void buildGroup(FeatureFrameContext context, List<Submit<?>> submits) {
-            this.build.createdGroup(this.buffer, material -> { throw new AssertionError(); });
+
+        @Override
+        protected void buildGroup(FeatureFrameContext context, List<Submit<?>> submits) {
+            this.build.createdGroup(this.buffer, material -> {
+                throw new AssertionError();
+            });
             assertThat(this.build.deferBuild(this, context)).isTrue();
         }
-        @Override public void quickcraft$buildGroup(FeatureFrameContext context, List<? extends SubmitNode> submits) { this.visited.addAll(submits); }
+
+        @Override
+        public void quickcraft$buildGroup(FeatureFrameContext context, List<? extends SubmitNode> submits) {
+            this.visited.addAll(submits);
+        }
     }
 }

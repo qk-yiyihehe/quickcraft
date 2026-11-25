@@ -39,8 +39,15 @@ class QuickLitematicaPreviewMeshBatchesTest {
                     assertThat(id).isEqualTo(nextId++);
                     assertThat(seen.get(id)).isFalse();
                     seen.set(id);
-                    assertThat(Arrays.copyOfRange(batch.quantizedVertices(), offset, offset + QUANTIZED_VERTEX_BYTES * 4))
-                            .containsExactly(Arrays.copyOfRange(vertices, id * QUANTIZED_VERTEX_BYTES * 4, (id + 1) * QUANTIZED_VERTEX_BYTES * 4));
+                    assertThat(
+                            Arrays.copyOfRange(batch.quantizedVertices(), offset, offset + QUANTIZED_VERTEX_BYTES * 4)
+                    ).containsExactly(
+                            Arrays.copyOfRange(
+                                    vertices,
+                                    id * QUANTIZED_VERTEX_BYTES * 4,
+                                    (id + 1) * QUANTIZED_VERTEX_BYTES * 4
+                            )
+                    );
 
                 }
             }
@@ -54,10 +61,23 @@ class QuickLitematicaPreviewMeshBatchesTest {
         var original = new LayerMesh(LayerKey.FLUID, vertices(STATIC_BATCH_TARGET_VERTICES / 4 + 1));
         var mesh = new MeshData(List.of(original), List.of(), List.of(), List.of(), 1, 1, 1);
         QuickLitematicaPreviewCache.CacheFile.writeAtomically(
-                this.temporaryDirectory.resolve("translucent.tmp"), cache, mesh, mesh.layers(),
-                "struct-test", "pack-test", new AtomicBoolean(), progress -> {});
+                this.temporaryDirectory.resolve("translucent.tmp"),
+                cache,
+                mesh,
+                mesh.layers(),
+                "struct-test",
+                "pack-test",
+                new AtomicBoolean(),
+                progress -> {}
+        );
         byte[] file = java.nio.file.Files.readAllBytes(cache);
-        var restored = QuickLitematicaPreviewCache.CacheFile.read(cache, new AtomicBoolean(), null, "struct-test", "pack-test");
+        var restored = QuickLitematicaPreviewCache.CacheFile.read(
+                cache,
+                new AtomicBoolean(),
+                null,
+                "struct-test",
+                "pack-test"
+        );
         assertThat(restored).isNotNull();
         assertThat(restored.layers()).hasSize(2);
         assertThat(restored.layers()).allSatisfy(batch -> assertThat(batch.needsTranslucentSorting()).isTrue());
@@ -70,26 +90,72 @@ class QuickLitematicaPreviewMeshBatchesTest {
         Path cache = this.temporaryDirectory.resolve("bounded.qcp3d");
         var original = new LayerMesh(LayerKey.FLUID, vertices(STATIC_BATCH_TARGET_VERTICES / 4 + 1));
         var mesh = new MeshData(List.of(original), List.of(), List.of(), List.of(), 1, 1, 1);
-        QuickLitematicaPreviewCache.CacheFile.writeAtomically(this.temporaryDirectory.resolve("bounded.tmp"),
-                cache, mesh, mesh.layers(), "struct-test", "pack-test", new AtomicBoolean(), progress -> {});
+        QuickLitematicaPreviewCache.CacheFile.writeAtomically(
+                this.temporaryDirectory.resolve("bounded.tmp"),
+                cache,
+                mesh,
+                mesh.layers(),
+                "struct-test",
+                "pack-test",
+                new AtomicBoolean(),
+                progress -> {}
+        );
         var store = org.mockito.Mockito.spy(new QuickLitematicaPreviewMeshStore(this.temporaryDirectory));
         try {
-            var restored = QuickLitematicaPreviewCache.CacheFile.read(cache, new AtomicBoolean(), store, "struct-test", "pack-test");
+            var restored = QuickLitematicaPreviewCache.CacheFile.read(
+                    cache,
+                    new AtomicBoolean(),
+                    store,
+                    "struct-test",
+                    "pack-test"
+            );
             assertThat(restored).isNotNull();
             assertThat(restored.layers()).hasSize(2);
             org.mockito.Mockito.verify(store, org.mockito.Mockito.times(2)).addBatch(
-                    org.mockito.ArgumentMatchers.anyList(), org.mockito.ArgumentMatchers.argThat(batch -> batch.size() == 1),
-                    org.mockito.ArgumentMatchers.anyLong(), org.mockito.ArgumentMatchers.any());
+                    org.mockito.ArgumentMatchers.anyList(),
+                    org.mockito.ArgumentMatchers.argThat(batch -> batch.size() == 1),
+                    org.mockito.ArgumentMatchers.anyLong(),
+                    org.mockito.ArgumentMatchers.any()
+            );
             assertThat(restored.layers().getFirst().quantizedVertices()).containsExactly(
-                    Arrays.copyOfRange(original.quantizedVertices(), 0, STATIC_BATCH_TARGET_VERTICES * QUANTIZED_VERTEX_BYTES));
+                    Arrays.copyOfRange(
+                            original.quantizedVertices(),
+                            0,
+                            STATIC_BATCH_TARGET_VERTICES * QUANTIZED_VERTEX_BYTES
+                    )
+            );
             assertThat(restored.layers().getLast().quantizedVertices()).containsExactly(
-                    Arrays.copyOfRange(original.quantizedVertices(), STATIC_BATCH_TARGET_VERTICES * QUANTIZED_VERTEX_BYTES, original.quantizedVertices().length));
-        } finally { store.close(); }
-        var partial = new MeshData(List.of(new LayerMesh(LayerKey.FLUID, new byte[3 * QUANTIZED_VERTEX_BYTES])),
-                List.of(), List.of(), List.of(), 1, 1, 1);
-        QuickLitematicaPreviewCache.CacheFile.writeAtomically(this.temporaryDirectory.resolve("partial.tmp"),
-                cache, partial, partial.layers(), "struct-test", "pack-test", new AtomicBoolean(), progress -> {});
-        assertThat(QuickLitematicaPreviewCache.CacheFile.read(cache, new AtomicBoolean(), null, "struct-test", "pack-test")).isNull();
+                    Arrays.copyOfRange(
+                            original.quantizedVertices(),
+                            STATIC_BATCH_TARGET_VERTICES * QUANTIZED_VERTEX_BYTES,
+                            original.quantizedVertices().length
+                    )
+            );
+        } finally {
+            store.close();
+        }
+        var partial = new MeshData(
+                List.of(new LayerMesh(LayerKey.FLUID, new byte[3 * QUANTIZED_VERTEX_BYTES])),
+                List.of(),
+                List.of(),
+                List.of(),
+                1,
+                1,
+                1
+        );
+        QuickLitematicaPreviewCache.CacheFile.writeAtomically(
+                this.temporaryDirectory.resolve("partial.tmp"),
+                cache,
+                partial,
+                partial.layers(),
+                "struct-test",
+                "pack-test",
+                new AtomicBoolean(),
+                progress -> {}
+        );
+        assertThat(
+                QuickLitematicaPreviewCache.CacheFile.read(cache, new AtomicBoolean(), null, "struct-test", "pack-test")
+        ).isNull();
         assertThat(java.nio.file.Files.exists(cache)).isFalse();
     }
 
@@ -101,8 +167,9 @@ class QuickLitematicaPreviewMeshBatchesTest {
         var opaque = new LayerMesh(LayerKey.SOLID, small.quantizedVertices());
         assertThat(opaque.needsTranslucentSorting()).isFalse();
         assertThat(QuickLitematicaPreviewMeshBatches.split(opaque, new AtomicBoolean())).containsExactly(opaque);
-        assertThatThrownBy(() -> QuickLitematicaPreviewMeshBatches.split(small, new AtomicBoolean(true)))
-                .isInstanceOf(CancellationException.class);
+        assertThatThrownBy(() -> QuickLitematicaPreviewMeshBatches.split(small, new AtomicBoolean(true))).isInstanceOf(
+                CancellationException.class
+        );
     }
 
     private static byte[] vertices(int quads) {

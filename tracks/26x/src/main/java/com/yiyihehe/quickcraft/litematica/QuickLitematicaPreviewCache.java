@@ -38,8 +38,7 @@ import static com.yiyihehe.quickcraft.litematica.QuickLitematicaPreview3D.*;
 
 /** 预览磁盘缓存的索引、失效、原子写入和网格编码；任务与 GPU 生命周期由预览核心维护。 */
 final class QuickLitematicaPreviewCache {
-    private QuickLitematicaPreviewCache() {
-    }
+    private QuickLitematicaPreviewCache() {}
 
     // 缓存协议版本由各版本 QuickLitematicaPreviewAccess 提供
     static final int CACHE_FORMAT_VERSION = QuickLitematicaPreviewAccess.getCacheFormatVersion();
@@ -67,17 +66,31 @@ final class QuickLitematicaPreviewCache {
     @Nullable
     private static volatile Path currentCacheDirectory;
 
-    static CompletableFuture<Void> writeAsync(Path cachePath, Runnable write,
-            @Nullable String sourceHash, @Nullable String resourceSignature, @Nullable String structureFingerprint,
-            long vertices, @Nullable MeshData mesh, @Nullable QuickLitematicaPreviewMeshStore store) {
+    static CompletableFuture<Void> writeAsync(
+            Path cachePath,
+            Runnable write,
+            @Nullable String sourceHash,
+            @Nullable String resourceSignature,
+            @Nullable String structureFingerprint,
+            long vertices,
+            @Nullable MeshData mesh,
+            @Nullable QuickLitematicaPreviewMeshStore store
+    ) {
         if (!CACHE_WRITE_SLOTS.tryAcquire()) {
             throw new java.util.concurrent.RejectedExecutionException("Preview cache writer is busy");
         }
         CompletableFuture<Void> completion = new CompletableFuture<>();
         try {
             MeshData reusable = mesh == null ? null : copyMesh(mesh);
-            PendingWrite pending = new PendingWrite(completion, sourceHash, resourceSignature, structureFingerprint,
-                    vertices, reusable, store);
+            PendingWrite pending = new PendingWrite(
+                    completion,
+                    sourceHash,
+                    resourceSignature,
+                    structureFingerprint,
+                    vertices,
+                    reusable,
+                    store
+            );
             CACHE_WRITES.put(cachePath, pending);
             try {
                 CACHE_EXECUTOR.execute(() -> {
@@ -91,8 +104,11 @@ final class QuickLitematicaPreviewCache {
                         CACHE_WRITES.remove(cachePath, pending);
                         CACHE_WRITE_SLOTS.release();
                     }
-                    if (failure == null) completion.complete(null);
-                    else completion.completeExceptionally(failure);
+                    if (failure == null) {
+                        completion.complete(null);
+                    } else {
+                        completion.completeExceptionally(failure);
+                    }
                 });
             } catch (RuntimeException | Error failure) {
                 CACHE_WRITES.remove(cachePath, pending);
@@ -117,11 +133,17 @@ final class QuickLitematicaPreviewCache {
             LOGGER.info("没有同投影未提交写入：路径={}", cachePath);
             return;
         }
-        if (sourceHash != null && sourceHash.equals(write.sourceHash())
-                && resourceSignature != null && resourceSignature.equals(write.resourceSignature())
+        if (sourceHash != null
+                && sourceHash.equals(write.sourceHash())
+                && resourceSignature != null
+                && resourceSignature.equals(write.resourceSignature())
                 && write.vertices() > QuickLitematicaPreviewVertexBudget.vertexLimit()) {
-            LOGGER.info("待保存网格已超过当前顶点预算：顶点={}，上限={}，不等待压缩保存，路径={}",
-                    write.vertices(), QuickLitematicaPreviewVertexBudget.vertexLimit(), cachePath);
+            LOGGER.info(
+                    "待保存网格已超过当前顶点预算：顶点={}，上限={}，不等待压缩保存，路径={}",
+                    write.vertices(),
+                    QuickLitematicaPreviewVertexBudget.vertexLimit(),
+                    cachePath
+            );
             throw new PreviewTooLargeException(!QuickLitematicaPreviewVertexBudget.isForced());
         }
         LOGGER.info("等待同投影保存：路径={}，已完成={}", cachePath, pending.isDone());
@@ -141,17 +163,25 @@ final class QuickLitematicaPreviewCache {
     @Nullable
     static MeshLease borrowPendingMesh(Path cachePath, String sourceHash, String resourceSignature) {
         PendingWrite pending = CACHE_WRITES.get(cachePath);
-        if (pending == null || !sourceHash.equals(pending.sourceHash())
+        if (pending == null
+                || !sourceHash.equals(pending.sourceHash())
                 || !resourceSignature.equals(pending.resourceSignature())
-                || pending.mesh() == null || pending.store() == null) return null;
+                || pending.mesh() == null
+                || pending.store() == null) {
+            return null;
+        }
         if (pending.vertices() > QuickLitematicaPreviewVertexBudget.vertexLimit()) {
             throw new PreviewTooLargeException(!QuickLitematicaPreviewVertexBudget.isForced());
         }
-        if (!pending.store().retainForRead()) return null;
+        if (!pending.store().retainForRead()) {
+            return null;
+        }
         try {
             // 独立列表归新预览所有；共享只读记录，不复制完整顶点，也不复用旧预览的强制预算。
             MeshData mesh = copyMesh(pending.mesh());
-            if (!mesh.withinBudget()) throw new PreviewTooLargeException(false);
+            if (!mesh.withinBudget()) {
+                throw new PreviewTooLargeException(false);
+            }
             LOGGER.info("pending-mesh-reuse-v1：复用待保存网格，跳过等待压缩及缓存解压，顶点={}，路径={}", mesh.vertexCount(), cachePath);
             return new MeshLease(mesh, pending.structureFingerprint(), pending.store());
         } catch (RuntimeException | Error failure) {
@@ -161,13 +191,21 @@ final class QuickLitematicaPreviewCache {
     }
 
     private static MeshData copyMesh(MeshData mesh) {
-        return new MeshData(List.copyOf(mesh.layers()), mesh.blockStates(), mesh.blockEntities(), mesh.entities(),
-                mesh.sizeX(), mesh.sizeY(), mesh.sizeZ());
+        return new MeshData(
+                List.copyOf(mesh.layers()),
+                mesh.blockStates(),
+                mesh.blockEntities(),
+                mesh.entities(),
+                mesh.sizeX(),
+                mesh.sizeY(),
+                mesh.sizeZ()
+        );
     }
 
     static final class MeshLease implements AutoCloseable {
         final MeshData mesh;
-        @Nullable final String structureFingerprint;
+        @Nullable
+        final String structureFingerprint;
         private final QuickLitematicaPreviewMeshStore store;
         private final AtomicBoolean closed = new AtomicBoolean();
 
@@ -177,7 +215,8 @@ final class QuickLitematicaPreviewCache {
             this.store = store;
         }
 
-        @Override public void close() {
+        @Override
+        public void close() {
             if (this.closed.compareAndSet(false, true)) {
                 this.mesh.releaseStaticVertices();
                 this.store.releaseCache();
@@ -185,14 +224,23 @@ final class QuickLitematicaPreviewCache {
         }
     }
 
-    private record PendingWrite(CompletableFuture<Void> completion, @Nullable String sourceHash,
-            @Nullable String resourceSignature, @Nullable String structureFingerprint, long vertices,
-            @Nullable MeshData mesh, @Nullable QuickLitematicaPreviewMeshStore store) {}
+    private record PendingWrite(
+            CompletableFuture<Void> completion,
+            @Nullable String sourceHash,
+            @Nullable String resourceSignature,
+            @Nullable String structureFingerprint,
+            long vertices,
+            @Nullable MeshData mesh,
+            @Nullable QuickLitematicaPreviewMeshStore store
+    ) {
+    }
 
     static String currentCacheSignature() {
-        return cacheSignature(currentResourcePackSignature() + ":" + QuickLitematicaPreviewResources.signature(),
+        return cacheSignature(
+                currentResourcePackSignature() + ":" + QuickLitematicaPreviewResources.signature(),
                 fi.dy.masa.litematica.config.Configs.Generic.DATAFIXER_MODE.getOptionListValue().getStringValue(),
-                fi.dy.masa.litematica.config.Configs.Generic.DATAFIXER_DEFAULT_SCHEMA.getIntegerValue());
+                fi.dy.masa.litematica.config.Configs.Generic.DATAFIXER_DEFAULT_SCHEMA.getIntegerValue()
+        );
     }
 
     static String cacheSignature(String resourcePackSignature, String dataFixerMode, int defaultDataVersion) {
@@ -247,8 +295,9 @@ final class QuickLitematicaPreviewCache {
         try {
             MessageDigest digest = MessageDigest.getInstance("SHA-256");
             updateDigest(digest, SharedConstants.getCurrentVersion().name());
-            Minecraft.getInstance().getResourcePackRepository().getSelectedIds()
-                    .forEach(id -> updateDigest(digest, id));
+            Minecraft.getInstance().getResourcePackRepository().getSelectedIds().forEach(
+                    id -> updateDigest(digest, id)
+            );
             return HexFormat.of().formatHex(digest.digest());
         } catch (NoSuchAlgorithmException e) {
             throw new IllegalStateException("SHA-256 is unavailable", e);
@@ -351,8 +400,11 @@ final class QuickLitematicaPreviewCache {
             if (corruptIndex) {
                 // 损坏索引中的半成品条目不可信；缓存文件没有独立身份时也不能继续复用。
                 clearRenderCacheFiles(cacheDir);
-                Files.writeString(cacheDir.resolve(CACHE_VERSION_FILE_NAME), currentCacheVersionToken(),
-                        java.nio.charset.StandardCharsets.UTF_8);
+                Files.writeString(
+                        cacheDir.resolve(CACHE_VERSION_FILE_NAME),
+                        currentCacheVersionToken(),
+                        java.nio.charset.StandardCharsets.UTF_8
+                );
                 writeCacheIndex(cacheDir);
                 return;
             }
@@ -387,7 +439,12 @@ final class QuickLitematicaPreviewCache {
                         retainedCacheFiles.add(cachePath.getFileName().toString());
                     }
                     if (hasConverted) {
-                        Path convertedPath = convertedCachePath(cacheDir, slot, convertedFingerprint, convertedSignature);
+                        Path convertedPath = convertedCachePath(
+                                cacheDir,
+                                slot,
+                                convertedFingerprint,
+                                convertedSignature
+                        );
                         if (Files.isRegularFile(convertedPath)) {
                             retainedCacheFiles.add(convertedPath.getFileName().toString());
                         }
@@ -398,14 +455,13 @@ final class QuickLitematicaPreviewCache {
             staleSlots.forEach(slot -> removeCacheIndexEntry(cacheDir, slot));
             try (var files = Files.list(cacheDir)) {
                 files.filter(path -> {
-                            String name = path.getFileName().toString();
-                            return name.endsWith(".tmp")
-                                    || name.endsWith(".converted.tmp.litematic")
-                                    || isStaleFastTemporary(path, name)
-                                    || (name.endsWith(".qcp3d") || name.endsWith(".converted.litematic"))
-                                    && !retainedCacheFiles.contains(name);
-                        })
-                        .forEach(QuickLitematicaPreviewCache::deleteQuietly);
+                    String name = path.getFileName().toString();
+                    return name.endsWith(".tmp") || name.endsWith(".converted.tmp.litematic") || isStaleFastTemporary(
+                            path,
+                            name
+                    ) || (name.endsWith(".qcp3d") || name.endsWith(".converted.litematic")) && !retainedCacheFiles
+                            .contains(name);
+                }).forEach(QuickLitematicaPreviewCache::deleteQuietly);
             }
             writeCacheIndex(cacheDir);
         }
@@ -429,11 +485,9 @@ final class QuickLitematicaPreviewCache {
             String sourceHash = CACHE_INDEX.getProperty(slot + ".sourceHash");
             String resourceSignature = CACHE_INDEX.getProperty(slot + ".resourceSignature");
             String structureFingerprint = CACHE_INDEX.getProperty(slot + ".structureFingerprint");
-            return sourceHash == null || sourceHash.isBlank()
-                    || resourceSignature == null || resourceSignature.isBlank()
-                    || structureFingerprint == null || structureFingerprint.isBlank()
-                    ? null
-                    : new CacheIndexEntry(sourceHash, resourceSignature, structureFingerprint);
+            return sourceHash == null || sourceHash.isBlank() || resourceSignature == null || resourceSignature
+                    .isBlank() || structureFingerprint == null || structureFingerprint.isBlank() ? null
+                            : new CacheIndexEntry(sourceHash, resourceSignature, structureFingerprint);
         }
     }
 
@@ -443,21 +497,29 @@ final class QuickLitematicaPreviewCache {
             String sourceHash = CACHE_INDEX.getProperty(slot + ".convertedSourceHash");
             String resourceSignature = CACHE_INDEX.getProperty(slot + ".convertedResourceSignature");
             String structureFingerprint = CACHE_INDEX.getProperty(slot + ".convertedStructureFingerprint");
-            return sourceHash == null || sourceHash.isBlank()
-                    || resourceSignature == null || resourceSignature.isBlank()
-                    || structureFingerprint == null || structureFingerprint.isBlank()
-                    ? null
-                    : new CacheIndexEntry(sourceHash, resourceSignature, structureFingerprint);
+            return sourceHash == null || sourceHash.isBlank() || resourceSignature == null || resourceSignature
+                    .isBlank() || structureFingerprint == null || structureFingerprint.isBlank() ? null
+                            : new CacheIndexEntry(sourceHash, resourceSignature, structureFingerprint);
         }
     }
 
-    static boolean convertedCacheMatches(@Nullable CacheIndexEntry converted, String sourceHash, String resourceSignature) {
-        return converted != null && sourceHash.equals(converted.sourceHash())
-                && resourceSignature.equals(converted.resourcePackSignature());
+    static boolean convertedCacheMatches(
+            @Nullable CacheIndexEntry converted,
+            String sourceHash,
+            String resourceSignature
+    ) {
+        return converted != null && sourceHash.equals(converted.sourceHash()) && resourceSignature.equals(
+                converted.resourcePackSignature()
+        );
     }
 
-    static void writeConvertedCacheIndexEntry(String slot, Path sourcePath, String sourceHash,
-                                               String resourceSignature, String structureFingerprint) throws IOException {
+    static void writeConvertedCacheIndexEntry(
+            String slot,
+            Path sourcePath,
+            String sourceHash,
+            String resourceSignature,
+            String structureFingerprint
+    ) throws IOException {
         if (!ensureCacheDirectoryReady()) {
             throw new IOException("Preview cache directory is not initialized");
         }
@@ -473,8 +535,13 @@ final class QuickLitematicaPreviewCache {
         }
     }
 
-    static void writeCacheIndexEntry(String slot, Path sourcePath, String sourceHash,
-                                     String resourceSignature, String structureFingerprint) throws IOException {
+    static void writeCacheIndexEntry(
+            String slot,
+            Path sourcePath,
+            String sourceHash,
+            String resourceSignature,
+            String structureFingerprint
+    ) throws IOException {
         if (!ensureCacheDirectoryReady()) {
             throw new IOException("Preview cache directory is not initialized");
         }
@@ -484,16 +551,23 @@ final class QuickLitematicaPreviewCache {
             CACHE_INDEX.setProperty(slot + ".sourceHash", sourceHash);
             CACHE_INDEX.setProperty(slot + ".resourceSignature", resourceSignature);
             CACHE_INDEX.setProperty(slot + ".structureFingerprint", structureFingerprint);
-            LOGGER.info("缓存索引提交：槽={}，源={}，源哈希={}，资源签名={}，结构指纹={}",
-                    slot, sourcePath, sourceHash, resourceSignature, structureFingerprint);
+            LOGGER.info(
+                    "缓存索引提交：槽={}，源={}，源哈希={}，资源签名={}，结构指纹={}",
+                    slot,
+                    sourcePath,
+                    sourceHash,
+                    resourceSignature,
+                    structureFingerprint
+            );
             runIndexCommitHook();
             writeCacheIndex(cacheDir);
         }
     }
 
     static Path convertedCachePath(Path cacheDir, String slot, String structureFingerprint, String resourceSignature) {
-        return cacheDir.resolve(slot + "-" + artifactIdentity(structureFingerprint, resourceSignature)
-                + ".converted.litematic");
+        return cacheDir.resolve(
+                slot + "-" + artifactIdentity(structureFingerprint, resourceSignature) + ".converted.litematic"
+        );
     }
 
     private static String artifactIdentity(String structureFingerprint, String resourceSignature) {
@@ -536,7 +610,9 @@ final class QuickLitematicaPreviewCache {
             CACHE_INDEX.remove(slot + ".convertedResourceSignature");
             CACHE_INDEX.remove(slot + ".convertedStructureFingerprint");
             // 只删该过期条目对应的指纹工件与旧名残留；其它变体由启动清理按索引引用回收。
-            deleteQuietly(convertedCachePath(cacheDir, slot, stale.structureFingerprint(), stale.resourcePackSignature()));
+            deleteQuietly(
+                    convertedCachePath(cacheDir, slot, stale.structureFingerprint(), stale.resourcePackSignature())
+            );
             deleteQuietly(cacheDir.resolve(slot + ".converted.litematic"));
             deleteQuietly(cacheDir.resolve(slot + ".converted.tmp.litematic"));
             return true;
@@ -546,19 +622,19 @@ final class QuickLitematicaPreviewCache {
     private static void deleteConvertedCacheVariants(Path cacheDir, String slot) {
         try (var paths = Files.list(cacheDir)) {
             paths.filter(path -> {
-                        String name = path.getFileName().toString();
-                        return name.startsWith(slot + "-")
-                                && (name.endsWith(".converted.litematic")
-                                || name.endsWith(".converted.tmp.litematic"));
-                    })
-                    .forEach(QuickLitematicaPreviewCache::deleteQuietly);
-        } catch (IOException ignored) {
-        }
+                String name = path.getFileName().toString();
+                return name.startsWith(slot + "-") && (name.endsWith(".converted.litematic") || name.endsWith(
+                        ".converted.tmp.litematic"
+                ));
+            }).forEach(QuickLitematicaPreviewCache::deleteQuietly);
+        } catch (IOException ignored) {}
     }
 
     private static void runIndexCommitHook() {
         Runnable hook = indexCommitHook;
-        if (hook != null) hook.run();
+        if (hook != null) {
+            hook.run();
+        }
     }
 
     static void writeCacheIndex(Path cacheDir) throws IOException {
@@ -597,16 +673,14 @@ final class QuickLitematicaPreviewCache {
     static void clearRenderCacheFiles(Path cacheDir) {
         try (var paths = Files.list(cacheDir)) {
             paths.forEach(QuickLitematicaPreviewCache::deleteRecursivelyQuietly);
-        } catch (IOException ignored) {
-        }
+        } catch (IOException ignored) {}
     }
 
     static void deleteRecursivelyQuietly(Path path) {
         if (Files.isDirectory(path)) {
             try (var paths = Files.walk(path)) {
                 paths.sorted(java.util.Comparator.reverseOrder()).forEach(QuickLitematicaPreviewCache::deleteQuietly);
-            } catch (IOException ignored) {
-            }
+            } catch (IOException ignored) {}
             return;
         }
 
@@ -639,28 +713,48 @@ final class QuickLitematicaPreviewCache {
     static final class CacheFile {
         // 与源文件预处理同为 256 MiB，所有动态记录共用原版 NBT 分配估算预算。
         private static final long TOTAL_NBT_READ_LIMIT_BYTES = 256L * 1024 * 1024;
-        static MeshData read(Path path, AtomicBoolean cancelled, @Nullable QuickLitematicaPreviewMeshStore meshStore,
-                             String expectedStructureFingerprint, String expectedResourceSignature) {
+
+        static MeshData read(
+                Path path,
+                AtomicBoolean cancelled,
+                @Nullable QuickLitematicaPreviewMeshStore meshStore,
+                String expectedStructureFingerprint,
+                String expectedResourceSignature
+        ) {
             try (var phase = QuickLitematicaPreviewLog.phase("网格缓存解压/解码")) {
                 if (!Files.isRegularFile(path)) {
                     LOGGER.info("网格缓存未命中：原因=cache_file_missing，路径={}", path);
                     return null;
                 }
 
-                try (DataInputStream input = new DataInputStream(new GZIPInputStream(new BufferedInputStream(Files.newInputStream(path))))) {
+                try (DataInputStream input = new DataInputStream(
+                        new GZIPInputStream(new BufferedInputStream(Files.newInputStream(path)))
+                )) {
                     QuickLitematicaPreviewLog.file("网格缓存读取", path);
                     int magic = input.readInt();
                     int version = input.readInt();
                     String marker = input.readUTF();
                     String structureFingerprint = input.readUTF();
                     String resourceSignature = input.readUTF();
-                    if (magic != CACHE_MAGIC || version != CACHE_FORMAT_VERSION || !MESH_CACHE_MARKER.equals(marker)
+                    if (magic != CACHE_MAGIC
+                            || version != CACHE_FORMAT_VERSION
+                            || !MESH_CACHE_MARKER.equals(marker)
                             || !expectedStructureFingerprint.equals(structureFingerprint)
                             || !expectedResourceSignature.equals(resourceSignature)) {
-                            LOGGER.warn("缓存读取失效：原因=cache_header_or_identity_mismatch：magic={}/{}，format={}/{}，marker={}/{}，结构={}/{}，资源={}/{}，文件={}",
-                                    magic, CACHE_MAGIC, version, CACHE_FORMAT_VERSION, marker, MESH_CACHE_MARKER,
-                                    structureFingerprint, expectedStructureFingerprint,
-                                    resourceSignature, expectedResourceSignature, path);
+                        LOGGER.warn(
+                                "缓存读取失效：原因=cache_header_or_identity_mismatch：magic={}/{}，format={}/{}，marker={}/{}，结构={}/{}，资源={}/{}，文件={}",
+                                magic,
+                                CACHE_MAGIC,
+                                version,
+                                CACHE_FORMAT_VERSION,
+                                marker,
+                                MESH_CACHE_MARKER,
+                                structureFingerprint,
+                                expectedStructureFingerprint,
+                                resourceSignature,
+                                expectedResourceSignature,
+                                path
+                        );
                         deleteQuietly(path);
                         return null;
                     }
@@ -669,8 +763,19 @@ final class QuickLitematicaPreviewCache {
                     int sizeY = input.readInt();
                     int sizeZ = input.readInt();
                     int layerCount = input.readInt();
-                    if (sizeX <= 0 || sizeY <= 0 || sizeZ <= 0 || layerCount < 0 || layerCount > LayerKey.values().length) {
-                            LOGGER.warn("缓存读取失效：原因=cache_dimensions_or_layers_invalid：尺寸={}x{}x{}，层数={}，文件={}", sizeX, sizeY, sizeZ, layerCount, path);
+                    if (sizeX <= 0
+                            || sizeY <= 0
+                            || sizeZ <= 0
+                            || layerCount < 0
+                            || layerCount > LayerKey.values().length) {
+                        LOGGER.warn(
+                                "缓存读取失效：原因=cache_dimensions_or_layers_invalid：尺寸={}x{}x{}，层数={}，文件={}",
+                                sizeX,
+                                sizeY,
+                                sizeZ,
+                                layerCount,
+                                path
+                        );
                         deleteQuietly(path);
                         return null;
                     }
@@ -684,26 +789,43 @@ final class QuickLitematicaPreviewCache {
 
                         LayerKey layer = LayerKey.byId(input.readInt());
                         int vertexCount = input.readInt();
-                        LOGGER.info("缓存层读取：层={}，顶点={}，量化字节={}", layer, vertexCount, (long) vertexCount * QUANTIZED_VERTEX_BYTES);
+                        LOGGER.info(
+                                "缓存层读取：层={}，顶点={}，量化字节={}",
+                                layer,
+                                vertexCount,
+                                (long) vertexCount * QUANTIZED_VERTEX_BYTES
+                        );
                         totalVertices += Math.max(vertexCount, 0);
                         // GZIP 压缩后无法用文件大小校验顶点数，先检查类型，再核验当前任务预算；
                         // 损坏文件会在 readFully 抛 EOFException 被外层 catch 删除。
                         if (layer == null || vertexCount < 0) {
-                            LOGGER.warn("缓存读取失效：原因=cache_layer_or_vertex_invalid：层={}，顶点={}，累计={}/{}，文件={}", layer, vertexCount, totalVertices, MAX_UPLOAD_VERTICES, path);
+                            LOGGER.warn(
+                                    "缓存读取失效：原因=cache_layer_or_vertex_invalid：层={}，顶点={}，累计={}/{}，文件={}",
+                                    layer,
+                                    vertexCount,
+                                    totalVertices,
+                                    MAX_UPLOAD_VERTICES,
+                                    path
+                            );
                             deleteQuietly(path);
                             return null;
                         }
 
                         if (totalVertices > QuickLitematicaPreviewVertexBudget.vertexLimit()) {
-                            LOGGER.info("缓存顶点超过当前保护预算：累计={}，上限={}，强制={}，保留缓存等待用户选择",
-                                    totalVertices, QuickLitematicaPreviewVertexBudget.vertexLimit(), QuickLitematicaPreviewVertexBudget.isForced());
+                            LOGGER.info(
+                                    "缓存顶点超过当前保护预算：累计={}，上限={}，强制={}，保留缓存等待用户选择",
+                                    totalVertices,
+                                    QuickLitematicaPreviewVertexBudget.vertexLimit(),
+                                    QuickLitematicaPreviewVertexBudget.isForced()
+                            );
                             throw new PreviewTooLargeException(!QuickLitematicaPreviewVertexBudget.isForced());
                         }
 
                         // 批量读取量化顶点字节，直接存进 LayerMesh，渲染线程再解码进 BufferBuilder。
                         // 直接读取 packed 顶点字节，大文件读取避免逐顶点对象分配。
                         long quantizedBytes = (long) vertexCount * QUANTIZED_VERTEX_BYTES;
-                        if (layer.isTranslucent() && quantizedBytes > QuickLitematicaPreviewVertexBudget.layerByteLimit()) {
+                        if (layer.isTranslucent() && quantizedBytes > QuickLitematicaPreviewVertexBudget
+                                .layerByteLimit()) {
                             throw new PreviewTooLargeException(!QuickLitematicaPreviewVertexBudget.isForced());
                         }
 
@@ -715,50 +837,77 @@ final class QuickLitematicaPreviewCache {
                             int batchVertices = Math.min(remainingVertices, STATIC_BATCH_TARGET_VERTICES);
                             byte[] quantizedVertices = new byte[batchVertices * QUANTIZED_VERTEX_BYTES];
                             readFullyCancellable(input, quantizedVertices, cancelled);
-                            List<LayerMesh> batch = QuickLitematicaPreviewMeshBatches.split(new LayerMesh(layer, quantizedVertices), cancelled);
-                            if (meshStore == null) layers.addAll(batch);
-                            else meshStore.addBatch(layers, batch, totalVertices * QUANTIZED_VERTEX_BYTES, cancelled);
+                            List<LayerMesh> batch = QuickLitematicaPreviewMeshBatches.split(
+                                    new LayerMesh(layer, quantizedVertices),
+                                    cancelled
+                            );
+                            if (meshStore == null) {
+                                layers.addAll(batch);
+                            } else {
+                                meshStore.addBatch(layers, batch, totalVertices * QUANTIZED_VERTEX_BYTES, cancelled);
+                            }
                             remainingVertices -= batchVertices;
                         }
                     }
 
                     int blockStateCount = input.readInt();
                     if (blockStateCount < 0) {
-                            LOGGER.warn("缓存读取失效：原因=cache_block_state_count_invalid：数量={}/{}，文件={}", blockStateCount, MAX_DYNAMIC_BLOCK_STATES, path);
+                        LOGGER.warn(
+                                "缓存读取失效：原因=cache_block_state_count_invalid：数量={}/{}，文件={}",
+                                blockStateCount,
+                                MAX_DYNAMIC_BLOCK_STATES,
+                                path
+                        );
                         deleteQuietly(path);
                         return null;
                     }
 
                     if (blockStateCount > QuickLitematicaPreviewVertexBudget.countLimit(MAX_DYNAMIC_BLOCK_STATES)) {
-                        LOGGER.info("缓存动态数量超过当前保护预算：数量={}，默认上限={}，保留缓存等待强制读取", blockStateCount, MAX_DYNAMIC_BLOCK_STATES);
+                        LOGGER.info(
+                                "缓存动态数量超过当前保护预算：数量={}，默认上限={}，保留缓存等待强制读取",
+                                blockStateCount,
+                                MAX_DYNAMIC_BLOCK_STATES
+                        );
                         throw new PreviewTooLargeException();
                     }
 
                     NbtAccounter retainedNbt = NbtAccounter.create(
-                            QuickLitematicaPreviewVertexBudget.nbtByteLimit(TOTAL_NBT_READ_LIMIT_BYTES));
+                            QuickLitematicaPreviewVertexBudget.nbtByteLimit(TOTAL_NBT_READ_LIMIT_BYTES)
+                    );
                     List<BlockStateData> blockStates = new ArrayList<>(blockStateCount);
                     for (int i = 0; i < blockStateCount; i++) {
                         if ((i & 0x7FF) == 0 && isCancelled(cancelled)) {
                             throw new CancellationException();
                         }
 
-                        blockStates.add(new BlockStateData(
-                                input.readInt(),
-                                input.readInt(),
-                                input.readInt(),
-                                readCacheNbt(input, retainedNbt)
-                        ));
+                        blockStates.add(
+                                new BlockStateData(
+                                        input.readInt(),
+                                        input.readInt(),
+                                        input.readInt(),
+                                        readCacheNbt(input, retainedNbt)
+                                )
+                        );
                     }
 
                     int blockEntityCount = input.readInt();
                     if (blockEntityCount < 0) {
-                            LOGGER.warn("缓存读取失效：原因=cache_block_entity_count_invalid：数量={}/{}，文件={}", blockEntityCount, MAX_DYNAMIC_BLOCK_ENTITIES, path);
+                        LOGGER.warn(
+                                "缓存读取失效：原因=cache_block_entity_count_invalid：数量={}/{}，文件={}",
+                                blockEntityCount,
+                                MAX_DYNAMIC_BLOCK_ENTITIES,
+                                path
+                        );
                         deleteQuietly(path);
                         return null;
                     }
 
                     if (blockEntityCount > QuickLitematicaPreviewVertexBudget.countLimit(MAX_DYNAMIC_BLOCK_ENTITIES)) {
-                        LOGGER.info("缓存动态数量超过当前保护预算：数量={}，默认上限={}，保留缓存等待强制读取", blockEntityCount, MAX_DYNAMIC_BLOCK_ENTITIES);
+                        LOGGER.info(
+                                "缓存动态数量超过当前保护预算：数量={}，默认上限={}，保留缓存等待强制读取",
+                                blockEntityCount,
+                                MAX_DYNAMIC_BLOCK_ENTITIES
+                        );
                         throw new PreviewTooLargeException();
                     }
 
@@ -768,18 +917,25 @@ final class QuickLitematicaPreviewCache {
                             throw new CancellationException();
                         }
 
-                        blockEntities.add(new BlockEntityData(
-                                input.readInt(),
-                                input.readInt(),
-                                input.readInt(),
-                                readCacheNbt(input, retainedNbt),
-                                readCacheNbt(input, retainedNbt)
-                        ));
+                        blockEntities.add(
+                                new BlockEntityData(
+                                        input.readInt(),
+                                        input.readInt(),
+                                        input.readInt(),
+                                        readCacheNbt(input, retainedNbt),
+                                        readCacheNbt(input, retainedNbt)
+                                )
+                        );
                     }
 
                     int entityCount = input.readInt();
                     if (entityCount < 0) {
-                            LOGGER.warn("缓存读取失效：原因=cache_entity_count_invalid：数量={}/{}，文件={}", entityCount, MAX_DYNAMIC_ENTITIES, path);
+                        LOGGER.warn(
+                                "缓存读取失效：原因=cache_entity_count_invalid：数量={}/{}，文件={}",
+                                entityCount,
+                                MAX_DYNAMIC_ENTITIES,
+                                path
+                        );
                         deleteQuietly(path);
                         return null;
                     }
@@ -795,12 +951,14 @@ final class QuickLitematicaPreviewCache {
                             throw new CancellationException();
                         }
 
-                        entities.add(new EntityData(
-                                input.readDouble(),
-                                input.readDouble(),
-                                input.readDouble(),
-                                readCacheNbt(input, retainedNbt)
-                        ));
+                        entities.add(
+                                new EntityData(
+                                        input.readDouble(),
+                                        input.readDouble(),
+                                        input.readDouble(),
+                                        readCacheNbt(input, retainedNbt)
+                                )
+                        );
                     }
 
                     return new MeshData(List.copyOf(layers), blockStates, blockEntities, entities, sizeX, sizeY, sizeZ);
@@ -818,16 +976,18 @@ final class QuickLitematicaPreviewCache {
         }
 
         private static CompoundTag readCacheNbt(DataInputStream input, NbtAccounter retained) throws IOException {
-            long remaining = QuickLitematicaPreviewVertexBudget.nbtByteLimit(TOTAL_NBT_READ_LIMIT_BYTES)
-                    - retained.getUsage();
-            NbtAccounter entry = NbtAccounter.create(Math.min(remaining,
-                    QuickLitematicaPreviewVertexBudget.nbtByteLimit(NBT_READ_LIMIT_BYTES)));
+            long remaining = QuickLitematicaPreviewVertexBudget.nbtByteLimit(TOTAL_NBT_READ_LIMIT_BYTES) - retained
+                    .getUsage();
+            NbtAccounter entry = NbtAccounter.create(
+                    Math.min(remaining, QuickLitematicaPreviewVertexBudget.nbtByteLimit(NBT_READ_LIMIT_BYTES))
+            );
             CompoundTag nbt = NbtIo.read(input, entry);
             retained.accountBytes(entry.getUsage());
             return nbt;
         }
 
-        static void readFullyCancellable(DataInputStream input, byte[] bytes, AtomicBoolean cancelled) throws IOException {
+        static void readFullyCancellable(DataInputStream input, byte[] bytes, AtomicBoolean cancelled)
+                throws IOException {
             int offset = 0;
             while (offset < bytes.length) {
                 if (isCancelled(cancelled)) {
@@ -851,9 +1011,19 @@ final class QuickLitematicaPreviewCache {
                 ProgressSink progressSink
         ) throws IOException {
             try (var phase = QuickLitematicaPreviewLog.phase("网格缓存压缩/文件替换")) {
-                LOGGER.info("网格缓存压缩写入开始：临时={}，最终={}，层批次={}，尺寸={}x{}x{}", tmpPath, finalPath, layers.size(), data.sizeX(), data.sizeY(), data.sizeZ());
+                LOGGER.info(
+                        "网格缓存压缩写入开始：临时={}，最终={}，层批次={}，尺寸={}x{}x{}",
+                        tmpPath,
+                        finalPath,
+                        layers.size(),
+                        data.sizeX(),
+                        data.sizeY(),
+                        data.sizeZ()
+                );
                 deleteTmpQuietly(tmpPath);
-                try (DataOutputStream output = new DataOutputStream(new GZIPOutputStream(new BufferedOutputStream(Files.newOutputStream(tmpPath))))) {
+                try (DataOutputStream output = new DataOutputStream(
+                        new GZIPOutputStream(new BufferedOutputStream(Files.newOutputStream(tmpPath)))
+                )) {
                     progressSink.set(PROGRESS_CACHE_WRITE);
                     output.writeInt(CACHE_MAGIC);
                     output.writeInt(CACHE_FORMAT_VERSION);
@@ -884,7 +1054,12 @@ final class QuickLitematicaPreviewCache {
                                 layerVertexCount += mesh.vertexCount();
                             }
                         }
-                        LOGGER.info("缓存层写入：层={}，顶点={}，量化字节={}", storedLayer, layerVertexCount, (long) layerVertexCount * QUANTIZED_VERTEX_BYTES);
+                        LOGGER.info(
+                                "缓存层写入：层={}，顶点={}，量化字节={}",
+                                storedLayer,
+                                layerVertexCount,
+                                (long) layerVertexCount * QUANTIZED_VERTEX_BYTES
+                        );
                         output.writeInt(storedLayer.id());
                         output.writeInt(layerVertexCount);
                         for (LayerMesh mesh : layers) {
@@ -900,13 +1075,25 @@ final class QuickLitematicaPreviewCache {
                                 int length = Math.min(CACHE_IO_CHUNK_BYTES, quantized.length - offset);
                                 output.write(quantized, offset, length);
                                 staticBytesWritten += length;
-                                progressSink.set(progress(PROGRESS_CACHE_WRITE, PROGRESS_STATIC_CACHE_END, staticBytesWritten, totalStaticBytes));
+                                progressSink.set(
+                                        progress(
+                                                PROGRESS_CACHE_WRITE,
+                                                PROGRESS_STATIC_CACHE_END,
+                                                staticBytesWritten,
+                                                totalStaticBytes
+                                        )
+                                );
                             }
                         }
                     }
                     progressSink.set(PROGRESS_STATIC_CACHE_END);
 
-                    LOGGER.info("缓存动态数据写入：方块状态={}，方块实体={}，实体={}", data.blockStates().size(), data.blockEntities().size(), data.entities().size());
+                    LOGGER.info(
+                            "缓存动态数据写入：方块状态={}，方块实体={}，实体={}",
+                            data.blockStates().size(),
+                            data.blockEntities().size(),
+                            data.entities().size()
+                    );
                     output.writeInt(data.blockStates().size());
                     for (int index = 0; index < data.blockStates().size(); index++) {
                         if (isCancelled(cancelled)) {
@@ -919,7 +1106,14 @@ final class QuickLitematicaPreviewCache {
                         output.writeInt(blockState.z());
                         NbtIo.write(blockState.stateNbt(), output);
                         if ((index & 0x7F) == 0 || index + 1 == data.blockStates().size()) {
-                            progressSink.set(progress(PROGRESS_STATIC_CACHE_END, PROGRESS_BLOCK_STATES_CACHE_END, index + 1L, data.blockStates().size()));
+                            progressSink.set(
+                                    progress(
+                                            PROGRESS_STATIC_CACHE_END,
+                                            PROGRESS_BLOCK_STATES_CACHE_END,
+                                            index + 1L,
+                                            data.blockStates().size()
+                                    )
+                            );
                         }
                     }
                     progressSink.set(PROGRESS_BLOCK_STATES_CACHE_END);
@@ -937,7 +1131,14 @@ final class QuickLitematicaPreviewCache {
                         NbtIo.write(blockEntity.stateNbt(), output);
                         NbtIo.write(blockEntity.entityNbt(), output);
                         if ((index & 0x3F) == 0 || index + 1 == data.blockEntities().size()) {
-                            progressSink.set(progress(PROGRESS_BLOCK_STATES_CACHE_END, PROGRESS_BLOCK_ENTITIES_CACHE_END, index + 1L, data.blockEntities().size()));
+                            progressSink.set(
+                                    progress(
+                                            PROGRESS_BLOCK_STATES_CACHE_END,
+                                            PROGRESS_BLOCK_ENTITIES_CACHE_END,
+                                            index + 1L,
+                                            data.blockEntities().size()
+                                    )
+                            );
                         }
                     }
                     progressSink.set(PROGRESS_BLOCK_ENTITIES_CACHE_END);
@@ -1010,9 +1211,7 @@ final class QuickLitematicaPreviewCache {
         }
 
         static int readInt(byte[] bytes, int offset) {
-            return (bytes[offset] & 0xFF) << 24
-                    | (bytes[offset + 1] & 0xFF) << 16
-                    | (bytes[offset + 2] & 0xFF) << 8
+            return (bytes[offset] & 0xFF) << 24 | (bytes[offset + 1] & 0xFF) << 16 | (bytes[offset + 2] & 0xFF) << 8
                     | (bytes[offset + 3] & 0xFF);
         }
 

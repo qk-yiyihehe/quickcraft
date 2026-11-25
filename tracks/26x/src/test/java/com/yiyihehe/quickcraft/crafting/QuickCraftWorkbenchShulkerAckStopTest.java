@@ -53,8 +53,13 @@ class QuickCraftWorkbenchShulkerAckStopTest {
 
         assertThat((Boolean) fixture.field("active")).isFalse();
         verify(fixture.player).sendOverlayMessage(any(Component.class));
-        verify(fixture.gameMode, never()).handleContainerInput(anyInt(), anyInt(), anyInt(),
-                any(ContainerInput.class), any());
+        verify(fixture.gameMode, never()).handleContainerInput(
+                anyInt(),
+                anyInt(),
+                anyInt(),
+                any(ContainerInput.class),
+                any()
+        );
     }
 
     @Test
@@ -67,8 +72,13 @@ class QuickCraftWorkbenchShulkerAckStopTest {
         fixture.tick();
 
         assertThat((Boolean) fixture.field("active")).isFalse();
-        verify(fixture.gameMode, never()).handleContainerInput(anyInt(), anyInt(), anyInt(),
-                any(ContainerInput.class), any());
+        verify(fixture.gameMode, never()).handleContainerInput(
+                anyInt(),
+                anyInt(),
+                anyInt(),
+                any(ContainerInput.class),
+                any()
+        );
     }
 
     private static final class Fixture {
@@ -80,8 +90,7 @@ class QuickCraftWorkbenchShulkerAckStopTest {
         private final CraftingScreen screen = mock(CraftingScreen.class);
         private final Inventory inventory;
         private final CraftingMenu menu;
-        private final QuickCraftWorkbenchShulkerCraft shulker =
-                new QuickCraftWorkbenchShulkerCraft();
+        private final QuickCraftWorkbenchShulkerCraft shulker = new QuickCraftWorkbenchShulkerCraft();
 
         private Fixture() throws Exception {
             inventory = newInventory(player);
@@ -98,15 +107,15 @@ class QuickCraftWorkbenchShulkerAckStopTest {
         }
 
         private void tick() throws Exception {
-            Method onTick = QuickCraftWorkbenchShulkerCraft.class.getDeclaredMethod(
-                    "onClientTick", Minecraft.class);
+            Method onTick = QuickCraftWorkbenchShulkerCraft.class.getDeclaredMethod("onClientTick", Minecraft.class);
             onTick.setAccessible(true);
             try (MockedStatic<QuickClientScreenAccess> screens = mockStatic(QuickClientScreenAccess.class);
-                 MockedStatic<QuickCraftConfigs> configs = mockStatic(QuickCraftConfigs.class);
-                 MockedStatic<QuickCraftKeyBindings> keys = mockStatic(QuickCraftKeyBindings.class);
-                 MockedStatic<QuickCraftWorkbenchShulker> helper = mockStatic(QuickCraftWorkbenchShulker.class);
-                 MockedStatic<QuickCraftWorkbenchShulkerContents> contents =
-                         mockStatic(QuickCraftWorkbenchShulkerContents.class)) {
+                    MockedStatic<QuickCraftConfigs> configs = mockStatic(QuickCraftConfigs.class);
+                    MockedStatic<QuickCraftKeyBindings> keys = mockStatic(QuickCraftKeyBindings.class);
+                    MockedStatic<QuickCraftWorkbenchShulker> helper = mockStatic(QuickCraftWorkbenchShulker.class);
+                    MockedStatic<QuickCraftWorkbenchShulkerContents> contents = mockStatic(
+                            QuickCraftWorkbenchShulkerContents.class
+                    )) {
                 screens.when(() -> QuickClientScreenAccess.currentScreen(client)).thenReturn(screen);
                 configs.when(QuickCraftConfigs::isWorkbenchQuickShulkerCraftEnabled).thenReturn(true);
                 configs.when(QuickCraftConfigs::isMouseCraftAckDebugEnabled).thenReturn(false);
@@ -133,14 +142,16 @@ class QuickCraftWorkbenchShulkerAckStopTest {
             if (parameters.length == 1 && parameters[0].isInstance(player)) {
                 return (Inventory) constructor.newInstance(player);
             }
-            if (parameters.length == 2 && parameters[0].isInstance(player)
-                    && parameters[1].getSimpleName().equals("EntityEquipment")) {
+            if (parameters.length == 2 && parameters[0].isInstance(player) && parameters[1].getSimpleName().equals(
+                    "EntityEquipment"
+            )) {
                 Object equipment = parameters[1].getConstructor().newInstance();
                 return (Inventory) constructor.newInstance(player, equipment);
             }
         }
         throw new AssertionError("unsupported Inventory constructor");
     }
+
     private static void setField(Object target, String name, Object value) throws Exception {
         Field field = findField(target.getClass(), name);
         field.setAccessible(true);
@@ -157,8 +168,7 @@ class QuickCraftWorkbenchShulkerAckStopTest {
         for (Class<?> current = type; current != null; current = current.getSuperclass()) {
             try {
                 return current.getDeclaredField(name);
-            } catch (NoSuchFieldException ignored) {
-            }
+            } catch (NoSuchFieldException ignored) {}
         }
         throw new NoSuchFieldException(name);
     }

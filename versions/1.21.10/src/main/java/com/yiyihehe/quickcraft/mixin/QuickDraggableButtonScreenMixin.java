@@ -24,17 +24,25 @@ public abstract class QuickDraggableButtonScreenMixin {
 
     @Inject(method = "keyPressed", at = @At("HEAD"), cancellable = true)
     private void quickcraft$keyPortableStorage(KeyInput event, CallbackInfoReturnable<Boolean> cir) {
-        if (QuickPortableStoragePanel.key((HandledScreen<?>) (Object) this, event.key(), event.scancode(), event.modifiers())) {
+        if (QuickPortableStoragePanel.key(
+                (HandledScreen<?>) (Object) this,
+                event.key(),
+                event.scancode(),
+                event.modifiers()
+        )) {
             cir.setReturnValue(true);
         }
     }
 
     @Inject(method = "mouseDragged", at = @At("HEAD"), cancellable = true)
-    private void quickcraft$dragActionButton(Click click, double deltaX, double deltaY,
-                                             CallbackInfoReturnable<Boolean> cir) {
+    private void quickcraft$dragActionButton(
+            Click click,
+            double deltaX,
+            double deltaY,
+            CallbackInfoReturnable<Boolean> cir
+    ) {
         HandledScreen<?> screen = (HandledScreen<?>) (Object) this;
-        if (screen.getFocused() instanceof QuickDraggableButton actionButton
-                && actionButton.isPositionDragging()) {
+        if (screen.getFocused() instanceof QuickDraggableButton actionButton && actionButton.isPositionDragging()) {
             cir.setReturnValue(actionButton.mouseDragged(click, deltaX, deltaY));
         } else if (QuickPortableStoragePanel.drag(screen, click.x(), click.y(), click.button())) {
             cir.setReturnValue(true);
@@ -55,8 +63,12 @@ public abstract class QuickDraggableButtonScreenMixin {
             boolean handled = actionButton.mouseReleased(click);
             screen.setDragging(false);
             cir.setReturnValue(handled);
-        } else if ((button == 1 && actionButton.consumeRightRelease())
-                || QuickPortableStoragePanel.release(screen, click.x(), click.y(), click.button())) {
+        } else if ((button == 1 && actionButton.consumeRightRelease()) || QuickPortableStoragePanel.release(
+                screen,
+                click.x(),
+                click.y(),
+                click.button()
+        )) {
             cir.setReturnValue(true);
         }
     }

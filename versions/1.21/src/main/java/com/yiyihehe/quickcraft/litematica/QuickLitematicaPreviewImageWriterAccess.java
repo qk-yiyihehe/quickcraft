@@ -6,8 +6,7 @@ import org.jetbrains.annotations.Nullable;
 import java.nio.file.Path;
 
 final class QuickLitematicaPreviewImageWriterAccess {
-    private QuickLitematicaPreviewImageWriterAccess() {
-    }
+    private QuickLitematicaPreviewImageWriterAccess() {}
 
     @Nullable
     static LitematicaSchematic readSchematic(Path directory, String fileName) {

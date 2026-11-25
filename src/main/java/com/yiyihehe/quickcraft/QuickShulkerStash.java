@@ -1,4 +1,5 @@
 package com.yiyihehe.quickcraft;
+
 import com.yiyihehe.quickcraft.render.QuickCrossBoxSortStatus;
 
 import static com.yiyihehe.quickcraft.QuickContainerCopySources.*;
@@ -20,12 +21,11 @@ import java.util.List;
 
 /** 背包收纳和容器回存共用的快盒装入规则；不打开盒子，也不改变盒子所在槽位。 */
 public final class QuickShulkerStash {
-    private QuickShulkerStash() {
-    }
+    private QuickShulkerStash() {}
 
     public static boolean isAvailable() {
-        return QuickCraftConfigs.ModSupport.ENABLE_QUICK_SHULKER.getBooleanValue()
-                && QuickShulkerConnection.canBundle();
+        return QuickCraftConfigs.ModSupport.ENABLE_QUICK_SHULKER.getBooleanValue() && QuickShulkerConnection
+                .canBundle();
     }
 
     public static void stashInventory(HandledScreen<?> screen) {
@@ -38,9 +38,13 @@ public final class QuickShulkerStash {
 
     private static void stash(HandledScreen<?> screen, boolean playerInventory) {
         MinecraftClient client = MinecraftClient.getInstance();
-        if (!QuickCraftConfigs.isQuickStashButtonVisible() || client.player == null || client.interactionManager == null
-                || client.currentScreen != screen || screen.getScreenHandler() != client.player.currentScreenHandler
-                || QuickStashShulkerTransfer.isRunning() || QuickCrossBoxSort.isRunning()
+        if (!QuickCraftConfigs.isQuickStashButtonVisible()
+                || client.player == null
+                || client.interactionManager == null
+                || client.currentScreen != screen
+                || screen.getScreenHandler() != client.player.currentScreenHandler
+                || QuickStashShulkerTransfer.isRunning()
+                || QuickCrossBoxSort.isRunning()
                 || QuickCraftWorkbenchShulker.shouldBlockWorkbenchInput()
                 || QuickContainerCopy.shouldHideBackgroundHandledScreen()
                 || QuickMaterialCollector.shouldHideBackgroundHandledScreen()) {
@@ -57,9 +61,10 @@ public final class QuickShulkerStash {
         }
         QuickContainerLock.bindCurrentScreen(screen);
         var actionName = Text.translatable("quickcraft.button.inventory_shulker_stash");
-        boolean locked = playerInventory
-                ? QuickContainerLock.handleLockedPlayerInventoryAutomationAttempt(client, actionName)
-                : QuickContainerLock.handleLockedAutomationAttempt(client, screen, actionName);
+        boolean locked = playerInventory ? QuickContainerLock.handleLockedPlayerInventoryAutomationAttempt(
+                client,
+                actionName
+        ) : QuickContainerLock.handleLockedAutomationAttempt(client, screen, actionName);
         if (locked) {
             return;
         }
@@ -110,24 +115,33 @@ public final class QuickShulkerStash {
 
     static boolean canReceive(ScreenHandler handler, int slotId, ItemStack template, MinecraftClient client) {
         Slot slot = handler.getSlot(slotId);
-        return isVisibleSlot(slot) && !QuickContainerLock.isLockedSlot(handler, slot)
-                && slot.getStack().getCount() == 1 && slot.canTakeItems(client.player)
-                && slot.canInsert(slot.getStack()) && contains(slot.getStack(), template)
-                && getShulkerCapacityFor(slot.getStack(), template) > 0;
+        return isVisibleSlot(slot) && !QuickContainerLock.isLockedSlot(handler, slot) && slot.getStack().getCount() == 1
+                && slot.canTakeItems(client.player) && slot.canInsert(slot.getStack()) && contains(
+                        slot.getStack(),
+                        template
+                ) && getShulkerCapacityFor(slot.getStack(), template) > 0;
     }
 
-    static boolean packMatching(ScreenHandler handler, int sourceId,
-                                List<Integer> destinationIds, MinecraftClient client) {
+    static boolean packMatching(
+            ScreenHandler handler,
+            int sourceId,
+            List<Integer> destinationIds,
+            MinecraftClient client
+    ) {
         Slot source = handler.getSlot(sourceId);
-        if (!handler.getCursorStack().isEmpty() || QuickContainerLock.isLockedSlot(handler, source)
-                || !source.canTakeItems(client.player) || isShulkerBox(source.getStack())) {
+        if (!handler.getCursorStack().isEmpty() || QuickContainerLock.isLockedSlot(handler, source) || !source
+                .canTakeItems(client.player) || isShulkerBox(source.getStack())) {
             return false;
         }
         ItemStack template = source.getStack().copyWithCount(1);
-        List<Integer> targets = new ArrayList<>(destinationIds.stream()
-                .filter(id -> id != sourceId && canReceive(handler, id, template, client)).toList());
+        List<Integer> targets = new ArrayList<>(
+                destinationIds.stream().filter(id -> id != sourceId && canReceive(handler, id, template, client))
+                        .toList()
+        );
         // 先选可补同类半组的盒子；同级保持传入槽位顺序，避免两个匹配盒之间反复跳转。
-        targets.sort(Comparator.comparing(id -> matchingPartialCapacity(handler.getSlot(id).getStack(), template) == 0));
+        targets.sort(
+                Comparator.comparing(id -> matchingPartialCapacity(handler.getSlot(id).getStack(), template) == 0)
+        );
         for (int targetId : targets) {
             if (!source.hasStack()) {
                 break;
@@ -138,8 +152,10 @@ public final class QuickShulkerStash {
             Slot target = handler.getSlot(targetId);
             int before = source.getStack().getCount();
             click(client, handler, sourceId, 0);
-            if (handler.getCursorStack().getCount() != before
-                    || !ItemStack.areItemsAndComponentsEqual(handler.getCursorStack(), template)) {
+            if (handler.getCursorStack().getCount() != before || !ItemStack.areItemsAndComponentsEqual(
+                    handler.getCursorStack(),
+                    template
+            )) {
                 return false;
             }
             click(client, handler, targetId, 1);

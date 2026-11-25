@@ -23,7 +23,12 @@ public abstract class LitematicaWorldLoadListenerMixin {
     }
 
     @Inject(method = "onWorldLoadPost", at = @At("RETURN"))
-    private void quickcraft$restoreSessionHuds(ClientLevel before, ClientLevel after, Minecraft client, CallbackInfo ci) {
+    private void quickcraft$restoreSessionHuds(
+            ClientLevel before,
+            ClientLevel after,
+            Minecraft client,
+            CallbackInfo ci
+    ) {
         if (after != null && before != after) {
             QuickLitematicaProjectionPersistence.afterWorldChange(after.dimension().toString());
         }

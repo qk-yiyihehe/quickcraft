@@ -21,13 +21,28 @@ import java.util.Map;
 /** 只从文件绑定的原理图统计实体本体及展示物，不依赖投影世界或实体库存。 */
 public final class QuickLitematicaEntityMaterials {
     private static final List<String> EQUIPMENT_SLOTS = List.of(
-            "mainhand", "offhand", "head", "chest", "legs", "feet", "body", "saddle");
+            "mainhand",
+            "offhand",
+            "head",
+            "chest",
+            "legs",
+            "feet",
+            "body",
+            "saddle"
+    );
 
-    private QuickLitematicaEntityMaterials() { }
+    private QuickLitematicaEntityMaterials() {}
 
-    static void appendMaterials(NbtCompound nbt, RegistryWrapper.WrapperLookup lookup, List<ItemStack> materials, int depth) {
+    static void appendMaterials(
+            NbtCompound nbt,
+            RegistryWrapper.WrapperLookup lookup,
+            List<ItemStack> materials,
+            int depth
+    ) {
         // 与实体放置相同的深度上限，防止损坏文件的乘客树耗尽调用栈。
-        if (depth > 8) { return; }
+        if (depth > 8) {
+            return;
+        }
         Identifier id = Identifier.tryParse(QuickLitematicaContainerMaterialsAccess.readString(nbt, "id"));
         if (id != null && id.getNamespace().equals("minecraft")) {
             switch (id.getPath()) {
@@ -49,7 +64,9 @@ public final class QuickLitematicaEntityMaterials {
                 }
                 default -> {
                     ItemStack base = QuickLitematicaEntityPlacement.getPlaceableMaterial(id, nbt);
-                    if (!base.isEmpty()) { materials.add(base); }
+                    if (!base.isEmpty()) {
+                        materials.add(base);
+                    }
                 }
             }
             if (lookup != null) {
@@ -68,7 +85,11 @@ public final class QuickLitematicaEntityMaterials {
                     for (String key : List.of("ArmorItems", "HandItems")) {
                         var equipment = QuickLitematicaContainerMaterialsAccess.readCompoundList(nbt, key);
                         for (int index = 0; index < equipment.size(); index++) {
-                            appendItem(QuickLitematicaContainerMaterialsAccess.readCompound(equipment, index), lookup, materials);
+                            appendItem(
+                                    QuickLitematicaContainerMaterialsAccess.readCompound(equipment, index),
+                                    lookup,
+                                    materials
+                            );
                         }
                     }
                 }
@@ -76,18 +97,34 @@ public final class QuickLitematicaEntityMaterials {
         }
         var passengers = QuickLitematicaContainerMaterialsAccess.readCompoundList(nbt, "Passengers");
         for (int index = 0; index < passengers.size(); index++) {
-            appendMaterials(QuickLitematicaContainerMaterialsAccess.readCompound(passengers, index), lookup, materials, depth + 1);
+            appendMaterials(
+                    QuickLitematicaContainerMaterialsAccess.readCompound(passengers, index),
+                    lookup,
+                    materials,
+                    depth + 1
+            );
         }
     }
 
-    private static void appendDisplayedItem(NbtCompound nbt, String key, RegistryWrapper.WrapperLookup lookup, List<ItemStack> materials) {
-        if (nbt.get(key) instanceof NbtCompound item) { appendItem(item, lookup, materials); }
+    private static void appendDisplayedItem(
+            NbtCompound nbt,
+            String key,
+            RegistryWrapper.WrapperLookup lookup,
+            List<ItemStack> materials
+    ) {
+        if (nbt.get(key) instanceof NbtCompound item) {
+            appendItem(item, lookup, materials);
+        }
     }
 
     private static void appendItem(NbtCompound nbt, RegistryWrapper.WrapperLookup lookup, List<ItemStack> materials) {
-        if (nbt.isEmpty()) { return; }
+        if (nbt.isEmpty()) {
+            return;
+        }
         ItemStack stack = QuickLitematicaSchematicData.decodeItem(nbt, lookup);
-        if (!stack.isEmpty()) { materials.add(stack); }
+        if (!stack.isEmpty()) {
+            materials.add(stack);
+        }
     }
 
     static final class EntityMaterialList extends MaterialListBase {
@@ -102,10 +139,14 @@ public final class QuickLitematicaEntityMaterials {
         }
 
         @Override
-        public String getName() { return this.schematic.getMetadata().getName(); }
+        public String getName() {
+            return this.schematic.getMetadata().getName();
+        }
 
         @Override
-        public String getTitle() { return StringUtils.translate("quickcraft.litematica.title.entity_materials", this.getName()); }
+        public String getTitle() {
+            return StringUtils.translate("quickcraft.litematica.title.entity_materials", this.getName());
+        }
 
         @Override
         public void reCreateMaterialList() {
@@ -114,7 +155,9 @@ public final class QuickLitematicaEntityMaterials {
             List<ItemStack> materials = new ArrayList<>();
             for (String region : this.regions) {
                 var entities = this.schematic.getEntityListForRegion(region);
-                if (entities == null) { continue; }
+                if (entities == null) {
+                    continue;
+                }
                 for (var entity : entities) {
                     appendMaterials(QuickLitematicaContainerMaterialsAccess.getEntityNbt(entity), lookup, materials, 0);
                 }
@@ -127,7 +170,9 @@ public final class QuickLitematicaEntityMaterials {
                 entries.put(key, new MaterialListEntry(stack.copyWithCount(1), total, total, 0, 0));
             }
             var result = new ArrayList<>(entries.values());
-            if (client.player != null) { MaterialListUtils.updateAvailableCounts(result, client.player); }
+            if (client.player != null) {
+                MaterialListUtils.updateAvailableCounts(result, client.player);
+            }
             this.setMaterialListEntries(result);
         }
     }

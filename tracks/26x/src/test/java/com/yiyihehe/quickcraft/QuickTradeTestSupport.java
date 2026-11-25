@@ -20,8 +20,7 @@ import static org.mockito.Mockito.when;
 
 /** 26.x 测试用的小型状态夹具：只读写 QuickTrade 的私有状态，不替代生产判断。 */
 final class QuickTradeTestSupport {
-    private QuickTradeTestSupport() {
-    }
+    private QuickTradeTestSupport() {}
 
     static void resetState() {
         QuickTrade.clearPersistentState();
@@ -65,8 +64,7 @@ final class QuickTradeTestSupport {
     }
 
     static void setScreen(Minecraft client, Screen screen) throws Exception {
-        Gui gui = mock(Gui.class, invocation ->
-                "screen".equals(invocation.getMethod().getName()) ? screen : null);
+        Gui gui = mock(Gui.class, invocation -> "screen".equals(invocation.getMethod().getName()) ? screen : null);
         setField(client, "gui", gui);
         QuickClientScreenAccess.setScreen(client, screen);
         try {
@@ -105,11 +103,8 @@ final class QuickTradeTestSupport {
     }
 
     private static String encode(ItemStack stack, net.minecraft.core.HolderLookup.Provider lookup) {
-        return ItemStack.OPTIONAL_CODEC
-                .encodeStart(lookup.createSerializationContext(NbtOps.INSTANCE), stack)
-                .result()
-                .map(Object::toString)
-                .orElse("{}");
+        return ItemStack.OPTIONAL_CODEC.encodeStart(lookup.createSerializationContext(NbtOps.INSTANCE), stack).result()
+                .map(Object::toString).orElse("{}");
     }
 
     private static void setStatic(String name, Object value) throws Exception {
@@ -122,8 +117,7 @@ final class QuickTradeTestSupport {
         for (Class<?> current = type; current != null; current = current.getSuperclass()) {
             try {
                 return current.getDeclaredField(name);
-            } catch (NoSuchFieldException ignored) {
-            }
+            } catch (NoSuchFieldException ignored) {}
         }
         throw new NoSuchFieldException(name);
     }

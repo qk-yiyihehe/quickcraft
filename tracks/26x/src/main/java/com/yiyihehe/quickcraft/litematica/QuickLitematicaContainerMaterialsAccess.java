@@ -17,8 +17,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 final class QuickLitematicaContainerMaterialsAccess {
-    private QuickLitematicaContainerMaterialsAccess() {
-    }
+    private QuickLitematicaContainerMaterialsAccess() {}
 
     static QuickLitematicaContainerMaterials.ItemKey createItemKey(ItemStack stack) {
         return new NativeItemKey(stack);
@@ -60,9 +59,7 @@ final class QuickLitematicaContainerMaterialsAccess {
     }
 
     static ItemStack decodeCurrentItem(HolderLookup.Provider registryLookup, CompoundTag nbt) {
-        return ItemStack.OPTIONAL_CODEC
-                .parse(registryLookup.createSerializationContext(NbtOps.INSTANCE), nbt)
-                .result()
+        return ItemStack.OPTIONAL_CODEC.parse(registryLookup.createSerializationContext(NbtOps.INSTANCE), nbt).result()
                 .orElse(ItemStack.EMPTY);
     }
 
@@ -107,25 +104,50 @@ final class QuickLitematicaContainerMaterialsAccess {
     static Path schematicPath(LitematicaSchematic schematic) {
         return schematic.getFile() == null ? null : schematic.getFile();
     }
+
     static LitematicaSchematic copySchematic(LitematicaSchematic schematic) {
         Path path = schematicPath(schematic);
         return QuickLitematicaDataCompat.copySchematic(schematic, path == null ? Path.of("memory.litematic") : path);
     }
-    static byte readByte(CompoundTag nbt, String key) { return nbt.getByteOr(key, (byte) 0); }
+
+    static byte readByte(CompoundTag nbt, String key) {
+        return nbt.getByteOr(key, (byte) 0);
+    }
+
     static CompoundTag parseNbt(String value) throws com.mojang.brigadier.exceptions.CommandSyntaxException {
         return net.minecraft.nbt.TagParser.parseCompoundFully(value);
     }
+
     static void setBlockEntities(LitematicaSchematic schematic, String region, Map<BlockPos, CompoundTag> values) {
         QuickLitematicaDataCompat.setBlockEntities(schematic, region, values);
     }
+
     static void setEntityNbt(java.util.List<EntityInfo> entities, int index, CompoundTag nbt) {
         entities.set(index, QuickLitematicaDataCompat.withEntityNbt(entities.get(index), nbt));
     }
-    static CompoundTag blockEntityNbt(net.minecraft.world.level.block.entity.BlockEntity entity, HolderLookup.Provider lookup) {
+
+    static CompoundTag blockEntityNbt(
+            net.minecraft.world.level.block.entity.BlockEntity entity,
+            HolderLookup.Provider lookup
+    ) {
         return entity.saveWithFullMetadata(lookup);
     }
-    static void readBlockEntity(net.minecraft.world.level.block.entity.BlockEntity entity, CompoundTag nbt, HolderLookup.Provider lookup) {
-        entity.loadWithComponents(net.minecraft.world.level.storage.TagValueInput.create(net.minecraft.util.ProblemReporter.DISCARDING, lookup, nbt));
+
+    static void readBlockEntity(
+            net.minecraft.world.level.block.entity.BlockEntity entity,
+            CompoundTag nbt,
+            HolderLookup.Provider lookup
+    ) {
+        entity.loadWithComponents(
+                net.minecraft.world.level.storage.TagValueInput.create(
+                        net.minecraft.util.ProblemReporter.DISCARDING,
+                        lookup,
+                        nbt
+                )
+        );
     }
-    static Vec3 entityPosition(net.minecraft.world.entity.Entity entity) { return entity.position(); }
+
+    static Vec3 entityPosition(net.minecraft.world.entity.Entity entity) {
+        return entity.position();
+    }
 }

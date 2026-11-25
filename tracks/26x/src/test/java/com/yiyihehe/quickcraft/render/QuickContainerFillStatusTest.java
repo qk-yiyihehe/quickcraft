@@ -35,7 +35,8 @@ class QuickContainerFillStatusTest {
     private static final BlockPos LEFT = new BlockPos(0, 64, 0);
     private static final BlockPos RIGHT = new BlockPos(1, 64, 0);
 
-    private final boolean previous = QuickCraftConfigs.ContainerTools.SHOW_CONTAINER_FILL_STATUS_OUTLINES.getBooleanValue();
+    private final boolean previous = QuickCraftConfigs.ContainerTools.SHOW_CONTAINER_FILL_STATUS_OUTLINES
+            .getBooleanValue();
 
     @AfterEach
     void restoreConfig() {
@@ -47,8 +48,12 @@ class QuickContainerFillStatusTest {
     void barrelOutlineExpandsOnlyAfterSixRowMenuAndIsSharedByBothHalves() {
         enableStatus();
         ClientLevel world = mock(ClientLevel.class);
-        when(world.getBlockState(LEFT)).thenReturn(Blocks.BARREL.defaultBlockState().setValue(BarrelBlock.FACING, Direction.WEST));
-        when(world.getBlockState(RIGHT)).thenReturn(Blocks.BARREL.defaultBlockState().setValue(BarrelBlock.FACING, Direction.EAST));
+        when(world.getBlockState(LEFT)).thenReturn(
+                Blocks.BARREL.defaultBlockState().setValue(BarrelBlock.FACING, Direction.WEST)
+        );
+        when(world.getBlockState(RIGHT)).thenReturn(
+                Blocks.BARREL.defaultBlockState().setValue(BarrelBlock.FACING, Direction.EAST)
+        );
         Minecraft client = client(world);
         var handler = mock(ChestMenu.class);
         var handle = QuickContainerFillStatus.begin(client, hit(RIGHT));
@@ -61,13 +66,15 @@ class QuickContainerFillStatusTest {
         when(handler.getRowCount()).thenReturn(6);
         QuickContainerFillStatus.confirmLargeBarrel(client, handle, handler);
         QuickContainerFillStatus.finish(client, handle, 0);
-        assertThat(QuickContainerFillStatus.MARKERS.keySet())
-                .extracting(target -> target.box(world))
-                .containsExactly(new AABB(0, 64, 0, 2, 65, 1));
-        assertThat(QuickContainerFillStatus.markerAt(world, hit(LEFT)))
-                .isSameAs(QuickContainerFillStatus.markerAt(world, hit(RIGHT)));
-        assertThat(QuickContainerFillStatus.markerAt(world, hit(LEFT)).status)
-                .isEqualTo(QuickContainerFillStatus.Status.COMPLETE);
+        assertThat(QuickContainerFillStatus.MARKERS.keySet()).extracting(target -> target.box(world)).containsExactly(
+                new AABB(0, 64, 0, 2, 65, 1)
+        );
+        assertThat(QuickContainerFillStatus.markerAt(world, hit(LEFT))).isSameAs(
+                QuickContainerFillStatus.markerAt(world, hit(RIGHT))
+        );
+        assertThat(QuickContainerFillStatus.markerAt(world, hit(LEFT)).status).isEqualTo(
+                QuickContainerFillStatus.Status.COMPLETE
+        );
     }
 
     @Test
@@ -84,7 +91,9 @@ class QuickContainerFillStatusTest {
 
         QuickContainerFillStatus.stop(client, handle, true);
 
-        assertThat(QuickContainerFillStatus.MARKERS.get(target).status).isEqualTo(QuickContainerFillStatus.Status.FAILED);
+        assertThat(QuickContainerFillStatus.MARKERS.get(target).status).isEqualTo(
+                QuickContainerFillStatus.Status.FAILED
+        );
     }
 
     @Test
@@ -96,12 +105,14 @@ class QuickContainerFillStatusTest {
         QuickContainerFillStatus.Handle second = QuickContainerFillStatus.begin(client, hit);
 
         QuickContainerFillStatus.finish(client, first, 0);
-        assertThat(QuickContainerFillStatus.MARKERS.get(target(client.level, hit)).status)
-                .isEqualTo(QuickContainerFillStatus.Status.FILLING);
+        assertThat(QuickContainerFillStatus.MARKERS.get(target(client.level, hit)).status).isEqualTo(
+                QuickContainerFillStatus.Status.FILLING
+        );
 
         QuickContainerFillStatus.finish(client, second, 0);
-        assertThat(QuickContainerFillStatus.MARKERS.get(target(client.level, hit)).status)
-                .isEqualTo(QuickContainerFillStatus.Status.COMPLETE);
+        assertThat(QuickContainerFillStatus.MARKERS.get(target(client.level, hit)).status).isEqualTo(
+                QuickContainerFillStatus.Status.COMPLETE
+        );
     }
 
     @Test
@@ -140,10 +151,12 @@ class QuickContainerFillStatusTest {
             process.invoke(copy, client);
         }
 
-        assertThat(QuickContainerFillStatus.MARKERS.get(target(world, hit)).status)
-                .isEqualTo(QuickContainerFillStatus.Status.FAILED);
-        assertThat(QuickContainerFillStatus.MARKERS.get(target(world, hit)).status)
-                .isNotEqualTo(QuickContainerFillStatus.Status.FILLING);
+        assertThat(QuickContainerFillStatus.MARKERS.get(target(world, hit)).status).isEqualTo(
+                QuickContainerFillStatus.Status.FAILED
+        );
+        assertThat(QuickContainerFillStatus.MARKERS.get(target(world, hit)).status).isNotEqualTo(
+                QuickContainerFillStatus.Status.FILLING
+        );
     }
 
     @Test
@@ -160,13 +173,16 @@ class QuickContainerFillStatusTest {
         setField(autofill, "pendingTicks", 21);
         try (var screenAccess = mockScreenAccess(client)) {
             Method process = QuickLitematicaContainerAutofill.class.getDeclaredMethod(
-                    "processPendingOpen", Minecraft.class);
+                    "processPendingOpen",
+                    Minecraft.class
+            );
             process.setAccessible(true);
             process.invoke(autofill, client);
         }
 
-        assertThat(QuickContainerFillStatus.MARKERS.get(target(world, hit)).status)
-                .isEqualTo(QuickContainerFillStatus.Status.FAILED);
+        assertThat(QuickContainerFillStatus.MARKERS.get(target(world, hit)).status).isEqualTo(
+                QuickContainerFillStatus.Status.FAILED
+        );
     }
 
     @Test
@@ -180,8 +196,9 @@ class QuickContainerFillStatusTest {
         for (int i = 0; i < 40; i++) {
             tick.invoke(null, client);
         }
-        assertThat(QuickContainerFillStatus.MARKERS.get(target(client.level, hit)).status)
-                .isEqualTo(QuickContainerFillStatus.Status.FILLING);
+        assertThat(QuickContainerFillStatus.MARKERS.get(target(client.level, hit)).status).isEqualTo(
+                QuickContainerFillStatus.Status.FILLING
+        );
     }
 
     private static org.mockito.MockedStatic<QuickClientScreenAccess> mockScreenAccess(Minecraft client) {
@@ -202,12 +219,14 @@ class QuickContainerFillStatusTest {
     }
 
     private static ClientLevel pairWorld() {
-        BlockState left = Blocks.CHEST.defaultBlockState()
-                .setValue(ChestBlock.TYPE, ChestType.LEFT)
-                .setValue(ChestBlock.FACING, Direction.NORTH);
-        BlockState right = Blocks.CHEST.defaultBlockState()
-                .setValue(ChestBlock.TYPE, ChestType.RIGHT)
-                .setValue(ChestBlock.FACING, Direction.NORTH);
+        BlockState left = Blocks.CHEST.defaultBlockState().setValue(ChestBlock.TYPE, ChestType.LEFT).setValue(
+                ChestBlock.FACING,
+                Direction.NORTH
+        );
+        BlockState right = Blocks.CHEST.defaultBlockState().setValue(ChestBlock.TYPE, ChestType.RIGHT).setValue(
+                ChestBlock.FACING,
+                Direction.NORTH
+        );
         ClientLevel world = mock(ClientLevel.class);
         when(world.getBlockState(any(BlockPos.class))).thenAnswer(invocation -> {
             BlockPos pos = invocation.getArgument(0);
@@ -217,15 +236,19 @@ class QuickContainerFillStatusTest {
     }
 
     private static BlockHitResult hit(BlockPos pos) {
-        return new BlockHitResult(new Vec3(pos.getX() + 0.5, pos.getY() + 0.5, pos.getZ() + 0.5),
-                Direction.NORTH, pos, false);
+        return new BlockHitResult(
+                new Vec3(pos.getX() + 0.5, pos.getY() + 0.5, pos.getZ() + 0.5),
+                Direction.NORTH,
+                pos,
+                false
+        );
     }
 
     private static QuickContainerFillStatus.Target target(ClientLevel world, BlockHitResult hit) {
         return QuickContainerFillStatus.Target.from(world, hit);
     }
 
-    @SuppressWarnings({"rawtypes", "unchecked"})
+    @SuppressWarnings({ "rawtypes", "unchecked" })
     private static Object pendingAction(String name) throws Exception {
         Class<?> type = Class.forName("com.yiyihehe.quickcraft.QuickContainerCopy$PendingAction");
         return Enum.valueOf((Class<? extends Enum>) type, name);

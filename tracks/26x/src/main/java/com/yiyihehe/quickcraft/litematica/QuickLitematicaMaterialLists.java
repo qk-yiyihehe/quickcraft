@@ -20,8 +20,7 @@ import java.util.List;
  * Litematica 可选桥接：只在确认安装了 Litematica 后调用，避免主客户端入口硬加载投影类。
  */
 public final class QuickLitematicaMaterialLists {
-    private QuickLitematicaMaterialLists() {
-    }
+    private QuickLitematicaMaterialLists() {}
 
     public static List<QuickMaterialCollector.MaterialRequest> getVisibleMaterialRequests(Player player) {
         List<QuickMaterialCollector.MaterialRequest> requests = new ArrayList<>();
@@ -42,9 +41,11 @@ public final class QuickLitematicaMaterialLists {
         return QuickLitematicaVerifierPalette.wrongFillStateRgb();
     }
 
-    private static void addRequests(MaterialListBase materialList,
-                                    Player player,
-                                    List<QuickMaterialCollector.MaterialRequest> requests) {
+    private static void addRequests(
+            MaterialListBase materialList,
+            Player player,
+            List<QuickMaterialCollector.MaterialRequest> requests
+    ) {
         if (!isHudVisible(materialList)) {
             return;
         }
@@ -72,13 +73,16 @@ public final class QuickLitematicaMaterialLists {
             return getReplacementContextKey(accessor.quickcraft$getPlacement()) + "#projection";
         }
         if (materialList instanceof LitematicaMaterialListSchematicAccessor accessor) {
-            return getSessionSchematicContext(accessor.quickcraft$getSchematic(), accessor.quickcraft$getRegions()) + "#projection";
+            return getSessionSchematicContext(accessor.quickcraft$getSchematic(), accessor.quickcraft$getRegions())
+                    + "#projection";
         }
         return "";
     }
 
     static String getSessionSchematicContext(LitematicaSchematic schematic, Collection<?> regions) {
-        return getReplacementContextKey(schematic, regions) + "#instance=" + Integer.toHexString(System.identityHashCode(schematic));
+        return getReplacementContextKey(schematic, regions) + "#instance=" + Integer.toHexString(
+                System.identityHashCode(schematic)
+        );
     }
 
     public static String getReplacementContextKey(MaterialListBase materialList) {
@@ -115,10 +119,10 @@ public final class QuickLitematicaMaterialLists {
         }
 
         Path file = QuickLitematicaContainerMaterialsAccess.schematicPath(schematic);
-        String identity = file != null
-                ? file.toAbsolutePath().toString()
-                : schematic.getMetadata().getName()
-                + "#instance=" + Integer.toHexString(System.identityHashCode(schematic));
+        String identity = file != null ? file.toAbsolutePath().toString()
+                : schematic.getMetadata().getName() + "#instance=" + Integer.toHexString(
+                        System.identityHashCode(schematic)
+                );
         List<String> regionNames = new ArrayList<>();
         if (regions != null) {
             for (Object region : regions) {

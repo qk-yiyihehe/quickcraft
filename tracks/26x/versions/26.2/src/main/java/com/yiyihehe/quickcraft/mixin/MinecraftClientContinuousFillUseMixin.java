@@ -18,8 +18,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 public abstract class MinecraftClientContinuousFillUseMixin {
     @Inject(method = "startUseItem", at = @At("HEAD"), cancellable = true)
     private void quickcraft$suppressContinuousFillUse(CallbackInfo ci) {
-        if (QuickContainerCopy.shouldSuppressContinuousFillUseInput()
-                || QuickMaterialCollector.shouldSuppressUseInput()
+        if (QuickContainerCopy.shouldSuppressContinuousFillUseInput() || QuickMaterialCollector.shouldSuppressUseInput()
                 || QuickPortableStorageTransfer.blocksItemUse()) {
             ci.cancel();
         } else {

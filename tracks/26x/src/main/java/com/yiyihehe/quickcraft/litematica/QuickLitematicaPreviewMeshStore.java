@@ -52,25 +52,33 @@ final class QuickLitematicaPreviewMeshStore implements AutoCloseable {
     }
 
     private static void checkCancelled(AtomicBoolean cancelled) {
-        if (cancelled.get() || Thread.currentThread().isInterrupted()) throw new CancellationException();
+        if (cancelled.get() || Thread.currentThread().isInterrupted()) {
+            throw new CancellationException();
+        }
     }
 
     synchronized LayerMesh store(LayerMesh mesh) {
-        if (mesh.store() != null) return mesh;
+        if (mesh.store() != null) {
+            return mesh;
+        }
         try (var phase = QuickLitematicaPreviewLog.phase("CPU顶点暂存写入")) {
-            if (this.ownerClosed) throw new CancellationException();
+            if (this.ownerClosed) {
+                throw new CancellationException();
+            }
             if (this.channel == null) {
                 this.path = Files.createTempFile(this.directory, "quickcraft-preview-mesh-", ".tmp");
                 // Windows 用句柄标记删除；Unix 的 DELETE_ON_CLOSE 会立即 unlink 路径，独立读取通道无法重开。
-                OpenOption[] options = DELETE_ON_CLOSE
-                        ? new OpenOption[]{StandardOpenOption.READ, StandardOpenOption.WRITE, StandardOpenOption.DELETE_ON_CLOSE}
-                        : new OpenOption[]{StandardOpenOption.READ, StandardOpenOption.WRITE};
+                OpenOption[] options = DELETE_ON_CLOSE ? new OpenOption[] { StandardOpenOption.READ,
+                        StandardOpenOption.WRITE, StandardOpenOption.DELETE_ON_CLOSE }
+                        : new OpenOption[] { StandardOpenOption.READ, StandardOpenOption.WRITE };
                 this.channel = FileChannel.open(this.path, options);
                 QuickLitematicaPreviewLog.LOGGER.info("CPU 顶点暂存启用：文件={}，驻留阈值={} B", this.path, MEMORY_BYTES);
             }
             long offset = this.position;
             ByteBuffer bytes = ByteBuffer.wrap(mesh.quantizedVertices());
-            while (bytes.hasRemaining()) this.position += this.channel.write(bytes, this.position);
+            while (bytes.hasRemaining()) {
+                this.position += this.channel.write(bytes, this.position);
+            }
             return new LayerMesh(mesh.layer(), null, this, offset, mesh.quantizedByteCount());
         } catch (IOException failure) {
             throw new UncheckedIOException("Unable to spill preview vertices", failure);
@@ -92,7 +100,9 @@ final class QuickLitematicaPreviewMeshStore implements AutoCloseable {
                 ByteBuffer target = ByteBuffer.wrap(bytes);
                 while (target.hasRemaining()) {
                     int count = input.read(target, offset + target.position());
-                    if (count < 0) throw new IOException("Truncated preview mesh store");
+                    if (count < 0) {
+                        throw new IOException("Truncated preview mesh store");
+                    }
                 }
                 return bytes;
             }
@@ -102,13 +112,17 @@ final class QuickLitematicaPreviewMeshStore implements AutoCloseable {
     }
 
     synchronized void retainForCache() {
-        if (this.ownerClosed) throw new CancellationException();
+        if (this.ownerClosed) {
+            throw new CancellationException();
+        }
         this.references++;
     }
 
     synchronized boolean retainForRead() {
         // 预览已关闭时，正在保存的缓存仍可向新读取者交接暂存文件。
-        if (this.references == 0) return false;
+        if (this.references == 0) {
+            return false;
+        }
         this.references++;
         return true;
     }
@@ -118,9 +132,13 @@ final class QuickLitematicaPreviewMeshStore implements AutoCloseable {
     }
 
     private void release() {
-        if (--this.references != 0) return;
+        if (--this.references != 0) {
+            return;
+        }
         try {
-            if (this.channel != null) this.channel.close();
+            if (this.channel != null) {
+                this.channel.close();
+            }
         } catch (IOException failure) {
             QuickLitematicaPreviewLog.LOGGER.warn("预览顶点暂存关闭失败：文件={}", this.path, failure);
         } finally {
@@ -128,8 +146,7 @@ final class QuickLitematicaPreviewMeshStore implements AutoCloseable {
                 try {
                     Files.deleteIfExists(this.path);
                     QuickLitematicaPreviewLog.LOGGER.info("CPU 顶点暂存清理完成：文件={}，累计={} B", this.path, this.position);
-                }
-                catch (IOException failure) {
+                } catch (IOException failure) {
                     QuickLitematicaPreviewLog.LOGGER.warn("预览顶点暂存清理失败：文件={}", this.path, failure);
                 }
             }
@@ -138,7 +155,9 @@ final class QuickLitematicaPreviewMeshStore implements AutoCloseable {
 
     @Override
     public synchronized void close() {
-        if (this.ownerClosed) return;
+        if (this.ownerClosed) {
+            return;
+        }
         this.ownerClosed = true;
         this.release();
     }

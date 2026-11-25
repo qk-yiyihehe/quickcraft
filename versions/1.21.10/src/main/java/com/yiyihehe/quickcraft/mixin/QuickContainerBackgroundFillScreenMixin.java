@@ -22,46 +22,58 @@ import org.lwjgl.glfw.GLFW;
 @Mixin(HandledScreen.class)
 public abstract class QuickContainerBackgroundFillScreenMixin {
     @Inject(method = "render", at = @At("HEAD"), cancellable = true)
-    private void quickcraft$hideBackgroundFillScreen(DrawContext context, int mouseX, int mouseY, float delta, CallbackInfo ci) {
-        if (QuickContainerCopy.shouldHideBackgroundHandledScreen()
-                || QuickMaterialCollector.shouldHideBackgroundHandledScreen()) {
+    private void quickcraft$hideBackgroundFillScreen(
+            DrawContext context,
+            int mouseX,
+            int mouseY,
+            float delta,
+            CallbackInfo ci
+    ) {
+        if (QuickContainerCopy.shouldHideBackgroundHandledScreen() || QuickMaterialCollector
+                .shouldHideBackgroundHandledScreen()) {
             ci.cancel();
         }
     }
 
     @Inject(method = "mouseClicked", at = @At("HEAD"), cancellable = true)
-    private void quickcraft$blockWorkbenchRefillClick(Click click, boolean doubled,
-                                                      CallbackInfoReturnable<Boolean> cir) {
-        if (QuickCrossBoxSort.blocksInventoryInput((HandledScreen<?>) (Object) this)
-                || QuickCraftWorkbenchShulker.shouldBlockWorkbenchInput()) {
+    private void quickcraft$blockWorkbenchRefillClick(
+            Click click,
+            boolean doubled,
+            CallbackInfoReturnable<Boolean> cir
+    ) {
+        if (QuickCrossBoxSort.blocksInventoryInput((HandledScreen<?>) (Object) this) || QuickCraftWorkbenchShulker
+                .shouldBlockWorkbenchInput()) {
             cir.setReturnValue(true);
         }
     }
 
     @Inject(method = "mouseReleased", at = @At("HEAD"), cancellable = true)
-    private void quickcraft$blockWorkbenchRefillRelease(Click click,
-                                                        CallbackInfoReturnable<Boolean> cir) {
-        if (QuickCrossBoxSort.blocksInventoryInput((HandledScreen<?>) (Object) this)
-                || QuickCraftWorkbenchShulker.shouldBlockWorkbenchInput()) {
+    private void quickcraft$blockWorkbenchRefillRelease(Click click, CallbackInfoReturnable<Boolean> cir) {
+        if (QuickCrossBoxSort.blocksInventoryInput((HandledScreen<?>) (Object) this) || QuickCraftWorkbenchShulker
+                .shouldBlockWorkbenchInput()) {
             cir.setReturnValue(true);
         }
     }
 
     @Inject(method = "mouseDragged", at = @At("HEAD"), cancellable = true)
-    private void quickcraft$blockWorkbenchRefillDrag(Click click,
-                                                     double deltaX,
-                                                     double deltaY,
-                                                     CallbackInfoReturnable<Boolean> cir) {
-        if (QuickCrossBoxSort.blocksInventoryInput((HandledScreen<?>) (Object) this)
-                || QuickCraftWorkbenchShulker.shouldBlockWorkbenchInput()) {
+    private void quickcraft$blockWorkbenchRefillDrag(
+            Click click,
+            double deltaX,
+            double deltaY,
+            CallbackInfoReturnable<Boolean> cir
+    ) {
+        if (QuickCrossBoxSort.blocksInventoryInput((HandledScreen<?>) (Object) this) || QuickCraftWorkbenchShulker
+                .shouldBlockWorkbenchInput()) {
             cir.setReturnValue(true);
         }
     }
 
     @Inject(method = "keyPressed", at = @At("HEAD"), cancellable = true)
-    private void quickcraft$blockWorkbenchRefillKey(KeyInput input,
-                                                    CallbackInfoReturnable<Boolean> cir) {
-        if (QuickCrossBoxSort.consumeInventoryKey((HandledScreen<?>) (Object) this, input.key() == GLFW.GLFW_KEY_ESCAPE)) {
+    private void quickcraft$blockWorkbenchRefillKey(KeyInput input, CallbackInfoReturnable<Boolean> cir) {
+        if (QuickCrossBoxSort.consumeInventoryKey(
+                (HandledScreen<?>) (Object) this,
+                input.key() == GLFW.GLFW_KEY_ESCAPE
+        )) {
             cir.setReturnValue(true);
             return;
         }

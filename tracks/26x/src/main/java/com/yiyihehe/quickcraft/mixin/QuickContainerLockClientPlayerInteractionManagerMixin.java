@@ -22,27 +22,27 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
  */
 @Mixin(MultiPlayerGameMode.class)
 public class QuickContainerLockClientPlayerInteractionManagerMixin {
-    @Inject(method = {"handlePlaceRecipe", "handleInventoryButtonClick"}, at = @At("HEAD"))
+    @Inject(method = { "handlePlaceRecipe", "handleInventoryButtonClick" }, at = @At("HEAD"))
     private void quickcraft$cancelResultTransferOnRecipeSelection(CallbackInfo ci) {
         QuickTransfer.cancelResultTransfer();
     }
 
     @Inject(method = "handleContainerInput", at = @At("HEAD"), cancellable = true)
-    private void quickcraft$blockLockedSlotClick(int syncId,
-                                                 int slotId,
-                                                 int button,
-                                                 ContainerInput actionType,
-                                                 Player player,
-                                                 CallbackInfo ci,
-                                                 @Share("manualSlotClick") LocalBooleanRef manualSlotClick) {
+    private void quickcraft$blockLockedSlotClick(
+            int syncId,
+            int slotId,
+            int button,
+            ContainerInput actionType,
+            Player player,
+            CallbackInfo ci,
+            @Share("manualSlotClick") LocalBooleanRef manualSlotClick
+    ) {
         QuickTransfer.cancelResultTransfer();
         if (QuickCrossBoxSortSessions.INSTANCE.blocksInventoryClicks()) {
             ci.cancel();
             return;
         }
-        if (player == null
-                || player.containerMenu == null
-                || player.containerMenu.containerId != syncId) {
+        if (player == null || player.containerMenu == null || player.containerMenu.containerId != syncId) {
             return;
         }
 
@@ -56,22 +56,35 @@ public class QuickContainerLockClientPlayerInteractionManagerMixin {
         }
     }
 
-    @WrapOperation(method = "handleContainerInput", at = @At(value = "INVOKE",
-            target = "Lnet/minecraft/world/inventory/AbstractContainerMenu;clicked(IILnet/minecraft/world/inventory/ContainerInput;Lnet/minecraft/world/entity/player/Player;)V"))
-    private void quickcraft$applySlotTakePermission(AbstractContainerMenu handler, int slotId, int button,
-                                                    ContainerInput actionType, Player player, Operation<Void> original,
-                                                    @Share("manualSlotClick") LocalBooleanRef manualSlotClick) {
-        QuickContainerLock.runWithSlotTakePermission(manualSlotClick.get(),
-                () -> original.call(handler, slotId, button, actionType, player));
+    @WrapOperation(
+            method = "handleContainerInput",
+            at = @At(
+                    value = "INVOKE",
+                    target = "Lnet/minecraft/world/inventory/AbstractContainerMenu;clicked(IILnet/minecraft/world/inventory/ContainerInput;Lnet/minecraft/world/entity/player/Player;)V"))
+    private void quickcraft$applySlotTakePermission(
+            AbstractContainerMenu handler,
+            int slotId,
+            int button,
+            ContainerInput actionType,
+            Player player,
+            Operation<Void> original,
+            @Share("manualSlotClick") LocalBooleanRef manualSlotClick
+    ) {
+        QuickContainerLock.runWithSlotTakePermission(
+                manualSlotClick.get(),
+                () -> original.call(handler, slotId, button, actionType, player)
+        );
     }
 
     @Inject(method = "handleContainerInput", at = @At("RETURN"))
-    private void quickcraft$clearLockedSlotClickContext(int syncId,
-                                                        int slotId,
-                                                        int button,
-                                                        ContainerInput actionType,
-                                                        Player player,
-                                                        CallbackInfo ci) {
+    private void quickcraft$clearLockedSlotClickContext(
+            int syncId,
+            int slotId,
+            int button,
+            ContainerInput actionType,
+            Player player,
+            CallbackInfo ci
+    ) {
         QuickContainerLock.endSlotClickContext();
     }
 }

@@ -1,4 +1,5 @@
 package com.yiyihehe.quickcraft.portablestorage;
+
 import com.yiyihehe.quickcraft.render.QuickCrossBoxSortStatus;
 
 import com.yiyihehe.quickcraft.QuickClientScreenAccess;
@@ -42,12 +43,26 @@ import java.util.Map;
 import java.util.function.Predicate;
 
 public final class QuickPortableStorageTransfer {
-    public enum Source { SHULKER, ENDER_CHEST, BUNDLE }
-    enum Mode { PREVIEW, ONE, STACK, TAKE_ALL, OFFHAND, STORE_ONE, STORE_STACK, STORE_CURSOR, RESTOCK }
+    public enum Source {
+        SHULKER, ENDER_CHEST, BUNDLE
+    }
 
-    record Entry(int carrier, int slot, ItemStack stack) {}
-    private record Request(Screen screen, Source source, Mode mode, ItemStack stack, int inventorySlot,
-                           ItemStack expectedTarget, int remainingStacks) {
+    enum Mode {
+        PREVIEW, ONE, STACK, TAKE_ALL, OFFHAND, STORE_ONE, STORE_STACK, STORE_CURSOR, RESTOCK
+    }
+
+    record Entry(int carrier, int slot, ItemStack stack) {
+    }
+
+    private record Request(
+            Screen screen,
+            Source source,
+            Mode mode,
+            ItemStack stack,
+            int inventorySlot,
+            ItemStack expectedTarget,
+            int remainingStacks
+    ) {
         Request withRemainingStacks(int count) {
             return new Request(screen, source, mode, stack, inventorySlot, expectedTarget, count);
         }
@@ -98,8 +113,8 @@ public final class QuickPortableStorageTransfer {
     }
 
     static boolean easyPlaceHasPriority(Minecraft client) {
-        return FabricLoader.getInstance().isModLoaded("litematica")
-                && QuickLitematicaShulkerMaterialRestock.takesPriorityOverHandRestock(client);
+        return FabricLoader.getInstance().isModLoaded("litematica") && QuickLitematicaShulkerMaterialRestock
+                .takesPriorityOverHandRestock(client);
     }
 
     static boolean inUse(Screen screen) {
@@ -181,8 +196,11 @@ public final class QuickPortableStorageTransfer {
         var menu = player.inventoryMenu;
         int selected = QuickShulkerRestockFallback.selectedSlot(player);
         for (Slot slot : menu.slots) {
-            if (QuickSlotTransfer.isPlayerStorageSlot(slot) && slot.getContainerSlot() != selected
-                    && slot.hasItem() && !locked(menu, slot) && slot.mayPickup(player)
+            if (QuickSlotTransfer.isPlayerStorageSlot(slot)
+                    && slot.getContainerSlot() != selected
+                    && slot.hasItem()
+                    && !locked(menu, slot)
+                    && slot.mayPickup(player)
                     && QuickShulkerRestockFallback.matches(template, slot.getItem())) {
                 return slot;
             }
@@ -190,8 +208,13 @@ public final class QuickPortableStorageTransfer {
         return null;
     }
 
-    static boolean restockFromInventory(LocalPlayer player, int targetSlot, ItemStack template,
-                                        ItemStack current, Slot source) {
+    static boolean restockFromInventory(
+            LocalPlayer player,
+            int targetSlot,
+            ItemStack template,
+            ItemStack current,
+            Slot source
+    ) {
         var menu = player.inventoryMenu;
         if (active != null || !requests.isEmpty() || otherTransferRunning() || !menu.getCarried().isEmpty()
                 || !validRestockTarget(player, targetSlot, current)) {
@@ -208,10 +231,19 @@ public final class QuickPortableStorageTransfer {
     static boolean restock(ItemStack template, int inventorySlot, ItemStack current) {
         if (QuickShulkerRestockFallback.enabled() && active == null && requests.isEmpty()) {
             var player = Minecraft.getInstance().player;
-            Request request = new Request(null, Source.SHULKER, Mode.RESTOCK, template.copyWithCount(1),
-                    inventorySlot, current.copy(), 0);
-            return player != null && !otherTransferRunning() && validRestock(player, request)
-                    && findEntry(player, request) != null && enqueue(request);
+            Request request = new Request(
+                    null,
+                    Source.SHULKER,
+                    Mode.RESTOCK,
+                    template.copyWithCount(1),
+                    inventorySlot,
+                    current.copy(),
+                    0
+            );
+            return player != null && !otherTransferRunning() && validRestock(player, request) && findEntry(
+                    player,
+                    request
+            ) != null && enqueue(request);
         }
         return false;
     }
@@ -224,8 +256,8 @@ public final class QuickPortableStorageTransfer {
         }
         bindOwner(client);
         if (request.mode == Mode.TAKE_ALL) {
-            // Each successful stack move consumes one source entry unless the inventory fills.
-            // Bound retries against a server that repeatedly restores the same contents.
+            // 物品栏还有空间时，每成功移动一组物品就会消耗一条来源记录。
+            // 限制重试次数，防止服务端反复恢复相同的内容而导致循环。
             int matchingStacks = 0;
             for (Entry entry : entries(owner, request.source)) {
                 if (ItemStack.isSameItemSameComponents(entry.stack, request.stack)) {
@@ -262,8 +294,12 @@ public final class QuickPortableStorageTransfer {
 
         Screen screen = QuickClientScreenAccess.currentScreen(client);
         ++tickNumber;
-        if (recentContents.entrySet().removeIf(entry -> tickNumber >= entry.getValue().deadline
-                || !same(owner.getInventory().getItem(entry.getKey()), entry.getValue().before))) {
+        if (recentContents.entrySet().removeIf(
+                entry -> tickNumber >= entry.getValue().deadline || !same(
+                        owner.getInventory().getItem(entry.getKey()),
+                        entry.getValue().before
+                )
+        )) {
             storageRevision++;
         }
         requests.removeIf(request -> !validRequest(client, request, screen));
@@ -284,19 +320,17 @@ public final class QuickPortableStorageTransfer {
     }
 
     private static boolean validRequest(Minecraft client, Request request, Screen current) {
-        return enabledFor(request) && request.screen == current
-                && (request.mode != Mode.RESTOCK || !easyPlaceHasPriority(client) && validRestock(owner, request))
+        return enabledFor(request) && request.screen == current && (request.mode != Mode.RESTOCK
+                || !easyPlaceHasPriority(client) && validRestock(owner, request))
                 && (!(current instanceof InventoryScreen inventory) || QuickPortableStoragePanel.isVisible(inventory));
     }
 
     private static boolean otherTransferRunning() {
-        return QuickCrossBoxSort.isRunning() || QuickStashShulkerTransfer.isRunning()
-                || QuickInventoryShulkerTools.isOpening()
-                || QuickContainerCopy.shouldHideBackgroundHandledScreen()
-                || QuickMaterialCollector.shouldHideBackgroundHandledScreen()
-                || QuickCraftWorkbenchShulker.shouldBlockWorkbenchInput()
-                || (FabricLoader.getInstance().isModLoaded("litematica")
-                && QuickLitematicaShulkerMaterialRestock.isRestockInProgress());
+        return QuickCrossBoxSort.isRunning() || QuickStashShulkerTransfer.isRunning() || QuickInventoryShulkerTools
+                .isOpening() || QuickContainerCopy.shouldHideBackgroundHandledScreen() || QuickMaterialCollector
+                        .shouldHideBackgroundHandledScreen() || QuickCraftWorkbenchShulker.shouldBlockWorkbenchInput()
+                || (FabricLoader.getInstance().isModLoaded("litematica") && QuickLitematicaShulkerMaterialRestock
+                        .isRestockInProgress());
     }
 
     private static void start(Minecraft client, Request request) {
@@ -322,7 +356,12 @@ public final class QuickPortableStorageTransfer {
             return;
         }
         if (request.source == Source.BUNDLE) {
-            boolean moreBundles = QuickPortableStorageBundles.transfer(client, request.mode, request.stack, request.inventorySlot);
+            boolean moreBundles = QuickPortableStorageBundles.transfer(
+                    client,
+                    request.mode,
+                    request.stack,
+                    request.inventorySlot
+            );
             if (moreBundles && canContinueTakingAll(menu, request)) {
                 requests.addFirst(request.withRemainingStacks(request.remainingStacks - 1));
             }
@@ -365,7 +404,7 @@ public final class QuickPortableStorageTransfer {
         }
     }
 
-    /** Invoked by the shared setScreen interception before any hidden screen is initialized. */
+    /** 由共用的 setScreen 拦截在隐藏界面初始化之前调用。 */
     public static boolean consumeScreen(Screen next) {
         Session session = active;
         if (session == null) {
@@ -407,7 +446,7 @@ public final class QuickPortableStorageTransfer {
     private static void tickSession(Minecraft client, Screen screen) {
         Session session = active;
         if (!validRequest(client, session.request, screen) || !owner.isAlive()) {
-            // Keep a sent open owned until its response arrives or times out.
+            // 已发送的打开请求由当前操作继续接管，直到收到响应或超时。
             session.cancelled = true;
         }
         AbstractContainerMenu menu = session.opened == null ? null : session.opened.getMenu();
@@ -416,7 +455,7 @@ public final class QuickPortableStorageTransfer {
         } else if (menu != null && session.cancelled) {
             finish(client, session, null);
         } else if (menu != null && QuickCrossBoxSortSync.contentAdvancedFor(session.revision, menu.containerId)) {
-            // Let the full client packet batch finish before reading the carrier and sending menu clicks.
+            // 等这一整批客户端数据包处理完毕，再读取载体并发送菜单点击。
             if (session.ready) {
                 continueBatch(client, session, menu);
             } else {
@@ -476,9 +515,10 @@ public final class QuickPortableStorageTransfer {
                 }
                 return;
             }
-            if (next.source != session.request.source || !isBatchable(next)
-                    || (isStore(next.mode) ? selectCarrier(next, owner.inventoryMenu) != session.carrier
-                    : findLiveSource(menu, next) == null)) {
+            if (next.source != session.request.source || !isBatchable(next) || (isStore(next.mode) ? selectCarrier(
+                    next,
+                    owner.inventoryMenu
+            ) != session.carrier : findLiveSource(menu, next) == null)) {
                 finish(client, session, null);
                 return;
             }
@@ -489,7 +529,12 @@ public final class QuickPortableStorageTransfer {
         }
     }
 
-    private static boolean applyRequest(Minecraft client, Session session, AbstractContainerMenu menu, Request request) {
+    private static boolean applyRequest(
+            Minecraft client,
+            Session session,
+            AbstractContainerMenu menu,
+            Request request
+    ) {
         if (request.source == Source.ENDER_CHEST && QuickContainerLock.isEnderChestLocked()) {
             finish(client, session, "locked_slot");
             return false;
@@ -506,16 +551,21 @@ public final class QuickPortableStorageTransfer {
             return false;
         }
         session.lastActionTick = tickNumber;
-        if (canContinueTakingAll(menu, request)
-                && (findLiveSource(menu, request) != null || findEntry(owner, request) != null)) {
+        if (canContinueTakingAll(menu, request) && (findLiveSource(menu, request) != null || findEntry(
+                owner,
+                request
+        ) != null)) {
             requests.addFirst(request.withRemainingStacks(request.remainingStacks - 1));
         }
         return true;
     }
 
     private static boolean canContinueTakingAll(AbstractContainerMenu menu, Request request) {
-        return request.mode == Mode.TAKE_ALL && request.remainingStacks > 1
-                && findPlayerSlot(menu, request.stack, slot -> true) != null;
+        return request.mode == Mode.TAKE_ALL && request.remainingStacks > 1 && findPlayerSlot(
+                menu,
+                request.stack,
+                slot -> true
+        ) != null;
     }
 
     private static Slot findLiveSource(AbstractContainerMenu menu, Request request) {
@@ -539,7 +589,7 @@ public final class QuickPortableStorageTransfer {
         if (source != Source.SHULKER || !carrierMatches(actual, source)) {
             return false;
         }
-        // The server can update the box component during transfer; slot and outer item still identify the carrier.
+        // 转移过程中服务端可能更新盒子的组件数据，此时仍可通过槽位和外层物品识别载体。
         ItemStack actualBox = actual.copy();
         ItemStack expectedBox = expected.copy();
         actualBox.remove(DataComponents.CONTAINER);
@@ -590,7 +640,13 @@ public final class QuickPortableStorageTransfer {
         return entry == null ? -1 : entry.carrier;
     }
 
-    private static boolean move(Minecraft client, AbstractContainerMenu menu, Session session, Request request, Slot source) {
+    private static boolean move(
+            Minecraft client,
+            AbstractContainerMenu menu,
+            Session session,
+            Request request,
+            Slot source
+    ) {
         if (isStore(request.mode)) {
             int origin = request.mode == Mode.STORE_CURSOR ? session.staging : request.inventorySlot;
             Slot from = inventorySlot(menu, origin);
@@ -602,8 +658,14 @@ public final class QuickPortableStorageTransfer {
                 Slot target = findContainerSlot(menu, request.stack);
                 return target != null && QuickSlotTransfer.moveAmount(client, menu, from, target, 1) > 0;
             }
-            QuickSlotTransfer.quickMove(client, menu, from.index, slot -> slot.index < STORAGE_SLOTS, false,
-                    slot -> locked(menu, slot));
+            QuickSlotTransfer.quickMove(
+                    client,
+                    menu,
+                    from.index,
+                    slot -> slot.index < STORAGE_SLOTS,
+                    false,
+                    slot -> locked(menu, slot)
+            );
             return from.getItem().getCount() < before;
         }
 
@@ -611,8 +673,14 @@ public final class QuickPortableStorageTransfer {
         return switch (request.mode) {
             case STACK, TAKE_ALL -> {
                 int before = from.getItem().getCount();
-                QuickSlotTransfer.quickMove(client, menu, from.index, QuickSlotTransfer::isPlayerStorageSlot, true,
-                        slot -> locked(menu, slot));
+                QuickSlotTransfer.quickMove(
+                        client,
+                        menu,
+                        from.index,
+                        QuickSlotTransfer::isPlayerStorageSlot,
+                        true,
+                        slot -> locked(menu, slot)
+                );
                 yield from.getItem().getCount() < before;
             }
             case ONE -> {
@@ -655,8 +723,13 @@ public final class QuickPortableStorageTransfer {
         Slot remainderDestination = null;
         if (QuickShulkerRestockFallback.isRemainder(request.stack, request.expectedTarget)) {
             remainderDestination = findPlayerSlot(menu, target.getItem(), slot -> slot != target);
-            if (remainderDestination == null || !menu.getCarried().isEmpty()
-                    || QuickSlotTransfer.moveAmount(client, menu, target, remainderDestination, 1) != 1) {
+            if (remainderDestination == null || !menu.getCarried().isEmpty() || QuickSlotTransfer.moveAmount(
+                    client,
+                    menu,
+                    target,
+                    remainderDestination,
+                    1
+            ) != 1) {
                 return false;
             }
         }
@@ -669,26 +742,42 @@ public final class QuickPortableStorageTransfer {
         return false;
     }
 
-    private static boolean replaceRemainder(Minecraft client, AbstractContainerMenu menu, Slot source,
-                                            int targetSlot, ItemStack remainder) {
+    private static boolean replaceRemainder(
+            Minecraft client,
+            AbstractContainerMenu menu,
+            Slot source,
+            int targetSlot,
+            ItemStack remainder
+    ) {
         boolean sourceInInventory = QuickSlotTransfer.isPlayerStorageSlot(source);
-        Slot destination = findPlayerSlot(menu, remainder, slot -> slot != source && slot.getContainerSlot() != targetSlot
-                && (!sourceInInventory || slot.hasItem()));
-        if ((!sourceInInventory && destination == null) || !source.mayPlace(remainder)
-                || remainder.getCount() > source.getMaxStackSize(remainder)) {
+        Slot destination = findPlayerSlot(
+                menu,
+                remainder,
+                slot -> slot != source && slot.getContainerSlot() != targetSlot && (!sourceInInventory || slot
+                        .hasItem())
+        );
+        if ((!sourceInInventory && destination == null) || !source.mayPlace(remainder) || remainder.getCount() > source
+                .getMaxStackSize(remainder)) {
             return false;
         }
         ItemStack replacement = source.getItem().copy();
         swapWithPlayerSlot(client, menu, source, targetSlot);
-        if (!same(client.player.getInventory().getItem(targetSlot), replacement)
-                || !same(source.getItem(), remainder)) {
+        if (!same(client.player.getInventory().getItem(targetSlot), replacement) || !same(
+                source.getItem(),
+                remainder
+        )) {
             return false;
         }
-        if (destination != null
-                && QuickSlotTransfer.moveAmount(client, menu, source, destination, remainder.getCount()) > 0) {
+        if (destination != null && QuickSlotTransfer.moveAmount(
+                client,
+                menu,
+                source,
+                destination,
+                remainder.getCount()
+        ) > 0) {
             return true;
         }
-        // A backpack source already holds the remainder safely. A shulker source is only a temporary slot.
+        // 背包来源能妥善保留余量，潜影盒来源只借用了一个临时槽位。
         if (sourceInInventory) {
             return true;
         }
@@ -699,22 +788,27 @@ public final class QuickPortableStorageTransfer {
     }
 
     private static boolean validRestock(LocalPlayer player, Request request) {
-        return validRestockTarget(player, request.inventorySlot, request.expectedTarget)
-                && findInventoryRestockSource(player, request.stack) == null;
+        return validRestockTarget(player, request.inventorySlot, request.expectedTarget) && findInventoryRestockSource(
+                player,
+                request.stack
+        ) == null;
     }
 
     private static boolean validRestockTarget(LocalPlayer player, int slot, ItemStack expected) {
-        return (slot == Inventory.SLOT_OFFHAND || slot == QuickShulkerRestockFallback.selectedSlot(player))
-                && same(player.getInventory().getItem(slot), expected)
-                && !QuickContainerLock.isPlayerInventoryLocked()
-                && !locked(player.inventoryMenu, inventorySlot(player.inventoryMenu, slot));
+        return (slot == Inventory.SLOT_OFFHAND || slot == QuickShulkerRestockFallback.selectedSlot(player)) && same(
+                player.getInventory().getItem(slot),
+                expected
+        ) && !QuickContainerLock.isPlayerInventoryLocked() && !locked(
+                player.inventoryMenu,
+                inventorySlot(player.inventoryMenu, slot)
+        );
     }
 
     static boolean equipOffhand(Minecraft client, AbstractContainerMenu menu, Slot source) {
         ItemStack template = source.getItem().copy();
         ItemStack old = client.player.getOffhandItem();
         if (!old.isEmpty()) {
-            // Use a normal empty slot to preserve the displaced offhand stack.
+            // 用普通空槽保存被换下的副手物品。
             Slot spare = findPlayerSlot(menu, old, slot -> !slot.hasItem() && slot != source);
             if (spare == null) {
                 return false;
@@ -739,7 +833,13 @@ public final class QuickPortableStorageTransfer {
     }
 
     private static void swapWithPlayerSlot(Minecraft client, AbstractContainerMenu menu, Slot slot, int inventorySlot) {
-        client.gameMode.handleContainerInput(menu.containerId, slot.index, inventorySlot, ContainerInput.SWAP, client.player);
+        client.gameMode.handleContainerInput(
+                menu.containerId,
+                slot.index,
+                inventorySlot,
+                ContainerInput.SWAP,
+                client.player
+        );
     }
 
     private static void finish(Minecraft client, Session session, String failure) {
@@ -748,15 +848,20 @@ public final class QuickPortableStorageTransfer {
                 if (!owner.containerMenu.getCarried().isEmpty()) {
                     requests.clear();
                     QuickClientScreenAccess.setScreen(client, session.opened);
-                    QuickCrossBoxSortStatus.show(session.opened, net.minecraft.network.chat.Component.translatable("quickcraft.portable_storage.cursor_busy"));
+                    QuickCrossBoxSortStatus.show(
+                            session.opened,
+                            net.minecraft.network.chat.Component.translatable("quickcraft.portable_storage.cursor_busy")
+                    );
                     return;
                 }
                 if (session.ready && session.request.source == Source.SHULKER) {
                     Slot carrier = inventorySlot(owner.inventoryMenu, session.carrier);
                     if (carrier != null && sameCarrier(carrier.getItem(), session.expectedCarrier, Source.SHULKER)) {
                         refreshOpenedContents(session, owner.containerMenu);
-                        recentContents.put(session.carrier,
-                                new ClosedShulker(carrier.getItem().copy(), session.contents, tickNumber + OPEN_TIMEOUT));
+                        recentContents.put(
+                                session.carrier,
+                                new ClosedShulker(carrier.getItem().copy(), session.contents, tickNumber + OPEN_TIMEOUT)
+                        );
                     }
                 }
                 session.closing = true;
@@ -765,7 +870,11 @@ public final class QuickPortableStorageTransfer {
             if (session.request.mode == Mode.STORE_CURSOR) {
                 restoreCursor(client, session.request, session.staging, session.request.stack);
             }
-            if (failure != null && validRequest(client, session.request, QuickClientScreenAccess.currentScreen(client))) {
+            if (failure != null && validRequest(
+                    client,
+                    session.request,
+                    QuickClientScreenAccess.currentScreen(client)
+            )) {
                 message(session.request, failure);
             }
         } finally {
@@ -776,8 +885,11 @@ public final class QuickPortableStorageTransfer {
     private static void restoreCursor(Minecraft client, Request request, int index, ItemStack expected) {
         AbstractContainerMenu base = owner.inventoryMenu;
         Slot slot = inventorySlot(base, index);
-        if (request.screen == QuickClientScreenAccess.currentScreen(client) && owner.containerMenu == base
-                && base.getCarried().isEmpty() && !locked(base, slot) && slot.hasItem()
+        if (request.screen == QuickClientScreenAccess.currentScreen(client)
+                && owner.containerMenu == base
+                && base.getCarried().isEmpty()
+                && !locked(base, slot)
+                && slot.hasItem()
                 && ItemStack.isSameItemSameComponents(slot.getItem(), expected)
                 && slot.getItem().getCount() <= expected.getCount()) {
             click(client, base, slot, 0);
@@ -791,10 +903,11 @@ public final class QuickPortableStorageTransfer {
 
     private static Entry findEntry(LocalPlayer player, Request request) {
         for (Entry entry : entries(player, request.source)) {
-            if (matchesSource(request, entry.stack)
-                    && !inaccessibleCarrier(player.inventoryMenu,
-                            inventorySlot(player.inventoryMenu, entry.carrier), request.source)
-                    && !isStoredSlotLocked(entry, request.source)) {
+            if (matchesSource(request, entry.stack) && !inaccessibleCarrier(
+                    player.inventoryMenu,
+                    inventorySlot(player.inventoryMenu, entry.carrier),
+                    request.source
+            ) && !isStoredSlotLocked(entry, request.source)) {
                 return entry;
             }
         }
@@ -812,8 +925,10 @@ public final class QuickPortableStorageTransfer {
     private static int findEnderChestCarrier(AbstractContainerMenu menu) {
         int lockedCarrier = -1;
         for (Slot slot : menu.slots) {
-            if (!QuickSlotTransfer.isPlayerStorageSlot(slot) || !slot.isActive()
-                    || !carrierMatches(slot.getItem(), Source.ENDER_CHEST)) {
+            if (!QuickSlotTransfer.isPlayerStorageSlot(slot) || !slot.isActive() || !carrierMatches(
+                    slot.getItem(),
+                    Source.ENDER_CHEST
+            )) {
                 continue;
             }
             if (!locked(menu, slot)) {
@@ -823,7 +938,7 @@ public final class QuickPortableStorageTransfer {
                 lockedCarrier = slot.getContainerSlot();
             }
         }
-        // All carriers share the same contents. A locked carrier can still be used for preview.
+        // 所有载体共享同一份内容。即使载体已锁定，也能用来预览。
         return lockedCarrier;
     }
 
@@ -831,7 +946,10 @@ public final class QuickPortableStorageTransfer {
         int emptySpace = -1;
         for (Slot slot : menu.slots) {
             if (!QuickSlotTransfer.isPlayerStorageSlot(slot) || slot.getContainerSlot() == request.inventorySlot
-                    || inaccessibleCarrier(menu, slot, request.source) || !carrierMatches(slot.getItem(), request.source)) {
+                    || inaccessibleCarrier(menu, slot, request.source) || !carrierMatches(
+                            slot.getItem(),
+                            request.source
+                    )) {
                 continue;
             }
             if (request.source == Source.ENDER_CHEST) {
@@ -845,8 +963,8 @@ public final class QuickPortableStorageTransfer {
                 ItemStack inside = contents.get(boxSlot);
                 if (inside.isEmpty() && emptySpace == -1) {
                     emptySpace = slot.getContainerSlot();
-                } else if (ItemStack.isSameItemSameComponents(inside, request.stack)
-                        && inside.getCount() < inside.getMaxStackSize()) {
+                } else if (ItemStack.isSameItemSameComponents(inside, request.stack) && inside.getCount() < inside
+                        .getMaxStackSize()) {
                     return slot.getContainerSlot();
                 }
             }
@@ -875,19 +993,33 @@ public final class QuickPortableStorageTransfer {
     }
 
     static Slot findPlayerSlot(AbstractContainerMenu menu, ItemStack stack, Predicate<Slot> filter) {
-        return findTarget(menu, menu.slots, stack, slot -> QuickSlotTransfer.isPlayerStorageSlot(slot) && filter.test(slot));
+        return findTarget(
+                menu,
+                menu.slots,
+                stack,
+                slot -> QuickSlotTransfer.isPlayerStorageSlot(slot) && filter.test(slot)
+        );
     }
 
     static Slot findPlayerTakeSlot(AbstractContainerMenu menu, ItemStack stack, Predicate<Slot> filter) {
-        return findTarget(menu, menu.slots.reversed(), stack,
-                slot -> QuickSlotTransfer.isPlayerStorageSlot(slot) && filter.test(slot));
+        return findTarget(
+                menu,
+                menu.slots.reversed(),
+                stack,
+                slot -> QuickSlotTransfer.isPlayerStorageSlot(slot) && filter.test(slot)
+        );
     }
 
     private static Slot findContainerSlot(AbstractContainerMenu menu, ItemStack stack) {
         return findTarget(menu, menu.slots, stack, slot -> slot.index < STORAGE_SLOTS);
     }
 
-    private static Slot findTarget(AbstractContainerMenu menu, List<Slot> slots, ItemStack stack, Predicate<Slot> filter) {
+    private static Slot findTarget(
+            AbstractContainerMenu menu,
+            List<Slot> slots,
+            ItemStack stack,
+            Predicate<Slot> filter
+    ) {
         Slot empty = null;
         for (Slot slot : slots) {
             if (!filter.test(slot) || locked(menu, slot) || !slot.mayPlace(stack)) {
@@ -897,8 +1029,8 @@ public final class QuickPortableStorageTransfer {
                 if (empty == null) {
                     empty = slot;
                 }
-            } else if (ItemStack.isSameItemSameComponents(slot.getItem(), stack)
-                    && slot.getItem().getCount() < slot.getMaxStackSize(stack)) {
+            } else if (ItemStack.isSameItemSameComponents(slot.getItem(), stack) && slot.getItem().getCount() < slot
+                    .getMaxStackSize(stack)) {
                 return slot;
             }
         }
@@ -906,13 +1038,14 @@ public final class QuickPortableStorageTransfer {
     }
 
     private static boolean inaccessibleCarrier(AbstractContainerMenu menu, Slot slot, Source source) {
-        return locked(menu, slot)
-                || source == Source.SHULKER && QuickContainerLock.isInventoryShulkerLocked(slot.getContainerSlot());
+        return locked(menu, slot) || source == Source.SHULKER && QuickContainerLock.isInventoryShulkerLocked(
+                slot.getContainerSlot()
+        );
     }
 
     static boolean locked(AbstractContainerMenu menu, Slot slot) {
-        return slot == null || !slot.isActive() || QuickContainerLock.isLockedSlot(menu, slot)
-                || QuickSlotTransfer.isPlayerStorageSlot(slot) && QuickContainerLock.isLockedPlayerInventorySlot(slot.getContainerSlot());
+        return slot == null || !slot.isActive() || QuickContainerLock.isLockedSlot(menu, slot) || QuickSlotTransfer
+                .isPlayerStorageSlot(slot) && QuickContainerLock.isLockedPlayerInventorySlot(slot.getContainerSlot());
     }
 
     static boolean same(ItemStack a, ItemStack b) {
@@ -924,16 +1057,26 @@ public final class QuickPortableStorageTransfer {
     }
 
     static void click(Minecraft client, AbstractContainerMenu menu, Slot slot, int button) {
-        client.gameMode.handleContainerInput(menu.containerId, slot.index, button, ContainerInput.PICKUP, client.player);
+        client.gameMode.handleContainerInput(
+                menu.containerId,
+                slot.index,
+                button,
+                ContainerInput.PICKUP,
+                client.player
+        );
     }
 
     private static void message(Request request, String name) {
         if (request.screen != null) {
-            QuickCrossBoxSortStatus.show(request.screen, net.minecraft.network.chat.Component.translatable("quickcraft.portable_storage." + name));
+            QuickCrossBoxSortStatus.show(
+                    request.screen,
+                    net.minecraft.network.chat.Component.translatable("quickcraft.portable_storage." + name)
+            );
         }
     }
 
-    private record ClosedShulker(ItemStack before, List<ItemStack> contents, long deadline) {}
+    private record ClosedShulker(ItemStack before, List<ItemStack> contents, long deadline) {
+    }
 
     private static final class Session {
         final Request request;

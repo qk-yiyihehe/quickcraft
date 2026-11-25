@@ -70,10 +70,16 @@ class QuickCraftMouseCraftGridItemSafetyTest {
 
         assertThat(fixture.handler.getSlot(GRID_START + 2).hasStack()).isFalse();
         assertThat(fixture.countInPlayerInventory(Items.IRON_SWORD)).isEqualTo(1);
-        verify(fixture.interactionManager, never()).clickSlot(anyInt(), anyInt(), eq(1),
-                eq(SlotActionType.THROW), any());
+        verify(fixture.interactionManager, never()).clickSlot(
+                anyInt(),
+                anyInt(),
+                eq(1),
+                eq(SlotActionType.THROW),
+                any()
+        );
         assertThat(fixture.knownRemainders()).isEmpty();
     }
+
     @Test
     void unrelatedGridItemIsReturnedToInventoryInsteadOfThrown() throws Exception {
         GridFixture fixture = new GridFixture(true);
@@ -86,10 +92,20 @@ class QuickCraftMouseCraftGridItemSafetyTest {
         assertThat(relocated).isEqualTo(1);
         assertThat(fixture.handler.getSlot(GRID_START + 2).hasStack()).isFalse();
         assertThat(fixture.countInPlayerInventory(Items.IRON_SWORD)).isEqualTo(1);
-        verify(fixture.interactionManager).clickSlot(anyInt(), eq(GRID_START + 2), eq(0),
-                eq(SlotActionType.QUICK_MOVE), any());
-        verify(fixture.interactionManager, never()).clickSlot(anyInt(), anyInt(), eq(1),
-                eq(SlotActionType.THROW), any());
+        verify(fixture.interactionManager).clickSlot(
+                anyInt(),
+                eq(GRID_START + 2),
+                eq(0),
+                eq(SlotActionType.QUICK_MOVE),
+                any()
+        );
+        verify(fixture.interactionManager, never()).clickSlot(
+                anyInt(),
+                anyInt(),
+                eq(1),
+                eq(SlotActionType.THROW),
+                any()
+        );
         assertThat(fixture.knownRemainders()).isEmpty();
     }
 
@@ -105,8 +121,13 @@ class QuickCraftMouseCraftGridItemSafetyTest {
         assertThat(relocated).isEqualTo(1);
         assertThat(fixture.handler.getSlot(GRID_START).hasStack()).isFalse();
         assertThat(fixture.countInPlayerInventory(Items.BUCKET)).isEqualTo(1);
-        verify(fixture.interactionManager, never()).clickSlot(anyInt(), anyInt(), eq(1),
-                eq(SlotActionType.THROW), any());
+        verify(fixture.interactionManager, never()).clickSlot(
+                anyInt(),
+                anyInt(),
+                eq(1),
+                eq(SlotActionType.THROW),
+                any()
+        );
         assertThat(fixture.knownRemainders()).isEmpty();
     }
 
@@ -121,8 +142,13 @@ class QuickCraftMouseCraftGridItemSafetyTest {
 
         assertThat(first).isZero();
         assertThat(second).isZero();
-        verify(fixture.interactionManager, never()).clickSlot(anyInt(), anyInt(), anyInt(),
-                eq(SlotActionType.THROW), any());
+        verify(fixture.interactionManager, never()).clickSlot(
+                anyInt(),
+                anyInt(),
+                anyInt(),
+                eq(SlotActionType.THROW),
+                any()
+        );
         verify(fixture.player, atLeastOnce()).sendMessage(any(Text.class), anyBoolean());
         assertThat((Boolean) fixture.field("unrelatedGridItemNotified")).isTrue();
         verify(fixture.player).sendMessage(any(Text.class), anyBoolean());
@@ -142,8 +168,13 @@ class QuickCraftMouseCraftGridItemSafetyTest {
 
         assertThat(relocated).isEqualTo(1);
         assertThat(fixture.countInPlayerInventory(Items.BUCKET)).isEqualTo(1);
-        verify(fixture.interactionManager, never()).clickSlot(anyInt(), anyInt(), anyInt(),
-                eq(SlotActionType.THROW), any());
+        verify(fixture.interactionManager, never()).clickSlot(
+                anyInt(),
+                anyInt(),
+                anyInt(),
+                eq(SlotActionType.THROW),
+                any()
+        );
         assertThat(fixture.knownRemainders()).isEmpty();
     }
 
@@ -159,8 +190,7 @@ class QuickCraftMouseCraftGridItemSafetyTest {
 
         assertThat(relocated).isEqualTo(1);
         assertThat(fixture.handler.getSlot(GRID_START).hasStack()).isFalse();
-        verify(fixture.interactionManager).clickSlot(anyInt(), eq(GRID_START), eq(1),
-                eq(SlotActionType.THROW), any());
+        verify(fixture.interactionManager).clickSlot(anyInt(), eq(GRID_START), eq(1), eq(SlotActionType.THROW), any());
         assertThat(fixture.knownRemainders()).hasSize(1);
         assertThat(fixture.knownRemainders().get(0).isOf(Items.BUCKET)).isTrue();
         @SuppressWarnings("unchecked")
@@ -181,8 +211,13 @@ class QuickCraftMouseCraftGridItemSafetyTest {
 
         assertThat(relocated).isEqualTo(1);
         assertThat(fixture.countInPlayerInventory(Items.BUCKET)).isEqualTo(1);
-        verify(fixture.interactionManager, never()).clickSlot(anyInt(), anyInt(), eq(1),
-                eq(SlotActionType.THROW), any());
+        verify(fixture.interactionManager, never()).clickSlot(
+                anyInt(),
+                anyInt(),
+                eq(1),
+                eq(SlotActionType.THROW),
+                any()
+        );
         assertThat(fixture.knownRemainders()).isEmpty();
     }
 
@@ -197,8 +232,13 @@ class QuickCraftMouseCraftGridItemSafetyTest {
 
         assertThat(relocated).isEqualTo(1);
         assertThat(fixture.countInPlayerInventory(Items.BUCKET)).isEqualTo(1);
-        verify(fixture.interactionManager, never()).clickSlot(anyInt(), anyInt(), eq(1),
-                eq(SlotActionType.THROW), any());
+        verify(fixture.interactionManager, never()).clickSlot(
+                anyInt(),
+                anyInt(),
+                eq(1),
+                eq(SlotActionType.THROW),
+                any()
+        );
         assertThat(fixture.knownRemainders()).isEmpty();
     }
 
@@ -215,8 +255,13 @@ class QuickCraftMouseCraftGridItemSafetyTest {
 
         assertThat(relocated).isEqualTo(1);
         assertThat(fixture.countInPlayerInventory(Items.BUCKET)).isEqualTo(1);
-        verify(fixture.interactionManager, never()).clickSlot(anyInt(), anyInt(), anyInt(),
-                eq(SlotActionType.THROW), any());
+        verify(fixture.interactionManager, never()).clickSlot(
+                anyInt(),
+                anyInt(),
+                anyInt(),
+                eq(SlotActionType.THROW),
+                any()
+        );
         assertThat(fixture.knownRemainders()).isEmpty();
     }
 
@@ -230,10 +275,20 @@ class QuickCraftMouseCraftGridItemSafetyTest {
 
         fixture.relocate();
 
-        verify(fixture.interactionManager).clickSlot(anyInt(), eq(GRID_START + 4), eq(1),
-                eq(SlotActionType.THROW), any());
-        verify(fixture.interactionManager, never()).clickSlot(anyInt(), eq(GRID_START), eq(1),
-                eq(SlotActionType.THROW), any());
+        verify(fixture.interactionManager).clickSlot(
+                anyInt(),
+                eq(GRID_START + 4),
+                eq(1),
+                eq(SlotActionType.THROW),
+                any()
+        );
+        verify(fixture.interactionManager, never()).clickSlot(
+                anyInt(),
+                eq(GRID_START),
+                eq(1),
+                eq(SlotActionType.THROW),
+                any()
+        );
         assertThat(fixture.countInPlayerInventory(Items.BUCKET)).isEqualTo(1);
         assertThat(fixture.handler.getSlot(GRID_START + 4).hasStack()).isFalse();
     }
@@ -242,8 +297,7 @@ class QuickCraftMouseCraftGridItemSafetyTest {
     private static final class GridFixture {
         private final MinecraftClient client = mock(MinecraftClient.class);
         private final ClientPlayerEntity player = mock(ClientPlayerEntity.class);
-        private final ClientPlayerInteractionManager interactionManager =
-                mock(ClientPlayerInteractionManager.class);
+        private final ClientPlayerInteractionManager interactionManager = mock(ClientPlayerInteractionManager.class);
         private final CraftingScreenHandler handler;
         private final QuickCraftMouseCrafting crafting;
         private final List<ItemStack> patchedPattern = new ArrayList<>();
@@ -260,8 +314,7 @@ class QuickCraftMouseCraftGridItemSafetyTest {
             for (int i = 0; i < 9; i++) {
                 patchedPattern.add(ItemStack.EMPTY);
             }
-            crafting = new QuickCraftMouseCrafting(
-                    QuickCraftMouseCraftLayout.WORKBENCH, () -> true, () -> { });
+            crafting = new QuickCraftMouseCrafting(QuickCraftMouseCraftLayout.WORKBENCH, () -> true, () -> {});
             setField(crafting, "lockedCraftingPattern", new ArrayList<>(patchedPattern));
             setField(crafting, "lockedResultTemplate", new ItemStack(Items.CRAFTING_TABLE));
 
@@ -295,18 +348,21 @@ class QuickCraftMouseCraftGridItemSafetyTest {
                 String name = invocation.getMethod().getName();
                 if (name.equals("getRemainder") || name.equals("getRecipeRemainders")) {
                     net.minecraft.recipe.input.CraftingRecipeInput input = invocation.getArgument(0);
-                    return net.minecraft.util.collection.DefaultedList.ofSize(
-                            input.getSize(), remainderTemplate);
+                    return net.minecraft.util.collection.DefaultedList.ofSize(input.getSize(), remainderTemplate);
                 }
                 return org.mockito.Mockito.RETURNS_DEFAULTS.answer(invocation);
             });
-            when(recipe.craft(any(CraftingRecipeInput.class), any()))
-                    .thenReturn(((ItemStack) field("lockedResultTemplate")).copy());
+            when(recipe.craft(any(CraftingRecipeInput.class), any())).thenReturn(
+                    ((ItemStack) field("lockedResultTemplate")).copy()
+            );
             RecipeEntry<CraftingRecipe> entry = new RecipeEntry<>(
-                    Identifier.of("quickcraft", "test_remainder"), recipe);
+                    Identifier.of("quickcraft", "test_remainder"),
+                    recipe
+            );
             RecipeManager manager = mock(RecipeManager.class);
-            when(manager.getAllMatches(any(RecipeType.class), any(CraftingRecipeInput.class), any()))
-                    .thenReturn(List.of(entry));
+            when(manager.getAllMatches(any(RecipeType.class), any(CraftingRecipeInput.class), any())).thenReturn(
+                    List.of(entry)
+            );
             ClientWorld world = mock(ClientWorld.class);
             when(world.getRecipeManager()).thenReturn(manager);
             setField(client, "world", world);
@@ -321,18 +377,24 @@ class QuickCraftMouseCraftGridItemSafetyTest {
         private void handleSingleCraft() throws Exception {
             setField(client, "world", mock(net.minecraft.client.world.ClientWorld.class));
             Method method = QuickCraftMouseCrafting.class.getDeclaredMethod(
-                    "handleSingleCraft", MinecraftClient.class, ScreenHandler.class);
+                    "handleSingleCraft",
+                    MinecraftClient.class,
+                    ScreenHandler.class
+            );
             method.setAccessible(true);
             method.invoke(crafting, client, handler);
         }
+
         private int relocate() throws Exception {
             try (MockedStatic<QuickContainerLock> locks = mockStatic(QuickContainerLock.class);
-                 MockedStatic<QuickCraftConfigs> configs = mockStatic(QuickCraftConfigs.class)) {
-                locks.when(() -> QuickContainerLock.isLockedSlot(any(ScreenHandler.class), anyInt()))
-                        .thenReturn(false);
+                    MockedStatic<QuickCraftConfigs> configs = mockStatic(QuickCraftConfigs.class)) {
+                locks.when(() -> QuickContainerLock.isLockedSlot(any(ScreenHandler.class), anyInt())).thenReturn(false);
                 configs.when(QuickCraftConfigs::isMouseCraftAckDebugEnabled).thenReturn(false);
                 Method relocate = QuickCraftMouseCrafting.class.getDeclaredMethod(
-                        "relocateMismatchedGridItems", MinecraftClient.class, ScreenHandler.class);
+                        "relocateMismatchedGridItems",
+                        MinecraftClient.class,
+                        ScreenHandler.class
+                );
                 relocate.setAccessible(true);
                 return (Integer) relocate.invoke(crafting, client, handler);
             }
@@ -365,8 +427,13 @@ class QuickCraftMouseCraftGridItemSafetyTest {
                     handler.getSlot(slotId).setStack(ItemStack.EMPTY);
                 }
                 return null;
-            }).when(interactionManager).clickSlot(anyInt(), anyInt(), anyInt(),
-                    any(SlotActionType.class), any(PlayerEntity.class));
+            }).when(interactionManager).clickSlot(
+                    anyInt(),
+                    anyInt(),
+                    anyInt(),
+                    any(SlotActionType.class),
+                    any(PlayerEntity.class)
+            );
         }
     }
 
@@ -376,8 +443,9 @@ class QuickCraftMouseCraftGridItemSafetyTest {
             if (parameters.length == 1 && parameters[0].isInstance(player)) {
                 return (PlayerInventory) constructor.newInstance(player);
             }
-            if (parameters.length == 2 && parameters[0].isInstance(player)
-                    && parameters[1].getSimpleName().equals("EntityEquipment")) {
+            if (parameters.length == 2 && parameters[0].isInstance(player) && parameters[1].getSimpleName().equals(
+                    "EntityEquipment"
+            )) {
                 Object equipment = parameters[1].getConstructor().newInstance();
                 return (PlayerInventory) constructor.newInstance(player, equipment);
             }
@@ -409,8 +477,7 @@ class QuickCraftMouseCraftGridItemSafetyTest {
         for (Class<?> current = type; current != null; current = current.getSuperclass()) {
             try {
                 return current.getDeclaredField(name);
-            } catch (NoSuchFieldException ignored) {
-            }
+            } catch (NoSuchFieldException ignored) {}
         }
         throw new NoSuchFieldException(name);
     }

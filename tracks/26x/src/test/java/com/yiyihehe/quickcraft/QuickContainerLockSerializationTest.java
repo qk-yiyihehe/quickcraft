@@ -23,7 +23,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  */
 class QuickContainerLockSerializationTest {
 
-    // ---- readStringSet ----
+    // ---- 读取字符串集合（readStringSet）----
 
     @Test
     @DisplayName("readStringSet: 合法 JSON 数组 → String Set")
@@ -66,7 +66,7 @@ class QuickContainerLockSerializationTest {
         assertThat(target).isEmpty();
     }
 
-    // ---- readIntSet ----
+    // ---- 读取整数集合（readIntSet）----
 
     @Test
     @DisplayName("readIntSet: 合法 JSON 数组 → Int Set")
@@ -128,7 +128,9 @@ class QuickContainerLockSerializationTest {
         @SuppressWarnings("unchecked")
         Set<String> containers = (Set<String>) readStaticField("LOCKED_CONTAINERS");
         @SuppressWarnings("unchecked")
-        Map<String, Set<Integer>> containerSlots = (Map<String, Set<Integer>>) readStaticField("LOCKED_CONTAINER_SLOTS");
+        Map<String, Set<Integer>> containerSlots = (Map<String, Set<Integer>>) readStaticField(
+                "LOCKED_CONTAINER_SLOTS"
+        );
 
         assertThat(playerSlots).containsExactlyInAnyOrder(1, 5);
         assertThat(containers).contains("minecraft:overworld#1,2,3");
@@ -136,9 +138,9 @@ class QuickContainerLockSerializationTest {
 
         JsonObject saved = new JsonObject();
         QuickContainerLock.writePersistentState(saved);
-        assertThat(saved.getAsJsonObject("containerLock").getAsJsonArray("lockedPlayerSlots"))
-                .extracting(JsonElement::getAsInt)
-                .containsExactlyInAnyOrder(1, 5);
+        assertThat(saved.getAsJsonObject("containerLock").getAsJsonArray("lockedPlayerSlots")).extracting(
+                JsonElement::getAsInt
+        ).containsExactlyInAnyOrder(1, 5);
     }
 
     private static Object readStaticField(String name) throws Exception {
@@ -147,7 +149,7 @@ class QuickContainerLockSerializationTest {
         return field.get(null);
     }
 
-    // ---- toStringArray ----
+    // ---- 转为字符串数组（toStringArray）----
 
     @Test
     @DisplayName("toStringArray: String Set → JsonArray")
@@ -171,7 +173,7 @@ class QuickContainerLockSerializationTest {
         assertThat(result.size()).isZero();
     }
 
-    // ---- toIntArray ----
+    // ---- 转为整数数组（toIntArray）----
 
     @Test
     @DisplayName("toIntArray: Int Set → JsonArray")
@@ -260,34 +262,32 @@ class QuickContainerLockSerializationTest {
     // ---- 反射辅助方法 ----
 
     private static void invokeReadStringSet(JsonElement element, Set<String> target) {
-        invokePrivateStatic("readStringSet",
-                new Class[]{JsonElement.class, Set.class},
-                new Object[]{element, target});
+        invokePrivateStatic(
+                "readStringSet",
+                new Class[] { JsonElement.class, Set.class },
+                new Object[] { element, target }
+        );
     }
 
     private static void invokeReadIntSet(JsonElement element, Set<Integer> target) {
-        invokePrivateStatic("readIntSet",
-                new Class[]{JsonElement.class, Set.class},
-                new Object[]{element, target});
+        invokePrivateStatic(
+                "readIntSet",
+                new Class[] { JsonElement.class, Set.class },
+                new Object[] { element, target }
+        );
     }
 
     @SuppressWarnings("unchecked")
     private static JsonArray invokeToStringArray(Set<String> values) {
-        return (JsonArray) invokePrivateStatic("toStringArray",
-                new Class[]{Set.class},
-                new Object[]{values});
+        return (JsonArray) invokePrivateStatic("toStringArray", new Class[] { Set.class }, new Object[] { values });
     }
 
     @SuppressWarnings("unchecked")
     private static JsonArray invokeToIntArray(Set<Integer> values) {
-        return (JsonArray) invokePrivateStatic("toIntArray",
-                new Class[]{Set.class},
-                new Object[]{values});
+        return (JsonArray) invokePrivateStatic("toIntArray", new Class[] { Set.class }, new Object[] { values });
     }
 
-    private static Object invokePrivateStatic(String methodName,
-                                               Class<?>[] paramTypes,
-                                               Object[] args) {
+    private static Object invokePrivateStatic(String methodName, Class<?>[] paramTypes, Object[] args) {
         try {
             Method method = QuickContainerLock.class.getDeclaredMethod(methodName, paramTypes);
             method.setAccessible(true);
@@ -296,7 +296,9 @@ class QuickContainerLockSerializationTest {
             throw new RuntimeException("无法反射访问 " + methodName, e);
         } catch (InvocationTargetException e) {
             Throwable cause = e.getCause();
-            if (cause instanceof RuntimeException re) throw re;
+            if (cause instanceof RuntimeException re) {
+                throw re;
+            }
             throw new RuntimeException(cause);
         }
     }

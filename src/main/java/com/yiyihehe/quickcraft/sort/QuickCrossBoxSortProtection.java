@@ -9,16 +9,22 @@ public final class QuickCrossBoxSortProtection {
 
     public static int menuSlot(net.minecraft.screen.ScreenHandler menu, int inventoryIndex) {
         var player = MinecraftClient.getInstance().player;
-        if (player == null) { return -1; }
+        if (player == null) {
+            return -1;
+        }
         for (var slot : menu.slots) {
-            if (slot.inventory == player.getInventory() && slot.getIndex() == inventoryIndex) { return slot.id; }
+            if (slot.inventory == player.getInventory() && slot.getIndex() == inventoryIndex) {
+                return slot.id;
+            }
         }
         return -1;
     }
 
     public static boolean isLocked(int inventorySlot) {
         var player = MinecraftClient.getInstance().player;
-        if (player == null) { return true; }
+        if (player == null) {
+            return true;
+        }
         for (var slot : player.playerScreenHandler.slots) {
             if (slot.inventory == player.getInventory() && slot.getIndex() == inventorySlot) {
                 return QuickContainerLock.isLockedSlot(player.playerScreenHandler, slot);

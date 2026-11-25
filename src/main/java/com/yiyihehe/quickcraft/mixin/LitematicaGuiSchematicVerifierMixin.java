@@ -33,12 +33,14 @@ public abstract class LitematicaGuiSchematicVerifierMixin {
         com.yiyihehe.quickcraft.litematica.QuickLitematicaVerifierIgnores.restore(verifier, this.placement);
     }
 
-    @com.llamalad7.mixinextras.injector.ModifyExpressionValue(method = "createButton",
+    @com.llamalad7.mixinextras.injector.ModifyExpressionValue(
+            method = "createButton",
             at = @At(value = "INVOKE", target = "Ljava/util/Set;size()I"))
     private int quickcraft$countAllIgnores(int count) {
         var verifier = ((LitematicaGuiSchematicVerifierAccessor) this).quickcraft$getVerifier();
-        return count + ((com.yiyihehe.quickcraft.litematica.QuickLitematicaProjectionPersistence.PersistentVerifier) verifier)
-                .quickcraft$containerVerification().quickcraft$getIgnoredContainerCount();
+        return count
+                + ((com.yiyihehe.quickcraft.litematica.QuickLitematicaProjectionPersistence.PersistentVerifier) verifier)
+                        .quickcraft$containerVerification().quickcraft$getIgnoredContainerCount();
     }
 
     @Shadow
@@ -46,8 +48,9 @@ public abstract class LitematicaGuiSchematicVerifierMixin {
 
     @Inject(method = "initGui", at = @At("HEAD"))
     private void quickcraft$resetInventoryResultModeWhenDisabled(CallbackInfo ci) {
-        if (!QuickLitematicaContainerVerifier.isEnabled()
-                && QuickLitematicaContainerVerifier.isContainerMismatchType(resultMode)) {
+        if (!QuickLitematicaContainerVerifier.isEnabled() && QuickLitematicaContainerVerifier.isContainerMismatchType(
+                resultMode
+        )) {
             resultMode = MismatchType.ALL;
             return;
         }
@@ -117,17 +120,19 @@ public abstract class LitematicaGuiSchematicVerifierMixin {
     @Inject(method = "initGui", at = @At("TAIL"))
     private void quickcraft$addPagination(CallbackInfo ci) {
         com.yiyihehe.quickcraft.litematica.QuickLitematicaListPagination.add(
-                (GuiSchematicVerifier) (Object) this, "litematica.verifier");
+                (GuiSchematicVerifier) (Object) this,
+                "litematica.verifier"
+        );
     }
 
     @Inject(method = "onSelectionChange", at = @At("HEAD"), cancellable = true)
-    private void quickcraft$ignoreContainerSectionTitle(GuiSchematicVerifier.BlockMismatchEntry entry, CallbackInfo ci) {
+    private void quickcraft$ignoreContainerSectionTitle(
+            GuiSchematicVerifier.BlockMismatchEntry entry,
+            CallbackInfo ci
+    ) {
         String title = StringUtils.translate("quickcraft.litematica.verifier.title.container_errors");
 
-        if (entry != null
-                && entry.blockMismatch == null
-                && entry.mismatchType == null
-                && entry.header1 != null
+        if (entry != null && entry.blockMismatch == null && entry.mismatchType == null && entry.header1 != null
                 && entry.header1.contains(title)) {
             ci.cancel();
         }
@@ -136,9 +141,11 @@ public abstract class LitematicaGuiSchematicVerifierMixin {
     private int quickcraft$getInventoryButtonX(GuiSchematicVerifier gui) {
         int x = 12;
 
-        x += this.quickcraft$getButtonWidth(gui, Configs.Generic.ENABLE_DIFFERENT_BLOCKS.getBooleanValue()
-                ? MismatchType.ALL.getDisplayname()
-                : StringUtils.translate("litematica.gui.label.schematic_verifier_display_type.all_not_ignored")) + 4;
+        x += this.quickcraft$getButtonWidth(
+                gui,
+                Configs.Generic.ENABLE_DIFFERENT_BLOCKS.getBooleanValue() ? MismatchType.ALL.getDisplayname()
+                        : StringUtils.translate("litematica.gui.label.schematic_verifier_display_type.all_not_ignored")
+        ) + 4;
         x += this.quickcraft$getButtonWidth(gui, MismatchType.WRONG_BLOCK.getDisplayname()) + 4;
         x += this.quickcraft$getButtonWidth(gui, MismatchType.WRONG_STATE.getDisplayname()) + 4;
         x += this.quickcraft$getButtonWidth(gui, MismatchType.EXTRA.getDisplayname()) + 4;

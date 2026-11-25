@@ -16,12 +16,14 @@ final class QuickPortableStorageBundleAccess {
     private QuickPortableStorageBundleAccess() {}
 
     static List<ItemStack> contents(ItemStack stack) {
-        return stack.getOrDefault(DataComponentTypes.BUNDLE_CONTENTS, BundleContentsComponent.DEFAULT).stream().toList();
+        return stack.getOrDefault(DataComponentTypes.BUNDLE_CONTENTS, BundleContentsComponent.DEFAULT).stream()
+                .toList();
     }
 
     static int capacity(ItemStack bundle, ItemStack stack) {
-        return new BundleContentsComponent.Builder(bundle.getOrDefault(DataComponentTypes.BUNDLE_CONTENTS,
-                BundleContentsComponent.DEFAULT)).add(stack.copy());
+        return new BundleContentsComponent.Builder(
+                bundle.getOrDefault(DataComponentTypes.BUNDLE_CONTENTS, BundleContentsComponent.DEFAULT)
+        ).add(stack.copy());
     }
 
     static boolean canSelect(int index) {

@@ -15,8 +15,7 @@ import net.minecraft.world.item.ShovelItem;
 
 /** 26.2 轻松放置与工具判定适配（Litematica 重写路径）。 */
 public final class QuickLitematicaEasyPlaceAccess {
-    private QuickLitematicaEasyPlaceAccess() {
-    }
+    private QuickLitematicaEasyPlaceAccess() {}
 
     static boolean isAxe(ItemStack stack) {
         return stack.getItem() instanceof AxeItem;
@@ -44,13 +43,14 @@ public final class QuickLitematicaEasyPlaceAccess {
             }
         } else {
             QuickFreeCameraInteractions.callEasyPlaceAction(
-                    () -> LitematicaWorldUtilsInvoker.quickcraft$doEasyPlaceAction(client));
+                    () -> LitematicaWorldUtilsInvoker.quickcraft$doEasyPlaceAction(client)
+            );
         }
     }
 
     public static void swingHandIfSuccess(Minecraft client, InteractionHand hand, InteractionResult result) {
-        if (client.player != null && result instanceof InteractionResult.Success success
-                && success.swingSource() == InteractionResult.SwingSource.CLIENT) {
+        if (client.player != null && result instanceof InteractionResult.Success success && success
+                .swingSource() == InteractionResult.SwingSource.CLIENT) {
             client.player.swing(hand);
         }
     }

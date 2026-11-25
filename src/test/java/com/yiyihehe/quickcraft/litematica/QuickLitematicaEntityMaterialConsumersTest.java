@@ -33,10 +33,15 @@ class QuickLitematicaEntityMaterialConsumersTest {
     void emptyOrMissingEquipmentCannotHideNativeLegacyItems() throws Exception {
         for (boolean addEmptyEquipment : List.of(false, true)) {
             NbtCompound nbt = legacyStand();
-            if (addEmptyEquipment) nbt.put("equipment", new NbtCompound());
-            assertConsumers(nbt, QuickLitematicaEntityPlacementAccess.usesEntityEquipment()
-                    ? List.of(new ItemStack(Items.ARMOR_STAND))
-                    : List.of(new ItemStack(Items.ARMOR_STAND), diamond()));
+            if (addEmptyEquipment) {
+                nbt.put("equipment", new NbtCompound());
+            }
+            assertConsumers(
+                    nbt,
+                    QuickLitematicaEntityPlacementAccess.usesEntityEquipment() ? List.of(
+                            new ItemStack(Items.ARMOR_STAND)
+                    ) : List.of(new ItemStack(Items.ARMOR_STAND), diamond())
+            );
         }
     }
 
@@ -50,8 +55,13 @@ class QuickLitematicaEntityMaterialConsumersTest {
         nbt.put("equipment", equipment);
         ItemStack expected = emerald();
         expected.setCount(expected.getCount() * 8);
-        assertConsumers(nbt, List.of(new ItemStack(Items.ARMOR_STAND),
-                QuickLitematicaEntityPlacementAccess.usesEntityEquipment() ? expected : diamond()));
+        assertConsumers(
+                nbt,
+                List.of(
+                        new ItemStack(Items.ARMOR_STAND),
+                        QuickLitematicaEntityPlacementAccess.usesEntityEquipment() ? expected : diamond()
+                )
+        );
     }
 
     @Test
@@ -64,8 +74,13 @@ class QuickLitematicaEntityMaterialConsumersTest {
         NbtList passengers = new NbtList();
         passengers.add(passenger);
         root.put("Passengers", passengers);
-        assertConsumers(root, List.of(new ItemStack(Items.ARMOR_STAND, 2),
-                QuickLitematicaEntityPlacementAccess.usesEntityEquipment() ? emerald() : diamond()));
+        assertConsumers(
+                root,
+                List.of(
+                        new ItemStack(Items.ARMOR_STAND, 2),
+                        QuickLitematicaEntityPlacementAccess.usesEntityEquipment() ? emerald() : diamond()
+                )
+        );
     }
 
     private void assertConsumers(NbtCompound nbt, List<ItemStack> expected) throws Exception {
@@ -77,10 +92,17 @@ class QuickLitematicaEntityMaterialConsumersTest {
         try (var singleton = mockStatic(MinecraftClient.class)) {
             singleton.when(MinecraftClient::getInstance).thenReturn(client);
             Method clientMaterials = QuickLitematicaEntityPlacement.class.getDeclaredMethod(
-                    "getMaterials", EntityType.class, NbtCompound.class);
+                    "getMaterials",
+                    EntityType.class,
+                    NbtCompound.class
+            );
             clientMaterials.setAccessible(true);
             Method serverMaterials = QuickLitematicaEntityPlacementServer.class.getDeclaredMethod(
-                    "materialsForTree", NbtCompound.class, ServerWorld.class, ServerPlayerEntity.class);
+                    "materialsForTree",
+                    NbtCompound.class,
+                    ServerWorld.class,
+                    ServerPlayerEntity.class
+            );
             serverMaterials.setAccessible(true);
             assertStacks(stacks(clientMaterials.invoke(null, EntityType.ARMOR_STAND, nbt)), expected);
             assertStacks(stacks(serverMaterials.invoke(null, nbt, server, null)), expected);
@@ -92,16 +114,22 @@ class QuickLitematicaEntityMaterialConsumersTest {
 
     private static void assertStacks(List<ItemStack> actual, List<ItemStack> expected) {
         assertThat(actual).isNotNull();
-        assertThat(actual.stream().mapToInt(ItemStack::getCount).sum())
-                .isEqualTo(expected.stream().mapToInt(ItemStack::getCount).sum());
+        assertThat(actual.stream().mapToInt(ItemStack::getCount).sum()).isEqualTo(
+                expected.stream().mapToInt(ItemStack::getCount).sum()
+        );
         for (ItemStack wanted : expected) {
-            assertThat(actual.stream().filter(stack -> ItemStack.areItemsAndComponentsEqual(stack, wanted))
-                    .mapToInt(ItemStack::getCount).sum()).isEqualTo(wanted.getCount());
+            assertThat(
+                    actual.stream().filter(stack -> ItemStack.areItemsAndComponentsEqual(stack, wanted)).mapToInt(
+                            ItemStack::getCount
+                    ).sum()
+            ).isEqualTo(wanted.getCount());
         }
     }
 
     @SuppressWarnings("unchecked")
-    private static List<ItemStack> stacks(Object value) { return (List<ItemStack>) value; }
+    private static List<ItemStack> stacks(Object value) {
+        return (List<ItemStack>) value;
+    }
 
     private NbtCompound legacyStand() {
         NbtCompound nbt = stand();

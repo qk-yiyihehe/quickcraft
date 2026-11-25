@@ -36,6 +36,7 @@ import org.spongepowered.asm.mixin.Unique;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
+
 /**
  * 给原版工作台添加合成、模式与产物装盒按钮；渲染时同步位置以跟随配方书对界面的偏移。
  * 两个标题栏按钮与产物槽旁的合成按钮分别受工作台功能和按钮显示配置控制。
@@ -61,27 +62,33 @@ public abstract class CraftActionButtonMixin extends AbstractContainerScreen<Cra
             return;
         }
 
-        this.quickcraft$modeButton = this.addRenderableWidget(new QuickCraftWorkbenchOptionButton(
-                this.leftPos + 138, this.topPos + 2,
-                Component.translatable("quickcraft.button.workbench_mode.normal.tooltip"),
-                button -> QuickCraftWorkbenchRouter.toggleMode(),
-                QuickDraggableButton.PositionKey.WORKBENCH_MODE,
-                Identifier.fromNamespaceAndPath("quickcraft", "textures/gui/workbench_normal_mode.png"),
-                Identifier.fromNamespaceAndPath("quickcraft", "textures/gui/workbench_shulker_mode.png"),
-                QuickCraftConfigs::isWorkbenchQuickShulkerCraftEnabled,
-                QuickCraftConfigs::isWorkbenchQuickShulkerCraftEnabled
-        ));
-        this.quickcraft$outputButton = this.addRenderableWidget(new QuickCraftWorkbenchOptionButton(
-                this.leftPos + 156, this.topPos + 2,
-                Component.translatable("quickcraft.button.workbench_output.disabled.tooltip"),
-                button -> QuickCraftWorkbenchRouter.toggleOutputToShulker(),
-                QuickDraggableButton.PositionKey.WORKBENCH_OUTPUT,
-                Identifier.fromNamespaceAndPath("quickcraft", "textures/gui/workbench_output_drop.png"),
-                Identifier.fromNamespaceAndPath("quickcraft", "textures/gui/workbench_output_shulker.png"),
-                QuickCraftConfigs::isWorkbenchQuickCraftOutputToShulkerEnabled,
-                () -> QuickCraftConfigs.isWorkbenchQuickShulkerCraftEnabled()
-                        && QuickCraftConfigs.isWorkbenchQuickCraftOutputToShulkerEnabled()
-        ));
+        this.quickcraft$modeButton = this.addRenderableWidget(
+                new QuickCraftWorkbenchOptionButton(
+                        this.leftPos + 138,
+                        this.topPos + 2,
+                        Component.translatable("quickcraft.button.workbench_mode.normal.tooltip"),
+                        button -> QuickCraftWorkbenchRouter.toggleMode(),
+                        QuickDraggableButton.PositionKey.WORKBENCH_MODE,
+                        Identifier.fromNamespaceAndPath("quickcraft", "textures/gui/workbench_normal_mode.png"),
+                        Identifier.fromNamespaceAndPath("quickcraft", "textures/gui/workbench_shulker_mode.png"),
+                        QuickCraftConfigs::isWorkbenchQuickShulkerCraftEnabled,
+                        QuickCraftConfigs::isWorkbenchQuickShulkerCraftEnabled
+                )
+        );
+        this.quickcraft$outputButton = this.addRenderableWidget(
+                new QuickCraftWorkbenchOptionButton(
+                        this.leftPos + 156,
+                        this.topPos + 2,
+                        Component.translatable("quickcraft.button.workbench_output.disabled.tooltip"),
+                        button -> QuickCraftWorkbenchRouter.toggleOutputToShulker(),
+                        QuickDraggableButton.PositionKey.WORKBENCH_OUTPUT,
+                        Identifier.fromNamespaceAndPath("quickcraft", "textures/gui/workbench_output_drop.png"),
+                        Identifier.fromNamespaceAndPath("quickcraft", "textures/gui/workbench_output_shulker.png"),
+                        QuickCraftConfigs::isWorkbenchQuickCraftOutputToShulkerEnabled,
+                        () -> QuickCraftConfigs.isWorkbenchQuickShulkerCraftEnabled() && QuickCraftConfigs
+                                .isWorkbenchQuickCraftOutputToShulkerEnabled()
+                )
+        );
         if (!QuickCraftConfigs.isCraftActionButtonVisible()) {
             return;
         }
@@ -89,21 +96,30 @@ public abstract class CraftActionButtonMixin extends AbstractContainerScreen<Cra
         // 按钮放到产物槽右下外侧，尽量不遮挡产物图标。
         int buttonX = this.leftPos + this.getMenu().getSlot(0).x + 13;
         int buttonY = this.topPos + this.getMenu().getSlot(0).y + 13;
-        this.quickcraft$craftButton = this.addRenderableWidget(new QuickCraftActionButton(
-                buttonX, buttonY,
-                button -> QuickCraftWorkbenchRouter.handleCraftButton(QuickCraftKeyBindings.isAltDown()),
-                QuickDraggableButton.PositionKey.WORKBENCH_CRAFT,
-                Component.translatable("quickcraft.button.craft_action")
-        ));
+        this.quickcraft$craftButton = this.addRenderableWidget(
+                new QuickCraftActionButton(
+                        buttonX,
+                        buttonY,
+                        button -> QuickCraftWorkbenchRouter.handleCraftButton(QuickCraftKeyBindings.isAltDown()),
+                        QuickDraggableButton.PositionKey.WORKBENCH_CRAFT,
+                        Component.translatable("quickcraft.button.craft_action")
+                )
+        );
     }
 
     @Inject(method = "extractBackground", at = @At("HEAD"))
-    private void quickcraft$syncCraftButton(GuiGraphicsExtractor context, int mouseX, int mouseY, float delta, CallbackInfo ci) {
+    private void quickcraft$syncCraftButton(
+            GuiGraphicsExtractor context,
+            int mouseX,
+            int mouseY,
+            float delta,
+            CallbackInfo ci
+    ) {
         if (QuickCraftWorkbenchRouter.shouldSuppressRecipeGhostSlots()) {
             CraftingScreen screen = (CraftingScreen) (Object) this;
-            ((RecipeBookScreenAccessor) (Object) screen)
-                    .quickcraft$getRecipeBook()
-                    .slotClicked(screen.getMenu().getSlot(0));
+            ((RecipeBookScreenAccessor) (Object) screen).quickcraft$getRecipeBook().slotClicked(
+                    screen.getMenu().getSlot(0)
+            );
         }
         if (this.quickcraft$craftButton != null) {
             this.quickcraft$craftButton.visible = QuickCraftConfigs.isWorkbenchQuickCraftFeatureEnabled()
@@ -116,28 +132,29 @@ public abstract class CraftActionButtonMixin extends AbstractContainerScreen<Cra
         if (this.quickcraft$modeButton != null) {
             boolean shulkerMode = QuickCraftConfigs.isWorkbenchQuickShulkerCraftEnabled();
             this.quickcraft$modeButton.visible = QuickCraftConfigs.isWorkbenchQuickCraftFeatureEnabled()
-                    && !(this.width < 379 && ((RecipeBookScreenAccessor) (Object) this)
-                    .quickcraft$getRecipeBook().isVisible());
+                    && !(this.width < 379 && ((RecipeBookScreenAccessor) (Object) this).quickcraft$getRecipeBook()
+                            .isVisible());
             this.quickcraft$modeButton.active = !QuickCraftWorkbenchRouter.shouldSuppressRecipeGhostSlots();
             this.quickcraft$modeButton.setDefaultPosition(this.leftPos + 138, this.topPos + 2);
-            Component modeTooltip = Component.translatable(shulkerMode
-                    ? "quickcraft.button.workbench_mode.shulker.tooltip"
-                    : "quickcraft.button.workbench_mode.normal.tooltip");
+            Component modeTooltip = Component.translatable(
+                    shulkerMode ? "quickcraft.button.workbench_mode.shulker.tooltip"
+                            : "quickcraft.button.workbench_mode.normal.tooltip"
+            );
             this.quickcraft$modeButton.setMessage(modeTooltip);
             this.quickcraft$modeButton.setTooltip(Tooltip.create(modeTooltip));
             this.quickcraft$outputButton.visible = this.quickcraft$modeButton.visible;
             this.quickcraft$outputButton.active = shulkerMode && this.quickcraft$modeButton.active;
             this.quickcraft$outputButton.setDefaultPosition(this.leftPos + 156, this.topPos + 2);
-            Component outputTooltip = Component.translatable(!shulkerMode
-                    ? "quickcraft.button.workbench_output.disabled.tooltip"
-                    : QuickCraftConfigs.isWorkbenchQuickCraftOutputToShulkerEnabled()
-                    ? "quickcraft.button.workbench_output.shulker.tooltip"
-                    : "quickcraft.button.workbench_output.drop.tooltip");
+            Component outputTooltip = Component.translatable(
+                    !shulkerMode ? "quickcraft.button.workbench_output.disabled.tooltip"
+                            : QuickCraftConfigs.isWorkbenchQuickCraftOutputToShulkerEnabled()
+                                    ? "quickcraft.button.workbench_output.shulker.tooltip"
+                                    : "quickcraft.button.workbench_output.drop.tooltip"
+            );
             this.quickcraft$outputButton.setMessage(outputTooltip);
             this.quickcraft$outputButton.setTooltip(Tooltip.create(outputTooltip));
         }
     }
-
 
 }
 
@@ -146,8 +163,8 @@ public abstract class CraftActionButtonMixin extends AbstractContainerScreen<Cra
  * 按钮点击后走 QuickCraftBackpack 的快速合成逻辑。
  */
 @Mixin(InventoryScreen.class)
-abstract class CraftActionButtonBackpackMixin extends AbstractContainerScreen<InventoryMenu>
-         implements QuickPortableStoragePanel.Access {
+abstract class CraftActionButtonBackpackMixin extends AbstractContainerScreen<InventoryMenu> implements
+        QuickPortableStoragePanel.Access {
     @Unique
     private QuickPortableStoragePanel quickcraft$storage;
 
@@ -158,8 +175,8 @@ abstract class CraftActionButtonBackpackMixin extends AbstractContainerScreen<In
 
     @Unique
     private void quickcraft$layoutPortableStorage() {
-        if (QuickPortableStorageTransfer.panelEnabled()
-                && (this.quickcraft$storage == null || !this.children().contains(this.quickcraft$storage.button()))) {
+        if (QuickPortableStorageTransfer.panelEnabled() && (this.quickcraft$storage == null || !this.children()
+                .contains(this.quickcraft$storage.button()))) {
             this.quickcraft$storage = new QuickPortableStoragePanel((InventoryScreen) (Object) this, this.minecraft);
             this.addRenderableWidget(this.quickcraft$storage.button());
             this.addWidget(this.quickcraft$storage.search());
@@ -168,6 +185,7 @@ abstract class CraftActionButtonBackpackMixin extends AbstractContainerScreen<In
             this.quickcraft$storage.layout(this.leftPos, this.topPos, this.imageWidth, this.imageHeight);
         }
     }
+
     @Unique
     private QuickCraftActionButton quickcraft$craftButton;
 
@@ -189,32 +207,40 @@ abstract class CraftActionButtonBackpackMixin extends AbstractContainerScreen<In
 
     @Inject(method = "init", at = @At("TAIL"))
     private void quickcraft$addCraftButton(CallbackInfo ci) {
-        if (!QuickCraftConfigs.isBackpackQuickCraftEnabled()
-                || !QuickCraftConfigs.isCraftActionButtonVisible()) {
+        if (!QuickCraftConfigs.isBackpackQuickCraftEnabled() || !QuickCraftConfigs.isCraftActionButtonVisible()) {
             return;
         }
 
         // 按钮放到产物槽右下外侧，尽量不遮挡产物图标。
         int buttonX = this.leftPos + this.getMenu().getSlot(0).x + 13;
         int buttonY = this.topPos + this.getMenu().getSlot(0).y + 13;
-        this.quickcraft$craftButton = this.addRenderableWidget(new QuickCraftActionButton(
-                buttonX, buttonY,
-                button -> QuickCraftBackpack.handleBackpackCraftButton(QuickCraftKeyBindings.isAltDown()),
-                QuickDraggableButton.PositionKey.BACKPACK_CRAFT,
-                Component.translatable("quickcraft.button.craft_action")
-        ));
+        this.quickcraft$craftButton = this.addRenderableWidget(
+                new QuickCraftActionButton(
+                        buttonX,
+                        buttonY,
+                        button -> QuickCraftBackpack.handleBackpackCraftButton(QuickCraftKeyBindings.isAltDown()),
+                        QuickDraggableButton.PositionKey.BACKPACK_CRAFT,
+                        Component.translatable("quickcraft.button.craft_action")
+                )
+        );
     }
 
     //#disable-remap
     @Inject(method = "extractRenderState", at = @At("HEAD"))
     //#enable-remap
-    private void quickcraft$syncCraftButton(GuiGraphicsExtractor context, int mouseX, int mouseY, float delta, CallbackInfo ci) {
+    private void quickcraft$syncCraftButton(
+            GuiGraphicsExtractor context,
+            int mouseX,
+            int mouseY,
+            float delta,
+            CallbackInfo ci
+    ) {
         if (this.quickcraft$craftButton == null) {
             return;
         }
 
-        this.quickcraft$craftButton.visible = QuickCraftConfigs.isBackpackQuickCraftEnabled()
-                && QuickCraftConfigs.isCraftActionButtonVisible();
+        this.quickcraft$craftButton.visible = QuickCraftConfigs.isBackpackQuickCraftEnabled() && QuickCraftConfigs
+                .isCraftActionButtonVisible();
         this.quickcraft$craftButton.setDefaultPosition(
                 this.leftPos + this.getMenu().getSlot(0).x + 13,
                 this.topPos + this.getMenu().getSlot(0).y + 13
@@ -224,7 +250,13 @@ abstract class CraftActionButtonBackpackMixin extends AbstractContainerScreen<In
     //#disable-remap
     @Inject(method = "extractRenderState", at = @At("HEAD"))
     //#enable-remap
-    private void quickcraft$addLockButton(GuiGraphicsExtractor context, int mouseX, int mouseY, float delta, CallbackInfo ci) {
+    private void quickcraft$addLockButton(
+            GuiGraphicsExtractor context,
+            int mouseX,
+            int mouseY,
+            float delta,
+            CallbackInfo ci
+    ) {
         QuickContainerLock.bindCurrentScreen(this);
         this.quickcraft$ensureSortButton();
         this.quickcraft$ensureStashButton();
@@ -247,20 +279,29 @@ abstract class CraftActionButtonBackpackMixin extends AbstractContainerScreen<In
         int buttonX = this.leftPos + this.imageWidth - 18;
         int buttonY = this.topPos + 69;
         this.quickcraft$lockButton = this.addRenderableWidget(new QuickContainerLockButton(buttonX, buttonY, button -> {
-                    QuickContainerLock.toggleCurrentScreenLock(client, this);
-                }, () -> QuickContainerLock.isCurrentScreenLocked(this),
+            QuickContainerLock.toggleCurrentScreenLock(client, this);
+        },
+                () -> QuickContainerLock.isCurrentScreenLocked(this),
                 QuickDraggableButton.PositionKey.BACKPACK_LOCK,
-                Component.translatable("quickcraft.button.inventory_lock.tooltip")));
+                Component.translatable("quickcraft.button.inventory_lock.tooltip")
+        ));
         this.quickcraft$syncLockButtonPosition();
     }
 
     @Unique
     private void quickcraft$ensureSortButton() {
-        boolean crossVisible = QuickCraftConfigs.isCrossBoxSortEnabled() && QuickCraftConfigs.isQuickSortButtonVisible();
+        boolean crossVisible = QuickCraftConfigs.isCrossBoxSortEnabled() && QuickCraftConfigs
+                .isQuickSortButtonVisible();
         if (crossVisible && (quickcraft$crossSortButton == null || !children().contains(quickcraft$crossSortButton))) {
-            quickcraft$crossSortButton = addRenderableWidget(new QuickCrossBoxSortButton(
-                    this.leftPos + this.imageWidth - 34, this.topPos + 53, this, true,
-                    QuickDraggableButton.PositionKey.BACKPACK_CROSS_BOX_SORT_COMPACT));
+            quickcraft$crossSortButton = addRenderableWidget(
+                    new QuickCrossBoxSortButton(
+                            this.leftPos + this.imageWidth - 34,
+                            this.topPos + 53,
+                            this,
+                            true,
+                            QuickDraggableButton.PositionKey.BACKPACK_CROSS_BOX_SORT_COMPACT
+                    )
+            );
         }
         if (quickcraft$crossSortButton != null) {
             quickcraft$crossSortButton.visible = crossVisible;
@@ -270,11 +311,15 @@ abstract class CraftActionButtonBackpackMixin extends AbstractContainerScreen<In
 
         boolean visible = QuickCraftConfigs.isQuickSortButtonVisible();
         if (visible && (this.quickcraft$sortButton == null || !this.children().contains(this.quickcraft$sortButton))) {
-            this.quickcraft$sortButton = this.addRenderableWidget(new QuickSortButton(
-                    this.leftPos + this.imageWidth - 34, this.topPos + 69,
-                    button -> QuickSort.sortFromButton(this, true),
-                    QuickDraggableButton.PositionKey.BACKPACK_SORT,
-                    Component.translatable("quickcraft.button.sort_inventory")));
+            this.quickcraft$sortButton = this.addRenderableWidget(
+                    new QuickSortButton(
+                            this.leftPos + this.imageWidth - 34,
+                            this.topPos + 69,
+                            button -> QuickSort.sortFromButton(this, true),
+                            QuickDraggableButton.PositionKey.BACKPACK_SORT,
+                            Component.translatable("quickcraft.button.sort_inventory")
+                    )
+            );
         }
         if (this.quickcraft$sortButton != null) {
             this.quickcraft$sortButton.visible = visible;
@@ -285,12 +330,18 @@ abstract class CraftActionButtonBackpackMixin extends AbstractContainerScreen<In
     @Unique
     private void quickcraft$ensureStashButton() {
         boolean visible = QuickCraftConfigs.isQuickStashButtonVisible();
-        if (visible && (this.quickcraft$stashButton == null || !this.children().contains(this.quickcraft$stashButton))) {
-            this.quickcraft$stashButton = this.addRenderableWidget(new QuickStashButton(
-                    this.leftPos + this.imageWidth - 50, this.topPos + 69,
-                    button -> QuickShulkerStash.stashInventory(this),
-                    QuickDraggableButton.PositionKey.INVENTORY_SHULKER_STASH,
-                    Component.translatable("quickcraft.button.inventory_shulker_stash")));
+        if (visible && (this.quickcraft$stashButton == null || !this.children().contains(
+                this.quickcraft$stashButton
+        ))) {
+            this.quickcraft$stashButton = this.addRenderableWidget(
+                    new QuickStashButton(
+                            this.leftPos + this.imageWidth - 50,
+                            this.topPos + 69,
+                            button -> QuickShulkerStash.stashInventory(this),
+                            QuickDraggableButton.PositionKey.INVENTORY_SHULKER_STASH,
+                            Component.translatable("quickcraft.button.inventory_shulker_stash")
+                    )
+            );
         }
         if (this.quickcraft$stashButton != null) {
             this.quickcraft$stashButton.visible = visible;
@@ -310,7 +361,6 @@ abstract class CraftActionButtonBackpackMixin extends AbstractContainerScreen<In
         this.quickcraft$lockButton.setDefaultPosition(this.leftPos + this.imageWidth - 18, this.topPos + 69);
     }
 
-
 }
 
 /**
@@ -327,9 +377,14 @@ abstract class CraftActionButtonStonecutterMixin extends AbstractContainerScreen
     }
 
     @Inject(method = "extractBackground", at = @At("HEAD"))
-    private void quickcraft$addCraftButton(GuiGraphicsExtractor context, int mouseX, int mouseY, float delta, CallbackInfo ci) {
-        if (!QuickCraftConfigs.isStonecutterQuickCraftEnabled()
-                || !QuickCraftConfigs.isCraftActionButtonVisible()) {
+    private void quickcraft$addCraftButton(
+            GuiGraphicsExtractor context,
+            int mouseX,
+            int mouseY,
+            float delta,
+            CallbackInfo ci
+    ) {
+        if (!QuickCraftConfigs.isStonecutterQuickCraftEnabled() || !QuickCraftConfigs.isCraftActionButtonVisible()) {
             if (this.quickcraft$craftButton != null) {
                 this.quickcraft$craftButton.visible = false;
             }
@@ -345,12 +400,15 @@ abstract class CraftActionButtonStonecutterMixin extends AbstractContainerScreen
         // 按钮放到产物槽右下外侧，尽量不遮挡产物图标。
         int buttonX = this.leftPos + this.getMenu().getSlot(1).x + 13;
         int buttonY = this.topPos + this.getMenu().getSlot(1).y + 13;
-        this.quickcraft$craftButton = this.addRenderableWidget(new QuickCraftActionButton(
-                buttonX, buttonY,
-                button -> QuickCraftStonecutter.handleStonecutterCraftButton(QuickCraftKeyBindings.isAltDown()),
-                QuickDraggableButton.PositionKey.STONECUTTER_CRAFT,
-                Component.translatable("quickcraft.button.craft_action")
-        ));
+        this.quickcraft$craftButton = this.addRenderableWidget(
+                new QuickCraftActionButton(
+                        buttonX,
+                        buttonY,
+                        button -> QuickCraftStonecutter.handleStonecutterCraftButton(QuickCraftKeyBindings.isAltDown()),
+                        QuickDraggableButton.PositionKey.STONECUTTER_CRAFT,
+                        Component.translatable("quickcraft.button.craft_action")
+                )
+        );
         this.quickcraft$syncCraftButtonPosition();
     }
 

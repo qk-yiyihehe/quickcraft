@@ -9,8 +9,7 @@ import net.minecraft.item.ItemStack;
 import net.minecraft.component.type.ContainerComponent;
 
 public final class QuickCrossBoxSortInventory {
-    private QuickCrossBoxSortInventory() {
-    }
+    private QuickCrossBoxSortInventory() {}
 
     public static ScanResult scan(PlayerInventory inventory) {
         return scan(inventory, com.yiyihehe.quickcraft.sort.QuickCrossBoxSortProtection::isLocked);
@@ -24,17 +23,35 @@ public final class QuickCrossBoxSortInventory {
         return scan(inventory.size(), inventory::getStack, slot -> false);
     }
 
-    private static ScanResult scan(int size, java.util.function.IntFunction<ItemStack> items, java.util.function.IntPredicate locked) {
+    private static ScanResult scan(
+            int size,
+            java.util.function.IntFunction<ItemStack> items,
+            java.util.function.IntPredicate locked
+    ) {
         List<Integer> stagingSlots = new ArrayList<>();
         List<QuickCrossBoxSortStacks.Box<QuickCrossBoxSortStackKey>> boxes = new ArrayList<>();
         for (int slot = 0; slot < size; slot++) {
-            if (locked.test(slot)) { continue; }
+            if (locked.test(slot)) {
+                continue;
+            }
             ItemStack shell = items.apply(slot);
-            if (shell.isEmpty()) { stagingSlots.add(slot); continue; }
-            if (shell.getCount() != 1 || !isVanillaShulkerBox(shell) || isNamedOrSpecial(shell)) { continue; }
+            if (shell.isEmpty()) {
+                stagingSlots.add(slot);
+                continue;
+            }
+            if (shell.getCount() != 1 || !isVanillaShulkerBox(shell) || isNamedOrSpecial(shell)) {
+                continue;
+            }
             List<QuickCrossBoxSortStacks.Stack<QuickCrossBoxSortStackKey>> contents = new ArrayList<>(27);
             for (ItemStack item : storedItems(shell)) {
-                contents.add(item.isEmpty() ? null : new QuickCrossBoxSortStacks.Stack<>(new QuickCrossBoxSortStackKey(item), item.getCount(), item.getMaxCount()));
+                contents.add(
+                        item.isEmpty() ? null
+                                : new QuickCrossBoxSortStacks.Stack<>(
+                                        new QuickCrossBoxSortStackKey(item),
+                                        item.getCount(),
+                                        item.getMaxCount()
+                                )
+                );
             }
             // 已装满的同类整盒不再参与搬运，保留原项目的整盒保护。
             if (contents.stream().anyMatch(java.util.Objects::nonNull) && !isHomogeneousCapacityFull(contents)) {
@@ -47,26 +64,30 @@ public final class QuickCrossBoxSortInventory {
     static <K> boolean isHomogeneousCapacityFull(List<QuickCrossBoxSortStacks.Stack<K>> slots) {
         if (!slots.isEmpty() && slots.getFirst() != null) {
             K firstKey = slots.getFirst().key();
-            return slots.stream().allMatch((stack) -> stack != null && stack.count() == stack.maxCount() && firstKey.equals(stack.key()));
+            return slots.stream().allMatch(
+                    (stack) -> stack != null && stack.count() == stack.maxCount() && firstKey.equals(stack.key())
+            );
         } else {
             return false;
         }
     }
 
     public static boolean isVanillaShulkerBox(ItemStack stack) {
-        return stack.getItem() instanceof net.minecraft.item.BlockItem item
-        && item.getBlock() instanceof net.minecraft.block.ShulkerBoxBlock;
+        return stack.getItem() instanceof net.minecraft.item.BlockItem item && item
+                .getBlock() instanceof net.minecraft.block.ShulkerBoxBlock;
     }
 
     public static boolean isNamedOrSpecial(ItemStack stack) {
-        if (stack.contains(DataComponentTypes.CUSTOM_NAME) || stack.contains(DataComponentTypes.CONTAINER_LOOT)) { return true; }
+        if (stack.contains(DataComponentTypes.CUSTOM_NAME) || stack.contains(DataComponentTypes.CONTAINER_LOOT)) {
+            return true;
+        }
         var name = stack.get(DataComponentTypes.ITEM_NAME);
         return name != null && !name.equals(net.minecraft.text.Text.translatable(stack.getItem().getTranslationKey()));
     }
 
     public static boolean isOrdinaryEmptyShulker(ItemStack stack) {
-        return !stack.isEmpty() && isVanillaShulkerBox(stack) && !isNamedOrSpecial(stack)
-        && storedItems(stack).stream().allMatch(ItemStack::isEmpty);
+        return !stack.isEmpty() && isVanillaShulkerBox(stack) && !isNamedOrSpecial(stack) && storedItems(stack).stream()
+                .allMatch(ItemStack::isEmpty);
     }
 
     private static DefaultedList<ItemStack> storedItems(ItemStack stack) {
@@ -75,6 +96,9 @@ public final class QuickCrossBoxSortInventory {
         return items;
     }
 
-    public record ScanResult(List<Integer> stagingInventorySlots, List<QuickCrossBoxSortStacks.Box<QuickCrossBoxSortStackKey>> boxes) {
+    public record ScanResult(
+            List<Integer> stagingInventorySlots,
+            List<QuickCrossBoxSortStacks.Box<QuickCrossBoxSortStackKey>> boxes
+    ) {
     }
 }

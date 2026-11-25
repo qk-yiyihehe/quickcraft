@@ -11,8 +11,7 @@ final class QuickLitematicaPreviewCompat {
     @Nullable
     private static String cachedRuntimeToken;
 
-    private QuickLitematicaPreviewCompat() {
-    }
+    private QuickLitematicaPreviewCompat() {}
 
     static boolean tryDisableShaders() {
         try {
@@ -32,9 +31,7 @@ final class QuickLitematicaPreviewCompat {
     }
 
     static boolean isContinuityModel(Object model) {
-        return ACTIVE
-                && model != null
-                && model.getClass().getName().startsWith("me.pepperbell.continuity.");
+        return ACTIVE && model != null && model.getClass().getName().startsWith("me.pepperbell.continuity.");
     }
 
     static String ctmRuntimeToken() {
@@ -45,9 +42,9 @@ final class QuickLitematicaPreviewCompat {
 
         token = "none";
         if (ACTIVE) {
-            token = FabricLoader.getInstance().getModContainer("continuity")
-                    .map(container -> container.getMetadata().getVersion().getFriendlyString())
-                    .orElse("loaded-unknown");
+            token = FabricLoader.getInstance().getModContainer("continuity").map(
+                    container -> container.getMetadata().getVersion().getFriendlyString()
+            ).orElse("loaded-unknown");
         }
         cachedRuntimeToken = token;
         return token;

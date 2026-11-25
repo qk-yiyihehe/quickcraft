@@ -32,6 +32,7 @@ public abstract class LitematicaMinecraftClientHoldEasyPlaceMixin {
         }
 
         QuickFreeCameraInteractions.callEasyPlaceAction(
-                () -> LitematicaWorldUtilsInvoker.quickcraft$doEasyPlaceAction(client));
+                () -> LitematicaWorldUtilsInvoker.quickcraft$doEasyPlaceAction(client)
+        );
     }
 }

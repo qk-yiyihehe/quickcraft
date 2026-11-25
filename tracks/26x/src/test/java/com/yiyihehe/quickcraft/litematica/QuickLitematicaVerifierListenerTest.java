@@ -9,7 +9,8 @@ import static org.mockito.Mockito.*;
 
 @org.junit.jupiter.api.extension.ExtendWith(com.yiyihehe.quickcraft.QuickCraftMinecraftTestBootstrap.class)
 class QuickLitematicaVerifierListenerTest {
-    @Test void guiCallbacksForwardWhileReachableAndDoNotRetainTheGui() throws Exception {
+    @Test
+    void guiCallbacksForwardWhileReachableAndDoNotRetainTheGui() throws Exception {
         var gui = mock(GuiSchematicVerifier.class);
         var listener = QuickLitematicaProjectionPersistence.persistentCompletionListener(gui);
         assertThat(listener).isNotSameAs(gui);
@@ -25,7 +26,8 @@ class QuickLitematicaVerifierListenerTest {
         verifyNoMoreInteractions(gui);
     }
 
-    @Test void customListenersAndNullKeepTheirOriginalContract() {
+    @Test
+    void customListenersAndNullKeepTheirOriginalContract() {
         var custom = mock(ICompletionListener.class);
         assertThat(QuickLitematicaProjectionPersistence.persistentCompletionListener(custom)).isSameAs(custom);
         assertThat(QuickLitematicaProjectionPersistence.persistentCompletionListener(null)).isNull();

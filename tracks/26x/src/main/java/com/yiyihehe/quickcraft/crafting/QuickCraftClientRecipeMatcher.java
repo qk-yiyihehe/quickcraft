@@ -28,8 +28,7 @@ import java.util.function.BiPredicate;
 final class QuickCraftClientRecipeMatcher {
     private static final int FIRST_CRAFTING_GRID_SLOT = 1;
 
-    private QuickCraftClientRecipeMatcher() {
-    }
+    private QuickCraftClientRecipeMatcher() {}
 
     @Nullable
     static RecipeDisplayId findUniqueRecipeId(
@@ -39,10 +38,7 @@ final class QuickCraftClientRecipeMatcher {
             int gridWidth,
             int gridHeight
     ) {
-        if (client == null
-                || client.player == null
-                || client.level == null
-                || resultTemplate.isEmpty()) {
+        if (client == null || client.player == null || client.level == null || resultTemplate.isEmpty()) {
             return null;
         }
 
@@ -58,8 +54,14 @@ final class QuickCraftClientRecipeMatcher {
         }
         ContextMap context = SlotDisplayContext.fromLevel(client.level);
         return findUniqueRecipeIdInCollections(
-                client.player.getRecipeBook().getCollections(), finder, grid, resultTemplate,
-                gridWidth, gridHeight, context);
+                client.player.getRecipeBook().getCollections(),
+                finder,
+                grid,
+                resultTemplate,
+                gridWidth,
+                gridHeight,
+                context
+        );
     }
 
     static RecipeDisplayId findUniqueRecipeIdInCollections(
@@ -75,9 +77,13 @@ final class QuickCraftClientRecipeMatcher {
 
         for (RecipeCollection collection : collections) {
             for (RecipeDisplayEntry entry : collection.getRecipes()) {
-                if (!entry.canCraft(finder)
-                        || !matchesResult(entry, resultTemplate, context)
-                        || !matchesCraftingGrid(entry.display(), grid, gridWidth, gridHeight, context)) {
+                if (!entry.canCraft(finder) || !matchesResult(entry, resultTemplate, context) || !matchesCraftingGrid(
+                        entry.display(),
+                        grid,
+                        gridWidth,
+                        gridHeight,
+                        context
+                )) {
                     continue;
                 }
 
@@ -102,17 +108,36 @@ final class QuickCraftClientRecipeMatcher {
             int recipeHeight,
             BiPredicate<T, List<T>> slotMatcher
     ) {
-        if (grid.size() != gridWidth * gridHeight
-                || ingredients.size() != recipeWidth * recipeHeight
-                || recipeWidth > gridWidth
-                || recipeHeight > gridHeight) {
+        if (grid.size() != gridWidth * gridHeight || ingredients.size() != recipeWidth * recipeHeight
+                || recipeWidth > gridWidth || recipeHeight > gridHeight) {
             return false;
         }
 
         for (int offsetY = 0; offsetY <= gridHeight - recipeHeight; offsetY++) {
             for (int offsetX = 0; offsetX <= gridWidth - recipeWidth; offsetX++) {
-                if (matchesShapedAt(grid, gridWidth, gridHeight, ingredients, recipeWidth, recipeHeight, offsetX, offsetY, false, slotMatcher)
-                        || matchesShapedAt(grid, gridWidth, gridHeight, ingredients, recipeWidth, recipeHeight, offsetX, offsetY, true, slotMatcher)) {
+                if (matchesShapedAt(
+                        grid,
+                        gridWidth,
+                        gridHeight,
+                        ingredients,
+                        recipeWidth,
+                        recipeHeight,
+                        offsetX,
+                        offsetY,
+                        false,
+                        slotMatcher
+                ) || matchesShapedAt(
+                        grid,
+                        gridWidth,
+                        gridHeight,
+                        ingredients,
+                        recipeWidth,
+                        recipeHeight,
+                        offsetX,
+                        offsetY,
+                        true,
+                        slotMatcher
+                )) {
                     return true;
                 }
             }
@@ -133,13 +158,10 @@ final class QuickCraftClientRecipeMatcher {
         return matchesShapelessInputs(inputs, ingredients, 0, new boolean[ingredients.size()], slotMatcher);
     }
 
-    private static boolean matchesResult(
-            RecipeDisplayEntry entry,
-            ItemStack resultTemplate,
-            ContextMap context
-    ) {
-        return entry.resultItems(context).stream()
-                .anyMatch(displayed -> ItemStack.isSameItemSameComponents(displayed, resultTemplate));
+    private static boolean matchesResult(RecipeDisplayEntry entry, ItemStack resultTemplate, ContextMap context) {
+        return entry.resultItems(context).stream().anyMatch(
+                displayed -> ItemStack.isSameItemSameComponents(displayed, resultTemplate)
+        );
     }
 
     private static boolean matchesCraftingGrid(
@@ -163,7 +185,11 @@ final class QuickCraftClientRecipeMatcher {
 
         if (display instanceof ShapelessCraftingRecipeDisplay shapeless) {
             List<ItemStack> inputs = grid.stream().filter(stack -> !stack.isEmpty()).toList();
-            return matchesShapelessGrid(inputs, getCandidateStacks(shapeless.ingredients(), context), QuickCraftClientRecipeMatcher::matchesSlot);
+            return matchesShapelessGrid(
+                    inputs,
+                    getCandidateStacks(shapeless.ingredients(), context),
+                    QuickCraftClientRecipeMatcher::matchesSlot
+            );
         }
 
         return false;
@@ -177,10 +203,7 @@ final class QuickCraftClientRecipeMatcher {
         return stacks;
     }
 
-    private static List<List<ItemStack>> getCandidateStacks(
-            List<SlotDisplay> displays,
-            ContextMap context
-    ) {
+    private static List<List<ItemStack>> getCandidateStacks(List<SlotDisplay> displays, ContextMap context) {
         return displays.stream().map(display -> display.resolveForStacks(context)).toList();
     }
 

@@ -62,7 +62,7 @@ class QuickBeaconLevelGuardTest {
         when(menu.getLevels()).thenReturn(0);
 
         try (MockedStatic<QuickCraftConfigs> configs = mockStatic(QuickCraftConfigs.class);
-             MockedStatic<QuickClientScreenAccess> screens = mockStatic(QuickClientScreenAccess.class)) {
+                MockedStatic<QuickClientScreenAccess> screens = mockStatic(QuickClientScreenAccess.class)) {
             configs.when(QuickCraftConfigs::getBeaconEffectOrderStrings).thenReturn(List.of("急迫2"));
             screens.when(() -> QuickClientScreenAccess.currentScreen(client)).thenReturn(screen);
             for (int tick = 0; tick < OPEN_TIMEOUT_TICKS; tick++) {
@@ -91,7 +91,7 @@ class QuickBeaconLevelGuardTest {
         when(menu.getSlot(0)).thenReturn(paymentSlot);
 
         try (MockedStatic<QuickCraftConfigs> configs = mockStatic(QuickCraftConfigs.class);
-             MockedStatic<QuickClientScreenAccess> screens = mockStatic(QuickClientScreenAccess.class)) {
+                MockedStatic<QuickClientScreenAccess> screens = mockStatic(QuickClientScreenAccess.class)) {
             configs.when(QuickCraftConfigs::getBeaconEffectOrderStrings).thenReturn(List.of("急迫2"));
             screens.when(() -> QuickClientScreenAccess.currentScreen(client)).thenReturn(screen);
             invokeProcessPendingState();
@@ -112,7 +112,7 @@ class QuickBeaconLevelGuardTest {
         when(menu.getLevels()).thenReturn(0).thenReturn(2);
 
         try (MockedStatic<QuickCraftConfigs> configs = mockStatic(QuickCraftConfigs.class);
-             MockedStatic<QuickClientScreenAccess> screens = mockStatic(QuickClientScreenAccess.class)) {
+                MockedStatic<QuickClientScreenAccess> screens = mockStatic(QuickClientScreenAccess.class)) {
             configs.when(QuickCraftConfigs::getBeaconEffectOrderStrings).thenReturn(List.of("急迫2"));
             screens.when(() -> QuickClientScreenAccess.currentScreen(client)).thenReturn(screen);
             invokeProcessPendingState();
@@ -131,7 +131,7 @@ class QuickBeaconLevelGuardTest {
         when(menu.getLevels()).thenReturn(3);
 
         try (MockedStatic<QuickCraftConfigs> configs = mockStatic(QuickCraftConfigs.class);
-             MockedStatic<QuickClientScreenAccess> screens = mockStatic(QuickClientScreenAccess.class)) {
+                MockedStatic<QuickClientScreenAccess> screens = mockStatic(QuickClientScreenAccess.class)) {
             configs.when(QuickCraftConfigs::getBeaconEffectOrderStrings).thenReturn(List.of("急迫2"));
             screens.when(() -> QuickClientScreenAccess.currentScreen(client)).thenReturn(screen);
             invokeProcessPendingState();
@@ -153,7 +153,7 @@ class QuickBeaconLevelGuardTest {
         when(menu.getSlot(0)).thenReturn(paymentSlot);
 
         try (MockedStatic<QuickCraftConfigs> configs = mockStatic(QuickCraftConfigs.class);
-             MockedStatic<QuickClientScreenAccess> screens = mockStatic(QuickClientScreenAccess.class)) {
+                MockedStatic<QuickClientScreenAccess> screens = mockStatic(QuickClientScreenAccess.class)) {
             configs.when(QuickCraftConfigs::getBeaconEffectOrderStrings).thenReturn(List.of("急迫2"));
             screens.when(() -> QuickClientScreenAccess.currentScreen(client)).thenReturn(screen);
             invokeProcessPendingState();
@@ -184,7 +184,7 @@ class QuickBeaconLevelGuardTest {
         return String.valueOf(field.get(null));
     }
 
-    @SuppressWarnings({"unchecked", "rawtypes"})
+    @SuppressWarnings({ "unchecked", "rawtypes" })
     private static void setPendingStage(String name) throws Exception {
         Field field = QuickBeacon.class.getDeclaredField("pendingStage");
         field.setAccessible(true);

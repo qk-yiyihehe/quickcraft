@@ -26,8 +26,7 @@ import java.util.Set;
 public final class QuickLitematicaVerifierRenderer {
     private static final int MISSING_SLOT_GHOST_MASK = 0xD0E2FF;
 
-    private QuickLitematicaVerifierRenderer() {
-    }
+    private QuickLitematicaVerifierRenderer() {}
 
     public static void renderInventoryPair(
             ContainerMismatch mismatch,
@@ -48,8 +47,36 @@ public final class QuickLitematicaVerifierRenderer {
             return;
         }
 
-        renderInventoryOverlay(BlockInfoAlignment.CENTER, LeftRight.LEFT, 0, mismatch.type(), inventories.getLeft(), expectedState, expectedDisabledSlots, List.of(), false, mouseX, mouseY, mc, drawContext);
-        renderInventoryOverlay(BlockInfoAlignment.CENTER, LeftRight.RIGHT, 0, mismatch.type(), inventories.getRight(), foundState, foundDisabledSlots, mismatch.slotMismatches(), true, mouseX, mouseY, mc, drawContext);
+        renderInventoryOverlay(
+                BlockInfoAlignment.CENTER,
+                LeftRight.LEFT,
+                0,
+                mismatch.type(),
+                inventories.getLeft(),
+                expectedState,
+                expectedDisabledSlots,
+                List.of(),
+                false,
+                mouseX,
+                mouseY,
+                mc,
+                drawContext
+        );
+        renderInventoryOverlay(
+                BlockInfoAlignment.CENTER,
+                LeftRight.RIGHT,
+                0,
+                mismatch.type(),
+                inventories.getRight(),
+                foundState,
+                foundDisabledSlots,
+                mismatch.slotMismatches(),
+                true,
+                mouseX,
+                mouseY,
+                mc,
+                drawContext
+        );
     }
 
     private static void renderInventoryOverlay(
@@ -94,12 +121,35 @@ public final class QuickLitematicaVerifierRenderer {
         }
 
         renderInventoryBackground(drawContext, type, xInv, yInv, props.slotsPerRow, props.totalSlots, mc);
-        drawSlotHighlights(drawContext, type, xInv + props.slotOffsetX, yInv + props.slotOffsetY, props.slotsPerRow, slotMismatches);
-        renderInventoryStacks(drawContext, type, inventory, xInv + props.slotOffsetX, yInv + props.slotOffsetY,
-                props.slotsPerRow, disabledSlots, mc);
+        drawSlotHighlights(
+                drawContext,
+                type,
+                xInv + props.slotOffsetX,
+                yInv + props.slotOffsetY,
+                props.slotsPerRow,
+                slotMismatches
+        );
+        renderInventoryStacks(
+                drawContext,
+                type,
+                inventory,
+                xInv + props.slotOffsetX,
+                yInv + props.slotOffsetY,
+                props.slotsPerRow,
+                disabledSlots,
+                mc
+        );
 
         if (renderGhostStacks) {
-            drawMissingGhostStacks(drawContext, mc, type, xInv + props.slotOffsetX, yInv + props.slotOffsetY, props.slotsPerRow, slotMismatches);
+            drawMissingGhostStacks(
+                    drawContext,
+                    mc,
+                    type,
+                    xInv + props.slotOffsetX,
+                    yInv + props.slotOffsetY,
+                    props.slotsPerRow,
+                    slotMismatches
+            );
         }
     }
 
@@ -130,14 +180,24 @@ public final class QuickLitematicaVerifierRenderer {
             List<SlotMismatch> slotMismatches
     ) {
         for (SlotMismatch mismatch : slotMismatches) {
-            if (mismatch.status() != QuickLitematicaContainerVerifier.SlotMismatchStatus.MISSING || mismatch.expectedStack().isEmpty()) {
+            if (mismatch.status() != QuickLitematicaContainerVerifier.SlotMismatchStatus.MISSING || mismatch
+                    .expectedStack().isEmpty()) {
                 continue;
             }
 
             SlotPosition pos = getInventoryOverlaySlotPosition(type, xSlots, ySlots, slotsPerRow, mismatch.slot());
             int x = pos.x();
             int y = pos.y();
-            drawGhostItem(drawContext, mc, mismatch.expectedStack(), x, y, 0, 0, QuickLitematicaVerifierPalette.ghostItemAlpha());
+            drawGhostItem(
+                    drawContext,
+                    mc,
+                    mismatch.expectedStack(),
+                    x,
+                    y,
+                    0,
+                    0,
+                    QuickLitematicaVerifierPalette.ghostItemAlpha()
+            );
             drawContext.fill(x, y, x + 16, y + 16, mismatch.status().ghostMaskColor());
             drawOutline(drawContext, x, y, 16, 16, mismatch.status().borderColor());
         }
@@ -180,8 +240,7 @@ public final class QuickLitematicaVerifierRenderer {
         return client != null;
     }
 
-    public static void endHandledScreenGhostRender(DrawContext context, int guiLeft, int guiTop, float alpha) {
-    }
+    public static void endHandledScreenGhostRender(DrawContext context, int guiLeft, int guiTop, float alpha) {}
 
     private static void drawOutline(DrawContext drawContext, int x, int y, int width, int height, int color) {
         drawContext.fill(x, y, x + width, y + 1, color);
@@ -203,8 +262,15 @@ public final class QuickLitematicaVerifierRenderer {
             int totalSlots,
             MinecraftClient client
     ) {
-        InventoryOverlay.renderInventoryBackground(context, InventoryOverlay.InventoryRenderType.valueOf(type.name()),
-                x, y, slotsPerRow, totalSlots, client);
+        InventoryOverlay.renderInventoryBackground(
+                context,
+                InventoryOverlay.InventoryRenderType.valueOf(type.name()),
+                x,
+                y,
+                slotsPerRow,
+                totalSlots,
+                client
+        );
     }
 
     private static void renderInventoryStacks(
@@ -217,7 +283,17 @@ public final class QuickLitematicaVerifierRenderer {
             Set<Integer> disabledSlots,
             MinecraftClient client
     ) {
-        InventoryOverlay.renderInventoryStacks(context, InventoryOverlay.InventoryRenderType.valueOf(type.name()),
-                inventory, x, y, slotsPerRow, 0, inventory.size(), disabledSlots, client);
+        InventoryOverlay.renderInventoryStacks(
+                context,
+                InventoryOverlay.InventoryRenderType.valueOf(type.name()),
+                inventory,
+                x,
+                y,
+                slotsPerRow,
+                0,
+                inventory.size(),
+                disabledSlots,
+                client
+        );
     }
 }

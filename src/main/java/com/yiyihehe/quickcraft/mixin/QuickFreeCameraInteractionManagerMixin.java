@@ -33,10 +33,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 public class QuickFreeCameraInteractionManagerMixin {
     @ModifyVariable(method = "interactBlock", at = @At("HEAD"), argsOnly = true)
     private BlockHitResult quickcraft$encodeFreeCameraPlacementState(BlockHitResult hitResult) {
-        return QuickFreeCameraInteractions.encodeFreeCameraPlacementState(
-                MinecraftClient.getInstance(),
-                hitResult
-        );
+        return QuickFreeCameraInteractions.encodeFreeCameraPlacementState(MinecraftClient.getInstance(), hitResult);
     }
 
     @Inject(method = "interactBlock", at = @At("HEAD"), cancellable = true)
@@ -44,7 +41,7 @@ public class QuickFreeCameraInteractionManagerMixin {
             ClientPlayerEntity player,
             Hand hand,
             BlockHitResult hitResult,
-        CallbackInfoReturnable<ActionResult> cir
+            CallbackInfoReturnable<ActionResult> cir
     ) {
         MinecraftClient client = MinecraftClient.getInstance();
         if (QuickFreeCameraInteractions.isBlockOutsideServerInteractionRange(client, hitResult.getBlockPos())) {
@@ -91,10 +88,7 @@ public class QuickFreeCameraInteractionManagerMixin {
             Direction direction,
             CallbackInfoReturnable<Boolean> cir
     ) {
-        if (QuickFreeCameraInteractions.isBlockOutsideServerInteractionRange(
-                MinecraftClient.getInstance(),
-                position
-        )) {
+        if (QuickFreeCameraInteractions.isBlockOutsideServerInteractionRange(MinecraftClient.getInstance(), position)) {
             cir.setReturnValue(false);
         }
     }
@@ -105,10 +99,7 @@ public class QuickFreeCameraInteractionManagerMixin {
             Direction direction,
             CallbackInfoReturnable<Boolean> cir
     ) {
-        if (QuickFreeCameraInteractions.isBlockOutsideServerInteractionRange(
-                MinecraftClient.getInstance(),
-                position
-        )) {
+        if (QuickFreeCameraInteractions.isBlockOutsideServerInteractionRange(MinecraftClient.getInstance(), position)) {
             ((ClientPlayerInteractionManager) (Object) this).cancelBlockBreaking();
             cir.setReturnValue(false);
         }
@@ -121,10 +112,7 @@ public class QuickFreeCameraInteractionManagerMixin {
             Hand hand,
             CallbackInfoReturnable<ActionResult> cir
     ) {
-        if (QuickFreeCameraInteractions.isEntityOutsideServerInteractionRange(
-                MinecraftClient.getInstance(),
-                entity
-        )) {
+        if (QuickFreeCameraInteractions.isEntityOutsideServerInteractionRange(MinecraftClient.getInstance(), entity)) {
             cir.setReturnValue(ActionResult.FAIL);
         }
     }
@@ -133,15 +121,10 @@ public class QuickFreeCameraInteractionManagerMixin {
             method = "interactEntity",
             at = @At(
                     value = "INVOKE",
-                    target = "Lnet/minecraft/network/packet/c2s/play/PlayerInteractEntityC2SPacket;interact(Lnet/minecraft/entity/Entity;ZLnet/minecraft/util/Hand;)Lnet/minecraft/network/packet/c2s/play/PlayerInteractEntityC2SPacket;"
-            ),
-            index = 1
-    )
+                    target = "Lnet/minecraft/network/packet/c2s/play/PlayerInteractEntityC2SPacket;interact(Lnet/minecraft/entity/Entity;ZLnet/minecraft/util/Hand;)Lnet/minecraft/network/packet/c2s/play/PlayerInteractEntityC2SPacket;"),
+            index = 1)
     private boolean quickcraft$useFreeCameraSneakingForEntityUse(boolean originalSneaking) {
-        return QuickFreeCameraInteractions.resolveEntitySneaking(
-                MinecraftClient.getInstance(),
-                originalSneaking
-        );
+        return QuickFreeCameraInteractions.resolveEntitySneaking(MinecraftClient.getInstance(), originalSneaking);
     }
 
     @Inject(method = "interactEntity", at = @At("RETURN"))
@@ -162,10 +145,7 @@ public class QuickFreeCameraInteractionManagerMixin {
             Hand hand,
             CallbackInfoReturnable<ActionResult> cir
     ) {
-        if (QuickFreeCameraInteractions.isEntityOutsideServerInteractionRange(
-                MinecraftClient.getInstance(),
-                entity
-        )) {
+        if (QuickFreeCameraInteractions.isEntityOutsideServerInteractionRange(MinecraftClient.getInstance(), entity)) {
             cir.setReturnValue(ActionResult.FAIL);
         }
     }
@@ -174,15 +154,10 @@ public class QuickFreeCameraInteractionManagerMixin {
             method = "interactEntityAtLocation",
             at = @At(
                     value = "INVOKE",
-                    target = "Lnet/minecraft/network/packet/c2s/play/PlayerInteractEntityC2SPacket;interactAt(Lnet/minecraft/entity/Entity;ZLnet/minecraft/util/Hand;Lnet/minecraft/util/math/Vec3d;)Lnet/minecraft/network/packet/c2s/play/PlayerInteractEntityC2SPacket;"
-            ),
-            index = 1
-    )
+                    target = "Lnet/minecraft/network/packet/c2s/play/PlayerInteractEntityC2SPacket;interactAt(Lnet/minecraft/entity/Entity;ZLnet/minecraft/util/Hand;Lnet/minecraft/util/math/Vec3d;)Lnet/minecraft/network/packet/c2s/play/PlayerInteractEntityC2SPacket;"),
+            index = 1)
     private boolean quickcraft$useFreeCameraSneakingForEntityUseAtLocation(boolean originalSneaking) {
-        return QuickFreeCameraInteractions.resolveEntitySneaking(
-                MinecraftClient.getInstance(),
-                originalSneaking
-        );
+        return QuickFreeCameraInteractions.resolveEntitySneaking(MinecraftClient.getInstance(), originalSneaking);
     }
 
     @Inject(method = "interactEntityAtLocation", at = @At("RETURN"))
@@ -197,15 +172,8 @@ public class QuickFreeCameraInteractionManagerMixin {
     }
 
     @Inject(method = "attackEntity", at = @At("HEAD"), cancellable = true)
-    private void quickcraft$rejectOutOfRangeEntityAttack(
-            PlayerEntity player,
-            Entity entity,
-            CallbackInfo ci
-    ) {
-        if (QuickFreeCameraInteractions.isEntityOutsideServerInteractionRange(
-                MinecraftClient.getInstance(),
-                entity
-        )) {
+    private void quickcraft$rejectOutOfRangeEntityAttack(PlayerEntity player, Entity entity, CallbackInfo ci) {
+        if (QuickFreeCameraInteractions.isEntityOutsideServerInteractionRange(MinecraftClient.getInstance(), entity)) {
             ci.cancel();
         }
     }
@@ -214,23 +182,14 @@ public class QuickFreeCameraInteractionManagerMixin {
             method = "attackEntity",
             at = @At(
                     value = "INVOKE",
-                    target = "Lnet/minecraft/network/packet/c2s/play/PlayerInteractEntityC2SPacket;attack(Lnet/minecraft/entity/Entity;Z)Lnet/minecraft/network/packet/c2s/play/PlayerInteractEntityC2SPacket;"
-            ),
-            index = 1
-    )
+                    target = "Lnet/minecraft/network/packet/c2s/play/PlayerInteractEntityC2SPacket;attack(Lnet/minecraft/entity/Entity;Z)Lnet/minecraft/network/packet/c2s/play/PlayerInteractEntityC2SPacket;"),
+            index = 1)
     private boolean quickcraft$useFreeCameraSneakingForEntityAttack(boolean originalSneaking) {
-        return QuickFreeCameraInteractions.resolveEntitySneaking(
-                MinecraftClient.getInstance(),
-                originalSneaking
-        );
+        return QuickFreeCameraInteractions.resolveEntitySneaking(MinecraftClient.getInstance(), originalSneaking);
     }
 
     @Inject(method = "attackEntity", at = @At("RETURN"))
-    private void quickcraft$endEntityAttackFromFreeCamera(
-            PlayerEntity player,
-            Entity entity,
-            CallbackInfo ci
-    ) {
+    private void quickcraft$endEntityAttackFromFreeCamera(PlayerEntity player, Entity entity, CallbackInfo ci) {
         QuickFreeCameraInteractions.endEntityUseFromFreeCamera(MinecraftClient.getInstance());
     }
 }

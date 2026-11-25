@@ -79,8 +79,8 @@ public final class QuickLitematicaShulkerMaterialRestock implements ClientModIni
 
         PlayerInventory inventory = client.player.getInventory();
         if (QuickPortableStorageTransfer.isRunning()) {
-            if (findShulkerWithMaterial(inventory, requiredStack) == -1
-                    || !QuickPortableStorageTransfer.yieldHandRestockToEasyPlace()) {
+            if (findShulkerWithMaterial(inventory, requiredStack) == -1 || !QuickPortableStorageTransfer
+                    .yieldHandRestockToEasyPlace()) {
                 return false;
             }
             pendingRequest = new PendingRequest(copyTemplate(requiredStack));
@@ -102,8 +102,9 @@ public final class QuickLitematicaShulkerMaterialRestock implements ClientModIni
      * 此时主手可能为空，不能依赖 Litematica 后续的 pick block 回调来发现缺料。
      */
     public static boolean requestMaterialForEasyPlaceTarget(MinecraftClient client) {
-        return QuickCraftConfigs.isLitematicaShulkerMaterialRestockWithQuickShulkerEnabled()
-                && requestMissingMaterial(getEasyPlaceTargetMaterial(client));
+        return QuickCraftConfigs.isLitematicaShulkerMaterialRestockWithQuickShulkerEnabled() && requestMissingMaterial(
+                getEasyPlaceTargetMaterial(client)
+        );
     }
 
     public static boolean isRestockInProgress() {
@@ -111,10 +112,8 @@ public final class QuickLitematicaShulkerMaterialRestock implements ClientModIni
     }
 
     public static boolean takesPriorityOverHandRestock(MinecraftClient client) {
-        return isRestockInProgress()
-                || QuickCraftConfigs.isLitematicaShulkerMaterialRestockWithQuickShulkerEnabled()
-                && Configs.Generic.EASY_PLACE_MODE.getBooleanValue()
-                && !getEasyPlaceTargetMaterial(client).isEmpty()
+        return isRestockInProgress() || QuickCraftConfigs.isLitematicaShulkerMaterialRestockWithQuickShulkerEnabled()
+                && Configs.Generic.EASY_PLACE_MODE.getBooleanValue() && !getEasyPlaceTargetMaterial(client).isEmpty()
                 && !QuickLitematicaEasyPlaceInteractions.shouldAllowVanillaUse(client);
     }
 
@@ -137,8 +136,7 @@ public final class QuickLitematicaShulkerMaterialRestock implements ClientModIni
         }
         BlockState schematicState = schematicWorld.getBlockState(position);
 
-        if (schematicState.isAir()
-                || !DataManager.getRenderLayerRange().isPositionWithinRange(position)
+        if (schematicState.isAir() || !DataManager.getRenderLayerRange().isPositionWithinRange(position)
                 || !client.world.getBlockState(position).canReplace(placementContext)) {
             return ItemStack.EMPTY;
         }
@@ -147,8 +145,7 @@ public final class QuickLitematicaShulkerMaterialRestock implements ClientModIni
     }
 
     private static void onClientTick(MinecraftClient client) {
-        if (!QuickCraftConfigs.isLitematicaShulkerMaterialRestockEnabled()
-                || client.player == null
+        if (!QuickCraftConfigs.isLitematicaShulkerMaterialRestockEnabled() || client.player == null
                 || client.world == null) {
             resetState(client);
             return;
@@ -156,9 +153,7 @@ public final class QuickLitematicaShulkerMaterialRestock implements ClientModIni
 
         switch (operation) {
             case IDLE -> {
-                if (pendingRequest != null
-                        && !QuickPortableStorageTransfer.isRunning()
-                        && client.currentScreen == null
+                if (pendingRequest != null && !QuickPortableStorageTransfer.isRunning() && client.currentScreen == null
                         && !startPendingRequest(client)) {
                     pendingRequest = null;
                 }
@@ -173,9 +168,7 @@ public final class QuickLitematicaShulkerMaterialRestock implements ClientModIni
      */
     public static void onShulkerContentsReceived(int syncId) {
         MinecraftClient client = MinecraftClient.getInstance();
-        if (operation != Operation.WAITING_FOR_OPEN
-                || activeAction == null
-                || client.player == null
+        if (operation != Operation.WAITING_FOR_OPEN || activeAction == null || client.player == null
                 || client.currentScreen != null
                 || !(client.player.currentScreenHandler instanceof ShulkerBoxScreenHandler handler)
                 || handler.syncId != syncId) {
@@ -252,7 +245,10 @@ public final class QuickLitematicaShulkerMaterialRestock implements ClientModIni
 
             TrackedShulker source = TrackedShulker.from(inventory.getStack(sourceShulkerSlot), sourceShulkerSlot);
             if (QuickCraftConfigs.isLitematicaShulkerMaterialOrderlyStorageEnabled()) {
-                RetrievedMaterial retrievedMaterial = new RetrievedMaterial(copyTemplate(pendingRequest.template()), source);
+                RetrievedMaterial retrievedMaterial = new RetrievedMaterial(
+                        copyTemplate(pendingRequest.template()),
+                        source
+                );
                 if (hasEmptyContainerSlot(inventory.getStack(sourceShulkerSlot))) {
                     return openShulker(
                             client,
@@ -311,9 +307,7 @@ public final class QuickLitematicaShulkerMaterialRestock implements ClientModIni
         }
     }
 
-    private static void extractMaterial(MinecraftClient client,
-                                        ShulkerBoxScreenHandler handler,
-                                        ActiveAction action) {
+    private static void extractMaterial(MinecraftClient client, ShulkerBoxScreenHandler handler, ActiveAction action) {
         if (pendingRequest == null
                 || client.player == null
                 || client.interactionManager == null
@@ -358,10 +352,12 @@ public final class QuickLitematicaShulkerMaterialRestock implements ClientModIni
         pendingRequest = null;
     }
 
-    private static boolean moveExtractedMaterialToHotbar(MinecraftClient client,
-                                                          ShulkerBoxScreenHandler handler,
-                                                          Slot sourceSlot,
-                                                          int targetHotbarSlot) {
+    private static boolean moveExtractedMaterialToHotbar(
+            MinecraftClient client,
+            ShulkerBoxScreenHandler handler,
+            Slot sourceSlot,
+            int targetHotbarSlot
+    ) {
         Slot targetSlot = findPlayerStorageSlot(handler, targetHotbarSlot);
         if (targetSlot == null) {
             return false;
@@ -387,9 +383,11 @@ public final class QuickLitematicaShulkerMaterialRestock implements ClientModIni
      * 背包没有空格时，把目标材料直接换入 Litematica 允许的快捷栏格，
      * 同一后台容器操作把被换下的物品放进刚腾空的潜影盒格，避免原版 pick block 选到空手。
      */
-    private static void replaceHotbarMaterial(MinecraftClient client,
-                                              ShulkerBoxScreenHandler handler,
-                                              ActiveAction action) {
+    private static void replaceHotbarMaterial(
+            MinecraftClient client,
+            ShulkerBoxScreenHandler handler,
+            ActiveAction action
+    ) {
         if (pendingRequest == null
                 || client.player == null
                 || client.interactionManager == null
@@ -437,9 +435,11 @@ public final class QuickLitematicaShulkerMaterialRestock implements ClientModIni
     /**
      * 目标来源盒满时，先腾出目标快捷栏格；下一次后台开箱会从原来源盒取料。
      */
-    private static void stashHotbarMaterial(MinecraftClient client,
-                                            ShulkerBoxScreenHandler handler,
-                                            ActiveAction action) {
+    private static void stashHotbarMaterial(
+            MinecraftClient client,
+            ShulkerBoxScreenHandler handler,
+            ActiveAction action
+    ) {
         if (client.player == null
                 || client.interactionManager == null
                 || !handler.getCursorStack().isEmpty()
@@ -450,7 +450,9 @@ public final class QuickLitematicaShulkerMaterialRestock implements ClientModIni
 
         Slot sourceSlot = findPlayerStorageSlot(handler, action.targetHotbarSlot());
         Slot destinationSlot = findEmptyContainerSlot(handler);
-        if (sourceSlot == null || destinationSlot == null || !sourceSlot.hasStack() || !sourceSlot.canTakeItems(client.player)) {
+        if (sourceSlot == null || destinationSlot == null || !sourceSlot.hasStack() || !sourceSlot.canTakeItems(
+                client.player
+        )) {
             return;
         }
 
@@ -461,9 +463,11 @@ public final class QuickLitematicaShulkerMaterialRestock implements ClientModIni
     /**
      * 来源盒原本有空位时，先存旧物、再取材料，保留材料原槽位给后续有序回塞。
      */
-    private static void stashHotbarAndExtractMaterial(MinecraftClient client,
-                                                       ShulkerBoxScreenHandler handler,
-                                                       ActiveAction action) {
+    private static void stashHotbarAndExtractMaterial(
+            MinecraftClient client,
+            ShulkerBoxScreenHandler handler,
+            ActiveAction action
+    ) {
         if (pendingRequest == null
                 || action.material() == null
                 || client.player == null
@@ -508,9 +512,11 @@ public final class QuickLitematicaShulkerMaterialRestock implements ClientModIni
         pendingRequest = null;
     }
 
-    private static void returnMaterial(MinecraftClient client,
-                                       ShulkerBoxScreenHandler handler,
-                                       RetrievedMaterial material) {
+    private static void returnMaterial(
+            MinecraftClient client,
+            ShulkerBoxScreenHandler handler,
+            RetrievedMaterial material
+    ) {
         if (client.player == null || client.interactionManager == null || !handler.getCursorStack().isEmpty()) {
             retrievedMaterials.removeFirstOccurrence(material);
             return;
@@ -561,11 +567,13 @@ public final class QuickLitematicaShulkerMaterialRestock implements ClientModIni
         }
     }
 
-    private static boolean openShulker(MinecraftClient client,
-                                       int playerInventorySlot,
-                                       ActionType actionType,
-                                       RetrievedMaterial material,
-                                       int targetHotbarSlot) {
+    private static boolean openShulker(
+            MinecraftClient client,
+            int playerInventorySlot,
+            ActionType actionType,
+            RetrievedMaterial material,
+            int targetHotbarSlot
+    ) {
         activeAction = new ActiveAction(actionType, material, targetHotbarSlot, -1);
         operation = Operation.WAITING_FOR_OPEN;
         operationTicks = 0;
@@ -599,10 +607,7 @@ public final class QuickLitematicaShulkerMaterialRestock implements ClientModIni
     }
 
     private static void resetState(MinecraftClient client) {
-        if (activeAction != null
-                && activeAction.syncId() >= 0
-                && client != null
-                && client.player != null
+        if (activeAction != null && activeAction.syncId() >= 0 && client != null && client.player != null
                 && client.player.currentScreenHandler.syncId == activeAction.syncId()) {
             client.player.closeHandledScreen();
         }
@@ -680,10 +685,8 @@ public final class QuickLitematicaShulkerMaterialRestock implements ClientModIni
 
             for (int slot = 0; slot < 36; slot++) {
                 ItemStack stack = inventory.getStack(slot);
-                if (isShulkerBox(stack)
-                        && stack.getCount() == 1
-                        && getStoredStacks(stack).size() < 27
-                        && material.source().isSameBox(stack)) {
+                if (isShulkerBox(stack) && stack.getCount() == 1 && getStoredStacks(stack).size() < 27 && material
+                        .source().isSameBox(stack)) {
                     return slot;
                 }
             }
@@ -727,8 +730,8 @@ public final class QuickLitematicaShulkerMaterialRestock implements ClientModIni
     private static boolean hasPlayerStack(PlayerInventory inventory, ItemStack identity) {
         for (int slot = 0; slot < 36; slot++) {
             ItemStack stack = inventory.getStack(slot);
-            if (!QuickContainerLock.isLockedPlayerInventorySlot(slot)
-                    && !stack.isEmpty() && ItemStack.areItemsAndComponentsEqual(stack, identity)) {
+            if (!QuickContainerLock.isLockedPlayerInventorySlot(slot) && !stack.isEmpty() && ItemStack
+                    .areItemsAndComponentsEqual(stack, identity)) {
                 return true;
             }
         }
@@ -861,8 +864,7 @@ public final class QuickLitematicaShulkerMaterialRestock implements ClientModIni
 
     private static boolean isLitematicaPickBlockTarget(PlayerInventory inventory, int slot) {
         ItemStack stack = inventory.getStack(slot);
-        return !QuickContainerLock.isLockedPlayerHotbarSlot(slot)
-                && !isShulkerBox(stack)
+        return !QuickContainerLock.isLockedPlayerHotbarSlot(slot) && !isShulkerBox(stack)
                 && (!Configs.Generic.PICK_BLOCK_AVOID_DAMAGEABLE.getBooleanValue() || !stack.isDamageable())
                 && (!Configs.Generic.PICK_BLOCK_AVOID_TOOLS.getBooleanValue() || !EquipmentUtils.isRegularTool(stack));
     }
@@ -879,8 +881,10 @@ public final class QuickLitematicaShulkerMaterialRestock implements ClientModIni
     private static List<Slot> getContainerSlots(ScreenHandler handler) {
         List<Slot> slots = new ArrayList<>();
         for (Slot slot : handler.slots) {
-            if (!(slot.inventory instanceof PlayerInventory) && slot.isEnabled()
-                    && !QuickContainerLock.isLockedSlot(handler, slot)) {
+            if (!(slot.inventory instanceof PlayerInventory) && slot.isEnabled() && !QuickContainerLock.isLockedSlot(
+                    handler,
+                    slot
+            )) {
                 slots.add(slot);
             }
         }
@@ -904,13 +908,7 @@ public final class QuickLitematicaShulkerMaterialRestock implements ClientModIni
     }
 
     private static void clickSlot(MinecraftClient client, ScreenHandler handler, int slotId) {
-        client.interactionManager.clickSlot(
-                handler.syncId,
-                slotId,
-                0,
-                SlotActionType.PICKUP,
-                client.player
-        );
+        client.interactionManager.clickSlot(handler.syncId, slotId, 0, SlotActionType.PICKUP, client.player);
     }
 
     private static boolean isShulkerBox(ItemStack stack) {
@@ -930,17 +928,11 @@ public final class QuickLitematicaShulkerMaterialRestock implements ClientModIni
     }
 
     private enum Operation {
-        IDLE,
-        WAITING_FOR_OPEN,
-        WAITING_FOR_CLOSE
+        IDLE, WAITING_FOR_OPEN, WAITING_FOR_CLOSE
     }
 
     private enum ActionType {
-        EXTRACT,
-        REPLACE,
-        STASH,
-        STASH_AND_EXTRACT,
-        RETURN
+        EXTRACT, REPLACE, STASH, STASH_AND_EXTRACT, RETURN
     }
 
     private record PendingRequest(ItemStack template) {
@@ -975,9 +967,7 @@ public final class QuickLitematicaShulkerMaterialRestock implements ClientModIni
         }
 
         private int findIn(PlayerInventory inventory) {
-            if (lastKnownSlot >= 0
-                    && lastKnownSlot < 36
-                    && isMatch(inventory.getStack(lastKnownSlot))) {
+            if (lastKnownSlot >= 0 && lastKnownSlot < 36 && isMatch(inventory.getStack(lastKnownSlot))) {
                 return lastKnownSlot;
             }
 
@@ -988,16 +978,14 @@ public final class QuickLitematicaShulkerMaterialRestock implements ClientModIni
                 }
             }
             // 先找盒体和内容都吻合的来源，再保留原位置内容变化后的既有回退。
-            if (lastKnownSlot >= 0 && lastKnownSlot < 36
-                    && isSameBox(inventory.getStack(lastKnownSlot))) {
+            if (lastKnownSlot >= 0 && lastKnownSlot < 36 && isSameBox(inventory.getStack(lastKnownSlot))) {
                 return lastKnownSlot;
             }
             return -1;
         }
 
         private boolean isMatch(ItemStack stack) {
-            return isSameBox(stack)
-                    && areContentsEqual(contents, getStoredStacks(stack));
+            return isSameBox(stack) && areContentsEqual(contents, getStoredStacks(stack));
         }
 
         private boolean isSameBox(ItemStack stack) {

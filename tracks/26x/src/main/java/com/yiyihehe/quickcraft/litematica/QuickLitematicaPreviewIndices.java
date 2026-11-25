@@ -12,23 +12,30 @@ final class QuickLitematicaPreviewIndices {
     static int[] initialOrder(int count) {
         // 加载期不画透明层；首次显示前会按实际视角重排，只需原生合法的占位索引。
         int[] order = new int[count];
-        for (int i = 0; i < count; i++) order[i] = i;
+        for (int i = 0; i < count; i++) {
+            order[i] = i;
+        }
         return order;
     }
 
     static ByteBufferBuilder.Result build(ByteBufferBuilder allocator, int[] order, int indexBytes) {
-        if (indexBytes != 2 && indexBytes != 4) throw new IllegalArgumentException("Unsupported index width: " + indexBytes);
+        if (indexBytes != 2 && indexBytes != 4) {
+            throw new IllegalArgumentException("Unsupported index width: " + indexBytes);
+        }
         long address = allocator.reserve(Math.multiplyExact(order.length, 6 * indexBytes));
         write(address, order, indexBytes, null);
         return allocator.build();
     }
 
     static void write(long address, int[] order, int indexBytes, java.util.function.BooleanSupplier cancelled) {
-        if (indexBytes != 2 && indexBytes != 4) throw new IllegalArgumentException("Unsupported index width: " + indexBytes);
+        if (indexBytes != 2 && indexBytes != 4) {
+            throw new IllegalArgumentException("Unsupported index width: " + indexBytes);
+        }
         int written = 0;
         for (int quad : order) {
-            if (cancelled != null && (written++ & 4095) == 0 && cancelled.getAsBoolean())
+            if (cancelled != null && (written++ & 4095) == 0 && cancelled.getAsBoolean()) {
                 throw new java.util.concurrent.CancellationException();
+            }
             int vertex = quad * 4;
             if (indexBytes == 2) {
                 MemoryUtil.memPutShort(address, (short) vertex);

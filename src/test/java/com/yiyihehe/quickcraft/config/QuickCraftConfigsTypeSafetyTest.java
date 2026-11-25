@@ -37,16 +37,19 @@ class QuickCraftConfigsTypeSafetyTest {
         QuickCraftConfigs.ContainerTools.ENABLE_QUICK_TRADE.setBooleanValue(false);
         try (MockedStatic<QuickCraftConfigsAccess> access = mockStatic(QuickCraftConfigsAccess.class)) {
             access.when(QuickCraftConfigsAccess::getConfigDirectory).thenReturn(tempDir);
-            access.when(() -> QuickCraftConfigsAccess.parseJsonFile(any(Path.class)))
-                    .thenAnswer(invocation -> JsonParser.parseString(
-                            Files.readString(invocation.getArgument(0), StandardCharsets.UTF_8)));
+            access.when(() -> QuickCraftConfigsAccess.parseJsonFile(any(Path.class))).thenAnswer(
+                    invocation -> JsonParser.parseString(
+                            Files.readString(invocation.getArgument(0), StandardCharsets.UTF_8)
+                    )
+            );
             QuickCraftConfigs.loadFromFile();
         }
 
         assertThat(QuickCraftConfigs.hasSeenNotice("type_safety_notice")).isTrue();
         assertThat(QuickCraftConfigs.ContainerTools.ENABLE_QUICK_TRADE.getBooleanValue()).isTrue();
-        assertThat(QuickCraftConfigs.getActionButtonOffset("demo"))
-                .isEqualTo(new QuickCraftConfigs.ButtonOffset(3, -4));
+        assertThat(QuickCraftConfigs.getActionButtonOffset("demo")).isEqualTo(
+                new QuickCraftConfigs.ButtonOffset(3, -4)
+        );
     }
 
     @Test
@@ -64,13 +67,16 @@ class QuickCraftConfigsTypeSafetyTest {
 
         try (MockedStatic<QuickCraftConfigsAccess> access = mockStatic(QuickCraftConfigsAccess.class)) {
             access.when(QuickCraftConfigsAccess::getConfigDirectory).thenReturn(tempDir);
-            access.when(() -> QuickCraftConfigsAccess.parseJsonFile(any(Path.class)))
-                    .thenAnswer(invocation -> JsonParser.parseString(
-                            Files.readString(invocation.getArgument(0), StandardCharsets.UTF_8)));
+            access.when(() -> QuickCraftConfigsAccess.parseJsonFile(any(Path.class))).thenAnswer(
+                    invocation -> JsonParser.parseString(
+                            Files.readString(invocation.getArgument(0), StandardCharsets.UTF_8)
+                    )
+            );
             QuickCraftConfigs.loadFromFile();
         }
 
-        assertThat(QuickCraftConfigs.getActionButtonOffset("missing"))
-                .isEqualTo(new QuickCraftConfigs.ButtonOffset(0, 0));
+        assertThat(QuickCraftConfigs.getActionButtonOffset("missing")).isEqualTo(
+                new QuickCraftConfigs.ButtonOffset(0, 0)
+        );
     }
 }

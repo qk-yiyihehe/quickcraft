@@ -19,33 +19,33 @@
 @if "%DEBUG%"=="" @echo off
 @rem ##########################################################################
 @rem
-@rem  Gradle startup script for Windows
+@rem  适用于 Windows 的 Gradle 启动脚本
 @rem
 @rem ##########################################################################
 
-@rem Set local scope for the variables, and ensure extensions are enabled
+@rem 为变量设置局部作用域，并启用命令扩展。
 setlocal EnableExtensions
 
 set DIRNAME=%~dp0
 if "%DIRNAME%"=="" set DIRNAME=.
-@rem This is normally unused
+@rem 此变量通常不会用到。
 set APP_BASE_NAME=%~n0
 set APP_HOME=%DIRNAME%
 
-@rem Resolve any "." and ".." in APP_HOME to make it shorter.
+@rem 解析 APP_HOME 中的 "." 和 ".."，以缩短路径。
 for %%i in ("%APP_HOME%") do set APP_HOME=%%~fi
 
-@rem Keep QuickCraft's Gradle distributions and dependency caches inside this repository.
+@rem 将 QuickCraft 的 Gradle 发行包和依赖缓存保存在本仓库内。
 if defined QUICKCRAFT_GRADLE_USER_HOME (
     set "GRADLE_USER_HOME=%QUICKCRAFT_GRADLE_USER_HOME%"
 ) else (
     set "GRADLE_USER_HOME=%APP_HOME%\.gradle\user-home"
 )
 
-@rem Add default JVM options here. You can also use JAVA_OPTS and GRADLE_OPTS to pass JVM options to this script.
+@rem 在此添加默认 JVM 选项。也可通过 JAVA_OPTS 和 GRADLE_OPTS 向脚本传递选项。
 set DEFAULT_JVM_OPTS="-Xmx64m" "-Xms64m"
 
-@rem Find java.exe
+@rem 查找 java.exe。
 if defined JAVA_HOME goto findJavaFromJavaHome
 
 set JAVA_EXE=java.exe
@@ -75,15 +75,15 @@ echo location of your Java installation. 1>&2
 "%COMSPEC%" /c exit 1
 
 :execute
-@rem Setup the command line
+@rem 准备命令行参数。
 
 
 
-@rem Execute Gradle
-@rem endlocal doesn't take effect until after the line is parsed and variables are expanded
-@rem which allows us to clear the local environment before executing the java command
+@rem 执行 Gradle。
+@rem endlocal 会在整行解析和变量展开之后生效，
+@rem 因此可以在运行 Java 命令前退出局部作用域。
 endlocal & "%JAVA_EXE%" %DEFAULT_JVM_OPTS% %JAVA_OPTS% %GRADLE_OPTS% "-Dgradle.user.home=%GRADLE_USER_HOME%" "-Dorg.gradle.appname=%APP_BASE_NAME%" -jar "%APP_HOME%\gradle\wrapper\gradle-wrapper.jar" %* & call :exitWithErrorLevel
 
 :exitWithErrorLevel
-@rem Use "%COMSPEC%" /c exit to allow operators to work properly in scripts
+@rem 通过 "%COMSPEC%" /c exit 退出，使脚本中的运算符能正常工作。
 "%COMSPEC%" /c exit %ERRORLEVEL%

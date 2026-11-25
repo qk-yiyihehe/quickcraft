@@ -15,8 +15,7 @@ import net.minecraft.world.level.block.state.BlockState;
  * 26.1.2 原理图校验差异模型访问适配（字段直接访问与旧版 IntBoundingBox）。
  */
 public final class QuickLitematicaVerifierAccess {
-    private QuickLitematicaVerifierAccess() {
-    }
+    private QuickLitematicaVerifierAccess() {}
 
     public static MismatchType getMismatchType(BlockMismatch mismatch) {
         return mismatch.mismatchType;
@@ -57,13 +56,19 @@ public final class QuickLitematicaVerifierAccess {
         };
     }
 
-    public static int[] getPlacementChunkYRange(SchematicPlacement placement, int chunkX, int chunkZ, int defaultMinY, int defaultMaxY) {
+    public static int[] getPlacementChunkYRange(
+            SchematicPlacement placement,
+            int chunkX,
+            int chunkZ,
+            int defaultMinY,
+            int defaultMaxY
+    ) {
         if (placement == null) {
-            return new int[] {defaultMinY, defaultMaxY};
+            return new int[] { defaultMinY, defaultMaxY };
         }
         Map<String, IntBoundingBox> boxes = placement.getBoxesWithinChunk(chunkX, chunkZ);
         if (boxes == null || boxes.isEmpty()) {
-            return new int[] {defaultMinY, defaultMaxY};
+            return new int[] { defaultMinY, defaultMaxY };
         }
         int minY = Integer.MAX_VALUE;
         int maxY = Integer.MIN_VALUE;
@@ -71,6 +76,6 @@ public final class QuickLitematicaVerifierAccess {
             minY = Math.min(minY, box.minY());
             maxY = Math.max(maxY, box.maxY());
         }
-        return new int[] {minY, maxY};
+        return new int[] { minY, maxY };
     }
 }

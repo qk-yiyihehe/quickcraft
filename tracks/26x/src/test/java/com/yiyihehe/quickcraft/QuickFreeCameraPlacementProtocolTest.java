@@ -30,7 +30,11 @@ import static org.mockito.Mockito.when;
 class QuickFreeCameraPlacementProtocolTest {
     private static final BlockPos POS = new BlockPos(10, 64, 10);
     private static final BlockHitResult HIT = new BlockHitResult(
-            new Vec3(10.5D, 65.0D, 10.5D), Direction.UP, POS, false);
+            new Vec3(10.5D, 65.0D, 10.5D),
+            Direction.UP,
+            POS,
+            false
+    );
 
     @AfterEach
     void resetFreeCameraState() throws Exception {
@@ -48,11 +52,11 @@ class QuickFreeCameraPlacementProtocolTest {
 
     @Test
     void v3EncodesOnlyWhitelistedProperties() throws Exception {
-        BlockState state = Blocks.OAK_FENCE_GATE.defaultBlockState()
-                .setValue(FenceGateBlock.FACING, Direction.NORTH)
-                .setValue(FenceGateBlock.OPEN, true)
-                .setValue(FenceGateBlock.IN_WALL, false)
-                .setValue(FenceGateBlock.POWERED, false);
+        BlockState state = Blocks.OAK_FENCE_GATE.defaultBlockState().setValue(FenceGateBlock.FACING, Direction.NORTH)
+                .setValue(FenceGateBlock.OPEN, true).setValue(FenceGateBlock.IN_WALL, false).setValue(
+                        FenceGateBlock.POWERED,
+                        false
+                );
         var method = QuickFreeCameraInteractions.class.getDeclaredMethod("encodeV3PlacementState", BlockState.class);
         method.setAccessible(true);
         assertThat((Integer) method.invoke(null, state)).isEqualTo(20);
@@ -61,8 +65,9 @@ class QuickFreeCameraPlacementProtocolTest {
     @Test
     void missingOptionalProtocolProviderKeepsThePublicEntryUnencoded() throws Exception {
         var client = placementClient();
-        assertThatThrownBy(() -> Class.forName("fi.dy.masa.tweakeroo.tweaks.PlacementHandler"))
-                .isInstanceOf(ClassNotFoundException.class);
+        assertThatThrownBy(() -> Class.forName("fi.dy.masa.tweakeroo.tweaks.PlacementHandler")).isInstanceOf(
+                ClassNotFoundException.class
+        );
         assertThat(QuickFreeCameraInteractions.encodeFreeCameraPlacementState(client, HIT)).isSameAs(HIT);
     }
 
@@ -81,7 +86,9 @@ class QuickFreeCameraPlacementProtocolTest {
         ClientLevel world = mock(ClientLevel.class);
         when(world.getBlockState(any(BlockPos.class))).thenReturn(Blocks.AIR.defaultBlockState());
         LocalPlayer player = mock(LocalPlayer.class, invocation -> {
-            if (net.minecraft.world.level.Level.class.isAssignableFrom(invocation.getMethod().getReturnType())) return world;
+            if (net.minecraft.world.level.Level.class.isAssignableFrom(invocation.getMethod().getReturnType())) {
+                return world;
+            }
             return org.mockito.Answers.RETURNS_DEFAULTS.answer(invocation);
         });
         when(player.getItemInHand(InteractionHand.MAIN_HAND)).thenReturn(new ItemStack(Items.FURNACE));

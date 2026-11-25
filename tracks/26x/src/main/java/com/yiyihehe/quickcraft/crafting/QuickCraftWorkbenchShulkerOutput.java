@@ -18,14 +18,11 @@ import java.util.List;
  * 潜影盒工作台喷射的产物装盒策略。目标盒选择不受格子锁影响。
  */
 final class QuickCraftWorkbenchShulkerOutput {
-    private QuickCraftWorkbenchShulkerOutput() {
-    }
+    private QuickCraftWorkbenchShulkerOutput() {}
 
-    static int takeBox(Minecraft client,
-                       CraftingMenu handler,
-                       ItemStack output) {
-        if (client.player == null || client.gameMode == null
-                || !handler.getCarried().isEmpty() || output.isEmpty() || isShulkerBox(output)) {
+    static int takeBox(Minecraft client, CraftingMenu handler, ItemStack output) {
+        if (client.player == null || client.gameMode == null || !handler.getCarried().isEmpty() || output.isEmpty()
+                || isShulkerBox(output)) {
             return -1;
         }
 
@@ -37,23 +34,31 @@ final class QuickCraftWorkbenchShulkerOutput {
             return -1;
         }
 
-        client.gameMode.handleContainerInput(handler.containerId, target.index, 0,
-                ContainerInput.PICKUP, client.player);
-        if (isSingleShulker(handler.getCarried())
-                && getCapacity(handler.getCarried(), output) >= output.getCount()) {
+        client.gameMode.handleContainerInput(
+                handler.containerId,
+                target.index,
+                0,
+                ContainerInput.PICKUP,
+                client.player
+        );
+        if (isSingleShulker(handler.getCarried()) && getCapacity(handler.getCarried(), output) >= output.getCount()) {
             return target.index;
         }
         if (!handler.getCarried().isEmpty() && !target.hasItem()) {
-            client.gameMode.handleContainerInput(handler.containerId, target.index, 0,
-                    ContainerInput.PICKUP, client.player);
+            client.gameMode.handleContainerInput(
+                    handler.containerId,
+                    target.index,
+                    0,
+                    ContainerInput.PICKUP,
+                    client.player
+            );
         }
         return -1;
     }
 
-    static boolean storeOnce(Minecraft client,
-                             CraftingMenu handler,
-                             ItemStack output) {
-        if (client.player == null || client.gameMode == null
+    static boolean storeOnce(Minecraft client, CraftingMenu handler, ItemStack output) {
+        if (client.player == null
+                || client.gameMode == null
                 || !handler.getSlot(0).hasItem()
                 || !ItemStack.isSameItemSameComponents(handler.getSlot(0).getItem(), output)
                 || getCapacity(handler.getCarried(), output) < output.getCount()) {
@@ -61,30 +66,30 @@ final class QuickCraftWorkbenchShulkerOutput {
         }
 
         int capacityBefore = getCapacity(handler.getCarried(), output);
-        client.gameMode.handleContainerInput(handler.containerId, 0, 1,
-                ContainerInput.PICKUP, client.player);
+        client.gameMode.handleContainerInput(handler.containerId, 0, 1, ContainerInput.PICKUP, client.player);
         return getCapacity(handler.getCarried(), output) < capacityBefore;
     }
 
-    static boolean returnBox(Minecraft client,
-                             CraftingMenu handler,
-                             int sourceSlotId) {
+    static boolean returnBox(Minecraft client, CraftingMenu handler, int sourceSlotId) {
         if (handler.getCarried().isEmpty()) {
             return true;
         }
-        if (client.player == null || client.gameMode == null
-                || sourceSlotId < 0 || sourceSlotId >= handler.slots.size()
+        if (client.player == null || client.gameMode == null || sourceSlotId < 0 || sourceSlotId >= handler.slots.size()
                 || handler.getSlot(sourceSlotId).hasItem()) {
             return false;
         }
-        client.gameMode.handleContainerInput(handler.containerId, sourceSlotId, 0,
-                ContainerInput.PICKUP, client.player);
+        client.gameMode.handleContainerInput(
+                handler.containerId,
+                sourceSlotId,
+                0,
+                ContainerInput.PICKUP,
+                client.player
+        );
         return handler.getCarried().isEmpty();
     }
 
     static boolean isShulkerBox(ItemStack stack) {
-        return stack.getItem() instanceof BlockItem blockItem
-                && blockItem.getBlock() instanceof ShulkerBoxBlock;
+        return stack.getItem() instanceof BlockItem blockItem && blockItem.getBlock() instanceof ShulkerBoxBlock;
     }
 
     static int getCapacity(ItemStack shulker, ItemStack output) {
@@ -95,26 +100,26 @@ final class QuickCraftWorkbenchShulkerOutput {
         return QuickCraftWorkbenchShulkerContents.get(shulker).capacity(output);
     }
 
-    static int calculateCapacity(int maxStackSize,
-                                 int usedSlots,
-                                 int matchingStackCapacity) {
-        return Math.max(0, matchingStackCapacity)
-                + Math.max(0, 27 - usedSlots) * Math.max(0, maxStackSize);
+    static int calculateCapacity(int maxStackSize, int usedSlots, int matchingStackCapacity) {
+        return Math.max(0, matchingStackCapacity) + Math.max(0, 27 - usedSlots) * Math.max(0, maxStackSize);
     }
 
-    private static Slot findBox(CraftingMenu handler,
-                                ItemStack output) {
+    private static Slot findBox(CraftingMenu handler, ItemStack output) {
         Slot emptyCandidate = null;
         for (Slot slot : getPlayerStorageSlots(handler)) {
             if (!slot.hasItem() || slot.getItem().getCount() != 1 || !isShulkerBox(slot.getItem())) {
                 continue;
             }
-            QuickCraftWorkbenchShulkerContents.Contents contents =
-                    QuickCraftWorkbenchShulkerContents.get(slot.getContainerSlot(), slot.getItem());
+            QuickCraftWorkbenchShulkerContents.Contents contents = QuickCraftWorkbenchShulkerContents.get(
+                    slot.getContainerSlot(),
+                    slot.getItem()
+            );
             boolean outputOnly = contents.containsOnly(output);
-            int priority = outputBoxContentPriority(contents.count() == 0,
+            int priority = outputBoxContentPriority(
+                    contents.count() == 0,
                     outputOnly,
-                    outputOnly && contents.capacity(output) >= output.getCount());
+                    outputOnly && contents.capacity(output) >= output.getCount()
+            );
             if (priority == 0) {
                 return slot;
             }
@@ -129,8 +134,7 @@ final class QuickCraftWorkbenchShulkerOutput {
         List<Slot> slots = getPlayerStorageSlots(handler);
         Slot source = null;
         for (Slot slot : slots) {
-            if (slot.getItem().getCount() > 1 && isShulkerBox(slot.getItem())
-                    && slot.mayPickup(client.player)
+            if (slot.getItem().getCount() > 1 && isShulkerBox(slot.getItem()) && slot.mayPickup(client.player)
                     && QuickCraftWorkbenchShulkerContents.get(slot.getContainerSlot(), slot.getItem()).count() == 0) {
                 source = slot;
                 break;
@@ -145,22 +149,47 @@ final class QuickCraftWorkbenchShulkerOutput {
             if (target.hasItem() || !target.mayPlace(original)) {
                 continue;
             }
-            client.gameMode.handleContainerInput(handler.containerId, source.index, 0,
-                    ContainerInput.PICKUP, client.player);
-            if (source.hasItem() || handler.getCarried().getCount() != original.getCount()
-                    || !ItemStack.isSameItemSameComponents(handler.getCarried(), original)) {
+            client.gameMode.handleContainerInput(
+                    handler.containerId,
+                    source.index,
+                    0,
+                    ContainerInput.PICKUP,
+                    client.player
+            );
+            if (source.hasItem() || handler.getCarried().getCount() != original.getCount() || !ItemStack
+                    .isSameItemSameComponents(handler.getCarried(), original)) {
                 return null;
             }
             // 普通右键会被 QuickShulker 当作拆包；右键拖拽只在空格放一个空盒。
-            client.gameMode.handleContainerInput(handler.containerId, -999, AbstractContainerMenu.getQuickcraftMask(0, 1),
-                    ContainerInput.QUICK_CRAFT, client.player);
-            client.gameMode.handleContainerInput(handler.containerId, target.index, AbstractContainerMenu.getQuickcraftMask(1, 1),
-                    ContainerInput.QUICK_CRAFT, client.player);
-            client.gameMode.handleContainerInput(handler.containerId, -999, AbstractContainerMenu.getQuickcraftMask(2, 1),
-                    ContainerInput.QUICK_CRAFT, client.player);
+            client.gameMode.handleContainerInput(
+                    handler.containerId,
+                    -999,
+                    AbstractContainerMenu.getQuickcraftMask(0, 1),
+                    ContainerInput.QUICK_CRAFT,
+                    client.player
+            );
+            client.gameMode.handleContainerInput(
+                    handler.containerId,
+                    target.index,
+                    AbstractContainerMenu.getQuickcraftMask(1, 1),
+                    ContainerInput.QUICK_CRAFT,
+                    client.player
+            );
+            client.gameMode.handleContainerInput(
+                    handler.containerId,
+                    -999,
+                    AbstractContainerMenu.getQuickcraftMask(2, 1),
+                    ContainerInput.QUICK_CRAFT,
+                    client.player
+            );
             if (!source.hasItem() && ItemStack.isSameItemSameComponents(handler.getCarried(), original)) {
-                client.gameMode.handleContainerInput(handler.containerId, source.index, 0,
-                        ContainerInput.PICKUP, client.player);
+                client.gameMode.handleContainerInput(
+                        handler.containerId,
+                        source.index,
+                        0,
+                        ContainerInput.PICKUP,
+                        client.player
+                );
             }
             if (handler.getCarried().isEmpty()
                     && source.getItem().getCount() == original.getCount() - 1
@@ -174,9 +203,7 @@ final class QuickCraftWorkbenchShulkerOutput {
         return null;
     }
 
-    static int outputBoxContentPriority(boolean empty,
-                                        boolean outputOnly,
-                                        boolean enoughCapacity) {
+    static int outputBoxContentPriority(boolean empty, boolean outputOnly, boolean enoughCapacity) {
         if (!outputOnly || !enoughCapacity) {
             return -1;
         }
@@ -190,17 +217,17 @@ final class QuickCraftWorkbenchShulkerOutput {
     private static List<Slot> getPlayerStorageSlots(CraftingMenu handler) {
         List<Slot> slots = new ArrayList<>();
         for (Slot slot : handler.slots) {
-            if (slot.container instanceof Inventory
-                    && slot.getContainerSlot() >= 0
-                    && slot.getContainerSlot() < Inventory.INVENTORY_SIZE
-                    && slot.isActive()) {
+            if (slot.container instanceof Inventory && slot.getContainerSlot() >= 0 && slot
+                    .getContainerSlot() < Inventory.INVENTORY_SIZE && slot.isActive()) {
                 slots.add(slot);
             }
         }
         // 工作台界面中主背包（9..35）位于快捷栏上方，优先从那里取产物盒，避免占用常用快捷栏。
-        slots.sort(Comparator.comparingInt((Slot slot) -> outputBoxScanPriority(slot.getContainerSlot()))
-                .thenComparingInt(Slot::getContainerSlot)
-                .thenComparingInt(slot -> slot.index));
+        slots.sort(
+                Comparator.comparingInt((Slot slot) -> outputBoxScanPriority(slot.getContainerSlot())).thenComparingInt(
+                        Slot::getContainerSlot
+                ).thenComparingInt(slot -> slot.index)
+        );
         return slots;
     }
 

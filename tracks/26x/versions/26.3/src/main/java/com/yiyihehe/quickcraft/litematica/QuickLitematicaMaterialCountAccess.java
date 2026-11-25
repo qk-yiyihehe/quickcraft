@@ -13,20 +13,32 @@ import java.util.List;
 final class QuickLitematicaMaterialCountAccess {
     // 0.29.1 删除了四参数重载；同一声明范围仍支持 0.29.0，按实际可选依赖绑定一次。
     private static final MethodHandle BLOCK_COUNTS = findBlockCounts();
-    private QuickLitematicaMaterialCountAccess() { }
+
+    private QuickLitematicaMaterialCountAccess() {}
 
     private static MethodHandle findBlockCounts() {
         var map = Object2IntOpenHashMap.class;
         var lookup = MethodHandles.publicLookup();
         try {
             try {
-                var method = lookup.findStatic(MaterialListUtils.class, "getMaterialList",
-                        MethodType.methodType(List.class, map, map, map, map, map, map, Player.class));
-                return MethodHandles.insertArguments(method, 3,
-                        new Object2IntOpenHashMap<>(), new Object2IntOpenHashMap<>(), new Object2IntOpenHashMap<>());
+                var method = lookup.findStatic(
+                        MaterialListUtils.class,
+                        "getMaterialList",
+                        MethodType.methodType(List.class, map, map, map, map, map, map, Player.class)
+                );
+                return MethodHandles.insertArguments(
+                        method,
+                        3,
+                        new Object2IntOpenHashMap<>(),
+                        new Object2IntOpenHashMap<>(),
+                        new Object2IntOpenHashMap<>()
+                );
             } catch (NoSuchMethodException legacy) {
-                return lookup.findStatic(MaterialListUtils.class, "getMaterialList",
-                        MethodType.methodType(List.class, map, map, map, Player.class));
+                return lookup.findStatic(
+                        MaterialListUtils.class,
+                        "getMaterialList",
+                        MethodType.methodType(List.class, map, map, map, Player.class)
+                );
             }
         } catch (ReflectiveOperationException exception) {
             throw new IllegalStateException("Unsupported Litematica material count API", exception);
@@ -34,8 +46,12 @@ final class QuickLitematicaMaterialCountAccess {
     }
 
     @SuppressWarnings("unchecked")
-    static List<MaterialListEntry> blocks(Object2IntOpenHashMap<BlockState> total,
-            Object2IntOpenHashMap<BlockState> missing, Object2IntOpenHashMap<BlockState> mismatch, Player player) {
+    static List<MaterialListEntry> blocks(
+            Object2IntOpenHashMap<BlockState> total,
+            Object2IntOpenHashMap<BlockState> missing,
+            Object2IntOpenHashMap<BlockState> mismatch,
+            Player player
+    ) {
         try {
             return (List<MaterialListEntry>) BLOCK_COUNTS.invokeExact(total, missing, mismatch, player);
         } catch (RuntimeException | Error exception) {

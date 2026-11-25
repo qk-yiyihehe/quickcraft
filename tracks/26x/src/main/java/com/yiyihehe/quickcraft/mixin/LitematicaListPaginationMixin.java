@@ -16,14 +16,24 @@ import java.util.List;
 
 @Mixin(value = WidgetListBase.class, remap = false)
 public abstract class LitematicaListPaginationMixin<T> implements QuickLitematicaListPagination.PagedList {
-    @Shadow @Final protected List<T> listContents;
-    @Shadow @Final protected GuiScrollBar scrollBar;
-    @Shadow protected int browserHeight;
-    @Shadow protected int browserPaddingY;
-    @Shadow protected int browserEntriesOffsetY;
-    @Shadow protected abstract int getBrowserEntryHeightFor(T entry);
+    @Shadow
+    @Final
+    protected List<T> listContents;
+    @Shadow
+    @Final
+    protected GuiScrollBar scrollBar;
+    @Shadow
+    protected int browserHeight;
+    @Shadow
+    protected int browserPaddingY;
+    @Shadow
+    protected int browserEntriesOffsetY;
 
-    @Unique private QuickLitematicaListPagination quickcraft$pagination;
+    @Shadow
+    protected abstract int getBrowserEntryHeightFor(T entry);
+
+    @Unique
+    private QuickLitematicaListPagination quickcraft$pagination;
 
     @Override
     public void quickcraft$setPagination(QuickLitematicaListPagination pagination) {
@@ -37,9 +47,11 @@ public abstract class LitematicaListPaginationMixin<T> implements QuickLitematic
 
     @Inject(method = "reCreateListEntryWidgets", at = @At("HEAD"))
     private void quickcraft$alignPage(CallbackInfo ci) {
-        if (!this.quickcraft$isPaged()) { return; }
-        int available = this.browserHeight - this.browserPaddingY - this.browserEntriesOffsetY
-                - this.getBrowserEntryHeightFor(null);
+        if (!this.quickcraft$isPaged()) {
+            return;
+        }
+        int available = this.browserHeight - this.browserPaddingY - this.browserEntriesOffsetY - this
+                .getBrowserEntryHeightFor(null);
         int[] heights = this.listContents.stream().mapToInt(this::getBrowserEntryHeightFor).toArray();
         int first = this.quickcraft$pagination.prepare(this.scrollBar.getValue(), available, heights);
         this.scrollBar.setMaxValue(this.quickcraft$pagination.lastStart());
@@ -47,8 +59,10 @@ public abstract class LitematicaListPaginationMixin<T> implements QuickLitematic
     }
 
     // 原生最大值会把不足一页的末页拉回上一页；分页必须允许停在末页首条。
-    @ModifyArg(method = "reCreateListEntryWidgets", at = @At(value = "INVOKE",
-            target = "Lfi/dy/masa/malilib/gui/GuiScrollBar;setMaxValue(I)V"), index = 0)
+    @ModifyArg(
+            method = "reCreateListEntryWidgets",
+            at = @At(value = "INVOKE", target = "Lfi/dy/masa/malilib/gui/GuiScrollBar;setMaxValue(I)V"),
+            index = 0)
     private int quickcraft$pageScrollLimit(int original) {
         return this.quickcraft$isPaged() ? this.quickcraft$pagination.lastStart() : original;
     }

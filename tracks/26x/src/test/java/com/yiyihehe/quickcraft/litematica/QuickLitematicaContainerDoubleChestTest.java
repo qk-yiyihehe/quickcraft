@@ -51,37 +51,56 @@ class QuickLitematicaContainerDoubleChestTest {
         var verification = new QuickLitematicaContainerVerification(host);
 
         try (var minecraft = mockStatic(Minecraft.class);
-             var worldUtils = mockStatic(WorldUtils.class);
-             var verifier = mockStatic(QuickLitematicaContainerVerifier.class);
-             var replacements = mockStatic(QuickLitematicaGlobalReplacements.class, CALLS_REAL_METHODS)) {
+                var worldUtils = mockStatic(WorldUtils.class);
+                var verifier = mockStatic(QuickLitematicaContainerVerifier.class);
+                var replacements = mockStatic(QuickLitematicaGlobalReplacements.class, CALLS_REAL_METHODS)) {
             minecraft.when(Minecraft::getInstance).thenReturn(client);
             worldUtils.when(() -> WorldUtils.getBestWorld(client)).thenReturn(world);
             verifier.when(QuickLitematicaContainerVerifier::isEnabled).thenReturn(true);
-            verifier.when(() -> QuickLitematicaContainerVerifier.isMatchingDoubleChest(any(), any()))
-                    .thenReturn(true);
-            verifier.when(() -> QuickLitematicaContainerVerifier.getExpectedContainerAt(
-                    world, first, host.quickcraft$verificationSchematicPlacement()))
-                    .thenReturn(new ExpectedContainer(first, Blocks.CHEST.defaultBlockState(), null, expected, Set.of()));
-            verifier.when(() -> QuickLitematicaContainerVerifier.getExpectedContainerAt(
-                    world, second, host.quickcraft$verificationSchematicPlacement()))
-                    .thenReturn(new ExpectedContainer(second, Blocks.CHEST.defaultBlockState(), null, expected, Set.of()));
-            verifier.when(() -> QuickLitematicaContainerVerifier.getMaterialInventoryAt(world, first, 54))
-                    .thenReturn(expected);
-            verifier.when(() -> QuickLitematicaContainerVerifier.getMaterialInventoryAt(world, second, 54))
-                    .thenReturn(expected);
-            verifier.when(() -> QuickLitematicaContainerVerifier.findMismatches(
-                    any(), any(), any(), any(), any(), any(), any(), any(), any())).thenReturn(java.util.List.of());
+            verifier.when(() -> QuickLitematicaContainerVerifier.isMatchingDoubleChest(any(), any())).thenReturn(true);
+            verifier.when(
+                    () -> QuickLitematicaContainerVerifier.getExpectedContainerAt(
+                            world,
+                            first,
+                            host.quickcraft$verificationSchematicPlacement()
+                    )
+            ).thenReturn(new ExpectedContainer(first, Blocks.CHEST.defaultBlockState(), null, expected, Set.of()));
+            verifier.when(
+                    () -> QuickLitematicaContainerVerifier.getExpectedContainerAt(
+                            world,
+                            second,
+                            host.quickcraft$verificationSchematicPlacement()
+                    )
+            ).thenReturn(new ExpectedContainer(second, Blocks.CHEST.defaultBlockState(), null, expected, Set.of()));
+            verifier.when(() -> QuickLitematicaContainerVerifier.getMaterialInventoryAt(world, first, 54)).thenReturn(
+                    expected
+            );
+            verifier.when(() -> QuickLitematicaContainerVerifier.getMaterialInventoryAt(world, second, 54)).thenReturn(
+                    expected
+            );
+            verifier.when(
+                    () -> QuickLitematicaContainerVerifier.findMismatches(
+                            any(),
+                            any(),
+                            any(),
+                            any(),
+                            any(),
+                            any(),
+                            any(),
+                            any(),
+                            any()
+                    )
+            ).thenReturn(java.util.List.of());
             replacements.when(QuickLitematicaGlobalReplacements::hasRuntimeRules).thenReturn(true);
 
             verification.quickcraft$refreshContainerMismatchAt(first, found, Set.of());
             verification.quickcraft$refreshContainerMismatchAt(second, found, Set.of());
 
             assertThat(verification.quickcraft$getCheckedContainerCount()).isEqualTo(2);
-            assertThat(verification.quickcraft$getMaterialMissingStacks()).singleElement()
-                    .satisfies(stack -> {
-                        assertThat(stack.getItem()).isEqualTo(Items.STONE);
-                        assertThat(stack.getCount()).isEqualTo(2);
-                    });
+            assertThat(verification.quickcraft$getMaterialMissingStacks()).singleElement().satisfies(stack -> {
+                assertThat(stack.getItem()).isEqualTo(Items.STONE);
+                assertThat(stack.getCount()).isEqualTo(2);
+            });
 
             verification.quickcraft$refreshContainerMismatchAt(first, found, Set.of());
             verification.quickcraft$refreshContainerMismatchAt(second, found, Set.of());
@@ -128,47 +147,101 @@ class QuickLitematicaContainerDoubleChestTest {
         var verification = new QuickLitematicaContainerVerification(host);
 
         try (var minecraft = mockStatic(Minecraft.class);
-             var worldUtils = mockStatic(WorldUtils.class);
-             var verifier = mockStatic(QuickLitematicaContainerVerifier.class);
-             var replacements = mockStatic(QuickLitematicaGlobalReplacements.class, CALLS_REAL_METHODS)) {
+                var worldUtils = mockStatic(WorldUtils.class);
+                var verifier = mockStatic(QuickLitematicaContainerVerifier.class);
+                var replacements = mockStatic(QuickLitematicaGlobalReplacements.class, CALLS_REAL_METHODS)) {
             minecraft.when(Minecraft::getInstance).thenReturn(client);
             worldUtils.when(() -> WorldUtils.getBestWorld(client)).thenReturn(world);
             verifier.when(QuickLitematicaContainerVerifier::isEnabled).thenReturn(true);
-            verifier.when(() -> QuickLitematicaContainerVerifier.isMatchingDoubleChest(any(), any()))
-                    .thenReturn(true);
+            verifier.when(() -> QuickLitematicaContainerVerifier.isMatchingDoubleChest(any(), any())).thenReturn(true);
             verifier.when(() -> QuickLitematicaContainerVerifier.hasUnreadableExpectedInventory(any(), any()))
                     .thenReturn(false);
-            verifier.when(() -> QuickLitematicaContainerVerifier.getActualInventory(
-                    world, first, (Container) foundEntityFirst, expected27First)).thenReturn(found27First);
-            verifier.when(() -> QuickLitematicaContainerVerifier.getActualInventory(
-                    world, second, (Container) foundEntitySecond, expected27Second)).thenReturn(found27Second);
-            verifier.when(() -> QuickLitematicaContainerVerifier.getMaterialInventoryAt(world, first, 27))
-                    .thenReturn(expected27First);
-            verifier.when(() -> QuickLitematicaContainerVerifier.getMaterialInventoryAt(world, second, 27))
-                    .thenReturn(expected27Second);
-            verifier.when(() -> QuickLitematicaContainerVerifier.getMaterialInventoryAt(world, first, 54))
-                    .thenReturn(expected54);
-            verifier.when(() -> QuickLitematicaContainerVerifier.getMaterialInventoryAt(world, second, 54))
-                    .thenReturn(expected54);
-            verifier.when(() -> QuickLitematicaContainerVerifier.getExpectedContainerAt(
-                    world, first, host.quickcraft$verificationSchematicPlacement()))
-                    .thenReturn(new ExpectedContainer(first, left, null, expected54, Set.of()));
-            verifier.when(() -> QuickLitematicaContainerVerifier.getExpectedContainerAt(
-                    world, second, host.quickcraft$verificationSchematicPlacement()))
-                    .thenReturn(new ExpectedContainer(second, right, null, expected54, Set.of()));
+            verifier.when(
+                    () -> QuickLitematicaContainerVerifier.getActualInventory(
+                            world,
+                            first,
+                            (Container) foundEntityFirst,
+                            expected27First
+                    )
+            ).thenReturn(found27First);
+            verifier.when(
+                    () -> QuickLitematicaContainerVerifier.getActualInventory(
+                            world,
+                            second,
+                            (Container) foundEntitySecond,
+                            expected27Second
+                    )
+            ).thenReturn(found27Second);
+            verifier.when(() -> QuickLitematicaContainerVerifier.getMaterialInventoryAt(world, first, 27)).thenReturn(
+                    expected27First
+            );
+            verifier.when(() -> QuickLitematicaContainerVerifier.getMaterialInventoryAt(world, second, 27)).thenReturn(
+                    expected27Second
+            );
+            verifier.when(() -> QuickLitematicaContainerVerifier.getMaterialInventoryAt(world, first, 54)).thenReturn(
+                    expected54
+            );
+            verifier.when(() -> QuickLitematicaContainerVerifier.getMaterialInventoryAt(world, second, 54)).thenReturn(
+                    expected54
+            );
+            verifier.when(
+                    () -> QuickLitematicaContainerVerifier.getExpectedContainerAt(
+                            world,
+                            first,
+                            host.quickcraft$verificationSchematicPlacement()
+                    )
+            ).thenReturn(new ExpectedContainer(first, left, null, expected54, Set.of()));
+            verifier.when(
+                    () -> QuickLitematicaContainerVerifier.getExpectedContainerAt(
+                            world,
+                            second,
+                            host.quickcraft$verificationSchematicPlacement()
+                    )
+            ).thenReturn(new ExpectedContainer(second, right, null, expected54, Set.of()));
             verifier.when(() -> QuickLitematicaContainerVerifier.getDisabledSlots(any())).thenReturn(Set.of());
-            verifier.when(() -> QuickLitematicaContainerVerifier.findMismatches(
-                    any(), any(), any(), any(), any(), any(), any(), any(), any())).thenReturn(java.util.List.of());
+            verifier.when(
+                    () -> QuickLitematicaContainerVerifier.findMismatches(
+                            any(),
+                            any(),
+                            any(),
+                            any(),
+                            any(),
+                            any(),
+                            any(),
+                            any(),
+                            any()
+                    )
+            ).thenReturn(java.util.List.of());
             replacements.when(QuickLitematicaGlobalReplacements::hasRuntimeRules).thenReturn(true);
 
             Method initialScan = QuickLitematicaContainerVerification.class.getDeclaredMethod(
                     "quickcraft$collectContainerMismatchesDuringVerification",
-                    Level.class, ChunkAccess.class, BlockPos.class, BlockState.class, BlockEntity.class, ExpectedContainer.class);
+                    Level.class,
+                    ChunkAccess.class,
+                    BlockPos.class,
+                    BlockState.class,
+                    BlockEntity.class,
+                    ExpectedContainer.class
+            );
             initialScan.setAccessible(true);
-            initialScan.invoke(verification, world, chunk, first, left, null,
-                    new ExpectedContainer(first, left, null, expected27First, Set.of()));
-            initialScan.invoke(verification, world, chunk, second, right, null,
-                    new ExpectedContainer(second, right, null, expected27Second, Set.of()));
+            initialScan.invoke(
+                    verification,
+                    world,
+                    chunk,
+                    first,
+                    left,
+                    null,
+                    new ExpectedContainer(first, left, null, expected27First, Set.of())
+            );
+            initialScan.invoke(
+                    verification,
+                    world,
+                    chunk,
+                    second,
+                    right,
+                    null,
+                    new ExpectedContainer(second, right, null, expected27Second, Set.of())
+            );
             assertThat(verification.quickcraft$getMaterialMissingStacks()).hasSize(2);
             assertThat(materialGapTotal(verification)).isEqualTo(4);
 
@@ -178,10 +251,24 @@ class QuickLitematicaContainerDoubleChestTest {
             assertThat(materialGapTotal(verification)).isEqualTo(2);
             assertThat(verification.quickcraft$getCheckedContainerCount()).isEqualTo(2);
 
-            initialScan.invoke(verification, world, chunk, first, left, null,
-                    new ExpectedContainer(first, left, null, expected27First, Set.of()));
-            initialScan.invoke(verification, world, chunk, second, right, null,
-                    new ExpectedContainer(second, right, null, expected27Second, Set.of()));
+            initialScan.invoke(
+                    verification,
+                    world,
+                    chunk,
+                    first,
+                    left,
+                    null,
+                    new ExpectedContainer(first, left, null, expected27First, Set.of())
+            );
+            initialScan.invoke(
+                    verification,
+                    world,
+                    chunk,
+                    second,
+                    right,
+                    null,
+                    new ExpectedContainer(second, right, null, expected27Second, Set.of())
+            );
             assertThat(verification.quickcraft$getMaterialMissingStacks()).hasSize(2);
             assertThat(materialGapTotal(verification)).isEqualTo(4);
 
@@ -201,9 +288,11 @@ class QuickLitematicaContainerDoubleChestTest {
     private static void assertSameKey(Direction facing, BlockPos first, BlockPos second) {
         Level world = chestWorld(first, second, facing);
         var verification = new QuickLitematicaContainerVerification(
-                mock(QuickLitematicaContainerVerification.Host.class));
-        assertThat(verification.quickcraft$materialMissingKey(world, first, 54))
-                .isEqualTo(verification.quickcraft$materialMissingKey(world, second, 54));
+                mock(QuickLitematicaContainerVerification.Host.class)
+        );
+        assertThat(verification.quickcraft$materialMissingKey(world, first, 54)).isEqualTo(
+                verification.quickcraft$materialMissingKey(world, second, 54)
+        );
     }
 
     private static ClientLevel chestWorld(BlockPos first, BlockPos second, Direction facing) {
@@ -212,8 +301,12 @@ class QuickLitematicaContainerDoubleChestTest {
         ClientLevel world = mock(ClientLevel.class);
         when(world.getBlockState(any())).thenAnswer(invocation -> {
             BlockPos pos = invocation.getArgument(0);
-            if (pos.equals(first)) return left;
-            if (pos.equals(second)) return right;
+            if (pos.equals(first)) {
+                return left;
+            }
+            if (pos.equals(second)) {
+                return right;
+            }
             return Blocks.AIR.defaultBlockState();
         });
         return world;

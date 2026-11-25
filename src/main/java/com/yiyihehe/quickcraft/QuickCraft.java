@@ -33,30 +33,41 @@ public class QuickCraft implements ModInitializer {
             QuickLitematicaPreviewLog.setEnabled(enabled);
             MinecraftClient client = MinecraftClient.getInstance();
             if (client.player != null) {
-                client.player.sendMessage(Text.translatable(!enabled
-                        ? "quickcraft.message.developer.preview_logs_disabled"
-                        : QuickLitematicaPreviewLog.logPath() == null
-                                ? "quickcraft.message.developer.preview_logs_failed"
-                                : "quickcraft.message.developer.preview_logs_enabled",
-                        QuickLitematicaPreviewLog.logPath()), false);
+                client.player.sendMessage(
+                        Text.translatable(
+                                !enabled ? "quickcraft.message.developer.preview_logs_disabled"
+                                        : QuickLitematicaPreviewLog.logPath() == null
+                                                ? "quickcraft.message.developer.preview_logs_failed"
+                                                : "quickcraft.message.developer.preview_logs_enabled",
+                                QuickLitematicaPreviewLog.logPath()
+                        ),
+                        false
+                );
             }
         });
         if (FabricLoader.getInstance().isModLoaded("litematica")) {
-            QuickCraftConfigs.ProjectionTools.PERSIST_PROJECTION_FEATURES.setValueChangeCallback(config ->
-                    com.yiyihehe.quickcraft.litematica.QuickLitematicaProjectionPersistence.settingsChanged());
-            QuickCraftConfigs.ProjectionTools.PERSIST_SCHEMATIC_VERIFIER.setValueChangeCallback(config ->
-                    com.yiyihehe.quickcraft.litematica.QuickLitematicaProjectionPersistence.settingsChanged());
-            QuickCraftConfigs.ProjectionTools.ALLOW_PERSISTENT_MATERIAL_IGNORES.setValueChangeCallback(config ->
-                    com.yiyihehe.quickcraft.litematica.QuickLitematicaMaterialIgnores.settingsChanged());
-            QuickCraftConfigs.ProjectionTools.ALLOW_PERSISTENT_VERIFIER_IGNORES.setValueChangeCallback(config ->
-                    com.yiyihehe.quickcraft.litematica.QuickLitematicaVerifierIgnores.settingsChanged());
+            QuickCraftConfigs.ProjectionTools.PERSIST_PROJECTION_FEATURES.setValueChangeCallback(
+                    config -> com.yiyihehe.quickcraft.litematica.QuickLitematicaProjectionPersistence.settingsChanged()
+            );
+            QuickCraftConfigs.ProjectionTools.PERSIST_SCHEMATIC_VERIFIER.setValueChangeCallback(
+                    config -> com.yiyihehe.quickcraft.litematica.QuickLitematicaProjectionPersistence.settingsChanged()
+            );
+            QuickCraftConfigs.ProjectionTools.ALLOW_PERSISTENT_MATERIAL_IGNORES.setValueChangeCallback(
+                    config -> com.yiyihehe.quickcraft.litematica.QuickLitematicaMaterialIgnores.settingsChanged()
+            );
+            QuickCraftConfigs.ProjectionTools.ALLOW_PERSISTENT_VERIFIER_IGNORES.setValueChangeCallback(
+                    config -> com.yiyihehe.quickcraft.litematica.QuickLitematicaVerifierIgnores.settingsChanged()
+            );
 
-            QuickCraftConfigs.ProjectionTools.SHOW_LITEMATICA_MATERIAL_REPLACEMENTS.setValueChangeCallback(config ->
-                    com.yiyihehe.quickcraft.litematica.QuickLitematicaGlobalReplacements.changed());
-            QuickCraftConfigs.ProjectionTools.GLOBAL_CONTAINER_REPLACEMENTS.setValueChangeCallback(config ->
-                    com.yiyihehe.quickcraft.litematica.QuickLitematicaGlobalReplacements.changed());
-            QuickCraftConfigs.ProjectionTools.GLOBAL_PROJECTION_MATERIAL_REPLACEMENTS.setValueChangeCallback(config ->
-                    com.yiyihehe.quickcraft.litematica.QuickLitematicaGlobalReplacements.changed());
+            QuickCraftConfigs.ProjectionTools.SHOW_LITEMATICA_MATERIAL_REPLACEMENTS.setValueChangeCallback(
+                    config -> com.yiyihehe.quickcraft.litematica.QuickLitematicaGlobalReplacements.changed()
+            );
+            QuickCraftConfigs.ProjectionTools.GLOBAL_CONTAINER_REPLACEMENTS.setValueChangeCallback(
+                    config -> com.yiyihehe.quickcraft.litematica.QuickLitematicaGlobalReplacements.changed()
+            );
+            QuickCraftConfigs.ProjectionTools.GLOBAL_PROJECTION_MATERIAL_REPLACEMENTS.setValueChangeCallback(
+                    config -> com.yiyihehe.quickcraft.litematica.QuickLitematicaGlobalReplacements.changed()
+            );
             com.yiyihehe.quickcraft.litematica.QuickLitematicaTargetReplacement.bindHotkey();
             QuickLitematicaSelectionPreview.bindHotkey();
             QuickLitematicaAreaClone.bindHotkey();
@@ -69,16 +80,25 @@ public class QuickCraft implements ModInitializer {
         }
     }
 
-    public static void openGlobalProjectionReplacements(net.minecraft.client.gui.screen.Screen parent, boolean container) {
+    public static void openGlobalProjectionReplacements(
+            net.minecraft.client.gui.screen.Screen parent,
+            boolean container
+    ) {
         if (FabricLoader.getInstance().isModLoaded("litematica")) {
-            fi.dy.masa.malilib.gui.GuiBase.openGui(new com.yiyihehe.quickcraft.litematica.QuickLitematicaGlobalReplacementScreen(parent,
-                    container ? com.yiyihehe.quickcraft.litematica.QuickLitematicaContainerReplacements.Scope.CONTAINER
-                            : com.yiyihehe.quickcraft.litematica.QuickLitematicaContainerReplacements.Scope.PROJECTION));
+            fi.dy.masa.malilib.gui.GuiBase.openGui(
+                    new com.yiyihehe.quickcraft.litematica.QuickLitematicaGlobalReplacementScreen(
+                            parent,
+                            container
+                                    ? com.yiyihehe.quickcraft.litematica.QuickLitematicaContainerReplacements.Scope.CONTAINER
+                                    : com.yiyihehe.quickcraft.litematica.QuickLitematicaContainerReplacements.Scope.PROJECTION
+                    )
+            );
         }
     }
 
     public static boolean openEasyPlaceEntitySelector(MinecraftClient client) {
-        return FabricLoader.getInstance().isModLoaded("litematica")
-                && QuickLitematicaEntityPlacement.openSelector(client);
+        return FabricLoader.getInstance().isModLoaded("litematica") && QuickLitematicaEntityPlacement.openSelector(
+                client
+        );
     }
 }

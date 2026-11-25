@@ -24,10 +24,12 @@ class QuickCrossBoxSortPlannerTest {
 
         var plan = QuickCrossBoxSortPlanner.plan(List.of(first, second), List.of(2), BY_KEY, true);
 
-        assertThat(plan.targets().get(0).slots().stream().filter(Objects::nonNull))
-                .containsExactlyElementsOf(Collections.nCopies(8, B));
-        assertThat(plan.targets().get(1).slots().stream().filter(Objects::nonNull))
-                .containsExactlyElementsOf(Collections.nCopies(19, A));
+        assertThat(plan.targets().get(0).slots().stream().filter(Objects::nonNull)).containsExactlyElementsOf(
+                Collections.nCopies(8, B)
+        );
+        assertThat(plan.targets().get(1).slots().stream().filter(Objects::nonNull)).containsExactlyElementsOf(
+                Collections.nCopies(19, A)
+        );
         assertThat(plan.crossBoxMoves()).isEqualTo(10);
     }
 
@@ -42,7 +44,8 @@ class QuickCrossBoxSortPlannerTest {
         assertThat(plan.targets()).containsExactly(
                 box(0, Collections.nCopies(27, A), List.of(), List.of()),
                 box(1, Collections.nCopies(13, A), Collections.nCopies(14, B), List.of()),
-                box(2, List.of(B, B), List.of(), List.of()));
+                box(2, List.of(B, B), List.of(), List.of())
+        );
         assertThat(plan.crossBoxMoves()).isEqualTo(2);
     }
 
@@ -74,8 +77,12 @@ class QuickCrossBoxSortPlannerTest {
         assertThat(hotbar).containsOnlyNulls();
     }
 
-    private static Box<String> box(int slot, List<Stack<String>> prefix, List<Stack<String>> middle,
-                                   List<Stack<String>> suffix) {
+    private static Box<String> box(
+            int slot,
+            List<Stack<String>> prefix,
+            List<Stack<String>> middle,
+            List<Stack<String>> suffix
+    ) {
         List<Stack<String>> stacks = new ArrayList<>(prefix);
         stacks.addAll(middle);
         stacks.addAll(suffix);

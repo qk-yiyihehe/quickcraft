@@ -1,4 +1,5 @@
 package com.yiyihehe.quickcraft.crafting;
+
 import com.yiyihehe.quickcraft.render.QuickCrossBoxSortStatus;
 
 import com.yiyihehe.quickcraft.QuickContainerLock;
@@ -178,8 +179,8 @@ public final class QuickCraftWorkbenchShulkerCraft implements ClientModInitializ
         if (occupiedCursorTicks == 1) {
             consecutiveFailures = 0;
         }
-        if (shouldRecoverShulkerCursor(occupiedCursorTicks, sessionCursorSettleTicks)
-                && QuickCraftWorkbenchShulker.recoverShulkerCraftCursor(handler)) {
+        if (shouldRecoverShulkerCursor(occupiedCursorTicks, sessionCursorSettleTicks) && QuickCraftWorkbenchShulker
+                .recoverShulkerCraftCursor(handler)) {
             occupiedCursorTicks = 0;
             serverCorrectionPauseTicks = sessionRecoveryPauseTicks;
             consecutiveFailures = 0;
@@ -211,15 +212,12 @@ public final class QuickCraftWorkbenchShulkerCraft implements ClientModInitializ
     }
 
     public static void onWorkbenchClickSent(int syncId) {
-        if (instance != null && instance.active && instance.ackBatchRecording
-                && instance.snapshotSyncId == syncId) {
+        if (instance != null && instance.active && instance.ackBatchRecording && instance.snapshotSyncId == syncId) {
             instance.ackBatchClickCount++;
         }
     }
 
-    public static void onServerContainerUpdate(int syncId,
-                                               int revision,
-                                               boolean fullInventory) {
+    public static void onServerContainerUpdate(int syncId, int revision, boolean fullInventory) {
         if (instance != null) {
             instance.handleServerContainerUpdate(syncId, revision, fullInventory);
         }
@@ -230,8 +228,9 @@ public final class QuickCraftWorkbenchShulkerCraft implements ClientModInitializ
             long now = System.nanoTime();
             if (ackStatsProbePending) {
                 long probeWaitNanos = Math.max(0L, now - ackStatsProbeSentAtNanos);
-                if (client.getNetworkHandler() != ackStatsProbeNetworkHandler
-                        || hasAckStatsProbeTimedOut(probeWaitNanos)) {
+                if (client.getNetworkHandler() != ackStatsProbeNetworkHandler || hasAckStatsProbeTimedOut(
+                        probeWaitNanos
+                )) {
                     clearAckStatsProbe();
                     stop(client, Text.translatable("quickcraft.message.crafting.shulker_grid_desync"));
                 }
@@ -243,47 +242,68 @@ public final class QuickCraftWorkbenchShulkerCraft implements ClientModInitializ
                     ackBatchSourceBatches,
                     craftStatsBaselinePending,
                     sessionCraftedStatBaseline >= 0,
-                    ackStatsProbePending)
-                    && requestAckStatsProbe(client, now)) {
+                    ackStatsProbePending
+            ) && requestAckStatsProbe(client, now)) {
                 return;
             }
             long quietNanos = now - ackBatchLastProgressAtNanos;
             boolean exactStateMatches = handlerMatchesAckExpected(handler);
             boolean terminalStateSafe = isAckBatchTerminalStateSafe(handler);
             boolean revisionAdvanced = ackBatchLastRevision != ackBatchStartRevision;
-            if ((shouldProbeReconciledOutput(ackBatchKind, ackBatchClickCount,
-                    ackBatchOutputClicks, ackBatchFullInventoryUpdates,
-                    exactStateMatches, terminalStateSafe, craftStatsBaselinePending,
-                    sessionCraftedStatBaseline >= 0, ackStatsProbePending)
-                    || QuickCraftWorkbenchShulkerAccess.shouldProbeReconciledRefill(ackBatchKind, ackBatchFullInventoryUpdates,
+            if ((shouldProbeReconciledOutput(
+                    ackBatchKind,
+                    ackBatchClickCount,
+                    ackBatchOutputClicks,
+                    ackBatchFullInventoryUpdates,
+                    exactStateMatches,
+                    terminalStateSafe,
+                    craftStatsBaselinePending,
+                    sessionCraftedStatBaseline >= 0,
+                    ackStatsProbePending
+            ) || QuickCraftWorkbenchShulkerAccess.shouldProbeReconciledRefill(
+                    ackBatchKind,
+                    ackBatchFullInventoryUpdates,
                     ackBatchKind == AckBatchKind.REFILL && ackDiffersOnlyInOutputSlot(handler),
-                    terminalStateSafe, craftStatsBaselinePending,
-                    sessionCraftedStatBaseline >= 0, ackStatsProbePending))
-                    && requestAckStatsProbe(client, now)) {
+                    terminalStateSafe,
+                    craftStatsBaselinePending,
+                    sessionCraftedStatBaseline >= 0,
+                    ackStatsProbePending
+            )) && requestAckStatsProbe(client, now)) {
                 return;
             }
             boolean settled;
             if (ackBatchKind == AckBatchKind.OUTPUT) {
-                settled = shouldConfirmSettledSingleOutput(ackBatchClickCount,
-                        revisionAdvanced, exactStateMatches, terminalStateSafe, quietNanos);
+                settled = shouldConfirmSettledSingleOutput(
+                        ackBatchClickCount,
+                        revisionAdvanced,
+                        exactStateMatches,
+                        terminalStateSafe,
+                        quietNanos
+                );
             } else if (requiresCompleteAckState(ackBatchKind, ackBatchSourceBatches)) {
                 settled = false;
             } else {
-                settled = shouldConfirmSettledNonOutputBatch(
-                        revisionAdvanced, terminalStateSafe, quietNanos);
+                settled = shouldConfirmSettledNonOutputBatch(revisionAdvanced, terminalStateSafe, quietNanos);
             }
             if (settled) {
                 completeAckBatch(client, handler, now);
                 return;
             }
             long timeoutMillis = ackStallTimeoutMillis(
-                    sessionCursorTimeoutTicks, nanosToMillis(sessionAckMaxRegularLatencyNanos));
+                    sessionCursorTimeoutTicks,
+                    nanosToMillis(sessionAckMaxRegularLatencyNanos)
+            );
             long stalledMillis = quietNanos / 1_000_000L;
             if (stalledMillis >= timeoutMillis) {
-                if (shouldRequestAckStatsProbe(ackBatchKind, ackBatchSourceBatches,
-                        craftStatsBaselinePending, sessionCraftedStatBaseline >= 0,
-                        ackStatsProbePending, stalledMillis, timeoutMillis)
-                        && requestAckStatsProbe(client, now)) {
+                if (shouldRequestAckStatsProbe(
+                        ackBatchKind,
+                        ackBatchSourceBatches,
+                        craftStatsBaselinePending,
+                        sessionCraftedStatBaseline >= 0,
+                        ackStatsProbePending,
+                        stalledMillis,
+                        timeoutMillis
+                ) && requestAckStatsProbe(client, now)) {
                     return;
                 }
                 stop(client, Text.translatable("quickcraft.message.crafting.shulker_grid_desync"));
@@ -301,8 +321,7 @@ public final class QuickCraftWorkbenchShulkerCraft implements ClientModInitializ
             serverCorrectionPauseTicks--;
             return;
         }
-        QuickContainerLock.runWithPlayerSlotLocksBypassed(
-                () -> driveAckPipeline(client, handler));
+        QuickContainerLock.runWithPlayerSlotLocksBypassed(() -> driveAckPipeline(client, handler));
     }
 
     private void driveAckPipeline(MinecraftClient client, CraftingScreenHandler handler) {
@@ -344,30 +363,33 @@ public final class QuickCraftWorkbenchShulkerCraft implements ClientModInitializ
             }
 
             if (ackBatchClickCount > 0) {
-                int sourceBatches = QuickCraftWorkbenchShulker.sessionSourceBatches()
-                        - sourceBatchesBefore;
+                int sourceBatches = QuickCraftWorkbenchShulker.sessionSourceBatches() - sourceBatchesBefore;
                 int outputClicks = sessionOutputClicks - outputClicksBefore;
                 AckBatchKind kind = classifyAckBatch(outputClicks, sourceBatches);
                 awaitAckBatch(handler, kind, stateBefore, sourceBatches, outputClicks);
                 return;
             }
 
-            boolean progressed = sessionOutputClicks != outputClicksBefore
-                    || QuickCraftWorkbenchShulker.sessionSourceBatches() != sourceBatchesBefore
-                    || consecutiveFailures != failuresBefore
-                    || QuickCraftWorkbenchShulker.isShulkerCraftBusy() != busyBefore
-                    || !handlerMatchesSnapshot(handler, stateBefore, cursorBefore);
+            boolean progressed = sessionOutputClicks != outputClicksBefore || QuickCraftWorkbenchShulker
+                    .sessionSourceBatches() != sourceBatchesBefore || consecutiveFailures != failuresBefore
+                    || QuickCraftWorkbenchShulker.isShulkerCraftBusy() != busyBefore || !handlerMatchesSnapshot(
+                            handler,
+                            stateBefore,
+                            cursorBefore
+                    );
             if (!progressed || serverCorrectionPauseTicks > 0) {
                 return;
             }
         }
     }
 
-    private void awaitAckBatch(CraftingScreenHandler handler,
-                               AckBatchKind kind,
-                               List<ItemStack> initialSlots,
-                               int sourceBatches,
-                               int outputClicks) {
+    private void awaitAckBatch(
+            CraftingScreenHandler handler,
+            AckBatchKind kind,
+            List<ItemStack> initialSlots,
+            int sourceBatches,
+            int outputClicks
+    ) {
         ackBatchId++;
         ackBatchKind = kind;
         ackExpectedSlots = snapshotHandler(handler);
@@ -397,11 +419,8 @@ public final class QuickCraftWorkbenchShulkerCraft implements ClientModInitializ
         return true;
     }
 
-    private void handleServerContainerUpdate(int syncId,
-                                             int revision,
-                                             boolean fullInventory) {
-        if (!active || !isAckPipelineEnabled() || !ackBatchAwaiting
-                || !isAckRelevantSyncId(syncId, snapshotSyncId)) {
+    private void handleServerContainerUpdate(int syncId, int revision, boolean fullInventory) {
+        if (!active || !isAckPipelineEnabled() || !ackBatchAwaiting || !isAckRelevantSyncId(syncId, snapshotSyncId)) {
             return;
         }
         MinecraftClient client = MinecraftClient.getInstance();
@@ -425,26 +444,50 @@ public final class QuickCraftWorkbenchShulkerCraft implements ClientModInitializ
         boolean terminalStateSafe = isAckBatchTerminalStateSafe(handler);
         boolean confirmed;
         if (ackBatchKind == AckBatchKind.OUTPUT) {
-            confirmed = shouldConfirmOutputAckBatch(ackBatchClickCount, ackBatchOutputClicks,
-                    ackBatchFullInventoryUpdates, fullInventory, exactStateMatches, terminalStateSafe);
+            confirmed = shouldConfirmOutputAckBatch(
+                    ackBatchClickCount,
+                    ackBatchOutputClicks,
+                    ackBatchFullInventoryUpdates,
+                    fullInventory,
+                    exactStateMatches,
+                    terminalStateSafe
+            );
         } else if (requiresCompleteAckState(ackBatchKind, ackBatchSourceBatches)) {
             confirmed = shouldConfirmCompleteAckBatch(
-                    ackBatchFullInventoryUpdates, exactStateMatches, terminalStateSafe);
+                    ackBatchFullInventoryUpdates,
+                    exactStateMatches,
+                    terminalStateSafe
+            );
         } else {
-            confirmed = shouldConfirmAckBatch(ackBatchClickCount, fullInventory,
-                    exactStateMatches, terminalStateSafe, false);
+            confirmed = shouldConfirmAckBatch(
+                    ackBatchClickCount,
+                    fullInventory,
+                    exactStateMatches,
+                    terminalStateSafe,
+                    false
+            );
         }
         if (!confirmed) {
             ItemStack output = handler.getSlot(OUTPUT_SLOT).getStack();
-            if ((!output.isEmpty() && !isExpectedOutput(output)
-                    && shouldProbeReconciledOutput(ackBatchKind, ackBatchClickCount,
-                    ackBatchOutputClicks, ackBatchFullInventoryUpdates,
-                    exactStateMatches, terminalStateSafe, craftStatsBaselinePending,
-                    sessionCraftedStatBaseline >= 0, ackStatsProbePending))
-                    || QuickCraftWorkbenchShulkerAccess.shouldProbeReconciledRefill(ackBatchKind, ackBatchFullInventoryUpdates,
+            if ((!output.isEmpty() && !isExpectedOutput(output) && shouldProbeReconciledOutput(
+                    ackBatchKind,
+                    ackBatchClickCount,
+                    ackBatchOutputClicks,
+                    ackBatchFullInventoryUpdates,
+                    exactStateMatches,
+                    terminalStateSafe,
+                    craftStatsBaselinePending,
+                    sessionCraftedStatBaseline >= 0,
+                    ackStatsProbePending
+            )) || QuickCraftWorkbenchShulkerAccess.shouldProbeReconciledRefill(
+                    ackBatchKind,
+                    ackBatchFullInventoryUpdates,
                     ackBatchKind == AckBatchKind.REFILL && ackDiffersOnlyInOutputSlot(handler),
-                    terminalStateSafe, craftStatsBaselinePending,
-                    sessionCraftedStatBaseline >= 0, ackStatsProbePending)) {
+                    terminalStateSafe,
+                    craftStatsBaselinePending,
+                    sessionCraftedStatBaseline >= 0,
+                    ackStatsProbePending
+            )) {
                 requestAckStatsProbe(client, now);
             }
             return;
@@ -453,9 +496,7 @@ public final class QuickCraftWorkbenchShulkerCraft implements ClientModInitializ
         completeAckBatch(client, handler, now);
     }
 
-    private void completeAckBatch(MinecraftClient client,
-                                  CraftingScreenHandler handler,
-                                  long now) {
+    private void completeAckBatch(MinecraftClient client, CraftingScreenHandler handler, long now) {
         long latencyNanos = Math.max(0L, now - ackBatchSentAtNanos);
         if (!ackBatchUsedStatsProbe) {
             sessionAckMaxRegularLatencyNanos = Math.max(sessionAckMaxRegularLatencyNanos, latencyNanos);
@@ -469,8 +510,7 @@ public final class QuickCraftWorkbenchShulkerCraft implements ClientModInitializ
             stop(client, getAckStopMessage());
             return;
         }
-        QuickContainerLock.runWithPlayerSlotLocksBypassed(
-                () -> driveAckPipeline(client, handler));
+        QuickContainerLock.runWithPlayerSlotLocksBypassed(() -> driveAckPipeline(client, handler));
     }
 
     static boolean isAckRelevantSyncId(int syncId, int workbenchSyncId) {
@@ -492,64 +532,64 @@ public final class QuickCraftWorkbenchShulkerCraft implements ClientModInitializ
         return includesOutput(kind) || sourceBatches > 0;
     }
 
-    static boolean shouldConfirmCompleteAckBatch(int fullInventoryUpdates,
-                                                 boolean exactStateMatches,
-                                                 boolean terminalStateSafe) {
+    static boolean shouldConfirmCompleteAckBatch(
+            int fullInventoryUpdates,
+            boolean exactStateMatches,
+            boolean terminalStateSafe
+    ) {
         return fullInventoryUpdates > 0 && exactStateMatches && terminalStateSafe;
     }
 
-    static boolean shouldConfirmAckBatch(int clickCount,
-                                         boolean fullInventory,
-                                         boolean exactStateMatches,
-                                         boolean terminalStateSafe,
-                                         boolean requireExactState) {
+    static boolean shouldConfirmAckBatch(
+            int clickCount,
+            boolean fullInventory,
+            boolean exactStateMatches,
+            boolean terminalStateSafe,
+            boolean requireExactState
+    ) {
         if (clickCount > 1 && !fullInventory) {
             return false;
         }
         return requireExactState ? exactStateMatches : terminalStateSafe;
     }
 
-    static boolean shouldConfirmOutputAckBatch(int batchClickCount,
-                                               int outputClickCount,
-                                               int fullInventoryUpdates,
-                                               boolean fullInventory,
-                                               boolean exactStateMatches,
-                                               boolean terminalStateSafe) {
+    static boolean shouldConfirmOutputAckBatch(
+            int batchClickCount,
+            int outputClickCount,
+            int fullInventoryUpdates,
+            boolean fullInventory,
+            boolean exactStateMatches,
+            boolean terminalStateSafe
+    ) {
         if (outputClickCount <= 0 || batchClickCount < outputClickCount) {
             return false;
         }
         if (batchClickCount > outputClickCount) {
-            return fullInventoryUpdates >= outputClickCount
-                    && exactStateMatches
-                    && terminalStateSafe;
+            return fullInventoryUpdates >= outputClickCount && exactStateMatches && terminalStateSafe;
         }
         if (outputClickCount == 1) {
             return terminalStateSafe && fullInventory;
         }
-        return fullInventory
-                && fullInventoryUpdates >= outputClickCount - 1
-                && exactStateMatches
-                && terminalStateSafe;
+        return fullInventory && fullInventoryUpdates >= outputClickCount - 1 && exactStateMatches && terminalStateSafe;
     }
 
-    static boolean shouldConfirmSettledSingleOutput(int clickCount,
-                                                    boolean revisionAdvanced,
-                                                    boolean exactStateMatches,
-                                                    boolean terminalStateSafe,
-                                                    long quietNanos) {
-        return clickCount <= 1
-                && revisionAdvanced
-                && exactStateMatches
-                && terminalStateSafe
+    static boolean shouldConfirmSettledSingleOutput(
+            int clickCount,
+            boolean revisionAdvanced,
+            boolean exactStateMatches,
+            boolean terminalStateSafe,
+            long quietNanos
+    ) {
+        return clickCount <= 1 && revisionAdvanced && exactStateMatches && terminalStateSafe
                 && quietNanos >= 5_000_000L;
     }
 
-    static boolean shouldConfirmSettledNonOutputBatch(boolean revisionAdvanced,
-                                                      boolean terminalStateSafe,
-                                                      long quietNanos) {
-        return revisionAdvanced
-                && terminalStateSafe
-                && quietNanos >= 5_000_000L;
+    static boolean shouldConfirmSettledNonOutputBatch(
+            boolean revisionAdvanced,
+            boolean terminalStateSafe,
+            long quietNanos
+    ) {
+        return revisionAdvanced && terminalStateSafe && quietNanos >= 5_000_000L;
     }
 
     static long ackStallTimeoutMillis(int configuredTimeoutTicks, long observedMaxAckMillis) {
@@ -558,93 +598,83 @@ public final class QuickCraftWorkbenchShulkerCraft implements ClientModInitializ
         return Math.max(3_000L, Math.max(configuredMillis, adaptiveMillis));
     }
 
-    static boolean shouldRequestAckStatsProbe(AckBatchKind kind,
-                                              int sourceBatches,
-                                              boolean baselinePending,
-                                              boolean baselineAvailable,
-                                              boolean probePending,
-                                              long stalledMillis,
-                                              long timeoutMillis) {
-        return requiresCompleteAckState(kind, sourceBatches)
-                && !baselinePending
-                && baselineAvailable
-                && !probePending
+    static boolean shouldRequestAckStatsProbe(
+            AckBatchKind kind,
+            int sourceBatches,
+            boolean baselinePending,
+            boolean baselineAvailable,
+            boolean probePending,
+            long stalledMillis,
+            long timeoutMillis
+    ) {
+        return requiresCompleteAckState(kind, sourceBatches) && !baselinePending && baselineAvailable && !probePending
                 && stalledMillis >= timeoutMillis;
     }
 
-    static boolean shouldRequestImmediateAckStatsProbe(boolean orderedProbeRecipe,
-                                                       AckBatchKind kind,
-                                                       int sourceBatches,
-                                                       boolean baselinePending,
-                                                       boolean baselineAvailable,
-                                                       boolean probePending) {
-        return orderedProbeRecipe
-                && requiresCompleteAckState(kind, sourceBatches)
-                && !baselinePending
-                && baselineAvailable
-                && !probePending;
+    static boolean shouldRequestImmediateAckStatsProbe(
+            boolean orderedProbeRecipe,
+            AckBatchKind kind,
+            int sourceBatches,
+            boolean baselinePending,
+            boolean baselineAvailable,
+            boolean probePending
+    ) {
+        return orderedProbeRecipe && requiresCompleteAckState(kind, sourceBatches) && !baselinePending
+                && baselineAvailable && !probePending;
     }
 
-    static boolean shouldProbeReconciledOutput(AckBatchKind kind,
-                                               int batchClickCount,
-                                               int outputClickCount,
-                                               int fullInventoryUpdates,
-                                               boolean exactStateMatches,
-                                               boolean terminalStateSafe,
-                                               boolean baselinePending,
-                                               boolean baselineAvailable,
-                                               boolean probePending) {
-        return includesOutput(kind)
-                && outputClickCount > 1
-                && batchClickCount >= outputClickCount
-                && fullInventoryUpdates >= (batchClickCount > outputClickCount
-                        ? outputClickCount : outputClickCount - 1)
-                && !exactStateMatches
-                && terminalStateSafe
-                && !baselinePending
-                && baselineAvailable
-                && !probePending;
+    static boolean shouldProbeReconciledOutput(
+            AckBatchKind kind,
+            int batchClickCount,
+            int outputClickCount,
+            int fullInventoryUpdates,
+            boolean exactStateMatches,
+            boolean terminalStateSafe,
+            boolean baselinePending,
+            boolean baselineAvailable,
+            boolean probePending
+    ) {
+        return includesOutput(kind) && outputClickCount > 1 && batchClickCount >= outputClickCount
+                && fullInventoryUpdates >= (batchClickCount > outputClickCount ? outputClickCount
+                        : outputClickCount - 1) && !exactStateMatches && terminalStateSafe && !baselinePending
+                && baselineAvailable && !probePending;
     }
 
-    static boolean shouldProbeReconciledRefill(AckBatchKind kind,
-                                               int fullInventoryUpdates,
-                                               boolean outputOnlyMismatch,
-                                               boolean terminalStateSafe,
-                                               boolean baselinePending,
-                                               boolean baselineAvailable,
-                                               boolean probePending) {
+    static boolean shouldProbeReconciledRefill(
+            AckBatchKind kind,
+            int fullInventoryUpdates,
+            boolean outputOnlyMismatch,
+            boolean terminalStateSafe,
+            boolean baselinePending,
+            boolean baselineAvailable,
+            boolean probePending
+    ) {
         // 1.21.3 的服务端配方计算可能只修正输出槽；统计回包用作补料点击的顺序屏障。
-        return kind == AckBatchKind.REFILL
-                && fullInventoryUpdates > 0
-                && outputOnlyMismatch
-                && terminalStateSafe
-                && !baselinePending
-                && baselineAvailable
-                && !probePending;
+        return kind == AckBatchKind.REFILL && fullInventoryUpdates > 0 && outputOnlyMismatch && terminalStateSafe
+                && !baselinePending && baselineAvailable && !probePending;
     }
 
-    static boolean isCurrentAckStatsProbe(boolean probePending,
-                                          long probeBatchId,
-                                          long currentBatchId,
-                                          boolean batchAwaiting,
-                                          boolean sameNetworkHandler) {
-        return probePending
-                && probeBatchId == currentBatchId
-                && batchAwaiting
-                && sameNetworkHandler;
+    static boolean isCurrentAckStatsProbe(
+            boolean probePending,
+            long probeBatchId,
+            long currentBatchId,
+            boolean batchAwaiting,
+            boolean sameNetworkHandler
+    ) {
+        return probePending && probeBatchId == currentBatchId && batchAwaiting && sameNetworkHandler;
     }
 
-    static boolean shouldConfirmAckStatsProbe(boolean currentProbe,
-                                              boolean terminalStateSafe) {
+    static boolean shouldConfirmAckStatsProbe(boolean currentProbe, boolean terminalStateSafe) {
         return currentProbe && terminalStateSafe;
     }
 
-    static boolean shouldDeferStopForAck(boolean pipelineEnabled,
-                                         boolean batchAwaiting,
-                                         boolean batchRecording,
-                                         int recordedClicks) {
-        return pipelineEnabled
-                && (batchAwaiting || (batchRecording && recordedClicks > 0));
+    static boolean shouldDeferStopForAck(
+            boolean pipelineEnabled,
+            boolean batchAwaiting,
+            boolean batchRecording,
+            int recordedClicks
+    ) {
+        return pipelineEnabled && (batchAwaiting || (batchRecording && recordedClicks > 0));
     }
 
     static boolean hasAckStatsProbeTimedOut(long elapsedNanos) {
@@ -659,11 +689,15 @@ public final class QuickCraftWorkbenchShulkerCraft implements ClientModInitializ
         return snapshot;
     }
 
-    private boolean handlerMatchesSnapshot(CraftingScreenHandler handler,
-                                           List<ItemStack> expectedSlots,
-                                           ItemStack expectedCursor) {
-        if (expectedSlots.size() != handler.slots.size()
-                || !ItemStack.areEqual(expectedCursor, handler.getCursorStack())) {
+    private boolean handlerMatchesSnapshot(
+            CraftingScreenHandler handler,
+            List<ItemStack> expectedSlots,
+            ItemStack expectedCursor
+    ) {
+        if (expectedSlots.size() != handler.slots.size() || !ItemStack.areEqual(
+                expectedCursor,
+                handler.getCursorStack()
+        )) {
             return false;
         }
         for (int slotId = 0; slotId < expectedSlots.size(); slotId++) {
@@ -674,13 +708,13 @@ public final class QuickCraftWorkbenchShulkerCraft implements ClientModInitializ
         return true;
     }
 
-    private List<Integer> collectAckRelevantSlots(List<ItemStack> initialSlots,
-                                                  List<ItemStack> expectedSlots) {
+    private List<Integer> collectAckRelevantSlots(List<ItemStack> initialSlots, List<ItemStack> expectedSlots) {
         List<Integer> slotIds = new ArrayList<>();
         for (int slotId = 0; slotId < expectedSlots.size(); slotId++) {
-            if (slotId <= GRID_END
-                    || slotId >= initialSlots.size()
-                    || !ItemStack.areEqual(initialSlots.get(slotId), expectedSlots.get(slotId))) {
+            if (slotId <= GRID_END || slotId >= initialSlots.size() || !ItemStack.areEqual(
+                    initialSlots.get(slotId),
+                    expectedSlots.get(slotId)
+            )) {
                 slotIds.add(slotId);
             }
         }
@@ -688,8 +722,10 @@ public final class QuickCraftWorkbenchShulkerCraft implements ClientModInitializ
     }
 
     private boolean handlerMatchesAckExpected(CraftingScreenHandler handler) {
-        if (ackExpectedSlots.size() != handler.slots.size()
-                || !ItemStack.areEqual(ackExpectedCursor, handler.getCursorStack())) {
+        if (ackExpectedSlots.size() != handler.slots.size() || !ItemStack.areEqual(
+                ackExpectedCursor,
+                handler.getCursorStack()
+        )) {
             return false;
         }
         for (int slotId : ackExpectedSlotIds) {
@@ -701,15 +737,17 @@ public final class QuickCraftWorkbenchShulkerCraft implements ClientModInitializ
     }
 
     private boolean ackDiffersOnlyInOutputSlot(CraftingScreenHandler handler) {
-        if (ackExpectedSlots.size() != handler.slots.size()
-                || !ItemStack.areEqual(ackExpectedCursor, handler.getCursorStack())
-                || ItemStack.areEqual(ackExpectedSlots.get(OUTPUT_SLOT),
-                handler.getSlot(OUTPUT_SLOT).getStack())) {
+        if (ackExpectedSlots.size() != handler.slots.size() || !ItemStack.areEqual(
+                ackExpectedCursor,
+                handler.getCursorStack()
+        ) || ItemStack.areEqual(ackExpectedSlots.get(OUTPUT_SLOT), handler.getSlot(OUTPUT_SLOT).getStack())) {
             return false;
         }
         for (int slotId : ackExpectedSlotIds) {
-            if (slotId != OUTPUT_SLOT
-                    && !ItemStack.areEqual(ackExpectedSlots.get(slotId), handler.getSlot(slotId).getStack())) {
+            if (slotId != OUTPUT_SLOT && !ItemStack.areEqual(
+                    ackExpectedSlots.get(slotId),
+                    handler.getSlot(slotId).getStack()
+            )) {
                 return false;
             }
         }
@@ -732,16 +770,20 @@ public final class QuickCraftWorkbenchShulkerCraft implements ClientModInitializ
                 output.isEmpty(),
                 isExpectedOutput(output),
                 isPatternShapeComplete(handler),
-                patternGridCompatible);
+                patternGridCompatible
+        );
     }
 
-    static boolean isAckTerminalOutputSafe(boolean outputEmpty,
-                                           boolean expectedOutput,
-                                           boolean patternShapeComplete,
-                                           boolean patternGridCompatible) {
-        return outputEmpty
-                || expectedOutput
-                || canContinuePastIntermediateOutput(patternShapeComplete, patternGridCompatible);
+    static boolean isAckTerminalOutputSafe(
+            boolean outputEmpty,
+            boolean expectedOutput,
+            boolean patternShapeComplete,
+            boolean patternGridCompatible
+    ) {
+        return outputEmpty || expectedOutput || canContinuePastIntermediateOutput(
+                patternShapeComplete,
+                patternGridCompatible
+        );
     }
 
     private boolean isPatternGridCompatible(CraftingScreenHandler handler) {
@@ -752,8 +794,7 @@ public final class QuickCraftWorkbenchShulkerCraft implements ClientModInitializ
                 if (!actual.isEmpty()) {
                     return false;
                 }
-            } else if (!actual.isEmpty()
-                    && !ItemStack.areItemsAndComponentsEqual(expected, actual)
+            } else if (!actual.isEmpty() && !ItemStack.areItemsAndComponentsEqual(expected, actual)
                     && !isExpectedRemainder(patternIndex, actual)) {
                 return false;
             }
@@ -766,8 +807,7 @@ public final class QuickCraftWorkbenchShulkerCraft implements ClientModInitializ
     }
 
     private void requestAckStopOrStop(MinecraftClient client, Text message) {
-        if (shouldDeferStopForAck(isAckPipelineEnabled(), ackBatchAwaiting,
-                ackBatchRecording, ackBatchClickCount)) {
+        if (shouldDeferStopForAck(isAckPipelineEnabled(), ackBatchAwaiting, ackBatchRecording, ackBatchClickCount)) {
             if (!ackStopRequested) {
                 ackStopRequested = true;
                 ackStopMessage = message;
@@ -778,8 +818,7 @@ public final class QuickCraftWorkbenchShulkerCraft implements ClientModInitializ
     }
 
     private Text getAckStopMessage() {
-        return ackStopRequested && ackStopMessage != null
-                ? ackStopMessage
+        return ackStopRequested && ackStopMessage != null ? ackStopMessage
                 : Text.translatable("quickcraft.message.crafting.stopped");
     }
 
@@ -841,16 +880,17 @@ public final class QuickCraftWorkbenchShulkerCraft implements ClientModInitializ
                 consecutiveFailures = 0;
                 return;
             }
-            QuickCraftWorkbenchShulker.RefillStart refill =
-                    QuickCraftWorkbenchShulker.beginShulkerCraftRefill(handler, pattern);
+            QuickCraftWorkbenchShulker.RefillStart refill = QuickCraftWorkbenchShulker.beginShulkerCraftRefill(
+                    handler,
+                    pattern
+            );
             if (!handleRefillStart(client, handler, refill)) {
                 recordProgressOrStop(client, false);
             }
             return;
         }
 
-        if (handler.getSlot(OUTPUT_SLOT).hasStack()
-                && isExpectedOutput(handler.getSlot(OUTPUT_SLOT).getStack())) {
+        if (handler.getSlot(OUTPUT_SLOT).hasStack() && isExpectedOutput(handler.getSlot(OUTPUT_SLOT).getStack())) {
             boolean progressed = drainOutputBurst(client, handler);
             recordProgressOrStop(client, progressed);
             return;
@@ -875,17 +915,21 @@ public final class QuickCraftWorkbenchShulkerCraft implements ClientModInitializ
             return;
         }
 
-        QuickCraftWorkbenchShulker.RefillStart refill =
-                QuickCraftWorkbenchShulker.beginShulkerCraftRefill(handler, pattern);
+        QuickCraftWorkbenchShulker.RefillStart refill = QuickCraftWorkbenchShulker.beginShulkerCraftRefill(
+                handler,
+                pattern
+        );
         if (handleRefillStart(client, handler, refill)) {
             return;
         }
         recordProgressOrStop(client, false);
     }
 
-    private boolean handleRefillStart(MinecraftClient client,
-                                      CraftingScreenHandler handler,
-                                      QuickCraftWorkbenchShulker.RefillStart refill) {
+    private boolean handleRefillStart(
+            MinecraftClient client,
+            CraftingScreenHandler handler,
+            QuickCraftWorkbenchShulker.RefillStart refill
+    ) {
         if (refill == QuickCraftWorkbenchShulker.RefillStart.STARTED) {
             runFirstRefillActionImmediately(client, handler);
             return true;
@@ -901,8 +945,7 @@ public final class QuickCraftWorkbenchShulkerCraft implements ClientModInitializ
         return false;
     }
 
-    private void runFirstRefillActionImmediately(MinecraftClient client,
-                                                 CraftingScreenHandler handler) {
+    private void runFirstRefillActionImmediately(MinecraftClient client, CraftingScreenHandler handler) {
         consecutiveFailures = 0;
         QuickCraftWorkbenchShulker.tickShulkerCraft(client);
         processRefillResult(client, handler);
@@ -919,8 +962,7 @@ public final class QuickCraftWorkbenchShulkerCraft implements ClientModInitializ
                 break;
             }
             ItemStack thrown = handler.getSlot(OUTPUT_SLOT).getStack().copy();
-            client.interactionManager.clickSlot(handler.syncId, OUTPUT_SLOT, 1,
-                    SlotActionType.THROW, client.player);
+            client.interactionManager.clickSlot(handler.syncId, OUTPUT_SLOT, 1, SlotActionType.THROW, client.player);
             recordLocalThrow(client, thrown);
             completed++;
             sessionOutputClicks++;
@@ -945,24 +987,27 @@ public final class QuickCraftWorkbenchShulkerCraft implements ClientModInitializ
             if (!isExpectedOutput(output)) {
                 break;
             }
-            if (sourceSlot == -1
-                    || QuickCraftWorkbenchShulkerOutput.getCapacity(handler.getCursorStack(), output) < output.getCount()) {
+            if (sourceSlot == -1 || QuickCraftWorkbenchShulkerOutput.getCapacity(
+                    handler.getCursorStack(),
+                    output
+            ) < output.getCount()) {
                 if (!returnOutputBox(client, handler, sourceSlot)) {
                     stop(client, Text.translatable("quickcraft.message.crafting.shulker_cursor_blocked"));
                     return completed > 0;
                 }
                 sourceSlot = QuickCraftWorkbenchShulkerOutput.takeBox(client, handler, output);
                 if (sourceSlot == -1) {
-                    requestAckStopOrStop(client,
-                            Text.translatable("quickcraft.message.crafting.no_output_shulker"));
+                    requestAckStopOrStop(client, Text.translatable("quickcraft.message.crafting.no_output_shulker"));
                     return completed > 0;
                 }
             }
             if (!QuickCraftWorkbenchShulkerOutput.storeOnce(client, handler, output)) {
                 boolean returned = returnOutputBox(client, handler, sourceSlot);
                 if (returned) {
-                    requestAckStopOrStop(client,
-                            Text.translatable("quickcraft.message.crafting.shulker_output_failed"));
+                    requestAckStopOrStop(
+                            client,
+                            Text.translatable("quickcraft.message.crafting.shulker_output_failed")
+                    );
                 } else {
                     stop(client, Text.translatable("quickcraft.message.crafting.shulker_cursor_blocked"));
                 }
@@ -977,29 +1022,28 @@ public final class QuickCraftWorkbenchShulkerCraft implements ClientModInitializ
         return completed > 0;
     }
 
-    private boolean returnOutputBox(MinecraftClient client,
-                                    CraftingScreenHandler handler,
-                                    int sourceSlotId) {
-        if (sourceSlotId >= 0 && sourceSlotId < handler.slots.size()
-                && handler.getSlot(sourceSlotId).hasStack()) {
+    private boolean returnOutputBox(MinecraftClient client, CraftingScreenHandler handler, int sourceSlotId) {
+        if (sourceSlotId >= 0 && sourceSlotId < handler.slots.size() && handler.getSlot(sourceSlotId).hasStack()) {
             ItemStack blockingStack = handler.getSlot(sourceSlotId).getStack();
-            if (!shouldDiscardOutputBoxSlot(recipeHasRemainder,
-                    isCachedRemainder(blockingStack))) {
+            if (!shouldDiscardOutputBoxSlot(recipeHasRemainder, isCachedRemainder(blockingStack))) {
                 return false;
             }
-            if (!QuickCraftWorkbenchShulkerOutput.isShulkerBox(handler.getCursorStack())
-                    || handler.getCursorStack().getCount() != 1) {
+            if (!QuickCraftWorkbenchShulkerOutput.isShulkerBox(handler.getCursorStack()) || handler.getCursorStack()
+                    .getCount() != 1) {
                 return false;
             }
-            client.interactionManager.clickSlot(handler.syncId, sourceSlotId, 0,
-                    SlotActionType.PICKUP, client.player);
-            if (!QuickCraftWorkbenchShulkerOutput.isShulkerBox(
-                    handler.getSlot(sourceSlotId).getStack())
+            client.interactionManager.clickSlot(handler.syncId, sourceSlotId, 0, SlotActionType.PICKUP, client.player);
+            if (!QuickCraftWorkbenchShulkerOutput.isShulkerBox(handler.getSlot(sourceSlotId).getStack())
                     || !isCachedRemainder(handler.getCursorStack())) {
                 return false;
             }
-            client.interactionManager.clickSlot(handler.syncId, ScreenHandler.EMPTY_SPACE_SLOT_INDEX, 0,
-                    SlotActionType.PICKUP, client.player);
+            client.interactionManager.clickSlot(
+                    handler.syncId,
+                    ScreenHandler.EMPTY_SPACE_SLOT_INDEX,
+                    0,
+                    SlotActionType.PICKUP,
+                    client.player
+            );
             if (!handler.getCursorStack().isEmpty()) {
                 return false;
             }
@@ -1020,8 +1064,7 @@ public final class QuickCraftWorkbenchShulkerCraft implements ClientModInitializ
         return false;
     }
 
-    static boolean shouldDiscardOutputBoxSlot(boolean hasRemainder,
-                                              boolean matchesCachedRemainder) {
+    static boolean shouldDiscardOutputBoxSlot(boolean hasRemainder, boolean matchesCachedRemainder) {
         return hasRemainder && matchesCachedRemainder;
     }
 
@@ -1058,9 +1101,7 @@ public final class QuickCraftWorkbenchShulkerCraft implements ClientModInitializ
     }
 
     private boolean drainOutputBurst(MinecraftClient client, CraftingScreenHandler handler) {
-        return sessionOutputToShulker
-                ? storeOutputBurst(client, handler)
-                : throwOutputBurst(client, handler);
+        return sessionOutputToShulker ? storeOutputBurst(client, handler) : throwOutputBurst(client, handler);
     }
 
     private void recordProgressOrStop(MinecraftClient client, boolean progressed) {
@@ -1091,9 +1132,15 @@ public final class QuickCraftWorkbenchShulkerCraft implements ClientModInitializ
         CraftingScreenHandler handler = (CraftingScreenHandler) client.player.currentScreenHandler;
         RecipeEntry<CraftingRecipe> currentRecipe = findCurrentRecipe(client, handler);
         boolean capturedVisibleRecipe = handler.getSlot(OUTPUT_SLOT).hasStack();
-        boolean capturedRecipe = QuickCraftWorkbenchShulkerAccess.isRecipeCaptured(currentRecipe, capturedVisibleRecipe);
-        boolean canReuseSnapshot = canReuseSnapshot(handler.syncId, snapshotSyncId,
-                QuickCraftWorkbenchShulkerAccess.isSnapshotComplete(recipe, pattern, resultTemplate));
+        boolean capturedRecipe = QuickCraftWorkbenchShulkerAccess.isRecipeCaptured(
+                currentRecipe,
+                capturedVisibleRecipe
+        );
+        boolean canReuseSnapshot = canReuseSnapshot(
+                handler.syncId,
+                snapshotSyncId,
+                QuickCraftWorkbenchShulkerAccess.isSnapshotComplete(recipe, pattern, resultTemplate)
+        );
         if (!canStartWithRecipeState(capturedRecipe, canReuseSnapshot)) {
             sendMessage(client, Text.translatable("quickcraft.message.crafting.no_recipe"));
             return false;
@@ -1113,7 +1160,12 @@ public final class QuickCraftWorkbenchShulkerCraft implements ClientModInitializ
             recipeHasRemainder = capturedHasRemainder;
             resultTemplate = handler.getSlot(OUTPUT_SLOT).getStack().copy();
             snapshotSyncId = handler.syncId;
-        } else if (QuickCraftWorkbenchShulkerAccess.isRemainderIncompatible(recipeHasRemainder, isPatternGridCompatible(handler), currentRecipe, createInput(handler))) {
+        } else if (QuickCraftWorkbenchShulkerAccess.isRemainderIncompatible(
+                recipeHasRemainder,
+                isPatternGridCompatible(handler),
+                currentRecipe,
+                createInput(handler)
+        )) {
             sendMessage(client, Text.translatable("quickcraft.message.crafting.shulker_recipe_remainder"));
             return false;
         }
@@ -1122,12 +1174,18 @@ public final class QuickCraftWorkbenchShulkerCraft implements ClientModInitializ
         consecutiveFailures = 0;
         sessionOutputClicks = 0;
         sessionOutputToShulker = QuickCraftConfigs.isWorkbenchQuickCraftOutputToShulkerEnabled();
-        boolean unidentifiedRecipe = QuickCraftWorkbenchShulkerAccess.isUnidentifiedRecipe(client, handler, recipe, resultTemplate);
+        boolean unidentifiedRecipe = QuickCraftWorkbenchShulkerAccess.isUnidentifiedRecipe(
+                client,
+                handler,
+                recipe,
+                resultTemplate
+        );
         sessionRequiresOrderedProbe = requiresOrderedAckProbe(
                 unidentifiedRecipe,
                 resultTemplate.getMaxCount(),
                 hasPerCraftMaterial(pattern),
-                recipeHasRemainder);
+                recipeHasRemainder
+        );
         sessionMode = QuickCraftConfigs.getWorkbenchQuickShulkerPipelineMode();
         serverCorrectionPauseTicks = 0;
         occupiedCursorTicks = 0;
@@ -1152,8 +1210,7 @@ public final class QuickCraftWorkbenchShulkerCraft implements ClientModInitializ
         if (client == null || client.getNetworkHandler() == null) {
             return false;
         }
-        client.getNetworkHandler().sendPacket(
-                new ClientStatusC2SPacket(ClientStatusC2SPacket.Mode.REQUEST_STATS));
+        client.getNetworkHandler().sendPacket(new ClientStatusC2SPacket(ClientStatusC2SPacket.Mode.REQUEST_STATS));
         return true;
     }
 
@@ -1167,8 +1224,7 @@ public final class QuickCraftWorkbenchShulkerCraft implements ClientModInitializ
         QuickCraftWorkbenchShulker.beginSession(sessionMode);
     }
 
-    private void handleServerStatistics(MinecraftClient client,
-                                        ClientPlayNetworkHandler source) {
+    private void handleServerStatistics(MinecraftClient client, ClientPlayNetworkHandler source) {
         if (client == null || source == null || client.getNetworkHandler() != source) {
             discardCraftStatsForDisconnectedHandler(source);
             return;
@@ -1185,20 +1241,22 @@ public final class QuickCraftWorkbenchShulkerCraft implements ClientModInitializ
         handleAckStatsProbeResponse(client, source);
     }
 
-    private boolean handleAckStatsProbeResponse(MinecraftClient client,
-                                                ClientPlayNetworkHandler source) {
+    private boolean handleAckStatsProbeResponse(MinecraftClient client, ClientPlayNetworkHandler source) {
         if (!ackStatsProbePending || source != ackStatsProbeNetworkHandler) {
             return false;
         }
         long now = System.nanoTime();
         long probeBatchId = ackStatsProbeBatchId;
         boolean currentProbe = isCurrentAckStatsProbe(
-                ackStatsProbePending, probeBatchId, ackBatchId,
-                active && ackBatchAwaiting, source == ackStatsProbeNetworkHandler);
+                ackStatsProbePending,
+                probeBatchId,
+                ackBatchId,
+                active && ackBatchAwaiting,
+                source == ackStatsProbeNetworkHandler
+        );
         clearAckStatsProbe();
 
-        if (!currentProbe
-                || client.player == null
+        if (!currentProbe || client.player == null
                 || !(client.player.currentScreenHandler instanceof CraftingScreenHandler handler)
                 || handler.syncId != snapshotSyncId) {
             if (active) {
@@ -1226,16 +1284,13 @@ public final class QuickCraftWorkbenchShulkerCraft implements ClientModInitializ
 
     private void handleCraftStatsTimeout(MinecraftClient client) {
         long now = System.nanoTime();
-        ClientPlayNetworkHandler currentNetworkHandler = client == null
-                ? null : client.getNetworkHandler();
-        if (craftStatsBaselinePending
-                && currentNetworkHandler != craftStatsBaselineNetworkHandler) {
+        ClientPlayNetworkHandler currentNetworkHandler = client == null ? null : client.getNetworkHandler();
+        if (craftStatsBaselinePending && currentNetworkHandler != craftStatsBaselineNetworkHandler) {
             craftStatsBaselinePending = false;
             craftStatsBaselineNetworkHandler = null;
             active = false;
         }
-        if (craftStatsBaselinePending
-                && now - craftStatsBaselineRequestedAtNanos >= SERVER_STATS_TIMEOUT_NANOS) {
+        if (craftStatsBaselinePending && now - craftStatsBaselineRequestedAtNanos >= SERVER_STATS_TIMEOUT_NANOS) {
             craftStatsBaselinePending = false;
             craftStatsBaselineNetworkHandler = null;
         }
@@ -1254,8 +1309,7 @@ public final class QuickCraftWorkbenchShulkerCraft implements ClientModInitializ
     }
 
     private boolean primeOutputLocally(MinecraftClient client, CraftingScreenHandler handler) {
-        if (client.world == null
-                || (QuickCraftWorkbenchShulkerAccess.isRecipeRequiredForLocalPrime() && recipe == null)
+        if (client.world == null || (QuickCraftWorkbenchShulkerAccess.isRecipeRequiredForLocalPrime() && recipe == null)
                 || resultTemplate.isEmpty()) {
             return false;
         }
@@ -1304,31 +1358,44 @@ public final class QuickCraftWorkbenchShulkerCraft implements ClientModInitializ
     }
 
     private boolean isExpectedOutput(ItemStack stack) {
-        return !stack.isEmpty()
-                && stack.getCount() == resultTemplate.getCount()
-                && ItemStack.areItemsAndComponentsEqual(stack, resultTemplate);
+        return !stack.isEmpty() && stack.getCount() == resultTemplate.getCount() && ItemStack
+                .areItemsAndComponentsEqual(stack, resultTemplate);
     }
 
-    private RecipeEntry<CraftingRecipe> findCurrentRecipe(MinecraftClient client,
-                                                           CraftingScreenHandler handler) {
+    private RecipeEntry<CraftingRecipe> findCurrentRecipe(MinecraftClient client, CraftingScreenHandler handler) {
         return QuickCraftWorkbenchShulkerAccess.findCurrentRecipe(client, createInput(handler));
     }
 
-    private List<ItemStack> snapshotRemainderPattern(RecipeEntry<CraftingRecipe> currentRecipe,
-                                                     CraftingScreenHandler handler) {
+    private List<ItemStack> snapshotRemainderPattern(
+            RecipeEntry<CraftingRecipe> currentRecipe,
+            CraftingScreenHandler handler
+    ) {
         CraftingRecipeInput.Positioned positioned = CraftingRecipeInput.createPositioned(
-                3, 3, snapshotPattern(handler));
+                3,
+                3,
+                snapshotPattern(handler)
+        );
         CraftingRecipeInput input = positioned.input();
-        List<ItemStack> recipeRemainders = QuickCraftWorkbenchShulkerAccess.snapshotRemainderPattern(currentRecipe, input);
-        return expandRemainderPattern(recipeRemainders, input.getWidth(), input.getHeight(),
-                positioned.left(), positioned.top());
+        List<ItemStack> recipeRemainders = QuickCraftWorkbenchShulkerAccess.snapshotRemainderPattern(
+                currentRecipe,
+                input
+        );
+        return expandRemainderPattern(
+                recipeRemainders,
+                input.getWidth(),
+                input.getHeight(),
+                positioned.left(),
+                positioned.top()
+        );
     }
 
-    static List<ItemStack> expandRemainderPattern(List<ItemStack> compactRemainders,
-                                                   int width,
-                                                   int height,
-                                                   int left,
-                                                   int top) {
+    static List<ItemStack> expandRemainderPattern(
+            List<ItemStack> compactRemainders,
+            int width,
+            int height,
+            int left,
+            int top
+    ) {
         List<ItemStack> captured = new ArrayList<>(9);
         for (int patternIndex = 0; patternIndex < 9; patternIndex++) {
             captured.add(ItemStack.EMPTY);
@@ -1357,10 +1424,12 @@ public final class QuickCraftWorkbenchShulkerCraft implements ClientModInitializ
         return maxCount == 1;
     }
 
-    static boolean requiresOrderedAckProbe(boolean ignoredInRecipeBook,
-                                           int outputMaxCount,
-                                           boolean perCraftMaterial,
-                                           boolean hasRemainder) {
+    static boolean requiresOrderedAckProbe(
+            boolean ignoredInRecipeBook,
+            int outputMaxCount,
+            boolean perCraftMaterial,
+            boolean hasRemainder
+    ) {
         return ignoredInRecipeBook || outputMaxCount == 1 || perCraftMaterial || hasRemainder;
     }
 
@@ -1398,10 +1467,9 @@ public final class QuickCraftWorkbenchShulkerCraft implements ClientModInitializ
         return !remainder.isEmpty() && ItemStack.areItemsAndComponentsEqual(remainder, actual);
     }
 
-    private int discardGridRemainders(MinecraftClient client,
-                                      CraftingScreenHandler handler) {
-        if (!recipeHasRemainder || client.player == null || client.interactionManager == null
-                || !handler.getCursorStack().isEmpty()) {
+    private int discardGridRemainders(MinecraftClient client, CraftingScreenHandler handler) {
+        if (!recipeHasRemainder || client.player == null || client.interactionManager == null || !handler
+                .getCursorStack().isEmpty()) {
             return 0;
         }
 
@@ -1409,23 +1477,22 @@ public final class QuickCraftWorkbenchShulkerCraft implements ClientModInitializ
         for (int patternIndex = 0; patternIndex < pattern.size(); patternIndex++) {
             int slotId = GRID_START + patternIndex;
             ItemStack actual = handler.getSlot(slotId).getStack();
-            boolean matchesPattern = !actual.isEmpty()
-                    && ItemStack.areItemsAndComponentsEqual(pattern.get(patternIndex), actual);
-            if (!shouldDiscardGridRemainder(matchesPattern,
-                    isExpectedRemainder(patternIndex, actual))) {
+            boolean matchesPattern = !actual.isEmpty() && ItemStack.areItemsAndComponentsEqual(
+                    pattern.get(patternIndex),
+                    actual
+            );
+            if (!shouldDiscardGridRemainder(matchesPattern, isExpectedRemainder(patternIndex, actual))) {
                 continue;
             }
             ItemStack thrown = actual.copy();
-            client.interactionManager.clickSlot(
-                    handler.syncId, slotId, 1, SlotActionType.THROW, client.player);
+            client.interactionManager.clickSlot(handler.syncId, slotId, 1, SlotActionType.THROW, client.player);
             recordLocalThrow(client, thrown);
             discarded++;
         }
         return discarded;
     }
 
-    static boolean shouldDiscardGridRemainder(boolean matchesLockedPattern,
-                                              boolean matchesRemainder) {
+    static boolean shouldDiscardGridRemainder(boolean matchesLockedPattern, boolean matchesRemainder) {
         return !matchesLockedPattern && matchesRemainder;
     }
 
@@ -1440,25 +1507,22 @@ public final class QuickCraftWorkbenchShulkerCraft implements ClientModInitializ
     private boolean hasMissingPerCraftMaterial(CraftingScreenHandler handler) {
         for (int patternIndex = 0; patternIndex < pattern.size(); patternIndex++) {
             ItemStack expected = pattern.get(patternIndex);
-            if (!expected.isEmpty()
-                    && isPerCraftMaterial(expected.getMaxCount())
-                    && handler.getSlot(GRID_START + patternIndex).getStack().isEmpty()) {
+            if (!expected.isEmpty() && isPerCraftMaterial(expected.getMaxCount()) && handler.getSlot(
+                    GRID_START + patternIndex
+            ).getStack().isEmpty()) {
                 return true;
             }
         }
         return false;
     }
 
-    private int fillMissingSlotsFromPlayerInventory(MinecraftClient client,
-                                                    CraftingScreenHandler handler) {
-        if (client.player == null || client.interactionManager == null
-                || !handler.getCursorStack().isEmpty()) {
+    private int fillMissingSlotsFromPlayerInventory(MinecraftClient client, CraftingScreenHandler handler) {
+        if (client.player == null || client.interactionManager == null || !handler.getCursorStack().isEmpty()) {
             return 0;
         }
 
         int movedItems = 0;
-        patternLoop:
-        for (int patternIndex = 0; patternIndex < pattern.size(); patternIndex++) {
+        patternLoop: for (int patternIndex = 0; patternIndex < pattern.size(); patternIndex++) {
             ItemStack template = pattern.get(patternIndex);
             if (template.isEmpty() || hasEarlierMatchingPatternStack(patternIndex, template)) {
                 continue;
@@ -1517,22 +1581,22 @@ public final class QuickCraftWorkbenchShulkerCraft implements ClientModInitializ
             int slotId = GRID_START + i;
             Slot slot = handler.getSlot(slotId);
             ItemStack current = slot.getStack();
-            if ((current.isEmpty() || ItemStack.areItemsAndComponentsEqual(current, template))
-                    && current.getCount() < slot.getMaxItemCount(template)
-                    && slot.canInsert(template)) {
+            if ((current.isEmpty() || ItemStack.areItemsAndComponentsEqual(current, template)) && current
+                    .getCount() < slot.getMaxItemCount(template) && slot.canInsert(template)) {
                 slots.add(slotId);
             }
         }
-        slots.sort((left, right) -> Integer.compare(
-                handler.getSlot(left).getStack().getCount(),
-                handler.getSlot(right).getStack().getCount()));
+        slots.sort(
+                (left, right) -> Integer.compare(
+                        handler.getSlot(left).getStack().getCount(),
+                        handler.getSlot(right).getStack().getCount()
+                )
+        );
         return slots;
     }
 
-    private int rebalanceIncompleteRepeatedMaterials(MinecraftClient client,
-                                                     CraftingScreenHandler handler) {
-        if (client.player == null || client.interactionManager == null
-                || !handler.getCursorStack().isEmpty()) {
+    private int rebalanceIncompleteRepeatedMaterials(MinecraftClient client, CraftingScreenHandler handler) {
+        if (client.player == null || client.interactionManager == null || !handler.getCursorStack().isEmpty()) {
             return 0;
         }
 
@@ -1556,10 +1620,12 @@ public final class QuickCraftWorkbenchShulkerCraft implements ClientModInitializ
         return movedItems;
     }
 
-    private int rebalancePatternGroupInGrid(MinecraftClient client,
-                                             CraftingScreenHandler handler,
-                                             List<Integer> groupSlots,
-                                             ItemStack template) {
+    private int rebalancePatternGroupInGrid(
+            MinecraftClient client,
+            CraftingScreenHandler handler,
+            List<Integer> groupSlots,
+            ItemStack template
+    ) {
         int total = 0;
         for (int slotId : groupSlots) {
             ItemStack stack = handler.getSlot(slotId).getStack();
@@ -1632,38 +1698,56 @@ public final class QuickCraftWorkbenchShulkerCraft implements ClientModInitializ
         return movedItems;
     }
 
-    private int distributeGridStack(MinecraftClient client,
-                                    CraftingScreenHandler handler,
-                                    int sourceSlotId,
-                                    List<Integer> targetSlots,
-                                    ItemStack template) {
+    private int distributeGridStack(
+            MinecraftClient client,
+            CraftingScreenHandler handler,
+            int sourceSlotId,
+            List<Integer> targetSlots,
+            ItemStack template
+    ) {
         int sourceBefore = matchingGridCount(handler.getSlot(sourceSlotId).getStack(), template);
-        client.interactionManager.clickSlot(handler.syncId, sourceSlotId, 0,
-                SlotActionType.PICKUP, client.player);
+        client.interactionManager.clickSlot(handler.syncId, sourceSlotId, 0, SlotActionType.PICKUP, client.player);
         if (!sameCursorMaterial(handler.getCursorStack(), template)) {
             returnCursorToGridSlot(client, handler, sourceSlotId);
             return 0;
         }
-        client.interactionManager.clickSlot(handler.syncId, -999,
-                ScreenHandler.packQuickCraftData(0, 0), SlotActionType.QUICK_CRAFT, client.player);
+        client.interactionManager.clickSlot(
+                handler.syncId,
+                -999,
+                ScreenHandler.packQuickCraftData(0, 0),
+                SlotActionType.QUICK_CRAFT,
+                client.player
+        );
         for (int slotId : targetSlots) {
-            client.interactionManager.clickSlot(handler.syncId, slotId,
-                    ScreenHandler.packQuickCraftData(1, 0), SlotActionType.QUICK_CRAFT, client.player);
+            client.interactionManager.clickSlot(
+                    handler.syncId,
+                    slotId,
+                    ScreenHandler.packQuickCraftData(1, 0),
+                    SlotActionType.QUICK_CRAFT,
+                    client.player
+            );
         }
-        client.interactionManager.clickSlot(handler.syncId, -999,
-                ScreenHandler.packQuickCraftData(2, 0), SlotActionType.QUICK_CRAFT, client.player);
+        client.interactionManager.clickSlot(
+                handler.syncId,
+                -999,
+                ScreenHandler.packQuickCraftData(2, 0),
+                SlotActionType.QUICK_CRAFT,
+                client.player
+        );
         if (!returnCursorToGridSlot(client, handler, sourceSlotId)) {
             return 0;
         }
         return Math.max(0, sourceBefore - matchingGridCount(handler.getSlot(sourceSlotId).getStack(), template));
     }
 
-    private int moveGridItems(MinecraftClient client,
-                              CraftingScreenHandler handler,
-                              int sourceSlotId,
-                              int targetSlotId,
-                              int amount,
-                              ItemStack template) {
+    private int moveGridItems(
+            MinecraftClient client,
+            CraftingScreenHandler handler,
+            int sourceSlotId,
+            int targetSlotId,
+            int amount,
+            ItemStack template
+    ) {
         if (amount <= 0 || !handler.getCursorStack().isEmpty()) {
             return 0;
         }
@@ -1671,8 +1755,8 @@ public final class QuickCraftWorkbenchShulkerCraft implements ClientModInitializ
         Slot target = handler.getSlot(targetSlotId);
         ItemStack sourceStack = source.getStack();
         ItemStack targetStack = target.getStack();
-        if (sourceStack.isEmpty() || !ItemStack.areItemsAndComponentsEqual(sourceStack, template)
-                || (!targetStack.isEmpty() && !ItemStack.areItemsAndComponentsEqual(targetStack, template))) {
+        if (sourceStack.isEmpty() || !ItemStack.areItemsAndComponentsEqual(sourceStack, template) || (!targetStack
+                .isEmpty() && !ItemStack.areItemsAndComponentsEqual(targetStack, template))) {
             return 0;
         }
 
@@ -1686,17 +1770,14 @@ public final class QuickCraftWorkbenchShulkerCraft implements ClientModInitializ
 
         // 能整堆搬运时只发两个槽位操作；尾数才退化为右键逐个补齐，避免把材料放进背包。
         if (requested == sourceBefore && targetBefore == 0) {
-            client.interactionManager.clickSlot(handler.syncId, sourceSlotId, 0,
-                    SlotActionType.PICKUP, client.player);
+            client.interactionManager.clickSlot(handler.syncId, sourceSlotId, 0, SlotActionType.PICKUP, client.player);
             if (!sameCursorMaterial(handler.getCursorStack(), template)) {
                 returnCursorToGridSlot(client, handler, sourceSlotId);
                 return 0;
             }
-            client.interactionManager.clickSlot(handler.syncId, targetSlotId, 0,
-                    SlotActionType.PICKUP, client.player);
+            client.interactionManager.clickSlot(handler.syncId, targetSlotId, 0, SlotActionType.PICKUP, client.player);
         } else {
-            client.interactionManager.clickSlot(handler.syncId, sourceSlotId, 0,
-                    SlotActionType.PICKUP, client.player);
+            client.interactionManager.clickSlot(handler.syncId, sourceSlotId, 0, SlotActionType.PICKUP, client.player);
             if (!sameCursorMaterial(handler.getCursorStack(), template)) {
                 returnCursorToGridSlot(client, handler, sourceSlotId);
                 return 0;
@@ -1704,8 +1785,13 @@ public final class QuickCraftWorkbenchShulkerCraft implements ClientModInitializ
             int moved = 0;
             while (moved < requested && !handler.getCursorStack().isEmpty()) {
                 int before = matchingGridCount(handler.getSlot(targetSlotId).getStack(), template);
-                client.interactionManager.clickSlot(handler.syncId, targetSlotId, 1,
-                        SlotActionType.PICKUP, client.player);
+                client.interactionManager.clickSlot(
+                        handler.syncId,
+                        targetSlotId,
+                        1,
+                        SlotActionType.PICKUP,
+                        client.player
+                );
                 int after = matchingGridCount(handler.getSlot(targetSlotId).getStack(), template);
                 if (after <= before) {
                     break;
@@ -1717,24 +1803,22 @@ public final class QuickCraftWorkbenchShulkerCraft implements ClientModInitializ
 
         int sourceAfter = matchingGridCount(handler.getSlot(sourceSlotId).getStack(), template);
         int targetAfter = matchingGridCount(handler.getSlot(targetSlotId).getStack(), template);
-        return Math.max(0, Math.min(requested, targetAfter - targetBefore))
-                + Math.max(0, sourceBefore - sourceAfter - requested);
+        return Math.max(0, Math.min(requested, targetAfter - targetBefore)) + Math.max(
+                0,
+                sourceBefore - sourceAfter - requested
+        );
     }
 
-    private boolean returnCursorToGridSlot(MinecraftClient client,
-                                           CraftingScreenHandler handler,
-                                           int slotId) {
+    private boolean returnCursorToGridSlot(MinecraftClient client, CraftingScreenHandler handler, int slotId) {
         if (handler.getCursorStack().isEmpty()) {
             return true;
         }
-        client.interactionManager.clickSlot(handler.syncId, slotId, 0,
-                SlotActionType.PICKUP, client.player);
+        client.interactionManager.clickSlot(handler.syncId, slotId, 0, SlotActionType.PICKUP, client.player);
         return handler.getCursorStack().isEmpty();
     }
 
     private int matchingGridCount(ItemStack stack, ItemStack template) {
-        return !stack.isEmpty() && ItemStack.areItemsAndComponentsEqual(stack, template)
-                ? stack.getCount() : 0;
+        return !stack.isEmpty() && ItemStack.areItemsAndComponentsEqual(stack, template) ? stack.getCount() : 0;
     }
 
     private boolean sameCursorMaterial(ItemStack cursor, ItemStack template) {
@@ -1785,9 +1869,11 @@ public final class QuickCraftWorkbenchShulkerCraft implements ClientModInitializ
         return patternSlots > 1 && emptySlots > 0 && emptySlots < patternSlots;
     }
 
-    private int findSmallestMatchingPlayerStack(PlayerInventory inventory,
-                                                CraftingScreenHandler handler,
-                                                ItemStack template) {
+    private int findSmallestMatchingPlayerStack(
+            PlayerInventory inventory,
+            CraftingScreenHandler handler,
+            ItemStack template
+    ) {
         int bestSlot = -1;
         int bestCount = Integer.MAX_VALUE;
         int inventorySize = QuickCraftWorkbenchShulkerAccess.getMainStacksSize(inventory);
@@ -1797,9 +1883,10 @@ public final class QuickCraftWorkbenchShulkerCraft implements ClientModInitializ
                 continue;
             }
             ItemStack stack = handler.getSlot(handlerSlot).getStack();
-            if (!stack.isEmpty()
-                    && stack.getCount() < bestCount
-                    && ItemStack.areItemsAndComponentsEqual(stack, template)) {
+            if (!stack.isEmpty() && stack.getCount() < bestCount && ItemStack.areItemsAndComponentsEqual(
+                    stack,
+                    template
+            )) {
                 bestSlot = handlerSlot;
                 bestCount = stack.getCount();
             }
@@ -1807,11 +1894,13 @@ public final class QuickCraftWorkbenchShulkerCraft implements ClientModInitializ
         return bestSlot;
     }
 
-    private boolean distributePlayerStack(MinecraftClient client,
-                                          CraftingScreenHandler handler,
-                                          int sourceSlot,
-                                          List<Integer> targetSlots,
-                                          ItemStack template) {
+    private boolean distributePlayerStack(
+            MinecraftClient client,
+            CraftingScreenHandler handler,
+            int sourceSlot,
+            List<Integer> targetSlots,
+            ItemStack template
+    ) {
         int sourceCount = handler.getSlot(sourceSlot).getStack().getCount();
         int targetCount = Math.min(sourceCount, targetSlots.size());
         if (targetCount <= 0) {
@@ -1819,48 +1908,73 @@ public final class QuickCraftWorkbenchShulkerCraft implements ClientModInitializ
         }
 
         List<Integer> selectedTargets = new ArrayList<>(targetSlots.subList(0, targetCount));
-        client.interactionManager.clickSlot(handler.syncId, sourceSlot, 0,
-                SlotActionType.PICKUP, client.player);
-        if (handler.getCursorStack().isEmpty()
-                || !ItemStack.areItemsAndComponentsEqual(handler.getCursorStack(), template)) {
+        client.interactionManager.clickSlot(handler.syncId, sourceSlot, 0, SlotActionType.PICKUP, client.player);
+        if (handler.getCursorStack().isEmpty() || !ItemStack.areItemsAndComponentsEqual(
+                handler.getCursorStack(),
+                template
+        )) {
             return false;
         }
 
         if (selectedTargets.size() == 1) {
-            client.interactionManager.clickSlot(handler.syncId, selectedTargets.getFirst(), 0,
-                    SlotActionType.PICKUP, client.player);
+            client.interactionManager.clickSlot(
+                    handler.syncId,
+                    selectedTargets.getFirst(),
+                    0,
+                    SlotActionType.PICKUP,
+                    client.player
+            );
         } else {
-            client.interactionManager.clickSlot(handler.syncId, -999,
-                    ScreenHandler.packQuickCraftData(0, 0), SlotActionType.QUICK_CRAFT, client.player);
+            client.interactionManager.clickSlot(
+                    handler.syncId,
+                    -999,
+                    ScreenHandler.packQuickCraftData(0, 0),
+                    SlotActionType.QUICK_CRAFT,
+                    client.player
+            );
             for (int targetSlot : selectedTargets) {
-                client.interactionManager.clickSlot(handler.syncId, targetSlot,
-                        ScreenHandler.packQuickCraftData(1, 0), SlotActionType.QUICK_CRAFT, client.player);
+                client.interactionManager.clickSlot(
+                        handler.syncId,
+                        targetSlot,
+                        ScreenHandler.packQuickCraftData(1, 0),
+                        SlotActionType.QUICK_CRAFT,
+                        client.player
+                );
             }
-            client.interactionManager.clickSlot(handler.syncId, -999,
-                    ScreenHandler.packQuickCraftData(2, 0), SlotActionType.QUICK_CRAFT, client.player);
+            client.interactionManager.clickSlot(
+                    handler.syncId,
+                    -999,
+                    ScreenHandler.packQuickCraftData(2, 0),
+                    SlotActionType.QUICK_CRAFT,
+                    client.player
+            );
         }
         return returnCursorStack(client, handler, sourceSlot);
     }
 
-    private boolean returnCursorStack(MinecraftClient client,
-                                      CraftingScreenHandler handler,
-                                      int preferredSlot) {
+    private boolean returnCursorStack(MinecraftClient client, CraftingScreenHandler handler, int preferredSlot) {
         if (handler.getCursorStack().isEmpty()) {
             return true;
         }
         if (canAcceptStack(handler.getSlot(preferredSlot).getStack(), handler.getCursorStack())) {
-            client.interactionManager.clickSlot(handler.syncId, preferredSlot, 0,
-                    SlotActionType.PICKUP, client.player);
+            client.interactionManager.clickSlot(handler.syncId, preferredSlot, 0, SlotActionType.PICKUP, client.player);
         }
         if (handler.getCursorStack().isEmpty()) {
             return true;
         }
         for (int inventoryIndex = 0; inventoryIndex < PlayerInventory.MAIN_SIZE; inventoryIndex++) {
             int handlerSlot = playerInventoryIndexToHandlerSlot(inventoryIndex);
-            if (handlerSlot != -1
-                    && canAcceptStack(handler.getSlot(handlerSlot).getStack(), handler.getCursorStack())) {
-                client.interactionManager.clickSlot(handler.syncId, handlerSlot, 0,
-                        SlotActionType.PICKUP, client.player);
+            if (handlerSlot != -1 && canAcceptStack(
+                    handler.getSlot(handlerSlot).getStack(),
+                    handler.getCursorStack()
+            )) {
+                client.interactionManager.clickSlot(
+                        handler.syncId,
+                        handlerSlot,
+                        0,
+                        SlotActionType.PICKUP,
+                        client.player
+                );
                 if (handler.getCursorStack().isEmpty()) {
                     return true;
                 }
@@ -1869,9 +1983,7 @@ public final class QuickCraftWorkbenchShulkerCraft implements ClientModInitializ
         return false;
     }
 
-    private int countMatchingItems(CraftingScreenHandler handler,
-                                   List<Integer> slotIds,
-                                   ItemStack template) {
+    private int countMatchingItems(CraftingScreenHandler handler, List<Integer> slotIds, ItemStack template) {
         int count = 0;
         for (int slotId : slotIds) {
             ItemStack stack = handler.getSlot(slotId).getStack();
@@ -1883,9 +1995,8 @@ public final class QuickCraftWorkbenchShulkerCraft implements ClientModInitializ
     }
 
     private boolean canAcceptStack(ItemStack target, ItemStack cursor) {
-        return target.isEmpty()
-                || (ItemStack.areItemsAndComponentsEqual(target, cursor)
-                && target.getCount() + cursor.getCount() <= target.getMaxCount());
+        return target.isEmpty() || (ItemStack.areItemsAndComponentsEqual(target, cursor) && target.getCount() + cursor
+                .getCount() <= target.getMaxCount());
     }
 
     private int playerInventoryIndexToHandlerSlot(int inventoryIndex) {
@@ -1932,14 +2043,12 @@ public final class QuickCraftWorkbenchShulkerCraft implements ClientModInitializ
     }
 
     private boolean isRapidInputHeld(MinecraftClient client) {
-        return startedByButton
-                ? isButtonRapidModeHeld(client)
+        return startedByButton ? isButtonRapidModeHeld(client)
                 : QuickCraftKeyBindings.isHotkeyDown(QuickCraftConfigs.getRapidCraftHotkey());
     }
 
     private boolean isButtonRapidModeHeld(MinecraftClient client) {
-        return QuickCraftKeyBindings.isAltDown()
-                && QuickCraftKeyBindings.isLeftMouseButtonDown(client);
+        return QuickCraftKeyBindings.isAltDown() && QuickCraftKeyBindings.isLeftMouseButtonDown(client);
     }
 
     private boolean isWorkbenchOpen(MinecraftClient client) {
@@ -1953,14 +2062,16 @@ public final class QuickCraftWorkbenchShulkerCraft implements ClientModInitializ
             return true;
         }
         // 与 PlayerEntity.tickMovement 的物品碰撞查询范围一致。
-        Box pickupArea = client.player.hasVehicle() && !client.player.getVehicle().isRemoved()
-                ? client.player.getBoundingBox().union(client.player.getVehicle().getBoundingBox()).expand(1.0, 0.0, 1.0)
+        Box pickupArea = client.player.hasVehicle() && !client.player.getVehicle().isRemoved() ? client.player
+                .getBoundingBox().union(client.player.getVehicle().getBoundingBox()).expand(1.0, 0.0, 1.0)
                 : client.player.getBoundingBox().expand(1.0, 0.5, 1.0);
-        return !client.world.getEntitiesByClass(ItemEntity.class, pickupArea,
-                item -> item.isAlive() && !item.getStack().isEmpty() && !item.cannotPickup()
-                        && !(item.getItemAge() >= 0 && item.getItemAge() < PLAYER_DROP_PICKUP_DELAY_TICKS)
-                        && !(client.world == recentThrowWorld
-                                && recentLocalThrows.getOrDefault(item.getStack().getItem(), 0L) > clientTicks)).isEmpty();
+        return !client.world.getEntitiesByClass(
+                ItemEntity.class,
+                pickupArea,
+                item -> item.isAlive() && !item.getStack().isEmpty() && !item.cannotPickup() && !(item.getItemAge() >= 0
+                        && item.getItemAge() < PLAYER_DROP_PICKUP_DELAY_TICKS) && !(client.world == recentThrowWorld
+                                && recentLocalThrows.getOrDefault(item.getStack().getItem(), 0L) > clientTicks)
+        ).isEmpty();
     }
 
     private void recordLocalThrow(MinecraftClient client, ItemStack stack) {
@@ -1978,7 +2089,8 @@ public final class QuickCraftWorkbenchShulkerCraft implements ClientModInitializ
         if (QuickCraftWorkbenchShulker.isShulkerCraftBusy()) {
             QuickCraftWorkbenchShulker.requestShulkerCraftStopAfterCurrentAction();
             QuickContainerLock.runWithPlayerSlotLocksBypassed(
-                    () -> QuickCraftWorkbenchShulker.tickShulkerCraft(client));
+                    () -> QuickCraftWorkbenchShulker.tickShulkerCraft(client)
+            );
         }
     }
 
@@ -1986,7 +2098,8 @@ public final class QuickCraftWorkbenchShulkerCraft implements ClientModInitializ
         if (QuickCraftWorkbenchShulker.isShulkerCraftBusy()) {
             QuickCraftWorkbenchShulker.requestShulkerCraftStopAfterCurrentAction();
             QuickContainerLock.runWithPlayerSlotLocksBypassed(
-                    () -> QuickCraftWorkbenchShulker.tickShulkerCraft(client));
+                    () -> QuickCraftWorkbenchShulker.tickShulkerCraft(client)
+            );
             QuickCraftWorkbenchShulker.consumeShulkerCraftResult();
             QuickCraftWorkbenchShulker.consumeShulkerCraftMessage();
         }
@@ -2028,8 +2141,7 @@ public final class QuickCraftWorkbenchShulkerCraft implements ClientModInitializ
         QuickCraftWorkbenchShulker.resetShulkerCraft();
     }
 
-    private boolean waitForServerOutputCorrection(MinecraftClient client,
-                                                   CraftingScreenHandler handler) {
+    private boolean waitForServerOutputCorrection(MinecraftClient client, CraftingScreenHandler handler) {
         ItemStack output = handler.getSlot(OUTPUT_SLOT).getStack();
         if (output.isEmpty() || isExpectedOutput(output)) {
             serverOutputMismatchTicks = 0;
@@ -2039,8 +2151,7 @@ public final class QuickCraftWorkbenchShulkerCraft implements ClientModInitializ
         boolean patternShapeComplete = isPatternShapeComplete(handler);
         if (!patternShapeComplete) {
             serverOutputMismatchTicks = 0;
-            if (canContinuePastIntermediateOutput(
-                    patternShapeComplete, isPatternGridCompatible(handler))) {
+            if (canContinuePastIntermediateOutput(patternShapeComplete, isPatternGridCompatible(handler))) {
                 return false;
             }
             serverCorrectionPauseTicks = Math.max(serverCorrectionPauseTicks, 1);
@@ -2057,8 +2168,7 @@ public final class QuickCraftWorkbenchShulkerCraft implements ClientModInitializ
         return true;
     }
 
-    static boolean canContinuePastIntermediateOutput(boolean patternShapeComplete,
-                                                     boolean patternGridCompatible) {
+    static boolean canContinuePastIntermediateOutput(boolean patternShapeComplete, boolean patternGridCompatible) {
         return !patternShapeComplete && patternGridCompatible;
     }
 
@@ -2070,8 +2180,7 @@ public final class QuickCraftWorkbenchShulkerCraft implements ClientModInitializ
                 if (!actual.isEmpty()) {
                     return false;
                 }
-            } else if (actual.isEmpty()
-                    || !ItemStack.areItemsAndComponentsEqual(expected, actual)) {
+            } else if (actual.isEmpty() || !ItemStack.areItemsAndComponentsEqual(expected, actual)) {
                 return false;
             }
         }
@@ -2085,9 +2194,6 @@ public final class QuickCraftWorkbenchShulkerCraft implements ClientModInitializ
     }
 
     enum AckBatchKind {
-        REFILL,
-        REFILL_OUTPUT,
-        OUTPUT,
-        PREPARATION
+        REFILL, REFILL_OUTPUT, OUTPUT, PREPARATION
     }
 }

@@ -16,13 +16,21 @@ import java.util.List;
 
 /** 26.1.2 投影容器高亮渲染（使用 MaLiLib 无深度管线）。 */
 final class QuickLitematicaContainerHighlightAccess {
-    private QuickLitematicaContainerHighlightAccess() {
-    }
+    private QuickLitematicaContainerHighlightAccess() {}
 
-    static void renderHighlights(Minecraft client, List<QuickLitematicaContainerHighlight.ProjectedContainer> positions,
-                                 Vec3 cameraPos, int maxDistance, Color4f selectedColor, float verifierAlpha) {
+    static void renderHighlights(
+            Minecraft client,
+            List<QuickLitematicaContainerHighlight.ProjectedContainer> positions,
+            Vec3 cameraPos,
+            int maxDistance,
+            Color4f selectedColor,
+            float verifierAlpha
+    ) {
         Color4f color = new Color4f(
-                selectedColor.r, selectedColor.g, selectedColor.b, Math.min(selectedColor.a, verifierAlpha)
+                selectedColor.r,
+                selectedColor.g,
+                selectedColor.b,
+                Math.min(selectedColor.a, verifierAlpha)
         );
         try (RenderContext render = new RenderContext(
                 () -> "QuickCraft projected container highlight",

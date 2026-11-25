@@ -16,15 +16,25 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 @Mixin(value = MaterialListBase.class, remap = false)
 public abstract class LitematicaMaterialListIgnoresMixin implements QuickLitematicaMaterialIgnores.IgnoredMaterials {
-    @Shadow @Final protected Set<MaterialListEntry> ignored;
+    @Shadow
+    @Final
+    protected Set<MaterialListEntry> ignored;
 
     @Override
-    public Set<MaterialListEntry> quickcraft$getIgnoredMaterials() { return this.ignored; }
+    public Set<MaterialListEntry> quickcraft$getIgnoredMaterials() {
+        return this.ignored;
+    }
 
-
-    @org.spongepowered.asm.mixin.injection.ModifyVariable(method = "setMaterialListEntries", at = @At("HEAD"), argsOnly = true, order = 900)
+    @org.spongepowered.asm.mixin.injection.ModifyVariable(
+            method = "setMaterialListEntries",
+            at = @At("HEAD"),
+            argsOnly = true,
+            order = 900)
     private List<MaterialListEntry> quickcraft$originalEditorRows(List<MaterialListEntry> entries) {
-        return com.yiyihehe.quickcraft.litematica.QuickLitematicaProjectionMaterials.editorEntries((MaterialListBase) (Object) this, entries);
+        return com.yiyihehe.quickcraft.litematica.QuickLitematicaProjectionMaterials.editorEntries(
+                (MaterialListBase) (Object) this,
+                entries
+        );
     }
 
     @Inject(method = "setMaterialListEntries", at = @At("HEAD"))
@@ -34,18 +44,23 @@ public abstract class LitematicaMaterialListIgnoresMixin implements QuickLitemat
 
     @Inject(method = "ignoreEntry", at = @At("TAIL"))
     private void quickcraft$saveIgnored(MaterialListEntry entry, CallbackInfo ci) {
-        QuickLitematicaMaterialIgnores.add(QuickLitematicaMaterialLists.getPersistentContextKey(
-                (MaterialListBase) (Object) this), new ItemType(entry.getStack(), true, true).toString());
+        QuickLitematicaMaterialIgnores.add(
+                QuickLitematicaMaterialLists.getPersistentContextKey((MaterialListBase) (Object) this),
+                new ItemType(entry.getStack(), true, true).toString()
+        );
     }
 
     @Inject(method = "clearIgnored", at = @At("TAIL"))
     private void quickcraft$clearIgnored(CallbackInfo ci) {
-        QuickLitematicaMaterialIgnores.clear(QuickLitematicaMaterialLists.getPersistentContextKey((MaterialListBase) (Object) this));
+        QuickLitematicaMaterialIgnores.clear(
+                QuickLitematicaMaterialLists.getPersistentContextKey((MaterialListBase) (Object) this)
+        );
     }
 
     @Inject(method = "refreshPreFilteredList", at = @At("TAIL"))
     private void quickcraft$resetHudSnapshot(CallbackInfo ci) {
         com.yiyihehe.quickcraft.litematica.QuickLitematicaProjectionMaterials.resetHud(
-                (MaterialListBase) (Object) this);
+                (MaterialListBase) (Object) this
+        );
     }
 }

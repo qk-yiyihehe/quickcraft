@@ -16,14 +16,16 @@ final class QuickLitematicaPreviewFluids {
         this.examined++;
         var fluid = state.getType();
         // 显式 handler 或自定义 FluidModel 都可能绘制内部几何；get() 的默认处理器不能阻断普通流体剔除。
-        if (FluidRenderingRegistry.getOverride(fluid) != null
-                || FluidRenderingRegistryImpl.getUnbakedModels().containsKey(fluid)) {
+        if (FluidRenderingRegistry.getOverride(fluid) != null || FluidRenderingRegistryImpl.getUnbakedModels()
+                .containsKey(fluid)) {
             this.custom++;
             return false;
         }
         for (Direction side : SIDES) {
             this.neighbor.setWithOffset(pos, side);
-            if (!view.getFluidState(this.neighbor).getType().isSame(fluid)) return false;
+            if (!view.getFluidState(this.neighbor).getType().isSame(fluid)) {
+                return false;
+            }
         }
         this.skipped++;
         return true;

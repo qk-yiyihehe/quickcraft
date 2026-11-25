@@ -12,12 +12,15 @@ import java.util.Map;
 
 /** 26.1.2 容器填充状态世界轮廓渲染（使用 ShapeRenderer 与 PoseStack）。 */
 final class QuickContainerFillStatusAccess {
-    private QuickContainerFillStatusAccess() {
-    }
+    private QuickContainerFillStatusAccess() {}
 
-    static void renderWorld(LevelRenderContext context, Minecraft client, Vec3 camera,
-                           Map<QuickContainerFillStatus.Target, QuickContainerFillStatus.Marker> markers,
-                           double maxDistanceSquared) {
+    static void renderWorld(
+            LevelRenderContext context,
+            Minecraft client,
+            Vec3 camera,
+            Map<QuickContainerFillStatus.Target, QuickContainerFillStatus.Marker> markers,
+            double maxDistanceSquared
+    ) {
         if (context.poseStack() == null) {
             return;
         }
@@ -30,16 +33,25 @@ final class QuickContainerFillStatusAccess {
             }
             QuickContainerFillStatus.Status status = entry.getValue().status;
             AABB outline = new AABB(
-                    box.minX - 0.01, box.minY + 0.0125, box.minZ - 0.01,
-                    box.maxX + 0.01, box.maxY + 0.01, box.maxZ + 0.01
+                    box.minX - 0.01,
+                    box.minY + 0.0125,
+                    box.minZ - 0.01,
+                    box.maxX + 0.01,
+                    box.maxY + 0.01,
+                    box.maxZ + 0.01
             );
-            int color = 0xF2000000
-                    | ((int) (status.red * 255) << 16)
-                    | ((int) (status.green * 255) << 8)
+            int color = 0xF2000000 | ((int) (status.red * 255) << 16) | ((int) (status.green * 255) << 8)
                     | (int) (status.blue * 255);
-            ShapeRenderer.renderShape(context.poseStack(),
+            ShapeRenderer.renderShape(
+                    context.poseStack(),
                     context.bufferSource().getBuffer(RenderTypes.linesTranslucent()),
-                    Shapes.create(outline), 0, 0, 0, color, client.getWindow().getAppropriateLineWidth());
+                    Shapes.create(outline),
+                    0,
+                    0,
+                    0,
+                    color,
+                    client.getWindow().getAppropriateLineWidth()
+            );
         }
         context.poseStack().popPose();
     }

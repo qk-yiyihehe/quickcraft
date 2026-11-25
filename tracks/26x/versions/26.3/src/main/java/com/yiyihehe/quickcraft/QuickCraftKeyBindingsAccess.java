@@ -6,8 +6,7 @@ import net.minecraft.client.Minecraft;
 import org.lwjgl.sdl.SDLMouse;
 
 public final class QuickCraftKeyBindingsAccess {
-    private QuickCraftKeyBindingsAccess() {
-    }
+    private QuickCraftKeyBindingsAccess() {}
 
     public static int rightMouseButton() {
         return InputConstants.MOUSE_BUTTON_RIGHT;

@@ -33,18 +33,34 @@ final class QuickLitematicaPreviewUploadQueue {
                 queued = true;
             }
         } finally {
-            if (!queued) this.capacity.release(permits);
+            if (!queued) {
+                this.capacity.release(permits);
+            }
         }
     }
 
-    @Nullable Upload poll() { return this.pending.poll(); }
-    boolean isEmpty() { return this.pending.isEmpty(); }
-    int size() { return this.pending.size(); }
-    int availableKiB() { return this.capacity.availablePermits() * 64; }
+    @Nullable
+    Upload poll() {
+        return this.pending.poll();
+    }
+
+    boolean isEmpty() {
+        return this.pending.isEmpty();
+    }
+
+    int size() {
+        return this.pending.size();
+    }
+
+    int availableKiB() {
+        return this.capacity.availablePermits() * 64;
+    }
 
     synchronized void discard() {
         Upload upload;
-        while ((upload = this.pending.poll()) != null) upload.close();
+        while ((upload = this.pending.poll()) != null) {
+            upload.close();
+        }
     }
 
     static final class Upload implements AutoCloseable {
@@ -59,8 +75,11 @@ final class QuickLitematicaPreviewUploadQueue {
             this.permits = permits;
         }
 
-        @Override public void close() {
-            if (this.released.compareAndSet(false, true)) this.capacity.release(this.permits);
+        @Override
+        public void close() {
+            if (this.released.compareAndSet(false, true)) {
+                this.capacity.release(this.permits);
+            }
         }
     }
 }

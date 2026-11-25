@@ -35,7 +35,7 @@ public abstract class QuickProjectionContainerHighlightWorldRendererMixin {
         Matrix4fStack modelView = RenderSystem.getModelViewStack();
         modelView.pushMatrix();
         try {
-            // WorldRenderer has already popped the camera rotation before this tail injection.
+            // 执行此尾部注入时，WorldRenderer 已经将相机旋转出栈。
             modelView.mul(positionMatrix);
             QuickLitematicaContainerHighlight.renderWorld(MinecraftClient.getInstance(), camera);
         } finally {

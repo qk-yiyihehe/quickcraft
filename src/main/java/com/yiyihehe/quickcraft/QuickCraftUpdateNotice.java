@@ -18,8 +18,7 @@ final class QuickCraftUpdateNotice {
     private static boolean checked;
     private static volatile QuickCraftNotice pending;
 
-    private QuickCraftUpdateNotice() {
-    }
+    private QuickCraftUpdateNotice() {}
 
     static void initialize() {
         ClientTickEvents.END_CLIENT_TICK.register(client -> {
@@ -30,12 +29,13 @@ final class QuickCraftUpdateNotice {
             if (!checked) {
                 checked = true;
                 FabricLoader loader = FabricLoader.getInstance();
-                String minecraft = loader.getModContainer("minecraft").orElseThrow()
-                        .getMetadata().getVersion().getFriendlyString();
-                String installed = loader.getModContainer(QuickCraft.MOD_ID).orElseThrow()
-                        .getMetadata().getVersion().getFriendlyString();
-                Thread.ofPlatform().daemon(true).name("QuickCraft update notice")
-                        .start(() -> pending = fetch(minecraft, installed));
+                String minecraft = loader.getModContainer("minecraft").orElseThrow().getMetadata().getVersion()
+                        .getFriendlyString();
+                String installed = loader.getModContainer(QuickCraft.MOD_ID).orElseThrow().getMetadata().getVersion()
+                        .getFriendlyString();
+                Thread.ofPlatform().daemon(true).name("QuickCraft update notice").start(
+                        () -> pending = fetch(minecraft, installed)
+                );
             }
             QuickCraftNotice notice = pending;
             if (notice == null || client.player == null || client.world == null || client.currentScreen != null) {
@@ -45,15 +45,21 @@ final class QuickCraftUpdateNotice {
             if (QuickCraftConfigs.hasSeenNotice(notice.id())) {
                 return;
             }
-            var message = Text.literal("[QuickCraft] ").formatted(Formatting.GOLD)
-                    .append(Text.translatable(notice.announcement()
-                            ? "quickcraft.message.update_notice.announcement"
-                            : "quickcraft.message.update_notice.update", notice.version()).formatted(Formatting.WHITE))
-                    .append(Text.literal(notice.message(client.options.language)).formatted(Formatting.WHITE))
-                    .append(Text.literal(" "))
-                    .append(Text.translatable("quickcraft.message.update_notice.open")
-                            .styled(style -> style.withColor(Formatting.AQUA).withUnderline(true)
-                                    .withClickEvent(QuickCraftUpdateNoticeAccess.openUrl(URI.create(notice.url())))));
+            var message = Text.literal("[QuickCraft] ").formatted(Formatting.GOLD).append(
+                    Text.translatable(
+                            notice.announcement() ? "quickcraft.message.update_notice.announcement"
+                                    : "quickcraft.message.update_notice.update",
+                            notice.version()
+                    ).formatted(Formatting.WHITE)
+            ).append(Text.literal(notice.message(client.options.language)).formatted(Formatting.WHITE)).append(
+                    Text.literal(" ")
+            ).append(
+                    Text.translatable("quickcraft.message.update_notice.open").styled(
+                            style -> style.withColor(Formatting.AQUA).withUnderline(true).withClickEvent(
+                                    QuickCraftUpdateNoticeAccess.openUrl(URI.create(notice.url()))
+                            )
+                    )
+            );
             client.inGameHud.getChatHud().addMessage(message);
             QuickCraftConfigs.markNoticeSeen(notice.id());
         });
@@ -63,14 +69,18 @@ final class QuickCraftUpdateNotice {
         HttpURLConnection connection = null;
         try {
             String filter = URLEncoder.encode("[\"" + minecraft + "\"]", StandardCharsets.UTF_8);
-            connection = (HttpURLConnection) URI.create("https://api.modrinth.com/v2/project/totNXL64/version"
-                    + "?loaders=%5B%22fabric%22%5D&game_versions=" + filter).toURL().openConnection();
+            connection = (HttpURLConnection) URI.create(
+                    "https://api.modrinth.com/v2/project/totNXL64/version"
+                            + "?loaders=%5B%22fabric%22%5D&game_versions=" + filter
+            ).toURL().openConnection();
             connection.setConnectTimeout(10_000);
             connection.setReadTimeout(10_000);
             connection.setInstanceFollowRedirects(false);
             connection.setRequestProperty("Accept", "application/json");
-            connection.setRequestProperty("User-Agent", "qk-yiyihehe/quickcraft/" + installed
-                    + " (https://github.com/qk-yiyihehe/quickcraft)");
+            connection.setRequestProperty(
+                    "User-Agent",
+                    "qk-yiyihehe/quickcraft/" + installed + " (https://github.com/qk-yiyihehe/quickcraft)"
+            );
             if (connection.getResponseCode() != HttpURLConnection.HTTP_OK) {
                 return null;
             }
@@ -81,8 +91,11 @@ final class QuickCraftUpdateNotice {
                 if (body.length > limit) {
                     return null;
                 }
-                return QuickCraftNotice.select(JsonParser.parseString(new String(body, StandardCharsets.UTF_8))
-                        .getAsJsonArray(), minecraft, installed);
+                return QuickCraftNotice.select(
+                        JsonParser.parseString(new String(body, StandardCharsets.UTF_8)).getAsJsonArray(),
+                        minecraft,
+                        installed
+                );
             }
         } catch (IOException | RuntimeException ignored) {
             return null;

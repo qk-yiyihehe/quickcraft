@@ -14,11 +14,17 @@ final class QuickCraftGuiButtonInput {
             if (screen instanceof GuiBase gui) {
                 var editor = new QuickCraftMovableButton.Editor(gui);
                 ScreenMouseEvents.allowMouseClick(screen).register(
-                        (shown, x, y, mouse) -> !editor.click(x, y, mouse,
+                        (shown, x, y, mouse) -> !editor.click(
+                                x,
+                                y,
+                                mouse,
                                 Screen.hasControlDown(),
-                                button -> button.onMouseClicked((int) x, (int) y, mouse)));
+                                button -> button.onMouseClicked((int) x, (int) y, mouse)
+                        )
+                );
                 ScreenMouseEvents.allowMouseRelease(screen).register(
-                        (shown, x, y, button) -> !editor.release(x, y, button));
+                        (shown, x, y, button) -> !editor.release(x, y, button)
+                );
                 ScreenEvents.beforeRender(screen).register((shown, graphics, x, y, delta) -> {
                     if (editor.isDragging()) {
                         editor.drag(x, y, QuickCraftKeyBindings.isLeftMouseButtonDown(client));

@@ -38,23 +38,26 @@ import static org.mockito.Mockito.doAnswer;
 
 @ExtendWith(com.yiyihehe.quickcraft.QuickCraftMinecraftTestBootstrap.class)
 class QuickLitematicaShulkerReturnIdentityTest {
-    @TempDir Path gameDirectory;
+    @TempDir
+    Path gameDirectory;
 
     @Test
     void movedOriginalIsPreferredOverOldSlotWithSameBodyAndDifferentContents() throws Exception {
         PlayerInventory inventory = newInventory();
         inventory.setStack(10, namedBox(null, new ItemStack(Items.IRON_INGOT)));
         inventory.setStack(11, namedBox(null, new ItemStack(Items.DIRT)));
-        assertThat(findReturnShulker(inventory, materialFrom(namedBox(null, new ItemStack(Items.DIRT)), 10)))
-                .isEqualTo(11);
+        assertThat(findReturnShulker(inventory, materialFrom(namedBox(null, new ItemStack(Items.DIRT)), 10))).isEqualTo(
+                11
+        );
     }
 
     @Test
     void sameIdentifiableBoxWithChangedContentsKeepsExistingFallback() throws Exception {
         PlayerInventory inventory = newInventory();
         inventory.setStack(10, namedBox("A", new ItemStack(Items.IRON_INGOT)));
-        assertThat(findReturnShulker(inventory, materialFrom(namedBox("A", new ItemStack(Items.DIRT)), 10)))
-                .isEqualTo(10);
+        assertThat(findReturnShulker(inventory, materialFrom(namedBox("A", new ItemStack(Items.DIRT)), 10))).isEqualTo(
+                10
+        );
     }
 
     @Test
@@ -67,10 +70,14 @@ class QuickLitematicaShulkerReturnIdentityTest {
         MinecraftClient client = clientWith(inventory);
         setField(client, "runDirectory", gameDirectory.toFile());
         var world = mock(net.minecraft.client.world.ClientWorld.class);
-        when(world.getEnabledFeatures()).thenReturn(net.minecraft.resource.featuretoggle.FeatureFlags.DEFAULT_ENABLED_FEATURES);
+        when(world.getEnabledFeatures()).thenReturn(
+                net.minecraft.resource.featuretoggle.FeatureFlags.DEFAULT_ENABLED_FEATURES
+        );
         when(QuickLitematicaEntityPlacementAccess.getEntityWorld(client.player)).thenReturn(world);
         when(client.player.getAbilities()).thenReturn(new net.minecraft.entity.player.PlayerAbilities());
-        AtomicReference<ShulkerBoxScreenHandler> opened = new AtomicReference<>(new ShulkerBoxScreenHandler(7, inventory));
+        AtomicReference<ShulkerBoxScreenHandler> opened = new AtomicReference<>(
+                new ShulkerBoxScreenHandler(7, inventory)
+        );
         opened.get().getSlot(0).setStack(extracted.copy());
         opened.get().getSlot(1).setStack(new ItemStack(Items.DIRT));
         doAnswer(call -> {
@@ -79,7 +86,7 @@ class QuickLitematicaShulkerReturnIdentityTest {
         }).when(client.interactionManager).clickSlot(anyInt(), anyInt(), anyInt(), any(), eq(client.player));
 
         try (var minecraft = mockStatic(MinecraftClient.class);
-             var picking = mockStatic(fi.dy.masa.litematica.util.InventoryUtils.class)) {
+                var picking = mockStatic(fi.dy.masa.litematica.util.InventoryUtils.class)) {
             minecraft.when(MinecraftClient::getInstance).thenReturn(client);
             try {
                 Class<?> request = nested("PendingRequest");
@@ -99,7 +106,8 @@ class QuickLitematicaShulkerReturnIdentityTest {
                 Object recorded = retrieved.getFirst();
                 Method identity = recorded.getClass().getDeclaredMethod("identity");
                 identity.setAccessible(true);
-                assertThat(ItemStack.areItemsAndComponentsEqual((ItemStack) identity.invoke(recorded), extracted)).isTrue();
+                assertThat(ItemStack.areItemsAndComponentsEqual((ItemStack) identity.invoke(recorded), extracted))
+                        .isTrue();
 
                 // 模拟下一次库存同步：原盒移动，旧位置被另一只同盒体、不同内容的盒占用。
                 inventory.setStack(10, namedBox(null, new ItemStack(Items.IRON_INGOT)));
@@ -109,8 +117,10 @@ class QuickLitematicaShulkerReturnIdentityTest {
                 ItemStack later = new ItemStack(Items.STONE);
                 later.set(DataComponentTypes.CUSTOM_NAME, Text.literal("later"));
                 inventory.setStack(5, later);
-                Method candidate = QuickLitematicaShulkerMaterialRestock.class
-                        .getDeclaredMethod("getReturnCandidate", PlayerInventory.class);
+                Method candidate = QuickLitematicaShulkerMaterialRestock.class.getDeclaredMethod(
+                        "getReturnCandidate",
+                        PlayerInventory.class
+                );
                 candidate.setAccessible(true);
                 assertThat(candidate.invoke(null, inventory)).isSameAs(recorded);
                 opened.set(new ShulkerBoxScreenHandler(8, inventory));
@@ -125,7 +135,10 @@ class QuickLitematicaShulkerReturnIdentityTest {
                 assertThat(retrieved).isEmpty();
                 assertThat(opened.get().getCursorStack().isEmpty()).isTrue();
             } finally {
-                Method reset = QuickLitematicaShulkerMaterialRestock.class.getDeclaredMethod("resetState", MinecraftClient.class);
+                Method reset = QuickLitematicaShulkerMaterialRestock.class.getDeclaredMethod(
+                        "resetState",
+                        MinecraftClient.class
+                );
                 reset.setAccessible(true);
                 reset.invoke(null, client);
             }
@@ -148,13 +161,26 @@ class QuickLitematicaShulkerReturnIdentityTest {
         field.set(null, value);
     }
 
-    private static void openAction(MinecraftClient client, ShulkerBoxScreenHandler handler, Object material,
-                                   String action, int hotbar) throws Exception {
+    private static void openAction(
+            MinecraftClient client,
+            ShulkerBoxScreenHandler handler,
+            Object material,
+            String action,
+            int hotbar
+    ) throws Exception {
         setField(client.player, "currentScreenHandler", handler);
         Class<?> actionType = nested("ActionType");
-        Constructor<?> constructor = nested("ActiveAction").getDeclaredConstructor(actionType, material.getClass(), int.class, int.class);
+        Constructor<?> constructor = nested("ActiveAction").getDeclaredConstructor(
+                actionType,
+                material.getClass(),
+                int.class,
+                int.class
+        );
         constructor.setAccessible(true);
-        setStatic("activeAction", constructor.newInstance(enumValue(actionType, action), material, hotbar, handler.syncId));
+        setStatic(
+                "activeAction",
+                constructor.newInstance(enumValue(actionType, action), material, hotbar, handler.syncId)
+        );
         setStatic("operation", enumValue(nested("Operation"), "WAITING_FOR_OPEN"));
     }
 
@@ -164,8 +190,10 @@ class QuickLitematicaShulkerReturnIdentityTest {
         ItemStack namedB = namedBox("B", new ItemStack(Items.DIRT));
         ItemStack movedA = namedBox("A", new ItemStack(Items.STONE));
 
-        Method identityMethod = QuickLitematicaShulkerMaterialRestock.class
-                .getDeclaredMethod("boxIdentity", ItemStack.class);
+        Method identityMethod = QuickLitematicaShulkerMaterialRestock.class.getDeclaredMethod(
+                "boxIdentity",
+                ItemStack.class
+        );
         identityMethod.setAccessible(true);
         ItemStack identityA = (ItemStack) identityMethod.invoke(null, namedA);
         ItemStack identityB = (ItemStack) identityMethod.invoke(null, namedB);
@@ -181,8 +209,9 @@ class QuickLitematicaShulkerReturnIdentityTest {
         inventory.setStack(9, namedBox("B", new ItemStack(Items.DIRT)));
         inventory.setStack(10, namedBox("A", new ItemStack(Items.DIRT)));
 
-        assertThat(findReturnShulker(inventory, materialFrom(namedBox("A", new ItemStack(Items.DIRT)), 10)))
-                .isEqualTo(10);
+        assertThat(findReturnShulker(inventory, materialFrom(namedBox("A", new ItemStack(Items.DIRT)), 10))).isEqualTo(
+                10
+        );
     }
 
     @Test
@@ -191,8 +220,9 @@ class QuickLitematicaShulkerReturnIdentityTest {
         inventory.setStack(9, namedBox("B", new ItemStack(Items.DIRT)));
         inventory.setStack(11, namedBox("A", new ItemStack(Items.DIRT)));
 
-        assertThat(findReturnShulker(inventory, materialFrom(namedBox("A", new ItemStack(Items.DIRT)), 10)))
-                .isEqualTo(11);
+        assertThat(findReturnShulker(inventory, materialFrom(namedBox("A", new ItemStack(Items.DIRT)), 10))).isEqualTo(
+                11
+        );
     }
 
     @Test
@@ -201,8 +231,9 @@ class QuickLitematicaShulkerReturnIdentityTest {
         inventory.setStack(10, namedBox("B", new ItemStack(Items.DIRT)));
         inventory.setStack(11, namedBox("A", new ItemStack(Items.DIRT)));
 
-        assertThat(findReturnShulker(inventory, materialFrom(namedBox("A", new ItemStack(Items.DIRT)), 10)))
-                .isEqualTo(11);
+        assertThat(findReturnShulker(inventory, materialFrom(namedBox("A", new ItemStack(Items.DIRT)), 10))).isEqualTo(
+                11
+        );
     }
 
     @Test
@@ -210,8 +241,9 @@ class QuickLitematicaShulkerReturnIdentityTest {
         PlayerInventory inventory = newInventory();
         inventory.setStack(4, namedBox(null, new ItemStack(Items.DIRT)));
 
-        assertThat(findReturnShulker(inventory, materialFrom(namedBox(null, new ItemStack(Items.DIRT)), 4)))
-                .isEqualTo(4);
+        assertThat(findReturnShulker(inventory, materialFrom(namedBox(null, new ItemStack(Items.DIRT)), 4))).isEqualTo(
+                4
+        );
     }
 
     @Test
@@ -219,8 +251,9 @@ class QuickLitematicaShulkerReturnIdentityTest {
         PlayerInventory inventory = newInventory();
         inventory.setStack(9, namedBox("B", new ItemStack(Items.DIRT)));
 
-        assertThat(findReturnShulker(inventory, materialFrom(namedBox("A", new ItemStack(Items.DIRT)), 10)))
-                .isEqualTo(-1);
+        assertThat(findReturnShulker(inventory, materialFrom(namedBox("A", new ItemStack(Items.DIRT)), 10))).isEqualTo(
+                -1
+        );
     }
 
     @Test
@@ -238,7 +271,12 @@ class QuickLitematicaShulkerReturnIdentityTest {
         invokeReturnMaterial(client, handler, material);
 
         verify(client.interactionManager).clickSlot(
-                eq(handler.syncId), eq(playerSlotId(handler, 20)), eq(0), eq(SlotActionType.PICKUP), eq(client.player));
+                eq(handler.syncId),
+                eq(playerSlotId(handler, 20)),
+                eq(0),
+                eq(SlotActionType.PICKUP),
+                eq(client.player)
+        );
     }
 
     @Test
@@ -253,7 +291,12 @@ class QuickLitematicaShulkerReturnIdentityTest {
         invokeReturnMaterial(client, handler, material);
 
         verify(client.interactionManager).clickSlot(
-                eq(handler.syncId), eq(playerSlotId(handler, 30)), eq(0), eq(SlotActionType.PICKUP), eq(client.player));
+                eq(handler.syncId),
+                eq(playerSlotId(handler, 30)),
+                eq(0),
+                eq(SlotActionType.PICKUP),
+                eq(client.player)
+        );
     }
 
     @Test
@@ -278,8 +321,10 @@ class QuickLitematicaShulkerReturnIdentityTest {
             return PlayerInventory.class.getConstructor(PlayerEntity.class).newInstance(player);
         } catch (NoSuchMethodException ignored) {
             Class<?> equipment = Class.forName("net.minecraft.entity.EntityEquipment");
-            return PlayerInventory.class.getConstructor(PlayerEntity.class, equipment)
-                    .newInstance(player, equipment.getConstructor().newInstance());
+            return PlayerInventory.class.getConstructor(PlayerEntity.class, equipment).newInstance(
+                    player,
+                    equipment.getConstructor().newInstance()
+            );
         }
     }
 
@@ -307,21 +352,25 @@ class QuickLitematicaShulkerReturnIdentityTest {
 
     private static Object material(ItemStack identity, ItemStack box, int slot) throws Exception {
         Class<?> trackedClass = Class.forName(
-                "com.yiyihehe.quickcraft.litematica.QuickLitematicaShulkerMaterialRestock$TrackedShulker");
+                "com.yiyihehe.quickcraft.litematica.QuickLitematicaShulkerMaterialRestock$TrackedShulker"
+        );
         Method from = trackedClass.getDeclaredMethod("from", ItemStack.class, int.class);
         from.setAccessible(true);
         Object tracked = from.invoke(null, box, slot);
         Constructor<?> constructor = Class.forName(
-                        "com.yiyihehe.quickcraft.litematica.QuickLitematicaShulkerMaterialRestock$RetrievedMaterial")
-                .getDeclaredConstructor(ItemStack.class, trackedClass);
+                "com.yiyihehe.quickcraft.litematica.QuickLitematicaShulkerMaterialRestock$RetrievedMaterial"
+        ).getDeclaredConstructor(ItemStack.class, trackedClass);
         constructor.setAccessible(true);
         return constructor.newInstance(identity, tracked);
     }
 
     private static int findReturnShulker(PlayerInventory inventory, Object material) throws Exception {
         Class<?> materialClass = material.getClass();
-        Method method = QuickLitematicaShulkerMaterialRestock.class
-                .getDeclaredMethod("findReturnShulker", PlayerInventory.class, materialClass);
+        Method method = QuickLitematicaShulkerMaterialRestock.class.getDeclaredMethod(
+                "findReturnShulker",
+                PlayerInventory.class,
+                materialClass
+        );
         method.setAccessible(true);
         try (var configs = mockStatic(QuickCraftConfigs.class)) {
             configs.when(QuickCraftConfigs::isLitematicaShulkerMaterialOrderlyStorageEnabled).thenReturn(true);
@@ -329,12 +378,14 @@ class QuickLitematicaShulkerReturnIdentityTest {
         }
     }
 
-    private static void invokeReturnMaterial(MinecraftClient client,
-                                             ShulkerBoxScreenHandler handler,
-                                             Object material) throws Exception {
-        Method method = QuickLitematicaShulkerMaterialRestock.class
-                .getDeclaredMethod("returnMaterial", MinecraftClient.class, ShulkerBoxScreenHandler.class,
-                        material.getClass());
+    private static void invokeReturnMaterial(MinecraftClient client, ShulkerBoxScreenHandler handler, Object material)
+            throws Exception {
+        Method method = QuickLitematicaShulkerMaterialRestock.class.getDeclaredMethod(
+                "returnMaterial",
+                MinecraftClient.class,
+                ShulkerBoxScreenHandler.class,
+                material.getClass()
+        );
         method.setAccessible(true);
         method.invoke(null, client, handler, material);
     }
@@ -355,8 +406,7 @@ class QuickLitematicaShulkerReturnIdentityTest {
                 field.setAccessible(true);
                 field.set(target, value);
                 return;
-            } catch (NoSuchFieldException ignored) {
-            }
+            } catch (NoSuchFieldException ignored) {}
         }
         throw new NoSuchFieldException(name);
     }

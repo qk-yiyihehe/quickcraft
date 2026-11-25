@@ -25,8 +25,7 @@ import net.minecraft.world.World;
 import java.util.List;
 
 final class QuickLitematicaEntityPlacementAccess {
-    private QuickLitematicaEntityPlacementAccess() {
-    }
+    private QuickLitematicaEntityPlacementAccess() {}
 
     /** 该目标实际按 equipment 复合标签加载装备；低版本仍由 ArmorItems/HandItems 加载。 */
     public static boolean usesEntityEquipment() {
@@ -72,10 +71,9 @@ final class QuickLitematicaEntityPlacementAccess {
     }
 
     public static ItemStack parseServerItem(ServerWorld world, NbtCompound nbt) {
-        return ItemStack.OPTIONAL_CODEC
-                .parse(world.getRegistryManager().getOps(NbtOps.INSTANCE), nbt)
-                .result()
-                .orElse(ItemStack.EMPTY);
+        return ItemStack.OPTIONAL_CODEC.parse(world.getRegistryManager().getOps(NbtOps.INSTANCE), nbt).result().orElse(
+                ItemStack.EMPTY
+        );
     }
 
     public static NbtCompound compoundAt(NbtList list, int index) {
@@ -169,16 +167,15 @@ final class QuickLitematicaEntityPlacementAccess {
 
     public static String getSplitBoatPath(String type, boolean chestBoat) {
         String prefix = switch (type) {
-            case "spruce", "birch", "jungle", "acacia", "cherry", "dark_oak", "mangrove",
-                    "pale_oak", "bamboo", "oak" -> type;
+            case "spruce", "birch", "jungle", "acacia", "cherry", "dark_oak", "mangrove", "pale_oak", "bamboo", "oak" ->
+                type;
             case "" -> "oak";
             default -> null;
         };
         if (prefix == null) {
             return null;
         }
-        return prefix.equals("bamboo")
-                ? (chestBoat ? "bamboo_chest_raft" : "bamboo_raft")
+        return prefix.equals("bamboo") ? (chestBoat ? "bamboo_chest_raft" : "bamboo_raft")
                 : prefix + (chestBoat ? "_chest_boat" : "_boat");
     }
 
@@ -188,9 +185,9 @@ final class QuickLitematicaEntityPlacementAccess {
     }
 
     public static Item getSplitBoatItem(Identifier entityId) {
-        return isSplitBoatPath(entityId.getPath()) && Registries.ITEM.containsId(entityId)
-                ? Registries.ITEM.get(entityId)
-                : null;
+        return isSplitBoatPath(entityId.getPath()) && Registries.ITEM.containsId(entityId) ? Registries.ITEM.get(
+                entityId
+        ) : null;
     }
 
     public static boolean isSplitChestBoatOrRaft(String path) {
@@ -198,8 +195,9 @@ final class QuickLitematicaEntityPlacementAccess {
     }
 
     public static boolean isSplitBoatPath(String path) {
-        return path.endsWith("_boat") || path.endsWith("_chest_boat")
-                || path.endsWith("_raft") || path.endsWith("_chest_raft");
+        return path.endsWith("_boat") || path.endsWith("_chest_boat") || path.endsWith("_raft") || path.endsWith(
+                "_chest_raft"
+        );
     }
 
     public static NbtCompound getSchematicEntityNbt(LitematicaSchematic.EntityInfo entity) {
@@ -218,6 +216,7 @@ final class QuickLitematicaEntityPlacementAccess {
     public static Vec3d getSchematicEntityPos(LitematicaSchematic.EntityInfo entity) {
         return QuickLitematicaDataCompat.entityPos(entity);
     }
+
     public static EntityType<?> getEntityType(Identifier id) {
         return Registries.ENTITY_TYPE.get(id);
     }

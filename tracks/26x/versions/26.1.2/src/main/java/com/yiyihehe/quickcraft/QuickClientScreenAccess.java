@@ -19,8 +19,8 @@ import java.nio.file.Path;
 /** 26.1.2 客户端屏幕与系统交互适配。 */
 public final class QuickClientScreenAccess {
     private static final org.slf4j.Logger LOGGER = org.slf4j.LoggerFactory.getLogger(QuickClientScreenAccess.class);
-    private QuickClientScreenAccess() {
-    }
+
+    private QuickClientScreenAccess() {}
 
     public static Screen currentScreen(Minecraft client) {
         return client.screen;
@@ -129,6 +129,7 @@ public final class QuickClientScreenAccess {
             LOGGER.debug("无法恢复并激活游戏窗口", exception);
         }
     }
+
     @Nullable
     public static Pointer getWin32Hwnd(long windowHandle) {
         if (windowHandle == 0L || !Platform.isWindows()) {

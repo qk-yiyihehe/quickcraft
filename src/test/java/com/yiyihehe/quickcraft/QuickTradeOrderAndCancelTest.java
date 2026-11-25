@@ -121,8 +121,7 @@ class QuickTradeOrderAndCancelTest {
         MerchantEntity merchantB = merchant("manual-b");
         startContinuousTask(client, merchantA);
 
-        try (var minecraft = mockStatic(MinecraftClient.class);
-             var keys = mockStatic(QuickCraftKeyBindings.class)) {
+        try (var minecraft = mockStatic(MinecraftClient.class); var keys = mockStatic(QuickCraftKeyBindings.class)) {
             minecraft.when(MinecraftClient::getInstance).thenReturn(client);
             keys.when(() -> QuickCraftKeyBindings.isVanillaKeyDown(any(), any())).thenReturn(true, false);
             QuickTradeTestSupport.setField(client, "crosshairTarget", new EntityHitResult(merchantB));
@@ -141,8 +140,9 @@ class QuickTradeOrderAndCancelTest {
             new QuickTrade().onClientTick(client);
         }
 
-        assertThat(QuickTradeTestSupport.getStaticField(QuickTrade.class, "currentScreenMerchantKey"))
-                .isEqualTo("manual-b");
+        assertThat(QuickTradeTestSupport.getStaticField(QuickTrade.class, "currentScreenMerchantKey")).isEqualTo(
+                "manual-b"
+        );
         verify(client.player, never()).closeHandledScreen();
         verify(network, never()).sendPacket(any());
     }
@@ -172,7 +172,9 @@ class QuickTradeOrderAndCancelTest {
             new QuickTrade().onClientTick(client);
         }
 
-        ArgumentCaptor<SelectMerchantTradeC2SPacket> packet = ArgumentCaptor.forClass(SelectMerchantTradeC2SPacket.class);
+        ArgumentCaptor<SelectMerchantTradeC2SPacket> packet = ArgumentCaptor.forClass(
+                SelectMerchantTradeC2SPacket.class
+        );
         verify(network).sendPacket(packet.capture());
         assertThat(packet.getValue().getTradeId()).isZero();
     }
@@ -202,7 +204,9 @@ class QuickTradeOrderAndCancelTest {
             new QuickTrade().onClientTick(client);
         }
 
-        ArgumentCaptor<SelectMerchantTradeC2SPacket> packet = ArgumentCaptor.forClass(SelectMerchantTradeC2SPacket.class);
+        ArgumentCaptor<SelectMerchantTradeC2SPacket> packet = ArgumentCaptor.forClass(
+                SelectMerchantTradeC2SPacket.class
+        );
         verify(network).sendPacket(packet.capture());
         assertThat(packet.getValue().getTradeId()).isZero();
     }
@@ -246,7 +250,9 @@ class QuickTradeOrderAndCancelTest {
             assertThat(replacement.get(0).getSellItem().getItem()).isEqualTo(Items.APPLE);
         }
 
-        ArgumentCaptor<SelectMerchantTradeC2SPacket> packet = ArgumentCaptor.forClass(SelectMerchantTradeC2SPacket.class);
+        ArgumentCaptor<SelectMerchantTradeC2SPacket> packet = ArgumentCaptor.forClass(
+                SelectMerchantTradeC2SPacket.class
+        );
         verify(network).sendPacket(packet.capture());
         assertThat(packet.getValue().getTradeId()).isEqualTo(1);
     }
@@ -283,7 +289,6 @@ class QuickTradeOrderAndCancelTest {
         assertThat(second.get(1).getSellItem().getItem()).isEqualTo(Items.BREAD);
     }
 
-
     @Test
     void initPreparationClaimsContinuousMenuBeforeTick() throws Exception {
         QuickCraftConfigs.ContainerTools.ENABLE_QUICK_TRADE.setBooleanValue(false);
@@ -319,18 +324,22 @@ class QuickTradeOrderAndCancelTest {
         try (var minecraft = mockStatic(MinecraftClient.class)) {
             minecraft.when(MinecraftClient::getInstance).thenReturn(client);
             new QuickTrade().onClientTick(client);
-            QuickTradeTestSupport.setField(client, "currentScreen",
-                    mock(net.minecraft.client.gui.screen.Screen.class));
-            for (int tick = 0; tick < 41; tick++) new QuickTrade().onClientTick(client);
+            QuickTradeTestSupport.setField(client, "currentScreen", mock(net.minecraft.client.gui.screen.Screen.class));
+            for (int tick = 0; tick < 41; tick++) {
+                new QuickTrade().onClientTick(client);
+            }
         }
         assertThat(QuickTradeTestSupport.getStaticField(QuickTrade.class, "pendingAutoTrade")).isEqualTo(false);
         assertThat(QuickTradeTestSupport.getStaticField(QuickTrade.class, "pendingContinuousTrade")).isEqualTo(false);
-        for (String field : List.of("continuousTaskMerchantKey", "continuousClaimedScreen", "continuousClaimedHandler")) {
+        for (String field : List.of(
+                "continuousTaskMerchantKey",
+                "continuousClaimedScreen",
+                "continuousClaimedHandler"
+        )) {
             assertThat(QuickTradeTestSupport.getStaticField(QuickTrade.class, field)).as(field).isNull();
         }
         verify(client.player, never()).closeHandledScreen();
     }
-
 
     private static MinecraftClient mockClient() throws Exception {
         MinecraftClient client = mock(MinecraftClient.class);
@@ -359,8 +368,10 @@ class QuickTradeOrderAndCancelTest {
     }
 
     private static MerchantScreen mockScreen() {
-        MerchantScreen screen = mock(MerchantScreen.class, withSettings().extraInterfaces(
-                HandledScreenAccessor.class, MerchantScreenAccessor.class));
+        MerchantScreen screen = mock(
+                MerchantScreen.class,
+                withSettings().extraInterfaces(HandledScreenAccessor.class, MerchantScreenAccessor.class)
+        );
         MerchantScreenHandler handler = mock(MerchantScreenHandler.class);
         when(screen.getScreenHandler()).thenReturn(handler);
         when(((HandledScreenAccessor) screen).quickcraft$getGuiLeft()).thenReturn(0);
@@ -371,13 +382,6 @@ class QuickTradeOrderAndCancelTest {
     }
 
     private static TradeOffer offer(net.minecraft.item.Item first, net.minecraft.item.Item sell) {
-        return new TradeOffer(
-                new TradedItem(first, 1),
-                Optional.empty(),
-                new ItemStack(sell),
-                12,
-                1,
-                0.05f
-        );
+        return new TradeOffer(new TradedItem(first, 1), Optional.empty(), new ItemStack(sell), 12, 1, 0.05f);
     }
 }

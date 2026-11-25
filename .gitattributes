@@ -1,9 +1,9 @@
 #
 # https://help.github.com/articles/dealing-with-line-endings/
 #
-# Linux start script should use lf
+# Linux 启动脚本使用 LF 换行。
 /gradlew        text eol=lf
 
-# These are Windows script files and should use crlf
+# Windows 脚本使用 CRLF 换行。
 *.bat           text eol=crlf
 

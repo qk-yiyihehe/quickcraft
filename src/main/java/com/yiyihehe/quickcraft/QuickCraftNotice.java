@@ -10,8 +10,14 @@ import net.fabricmc.loader.api.VersionParsingException;
 import java.time.Instant;
 
 /** Modrinth 发布筛选与短通知解析，不读取完整日志作为玩家提示。 */
-record QuickCraftNotice(String id, String version, boolean announcement,
-                        String chineseMessage, String englishMessage, String url) {
+record QuickCraftNotice(
+        String id,
+        String version,
+        boolean announcement,
+        String chineseMessage,
+        String englishMessage,
+        String url
+) {
     private static final String MARKER = "<!-- quickcraft-notice";
 
     static QuickCraftNotice select(JsonArray releases, String minecraft, String installed) {
@@ -23,19 +29,21 @@ record QuickCraftNotice(String id, String version, boolean announcement,
                 continue;
             }
             JsonObject release = element.getAsJsonObject();
-            if (!"totNXL64".equals(string(release, "project_id"))
-                    || !"listed".equals(string(release, "status"))
-                    || !("release".equals(string(release, "version_type"))
-                            || "beta".equals(string(release, "version_type")))
-                    || !contains(release.get("loaders"), "fabric")
-                    || !contains(release.get("game_versions"), minecraft)) {
+            if (!"totNXL64".equals(string(release, "project_id")) || !"listed".equals(string(release, "status"))
+                    || !("release".equals(string(release, "version_type")) || "beta".equals(
+                            string(release, "version_type")
+                    )) || !contains(release.get("loaders"), "fabric") || !contains(
+                            release.get("game_versions"),
+                            minecraft
+                    )) {
                 continue;
             }
             try {
                 SemanticVersion version = SemanticVersion.parse(string(release, "version_number"));
                 Instant date = Instant.parse(string(release, "date_published"));
-                if (latestVersion == null || version.compareTo(latestVersion) > 0
-                        || version.compareTo(latestVersion) == 0 && date.isAfter(latestDate)) {
+                if (latestVersion == null || version.compareTo(latestVersion) > 0 || version.compareTo(
+                        latestVersion
+                ) == 0 && date.isAfter(latestDate)) {
                     latest = release;
                     latestVersion = version;
                     latestDate = date;
@@ -55,14 +63,17 @@ record QuickCraftNotice(String id, String version, boolean announcement,
             if (end < 0 || end - start > 4096) {
                 return null;
             }
-            JsonObject notice = JsonParser.parseString(
-                    changelog.substring(start + MARKER.length(), end).strip()).getAsJsonObject();
+            JsonObject notice = JsonParser.parseString(changelog.substring(start + MARKER.length(), end).strip())
+                    .getAsJsonObject();
             JsonElement enabled = notice.get("enabled");
             String id = string(notice, "id");
             String releaseId = string(latest, "id");
-            if (enabled == null || !enabled.isJsonPrimitive()
-                    || !enabled.getAsJsonPrimitive().isBoolean() || !enabled.getAsBoolean()
-                    || !id.matches("[A-Za-z0-9._-]{1,80}") || !releaseId.matches("[A-Za-z0-9]{8}")) {
+            if (enabled == null
+                    || !enabled.isJsonPrimitive()
+                    || !enabled.getAsJsonPrimitive().isBoolean()
+                    || !enabled.getAsBoolean()
+                    || !id.matches("[A-Za-z0-9._-]{1,80}")
+                    || !releaseId.matches("[A-Za-z0-9]{8}")) {
                 return null;
             }
             String type = string(notice, "type");
@@ -74,17 +85,23 @@ record QuickCraftNotice(String id, String version, boolean announcement,
                 return null;
             }
             JsonElement message = notice.get("message");
-            String chinese = message != null && message.isJsonObject()
-                    ? string(message.getAsJsonObject(), "zh_cn") : string(notice, "message");
-            String english = message != null && message.isJsonObject()
-                    ? string(message.getAsJsonObject(), "en_us") : string(notice, "message");
+            String chinese = message != null && message.isJsonObject() ? string(message.getAsJsonObject(), "zh_cn")
+                    : string(notice, "message");
+            String english = message != null && message.isJsonObject() ? string(message.getAsJsonObject(), "en_us")
+                    : string(notice, "message");
             chinese = shortMessage(chinese.isBlank() ? english : chinese);
             english = shortMessage(english.isBlank() ? chinese : english);
             if (chinese.isEmpty() || english.isEmpty()) {
                 return null;
             }
-            return new QuickCraftNotice(id, latestVersion.getFriendlyString().split("\\+", 2)[0],
-                    announcement, chinese, english, "https://modrinth.com/mod/totNXL64/version/" + releaseId);
+            return new QuickCraftNotice(
+                    id,
+                    latestVersion.getFriendlyString().split("\\+", 2)[0],
+                    announcement,
+                    chinese,
+                    english,
+                    "https://modrinth.com/mod/totNXL64/version/" + releaseId
+            );
         } catch (RuntimeException | VersionParsingException ignored) {
             return null;
         }
@@ -102,15 +119,16 @@ record QuickCraftNotice(String id, String version, boolean announcement,
 
     private static String string(JsonObject object, String key) {
         JsonElement value = object.get(key);
-        return value != null && value.isJsonPrimitive() && value.getAsJsonPrimitive().isString()
-                ? value.getAsString() : "";
+        return value != null && value.isJsonPrimitive() && value.getAsJsonPrimitive().isString() ? value.getAsString()
+                : "";
     }
 
     private static boolean contains(JsonElement value, String expected) {
         if (value != null && value.isJsonArray()) {
             for (JsonElement element : value.getAsJsonArray()) {
-                if (element.isJsonPrimitive() && element.getAsJsonPrimitive().isString()
-                        && expected.equals(element.getAsString())) {
+                if (element.isJsonPrimitive() && element.getAsJsonPrimitive().isString() && expected.equals(
+                        element.getAsString()
+                )) {
                     return true;
                 }
             }

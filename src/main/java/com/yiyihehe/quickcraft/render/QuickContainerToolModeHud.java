@@ -6,10 +6,9 @@ import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.text.Text;
 
-/** Displays the active container tool mode while its master switch is enabled. */
+/** 容器工具总开关开启时，显示当前模式。 */
 public final class QuickContainerToolModeHud {
-    private QuickContainerToolModeHud() {
-    }
+    private QuickContainerToolModeHud() {}
 
     public static void initialize() {
         HudRenderCallback.EVENT.register((context, tickCounter) -> render(context));
@@ -17,9 +16,9 @@ public final class QuickContainerToolModeHud {
 
     private static void render(DrawContext context) {
         MinecraftClient client = MinecraftClient.getInstance();
-        // F1 also hides Minecraft's HUD, so the mode text must follow the tool switch itself.
-        if (client.player == null || client.world == null || client.currentScreen != null
-                || !QuickCraftConfigs.isContainerToolModeEnabled()) {
+        // F1 也会隐藏 Minecraft 的 HUD，因此模式文字的显隐应由容器工具开关控制。
+        if (client.player == null || client.world == null || client.currentScreen != null || !QuickCraftConfigs
+                .isContainerToolModeEnabled()) {
             return;
         }
 
@@ -27,7 +26,7 @@ public final class QuickContainerToolModeHud {
         Text label = Text.translatable("quickcraft.message.container_tool_mode.changed", mode.getDisplayName());
         int textWidth = client.textRenderer.getWidth(label);
         int x = (context.getScaledWindowWidth() - textWidth) / 2;
-        // One text line below vanilla action bar messages.
+        // 显示在原版动作栏消息下方一行。
         int y = context.getScaledWindowHeight() - 62;
         QuickContainerToolModeHudAccess.draw(client, context, label, x, y);
     }

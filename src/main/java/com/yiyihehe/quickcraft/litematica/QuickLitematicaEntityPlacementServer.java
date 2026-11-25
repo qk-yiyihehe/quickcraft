@@ -45,19 +45,20 @@ public final class QuickLitematicaEntityPlacementServer {
     private static final int MAX_NONCES = 64;
     private static final Map<UUID, Session> SESSIONS = new HashMap<>();
 
-    private QuickLitematicaEntityPlacementServer() {
-    }
+    private QuickLitematicaEntityPlacementServer() {}
 
     public static void initialize() {
         ServerPlayNetworking.registerGlobalReceiver(
                 QuickLitematicaEntityPlacementPayloads.HelloPayload.ID,
                 (payload, context) -> getPlayerWorld(context.player()).getServer().execute(
-                        () -> handleHello(context.player(), payload))
+                        () -> handleHello(context.player(), payload)
+                )
         );
         ServerPlayNetworking.registerGlobalReceiver(
                 QuickLitematicaEntityPlacementPayloads.RequestPayload.ID,
                 (payload, context) -> getPlayerWorld(context.player()).getServer().execute(
-                        () -> handleRequest(context.player(), payload))
+                        () -> handleRequest(context.player(), payload)
+                )
         );
         ServerPlayConnectionEvents.DISCONNECT.register((handler, server) -> clear(handler.player));
     }
@@ -75,7 +76,10 @@ public final class QuickLitematicaEntityPlacementServer {
         return token;
     }
 
-    public static void handleHello(ServerPlayerEntity player, QuickLitematicaEntityPlacementPayloads.HelloPayload payload) {
+    public static void handleHello(
+            ServerPlayerEntity player,
+            QuickLitematicaEntityPlacementPayloads.HelloPayload payload
+    ) {
         if (player == null) {
             return;
         }
@@ -83,17 +87,23 @@ public final class QuickLitematicaEntityPlacementServer {
         String token = UUID.randomUUID().toString();
         Session session = new Session(token, compatible);
         SESSIONS.put(player.getUuid(), session);
-        ServerPlayNetworking.send(player, new QuickLitematicaEntityPlacementPayloads.CapabilityPayload(
-                QuickLitematicaEntityPlacementPayloads.PROTOCOL_VERSION,
-                session.enabled,
-                placementReach(player),
-                Math.min(MAX_ENTITY_NBT_BYTES, Math.max(0, payload.maxNbtBytes())),
-                0,
-                token
-        ));
+        ServerPlayNetworking.send(
+                player,
+                new QuickLitematicaEntityPlacementPayloads.CapabilityPayload(
+                        QuickLitematicaEntityPlacementPayloads.PROTOCOL_VERSION,
+                        session.enabled,
+                        placementReach(player),
+                        Math.min(MAX_ENTITY_NBT_BYTES, Math.max(0, payload.maxNbtBytes())),
+                        0,
+                        token
+                )
+        );
     }
 
-    public static void handleRequest(ServerPlayerEntity player, QuickLitematicaEntityPlacementPayloads.RequestPayload payload) {
+    public static void handleRequest(
+            ServerPlayerEntity player,
+            QuickLitematicaEntityPlacementPayloads.RequestPayload payload
+    ) {
         if (player == null || payload == null) {
             return;
         }
@@ -115,8 +125,7 @@ public final class QuickLitematicaEntityPlacementServer {
             session.nonces.removeFirst();
         }
         session.nonces.add(payload.nonce());
-        if (session.lastRequestTick != Long.MIN_VALUE
-                && tick - session.lastRequestTick < REQUEST_COOLDOWN_TICKS) {
+        if (session.lastRequestTick != Long.MIN_VALUE && tick - session.lastRequestTick < REQUEST_COOLDOWN_TICKS) {
             sendResult(player, payload.nonce(), "RATE_LIMITED", "");
             return;
         }
@@ -152,8 +161,9 @@ public final class QuickLitematicaEntityPlacementServer {
         }
 
         NbtCompound requested = payload.entityNbt();
-        int[] entityCount = {0};
-        if (requested == null || requested.getSizeInBytes() > MAX_ENTITY_NBT_BYTES
+        int[] entityCount = { 0 };
+        if (requested == null
+                || requested.getSizeInBytes() > MAX_ENTITY_NBT_BYTES
                 || payload.entityType() == null
                 || !payload.entityType().toString().equals(readEntityId(requested))
                 || !validateEntityTree(requested, 0, entityCount)) {
@@ -174,8 +184,16 @@ public final class QuickLitematicaEntityPlacementServer {
 
         Entity root;
         try {
-            root = createEntityTree(world, requested, payload.target(), payload.yaw(), payload.pitch(),
-                    payload.velocity(), true, 0);
+            root = createEntityTree(
+                    world,
+                    requested,
+                    payload.target(),
+                    payload.yaw(),
+                    payload.pitch(),
+                    payload.velocity(),
+                    true,
+                    0
+            );
         } catch (RuntimeException ignored) {
             root = null;
         }
@@ -199,8 +217,7 @@ public final class QuickLitematicaEntityPlacementServer {
             return;
         }
 
-        List<ItemStack> snapshot = creativeMaterialBypass
-                ? List.of()
+        List<ItemStack> snapshot = creativeMaterialBypass ? List.of()
                 : inventoryItems(player).stream().map(ItemStack::copy).toList();
         if (!creativeMaterialBypass) {
             consumeMaterials(player, required);
@@ -230,8 +247,10 @@ public final class QuickLitematicaEntityPlacementServer {
     }
 
     private static void sendResult(ServerPlayerEntity player, long nonce, String status, String uuid) {
-        ServerPlayNetworking.send(player, new QuickLitematicaEntityPlacementPayloads.ResultPayload(
-                nonce, status, uuid, ""));
+        ServerPlayNetworking.send(
+                player,
+                new QuickLitematicaEntityPlacementPayloads.ResultPayload(nonce, status, uuid, "")
+        );
     }
 
     private static double placementReach(ServerPlayerEntity player) {
@@ -316,8 +335,16 @@ public final class QuickLitematicaEntityPlacementServer {
 
         NbtList passengers = listValue(nbt, "Passengers");
         for (int i = 0; i < passengers.size(); i++) {
-            Entity passenger = createEntityTree(world, compoundAt(passengers, i), rootPosition,
-                    rootYaw, rootPitch, rootVelocity, false, depth + 1);
+            Entity passenger = createEntityTree(
+                    world,
+                    compoundAt(passengers, i),
+                    rootPosition,
+                    rootYaw,
+                    rootPitch,
+                    rootVelocity,
+                    false,
+                    depth + 1
+            );
             if (passenger == null || !QuickLitematicaEntityPlacementAccess.startRiding(passenger, entity)) {
                 return null;
             }
@@ -328,10 +355,32 @@ public final class QuickLitematicaEntityPlacementServer {
     private static NbtCompound sanitizeSingleEntity(NbtCompound source, String id) {
         NbtCompound clean = source.copy();
         for (String key : List.of(
-                "UUID", "UUIDMost", "UUIDLeast", "Pos", "Motion", "Rotation", "Passengers", "Dimension",
-                "Leash", "leash", "Owner", "OwnerUUID", "Thrower", "Attributes", "attributes",
-                "ActiveEffects", "active_effects", "Invulnerable", "NoAI", "Command", "LastOutput",
-                "SuccessCount", "DeathLootTable", "DeathLootTableSeed", "Offers", "Gossips"
+                "UUID",
+                "UUIDMost",
+                "UUIDLeast",
+                "Pos",
+                "Motion",
+                "Rotation",
+                "Passengers",
+                "Dimension",
+                "Leash",
+                "leash",
+                "Owner",
+                "OwnerUUID",
+                "Thrower",
+                "Attributes",
+                "attributes",
+                "ActiveEffects",
+                "active_effects",
+                "Invulnerable",
+                "NoAI",
+                "Command",
+                "LastOutput",
+                "SuccessCount",
+                "DeathLootTable",
+                "DeathLootTableSeed",
+                "Offers",
+                "Gossips"
         )) {
             clean.remove(key);
         }
@@ -367,7 +416,8 @@ public final class QuickLitematicaEntityPlacementServer {
     }
 
     private static boolean isTreeWithinReach(ServerPlayerEntity player, Entity root, double reach) {
-        if (player.getEyePos().squaredDistanceTo(QuickLitematicaEntityPlacementAccess.getEntityPos(root)) > reach * reach) {
+        if (player.getEyePos().squaredDistanceTo(QuickLitematicaEntityPlacementAccess.getEntityPos(root)) > reach
+                * reach) {
             return false;
         }
         for (Entity passenger : root.getPassengerList()) {
@@ -379,10 +429,13 @@ public final class QuickLitematicaEntityPlacementServer {
     }
 
     private static boolean isTreePlacementAllowed(ServerWorld world, ServerPlayerEntity player, Entity root) {
-        BlockPos position = root instanceof BlockAttachedEntity attached
-                ? attached.getAttachedBlockPos()
+        BlockPos position = root instanceof BlockAttachedEntity attached ? attached.getAttachedBlockPos()
                 : root.getBlockPos();
-        if (!world.isChunkLoaded(position) || !QuickLitematicaEntityPlacementAccess.canModifyAt(world, player, position)) {
+        if (!world.isChunkLoaded(position) || !QuickLitematicaEntityPlacementAccess.canModifyAt(
+                world,
+                player,
+                position
+        )) {
             return false;
         }
         for (Entity passenger : root.getPassengerList()) {
@@ -409,16 +462,10 @@ public final class QuickLitematicaEntityPlacementServer {
         root.streamPassengersAndSelf().forEach(Entity::discard);
     }
 
-    private static List<ItemStack> materialsForTree(
-            NbtCompound root,
-            ServerWorld world,
-            ServerPlayerEntity player
-    ) {
+    private static List<ItemStack> materialsForTree(NbtCompound root, ServerWorld world, ServerPlayerEntity player) {
         List<ItemStack> materials = new ArrayList<>();
-        int[] count = {0};
-        return appendEntityTreeMaterials(root, world, materials, 0, count, player)
-                ? mergeMaterials(materials)
-                : null;
+        int[] count = { 0 };
+        return appendEntityTreeMaterials(root, world, materials, 0, count, player) ? mergeMaterials(materials) : null;
     }
 
     private static boolean appendEntityTreeMaterials(
@@ -471,8 +518,13 @@ public final class QuickLitematicaEntityPlacementServer {
             return false;
         }
         int containerCapacity = containerCapacity(id, nbt);
-        if (containerCapacity == Integer.MIN_VALUE
-                || !appendStoredItems(materials, nbt, "Items", world, containerCapacity)) {
+        if (containerCapacity == Integer.MIN_VALUE || !appendStoredItems(
+                materials,
+                nbt,
+                "Items",
+                world,
+                containerCapacity
+        )) {
             return false;
         }
 
@@ -560,24 +612,19 @@ public final class QuickLitematicaEntityPlacementServer {
     }
 
     private static boolean hasInventoryItem(ServerPlayerEntity player, Item item) {
-        return player != null && inventoryItems(player).stream()
-                .anyMatch(stack -> stack.isOf(item) && !stack.isEmpty());
+        return player != null && inventoryItems(player).stream().anyMatch(
+                stack -> stack.isOf(item) && !stack.isEmpty()
+        );
     }
 
     private static Item constructionPumpkin(ServerPlayerEntity player) {
-        return hasInventoryItem(player, Items.CARVED_PUMPKIN)
-                ? Items.CARVED_PUMPKIN
-                : hasInventoryItem(player, Items.PUMPKIN)
-                ? Items.PUMPKIN
-                : Items.CARVED_PUMPKIN;
+        return hasInventoryItem(player, Items.CARVED_PUMPKIN) ? Items.CARVED_PUMPKIN
+                : hasInventoryItem(player, Items.PUMPKIN) ? Items.PUMPKIN : Items.CARVED_PUMPKIN;
     }
 
     private static Item constructionWitherBase(ServerPlayerEntity player) {
-        return hasInventoryItem(player, Items.SOUL_SAND)
-                ? Items.SOUL_SAND
-                : hasInventoryItem(player, Items.SOUL_SOIL)
-                ? Items.SOUL_SOIL
-                : Items.SOUL_SAND;
+        return hasInventoryItem(player, Items.SOUL_SAND) ? Items.SOUL_SAND
+                : hasInventoryItem(player, Items.SOUL_SOIL) ? Items.SOUL_SOIL : Items.SOUL_SAND;
     }
 
     private static void giveCopperChests(ServerPlayerEntity player, NbtCompound root) {
@@ -605,12 +652,7 @@ public final class QuickLitematicaEntityPlacementServer {
         return count;
     }
 
-    private static boolean appendStoredItem(
-            List<ItemStack> materials,
-            NbtCompound nbt,
-            String key,
-            ServerWorld world
-    ) {
+    private static boolean appendStoredItem(List<ItemStack> materials, NbtCompound nbt, String key, ServerWorld world) {
         if (!nbt.contains(key)) {
             return true;
         }
@@ -688,15 +730,14 @@ public final class QuickLitematicaEntityPlacementServer {
 
     private static Item boatItem(String type, boolean chest) {
         String prefix = switch (type) {
-            case "spruce", "birch", "jungle", "acacia", "cherry", "dark_oak", "mangrove", "bamboo", "oak", "" ->
-                    type.isEmpty() ? "oak" : type;
+            case "spruce", "birch", "jungle", "acacia", "cherry", "dark_oak", "mangrove", "bamboo", "oak", "" -> type
+                    .isEmpty() ? "oak" : type;
             default -> null;
         };
         if (prefix == null) {
             return null;
         }
-        String path = prefix.equals("bamboo")
-                ? (chest ? "bamboo_chest_raft" : "bamboo_raft")
+        String path = prefix.equals("bamboo") ? (chest ? "bamboo_chest_raft" : "bamboo_raft")
                 : (prefix + (chest ? "_chest_boat" : "_boat"));
         return itemForId("minecraft", path);
     }
@@ -751,10 +792,8 @@ public final class QuickLitematicaEntityPlacementServer {
             if (material.isEmpty()) {
                 continue;
             }
-            ItemStack existing = merged.stream()
-                    .filter(stack -> ItemStack.areItemsAndComponentsEqual(stack, material))
-                    .findFirst()
-                    .orElse(null);
+            ItemStack existing = merged.stream().filter(stack -> ItemStack.areItemsAndComponentsEqual(stack, material))
+                    .findFirst().orElse(null);
             if (existing == null) {
                 merged.add(material.copy());
             } else {
@@ -819,8 +858,8 @@ public final class QuickLitematicaEntityPlacementServer {
             return false;
         }
         NbtList rotation = listValue(nbt, "Rotation");
-        return rotation.size() == 2 && isListOf(rotation, NbtElement.FLOAT_TYPE)
-                && Float.isFinite(floatAt(rotation, 0)) && Float.isFinite(floatAt(rotation, 1));
+        return rotation.size() == 2 && isListOf(rotation, NbtElement.FLOAT_TYPE) && Float.isFinite(floatAt(rotation, 0))
+                && Float.isFinite(floatAt(rotation, 1));
     }
 
     private static boolean isFinite(Vec3d value) {
@@ -908,8 +947,9 @@ public final class QuickLitematicaEntityPlacementServer {
     }
 
     private static boolean isSplitBoatPath(String path) {
-        return path.endsWith("_boat") || path.endsWith("_chest_boat")
-                || path.endsWith("_raft") || path.endsWith("_chest_raft");
+        return path.endsWith("_boat") || path.endsWith("_chest_boat") || path.endsWith("_raft") || path.endsWith(
+                "_chest_raft"
+        );
     }
 
     private static String namespaceOf(String id) {

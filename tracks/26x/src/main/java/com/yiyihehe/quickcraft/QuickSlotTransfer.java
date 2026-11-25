@@ -25,8 +25,12 @@ public final class QuickSlotTransfer {
 
     public static int moveAmount(Minecraft client, AbstractContainerMenu menu, Slot source, Slot target, int amount) {
         ItemStack stack = source.getItem();
-        if (amount <= 0 || source == target || stack.isEmpty() || !menu.getCarried().isEmpty()
-                || !source.mayPickup(client.player) || QuickContainerLock.isLockedSlot(menu, source)
+        if (amount <= 0
+                || source == target
+                || stack.isEmpty()
+                || !menu.getCarried().isEmpty()
+                || !source.mayPickup(client.player)
+                || QuickContainerLock.isLockedSlot(menu, source)
                 || !accepts(menu, target.index, stack)) {
             return 0;
         }
@@ -58,17 +62,43 @@ public final class QuickSlotTransfer {
     }
 
     private static void click(Minecraft client, AbstractContainerMenu menu, Slot slot, int button) {
-        client.gameMode.handleContainerInput(menu.containerId, slot.index, button, ContainerInput.PICKUP, client.player);
+        client.gameMode.handleContainerInput(
+                menu.containerId,
+                slot.index,
+                button,
+                ContainerInput.PICKUP,
+                client.player
+        );
     }
 
-    public static void quickMove(Minecraft client, AbstractContainerMenu handler, int sourceId,
-                                 Predicate<Slot> destination, boolean reverse) {
-        quickMove(client, handler, sourceId, destination, reverse, slot -> QuickContainerLock.isLockedSlot(handler, slot));
+    public static void quickMove(
+            Minecraft client,
+            AbstractContainerMenu handler,
+            int sourceId,
+            Predicate<Slot> destination,
+            boolean reverse
+    ) {
+        quickMove(
+                client,
+                handler,
+                sourceId,
+                destination,
+                reverse,
+                slot -> QuickContainerLock.isLockedSlot(handler, slot)
+        );
     }
 
-    public static void quickMove(Minecraft client, AbstractContainerMenu handler, int sourceId,
-                                 Predicate<Slot> destination, boolean reverse, Predicate<Slot> locked) {
-        if (client.player == null || client.gameMode == null || !handler.getCarried().isEmpty()) return;
+    public static void quickMove(
+            Minecraft client,
+            AbstractContainerMenu handler,
+            int sourceId,
+            Predicate<Slot> destination,
+            boolean reverse,
+            Predicate<Slot> locked
+    ) {
+        if (client.player == null || client.gameMode == null || !handler.getCarried().isEmpty()) {
+            return;
+        }
         List<Integer> targets = new ArrayList<>();
         boolean hasLock = false;
         for (Slot slot : handler.slots) {
@@ -78,15 +108,25 @@ public final class QuickSlotTransfer {
             }
         }
         if (!hasLock) {
-            client.gameMode.handleContainerInput(handler.containerId, sourceId, 0, ContainerInput.QUICK_MOVE, client.player);
+            client.gameMode.handleContainerInput(
+                    handler.containerId,
+                    sourceId,
+                    0,
+                    ContainerInput.QUICK_MOVE,
+                    client.player
+            );
             return;
         }
-        if (reverse) Collections.reverse(targets);
+        if (reverse) {
+            Collections.reverse(targets);
+        }
         moveWithPickup(client, handler, sourceId, targets, locked);
     }
 
     static boolean moveResultWithPickup(Minecraft client, AbstractContainerMenu handler, int sourceId) {
-        if (!handler.getCarried().isEmpty()) return false;
+        if (!handler.getCarried().isEmpty()) {
+            return false;
+        }
         List<Integer> targets = new ArrayList<>();
         for (int i = handler.slots.size() - 1; i >= 0; i--) {
             Slot target = handler.getSlot(i);
@@ -94,7 +134,13 @@ public final class QuickSlotTransfer {
                 targets.add(i);
             }
         }
-        return moveWithPickup(client, handler, sourceId, targets, slot -> QuickContainerLock.isLockedSlot(handler, slot));
+        return moveWithPickup(
+                client,
+                handler,
+                sourceId,
+                targets,
+                slot -> QuickContainerLock.isLockedSlot(handler, slot)
+        );
     }
 
     static boolean tryMoveToWorkbenchGrid(Minecraft client, AbstractContainerMenu handler, Slot source) {
@@ -108,18 +154,28 @@ public final class QuickSlotTransfer {
                 targets.add(id);
             }
         }
-        if (targets.isEmpty()) return false;
+        if (targets.isEmpty()) {
+            return false;
+        }
         moveWithPickup(client, handler, source.index, targets, slot -> QuickContainerLock.isLockedSlot(handler, slot));
         return true;
     }
 
-    private static boolean moveWithPickup(Minecraft client, AbstractContainerMenu handler, int sourceId,
-                                          List<Integer> targets, Predicate<Slot> locked) {
+    private static boolean moveWithPickup(
+            Minecraft client,
+            AbstractContainerMenu handler,
+            int sourceId,
+            List<Integer> targets,
+            Predicate<Slot> locked
+    ) {
         Slot source = handler.getSlot(sourceId);
-        if (locked.test(source) || !source.hasItem() || !source.mayPickup(client.player)) return false;
+        if (locked.test(source) || !source.hasItem() || !source.mayPickup(client.player)) {
+            return false;
+        }
         ItemStack template = source.getItem().copy();
-        if (handler instanceof CartographyTableMenu && sourceId == 2
-                && template.remove(DataComponents.MAP_POST_PROCESSING) != null) {
+        if (handler instanceof CartographyTableMenu && sourceId == 2 && template.remove(
+                DataComponents.MAP_POST_PROCESSING
+        ) != null) {
             // 缩放和锁定地图会在领取时更换服务端地图 ID，预留空格避免误合并。
             targets = targets.stream().filter(id -> !handler.getSlot(id).hasItem()).toList();
         }
@@ -130,13 +186,25 @@ public final class QuickSlotTransfer {
                 capacity += target.getMaxStackSize(template) - target.getItem().getCount();
             }
         }
-        if (capacity <= 0 || (!source.mayPlace(template) && capacity < template.getCount())) return false;
+        if (capacity <= 0 || (!source.mayPlace(template) && capacity < template.getCount())) {
+            return false;
+        }
         client.gameMode.handleContainerInput(handler.containerId, sourceId, 0, ContainerInput.PICKUP, client.player);
-        if (!ItemStack.isSameItemSameComponents(handler.getCarried(), template)) return false;
+        if (!ItemStack.isSameItemSameComponents(handler.getCarried(), template)) {
+            return false;
+        }
         fillCursor(client, handler, targets, locked);
-        if (handler.getCarried().isEmpty()) return true;
+        if (handler.getCarried().isEmpty()) {
+            return true;
+        }
         if (source.mayPlace(handler.getCarried()) && !locked.test(source)) {
-            client.gameMode.handleContainerInput(handler.containerId, sourceId, 0, ContainerInput.PICKUP, client.player);
+            client.gameMode.handleContainerInput(
+                    handler.containerId,
+                    sourceId,
+                    0,
+                    ContainerInput.PICKUP,
+                    client.player
+            );
         }
         return false;
     }
@@ -148,19 +216,26 @@ public final class QuickSlotTransfer {
     private static boolean accepts(AbstractContainerMenu handler, int id, ItemStack stack, Predicate<Slot> locked) {
         Slot slot = handler.getSlot(id);
         ItemStack existing = slot.getItem();
-        return slot.isActive() && !locked.test(slot) && slot.mayPlace(stack)
-                && (existing.isEmpty() || (ItemStack.isSameItemSameComponents(existing, stack)
-                && existing.getCount() < slot.getMaxStackSize(stack)));
+        return slot.isActive() && !locked.test(slot) && slot.mayPlace(stack) && (existing.isEmpty() || (ItemStack
+                .isSameItemSameComponents(existing, stack) && existing.getCount() < slot.getMaxStackSize(stack)));
     }
 
-    private static void fillCursor(Minecraft client, AbstractContainerMenu handler, List<Integer> targets,
-                                   Predicate<Slot> locked) {
-        for (boolean emptyOnly : new boolean[]{false, true}) {
+    private static void fillCursor(
+            Minecraft client,
+            AbstractContainerMenu handler,
+            List<Integer> targets,
+            Predicate<Slot> locked
+    ) {
+        for (boolean emptyOnly : new boolean[] { false, true }) {
             for (int id : targets) {
                 ItemStack cursor = handler.getCarried();
-                if (cursor.isEmpty()) return;
+                if (cursor.isEmpty()) {
+                    return;
+                }
                 Slot target = handler.getSlot(id);
-                if (target.getItem().isEmpty() != emptyOnly || !accepts(handler, id, cursor, locked)) continue;
+                if (target.getItem().isEmpty() != emptyOnly || !accepts(handler, id, cursor, locked)) {
+                    continue;
+                }
                 client.gameMode.handleContainerInput(handler.containerId, id, 0, ContainerInput.PICKUP, client.player);
             }
         }

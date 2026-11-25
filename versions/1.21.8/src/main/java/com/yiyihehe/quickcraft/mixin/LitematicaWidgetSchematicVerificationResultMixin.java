@@ -20,8 +20,8 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
  * 选中容器错填项时，复用 QuickLitematicaContainerVerifier 画左右库存对比。
  */
 @Mixin(value = WidgetSchematicVerificationResult.class, remap = false)
-public abstract class LitematicaWidgetSchematicVerificationResultMixin
-        extends WidgetListEntrySortable<GuiSchematicVerifier.BlockMismatchEntry> {
+public abstract class LitematicaWidgetSchematicVerificationResultMixin extends
+        WidgetListEntrySortable<GuiSchematicVerifier.BlockMismatchEntry> {
     @Shadow
     @Final
     private GuiSchematicVerifier.BlockMismatchEntry mismatchEntry;
@@ -39,14 +39,20 @@ public abstract class LitematicaWidgetSchematicVerificationResultMixin
 
     @Inject(method = "postRenderHovered", at = @At("HEAD"), cancellable = true)
     private void quickcraft$renderInventoryOverlay(
-            DrawContext drawContext, int mouseX, int mouseY, boolean selected, CallbackInfo ci) {
+            DrawContext drawContext,
+            int mouseX,
+            int mouseY,
+            boolean selected,
+            CallbackInfo ci
+    ) {
         GuiSchematicVerifier.BlockMismatchEntry mismatchEntry = this.mismatchEntry;
         if (mismatchEntry == null) {
             return;
         }
         var blockMismatch = mismatchEntry.blockMismatch;
-        if (blockMismatch == null
-                || !QuickLitematicaContainerVerifier.isContainerMismatchType(blockMismatch.mismatchType)) {
+        if (blockMismatch == null || !QuickLitematicaContainerVerifier.isContainerMismatchType(
+                blockMismatch.mismatchType
+        )) {
             return;
         }
         BlockMismatchExtension extension = (BlockMismatchExtension) blockMismatch;

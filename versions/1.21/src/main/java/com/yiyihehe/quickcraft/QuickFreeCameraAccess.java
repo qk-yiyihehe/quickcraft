@@ -14,13 +14,10 @@ import org.jetbrains.annotations.Nullable;
  * 1.21 自由相机网络包、旋转同步、潜行与 Carpet 放置协议适配。
  */
 public final class QuickFreeCameraAccess {
-    private QuickFreeCameraAccess() {
-    }
+    private QuickFreeCameraAccess() {}
 
     public static void sendLookPacket(ClientPlayerEntity player, float yaw, float pitch) {
-        player.networkHandler.sendPacket(
-                new PlayerMoveC2SPacket.LookAndOnGround(yaw, pitch, player.isOnGround())
-        );
+        player.networkHandler.sendPacket(new PlayerMoveC2SPacket.LookAndOnGround(yaw, pitch, player.isOnGround()));
     }
 
     public static float getPrevYaw(ClientPlayerEntity player) {
@@ -67,10 +64,8 @@ public final class QuickFreeCameraAccess {
     @Nullable
     @SuppressWarnings("unchecked")
     public static Property<Direction> getDirectionProperty(BlockState state) {
-        return (Property<Direction>) state.getProperties().stream()
-                .filter(DirectionProperty.class::isInstance)
-                .findFirst()
-                .orElse(null);
+        return (Property<Direction>) state.getProperties().stream().filter(DirectionProperty.class::isInstance)
+                .findFirst().orElse(null);
     }
 
     public static int getDirectionIndex(Direction direction) {

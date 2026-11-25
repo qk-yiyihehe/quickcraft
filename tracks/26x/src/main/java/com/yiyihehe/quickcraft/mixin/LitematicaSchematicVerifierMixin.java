@@ -43,7 +43,8 @@ import java.util.Set;
  * 注入点保留原版调用时机，容器业务由独立核心维护。
  */
 @Mixin(value = SchematicVerifier.class, remap = false)
-public abstract class LitematicaSchematicVerifierMixin extends TaskBase implements VerifierExtension, QuickLitematicaContainerVerification.Host,
+public abstract class LitematicaSchematicVerifierMixin extends TaskBase implements VerifierExtension,
+        QuickLitematicaContainerVerification.Host,
         com.yiyihehe.quickcraft.litematica.QuickLitematicaProjectionPersistence.PersistentVerifier {
 
     @Shadow
@@ -114,8 +115,7 @@ public abstract class LitematicaSchematicVerifierMixin extends TaskBase implemen
     private HashMultimap<MismatchType, BlockMismatch> selectedEntries;
 
     @Shadow
-    private void updateMismatchOverlays() {
-    }
+    private void updateMismatchOverlays() {}
 
     @Shadow
     public abstract boolean isMismatchEntrySelected(BlockMismatch mismatch);
@@ -177,10 +177,17 @@ public abstract class LitematicaSchematicVerifierMixin extends TaskBase implemen
 
     @Override
     public List<ContainerMismatch> quickcraft$refreshContainerMismatchAt(
-            BlockPos pos, Container foundInventory, Set<Integer> foundDisabledSlots, boolean confirmedLargeBarrelHalf
+            BlockPos pos,
+            Container foundInventory,
+            Set<Integer> foundDisabledSlots,
+            boolean confirmedLargeBarrelHalf
     ) {
         return this.quickcraft$containerVerification.quickcraft$refreshContainerMismatchAt(
-                pos, foundInventory, foundDisabledSlots, confirmedLargeBarrelHalf);
+                pos,
+                foundInventory,
+                foundDisabledSlots,
+                confirmedLargeBarrelHalf
+        );
     }
 
     @WrapOperation(
@@ -188,23 +195,35 @@ public abstract class LitematicaSchematicVerifierMixin extends TaskBase implemen
             at = @At(
                     value = "INVOKE",
                     target = "Lnet/minecraft/client/multiplayer/ClientLevel;getChunk(II)Lnet/minecraft/world/level/chunk/LevelChunk;",
-                    remap = true
-            )
-    )
-    private LevelChunk quickcraft$useBestWorldForSinglePlayer(ClientLevel clientWorld, int chunkX, int chunkZ, Operation<LevelChunk> original) {
-        return this.quickcraft$containerVerification.quickcraft$useBestWorldForSinglePlayer(clientWorld, chunkX, chunkZ,
-                () -> original.call(clientWorld, chunkX, chunkZ));
+                    remap = true))
+    private LevelChunk quickcraft$useBestWorldForSinglePlayer(
+            ClientLevel clientWorld,
+            int chunkX,
+            int chunkZ,
+            Operation<LevelChunk> original
+    ) {
+        return this.quickcraft$containerVerification.quickcraft$useBestWorldForSinglePlayer(
+                clientWorld,
+                chunkX,
+                chunkZ,
+                () -> original.call(clientWorld, chunkX, chunkZ)
+        );
     }
 
     @WrapOperation(
             method = "verifyChunks",
-            at = @At(
-                    value = "INVOKE",
-                    target = "Lfi/dy/masa/litematica/world/ChunkManagerSchematic;hasChunk(II)Z"
-            )
-    )
-    private boolean quickcraft$waitForContainerData(ChunkManagerSchematic chunkManager, int chunkX, int chunkZ, Operation<Boolean> original) {
-        return this.quickcraft$containerVerification.quickcraft$waitForContainerData(original.call(chunkManager, chunkX, chunkZ), chunkX, chunkZ);
+            at = @At(value = "INVOKE", target = "Lfi/dy/masa/litematica/world/ChunkManagerSchematic;hasChunk(II)Z"))
+    private boolean quickcraft$waitForContainerData(
+            ChunkManagerSchematic chunkManager,
+            int chunkX,
+            int chunkZ,
+            Operation<Boolean> original
+    ) {
+        return this.quickcraft$containerVerification.quickcraft$waitForContainerData(
+                original.call(chunkManager, chunkX, chunkZ),
+                chunkX,
+                chunkZ
+        );
     }
 
     @Override
@@ -218,12 +237,26 @@ public abstract class LitematicaSchematicVerifierMixin extends TaskBase implemen
             int maxY,
             int maxZ
     ) {
-        this.quickcraft$containerVerification.quickcraft$collectContainerInventories(chunkClient, chunkSchematic, minX, minY, minZ, maxX, maxY, maxZ);
+        this.quickcraft$containerVerification.quickcraft$collectContainerInventories(
+                chunkClient,
+                chunkSchematic,
+                minX,
+                minY,
+                minZ,
+                maxX,
+                maxY,
+                maxZ
+        );
     }
 
     @Inject(method = "getMismatchOverviewFor", at = @At("HEAD"), cancellable = true)
-    private void quickcraft$getInventoryMismatchOverview(MismatchType type, CallbackInfoReturnable<List<BlockMismatch>> cir) {
-        List<BlockMismatch> result = this.quickcraft$containerVerification.quickcraft$getInventoryMismatchOverview(type);
+    private void quickcraft$getInventoryMismatchOverview(
+            MismatchType type,
+            CallbackInfoReturnable<List<BlockMismatch>> cir
+    ) {
+        List<BlockMismatch> result = this.quickcraft$containerVerification.quickcraft$getInventoryMismatchOverview(
+                type
+        );
         if (result != null) {
             cir.setReturnValue(result);
         }
@@ -235,8 +268,12 @@ public abstract class LitematicaSchematicVerifierMixin extends TaskBase implemen
     }
 
     @Inject(method = "getMapForMismatchType", at = @At("HEAD"), cancellable = true)
-    private void quickcraft$getInventoryMismatchMap(MismatchType type, CallbackInfoReturnable<ArrayListMultimap<Pair<BlockState, BlockState>, BlockPos>> cir) {
-        ArrayListMultimap<Pair<BlockState, BlockState>, BlockPos> result = this.quickcraft$containerVerification.quickcraft$getInventoryMismatchMap(type);
+    private void quickcraft$getInventoryMismatchMap(
+            MismatchType type,
+            CallbackInfoReturnable<ArrayListMultimap<Pair<BlockState, BlockState>, BlockPos>> cir
+    ) {
+        ArrayListMultimap<Pair<BlockState, BlockState>, BlockPos> result = this.quickcraft$containerVerification
+                .quickcraft$getInventoryMismatchMap(type);
         if (result != null) {
             cir.setReturnValue(result);
         }
@@ -253,7 +290,10 @@ public abstract class LitematicaSchematicVerifierMixin extends TaskBase implemen
     }
 
     @Inject(method = "getClosestMismatchedPositionsFor", at = @At("HEAD"), cancellable = true)
-    private void quickcraft$getClosestInventoryPositions(MismatchType type, CallbackInfoReturnable<List<BlockPos>> cir) {
+    private void quickcraft$getClosestInventoryPositions(
+            MismatchType type,
+            CallbackInfoReturnable<List<BlockPos>> cir
+    ) {
         List<BlockPos> result = this.quickcraft$containerVerification.quickcraft$getClosestInventoryPositions(type);
         if (result != null) {
             cir.setReturnValue(result);
@@ -270,23 +310,37 @@ public abstract class LitematicaSchematicVerifierMixin extends TaskBase implemen
         this.quickcraft$containerVerification.quickcraft$removeSelectedInventoryMismatches(type);
     }
 
-    @Inject(method = "ignoreStateMismatch(Lfi/dy/masa/litematica/schematic/verifier/SchematicVerifier$BlockMismatch;Z)V", at = @At("HEAD"), cancellable = true)
-    private void quickcraft$forgetIgnoredInventoryMismatch(BlockMismatch mismatch, boolean updateOverlay, CallbackInfo ci) {
+    @Inject(
+            method = "ignoreStateMismatch(Lfi/dy/masa/litematica/schematic/verifier/SchematicVerifier$BlockMismatch;Z)V",
+            at = @At("HEAD"),
+            cancellable = true)
+    private void quickcraft$forgetIgnoredInventoryMismatch(
+            BlockMismatch mismatch,
+            boolean updateOverlay,
+            CallbackInfo ci
+    ) {
         if (this.quickcraft$containerVerification.quickcraft$forgetIgnoredInventoryMismatch(mismatch, updateOverlay)) {
             ci.cancel();
         }
     }
 
-    @Inject(method = "ignoreStateMismatch(Lfi/dy/masa/litematica/schematic/verifier/SchematicVerifier$BlockMismatch;Z)V", at = @At("TAIL"))
+    @Inject(
+            method = "ignoreStateMismatch(Lfi/dy/masa/litematica/schematic/verifier/SchematicVerifier$BlockMismatch;Z)V",
+            at = @At("TAIL"))
     private void quickcraft$rememberBlockIgnore(BlockMismatch mismatch, boolean updateOverlay, CallbackInfo ci) {
         com.yiyihehe.quickcraft.litematica.QuickLitematicaVerifierIgnores.rememberBlock(
-                (SchematicVerifier) (Object) this, this.schematicPlacement, mismatch);
+                (SchematicVerifier) (Object) this,
+                this.schematicPlacement,
+                mismatch
+        );
     }
 
     @Inject(method = "resetIgnoredStateMismatches", at = @At("TAIL"))
     private void quickcraft$resetAllIgnored(CallbackInfo ci) {
         com.yiyihehe.quickcraft.litematica.QuickLitematicaVerifierIgnores.reset(
-                (SchematicVerifier) (Object) this, this.schematicPlacement);
+                (SchematicVerifier) (Object) this,
+                this.schematicPlacement
+        );
     }
 
     @Inject(method = "clearData", at = @At("HEAD"))
@@ -294,9 +348,14 @@ public abstract class LitematicaSchematicVerifierMixin extends TaskBase implemen
         this.quickcraft$containerVerification.quickcraft$clearInventoryData();
     }
 
-    @org.spongepowered.asm.mixin.injection.ModifyVariable(method = "startVerification", at = @At("HEAD"), argsOnly = true)
+    @org.spongepowered.asm.mixin.injection.ModifyVariable(
+            method = "startVerification",
+            at = @At("HEAD"),
+            argsOnly = true)
     private ICompletionListener quickcraft$avoidRetainingVerifierGui(ICompletionListener listener) {
-        return com.yiyihehe.quickcraft.litematica.QuickLitematicaProjectionPersistence.persistentCompletionListener(listener);
+        return com.yiyihehe.quickcraft.litematica.QuickLitematicaProjectionPersistence.persistentCompletionListener(
+                listener
+        );
     }
 
     @Inject(method = "startVerification", at = @At("TAIL"))
@@ -308,21 +367,36 @@ public abstract class LitematicaSchematicVerifierMixin extends TaskBase implemen
             CallbackInfo ci
     ) {
         com.yiyihehe.quickcraft.litematica.QuickLitematicaVerifierIgnores.restore(
-                (SchematicVerifier) (Object) this, schematicPlacement);
-        this.quickcraft$containerVerification.quickcraft$requestContainerDataOnStart(worldClient, worldSchematic, schematicPlacement, completionListener);
+                (SchematicVerifier) (Object) this,
+                schematicPlacement
+        );
+        this.quickcraft$containerVerification.quickcraft$requestContainerDataOnStart(
+                worldClient,
+                worldSchematic,
+                schematicPlacement,
+                completionListener
+        );
     }
 
     @Inject(method = "updateMismatchPositionStringList", at = @At("TAIL"))
-    private void quickcraft$splitInventoryHudLines(@Nullable MismatchType mismatchType, List<MismatchRenderPos> positionList, CallbackInfo ci) {
+    private void quickcraft$splitInventoryHudLines(
+            @Nullable MismatchType mismatchType,
+            List<MismatchRenderPos> positionList,
+            CallbackInfo ci
+    ) {
         this.quickcraft$containerVerification.quickcraft$splitInventoryHudLines(mismatchType, positionList);
     }
 
     @Inject(method = "execute", at = @At("RETURN"), cancellable = true)
     private void quickcraft$finishContainerVerificationStep(CallbackInfoReturnable<Boolean> cir) {
         boolean hasUncollected = this.quickcraft$containerVerification.quickcraft$collectMissingContainerInventories(
-                this.worldClient, this.worldSchematic);
+                this.worldClient,
+                this.worldSchematic
+        );
         this.quickcraft$containerVerification.quickcraft$refreshContainerMismatches();
-        if (hasUncollected) { return; }
+        if (hasUncollected) {
+            return;
+        }
         this.quickcraft$containerVerification.quickcraft$logContainerVerificationProblems();
         Boolean result = this.quickcraft$containerVerification.quickcraft$removeFinishedContainerOnlyVerifier();
         if (result != null) {

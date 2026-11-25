@@ -56,8 +56,7 @@ class QuickCraftStonecutterTailDropTest {
         fixture.pump();
 
         assertThat((Boolean) fixture.field("singleCraftPending")).isFalse();
-        verify(fixture.interactionManager).clickSlot(anyInt(), eq(2), eq(1),
-                eq(SlotActionType.THROW), any());
+        verify(fixture.interactionManager).clickSlot(anyInt(), eq(2), eq(1), eq(SlotActionType.THROW), any());
         assertThat(fixture.stack(2).isEmpty()).isTrue();
         assertThat(fixture.stack(0).getCount()).isEqualTo(1);
     }
@@ -69,8 +68,13 @@ class QuickCraftStonecutterTailDropTest {
         fixture.pump();
 
         assertThat((Boolean) fixture.field("singleCraftPending")).isFalse();
-        verify(fixture.interactionManager, never()).clickSlot(anyInt(), anyInt(), anyInt(),
-                eq(SlotActionType.THROW), any());
+        verify(fixture.interactionManager, never()).clickSlot(
+                anyInt(),
+                anyInt(),
+                anyInt(),
+                eq(SlotActionType.THROW),
+                any()
+        );
         assertThat(fixture.stack(2).isOf(Items.STONE_SLAB)).isTrue();
     }
 
@@ -82,8 +86,13 @@ class QuickCraftStonecutterTailDropTest {
         fixture.pump();
 
         assertThat((Boolean) fixture.field("singleCraftPending")).isFalse();
-        verify(fixture.interactionManager, never()).clickSlot(anyInt(), anyInt(), anyInt(),
-                eq(SlotActionType.THROW), any());
+        verify(fixture.interactionManager, never()).clickSlot(
+                anyInt(),
+                anyInt(),
+                anyInt(),
+                eq(SlotActionType.THROW),
+                any()
+        );
     }
 
     @Test
@@ -132,8 +141,7 @@ class QuickCraftStonecutterTailDropTest {
         private int rate;
         private final MinecraftClient client = mock(MinecraftClient.class);
         private final ClientPlayerEntity player = mock(ClientPlayerEntity.class);
-        private final ClientPlayerInteractionManager interactionManager =
-                mock(ClientPlayerInteractionManager.class);
+        private final ClientPlayerInteractionManager interactionManager = mock(ClientPlayerInteractionManager.class);
         private final ClientWorld world = mock(ClientWorld.class);
         private final ClientPlayNetworkHandler networkHandler = mock(ClientPlayNetworkHandler.class);
         private final StonecutterScreenHandler handler = mock(StonecutterScreenHandler.class);
@@ -178,8 +186,7 @@ class QuickCraftStonecutterTailDropTest {
             } catch (Exception exception) {
                 throw new AssertionError(exception);
             }
-            when(handler.getSlot(anyInt())).thenAnswer(
-                    invocation -> slots.get(invocation.getArgument(0)));
+            when(handler.getSlot(anyInt())).thenAnswer(invocation -> slots.get(invocation.getArgument(0)));
             when(handler.getCursorStack()).thenReturn(ItemStack.EMPTY);
             when(handler.getSelectedRecipe()).thenReturn(-1);
             stacks.get(0).set(new ItemStack(Items.STONE, 2));
@@ -198,7 +205,9 @@ class QuickCraftStonecutterTailDropTest {
                 } else if (action == SlotActionType.THROW) {
                     stacks.get(slotId).set(ItemStack.EMPTY);
                 } else if (action == SlotActionType.QUICK_MOVE && slotId == 1) {
-                    if (++outputClicks > 128) throw new AssertionError("pump did not yield");
+                    if (++outputClicks > 128) {
+                        throw new AssertionError("pump did not yield");
+                    }
                     ItemStack result = stacks.get(1).get().copy();
                     stacks.get(1).set(ItemStack.EMPTY);
                     ItemStack input = stacks.get(0).get();
@@ -208,14 +217,21 @@ class QuickCraftStonecutterTailDropTest {
                     for (int slot = 2; slot < SLOT_COUNT; slot++) {
                         if (stacks.get(slot).get().isEmpty()) {
                             stacks.get(slot).set(result);
-                            if (recycleOutput) inventory.setStack(9, result);
+                            if (recycleOutput) {
+                                inventory.setStack(9, result);
+                            }
                             break;
                         }
                     }
                 }
                 return null;
-            }).when(interactionManager).clickSlot(anyInt(), anyInt(), anyInt(),
-                    any(SlotActionType.class), any(PlayerEntity.class));
+            }).when(interactionManager).clickSlot(
+                    anyInt(),
+                    anyInt(),
+                    anyInt(),
+                    any(SlotActionType.class),
+                    any(PlayerEntity.class)
+            );
         }
 
         private void installState() throws Exception {
@@ -235,18 +251,15 @@ class QuickCraftStonecutterTailDropTest {
 
         private void run(String entry) throws Exception {
             try (MockedStatic<QuickCraftConfigs> configs = mockStatic(QuickCraftConfigs.class);
-                 MockedStatic<QuickContainerLock> locks = mockStatic(QuickContainerLock.class);
-                 MockedStatic<QuickCraftKeyBindings> keys = mockStatic(QuickCraftKeyBindings.class)) {
+                    MockedStatic<QuickContainerLock> locks = mockStatic(QuickContainerLock.class);
+                    MockedStatic<QuickCraftKeyBindings> keys = mockStatic(QuickCraftKeyBindings.class)) {
                 configs.when(QuickCraftConfigs::isStonecutterQuickCraftEnabled).thenReturn(true);
-                configs.when(QuickCraftConfigs::isDropCraftResultsOnStopEnabled)
-                        .thenReturn(tailDropEnabled);
+                configs.when(QuickCraftConfigs::isDropCraftResultsOnStopEnabled).thenReturn(tailDropEnabled);
                 configs.when(QuickCraftConfigs::isMouseCraftAckDebugEnabled).thenReturn(false);
                 configs.when(QuickCraftConfigs::getCraftsPerSecond).thenReturn(rate);
-                locks.when(() -> QuickContainerLock.isLockedSlot(any(ScreenHandler.class), anyInt()))
-                        .thenReturn(false);
+                locks.when(() -> QuickContainerLock.isLockedSlot(any(ScreenHandler.class), anyInt())).thenReturn(false);
                 keys.when(() -> QuickCraftKeyBindings.isHotkeyDown(any())).thenAnswer(ignored -> rapidHeld);
-                Method pump = QuickCraftStonecutter.class.getDeclaredMethod(
-                        entry, MinecraftClient.class);
+                Method pump = QuickCraftStonecutter.class.getDeclaredMethod(entry, MinecraftClient.class);
                 pump.setAccessible(true);
                 pump.invoke(stonecutter, client);
             }
@@ -271,14 +284,16 @@ class QuickCraftStonecutterTailDropTest {
             if (parameters.length == 1 && parameters[0].isInstance(player)) {
                 return (PlayerInventory) constructor.newInstance(player);
             }
-            if (parameters.length == 2 && parameters[0].isInstance(player)
-                    && parameters[1].getSimpleName().equals("EntityEquipment")) {
+            if (parameters.length == 2 && parameters[0].isInstance(player) && parameters[1].getSimpleName().equals(
+                    "EntityEquipment"
+            )) {
                 Object equipment = parameters[1].getConstructor().newInstance();
                 return (PlayerInventory) constructor.newInstance(player, equipment);
             }
         }
         throw new AssertionError("unsupported PlayerInventory constructor");
     }
+
     private static void setField(Object target, String name, Object value) throws Exception {
         Field field = findField(target.getClass(), name);
         field.setAccessible(true);
@@ -295,8 +310,7 @@ class QuickCraftStonecutterTailDropTest {
         for (Class<?> current = type; current != null; current = current.getSuperclass()) {
             try {
                 return current.getDeclaredField(name);
-            } catch (NoSuchFieldException ignored) {
-            }
+            } catch (NoSuchFieldException ignored) {}
         }
         throw new NoSuchFieldException(name);
     }

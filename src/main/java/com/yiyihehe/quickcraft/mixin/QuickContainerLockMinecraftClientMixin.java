@@ -23,25 +23,37 @@ public abstract class QuickContainerLockMinecraftClientMixin {
             method = "handleInputEvents",
             at = @At(
                     value = "INVOKE",
-                    target = "Lnet/minecraft/client/network/ClientPlayerEntity;dropSelectedItem(Z)Z"
-            )
-    )
-    private boolean quickcraft$blockLockedHotbarDrop(ClientPlayerEntity player, boolean entireStack, Operation<Boolean> original) {
-        if (QuickContainerLock.isLockedPlayerHotbarSlot(QuickContainerLockAccess.getSelectedSlot(player.getInventory()))) {
+                    target = "Lnet/minecraft/client/network/ClientPlayerEntity;dropSelectedItem(Z)Z"))
+    private boolean quickcraft$blockLockedHotbarDrop(
+            ClientPlayerEntity player,
+            boolean entireStack,
+            Operation<Boolean> original
+    ) {
+        if (QuickContainerLock.isLockedPlayerHotbarSlot(
+                QuickContainerLockAccess.getSelectedSlot(player.getInventory())
+        )) {
             return false;
         }
 
         return original.call(player, entireStack);
     }
 
-    @WrapOperation(method = "handleInputEvents", at = @At(value = "INVOKE",
-            target = "Lnet/minecraft/client/network/ClientPlayNetworkHandler;sendPacket(Lnet/minecraft/network/packet/Packet;)V"))
-    private void quickcraft$blockLockedOffhandSwap(ClientPlayNetworkHandler connection, Packet<?> packet, Operation<Void> original) {
+    @WrapOperation(
+            method = "handleInputEvents",
+            at = @At(
+                    value = "INVOKE",
+                    target = "Lnet/minecraft/client/network/ClientPlayNetworkHandler;sendPacket(Lnet/minecraft/network/packet/Packet;)V"))
+    private void quickcraft$blockLockedOffhandSwap(
+            ClientPlayNetworkHandler connection,
+            Packet<?> packet,
+            Operation<Void> original
+    ) {
         ClientPlayerEntity player = MinecraftClient.getInstance().player;
-        if (player != null && packet instanceof PlayerActionC2SPacket action
-                && action.getAction() == PlayerActionC2SPacket.Action.SWAP_ITEM_WITH_OFFHAND
-                && !QuickCraftConfigs.areManualLockedSlotInteractionsAllowed()
-                && QuickContainerLock.isLockedPlayerHotbarSlot(QuickContainerLockAccess.getSelectedSlot(player.getInventory()))) {
+        if (player != null && packet instanceof PlayerActionC2SPacket action && action
+                .getAction() == PlayerActionC2SPacket.Action.SWAP_ITEM_WITH_OFFHAND && !QuickCraftConfigs
+                        .areManualLockedSlotInteractionsAllowed() && QuickContainerLock.isLockedPlayerHotbarSlot(
+                                QuickContainerLockAccess.getSelectedSlot(player.getInventory())
+                        )) {
             return;
         }
         original.call(connection, packet);

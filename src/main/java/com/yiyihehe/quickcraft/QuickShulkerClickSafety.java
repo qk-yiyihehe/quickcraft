@@ -13,35 +13,35 @@ import net.minecraft.screen.slot.SlotActionType;
  * 拆量时只对来源使用右键对半，落点始终使用左键，临时余量归还来源槽。
  */
 final class QuickShulkerClickSafety {
-    private QuickShulkerClickSafety() {
-    }
+    private QuickShulkerClickSafety() {}
 
     static boolean isBundlingConflict(ItemStack stack) {
         return FabricLoader.getInstance().isModLoaded("quickshulker") && stack.isOf(Items.ENDER_CHEST);
     }
 
-    static int moveExactAmountToSlot(ScreenHandler handler,
-                                     int sourceSlotId,
-                                     int targetSlotId,
-                                     int amount,
-                                     MinecraftClient client) {
-        if (amount <= 0 || !handler.getCursorStack().isEmpty()
-                || client.player == null || client.interactionManager == null) {
+    static int moveExactAmountToSlot(
+            ScreenHandler handler,
+            int sourceSlotId,
+            int targetSlotId,
+            int amount,
+            MinecraftClient client
+    ) {
+        if (amount <= 0 || !handler.getCursorStack().isEmpty() || client.player == null
+                || client.interactionManager == null) {
             return 0;
         }
 
         Slot source = handler.getSlot(sourceSlotId);
         Slot target = handler.getSlot(targetSlotId);
-        if (!source.hasStack()
-                || !source.canTakeItems(client.player)
-                || !target.canInsert(source.getStack())
-                || (target.hasStack() && !ItemStack.areItemsAndComponentsEqual(target.getStack(), source.getStack()))) {
+        if (!source.hasStack() || !source.canTakeItems(client.player) || !target.canInsert(source.getStack()) || (target
+                .hasStack() && !ItemStack.areItemsAndComponentsEqual(target.getStack(), source.getStack()))) {
             return 0;
         }
 
         ItemStack template = source.getStack().copyWithCount(1);
-        int targetCapacity = Math.min(template.getMaxCount(), target.getMaxItemCount(template))
-                - (target.hasStack() ? target.getStack().getCount() : 0);
+        int targetCapacity = Math.min(template.getMaxCount(), target.getMaxItemCount(template)) - (target.hasStack()
+                ? target.getStack().getCount()
+                : 0);
         int targetAmount = Math.min(amount, Math.min(source.getStack().getCount(), targetCapacity));
         if (targetAmount <= 0) {
             return 0;
@@ -54,9 +54,7 @@ final class QuickShulkerClickSafety {
             halvedRemainder /= 2;
         }
         boolean needsBuffer = halvedRemainder != expectedRemainder;
-        Slot buffer = needsBuffer
-                ? findEmptyTemporarySplitSlot(handler, sourceSlotId, targetSlotId, template)
-                : null;
+        Slot buffer = needsBuffer ? findEmptyTemporarySplitSlot(handler, sourceSlotId, targetSlotId, template) : null;
         if (needsBuffer && buffer == null) {
             return 0;
         }
@@ -70,8 +68,10 @@ final class QuickShulkerClickSafety {
             } else {
                 // 空光标右键多件末影箱只是原版对半拆分；QuickShulker 的拆包条件要求单件。
                 click(handler, client, sourceSlotId, 1, SlotActionType.PICKUP);
-                if (handler.getCursorStack().isEmpty()
-                        || !ItemStack.areItemsAndComponentsEqual(handler.getCursorStack(), template)) {
+                if (handler.getCursorStack().isEmpty() || !ItemStack.areItemsAndComponentsEqual(
+                        handler.getCursorStack(),
+                        template
+                )) {
                     break;
                 }
                 if (handler.getCursorStack().getCount() > remaining) {
@@ -83,8 +83,10 @@ final class QuickShulkerClickSafety {
                 }
             }
 
-            if (handler.getCursorStack().isEmpty()
-                    || !ItemStack.areItemsAndComponentsEqual(handler.getCursorStack(), template)) {
+            if (handler.getCursorStack().isEmpty() || !ItemStack.areItemsAndComponentsEqual(
+                    handler.getCursorStack(),
+                    template
+            )) {
                 break;
             }
 
@@ -102,16 +104,16 @@ final class QuickShulkerClickSafety {
         return Math.max(0, (target.hasStack() ? target.getStack().getCount() : 0) - beforeTargetCount);
     }
 
-    private static Slot findEmptyTemporarySplitSlot(ScreenHandler handler,
-                                                    int sourceSlotId,
-                                                    int targetSlotId,
-                                                    ItemStack template) {
+    private static Slot findEmptyTemporarySplitSlot(
+            ScreenHandler handler,
+            int sourceSlotId,
+            int targetSlotId,
+            ItemStack template
+    ) {
         for (Slot slot : handler.slots) {
-            if (slot.id == sourceSlotId || slot.id == targetSlotId || slot.hasStack()
-                    || QuickContainerLock.isLockedSlot(handler, slot)
-                    || QuickSlotTransfer.isPlayerStorageSlot(slot)
-                    && QuickContainerLock.isLockedPlayerInventorySlot(slot.getIndex())
-                    || !slot.canInsert(template)) {
+            if (slot.id == sourceSlotId || slot.id == targetSlotId || slot.hasStack() || QuickContainerLock
+                    .isLockedSlot(handler, slot) || QuickSlotTransfer.isPlayerStorageSlot(slot) && QuickContainerLock
+                            .isLockedPlayerInventorySlot(slot.getIndex()) || !slot.canInsert(template)) {
                 continue;
             }
             return slot;
@@ -119,10 +121,12 @@ final class QuickShulkerClickSafety {
         return null;
     }
 
-    private static void restoreTemporarySplitBuffer(ScreenHandler handler,
-                                                    MinecraftClient client,
-                                                    int returnSlotId,
-                                                    Slot buffer) {
+    private static void restoreTemporarySplitBuffer(
+            ScreenHandler handler,
+            MinecraftClient client,
+            int returnSlotId,
+            Slot buffer
+    ) {
         if (!handler.getCursorStack().isEmpty()) {
             click(handler, client, returnSlotId, 0, SlotActionType.PICKUP);
         }
@@ -137,11 +141,13 @@ final class QuickShulkerClickSafety {
         }
     }
 
-    private static void click(ScreenHandler handler,
-                              MinecraftClient client,
-                              int slotId,
-                              int button,
-                              SlotActionType actionType) {
+    private static void click(
+            ScreenHandler handler,
+            MinecraftClient client,
+            int slotId,
+            int button,
+            SlotActionType actionType
+    ) {
         client.interactionManager.clickSlot(handler.syncId, slotId, button, actionType, client.player);
     }
 }

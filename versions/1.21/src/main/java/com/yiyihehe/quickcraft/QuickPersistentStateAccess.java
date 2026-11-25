@@ -8,8 +8,7 @@ import fi.dy.masa.malilib.util.JsonUtils;
 import java.nio.file.Path;
 
 final class QuickPersistentStateAccess {
-    private QuickPersistentStateAccess() {
-    }
+    private QuickPersistentStateAccess() {}
 
     static void writeJson(JsonObject root, Path stateFile) {
         JsonUtils.writeJsonToFileAsPath(root, stateFile);

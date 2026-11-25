@@ -56,8 +56,9 @@ class QuickLitematicaPreviewSourceCheckTest {
             resources.when(QuickLitematicaPreviewResources::reloading).thenReturn(false);
             invokeCheck(manager, 100L);
             verify(preview, times(1)).sourceStampChanged();
-            assertThat(getLong(manager, "nextSourceCheckNanos"))
-                    .isEqualTo(100L + QuickLitematicaPreview3D.SOURCE_CHECK_INTERVAL_NANOS);
+            assertThat(getLong(manager, "nextSourceCheckNanos")).isEqualTo(
+                    100L + QuickLitematicaPreview3D.SOURCE_CHECK_INTERVAL_NANOS
+            );
         } finally {
             manager.close();
         }

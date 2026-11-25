@@ -13,13 +13,26 @@ public final class QuickCraftAnvilPresets {
     public static final ConfigStringList AXE = preset("anvilAxe", "efficiency=5", "silk_touch=1", "sharpness=5");
     public static final ConfigStringList SHOVEL = preset("anvilShovel", "efficiency=5", "silk_touch=1");
     public static final ConfigStringList HOE = preset("anvilHoe", "efficiency=5", "silk_touch=1");
-    public static final ConfigStringList HELMET = preset("anvilHelmet", "protection=4", "respiration=3", "aqua_affinity=1");
+    public static final ConfigStringList HELMET = preset(
+            "anvilHelmet",
+            "protection=4",
+            "respiration=3",
+            "aqua_affinity=1"
+    );
     public static final ConfigStringList CHESTPLATE = preset("anvilChestplate", "protection=4");
     public static final ConfigStringList LEGGINGS = preset("anvilLeggings", "protection=4", "swift_sneak=3");
-    public static final ConfigStringList BOOTS = preset("anvilBoots", "protection=4", "feather_falling=4", "depth_strider=3", "soul_speed=3");
+    public static final ConfigStringList BOOTS = preset(
+            "anvilBoots",
+            "protection=4",
+            "feather_falling=4",
+            "depth_strider=3",
+            "soul_speed=3"
+    );
     public static final ConfigStringList ELYTRA = preset("anvilElytra");
-    public static final ConfigStringList BOW = new ConfigStringList("anvilBow",
-            com.google.common.collect.ImmutableList.of("unbreaking=3", "power=5", "punch=2", "flame=1", "infinity=1")).apply(PREFIX);
+    public static final ConfigStringList BOW = new ConfigStringList(
+            "anvilBow",
+            com.google.common.collect.ImmutableList.of("unbreaking=3", "power=5", "punch=2", "flame=1", "infinity=1")
+    ).apply(PREFIX);
     public static final ConfigStringList CROSSBOW = preset("anvilCrossbow", "quick_charge=3", "multishot=1");
     public static final ConfigStringList TRIDENT = preset("anvilTrident", "impaling=5", "loyalty=3", "channeling=1");
     public static final ConfigStringList MACE = preset("anvilMace", "density=5", "wind_burst=3", "fire_aspect=2");
@@ -27,9 +40,27 @@ public final class QuickCraftAnvilPresets {
     public static final ConfigStringList SHIELD = preset("anvilShield");
     public static final ConfigStringList SHEARS = preset("anvilShears", "efficiency=5");
     public static final ConfigStringList SPEAR = preset("anvilSpear", "sharpness=5", "looting=3", "lunge=3");
-    public static final List<IConfigBase> OPTIONS = List.of(SWORD, PICKAXE_SILK, PICKAXE_FORTUNE, AXE,
-            SHOVEL, HOE, HELMET, CHESTPLATE, LEGGINGS, BOOTS, ELYTRA, BOW, CROSSBOW, TRIDENT,
-            MACE, FISHING_ROD, SHIELD, SHEARS, SPEAR);
+    public static final List<IConfigBase> OPTIONS = List.of(
+            SWORD,
+            PICKAXE_SILK,
+            PICKAXE_FORTUNE,
+            AXE,
+            SHOVEL,
+            HOE,
+            HELMET,
+            CHESTPLATE,
+            LEGGINGS,
+            BOOTS,
+            ELYTRA,
+            BOW,
+            CROSSBOW,
+            TRIDENT,
+            MACE,
+            FISHING_ROD,
+            SHIELD,
+            SHEARS,
+            SPEAR
+    );
 
     private QuickCraftAnvilPresets() {}
 
@@ -45,26 +76,49 @@ public final class QuickCraftAnvilPresets {
             oldDefaults.add("thorns=3");
             var current = profile.getStrings().stream().map(QuickCraftAnvilEnchantments::canonical).toList();
             // 只升级旧默认组合；玩家增删过的自定义目标继续保留。
-            if (current.size() == oldDefaults.size()
-                    && new java.util.HashSet<>(current).equals(new java.util.HashSet<>(oldDefaults))) {
+            if (current.size() == oldDefaults.size() && new java.util.HashSet<>(current).equals(
+                    new java.util.HashSet<>(oldDefaults)
+            )) {
                 profile.setStrings(profile.getDefaultStrings());
             }
         }
     }
 
     public static ConfigStringList forItem(String id, boolean fortune) {
-        if (!id.startsWith("minecraft:")) return null;
+        if (!id.startsWith("minecraft:")) {
+            return null;
+        }
         String path = id.substring("minecraft:".length());
-        if (path.endsWith("_pickaxe")) return fortune ? PICKAXE_FORTUNE : PICKAXE_SILK;
-        if (path.endsWith("_sword")) return SWORD;
-        if (path.endsWith("_axe")) return AXE;
-        if (path.endsWith("_shovel")) return SHOVEL;
-        if (path.endsWith("_hoe")) return HOE;
-        if (path.endsWith("_helmet") || path.equals("turtle_helmet")) return HELMET;
-        if (path.endsWith("_chestplate")) return CHESTPLATE;
-        if (path.endsWith("_leggings")) return LEGGINGS;
-        if (path.endsWith("_boots")) return BOOTS;
-        if (path.endsWith("_spear")) return SPEAR;
+        if (path.endsWith("_pickaxe")) {
+            return fortune ? PICKAXE_FORTUNE : PICKAXE_SILK;
+        }
+        if (path.endsWith("_sword")) {
+            return SWORD;
+        }
+        if (path.endsWith("_axe")) {
+            return AXE;
+        }
+        if (path.endsWith("_shovel")) {
+            return SHOVEL;
+        }
+        if (path.endsWith("_hoe")) {
+            return HOE;
+        }
+        if (path.endsWith("_helmet") || path.equals("turtle_helmet")) {
+            return HELMET;
+        }
+        if (path.endsWith("_chestplate")) {
+            return CHESTPLATE;
+        }
+        if (path.endsWith("_leggings")) {
+            return LEGGINGS;
+        }
+        if (path.endsWith("_boots")) {
+            return BOOTS;
+        }
+        if (path.endsWith("_spear")) {
+            return SPEAR;
+        }
         return switch (path) {
             case "elytra" -> ELYTRA;
             case "bow" -> BOW;

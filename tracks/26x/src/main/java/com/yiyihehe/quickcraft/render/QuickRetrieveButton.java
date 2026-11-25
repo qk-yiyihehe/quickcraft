@@ -5,9 +5,12 @@ import net.minecraft.client.renderer.RenderPipelines;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.Identifier;
 
-/** Icon button for moving container items into the player inventory. */
+/** 将容器内的物品取回玩家物品栏的图标按钮。 */
 public final class QuickRetrieveButton extends QuickCompactIconButton {
-    private static final Identifier ICON = Identifier.fromNamespaceAndPath("quickcraft", "textures/gui/quick_retrieve.png");
+    private static final Identifier ICON = Identifier.fromNamespaceAndPath(
+            "quickcraft",
+            "textures/gui/quick_retrieve.png"
+    );
 
     public QuickRetrieveButton(int x, int y, OnPress onPress, PositionKey positionKey, Component tooltip) {
         super(x, y, tooltip, onPress, positionKey);

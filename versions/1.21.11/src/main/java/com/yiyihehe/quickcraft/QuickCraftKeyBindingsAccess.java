@@ -3,8 +3,7 @@ package com.yiyihehe.quickcraft;
 import net.minecraft.client.MinecraftClient;
 
 final class QuickCraftKeyBindingsAccess {
-    private QuickCraftKeyBindingsAccess() {
-    }
+    private QuickCraftKeyBindingsAccess() {}
 
     static boolean isShiftDown() {
         return MinecraftClient.getInstance().isShiftPressed();

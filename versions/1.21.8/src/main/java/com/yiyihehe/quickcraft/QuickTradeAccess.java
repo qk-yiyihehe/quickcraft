@@ -17,11 +17,9 @@ public final class QuickTradeAccess {
     }
 
     public static String encodeStack(ItemStack stack, RegistryWrapper.WrapperLookup registryLookup) {
-        return ItemStack.OPTIONAL_CODEC
-                .encodeStart(registryLookup.getOps(NbtOps.INSTANCE), stack)
-                .result()
-                .map(NbtElement::toString)
-                .orElse("{}");
+        return ItemStack.OPTIONAL_CODEC.encodeStart(registryLookup.getOps(NbtOps.INSTANCE), stack).result().map(
+                NbtElement::toString
+        ).orElse("{}");
     }
 
     public static ItemStack decodeStack(JsonElement element, RegistryWrapper.WrapperLookup registryLookup) {
@@ -29,10 +27,10 @@ public final class QuickTradeAccess {
             return ItemStack.EMPTY;
         }
         try {
-            return ItemStack.OPTIONAL_CODEC
-                    .parse(registryLookup.getOps(NbtOps.INSTANCE), StringNbtReader.readCompound(element.getAsString()))
-                    .result()
-                    .orElse(ItemStack.EMPTY);
+            return ItemStack.OPTIONAL_CODEC.parse(
+                    registryLookup.getOps(NbtOps.INSTANCE),
+                    StringNbtReader.readCompound(element.getAsString())
+            ).result().orElse(ItemStack.EMPTY);
         } catch (CommandSyntaxException ignored) {
             return ItemStack.EMPTY;
         }

@@ -9,37 +9,26 @@ import static org.assertj.core.api.Assertions.assertThat;
 class QuickCraftRecipeGridMatcherTest {
     @Test
     void shapedGrid_matchesOffsetAndMirroredPatterns() {
-        List<String> grid = List.of(
-                "", "", "",
-                "", "stick", "plank",
-                "", "", ""
-        );
-        List<List<String>> ingredients = List.of(
-                List.of("plank"),
-                List.of("stick")
-        );
+        List<String> grid = List.of("", "", "", "", "stick", "plank", "", "", "");
+        List<List<String>> ingredients = List.of(List.of("plank"), List.of("stick"));
 
-        assertThat(QuickCraftRecipeGridMatcher.matchesShaped(grid, 3, 3, ingredients, 2, 1, this::matchesSlot)).isTrue();
+        assertThat(QuickCraftRecipeGridMatcher.matchesShaped(grid, 3, 3, ingredients, 2, 1, this::matchesSlot))
+                .isTrue();
     }
 
     @Test
     void shapedGrid_rejectsUnexpectedInputOutsideThePattern() {
-        List<String> grid = List.of(
-                "cobblestone", "",
-                "", "stick"
-        );
+        List<String> grid = List.of("cobblestone", "", "", "stick");
         List<List<String>> ingredients = List.of(List.of("stick"));
 
-        assertThat(QuickCraftRecipeGridMatcher.matchesShaped(grid, 2, 2, ingredients, 1, 1, this::matchesSlot)).isFalse();
+        assertThat(QuickCraftRecipeGridMatcher.matchesShaped(grid, 2, 2, ingredients, 1, 1, this::matchesSlot))
+                .isFalse();
     }
 
     @Test
     void shapelessGrid_backtracksOverOverlappingIngredientCandidates() {
         List<String> inputs = List.of("plank", "stick");
-        List<List<String>> ingredients = List.of(
-                List.of("plank", "stick"),
-                List.of("plank")
-        );
+        List<List<String>> ingredients = List.of(List.of("plank", "stick"), List.of("plank"));
 
         assertThat(QuickCraftRecipeGridMatcher.matchesShapeless(inputs, ingredients, this::matchesSlot)).isTrue();
     }

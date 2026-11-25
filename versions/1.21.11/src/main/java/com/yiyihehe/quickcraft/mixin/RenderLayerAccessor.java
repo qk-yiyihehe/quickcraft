@@ -6,8 +6,8 @@ import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.gen.Accessor;
 
 /**
- * 1.21.11 stores layer texture bindings in RenderSetup instead of exposing the
- * old RenderSystem shader-texture state used by the preview cache.
+ * 1.21.11 将渲染层的纹理绑定保存在 RenderSetup 中。
+ * 预览缓存原来依赖的 RenderSystem 着色器纹理状态已不再对外提供。
  */
 @Mixin(RenderLayer.class)
 public interface RenderLayerAccessor {

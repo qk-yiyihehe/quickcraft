@@ -37,10 +37,7 @@ class QuickLitematicaShulkerPickBlockTest {
 
     @Test
     void laterAllowedSlotIsUsedWhenFirstConfiguredSlotHasMiningTool() {
-        Inventory inventory = inventoryWith(
-                new ItemStack(Items.WOODEN_PICKAXE),
-                new ItemStack(Items.WOODEN_SWORD)
-        );
+        Inventory inventory = inventoryWith(new ItemStack(Items.WOODEN_PICKAXE), new ItemStack(Items.WOODEN_SWORD));
 
         assertThat(select(inventory, List.of(0, 1), 0, false, true)).isEqualTo(1);
     }
@@ -52,17 +49,27 @@ class QuickLitematicaShulkerPickBlockTest {
         assertThat(select(inventory, List.of(0), 0, false, true)).isEqualTo(-1);
     }
 
-    private static int select(Inventory inventory,
-                              List<Integer> configuredSlots,
-                              int selectedSlot,
-                              boolean avoidDamageable,
-                              boolean avoidTools) {
+    private static int select(
+            Inventory inventory,
+            List<Integer> configuredSlots,
+            int selectedSlot,
+            boolean avoidDamageable,
+            boolean avoidTools
+    ) {
         return QuickLitematicaShulkerMaterialRestock.selectLitematicaPickBlockTarget(
-                inventory, configuredSlots, selectedSlot, avoidDamageable, avoidTools);
+                inventory,
+                configuredSlots,
+                selectedSlot,
+                avoidDamageable,
+                avoidTools
+        );
     }
 
     private static Inventory inventoryWith(ItemStack... stacks) {
-        Inventory inventory = new Inventory(mock(net.minecraft.world.entity.player.Player.class), new EntityEquipment());
+        Inventory inventory = new Inventory(
+                mock(net.minecraft.world.entity.player.Player.class),
+                new EntityEquipment()
+        );
         for (int slot = 0; slot < stacks.length; slot++) {
             inventory.setItem(slot, stacks[slot]);
         }

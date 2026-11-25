@@ -13,8 +13,7 @@ final class QuickCraftWorkbenchShulkerContents {
     // 玩家槽位各保留一份，额外一份用于光标，避免长期喷射累积历史盒内容。
     private static final Contents[] CACHE = new Contents[PlayerInventory.MAIN_SIZE + 1];
 
-    private QuickCraftWorkbenchShulkerContents() {
-    }
+    private QuickCraftWorkbenchShulkerContents() {}
 
     static void clear() {
         Arrays.fill(CACHE, null);

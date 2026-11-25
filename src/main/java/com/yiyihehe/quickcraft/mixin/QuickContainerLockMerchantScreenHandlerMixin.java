@@ -14,11 +14,21 @@ import org.spongepowered.asm.mixin.injection.At;
 /** 只筛选交易补料的来源槽位，保留原版切换交易、归还付款和填充流程。 */
 @Mixin(MerchantScreenHandler.class)
 public abstract class QuickContainerLockMerchantScreenHandlerMixin {
-    @WrapOperation(method = "autofill", at = @At(value = "INVOKE",
-            target = "Lnet/minecraft/screen/slot/Slot;getStack()Lnet/minecraft/item/ItemStack;"))
-    private ItemStack quickcraft$readUnlockedPaymentSource(Slot slot, Operation<ItemStack> original,
-                                                          int paymentSlot, TradedItem cost) {
-        if (slot instanceof TradeOutputSlot || QuickContainerLock.isLockedSlot((MerchantScreenHandler) (Object) this, slot)) {
+    @WrapOperation(
+            method = "autofill",
+            at = @At(
+                    value = "INVOKE",
+                    target = "Lnet/minecraft/screen/slot/Slot;getStack()Lnet/minecraft/item/ItemStack;"))
+    private ItemStack quickcraft$readUnlockedPaymentSource(
+            Slot slot,
+            Operation<ItemStack> original,
+            int paymentSlot,
+            TradedItem cost
+    ) {
+        if (slot instanceof TradeOutputSlot || QuickContainerLock.isLockedSlot(
+                (MerchantScreenHandler) (Object) this,
+                slot
+        )) {
             return ItemStack.EMPTY;
         }
         ItemStack stack = original.call(slot);

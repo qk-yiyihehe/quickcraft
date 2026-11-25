@@ -66,8 +66,14 @@ class QuickLitematicaContainerFillStateTest {
         setWorld("inventoryWorld", serverWorld);
         var serverTasks = new ArrayList<Runnable>();
         var clientTasks = new ArrayList<Runnable>();
-        doAnswer(call -> { serverTasks.add(call.getArgument(0)); return null; }).when(server).execute(any(Runnable.class));
-        doAnswer(call -> { clientTasks.add(call.getArgument(0)); return null; }).when(client).execute(any(Runnable.class));
+        doAnswer(call -> {
+            serverTasks.add(call.getArgument(0));
+            return null;
+        }).when(server).execute(any(Runnable.class));
+        doAnswer(call -> {
+            clientTasks.add(call.getArgument(0));
+            return null;
+        }).when(client).execute(any(Runnable.class));
 
         QuickLitematicaContainerFillState.requestIntegratedInventory(client, serverWorld, List.of(pos));
         verify(serverWorld, never()).getBlockEntity(pos);
@@ -111,12 +117,13 @@ class QuickLitematicaContainerFillStateTest {
         var config = QuickCraftConfigs.ProjectionTools.HIGHLIGHT_NONEMPTY_PROJECTION_CONTAINERS;
         boolean previous = config.getBooleanValue();
         config.setBooleanValue(true);
-        try (var minecraft = mockStatic(Minecraft.class);
-             var worldUtils = mockStatic(WorldUtils.class)) {
+        try (var minecraft = mockStatic(Minecraft.class); var worldUtils = mockStatic(WorldUtils.class)) {
             minecraft.when(Minecraft::getInstance).thenReturn(client);
             worldUtils.when(() -> WorldUtils.getBestWorld(client)).thenReturn(clientLevel);
-            QuickLitematicaContainerFillState.rememberContainerUse(client,
-                    new BlockHitResult(new Vec3(1.5, 64.5, 2.5), Direction.NORTH, pos, false));
+            QuickLitematicaContainerFillState.rememberContainerUse(
+                    client,
+                    new BlockHitResult(new Vec3(1.5, 64.5, 2.5), Direction.NORTH, pos, false)
+            );
             QuickLitematicaContainerVerifier.clearPendingContainerUses();
             QuickLitematicaContainerFillState.onContentsReceived(5);
             assertThat(QuickLitematicaContainerFillState.isFilled(pos)).isFalse();
@@ -126,17 +133,11 @@ class QuickLitematicaContainerFillStateTest {
     }
 
     @ParameterizedTest
-    @CsvSource(value = {
-            "true, true, true",
-            "true, false, true",
-            "true, unknown, true",
-            "false, true, true",
-            "false, false, false",
-            "false, unknown, unknown",
-            "unknown, true, true",
-            "unknown, false, unknown",
-            "unknown, unknown, unknown"
-    }, nullValues = "unknown")
+    @CsvSource(
+            value = { "true, true, true", "true, false, true", "true, unknown, true", "false, true, true",
+                    "false, false, false", "false, unknown, unknown", "unknown, true, true", "unknown, false, unknown",
+                    "unknown, unknown, unknown" },
+            nullValues = "unknown")
     void doubleChestRequiresBothKnownEmptyOrEitherNonempty(Boolean first, Boolean second, Boolean expected) {
         assertThat(QuickLitematicaContainerFillState.combine(first, second)).isEqualTo(expected);
     }

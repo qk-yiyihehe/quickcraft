@@ -11,8 +11,7 @@ import java.util.function.Consumer;
 
 /** 26.1.2–26.2 本地图片选择适配（使用 TinyFileDialogs 同步对话框）。 */
 final class QuickLitematicaPreviewImageWriterAccess {
-    private QuickLitematicaPreviewImageWriterAccess() {
-    }
+    private QuickLitematicaPreviewImageWriterAccess() {}
 
     static void chooseImage(Path schematicPath, String[] supportedExtensions, Consumer<@Nullable Path> resultConsumer) {
         Path initialDirectory = schematicPath.toAbsolutePath().normalize().getParent();

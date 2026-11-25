@@ -15,27 +15,15 @@ import net.minecraft.text.Text;
  */
 public class QuickDraggableButton extends ButtonWidget {
     public enum PositionKey {
-        CONTAINER_LOCK("containerLock"),
-        INVENTORY_LOCK("inventoryLock"),
-        BACKPACK_LOCK("backpackLock"),
-        QUICK_STASH("quickStash"),
-        PORTABLE_STORAGE("portableStorage"),
-        INVENTORY_SHULKER_STASH("inventoryShulkerStash"),
-        CONTAINER_SORT("containerSort"),
-        INVENTORY_SORT("inventorySort"),
-        BACKPACK_SORT("backpackSort"),
-        BACKPACK_CROSS_BOX_SORT_PURE("backpackCrossBoxSortPure"),
-        BACKPACK_CROSS_BOX_SORT_COMPACT("backpackCrossBoxSortCompact"),
-        CONTAINER_CROSS_BOX_SORT_PURE("containerCrossBoxSortPure"),
-        CONTAINER_CROSS_BOX_SORT_COMPACT("containerCrossBoxSortCompact"),
-        INVENTORY_CROSS_BOX_SORT_PURE("inventoryCrossBoxSortPure"),
-        INVENTORY_CROSS_BOX_SORT_COMPACT("inventoryCrossBoxSortCompact"),
-        QUICK_RETRIEVE("quickRetrieve"),
-        WORKBENCH_CRAFT("workbenchCraft"),
-        WORKBENCH_MODE("workbenchMode"),
-        WORKBENCH_OUTPUT("workbenchOutput"),
-        BACKPACK_CRAFT("backpackCraft"),
-        STONECUTTER_CRAFT("stonecutterCraft");
+        CONTAINER_LOCK("containerLock"), INVENTORY_LOCK("inventoryLock"), BACKPACK_LOCK("backpackLock"), QUICK_STASH(
+                "quickStash"), PORTABLE_STORAGE("portableStorage"), INVENTORY_SHULKER_STASH("inventoryShulkerStash"),
+        CONTAINER_SORT("containerSort"), INVENTORY_SORT("inventorySort"), BACKPACK_SORT("backpackSort"),
+        BACKPACK_CROSS_BOX_SORT_PURE("backpackCrossBoxSortPure"), BACKPACK_CROSS_BOX_SORT_COMPACT(
+                "backpackCrossBoxSortCompact"), CONTAINER_CROSS_BOX_SORT_PURE("containerCrossBoxSortPure"),
+        CONTAINER_CROSS_BOX_SORT_COMPACT("containerCrossBoxSortCompact"), INVENTORY_CROSS_BOX_SORT_PURE(
+                "inventoryCrossBoxSortPure"), INVENTORY_CROSS_BOX_SORT_COMPACT("inventoryCrossBoxSortCompact"),
+        QUICK_RETRIEVE("quickRetrieve"), WORKBENCH_CRAFT("workbenchCraft"), WORKBENCH_MODE("workbenchMode"),
+        WORKBENCH_OUTPUT("workbenchOutput"), BACKPACK_CRAFT("backpackCraft"), STONECUTTER_CRAFT("stonecutterCraft");
 
         private final String configKey;
 
@@ -52,8 +40,15 @@ public class QuickDraggableButton extends ButtonWidget {
     private boolean dragging;
     private boolean consumeRightRelease;
 
-    public QuickDraggableButton(int x, int y, int width, int height, net.minecraft.text.Text message,
-                                PressAction onPress, PositionKey positionKey) {
+    public QuickDraggableButton(
+            int x,
+            int y,
+            int width,
+            int height,
+            net.minecraft.text.Text message,
+            PressAction onPress,
+            PositionKey positionKey
+    ) {
         super(x, y, width, height, message, onPress, DEFAULT_NARRATION_SUPPLIER);
         this.positionKey = positionKey;
         this.setDefaultPosition(x, y);
@@ -72,8 +67,7 @@ public class QuickDraggableButton extends ButtonWidget {
 
     public static boolean isEditGestureOverCurrentButton() {
         MinecraftClient client = MinecraftClient.getInstance();
-        if (!QuickCraftConfigs.isActionButtonDraggingEnabled()
-                || !QuickCraftKeyBindings.isShiftDown()
+        if (!QuickCraftConfigs.isActionButtonDraggingEnabled() || !QuickCraftKeyBindings.isShiftDown()
                 || !(client.currentScreen instanceof HandledScreen<?> screen)) {
             return false;
         }
@@ -92,9 +86,8 @@ public class QuickDraggableButton extends ButtonWidget {
         double mouseX = click.x();
         double mouseY = click.y();
         int button = click.button();
-        if (!QuickCraftConfigs.isActionButtonDraggingEnabled()
-                || !QuickCraftKeyBindings.isShiftDown()
-                || !this.isMouseOver(mouseX, mouseY)) {
+        if (!QuickCraftConfigs.isActionButtonDraggingEnabled() || !QuickCraftKeyBindings.isShiftDown() || !this
+                .isMouseOver(mouseX, mouseY)) {
             return super.mouseClicked(click, doubled);
         }
         if (button == 0) {
@@ -119,7 +112,10 @@ public class QuickDraggableButton extends ButtonWidget {
         double mouseY = click.y();
         int button = click.button();
         if (this.dragging && button == 0) {
-            this.setClampedPosition((int) Math.round(mouseX - this.grabOffsetX), (int) Math.round(mouseY - this.grabOffsetY));
+            this.setClampedPosition(
+                    (int) Math.round(mouseX - this.grabOffsetX),
+                    (int) Math.round(mouseY - this.grabOffsetY)
+            );
             return true;
         }
         return super.mouseDragged(click, deltaX, deltaY);

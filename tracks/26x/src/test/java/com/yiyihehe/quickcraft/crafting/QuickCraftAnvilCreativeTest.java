@@ -23,10 +23,16 @@ class QuickCraftAnvilCreativeTest {
     @Test
     void appliesTargetsWithoutBooksAndKeepsTheOriginalDataAndCompatibleEnchantments() {
         var ops = QuickCraftAnvilTestAccess.registries().createSerializationContext(JsonOps.INSTANCE);
-        var efficiency = withTags(Enchantment.CODEC.parse(ops, new JsonPrimitive("minecraft:efficiency")).getOrThrow(), false);
+        var efficiency = withTags(
+                Enchantment.CODEC.parse(ops, new JsonPrimitive("minecraft:efficiency")).getOrThrow(),
+                false
+        );
         var silk = withTags(Enchantment.CODEC.parse(ops, new JsonPrimitive("minecraft:silk_touch")).getOrThrow(), true);
         var fortune = withTags(Enchantment.CODEC.parse(ops, new JsonPrimitive("minecraft:fortune")).getOrThrow(), true);
-        var mending = withTags(Enchantment.CODEC.parse(ops, new JsonPrimitive("minecraft:mending")).getOrThrow(), false);
+        var mending = withTags(
+                Enchantment.CODEC.parse(ops, new JsonPrimitive("minecraft:mending")).getOrThrow(),
+                false
+        );
         var seed = new ItemStack(Items.DIAMOND_PICKAXE);
         seed.set(DataComponents.CUSTOM_NAME, Component.literal("My pickaxe"));
         seed.set(DataComponents.REPAIR_COST, 9);

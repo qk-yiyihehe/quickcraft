@@ -22,14 +22,14 @@ import java.util.List;
 final class QuickCraftMouseCraftInventory {
     private static final Logger LOGGER = LoggerFactory.getLogger("QuickCraft/RecipeBookCraft");
 
-    private QuickCraftMouseCraftInventory() {
-    }
+    private QuickCraftMouseCraftInventory() {}
 
-    static boolean isPatternComplete(ScreenHandler handler,
-                                     QuickCraftMouseCraftLayout.Layout layout,
-                                     List<ItemStack> pattern) {
-        if (handler == null || layout == null || pattern == null
-                || pattern.size() != layout.gridSize()) {
+    static boolean isPatternComplete(
+            ScreenHandler handler,
+            QuickCraftMouseCraftLayout.Layout layout,
+            List<ItemStack> pattern
+    ) {
+        if (handler == null || layout == null || pattern == null || pattern.size() != layout.gridSize()) {
             return false;
         }
         for (int i = 0; i < layout.gridSize(); i++) {
@@ -48,24 +48,20 @@ final class QuickCraftMouseCraftInventory {
         return true;
     }
 
-    static boolean canAcceptUnlocked(ScreenHandler handler,
-                                     QuickCraftMouseCraftLayout.Layout layout,
-                                     ItemStack stack) {
+    static boolean canAcceptUnlocked(ScreenHandler handler, QuickCraftMouseCraftLayout.Layout layout, ItemStack stack) {
         if (handler == null || layout == null || stack == null || stack.isEmpty()) {
             return false;
         }
         return unlockedCapacity(handler, layout, stack) >= stack.getCount();
     }
 
-    static int unlockedEmptySlots(ScreenHandler handler,
-                                  QuickCraftMouseCraftLayout.Layout layout) {
+    static int unlockedEmptySlots(ScreenHandler handler, QuickCraftMouseCraftLayout.Layout layout) {
         if (handler == null || layout == null) {
             return 0;
         }
         int empty = 0;
-        for (int inventoryIndex = 0;
-             inventoryIndex < QuickCraftMouseCraftLayout.PLAYER_INVENTORY_SIZE;
-             inventoryIndex++) {
+        for (int inventoryIndex =
+                0; inventoryIndex < QuickCraftMouseCraftLayout.PLAYER_INVENTORY_SIZE; inventoryIndex++) {
             int handlerSlot = layout.handlerSlotForInventoryIndex(inventoryIndex);
             if (handlerSlot < 0 || QuickContainerLock.isLockedSlot(handler, handlerSlot)) {
                 continue;
@@ -78,17 +74,14 @@ final class QuickCraftMouseCraftInventory {
         return empty;
     }
 
-    static int unlockedCapacity(ScreenHandler handler,
-                                QuickCraftMouseCraftLayout.Layout layout,
-                                ItemStack stack) {
+    static int unlockedCapacity(ScreenHandler handler, QuickCraftMouseCraftLayout.Layout layout, ItemStack stack) {
         if (handler == null || layout == null || stack == null || stack.isEmpty()) {
             return 0;
         }
 
         long capacity = 0L;
-        for (int inventoryIndex = 0;
-             inventoryIndex < QuickCraftMouseCraftLayout.PLAYER_INVENTORY_SIZE;
-             inventoryIndex++) {
+        for (int inventoryIndex =
+                0; inventoryIndex < QuickCraftMouseCraftLayout.PLAYER_INVENTORY_SIZE; inventoryIndex++) {
             int handlerSlot = layout.handlerSlotForInventoryIndex(inventoryIndex);
             if (handlerSlot < 0 || QuickContainerLock.isLockedSlot(handler, handlerSlot)) {
                 continue;
@@ -107,15 +100,16 @@ final class QuickCraftMouseCraftInventory {
         return (int) Math.min(Integer.MAX_VALUE, capacity);
     }
 
-    static int findAcceptingUnlockedSlot(ScreenHandler handler,
-                                         QuickCraftMouseCraftLayout.Layout layout,
-                                         ItemStack stack) {
+    static int findAcceptingUnlockedSlot(
+            ScreenHandler handler,
+            QuickCraftMouseCraftLayout.Layout layout,
+            ItemStack stack
+    ) {
         if (handler == null || stack == null || stack.isEmpty()) {
             return -1;
         }
-        for (int inventoryIndex = 0;
-             inventoryIndex < QuickCraftMouseCraftLayout.PLAYER_INVENTORY_SIZE;
-             inventoryIndex++) {
+        for (int inventoryIndex =
+                0; inventoryIndex < QuickCraftMouseCraftLayout.PLAYER_INVENTORY_SIZE; inventoryIndex++) {
             int handlerSlot = layout.handlerSlotForInventoryIndex(inventoryIndex);
             if (handlerSlot < 0 || QuickContainerLock.isLockedSlot(handler, handlerSlot)) {
                 continue;
@@ -128,8 +122,7 @@ final class QuickCraftMouseCraftInventory {
         return -1;
     }
 
-    static boolean hasUnevenMatchingGridStacks(ScreenHandler handler,
-                                               QuickCraftMouseCraftLayout.Layout layout) {
+    static boolean hasUnevenMatchingGridStacks(ScreenHandler handler, QuickCraftMouseCraftLayout.Layout layout) {
         if (handler == null || layout == null) {
             return false;
         }
@@ -151,45 +144,63 @@ final class QuickCraftMouseCraftInventory {
         return false;
     }
 
-    static int throwOutputBatch(MinecraftClient client,
-                                ScreenHandler handler,
-                                List<ItemStack> pattern,
-                                int[] gridCounts,
-                                int safeCrafts,
-                                ItemStack expectedOutput,
-                                Runnable refreshOutput) {
+    static int throwOutputBatch(
+            MinecraftClient client,
+            ScreenHandler handler,
+            List<ItemStack> pattern,
+            int[] gridCounts,
+            int safeCrafts,
+            ItemStack expectedOutput,
+            Runnable refreshOutput
+    ) {
         if (!handler.getCursorStack().isEmpty()) {
             return 0;
         }
         if (QuickCraftMouseCraftAckRules.canBulkCraftGrid(gridCounts)) {
-            return QuickCraftMouseCraftAccess.throwOutput(client.interactionManager, client, handler,
-                    pattern, gridCounts, refreshOutput);
+            return QuickCraftMouseCraftAccess.throwOutput(
+                    client.interactionManager,
+                    client,
+                    handler,
+                    pattern,
+                    gridCounts,
+                    refreshOutput
+            );
         }
 
         // 批量丢弃只比较物品类型，不均匀的材料格需要逐轮确认产物组件和数量。
         int operations = 0;
         while (operations < safeCrafts) {
             ItemStack output = handler.getSlot(QuickCraftMouseCraftLayout.OUTPUT_SLOT).getStack();
-            if (output.isEmpty() || output.getCount() != expectedOutput.getCount()
-                    || !ItemStack.areItemsAndComponentsEqual(output, expectedOutput)) {
+            if (output.isEmpty() || output.getCount() != expectedOutput.getCount() || !ItemStack
+                    .areItemsAndComponentsEqual(output, expectedOutput)) {
                 break;
             }
-            client.interactionManager.clickSlot(handler.syncId, QuickCraftMouseCraftLayout.OUTPUT_SLOT,
-                    0, SlotActionType.THROW, client.player);
+            client.interactionManager.clickSlot(
+                    handler.syncId,
+                    QuickCraftMouseCraftLayout.OUTPUT_SLOT,
+                    0,
+                    SlotActionType.THROW,
+                    client.player
+            );
             operations++;
             refreshOutput.run();
         }
         return operations;
     }
 
-    static boolean moveOutputToUnlockedInventory(MinecraftClient client,
-                                                 ScreenHandler handler,
-                                                 QuickCraftMouseCraftLayout.Layout layout,
-                                                 int maximumOutputs,
-                                                 Runnable onEachPickup,
-                                                 boolean allowQuickMove) {
-        if (client == null || client.player == null || client.interactionManager == null
-                || handler == null || !handler.getCursorStack().isEmpty()
+    static boolean moveOutputToUnlockedInventory(
+            MinecraftClient client,
+            ScreenHandler handler,
+            QuickCraftMouseCraftLayout.Layout layout,
+            int maximumOutputs,
+            Runnable onEachPickup,
+            boolean allowQuickMove
+    ) {
+        if (client == null
+                || client.player == null
+                || client.interactionManager == null
+                || handler == null
+                || !handler.getCursorStack().isEmpty()
                 || !handler.getSlot(QuickCraftMouseCraftLayout.OUTPUT_SLOT).hasStack()) {
             return false;
         }
@@ -203,9 +214,8 @@ final class QuickCraftMouseCraftInventory {
         boolean moved = false;
         for (int i = 0; i < maximumOutputs; i++) {
             ItemStack next = handler.getSlot(QuickCraftMouseCraftLayout.OUTPUT_SLOT).getStack();
-            if (next.isEmpty() || !ItemStack.areItemsAndComponentsEqual(output, next)
-                    || next.getCount() != output.getCount()
-                    || !moveOutputWithPickup(client, handler, layout, output)) {
+            if (next.isEmpty() || !ItemStack.areItemsAndComponentsEqual(output, next) || next.getCount() != output
+                    .getCount() || !moveOutputWithPickup(client, handler, layout, output)) {
                 break;
             }
             moved = true;
@@ -214,10 +224,12 @@ final class QuickCraftMouseCraftInventory {
         return moved;
     }
 
-    private static boolean moveOutputWithPickup(MinecraftClient client,
-                                                ScreenHandler handler,
-                                                QuickCraftMouseCraftLayout.Layout layout,
-                                                ItemStack output) {
+    private static boolean moveOutputWithPickup(
+            MinecraftClient client,
+            ScreenHandler handler,
+            QuickCraftMouseCraftLayout.Layout layout,
+            ItemStack output
+    ) {
         if (!canAcceptUnlocked(handler, layout, output)) {
             return false;
         }
@@ -238,17 +250,19 @@ final class QuickCraftMouseCraftInventory {
 
         int countAfter = countMatching(handler, layout, output);
         ItemStack after = handler.getSlot(QuickCraftMouseCraftLayout.OUTPUT_SLOT).getStack();
-        boolean outputChanged = after.isEmpty()
-                || !ItemStack.areItemsAndComponentsEqual(output, after)
-                || output.getCount() != after.getCount();
-        return handler.getCursorStack().isEmpty()
-                && didOutputMove(outputChanged, countAfter > countBefore);
+        boolean outputChanged = after.isEmpty() || !ItemStack.areItemsAndComponentsEqual(output, after) || output
+                .getCount() != after.getCount();
+        return handler.getCursorStack().isEmpty() && didOutputMove(outputChanged, countAfter > countBefore);
     }
 
-    static boolean moveOutputWithQuickMove(MinecraftClient client,
-                                           ScreenHandler handler,
-                                           QuickCraftMouseCraftLayout.Layout layout) {
-        if (client == null || client.player == null || client.interactionManager == null
+    static boolean moveOutputWithQuickMove(
+            MinecraftClient client,
+            ScreenHandler handler,
+            QuickCraftMouseCraftLayout.Layout layout
+    ) {
+        if (client == null
+                || client.player == null
+                || client.interactionManager == null
                 || handler == null
                 || !handler.getSlot(QuickCraftMouseCraftLayout.OUTPUT_SLOT).hasStack()) {
             return false;
@@ -265,27 +279,25 @@ final class QuickCraftMouseCraftInventory {
         );
 
         ItemStack after = handler.getSlot(QuickCraftMouseCraftLayout.OUTPUT_SLOT).getStack();
-        boolean outputChanged = after.isEmpty()
-                || !ItemStack.areItemsAndComponentsEqual(output, after)
-                || output.getCount() != after.getCount();
-        return didOutputMove(outputChanged,
-                countMatching(handler, layout, output) > countBefore);
+        boolean outputChanged = after.isEmpty() || !ItemStack.areItemsAndComponentsEqual(output, after) || output
+                .getCount() != after.getCount();
+        return didOutputMove(outputChanged, countMatching(handler, layout, output) > countBefore);
     }
 
-    static boolean didOutputMove(boolean outputChanged,
-                                 boolean matchingInventoryIncreased) {
+    static boolean didOutputMove(boolean outputChanged, boolean matchingInventoryIncreased) {
         return outputChanged || matchingInventoryIncreased;
     }
 
-    static int findMatchingUnlockedSlot(ScreenHandler handler,
-                                        QuickCraftMouseCraftLayout.Layout layout,
-                                        ItemStack template) {
+    static int findMatchingUnlockedSlot(
+            ScreenHandler handler,
+            QuickCraftMouseCraftLayout.Layout layout,
+            ItemStack template
+    ) {
         if (handler == null || layout == null || template == null || template.isEmpty()) {
             return -1;
         }
-        for (int inventoryIndex = 0;
-             inventoryIndex < QuickCraftMouseCraftLayout.PLAYER_INVENTORY_SIZE;
-             inventoryIndex++) {
+        for (int inventoryIndex =
+                0; inventoryIndex < QuickCraftMouseCraftLayout.PLAYER_INVENTORY_SIZE; inventoryIndex++) {
             int handlerSlot = layout.handlerSlotForInventoryIndex(inventoryIndex);
             if (handlerSlot < 0 || QuickContainerLock.isLockedSlot(handler, handlerSlot)) {
                 continue;
@@ -298,21 +310,21 @@ final class QuickCraftMouseCraftInventory {
         return -1;
     }
 
-    static int dropMatchingUnlockedInventory(MinecraftClient client,
-                                             ScreenHandler handler,
-                                             QuickCraftMouseCraftLayout.Layout layout,
-                                             ItemStack template,
-                                             String reason) {
-        if (client == null || client.player == null || client.interactionManager == null
-                || handler == null || layout == null || template == null || template.isEmpty()
-                || !handler.getCursorStack().isEmpty()) {
+    static int dropMatchingUnlockedInventory(
+            MinecraftClient client,
+            ScreenHandler handler,
+            QuickCraftMouseCraftLayout.Layout layout,
+            ItemStack template,
+            String reason
+    ) {
+        if (client == null || client.player == null || client.interactionManager == null || handler == null
+                || layout == null || template == null || template.isEmpty() || !handler.getCursorStack().isEmpty()) {
             return 0;
         }
 
         int droppedSlots = 0;
-        for (int inventoryIndex = 0;
-             inventoryIndex < QuickCraftMouseCraftLayout.PLAYER_INVENTORY_SIZE;
-             inventoryIndex++) {
+        for (int inventoryIndex =
+                0; inventoryIndex < QuickCraftMouseCraftLayout.PLAYER_INVENTORY_SIZE; inventoryIndex++) {
             int handlerSlot = layout.handlerSlotForInventoryIndex(inventoryIndex);
             if (handlerSlot < 0 || QuickContainerLock.isLockedSlot(handler, handlerSlot)) {
                 continue;
@@ -322,25 +334,27 @@ final class QuickCraftMouseCraftInventory {
                 continue;
             }
             ItemStack dropped = stack.copy();
-            client.interactionManager.clickSlot(
-                    handler.syncId, handlerSlot, 1, SlotActionType.THROW, client.player);
+            client.interactionManager.clickSlot(handler.syncId, handlerSlot, 1, SlotActionType.THROW, client.player);
             droppedSlots++;
             if (QuickCraftConfigs.isMouseCraftAckDebugEnabled()) {
-                LOGGER.info(QuickCraftMouseCraftAckExecutor.diagnosticContext() + "{}：界面={}，槽={}，点击前物品={}",
-                        reason, layout.name(), handlerSlot, dropped);
+                LOGGER.info(
+                        QuickCraftMouseCraftAckExecutor.diagnosticContext() + "{}：界面={}，槽={}，点击前物品={}",
+                        reason,
+                        layout.name(),
+                        handlerSlot,
+                        dropped
+                );
             }
         }
         return droppedSlots;
     }
 
-    static boolean hasLockedPlayerSlot(ScreenHandler handler,
-                                       QuickCraftMouseCraftLayout.Layout layout) {
+    static boolean hasLockedPlayerSlot(ScreenHandler handler, QuickCraftMouseCraftLayout.Layout layout) {
         if (handler == null || layout == null) {
             return false;
         }
-        for (int inventoryIndex = 0;
-             inventoryIndex < QuickCraftMouseCraftLayout.PLAYER_INVENTORY_SIZE;
-             inventoryIndex++) {
+        for (int inventoryIndex =
+                0; inventoryIndex < QuickCraftMouseCraftLayout.PLAYER_INVENTORY_SIZE; inventoryIndex++) {
             int handlerSlot = layout.handlerSlotForInventoryIndex(inventoryIndex);
             if (handlerSlot >= 0 && QuickContainerLock.isLockedSlot(handler, handlerSlot)) {
                 return true;
@@ -349,13 +363,14 @@ final class QuickCraftMouseCraftInventory {
         return false;
     }
 
-    private static int countMatching(ScreenHandler handler,
-                                     QuickCraftMouseCraftLayout.Layout layout,
-                                     ItemStack template) {
+    private static int countMatching(
+            ScreenHandler handler,
+            QuickCraftMouseCraftLayout.Layout layout,
+            ItemStack template
+    ) {
         int total = 0;
-        for (int inventoryIndex = 0;
-             inventoryIndex < QuickCraftMouseCraftLayout.PLAYER_INVENTORY_SIZE;
-             inventoryIndex++) {
+        for (int inventoryIndex =
+                0; inventoryIndex < QuickCraftMouseCraftLayout.PLAYER_INVENTORY_SIZE; inventoryIndex++) {
             int handlerSlot = layout.handlerSlotForInventoryIndex(inventoryIndex);
             if (handlerSlot < 0) {
                 continue;
@@ -370,24 +385,23 @@ final class QuickCraftMouseCraftInventory {
 
     private static boolean canAccept(Slot slot, ItemStack incoming) {
         ItemStack existing = slot.getStack();
-        return existing.isEmpty()
-                || (ItemStack.areItemsAndComponentsEqual(existing, incoming)
-                && existing.getCount() + incoming.getCount()
-                <= slot.getMaxItemCount(incoming));
+        return existing.isEmpty() || (ItemStack.areItemsAndComponentsEqual(existing, incoming) && existing.getCount()
+                + incoming.getCount() <= slot.getMaxItemCount(incoming));
     }
 
-    static int firstPatternSlotWithRoom(ScreenHandler handler,
-                                        QuickCraftMouseCraftLayout.Layout layout,
-                                        List<ItemStack> pattern,
-                                        ItemStack stack) {
+    static int firstPatternSlotWithRoom(
+            ScreenHandler handler,
+            QuickCraftMouseCraftLayout.Layout layout,
+            List<ItemStack> pattern,
+            ItemStack stack
+    ) {
         if (handler == null || layout == null || pattern == null || stack == null || stack.isEmpty()) {
             return -1;
         }
         int limit = Math.min(pattern.size(), layout.gridSize());
         for (int i = 0; i < limit; i++) {
             ItemStack template = pattern.get(i);
-            if (template == null || template.isEmpty()
-                    || !ItemStack.areItemsAndComponentsEqual(template, stack)) {
+            if (template == null || template.isEmpty() || !ItemStack.areItemsAndComponentsEqual(template, stack)) {
                 continue;
             }
             int slotId = layout.gridSlotId(i);
@@ -399,9 +413,11 @@ final class QuickCraftMouseCraftInventory {
         return -1;
     }
 
-    static int firstAcceptingGridSlot(ScreenHandler handler,
-                                      QuickCraftMouseCraftLayout.Layout layout,
-                                      ItemStack template) {
+    static int firstAcceptingGridSlot(
+            ScreenHandler handler,
+            QuickCraftMouseCraftLayout.Layout layout,
+            ItemStack template
+    ) {
         if (handler == null || layout == null || template == null || template.isEmpty()) {
             return -1;
         }
@@ -427,7 +443,8 @@ final class QuickCraftMouseCraftInventory {
         return Math.max(0, (maxStackCount + 1) / 2);
     }
 
-    record GridBalanceMove(int source, int target, int count) {}
+    record GridBalanceMove(int source, int target, int count) {
+    }
 
     static List<GridBalanceMove> planGridTailBalance(int[] counts) {
         List<GridBalanceMove> moves = new ArrayList<>();
@@ -461,9 +478,7 @@ final class QuickCraftMouseCraftInventory {
         return moves;
     }
 
-    static int retainedItemsPerSlot(int pickedUpCount,
-                                    int targetSlots,
-                                    int remainingCapacityPerSlot) {
+    static int retainedItemsPerSlot(int pickedUpCount, int targetSlots, int remainingCapacityPerSlot) {
         if (pickedUpCount <= 0 || targetSlots <= 0 || remainingCapacityPerSlot <= 0) {
             return 0;
         }
@@ -474,41 +489,36 @@ final class QuickCraftMouseCraftInventory {
         return sourceCount > 0 && existingCount >= 0 && existingCount + sourceCount <= maxCount;
     }
 
-    static boolean canQuickMoveWholeStackToGridSlot(QuickCraftMouseCraftLayout.Layout layout,
-                                                    int sourceCount,
-                                                    int existingCount,
-                                                    int maxCount,
-                                                    int firstAcceptingSlot,
-                                                    int targetSlot) {
+    static boolean canQuickMoveWholeStackToGridSlot(
+            QuickCraftMouseCraftLayout.Layout layout,
+            int sourceCount,
+            int existingCount,
+            int maxCount,
+            int firstAcceptingSlot,
+            int targetSlot
+    ) {
         // PlayerScreenHandler.quickMove 不会把背包物品补进 2x2 合成格。
-        return layout == QuickCraftMouseCraftLayout.WORKBENCH
-                && targetSlot >= 0
-                && firstAcceptingSlot == targetSlot
+        return layout == QuickCraftMouseCraftLayout.WORKBENCH && targetSlot >= 0 && firstAcceptingSlot == targetSlot
                 && wholeStackFitsInSlot(sourceCount, existingCount, maxCount);
     }
 
-    static int tailItemsPerSlot(int sourceCount,
-                                int targetSlots,
-                                int remainingCapacityPerSlot) {
+    static int tailItemsPerSlot(int sourceCount, int targetSlots, int remainingCapacityPerSlot) {
         if (sourceCount <= 0 || targetSlots <= 0 || remainingCapacityPerSlot <= 0) {
             return 0;
         }
         return Math.min(sourceCount / targetSlots, remainingCapacityPerSlot);
     }
 
-    static boolean canQuickTopUpCompleteGroup(int occurrences,
-                                               int availableItems,
-                                               int remainingCapacity) {
-        return occurrences == 1
-                || (occurrences > 1 && remainingCapacity > 0
-                && availableItems >= remainingCapacity);
+    static boolean canQuickTopUpCompleteGroup(int occurrences, int availableItems, int remainingCapacity) {
+        return occurrences == 1 || (occurrences > 1 && remainingCapacity > 0 && availableItems >= remainingCapacity);
     }
 
-    static boolean returnCursorToUnlockedInventory(MinecraftClient client,
-                                                   ScreenHandler handler,
-                                                   QuickCraftMouseCraftLayout.Layout layout) {
-        if (client == null || client.player == null || client.interactionManager == null
-                || handler == null) {
+    static boolean returnCursorToUnlockedInventory(
+            MinecraftClient client,
+            ScreenHandler handler,
+            QuickCraftMouseCraftLayout.Layout layout
+    ) {
+        if (client == null || client.player == null || client.interactionManager == null || handler == null) {
             return false;
         }
         if (handler.getCursorStack().isEmpty()) {
@@ -521,13 +531,7 @@ final class QuickCraftMouseCraftInventory {
             if (slot < 0) {
                 break;
             }
-            client.interactionManager.clickSlot(
-                    handler.syncId,
-                    slot,
-                    0,
-                    SlotActionType.PICKUP,
-                    client.player
-            );
+            client.interactionManager.clickSlot(handler.syncId, slot, 0, SlotActionType.PICKUP, client.player);
             ItemStack remaining = handler.getCursorStack();
             if (!remaining.isEmpty() && remaining.getCount() >= before) {
                 break;
@@ -536,15 +540,16 @@ final class QuickCraftMouseCraftInventory {
         return handler.getCursorStack().isEmpty();
     }
 
-    private static int findPartialAcceptingUnlockedSlot(ScreenHandler handler,
-                                                        QuickCraftMouseCraftLayout.Layout layout,
-                                                        ItemStack stack) {
+    private static int findPartialAcceptingUnlockedSlot(
+            ScreenHandler handler,
+            QuickCraftMouseCraftLayout.Layout layout,
+            ItemStack stack
+    ) {
         if (handler == null || layout == null || stack == null || stack.isEmpty()) {
             return -1;
         }
-        for (int inventoryIndex = 0;
-             inventoryIndex < QuickCraftMouseCraftLayout.PLAYER_INVENTORY_SIZE;
-             inventoryIndex++) {
+        for (int inventoryIndex =
+                0; inventoryIndex < QuickCraftMouseCraftLayout.PLAYER_INVENTORY_SIZE; inventoryIndex++) {
             int handlerSlot = layout.handlerSlotForInventoryIndex(inventoryIndex);
             if (handlerSlot < 0 || QuickContainerLock.isLockedSlot(handler, handlerSlot)) {
                 continue;
@@ -559,8 +564,7 @@ final class QuickCraftMouseCraftInventory {
 
     private static boolean canTakePartial(Slot slot, ItemStack incoming) {
         ItemStack existing = slot.getStack();
-        return existing.isEmpty()
-                || (ItemStack.areItemsAndComponentsEqual(existing, incoming)
-                && existing.getCount() < slot.getMaxItemCount(incoming));
+        return existing.isEmpty() || (ItemStack.areItemsAndComponentsEqual(existing, incoming) && existing
+                .getCount() < slot.getMaxItemCount(incoming));
     }
 }

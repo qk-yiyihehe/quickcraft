@@ -38,8 +38,7 @@ class QuickLitematicaEntitySaveSourceTest {
         CompoundTag output = chestMinecart("minecraft:stone");
 
         SchematicPlacementManager manager = manager();
-        try (var handler = mockStatic(SchematicWorldHandler.class);
-             var data = mockStatic(DataManager.class)) {
+        try (var handler = mockStatic(SchematicWorldHandler.class); var data = mockStatic(DataManager.class)) {
             handler.when(SchematicWorldHandler::getSchematicWorld).thenReturn(active);
             data.when(DataManager::getSchematicPlacementManager).thenReturn(manager);
 
@@ -57,8 +56,7 @@ class QuickLitematicaEntitySaveSourceTest {
         CompoundTag output = chestMinecart("minecraft:stone");
 
         SchematicPlacementManager manager = manager();
-        try (var handler = mockStatic(SchematicWorldHandler.class);
-             var data = mockStatic(DataManager.class)) {
+        try (var handler = mockStatic(SchematicWorldHandler.class); var data = mockStatic(DataManager.class)) {
             handler.when(SchematicWorldHandler::getSchematicWorld).thenReturn(active);
             data.when(DataManager::getSchematicPlacementManager).thenReturn(manager);
 
@@ -75,9 +73,14 @@ class QuickLitematicaEntitySaveSourceTest {
         when(sub.getMirror()).thenReturn(Mirror.NONE);
 
         LitematicaSchematic schematic = mock(LitematicaSchematic.class);
-        when(schematic.getEntityListForRegion(REGION)).thenReturn(List.of(
-                new LitematicaSchematic.EntityInfo(new Vec3(0.5, 0.0, 0.5),
-                        DataConverterNbt.fromVanillaCompound(chestMinecart("minecraft:glass")))));
+        when(schematic.getEntityListForRegion(REGION)).thenReturn(
+                List.of(
+                        new LitematicaSchematic.EntityInfo(
+                                new Vec3(0.5, 0.0, 0.5),
+                                DataConverterNbt.fromVanillaCompound(chestMinecart("minecraft:glass"))
+                        )
+                )
+        );
 
         SchematicPlacement placement = mock(SchematicPlacement.class);
         when(placement.isEnabled()).thenReturn(true);

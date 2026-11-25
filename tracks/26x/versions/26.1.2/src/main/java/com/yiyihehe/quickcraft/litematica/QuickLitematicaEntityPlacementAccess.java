@@ -6,8 +6,7 @@ import net.minecraft.world.entity.EntityType;
 
 /** 26.1.2 客户端实体放置界面与实体类型判定适配。 */
 final class QuickLitematicaEntityPlacementAccess {
-    private QuickLitematicaEntityPlacementAccess() {
-    }
+    private QuickLitematicaEntityPlacementAccess() {}
 
     /** 该目标实际按 equipment 复合标签加载装备；低版本仍由 ArmorItems/HandItems 加载。 */
     public static boolean usesEntityEquipment() {

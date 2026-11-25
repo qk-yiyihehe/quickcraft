@@ -11,8 +11,7 @@ import java.util.Locale;
 import static org.assertj.core.api.Assertions.assertThat;
 
 class QuickCraftLanguageFormatTest {
-    private static final String KEY =
-            "quickcraft.config.container_tools.comment.matchingTransferHighlightColor";
+    private static final String KEY = "quickcraft.config.container_tools.comment.matchingTransferHighlightColor";
 
     @Test
     void highlightCommentFormatsAsOnePercent() throws Exception {
@@ -21,8 +20,9 @@ class QuickCraftLanguageFormatTest {
     }
 
     private static void assertFormatted(String file, String expectedMeaning, String percent) throws Exception {
-        var stream = QuickCraftLanguageFormatTest.class.getClassLoader()
-                .getResourceAsStream("assets/quickcraft/lang/" + file);
+        var stream = QuickCraftLanguageFormatTest.class.getClassLoader().getResourceAsStream(
+                "assets/quickcraft/lang/" + file
+        );
         assertThat(stream).isNotNull();
         try (var reader = new InputStreamReader(stream, StandardCharsets.UTF_8)) {
             JsonObject json = JsonParser.parseReader(reader).getAsJsonObject();

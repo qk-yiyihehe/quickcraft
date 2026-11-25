@@ -11,7 +11,10 @@ public final class QuickCraftMinecraftTestBootstrap implements BeforeAllCallback
         if (!initialized) {
             QuickCraftTestRegistries.initialize();
             fi.dy.masa.litematica.world.SchematicWorldHandler.INSTANCE.setDynamicRegistryManager(
-                    net.minecraft.core.RegistryAccess.fromRegistryOfRegistries(net.minecraft.core.registries.BuiltInRegistries.REGISTRY));
+                    net.minecraft.core.RegistryAccess.fromRegistryOfRegistries(
+                            net.minecraft.core.registries.BuiltInRegistries.REGISTRY
+                    )
+            );
             initialized = true;
         }
     }

@@ -12,6 +12,7 @@ public final class QuickCraftMinecraftTestBootstrap implements BeforeAllCallback
         SharedConstants.createGameVersion();
         Bootstrap.initialize();
         fi.dy.masa.litematica.world.SchematicWorldHandler.INSTANCE.setDynamicRegistryManager(
-                net.minecraft.registry.DynamicRegistryManager.of(net.minecraft.registry.Registries.REGISTRIES));
+                net.minecraft.registry.DynamicRegistryManager.of(net.minecraft.registry.Registries.REGISTRIES)
+        );
     }
 }

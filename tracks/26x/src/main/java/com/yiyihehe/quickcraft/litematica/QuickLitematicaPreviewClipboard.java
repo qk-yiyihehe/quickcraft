@@ -18,14 +18,19 @@ final class QuickLitematicaPreviewClipboard {
     private static final int COMPAT_CLIPBOARD_MAX_DIMENSION = 4096;
     private static final QuickLitematicaPreviewLog LOGGER = QuickLitematicaPreviewLog.LOGGER;
 
-    private QuickLitematicaPreviewClipboard() { }
+    private QuickLitematicaPreviewClipboard() {}
 
     static void copyImage(NativeImage image, boolean preserveTransparency, Pointer owner) throws InterruptedException {
         writeImage(image, preserveTransparency, WindowsClipboard.INSTANCE, WindowsMemory.INSTANCE, owner);
     }
 
-    static void writeImage(NativeImage image, boolean preserveTransparency,
-                           WindowsClipboard clipboard, WindowsMemory memory, Pointer owner) throws InterruptedException {
+    static void writeImage(
+            NativeImage image,
+            boolean preserveTransparency,
+            WindowsClipboard clipboard,
+            WindowsMemory memory,
+            Pointer owner
+    ) throws InterruptedException {
         if (owner == null) {
             throw new IllegalArgumentException("Clipboard owner is required");
         }
@@ -110,8 +115,8 @@ final class QuickLitematicaPreviewClipboard {
                             compatRow[x] = image.getPixel(sourceX, sourceY);
                         }
                         dibMemory.write(
-                                WindowsMemory.BITMAP_INFO_HEADER_SIZE
-                                        + (long) (compatHeight - 1 - y) * compatWidth * 4L,
+                                WindowsMemory.BITMAP_INFO_HEADER_SIZE + (long) (compatHeight - 1 - y) * compatWidth
+                                        * 4L,
                                 compatRow,
                                 0,
                                 compatWidth
@@ -124,10 +129,7 @@ final class QuickLitematicaPreviewClipboard {
             }
 
             if (pngBytes != null) {
-                pngHandle = memory.GlobalAlloc(
-                        WindowsMemory.GHND,
-                        new BaseTSD.SIZE_T(pngBytes.length)
-                );
+                pngHandle = memory.GlobalAlloc(WindowsMemory.GHND, new BaseTSD.SIZE_T(pngBytes.length));
                 if (pngHandle == null) {
                     throw new IllegalStateException("GlobalAlloc(PNG) failed");
                 }

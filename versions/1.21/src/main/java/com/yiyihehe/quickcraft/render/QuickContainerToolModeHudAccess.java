@@ -6,8 +6,7 @@ import net.minecraft.text.Text;
 
 /** 1.21 的 HUD 文字颜色参数使用 RGB 形式。 */
 final class QuickContainerToolModeHudAccess {
-    private QuickContainerToolModeHudAccess() {
-    }
+    private QuickContainerToolModeHudAccess() {}
 
     static void draw(MinecraftClient client, DrawContext context, Text label, int x, int y) {
         context.drawTextWithShadow(client.textRenderer, label, x, y, 0xFFFFFF);

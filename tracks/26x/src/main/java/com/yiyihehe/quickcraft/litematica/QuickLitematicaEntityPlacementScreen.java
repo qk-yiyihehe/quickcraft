@@ -16,8 +16,12 @@ import java.util.IdentityHashMap;
 
 /** 原版 54 格箱子选择器；背包和容器预览均直接复用原版纹理与物品渲染。 */
 final class QuickLitematicaEntityPlacementScreen extends Screen {
-    private static final Identifier CHEST_TEXTURE = Identifier.withDefaultNamespace("textures/gui/container/generic_54.png");
-    private static final Identifier HOPPER_TEXTURE = Identifier.withDefaultNamespace("textures/gui/container/hopper.png");
+    private static final Identifier CHEST_TEXTURE = Identifier.withDefaultNamespace(
+            "textures/gui/container/generic_54.png"
+    );
+    private static final Identifier HOPPER_TEXTURE = Identifier.withDefaultNamespace(
+            "textures/gui/container/hopper.png"
+    );
     private static final int COLUMNS = 9;
     private static final int ROWS = 6;
     private static final int SLOT_SIZE = 18;
@@ -33,9 +37,7 @@ final class QuickLitematicaEntityPlacementScreen extends Screen {
     private final Map<Entity, QuickLitematicaEntityPlacement.ExcessDisplay> excessDisplays = new IdentityHashMap<>();
     private int evaluationRefreshTicks;
 
-    QuickLitematicaEntityPlacementScreen(
-            List<QuickLitematicaEntityPlacement.Candidate> candidates
-    ) {
+    QuickLitematicaEntityPlacementScreen(List<QuickLitematicaEntityPlacement.Candidate> candidates) {
         super(Component.translatable("quickcraft.entity_placement.title"));
         this.candidates = candidates;
     }
@@ -59,15 +61,18 @@ final class QuickLitematicaEntityPlacementScreen extends Screen {
         int left = (this.width - PANEL_WIDTH) / 2;
         int top = (this.height - PANEL_HEIGHT) / 2;
         boolean serverAvailable = QuickLitematicaEntityPlacement.isServerAvailable();
-        context.blit(RenderPipelines.GUI_TEXTURED, CHEST_TEXTURE,
-                left, top, 0, 0, PANEL_WIDTH, PANEL_HEIGHT, 256, 256);
+        context.blit(RenderPipelines.GUI_TEXTURED, CHEST_TEXTURE, left, top, 0, 0, PANEL_WIDTH, PANEL_HEIGHT, 256, 256);
         context.centeredText(this.font, this.title, this.width / 2, top + 6, 0xFFFFFFFF);
 
         int noticeY = top - 13;
         if (!serverAvailable) {
-            context.centeredText(this.font,
+            context.centeredText(
+                    this.font,
                     Component.translatable("quickcraft.entity_placement.server_unavailable"),
-                    this.width / 2, noticeY, 0xFFFF5555);
+                    this.width / 2,
+                    noticeY,
+                    0xFFFF5555
+            );
             noticeY -= 13;
         }
 
@@ -79,9 +84,13 @@ final class QuickLitematicaEntityPlacementScreen extends Screen {
                 evaluation.statuses();
         int excessCount = evaluation.excessEntities().size();
         if (excessCount > 0) {
-            context.text(this.font,
+            context.text(
+                    this.font,
                     Component.translatable("quickcraft.entity_placement.excess", excessCount),
-                    left + 8, noticeY, 0xFFD070D0);
+                    left + 8,
+                    noticeY,
+                    0xFFD070D0
+            );
         }
 
         QuickLitematicaEntityPlacement.Candidate hoveredCandidate = null;
@@ -94,7 +103,9 @@ final class QuickLitematicaEntityPlacementScreen extends Screen {
             int y = top + 18 + row * SLOT_SIZE;
             QuickLitematicaEntityPlacement.Candidate candidate = candidates.get(index);
             QuickLitematicaEntityPlacement.PlacementStatus status = statuses.getOrDefault(
-                    candidate, QuickLitematicaEntityPlacement.PlacementStatus.UNPLACED);
+                    candidate,
+                    QuickLitematicaEntityPlacement.PlacementStatus.UNPLACED
+            );
             boolean hovered = mouseX >= x && mouseX < x + 16 && mouseY >= y && mouseY < y + 16;
             context.fill(x, y, x + 16, y + 16, getSlotColor(status, hovered));
             context.item(candidate.material(), x, y);
@@ -106,8 +117,8 @@ final class QuickLitematicaEntityPlacementScreen extends Screen {
 
         QuickLitematicaEntityPlacement.ExcessDisplay hoveredExcess = null;
         int excessStart = Math.min(candidates.size(), COLUMNS * ROWS);
-        for (int index = 0; index < evaluation.excessEntities().size()
-                && excessStart + index < COLUMNS * ROWS; index++) {
+        for (int index = 0; index < evaluation.excessEntities().size() && excessStart + index < COLUMNS
+                * ROWS; index++) {
             int displayIndex = excessStart + index;
             int column = displayIndex % COLUMNS;
             int row = displayIndex / COLUMNS;
@@ -115,7 +126,8 @@ final class QuickLitematicaEntityPlacementScreen extends Screen {
             int y = top + 18 + row * SLOT_SIZE;
             QuickLitematicaEntityPlacement.ExcessDisplay excess = this.excessDisplays.computeIfAbsent(
                     evaluation.excessEntities().get(index),
-                    entity -> QuickLitematicaEntityPlacement.createExcessDisplay(entity, this.candidates));
+                    entity -> QuickLitematicaEntityPlacement.createExcessDisplay(entity, this.candidates)
+            );
             context.fill(x, y, x + 16, y + 16, 0xB06A3D9A);
             if (!excess.stack().isEmpty()) {
                 context.item(excess.stack(), x, y);
@@ -132,14 +144,17 @@ final class QuickLitematicaEntityPlacementScreen extends Screen {
             List<Component> tooltip = hoveredCandidate.getTooltip(hoveredStatus);
             context.setComponentTooltipForNextFrame(this.font, tooltip, mouseX, mouseY);
         } else if (hoveredExcess != null) {
-            context.setTooltipForNextFrame(this.font,
-                    Component.translatable("quickcraft.entity_placement.excess_entity"), mouseX, mouseY);
+            context.setTooltipForNextFrame(
+                    this.font,
+                    Component.translatable("quickcraft.entity_placement.excess_entity"),
+                    mouseX,
+                    mouseY
+            );
         }
 
         if (candidates.isEmpty()) {
             Component message = Component.translatable("quickcraft.entity_placement.empty");
-            context.text(this.font, message,
-                    (this.width - this.font.width(message)) / 2, top + 86, 0xFF404040, false);
+            context.text(this.font, message, (this.width - this.font.width(message)) / 2, top + 86, 0xFF404040, false);
         }
     }
 
@@ -186,33 +201,39 @@ final class QuickLitematicaEntityPlacementScreen extends Screen {
         if (preview == null) {
             return;
         }
-        int width = preview.type() == QuickLitematicaEntityPlacement.ContainerPreviewType.HOPPER
-                ? HOPPER_CROP_WIDTH : 176;
-        int height = preview.type() == QuickLitematicaEntityPlacement.ContainerPreviewType.HOPPER
-                ? HOPPER_CROP_HEIGHT : (preview.size() / 9) * 18 + 17;
+        int width = preview.type() == QuickLitematicaEntityPlacement.ContainerPreviewType.HOPPER ? HOPPER_CROP_WIDTH
+                : 176;
+        int height = preview.type() == QuickLitematicaEntityPlacement.ContainerPreviewType.HOPPER ? HOPPER_CROP_HEIGHT
+                : (preview.size() / 9) * 18 + 17;
         int x = mouseX + 8;
         if (x + width > this.width) {
             x = mouseX - width - 8;
         }
         int yBelow = mouseY + 32;
-        int y = yBelow + height <= this.height
-                ? yBelow
-                : Math.max(4, mouseY - height - 16);
+        int y = yBelow + height <= this.height ? yBelow : Math.max(4, mouseY - height - 16);
         if (preview.type() == QuickLitematicaEntityPlacement.ContainerPreviewType.HOPPER) {
-            context.blit(RenderPipelines.GUI_TEXTURED, HOPPER_TEXTURE, x, y,
-                    HOPPER_CROP_X, HOPPER_CROP_Y, HOPPER_CROP_WIDTH, HOPPER_CROP_HEIGHT, 256, 256);
+            context.blit(
+                    RenderPipelines.GUI_TEXTURED,
+                    HOPPER_TEXTURE,
+                    x,
+                    y,
+                    HOPPER_CROP_X,
+                    HOPPER_CROP_Y,
+                    HOPPER_CROP_WIDTH,
+                    HOPPER_CROP_HEIGHT,
+                    256,
+                    256
+            );
             List<ItemStack> stacks = candidate.getStoredStacks(this.minecraft, preview.size());
             for (int slot = 0; slot < stacks.size(); slot++) {
                 drawStack(context, stacks.get(slot), x + 6 + slot * SLOT_SIZE, y + 8);
             }
         } else {
             int rows = preview.size() / 9;
-            context.blit(RenderPipelines.GUI_TEXTURED, CHEST_TEXTURE,
-                    x, y, 0, 0, width, rows * 18 + 17, 256, 256);
+            context.blit(RenderPipelines.GUI_TEXTURED, CHEST_TEXTURE, x, y, 0, 0, width, rows * 18 + 17, 256, 256);
             List<ItemStack> stacks = candidate.getStoredStacks(this.minecraft, preview.size());
             for (int slot = 0; slot < stacks.size(); slot++) {
-                drawStack(context, stacks.get(slot), x + 8 + (slot % 9) * SLOT_SIZE,
-                        y + 18 + (slot / 9) * SLOT_SIZE);
+                drawStack(context, stacks.get(slot), x + 8 + (slot % 9) * SLOT_SIZE, y + 18 + (slot / 9) * SLOT_SIZE);
             }
         }
     }
@@ -234,9 +255,8 @@ final class QuickLitematicaEntityPlacementScreen extends Screen {
         int top = (this.height - PANEL_HEIGHT) / 2;
         int index = cellIndexAt(mouseX, mouseY, left, top, candidates.size());
         if (index >= 0) {
-            QuickLitematicaEntityPlacement.PlacementRequestResult result =
-                    QuickLitematicaEntityPlacement.requestPlacement(
-                            this.minecraft, candidates.get(index), this.candidates);
+            QuickLitematicaEntityPlacement.PlacementRequestResult result = QuickLitematicaEntityPlacement
+                    .requestPlacement(this.minecraft, candidates.get(index), this.candidates);
             if (this.handlePlacementResult(result)) {
                 this.onClose();
             } else if (result.outcome() != QuickLitematicaEntityPlacement.PlacementRequestOutcome.REJECTED) {
@@ -260,9 +280,8 @@ final class QuickLitematicaEntityPlacementScreen extends Screen {
             return -1;
         }
         int index = row * COLUMNS + column;
-        if (index >= candidateCount
-                || mouseX >= left + 8 + column * SLOT_SIZE + 16
-                || mouseY >= top + 18 + row * SLOT_SIZE + 16) {
+        if (index >= candidateCount || mouseX >= left + 8 + column * SLOT_SIZE + 16 || mouseY >= top + 18 + row
+                * SLOT_SIZE + 16) {
             return -1;
         }
         return index;
@@ -279,8 +298,10 @@ final class QuickLitematicaEntityPlacementScreen extends Screen {
         this.evaluation = evaluation;
         this.excessDisplays.clear();
         for (Entity entity : evaluation.excessEntities()) {
-            this.excessDisplays.put(entity,
-                    QuickLitematicaEntityPlacement.createExcessDisplay(entity, this.candidates));
+            this.excessDisplays.put(
+                    entity,
+                    QuickLitematicaEntityPlacement.createExcessDisplay(entity, this.candidates)
+            );
         }
     }
 
@@ -302,8 +323,9 @@ final class QuickLitematicaEntityPlacementScreen extends Screen {
         int remaining = 0;
         for (QuickLitematicaEntityPlacement.Candidate candidate : this.candidates) {
             if (this.evaluation.statuses().getOrDefault(
-                    candidate, QuickLitematicaEntityPlacement.PlacementStatus.UNPLACED)
-                    != QuickLitematicaEntityPlacement.PlacementStatus.MATCHED) {
+                    candidate,
+                    QuickLitematicaEntityPlacement.PlacementStatus.UNPLACED
+            ) != QuickLitematicaEntityPlacement.PlacementStatus.MATCHED) {
                 remaining++;
             }
         }

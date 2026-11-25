@@ -32,20 +32,73 @@ class QuickLitematicaMaterialNavigationTest {
         int startRow = 3;
         int pressY = 8;
         int thumbY = QuickLitematicaMaterialReplacementScreen.scrollbarThumbY(
-                gridY, gridHeight, thumbHeight, maxRow, startRow);
+                gridY,
+                gridHeight,
+                thumbHeight,
+                maxRow,
+                startRow
+        );
         assertThat(thumbY).isEqualTo(3);
-        assertThat(QuickLitematicaMaterialReplacementScreen.scrollbarRowAtPress(
-                pressY, gridY, gridHeight, thumbHeight, maxRow, startRow)).isEqualTo(startRow);
-        assertThat(QuickLitematicaMaterialReplacementScreen.scrollbarRowFromDrag(
-                startRow, pressY, pressY, gridHeight, thumbHeight, maxRow)).isEqualTo(startRow);
-        assertThat(QuickLitematicaMaterialReplacementScreen.scrollbarRowFromDrag(
-                startRow, pressY, pressY + 40, gridHeight, thumbHeight, maxRow)).isGreaterThan(startRow);
-        assertThat(QuickLitematicaMaterialReplacementScreen.scrollbarRowFromDrag(
-                startRow, pressY, pressY, gridHeight, thumbHeight, maxRow)).isEqualTo(startRow);
-        assertThat(QuickLitematicaMaterialReplacementScreen.scrollbarRowFromDrag(
-                startRow, pressY, -1000, gridHeight, thumbHeight, maxRow)).isZero();
-        assertThat(QuickLitematicaMaterialReplacementScreen.scrollbarRowFromDrag(
-                startRow, pressY, 1000, gridHeight, thumbHeight, maxRow)).isEqualTo(maxRow);
+        assertThat(
+                QuickLitematicaMaterialReplacementScreen.scrollbarRowAtPress(
+                        pressY,
+                        gridY,
+                        gridHeight,
+                        thumbHeight,
+                        maxRow,
+                        startRow
+                )
+        ).isEqualTo(startRow);
+        assertThat(
+                QuickLitematicaMaterialReplacementScreen.scrollbarRowFromDrag(
+                        startRow,
+                        pressY,
+                        pressY,
+                        gridHeight,
+                        thumbHeight,
+                        maxRow
+                )
+        ).isEqualTo(startRow);
+        assertThat(
+                QuickLitematicaMaterialReplacementScreen.scrollbarRowFromDrag(
+                        startRow,
+                        pressY,
+                        pressY + 40,
+                        gridHeight,
+                        thumbHeight,
+                        maxRow
+                )
+        ).isGreaterThan(startRow);
+        assertThat(
+                QuickLitematicaMaterialReplacementScreen.scrollbarRowFromDrag(
+                        startRow,
+                        pressY,
+                        pressY,
+                        gridHeight,
+                        thumbHeight,
+                        maxRow
+                )
+        ).isEqualTo(startRow);
+        assertThat(
+                QuickLitematicaMaterialReplacementScreen.scrollbarRowFromDrag(
+                        startRow,
+                        pressY,
+                        -1000,
+                        gridHeight,
+                        thumbHeight,
+                        maxRow
+                )
+        ).isZero();
+        assertThat(
+                QuickLitematicaMaterialReplacementScreen.scrollbarRowFromDrag(
+                        startRow,
+                        pressY,
+                        1000,
+                        gridHeight,
+                        thumbHeight,
+                        maxRow
+                )
+        ).isEqualTo(maxRow);
     }
 
     @Test
@@ -55,12 +108,36 @@ class QuickLitematicaMaterialNavigationTest {
         int thumbHeight = 18;
         int maxRow = 95;
         int rowIndex = 50;
-        assertThat(QuickLitematicaMaterialReplacementScreen.scrollbarRowAtPress(
-                40, gridY, gridHeight, thumbHeight, maxRow, rowIndex)).isEqualTo(24);
-        assertThat(QuickLitematicaMaterialReplacementScreen.scrollbarRowAtPress(
-                0, gridY, gridHeight, thumbHeight, maxRow, rowIndex)).isZero();
-        assertThat(QuickLitematicaMaterialReplacementScreen.scrollbarRowAtPress(
-                gridHeight - 1, gridY, gridHeight, thumbHeight, maxRow, rowIndex)).isEqualTo(maxRow);
+        assertThat(
+                QuickLitematicaMaterialReplacementScreen.scrollbarRowAtPress(
+                        40,
+                        gridY,
+                        gridHeight,
+                        thumbHeight,
+                        maxRow,
+                        rowIndex
+                )
+        ).isEqualTo(24);
+        assertThat(
+                QuickLitematicaMaterialReplacementScreen.scrollbarRowAtPress(
+                        0,
+                        gridY,
+                        gridHeight,
+                        thumbHeight,
+                        maxRow,
+                        rowIndex
+                )
+        ).isZero();
+        assertThat(
+                QuickLitematicaMaterialReplacementScreen.scrollbarRowAtPress(
+                        gridHeight - 1,
+                        gridY,
+                        gridHeight,
+                        thumbHeight,
+                        maxRow,
+                        rowIndex
+                )
+        ).isEqualTo(maxRow);
     }
 
     @Test
@@ -76,34 +153,37 @@ class QuickLitematicaMaterialNavigationTest {
 
     @Test
     void wrapsEveryButtonWithoutHidingOperations() {
-        var layout = QuickLitematicaMaterialLayout.rows(100, 0, new int[] {40, 50, 70});
+        var layout = QuickLitematicaMaterialLayout.rows(100, 0, new int[] { 40, 50, 70 });
         assertThat(layout.slots()).containsExactly(
                 new QuickLitematicaMaterialLayout.Slot(0, 0, 40),
                 new QuickLitematicaMaterialLayout.Slot(42, 0, 50),
-                new QuickLitematicaMaterialLayout.Slot(0, 24, 70));
+                new QuickLitematicaMaterialLayout.Slot(0, 24, 70)
+        );
         assertThat(layout.height()).isEqualTo(48);
     }
 
     @Test
     void reservesMultiplierSpaceOnlyOnFirstRowAndClampsOversizedButtons() {
-        var reserved = QuickLitematicaMaterialLayout.rows(100, 70, new int[] {40, 50});
+        var reserved = QuickLitematicaMaterialLayout.rows(100, 70, new int[] { 40, 50 });
         assertThat(reserved.slots()).containsExactly(
                 new QuickLitematicaMaterialLayout.Slot(0, 24, 40),
-                new QuickLitematicaMaterialLayout.Slot(42, 24, 50));
-        var oversized = QuickLitematicaMaterialLayout.rows(100, 0, new int[] {200, 30});
+                new QuickLitematicaMaterialLayout.Slot(42, 24, 50)
+        );
+        var oversized = QuickLitematicaMaterialLayout.rows(100, 0, new int[] { 200, 30 });
         assertThat(oversized.slots()).containsExactly(
                 new QuickLitematicaMaterialLayout.Slot(0, 0, 100),
-                new QuickLitematicaMaterialLayout.Slot(0, 24, 30));
+                new QuickLitematicaMaterialLayout.Slot(0, 24, 30)
+        );
         assertThat(oversized.height()).isEqualTo(48);
     }
 
     @Test
     void reservesTotalLineAboveBottomNavigationEvenWhenButtonsWrap() {
-        var wide = QuickLitematicaMaterialLayout.footer(300, 600, new int[] {90, 90, 90, 90, 90});
+        var wide = QuickLitematicaMaterialLayout.footer(300, 600, new int[] { 90, 90, 90, 90, 90 });
         assertThat(wide.buttonsY()).isEqualTo(276);
         assertThat(wide.totalY() + 12).isLessThanOrEqualTo(wide.buttonsY());
         assertThat(wide.listBottom()).isLessThan(wide.totalY());
-        var narrow = QuickLitematicaMaterialLayout.footer(300, 200, new int[] {90, 90, 90, 90, 90});
+        var narrow = QuickLitematicaMaterialLayout.footer(300, 200, new int[] { 90, 90, 90, 90, 90 });
         assertThat(narrow.buttonsY()).isEqualTo(228);
         assertThat(narrow.totalY() + 12).isLessThanOrEqualTo(narrow.buttonsY());
         assertThat(narrow.listBottom()).isLessThan(narrow.totalY());
@@ -111,19 +191,23 @@ class QuickLitematicaMaterialNavigationTest {
 
     @Test
     void keepsBatchReplacementAndClearSelectionTogetherWhenWrapping() {
-        var layout = QuickLitematicaMaterialLayout.rows(200, 0, new int[] {90, 60, 60}, 2);
+        var layout = QuickLitematicaMaterialLayout.rows(200, 0, new int[] { 90, 60, 60 }, 2);
         assertThat(layout.slots()).containsExactly(
                 new QuickLitematicaMaterialLayout.Slot(0, 0, 90),
                 new QuickLitematicaMaterialLayout.Slot(0, 24, 60),
-                new QuickLitematicaMaterialLayout.Slot(62, 24, 60));
-        var tiny = QuickLitematicaMaterialLayout.rows(50, 0, new int[] {40, 40}, 2);
+                new QuickLitematicaMaterialLayout.Slot(62, 24, 60)
+        );
+        var tiny = QuickLitematicaMaterialLayout.rows(50, 0, new int[] { 40, 40 }, 2);
         assertThat(tiny.slots().getLast().y()).isEqualTo(24);
     }
 
     @Test
     void repeatedScreenInitializationKeepsFileSourceAndRegionScope() {
         var schematic = mock(LitematicaSchematic.class);
-        var list = mock(MaterialListBase.class, withSettings().extraInterfaces(LitematicaMaterialListSchematicAccessor.class));
+        var list = mock(
+                MaterialListBase.class,
+                withSettings().extraInterfaces(LitematicaMaterialListSchematicAccessor.class)
+        );
         var source = (LitematicaMaterialListSchematicAccessor) list;
         when(source.quickcraft$getSchematic()).thenReturn(schematic);
         when(source.quickcraft$getRegions()).thenReturn(ImmutableList.of("selected"));
@@ -134,7 +218,9 @@ class QuickLitematicaMaterialNavigationTest {
         assertThat(first.regions).containsExactly("selected");
         assertThat(first.world).isFalse();
         assertThat(first.placement).isNull();
-        assertThat(first.views(QuickLitematicaMaterialNavigation.View.ENTITIES)).contains(QuickLitematicaMaterialNavigation.View.ENTITIES);
+        assertThat(first.views(QuickLitematicaMaterialNavigation.View.ENTITIES)).contains(
+                QuickLitematicaMaterialNavigation.View.ENTITIES
+        );
     }
 
     @Test
@@ -142,24 +228,37 @@ class QuickLitematicaMaterialNavigationTest {
         var placement = mock(SchematicPlacement.class);
         var schematic = mock(LitematicaSchematic.class);
         when(placement.getSchematic()).thenReturn(schematic);
-        when(placement.getEnabledRelativeSubRegionPlacements()).thenReturn(ImmutableMap.of("enabled", mock(SubRegionPlacement.class)));
-        var list = mock(MaterialListBase.class, withSettings().extraInterfaces(LitematicaMaterialListPlacementAccessor.class));
+        when(placement.getEnabledRelativeSubRegionPlacements()).thenReturn(
+                ImmutableMap.of("enabled", mock(SubRegionPlacement.class))
+        );
+        var list = mock(
+                MaterialListBase.class,
+                withSettings().extraInterfaces(LitematicaMaterialListPlacementAccessor.class)
+        );
         when(((LitematicaMaterialListPlacementAccessor) list).quickcraft$getPlacement()).thenReturn(placement);
         var navigation = QuickLitematicaMaterialNavigation.bind(screen(list));
         assertThat(navigation.world).isTrue();
         assertThat(navigation.placement).isSameAs(placement);
         assertThat(navigation.schematic).isSameAs(schematic);
         assertThat(navigation.regions).containsExactly("enabled");
-        assertThat(navigation.views(QuickLitematicaMaterialNavigation.View.ENTITIES)).doesNotContain(QuickLitematicaMaterialNavigation.View.ENTITIES);
+        assertThat(navigation.views(QuickLitematicaMaterialNavigation.View.ENTITIES)).doesNotContain(
+                QuickLitematicaMaterialNavigation.View.ENTITIES
+        );
     }
 
     private static GuiMaterialList screen(MaterialListBase list) {
-        var screen = mock(GuiMaterialList.class, withSettings().extraInterfaces(QuickLitematicaMaterialNavigation.NavigationScreen.class));
+        var screen = mock(
+                GuiMaterialList.class,
+                withSettings().extraInterfaces(QuickLitematicaMaterialNavigation.NavigationScreen.class)
+        );
         when(screen.getMaterialList()).thenReturn(list);
         var access = (QuickLitematicaMaterialNavigation.NavigationScreen) screen;
         var navigation = new AtomicReference<QuickLitematicaMaterialNavigation>();
         when(access.quickcraft$getNavigation()).thenAnswer(ignored -> navigation.get());
-        doAnswer(invocation -> { navigation.set(invocation.getArgument(0)); return null; }).when(access).quickcraft$setNavigation(any());
+        doAnswer(invocation -> {
+            navigation.set(invocation.getArgument(0));
+            return null;
+        }).when(access).quickcraft$setNavigation(any());
         return screen;
     }
 }

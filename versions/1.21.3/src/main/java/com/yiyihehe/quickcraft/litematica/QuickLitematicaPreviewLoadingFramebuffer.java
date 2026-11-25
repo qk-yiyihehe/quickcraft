@@ -15,7 +15,9 @@ import net.minecraft.client.render.VertexFormats;
 final class QuickLitematicaPreviewLoadingFramebuffer implements AutoCloseable {
     private Framebuffer framebuffer;
 
-    boolean hasSize(int size) { return this.framebuffer != null && this.framebuffer.textureWidth == size; }
+    boolean hasSize(int size) {
+        return this.framebuffer != null && this.framebuffer.textureWidth == size;
+    }
 
     Framebuffer prepare(int size) {
         if (!this.hasSize(size)) {
@@ -27,7 +29,9 @@ final class QuickLitematicaPreviewLoadingFramebuffer implements AutoCloseable {
         return this.framebuffer;
     }
 
-    void restore() { MinecraftClient.getInstance().getFramebuffer().beginWrite(true); }
+    void restore() {
+        MinecraftClient.getInstance().getFramebuffer().beginWrite(true);
+    }
 
     void blit(DrawContext context, int x, int y, int size) {
         context.enableScissor(x + 1, y + 1, x + size - 2, y + size - 2);
@@ -41,7 +45,10 @@ final class QuickLitematicaPreviewLoadingFramebuffer implements AutoCloseable {
             RenderSystem.setShader(ShaderProgramKeys.POSITION_TEX);
             RenderSystem.setShaderTexture(0, this.framebuffer.getColorAttachment());
             var matrix = context.getMatrices().peek().getPositionMatrix();
-            BufferBuilder builder = Tessellator.getInstance().begin(VertexFormat.DrawMode.QUADS, VertexFormats.POSITION_TEXTURE);
+            BufferBuilder builder = Tessellator.getInstance().begin(
+                    VertexFormat.DrawMode.QUADS,
+                    VertexFormats.POSITION_TEXTURE
+            );
             builder.vertex(matrix, x, y, 0).texture(0, 1);
             builder.vertex(matrix, x, y + size, 0).texture(0, 0);
             builder.vertex(matrix, x + size, y + size, 0).texture(1, 0);
@@ -55,7 +62,8 @@ final class QuickLitematicaPreviewLoadingFramebuffer implements AutoCloseable {
         }
     }
 
-    @Override public void close() {
+    @Override
+    public void close() {
         if (this.framebuffer != null) {
             this.framebuffer.delete();
             this.framebuffer = null;

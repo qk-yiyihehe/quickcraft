@@ -68,8 +68,9 @@ class QuickLitematicaShulkerNestedCountTest {
         assertThat(findGroup(otherGroups, child)).isNull();
         Object hudParent = findGroup(hudGroups, parent);
         Object otherParent = findGroup(otherGroups, parent);
-        assertThat(hudParent.getClass().getMethod("signature").invoke(hudParent))
-                .isEqualTo(otherParent.getClass().getMethod("signature").invoke(otherParent));
+        assertThat(hudParent.getClass().getMethod("signature").invoke(hudParent)).isEqualTo(
+                otherParent.getClass().getMethod("signature").invoke(otherParent)
+        );
     }
 
     private static List<?> collect(ItemStack parent, int parentCount) throws Exception {
@@ -78,21 +79,31 @@ class QuickLitematicaShulkerNestedCountTest {
 
     private static List<?> collect(ItemStack parent, int parentCount, boolean hudStatistics) throws Exception {
         Class<?> accumulatorType = Class.forName(
-                "com.yiyihehe.quickcraft.litematica.QuickLitematicaContainerMaterials$GroupAccumulator");
+                "com.yiyihehe.quickcraft.litematica.QuickLitematicaContainerMaterials$GroupAccumulator"
+        );
         Constructor<?> constructor = accumulatorType.getDeclaredConstructor(boolean.class);
         constructor.setAccessible(true);
         Object accumulator = constructor.newInstance(hudStatistics);
 
         Class<?> itemCountType = Class.forName(
-                "com.yiyihehe.quickcraft.litematica.QuickLitematicaContainerMaterials$ItemCount");
+                "com.yiyihehe.quickcraft.litematica.QuickLitematicaContainerMaterials$ItemCount"
+        );
         Constructor<?> itemCountConstructor = itemCountType.getDeclaredConstructor(
-                ItemStack.class, int.class, String.class);
+                ItemStack.class,
+                int.class,
+                String.class
+        );
         itemCountConstructor.setAccessible(true);
         Object itemCount = itemCountConstructor.newInstance(parent, parentCount, "");
 
         Method add = QuickLitematicaContainerMaterials.class.getDeclaredMethod(
-                "addStoredShulkerGroups", accumulatorType, String.class,
-                List.class, int.class, int.class);
+                "addStoredShulkerGroups",
+                accumulatorType,
+                String.class,
+                List.class,
+                int.class,
+                int.class
+        );
         add.setAccessible(true);
         add.invoke(null, accumulator, "source", List.of(itemCount), 0, 1);
 

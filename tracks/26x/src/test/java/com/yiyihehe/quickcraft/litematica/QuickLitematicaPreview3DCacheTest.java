@@ -45,8 +45,14 @@ class QuickLitematicaPreview3DCacheTest {
         Path second = this.temporaryDirectory.resolve("second.qcp3d");
         var active = QuickLitematicaPreviewCache.writeAsync(first, () -> {
             entered.countDown();
-            try { if (!release.await(10, TimeUnit.SECONDS)) throw new AssertionError("writer not released"); }
-            catch (InterruptedException e) { Thread.currentThread().interrupt(); throw new AssertionError(e); }
+            try {
+                if (!release.await(10, TimeUnit.SECONDS)) {
+                    throw new AssertionError("writer not released");
+                }
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                throw new AssertionError(e);
+            }
         }, null, null, null, 0L, null, null);
         java.util.concurrent.CompletableFuture<Void> queued = null;
         var store = new QuickLitematicaPreviewMeshStore(this.temporaryDirectory);
@@ -57,9 +63,9 @@ class QuickLitematicaPreview3DCacheTest {
             writesField.setAccessible(true);
             var writes = (java.util.Map<?, ?>) writesField.get(null);
             Object pending = writes.get(second);
-            assertThatThrownBy(() -> QuickLitematicaPreviewCache.writeAsync(second,
-                    () -> { throw new AssertionError("rejected writer executed"); }, null, null, null, 0L, null, null))
-                    .isInstanceOf(java.util.concurrent.RejectedExecutionException.class);
+            assertThatThrownBy(() -> QuickLitematicaPreviewCache.writeAsync(second, () -> {
+                throw new AssertionError("rejected writer executed");
+            }, null, null, null, 0L, null, null)).isInstanceOf(java.util.concurrent.RejectedExecutionException.class);
             assertThat(writes.get(second)).isSameAs(pending);
             var preview = mock(QuickLitematicaPreview3D.Preview.class, CALLS_REAL_METHODS);
             setField(preview, "cachePersistenceAllowed", true);
@@ -67,22 +73,36 @@ class QuickLitematicaPreview3DCacheTest {
             setField(preview, "cachePath", second);
             setField(preview, "trace", new QuickLitematicaPreviewLog.Trace(first, 0L));
             setField(preview, "staticMeshStore", store);
-            var save = QuickLitematicaPreview3D.Preview.class.getDeclaredMethod("saveCacheAsync",
-                    QuickLitematicaPreview3D.MeshData.class, String.class, String.class,
-                    fi.dy.masa.litematica.schematic.LitematicaSchematic.class);
+            var save = QuickLitematicaPreview3D.Preview.class.getDeclaredMethod(
+                    "saveCacheAsync",
+                    QuickLitematicaPreview3D.MeshData.class,
+                    String.class,
+                    String.class,
+                    fi.dy.masa.litematica.schematic.LitematicaSchematic.class
+            );
             save.setAccessible(true);
-            save.invoke(preview, new QuickLitematicaPreview3D.MeshData(List.of(), List.of(), List.of(), List.of(), 1, 1, 1),
-                    "hash", "structure", null);
+            save.invoke(
+                    preview,
+                    new QuickLitematicaPreview3D.MeshData(List.of(), List.of(), List.of(), List.of(), 1, 1, 1),
+                    "hash",
+                    "structure",
+                    null
+            );
             var refs = QuickLitematicaPreviewMeshStore.class.getDeclaredField("references");
             refs.setAccessible(true);
             assertThat(refs.getInt(store)).isEqualTo(1);
         } finally {
             release.countDown();
             active.get(5, TimeUnit.SECONDS);
-            if (queued != null) queued.get(5, TimeUnit.SECONDS);
+            if (queued != null) {
+                queued.get(5, TimeUnit.SECONDS);
+            }
             store.close();
         }
-        QuickLitematicaPreviewCache.writeAsync(first, () -> {}, null, null, null, 0L, null, null).get(5, TimeUnit.SECONDS);
+        QuickLitematicaPreviewCache.writeAsync(first, () -> {}, null, null, null, 0L, null, null).get(
+                5,
+                TimeUnit.SECONDS
+        );
     }
 
     @Test
@@ -99,8 +119,13 @@ class QuickLitematicaPreview3DCacheTest {
         Path path = this.temporaryDirectory.resolve("same-path.litematic");
         assertThat(QuickLitematicaPreview3D.shouldSwitchPreviewSource(path, path, false)).isTrue();
         assertThat(QuickLitematicaPreview3D.shouldSwitchPreviewSource(path, path, true)).isFalse();
-        assertThat(QuickLitematicaPreview3D.shouldSwitchPreviewSource(
-                path, this.temporaryDirectory.resolve("other.litematic"), true)).isTrue();
+        assertThat(
+                QuickLitematicaPreview3D.shouldSwitchPreviewSource(
+                        path,
+                        this.temporaryDirectory.resolve("other.litematic"),
+                        true
+                )
+        ).isTrue();
     }
 
     @Test
@@ -108,22 +133,47 @@ class QuickLitematicaPreview3DCacheTest {
         Path cache = this.temporaryDirectory.resolve("forced.qcp3d");
         int count = QuickLitematicaPreview3D.MAX_DYNAMIC_ENTITIES + 1;
         var entity = new QuickLitematicaPreview3D.EntityData(0, 0, 0, new CompoundTag());
-        var mesh = new QuickLitematicaPreview3D.MeshData(List.of(), List.of(), List.of(),
-                Collections.nCopies(count, entity), 1, 1, 1);
+        var mesh = new QuickLitematicaPreview3D.MeshData(
+                List.of(),
+                List.of(),
+                List.of(),
+                Collections.nCopies(count, entity),
+                1,
+                1,
+                1
+        );
         QuickLitematicaPreviewCache.CacheFile.writeAtomically(
-                this.temporaryDirectory.resolve("forced.tmp"), cache, mesh, mesh.layers(),
-                "struct-test", "pack-test", new AtomicBoolean(), progress -> {});
+                this.temporaryDirectory.resolve("forced.tmp"),
+                cache,
+                mesh,
+                mesh.layers(),
+                "struct-test",
+                "pack-test",
+                new AtomicBoolean(),
+                progress -> {}
+        );
         byte[] original = Files.readAllBytes(cache);
 
-        assertThatThrownBy(() -> QuickLitematicaPreviewCache.CacheFile.read(
-                cache, new AtomicBoolean(), null, "struct-test", "pack-test"))
-                .isInstanceOf(QuickLitematicaPreview3D.PreviewTooLargeException.class);
+        assertThatThrownBy(
+                () -> QuickLitematicaPreviewCache.CacheFile.read(
+                        cache,
+                        new AtomicBoolean(),
+                        null,
+                        "struct-test",
+                        "pack-test"
+                )
+        ).isInstanceOf(QuickLitematicaPreview3D.PreviewTooLargeException.class);
         assertThat(Files.readAllBytes(cache)).containsExactly(original);
 
         AtomicReference<QuickLitematicaPreview3D.MeshData> restored = new AtomicReference<>();
         QuickLitematicaPreviewVertexBudget.run(true, () -> {
             var loaded = QuickLitematicaPreviewCache.CacheFile.read(
-                    cache, new AtomicBoolean(), null, "struct-test", "pack-test");
+                    cache,
+                    new AtomicBoolean(),
+                    null,
+                    "struct-test",
+                    "pack-test"
+            );
             assertThat(loaded).isNotNull();
             assertThat(loaded.withinBudget()).isTrue();
             restored.set(loaded);
@@ -138,13 +188,24 @@ class QuickLitematicaPreview3DCacheTest {
         Path cache = writeNbtCache(1100, true);
         byte[] original = Files.readAllBytes(cache);
         try (var budgets = smallCacheNbtBudgets()) {
-            assertThatThrownBy(() -> QuickLitematicaPreviewCache.CacheFile.read(
-                    cache, new AtomicBoolean(), null, "struct-test", "pack-test"))
-                    .isInstanceOf(QuickLitematicaPreview3D.PreviewTooLargeException.class);
+            assertThatThrownBy(
+                    () -> QuickLitematicaPreviewCache.CacheFile.read(
+                            cache,
+                            new AtomicBoolean(),
+                            null,
+                            "struct-test",
+                            "pack-test"
+                    )
+            ).isInstanceOf(QuickLitematicaPreview3D.PreviewTooLargeException.class);
             assertThat(Files.readAllBytes(cache)).containsExactly(original);
             QuickLitematicaPreviewVertexBudget.run(true, () -> {
                 var loaded = QuickLitematicaPreviewCache.CacheFile.read(
-                        cache, new AtomicBoolean(), null, "struct-test", "pack-test");
+                        cache,
+                        new AtomicBoolean(),
+                        null,
+                        "struct-test",
+                        "pack-test"
+                );
                 assertThat(loaded).isNotNull();
                 assertThat(loaded.blockStates()).hasSize(1);
                 assertThat(loaded.blockEntities()).hasSize(1);
@@ -159,7 +220,12 @@ class QuickLitematicaPreview3DCacheTest {
         Path cache = writeNbtCache(100, true);
         try (var budgets = smallCacheNbtBudgets()) {
             var loaded = QuickLitematicaPreviewCache.CacheFile.read(
-                    cache, new AtomicBoolean(), null, "struct-test", "pack-test");
+                    cache,
+                    new AtomicBoolean(),
+                    null,
+                    "struct-test",
+                    "pack-test"
+            );
             assertThat(loaded).isNotNull();
             assertThat(loaded.blockStates()).hasSize(1);
             assertThat(loaded.blockEntities()).hasSize(1);
@@ -171,9 +237,15 @@ class QuickLitematicaPreview3DCacheTest {
     void stillRejectsOneNbtAboveItsIndividualBudget() throws Exception {
         Path cache = writeNbtCache(2200, false);
         try (var budgets = smallCacheNbtBudgets()) {
-            assertThatThrownBy(() -> QuickLitematicaPreviewCache.CacheFile.read(
-                    cache, new AtomicBoolean(), null, "struct-test", "pack-test"))
-                    .isInstanceOf(QuickLitematicaPreview3D.PreviewTooLargeException.class);
+            assertThatThrownBy(
+                    () -> QuickLitematicaPreviewCache.CacheFile.read(
+                            cache,
+                            new AtomicBoolean(),
+                            null,
+                            "struct-test",
+                            "pack-test"
+                    )
+            ).isInstanceOf(QuickLitematicaPreview3D.PreviewTooLargeException.class);
         }
         assertThat(cache).exists();
     }
@@ -181,24 +253,38 @@ class QuickLitematicaPreview3DCacheTest {
     private Path writeNbtCache(int payloadBytes, boolean allSections) throws Exception {
         var nbt = new CompoundTag();
         nbt.putByteArray("payload", new byte[payloadBytes]);
-        var mesh = new QuickLitematicaPreview3D.MeshData(List.of(),
+        var mesh = new QuickLitematicaPreview3D.MeshData(
+                List.of(),
                 allSections ? List.of(new QuickLitematicaPreview3D.BlockStateData(0, 0, 0, nbt)) : List.of(),
                 allSections ? List.of(new QuickLitematicaPreview3D.BlockEntityData(0, 0, 0, nbt, nbt)) : List.of(),
-                List.of(new QuickLitematicaPreview3D.EntityData(0, 0, 0, nbt)), 1, 1, 1);
+                List.of(new QuickLitematicaPreview3D.EntityData(0, 0, 0, nbt)),
+                1,
+                1,
+                1
+        );
         Path cache = this.temporaryDirectory.resolve("nbt-" + payloadBytes + ".qcp3d");
         QuickLitematicaPreviewCache.CacheFile.writeAtomically(
-                this.temporaryDirectory.resolve("nbt.tmp"), cache, mesh, mesh.layers(),
-                "struct-test", "pack-test", new AtomicBoolean(), progress -> {});
+                this.temporaryDirectory.resolve("nbt.tmp"),
+                cache,
+                mesh,
+                mesh.layers(),
+                "struct-test",
+                "pack-test",
+                new AtomicBoolean(),
+                progress -> {}
+        );
         return cache;
     }
 
     private static org.mockito.MockedStatic<QuickLitematicaPreviewVertexBudget> smallCacheNbtBudgets() {
         var budgets = mockStatic(QuickLitematicaPreviewVertexBudget.class, CALLS_REAL_METHODS);
         // 只缩小额度；解码、累计分配计数和强制模式仍走真实生产路径。
-        budgets.when(() -> QuickLitematicaPreviewVertexBudget.nbtByteLimit(32L << 20))
-                .thenAnswer(ignored -> QuickLitematicaPreviewVertexBudget.isForced() ? Long.MAX_VALUE : 2048L);
-        budgets.when(() -> QuickLitematicaPreviewVertexBudget.nbtByteLimit(256L << 20))
-                .thenAnswer(ignored -> QuickLitematicaPreviewVertexBudget.isForced() ? Long.MAX_VALUE : 4096L);
+        budgets.when(() -> QuickLitematicaPreviewVertexBudget.nbtByteLimit(32L << 20)).thenAnswer(
+                ignored -> QuickLitematicaPreviewVertexBudget.isForced() ? Long.MAX_VALUE : 2048L
+        );
+        budgets.when(() -> QuickLitematicaPreviewVertexBudget.nbtByteLimit(256L << 20)).thenAnswer(
+                ignored -> QuickLitematicaPreviewVertexBudget.isForced() ? Long.MAX_VALUE : 4096L
+        );
         return budgets;
     }
 
@@ -206,8 +292,8 @@ class QuickLitematicaPreview3DCacheTest {
     void hashesFileContentsInsteadOfFileMetadata() throws Exception {
         Path first = this.temporaryDirectory.resolve("first.litematic");
         Path second = this.temporaryDirectory.resolve("second.litematic");
-        Files.write(first, new byte[]{1, 2, 3, 4});
-        Files.write(second, new byte[]{1, 2, 3, 5});
+        Files.write(first, new byte[] { 1, 2, 3, 4 });
+        Files.write(second, new byte[] { 1, 2, 3, 5 });
         Files.setLastModifiedTime(second, Files.getLastModifiedTime(first));
 
         String firstHash = QuickLitematicaPreviewCache.hashFile(first);
@@ -220,10 +306,10 @@ class QuickLitematicaPreview3DCacheTest {
     @Test
     void keepsOneCacheSlotWhenTheSameProjectionChanges() throws Exception {
         Path schematic = this.temporaryDirectory.resolve("same-name.litematic");
-        Files.write(schematic, new byte[]{1, 2, 3});
+        Files.write(schematic, new byte[] { 1, 2, 3 });
         String initialSlot = QuickLitematicaPreviewCache.cacheKey(schematic);
 
-        Files.write(schematic, new byte[]{4, 5, 6, 7});
+        Files.write(schematic, new byte[] { 4, 5, 6, 7 });
 
         assertThat(QuickLitematicaPreviewCache.cacheKey(schematic)).isEqualTo(initialSlot);
     }
@@ -235,7 +321,9 @@ class QuickLitematicaPreview3DCacheTest {
         CountDownLatch allowWrite = new CountDownLatch(1);
         var write = QuickLitematicaPreviewCache.writeAsync(cache, () -> {
             try {
-                if (!allowWrite.await(5, TimeUnit.SECONDS)) throw new IllegalStateException("Write timed out");
+                if (!allowWrite.await(5, TimeUnit.SECONDS)) {
+                    throw new IllegalStateException("Write timed out");
+                }
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
                 throw new IllegalStateException(e);
@@ -260,8 +348,10 @@ class QuickLitematicaPreview3DCacheTest {
         var write = QuickLitematicaPreviewCache.writeAsync(cache, () -> {
             writeStarted.countDown();
             try {
-                if (!allowWrite.await(5, TimeUnit.SECONDS)) throw new IllegalStateException("Write timed out");
-                Files.write(cache, new byte[]{1, 2, 3});
+                if (!allowWrite.await(5, TimeUnit.SECONDS)) {
+                    throw new IllegalStateException("Write timed out");
+                }
+                Files.write(cache, new byte[] { 1, 2, 3 });
             } catch (Exception e) {
                 throw new IllegalStateException(e);
             }
@@ -294,6 +384,7 @@ class QuickLitematicaPreview3DCacheTest {
         QuickLitematicaPreviewCache.awaitPendingWrite(cache);
         assertThat(Files.readAllBytes(cache)).containsExactly(1, 2, 3);
     }
+
     @Test
     void dropsStaleConvertedBeforeSchematicReadFailsAfterMeshMiss() throws Exception {
         Path runDir = this.temporaryDirectory.resolve("stale-converted-run");
@@ -302,17 +393,23 @@ class QuickLitematicaPreview3DCacheTest {
         clearCacheIndex();
         Path cacheDir = runDir.resolve(QuickLitematicaPreviewCache.CACHE_DIR_NAME);
         Files.createDirectories(cacheDir);
-        Files.writeString(cacheDir.resolve(QuickLitematicaPreviewCache.CACHE_VERSION_FILE_NAME),
-                QuickLitematicaPreviewCache.currentCacheVersionToken());
+        Files.writeString(
+                cacheDir.resolve(QuickLitematicaPreviewCache.CACHE_VERSION_FILE_NAME),
+                QuickLitematicaPreviewCache.currentCacheVersionToken()
+        );
         Path source = this.temporaryDirectory.resolve("stale-source.litematic");
         Files.writeString(source, "new-content");
         String slot = QuickLitematicaPreviewCache.cacheKey(source);
         Path mesh = cacheDir.resolve(slot + ".qcp3d");
-        Files.write(mesh, new byte[]{1, 2, 3});
+        Files.write(mesh, new byte[] { 1, 2, 3 });
         String staleFingerprint = "stale-structure";
         String staleSignature = "stale-pack";
         Path staleConverted = QuickLitematicaPreviewCache.convertedCachePath(
-                cacheDir, slot, staleFingerprint, staleSignature);
+                cacheDir,
+                slot,
+                staleFingerprint,
+                staleSignature
+        );
         Files.writeString(staleConverted, "stale-converted");
         Path legacyConverted = cacheDir.resolve(slot + ".converted.litematic");
         Files.writeString(legacyConverted, "legacy-converted");
@@ -328,8 +425,10 @@ class QuickLitematicaPreview3DCacheTest {
             index.store(output, null);
         }
 
-        QuickLitematicaPreview3D.Preview preview = mock(QuickLitematicaPreview3D.Preview.class,
-                withSettings().defaultAnswer(CALLS_REAL_METHODS));
+        QuickLitematicaPreview3D.Preview preview = mock(
+                QuickLitematicaPreview3D.Preview.class,
+                withSettings().defaultAnswer(CALLS_REAL_METHODS)
+        );
         setField(preview, "sourcePath", source);
         setField(preview, "cachePath", mesh);
         setField(preview, "tmpPath", cacheDir.resolve(slot + ".qcp3d.tmp"));
@@ -342,10 +441,11 @@ class QuickLitematicaPreview3DCacheTest {
         setField(preview, "backend", mock(QuickLitematicaPreviewBackend.class));
 
         try (var minecraft = mockStatic(net.minecraft.client.Minecraft.class);
-             var schematicFiles = mockStatic(QuickLitematicaPreviewSchematicFiles.class);
-             var render = mockStatic(com.mojang.blaze3d.systems.RenderSystem.class)) {
-            minecraft.when(net.minecraft.client.Minecraft::getInstance)
-                    .thenReturn(mock(net.minecraft.client.Minecraft.class));
+                var schematicFiles = mockStatic(QuickLitematicaPreviewSchematicFiles.class);
+                var render = mockStatic(com.mojang.blaze3d.systems.RenderSystem.class)) {
+            minecraft.when(net.minecraft.client.Minecraft::getInstance).thenReturn(
+                    mock(net.minecraft.client.Minecraft.class)
+            );
             schematicFiles.when(() -> QuickLitematicaPreviewSchematicFiles.readSchematic(any(), any(), anyBoolean()))
                     .thenThrow(new IllegalStateException("force-build-failure"));
             render.when(com.mojang.blaze3d.systems.RenderSystem::isOnRenderThread).thenReturn(false);
@@ -367,7 +467,6 @@ class QuickLitematicaPreview3DCacheTest {
         }
     }
 
-
     @Test
     void conversionSignatureRequiresFullIdentity() {
         var current = new QuickLitematicaPreviewCache.CacheIndexEntry("source", "pack", "structure");
@@ -384,16 +483,30 @@ class QuickLitematicaPreview3DCacheTest {
         var mesh = new QuickLitematicaPreview3D.MeshData(List.of(), List.of(), List.of(), List.of(), 1, 1, 1);
 
         QuickLitematicaPreviewCache.CacheFile.writeAtomically(
-                this.temporaryDirectory.resolve("identity-a.tmp"), cache, mesh, mesh.layers(),
-                "structure-a", "pack", new AtomicBoolean(), progress -> {});
-        assertThat(QuickLitematicaPreviewCache.CacheFile.read(
-                cache, new AtomicBoolean(), null, "structure-a", "pack")).isNotNull();
+                this.temporaryDirectory.resolve("identity-a.tmp"),
+                cache,
+                mesh,
+                mesh.layers(),
+                "structure-a",
+                "pack",
+                new AtomicBoolean(),
+                progress -> {}
+        );
+        assertThat(QuickLitematicaPreviewCache.CacheFile.read(cache, new AtomicBoolean(), null, "structure-a", "pack"))
+                .isNotNull();
 
         QuickLitematicaPreviewCache.CacheFile.writeAtomically(
-                this.temporaryDirectory.resolve("identity-b.tmp"), cache, mesh, mesh.layers(),
-                "structure-b", "pack", new AtomicBoolean(), progress -> {});
-        assertThat(QuickLitematicaPreviewCache.CacheFile.read(
-                cache, new AtomicBoolean(), null, "structure-a", "pack")).isNull();
+                this.temporaryDirectory.resolve("identity-b.tmp"),
+                cache,
+                mesh,
+                mesh.layers(),
+                "structure-b",
+                "pack",
+                new AtomicBoolean(),
+                progress -> {}
+        );
+        assertThat(QuickLitematicaPreviewCache.CacheFile.read(cache, new AtomicBoolean(), null, "structure-a", "pack"))
+                .isNull();
         assertThat(cache).doesNotExist();
     }
 
@@ -404,13 +517,13 @@ class QuickLitematicaPreview3DCacheTest {
         Path source = this.temporaryDirectory.resolve("valid-source.litematic");
         Files.writeString(source, "source");
         Path cacheFile = cacheDir.resolve("slot1.qcp3d");
-        Files.write(cacheFile, new byte[]{1, 2, 3});
-        Files.writeString(cacheDir.resolve(QuickLitematicaPreviewCache.CACHE_INDEX_FILE_NAME),
-                "slot1.path=" + source.toString().replace("\\", "\\\\") + "\n"
-                        + "slot1.sourceHash=source\n"
-                        + "slot1.resourceSignature=pack\n"
-                        + "slot1.structureFingerprint=structure\n",
-                java.nio.charset.StandardCharsets.UTF_8);
+        Files.write(cacheFile, new byte[] { 1, 2, 3 });
+        Files.writeString(
+                cacheDir.resolve(QuickLitematicaPreviewCache.CACHE_INDEX_FILE_NAME),
+                "slot1.path=" + source.toString().replace("\\", "\\\\") + "\n" + "slot1.sourceHash=source\n"
+                        + "slot1.resourceSignature=pack\n" + "slot1.structureFingerprint=structure\n",
+                java.nio.charset.StandardCharsets.UTF_8
+        );
 
         QuickLitematicaPreviewCache.loadAndCleanCacheIndex(cacheDir);
         assertThat(QuickLitematicaPreviewCache.readCacheIndexEntry("slot1")).isNotNull();
@@ -439,7 +552,9 @@ class QuickLitematicaPreview3DCacheTest {
         QuickLitematicaPreviewCache.indexCommitHook = () -> {
             hookEntered.countDown();
             try {
-                if (!allowHook.await(5, TimeUnit.SECONDS)) throw new IllegalStateException("hook timed out");
+                if (!allowHook.await(5, TimeUnit.SECONDS)) {
+                    throw new IllegalStateException("hook timed out");
+                }
             } catch (InterruptedException failure) {
                 Thread.currentThread().interrupt();
                 throw new IllegalStateException(failure);
@@ -456,8 +571,7 @@ class QuickLitematicaPreview3DCacheTest {
         AtomicReference<Throwable> probeFailure = new AtomicReference<>();
         Thread writer = new Thread(() -> {
             try {
-                QuickLitematicaPreviewCache.writeCacheIndexEntry(
-                        "slot", source, "hash", "pack", "structure");
+                QuickLitematicaPreviewCache.writeCacheIndexEntry("slot", source, "hash", "pack", "structure");
             } catch (Throwable failure) {
                 writerFailure.set(failure);
             }
@@ -510,15 +624,28 @@ class QuickLitematicaPreview3DCacheTest {
             Path cacheFile = cacheDir.resolve("slot.qcp3d");
             var mesh = new QuickLitematicaPreview3D.MeshData(List.of(), List.of(), List.of(), List.of(), 1, 1, 1);
             QuickLitematicaPreviewCache.CacheFile.writeAtomically(
-                    cacheDir.resolve("slot.qcp3d.tmp"), cacheFile, mesh, mesh.layers(),
-                    "structure", "pack", new AtomicBoolean(), progress -> {});
-            QuickLitematicaPreviewCache.writeCacheIndexEntry(
-                    "slot", source, "hash", "pack", "structure");
+                    cacheDir.resolve("slot.qcp3d.tmp"),
+                    cacheFile,
+                    mesh,
+                    mesh.layers(),
+                    "structure",
+                    "pack",
+                    new AtomicBoolean(),
+                    progress -> {}
+            );
+            QuickLitematicaPreviewCache.writeCacheIndexEntry("slot", source, "hash", "pack", "structure");
 
             assertThat(cacheFile).exists();
             assertThat(QuickLitematicaPreviewCache.readCacheIndexEntry("slot")).isNotNull();
-            assertThat(QuickLitematicaPreviewCache.CacheFile.read(
-                    cacheFile, new AtomicBoolean(), null, "structure", "pack")).isNotNull();
+            assertThat(
+                    QuickLitematicaPreviewCache.CacheFile.read(
+                            cacheFile,
+                            new AtomicBoolean(),
+                            null,
+                            "structure",
+                            "pack"
+                    )
+            ).isNotNull();
         } finally {
             setStaticField("currentCacheDirectory", null);
             clearCacheIndex();
@@ -532,14 +659,14 @@ class QuickLitematicaPreview3DCacheTest {
         Path source = this.temporaryDirectory.resolve("versioned-source.litematic");
         Files.writeString(source, "source");
         Path cacheFile = cacheDir.resolve("slot1.qcp3d");
-        Files.write(cacheFile, new byte[]{1, 2, 3});
+        Files.write(cacheFile, new byte[] { 1, 2, 3 });
         Files.writeString(cacheDir.resolve(QuickLitematicaPreviewCache.CACHE_VERSION_FILE_NAME), "old-version");
-        Files.writeString(cacheDir.resolve(QuickLitematicaPreviewCache.CACHE_INDEX_FILE_NAME),
-                "slot1.path=" + source.toString().replace("\\", "\\\\") + "\n"
-                        + "slot1.sourceHash=source\n"
-                        + "slot1.resourceSignature=pack\n"
-                        + "slot1.structureFingerprint=structure\n",
-                java.nio.charset.StandardCharsets.UTF_8);
+        Files.writeString(
+                cacheDir.resolve(QuickLitematicaPreviewCache.CACHE_INDEX_FILE_NAME),
+                "slot1.path=" + source.toString().replace("\\", "\\\\") + "\n" + "slot1.sourceHash=source\n"
+                        + "slot1.resourceSignature=pack\n" + "slot1.structureFingerprint=structure\n",
+                java.nio.charset.StandardCharsets.UTF_8
+        );
 
         assertThat(QuickLitematicaPreviewCache.prepareCacheDirectory(cacheDir)).isTrue();
         assertThat(QuickLitematicaPreviewCache.readCacheIndexEntry("slot1")).isNull();
@@ -554,20 +681,20 @@ class QuickLitematicaPreview3DCacheTest {
         Files.writeString(source, "source");
         Path cacheFile = cacheDir.resolve("slot1.qcp3d");
         Path convertedFile = cacheDir.resolve("slot1-deadbeef.converted.litematic");
-        Files.write(cacheFile, new byte[]{1, 2, 3});
-        Files.write(convertedFile, new byte[]{4, 5, 6});
-        Files.writeString(cacheDir.resolve(QuickLitematicaPreviewCache.CACHE_VERSION_FILE_NAME),
-                QuickLitematicaPreviewCache.currentCacheVersionToken());
-        Files.writeString(cacheDir.resolve(QuickLitematicaPreviewCache.CACHE_INDEX_FILE_NAME),
-                "slot1.path=" + source.toString().replace("\\", "\\\\") + "\n"
-                        + "slot1.sourceHash=source\n"
-                        + "slot1.resourceSignature=pack\n"
-                        + "slot1.structureFingerprint=structure\n"
-                        + "slot1.convertedSourceHash=source\n"
-                        + "slot1.convertedResourceSignature=pack\n"
-                        + "slot1.convertedStructureFingerprint=structure\n"
-                        + "broken=\\u12x4\n",
-                java.nio.charset.StandardCharsets.UTF_8);
+        Files.write(cacheFile, new byte[] { 1, 2, 3 });
+        Files.write(convertedFile, new byte[] { 4, 5, 6 });
+        Files.writeString(
+                cacheDir.resolve(QuickLitematicaPreviewCache.CACHE_VERSION_FILE_NAME),
+                QuickLitematicaPreviewCache.currentCacheVersionToken()
+        );
+        Files.writeString(
+                cacheDir.resolve(QuickLitematicaPreviewCache.CACHE_INDEX_FILE_NAME),
+                "slot1.path=" + source.toString().replace("\\", "\\\\") + "\n" + "slot1.sourceHash=source\n"
+                        + "slot1.resourceSignature=pack\n" + "slot1.structureFingerprint=structure\n"
+                        + "slot1.convertedSourceHash=source\n" + "slot1.convertedResourceSignature=pack\n"
+                        + "slot1.convertedStructureFingerprint=structure\n" + "broken=\\u12x4\n",
+                java.nio.charset.StandardCharsets.UTF_8
+        );
 
         assertThat(QuickLitematicaPreviewCache.prepareCacheDirectory(cacheDir)).isTrue();
         assertThat(QuickLitematicaPreviewCache.readCacheIndexEntry("slot1")).isNull();
@@ -577,13 +704,13 @@ class QuickLitematicaPreview3DCacheTest {
         Path laterSource = this.temporaryDirectory.resolve("later-source.litematic");
         Files.writeString(laterSource, "later");
         Path laterCache = cacheDir.resolve("slot2.qcp3d");
-        Files.write(laterCache, new byte[]{7, 8, 9});
-        Files.writeString(cacheDir.resolve(QuickLitematicaPreviewCache.CACHE_INDEX_FILE_NAME),
-                "slot2.path=" + laterSource.toString().replace("\\", "\\\\") + "\n"
-                        + "slot2.sourceHash=later\n"
-                        + "slot2.resourceSignature=pack\n"
-                        + "slot2.structureFingerprint=structure\n",
-                java.nio.charset.StandardCharsets.UTF_8);
+        Files.write(laterCache, new byte[] { 7, 8, 9 });
+        Files.writeString(
+                cacheDir.resolve(QuickLitematicaPreviewCache.CACHE_INDEX_FILE_NAME),
+                "slot2.path=" + laterSource.toString().replace("\\", "\\\\") + "\n" + "slot2.sourceHash=later\n"
+                        + "slot2.resourceSignature=pack\n" + "slot2.structureFingerprint=structure\n",
+                java.nio.charset.StandardCharsets.UTF_8
+        );
         QuickLitematicaPreviewCache.loadAndCleanCacheIndex(cacheDir);
         assertThat(QuickLitematicaPreviewCache.readCacheIndexEntry("slot2")).isNotNull();
         assertThat(laterCache).exists();
@@ -595,8 +722,10 @@ class QuickLitematicaPreview3DCacheTest {
         Files.createDirectories(cacheDir);
         Path source = this.temporaryDirectory.resolve("refresh-source.litematic");
         Files.writeString(source, "content-a");
-        QuickLitematicaPreview3D.Preview preview = mock(QuickLitematicaPreview3D.Preview.class,
-                withSettings().defaultAnswer(CALLS_REAL_METHODS));
+        QuickLitematicaPreview3D.Preview preview = mock(
+                QuickLitematicaPreview3D.Preview.class,
+                withSettings().defaultAnswer(CALLS_REAL_METHODS)
+        );
         setField(preview, "sourcePath", source);
         Path cachePath = cacheDir.resolve("slot.qcp3d");
         setField(preview, "cachePath", cachePath);
@@ -618,7 +747,8 @@ class QuickLitematicaPreview3DCacheTest {
         try {
             String contentHash = QuickLitematicaPreviewCache.hashFile(source);
             boolean changed = preview.refreshCacheSourceHash(
-                    new QuickLitematicaPreviewImageWriter.PreviewWriteResult("structure", contentHash));
+                    new QuickLitematicaPreviewImageWriter.PreviewWriteResult("structure", contentHash)
+            );
 
             assertThat(changed).isTrue();
             assertThat(QuickLitematicaPreviewCache.readCacheIndexEntry("slot")).isNull();
@@ -665,7 +795,10 @@ class QuickLitematicaPreview3DCacheTest {
     void startupCleanupRemovesOnlyExactFastPreparationTempFilesAndKeepsIndexedCache() throws Exception {
         Path cacheDir = this.temporaryDirectory.resolve("cache-cleanup");
         Files.createDirectories(cacheDir);
-        Files.writeString(cacheDir.resolve("cache-version.txt"), QuickLitematicaPreviewCache.currentCacheVersionToken());
+        Files.writeString(
+                cacheDir.resolve("cache-version.txt"),
+                QuickLitematicaPreviewCache.currentCacheVersionToken()
+        );
 
         Path source = this.temporaryDirectory.resolve("source.litematic");
         Files.writeString(source, "source");
@@ -674,7 +807,11 @@ class QuickLitematicaPreview3DCacheTest {
         String convertedFingerprint = "converted-structure";
         String convertedSignature = "converted-signature";
         Path retainedConverted = QuickLitematicaPreviewCache.convertedCachePath(
-                cacheDir, "kept", convertedFingerprint, convertedSignature);
+                cacheDir,
+                "kept",
+                convertedFingerprint,
+                convertedSignature
+        );
         Files.writeString(retainedConverted, "converted");
         java.util.Properties index = new java.util.Properties();
         index.setProperty("kept.path", source.toString());
@@ -694,9 +831,12 @@ class QuickLitematicaPreview3DCacheTest {
         Path foreignTmpName = cacheDir.resolve("my.fast.tmp.litematic");
         Path schematic = cacheDir.resolve("author-schematic.litematic");
         Files.writeString(fastTemp, "stale");
-        Files.setLastModifiedTime(fastTemp, java.nio.file.attribute.FileTime.fromMillis(
-                System.currentTimeMillis() - QuickLitematicaPreviewCache.FAST_TEMP_STALE_MILLIS - 60_000L
-        ));
+        Files.setLastModifiedTime(
+                fastTemp,
+                java.nio.file.attribute.FileTime.fromMillis(
+                        System.currentTimeMillis() - QuickLitematicaPreviewCache.FAST_TEMP_STALE_MILLIS - 60_000L
+                )
+        );
         Files.writeString(freshFastTemp, "in-use");
         Files.writeString(foreignFastName, "foreign");
         Files.writeString(foreignTmpName, "foreign");
@@ -740,22 +880,23 @@ class QuickLitematicaPreview3DCacheTest {
         Files.writeString(temporary, "preview");
         Files.writeString(target, "external-save");
 
-        assertThatThrownBy(() -> QuickLitematicaPreviewImageWriter.replaceIfUnchanged(
-                temporary, target, snapshot))
+        assertThatThrownBy(() -> QuickLitematicaPreviewImageWriter.replaceIfUnchanged(temporary, target, snapshot))
                 .isInstanceOf(QuickLitematicaPreviewImageWriter.TargetChangedException.class);
         assertThat(Files.readString(target)).isEqualTo("external-save");
-        assertThat(QuickLitematicaPreviewImageWriter.failureTranslationKey(
-                new QuickLitematicaPreviewImageWriter.TargetChangedException()))
-                .isEqualTo("quickcraft.litematica.preview_3d.preview_file_changed");
+        assertThat(
+                QuickLitematicaPreviewImageWriter.failureTranslationKey(
+                        new QuickLitematicaPreviewImageWriter.TargetChangedException()
+                )
+        ).isEqualTo("quickcraft.litematica.preview_3d.preview_file_changed");
     }
 
     @Test
     void structureFingerprintIgnoresPreviewMetadataButTracksRegions() {
         CompoundTag metadataA = new CompoundTag();
-        metadataA.putIntArray("PreviewImageData", new int[]{1, 2, 3});
+        metadataA.putIntArray("PreviewImageData", new int[] { 1, 2, 3 });
         metadataA.putLong("TimeModified", 1L);
         CompoundTag metadataB = new CompoundTag();
-        metadataB.putIntArray("PreviewImageData", new int[]{4, 5, 6});
+        metadataB.putIntArray("PreviewImageData", new int[] { 4, 5, 6 });
         metadataB.putLong("TimeModified", 2L);
         CompoundTag regionsA = new CompoundTag();
         CompoundTag regionA = new CompoundTag();
@@ -787,13 +928,17 @@ class QuickLitematicaPreview3DCacheTest {
         var store = new QuickLitematicaPreviewMeshStore(this.temporaryDirectory);
         byte[] vertices = new byte[QuickLitematicaPreview3D.QUANTIZED_VERTEX_BYTES * 4];
         vertices[0] = 42;
-        var layer = store.store(new QuickLitematicaPreview3D.LayerMesh(QuickLitematicaPreview3D.LayerKey.SOLID, vertices));
+        var layer = store.store(
+                new QuickLitematicaPreview3D.LayerMesh(QuickLitematicaPreview3D.LayerKey.SOLID, vertices)
+        );
         var snapshot = new QuickLitematicaPreview3D.MeshData(List.of(layer), List.of(), List.of(), List.of(), 1, 1, 1);
         CountDownLatch allowWrite = new CountDownLatch(1);
         store.retainForCache();
         var write = QuickLitematicaPreviewCache.writeAsync(cache, () -> {
             try {
-                if (!allowWrite.await(5, TimeUnit.SECONDS)) throw new IllegalStateException("Write timed out");
+                if (!allowWrite.await(5, TimeUnit.SECONDS)) {
+                    throw new IllegalStateException("Write timed out");
+                }
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
                 throw new IllegalStateException(e);
@@ -830,13 +975,22 @@ class QuickLitematicaPreview3DCacheTest {
         Path cache = this.temporaryDirectory.resolve("borrowed-budget.qcp3d");
         var store = new QuickLitematicaPreviewMeshStore(this.temporaryDirectory);
         var entity = new QuickLitematicaPreview3D.EntityData(0, 0, 0, new CompoundTag());
-        var snapshot = new QuickLitematicaPreview3D.MeshData(List.of(), List.of(), List.of(),
-                Collections.nCopies(QuickLitematicaPreview3D.MAX_DYNAMIC_ENTITIES + 1, entity), 1, 1, 1);
+        var snapshot = new QuickLitematicaPreview3D.MeshData(
+                List.of(),
+                List.of(),
+                List.of(),
+                Collections.nCopies(QuickLitematicaPreview3D.MAX_DYNAMIC_ENTITIES + 1, entity),
+                1,
+                1,
+                1
+        );
         CountDownLatch allowWrite = new CountDownLatch(1);
         store.retainForCache();
         var write = QuickLitematicaPreviewCache.writeAsync(cache, () -> {
             try {
-                if (!allowWrite.await(5, TimeUnit.SECONDS)) throw new IllegalStateException("Write timed out");
+                if (!allowWrite.await(5, TimeUnit.SECONDS)) {
+                    throw new IllegalStateException("Write timed out");
+                }
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
                 throw new IllegalStateException(e);
@@ -847,8 +1001,10 @@ class QuickLitematicaPreview3DCacheTest {
         try {
             store.close();
             assertThatThrownBy(() -> QuickLitematicaPreviewCache.borrowPendingMesh(cache, "source", "pack"))
-                    .isInstanceOf(QuickLitematicaPreview3D.PreviewTooLargeException.class)
-                    .hasFieldOrPropertyWithValue("vertexLimit", false);
+                    .isInstanceOf(QuickLitematicaPreview3D.PreviewTooLargeException.class).hasFieldOrPropertyWithValue(
+                            "vertexLimit",
+                            false
+                    );
             QuickLitematicaPreviewVertexBudget.run(true, () -> {
                 try (var loan = QuickLitematicaPreviewCache.borrowPendingMesh(cache, "source", "pack")) {
                     assertThat(loan).isNotNull();
@@ -865,7 +1021,6 @@ class QuickLitematicaPreview3DCacheTest {
         assertThat(store.retainForRead()).isFalse();
     }
 
-
     @Test
     void validMeshHitAlsoDropsStaleConvertedIndexAndArtifact() throws Exception {
         Path runDir = this.temporaryDirectory.resolve("mesh-hit-run");
@@ -874,8 +1029,10 @@ class QuickLitematicaPreview3DCacheTest {
         clearCacheIndex();
         Path cacheDir = runDir.resolve(QuickLitematicaPreviewCache.CACHE_DIR_NAME);
         Files.createDirectories(cacheDir);
-        Files.writeString(cacheDir.resolve(QuickLitematicaPreviewCache.CACHE_VERSION_FILE_NAME),
-                QuickLitematicaPreviewCache.currentCacheVersionToken());
+        Files.writeString(
+                cacheDir.resolve(QuickLitematicaPreviewCache.CACHE_VERSION_FILE_NAME),
+                QuickLitematicaPreviewCache.currentCacheVersionToken()
+        );
         Path source = this.temporaryDirectory.resolve("mesh-hit-source.litematic");
         Files.writeString(source, "mesh-hit-content");
         String slot = QuickLitematicaPreviewCache.cacheKey(source);
@@ -884,12 +1041,23 @@ class QuickLitematicaPreview3DCacheTest {
         Path mesh = cacheDir.resolve(slot + ".qcp3d");
         var meshData = new QuickLitematicaPreview3D.MeshData(List.of(), List.of(), List.of(), List.of(), 1, 1, 1);
         QuickLitematicaPreviewCache.CacheFile.writeAtomically(
-                cacheDir.resolve(slot + ".qcp3d.tmp"), mesh, meshData, meshData.layers(),
-                meshFingerprint, "pack", new AtomicBoolean(), progress -> {});
+                cacheDir.resolve(slot + ".qcp3d.tmp"),
+                mesh,
+                meshData,
+                meshData.layers(),
+                meshFingerprint,
+                "pack",
+                new AtomicBoolean(),
+                progress -> {}
+        );
         String staleFingerprint = "stale-structure";
         String staleSignature = "stale-pack";
         Path staleConverted = QuickLitematicaPreviewCache.convertedCachePath(
-                cacheDir, slot, staleFingerprint, staleSignature);
+                cacheDir,
+                slot,
+                staleFingerprint,
+                staleSignature
+        );
         Files.writeString(staleConverted, "stale-converted");
         Path legacyConverted = cacheDir.resolve(slot + ".converted.litematic");
         Files.writeString(legacyConverted, "legacy-converted");
@@ -905,8 +1073,10 @@ class QuickLitematicaPreview3DCacheTest {
             index.store(output, null);
         }
 
-        QuickLitematicaPreview3D.Preview preview = mock(QuickLitematicaPreview3D.Preview.class,
-                withSettings().defaultAnswer(CALLS_REAL_METHODS));
+        QuickLitematicaPreview3D.Preview preview = mock(
+                QuickLitematicaPreview3D.Preview.class,
+                withSettings().defaultAnswer(CALLS_REAL_METHODS)
+        );
         setField(preview, "sourcePath", source);
         setField(preview, "cachePath", mesh);
         setField(preview, "tmpPath", cacheDir.resolve(slot + ".qcp3d.tmp"));
@@ -919,9 +1089,10 @@ class QuickLitematicaPreview3DCacheTest {
         setField(preview, "backend", mock(QuickLitematicaPreviewBackend.class));
 
         try (var minecraft = mockStatic(net.minecraft.client.Minecraft.class);
-             var schematicFiles = mockStatic(QuickLitematicaPreviewSchematicFiles.class)) {
-            minecraft.when(net.minecraft.client.Minecraft::getInstance)
-                    .thenReturn(mock(net.minecraft.client.Minecraft.class));
+                var schematicFiles = mockStatic(QuickLitematicaPreviewSchematicFiles.class)) {
+            minecraft.when(net.minecraft.client.Minecraft::getInstance).thenReturn(
+                    mock(net.minecraft.client.Minecraft.class)
+            );
             schematicFiles.when(() -> QuickLitematicaPreviewSchematicFiles.readSchematic(any(), any(), anyBoolean()))
                     .thenThrow(new AssertionError("mesh hit must not read schematic"));
 
@@ -931,15 +1102,18 @@ class QuickLitematicaPreview3DCacheTest {
 
             assertThat(getField(preview, "state").toString()).isEqualTo("READY");
             // 网格命中路径不能触发原理图读取；过期转换引用与工件仍应被清掉。
-            schematicFiles.verify(() -> QuickLitematicaPreviewSchematicFiles.readSchematic(any(), any(), anyBoolean()),
-                    org.mockito.Mockito.never());
+            schematicFiles.verify(
+                    () -> QuickLitematicaPreviewSchematicFiles.readSchematic(any(), any(), anyBoolean()),
+                    org.mockito.Mockito.never()
+            );
             assertThat(QuickLitematicaPreviewCache.readConvertedCacheIndexEntry(slot)).isNull();
             assertThat(staleConverted).doesNotExist();
             assertThat(legacyConverted).doesNotExist();
             assertThat(QuickLitematicaPreviewCache.readCacheIndexEntry(slot)).isNotNull();
             assertThat(mesh).exists();
-            assertThat(QuickLitematicaPreviewCache.CacheFile.read(
-                    mesh, new AtomicBoolean(), null, meshFingerprint, "pack")).isNotNull();
+            assertThat(
+                    QuickLitematicaPreviewCache.CacheFile.read(mesh, new AtomicBoolean(), null, meshFingerprint, "pack")
+            ).isNotNull();
         } finally {
             setStaticField("currentCacheDirectory", null);
             clearCacheIndex();
@@ -957,19 +1131,37 @@ class QuickLitematicaPreview3DCacheTest {
             Files.writeString(source, "source");
             String slot = "slot-guard";
             QuickLitematicaPreviewCache.CacheIndexEntry stale = new QuickLitematicaPreviewCache.CacheIndexEntry(
-                    "old-source", "old-signature", "old-fingerprint");
+                    "old-source",
+                    "old-signature",
+                    "old-fingerprint"
+            );
             Path oldArtifact = QuickLitematicaPreviewCache.convertedCachePath(
-                    cacheDir, slot, stale.structureFingerprint(), stale.resourcePackSignature());
+                    cacheDir,
+                    slot,
+                    stale.structureFingerprint(),
+                    stale.resourcePackSignature()
+            );
             Files.writeString(oldArtifact, "old-artifact");
             Path newArtifact = QuickLitematicaPreviewCache.convertedCachePath(
-                    cacheDir, slot, "new-fingerprint", "new-signature");
+                    cacheDir,
+                    slot,
+                    "new-fingerprint",
+                    "new-signature"
+            );
             Files.writeString(newArtifact, "new-artifact");
 
             QuickLitematicaPreviewCache.writeConvertedCacheIndexEntry(
-                    slot, source, "new-source", "new-signature", "new-fingerprint");
-            QuickLitematicaPreviewCache.CacheIndexEntry newer = QuickLitematicaPreviewCache.readConvertedCacheIndexEntry(slot);
-            assertThat(newer).isEqualTo(new QuickLitematicaPreviewCache.CacheIndexEntry(
-                    "new-source", "new-signature", "new-fingerprint"));
+                    slot,
+                    source,
+                    "new-source",
+                    "new-signature",
+                    "new-fingerprint"
+            );
+            QuickLitematicaPreviewCache.CacheIndexEntry newer = QuickLitematicaPreviewCache
+                    .readConvertedCacheIndexEntry(slot);
+            assertThat(newer).isEqualTo(
+                    new QuickLitematicaPreviewCache.CacheIndexEntry("new-source", "new-signature", "new-fingerprint")
+            );
 
             // 旧快照清理必须让位：新索引与该新工件保留，旧快照工件也不能误删。
             assertThat(QuickLitematicaPreviewCache.removeConvertedCacheEntry(cacheDir, slot, stale)).isFalse();

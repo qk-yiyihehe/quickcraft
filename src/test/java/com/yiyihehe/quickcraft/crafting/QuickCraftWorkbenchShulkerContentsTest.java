@@ -30,12 +30,13 @@ class QuickCraftWorkbenchShulkerContentsTest {
         assertThat(original.capacity(new ItemStack(Items.STONE))).isEqualTo(27 * 64 - 60);
         assertThat(QuickCraftWorkbenchShulkerContents.get(9, box)).isSameAs(original);
 
-        box.set(DataComponentTypes.CONTAINER,
-                ContainerComponent.fromStacks(List.of(new ItemStack(Items.STONE, 40), new ItemStack(Items.STONE, 20))));
+        box.set(
+                DataComponentTypes.CONTAINER,
+                ContainerComponent.fromStacks(List.of(new ItemStack(Items.STONE, 40), new ItemStack(Items.STONE, 20)))
+        );
         assertThat(QuickCraftWorkbenchShulkerContents.get(9, box)).isSameAs(original);
 
-        box.set(DataComponentTypes.CONTAINER,
-                ContainerComponent.fromStacks(List.of(new ItemStack(Items.STONE, 4))));
+        box.set(DataComponentTypes.CONTAINER, ContainerComponent.fromStacks(List.of(new ItemStack(Items.STONE, 4))));
         var reduced = QuickCraftWorkbenchShulkerContents.get(9, box);
         assertThat(reduced).isNotSameAs(original);
         assertThat(reduced.count()).isEqualTo(4);
@@ -55,8 +56,10 @@ class QuickCraftWorkbenchShulkerContentsTest {
     void refreshesCursorContentsAndRejectsMixedOrComponentMismatchedBoxes() {
         ItemStack box = box(new ItemStack(Items.STONE, 12));
         var original = QuickCraftWorkbenchShulkerContents.get(box);
-        box.set(DataComponentTypes.CONTAINER,
-                ContainerComponent.fromStacks(List.of(new ItemStack(Items.STONE, 20), new ItemStack(Items.DIRT, 10))));
+        box.set(
+                DataComponentTypes.CONTAINER,
+                ContainerComponent.fromStacks(List.of(new ItemStack(Items.STONE, 20), new ItemStack(Items.DIRT, 10)))
+        );
         var mixed = QuickCraftWorkbenchShulkerContents.get(box);
         assertThat(mixed).isNotSameAs(original);
         assertThat(mixed.homogeneous()).isFalse();
@@ -65,8 +68,10 @@ class QuickCraftWorkbenchShulkerContentsTest {
 
         ItemStack named = new ItemStack(Items.STONE, 3);
         named.set(DataComponentTypes.CUSTOM_NAME, net.minecraft.text.Text.literal("named"));
-        box.set(DataComponentTypes.CONTAINER,
-                ContainerComponent.fromStacks(List.of(new ItemStack(Items.STONE, 2), named)));
+        box.set(
+                DataComponentTypes.CONTAINER,
+                ContainerComponent.fromStacks(List.of(new ItemStack(Items.STONE, 2), named))
+        );
         assertThat(QuickCraftWorkbenchShulkerContents.get(box).homogeneous()).isFalse();
     }
 

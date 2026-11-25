@@ -5,8 +5,7 @@ import net.minecraft.world.effect.MobEffects;
 
 /** 26.2+ 的信标效果能力：多人服务器使用合法的一级生命恢复组合。 */
 final class QuickBeaconEffectAccess {
-    private QuickBeaconEffectAccess() {
-    }
+    private QuickBeaconEffectAccess() {}
 
     static boolean allowRegenerationTwo(Minecraft client) {
         return !client.isMultiplayerServer();

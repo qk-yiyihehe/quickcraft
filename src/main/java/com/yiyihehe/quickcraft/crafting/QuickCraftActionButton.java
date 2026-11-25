@@ -7,13 +7,18 @@ import net.minecraft.client.gui.tooltip.Tooltip;
 import net.minecraft.text.Text;
 import net.minecraft.util.Identifier;
 
-/** Small icon button shared by the workbench, inventory, and stonecutter quick-craft actions. */
+/** 工作台、玩家物品栏和切石机的快速合成操作共用的小图标按钮。 */
 public final class QuickCraftActionButton extends QuickDraggableButton {
     private static final int SIZE = 10;
-    private static final Identifier TEXTURE =
-            Identifier.of("quickcraft", "textures/gui/craft_action_button.png");
+    private static final Identifier TEXTURE = Identifier.of("quickcraft", "textures/gui/craft_action_button.png");
 
-    public QuickCraftActionButton(int x, int y, PressAction onPress, PositionKey positionKey, net.minecraft.text.Text tooltip) {
+    public QuickCraftActionButton(
+            int x,
+            int y,
+            PressAction onPress,
+            PositionKey positionKey,
+            net.minecraft.text.Text tooltip
+    ) {
         super(x, y, SIZE, SIZE, tooltip, onPress, positionKey);
         this.setTooltip(Tooltip.of(tooltip));
     }

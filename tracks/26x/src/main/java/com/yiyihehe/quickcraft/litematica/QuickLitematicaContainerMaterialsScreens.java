@@ -24,13 +24,15 @@ import static com.yiyihehe.quickcraft.litematica.QuickLitematicaContainerMateria
 
 final class QuickLitematicaContainerMaterialsScreens {
     private QuickLitematicaContainerMaterialsScreens() {}
+
     static net.minecraft.client.gui.screens.Screen createDetailScreen(ContainerMaterialList list) {
         var screen = new ContainerMaterialsScreen(list);
         screen.setParent(list.parent);
         return screen;
     }
-    private static final class ContainerMaterialsScreen
-            extends QuickLitematicaMaterialGui.ListScreen<ContainerRow, ContainerGroupEntryWidget, ContainerGroupListWidget>
+
+    private static final class ContainerMaterialsScreen extends
+            QuickLitematicaMaterialGui.ListScreen<ContainerRow, ContainerGroupEntryWidget, ContainerGroupListWidget>
             implements QuickLitematicaMaterialReplacementScreen.RefreshableParent {
         private final ContainerMaterialList materialList;
         private final ContainerMaterialsData data;
@@ -65,23 +67,47 @@ final class QuickLitematicaContainerMaterialsScreens {
             ButtonListenerChangeMenu.ButtonType type = ButtonListenerChangeMenu.ButtonType.MAIN_MENU;
             String label = StringUtils.translate(type.getLabelKey());
             int buttonWidth = this.getStringWidth(label) + 20;
-            var button = new QuickCraftMovableButton(this.layoutKey() + ".mainMenu",
-                    this.width - buttonWidth - 10, this.height - 36, buttonWidth, 20, label);
+            var button = new QuickCraftMovableButton(
+                    this.layoutKey() + ".mainMenu",
+                    this.width - buttonWidth - 10,
+                    this.height - 36,
+                    buttonWidth,
+                    20,
+                    label
+            );
             this.addButton(button, new ButtonListenerChangeMenu(type, this.getParent()));
             var actions = new ArrayList<QuickLitematicaMaterialButtons.Action>();
             if (QuickLitematicaContainerReplacements.enabled()) {
-                actions.add(QuickLitematicaMaterialButtons.action("quickcraft.litematica.button.clear_container_material_rules", this::clearAllRules));
-                actions.add(QuickLitematicaMaterialButtons.action("quickcraft.litematica.button.save_schematic_copy", () -> saveCopy(this.materialList)));
-                actions.add(new QuickLitematicaMaterialButtons.Action("quickcraft.litematica.button.batch_replace", () -> {
-                    var slots = List.copyOf(this.selectedSlots.values());
-                    this.savedScroll = this.getListWidget().getScrollbar().getValue();
-                    QuickLitematicaMaterialReplacementScreen.open(this, slots.getFirst().source(), this.data.createBatchSlotBinding(slots));
-                }, !this.selectedSlots.isEmpty(), this.selectedSlots.size()));
-                actions.add(QuickLitematicaMaterialButtons.action("quickcraft.litematica.button.clear_selection", () -> {
-                    this.selectedSlots.clear();
-                    this.savedScroll = this.getListWidget().getScrollbar().getValue();
-                    this.initGui();
-                }));
+                actions.add(
+                        QuickLitematicaMaterialButtons.action(
+                                "quickcraft.litematica.button.clear_container_material_rules",
+                                this::clearAllRules
+                        )
+                );
+                actions.add(
+                        QuickLitematicaMaterialButtons.action(
+                                "quickcraft.litematica.button.save_schematic_copy",
+                                () -> saveCopy(this.materialList)
+                        )
+                );
+                actions.add(
+                        new QuickLitematicaMaterialButtons.Action("quickcraft.litematica.button.batch_replace", () -> {
+                            var slots = List.copyOf(this.selectedSlots.values());
+                            this.savedScroll = this.getListWidget().getScrollbar().getValue();
+                            QuickLitematicaMaterialReplacementScreen.open(
+                                    this,
+                                    slots.getFirst().source(),
+                                    this.data.createBatchSlotBinding(slots)
+                            );
+                        }, !this.selectedSlots.isEmpty(), this.selectedSlots.size())
+                );
+                actions.add(
+                        QuickLitematicaMaterialButtons.action("quickcraft.litematica.button.clear_selection", () -> {
+                            this.selectedSlots.clear();
+                            this.savedScroll = this.getListWidget().getScrollbar().getValue();
+                            this.initGui();
+                        })
+                );
             }
             this.bottomMargin = QuickLitematicaMaterialButtons.addDetails(this, this.materialList, actions);
             this.getListWidget().getScrollbar().setValue(this.savedScroll);
@@ -89,7 +115,10 @@ final class QuickLitematicaContainerMaterialsScreens {
         }
 
         private String layoutKey() {
-            return QuickLitematicaMaterialNavigation.layoutKey(this.materialList, QuickLitematicaMaterialNavigation.View.DETAILS);
+            return QuickLitematicaMaterialNavigation.layoutKey(
+                    this.materialList,
+                    QuickLitematicaMaterialNavigation.View.DETAILS
+            );
         }
 
         @Override
@@ -98,7 +127,14 @@ final class QuickLitematicaContainerMaterialsScreens {
 
             if (this.data.visibleGroups().isEmpty()) {
                 String text = StringUtils.translate("quickcraft.litematica.label.no_container_contents");
-                drawContext.drawText(Minecraft.getInstance().font, text, this.width / 2 - this.getStringWidth(text) / 2, this.height / 2, 0xFFFFFFFF, false);
+                drawContext.drawText(
+                        Minecraft.getInstance().font,
+                        text,
+                        this.width / 2 - this.getStringWidth(text) / 2,
+                        this.height / 2,
+                        0xFFFFFFFF,
+                        false
+                );
             }
         }
 
@@ -109,11 +145,14 @@ final class QuickLitematicaContainerMaterialsScreens {
 
         private List<ContainerRow> rows(int rowWidth) {
             List<ContainerGroup> groups = new ArrayList<>(this.data.visibleGroups());
-            Comparator<ContainerGroup> comparator = this.sortColumn == 0
-                    ? Comparator.comparing(ContainerGroup::containerName, String.CASE_INSENSITIVE_ORDER)
-                    : Comparator.comparingInt(ContainerGroup::containerCount).reversed();
+            Comparator<ContainerGroup> comparator = this.sortColumn == 0 ? Comparator.comparing(
+                    ContainerGroup::containerName,
+                    String.CASE_INSENSITIVE_ORDER
+            ) : Comparator.comparingInt(ContainerGroup::containerCount).reversed();
             comparator = comparator.thenComparing(ContainerGroup::signature);
-            if (this.sortReverse) { comparator = comparator.reversed(); }
+            if (this.sortReverse) {
+                comparator = comparator.reversed();
+            }
             groups.sort(comparator);
             int contentWidth = rowWidth - CONTAINER_COLUMN_WIDTH - COUNT_COLUMN_WIDTH - ACTION_COLUMN_WIDTH - 18;
             int columns = Math.max(1, Math.min(9, (contentWidth - 12) / (2 * ITEM_CELL_WIDTH)));
@@ -123,7 +162,14 @@ final class QuickLitematicaContainerMaterialsScreens {
             for (int groupIndex = 0; groupIndex < groups.size(); groupIndex++) {
                 ContainerGroup group = groups.get(groupIndex);
                 for (int start = 0; start < group.slotStacks().size(); start += slotsPerRow) {
-                    rows.add(new ContainerRow(group, start, Math.min(group.slotStacks().size(), start + slotsPerRow), groupIndex));
+                    rows.add(
+                            new ContainerRow(
+                                    group,
+                                    start,
+                                    Math.min(group.slotStacks().size(), start + slotsPerRow),
+                                    groupIndex
+                            )
+                    );
                 }
             }
             return rows;
@@ -158,11 +204,19 @@ final class QuickLitematicaContainerMaterialsScreens {
         }
 
         private void startSlotSelection(ContainerGroup group, int slotIndex, int mouseX, int mouseY) {
-            if (!QuickLitematicaContainerReplacements.enabled()) { return; }
+            if (!QuickLitematicaContainerReplacements.enabled()) {
+                return;
+            }
             boolean selected = !this.selectedSlots.containsKey(group.signature() + ":" + slotIndex);
             this.setSlotSelected(group, slotIndex, selected);
-            QuickLitematicaSelectionDrag.start(this, mouseX, mouseY, selected,
-                    (x, y, select) -> this.getListWidget().setSelectionAt(x, y, select), this::refreshSelection);
+            QuickLitematicaSelectionDrag.start(
+                    this,
+                    mouseX,
+                    mouseY,
+                    selected,
+                    (x, y, select) -> this.getListWidget().setSelectionAt(x, y, select),
+                    this::refreshSelection
+            );
             this.refreshSelection();
         }
 
@@ -171,8 +225,13 @@ final class QuickLitematicaContainerMaterialsScreens {
             if (!selected) {
                 return this.selectedSlots.remove(key) != null;
             }
-            if (this.selectedSlots.containsKey(key)) { return false; }
-            this.selectedSlots.put(key, new ContainerMaterialsData.SummarySlot(group, slotIndex, group.slotStacks().get(slotIndex).copy()));
+            if (this.selectedSlots.containsKey(key)) {
+                return false;
+            }
+            this.selectedSlots.put(
+                    key,
+                    new ContainerMaterialsData.SummarySlot(group, slotIndex, group.slotStacks().get(slotIndex).copy())
+            );
             return true;
         }
 
@@ -182,7 +241,9 @@ final class QuickLitematicaContainerMaterialsScreens {
         }
 
         private void openSlotEditor(ContainerGroup group, int slotIndex) {
-            if (!QuickLitematicaContainerReplacements.enabled()) { return; }
+            if (!QuickLitematicaContainerReplacements.enabled()) {
+                return;
+            }
             if (group == null || slotIndex < 0 || slotIndex >= group.slotStacks().size()) {
                 return;
             }
@@ -219,9 +280,11 @@ final class QuickLitematicaContainerMaterialsScreens {
         }
     }
 
-    record ContainerRow(ContainerGroup group, int startSlot, int endSlot, int groupIndex) { }
+    record ContainerRow(ContainerGroup group, int startSlot, int endSlot, int groupIndex) {
+    }
 
-    private static final class ContainerGroupListWidget extends WidgetListBase<ContainerRow, ContainerGroupEntryWidget> {
+    private static final class ContainerGroupListWidget extends
+            WidgetListBase<ContainerRow, ContainerGroupEntryWidget> {
         private final ContainerMaterialsScreen gui;
 
         private ContainerGroupListWidget(int x, int y, int width, int height, ContainerMaterialsScreen gui) {
@@ -251,16 +314,37 @@ final class QuickLitematicaContainerMaterialsScreens {
         }
 
         @Override
-        protected ContainerGroupEntryWidget createHeaderWidget(int x, int y, int listIndexStart, int usableHeight, int usedHeight) {
+        protected ContainerGroupEntryWidget createHeaderWidget(
+                int x,
+                int y,
+                int listIndexStart,
+                int usableHeight,
+                int usedHeight
+        ) {
             if (usedHeight + HEADER_HEIGHT > usableHeight) {
                 return null;
             }
 
-            return new ContainerGroupEntryWidget(x, y, this.browserEntryWidth, HEADER_HEIGHT, true, true, null, this.gui);
+            return new ContainerGroupEntryWidget(
+                    x,
+                    y,
+                    this.browserEntryWidth,
+                    HEADER_HEIGHT,
+                    true,
+                    true,
+                    null,
+                    this.gui
+            );
         }
 
         @Override
-        protected ContainerGroupEntryWidget createListEntryWidget(int x, int y, int listIndex, boolean isOdd, ContainerRow entry) {
+        protected ContainerGroupEntryWidget createListEntryWidget(
+                int x,
+                int y,
+                int listIndex,
+                boolean isOdd,
+                ContainerRow entry
+        ) {
             return new ContainerGroupEntryWidget(
                     x,
                     y,
@@ -318,10 +402,14 @@ final class QuickLitematicaContainerMaterialsScreens {
         }
 
         @Override
-        protected int getCurrentSortColumn() { return this.gui.sortColumn; }
+        protected int getCurrentSortColumn() {
+            return this.gui.sortColumn;
+        }
 
         @Override
-        protected boolean getSortInReverse() { return this.gui.sortReverse; }
+        protected boolean getSortInReverse() {
+            return this.gui.sortReverse;
+        }
 
         @Override
         public boolean selectMaterialAt(int mouseX, int mouseY, int mouseButton) {
@@ -341,7 +429,9 @@ final class QuickLitematicaContainerMaterialsScreens {
 
             int slotIndex = this.getHoveredSlotIndex(mouseX, mouseY);
             if (slotIndex >= 0) {
-                if (mouseButton != InputConstants.MOUSE_BUTTON_LEFT) { return false; }
+                if (mouseButton != InputConstants.MOUSE_BUTTON_LEFT) {
+                    return false;
+                }
                 if (QuickLitematicaMaterialGui.controlDown()) {
                     this.gui.startSlotSelection(this.entry.group(), slotIndex, mouseX, mouseY);
                 } else {
@@ -382,11 +472,29 @@ final class QuickLitematicaContainerMaterialsScreens {
             if (this.showGroupInfo) {
                 drawContext.rect(containerX, this.y + 6, 16, 16, 0x20FFFFFF);
                 drawContext.drawItem(this.entry.group().containerStack(), containerX, this.y + 6);
-                this.drawMaterialString(containerX + 20, yText, 0xFFFFFFFF, fitText(this.entry.group().containerName(), CONTAINER_COLUMN_WIDTH - 28), drawContext);
+                this.drawMaterialString(
+                        containerX + 20,
+                        yText,
+                        0xFFFFFFFF,
+                        fitText(this.entry.group().containerName(), CONTAINER_COLUMN_WIDTH - 28),
+                        drawContext
+                );
                 if (this.entry.group().sourceLabel() != null) {
-                    this.drawMaterialString(containerX + 20, yText + 11, 0xFFAAAAAA, fitText(this.entry.group().sourceLabel(), CONTAINER_COLUMN_WIDTH - 28), drawContext);
+                    this.drawMaterialString(
+                            containerX + 20,
+                            yText + 11,
+                            0xFFAAAAAA,
+                            fitText(this.entry.group().sourceLabel(), CONTAINER_COLUMN_WIDTH - 28),
+                            drawContext
+                    );
                 }
-                this.drawMaterialString(countX, this.y + 10, 0xFFFFFFFF, "x" + this.entry.group().containerCount(), drawContext);
+                this.drawMaterialString(
+                        countX,
+                        this.y + 10,
+                        0xFFFFFFFF,
+                        "x" + this.entry.group().containerCount(),
+                        drawContext
+                );
             }
             this.renderContents(drawContext, contentsX, mouseX, mouseY);
             super.renderMaterial(mouseX, mouseY, selected, drawContext);
@@ -401,15 +509,35 @@ final class QuickLitematicaContainerMaterialsScreens {
             int containerX = this.x + 6;
             int containerY = this.y + 6;
 
-            if (this.showGroupInfo && mouseX >= containerX && mouseX < containerX + 16 && mouseY >= containerY && mouseY < containerY + 16) {
-                drawContext.drawItemTooltip(Minecraft.getInstance().font, this.entry.group().containerStack(), mouseX, mouseY);
+            if (this.showGroupInfo && mouseX >= containerX && mouseX < containerX + 16 && mouseY >= containerY
+                    && mouseY < containerY + 16) {
+                drawContext.drawItemTooltip(
+                        Minecraft.getInstance().font,
+                        this.entry.group().containerStack(),
+                        mouseX,
+                        mouseY
+                );
                 return;
             }
 
             int countX = this.x + CONTAINER_COLUMN_WIDTH + 4;
-            if (this.showGroupInfo && mouseX >= countX && mouseX < countX + COUNT_COLUMN_WIDTH && this.isMouseOver(mouseX, mouseY)) {
-                drawContext.drawTooltip(Minecraft.getInstance().font, List.of(Component.literal(StringUtils.translate(
-                        "quickcraft.litematica.label.material_replace_group_scope", this.entry.group().containerCount()))), mouseX, mouseY);
+            if (this.showGroupInfo && mouseX >= countX && mouseX < countX + COUNT_COLUMN_WIDTH && this.isMouseOver(
+                    mouseX,
+                    mouseY
+            )) {
+                drawContext.drawTooltip(
+                        Minecraft.getInstance().font,
+                        List.of(
+                                Component.literal(
+                                        StringUtils.translate(
+                                                "quickcraft.litematica.label.material_replace_group_scope",
+                                                this.entry.group().containerCount()
+                                        )
+                                )
+                        ),
+                        mouseX,
+                        mouseY
+                );
                 return;
             }
             int hoveredSlot = this.getHoveredSlotIndex(mouseX, mouseY);
@@ -417,13 +545,24 @@ final class QuickLitematicaContainerMaterialsScreens {
                 int contentsX = this.x + CONTAINER_COLUMN_WIDTH + COUNT_COLUMN_WIDTH + 8;
                 int targetX = contentsX + this.getContentColumns(contentsX) * ITEM_CELL_WIDTH + 12;
                 ItemStack original = this.entry.group().slotStacks().get(hoveredSlot);
-                ItemStack hovered = mouseX >= targetX
-                        ? this.gui.getSlotTarget(this.entry.group(), hoveredSlot).orElse(original) : original;
+                ItemStack hovered = mouseX >= targetX ? this.gui.getSlotTarget(this.entry.group(), hoveredSlot).orElse(
+                        original
+                ) : original;
                 if (!hovered.isEmpty()) {
                     drawContext.drawItemTooltip(Minecraft.getInstance().font, hovered, mouseX, mouseY);
                 } else {
-                    drawContext.drawTooltip(Minecraft.getInstance().font, List.of(Component.literal(StringUtils.translate(
-                            "quickcraft.litematica.label.material_replace_empty_slot"))), mouseX, mouseY);
+                    drawContext.drawTooltip(
+                            Minecraft.getInstance().font,
+                            List.of(
+                                    Component.literal(
+                                            StringUtils.translate(
+                                                    "quickcraft.litematica.label.material_replace_empty_slot"
+                                            )
+                                    )
+                            ),
+                            mouseX,
+                            mouseY
+                    );
                 }
                 return;
             }
@@ -444,10 +583,35 @@ final class QuickLitematicaContainerMaterialsScreens {
             this.renderMaterialHeader(mouseX, mouseY, Icons.ARROW_DOWN, Icons.ARROW_UP, drawContext);
             this.drawHeaderCell(drawContext, contentsX, actionX);
             this.drawHeaderCell(drawContext, actionX, endX);
-            this.drawMaterialString(containerX, y, 0xFFFFFFFF, GuiBase.TXT_BOLD + StringUtils.translate("quickcraft.litematica.header.container") + GuiBase.TXT_RST, drawContext);
-            this.drawMaterialString(countX, y, 0xFFFFFFFF, GuiBase.TXT_BOLD + StringUtils.translate("quickcraft.litematica.header.count") + GuiBase.TXT_RST, drawContext);
-            this.drawMaterialString(contentsX, y, 0xFFFFFFFF, GuiBase.TXT_BOLD + StringUtils.translate("quickcraft.litematica.header.contents") + GuiBase.TXT_RST, drawContext);
-            this.drawMaterialString(actionX, y, 0xFFFFFFFF, GuiBase.TXT_BOLD + StringUtils.translate("quickcraft.litematica.header.action") + GuiBase.TXT_RST, drawContext);
+            this.drawMaterialString(
+                    containerX,
+                    y,
+                    0xFFFFFFFF,
+                    GuiBase.TXT_BOLD + StringUtils.translate("quickcraft.litematica.header.container")
+                            + GuiBase.TXT_RST,
+                    drawContext
+            );
+            this.drawMaterialString(
+                    countX,
+                    y,
+                    0xFFFFFFFF,
+                    GuiBase.TXT_BOLD + StringUtils.translate("quickcraft.litematica.header.count") + GuiBase.TXT_RST,
+                    drawContext
+            );
+            this.drawMaterialString(
+                    contentsX,
+                    y,
+                    0xFFFFFFFF,
+                    GuiBase.TXT_BOLD + StringUtils.translate("quickcraft.litematica.header.contents") + GuiBase.TXT_RST,
+                    drawContext
+            );
+            this.drawMaterialString(
+                    actionX,
+                    y,
+                    0xFFFFFFFF,
+                    GuiBase.TXT_BOLD + StringUtils.translate("quickcraft.litematica.header.action") + GuiBase.TXT_RST,
+                    drawContext
+            );
         }
 
         private void drawHeaderCell(Context drawContext, int xStart, int xEnd) {
@@ -456,7 +620,13 @@ final class QuickLitematicaContainerMaterialsScreens {
 
         private void renderContents(Context drawContext, int contentsX, int mouseX, int mouseY) {
             if (this.entry.group().slotStacks().isEmpty()) {
-                this.drawMaterialString(contentsX, this.y + 10, 0xFFAAAAAA, StringUtils.translate("quickcraft.litematica.label.empty_contents"), drawContext);
+                this.drawMaterialString(
+                        contentsX,
+                        this.y + 10,
+                        0xFFAAAAAA,
+                        StringUtils.translate("quickcraft.litematica.label.empty_contents"),
+                        drawContext
+                );
                 return;
             }
 
@@ -470,8 +640,14 @@ final class QuickLitematicaContainerMaterialsScreens {
                 ItemStack original = this.entry.group().slotStacks().get(i);
                 ItemStack result = this.gui.getSlotTarget(this.entry.group(), i).orElse(original);
                 boolean changed = hasStackChange(original, result);
-                drawContext.box(replacedX, itemY, 16, 16,
-                        changed ? 0xD02A65AF : 0x20FFFFFF, changed ? 0xFF76C7FF : 0x40707070);
+                drawContext.box(
+                        replacedX,
+                        itemY,
+                        16,
+                        16,
+                        changed ? 0xD02A65AF : 0x20FFFFFF,
+                        changed ? 0xFF76C7FF : 0x40707070
+                );
                 if (this.gui.selectedSlots.containsKey(this.entry.group().signature() + ":" + i)) {
                     drawContext.outline(itemX - 1, itemY - 1, 18, 18, 0xFFFFD54F);
                     drawContext.outline(replacedX - 1, itemY - 1, 18, 18, 0xFFFFD54F);
@@ -511,8 +687,7 @@ final class QuickLitematicaContainerMaterialsScreens {
                 int replacedX = targetX + ((i - this.entry.startSlot()) % columns) * ITEM_CELL_WIDTH;
                 int itemY = this.y + 4 + ((i - this.entry.startSlot()) / columns) * ITEM_CELL_HEIGHT;
 
-                if (((mouseX >= itemX && mouseX < itemX + 16)
-                        || (mouseX >= replacedX && mouseX < replacedX + 16))
+                if (((mouseX >= itemX && mouseX < itemX + 16) || (mouseX >= replacedX && mouseX < replacedX + 16))
                         && mouseY >= itemY && mouseY < itemY + 16) {
                     return i;
                 }

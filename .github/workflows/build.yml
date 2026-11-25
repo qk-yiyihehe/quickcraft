@@ -1,7 +1,7 @@
-# Automatically build the project and run any configured tests for every push
-# and submitted pull request. This can help catch issues that only occur on
-# certain platforms or Java versions, and provides a first line of defence
-# against bad commits.
+# 每次推送或提交拉取请求时，自动构建项目并运行已配置的测试。
+# 这有助于发现一些只在特定平台上，
+# 或者只在特定 Java 版本上出现的问题。
+# 这也能尽早发现有问题的提交。
 
 name: build
 on: [pull_request, push]

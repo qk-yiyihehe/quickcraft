@@ -8,25 +8,38 @@ final class QuickLitematicaPreviewTransparentMerge {
     private static final long EXTRA_GPU_BYTES = 256L * 1024 * 1024;
 
     static int indexCountWithinBudget(long vertexBytes, long quads) {
-        if (vertexBytes < 0 || quads <= 0 || quads > (Integer.MAX_VALUE - 8L) / 24
-                || vertexBytes > EXTRA_GPU_BYTES - quads * 24) return 0;
+        if (vertexBytes < 0 || quads <= 0 || quads > (Integer.MAX_VALUE - 8L) / 24 || vertexBytes > EXTRA_GPU_BYTES
+                - quads * 24) {
+            return 0;
+        }
         return (int) (quads * 6);
     }
 
-
     static Stream stream(List<QuickLitematicaPreview3D.LayerMesh> layers, int stride) {
         long vertices = 0;
-        for (var layer : layers) if (layer.needsTranslucentSorting()) vertices += layer.vertexCount();
+        for (var layer : layers) {
+            if (layer.needsTranslucentSorting()) {
+                vertices += layer.vertexCount();
+            }
+        }
         return stream(vertices, stride);
     }
 
     static Stream stream(long vertices, int stride) {
-        if (vertices == 0) return null;
-        if (vertices < 0 || vertices % 4 != 0 || stride <= 0) throw new IllegalArgumentException("Invalid transparent mesh size");
+        if (vertices == 0) {
+            return null;
+        }
+        if (vertices < 0 || vertices % 4 != 0 || stride <= 0) {
+            throw new IllegalArgumentException("Invalid transparent mesh size");
+        }
         // 旧版本原生缓冲与索引暂存采用 int 长度；极端强制投影保留分批支持，不能因此拒绝加载。
-        if (vertices > (Integer.MAX_VALUE - 8L) / stride || vertices / 4 > (Integer.MAX_VALUE - 8L) / 24) return null;
+        if (vertices > (Integer.MAX_VALUE - 8L) / stride || vertices / 4 > (Integer.MAX_VALUE - 8L) / 24) {
+            return null;
+        }
         long bytes = vertices * stride;
-        if (indexCountWithinBudget(bytes, vertices / 4) != 0) return null;
+        if (indexCountWithinBudget(bytes, vertices / 4) != 0) {
+            return null;
+        }
         return new Stream(Math.toIntExact(vertices), stride);
     }
 
@@ -41,25 +54,38 @@ final class QuickLitematicaPreviewTransparentMerge {
             this.indexCount = Math.multiplyExact(vertices / 4, 6);
         }
 
-        int byteOffset() { return Math.multiplyExact(this.uploaded, this.stride); }
-        int quadOffset() { return this.uploaded / 4; }
+        int byteOffset() {
+            return Math.multiplyExact(this.uploaded, this.stride);
+        }
+
+        int quadOffset() {
+            return this.uploaded / 4;
+        }
 
         void checkBatch(int vertices, int bytes) {
-            if (vertices <= 0 || vertices % 4 != 0 || vertices > this.vertices - this.uploaded
-                    || (long) vertices * this.stride != bytes)
+            if (vertices <= 0 || vertices % 4 != 0 || vertices > this.vertices - this.uploaded || (long) vertices
+                    * this.stride != bytes) {
                 throw new IllegalArgumentException("Transparent upload batch does not match its arena");
+            }
         }
 
         void advance(int vertices, int bytes) {
             this.checkBatch(vertices, bytes);
             this.uploaded += vertices;
-            if (this.uploaded == this.vertices) QuickLitematicaPreviewLog.LOGGER.info(
-                    "transparent-arena-v1：透明层按批上传完成，顶点={}，顶点字节={}，索引字节={}，GPU 批次=1，无旧整层副本",
-                    this.vertices, this.vertexBytes, (long) this.indexCount * 4);
+            if (this.uploaded == this.vertices) {
+                QuickLitematicaPreviewLog.LOGGER.info(
+                        "transparent-arena-v1：透明层按批上传完成，顶点={}，顶点字节={}，索引字节={}，GPU 批次=1，无旧整层副本",
+                        this.vertices,
+                        this.vertexBytes,
+                        (long) this.indexCount * 4
+                );
+            }
         }
 
         void requireComplete() {
-            if (this.uploaded != this.vertices) throw new IllegalStateException("Transparent arena upload is incomplete");
+            if (this.uploaded != this.vertices) {
+                throw new IllegalStateException("Transparent arena upload is incomplete");
+            }
         }
     }
 
@@ -74,7 +100,9 @@ final class QuickLitematicaPreviewTransparentMerge {
 
     static CompactVectorArray centers(List<CompactVectorArray> batches) {
         int count = 0;
-        for (var batch : batches) count = Math.addExact(count, batch.size());
+        for (var batch : batches) {
+            count = Math.addExact(count, batch.size());
+        }
         var combined = new CompactVectorArray(count);
         int offset = 0;
         var point = new org.joml.Vector3f();

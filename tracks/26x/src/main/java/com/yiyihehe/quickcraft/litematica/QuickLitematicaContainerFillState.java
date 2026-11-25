@@ -40,7 +40,7 @@ public final class QuickLitematicaContainerFillState {
     private static BlockPos activePos;
     private static List<InventoryRead> pendingRead;
 
-    private QuickLitematicaContainerFillState() { }
+    private QuickLitematicaContainerFillState() {}
 
     static void clear() {
         STATES.clear();
@@ -69,10 +69,12 @@ public final class QuickLitematicaContainerFillState {
 
     public static void rememberContainerUse(Minecraft client, BlockHitResult hit) {
         clearPendingUse();
-        if (!prepare(client)) { return; }
+        if (!prepare(client)) {
+            return;
+        }
         captureScreen(client);
-        pendingPos = client.level.getBlockEntity(hit.getBlockPos()) instanceof Container
-                ? hit.getBlockPos().immutable() : null;
+        pendingPos = client.level.getBlockEntity(hit.getBlockPos()) instanceof Container ? hit.getBlockPos().immutable()
+                : null;
         pendingTicks = 40;
     }
 
@@ -83,9 +85,13 @@ public final class QuickLitematicaContainerFillState {
 
     public static void onContentsReceived(int syncId) {
         Minecraft client = Minecraft.getInstance();
-        if (!prepare(client) || client.player == null || pendingPos == null || pendingTicks <= 0) { return; }
+        if (!prepare(client) || client.player == null || pendingPos == null || pendingTicks <= 0) {
+            return;
+        }
         AbstractContainerMenu handler = client.player.containerMenu;
-        if (handler.containerId == syncId && QuickLitematicaContainerScreenBinding.isSupportedContainerHandler(handler)) {
+        if (handler.containerId == syncId && QuickLitematicaContainerScreenBinding.isSupportedContainerHandler(
+                handler
+        )) {
             activeHandler = handler;
             activePos = pendingPos;
             pendingPos = null;
@@ -94,12 +100,17 @@ public final class QuickLitematicaContainerFillState {
     }
 
     private static void captureScreen(Minecraft client) {
-        if (activeHandler == null || activePos == null) { return; }
-        boolean nonempty = activeHandler.slots.stream()
-                .anyMatch(slot -> !(slot.container instanceof Inventory) && slot.hasItem());
+        if (activeHandler == null || activePos == null) {
+            return;
+        }
+        boolean nonempty = activeHandler.slots.stream().anyMatch(
+                slot -> !(slot.container instanceof Inventory) && slot.hasItem()
+        );
         rememberScreenState(activePos, nonempty);
         BlockPos paired = pairedPos(client.level, activePos);
-        if (paired != null) { rememberScreenState(paired, nonempty); }
+        if (paired != null) {
+            rememberScreenState(paired, nonempty);
+        }
         // 自动填充可能已关箱，处理器仍保留最后一次操作的槽位内容。
         if (client.player == null || client.player.containerMenu != activeHandler) {
             activeHandler = null;
@@ -109,50 +120,78 @@ public final class QuickLitematicaContainerFillState {
 
     private static void rememberScreenState(BlockPos pos, boolean nonempty) {
         State state = stateAt(pos);
-        if (state == null) { return; }
+        if (state == null) {
+            return;
+        }
         state.nonempty = nonempty;
         state.screenRevision++;
         state.nbt = EntityDataManager.getInstance().getCache().getBlockEntityNbtFromCache(pos);
         BlockPos paired = pairedPos(cachedWorld, pos);
-        state.pairedNbt = paired != null ? EntityDataManager.getInstance().getCache().getBlockEntityNbtFromCache(paired) : null;
+        state.pairedNbt = paired != null ? EntityDataManager.getInstance().getCache().getBlockEntityNbtFromCache(paired)
+                : null;
     }
 
     static void tick(Minecraft client, List<QuickLitematicaContainerHighlight.ProjectedContainer> positions) {
-        if (!prepare(client)) { clear(); return; }
+        if (!prepare(client)) {
+            clear();
+            return;
+        }
         tick++;
-        if (pendingTicks > 0 && --pendingTicks == 0) { pendingPos = null; }
+        if (pendingTicks > 0 && --pendingTicks == 0) {
+            pendingPos = null;
+        }
         if (candidates != positions) {
             candidates = positions;
             var retained = new HashSet<BlockPos>();
             positions.forEach(container -> retained.add(container.pos()));
             STATES.keySet().retainAll(retained);
         }
-        if (positions.isEmpty() || client.player == null) { captureScreen(client); return; }
+        if (positions.isEmpty() || client.player == null) {
+            captureScreen(client);
+            return;
+        }
+
         Level world = inventoryWorld;
         boolean integrated = world instanceof ServerLevel;
         int maxDistance = (client.options.renderDistance().get() + 2) * 16;
         BlockPos playerPos = client.player.blockPosition();
-        if (integrated && pendingRead != null) { captureScreen(client); return; }
+        if (integrated && pendingRead != null) {
+            captureScreen(client);
+            return;
+        }
+
         List<BlockPos> integratedPositions = new ArrayList<>();
         for (int checked = 0; checked < Math.min(CHECKS_PER_TICK, positions.size()); checked++) {
             var container = positions.get(cursor++ % positions.size());
-            if (cursor >= positions.size()) { cursor = 0; }
+            if (cursor >= positions.size()) {
+                cursor = 0;
+            }
             BlockPos pos = container.pos();
-            if (!canCheck(client, container, playerPos, maxDistance)) { continue; }
+            if (!canCheck(client, container, playerPos, maxDistance)) {
+                continue;
+            }
             if (integrated) {
                 integratedPositions.add(pos);
                 continue;
             }
             State state = stateAt(pos);
-            if (state == null) { continue; }
+            if (state == null) {
+                continue;
+            }
             BlockPos paired = pairedPos(world, pos);
             if (EntityDataManager.getInstance().getClientWorld() == client.level) {
                 CompoundTag nbt = EntityDataManager.getInstance().getCache().getBlockEntityNbtFromCache(pos);
-                CompoundTag pairedNbt = paired != null ? EntityDataManager.getInstance().getCache().getBlockEntityNbtFromCache(paired) : null;
+                CompoundTag pairedNbt = paired != null ? EntityDataManager.getInstance().getCache()
+                        .getBlockEntityNbtFromCache(paired) : null;
                 // 已打开界面的快照优先于同一份旧缓存；只有新的库存数据才能覆盖它。
                 if (nbt != state.nbt || pairedNbt != state.pairedNbt) {
-                    Boolean known = combine(cachedNonempty(pos, nbt), paired != null ? cachedNonempty(paired, pairedNbt) : Boolean.FALSE);
-                    if (known != null) { state.nonempty = known; }
+                    Boolean known = combine(
+                            cachedNonempty(pos, nbt),
+                            paired != null ? cachedNonempty(paired, pairedNbt) : Boolean.FALSE
+                    );
+                    if (known != null) {
+                        state.nonempty = known;
+                    }
                     state.nbt = nbt;
                     state.pairedNbt = pairedNbt;
                 }
@@ -167,28 +206,39 @@ public final class QuickLitematicaContainerFillState {
         captureScreen(client);
     }
 
-    private static boolean canCheck(Minecraft client,
-                                    QuickLitematicaContainerHighlight.ProjectedContainer container,
-                                    BlockPos playerPos, int maxDistance) {
+    private static boolean canCheck(
+            Minecraft client,
+            QuickLitematicaContainerHighlight.ProjectedContainer container,
+            BlockPos playerPos,
+            int maxDistance
+    ) {
         BlockPos pos = container.pos();
-        return Math.abs(pos.getX() - playerPos.getX()) <= maxDistance
-                && Math.abs(pos.getZ() - playerPos.getZ()) <= maxDistance
-                && DataManager.getRenderLayerRange().isPositionWithinRange(pos)
-                && client.level.hasChunkAt(pos)
+        return Math.abs(pos.getX() - playerPos.getX()) <= maxDistance && Math.abs(
+                pos.getZ() - playerPos.getZ()
+        ) <= maxDistance && DataManager.getRenderLayerRange().isPositionWithinRange(pos) && client.level.hasChunkAt(pos)
                 && client.level.getBlockState(pos).getBlock() == container.block();
     }
 
-    private static void requestNextInventory(Minecraft client,
-                                            List<QuickLitematicaContainerHighlight.ProjectedContainer> positions,
-                                            BlockPos playerPos, int maxDistance) {
+    private static void requestNextInventory(
+            Minecraft client,
+            List<QuickLitematicaContainerHighlight.ProjectedContainer> positions,
+            BlockPos playerPos,
+            int maxDistance
+    ) {
         // 独立轮转请求游标，避免大投影中每批只有第一个容器能获得库存数据。
         for (int checked = 0; checked < Math.min(CHECKS_PER_TICK, positions.size()); checked++) {
             var container = positions.get(requestCursor++ % positions.size());
-            if (requestCursor >= positions.size()) { requestCursor = 0; }
-            if (!canCheck(client, container, playerPos, maxDistance)) { continue; }
+            if (requestCursor >= positions.size()) {
+                requestCursor = 0;
+            }
+            if (!canCheck(client, container, playerPos, maxDistance)) {
+                continue;
+            }
             BlockPos pos = container.pos();
             State state = stateAt(pos);
-            if (state == null || tick < state.nextRequestTick) { continue; }
+            if (state == null || tick < state.nextRequestTick) {
+                continue;
+            }
             BlockPos paired = pairedPos(client.level, pos);
             BlockPos target = paired != null && state.requestPaired && client.level.hasChunkAt(paired) ? paired : pos;
             QuickLitematicaContainerInventory.ensureEntityDataSyncEnabled();
@@ -200,18 +250,26 @@ public final class QuickLitematicaContainerFillState {
     }
 
     static Boolean combine(Boolean first, Boolean second) {
-        if (Boolean.TRUE.equals(first) || Boolean.TRUE.equals(second)) { return true; }
+        if (Boolean.TRUE.equals(first) || Boolean.TRUE.equals(second)) {
+            return true;
+        }
         return first != null && second != null ? false : null;
     }
 
     static void requestIntegratedInventory(Minecraft client, ServerLevel world, List<BlockPos> positions) {
-        if (pendingRead != null || positions.isEmpty()) { return; }
+        if (pendingRead != null || positions.isEmpty()) {
+            return;
+        }
         List<InventoryRead> reads = new ArrayList<>();
         for (BlockPos pos : positions) {
             State state = stateAt(pos);
-            if (state != null) { reads.add(new InventoryRead(pos, state, state.screenRevision)); }
+            if (state != null) {
+                reads.add(new InventoryRead(pos, state, state.screenRevision));
+            }
         }
-        if (reads.isEmpty()) { return; }
+        if (reads.isEmpty()) {
+            return;
+        }
         pendingRead = reads;
         Level clientWorld = cachedWorld;
         // World/Level.getBlockEntity 在非服务端线程会返回 null；只在所属线程读取库存。
@@ -224,13 +282,17 @@ public final class QuickLitematicaContainerFillState {
                 results.put(read, combine(first, second));
             }
             client.execute(() -> {
-                if (pendingRead != reads) { return; }
+                if (pendingRead != reads) {
+                    return;
+                }
                 pendingRead = null;
-                if (client.level != clientWorld || inventoryWorld != world) { return; }
+                if (client.level != clientWorld || inventoryWorld != world) {
+                    return;
+                }
                 results.forEach((read, nonempty) -> {
                     // 不让较早的服务端快照覆盖此后发生的界面操作。
-                    if (STATES.get(read.pos()) == read.state()
-                            && read.state().screenRevision == read.screenRevision()) {
+                    if (STATES.get(read.pos()) == read.state() && read.state().screenRevision == read
+                            .screenRevision()) {
                         read.state().nonempty = nonempty;
                     }
                 });
@@ -239,31 +301,37 @@ public final class QuickLitematicaContainerFillState {
     }
 
     private static Boolean directNonempty(Level world, BlockPos pos) {
-        return world.hasChunkAt(pos) && world.getBlockEntity(pos) instanceof Container inventory
-                ? !inventory.isEmpty() : null;
+        return world.hasChunkAt(pos) && world.getBlockEntity(pos) instanceof Container inventory ? !inventory.isEmpty()
+                : null;
     }
 
     private static Boolean cachedNonempty(BlockPos pos, CompoundTag nbt) {
-        if (nbt == null || !(EntityDataManager.getInstance().getCache().getBlockEntityFromCache(pos) instanceof Container inventory)) {
+        if (nbt == null || !(EntityDataManager.getInstance().getCache().getBlockEntityFromCache(
+                pos
+        ) instanceof Container inventory)) {
             return null;
         }
         // 请求可能先缓存客户端空壳；没有服务器库存通道时不能用它覆盖开箱快照。
-        if (!inventory.isEmpty()) { return true; }
-        boolean synchronizedInventory = EntityDataManager.getInstance().hasServuxServer()
-                || EntityDataManager.getInstance().hasBackupStatus()
-                || EntityDataManager.getInstance().getIfReceivedBackupPackets();
+        if (!inventory.isEmpty()) {
+            return true;
+        }
+        boolean synchronizedInventory = EntityDataManager.getInstance().hasServuxServer() || EntityDataManager
+                .getInstance().hasBackupStatus() || EntityDataManager.getInstance().getIfReceivedBackupPackets();
         return nbt.contains("Items") && synchronizedInventory ? Boolean.FALSE : null;
     }
 
     private static BlockPos pairedPos(Level world, BlockPos pos) {
         var state = world.getBlockState(pos);
-        return QuickLitematicaContainerInventory.getChestType(state) != ChestType.SINGLE
-                ? ChestBlock.getConnectedBlockPos(pos, state) : null;
+        return QuickLitematicaContainerInventory.getChestType(state) != ChestType.SINGLE ? ChestBlock
+                .getConnectedBlockPos(pos, state) : null;
     }
 
     private static State stateAt(BlockPos pos) {
         BlockEntity entity = cachedWorld.getBlockEntity(pos);
-        if (!(entity instanceof Container)) { STATES.remove(pos); return null; }
+        if (!(entity instanceof Container)) {
+            STATES.remove(pos);
+            return null;
+        }
         State state = STATES.get(pos);
         if (state == null || state.entity != entity) {
             state = new State(entity);
@@ -274,8 +342,8 @@ public final class QuickLitematicaContainerFillState {
 
     static boolean isFilled(BlockPos pos) {
         State state = STATES.get(pos);
-        return state != null && Boolean.TRUE.equals(state.nonempty)
-                && cachedWorld != null && cachedWorld.getBlockEntity(pos) == state.entity;
+        return state != null && Boolean.TRUE.equals(state.nonempty) && cachedWorld != null && cachedWorld
+                .getBlockEntity(pos) == state.entity;
     }
 
     private static final class State {
@@ -287,8 +355,11 @@ public final class QuickLitematicaContainerFillState {
         private long nextRequestTick;
         private boolean requestPaired;
 
-        private State(BlockEntity entity) { this.entity = entity; }
+        private State(BlockEntity entity) {
+            this.entity = entity;
+        }
     }
 
-    private record InventoryRead(BlockPos pos, State state, long screenRevision) { }
+    private record InventoryRead(BlockPos pos, State state, long screenRevision) {
+    }
 }

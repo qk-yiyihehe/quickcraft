@@ -26,7 +26,9 @@ class QuickLitematicaPreviewBatchCompatibilityTest {
         assertThat(restored).containsExactly(first, second);
         var otherMaterial = RenderType.create("quickcraft_other_material", setup);
         var next = new SubmitNodeStorage();
-        next.order(0).solid.submit(new ModelFeatureRenderer.Submit<>(otherMaterial, new PoseStack().last(), null, 3, 0, 0, -1, null, null));
+        next.order(0).solid.submit(
+                new ModelFeatureRenderer.Submit<>(otherMaterial, new PoseStack().last(), null, 3, 0, 0, -1, null, null)
+        );
         assertThat(compatibility.accepts(next)).isFalse();
         assertThat(next.order(0).solid.isEmpty()).isFalse();
     }

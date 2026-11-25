@@ -4,11 +4,10 @@ import java.util.List;
 import java.util.function.BiPredicate;
 
 /**
- * Matches the logical contents of a crafting grid without depending on Minecraft recipe APIs.
+ * 匹配合成格的逻辑内容，无需依赖 Minecraft 的配方 API。
  */
 final class QuickCraftRecipeGridMatcher {
-    private QuickCraftRecipeGridMatcher() {
-    }
+    private QuickCraftRecipeGridMatcher() {}
 
     static <T> boolean matchesShaped(
             List<T> grid,
@@ -19,17 +18,36 @@ final class QuickCraftRecipeGridMatcher {
             int recipeHeight,
             BiPredicate<T, List<T>> slotMatcher
     ) {
-        if (grid.size() != gridWidth * gridHeight
-                || ingredients.size() != recipeWidth * recipeHeight
-                || recipeWidth > gridWidth
-                || recipeHeight > gridHeight) {
+        if (grid.size() != gridWidth * gridHeight || ingredients.size() != recipeWidth * recipeHeight
+                || recipeWidth > gridWidth || recipeHeight > gridHeight) {
             return false;
         }
 
         for (int offsetY = 0; offsetY <= gridHeight - recipeHeight; offsetY++) {
             for (int offsetX = 0; offsetX <= gridWidth - recipeWidth; offsetX++) {
-                if (matchesShapedAt(grid, gridWidth, gridHeight, ingredients, recipeWidth, recipeHeight, offsetX, offsetY, false, slotMatcher)
-                        || matchesShapedAt(grid, gridWidth, gridHeight, ingredients, recipeWidth, recipeHeight, offsetX, offsetY, true, slotMatcher)) {
+                if (matchesShapedAt(
+                        grid,
+                        gridWidth,
+                        gridHeight,
+                        ingredients,
+                        recipeWidth,
+                        recipeHeight,
+                        offsetX,
+                        offsetY,
+                        false,
+                        slotMatcher
+                ) || matchesShapedAt(
+                        grid,
+                        gridWidth,
+                        gridHeight,
+                        ingredients,
+                        recipeWidth,
+                        recipeHeight,
+                        offsetX,
+                        offsetY,
+                        true,
+                        slotMatcher
+                )) {
                     return true;
                 }
             }

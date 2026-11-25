@@ -23,7 +23,7 @@ import net.minecraft.util.math.Box;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
-/** Keeps short-lived world markers for container copy and projection fill results. */
+/** 短暂保留容器复制和投影填充结果的世界内标记。 */
 public final class QuickContainerFillStatus {
     private static final int TICKS_PER_SECOND = 20;
     private static final int MAX_MARKERS = 24;
@@ -33,8 +33,7 @@ public final class QuickContainerFillStatus {
     private static ClientWorld markerWorld;
     private static long tick;
 
-    private QuickContainerFillStatus() {
-    }
+    private QuickContainerFillStatus() {}
 
     public static void initialize() {
         ClientTickEvents.END_CLIENT_TICK.register(QuickContainerFillStatus::onClientTick);
@@ -144,7 +143,8 @@ public final class QuickContainerFillStatus {
 
     private static void onClientTick(MinecraftClient client) {
         tick++;
-        if (client.world != markerWorld || client.player == null || !QuickCraftConfigs.areContainerFillStatusOutlinesVisible()) {
+        if (client.world != markerWorld || client.player == null || !QuickCraftConfigs
+                .areContainerFillStatusOutlinesVisible()) {
             MARKERS.clear();
             markerWorld = client.world;
             return;
@@ -153,10 +153,8 @@ public final class QuickContainerFillStatus {
     }
 
     static boolean isAvailable(MinecraftClient client) {
-        return client != null
-                && client.world != null
-                && client.player != null
-                && QuickCraftConfigs.areContainerFillStatusOutlinesVisible();
+        return client != null && client.world != null && client.player != null && QuickCraftConfigs
+                .areContainerFillStatusOutlinesVisible();
     }
 
     private static void renderHud(DrawContext context) {
@@ -169,9 +167,10 @@ public final class QuickContainerFillStatus {
             return;
         }
         Text label = switch (marker.status) {
-            case FILLING -> marker.pendingIssues > 0
-                    ? Text.translatable("quickcraft.container_fill_status.progress", marker.pendingIssues)
-                    : Text.translatable("quickcraft.container_fill_status.filling");
+            case FILLING -> marker.pendingIssues > 0 ? Text.translatable(
+                    "quickcraft.container_fill_status.progress",
+                    marker.pendingIssues
+            ) : Text.translatable("quickcraft.container_fill_status.filling");
             case COMPLETE -> Text.translatable("quickcraft.container_fill_status.complete");
             case PARTIAL -> Text.translatable("quickcraft.container_fill_status.partial", marker.pendingIssues);
             case STOPPED -> Text.translatable("quickcraft.container_fill_status.stopped");
@@ -201,13 +200,12 @@ public final class QuickContainerFillStatus {
             if (hitResult instanceof BlockHitResult blockHitResult) {
                 BlockPos pos = blockHitResult.getBlockPos();
                 BlockState state = world.getBlockState(pos);
-                if (state.getBlock() instanceof ChestBlock
-                        && state.get(ChestBlock.CHEST_TYPE) != ChestType.SINGLE) {
+                if (state.getBlock() instanceof ChestBlock && state.get(ChestBlock.CHEST_TYPE) != ChestType.SINGLE) {
                     BlockPos neighborPos = pos.offset(ChestBlock.getFacing(state));
                     BlockState neighbor = world.getBlockState(neighborPos);
-                    if (neighbor.getBlock() == state.getBlock()
-                            && neighbor.get(ChestBlock.FACING) == state.get(ChestBlock.FACING)
-                            && neighbor.get(ChestBlock.CHEST_TYPE) == state.get(ChestBlock.CHEST_TYPE).getOpposite()
+                    if (neighbor.getBlock() == state.getBlock() && neighbor.get(ChestBlock.FACING) == state.get(
+                            ChestBlock.FACING
+                    ) && neighbor.get(ChestBlock.CHEST_TYPE) == state.get(ChestBlock.CHEST_TYPE).getOpposite()
                             && neighborPos.asLong() < pos.asLong()) {
                         pos = neighborPos;
                     }
@@ -222,8 +220,8 @@ public final class QuickContainerFillStatus {
 
         Box box(ClientWorld world) {
             if (barrelPair != null) {
-                return barrelPair.equals(QuickLargeBarrel.findPair(world, blockPos))
-                        ? new Box(barrelPair.first()).union(new Box(barrelPair.second())) : null;
+                return barrelPair.equals(QuickLargeBarrel.findPair(world, blockPos)) ? new Box(barrelPair.first())
+                        .union(new Box(barrelPair.second())) : null;
             }
             if (blockPos != null) {
                 BlockState state = world.getBlockState(blockPos);
@@ -231,13 +229,12 @@ public final class QuickContainerFillStatus {
                     return null;
                 }
                 Box box = new Box(blockPos);
-                if (state.getBlock() instanceof ChestBlock
-                        && state.get(ChestBlock.CHEST_TYPE) != ChestType.SINGLE) {
+                if (state.getBlock() instanceof ChestBlock && state.get(ChestBlock.CHEST_TYPE) != ChestType.SINGLE) {
                     BlockPos neighborPos = blockPos.offset(ChestBlock.getFacing(state));
                     BlockState neighbor = world.getBlockState(neighborPos);
-                    if (neighbor.getBlock() == state.getBlock()
-                            && neighbor.get(ChestBlock.FACING) == state.get(ChestBlock.FACING)
-                            && neighbor.get(ChestBlock.CHEST_TYPE) == state.get(ChestBlock.CHEST_TYPE).getOpposite()) {
+                    if (neighbor.getBlock() == state.getBlock() && neighbor.get(ChestBlock.FACING) == state.get(
+                            ChestBlock.FACING
+                    ) && neighbor.get(ChestBlock.CHEST_TYPE) == state.get(ChestBlock.CHEST_TYPE).getOpposite()) {
                         box = box.union(new Box(neighborPos));
                     }
                 }
@@ -261,11 +258,8 @@ public final class QuickContainerFillStatus {
     }
 
     enum Status {
-        FILLING(0.20F, 0.65F, 1.00F, 0xFF55B5FF),
-        COMPLETE(0.30F, 0.95F, 0.35F, 0xFF76EE88),
-        PARTIAL(1.00F, 0.75F, 0.15F, 0xFFFFD05E),
-        STOPPED(0.65F, 0.70F, 0.75F, 0xFFB3BEC9),
-        FAILED(1.00F, 0.30F, 0.30F, 0xFFFF7777);
+        FILLING(0.20F, 0.65F, 1.00F, 0xFF55B5FF), COMPLETE(0.30F, 0.95F, 0.35F, 0xFF76EE88), PARTIAL(1.00F, 0.75F,
+                0.15F, 0xFFFFD05E), STOPPED(0.65F, 0.70F, 0.75F, 0xFFB3BEC9), FAILED(1.00F, 0.30F, 0.30F, 0xFFFF7777);
 
         final float red;
         final float green;

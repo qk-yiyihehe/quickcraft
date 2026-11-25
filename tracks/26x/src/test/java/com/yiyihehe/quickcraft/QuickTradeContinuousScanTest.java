@@ -46,7 +46,14 @@ class QuickTradeContinuousScanTest {
         Minecraft client = mockClient();
         AbstractVillager near = merchant(NEAR_KEY);
         AbstractVillager far = merchant(FAR_KEY);
-        when(client.level.getEntities(org.mockito.ArgumentMatchers.<net.minecraft.world.level.entity.EntityTypeTest<net.minecraft.world.entity.Entity, AbstractVillager>>any(), any(), any())).thenReturn(List.of(near, far));
+        when(
+                client.level.getEntities(
+                        org.mockito.ArgumentMatchers.<
+                                net.minecraft.world.level.entity.EntityTypeTest<net.minecraft.world.entity.Entity, AbstractVillager>>any(),
+                        any(),
+                        any()
+                )
+        ).thenReturn(List.of(near, far));
 
         try (var minecraft = mockStatic(Minecraft.class)) {
             minecraft.when(Minecraft::getInstance).thenReturn(client);
@@ -59,7 +66,14 @@ class QuickTradeContinuousScanTest {
             verify(client.gameMode).interact(eq(client.player), eq(far), any(), eq(InteractionHand.MAIN_HAND));
         }
 
-        when(client.level.getEntities(org.mockito.ArgumentMatchers.<net.minecraft.world.level.entity.EntityTypeTest<net.minecraft.world.entity.Entity, AbstractVillager>>any(), any(), any())).thenReturn(List.of(near));
+        when(
+                client.level.getEntities(
+                        org.mockito.ArgumentMatchers.<
+                                net.minecraft.world.level.entity.EntityTypeTest<net.minecraft.world.entity.Entity, AbstractVillager>>any(),
+                        any(),
+                        any()
+                )
+        ).thenReturn(List.of(near));
         try (var minecraft = mockStatic(Minecraft.class)) {
             minecraft.when(Minecraft::getInstance).thenReturn(client);
             for (int tick = 0; tick < 130; tick++) {
@@ -76,7 +90,14 @@ class QuickTradeContinuousScanTest {
         QuickTradeTestSupport.loadFavorite(NEAR_KEY, new ItemStack(Items.EMERALD), new ItemStack(Items.BREAD));
         Minecraft client = mockClient();
         AbstractVillager near = merchant(NEAR_KEY);
-        when(client.level.getEntities(org.mockito.ArgumentMatchers.<net.minecraft.world.level.entity.EntityTypeTest<net.minecraft.world.entity.Entity, AbstractVillager>>any(), any(), any())).thenReturn(List.of(near));
+        when(
+                client.level.getEntities(
+                        org.mockito.ArgumentMatchers.<
+                                net.minecraft.world.level.entity.EntityTypeTest<net.minecraft.world.entity.Entity, AbstractVillager>>any(),
+                        any(),
+                        any()
+                )
+        ).thenReturn(List.of(near));
 
         try (var minecraft = mockStatic(Minecraft.class)) {
             minecraft.when(Minecraft::getInstance).thenReturn(client);
@@ -100,7 +121,14 @@ class QuickTradeContinuousScanTest {
         QuickTradeTestSupport.loadFavorite(NEAR_KEY, new ItemStack(Items.EMERALD), new ItemStack(Items.BREAD));
         Minecraft client = mockClient();
         AbstractVillager near = merchant(NEAR_KEY);
-        when(client.level.getEntities(org.mockito.ArgumentMatchers.<net.minecraft.world.level.entity.EntityTypeTest<net.minecraft.world.entity.Entity, AbstractVillager>>any(), any(), any())).thenReturn(List.of(near));
+        when(
+                client.level.getEntities(
+                        org.mockito.ArgumentMatchers.<
+                                net.minecraft.world.level.entity.EntityTypeTest<net.minecraft.world.entity.Entity, AbstractVillager>>any(),
+                        any(),
+                        any()
+                )
+        ).thenReturn(List.of(near));
 
         try (var minecraft = mockStatic(Minecraft.class)) {
             minecraft.when(Minecraft::getInstance).thenReturn(client);
@@ -109,9 +137,23 @@ class QuickTradeContinuousScanTest {
                 new QuickTrade().onClientTick(client);
             }
 
-            when(client.level.getEntities(org.mockito.ArgumentMatchers.<net.minecraft.world.level.entity.EntityTypeTest<net.minecraft.world.entity.Entity, AbstractVillager>>any(), any(), any())).thenReturn(List.of());
+            when(
+                    client.level.getEntities(
+                            org.mockito.ArgumentMatchers.<
+                                    net.minecraft.world.level.entity.EntityTypeTest<net.minecraft.world.entity.Entity, AbstractVillager>>any(),
+                            any(),
+                            any()
+                    )
+            ).thenReturn(List.of());
             new QuickTrade().onClientTick(client);
-            when(client.level.getEntities(org.mockito.ArgumentMatchers.<net.minecraft.world.level.entity.EntityTypeTest<net.minecraft.world.entity.Entity, AbstractVillager>>any(), any(), any())).thenReturn(List.of(near));
+            when(
+                    client.level.getEntities(
+                            org.mockito.ArgumentMatchers.<
+                                    net.minecraft.world.level.entity.EntityTypeTest<net.minecraft.world.entity.Entity, AbstractVillager>>any(),
+                            any(),
+                            any()
+                    )
+            ).thenReturn(List.of(near));
             new QuickTrade().onClientTick(client);
         }
 
@@ -129,7 +171,9 @@ class QuickTradeContinuousScanTest {
         Minecraft client = mock(Minecraft.class);
         LocalPlayer player = mock(LocalPlayer.class);
         when(player.getBoundingBox()).thenReturn(new AABB(0, 0, 0, 1, 1, 1));
-        when(player.isWithinEntityInteractionRange(any(net.minecraft.world.entity.Entity.class), eq(0.0))).thenReturn(true);
+        when(player.isWithinEntityInteractionRange(any(net.minecraft.world.entity.Entity.class), eq(0.0))).thenReturn(
+                true
+        );
         QuickTradeTestSupport.setField(client, "player", player);
         QuickTradeTestSupport.setField(client, "level", mock(ClientLevel.class));
         QuickTradeTestSupport.setField(client, "gameMode", mock(MultiPlayerGameMode.class));

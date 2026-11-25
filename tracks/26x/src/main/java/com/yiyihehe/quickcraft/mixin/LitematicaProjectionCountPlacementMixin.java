@@ -18,26 +18,43 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 @Mixin(value = TaskCountBlocksPlacement.class, remap = false)
-public abstract class LitematicaProjectionCountPlacementMixin extends TaskCountBlocksBase
-        implements QuickLitematicaProjectionMaterials.OriginalCountSource {
-    @Shadow @Final protected SchematicPlacement schematicPlacement;
-    @Shadow @Final protected boolean ignoreState;
-    @Unique private final Object2IntOpenHashMap<BlockState> quickcraft$originalTotal = new Object2IntOpenHashMap<>();
-    @Unique private final Object2IntOpenHashMap<BlockState> quickcraft$originalMissing = new Object2IntOpenHashMap<>();
-    @Unique private final Object2IntOpenHashMap<BlockState> quickcraft$originalMismatch = new Object2IntOpenHashMap<>();
+public abstract class LitematicaProjectionCountPlacementMixin extends TaskCountBlocksBase implements
+        QuickLitematicaProjectionMaterials.OriginalCountSource {
+    @Shadow
+    @Final
+    protected SchematicPlacement schematicPlacement;
+    @Shadow
+    @Final
+    protected boolean ignoreState;
+    @Unique
+    private final Object2IntOpenHashMap<BlockState> quickcraft$originalTotal = new Object2IntOpenHashMap<>();
+    @Unique
+    private final Object2IntOpenHashMap<BlockState> quickcraft$originalMissing = new Object2IntOpenHashMap<>();
+    @Unique
+    private final Object2IntOpenHashMap<BlockState> quickcraft$originalMismatch = new Object2IntOpenHashMap<>();
 
-    protected LitematicaProjectionCountPlacementMixin(IMaterialList list, String name) { super(list, name); }
+    protected LitematicaProjectionCountPlacementMixin(IMaterialList list, String name) {
+        super(list, name);
+    }
 
     @Inject(method = "countAtPosition", at = @At("HEAD"), cancellable = true)
     private void quickcraft$countWithoutGlobals(BlockPos pos, CallbackInfo ci) {
-        if (!com.yiyihehe.quickcraft.litematica.QuickLitematicaGlobalReplacements.hasRuntimeRules()) { return; }
-        BlockState actual = com.yiyihehe.quickcraft.litematica.QuickLitematicaGlobalReplacements.baselineState(this.schematicPlacement, pos);
+        if (!com.yiyihehe.quickcraft.litematica.QuickLitematicaGlobalReplacements.hasRuntimeRules()) {
+            return;
+        }
+        BlockState actual = com.yiyihehe.quickcraft.litematica.QuickLitematicaGlobalReplacements.baselineState(
+                this.schematicPlacement,
+                pos
+        );
         ci.cancel();
-        if (actual.isAir()) { return; }
+        if (actual.isAir()) {
+            return;
+        }
         this.countsTotal.addTo(actual, 1);
         BlockState client = this.clientWorld.getBlockState(pos);
-        if (client.isAir()) { this.countsMissing.addTo(actual, 1); }
-        else if (client != actual && (!this.ignoreState || client.getBlock() != actual.getBlock())) {
+        if (client.isAir()) {
+            this.countsMissing.addTo(actual, 1);
+        } else if (client != actual && (!this.ignoreState || client.getBlock() != actual.getBlock())) {
             this.countsMissing.addTo(actual, 1);
             this.countsMismatch.addTo(actual, 1);
         }
@@ -51,12 +68,18 @@ public abstract class LitematicaProjectionCountPlacementMixin extends TaskCountB
 
     @Unique
     private void quickcraft$collectOriginal(BlockPos pos, BlockState actual) {
-        if (actual.isAir()) { return; }
-        BlockState source = com.yiyihehe.quickcraft.litematica.QuickLitematicaGlobalReplacements.originalState(this.schematicPlacement, pos);
+        if (actual.isAir()) {
+            return;
+        }
+        BlockState source = com.yiyihehe.quickcraft.litematica.QuickLitematicaGlobalReplacements.originalState(
+                this.schematicPlacement,
+                pos
+        );
         this.quickcraft$originalTotal.addTo(source, 1);
         BlockState client = this.clientWorld.getBlockState(pos);
-        if (client.isAir()) { this.quickcraft$originalMissing.addTo(source, 1); }
-        else if (client != actual && (!this.ignoreState || client.getBlock() != actual.getBlock())) {
+        if (client.isAir()) {
+            this.quickcraft$originalMissing.addTo(source, 1);
+        } else if (client != actual && (!this.ignoreState || client.getBlock() != actual.getBlock())) {
             this.quickcraft$originalMissing.addTo(source, 1);
             this.quickcraft$originalMismatch.addTo(source, 1);
         }
@@ -65,9 +88,15 @@ public abstract class LitematicaProjectionCountPlacementMixin extends TaskCountB
     @Override
     public void quickcraft$prepareOriginalRows() {
         if (this.finished && this.isInWorld() && this.materialList instanceof MaterialListBase list) {
-            QuickLitematicaProjectionMaterials.prepareEditor(list,
-                    this.quickcraft$originalTotal, this.quickcraft$originalMissing, this.quickcraft$originalMismatch,
-                    this.countsTotal, this.countsMissing, this.countsMismatch);
+            QuickLitematicaProjectionMaterials.prepareEditor(
+                    list,
+                    this.quickcraft$originalTotal,
+                    this.quickcraft$originalMissing,
+                    this.quickcraft$originalMismatch,
+                    this.countsTotal,
+                    this.countsMissing,
+                    this.countsMismatch
+            );
         }
     }
 }

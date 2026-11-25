@@ -46,12 +46,8 @@ class QuickLitematicaVerifierPaletteTest {
     @Test
     @DisplayName("基色唯一的，互不重复")
     void baseColorsAreUnique() {
-        int[] colors = {
-                QuickLitematicaVerifierPalette.wrongFillRgb(),
-                QuickLitematicaVerifierPalette.missingFillRgb(),
-                QuickLitematicaVerifierPalette.extraFillRgb(),
-                QuickLitematicaVerifierPalette.wrongFillStateRgb()
-        };
+        int[] colors = { QuickLitematicaVerifierPalette.wrongFillRgb(), QuickLitematicaVerifierPalette.missingFillRgb(),
+                QuickLitematicaVerifierPalette.extraFillRgb(), QuickLitematicaVerifierPalette.wrongFillStateRgb() };
         assertThat(colors).doesNotHaveDuplicates();
     }
 
@@ -84,16 +80,13 @@ class QuickLitematicaVerifierPaletteTest {
     @Test
     @DisplayName("格式化代码唯一，互不重复")
     void formattingCodesAreUnique() {
-        String[] codes = {
-                QuickLitematicaVerifierPalette.wrongFillFormattingCode(),
-                QuickLitematicaVerifierPalette.missingFillFormattingCode(),
-                QuickLitematicaVerifierPalette.extraFillFormattingCode(),
-                QuickLitematicaVerifierPalette.wrongFillStateFormattingCode()
-        };
+        String[] codes = { QuickLitematicaVerifierPalette.wrongFillFormattingCode(), QuickLitematicaVerifierPalette
+                .missingFillFormattingCode(), QuickLitematicaVerifierPalette.extraFillFormattingCode(),
+                QuickLitematicaVerifierPalette.wrongFillStateFormattingCode() };
         assertThat(codes).doesNotHaveDuplicates();
     }
 
-    // ---- ghostItemAlpha ----
+    // ---- 幽灵物品透明度（ghostItemAlpha）----
 
     @Test
     @DisplayName("ghostItemAlpha = 0.80F")
@@ -101,43 +94,37 @@ class QuickLitematicaVerifierPaletteTest {
         assertThat(QuickLitematicaVerifierPalette.ghostItemAlpha()).isEqualTo(0.80F);
     }
 
-    // ---- formatSectionTitle ----
+    // ---- 格式化分区标题（formatSectionTitle）----
 
     @Test
     @DisplayName("formatSectionTitle 用白色加粗包裹标题")
     void formatSectionTitle_wrapsWithWhiteBold() {
-        assertThat(QuickLitematicaVerifierPalette.formatSectionTitle("容器验证"))
-                .isEqualTo("\u00a7f\u00a7l容器验证\u00a7r");
+        assertThat(QuickLitematicaVerifierPalette.formatSectionTitle("容器验证")).isEqualTo("\u00a7f\u00a7l容器验证\u00a7r");
     }
 
     @Test
     @DisplayName("formatSectionTitle 处理空字符串")
     void formatSectionTitle_handlesEmptyString() {
-        assertThat(QuickLitematicaVerifierPalette.formatSectionTitle(""))
-                .isEqualTo("\u00a7f\u00a7l\u00a7r");
+        assertThat(QuickLitematicaVerifierPalette.formatSectionTitle("")).isEqualTo("\u00a7f\u00a7l\u00a7r");
     }
 
     @Test
     @DisplayName("formatSectionTitle 结果以 §r 结尾")
     void formatSectionTitle_endsWithReset() {
-        assertThat(QuickLitematicaVerifierPalette.formatSectionTitle("任意标题"))
-                .endsWith("\u00a7r");
+        assertThat(QuickLitematicaVerifierPalette.formatSectionTitle("任意标题")).endsWith("\u00a7r");
     }
 
     @Test
     @DisplayName("formatSectionTitle 结果以 §f§l 开头")
     void formatSectionTitle_startsWithWhiteBold() {
-        assertThat(QuickLitematicaVerifierPalette.formatSectionTitle("任意标题"))
-                .startsWith("\u00a7f\u00a7l");
+        assertThat(QuickLitematicaVerifierPalette.formatSectionTitle("任意标题")).startsWith("\u00a7f\u00a7l");
     }
 
     @ParameterizedTest(name = "formatSectionTitle(\"{0}\")")
-    @ValueSource(strings = {"A", "验证", "Container Verification", "很长的标题文本用来测试格式化函数"})
+    @ValueSource(strings = { "A", "验证", "Container Verification", "很长的标题文本用来测试格式化函数" })
     @DisplayName("formatSectionTitle 对多种标题均不抛出异常")
     void formatSectionTitle_variousInputs(String title) {
         String result = QuickLitematicaVerifierPalette.formatSectionTitle(title);
-        assertThat(result).isNotNull()
-                .startsWith("\u00a7f\u00a7l")
-                .endsWith("\u00a7r");
+        assertThat(result).isNotNull().startsWith("\u00a7f\u00a7l").endsWith("\u00a7r");
     }
 }

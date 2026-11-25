@@ -5,9 +5,12 @@ import net.minecraft.client.renderer.RenderPipelines;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.Identifier;
 
-/** Icon button for moving matching player items into the open container. */
+/** 将玩家物品栏中符合条件的物品存入当前容器的图标按钮。 */
 public final class QuickStashButton extends QuickCompactIconButton {
-    private static final Identifier ICON = Identifier.fromNamespaceAndPath("quickcraft", "textures/gui/quick_stash.png");
+    private static final Identifier ICON = Identifier.fromNamespaceAndPath(
+            "quickcraft",
+            "textures/gui/quick_stash.png"
+    );
 
     public QuickStashButton(int x, int y, OnPress onPress, PositionKey positionKey, Component tooltip) {
         super(x, y, tooltip, onPress, positionKey);

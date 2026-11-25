@@ -20,8 +20,7 @@ public class QuickCraftMixinPlugin implements IMixinConfigPlugin {
     private static final String IPN_MIXIN_PREFIX = "com.yiyihehe.quickcraft.mixin.Ipn";
 
     @Override
-    public void onLoad(String mixinPackage) {
-    }
+    public void onLoad(String mixinPackage) {}
 
     @Override
     public String getRefMapperConfig() {
@@ -45,8 +44,9 @@ public class QuickCraftMixinPlugin implements IMixinConfigPlugin {
         if (mixinClassName.startsWith(IPN_MIXIN_PREFIX)) {
             return FabricLoader.getInstance().isModLoaded("inventoryprofilesnext");
         }
-        if (mixinClassName.endsWith(".QuickShulkerOpenPacketMixin")
-                || mixinClassName.endsWith(".QuickShulkerHandOpenMixin")) {
+        if (mixinClassName.endsWith(".QuickShulkerOpenPacketMixin") || mixinClassName.endsWith(
+                ".QuickShulkerHandOpenMixin"
+        )) {
             return FabricLoader.getInstance().isModLoaded("quickshulker");
         }
 
@@ -54,8 +54,7 @@ public class QuickCraftMixinPlugin implements IMixinConfigPlugin {
     }
 
     @Override
-    public void acceptTargets(Set<String> myTargets, Set<String> otherTargets) {
-    }
+    public void acceptTargets(Set<String> myTargets, Set<String> otherTargets) {}
 
     @Override
     public List<String> getMixins() {
@@ -63,10 +62,8 @@ public class QuickCraftMixinPlugin implements IMixinConfigPlugin {
     }
 
     @Override
-    public void preApply(String targetClassName, ClassNode targetClass, String mixinClassName, IMixinInfo mixinInfo) {
-    }
+    public void preApply(String targetClassName, ClassNode targetClass, String mixinClassName, IMixinInfo mixinInfo) {}
 
     @Override
-    public void postApply(String targetClassName, ClassNode targetClass, String mixinClassName, IMixinInfo mixinInfo) {
-    }
+    public void postApply(String targetClassName, ClassNode targetClass, String mixinClassName, IMixinInfo mixinInfo) {}
 }

@@ -64,8 +64,13 @@ class QuickLitematicaEntityPlacementTransformTest {
         when(subRegion.getMirror()).thenReturn(regionMirror);
         when(subRegion.getRotation()).thenReturn(regionRotation);
         Method method = QuickLitematicaEntityPlacement.class.getDeclaredMethod(
-                "transformEntityTreeState", CompoundTag.class, SchematicPlacement.class,
-                SubRegionPlacement.class, BlockPos.class, int.class);
+                "transformEntityTreeState",
+                CompoundTag.class,
+                SchematicPlacement.class,
+                SubRegionPlacement.class,
+                BlockPos.class,
+                int.class
+        );
         method.setAccessible(true);
         method.invoke(null, nbt, placement, subRegion, BlockPos.ZERO, 0);
     }

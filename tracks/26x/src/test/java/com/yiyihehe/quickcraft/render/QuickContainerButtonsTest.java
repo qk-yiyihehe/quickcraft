@@ -31,26 +31,43 @@ class QuickContainerButtonsTest {
         Minecraft client = mock(Minecraft.class);
         List<QuickDraggableButton> children = new ArrayList<>();
         doReturn(children).when(screen).children();
-        Map<QuickDraggableButton.PositionKey, Button.OnPress> actions =
-                new EnumMap<>(QuickDraggableButton.PositionKey.class);
+        Map<QuickDraggableButton.PositionKey, Button.OnPress> actions = new EnumMap<>(
+                QuickDraggableButton.PositionKey.class
+        );
         try (MockedStatic<QuickCraftConfigs> configs = mockStatic(QuickCraftConfigs.class);
-             MockedStatic<QuickContainerLock> locks = mockStatic(QuickContainerLock.class);
-             MockedStatic<QuickSort> sort = mockStatic(QuickSort.class);
-             MockedStatic<QuickStash> stash = mockStatic(QuickStash.class);
-             MockedStatic<QuickCraftKeyBindings> keys = mockStatic(QuickCraftKeyBindings.class);
-             MockedStatic<QuickShulkerStash> shulkerStash = mockStatic(QuickShulkerStash.class);
-             MockedConstruction<QuickStashButton> stashButtons = mockConstruction(QuickStashButton.class,
-                     (widget, context) -> actions.put((QuickDraggableButton.PositionKey) context.arguments().get(3),
-                             (Button.OnPress) context.arguments().get(2)));
-             MockedConstruction<QuickRetrieveButton> retrieveButtons = mockConstruction(QuickRetrieveButton.class,
-                     (widget, context) -> actions.put((QuickDraggableButton.PositionKey) context.arguments().get(3),
-                             (Button.OnPress) context.arguments().get(2)));
-             MockedConstruction<QuickSortButton> sortButtons = mockConstruction(QuickSortButton.class,
-                     (widget, context) -> actions.put((QuickDraggableButton.PositionKey) context.arguments().get(3),
-                             (Button.OnPress) context.arguments().get(2)));
-             MockedConstruction<QuickContainerLockButton> lockButtons = mockConstruction(QuickContainerLockButton.class,
-                     (widget, context) -> actions.put((QuickDraggableButton.PositionKey) context.arguments().get(4),
-                             (Button.OnPress) context.arguments().get(2)))) {
+                MockedStatic<QuickContainerLock> locks = mockStatic(QuickContainerLock.class);
+                MockedStatic<QuickSort> sort = mockStatic(QuickSort.class);
+                MockedStatic<QuickStash> stash = mockStatic(QuickStash.class);
+                MockedStatic<QuickCraftKeyBindings> keys = mockStatic(QuickCraftKeyBindings.class);
+                MockedStatic<QuickShulkerStash> shulkerStash = mockStatic(QuickShulkerStash.class);
+                MockedConstruction<QuickStashButton> stashButtons = mockConstruction(
+                        QuickStashButton.class,
+                        (widget, context) -> actions.put(
+                                (QuickDraggableButton.PositionKey) context.arguments().get(3),
+                                (Button.OnPress) context.arguments().get(2)
+                        )
+                );
+                MockedConstruction<QuickRetrieveButton> retrieveButtons = mockConstruction(
+                        QuickRetrieveButton.class,
+                        (widget, context) -> actions.put(
+                                (QuickDraggableButton.PositionKey) context.arguments().get(3),
+                                (Button.OnPress) context.arguments().get(2)
+                        )
+                );
+                MockedConstruction<QuickSortButton> sortButtons = mockConstruction(
+                        QuickSortButton.class,
+                        (widget, context) -> actions.put(
+                                (QuickDraggableButton.PositionKey) context.arguments().get(3),
+                                (Button.OnPress) context.arguments().get(2)
+                        )
+                );
+                MockedConstruction<QuickContainerLockButton> lockButtons = mockConstruction(
+                        QuickContainerLockButton.class,
+                        (widget, context) -> actions.put(
+                                (QuickDraggableButton.PositionKey) context.arguments().get(4),
+                                (Button.OnPress) context.arguments().get(2)
+                        )
+                )) {
             configs.when(QuickCraftConfigs::isQuickStashButtonVisible).thenReturn(true);
             configs.when(QuickCraftConfigs::isQuickSortButtonVisible).thenReturn(true);
             configs.when(QuickCraftConfigs::isContainerLockButtonVisible).thenReturn(true);

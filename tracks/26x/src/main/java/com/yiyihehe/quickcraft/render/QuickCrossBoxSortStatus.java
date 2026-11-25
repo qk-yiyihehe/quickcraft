@@ -25,7 +25,9 @@ public final class QuickCrossBoxSortStatus {
         ClientTickEvents.END_CLIENT_TICK.register(QuickCrossBoxSortStatus::tick);
         ScreenEvents.AFTER_INIT.register((client, screen, width, height) -> {
             if (screen instanceof AbstractContainerScreen<?> container) {
-                ScreenEvents.afterExtract(screen).register((shown, graphics, mouseX, mouseY, delta) -> render(container, graphics));
+                ScreenEvents.afterExtract(screen).register(
+                        (shown, graphics, mouseX, mouseY, delta) -> render(container, graphics)
+                );
                 ScreenEvents.remove(screen).register(removed -> {
                     if (owner == removed) {
                         clear();
@@ -45,7 +47,9 @@ public final class QuickCrossBoxSortStatus {
         if (client.player == null || client.level == null) {
             return;
         }
-        if (screen instanceof AbstractContainerScreen<?> container && screen == QuickClientScreenAccess.currentScreen(client)) {
+        if (screen instanceof AbstractContainerScreen<?> container && screen == QuickClientScreenAccess.currentScreen(
+                client
+        )) {
             owner = container;
             world = client.level;
             current = text.copy();
@@ -63,8 +67,9 @@ public final class QuickCrossBoxSortStatus {
     }
 
     private static void tick(Minecraft client) {
-        if (current != null && (client.player == null || client.level != world
-                || QuickClientScreenAccess.currentScreen(client) != owner || --remaining <= 0)) {
+        if (current != null && (client.player == null || client.level != world || QuickClientScreenAccess.currentScreen(
+                client
+        ) != owner || --remaining <= 0)) {
             clear();
         }
     }

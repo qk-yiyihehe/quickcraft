@@ -6,11 +6,13 @@ import net.minecraft.client.renderer.RenderPipelines;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.Identifier;
 
-/** Compact icon button used on the title bars of vanilla container screens. */
+/** 用在原版容器界面标题栏上的紧凑图标按钮。 */
 public abstract class QuickCompactIconButton extends QuickDraggableButton {
     public static final int SIZE = 14;
-    private static final Identifier BACKGROUND_TEXTURE =
-            Identifier.fromNamespaceAndPath("quickcraft", "textures/gui/compact_button.png");
+    private static final Identifier BACKGROUND_TEXTURE = Identifier.fromNamespaceAndPath(
+            "quickcraft",
+            "textures/gui/compact_button.png"
+    );
 
     protected QuickCompactIconButton(int x, int y, Component label, OnPress onPress, PositionKey positionKey) {
         super(x, y, SIZE, SIZE, label, onPress, positionKey);
@@ -21,10 +23,19 @@ public abstract class QuickCompactIconButton extends QuickDraggableButton {
     protected final void extractContents(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float delta) {
         boolean hovered = this.active && this.isMouseOver(mouseX, mouseY);
         boolean selected = this.isToggleSelected();
-        int textureV = this.isPositionDragging() || (hovered && selected)
-                ? SIZE * 2 : hovered || selected ? SIZE : 0;
-        graphics.blit(RenderPipelines.GUI_TEXTURED, BACKGROUND_TEXTURE,
-                this.getX(), this.getY(), 0.0F, textureV, SIZE, SIZE, SIZE, SIZE * 3);
+        int textureV = this.isPositionDragging() || (hovered && selected) ? SIZE * 2 : hovered || selected ? SIZE : 0;
+        graphics.blit(
+                RenderPipelines.GUI_TEXTURED,
+                BACKGROUND_TEXTURE,
+                this.getX(),
+                this.getY(),
+                0.0F,
+                textureV,
+                SIZE,
+                SIZE,
+                SIZE,
+                SIZE * 3
+        );
         this.extractIcon(graphics, this.getX() + 2, this.getY() + 2, hovered);
     }
 

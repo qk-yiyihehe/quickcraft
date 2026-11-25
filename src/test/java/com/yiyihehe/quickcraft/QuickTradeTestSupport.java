@@ -17,8 +17,7 @@ import static org.mockito.Mockito.when;
 
 /** 测试用的小型状态夹具：只读写 QuickTrade 的私有状态，不替代生产判断。 */
 final class QuickTradeTestSupport {
-    private QuickTradeTestSupport() {
-    }
+    private QuickTradeTestSupport() {}
 
     static void resetState() {
         QuickTrade.clearPersistentState();
@@ -89,8 +88,7 @@ final class QuickTradeTestSupport {
         for (Class<?> current = type; current != null; current = current.getSuperclass()) {
             try {
                 return current.getDeclaredField(name);
-            } catch (NoSuchFieldException ignored) {
-            }
+            } catch (NoSuchFieldException ignored) {}
         }
         throw new NoSuchFieldException(name);
     }

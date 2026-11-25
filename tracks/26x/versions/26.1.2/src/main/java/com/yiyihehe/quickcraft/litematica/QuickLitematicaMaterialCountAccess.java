@@ -8,10 +8,14 @@ import net.minecraft.world.entity.player.Player;
 import java.util.List;
 
 final class QuickLitematicaMaterialCountAccess {
-    private QuickLitematicaMaterialCountAccess() { }
+    private QuickLitematicaMaterialCountAccess() {}
 
-    static List<MaterialListEntry> blocks(Object2IntOpenHashMap<BlockState> total,
-            Object2IntOpenHashMap<BlockState> missing, Object2IntOpenHashMap<BlockState> mismatch, Player player) {
+    static List<MaterialListEntry> blocks(
+            Object2IntOpenHashMap<BlockState> total,
+            Object2IntOpenHashMap<BlockState> missing,
+            Object2IntOpenHashMap<BlockState> mismatch,
+            Player player
+    ) {
         return MaterialListUtils.getMaterialList(total, missing, mismatch, player);
     }
 }

@@ -15,8 +15,11 @@ public abstract class LitematicaProjectionFileMaterialsMixin {
     @Inject(method = "reCreateMaterialList", at = @At("HEAD"))
     private void quickcraft$applyBlocks(CallbackInfo ci) {
         MaterialListBase list = (MaterialListBase) (Object) this;
-        QuickLitematicaContainerMemory.update(QuickLitematicaProjectionMaterials.schematic(list),
-                QuickLitematicaProjectionMaterials.regions(list), QuickLitematicaMaterialLists.getReplacementContextKey(list));
+        QuickLitematicaContainerMemory.update(
+                QuickLitematicaProjectionMaterials.schematic(list),
+                QuickLitematicaProjectionMaterials.regions(list),
+                QuickLitematicaMaterialLists.getReplacementContextKey(list)
+        );
     }
 
     @Inject(method = "reCreateMaterialList", at = @At("TAIL"))

@@ -16,8 +16,7 @@ import org.jetbrains.annotations.Nullable;
 public final class QuickFreeCameraAccess {
     private static PlayerInput restoredPlayerInput;
 
-    private QuickFreeCameraAccess() {
-    }
+    private QuickFreeCameraAccess() {}
 
     public static void sendLookPacket(ClientPlayerEntity player, float yaw, float pitch) {
         player.networkHandler.sendPacket(
@@ -80,10 +79,9 @@ public final class QuickFreeCameraAccess {
     @Nullable
     @SuppressWarnings("unchecked")
     public static Property<Direction> getDirectionProperty(BlockState state) {
-        return (Property<Direction>) state.getProperties().stream()
-                .filter(property -> property.getType() == Direction.class)
-                .findFirst()
-                .orElse(null);
+        return (Property<Direction>) state.getProperties().stream().filter(
+                property -> property.getType() == Direction.class
+        ).findFirst().orElse(null);
     }
 
     public static int getDirectionIndex(Direction direction) {

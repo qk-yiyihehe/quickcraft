@@ -10,13 +10,16 @@ final class QuickLitematicaPreviewShaderAccess {
     // 只复用可选 API 的类/方法查找；是否启用光影仍由每次查询决定。
     private static final IrisApi IRIS = IrisApi.load();
 
-    private QuickLitematicaPreviewShaderAccess() {
-    }
+    private QuickLitematicaPreviewShaderAccess() {}
 
     public static boolean isShaderPackActive() {
         IrisApi api = IRIS;
-        if (api.missing()) return false;
-        if (api.error() != null) return queryFailed(api.error());
+        if (api.missing()) {
+            return false;
+        }
+        if (api.error() != null) {
+            return queryFailed(api.error());
+        }
         try {
             Object instance = api.getInstance().invoke(null);
             return (boolean) api.isShaderPackInUse().invoke(instance);
@@ -27,7 +30,10 @@ final class QuickLitematicaPreviewShaderAccess {
 
     private static boolean queryFailed(Throwable throwable) {
         if (QuickLitematicaPreviewLog.enabled() && SHADER_API_ERROR_LOGGED.compareAndSet(false, true)) {
-            LOGGER.error("Iris shader state could not be queried; disabling QuickCraft 3D previews for this session", throwable);
+            LOGGER.error(
+                    "Iris shader state could not be queried; disabling QuickCraft 3D previews for this session",
+                    throwable
+            );
         }
         return true;
     }

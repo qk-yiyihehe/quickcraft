@@ -26,7 +26,10 @@ public final class QuickCrossBoxSortStackKey {
 
     @Override
     public boolean equals(Object other) {
-        return this == other || other instanceof QuickCrossBoxSortStackKey key && ItemStack.areItemsAndComponentsEqual(template, key.template);
+        return this == other || other instanceof QuickCrossBoxSortStackKey key && ItemStack.areItemsAndComponentsEqual(
+                template,
+                key.template
+        );
     }
 
     public int hashCode() {

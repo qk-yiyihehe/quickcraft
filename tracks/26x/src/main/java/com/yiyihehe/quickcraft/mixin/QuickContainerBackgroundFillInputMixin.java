@@ -17,9 +17,11 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 @Mixin(AbstractContainerScreen.class)
 public abstract class QuickContainerBackgroundFillInputMixin {
     @Inject(method = "mouseClicked", at = @At("HEAD"), cancellable = true)
-    private void quickcraft$blockWorkbenchRefillClick(MouseButtonEvent event,
-                                                      boolean doubleClick,
-                                                      CallbackInfoReturnable<Boolean> cir) {
+    private void quickcraft$blockWorkbenchRefillClick(
+            MouseButtonEvent event,
+            boolean doubleClick,
+            CallbackInfoReturnable<Boolean> cir
+    ) {
         if (QuickCrossBoxSort.blocksInventoryInput((AbstractContainerScreen<?>) (Object) this)
                 || QuickCraftWorkbenchShulker.shouldBlockWorkbenchInput()) {
             cir.setReturnValue(true);
@@ -27,8 +29,7 @@ public abstract class QuickContainerBackgroundFillInputMixin {
     }
 
     @Inject(method = "mouseReleased", at = @At("HEAD"), cancellable = true)
-    private void quickcraft$blockWorkbenchRefillRelease(MouseButtonEvent event,
-                                                        CallbackInfoReturnable<Boolean> cir) {
+    private void quickcraft$blockWorkbenchRefillRelease(MouseButtonEvent event, CallbackInfoReturnable<Boolean> cir) {
         if (QuickCrossBoxSort.blocksInventoryInput((AbstractContainerScreen<?>) (Object) this)
                 || QuickCraftWorkbenchShulker.shouldBlockWorkbenchInput()) {
             cir.setReturnValue(true);
@@ -36,10 +37,12 @@ public abstract class QuickContainerBackgroundFillInputMixin {
     }
 
     @Inject(method = "mouseDragged", at = @At("HEAD"), cancellable = true)
-    private void quickcraft$blockWorkbenchRefillDrag(MouseButtonEvent event,
-                                                     double deltaX,
-                                                     double deltaY,
-                                                     CallbackInfoReturnable<Boolean> cir) {
+    private void quickcraft$blockWorkbenchRefillDrag(
+            MouseButtonEvent event,
+            double deltaX,
+            double deltaY,
+            CallbackInfoReturnable<Boolean> cir
+    ) {
         if (QuickCrossBoxSort.blocksInventoryInput((AbstractContainerScreen<?>) (Object) this)
                 || QuickCraftWorkbenchShulker.shouldBlockWorkbenchInput()) {
             cir.setReturnValue(true);
@@ -47,8 +50,7 @@ public abstract class QuickContainerBackgroundFillInputMixin {
     }
 
     @Inject(method = "keyPressed", at = @At("HEAD"), cancellable = true)
-    private void quickcraft$blockWorkbenchRefillKey(KeyEvent event,
-                                                    CallbackInfoReturnable<Boolean> cir) {
+    private void quickcraft$blockWorkbenchRefillKey(KeyEvent event, CallbackInfoReturnable<Boolean> cir) {
         if (QuickCrossBoxSort.consumeInventoryKey((AbstractContainerScreen<?>) (Object) this, event.isEscape())) {
             cir.setReturnValue(true);
             return;

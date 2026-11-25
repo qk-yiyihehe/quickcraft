@@ -15,12 +15,14 @@ import static org.mockito.Mockito.*;
 
 @org.junit.jupiter.api.extension.ExtendWith(com.yiyihehe.quickcraft.QuickCraftMinecraftTestBootstrap.class)
 class QuickLitematicaPreviewFluidsTest {
-    @BeforeAll static void bootstrap() {
+    @BeforeAll
+    static void bootstrap() {
         SharedConstants.createGameVersion();
         Bootstrap.initialize();
     }
 
-    @Test void keepsEveryExposedSideAndMatchesFlowingWaterToStillWater() {
+    @Test
+    void keepsEveryExposedSideAndMatchesFlowingWaterToStillWater() {
         BlockPos pos = new BlockPos(-7, 19, 32);
         var water = Fluids.WATER.getDefaultState();
         BlockView view = mock(BlockView.class);
@@ -28,8 +30,9 @@ class QuickLitematicaPreviewFluidsTest {
         var culling = new QuickLitematicaPreviewFluids();
         assertThat(culling.skipEnclosed(view, pos, water)).isTrue();
         for (Direction exposed : Direction.values()) {
-            when(view.getFluidState(any(BlockPos.class))).thenAnswer(call ->
-                    pos.offset(exposed).equals(call.getArgument(0)) ? Fluids.EMPTY.getDefaultState() : water);
+            when(view.getFluidState(any(BlockPos.class))).thenAnswer(
+                    call -> pos.offset(exposed).equals(call.getArgument(0)) ? Fluids.EMPTY.getDefaultState() : water
+            );
             assertThat(culling.skipEnclosed(view, pos, water)).isFalse();
         }
         assertThat(culling.examined).isEqualTo(7);
@@ -37,9 +40,16 @@ class QuickLitematicaPreviewFluidsTest {
         assertThat(culling.custom).isZero();
     }
 
-    @Test void doesNotAssumeSimpleHandlerSubclassesUseDefaultGeometry() {
-        var simple = new SimpleFluidRenderHandler(SimpleFluidRenderHandler.WATER_STILL, SimpleFluidRenderHandler.WATER_FLOWING);
-        var subclass = new SimpleFluidRenderHandler(SimpleFluidRenderHandler.WATER_STILL, SimpleFluidRenderHandler.WATER_FLOWING) {};
+    @Test
+    void doesNotAssumeSimpleHandlerSubclassesUseDefaultGeometry() {
+        var simple = new SimpleFluidRenderHandler(
+                SimpleFluidRenderHandler.WATER_STILL,
+                SimpleFluidRenderHandler.WATER_FLOWING
+        );
+        var subclass = new SimpleFluidRenderHandler(
+                SimpleFluidRenderHandler.WATER_STILL,
+                SimpleFluidRenderHandler.WATER_FLOWING
+        ) {};
         assertThat(QuickLitematicaPreviewFluids.hasDefaultGeometry(Fluids.WATER, simple)).isTrue();
         assertThat(QuickLitematicaPreviewFluids.hasDefaultGeometry(Fluids.WATER, subclass)).isFalse();
         assertThat(QuickLitematicaPreviewFluids.hasDefaultGeometry(Fluids.EMPTY, null)).isFalse();

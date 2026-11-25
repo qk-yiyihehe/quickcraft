@@ -97,12 +97,8 @@ public final class QuickContainerCopy implements ClientModInitializer {
     }
 
     public static boolean handleRecordHotkey(Minecraft client) {
-        if (client == null
-                || client.player == null
-                || client.level == null
-                || client.gameMode == null
-                || getCurrentScreen(client) != null
-                || !QuickCraftConfigs.isQuickContainerCopyEnabled()) {
+        if (client == null || client.player == null || client.level == null || client.gameMode == null
+                || getCurrentScreen(client) != null || !QuickCraftConfigs.isQuickContainerCopyEnabled()) {
             return false;
         }
 
@@ -126,7 +122,12 @@ public final class QuickContainerCopy implements ClientModInitializer {
         if (hitResult instanceof BlockHitResult blockHitResult) {
             client.gameMode.useItemOn(client.player, InteractionHand.MAIN_HAND, blockHitResult);
         } else if (hitResult instanceof EntityHitResult entityHitResult) {
-            client.gameMode.interact(client.player, entityHitResult.getEntity(), entityHitResult, InteractionHand.MAIN_HAND);
+            client.gameMode.interact(
+                    client.player,
+                    entityHitResult.getEntity(),
+                    entityHitResult,
+                    InteractionHand.MAIN_HAND
+            );
         } else {
             return false;
         }
@@ -135,21 +136,27 @@ public final class QuickContainerCopy implements ClientModInitializer {
 
     public static boolean canApplyTemplateSnapshot(AbstractContainerMenu handler, TemplateSnapshot snapshot) {
         SupportedContainerType type = SupportedContainerType.fromPublicType(snapshot.type());
-        return type != null && isSupportedHandlerForType(handler, type)
-                && (type != SupportedContainerType.LARGE_BARREL || snapshot.slotTemplates().size() == 54);
+        return type != null && isSupportedHandlerForType(handler, type) && (type != SupportedContainerType.LARGE_BARREL
+                || snapshot.slotTemplates().size() == 54);
     }
 
-    public static void applyTemplateSnapshot(Minecraft client,
-                                             AbstractContainerMenu handler,
-                                             TemplateSnapshot snapshot,
-                                             boolean useQuickShulkerSources,
-                                             HitResult target,
-                                             QuickContainerFillStatus.Handle fillStatus) {
+    public static void applyTemplateSnapshot(
+            Minecraft client,
+            AbstractContainerMenu handler,
+            TemplateSnapshot snapshot,
+            boolean useQuickShulkerSources,
+            HitResult target,
+            QuickContainerFillStatus.Handle fillStatus
+    ) {
         SupportedContainerType type = SupportedContainerType.fromPublicType(snapshot.type());
-        QuickLargeBarrel barrelPair = type == SupportedContainerType.LARGE_BARREL ? getLargeBarrelPair(client, target) : null;
-        if (!canApplyTemplateSnapshot(handler, snapshot)
-                || (type == SupportedContainerType.LARGE_BARREL && barrelPair == null)) {
-            sendStatusMessage(client, Component.translatable("quickcraft.message.container_copy.projection_type_mismatch"));
+        QuickLargeBarrel barrelPair = type == SupportedContainerType.LARGE_BARREL ? getLargeBarrelPair(client, target)
+                : null;
+        if (!canApplyTemplateSnapshot(handler, snapshot) || (type == SupportedContainerType.LARGE_BARREL
+                && barrelPair == null)) {
+            sendStatusMessage(
+                    client,
+                    Component.translatable("quickcraft.message.container_copy.projection_type_mismatch")
+            );
             return;
         }
         if (barrelPair != null) {
@@ -190,8 +197,8 @@ public final class QuickContainerCopy implements ClientModInitializer {
 
     private void onClientTick(Minecraft client) {
         processPendingStashRecovery(client);
-        if (!QuickCraftConfigs.isQuickContainerCopyEnabled()
-                && !QuickCraftConfigs.isLitematicaContainerAutofillEnabled()) {
+        if (!QuickCraftConfigs.isQuickContainerCopyEnabled() && !QuickCraftConfigs
+                .isLitematicaContainerAutofillEnabled()) {
             lastUseDown = false;
             lastContinuousFillDown = false;
             pendingAction = PendingAction.NONE;
@@ -226,8 +233,9 @@ public final class QuickContainerCopy implements ClientModInitializer {
                 if (showHoldHint) {
                     sendStatusMessage(
                             client,
-                            Component.translatable("quickcraft.message.container_copy.hold_to_fill")
-                                    .withStyle(ChatFormatting.RED)
+                            Component.translatable("quickcraft.message.container_copy.hold_to_fill").withStyle(
+                                    ChatFormatting.RED
+                            )
                     );
                 }
             }
@@ -246,10 +254,7 @@ public final class QuickContainerCopy implements ClientModInitializer {
         if (pendingAction == PendingAction.RECORD) {
             return;
         }
-        if (client == null
-                || client.player == null
-                || client.level == null
-                || client.gameMode == null
+        if (client == null || client.player == null || client.level == null || client.gameMode == null
                 || getCurrentScreen(client) != null) {
             return;
         }
@@ -268,9 +273,13 @@ public final class QuickContainerCopy implements ClientModInitializer {
         }
 
         ContinuousTemplate template = resolveContinuousTemplate(client, hitResult, type);
-        QuickLargeBarrel barrelPair = type == SupportedContainerType.BARREL ? getLargeBarrelPair(client, hitResult) : null;
-        ContinuousTemplate largeBarrelTemplate = barrelPair != null
-                ? resolveContinuousTemplate(client, hitResult, SupportedContainerType.LARGE_BARREL) : null;
+        QuickLargeBarrel barrelPair = type == SupportedContainerType.BARREL ? getLargeBarrelPair(client, hitResult)
+                : null;
+        ContinuousTemplate largeBarrelTemplate = barrelPair != null ? resolveContinuousTemplate(
+                client,
+                hitResult,
+                SupportedContainerType.LARGE_BARREL
+        ) : null;
         if (template == null && largeBarrelTemplate == null) {
             if (!lastContinuousFillDown) {
                 sendStatusMessage(client, Component.translatable("quickcraft.message.container_copy.no_fill_template"));
@@ -296,21 +305,21 @@ public final class QuickContainerCopy implements ClientModInitializer {
         continuousTask.alternateBarrelTemplate = template != null ? largeBarrelTemplate : null;
         continuousTask.worldRef = new WeakReference<>(client.level);
         if (template != null) {
-            sendStatusMessage(client, Component.translatable("quickcraft.message.container_copy.background_start", type.displayName()));
+            sendStatusMessage(
+                    client,
+                    Component.translatable("quickcraft.message.container_copy.background_start", type.displayName())
+            );
         }
     }
 
     public static boolean canHandleContinuousContainerFillHotkey(Minecraft client) {
-        if (client == null
-                || client.player == null
-                || client.level == null
-                || client.gameMode == null
+        if (client == null || client.player == null || client.level == null || client.gameMode == null
                 || getCurrentScreen(client) != null) {
             return continuousTask != null;
         }
 
-        if (!QuickCraftConfigs.isQuickContainerCopyEnabled()
-                && !QuickCraftConfigs.isLitematicaContainerAutofillEnabled()) {
+        if (!QuickCraftConfigs.isQuickContainerCopyEnabled() && !QuickCraftConfigs
+                .isLitematicaContainerAutofillEnabled()) {
             return continuousTask != null;
         }
 
@@ -324,40 +333,55 @@ public final class QuickContainerCopy implements ClientModInitializer {
             return continuousTask != null;
         }
 
-        return hasContinuousTemplate(client, hitResult, type)
-                || (type == SupportedContainerType.BARREL && isPotentialLargeBarrel(client, hitResult)
-                    && hasContinuousTemplate(client, hitResult, SupportedContainerType.LARGE_BARREL));
+        return hasContinuousTemplate(client, hitResult, type) || (type == SupportedContainerType.BARREL
+                && isPotentialLargeBarrel(client, hitResult) && hasContinuousTemplate(
+                        client,
+                        hitResult,
+                        SupportedContainerType.LARGE_BARREL
+                ));
     }
 
     private static boolean hasContinuousTemplate(Minecraft client, HitResult hitResult, SupportedContainerType type) {
-        return getContinuousProjectionTemplate(client, hitResult, type) != null
-                || (QuickCraftConfigs.isQuickContainerCopyEnabled() && recordedTemplate != null && recordedTemplate.type == type);
+        return getContinuousProjectionTemplate(client, hitResult, type) != null || (QuickCraftConfigs
+                .isQuickContainerCopyEnabled() && recordedTemplate != null && recordedTemplate.type == type);
     }
 
     private static TemplateSnapshot getContinuousProjectionTemplate(
-            Minecraft client, HitResult hitResult, SupportedContainerType type
+            Minecraft client,
+            HitResult hitResult,
+            SupportedContainerType type
     ) {
-        if (!(hitResult instanceof BlockHitResult blockHitResult)
-                || !QuickCraftConfigs.isLitematicaContainerAutofillEnabled()) {
+        if (!(hitResult instanceof BlockHitResult blockHitResult) || !QuickCraftConfigs
+                .isLitematicaContainerAutofillEnabled()) {
             return null;
         }
         TemplateSnapshot snapshot = QuickLitematicaContainerAutofill.getTemplateSnapshot(
-                client, blockHitResult.getBlockPos(), type == SupportedContainerType.LARGE_BARREL);
+                client,
+                blockHitResult.getBlockPos(),
+                type == SupportedContainerType.LARGE_BARREL
+        );
         return snapshot != null && snapshot.type() == type.publicType ? snapshot : null;
     }
 
-    private ContinuousTemplate resolveContinuousTemplate(Minecraft client, HitResult hitResult, SupportedContainerType type) {
+    private ContinuousTemplate resolveContinuousTemplate(
+            Minecraft client,
+            HitResult hitResult,
+            SupportedContainerType type
+    ) {
         TemplateSnapshot snapshot = getContinuousProjectionTemplate(client, hitResult, type);
         if (snapshot != null) {
             return new ContinuousTemplate(
-                    new RecordedContainerTemplate(type, copyTemplates(snapshot.slotTemplates()), List.copyOf(snapshot.disabledStates())),
+                    new RecordedContainerTemplate(
+                            type,
+                            copyTemplates(snapshot.slotTemplates()),
+                            List.copyOf(snapshot.disabledStates())
+                    ),
                     shouldUseQuickShulker(),
                     SuccessMessage.of("quickcraft.message.container_copy.projection_filled", type.displayName())
             );
         }
 
-        if (QuickCraftConfigs.isQuickContainerCopyEnabled()
-                && recordedTemplate != null
+        if (QuickCraftConfigs.isQuickContainerCopyEnabled() && recordedTemplate != null
                 && recordedTemplate.type == type) {
             return new ContinuousTemplate(
                     copyRecordedTemplate(recordedTemplate),
@@ -379,7 +403,11 @@ public final class QuickContainerCopy implements ClientModInitializer {
         }
         Screen currentScreen = getCurrentScreen(client);
         if (currentScreen != null && !(currentScreen instanceof AbstractContainerScreen<?>)) {
-            stopContinuousTask(client, false, Component.translatable("quickcraft.message.container_copy.background_screen_open"));
+            stopContinuousTask(
+                    client,
+                    false,
+                    Component.translatable("quickcraft.message.container_copy.background_screen_open")
+            );
             return;
         }
 
@@ -404,12 +432,20 @@ public final class QuickContainerCopy implements ClientModInitializer {
             return;
         }
         if (getCurrentScreen(client) != null) {
-            stopContinuousTask(client, false, Component.translatable("quickcraft.message.container_copy.background_screen_open"));
+            stopContinuousTask(
+                    client,
+                    false,
+                    Component.translatable("quickcraft.message.container_copy.background_screen_open")
+            );
             return;
         }
 
         if (!openTarget(client, continuousTask.target)) {
-            stopContinuousTask(client, false, Component.translatable("quickcraft.message.container_copy.target_open_failed"));
+            stopContinuousTask(
+                    client,
+                    false,
+                    Component.translatable("quickcraft.message.container_copy.target_open_failed")
+            );
             return;
         }
         continuousTask.stage = ContinuousStage.WAIT_TARGET_SCREEN;
@@ -424,15 +460,23 @@ public final class QuickContainerCopy implements ClientModInitializer {
         AbstractContainerMenu handler = getOpenHandledContainer(client);
         if (handler == null) {
             if (continuousTask.ticks > OPEN_TIMEOUT_TICKS) {
-                stopContinuousTask(client, false, Component.translatable("quickcraft.message.container_copy.target_open_timeout"));
+                stopContinuousTask(
+                        client,
+                        false,
+                        Component.translatable("quickcraft.message.container_copy.target_open_timeout")
+                );
             }
             return;
         }
 
         if (!bindContinuousTargetMenu(client, handler)) {
             boolean keepBarrelOpen = isUnmatchedBarrelMenu(continuousTask, handler);
-            stopContinuousTask(client, !keepBarrelOpen,
-                    keepBarrelOpen ? null : Component.translatable("quickcraft.message.container_copy.template_type_mismatch"));
+            stopContinuousTask(
+                    client,
+                    !keepBarrelOpen,
+                    keepBarrelOpen ? null
+                            : Component.translatable("quickcraft.message.container_copy.template_type_mismatch")
+            );
             return;
         }
 
@@ -452,15 +496,22 @@ public final class QuickContainerCopy implements ClientModInitializer {
         }
 
         if (!isSupportedHandlerForTarget(client, handler, continuousTask.target)) {
-            stopContinuousTask(client, true, Component.translatable("quickcraft.message.container_copy.template_type_mismatch"));
+            stopContinuousTask(
+                    client,
+                    true,
+                    Component.translatable("quickcraft.message.container_copy.template_type_mismatch")
+            );
             return;
         }
 
         List<Integer> containerSlotIds = getContainerSlotIds(handler);
-        if (continuousTask.temporaryStash != null
-                && countEmptyPlayerStorageSlots(handler) > 0
+        if (continuousTask.temporaryStash != null && countEmptyPlayerStorageSlots(handler) > 0
                 && !restoreTemporaryContainerStash(handler, containerSlotIds, client)) {
-            stopContinuousTask(client, true, Component.translatable("quickcraft.message.container_copy.temporary_stash_restore_failed"));
+            stopContinuousTask(
+                    client,
+                    true,
+                    Component.translatable("quickcraft.message.container_copy.temporary_stash_restore_failed")
+            );
             return;
         }
 
@@ -471,8 +522,13 @@ public final class QuickContainerCopy implements ClientModInitializer {
 
         FillResult result;
         try {
-            result = applyTemplate(client, handler, continuousTask.template.successMessage(), false,
-                    continuousTask.target);
+            result = applyTemplate(
+                    client,
+                    handler,
+                    continuousTask.template.successMessage(),
+                    false,
+                    continuousTask.target
+            );
         } finally {
             recordedTemplate = previousTemplate;
             allowQuickShulkerSources = previousQuickShulkerSources;
@@ -481,9 +537,16 @@ public final class QuickContainerCopy implements ClientModInitializer {
 
         if (result.isComplete()) {
             QuickContainerFillStatus.finish(client, continuousTask.fillStatus, 0);
-            if (continuousTask.temporaryStash != null
-                    && !restoreTemporaryContainerStash(handler, containerSlotIds, client)) {
-                stopContinuousTask(client, true, Component.translatable("quickcraft.message.container_copy.filled_but_stash_restore_failed"));
+            if (continuousTask.temporaryStash != null && !restoreTemporaryContainerStash(
+                    handler,
+                    containerSlotIds,
+                    client
+            )) {
+                stopContinuousTask(
+                        client,
+                        true,
+                        Component.translatable("quickcraft.message.container_copy.filled_but_stash_restore_failed")
+                );
                 return;
             }
             refreshContainerVerifier(client, continuousTask.target.hitResult(), handler);
@@ -491,8 +554,7 @@ public final class QuickContainerCopy implements ClientModInitializer {
             return;
         }
 
-        if (!continuousTask.template.useQuickShulker()
-                || result.missingDemands().isEmpty()
+        if (!continuousTask.template.useQuickShulker() || result.missingDemands().isEmpty()
                 || !canUseQuickShulkerOpenPacket()) {
             QuickContainerFillStatus.finish(client, continuousTask.fillStatus, result.issueCount());
             refreshContainerVerifier(client, continuousTask.target.hitResult(), handler);
@@ -517,7 +579,11 @@ public final class QuickContainerCopy implements ClientModInitializer {
             return;
         }
         if (prepareResult == PrepareBatchResult.BLOCKED) {
-            stopContinuousTask(client, true, Component.translatable("quickcraft.message.container_copy.shulker_batch_no_space"));
+            stopContinuousTask(
+                    client,
+                    true,
+                    Component.translatable("quickcraft.message.container_copy.shulker_batch_no_space")
+            );
             return;
         }
 
@@ -531,7 +597,11 @@ public final class QuickContainerCopy implements ClientModInitializer {
 
         int currentSyncId = handler.containerId;
         if (!sendOpenQuickShulkerPacket(source.slotId())) {
-            stopContinuousTask(client, true, Component.translatable("quickcraft.message.container_copy.quick_shulker_open_failed"));
+            stopContinuousTask(
+                    client,
+                    true,
+                    Component.translatable("quickcraft.message.container_copy.quick_shulker_open_failed")
+            );
             return;
         }
 
@@ -551,20 +621,27 @@ public final class QuickContainerCopy implements ClientModInitializer {
         AbstractContainerMenu handler = getOpenHandledContainer(client);
         if (handler == null) {
             if (continuousTask.ticks > BACKGROUND_ACTION_TIMEOUT_TICKS) {
-                stopContinuousTask(client, false, Component.translatable("quickcraft.message.container_copy.quick_shulker_open_timeout"));
+                stopContinuousTask(
+                        client,
+                        false,
+                        Component.translatable("quickcraft.message.container_copy.quick_shulker_open_timeout")
+                );
             }
             return;
         }
 
-        if (handler instanceof ShulkerBoxMenu
-                && handler.containerId != continuousTask.previousSyncId) {
+        if (handler instanceof ShulkerBoxMenu && handler.containerId != continuousTask.previousSyncId) {
             continuousTask.stage = ContinuousStage.EXTRACT_SOURCE;
             continuousTask.ticks = 0;
             return;
         }
 
         if (continuousTask.ticks > BACKGROUND_ACTION_TIMEOUT_TICKS) {
-            stopContinuousTask(client, true, Component.translatable("quickcraft.message.container_copy.quick_shulker_open_timeout"));
+            stopContinuousTask(
+                    client,
+                    true,
+                    Component.translatable("quickcraft.message.container_copy.quick_shulker_open_timeout")
+            );
         }
     }
 
@@ -576,7 +653,11 @@ public final class QuickContainerCopy implements ClientModInitializer {
 
         AbstractContainerMenu currentHandler = getOpenHandledContainer(client);
         if (!(currentHandler instanceof ShulkerBoxMenu handler)) {
-            stopContinuousTask(client, true, Component.translatable("quickcraft.message.container_copy.quick_shulker_screen_invalid"));
+            stopContinuousTask(
+                    client,
+                    true,
+                    Component.translatable("quickcraft.message.container_copy.quick_shulker_screen_invalid")
+            );
             return;
         }
 
@@ -606,8 +687,10 @@ public final class QuickContainerCopy implements ClientModInitializer {
         if (continuousTask == null) {
             return;
         }
-        if (!continuousTask.missingDemands.isEmpty()
-                && hasPlayerStorageCapacityForAnyDemand(handler, continuousTask.missingDemands)) {
+        if (!continuousTask.missingDemands.isEmpty() && hasPlayerStorageCapacityForAnyDemand(
+                handler,
+                continuousTask.missingDemands
+        )) {
             SourceShulker nextSource = findSourceShulkerForDemandsExcept(
                     handler,
                     continuousTask.missingDemands,
@@ -616,7 +699,11 @@ public final class QuickContainerCopy implements ClientModInitializer {
             if (nextSource != null) {
                 int currentSyncId = handler.containerId;
                 if (!sendOpenQuickShulkerPacket(nextSource.slotId())) {
-                    stopContinuousTask(client, true, Component.translatable("quickcraft.message.container_copy.quick_shulker_open_failed"));
+                    stopContinuousTask(
+                            client,
+                            true,
+                            Component.translatable("quickcraft.message.container_copy.quick_shulker_open_failed")
+                    );
                     return;
                 }
 
@@ -658,7 +745,12 @@ public final class QuickContainerCopy implements ClientModInitializer {
             return true;
         }
         if (hitResult instanceof EntityHitResult entityHitResult) {
-            client.gameMode.interact(client.player, entityHitResult.getEntity(), entityHitResult, InteractionHand.MAIN_HAND);
+            client.gameMode.interact(
+                    client.player,
+                    entityHitResult.getEntity(),
+                    entityHitResult,
+                    InteractionHand.MAIN_HAND
+            );
             return true;
         }
         return false;
@@ -695,17 +787,20 @@ public final class QuickContainerCopy implements ClientModInitializer {
         }
     }
 
-    private boolean tryRestoreContinuousStash(Minecraft client,
-                                             ContinuousFillTask task,
-                                             TemporaryContainerStash stash) {
-        if (client == null || client.player == null || client.level == null
+    private boolean tryRestoreContinuousStash(
+            Minecraft client,
+            ContinuousFillTask task,
+            TemporaryContainerStash stash
+    ) {
+        if (client == null
+                || client.player == null
+                || client.level == null
                 || task.worldRef == null
                 || task.worldRef.get() != client.level
                 || !task.worldKey.equals(client.level.dimension())) {
             return false;
         }
-        if (task.stage == ContinuousStage.WAIT_SOURCE_SCREEN
-                || task.stage == ContinuousStage.EXTRACT_SOURCE) {
+        if (task.stage == ContinuousStage.WAIT_SOURCE_SCREEN || task.stage == ContinuousStage.EXTRACT_SOURCE) {
             return false;
         }
         Screen screen = getCurrentScreen(client);
@@ -747,17 +842,18 @@ public final class QuickContainerCopy implements ClientModInitializer {
         }
         lastPendingStashScreen = screen;
 
-        if (continuousTask != null
-                && (continuousTask.stage == ContinuousStage.WAIT_SOURCE_SCREEN
+        if (continuousTask != null && (continuousTask.stage == ContinuousStage.WAIT_SOURCE_SCREEN
                 || continuousTask.stage == ContinuousStage.EXTRACT_SOURCE)) {
             // 已知源盒阶段打开的潜影盒是取料来源，不能当作原目标恢复。
             return;
         }
 
         PendingStashRecovery pending = pendingStashRecovery;
-        if (pending.worldRef() == null
-                || pending.worldRef().get() != client.level
-                || !currentTargetStillMatches(client, pending.target(), client.hitResult)) {
+        if (pending.worldRef() == null || pending.worldRef().get() != client.level || !currentTargetStillMatches(
+                client,
+                pending.target(),
+                client.hitResult
+        )) {
             return;
         }
         AbstractContainerMenu handler = screen.getMenu();
@@ -766,10 +862,12 @@ public final class QuickContainerCopy implements ClientModInitializer {
         }
 
         pendingStashRecovery = null;
-        if (restoreTemporaryContainerStash(handler, getContainerSlotIds(handler), client, pending.stash())) {
-        } else {
+        if (restoreTemporaryContainerStash(handler, getContainerSlotIds(handler), client, pending.stash())) {} else {
             pendingStashRecovery = pending;
-            sendStatusMessage(client, stashMessage("quickcraft.message.container_copy.temporary_stash_recovery_failed", pending.stash()));
+            sendStatusMessage(
+                    client,
+                    stashMessage("quickcraft.message.container_copy.temporary_stash_recovery_failed", pending.stash())
+            );
         }
     }
 
@@ -778,65 +876,75 @@ public final class QuickContainerCopy implements ClientModInitializer {
      * 客户端菜单库存与世界方块实体不是同一对象，只能按本次操作的实际目标位置和类型判断关系：
      * 同目标/可能同一容器先恢复，恢复失败就阻断；确认无关的容器照常操作；无法排除碰撞时阻断。
      */
-    private boolean preparePendingStashForHandler(Minecraft client,
-                                                  AbstractContainerMenu handler,
-                                                  TargetInteraction operationTarget) {
+    private boolean preparePendingStashForHandler(
+            Minecraft client,
+            AbstractContainerMenu handler,
+            TargetInteraction operationTarget
+    ) {
         PendingStashRecovery pending = pendingStashRecovery;
         if (pending == null) {
             return true;
         }
-        if (client == null || client.level == null
-                || pending.worldRef() == null
-                || pending.worldRef().get() != client.level) {
+        if (client == null || client.level == null || pending.worldRef() == null || pending.worldRef()
+                .get() != client.level) {
             return true;
         }
         StashTargetRelation relation = classifyStashTarget(client, pending.target(), operationTarget);
         if (relation == StashTargetRelation.UNRELATED) {
             return true;
         }
-        if (relation == StashTargetRelation.SAME_CONTAINER
-                && isSupportedHandlerForTarget(client, handler, pending.target())
-                && restoreTemporaryContainerStash(handler, getContainerSlotIds(handler), client, pending.stash())) {
+        if (relation == StashTargetRelation.SAME_CONTAINER && isSupportedHandlerForTarget(
+                client,
+                handler,
+                pending.target()
+        ) && restoreTemporaryContainerStash(handler, getContainerSlotIds(handler), client, pending.stash())) {
             pendingStashRecovery = null;
             return true;
         }
         return false;
     }
 
-    private StashTargetRelation classifyStashTarget(Minecraft client,
-                                                    TargetInteraction stashedTarget,
-                                                    TargetInteraction operationTarget) {
+    private StashTargetRelation classifyStashTarget(
+            Minecraft client,
+            TargetInteraction stashedTarget,
+            TargetInteraction operationTarget
+    ) {
         if (operationTarget == null) {
             return StashTargetRelation.UNCERTAIN;
         }
-        if (!(stashedTarget.hitResult() instanceof BlockHitResult stashedHit)
-                || !(operationTarget.hitResult() instanceof BlockHitResult operationHit)) {
+        if (!(stashedTarget.hitResult() instanceof BlockHitResult stashedHit) || !(operationTarget
+                .hitResult() instanceof BlockHitResult operationHit)) {
             if (!QuickContainerFillStatus.sameTarget(client, stashedTarget.hitResult(), operationTarget.hitResult())) {
                 return StashTargetRelation.UNRELATED;
             }
-            return stashedTarget.type() == operationTarget.type()
-                    ? StashTargetRelation.SAME_CONTAINER
+            return stashedTarget.type() == operationTarget.type() ? StashTargetRelation.SAME_CONTAINER
                     : StashTargetRelation.UNCERTAIN;
         }
 
         BlockPos stashedPos = stashedHit.getBlockPos();
         BlockPos operationPos = operationHit.getBlockPos();
         boolean sameType = stashedTarget.type() == operationTarget.type();
-        boolean largeBarrelTarget = stashedTarget.type() == SupportedContainerType.LARGE_BARREL
-                || operationTarget.type() == SupportedContainerType.LARGE_BARREL;
-        if (largeBarrelTarget && stashedTarget.barrelPair() != null
-                && stashedTarget.barrelPair().equals(operationTarget.barrelPair()) && sameType) {
+        boolean largeBarrelTarget = stashedTarget.type() == SupportedContainerType.LARGE_BARREL || operationTarget
+                .type() == SupportedContainerType.LARGE_BARREL;
+        if (largeBarrelTarget && stashedTarget.barrelPair() != null && stashedTarget.barrelPair().equals(
+                operationTarget.barrelPair()
+        ) && sameType) {
             return StashTargetRelation.SAME_CONTAINER;
         }
         if (stashedPos.equals(operationPos)) {
             return sameType && !largeBarrelTarget ? StashTargetRelation.SAME_CONTAINER : StashTargetRelation.UNCERTAIN;
         }
         if (sameType && QuickContainerFillStatus.sameTarget(
-                client, stashedTarget.hitResult(), operationTarget.hitResult())) {
+                client,
+                stashedTarget.hitResult(),
+                operationTarget.hitResult()
+        )) {
             return StashTargetRelation.SAME_CONTAINER;
         }
-        if (largeBarrelTarget && (includesBarrelHalf(stashedTarget.barrelPair(), operationPos)
-                || includesBarrelHalf(operationTarget.barrelPair(), stashedPos))) {
+        if (largeBarrelTarget && (includesBarrelHalf(stashedTarget.barrelPair(), operationPos) || includesBarrelHalf(
+                operationTarget.barrelPair(),
+                stashedPos
+        ))) {
             return StashTargetRelation.UNCERTAIN;
         }
         if (areConnectedChestHalves(client, stashedPos, operationPos)) {
@@ -851,22 +959,23 @@ public final class QuickContainerCopy implements ClientModInitializer {
         }
         var firstState = client.level.getBlockState(firstPos);
         var secondState = client.level.getBlockState(secondPos);
-        if (!(firstState.getBlock() instanceof ChestBlock)
-                || firstState.getBlock() != secondState.getBlock()) {
+        if (!(firstState.getBlock() instanceof ChestBlock) || firstState.getBlock() != secondState.getBlock()) {
             return false;
         }
         ChestType firstType = firstState.getValue(ChestBlock.TYPE);
-        return firstType != ChestType.SINGLE
-                && secondState.getValue(ChestBlock.TYPE) == firstType.getOpposite()
-                && firstState.getValue(ChestBlock.FACING) == secondState.getValue(ChestBlock.FACING)
-                && ChestBlock.getConnectedBlockPos(firstPos, firstState).equals(secondPos);
+        return firstType != ChestType.SINGLE && secondState.getValue(ChestBlock.TYPE) == firstType.getOpposite()
+                && firstState.getValue(ChestBlock.FACING) == secondState.getValue(ChestBlock.FACING) && ChestBlock
+                        .getConnectedBlockPos(firstPos, firstState).equals(secondPos);
     }
 
     private Component stashPendingMessage(Component reason, TemporaryContainerStash stash) {
         Component pending = stashMessage("quickcraft.message.container_copy.temporary_stash_pending", stash);
-        return reason == null
-                ? pending
-                : Component.translatable("quickcraft.message.container_copy.temporary_stash_pending_with_reason", reason, pending);
+        return reason == null ? pending
+                : Component.translatable(
+                        "quickcraft.message.container_copy.temporary_stash_pending_with_reason",
+                        reason,
+                        pending
+                );
     }
 
     private Component stashMessage(String key, TemporaryContainerStash stash) {
@@ -882,7 +991,10 @@ public final class QuickContainerCopy implements ClientModInitializer {
      */
     public static boolean shouldSuppressBackgroundHandledScreenOpen(AbstractContainerMenu handler) {
         ContinuousFillTask task = continuousTask;
-        return task != null && !(task.stage == ContinuousStage.WAIT_TARGET_SCREEN && isUnmatchedBarrelMenu(task, handler));
+        return task != null && !(task.stage == ContinuousStage.WAIT_TARGET_SCREEN && isUnmatchedBarrelMenu(
+                task,
+                handler
+        ));
     }
 
     /**
@@ -929,24 +1041,34 @@ public final class QuickContainerCopy implements ClientModInitializer {
         return handler;
     }
 
-    private boolean targetMatches(Minecraft client, TargetInteraction target, HitResult hitResult, SupportedContainerType type) {
-        return matchesTargetType(client, hitResult, type, target.type())
-                && QuickContainerFillStatus.sameTarget(client, target.hitResult(), hitResult);
+    private boolean targetMatches(
+            Minecraft client,
+            TargetInteraction target,
+            HitResult hitResult,
+            SupportedContainerType type
+    ) {
+        return matchesTargetType(client, hitResult, type, target.type()) && QuickContainerFillStatus.sameTarget(
+                client,
+                target.hitResult(),
+                hitResult
+        );
     }
 
     /**
      * 保存的 type 只描述记录时的容器；同形状菜单（小箱/木桶/三行ChestMenu）还要核对当前世界里准星目标的实际类型，
      * 避免原容器被拆换后从同坐标的另一类容器取走物品。
      */
-    private boolean currentTargetStillMatches(Minecraft client,
-                                              TargetInteraction target,
-                                              HitResult currentHitResult) {
+    private boolean currentTargetStillMatches(Minecraft client, TargetInteraction target, HitResult currentHitResult) {
         return targetMatches(client, target, currentHitResult, getSupportedContainerType(client, currentHitResult));
     }
 
     public static boolean isContainerFillHotkeyDown(Minecraft client) {
         var keybind = QuickCraftConfigs.Hotkeys.CONTINUOUS_CONTAINER_FILL.getKeybind();
-        return !keybind.getKeys().isEmpty() && QuickCraftKeyBindings.isHotkeyDown(client, keybind, client.options.keyUse);
+        return !keybind.getKeys().isEmpty() && QuickCraftKeyBindings.isHotkeyDown(
+                client,
+                keybind,
+                client.options.keyUse
+        );
     }
 
     public static boolean requireContainerFillHotkey(Minecraft client) {
@@ -954,8 +1076,7 @@ public final class QuickContainerCopy implements ClientModInitializer {
         if (isContainerFillHotkeyDown(client)) {
             return true;
         }
-        String messageKey = keybind.getKeys().isEmpty()
-                ? "quickcraft.message.container_copy.fill_hotkey_unbound"
+        String messageKey = keybind.getKeys().isEmpty() ? "quickcraft.message.container_copy.fill_hotkey_unbound"
                 : "quickcraft.message.container_copy.hold_to_fill";
         sendStatusMessage(client, Component.translatable(messageKey).withStyle(ChatFormatting.RED));
         return false;
@@ -978,21 +1099,23 @@ public final class QuickContainerCopy implements ClientModInitializer {
 
         boolean useDown = QuickCraftKeyBindings.isVanillaKeyDown(client, client.options.keyUse);
         if (useDown && !lastUseDown) {
-            if (QuickMaterialCollector.shouldHandleCurrentTarget(client)
-                    || QuickLitematicaContainerAutofill.shouldHandleCurrentTarget(client)) {
+            if (QuickMaterialCollector.shouldHandleCurrentTarget(client) || QuickLitematicaContainerAutofill
+                    .shouldHandleCurrentTarget(client)) {
                 lastUseDown = true;
                 return;
             }
 
             SupportedContainerType type = getSupportedContainerType(client, client.hitResult);
             boolean largeBarrelTemplate = recordedTemplate.type == SupportedContainerType.LARGE_BARREL;
-            if (matchesTargetType(client, client.hitResult, type, recordedTemplate.type)
-                    && (largeBarrelTemplate ? isContainerFillHotkeyDown(client) : requireContainerFillHotkey(client))) {
+            if (matchesTargetType(client, client.hitResult, type, recordedTemplate.type) && (largeBarrelTemplate
+                    ? isContainerFillHotkeyDown(client)
+                    : requireContainerFillHotkey(client))) {
                 pendingAction = PendingAction.APPLY;
                 pendingContainerType = type;
                 pendingFillTarget = client.hitResult;
                 pendingTicks = 0;
-                pendingFillStatus = largeBarrelTemplate ? null : QuickContainerFillStatus.begin(client, pendingFillTarget);
+                pendingFillStatus = largeBarrelTemplate ? null
+                        : QuickContainerFillStatus.begin(client, pendingFillTarget);
             }
         }
 
@@ -1020,7 +1143,8 @@ public final class QuickContainerCopy implements ClientModInitializer {
         AbstractContainerMenu handler = screen.getMenu();
         SupportedContainerType type = pendingContainerType;
         QuickLargeBarrel barrelPair = type == SupportedContainerType.BARREL && QuickLargeBarrel.hasSixRows(handler)
-                ? getLargeBarrelPair(client, pendingFillTarget) : null;
+                ? getLargeBarrelPair(client, pendingFillTarget)
+                : null;
         if (barrelPair != null) {
             type = SupportedContainerType.LARGE_BARREL;
         }
@@ -1049,12 +1173,16 @@ public final class QuickContainerCopy implements ClientModInitializer {
             return;
         }
 
-        if (recordedTemplate != null && recordedTemplate.type == SupportedContainerType.LARGE_BARREL && type == SupportedContainerType.BARREL) {
+        if (recordedTemplate != null && recordedTemplate.type == SupportedContainerType.LARGE_BARREL
+                && type == SupportedContainerType.BARREL) {
             return;
         }
         if (recordedTemplate == null || recordedTemplate.type != type) {
             QuickContainerFillStatus.stop(client, fillStatus, true);
-            sendStatusMessage(client, Component.translatable("quickcraft.message.container_copy.no_record_for_type", type.displayName()));
+            sendStatusMessage(
+                    client,
+                    Component.translatable("quickcraft.message.container_copy.no_record_for_type", type.displayName())
+            );
             if (recordedTemplate == null || !isBarrelType(type) || !isBarrelType(recordedTemplate.type)) {
                 closeCurrentScreen(client);
             }
@@ -1115,14 +1243,19 @@ public final class QuickContainerCopy implements ClientModInitializer {
         }
 
         recordedTemplate = new RecordedContainerTemplate(type, templates, disabledStates);
-        sendStatusMessage(client, Component.translatable("quickcraft.message.container_copy.recorded", type.displayName()));
+        sendStatusMessage(
+                client,
+                Component.translatable("quickcraft.message.container_copy.recorded", type.displayName())
+        );
     }
 
-    private FillResult applyTemplate(Minecraft client,
-                                     AbstractContainerMenu handler,
-                                     SuccessMessage successMessage,
-                                     boolean showMessages,
-                                     TargetInteraction operationTarget) {
+    private FillResult applyTemplate(
+            Minecraft client,
+            AbstractContainerMenu handler,
+            SuccessMessage successMessage,
+            boolean showMessages,
+            TargetInteraction operationTarget
+    ) {
         List<Component> missingMessages = new ArrayList<>();
         List<Component> blockedMessages = new ArrayList<>();
         List<MissingDemand> missingDemands = new ArrayList<>();
@@ -1132,7 +1265,9 @@ public final class QuickContainerCopy implements ClientModInitializer {
         }
 
         if (!handler.getCarried().isEmpty()) {
-            FillResult result = FillResult.blocked(Component.translatable("quickcraft.message.container_copy.cursor_stack_blocked"));
+            FillResult result = FillResult.blocked(
+                    Component.translatable("quickcraft.message.container_copy.cursor_stack_blocked")
+            );
             if (showMessages) {
                 sendStatusMessage(client, result.message(successMessage));
             }
@@ -1141,10 +1276,9 @@ public final class QuickContainerCopy implements ClientModInitializer {
 
         if (!preparePendingStashForHandler(client, handler, operationTarget)) {
             PendingStashRecovery pending = pendingStashRecovery;
-            FillResult result = FillResult.blocked(stashMessage(
-                    "quickcraft.message.container_copy.temporary_stash_recovery_failed",
-                    pending.stash()
-            ));
+            FillResult result = FillResult.blocked(
+                    stashMessage("quickcraft.message.container_copy.temporary_stash_recovery_failed", pending.stash())
+            );
             if (showMessages) {
                 sendStatusMessage(client, result.message(successMessage));
             }
@@ -1156,8 +1290,7 @@ public final class QuickContainerCopy implements ClientModInitializer {
         if (client.player.getAbilities().instabuild && QuickCraftConfigs.isCreativeContainerFillEnabled()) {
             FillResult result = applyCreativeTemplate(client, handler, containerSlotIds);
             if (showMessages) {
-                Component message = result.isComplete()
-                        ? successMessage.text()
+                Component message = result.isComplete() ? successMessage.text()
                         : Component.translatable(
                                 "quickcraft.message.container_copy.creative_partial_failed",
                                 joinTexts(result.blockedMessages())
@@ -1195,24 +1328,32 @@ public final class QuickContainerCopy implements ClientModInitializer {
                 continue;
             }
 
-            int neededCount = currentStack.isEmpty()
-                    ? template.getCount()
+            int neededCount = currentStack.isEmpty() ? template.getCount()
                     : Math.max(0, template.getCount() - currentStack.getCount());
             if (neededCount <= 0) {
                 continue;
             }
 
-            int missingCount = fillContainerSlotFromContainer(handler, containerSlotIds, i, template, neededCount, client);
+            int missingCount = fillContainerSlotFromContainer(
+                    handler,
+                    containerSlotIds,
+                    i,
+                    template,
+                    neededCount,
+                    client
+            );
             if (missingCount > 0) {
                 missingCount = fillContainerSlot(handler, containerSlotId, template, missingCount, client);
             }
             if (missingCount > 0) {
-                missingMessages.add(Component.translatable(
-                        "quickcraft.message.container_copy.slot_missing_item",
-                        i + 1,
-                        missingCount,
-                        template.getHoverName()
-                ));
+                missingMessages.add(
+                        Component.translatable(
+                                "quickcraft.message.container_copy.slot_missing_item",
+                                i + 1,
+                                missingCount,
+                                template.getHoverName()
+                        )
+                );
                 addMissingDemand(missingDemands, template, missingCount);
             }
         }
@@ -1234,12 +1375,14 @@ public final class QuickContainerCopy implements ClientModInitializer {
             }
 
             if (!trimMatchingContainerSlot(handler, containerSlotId, template, client)) {
-                blockedMessages.add(Component.translatable(
-                        "quickcraft.message.container_copy.slot_extra_item",
-                        index + 1,
-                        extraCount,
-                        template.getHoverName()
-                ));
+                blockedMessages.add(
+                        Component.translatable(
+                                "quickcraft.message.container_copy.slot_extra_item",
+                                index + 1,
+                                extraCount,
+                                template.getHoverName()
+                        )
+                );
             }
         }
 
@@ -1260,12 +1403,14 @@ public final class QuickContainerCopy implements ClientModInitializer {
 
             int missingCount = normalizeNonEmptyTemplateSlot(handler, containerSlotIds, index, template, client);
             if (missingCount > 0) {
-                missingMessages.add(Component.translatable(
-                        "quickcraft.message.container_copy.slot_missing_item",
-                        index + 1,
-                        missingCount,
-                        template.getHoverName()
-                ));
+                missingMessages.add(
+                        Component.translatable(
+                                "quickcraft.message.container_copy.slot_missing_item",
+                                index + 1,
+                                missingCount,
+                                template.getHoverName()
+                        )
+                );
                 addMissingDemand(missingDemands, template, missingCount);
             }
         }
@@ -1285,20 +1430,21 @@ public final class QuickContainerCopy implements ClientModInitializer {
             if (QuickContainerLock.isLockedSlot(handler, slot)) {
                 continue;
             }
-            if (!slot.hasItem()
-                    || !ItemStack.isSameItemSameComponents(slot.getItem(), template)
-                    || slot.getItem().getCount() <= template.getCount()) {
+            if (!slot.hasItem() || !ItemStack.isSameItemSameComponents(slot.getItem(), template) || slot.getItem()
+                    .getCount() <= template.getCount()) {
                 continue;
             }
 
             int extraCount = slot.getItem().getCount() - template.getCount();
             if (!trimMatchingContainerSlot(handler, containerSlotId, template, client)) {
-                blockedMessages.add(Component.translatable(
-                        "quickcraft.message.container_copy.slot_extra_item",
-                        i + 1,
-                        extraCount,
-                        template.getHoverName()
-                ));
+                blockedMessages.add(
+                        Component.translatable(
+                                "quickcraft.message.container_copy.slot_extra_item",
+                                i + 1,
+                                extraCount,
+                                template.getHoverName()
+                        )
+                );
             }
         }
 
@@ -1317,7 +1463,9 @@ public final class QuickContainerCopy implements ClientModInitializer {
                 continue;
             }
             if (!tryMoveSlotToPlayerStorage(handler, containerSlotId, client)) {
-                blockedMessages.add(Component.translatable("quickcraft.message.container_copy.slot_cannot_clear", index + 1));
+                blockedMessages.add(
+                        Component.translatable("quickcraft.message.container_copy.slot_cannot_clear", index + 1)
+                );
             }
         }
 
@@ -1346,9 +1494,11 @@ public final class QuickContainerCopy implements ClientModInitializer {
         missingDemands.add(new MissingDemand(demandTemplate, count));
     }
 
-    private FillResult applyCreativeTemplate(Minecraft client,
-                                             AbstractContainerMenu handler,
-                                             List<Integer> containerSlotIds) {
+    private FillResult applyCreativeTemplate(
+            Minecraft client,
+            AbstractContainerMenu handler,
+            List<Integer> containerSlotIds
+    ) {
         List<Component> blockedMessages = new ArrayList<>();
         for (int i = 0; i < containerSlotIds.size() && i < recordedTemplate.slotTemplates.size(); i++) {
             int containerSlotId = containerSlotIds.get(i);
@@ -1361,15 +1511,18 @@ public final class QuickContainerCopy implements ClientModInitializer {
                 continue;
             }
             if (!slot.isActive()) {
-                blockedMessages.add(Component.translatable("quickcraft.message.container_copy.slot_cannot_fill", i + 1));
+                blockedMessages.add(
+                        Component.translatable("quickcraft.message.container_copy.slot_cannot_fill", i + 1)
+                );
                 continue;
             }
 
-            boolean applied = template.isEmpty()
-                    ? clearContainerSlotInCreative(handler, containerSlotId, client)
+            boolean applied = template.isEmpty() ? clearContainerSlotInCreative(handler, containerSlotId, client)
                     : setContainerSlotInCreative(handler, containerSlotId, template, client);
             if (!applied) {
-                blockedMessages.add(Component.translatable("quickcraft.message.container_copy.slot_cannot_fill", i + 1));
+                blockedMessages.add(
+                        Component.translatable("quickcraft.message.container_copy.slot_cannot_fill", i + 1)
+                );
             }
         }
 
@@ -1393,19 +1546,21 @@ public final class QuickContainerCopy implements ClientModInitializer {
             return currentStack.isEmpty();
         }
 
-        return !currentStack.isEmpty()
-                && ItemStack.isSameItemSameComponents(currentStack, template)
-                && currentStack.getCount() == template.getCount();
+        return !currentStack.isEmpty() && ItemStack.isSameItemSameComponents(currentStack, template) && currentStack
+                .getCount() == template.getCount();
     }
 
-    private boolean setContainerSlotInCreative(AbstractContainerMenu handler,
-                                               int containerSlotId,
-                                               ItemStack template,
-                                               Minecraft client) {
+    private boolean setContainerSlotInCreative(
+            AbstractContainerMenu handler,
+            int containerSlotId,
+            ItemStack template,
+            Minecraft client
+    ) {
         Slot targetSlot = handler.getSlot(containerSlotId);
-        if (!targetSlot.isActive()
-                || !targetSlot.mayPlace(template)
-                || template.getCount() > Math.min(template.getMaxStackSize(), targetSlot.getMaxStackSize(template))) {
+        if (!targetSlot.isActive() || !targetSlot.mayPlace(template) || template.getCount() > Math.min(
+                template.getMaxStackSize(),
+                targetSlot.getMaxStackSize(template)
+        )) {
             return false;
         }
 
@@ -1441,10 +1596,10 @@ public final class QuickContainerCopy implements ClientModInitializer {
             returnCursorStack(handler, scratchSlotId, client);
         }
         setCreativePlayerSlot(handler, scratchSlotId, originalScratchStack, client);
-        return handler.getCarried().isEmpty()
-                && targetSlot.hasItem()
-                && ItemStack.isSameItemSameComponents(targetSlot.getItem(), template)
-                && targetSlot.getItem().getCount() == template.getCount();
+        return handler.getCarried().isEmpty() && targetSlot.hasItem() && ItemStack.isSameItemSameComponents(
+                targetSlot.getItem(),
+                template
+        ) && targetSlot.getItem().getCount() == template.getCount();
     }
 
     private boolean clearContainerSlotInCreative(AbstractContainerMenu handler, int containerSlotId, Minecraft client) {
@@ -1515,10 +1670,12 @@ public final class QuickContainerCopy implements ClientModInitializer {
         return index < 9 ? 36 + index : index;
     }
 
-    private void applyCrafterSlotStates(AbstractContainerMenu handler, List<Integer> containerSlotIds, Minecraft client) {
-        if (!(handler instanceof CrafterMenu crafterHandler)
-                || client.gameMode == null
-                || recordedTemplate == null) {
+    private void applyCrafterSlotStates(
+            AbstractContainerMenu handler,
+            List<Integer> containerSlotIds,
+            Minecraft client
+    ) {
+        if (!(handler instanceof CrafterMenu crafterHandler) || client.gameMode == null || recordedTemplate == null) {
             return;
         }
 
@@ -1538,14 +1695,15 @@ public final class QuickContainerCopy implements ClientModInitializer {
         }
     }
 
-    private int fillContainerSlot(AbstractContainerMenu handler,
-                                  int containerSlotId,
-                                  ItemStack template,
-                                  int neededCount,
-                                  Minecraft client) {
+    private int fillContainerSlot(
+            AbstractContainerMenu handler,
+            int containerSlotId,
+            ItemStack template,
+            int neededCount,
+            Minecraft client
+    ) {
         Slot targetSlot = handler.getSlot(containerSlotId);
-        if (!targetSlot.isActive()
-                || !targetSlot.mayPlace(template)) {
+        if (!targetSlot.isActive() || !targetSlot.mayPlace(template)) {
             return neededCount;
         }
 
@@ -1567,16 +1725,16 @@ public final class QuickContainerCopy implements ClientModInitializer {
         return remaining;
     }
 
-    private int normalizeNonEmptyTemplateSlot(AbstractContainerMenu handler,
-                                              List<Integer> containerSlotIds,
-                                              int templateIndex,
-                                              ItemStack template,
-                                              Minecraft client) {
+    private int normalizeNonEmptyTemplateSlot(
+            AbstractContainerMenu handler,
+            List<Integer> containerSlotIds,
+            int templateIndex,
+            ItemStack template,
+            Minecraft client
+    ) {
         int containerSlotId = containerSlotIds.get(templateIndex);
         Slot targetSlot = handler.getSlot(containerSlotId);
-        if (!targetSlot.isActive()
-                || !targetSlot.mayPlace(template)
-                || !handler.getCarried().isEmpty()) {
+        if (!targetSlot.isActive() || !targetSlot.mayPlace(template) || !handler.getCarried().isEmpty()) {
             return template.getCount();
         }
 
@@ -1586,7 +1744,14 @@ public final class QuickContainerCopy implements ClientModInitializer {
             if (neededCount <= 0) {
                 return 0;
             }
-            int missingCount = fillContainerSlotFromContainer(handler, containerSlotIds, templateIndex, template, neededCount, client);
+            int missingCount = fillContainerSlotFromContainer(
+                    handler,
+                    containerSlotIds,
+                    templateIndex,
+                    template,
+                    neededCount,
+                    client
+            );
             return missingCount == 0 ? 0 : fillContainerSlot(handler, containerSlotId, template, missingCount, client);
         }
 
@@ -1614,12 +1779,14 @@ public final class QuickContainerCopy implements ClientModInitializer {
         return topUpMatchingContainerSlot(handler, containerSlotId, template, client);
     }
 
-    private int fillContainerSlotFromContainer(AbstractContainerMenu handler,
-                                               List<Integer> containerSlotIds,
-                                               int targetTemplateIndex,
-                                               ItemStack template,
-                                               int neededCount,
-                                               Minecraft client) {
+    private int fillContainerSlotFromContainer(
+            AbstractContainerMenu handler,
+            List<Integer> containerSlotIds,
+            int targetTemplateIndex,
+            ItemStack template,
+            int neededCount,
+            Minecraft client
+    ) {
         int targetSlotId = containerSlotIds.get(targetTemplateIndex);
         Slot targetSlot = handler.getSlot(targetSlotId);
         if (!targetSlot.isActive() || !targetSlot.mayPlace(template)) {
@@ -1628,7 +1795,12 @@ public final class QuickContainerCopy implements ClientModInitializer {
 
         int remaining = neededCount;
         while (remaining > 0) {
-            int sourceSlotId = findMatchingWrongContainerSlotId(handler, containerSlotIds, targetTemplateIndex, template);
+            int sourceSlotId = findMatchingWrongContainerSlotId(
+                    handler,
+                    containerSlotIds,
+                    targetTemplateIndex,
+                    template
+            );
             if (sourceSlotId == -1) {
                 break;
             }
@@ -1644,10 +1816,12 @@ public final class QuickContainerCopy implements ClientModInitializer {
         return remaining;
     }
 
-    private int findMatchingWrongContainerSlotId(AbstractContainerMenu handler,
-                                                 List<Integer> containerSlotIds,
-                                                 int targetTemplateIndex,
-                                                 ItemStack template) {
+    private int findMatchingWrongContainerSlotId(
+            AbstractContainerMenu handler,
+            List<Integer> containerSlotIds,
+            int targetTemplateIndex,
+            ItemStack template
+    ) {
         Minecraft client = Minecraft.getInstance();
         if (client.player == null) {
             return -1;
@@ -1661,9 +1835,7 @@ public final class QuickContainerCopy implements ClientModInitializer {
             ItemStack expected = recordedTemplate.slotTemplates.get(i);
             int slotId = containerSlotIds.get(i);
             Slot slot = handler.getSlot(slotId);
-            if (QuickContainerLock.isLockedSlot(handler, slot)
-                    || !slot.hasItem()
-                    || !slot.mayPickup(client.player)
+            if (QuickContainerLock.isLockedSlot(handler, slot) || !slot.hasItem() || !slot.mayPickup(client.player)
                     || !ItemStack.isSameItemSameComponents(slot.getItem(), template)) {
                 continue;
             }
@@ -1676,12 +1848,15 @@ public final class QuickContainerCopy implements ClientModInitializer {
         return -1;
     }
 
-    private boolean swapContainerSlots(AbstractContainerMenu handler, int sourceSlotId, int targetSlotId, Minecraft client) {
+    private boolean swapContainerSlots(
+            AbstractContainerMenu handler,
+            int sourceSlotId,
+            int targetSlotId,
+            Minecraft client
+    ) {
         Slot sourceSlot = handler.getSlot(sourceSlotId);
         Slot targetSlot = handler.getSlot(targetSlotId);
-        if (!sourceSlot.hasItem()
-                || !sourceSlot.mayPickup(client.player)
-                || !targetSlot.mayPlace(sourceSlot.getItem())
+        if (!sourceSlot.hasItem() || !sourceSlot.mayPickup(client.player) || !targetSlot.mayPlace(sourceSlot.getItem())
                 || (targetSlot.hasItem() && !targetSlot.mayPickup(client.player))) {
             return false;
         }
@@ -1719,10 +1894,12 @@ public final class QuickContainerCopy implements ClientModInitializer {
         return handler.getCarried().isEmpty();
     }
 
-    private boolean swapPlayerStackIntoContainerSlot(AbstractContainerMenu handler,
-                                                     int sourceSlotId,
-                                                     int containerSlotId,
-                                                     Minecraft client) {
+    private boolean swapPlayerStackIntoContainerSlot(
+            AbstractContainerMenu handler,
+            int sourceSlotId,
+            int containerSlotId,
+            Minecraft client
+    ) {
         client.gameMode.handleContainerInput(
                 handler.containerId,
                 sourceSlotId,
@@ -1747,10 +1924,12 @@ public final class QuickContainerCopy implements ClientModInitializer {
         return handler.getCarried().isEmpty();
     }
 
-    private int topUpMatchingContainerSlot(AbstractContainerMenu handler,
-                                           int containerSlotId,
-                                           ItemStack template,
-                                           Minecraft client) {
+    private int topUpMatchingContainerSlot(
+            AbstractContainerMenu handler,
+            int containerSlotId,
+            ItemStack template,
+            Minecraft client
+    ) {
         ItemStack currentStack = handler.getSlot(containerSlotId).getItem();
         if (currentStack.isEmpty() || !ItemStack.isSameItemSameComponents(currentStack, template)) {
             return template.getCount();
@@ -1768,36 +1947,42 @@ public final class QuickContainerCopy implements ClientModInitializer {
 
         QuickSlotTransfer.quickMove(client, handler, containerSlotId, QuickSlotTransfer::isPlayerStorageSlot, true);
 
-        if (handler.getSlot(containerSlotId).hasItem()
-                && handler.getCarried().isEmpty()
-                && allowQuickShulkerSources) {
+        if (handler.getSlot(containerSlotId).hasItem() && handler.getCarried().isEmpty() && allowQuickShulkerSources) {
             if (packSlotIntoQuickShulker(handler, containerSlotId, client)) {
                 return true;
             }
 
             if (freePlayerStorageSlotIntoQuickShulker(handler, client)) {
-                QuickSlotTransfer.quickMove(client, handler, containerSlotId, QuickSlotTransfer::isPlayerStorageSlot, true);
+                QuickSlotTransfer.quickMove(
+                        client,
+                        handler,
+                        containerSlotId,
+                        QuickSlotTransfer::isPlayerStorageSlot,
+                        true
+                );
             }
         }
 
-        if (handler.getSlot(containerSlotId).hasItem()
-                && handler.getCarried().isEmpty()
-                && !isTemporaryStashSlot(containerSlotId)
-                && QuickCraftConfigs.isContainerFillOverflowDropEnabled()) {
+        if (handler.getSlot(containerSlotId).hasItem() && handler.getCarried().isEmpty() && !isTemporaryStashSlot(
+                containerSlotId
+        ) && QuickCraftConfigs.isContainerFillOverflowDropEnabled()) {
             return dropContainerSlot(handler, containerSlotId, client);
         }
 
         return !handler.getSlot(containerSlotId).hasItem() && handler.getCarried().isEmpty();
     }
 
-    private boolean trimMatchingContainerSlot(AbstractContainerMenu handler,
-                                              int containerSlotId,
-                                              ItemStack template,
-                                              Minecraft client) {
+    private boolean trimMatchingContainerSlot(
+            AbstractContainerMenu handler,
+            int containerSlotId,
+            ItemStack template,
+            Minecraft client
+    ) {
         Slot slot = handler.getSlot(containerSlotId);
-        if (!slot.hasItem()
-                || !slot.mayPickup(client.player)
-                || !ItemStack.isSameItemSameComponents(slot.getItem(), template)) {
+        if (!slot.hasItem() || !slot.mayPickup(client.player) || !ItemStack.isSameItemSameComponents(
+                slot.getItem(),
+                template
+        )) {
             return false;
         }
 
@@ -1806,11 +1991,13 @@ public final class QuickContainerCopy implements ClientModInitializer {
             return true;
         }
         ItemStack extraStack = template.copyWithCount(extraCount);
-        boolean canReturnExtra = canStoreStackInPlayerStorage(handler, extraStack)
-                || (allowQuickShulkerSources && canStoreStackInQuickShulkers(handler, extraStack));
+        boolean canReturnExtra = canStoreStackInPlayerStorage(handler, extraStack) || (allowQuickShulkerSources
+                && canStoreStackInQuickShulkers(handler, extraStack));
         if (!canReturnExtra && allowQuickShulkerSources && freePlayerStorageSlotIntoQuickShulker(handler, client)) {
-            canReturnExtra = canStoreStackInPlayerStorage(handler, extraStack)
-                    || canStoreStackInQuickShulkers(handler, extraStack);
+            canReturnExtra = canStoreStackInPlayerStorage(handler, extraStack) || canStoreStackInQuickShulkers(
+                    handler,
+                    extraStack
+            );
         }
         boolean allowOverflowDrop = QuickCraftConfigs.isContainerFillOverflowDropEnabled();
         if (!canReturnExtra && !allowOverflowDrop) {
@@ -1821,15 +2008,18 @@ public final class QuickContainerCopy implements ClientModInitializer {
             int remaining = extraCount;
             for (int returnSlotId : getPlayerStorageSlotIds(handler)) {
                 int moved = QuickShulkerClickSafety.moveExactAmountToSlot(
-                        handler, containerSlotId, returnSlotId, remaining, client);
+                        handler,
+                        containerSlotId,
+                        returnSlotId,
+                        remaining,
+                        client
+                );
                 remaining -= moved;
                 if (remaining == 0 || !handler.getCarried().isEmpty()) {
                     break;
                 }
             }
-            return remaining == 0
-                    && handler.getCarried().isEmpty()
-                    && handler.getSlot(containerSlotId).hasItem()
+            return remaining == 0 && handler.getCarried().isEmpty() && handler.getSlot(containerSlotId).hasItem()
                     && handler.getSlot(containerSlotId).getItem().getCount() == template.getCount();
         }
 
@@ -1863,9 +2053,9 @@ public final class QuickContainerCopy implements ClientModInitializer {
                 dropCursorStack(handler, client);
             }
         }
-        return handler.getCarried().isEmpty()
-                && handler.getSlot(containerSlotId).hasItem()
-                && handler.getSlot(containerSlotId).getItem().getCount() == template.getCount();
+        return handler.getCarried().isEmpty() && handler.getSlot(containerSlotId).hasItem() && handler.getSlot(
+                containerSlotId
+        ).getItem().getCount() == template.getCount();
     }
 
     private boolean dropContainerSlot(AbstractContainerMenu handler, int slotId, Minecraft client) {
@@ -1874,13 +2064,7 @@ public final class QuickContainerCopy implements ClientModInitializer {
             return false;
         }
 
-        client.gameMode.handleContainerInput(
-                handler.containerId,
-                slotId,
-                1,
-                ContainerInput.THROW,
-                client.player
-        );
+        client.gameMode.handleContainerInput(handler.containerId, slotId, 1, ContainerInput.THROW, client.player);
         return !handler.getSlot(slotId).hasItem();
     }
 
@@ -1889,29 +2073,30 @@ public final class QuickContainerCopy implements ClientModInitializer {
             return;
         }
 
-        client.gameMode.handleContainerInput(
-                handler.containerId,
-                -999,
-                0,
-                ContainerInput.PICKUP,
-                client.player
-        );
+        client.gameMode.handleContainerInput(handler.containerId, -999, 0, ContainerInput.PICKUP, client.player);
     }
 
-    int moveItemsToTargetSlot(AbstractContainerMenu handler,
-                                      int sourceSlotId,
-                                      int targetSlotId,
-                                      int neededCount,
-                                      Minecraft client) {
+    int moveItemsToTargetSlot(
+            AbstractContainerMenu handler,
+            int sourceSlotId,
+            int targetSlotId,
+            int neededCount,
+            Minecraft client
+    ) {
         Slot sourceSlot = handler.getSlot(sourceSlotId);
         if (!sourceSlot.hasItem()) {
             return 0;
         }
 
-        if (QuickShulkerClickSafety.isBundlingConflict(sourceSlot.getItem())
-                && sourceSlot.getItem().getCount() > neededCount) {
+        if (QuickShulkerClickSafety.isBundlingConflict(sourceSlot.getItem()) && sourceSlot.getItem()
+                .getCount() > neededCount) {
             return QuickShulkerClickSafety.moveExactAmountToSlot(
-                    handler, sourceSlotId, targetSlotId, neededCount, client);
+                    handler,
+                    sourceSlotId,
+                    targetSlotId,
+                    neededCount,
+                    client
+            );
         }
 
         client.gameMode.handleContainerInput(
@@ -1945,11 +2130,10 @@ public final class QuickContainerCopy implements ClientModInitializer {
             return;
         }
 
-        int targetSlotId = preferredSlotId >= 0
-                && preferredSlotId < handler.slots.size()
-                && canAcceptCursorStack(handler.getSlot(preferredSlotId), handler.getCarried())
-                ? preferredSlotId
-                : findReturnSlotId(handler, handler.getCarried());
+        int targetSlotId = preferredSlotId >= 0 && preferredSlotId < handler.slots.size() && canAcceptCursorStack(
+                handler.getSlot(preferredSlotId),
+                handler.getCarried()
+        ) ? preferredSlotId : findReturnSlotId(handler, handler.getCarried());
 
         if (targetSlotId != -1) {
             client.gameMode.handleContainerInput(
@@ -1982,9 +2166,11 @@ public final class QuickContainerCopy implements ClientModInitializer {
         return -1;
     }
 
-    ExtractResult moveMatchingItemsFromOpenShulker(ShulkerBoxMenu handler,
-                                                           List<MissingDemand> demands,
-                                                           Minecraft client) {
+    ExtractResult moveMatchingItemsFromOpenShulker(
+            ShulkerBoxMenu handler,
+            List<MissingDemand> demands,
+            Minecraft client
+    ) {
         if (client.player == null || client.gameMode == null || !handler.getCarried().isEmpty()) {
             return new ExtractResult(0, demands);
         }
@@ -1993,8 +2179,7 @@ public final class QuickContainerCopy implements ClientModInitializer {
         List<MissingDemand> remainingDemands = demands;
         List<Integer> remainingSourceSlotIds = new ArrayList<>(getContainerSlotIds(handler));
         while (!remainingSourceSlotIds.isEmpty()) {
-            if (remainingDemands.isEmpty()
-                    || !hasPlayerStorageCapacityForAnyDemand(handler, remainingDemands)) {
+            if (remainingDemands.isEmpty() || !hasPlayerStorageCapacityForAnyDemand(handler, remainingDemands)) {
                 break;
             }
 
@@ -2006,9 +2191,7 @@ public final class QuickContainerCopy implements ClientModInitializer {
 
             Slot slot = handler.getSlot(slotId);
             MissingDemand demand = slot.hasItem() ? findDemandForStack(remainingDemands, slot.getItem()) : null;
-            if (!slot.hasItem()
-                    || QuickContainerLock.isLockedSlot(handler, slot)
-                    || !slot.mayPickup(client.player)
+            if (!slot.hasItem() || QuickContainerLock.isLockedSlot(handler, slot) || !slot.mayPickup(client.player)
                     || demand == null) {
                 continue;
             }
@@ -2028,12 +2211,14 @@ public final class QuickContainerCopy implements ClientModInitializer {
                 }
 
                 Slot playerSlot = handler.getSlot(playerSlotId);
-                if (!playerSlot.mayPlace(template)
-                        || playerSlot.hasItem() && !ItemStack.isSameItemSameComponents(playerSlot.getItem(), template)) {
+                if (!playerSlot.mayPlace(template) || playerSlot.hasItem() && !ItemStack.isSameItemSameComponents(
+                        playerSlot.getItem(),
+                        template
+                )) {
                     continue;
                 }
-                int capacity = Math.min(template.getMaxStackSize(), playerSlot.getMaxStackSize(template))
-                        - (playerSlot.hasItem() ? playerSlot.getItem().getCount() : 0);
+                int capacity = Math.min(template.getMaxStackSize(), playerSlot.getMaxStackSize(template)) - (playerSlot
+                        .hasItem() ? playerSlot.getItem().getCount() : 0);
                 if (capacity <= 0) {
                     continue;
                 }
@@ -2077,8 +2262,8 @@ public final class QuickContainerCopy implements ClientModInitializer {
         }
 
         ItemStack existing = slot.getItem();
-        return ItemStack.isSameItemSameComponents(existing, cursorStack)
-                && existing.getCount() + cursorStack.getCount() <= existing.getMaxStackSize();
+        return ItemStack.isSameItemSameComponents(existing, cursorStack) && existing.getCount() + cursorStack
+                .getCount() <= existing.getMaxStackSize();
     }
 
     private boolean canStoreStackInPlayerStorage(AbstractContainerMenu handler, ItemStack stack) {
@@ -2114,23 +2299,29 @@ public final class QuickContainerCopy implements ClientModInitializer {
         return false;
     }
 
-    private PrepareBatchResult preparePlayerStorageForBatchExtraction(AbstractContainerMenu handler,
-                                                                      List<Integer> containerSlotIds,
-                                                                      List<MissingDemand> demands,
-                                                                      Minecraft client) {
+    private PrepareBatchResult preparePlayerStorageForBatchExtraction(
+            AbstractContainerMenu handler,
+            List<Integer> containerSlotIds,
+            List<MissingDemand> demands,
+            Minecraft client
+    ) {
         if (continuousTask != null && continuousTask.batchFreeSlotsTarget == -1) {
             int limit = QuickCraftConfigs.getContainerFillFreeSlotsLimit();
             continuousTask.batchFreeSlotsTarget = limit == 0 ? 36 : limit;
         }
 
-        int targetFreeSlots = continuousTask != null
-                ? continuousTask.batchFreeSlotsTarget
+        int targetFreeSlots = continuousTask != null ? continuousTask.batchFreeSlotsTarget
                 : Math.max(1, QuickCraftConfigs.getContainerFillFreeSlotsLimit());
         if (countEmptyPlayerStorageSlots(handler) >= targetFreeSlots) {
             return PrepareBatchResult.READY;
         }
 
-        PrepareBatchResult freeResult = freePlayerStorageSlotsIntoQuickShulkers(handler, demands, targetFreeSlots, client);
+        PrepareBatchResult freeResult = freePlayerStorageSlotsIntoQuickShulkers(
+                handler,
+                demands,
+                targetFreeSlots,
+                client
+        );
         if (freeResult == PrepareBatchResult.WAIT) {
             return PrepareBatchResult.WAIT;
         }
@@ -2138,9 +2329,7 @@ public final class QuickContainerCopy implements ClientModInitializer {
             return PrepareBatchResult.READY;
         }
 
-        if (continuousTask != null
-                && continuousTask.temporaryStash == null
-                && pendingStashRecovery == null
+        if (continuousTask != null && continuousTask.temporaryStash == null && pendingStashRecovery == null
                 && stashOnePlayerStackInEmptyContainerSlot(handler, containerSlotIds, client)) {
             return PrepareBatchResult.READY;
         }
@@ -2148,10 +2337,12 @@ public final class QuickContainerCopy implements ClientModInitializer {
         return countEmptyPlayerStorageSlots(handler) > 0 ? PrepareBatchResult.READY : PrepareBatchResult.BLOCKED;
     }
 
-    private PrepareBatchResult freePlayerStorageSlotsIntoQuickShulkers(AbstractContainerMenu handler,
-                                                                       List<MissingDemand> demands,
-                                                                       int targetFreeSlots,
-                                                                       Minecraft client) {
+    private PrepareBatchResult freePlayerStorageSlotsIntoQuickShulkers(
+            AbstractContainerMenu handler,
+            List<MissingDemand> demands,
+            int targetFreeSlots,
+            Minecraft client
+    ) {
         int emptySlots = countEmptyPlayerStorageSlots(handler);
         if (emptySlots >= targetFreeSlots) {
             return PrepareBatchResult.READY;
@@ -2162,8 +2353,7 @@ public final class QuickContainerCopy implements ClientModInitializer {
             return emptySlots > 0 ? PrepareBatchResult.READY : PrepareBatchResult.BLOCKED;
         }
 
-        return packSlotIntoQuickShulker(handler, candidateSlotId, client)
-                ? PrepareBatchResult.WAIT
+        return packSlotIntoQuickShulker(handler, candidateSlotId, client) ? PrepareBatchResult.WAIT
                 : (countEmptyPlayerStorageSlots(handler) > 0 ? PrepareBatchResult.READY : PrepareBatchResult.BLOCKED);
     }
 
@@ -2196,19 +2386,16 @@ public final class QuickContainerCopy implements ClientModInitializer {
                 keptFireworkRocketStack = true;
                 continue;
             }
-            if (!canUsePlayerStackToFreeQuickShulkerSpace(stack)
-                    || findDemandForStack(demands, stack) != null
+            if (!canUsePlayerStackToFreeQuickShulkerSpace(stack) || findDemandForStack(demands, stack) != null
                     || !canStoreStackInQuickShulkers(handler, stack)) {
                 continue;
             }
 
             int destinationCount = getQuickShulkerDestinationCount(handler, stack, -1);
             int destinationCapacity = getLargestQuickShulkerCapacity(handler, stack, -1);
-            if (destinationCount < bestDestinationCount
-                    || destinationCount == bestDestinationCount && destinationCapacity > bestDestinationCapacity
-                    || destinationCount == bestDestinationCount
-                    && destinationCapacity == bestDestinationCapacity
-                    && stack.getCount() < bestStackCount) {
+            if (destinationCount < bestDestinationCount || destinationCount == bestDestinationCount
+                    && destinationCapacity > bestDestinationCapacity || destinationCount == bestDestinationCount
+                            && destinationCapacity == bestDestinationCapacity && stack.getCount() < bestStackCount) {
                 bestSlotId = slotId;
                 bestDestinationCount = destinationCount;
                 bestDestinationCapacity = destinationCapacity;
@@ -2219,9 +2406,11 @@ public final class QuickContainerCopy implements ClientModInitializer {
         return bestSlotId;
     }
 
-    private boolean stashOnePlayerStackInEmptyContainerSlot(AbstractContainerMenu handler,
-                                                           List<Integer> containerSlotIds,
-                                                           Minecraft client) {
+    private boolean stashOnePlayerStackInEmptyContainerSlot(
+            AbstractContainerMenu handler,
+            List<Integer> containerSlotIds,
+            Minecraft client
+    ) {
         int playerSlotId = findTemporaryStashPlayerSlotId(handler, client);
         if (playerSlotId == -1) {
             return false;
@@ -2258,19 +2447,26 @@ public final class QuickContainerCopy implements ClientModInitializer {
             return false;
         }
 
-        continuousTask.temporaryStash = new TemporaryContainerStash(getContainerTemplateIndex(containerSlotIds, containerSlotId), containerSlotId, stashedStack);
+        continuousTask.temporaryStash = new TemporaryContainerStash(
+                getContainerTemplateIndex(containerSlotIds, containerSlotId),
+                containerSlotId,
+                stashedStack
+        );
         return !playerSlot.hasItem();
     }
 
-    private int findTemporaryStashContainerSlotId(AbstractContainerMenu handler, List<Integer> containerSlotIds, ItemStack stack) {
+    private int findTemporaryStashContainerSlotId(
+            AbstractContainerMenu handler,
+            List<Integer> containerSlotIds,
+            ItemStack stack
+    ) {
         int fallback = -1;
         for (int i = 0; i < containerSlotIds.size() && i < recordedTemplate.slotTemplates.size(); i++) {
             int slotId = containerSlotIds.get(i);
             Slot slot = handler.getSlot(slotId);
-            if (!slot.isActive()
-                    || QuickContainerLock.isLockedSlot(handler, slot)
-                    || slot.hasItem()
-                    || !slot.mayPlace(stack)) {
+            if (!slot.isActive() || QuickContainerLock.isLockedSlot(handler, slot) || slot.hasItem() || !slot.mayPlace(
+                    stack
+            )) {
                 continue;
             }
             if (recordedTemplate.slotTemplates.get(i).isEmpty()) {
@@ -2307,9 +2503,8 @@ public final class QuickContainerCopy implements ClientModInitializer {
     }
 
     private boolean isTemporaryStashSlot(int slotId) {
-        return continuousTask != null
-                && continuousTask.temporaryStash != null
-                && continuousTask.temporaryStash.slotId() == slotId;
+        return continuousTask != null && continuousTask.temporaryStash != null && continuousTask.temporaryStash
+                .slotId() == slotId;
     }
 
     private int getContainerTemplateIndex(List<Integer> containerSlotIds, int containerSlotId) {
@@ -2321,24 +2516,33 @@ public final class QuickContainerCopy implements ClientModInitializer {
         return -1;
     }
 
-    private boolean restoreTemporaryContainerStash(AbstractContainerMenu handler,
-                                                   List<Integer> containerSlotIds,
-                                                   Minecraft client) {
+    private boolean restoreTemporaryContainerStash(
+            AbstractContainerMenu handler,
+            List<Integer> containerSlotIds,
+            Minecraft client
+    ) {
         if (continuousTask == null || continuousTask.temporaryStash == null) {
             return true;
         }
 
-        boolean restored = restoreTemporaryContainerStash(handler, containerSlotIds, client, continuousTask.temporaryStash);
+        boolean restored = restoreTemporaryContainerStash(
+                handler,
+                containerSlotIds,
+                client,
+                continuousTask.temporaryStash
+        );
         if (restored) {
             continuousTask.temporaryStash = null;
         }
         return restored;
     }
 
-    private boolean restoreTemporaryContainerStash(AbstractContainerMenu handler,
-                                                   List<Integer> containerSlotIds,
-                                                   Minecraft client,
-                                                   TemporaryContainerStash stash) {
+    private boolean restoreTemporaryContainerStash(
+            AbstractContainerMenu handler,
+            List<Integer> containerSlotIds,
+            Minecraft client,
+            TemporaryContainerStash stash
+    ) {
         if (stash.templateIndex() < 0 || stash.templateIndex() >= containerSlotIds.size()) {
             return false;
         }
@@ -2348,8 +2552,8 @@ public final class QuickContainerCopy implements ClientModInitializer {
         if (!slot.hasItem()) {
             return true;
         }
-        if (!ItemStack.isSameItemSameComponents(slot.getItem(), stash.stack())
-                || slot.getItem().getCount() != stash.stack().getCount()) {
+        if (!ItemStack.isSameItemSameComponents(slot.getItem(), stash.stack()) || slot.getItem().getCount() != stash
+                .stack().getCount()) {
             return false;
         }
 
@@ -2383,7 +2587,11 @@ public final class QuickContainerCopy implements ClientModInitializer {
         return canStoreStackInQuickShulkersExcept(handler, stack, -1);
     }
 
-    private boolean canStoreStackInQuickShulkersExcept(AbstractContainerMenu handler, ItemStack stack, int excludedSlotId) {
+    private boolean canStoreStackInQuickShulkersExcept(
+            AbstractContainerMenu handler,
+            ItemStack stack,
+            int excludedSlotId
+    ) {
         if (stack.isEmpty() || isShulkerBox(stack)) {
             return false;
         }
@@ -2439,9 +2647,7 @@ public final class QuickContainerCopy implements ClientModInitializer {
 
     boolean canUsePlayerStackToFreeQuickShulkerSpace(ItemStack stack) {
         // 腾格子保护常用物，其它物品允许临时塞进潜影盒。
-        if (stack.isEmpty()
-                || isShulkerBox(stack)
-                || isConfiguredProtectedFillItem(stack)) {
+        if (stack.isEmpty() || isShulkerBox(stack) || isConfiguredProtectedFillItem(stack)) {
             return false;
         }
 
@@ -2460,9 +2666,9 @@ public final class QuickContainerCopy implements ClientModInitializer {
                 continue;
             }
 
-            if (value.equalsIgnoreCase(displayName)
-                    || value.equalsIgnoreCase(fullId)
-                    || value.equalsIgnoreCase(pathId)) {
+            if (value.equalsIgnoreCase(displayName) || value.equalsIgnoreCase(fullId) || value.equalsIgnoreCase(
+                    pathId
+            )) {
                 return true;
             }
         }
@@ -2483,23 +2689,12 @@ public final class QuickContainerCopy implements ClientModInitializer {
     }
 
     private boolean isDiamondOrNetheriteItem(Item item) {
-        return item == Items.DIAMOND_SHOVEL
-                || item == Items.DIAMOND_PICKAXE
-                || item == Items.DIAMOND_AXE
-                || item == Items.DIAMOND_HOE
-                || item == Items.DIAMOND_SWORD
-                || item == Items.DIAMOND_HELMET
-                || item == Items.DIAMOND_CHESTPLATE
-                || item == Items.DIAMOND_LEGGINGS
-                || item == Items.DIAMOND_BOOTS
-                || item == Items.NETHERITE_SHOVEL
-                || item == Items.NETHERITE_PICKAXE
-                || item == Items.NETHERITE_AXE
-                || item == Items.NETHERITE_HOE
-                || item == Items.NETHERITE_SWORD
-                || item == Items.NETHERITE_HELMET
-                || item == Items.NETHERITE_CHESTPLATE
-                || item == Items.NETHERITE_LEGGINGS
+        return item == Items.DIAMOND_SHOVEL || item == Items.DIAMOND_PICKAXE || item == Items.DIAMOND_AXE
+                || item == Items.DIAMOND_HOE || item == Items.DIAMOND_SWORD || item == Items.DIAMOND_HELMET
+                || item == Items.DIAMOND_CHESTPLATE || item == Items.DIAMOND_LEGGINGS || item == Items.DIAMOND_BOOTS
+                || item == Items.NETHERITE_SHOVEL || item == Items.NETHERITE_PICKAXE || item == Items.NETHERITE_AXE
+                || item == Items.NETHERITE_HOE || item == Items.NETHERITE_SWORD || item == Items.NETHERITE_HELMET
+                || item == Items.NETHERITE_CHESTPLATE || item == Items.NETHERITE_LEGGINGS
                 || item == Items.NETHERITE_BOOTS;
     }
 
@@ -2507,14 +2702,14 @@ public final class QuickContainerCopy implements ClientModInitializer {
         return packSlotIntoQuickShulkerExcept(handler, sourceSlotId, -1, client);
     }
 
-    boolean packSlotIntoQuickShulkerExcept(AbstractContainerMenu handler,
-                                                   int sourceSlotId,
-                                                   int excludedShulkerSlotId,
-                                                   Minecraft client) {
+    boolean packSlotIntoQuickShulkerExcept(
+            AbstractContainerMenu handler,
+            int sourceSlotId,
+            int excludedShulkerSlotId,
+            Minecraft client
+    ) {
         Slot sourceSlot = handler.getSlot(sourceSlotId);
-        if (!sourceSlot.hasItem()
-                || !sourceSlot.mayPickup(client.player)
-                || isShulkerBox(sourceSlot.getItem())
+        if (!sourceSlot.hasItem() || !sourceSlot.mayPickup(client.player) || isShulkerBox(sourceSlot.getItem())
                 || !canStoreStackInQuickShulkersExcept(handler, sourceSlot.getItem(), excludedShulkerSlotId)) {
             return false;
         }
@@ -2553,11 +2748,15 @@ public final class QuickContainerCopy implements ClientModInitializer {
                     client.player
             );
             int after = handler.getCarried().isEmpty() ? 0 : handler.getCarried().getCount();
-            if (isShulkerBox(handler.getCarried())
-                    && !isShulkerBox(handler.getSlot(shulkerSlotId).getItem())) {
+            if (isShulkerBox(handler.getCarried()) && !isShulkerBox(handler.getSlot(shulkerSlotId).getItem())) {
                 // 未启用快盒装盒时，撤销原版交换，交由调用方归还光标物品。
                 client.gameMode.handleContainerInput(
-                        handler.containerId, shulkerSlotId, 0, ContainerInput.PICKUP, client.player);
+                        handler.containerId,
+                        shulkerSlotId,
+                        0,
+                        ContainerInput.PICKUP,
+                        client.player
+                );
                 break;
             }
             if (after >= before) {
@@ -2569,7 +2768,11 @@ public final class QuickContainerCopy implements ClientModInitializer {
         return moved;
     }
 
-    private int findQuickShulkerDestinationSlotId(AbstractContainerMenu handler, ItemStack insertStack, int excludedSlotId) {
+    private int findQuickShulkerDestinationSlotId(
+            AbstractContainerMenu handler,
+            ItemStack insertStack,
+            int excludedSlotId
+    ) {
         if (insertStack.isEmpty() || isShulkerBox(insertStack)) {
             return -1;
         }
@@ -2596,7 +2799,11 @@ public final class QuickContainerCopy implements ClientModInitializer {
         return bestSlotId;
     }
 
-    private int getLargestQuickShulkerCapacity(AbstractContainerMenu handler, ItemStack insertStack, int excludedSlotId) {
+    private int getLargestQuickShulkerCapacity(
+            AbstractContainerMenu handler,
+            ItemStack insertStack,
+            int excludedSlotId
+    ) {
         int largestCapacity = 0;
         for (int slotId : getPlayerStorageSlotIds(handler)) {
             if (slotId == excludedSlotId) {
@@ -2613,7 +2820,11 @@ public final class QuickContainerCopy implements ClientModInitializer {
         return largestCapacity;
     }
 
-    private int getQuickShulkerDestinationCount(AbstractContainerMenu handler, ItemStack insertStack, int excludedSlotId) {
+    private int getQuickShulkerDestinationCount(
+            AbstractContainerMenu handler,
+            ItemStack insertStack,
+            int excludedSlotId
+    ) {
         List<Integer> capacities = new ArrayList<>();
         for (int slotId : getPlayerStorageSlotIds(handler)) {
             if (slotId == excludedSlotId) {
@@ -2643,8 +2854,8 @@ public final class QuickContainerCopy implements ClientModInitializer {
     }
 
     private boolean shouldUseQuickShulker() {
-        return QuickCraftConfigs.isLitematicaContainerAutofillWithQuickShulkerEnabled()
-                && QuickShulkerConnection.canBundle();
+        return QuickCraftConfigs.isLitematicaContainerAutofillWithQuickShulkerEnabled() && QuickShulkerConnection
+                .canBundle();
     }
 
     private boolean canUseQuickShulkerOpenPacket() {
@@ -2667,7 +2878,8 @@ public final class QuickContainerCopy implements ClientModInitializer {
         }
         if (block instanceof ChestBlock) {
             ChestType chestType = blockState.getValue(ChestBlock.TYPE);
-            return chestType == ChestType.SINGLE ? SupportedContainerType.SMALL_CHEST : SupportedContainerType.LARGE_CHEST;
+            return chestType == ChestType.SINGLE ? SupportedContainerType.SMALL_CHEST
+                    : SupportedContainerType.LARGE_CHEST;
         }
         if (block instanceof BarrelBlock) {
             return SupportedContainerType.BARREL;
@@ -2759,10 +2971,10 @@ public final class QuickContainerCopy implements ClientModInitializer {
     private static boolean isSupportedHandlerForType(AbstractContainerMenu handler, SupportedContainerType type) {
         return switch (type) {
             case HOPPER -> handler instanceof HopperMenu;
-            case SMALL_CHEST, BARREL -> handler instanceof ChestMenu genericHandler
-                    && genericHandler.getRowCount() == 3;
-            case LARGE_CHEST, LARGE_BARREL -> handler instanceof ChestMenu genericHandler
-                    && genericHandler.getRowCount() == 6;
+            case SMALL_CHEST, BARREL -> handler instanceof ChestMenu genericHandler && genericHandler
+                    .getRowCount() == 3;
+            case LARGE_CHEST, LARGE_BARREL -> handler instanceof ChestMenu genericHandler && genericHandler
+                    .getRowCount() == 6;
             case SHULKER_BOX -> handler instanceof ShulkerBoxMenu;
             case DISPENSER, DROPPER -> handler instanceof DispenserMenu;
             case CRAFTER -> handler instanceof CrafterMenu;
@@ -2778,8 +2990,10 @@ public final class QuickContainerCopy implements ClientModInitializer {
     }
 
     private static QuickLargeBarrel getLargeBarrelPair(Minecraft client, HitResult hitResult) {
-        return hitResult instanceof BlockHitResult blockHit
-                ? QuickLargeBarrel.findPair(client.level, blockHit.getBlockPos()) : null;
+        return hitResult instanceof BlockHitResult blockHit ? QuickLargeBarrel.findPair(
+                client.level,
+                blockHit.getBlockPos()
+        ) : null;
     }
 
     private static boolean includesBarrelHalf(QuickLargeBarrel pair, BlockPos pos) {
@@ -2791,26 +3005,41 @@ public final class QuickContainerCopy implements ClientModInitializer {
     }
 
     private static boolean matchesTargetType(
-            Minecraft client, HitResult target, SupportedContainerType blockType, SupportedContainerType templateType
+            Minecraft client,
+            HitResult target,
+            SupportedContainerType blockType,
+            SupportedContainerType templateType
     ) {
         return blockType == templateType || (blockType == SupportedContainerType.BARREL
                 && templateType == SupportedContainerType.LARGE_BARREL && isPotentialLargeBarrel(client, target));
     }
 
-    private static boolean isSupportedHandlerForTarget(Minecraft client, AbstractContainerMenu handler, TargetInteraction target) {
-        return isSupportedHandlerForType(handler, target.type())
-                && (target.type() != SupportedContainerType.LARGE_BARREL || sameLargeBarrel(client, target));
+    private static boolean isSupportedHandlerForTarget(
+            Minecraft client,
+            AbstractContainerMenu handler,
+            TargetInteraction target
+    ) {
+        return isSupportedHandlerForType(handler, target.type()) && (target
+                .type() != SupportedContainerType.LARGE_BARREL || sameLargeBarrel(client, target));
     }
 
     private static boolean sameLargeBarrel(Minecraft client, TargetInteraction target) {
-        return target.barrelPair() != null && target.barrelPair().equals(getLargeBarrelPair(client, target.hitResult()));
+        return target.barrelPair() != null && target.barrelPair().equals(
+                getLargeBarrelPair(client, target.hitResult())
+        );
     }
 
     private boolean bindContinuousTargetMenu(Minecraft client, AbstractContainerMenu handler) {
         ContinuousFillTask task = continuousTask;
-        if (task.alternateBarrelTemplate != null && QuickLargeBarrel.hasSixRows(handler)
-                && sameLargeBarrel(client, task.target)) {
-            task.target = new TargetInteraction(task.target.hitResult(), SupportedContainerType.LARGE_BARREL, task.target.barrelPair());
+        if (task.alternateBarrelTemplate != null && QuickLargeBarrel.hasSixRows(handler) && sameLargeBarrel(
+                client,
+                task.target
+        )) {
+            task.target = new TargetInteraction(
+                    task.target.hitResult(),
+                    SupportedContainerType.LARGE_BARREL,
+                    task.target.barrelPair()
+            );
             task.template = task.alternateBarrelTemplate;
         }
         if (!isSupportedHandlerForTarget(client, handler, task.target)) {
@@ -2861,24 +3090,15 @@ public final class QuickContainerCopy implements ClientModInitializer {
     }
 
     private enum PendingAction {
-        NONE,
-        RECORD,
-        APPLY
+        NONE, RECORD, APPLY
     }
 
     private enum ContinuousStage {
-        OPEN_TARGET,
-        WAIT_TARGET_SCREEN,
-        FILL_TARGET,
-        WAIT_SOURCE_SCREEN,
-        EXTRACT_SOURCE,
-        REOPEN_DELAY
+        OPEN_TARGET, WAIT_TARGET_SCREEN, FILL_TARGET, WAIT_SOURCE_SCREEN, EXTRACT_SOURCE, REOPEN_DELAY
     }
 
     private enum StashTargetRelation {
-        SAME_CONTAINER,
-        UNRELATED,
-        UNCERTAIN
+        SAME_CONTAINER, UNRELATED, UNCERTAIN
     }
 
     private static final class ContinuousFillTask {
@@ -2897,10 +3117,12 @@ public final class QuickContainerCopy implements ClientModInitializer {
         private List<MissingDemand> missingDemands = List.of();
         private TemporaryContainerStash temporaryStash;
 
-        private ContinuousFillTask(TargetInteraction target,
-                                   ContinuousTemplate template,
-                                   ResourceKey<Level> worldKey,
-                                   QuickContainerFillStatus.Handle fillStatus) {
+        private ContinuousFillTask(
+                TargetInteraction target,
+                ContinuousTemplate template,
+                ResourceKey<Level> worldKey,
+                QuickContainerFillStatus.Handle fillStatus
+        ) {
             this.target = target;
             this.template = template;
             this.worldKey = worldKey;
@@ -2920,25 +3142,31 @@ public final class QuickContainerCopy implements ClientModInitializer {
         }
     }
 
-    private record ContinuousTemplate(RecordedContainerTemplate recordedTemplate,
-                                      boolean useQuickShulker,
-                                      SuccessMessage successMessage) {
+    private record ContinuousTemplate(
+            RecordedContainerTemplate recordedTemplate,
+            boolean useQuickShulker,
+            SuccessMessage successMessage
+    ) {
     }
 
     private record TemporaryContainerStash(int templateIndex, int slotId, ItemStack stack) {
     }
 
-    private record PendingStashRecovery(TargetInteraction target,
-                                        WeakReference<Level> worldRef,
-                                        TemporaryContainerStash stash) {
+    private record PendingStashRecovery(
+            TargetInteraction target,
+            WeakReference<Level> worldRef,
+            TemporaryContainerStash stash
+    ) {
     }
 
     record ExtractResult(int moved, List<MissingDemand> remainingDemands) {
     }
 
-    private record FillResult(List<Component> missingMessages,
-                              List<Component> blockedMessages,
-                              List<MissingDemand> missingDemands) {
+    private record FillResult(
+            List<Component> missingMessages,
+            List<Component> blockedMessages,
+            List<MissingDemand> missingDemands
+    ) {
         private static FillResult empty() {
             return new FillResult(List.of(), List.of(), List.of());
         }
@@ -2980,28 +3208,26 @@ public final class QuickContainerCopy implements ClientModInitializer {
     }
 
     private enum PrepareBatchResult {
-        READY,
-        WAIT,
-        BLOCKED
+        READY, WAIT, BLOCKED
     }
 
     /**
      * 类型按“实际容器种类”区分，避免不同槽位数的容器误套模板。
      */
     private enum SupportedContainerType {
-        HOPPER(PublicContainerType.HOPPER, "quickcraft.container_type.hopper"),
-        SMALL_CHEST(PublicContainerType.SMALL_CHEST, "quickcraft.container_type.small_chest"),
-        LARGE_CHEST(PublicContainerType.LARGE_CHEST, "quickcraft.container_type.large_chest"),
-        BARREL(PublicContainerType.BARREL, "quickcraft.container_type.barrel"),
-        LARGE_BARREL(PublicContainerType.LARGE_BARREL, "quickcraft.container_type.large_barrel"),
-        SHULKER_BOX(PublicContainerType.SHULKER_BOX, "quickcraft.container_type.shulker_box"),
-        DISPENSER(PublicContainerType.DISPENSER, "quickcraft.container_type.dispenser"),
-        DROPPER(PublicContainerType.DROPPER, "quickcraft.container_type.dropper"),
-        CRAFTER(PublicContainerType.CRAFTER, "quickcraft.container_type.crafter"),
-        FURNACE(PublicContainerType.FURNACE, "quickcraft.container_type.furnace"),
-        BLAST_FURNACE(PublicContainerType.BLAST_FURNACE, "quickcraft.container_type.blast_furnace"),
-        SMOKER(PublicContainerType.SMOKER, "quickcraft.container_type.smoker"),
-        BREWING_STAND(PublicContainerType.BREWING_STAND, "quickcraft.container_type.brewing_stand");
+        HOPPER(PublicContainerType.HOPPER, "quickcraft.container_type.hopper"), SMALL_CHEST(
+                PublicContainerType.SMALL_CHEST, "quickcraft.container_type.small_chest"), LARGE_CHEST(
+                        PublicContainerType.LARGE_CHEST, "quickcraft.container_type.large_chest"), BARREL(
+                                PublicContainerType.BARREL, "quickcraft.container_type.barrel"), LARGE_BARREL(
+                                        PublicContainerType.LARGE_BARREL, "quickcraft.container_type.large_barrel"),
+        SHULKER_BOX(PublicContainerType.SHULKER_BOX, "quickcraft.container_type.shulker_box"), DISPENSER(
+                PublicContainerType.DISPENSER, "quickcraft.container_type.dispenser"), DROPPER(
+                        PublicContainerType.DROPPER, "quickcraft.container_type.dropper"), CRAFTER(
+                                PublicContainerType.CRAFTER, "quickcraft.container_type.crafter"), FURNACE(
+                                        PublicContainerType.FURNACE, "quickcraft.container_type.furnace"),
+        BLAST_FURNACE(PublicContainerType.BLAST_FURNACE, "quickcraft.container_type.blast_furnace"), SMOKER(
+                PublicContainerType.SMOKER, "quickcraft.container_type.smoker"), BREWING_STAND(
+                        PublicContainerType.BREWING_STAND, "quickcraft.container_type.brewing_stand");
 
         private final PublicContainerType publicType;
         private final String displayNameKey;
@@ -3031,9 +3257,11 @@ public final class QuickContainerCopy implements ClientModInitializer {
         private final List<ItemStack> slotTemplates;
         private final List<Boolean> disabledStates;
 
-        private RecordedContainerTemplate(SupportedContainerType type,
-                                          List<ItemStack> slotTemplates,
-                                          List<Boolean> disabledStates) {
+        private RecordedContainerTemplate(
+                SupportedContainerType type,
+                List<ItemStack> slotTemplates,
+                List<Boolean> disabledStates
+        ) {
             this.type = type;
             this.slotTemplates = slotTemplates;
             this.disabledStates = disabledStates;
@@ -3067,19 +3295,8 @@ public final class QuickContainerCopy implements ClientModInitializer {
     }
 
     public enum PublicContainerType {
-        HOPPER,
-        SMALL_CHEST,
-        LARGE_CHEST,
-        BARREL,
-        LARGE_BARREL,
-        SHULKER_BOX,
-        DISPENSER,
-        DROPPER,
-        CRAFTER,
-        FURNACE,
-        BLAST_FURNACE,
-        SMOKER,
-        BREWING_STAND
+        HOPPER, SMALL_CHEST, LARGE_CHEST, BARREL, LARGE_BARREL, SHULKER_BOX, DISPENSER, DROPPER, CRAFTER, FURNACE,
+        BLAST_FURNACE, SMOKER, BREWING_STAND
     }
 
     public record TemplateSnapshot(
@@ -3089,11 +3306,7 @@ public final class QuickContainerCopy implements ClientModInitializer {
             String replacementContextKey,
             String containerGroupKey
     ) {
-        public TemplateSnapshot(
-                PublicContainerType type,
-                List<ItemStack> slotTemplates,
-                List<Boolean> disabledStates
-        ) {
+        public TemplateSnapshot(PublicContainerType type, List<ItemStack> slotTemplates, List<Boolean> disabledStates) {
             this(type, slotTemplates, disabledStates, "", "");
         }
     }

@@ -36,16 +36,34 @@ final class QuickLitematicaPreviewAsyncSort implements AutoCloseable {
     private Result ready;
     private Throwable failure;
 
-    QuickLitematicaPreviewAsyncSort(int count, int indexBytes, QuickLitematicaPreviewQuadDepth completedDepth,
-                                   Sorter sorter, int[] order, int[] keys) {
+    QuickLitematicaPreviewAsyncSort(
+            int count,
+            int indexBytes,
+            QuickLitematicaPreviewQuadDepth completedDepth,
+            Sorter sorter,
+            int[] order,
+            int[] keys
+    ) {
         this(count, indexBytes, completedDepth, sorter, order, keys, WORKER);
-        QuickLitematicaPreviewLog.LOGGER.info("transparent-async-v1：启用后台透明排序与索引生成，四边形={}，索引字节={}，仅保留最新待处理视角", count, this.bytes);
+        QuickLitematicaPreviewLog.LOGGER.info(
+                "transparent-async-v1：启用后台透明排序与索引生成，四边形={}，索引字节={}，仅保留最新待处理视角",
+                count,
+                this.bytes
+        );
     }
 
-    QuickLitematicaPreviewAsyncSort(int count, int indexBytes, QuickLitematicaPreviewQuadDepth completedDepth,
-                                   Sorter sorter, int[] order, int[] keys, Executor executor) {
-        if (count < 0 || (indexBytes != 2 && indexBytes != 4))
+    QuickLitematicaPreviewAsyncSort(
+            int count,
+            int indexBytes,
+            QuickLitematicaPreviewQuadDepth completedDepth,
+            Sorter sorter,
+            int[] order,
+            int[] keys,
+            Executor executor
+    ) {
+        if (count < 0 || (indexBytes != 2 && indexBytes != 4)) {
             throw new IllegalArgumentException("Invalid async transparent sort workspace");
+        }
         this.bytes = Math.multiplyExact(count, 6 * indexBytes);
         this.indexBytes = indexBytes;
         this.requestedDepth = completedDepth.copy();
@@ -60,7 +78,9 @@ final class QuickLitematicaPreviewAsyncSort implements AutoCloseable {
             Throwable failure = this.failure;
             this.failure = null;
             this.close();
-            if (failure instanceof Error error) throw error;
+            if (failure instanceof Error error) {
+                throw error;
+            }
             throw new IllegalStateException("Background transparent sort failed", failure);
         }
         Result result = this.ready;
@@ -69,7 +89,9 @@ final class QuickLitematicaPreviewAsyncSort implements AutoCloseable {
     }
 
     synchronized void request(Matrix4fc view) {
-        if (this.closed || this.running || this.ready != null || !this.requestedDepth.update(view)) return;
+        if (this.closed || this.running || this.ready != null || !this.requestedDepth.update(view)) {
+            return;
+        }
         Matrix4f captured = new Matrix4f(view);
         this.running = true;
         Runnable work = () -> this.compute(captured);
@@ -87,21 +109,32 @@ final class QuickLitematicaPreviewAsyncSort implements AutoCloseable {
     private void compute(Matrix4f view) {
         ByteBuffer indices = null;
         try {
-            if (this.closed) return;
+            if (this.closed) {
+                return;
+            }
             var depth = new QuickLitematicaPreviewQuadDepth(() -> this.closed);
             depth.update(view);
             try (var phase = QuickLitematicaPreviewLog.phase("后台透明面中心排序")) {
                 this.sorter.sort(depth, this.order, this.keys);
             }
-            if (this.closed) return;
+            if (this.closed) {
+                return;
+            }
             synchronized (this) {
                 indices = this.spare;
                 this.spare = null;
             }
-            if (indices == null) indices = MemoryUtil.memAlloc(this.bytes);
+            if (indices == null) {
+                indices = MemoryUtil.memAlloc(this.bytes);
+            }
             indices.clear();
             try (var phase = QuickLitematicaPreviewLog.phase("后台透明三角形索引生成")) {
-                QuickLitematicaPreviewIndices.write(MemoryUtil.memAddress(indices), this.order, this.indexBytes, () -> this.closed);
+                QuickLitematicaPreviewIndices.write(
+                        MemoryUtil.memAddress(indices),
+                        this.order,
+                        this.indexBytes,
+                        () -> this.closed
+                );
             }
             synchronized (this) {
                 if (!this.closed) {
@@ -109,26 +142,47 @@ final class QuickLitematicaPreviewAsyncSort implements AutoCloseable {
                     indices = null;
                 }
             }
-        } catch (CancellationException ignored) {
-        } catch (RuntimeException | Error failure) {
-            synchronized (this) { if (!this.closed) this.failure = failure; }
+        } catch (CancellationException ignored) {} catch (RuntimeException | Error failure) {
+            synchronized (this) {
+                if (!this.closed) {
+                    this.failure = failure;
+                }
+            }
         } finally {
-            if (indices != null) MemoryUtil.memFree(indices);
-            synchronized (this) { this.running = false; this.task = null; }
+            if (indices != null) {
+                MemoryUtil.memFree(indices);
+            }
+            synchronized (this) {
+                this.running = false;
+                this.task = null;
+            }
         }
     }
 
     private synchronized void recycle(ByteBuffer indices) {
-        if (this.closed || this.spare != null) MemoryUtil.memFree(indices);
-        else this.spare = indices;
+        if (this.closed || this.spare != null) {
+            MemoryUtil.memFree(indices);
+        } else {
+            this.spare = indices;
+        }
     }
 
-    @Override public synchronized void close() {
+    @Override
+    public synchronized void close() {
         this.closed = true;
         // 取消未开始的 callable，执行器尚未出队时也能释放其持有的大型排序工作区。
-        if (this.task != null) { this.task.cancel(false); this.task = null; }
-        if (this.ready != null) { this.ready.close(); this.ready = null; }
-        if (this.spare != null) { MemoryUtil.memFree(this.spare); this.spare = null; }
+        if (this.task != null) {
+            this.task.cancel(false);
+            this.task = null;
+        }
+        if (this.ready != null) {
+            this.ready.close();
+            this.ready = null;
+        }
+        if (this.spare != null) {
+            MemoryUtil.memFree(this.spare);
+            this.spare = null;
+        }
         // 正在运行的任务拥有其暂存地址；由任务退出时释放，渲染线程不等待后台排序。
     }
 
@@ -143,9 +197,12 @@ final class QuickLitematicaPreviewAsyncSort implements AutoCloseable {
             this.indices = indices;
         }
 
-        ByteBuffer indices() { return this.indices; }
+        ByteBuffer indices() {
+            return this.indices;
+        }
 
-        @Override public void close() {
+        @Override
+        public void close() {
             if (this.indices != null) {
                 this.owner.recycle(this.indices);
                 this.indices = null;

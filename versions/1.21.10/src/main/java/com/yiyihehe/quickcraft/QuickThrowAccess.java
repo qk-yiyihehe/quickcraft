@@ -16,8 +16,7 @@ import net.minecraft.screen.sync.ItemStackHash;
  * 1.21.10+ 键盘输入回调迁移至 KeyInput。
  */
 public final class QuickThrowAccess {
-    private QuickThrowAccess() {
-    }
+    private QuickThrowAccess() {}
 
     public static void registerInputHandler() {
         InputEventHandler.getInputManager().registerKeyboardInputHandler(new IKeyboardInputHandler() {
@@ -50,14 +49,16 @@ public final class QuickThrowAccess {
         target.effectiveSlot().setStackNoCallbacks(ItemStack.EMPTY);
         Int2ObjectMap<ItemStackHash> modifiedStacks = new Int2ObjectOpenHashMap<>();
         modifiedStacks.put(target.clickSlotId(), ItemStackHash.EMPTY);
-        client.getNetworkHandler().sendPacket(new ClickSlotC2SPacket(
-                target.handler().syncId,
-                target.handler().getRevision(),
-                (short) target.clickSlotId(),
-                (byte) 1,
-                SlotActionType.THROW,
-                modifiedStacks,
-                ItemStackHash.EMPTY
-        ));
+        client.getNetworkHandler().sendPacket(
+                new ClickSlotC2SPacket(
+                        target.handler().syncId,
+                        target.handler().getRevision(),
+                        (short) target.clickSlotId(),
+                        (byte) 1,
+                        SlotActionType.THROW,
+                        modifiedStacks,
+                        ItemStackHash.EMPTY
+                )
+        );
     }
 }

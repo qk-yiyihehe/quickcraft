@@ -18,8 +18,7 @@ import java.util.function.Consumer;
 final class QuickLitematicaPreviewImageWriterAccess {
     private static final Set<SDL_DialogFileCallback> ACTIVE_DIALOG_CALLBACKS = ConcurrentHashMap.newKeySet();
 
-    private QuickLitematicaPreviewImageWriterAccess() {
-    }
+    private QuickLitematicaPreviewImageWriterAccess() {}
 
     static void chooseImage(Path schematicPath, String[] supportedExtensions, Consumer<@Nullable Path> resultConsumer) {
         Path initialDirectory = schematicPath.toAbsolutePath().normalize().getParent();
@@ -47,9 +46,9 @@ final class QuickLitematicaPreviewImageWriterAccess {
         ACTIVE_DIALOG_CALLBACKS.add(callback);
         try (MemoryStack stack = MemoryStack.stackPush()) {
             SDL_DialogFileFilter.Buffer filters = SDL_DialogFileFilter.calloc(1, stack);
-            filters.get(0).name(stack.UTF8(Component.translatable(
-                    "quickcraft.litematica.preview_3d.image_files").getString()))
-                    .pattern(stack.UTF8(String.join(";", supportedExtensions)));
+            filters.get(0).name(
+                    stack.UTF8(Component.translatable("quickcraft.litematica.preview_3d.image_files").getString())
+            ).pattern(stack.UTF8(String.join(";", supportedExtensions)));
             SDLDialog.SDL_ShowOpenFileDialog(
                     callback,
                     0L,

@@ -13,7 +13,7 @@ class QuickLitematicaPreviewQuadDepthTest {
     @Test
     void radixOrderingMatchesStableFloatComparisonForSerialAndParallelInputs() {
         Random random = new Random(31);
-        for (int count : new int[]{0, 4096, 262_144}) {
+        for (int count : new int[] { 0, 4096, 262_144 }) {
             Vector3f[] points = new Vector3f[count];
             for (int i = 0; i < count; i++) {
                 points[i] = new Vector3f(random.nextInt(64) - 32, random.nextInt(64) - 32, random.nextInt(64) - 32);
@@ -29,21 +29,27 @@ class QuickLitematicaPreviewQuadDepthTest {
             depth.update(new Matrix4f().rotateX(0.37F).rotateY(0.83F));
             Integer[] expected = IntStream.range(0, count).boxed().toArray(Integer[]::new);
             Arrays.sort(expected, (a, b) -> Float.compare(-depth.depth(points[b]), -depth.depth(points[a])));
-            assertThat(depth.sort(points)).containsExactly(Arrays.stream(expected).mapToInt(Integer::intValue).toArray());
+            assertThat(depth.sort(points)).containsExactly(
+                    Arrays.stream(expected).mapToInt(Integer::intValue).toArray()
+            );
             var cancellable = new QuickLitematicaPreviewQuadDepth(() -> false);
             cancellable.update(new Matrix4f().rotateX(0.37F).rotateY(0.83F));
-            assertThat(cancellable.sort(points)).containsExactly(Arrays.stream(expected).mapToInt(Integer::intValue).toArray());
+            assertThat(cancellable.sort(points)).containsExactly(
+                    Arrays.stream(expected).mapToInt(Integer::intValue).toArray()
+            );
         }
     }
 
-    @Test void checksCancellationDuringRadixPassesAfterAllCentersAreRead() {
+    @Test
+    void checksCancellationDuringRadixPassesAfterAllCentersAreRead() {
         var checks = new java.util.concurrent.atomic.AtomicInteger();
         var depth = new QuickLitematicaPreviewQuadDepth(() -> checks.incrementAndGet() == 5);
         depth.update(new Matrix4f());
         Vector3f[] points = new Vector3f[8192];
         java.util.Arrays.setAll(points, i -> new Vector3f(i, 0, 0));
-        org.assertj.core.api.Assertions.assertThatThrownBy(() -> depth.sort(points))
-                .isInstanceOf(java.util.concurrent.CancellationException.class);
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> depth.sort(points)).isInstanceOf(
+                java.util.concurrent.CancellationException.class
+        );
         assertThat(checks.get()).isEqualTo(5);
     }
 
@@ -64,9 +70,9 @@ class QuickLitematicaPreviewQuadDepthTest {
 
     @Test
     void matchesActualModelViewDepthForTiltedAndInvertedPipAndSnapshotViews() {
-        for (float scaleZ : new float[]{1, -1}) {
-            Matrix4f view = new Matrix4f().translate(7, 13, 23).scale(2, 2, scaleZ)
-                    .rotateX(0.37F).rotateY(0.83F).translate(-30, -40, -50);
+        for (float scaleZ : new float[] { 1, -1 }) {
+            Matrix4f view = new Matrix4f().translate(7, 13, 23).scale(2, 2, scaleZ).rotateX(0.37F).rotateY(0.83F)
+                    .translate(-30, -40, -50);
             var depth = new QuickLitematicaPreviewQuadDepth();
             depth.update(view);
             Vector3f point = new Vector3f(3, 5, 7);

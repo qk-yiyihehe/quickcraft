@@ -16,7 +16,9 @@ public final class QuickLitematicaPreviewCancellation {
         }
     }
 
-    static Scope bind(AtomicBoolean cancelled) { return new Scope(cancelled); }
+    static Scope bind(AtomicBoolean cancelled) {
+        return new Scope(cancelled);
+    }
 
     static final class Scope implements AutoCloseable {
         private final AtomicBoolean previous;
@@ -26,9 +28,13 @@ public final class QuickLitematicaPreviewCancellation {
             CURRENT.set(cancelled);
         }
 
-        @Override public void close() {
-            if (previous == null) CURRENT.remove();
-            else CURRENT.set(previous);
+        @Override
+        public void close() {
+            if (previous == null) {
+                CURRENT.remove();
+            } else {
+                CURRENT.set(previous);
+            }
         }
     }
 }

@@ -12,16 +12,26 @@ final class QuickLitematicaPreviewLoadingRenderer implements AutoCloseable {
     private boolean disabled;
 
     boolean draw(NativePreview preview, DrawContext context, int x, int y, int size, DragState drag) {
-        if (this.disabled || preview.staticUploadComplete || preview.cancelled.get() || preview.dimensions == null) return false;
+        if (this.disabled || preview.staticUploadComplete || preview.cancelled.get() || preview.dimensions == null) {
+            return false;
+        }
         var window = MinecraftClient.getInstance().getWindow();
         int pixels = Math.max(1, (int) Math.ceil(size * window.getScaleFactor()));
-        var view = new QuickLitematicaPreviewLoadingTexture.View(preview, x, y, size,
-                drag.dx, drag.dy, drag.angle, drag.pitch, drag.scale);
+        var view = new QuickLitematicaPreviewLoadingTexture.View(
+                preview,
+                x,
+                y,
+                size,
+                drag.dx,
+                drag.dy,
+                drag.angle,
+                drag.pitch,
+                drag.scale
+        );
         try {
             // GUI 的待提交顶点必须先画回主目标，不能落进预览 FBO。
             context.draw();
-            boolean reuse = this.framebuffer.hasSize(pixels)
-                    && this.texture.canReuse(view, true, System.nanoTime());
+            boolean reuse = this.framebuffer.hasSize(pixels) && this.texture.canReuse(view, true, System.nanoTime());
             if (!reuse) {
                 try {
                     RenderSystem.disableScissor();
@@ -31,7 +41,9 @@ final class QuickLitematicaPreviewLoadingRenderer implements AutoCloseable {
                     this.framebuffer.restore();
                 }
                 this.texture.rendered(view);
-            } else preview.trace.milestone("加载期首次复用预览贴图，静态上传继续，视角改变或上传完成立即重画");
+            } else {
+                preview.trace.milestone("加载期首次复用预览贴图，静态上传继续，视角改变或上传完成立即重画");
+            }
             this.framebuffer.blit(context, x, y, size);
             return true;
         } catch (RuntimeException | OutOfMemoryError failure) {
@@ -42,7 +54,8 @@ final class QuickLitematicaPreviewLoadingRenderer implements AutoCloseable {
         }
     }
 
-    @Override public void close() {
+    @Override
+    public void close() {
         this.texture.clear();
         this.framebuffer.close();
     }

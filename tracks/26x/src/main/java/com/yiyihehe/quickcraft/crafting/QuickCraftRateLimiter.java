@@ -19,8 +19,7 @@ final class QuickCraftRateLimiter {
         }
         long interval = (1_000_000_000L + perSecond - 1L) / perSecond;
         // 小幅调度抖动沿用原节拍；错过整轮后重新计时，避免停顿后集中补发。
-        nextDispatchNanos = scheduled && nowNanos - nextDispatchNanos < interval
-                ? nextDispatchNanos + interval
+        nextDispatchNanos = scheduled && nowNanos - nextDispatchNanos < interval ? nextDispatchNanos + interval
                 : nowNanos + interval;
         scheduled = true;
     }

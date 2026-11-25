@@ -11,14 +11,9 @@ import org.spongepowered.asm.mixin.injection.ModifyConstant;
  */
 @Mixin(value = EasyPlaceUtils.class, remap = false)
 public abstract class LitematicaEasyPlaceUtilsMixin {
-    @ModifyConstant(
-            method = "cacheEasyPlacePosition",
-            constant = @Constant(longValue = 2_000_000_000L),
-            remap = false
-    )
+    @ModifyConstant(method = "cacheEasyPlacePosition", constant = @Constant(longValue = 2_000_000_000L), remap = false)
     private static long quickcraft$useConfiguredCacheTime(long timeout) {
-        return QuickCraftConfigs.isHoldEasyPlaceEnabled()
-                ? 1_000_000L * QuickCraftConfigs.getHoldEasyPlaceCacheTimeMs()
+        return QuickCraftConfigs.isHoldEasyPlaceEnabled() ? 1_000_000L * QuickCraftConfigs.getHoldEasyPlaceCacheTimeMs()
                 : timeout;
     }
 }

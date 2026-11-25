@@ -15,11 +15,18 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 @Mixin(value = EntitiesDataStorage.class, remap = false)
 public abstract class LitematicaEntityDataReceiptMixin {
     @Inject(method = "handleBlockEntityData", at = @At("RETURN"), remap = false)
-    private void quickcraft$rememberReceivedData(BlockPos pos, NbtCompound data, Identifier type,
-                                                CallbackInfoReturnable<BlockEntity> cir) {
+    private void quickcraft$rememberReceivedData(
+            BlockPos pos,
+            NbtCompound data,
+            Identifier type,
+            CallbackInfoReturnable<BlockEntity> cir
+    ) {
         if (cir.getReturnValue() != null) {
             QuickLitematicaContainerVerifier.rememberReceivedBlockEntityData(
-                    MinecraftClient.getInstance().world, pos, data);
+                    MinecraftClient.getInstance().world,
+                    pos,
+                    data
+            );
         }
     }
 }

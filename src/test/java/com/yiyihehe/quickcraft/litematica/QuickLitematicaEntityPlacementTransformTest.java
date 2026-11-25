@@ -21,16 +21,26 @@ class QuickLitematicaEntityPlacementTransformTest {
     @Test
     void paintingFacingUsesHorizontalEncodingUnderRotation() throws Exception {
         NbtCompound nbt = painting(Direction.EAST);
-        transform(nbt, net.minecraft.util.BlockMirror.NONE, net.minecraft.util.BlockRotation.CLOCKWISE_90,
-                net.minecraft.util.BlockMirror.NONE, net.minecraft.util.BlockRotation.NONE);
+        transform(
+                nbt,
+                net.minecraft.util.BlockMirror.NONE,
+                net.minecraft.util.BlockRotation.CLOCKWISE_90,
+                net.minecraft.util.BlockMirror.NONE,
+                net.minecraft.util.BlockRotation.NONE
+        );
         assertThat(QuickLitematicaEntityPlacementAccess.byteValue(nbt, "facing")).isEqualTo((byte) 0);
     }
 
     @Test
     void paintingFacingUsesHorizontalEncodingUnderMirror() throws Exception {
         NbtCompound nbt = painting(Direction.EAST);
-        transform(nbt, net.minecraft.util.BlockMirror.FRONT_BACK, net.minecraft.util.BlockRotation.NONE,
-                net.minecraft.util.BlockMirror.NONE, net.minecraft.util.BlockRotation.NONE);
+        transform(
+                nbt,
+                net.minecraft.util.BlockMirror.FRONT_BACK,
+                net.minecraft.util.BlockRotation.NONE,
+                net.minecraft.util.BlockMirror.NONE,
+                net.minecraft.util.BlockRotation.NONE
+        );
         assertThat(QuickLitematicaEntityPlacementAccess.byteValue(nbt, "facing")).isEqualTo((byte) 1);
     }
 
@@ -39,15 +49,27 @@ class QuickLitematicaEntityPlacementTransformTest {
         NbtCompound nbt = new NbtCompound();
         nbt.putString("id", "minecraft:item_frame");
         nbt.putByte("facing", QuickLitematicaEntityPlacementAccess.directionIndex(Direction.EAST));
-        transform(nbt, net.minecraft.util.BlockMirror.NONE, net.minecraft.util.BlockRotation.CLOCKWISE_90,
-                net.minecraft.util.BlockMirror.NONE, net.minecraft.util.BlockRotation.NONE);
-        assertThat(QuickLitematicaEntityPlacementAccess.byteValue(nbt, "facing")).isEqualTo(QuickLitematicaEntityPlacementAccess.directionIndex(Direction.SOUTH));
+        transform(
+                nbt,
+                net.minecraft.util.BlockMirror.NONE,
+                net.minecraft.util.BlockRotation.CLOCKWISE_90,
+                net.minecraft.util.BlockMirror.NONE,
+                net.minecraft.util.BlockRotation.NONE
+        );
+        assertThat(QuickLitematicaEntityPlacementAccess.byteValue(nbt, "facing")).isEqualTo(
+                QuickLitematicaEntityPlacementAccess.directionIndex(Direction.SOUTH)
+        );
     }
 
     private static NbtCompound painting(Direction facing) {
         NbtCompound nbt = new NbtCompound();
         nbt.putString("id", "minecraft:painting");
-        nbt.putByte("facing", (byte) switch (facing) { case SOUTH -> 0; case WEST -> 1; case NORTH -> 2; default -> 3; });
+        nbt.putByte("facing", (byte) switch (facing) {
+            case SOUTH -> 0;
+            case WEST -> 1;
+            case NORTH -> 2;
+            default -> 3;
+        });
         return nbt;
     }
 
@@ -65,8 +87,13 @@ class QuickLitematicaEntityPlacementTransformTest {
         when(subRegion.getMirror()).thenReturn(regionMirror);
         when(subRegion.getRotation()).thenReturn(regionRotation);
         Method method = QuickLitematicaEntityPlacement.class.getDeclaredMethod(
-                "transformEntityTreeState", NbtCompound.class, SchematicPlacement.class,
-                SubRegionPlacement.class, BlockPos.class, int.class);
+                "transformEntityTreeState",
+                NbtCompound.class,
+                SchematicPlacement.class,
+                SubRegionPlacement.class,
+                BlockPos.class,
+                int.class
+        );
         method.setAccessible(true);
         method.invoke(null, nbt, placement, subRegion, BlockPos.ORIGIN, 0);
     }

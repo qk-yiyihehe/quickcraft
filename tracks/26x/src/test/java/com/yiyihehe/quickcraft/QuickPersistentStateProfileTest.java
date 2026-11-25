@@ -79,8 +79,11 @@ class QuickPersistentStateProfileTest {
             containerSlots.add("chest-key", chestSlots);
             containerLock.add("lockedContainerSlots", containerSlots);
             seed.add("containerLock", containerLock);
-            QuickTradeTestSupport.loadFavorite("merchant-key",
-                    new ItemStack(Items.EMERALD), new ItemStack(Items.BREAD));
+            QuickTradeTestSupport.loadFavorite(
+                    "merchant-key",
+                    new ItemStack(Items.EMERALD),
+                    new ItemStack(Items.BREAD)
+            );
             QuickTrade.writePersistentState(seed, lookup);
             Files.createDirectories(stateFile.getParent());
             Files.writeString(stateFile, new Gson().toJson(seed));
@@ -91,22 +94,28 @@ class QuickPersistentStateProfileTest {
             assertThat(getStatic("currentStateFile")).isEqualTo(firstFile);
             assertThat((Set<String>) getStatic(QuickContainerLock.class, "LOCKED_CONTAINERS")).contains("chest-key");
             assertThat((Set<Integer>) getStatic(QuickContainerLock.class, "LOCKED_PLAYER_SLOTS")).contains(3);
-            assertThat((java.util.Map<String, ?>) QuickTradeTestSupport.getStaticField(
-                    QuickTrade.class, "FAVORITE_TRADES")).containsKey("merchant-key");
+            assertThat(
+                    (java.util.Map<String, ?>) QuickTradeTestSupport.getStaticField(QuickTrade.class, "FAVORITE_TRADES")
+            ).containsKey("merchant-key");
 
             QuickContainerLock.togglePlayerInventoryLock(client);
-            QuickTradeTestSupport.loadFavorite("new-merchant",
-                    new ItemStack(Items.EMERALD), new ItemStack(Items.APPLE));
+            QuickTradeTestSupport.loadFavorite(
+                    "new-merchant",
+                    new ItemStack(Items.EMERALD),
+                    new ItemStack(Items.APPLE)
+            );
             QuickPersistentState.saveCurrentProfileState();
 
             QuickPersistentState.onClientTick(null);
             QuickPersistentState.onClientTick(client);
-            assertThat((Set<String>) getStatic(QuickContainerLock.class, "LOCKED_CONTAINERS"))
-                    .contains("chest-key", "player_inventory");
+            assertThat((Set<String>) getStatic(QuickContainerLock.class, "LOCKED_CONTAINERS")).contains(
+                    "chest-key",
+                    "player_inventory"
+            );
             assertThat((Set<Integer>) getStatic(QuickContainerLock.class, "LOCKED_PLAYER_SLOTS")).contains(3);
-            assertThat((java.util.Map<String, ?>) QuickTradeTestSupport.getStaticField(
-                    QuickTrade.class, "FAVORITE_TRADES"))
-                    .containsKeys("merchant-key", "new-merchant");
+            assertThat(
+                    (java.util.Map<String, ?>) QuickTradeTestSupport.getStaticField(QuickTrade.class, "FAVORITE_TRADES")
+            ).containsKeys("merchant-key", "new-merchant");
         }
     }
 
@@ -116,7 +125,8 @@ class QuickPersistentStateProfileTest {
         ClientLevelStub.install(client, lookup);
         when(client.hasSingleplayerServer()).thenReturn(false);
         when(client.getCurrentServer()).thenReturn(
-                new ServerData("remote", "example.com:25565", ServerData.Type.OTHER));
+                new ServerData("remote", "example.com:25565", ServerData.Type.OTHER)
+        );
 
         try (var minecraft = mockStatic(Minecraft.class)) {
             minecraft.when(Minecraft::getInstance).thenReturn(client);

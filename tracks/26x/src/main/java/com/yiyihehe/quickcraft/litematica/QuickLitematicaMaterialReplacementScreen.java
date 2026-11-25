@@ -1,6 +1,5 @@
 package com.yiyihehe.quickcraft.litematica;
 
-
 import fi.dy.masa.malilib.gui.GuiBase;
 import fi.dy.masa.malilib.gui.GuiTextFieldGeneric;
 import fi.dy.masa.malilib.gui.button.ButtonGeneric;
@@ -81,16 +80,11 @@ public final class QuickLitematicaMaterialReplacementScreen extends QuickLitemat
         this(parent, source, createDefaultBinding(scope, replacementContextKey));
     }
 
-    public QuickLitematicaMaterialReplacementScreen(
-            Screen parent,
-            ItemStack source,
-            ReplacementBinding binding
-    ) {
+    public QuickLitematicaMaterialReplacementScreen(Screen parent, ItemStack source, ReplacementBinding binding) {
         this.parent = parent;
         this.setParent(parent);
         this.source = source.copy();
-        this.binding = binding == null
-                ? createDefaultBinding(QuickLitematicaContainerReplacements.Scope.CONTAINER, "")
+        this.binding = binding == null ? createDefaultBinding(QuickLitematicaContainerReplacements.Scope.CONTAINER, "")
                 : binding;
         if (!this.binding.supportsCount() && !this.source.isEmpty()) {
             this.source.setCount(1);
@@ -126,11 +120,7 @@ public final class QuickLitematicaMaterialReplacementScreen extends QuickLitemat
         open(parent, source, QuickLitematicaContainerReplacements.Scope.CONTAINER);
     }
 
-    public static void open(
-            Screen parent,
-            ItemStack source,
-            QuickLitematicaContainerReplacements.Scope scope
-    ) {
+    public static void open(Screen parent, ItemStack source, QuickLitematicaContainerReplacements.Scope scope) {
         open(parent, source, scope, "");
     }
 
@@ -143,19 +133,12 @@ public final class QuickLitematicaMaterialReplacementScreen extends QuickLitemat
         open(parent, source, createDefaultBinding(scope, replacementContextKey));
     }
 
-    public static void open(
-            Screen parent,
-            ItemStack source,
-            ReplacementBinding binding
-    ) {
-        if (parent == null || source == null || (source.isEmpty() && (binding == null || (!binding.supportsCount() && !binding.selectionOnly())))) {
+    public static void open(Screen parent, ItemStack source, ReplacementBinding binding) {
+        if (parent == null || source == null || (source.isEmpty() && (binding == null || (!binding.supportsCount()
+                && !binding.selectionOnly())))) {
             return;
         }
-        GuiBase.openGui(new QuickLitematicaMaterialReplacementScreen(
-                parent,
-                source,
-                binding
-        ));
+        GuiBase.openGui(new QuickLitematicaMaterialReplacementScreen(parent, source, binding));
     }
 
     static void openFromWorld(
@@ -178,7 +161,13 @@ public final class QuickLitematicaMaterialReplacementScreen extends QuickLitemat
         this.panelX = Math.max(4, (this.getScreenWidth() - this.panelWidth) / 2);
         this.panelY = Math.max(4, (this.getScreenHeight() - this.panelHeight) / 2);
 
-        this.searchField = new GuiTextFieldGeneric(this.panelX + 12, this.panelY + 42, this.panelWidth - 24, 20, this.font);
+        this.searchField = new GuiTextFieldGeneric(
+                this.panelX + 12,
+                this.panelY + 42,
+                this.panelWidth - 24,
+                20,
+                this.font
+        );
         this.searchField.setTextWrapper(this.searchText);
         this.searchField.setMaxLengthWrapper(80);
         this.addTextField(this.searchField, field -> {
@@ -189,8 +178,13 @@ public final class QuickLitematicaMaterialReplacementScreen extends QuickLitemat
         });
 
         int buttonY = this.panelY + this.panelHeight - 30;
-        ButtonGeneric apply = new ButtonGeneric(this.panelX + this.panelWidth - 62, buttonY, 50, 20,
-                StringUtils.translate("quickcraft.litematica.button.material_replace_apply"));
+        ButtonGeneric apply = new ButtonGeneric(
+                this.panelX + this.panelWidth - 62,
+                buttonY,
+                50,
+                20,
+                StringUtils.translate("quickcraft.litematica.button.material_replace_apply")
+        );
         this.addButton(apply, (button, mouseButton) -> this.apply(false));
 
         if (this.saveCopy != null) {
@@ -201,15 +195,27 @@ public final class QuickLitematicaMaterialReplacementScreen extends QuickLitemat
         }
 
         if (!this.binding.selectionOnly()) {
-            ButtonGeneric clear = new ButtonGeneric(this.panelX + 90, buttonY, 64, 20,
-                    StringUtils.translate(this.binding.canKeepOriginal()
-                            ? "quickcraft.litematica.button.material_replace_follow_summary"
-                            : "quickcraft.litematica.button.material_replace_clear"));
+            ButtonGeneric clear = new ButtonGeneric(
+                    this.panelX + 90,
+                    buttonY,
+                    64,
+                    20,
+                    StringUtils.translate(
+                            this.binding.canKeepOriginal()
+                                    ? "quickcraft.litematica.button.material_replace_follow_summary"
+                                    : "quickcraft.litematica.button.material_replace_clear"
+                    )
+            );
             this.addButton(clear, (button, mouseButton) -> this.clear());
         }
 
-        ButtonGeneric mainHand = new ButtonGeneric(this.panelX + 12, buttonY, 74, 20,
-                StringUtils.translate("quickcraft.litematica.button.material_replace_main_hand"));
+        ButtonGeneric mainHand = new ButtonGeneric(
+                this.panelX + 12,
+                buttonY,
+                74,
+                20,
+                StringUtils.translate("quickcraft.litematica.button.material_replace_main_hand")
+        );
         this.addButton(mainHand, (button, mouseButton) -> this.readMainHand());
 
         int nameFieldX = this.getNameFieldX();
@@ -240,8 +246,13 @@ public final class QuickLitematicaMaterialReplacementScreen extends QuickLitemat
                 return true;
             });
             if (this.binding.canKeepOriginal()) {
-                ButtonGeneric keep = new ButtonGeneric(this.panelX + 158, buttonY, 54, 20,
-                        StringUtils.translate("quickcraft.litematica.button.material_replace_keep_original"));
+                ButtonGeneric keep = new ButtonGeneric(
+                        this.panelX + 158,
+                        buttonY,
+                        54,
+                        20,
+                        StringUtils.translate("quickcraft.litematica.button.material_replace_keep_original")
+                );
                 this.addButton(keep, (button, mouseButton) -> {
                     this.binding.keepOriginal(this.source);
                     this.refreshParent();
@@ -255,7 +266,13 @@ public final class QuickLitematicaMaterialReplacementScreen extends QuickLitemat
             int footerX = this.binding.selectionOnly() ? mainHand.getX() + mainHand.getWidth() + 4 : this.panelX + 158;
             int emptyX = withCount ? this.panelX + this.panelWidth - 66 : footerX;
             int emptyY = withCount ? this.getBottomBoxY() + 5 : buttonY;
-            ButtonGeneric empty = new ButtonGeneric(emptyX, emptyY, 48, withCount ? 18 : 20, this.binding.emptyTargetLabel());
+            ButtonGeneric empty = new ButtonGeneric(
+                    emptyX,
+                    emptyY,
+                    48,
+                    withCount ? 18 : 20,
+                    this.binding.emptyTargetLabel()
+            );
             this.addButton(empty, (button, mouseButton) -> {
                 this.selectedItem = Items.AIR;
                 this.selectedTemplate = ItemStack.EMPTY;
@@ -265,19 +282,24 @@ public final class QuickLitematicaMaterialReplacementScreen extends QuickLitemat
             });
         }
 
-        ButtonGeneric cancel = new ButtonGeneric(this.panelX + this.panelWidth - 116, buttonY, 50, 20,
-                StringUtils.translate("quickcraft.litematica.button.material_replace_cancel"));
+        ButtonGeneric cancel = new ButtonGeneric(
+                this.panelX + this.panelWidth - 116,
+                buttonY,
+                50,
+                20,
+                StringUtils.translate("quickcraft.litematica.button.material_replace_cancel")
+        );
         this.addButton(cancel, (button, mouseButton) -> this.closeToParent());
     }
 
     @Override
     protected void drawMaterialFields(int mouseX, int mouseY, Context drawContext) {
-        // GuiBase draws fields before drawContents; this screen renders them once after its panel.
+        // GuiBase 会在 drawContents 之前调用输入框绘制，本界面改为绘制面板后再统一绘制一次。
     }
 
     @Override
     protected void drawMaterialButtons(int mouseX, int mouseY, float partialTicks, Context drawContext) {
-        // GuiBase draws buttons before drawContents; this screen renders them once after its panel.
+        // GuiBase 会在 drawContents 之前调用按钮绘制，本界面改为绘制面板后再统一绘制一次。
     }
 
     @Override
@@ -291,8 +313,7 @@ public final class QuickLitematicaMaterialReplacementScreen extends QuickLitemat
         int cellSize = this.getGridCellSize();
         int gridHeight = this.getGridRows() * cellSize;
         int scrollbarX = this.panelX + this.panelWidth - 18;
-        if (mouseX >= scrollbarX - 3 && mouseX < scrollbarX + 9
-                && mouseY >= gridY && mouseY < gridY + gridHeight) {
+        if (mouseX >= scrollbarX - 3 && mouseX < scrollbarX + 9 && mouseY >= gridY && mouseY < gridY + gridHeight) {
             int maxRow = this.getMaxRowIndex();
             if (maxRow > 0) {
                 this.draggingScrollbar = true;
@@ -300,13 +321,12 @@ public final class QuickLitematicaMaterialReplacementScreen extends QuickLitemat
             }
             return true;
         }
-        if (mouseX < gridX || mouseX >= gridX + GRID_COLUMNS * cellSize
-                || mouseY < gridY || mouseY >= gridY + gridHeight) {
+        if (mouseX < gridX || mouseX >= gridX + GRID_COLUMNS * cellSize || mouseY < gridY || mouseY >= gridY
+                + gridHeight) {
             return true;
         }
 
-        int index = (this.rowIndex + (mouseY - gridY) / cellSize) * GRID_COLUMNS
-                + (mouseX - gridX) / cellSize;
+        int index = (this.rowIndex + (mouseY - gridY) / cellSize) * GRID_COLUMNS + (mouseX - gridX) / cellSize;
         if (index >= 0 && index < this.filteredItems.size()) {
             this.selectedItem = this.filteredItems.get(index);
             if (this.selectedTemplate.getItem() != this.selectedItem) {
@@ -319,8 +339,7 @@ public final class QuickLitematicaMaterialReplacementScreen extends QuickLitemat
 
     @Override
     public boolean materialMouseScrolled(int mouseX, int mouseY, double horizontalAmount, double verticalAmount) {
-        if (mouseX >= this.panelX && mouseX < this.panelX + this.panelWidth
-                && mouseY >= this.panelY + GRID_TOP
+        if (mouseX >= this.panelX && mouseX < this.panelX + this.panelWidth && mouseY >= this.panelY + GRID_TOP
                 && mouseY < this.panelY + GRID_TOP + this.getGridRows() * this.getGridCellSize()) {
             int maxRow = this.getMaxRowIndex();
             this.rowIndex = Math.max(0, Math.min(maxRow, this.rowIndex + (verticalAmount < 0 ? 1 : -1)));
@@ -339,9 +358,14 @@ public final class QuickLitematicaMaterialReplacementScreen extends QuickLitemat
     @Override
     public boolean materialMouseDragged(double mouseX, double mouseY, int button, double deltaX, double deltaY) {
         if (this.draggingScrollbar) {
-            this.rowIndex = scrollbarRowFromDrag(this.scrollbarDragStartRow, this.scrollbarDragStartMouseY,
-                    (int) mouseY, this.getGridRows() * this.getGridCellSize(),
-                    this.getScrollbarThumbHeight(), this.getMaxRowIndex());
+            this.rowIndex = scrollbarRowFromDrag(
+                    this.scrollbarDragStartRow,
+                    this.scrollbarDragStartMouseY,
+                    (int) mouseY,
+                    this.getGridRows() * this.getGridCellSize(),
+                    this.getScrollbarThumbHeight(),
+                    this.getMaxRowIndex()
+            );
             return true;
         }
         return super.materialMouseDragged(mouseX, mouseY, button, deltaX, deltaY);
@@ -366,18 +390,40 @@ public final class QuickLitematicaMaterialReplacementScreen extends QuickLitemat
         drawContext.rect(this.panelX + 1, this.panelY + 1, this.panelWidth - 2, 24, 0xFF30353C);
 
         String title = this.binding.selectionOnly() ? this.binding.selectionTitle()
-                : StringUtils.translate("quickcraft.litematica.title.material_replace", this.source.getHoverName().getString());
+                : StringUtils.translate(
+                        "quickcraft.litematica.title.material_replace",
+                        this.source.getHoverName().getString()
+                );
         if (this.saveCopy != null) {
-            title = this.fitText(title, this.panelWidth - 58
-                    - this.getStringWidth(StringUtils.translate("quickcraft.litematica.button.replace_and_save_copy")));
+            title = this.fitText(
+                    title,
+                    this.panelWidth - 58 - this.getStringWidth(
+                            StringUtils.translate("quickcraft.litematica.button.replace_and_save_copy")
+                    )
+            );
         }
-        if (!this.binding.selectionOnly()) { drawContext.drawItem(this.source, this.panelX + 12, this.panelY + 4); }
-        drawContext.drawText(this.font, title, this.panelX + (this.binding.selectionOnly() ? 12 : 34), this.panelY + 8, 0xFFFFFFFF, false);
+        if (!this.binding.selectionOnly()) {
+            drawContext.drawItem(this.source, this.panelX + 12, this.panelY + 4);
+        }
+        drawContext.drawText(
+                this.font,
+                title,
+                this.panelX + (this.binding.selectionOnly() ? 12 : 34),
+                this.panelY + 8,
+                0xFFFFFFFF,
+                false
+        );
 
         int gridX = this.getGridX();
         int gridY = this.panelY + GRID_TOP;
         int cellSize = this.getGridCellSize();
-        drawContext.rect(gridX - 2, gridY - 2, GRID_COLUMNS * cellSize + 4, this.getGridRows() * cellSize + 4, 0x6630353D);
+        drawContext.rect(
+                gridX - 2,
+                gridY - 2,
+                GRID_COLUMNS * cellSize + 4,
+                this.getGridRows() * cellSize + 4,
+                0x6630353D
+        );
         int first = this.rowIndex * GRID_COLUMNS;
         int end = Math.min(this.filteredItems.size(), first + this.getGridRows() * GRID_COLUMNS);
 
@@ -388,9 +434,14 @@ public final class QuickLitematicaMaterialReplacementScreen extends QuickLitemat
             int y = gridY + (local / GRID_COLUMNS) * cellSize;
             int itemBoxSize = cellSize - 4;
             boolean selected = this.selectedItem == this.filteredItems.get(index);
-            drawContext.box(x + 2, y + 2, itemBoxSize, itemBoxSize,
+            drawContext.box(
+                    x + 2,
+                    y + 2,
+                    itemBoxSize,
+                    itemBoxSize,
                     selected ? 0x665B8CFF : 0x222A2F36,
-                    selected ? 0xFFB7C7FF : 0x44656D78);
+                    selected ? 0xFFB7C7FF : 0x44656D78
+            );
         }
         for (int index = first; index < end; index++) {
             int local = index - first;
@@ -410,8 +461,9 @@ public final class QuickLitematicaMaterialReplacementScreen extends QuickLitemat
         if (!this.binding.selectionOnly()) {
             drawContext.drawItem(this.source, sourceBoxX + 6, bottomBoxY + 6);
             drawContext.drawItemInSlot(this.font, this.source, sourceBoxX + 6, bottomBoxY + 6);
-            String sourceBaseName = this.source.isEmpty() ? StringUtils.translate("quickcraft.litematica.label.material_replace_empty_slot")
-                    : this.source.getItem().getName(this.source).getString();
+            String sourceBaseName = this.source.isEmpty() ? StringUtils.translate(
+                    "quickcraft.litematica.label.material_replace_empty_slot"
+            ) : this.source.getItem().getName(this.source).getString();
             Component sourceCustomName = this.source.get(DataComponents.CUSTOM_NAME);
             String sourceDisplayName = sourceBaseName;
             if (sourceCustomName != null && !sourceCustomName.getString().isBlank()) {
@@ -426,8 +478,7 @@ public final class QuickLitematicaMaterialReplacementScreen extends QuickLitemat
                     false
             );
 
-            drawContext.drawText(this.font, ">", sourceBoxX + sourceBoxWidth + 3, bottomBoxY + 9,
-                    0xFF8FD7FF, false);
+            drawContext.drawText(this.font, ">", sourceBoxX + sourceBoxWidth + 3, bottomBoxY + 9, 0xFF8FD7FF, false);
         }
         if (this.selectedItem != null) {
             ItemStack selectedStack = this.editedTarget();
@@ -435,16 +486,19 @@ public final class QuickLitematicaMaterialReplacementScreen extends QuickLitemat
             drawContext.drawItemInSlot(this.font, selectedStack, targetBoxX + 6, bottomBoxY + 6);
             drawContext.drawText(
                     this.font,
-                    this.fitText(selectedStack.isEmpty()
-                            ? this.binding.emptyTargetLabel()
-                            : selectedStack.getItem().getName(selectedStack).getString(), this.getNameFieldX() - targetBoxX - 32),
+                    this.fitText(
+                            selectedStack.isEmpty() ? this.binding.emptyTargetLabel()
+                                    : selectedStack.getItem().getName(selectedStack).getString(),
+                            this.getNameFieldX() - targetBoxX - 32
+                    ),
                     targetBoxX + 28,
                     bottomBoxY + 9,
                     0xFFFFFFFF,
                     false
             );
         } else {
-            drawContext.drawText(this.font,
+            drawContext.drawText(
+                    this.font,
                     this.fitText(
                             StringUtils.translate("quickcraft.litematica.label.material_replace_target_hint"),
                             this.getNameFieldX() - targetBoxX - 12
@@ -457,23 +511,40 @@ public final class QuickLitematicaMaterialReplacementScreen extends QuickLitemat
         }
         drawContext.textField(this.nameField, mouseX, mouseY, partialTicks);
         if (this.countField != null) {
-            drawContext.drawText(this.font,
+            drawContext.drawText(
+                    this.font,
                     StringUtils.translate("quickcraft.litematica.label.material_replace_count_short"),
-                    this.getCountLabelX(), bottomBoxY + 10, 0xFFAEB5BF, false);
+                    this.getCountLabelX(),
+                    bottomBoxY + 10,
+                    0xFFAEB5BF,
+                    false
+            );
             drawContext.textField(this.countField, mouseX, mouseY, partialTicks);
             if (this.countText.isBlank()) {
-                drawContext.drawText(this.font,
+                drawContext.drawText(
+                        this.font,
                         StringUtils.translate("quickcraft.litematica.label.material_replace_count_keep"),
-                        this.getCountFieldX() + 3, bottomBoxY + 10, 0xFF9298A1, false);
+                        this.getCountFieldX() + 3,
+                        bottomBoxY + 10,
+                        0xFF9298A1,
+                        false
+                );
             }
         }
         String notice = this.validationError.isEmpty() ? this.binding.scopeDescription() : this.validationError;
         if (!notice.isEmpty()) {
-            drawContext.drawText(this.font, this.fitText(notice, this.panelWidth - 24),
-                    this.panelX + 12, bottomBoxY + 40, this.validationError.isEmpty() ? 0xFFAEB5BF : 0xFFFF9E9E, false);
+            drawContext.drawText(
+                    this.font,
+                    this.fitText(notice, this.panelWidth - 24),
+                    this.panelX + 12,
+                    bottomBoxY + 40,
+                    this.validationError.isEmpty() ? 0xFFAEB5BF : 0xFFFF9E9E,
+                    false
+            );
         }
         if (this.targetName.isBlank()) {
-            drawContext.drawText(this.font,
+            drawContext.drawText(
+                    this.font,
                     StringUtils.translate("quickcraft.litematica.label.material_replace_name_hint"),
                     this.getNameFieldX() + 5,
                     bottomBoxY + 10,
@@ -496,7 +567,9 @@ public final class QuickLitematicaMaterialReplacementScreen extends QuickLitemat
 
         int hovered = this.getHoveredIndex(mouseX, mouseY, gridX, gridY);
         if (hovered >= 0) {
-            String hoveredName = this.filteredItems.get(hovered).getName(this.filteredItems.get(hovered).getDefaultInstance()).getString();
+            String hoveredName = this.filteredItems.get(hovered).getName(
+                    this.filteredItems.get(hovered).getDefaultInstance()
+            ).getString();
             drawContext.drawText(
                     this.font,
                     this.fitText(hoveredName, this.panelWidth - 24),
@@ -513,7 +586,10 @@ public final class QuickLitematicaMaterialReplacementScreen extends QuickLitemat
     }
 
     private int getGridRows() {
-        return Math.min(GRID_ROWS, Math.max(1, (this.getBottomBoxY() - 8 - this.panelY - GRID_TOP) / this.getGridCellSize()));
+        return Math.min(
+                GRID_ROWS,
+                Math.max(1, (this.getBottomBoxY() - 8 - this.panelY - GRID_TOP) / this.getGridCellSize())
+        );
     }
 
     private int getBottomColumnWidth() {
@@ -529,8 +605,9 @@ public final class QuickLitematicaMaterialReplacementScreen extends QuickLitemat
     }
 
     private int getCountLabelX() {
-        return this.getCountFieldX() - this.getStringWidth(StringUtils.translate(
-                "quickcraft.litematica.label.material_replace_count_short")) - 4;
+        return this.getCountFieldX() - this.getStringWidth(
+                StringUtils.translate("quickcraft.litematica.label.material_replace_count_short")
+        ) - 4;
     }
 
     private int getNameFieldX() {
@@ -560,12 +637,11 @@ public final class QuickLitematicaMaterialReplacementScreen extends QuickLitemat
 
     private int getHoveredIndex(int mouseX, int mouseY, int gridX, int gridY) {
         int cellSize = this.getGridCellSize();
-        if (mouseX < gridX || mouseX >= gridX + GRID_COLUMNS * cellSize
-                || mouseY < gridY || mouseY >= gridY + this.getGridRows() * cellSize) {
+        if (mouseX < gridX || mouseX >= gridX + GRID_COLUMNS * cellSize || mouseY < gridY || mouseY >= gridY + this
+                .getGridRows() * cellSize) {
             return -1;
         }
-        int index = (this.rowIndex + (mouseY - gridY) / cellSize) * GRID_COLUMNS
-                + (mouseX - gridX) / cellSize;
+        int index = (this.rowIndex + (mouseY - gridY) / cellSize) * GRID_COLUMNS + (mouseX - gridX) / cellSize;
         return index >= 0 && index < this.filteredItems.size() ? index : -1;
     }
 
@@ -614,13 +690,17 @@ public final class QuickLitematicaMaterialReplacementScreen extends QuickLitemat
         int thumbY = this.getScrollbarThumbY(gridY);
 
         drawContext.box(scrollbarX, gridY, 6, gridHeight, 0x44171B20, 0xFF68717B);
-        drawContext.rect(scrollbarX + 1, thumbY + 1, 4, thumbHeight - 2,
-                maxRow == 0 ? 0xFF68717B : 0xFFB7BEC7);
+        drawContext.rect(scrollbarX + 1, thumbY + 1, 4, thumbHeight - 2, maxRow == 0 ? 0xFF68717B : 0xFFB7BEC7);
     }
 
     private int getScrollbarThumbY(int gridY) {
-        return scrollbarThumbY(gridY, this.getGridRows() * this.getGridCellSize(),
-                this.getScrollbarThumbHeight(), this.getMaxRowIndex(), this.rowIndex);
+        return scrollbarThumbY(
+                gridY,
+                this.getGridRows() * this.getGridCellSize(),
+                this.getScrollbarThumbHeight(),
+                this.getMaxRowIndex(),
+                this.rowIndex
+        );
     }
 
     static int scrollbarThumbY(int gridY, int gridHeight, int thumbHeight, int maxRow, int rowIndex) {
@@ -635,26 +715,35 @@ public final class QuickLitematicaMaterialReplacementScreen extends QuickLitemat
         return Math.max(0, Math.min(maxRow, (int) Math.round(fraction * maxRow)));
     }
 
-    static int scrollbarRowAtPress(int mouseY, int gridY, int gridHeight,
-                                   int thumbHeight, int maxRow, int rowIndex) {
+    static int scrollbarRowAtPress(int mouseY, int gridY, int gridHeight, int thumbHeight, int maxRow, int rowIndex) {
         int row = Math.max(0, Math.min(maxRow, rowIndex));
         int thumbY = scrollbarThumbY(gridY, gridHeight, thumbHeight, maxRow, row);
-        return mouseY >= thumbY && mouseY < thumbY + thumbHeight
-                ? row
+        return mouseY >= thumbY && mouseY < thumbY + thumbHeight ? row
                 : scrollbarRowFromMouse(mouseY, gridY, gridHeight, thumbHeight, maxRow);
     }
 
-    static int scrollbarRowFromDrag(int startRow, int startMouseY, int mouseY,
-                                    int gridHeight, int thumbHeight, int maxRow) {
+    static int scrollbarRowFromDrag(
+            int startRow,
+            int startMouseY,
+            int mouseY,
+            int gridHeight,
+            int thumbHeight,
+            int maxRow
+    ) {
         int travel = Math.max(1, gridHeight - thumbHeight);
         int rowDelta = (int) Math.round((mouseY - startMouseY) * (double) maxRow / travel);
         return Math.max(0, Math.min(maxRow, startRow + rowDelta));
     }
 
     private void beginScrollbarDrag(int gridY, int mouseY) {
-        this.rowIndex = scrollbarRowAtPress(mouseY, gridY,
-                this.getGridRows() * this.getGridCellSize(), this.getScrollbarThumbHeight(),
-                this.getMaxRowIndex(), this.rowIndex);
+        this.rowIndex = scrollbarRowAtPress(
+                mouseY,
+                gridY,
+                this.getGridRows() * this.getGridCellSize(),
+                this.getScrollbarThumbHeight(),
+                this.getMaxRowIndex(),
+                this.rowIndex
+        );
         this.scrollbarDragStartRow = this.rowIndex;
         this.scrollbarDragStartMouseY = mouseY;
     }
@@ -680,9 +769,11 @@ public final class QuickLitematicaMaterialReplacementScreen extends QuickLitemat
             }
         }
 
-        this.allItems.sort(Comparator
-                .comparingInt((Item item) -> order.getOrDefault(item, Integer.MAX_VALUE))
-                .thenComparing(item -> BuiltInRegistries.ITEM.getKey(item).toString()));
+        this.allItems.sort(
+                Comparator.comparingInt((Item item) -> order.getOrDefault(item, Integer.MAX_VALUE)).thenComparing(
+                        item -> BuiltInRegistries.ITEM.getKey(item).toString()
+                )
+        );
     }
 
     private void readMainHand() {
@@ -708,7 +799,9 @@ public final class QuickLitematicaMaterialReplacementScreen extends QuickLitemat
 
     private ItemStack editedTarget() {
         ItemStack target = this.selectedTemplate.copy();
-        if (this.selectedItem == Items.AIR) { return ItemStack.EMPTY; }
+        if (this.selectedItem == Items.AIR) {
+            return ItemStack.EMPTY;
+        }
         Component name = target.get(DataComponents.CUSTOM_NAME);
         if (this.targetName.isBlank()) {
             target.remove(DataComponents.CUSTOM_NAME);
@@ -716,8 +809,10 @@ public final class QuickLitematicaMaterialReplacementScreen extends QuickLitemat
             target.set(DataComponents.CUSTOM_NAME, Component.literal(this.targetName));
         }
         int count = Math.max(1, this.source.getCount());
-        if (this.binding.supportsCount() && !this.countText.isBlank()
-                && isCountInputValid(this.countText, this.selectedTemplate.getMaxStackSize())) {
+        if (this.binding.supportsCount() && !this.countText.isBlank() && isCountInputValid(
+                this.countText,
+                this.selectedTemplate.getMaxStackSize()
+        )) {
             count = Integer.parseInt(this.countText.trim());
         }
         target.setCount(count);
@@ -740,20 +835,23 @@ public final class QuickLitematicaMaterialReplacementScreen extends QuickLitemat
         if (this.selectedItem == null) {
             return;
         }
-        if (this.selectedItem != Items.AIR
-                && this.binding.supportsCount()
-                && !isCountInputValid(this.countText, this.selectedTemplate.getMaxStackSize())) {
+        if (this.selectedItem != Items.AIR && this.binding.supportsCount() && !isCountInputValid(
+                this.countText,
+                this.selectedTemplate.getMaxStackSize()
+        )) {
             this.validationError = StringUtils.translate(
                     "quickcraft.litematica.label.material_replace_count_error",
-                    this.selectedTemplate.getMaxStackSize());
+                    this.selectedTemplate.getMaxStackSize()
+            );
             return;
         }
         ItemStack target = this.editedTarget();
-        if (this.binding.supportsCount() && !target.isEmpty()
-                && (target.getCount() < 1 || target.getCount() > target.getMaxStackSize())) {
+        if (this.binding.supportsCount() && !target.isEmpty() && (target.getCount() < 1 || target.getCount() > target
+                .getMaxStackSize())) {
             this.validationError = StringUtils.translate(
                     "quickcraft.litematica.label.material_replace_count_error",
-                    this.selectedTemplate.getMaxStackSize());
+                    this.selectedTemplate.getMaxStackSize()
+            );
             return;
         }
         boolean preserveCount = this.binding.supportsCount() && this.countText.isBlank();
@@ -805,8 +903,9 @@ public final class QuickLitematicaMaterialReplacementScreen extends QuickLitemat
             QuickLitematicaContainerReplacements.Scope scope,
             String replacementContextKey
     ) {
-        QuickLitematicaContainerReplacements.Scope effectiveScope =
-                scope == null ? QuickLitematicaContainerReplacements.Scope.CONTAINER : scope;
+        QuickLitematicaContainerReplacements.Scope effectiveScope = scope == null
+                ? QuickLitematicaContainerReplacements.Scope.CONTAINER
+                : scope;
         String effectiveContextKey = replacementContextKey == null ? "" : replacementContextKey;
         return new ReplacementBinding() {
             @Override
@@ -840,36 +939,51 @@ public final class QuickLitematicaMaterialReplacementScreen extends QuickLitemat
 
             @Override
             public void clear(ItemStack source) {
-                QuickLitematicaContainerReplacements.removeReplacementRule(
-                        source,
-                        effectiveScope,
-                        effectiveContextKey
-                );
+                QuickLitematicaContainerReplacements.removeReplacementRule(source, effectiveScope, effectiveContextKey);
             }
         };
     }
 
     public interface ReplacementBinding {
-        default boolean selectionOnly() { return false; }
+        default boolean selectionOnly() {
+            return false;
+        }
 
-        default String selectionTitle() { return ""; }
+        default String selectionTitle() {
+            return "";
+        }
 
         default String emptyTargetLabel() {
-            return QuickLitematicaMaterialReplacementScreen.emptyTargetLabel(QuickLitematicaContainerReplacements.Scope.CONTAINER);
+            return QuickLitematicaMaterialReplacementScreen.emptyTargetLabel(
+                    QuickLitematicaContainerReplacements.Scope.CONTAINER
+            );
         }
-        default boolean supportsCount() { return false; }
 
-        default boolean preserveCountByDefault() { return false; }
+        default boolean supportsCount() {
+            return false;
+        }
 
-        default boolean canKeepOriginal() { return false; }
+        default boolean preserveCountByDefault() {
+            return false;
+        }
 
-        default String scopeDescription() { return ""; }
+        default boolean canKeepOriginal() {
+            return false;
+        }
 
-        default void keepOriginal(ItemStack source) { }
+        default String scopeDescription() {
+            return "";
+        }
 
-        default String validateTarget(ItemStack source, ItemStack target, boolean preserveCount) { return ""; }
+        default void keepOriginal(ItemStack source) {}
 
-        default void apply(ItemStack source, ItemStack target, boolean preserveCount) { this.apply(source, target); }
+        default String validateTarget(ItemStack source, ItemStack target, boolean preserveCount) {
+            return "";
+        }
+
+        default void apply(ItemStack source, ItemStack target, boolean preserveCount) {
+            this.apply(source, target);
+        }
 
         default boolean isTargetAllowed(ItemStack source, ItemStack target) {
             return target != null && (!target.isEmpty() || this.supportsCount());

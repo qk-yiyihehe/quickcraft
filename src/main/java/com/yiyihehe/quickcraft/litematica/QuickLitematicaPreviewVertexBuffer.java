@@ -34,7 +34,19 @@ final class QuickLitematicaPreviewVertexBuffer {
         this.writeShort(CacheFile.encodeNormal(nx, ny, nz));
     }
 
-    void add(float x, float y, float z, int argb, float u, float v, int overlay, int light, float nx, float ny, float nz) {
+    void add(
+            float x,
+            float y,
+            float z,
+            int argb,
+            float u,
+            float v,
+            int overlay,
+            int light,
+            float nx,
+            float ny,
+            float nz
+    ) {
         this.writePrefix(x, y, z, argb, u, v);
         this.writeShort(CacheFile.encodeOverlay(overlay));
         this.writeInt(light);
@@ -44,8 +56,10 @@ final class QuickLitematicaPreviewVertexBuffer {
     private void writePrefix(float x, float y, float z, int argb, float u, float v) {
         int needed = this.position + this.vertexBytes;
         if (needed > this.bytes.length) {
-            this.bytes = Arrays.copyOf(this.bytes,
-                    QuickLitematicaPreviewVertexBudget.growCapacity(this.bytes.length, needed));
+            this.bytes = Arrays.copyOf(
+                    this.bytes,
+                    QuickLitematicaPreviewVertexBudget.growCapacity(this.bytes.length, needed)
+            );
         }
         this.writeInt(Float.floatToIntBits(x));
         this.writeInt(Float.floatToIntBits(y));

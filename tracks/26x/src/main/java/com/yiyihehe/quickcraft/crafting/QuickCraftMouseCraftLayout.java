@@ -9,33 +9,30 @@ import net.minecraft.world.inventory.InventoryMenu;
 import net.minecraft.world.inventory.AbstractContainerMenu;
 
 /**
- * Describes the vanilla recipe-book slot layout for the two player crafting screens.
- * It intentionally contains no item movement or recipe execution logic.
+ * 描述玩家的两种合成界面中原版配方书使用的槽位布局。
+ * 此布局不负责移动物品或执行配方。
  */
 public final class QuickCraftMouseCraftLayout {
     public static final int OUTPUT_SLOT = 0;
     public static final int PLAYER_INVENTORY_SIZE = 36;
 
-    /** CraftingMenu: grid 1..9, main inventory starts at 10, hotbar at 37. */
+    /** CraftingMenu 的合成格为 1–9，主物品栏从 10 开始，快捷栏从 37 开始。 */
     public static final Layout WORKBENCH = new Layout("workbench", 1, 9, 3, 3, 10, 37);
 
-    /** InventoryMenu: grid 1..4, main inventory starts at 9, hotbar at 36. */
+    /** InventoryMenu 的合成格为 1–4，主物品栏从 9 开始，快捷栏从 36 开始。 */
     public static final Layout BACKPACK = new Layout("backpack", 1, 4, 2, 2, 9, 36);
 
-    private QuickCraftMouseCraftLayout() {
-    }
+    private QuickCraftMouseCraftLayout() {}
 
     public static Layout fromScreen(Screen screen) {
         if (!(screen instanceof AbstractContainerScreen<?> handledScreen)) {
             return null;
         }
 
-        if (screen instanceof CraftingScreen
-                && handledScreen.getMenu() instanceof CraftingMenu) {
+        if (screen instanceof CraftingScreen && handledScreen.getMenu() instanceof CraftingMenu) {
             return WORKBENCH;
         }
-        if (screen instanceof InventoryScreen
-                && handledScreen.getMenu() instanceof InventoryMenu) {
+        if (screen instanceof InventoryScreen && handledScreen.getMenu() instanceof InventoryMenu) {
             return BACKPACK;
         }
 
@@ -77,7 +74,7 @@ public final class QuickCraftMouseCraftLayout {
             return handlerSlot >= gridStart && handlerSlot < gridStart + gridSize;
         }
 
-        /** Maps a Inventory index (hotbar 0..8, main inventory 9..35) to a handler slot. */
+        /** 将 Inventory 的索引映射到菜单槽位。快捷栏为 0–8，主物品栏为 9–35。 */
         public int handlerSlotForInventoryIndex(int inventoryIndex) {
             if (inventoryIndex >= 0 && inventoryIndex < 9) {
                 return playerHotbarStart + inventoryIndex;
@@ -92,8 +89,7 @@ public final class QuickCraftMouseCraftLayout {
             if (handlerSlot >= playerHotbarStart && handlerSlot < playerHotbarStart + 9) {
                 return handlerSlot - playerHotbarStart;
             }
-            if (handlerSlot >= playerMainInventoryStart
-                    && handlerSlot < playerMainInventoryStart + 27) {
+            if (handlerSlot >= playerMainInventoryStart && handlerSlot < playerMainInventoryStart + 27) {
                 return handlerSlot - playerMainInventoryStart + 9;
             }
             return -1;

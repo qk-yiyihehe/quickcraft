@@ -34,16 +34,24 @@ class QuickLitematicaEasyPlaceInteractionsTest {
         Fixture fixture = new Fixture(Blocks.CHEST);
 
         try (var configs = mockStatic(QuickCraftConfigs.class);
-             var freeCamera = mockStatic(QuickFreeCameraInteractions.class);
-             var worldUtils = mockStatic(WorldUtils.class);
-             var rayTrace = mockStatic(RayTraceUtils.class)) {
+                var freeCamera = mockStatic(QuickFreeCameraInteractions.class);
+                var worldUtils = mockStatic(WorldUtils.class);
+                var rayTrace = mockStatic(RayTraceUtils.class)) {
             configs.when(QuickCraftConfigs::areEasyPlaceVanillaInteractionsAllowed).thenReturn(true);
             configs.when(QuickCraftConfigs::areEasyPlaceInteractionScreensAllowed).thenReturn(true);
-            freeCamera.when(() -> QuickFreeCameraInteractions.getEasyPlaceTraceEntity(
-                    fixture.client, fixture.player)).thenReturn(fixture.player);
+            freeCamera.when(() -> QuickFreeCameraInteractions.getEasyPlaceTraceEntity(fixture.client, fixture.player))
+                    .thenReturn(fixture.player);
             worldUtils.when(() -> WorldUtils.getValidBlockRange(fixture.client)).thenReturn(16.0);
-            rayTrace.when(() -> RayTraceUtils.getGenericTrace(
-                    any(), any(), anyDouble(), anyBoolean(), anyBoolean(), anyBoolean())).thenReturn(null);
+            rayTrace.when(
+                    () -> RayTraceUtils.getGenericTrace(
+                            any(),
+                            any(),
+                            anyDouble(),
+                            anyBoolean(),
+                            anyBoolean(),
+                            anyBoolean()
+                    )
+            ).thenReturn(null);
 
             assertThat(QuickLitematicaEasyPlaceInteractions.shouldAllowVanillaUse(fixture.client)).isTrue();
         }
@@ -65,16 +73,24 @@ class QuickLitematicaEasyPlaceInteractionsTest {
         Fixture fixture = new Fixture(Blocks.STONE_BRICKS);
 
         try (var configs = mockStatic(QuickCraftConfigs.class);
-             var freeCamera = mockStatic(QuickFreeCameraInteractions.class);
-             var worldUtils = mockStatic(WorldUtils.class);
-             var rayTrace = mockStatic(RayTraceUtils.class)) {
+                var freeCamera = mockStatic(QuickFreeCameraInteractions.class);
+                var worldUtils = mockStatic(WorldUtils.class);
+                var rayTrace = mockStatic(RayTraceUtils.class)) {
             configs.when(QuickCraftConfigs::areEasyPlaceVanillaInteractionsAllowed).thenReturn(true);
             configs.when(QuickCraftConfigs::areEasyPlaceInteractionScreensAllowed).thenReturn(true);
-            freeCamera.when(() -> QuickFreeCameraInteractions.getEasyPlaceTraceEntity(
-                    fixture.client, fixture.player)).thenReturn(fixture.player);
+            freeCamera.when(() -> QuickFreeCameraInteractions.getEasyPlaceTraceEntity(fixture.client, fixture.player))
+                    .thenReturn(fixture.player);
             worldUtils.when(() -> WorldUtils.getValidBlockRange(fixture.client)).thenReturn(16.0);
-            rayTrace.when(() -> RayTraceUtils.getGenericTrace(
-                    any(), any(), anyDouble(), anyBoolean(), anyBoolean(), anyBoolean())).thenReturn(null);
+            rayTrace.when(
+                    () -> RayTraceUtils.getGenericTrace(
+                            any(),
+                            any(),
+                            anyDouble(),
+                            anyBoolean(),
+                            anyBoolean(),
+                            anyBoolean()
+                    )
+            ).thenReturn(null);
 
             assertThat(QuickLitematicaEasyPlaceInteractions.shouldAllowVanillaUse(fixture.client)).isFalse();
         }
@@ -89,8 +105,7 @@ class QuickLitematicaEasyPlaceInteractionsTest {
             BlockPos pos = new BlockPos(1, 64, 1);
             setField(client, "player", player);
             setField(client, "world", world);
-            setField(client, "crosshairTarget", new BlockHitResult(
-                    Vec3d.ofCenter(pos), Direction.NORTH, pos, false));
+            setField(client, "crosshairTarget", new BlockHitResult(Vec3d.ofCenter(pos), Direction.NORTH, pos, false));
             when(world.getBlockState(pos)).thenReturn(block.getDefaultState());
             when(player.getMainHandStack()).thenReturn(new ItemStack(Items.AIR));
         }

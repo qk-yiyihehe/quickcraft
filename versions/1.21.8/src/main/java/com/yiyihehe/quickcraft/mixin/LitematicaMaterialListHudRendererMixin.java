@@ -17,18 +17,45 @@ import org.spongepowered.asm.mixin.injection.At;
  */
 @Mixin(value = MaterialListHudRenderer.class, remap = false)
 public class LitematicaMaterialListHudRendererMixin {
-    @WrapOperation(method = "render", at = @At(value = "INVOKE",
-            target = "Lfi/dy/masa/litematica/materials/MaterialListBase;getMaterialsAll()Lcom/google/common/collect/ImmutableList;"))
-    private ImmutableList<MaterialListEntry> quickcraft$targetHudMaterials(MaterialListBase list, Operation<ImmutableList<MaterialListEntry>> original) {
-        return list instanceof QuickLitematicaContainerMaterials.ContainerMaterialRequestSource source
-                ? ImmutableList.copyOf(source.quickcraft$getHudMaterialsAll(true)) : ImmutableList.copyOf(com.yiyihehe.quickcraft.litematica.QuickLitematicaProjectionMaterials.hud(list, false, false, () -> original.call(list)));
+    @WrapOperation(
+            method = "render",
+            at = @At(
+                    value = "INVOKE",
+                    target = "Lfi/dy/masa/litematica/materials/MaterialListBase;getMaterialsAll()Lcom/google/common/collect/ImmutableList;"))
+    private ImmutableList<MaterialListEntry> quickcraft$targetHudMaterials(
+            MaterialListBase list,
+            Operation<ImmutableList<MaterialListEntry>> original
+    ) {
+        return list instanceof QuickLitematicaContainerMaterials.ContainerMaterialRequestSource source ? ImmutableList
+                .copyOf(source.quickcraft$getHudMaterialsAll(true))
+                : ImmutableList.copyOf(
+                        com.yiyihehe.quickcraft.litematica.QuickLitematicaProjectionMaterials.hud(
+                                list,
+                                false,
+                                false,
+                                () -> original.call(list)
+                        )
+                );
     }
 
-    @WrapOperation(method = "render", at = @At(value = "INVOKE",
-            target = "Lfi/dy/masa/litematica/materials/MaterialListBase;getMaterialsMissingOnly(Z)Ljava/util/List;"))
-    private List<MaterialListEntry> quickcraft$targetHudMissing(MaterialListBase list, boolean refresh, Operation<List<MaterialListEntry>> original) {
-        var entries = list instanceof QuickLitematicaContainerMaterials.ContainerMaterialRequestSource source
-                ? source.quickcraft$getHudMaterialsMissing(refresh) : com.yiyihehe.quickcraft.litematica.QuickLitematicaProjectionMaterials.hud(list, true, refresh, () -> original.call(list, refresh));
+    @WrapOperation(
+            method = "render",
+            at = @At(
+                    value = "INVOKE",
+                    target = "Lfi/dy/masa/litematica/materials/MaterialListBase;getMaterialsMissingOnly(Z)Ljava/util/List;"))
+    private List<MaterialListEntry> quickcraft$targetHudMissing(
+            MaterialListBase list,
+            boolean refresh,
+            Operation<List<MaterialListEntry>> original
+    ) {
+        var entries = list instanceof QuickLitematicaContainerMaterials.ContainerMaterialRequestSource source ? source
+                .quickcraft$getHudMaterialsMissing(refresh)
+                : com.yiyihehe.quickcraft.litematica.QuickLitematicaProjectionMaterials.hud(
+                        list,
+                        true,
+                        refresh,
+                        () -> original.call(list, refresh)
+                );
         return com.yiyihehe.quickcraft.litematica.QuickLitematicaEnderChestMaterials.hud(list, entries, refresh);
     }
 

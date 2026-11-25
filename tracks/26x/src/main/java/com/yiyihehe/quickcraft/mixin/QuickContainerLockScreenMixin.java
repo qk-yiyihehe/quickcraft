@@ -17,15 +17,32 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 @Mixin(value = AbstractContainerScreen.class, priority = 1100)
 public abstract class QuickContainerLockScreenMixin {
     @Inject(method = "extractContents", at = @At("HEAD"))
-    private void quickcraft$renderPortableStorage(GuiGraphicsExtractor context, int mouseX, int mouseY, float delta, CallbackInfo ci) {
+    private void quickcraft$renderPortableStorage(
+            GuiGraphicsExtractor context,
+            int mouseX,
+            int mouseY,
+            float delta,
+            CallbackInfo ci
+    ) {
         QuickPortableStoragePanel.render((AbstractContainerScreen<?>) (Object) this, context, mouseX, mouseY, delta);
     }
 
     @Inject(method = "extractContents", at = @At("TAIL"))
-    private void quickcraft$renderSlotLocks(GuiGraphicsExtractor context, int mouseX, int mouseY, float delta, CallbackInfo ci) {
+    private void quickcraft$renderSlotLocks(
+            GuiGraphicsExtractor context,
+            int mouseX,
+            int mouseY,
+            float delta,
+            CallbackInfo ci
+    ) {
         AbstractContainerScreen<?> screen = (AbstractContainerScreen<?>) (Object) this;
         HandledScreenAccessor accessor = (HandledScreenAccessor) this;
         QuickContainerLock.bindCurrentScreen(screen);
-        QuickContainerLock.renderSlotLocks(screen, context, accessor.quickcraft$getGuiLeft(), accessor.quickcraft$getGuiTop());
+        QuickContainerLock.renderSlotLocks(
+                screen,
+                context,
+                accessor.quickcraft$getGuiLeft(),
+                accessor.quickcraft$getGuiTop()
+        );
     }
 }

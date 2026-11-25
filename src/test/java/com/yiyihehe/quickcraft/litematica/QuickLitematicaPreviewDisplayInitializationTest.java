@@ -24,25 +24,39 @@ class QuickLitematicaPreviewDisplayInitializationTest {
         var world = mock(QuickLitematicaPreviewAccess.DummyWorld.class);
         setClientWorld(world);
         when(world.isClient()).thenReturn(true);
-        when(world.getEnabledFeatures()).thenReturn(net.minecraft.resource.featuretoggle.FeatureFlags.DEFAULT_ENABLED_FEATURES);
+        when(world.getEnabledFeatures()).thenReturn(
+                net.minecraft.resource.featuretoggle.FeatureFlags.DEFAULT_ENABLED_FEATURES
+        );
         var registries = net.minecraft.registry.DynamicRegistryManager.of(net.minecraft.registry.Registries.REGISTRIES);
         when(world.getRegistryManager()).thenReturn(registries);
         try {
             // 早期 NBT 解码从 World 的查找入口读取方块注册表，后期改为读取视图。
-            var lookup = world.getClass().getMethod("createCommandRegistryWrapper", net.minecraft.registry.RegistryKey.class);
-            var registryLookup = java.util.Arrays.stream(net.minecraft.registry.DynamicRegistryManager.class.getMethods())
-                    .filter(method -> (method.getName().equals("getWrapperOrThrow") || method.getName().equals("getOrThrow"))
-                            && java.util.Arrays.equals(method.getParameterTypes(), new Class<?>[]{net.minecraft.registry.RegistryKey.class}))
-                    .findFirst().orElseThrow();
-            lookup.invoke(org.mockito.Mockito.doReturn(registryLookup.invoke(registries, net.minecraft.registry.RegistryKeys.BLOCK)).when(world),
-                    net.minecraft.registry.RegistryKeys.BLOCK);
-        } catch (NoSuchMethodException ignored) {
-        } catch (ReflectiveOperationException failure) {
+            var lookup = world.getClass().getMethod(
+                    "createCommandRegistryWrapper",
+                    net.minecraft.registry.RegistryKey.class
+            );
+            var registryLookup = java.util.Arrays.stream(
+                    net.minecraft.registry.DynamicRegistryManager.class.getMethods()
+            ).filter(
+                    method -> (method.getName().equals("getWrapperOrThrow") || method.getName().equals("getOrThrow"))
+                            && java.util.Arrays.equals(
+                                    method.getParameterTypes(),
+                                    new Class<?>[] { net.minecraft.registry.RegistryKey.class }
+                            )
+            ).findFirst().orElseThrow();
+            lookup.invoke(
+                    org.mockito.Mockito.doReturn(
+                            registryLookup.invoke(registries, net.minecraft.registry.RegistryKeys.BLOCK)
+                    ).when(world),
+                    net.minecraft.registry.RegistryKeys.BLOCK
+            );
+        } catch (NoSuchMethodException ignored) {} catch (ReflectiveOperationException failure) {
             throw new AssertionError(failure);
         }
         var client = mock(net.minecraft.client.MinecraftClient.class);
-        when(client.getEntityRenderDispatcher()).thenReturn(mock(
-                net.minecraft.client.render.entity.EntityRenderDispatcher.class));
+        when(client.getEntityRenderDispatcher()).thenReturn(
+                mock(net.minecraft.client.render.entity.EntityRenderDispatcher.class)
+        );
         var nbt = new net.minecraft.nbt.NbtCompound();
         nbt.putString("id", "minecraft:block_display");
         var block = new net.minecraft.nbt.NbtCompound();
@@ -112,8 +126,8 @@ class QuickLitematicaPreviewDisplayInitializationTest {
             throw new AssertionError(exception);
         }
     }
-    private static void setBlockState(DisplayEntity.BlockDisplayEntity display,
-                                      net.minecraft.block.BlockState state) {
+
+    private static void setBlockState(DisplayEntity.BlockDisplayEntity display, net.minecraft.block.BlockState state) {
         try {
             var method = DisplayEntity.BlockDisplayEntity.class.getDeclaredMethod(
                     "setBlockState",

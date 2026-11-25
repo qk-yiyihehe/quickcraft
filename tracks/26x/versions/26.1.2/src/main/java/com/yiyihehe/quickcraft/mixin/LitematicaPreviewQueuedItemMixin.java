@@ -20,24 +20,47 @@ public abstract class LitematicaPreviewQueuedItemMixin {
     }
 
     @Invoker("renderItem")
-    public abstract void quickcraft$renderItem(MultiBufferSource.BufferSource buffers, OutlineBufferSource outline,
-            SubmitNodeStorage.ItemSubmit submit);
+    public abstract void quickcraft$renderItem(
+            MultiBufferSource.BufferSource buffers,
+            OutlineBufferSource outline,
+            SubmitNodeStorage.ItemSubmit submit
+    );
 
     @Inject(method = "renderSolid", at = @At("HEAD"), cancellable = true)
-    private void quickcraft$deferSolid(SubmitNodeCollection collection, MultiBufferSource.BufferSource buffers,
-            OutlineBufferSource outline, CallbackInfo ci) {
-        if (!QuickLitematicaPreviewQueuedBuild.isCapturing(buffers)) return;
+    private void quickcraft$deferSolid(
+            SubmitNodeCollection collection,
+            MultiBufferSource.BufferSource buffers,
+            OutlineBufferSource outline,
+            CallbackInfo ci
+    ) {
+        if (!QuickLitematicaPreviewQueuedBuild.isCapturing(buffers)) {
+            return;
+        }
         if (QuickLitematicaPreviewQueuedBuild.deferList(buffers, collection.getItemSubmits(), submit -> {
-            if (!quickcraft$hasTranslucency(submit)) this.quickcraft$renderItem(buffers, outline, submit);
-        })) ci.cancel();
+            if (!quickcraft$hasTranslucency(submit)) {
+                this.quickcraft$renderItem(buffers, outline, submit);
+            }
+        })) {
+            ci.cancel();
+        }
     }
 
     @Inject(method = "renderTranslucent", at = @At("HEAD"), cancellable = true)
-    private void quickcraft$deferTranslucent(SubmitNodeCollection collection, MultiBufferSource.BufferSource buffers,
-            OutlineBufferSource outline, CallbackInfo ci) {
-        if (!QuickLitematicaPreviewQueuedBuild.isCapturing(buffers)) return;
+    private void quickcraft$deferTranslucent(
+            SubmitNodeCollection collection,
+            MultiBufferSource.BufferSource buffers,
+            OutlineBufferSource outline,
+            CallbackInfo ci
+    ) {
+        if (!QuickLitematicaPreviewQueuedBuild.isCapturing(buffers)) {
+            return;
+        }
         if (QuickLitematicaPreviewQueuedBuild.deferList(buffers, collection.getItemSubmits(), submit -> {
-            if (quickcraft$hasTranslucency(submit)) this.quickcraft$renderItem(buffers, outline, submit);
-        })) ci.cancel();
+            if (quickcraft$hasTranslucency(submit)) {
+                this.quickcraft$renderItem(buffers, outline, submit);
+            }
+        })) {
+            ci.cancel();
+        }
     }
 }

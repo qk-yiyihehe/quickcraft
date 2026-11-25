@@ -21,22 +21,21 @@ class QuickActionButtonPositionTest {
         QuickCraftConfigs.setActionButtonOffset(FIRST_BUTTON, 12, -8);
         QuickCraftConfigs.setActionButtonOffset(SECOND_BUTTON, -3, 21);
 
-        assertEquals(new QuickCraftConfigs.ButtonOffset(12, -8),
-                QuickCraftConfigs.getActionButtonOffset(FIRST_BUTTON));
-        assertEquals(new QuickCraftConfigs.ButtonOffset(-3, 21),
-                QuickCraftConfigs.getActionButtonOffset(SECOND_BUTTON));
+        assertEquals(new QuickCraftConfigs.ButtonOffset(12, -8), QuickCraftConfigs.getActionButtonOffset(FIRST_BUTTON));
+        assertEquals(
+                new QuickCraftConfigs.ButtonOffset(-3, 21),
+                QuickCraftConfigs.getActionButtonOffset(SECOND_BUTTON)
+        );
     }
 
     @Test
     void zeroOffsetAndResetRestoreDefaults() {
         QuickCraftConfigs.setActionButtonOffset(FIRST_BUTTON, 4, 5);
         QuickCraftConfigs.setActionButtonOffset(FIRST_BUTTON, 0, 0);
-        assertEquals(new QuickCraftConfigs.ButtonOffset(0, 0),
-                QuickCraftConfigs.getActionButtonOffset(FIRST_BUTTON));
+        assertEquals(new QuickCraftConfigs.ButtonOffset(0, 0), QuickCraftConfigs.getActionButtonOffset(FIRST_BUTTON));
 
         QuickCraftConfigs.setActionButtonOffset(FIRST_BUTTON, 7, 9);
         QuickCraftConfigs.resetActionButtonOffset(FIRST_BUTTON);
-        assertEquals(new QuickCraftConfigs.ButtonOffset(0, 0),
-                QuickCraftConfigs.getActionButtonOffset(FIRST_BUTTON));
+        assertEquals(new QuickCraftConfigs.ButtonOffset(0, 0), QuickCraftConfigs.getActionButtonOffset(FIRST_BUTTON));
     }
 }

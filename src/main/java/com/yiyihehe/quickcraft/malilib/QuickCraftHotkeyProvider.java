@@ -11,8 +11,7 @@ import fi.dy.masa.malilib.hotkeys.IKeybindProvider;
 public final class QuickCraftHotkeyProvider implements IKeybindProvider {
     private static final QuickCraftHotkeyProvider INSTANCE = new QuickCraftHotkeyProvider();
 
-    private QuickCraftHotkeyProvider() {
-    }
+    private QuickCraftHotkeyProvider() {}
 
     public static QuickCraftHotkeyProvider getInstance() {
         return INSTANCE;

@@ -49,15 +49,19 @@ class QuickCraftWorkbenchShulkerRemainderComponentTest {
         int discarded = fixture.discardGridRemainders();
         assertThat(discarded).isZero();
         assertThat(fixture.handler.getSlot(1).getStack().isOf(Items.BUCKET)).isTrue();
-        verify(fixture.interactionManager, never()).clickSlot(anyInt(), anyInt(), anyInt(),
-                any(SlotActionType.class), any());
+        verify(fixture.interactionManager, never()).clickSlot(
+                anyInt(),
+                anyInt(),
+                anyInt(),
+                any(SlotActionType.class),
+                any()
+        );
 
         fixture.handler.getSlot(1).setStack(new ItemStack(Items.BUCKET));
         int genuine = fixture.discardGridRemainders();
         assertThat(genuine).isEqualTo(1);
         assertThat(fixture.handler.getSlot(1).hasStack()).isFalse();
-        verify(fixture.interactionManager).clickSlot(anyInt(), eq(1), eq(1),
-                eq(SlotActionType.THROW), any());
+        verify(fixture.interactionManager).clickSlot(anyInt(), eq(1), eq(1), eq(SlotActionType.THROW), any());
     }
 
     @Test
@@ -75,8 +79,13 @@ class QuickCraftWorkbenchShulkerRemainderComponentTest {
 
         assertThat(returned).isFalse();
         assertThat(fixture.handler.getSlot(10).getStack().isOf(Items.BUCKET)).isTrue();
-        verify(fixture.interactionManager, never()).clickSlot(anyInt(), anyInt(), anyInt(),
-                any(SlotActionType.class), any());
+        verify(fixture.interactionManager, never()).clickSlot(
+                anyInt(),
+                anyInt(),
+                anyInt(),
+                any(SlotActionType.class),
+                any()
+        );
     }
 
     private static List<ItemStack> remainderPatternOf(net.minecraft.item.Item item) {
@@ -100,11 +109,9 @@ class QuickCraftWorkbenchShulkerRemainderComponentTest {
     private static final class Fixture {
         private final MinecraftClient client = mock(MinecraftClient.class);
         private final ClientPlayerEntity player = mock(ClientPlayerEntity.class);
-        private final ClientPlayerInteractionManager interactionManager =
-                mock(ClientPlayerInteractionManager.class);
+        private final ClientPlayerInteractionManager interactionManager = mock(ClientPlayerInteractionManager.class);
         private final CraftingScreenHandler handler;
-        private final QuickCraftWorkbenchShulkerCraft shulker =
-                new QuickCraftWorkbenchShulkerCraft();
+        private final QuickCraftWorkbenchShulkerCraft shulker = new QuickCraftWorkbenchShulkerCraft();
 
         private Fixture() throws Exception {
             PlayerInventory inventory = newPlayerInventory(player);
@@ -114,22 +121,34 @@ class QuickCraftWorkbenchShulkerRemainderComponentTest {
                     handler.getSlot(invocation.getArgument(1)).setStack(ItemStack.EMPTY);
                 }
                 return null;
-            }).when(interactionManager).clickSlot(anyInt(), anyInt(), anyInt(),
-                    any(SlotActionType.class), any(PlayerEntity.class));
+            }).when(interactionManager).clickSlot(
+                    anyInt(),
+                    anyInt(),
+                    anyInt(),
+                    any(SlotActionType.class),
+                    any(PlayerEntity.class)
+            );
             setField(client, "player", player);
             setField(client, "interactionManager", interactionManager);
         }
 
         private int discardGridRemainders() throws Exception {
             Method method = QuickCraftWorkbenchShulkerCraft.class.getDeclaredMethod(
-                    "discardGridRemainders", MinecraftClient.class, CraftingScreenHandler.class);
+                    "discardGridRemainders",
+                    MinecraftClient.class,
+                    CraftingScreenHandler.class
+            );
             method.setAccessible(true);
             return (Integer) method.invoke(shulker, client, handler);
         }
 
         private boolean returnOutputBox(int sourceSlotId) throws Exception {
             Method method = QuickCraftWorkbenchShulkerCraft.class.getDeclaredMethod(
-                    "returnOutputBox", MinecraftClient.class, CraftingScreenHandler.class, int.class);
+                    "returnOutputBox",
+                    MinecraftClient.class,
+                    CraftingScreenHandler.class,
+                    int.class
+            );
             method.setAccessible(true);
             return (Boolean) method.invoke(shulker, client, handler, sourceSlotId);
         }
@@ -145,14 +164,16 @@ class QuickCraftWorkbenchShulkerRemainderComponentTest {
             if (parameters.length == 1 && parameters[0].isInstance(player)) {
                 return (PlayerInventory) constructor.newInstance(player);
             }
-            if (parameters.length == 2 && parameters[0].isInstance(player)
-                    && parameters[1].getSimpleName().equals("EntityEquipment")) {
+            if (parameters.length == 2 && parameters[0].isInstance(player) && parameters[1].getSimpleName().equals(
+                    "EntityEquipment"
+            )) {
                 Object equipment = parameters[1].getConstructor().newInstance();
                 return (PlayerInventory) constructor.newInstance(player, equipment);
             }
         }
         throw new AssertionError("unsupported PlayerInventory constructor");
     }
+
     private static void setField(Object target, String name, Object value) throws Exception {
         Field field = findField(target.getClass(), name);
         field.setAccessible(true);
@@ -163,8 +184,7 @@ class QuickCraftWorkbenchShulkerRemainderComponentTest {
         for (Class<?> current = type; current != null; current = current.getSuperclass()) {
             try {
                 return current.getDeclaredField(name);
-            } catch (NoSuchFieldException ignored) {
-            }
+            } catch (NoSuchFieldException ignored) {}
         }
         throw new NoSuchFieldException(name);
     }

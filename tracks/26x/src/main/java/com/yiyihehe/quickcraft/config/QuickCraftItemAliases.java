@@ -31,8 +31,7 @@ public final class QuickCraftItemAliases {
     private static final AliasTable TABLE = loadBundledTable();
     private static final Map<String, Map<String, String>> DISPLAY_NAME_INDEXES = new HashMap<>();
 
-    private QuickCraftItemAliases() {
-    }
+    private QuickCraftItemAliases() {}
 
     public static List<String> getDefaultPriorityAliases() {
         return TABLE.getDefaultAliases(currentLanguage());
@@ -64,8 +63,7 @@ public final class QuickCraftItemAliases {
         }
 
         AliasEntry alias = TABLE.aliases().get(value);
-        boolean directId = alias == null
-                && (value.equals(normalize(itemId)) || value.equals(normalize(itemPath)));
+        boolean directId = alias == null && (value.equals(normalize(itemId)) || value.equals(normalize(itemPath)));
         if (directId && explicitEnchantedOnly && !enchanted) {
             return false;
         }
@@ -81,9 +79,8 @@ public final class QuickCraftItemAliases {
         if (enchantedOnly && !enchanted) {
             return false;
         }
-        return targetId.equals(normalize(itemId))
-                || targetId.equals(normalize(itemPath))
-                || (alias == null && targetId.equals(normalize(displayName)));
+        return targetId.equals(normalize(itemId)) || targetId.equals(normalize(itemPath)) || (alias == null && targetId
+                .equals(normalize(displayName)));
     }
 
     private static String resolveDisplayName(String value) {
@@ -201,17 +198,13 @@ public final class QuickCraftItemAliases {
                     Map<String, List<String>> aliasesByLanguage = readAliases(jsonEntry.getAsJsonObject("aliases"));
                     AliasEntry entry = new AliasEntry(
                             itemId,
-                            definition.forcedEnchantedOnly() != null
-                                    ? definition.forcedEnchantedOnly()
+                            definition.forcedEnchantedOnly() != null ? definition.forcedEnchantedOnly()
                                     : jsonEntry.has("enchantedOnly") && jsonEntry.get("enchantedOnly").getAsBoolean(),
                             aliasesByLanguage
                     );
                     entries.add(entry);
-                    aliasesByLanguage.values().stream()
-                            .flatMap(List::stream)
-                            .map(QuickCraftItemAliases::normalize)
-                            .filter(alias -> !alias.isEmpty())
-                            .forEach(alias -> aliases.putIfAbsent(alias, entry));
+                    aliasesByLanguage.values().stream().flatMap(List::stream).map(QuickCraftItemAliases::normalize)
+                            .filter(alias -> !alias.isEmpty()).forEach(alias -> aliases.putIfAbsent(alias, entry));
                 }
 
                 return new AliasTable(List.copyOf(entries), Map.copyOf(aliases));

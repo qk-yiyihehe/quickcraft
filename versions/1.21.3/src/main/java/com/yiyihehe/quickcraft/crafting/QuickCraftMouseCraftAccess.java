@@ -14,8 +14,7 @@ import net.minecraft.world.World;
 import java.util.List;
 
 final class QuickCraftMouseCraftAccess {
-    private QuickCraftMouseCraftAccess() {
-    }
+    private QuickCraftMouseCraftAccess() {}
 
     public static boolean isClientWorld(World world) {
         return world != null && world.isClient;
@@ -41,16 +40,17 @@ final class QuickCraftMouseCraftAccess {
         return false;
     }
 
-    public static RecipeEntry<CraftingRecipe> findCraftingRecipe(MinecraftClient client,
-                                                                 CraftingRecipeInput input,
-                                                                 ItemStack expectedResult) {
+    public static RecipeEntry<CraftingRecipe> findCraftingRecipe(
+            MinecraftClient client,
+            CraftingRecipeInput input,
+            ItemStack expectedResult
+    ) {
         // 1.21.2+ 客户端只收到配方展示，无法取得可核对的 RecipeEntry；
         // 不能把“按默认返还推导”当作真实配方证据，交给调用方安全回收或中止。
         return null;
     }
 
-    public static List<ItemStack> getRecipeRemainders(RecipeEntry<CraftingRecipe> recipe,
-                                                      CraftingRecipeInput input) {
+    public static List<ItemStack> getRecipeRemainders(RecipeEntry<CraftingRecipe> recipe, CraftingRecipeInput input) {
         if (recipe == null || input == null) {
             return null;
         }
@@ -61,12 +61,14 @@ final class QuickCraftMouseCraftAccess {
         }
     }
 
-    public static boolean hasMatchingLockedRecipe(MinecraftClient client,
-                                               ScreenHandler handler,
-                                               RecipeEntry<CraftingRecipe> recipe,
-                                               ItemStack lockedResultTemplate,
-                                               int gridWidth,
-                                               int gridHeight) {
+    public static boolean hasMatchingLockedRecipe(
+            MinecraftClient client,
+            ScreenHandler handler,
+            RecipeEntry<CraftingRecipe> recipe,
+            ItemStack lockedResultTemplate,
+            int gridWidth,
+            int gridHeight
+    ) {
         return QuickCraftClientRecipeMatcher.findUniqueRecipeId(
                 client,
                 handler,
@@ -76,12 +78,14 @@ final class QuickCraftMouseCraftAccess {
         ) != null;
     }
 
-    public static int throwOutput(ClientPlayerInteractionManager interactionManager,
-                                  MinecraftClient client,
-                                  ScreenHandler handler,
-                                  List<ItemStack> pattern,
-                                  int[] gridBeforeOutput,
-                                  Runnable onEachThrow) {
+    public static int throwOutput(
+            ClientPlayerInteractionManager interactionManager,
+            MinecraftClient client,
+            ScreenHandler handler,
+            List<ItemStack> pattern,
+            int[] gridBeforeOutput,
+            Runnable onEachThrow
+    ) {
         interactionManager.clickSlot(
                 handler.syncId,
                 QuickCraftMouseCraftLayout.OUTPUT_SLOT,
@@ -100,7 +104,10 @@ final class QuickCraftMouseCraftAccess {
         return plannedThrows;
     }
 
-    public static boolean isFastOutputDrainAck(QuickCraftMouseCraftAckExecutor.BatchPath path, int batchOutputSlotClicks) {
+    public static boolean isFastOutputDrainAck(
+            QuickCraftMouseCraftAckExecutor.BatchPath path,
+            int batchOutputSlotClicks
+    ) {
         return path == QuickCraftMouseCraftAckExecutor.BatchPath.OUTPUT_DRAIN;
     }
 

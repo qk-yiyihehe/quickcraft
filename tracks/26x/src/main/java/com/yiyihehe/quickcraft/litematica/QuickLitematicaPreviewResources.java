@@ -15,18 +15,23 @@ final class QuickLitematicaPreviewResources {
     private static volatile boolean reloading;
 
     static void initialize() {
-        if (REGISTERED.compareAndSet(false, true)) QuickLitematicaPreviewResourceAccess.register();
+        if (REGISTERED.compareAndSet(false, true)) {
+            QuickLitematicaPreviewResourceAccess.register();
+        }
     }
 
-    static String signature() { return signature; }
+    static String signature() {
+        return signature;
+    }
 
-    static boolean reloading() { return reloading; }
+    static boolean reloading() {
+        return reloading;
+    }
 
     static void prepared() {
         reloading = true;
         QuickLitematicaPreview3D.resourcesReloaded();
     }
-
 
     static String load(Callable<Map<String, Callable<InputStream>>> resources) {
         try {
@@ -47,9 +52,10 @@ final class QuickLitematicaPreviewResources {
     }
 
     static boolean relevant(String path) {
-        return path.endsWith(".json") || path.endsWith(".mcmeta") || path.endsWith(".properties")
-                || path.endsWith(".png") || path.endsWith(".obj") || path.endsWith(".mtl")
-                || path.endsWith(".jem") || path.endsWith(".jpm") || path.endsWith(".bbmodel");
+        return path.endsWith(".json") || path.endsWith(".mcmeta") || path.endsWith(".properties") || path.endsWith(
+                ".png"
+        ) || path.endsWith(".obj") || path.endsWith(".mtl") || path.endsWith(".jem") || path.endsWith(".jpm") || path
+                .endsWith(".bbmodel");
     }
 
     static String hashResources(Map<String, Callable<InputStream>> resources) throws Exception {
@@ -61,10 +67,13 @@ final class QuickLitematicaPreviewResources {
             try (InputStream input = entry.getValue().call()) {
                 // 网格 UV 取决于 sprite 布局/尺寸和动画元数据，像素颜色不改变网格。
                 // 只读 PNG 的完整 IHDR，避免重载时重复解压整份高分辨率纹理。
-                if (entry.getKey().endsWith(".png")) content.update(input.readNBytes(33));
-                else {
+                if (entry.getKey().endsWith(".png")) {
+                    content.update(input.readNBytes(33));
+                } else {
                     int count;
-                    while ((count = input.read(buffer)) != -1) content.update(buffer, 0, count);
+                    while ((count = input.read(buffer)) != -1) {
+                        content.update(buffer, 0, count);
+                    }
                 }
             }
             digest.update(content.digest());

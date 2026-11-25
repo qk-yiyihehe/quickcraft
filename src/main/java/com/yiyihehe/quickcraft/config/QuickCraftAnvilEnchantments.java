@@ -9,7 +9,9 @@ import java.util.Map;
 
 /** 名称来自游戏 lang；配置仍保存 ID，使切换语言后同一份目标继续有效。 */
 public final class QuickCraftAnvilEnchantments {
-    public record Entry(String name, int level) {}
+    public record Entry(String name, int level) {
+    }
+
     private static final String PREFIX = "enchantment.";
     private static final Map<String, String> ENGLISH_NAMES = loadNames();
 
@@ -19,13 +21,24 @@ public final class QuickCraftAnvilEnchantments {
         String value = text.trim();
         int end = value.length();
         int start = end;
-        while (start > 0 && value.charAt(start - 1) >= '0' && value.charAt(start - 1) <= '9') start--;
-        if (start == end || start == 0) throw new IllegalArgumentException("config");
+        while (start > 0 && value.charAt(start - 1) >= '0' && value.charAt(start - 1) <= '9') {
+            start--;
+        }
+        if (start == end || start == 0) {
+            throw new IllegalArgumentException("config");
+        }
         String name = value.substring(0, start).trim();
-        if (name.endsWith("=")) name = name.substring(0, name.length() - 1).trim();
-        if (name.isEmpty() || name.contains("=")) throw new IllegalArgumentException("config");
-        try { return new Entry(name, Integer.parseInt(value.substring(start))); }
-        catch (NumberFormatException invalid) { throw new IllegalArgumentException("config"); }
+        if (name.endsWith("=")) {
+            name = name.substring(0, name.length() - 1).trim();
+        }
+        if (name.isEmpty() || name.contains("=")) {
+            throw new IllegalArgumentException("config");
+        }
+        try {
+            return new Entry(name, Integer.parseInt(value.substring(start)));
+        } catch (NumberFormatException invalid) {
+            throw new IllegalArgumentException("config");
+        }
     }
 
     public static String canonical(String text) {
@@ -41,9 +54,13 @@ public final class QuickCraftAnvilEnchantments {
                     break;
                 }
             }
-            if (name.startsWith("minecraft:")) name = name.substring("minecraft:".length());
+            if (name.startsWith("minecraft:")) {
+                name = name.substring("minecraft:".length());
+            }
             // 旧翻译键 sweeping 与 sweeping_edge 同名，但只有后者是当前注册 ID。
-            if (name.equals("sweeping")) name = "sweeping_edge";
+            if (name.equals("sweeping")) {
+                name = "sweeping_edge";
+            }
             return name + '=' + entry.level;
         } catch (IllegalArgumentException invalid) {
             // 无效输入留在编辑器里供修正，开始规划时统一校验，不能悄悄改成另一条附魔。
@@ -65,7 +82,9 @@ public final class QuickCraftAnvilEnchantments {
 
     private static Map<String, String> loadNames() {
         var stream = QuickCraftAnvilEnchantments.class.getResourceAsStream("/assets/minecraft/lang/en_us.json");
-        if (stream == null) return Map.of();
+        if (stream == null) {
+            return Map.of();
+        }
         try (var reader = new InputStreamReader(stream, StandardCharsets.UTF_8)) {
             Map<String, String> names = new LinkedHashMap<>();
             for (var entry : JsonParser.parseReader(reader).getAsJsonObject().entrySet()) {

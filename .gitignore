@@ -1,4 +1,4 @@
-# gradle
+# Gradle 构建文件
 
 .gradle/
 build/
@@ -7,18 +7,18 @@ classes/
 /quickcraft.paths.properties
 /发布工具/
 
-# eclipse
+# Eclipse 启动配置
 
 *.launch
 
-# idea
+# IntelliJ IDEA 项目文件
 
 .idea/
 *.iml
 *.ipr
 *.iws
 
-# vscode
+# VS Code 及相关项目文件
 
 .settings/
 .vscode/
@@ -26,28 +26,28 @@ bin/
 .classpath
 .project
 
-# macos
+# macOS 目录元数据
 
 *.DS_Store
 
-# fabric
+# Fabric 运行文件
 
 run/
 logs/
 
-# java
+# Java 诊断文件
 
 hs_err_*.log
 replay_*.log
 *.hprof
 *.jfr
 
-# internal testing notes
+# 内部测试记录
 /VERSIONING.md
 /测试记录模板.md
 /测试项目索引.md
 /项目深度测试清单.md
 
-# local AI instructions
+# 本地 AI 指令
 /.agents/skills/quickcraft-dev-workflow/
 /AGENTS.md

@@ -7,8 +7,7 @@ import java.util.List;
 
 /** 26.3 的 Bundle API 访问：使用无参构造器和新的副本遍历方法。 */
 final class QuickCreativePackingBundleAccess {
-    private QuickCreativePackingBundleAccess() {
-    }
+    private QuickCreativePackingBundleAccess() {}
 
     static BundleContents.Mutable newBuilder() {
         return new BundleContents.Mutable();

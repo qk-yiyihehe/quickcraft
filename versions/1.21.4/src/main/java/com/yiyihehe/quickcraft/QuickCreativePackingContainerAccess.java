@@ -12,8 +12,7 @@ import java.util.List;
 
 /** 1.21.4+ 的容器物品写入 API：使用 Container 数据组件保存槽位内容。 */
 final class QuickCreativePackingContainerAccess {
-    private QuickCreativePackingContainerAccess() {
-    }
+    private QuickCreativePackingContainerAccess() {}
 
     static ItemStack fill(
             MinecraftClient client,

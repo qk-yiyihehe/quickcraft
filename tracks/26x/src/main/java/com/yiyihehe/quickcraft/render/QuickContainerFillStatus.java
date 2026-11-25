@@ -28,7 +28,7 @@ import net.minecraft.world.phys.Vec3;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
-/** Keeps short-lived world markers for container copy and projection fill results. */
+/** 短暂保留容器复制和投影填充结果的世界内标记。 */
 public final class QuickContainerFillStatus {
     private static final int TICKS_PER_SECOND = 20;
     private static final int MAX_MARKERS = 24;
@@ -38,15 +38,16 @@ public final class QuickContainerFillStatus {
     private static ClientLevel markerWorld;
     private static long tick;
 
-    private QuickContainerFillStatus() {
-    }
+    private QuickContainerFillStatus() {}
 
     public static void initialize() {
         ClientTickEvents.END_CLIENT_TICK.register(QuickContainerFillStatus::onClientTick);
         LevelRenderEvents.BEFORE_GIZMOS.register(QuickContainerFillStatus::renderWorld);
-        HudElementRegistry.attachElementAfter(VanillaHudElements.CROSSHAIR,
+        HudElementRegistry.attachElementAfter(
+                VanillaHudElements.CROSSHAIR,
                 Identifier.fromNamespaceAndPath("quickcraft", "container_fill_status"),
-                (graphics, tickCounter) -> renderHud(graphics));
+                (graphics, tickCounter) -> renderHud(graphics)
+        );
     }
 
     public static Handle begin(Minecraft client, HitResult hitResult) {
@@ -147,7 +148,8 @@ public final class QuickContainerFillStatus {
 
     private static void onClientTick(Minecraft client) {
         tick++;
-        if (client.level != markerWorld || client.player == null || !QuickCraftConfigs.areContainerFillStatusOutlinesVisible()) {
+        if (client.level != markerWorld || client.player == null || !QuickCraftConfigs
+                .areContainerFillStatusOutlinesVisible()) {
             MARKERS.clear();
             markerWorld = client.level;
             return;
@@ -156,10 +158,8 @@ public final class QuickContainerFillStatus {
     }
 
     private static boolean isAvailable(Minecraft client) {
-        return client != null
-                && client.level != null
-                && client.player != null
-                && QuickCraftConfigs.areContainerFillStatusOutlinesVisible();
+        return client != null && client.level != null && client.player != null && QuickCraftConfigs
+                .areContainerFillStatusOutlinesVisible();
     }
 
     private static void renderWorld(LevelRenderContext context) {
@@ -170,10 +170,11 @@ public final class QuickContainerFillStatus {
         Vec3 camera = context.levelState().cameraRenderState.pos;
         QuickContainerFillStatusAccess.renderWorld(context, client, camera, MARKERS, MAX_RENDER_DISTANCE_SQUARED);
     }
+
     private static void renderHud(GuiGraphicsExtractor graphics) {
         Minecraft client = Minecraft.getInstance();
-        if (!isAvailable(client) || QuickClientScreenAccess.currentScreen(client) != null
-                || QuickClientScreenAccess.isHudHidden(client)) {
+        if (!isAvailable(client) || QuickClientScreenAccess.currentScreen(client) != null || QuickClientScreenAccess
+                .isHudHidden(client)) {
             return;
         }
         Marker marker = markerAt(client.level, client.hitResult);
@@ -181,9 +182,10 @@ public final class QuickContainerFillStatus {
             return;
         }
         Component label = switch (marker.status) {
-            case FILLING -> marker.pendingIssues > 0
-                    ? Component.translatable("quickcraft.container_fill_status.progress", marker.pendingIssues)
-                    : Component.translatable("quickcraft.container_fill_status.filling");
+            case FILLING -> marker.pendingIssues > 0 ? Component.translatable(
+                    "quickcraft.container_fill_status.progress",
+                    marker.pendingIssues
+            ) : Component.translatable("quickcraft.container_fill_status.filling");
             case COMPLETE -> Component.translatable("quickcraft.container_fill_status.complete");
             case PARTIAL -> Component.translatable("quickcraft.container_fill_status.partial", marker.pendingIssues);
             case STOPPED -> Component.translatable("quickcraft.container_fill_status.stopped");
@@ -213,14 +215,13 @@ public final class QuickContainerFillStatus {
             if (hitResult instanceof BlockHitResult blockHitResult) {
                 BlockPos pos = blockHitResult.getBlockPos();
                 BlockState state = world.getBlockState(pos);
-                if (state.getBlock() instanceof ChestBlock
-                        && state.getValue(ChestBlock.TYPE) != ChestType.SINGLE) {
+                if (state.getBlock() instanceof ChestBlock && state.getValue(ChestBlock.TYPE) != ChestType.SINGLE) {
                     BlockPos neighborPos = ChestBlock.getConnectedBlockPos(pos, state);
                     BlockState neighbor = world.getBlockState(neighborPos);
-                    if (neighbor.getBlock() == state.getBlock()
-                            && neighbor.getValue(ChestBlock.FACING) == state.getValue(ChestBlock.FACING)
-                            && neighbor.getValue(ChestBlock.TYPE) == state.getValue(ChestBlock.TYPE).getOpposite()
-                            && neighborPos.asLong() < pos.asLong()) {
+                    if (neighbor.getBlock() == state.getBlock() && neighbor.getValue(ChestBlock.FACING) == state
+                            .getValue(ChestBlock.FACING) && neighbor.getValue(ChestBlock.TYPE) == state.getValue(
+                                    ChestBlock.TYPE
+                            ).getOpposite() && neighborPos.asLong() < pos.asLong()) {
                         pos = neighborPos;
                     }
                 }
@@ -234,8 +235,8 @@ public final class QuickContainerFillStatus {
 
         AABB box(ClientLevel world) {
             if (barrelPair != null) {
-                return barrelPair.equals(QuickLargeBarrel.findPair(world, blockPos))
-                        ? new AABB(barrelPair.first()).minmax(new AABB(barrelPair.second())) : null;
+                return barrelPair.equals(QuickLargeBarrel.findPair(world, blockPos)) ? new AABB(barrelPair.first())
+                        .minmax(new AABB(barrelPair.second())) : null;
             }
             if (blockPos != null) {
                 BlockState state = world.getBlockState(blockPos);
@@ -243,13 +244,13 @@ public final class QuickContainerFillStatus {
                     return null;
                 }
                 AABB box = new AABB(blockPos);
-                if (state.getBlock() instanceof ChestBlock
-                        && state.getValue(ChestBlock.TYPE) != ChestType.SINGLE) {
+                if (state.getBlock() instanceof ChestBlock && state.getValue(ChestBlock.TYPE) != ChestType.SINGLE) {
                     BlockPos neighborPos = ChestBlock.getConnectedBlockPos(blockPos, state);
                     BlockState neighbor = world.getBlockState(neighborPos);
-                    if (neighbor.getBlock() == state.getBlock()
-                            && neighbor.getValue(ChestBlock.FACING) == state.getValue(ChestBlock.FACING)
-                            && neighbor.getValue(ChestBlock.TYPE) == state.getValue(ChestBlock.TYPE).getOpposite()) {
+                    if (neighbor.getBlock() == state.getBlock() && neighbor.getValue(ChestBlock.FACING) == state
+                            .getValue(ChestBlock.FACING) && neighbor.getValue(ChestBlock.TYPE) == state.getValue(
+                                    ChestBlock.TYPE
+                            ).getOpposite()) {
                         box = box.minmax(new AABB(neighborPos));
                     }
                 }
@@ -273,11 +274,8 @@ public final class QuickContainerFillStatus {
     }
 
     enum Status {
-        FILLING(0.20F, 0.65F, 1.00F, 0xFF55B5FF),
-        COMPLETE(0.30F, 0.95F, 0.35F, 0xFF76EE88),
-        PARTIAL(1.00F, 0.75F, 0.15F, 0xFFFFD05E),
-        STOPPED(0.65F, 0.70F, 0.75F, 0xFFB3BEC9),
-        FAILED(1.00F, 0.30F, 0.30F, 0xFFFF7777);
+        FILLING(0.20F, 0.65F, 1.00F, 0xFF55B5FF), COMPLETE(0.30F, 0.95F, 0.35F, 0xFF76EE88), PARTIAL(1.00F, 0.75F,
+                0.15F, 0xFFFFD05E), STOPPED(0.65F, 0.70F, 0.75F, 0xFFB3BEC9), FAILED(1.00F, 0.30F, 0.30F, 0xFFFF7777);
 
         final float red;
         final float green;
